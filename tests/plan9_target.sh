@@ -2,6 +2,8 @@
 set -eu
 
 ziran=${1:?pass the ziran command}
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+zi2c="${ziran%/*}/zi2c"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -55,7 +57,93 @@ if rg -n 'plan9-c' "$work/generated"/*.c "$work/generated"/*.h; then
     exit 1
 fi
 
-zi2c="${ziran%/*}/zi2c"
+cat > "$work/src/vec_main.zi" <<'EOF'
+#import "vec"
+Location :: (location: Source_Code_Location = #caller_location) -> Source_Code_Location { return location }
+#program_export
+VecMain :: () -> s32 {
+    values: Vec(s32)
+    if !VecPush(values, 42) { VecFree(values); return 1 }
+    if Location().line_number <= 0 { VecFree(values); return 2 }
+    answer := values[0]
+    VecFree(values)
+    return answer
+}
+EOF
+
+"$ziran" build --target=plan9-c --root "$work/src" --module-path "$repo/std" \
+    -o "$work/generated-vec" "$work/src/vec_main.zi"
+if rg -n '^#include <(stdint|stddef|stdbool|stdlib)\.h>' \
+        "$work/generated-vec"/*.c "$work/generated-vec"/*.h; then
+    echo 'plan9-c vector output retained hosted C headers' >&2
+    exit 1
+fi
+if rg -n 'zir_vec\.h|zir_string\.h|zir_bounds\.h' \
+        "$work/generated-vec"/*.c "$work/generated-vec"/*.h; then
+    echo 'plan9-c vector output retained hosted runtime headers' >&2
+    exit 1
+fi
+rg -q 'ZirVecReserve' "$work/generated-vec/zir_plan9_runtime.h"
+# Compile the Plan 9 dialect with a minimal fake libc. This checks emitted C
+# syntax and runtime semantics when no Plan 9 host compiler is installed.
+mkdir "$work/plan9-include"
+cat > "$work/plan9-include/u.h" <<'EOF'
+#ifndef FAKE_U_H
+#define FAKE_U_H
+typedef signed char schar;
+typedef unsigned char uchar;
+typedef short ushort;
+typedef unsigned int uint;
+typedef long long vlong;
+typedef unsigned long long uvlong;
+typedef unsigned long usize;
+#endif
+EOF
+cat > "$work/plan9-include/libc.h" <<'EOF'
+#ifndef FAKE_LIBC_H
+#define FAKE_LIBC_H
+extern void *realloc(void *, unsigned long);
+extern void free(void *);
+extern void *memmove(void *, const void *, unsigned long);
+extern void *memset(void *, int, unsigned long);
+extern int memcmp(const void *, const void *, unsigned long);
+extern int fprint(int, const char *, ...);
+extern void abort(void);
+#endif
+EOF
+cat > "$work/plan9-runner.c" <<'EOF'
+#include <stdarg.h>
+#include <stdio.h>
+#include <unistd.h>
+int VecMain(void);
+int fprint(int fd, const char *format, ...) {
+    char buffer[512];
+    va_list args;
+    va_start(args, format);
+    int count = vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    return count < 0 ? count : (int)write(fd, buffer, (unsigned long)count);
+}
+int main(void) {
+    int result = VecMain();
+    printf("%d\n", result);
+    return result == 42 ? 0 : 1;
+}
+EOF
+"${CC:-cc}" -std=c11 -I"$work/plan9-include" \
+    -I"$work/generated-vec" "$work/generated-vec"/*.c \
+    "$work/plan9-runner.c" -o "$work/plan9-runner"
+test "$("$work/plan9-runner")" = 42
+
+"$zi2c" --target=plan9-c --root "$work/src" --module-path "$repo/std" \
+    -o "$work/direct-vec" "$work/src/vec_main.zi"
+for output in vec vec_main; do
+    cmp "$work/generated-vec/$output.c" "$work/direct-vec/$output.c"
+    cmp "$work/generated-vec/$output.h" "$work/direct-vec/$output.h"
+done
+cmp "$work/generated-vec/zir_plan9_runtime.h" \
+    "$work/direct-vec/zir_plan9_runtime.h"
+
 "$zi2c" --target=plan9-c --root "$work/src" \
     -o "$work/direct" "$work/src/main.zi"
 cmp "$work/generated/main.c" "$work/direct/main.c"

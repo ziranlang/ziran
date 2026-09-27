@@ -20,14 +20,18 @@ contains 206 samples across 50 cases on one machine. A second
 adds 160 samples for collection growth and scanning. Both are workload-specific
 smoke checks, not a general speed ranking.
 
-Recent differential tests aligned narrow integer shifts, narrowing casts,
-and floating division between native and portable execution. Cleanup and one
-emitter path now use structured diagnostics. All four execution paths move and
-recursively drop vectors owned by records and fixed arrays, preventing the
-reproduced record-copy double-free case, and the checker rejects repeated moves
-within an expression. Global `TextView` storage now tracks its backing-global
-origin and rejects cross-function mutation through direct and chained global
-aliases. These fixes do not complete the ownership or diagnostic contracts.
+Recent differential tests align integer shifts and casts, signed and unsigned
+wraparound, minimum-integer division and remainder, floating zero division,
+NaN and infinity behavior, and matching compile-time folding between native
+and portable execution. Cleanup and one emitter path now use structured
+diagnostics. All four execution paths move and recursively drop vectors owned
+by records and fixed arrays, preventing the reproduced record-copy double-free
+case, and the checker rejects repeated moves within an expression. Global
+`TextView` storage now tracks its backing-global origin and rejects
+cross-function mutation through direct and chained global aliases. Local view
+mutation is field-sensitive: sibling record fields remain writable while the
+actual borrowed field, array element storage, and whole aggregate are
+protected. These fixes do not complete the ownership or diagnostic contracts.
 
 ## Priority 1: one safe meaning across targets
 
@@ -49,17 +53,19 @@ aliases. These fixes do not complete the ownership or diagnostic contracts.
    nested in returned records. View-bearing globals track the global storage
    they alias and reject local-to-global escapes plus cross-function mutation
    through direct and chained global aliases; this rule is intentionally
-   program-lifetime and currently supports 64 globals. Views through local
-   address-taking pointers protect both their pointee and pointer aliases.
+   program-lifetime and scales to the number of globals in the program. Local
+   mutation checks are field-sensitive, and views through local address-taking
+   pointers protect both their pointee and pointer aliases.
    Unknown heap pointers and other unmodeled mutable aliases still need a
    complete lifetime model; reject escapes that cannot be proved safe. Host
    boundaries remain untracked.
-3. **Numerical edge cases.** Expand differential tests beyond the corrected
-   8/16-bit shifts and floating zero division: signed overflow, minimum
-   integer divided by minus one, all cast widths, negative and oversized
-   shifts, NaN comparisons, infinities, and compile-time evaluation. Record
-   the specified trap or value for each operation. A saved-IR path must agree
-   with source before the result is called portable.
+3. **Numerical contract coverage.** The current differential matrix covers
+   signed and unsigned wraparound, minimum signed integer division and
+   remainder, all eight integer cast widths, rejected negative or oversized
+   shifts, NaN comparisons, infinities, floating zero division, and matching
+   compile-time folding for those boundaries. Convert the outcomes into
+   conformance-test IDs and extend the matrix to operators and mixed-width
+   combinations that are not yet represented.
 4. **Target boundaries.** Give checked programs an explicit target capability
    error for unavailable FFI, pointer, union, host, or GPU behavior. Replace
    remaining textual declaration/import lowering with typed IR. A CPU fallback

@@ -25,17 +25,19 @@ unreachable. An aggregate move source must be a whole local binding or fresh
 call result, and its destination must be a simple local. A record literal can
 initialize a vector-bearing field from a local vector or fresh call result;
 using that source again is rejected. A direct or
-record-held `TextView` rejects mutation of its local backing binding until the
+record-held `TextView` rejects mutation of its local backing place until the
 view leaves scope, including views returned by checked calls and views nested
-in their result records. A view-bearing global conservatively keeps its global
-backing aliases for the rest of the program: assignment from local or
-parameter-backed storage is rejected, and mutation of a tracked backing global
-is rejected in any function. A view reached through a local pointer created
+in their result records. The check is field-sensitive: sibling record fields
+remain writable, while the borrowed field, its array storage, and whole
+aggregate replacement are rejected. A view-bearing global conservatively keeps
+its global backing aliases for the rest of the program: assignment from local
+or parameter-backed storage is rejected, and mutation of a tracked backing
+global is rejected in any function. A view reached through a local pointer created
 with Jai `*value` protects its pointee binding and pointer aliases while live.
 Views reached through unknown heap pointers or host boundaries remain
-unmodeled. The current origin summary tracks at most 64 globals. The rest of
-this page describes the intended contract, not a guarantee that every case is
-enforced today.
+unmodeled. The current origin summary tracks every global in the program. The
+rest of this page describes the intended contract, not a guarantee that every
+case is enforced today.
 
 A fresh `Vec` call result used as a whole expression statement is dropped
 immediately. A result used for member or index access must first be bound to a

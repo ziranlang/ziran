@@ -5,13 +5,18 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
-- Source and saved-IR portable runs use the declared width for `s8`, `u8`,
-  `s16`, and `u16` conversions and shifts. Shifting by a negative count or by
-  the operand's bit width or more fails at execution on every target. Runtime
-  `float32` and `float64` division can produce infinity or NaN on native and
-  portable targets; converting a nonfinite float to an integer remains an
-  error. `tests/numeric_semantics.sh` checks these boundaries from source and
-  saved IR on C, C++, Go, and `.zib`.
+- Source and saved-IR portable runs use the declared width for integer
+  conversions between all eight `s8`, `u8`, `s16`, `u16`, `s32`, `u32`,
+  `s64`, and `u64` forms. Signed overflow and unsigned wraparound follow the
+  operand width, the minimum signed integer divided by `-1` wraps to itself,
+  and its remainder is zero. Shifting by a negative count or by the operand's
+  bit width or more fails at execution on every target. Runtime `float32` and
+  `float64` division can produce infinity or NaN on native and portable
+  targets; NaN comparisons and infinities retain floating semantics, while
+  converting a nonfinite float to an integer remains an error. Compile-time
+  casts and arithmetic fold the tested boundaries with the same width rules.
+  `tests/numeric_semantics.sh` checks these cases from source and saved IR on
+  C, C++, Go, and `.zib`.
 - Jai `using record: Type` parameters and local declarations, plus `using
   record;` and nested paths such as `using entity.position;` in a procedure
   body, promote record fields into lexical lookup. Explicit local bindings
@@ -518,11 +523,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   checked calls, so returning a record containing a `TextView` of a local
   byte array is rejected; `tests/aggregate_view_lifetime.sh` covers literal,
   nested, array-field, assigned-field, and call-result escapes. The mutation
-  gate follows local bindings, fields, aliases, checked-call results, and
-  record-return aliases. View-bearing globals retain their global-backing
-  origin across functions and alias chains: local-backed views cannot escape
-  into global storage, and mutation of a tracked backing global is rejected in
-  any function. This summary currently supports 64 globals. A view through a
+  gate follows local bindings, field paths, aliases, checked-call results,
+  and record-return aliases. It permits writes to sibling record fields while
+  protecting the borrowed field, its array storage, and whole-aggregate
+  replacement. View-bearing globals retain their global-backing origin across
+  functions and alias chains: local-backed views cannot escape into global
+  storage, and mutation of a tracked backing global is rejected in any
+  function; tracking scales to the program's global count. A view through a
   local `*value` pointer tracks its pointee and rejects mutation through either
   the original binding or the pointer while live. Unknown heap-pointer and
   host-backed origins still need a complete cross-target contract.
@@ -715,8 +722,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Complete ownership edge cases: unknown heap and host-backed view aliases,
   moving individual nested fields, and reclaimable storage detached by
   `BuilderFinish`.
-- Finish numerical edge-case agreement, JSON diagnostic fields, the versioned
-  feature registry, and cross-target capability reporting.
+- Version numerical outcomes as conformance-test IDs, probe untested operator
+  and mixed-width combinations, complete JSON diagnostic fields, the feature
+  registry, and cross-target capability reporting.
 - Complete native backend parity, FFI capability checks, law coverage, Plan 9
   target-aware lowering, and downstream application gates, then make the
   planned single breaking cutover. See [Migration](MIGRATION.md).

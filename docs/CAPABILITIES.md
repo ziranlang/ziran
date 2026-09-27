@@ -21,22 +21,24 @@ and `serial` for Go and the portable VM. It does not promise a parallel result
 reduction. `gpu_execution` is `cpu_fallback` for every target: there is no
 device backend. `text_view_mutable_bytes` reports the current observable
 divergence when backing bytes are mutated after making a view: native C/C++
-borrow those bytes, while Go and `.zib` copy them. Checking rejects direct
-mutation of local backing storage while a direct, field-held, aliased, or
-checked-call-produced view is live. Global views track their backing-global
-origins and alias chains, and views through local `*value` pointers protect
-their pointee and pointer aliases. Unknown heap and host-backed aliases are
-not yet covered; portable code should avoid those mutations.
+borrow those bytes, while Go and `.zib` copy them. Checking rejects mutation
+of local backing storage while a direct, field-held, aliased, or
+checked-call-produced view is live. Field-sensitive checks protect the
+borrowed field or array while allowing sibling record fields to change. Global
+views track their backing-global origins and alias chains, and views through
+local `*value` pointers protect their pointee and pointer aliases. Unknown
+heap and host-backed aliases are not yet covered; portable code should avoid
+those mutations.
 
 `automatic_vec_drop` is `true` for every target: direct owned `Vec` locals
 and parameters are released at scope exit or return, as are vectors reachable
 through record fields and fixed arrays. Global storage remains shared and is
 not automatically released.
 `text_view_local_mutation_check` is `true` for every target: checking rejects
-direct mutation of local backing storage while a direct, field-held, aliased,
-or checked-call-produced `TextView` is live. Global backing origins and
-local `*value` pointer aliases are included; unknown heap and host-backed
-aliases are outside this field.
+mutation of local backing storage while a direct, field-held, aliased, or
+checked-call-produced `TextView` is live. Checks are field-sensitive, include
+global backing origins and local `*value` pointer aliases, and exclude unknown
+heap and host-backed aliases.
 `aggregate_vec_transfer` is `true`: whole local aggregates, fresh aggregate
 call results, and vector-bearing record-literal fields can move through
 assignment, argument passing, and return, with native targets recursively

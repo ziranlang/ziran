@@ -49,9 +49,11 @@ aliases. These fixes do not complete the ownership or diagnostic contracts.
    nested in returned records. View-bearing globals track the global storage
    they alias and reject local-to-global escapes plus cross-function mutation
    through direct and chained global aliases; this rule is intentionally
-   program-lifetime and currently supports 64 globals. Pointer-derived views
-   and other unmodeled mutable aliases still need a complete lifetime model;
-   reject escapes that cannot be proved safe. Host boundaries remain untracked.
+   program-lifetime and currently supports 64 globals. Views through local
+   address-taking pointers protect both their pointee and pointer aliases.
+   Unknown heap pointers and other unmodeled mutable aliases still need a
+   complete lifetime model; reject escapes that cannot be proved safe. Host
+   boundaries remain untracked.
 3. **Numerical edge cases.** Expand differential tests beyond the corrected
    8/16-bit shifts and floating zero division: signed overflow, minimum
    integer divided by minus one, all cast widths, negative and oversized

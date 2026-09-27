@@ -29,10 +29,12 @@ view leaves scope, including views returned by checked calls and views nested
 in their result records. A view-bearing global conservatively keeps its global
 backing aliases for the rest of the program: assignment from local or
 parameter-backed storage is rejected, and mutation of a tracked backing global
-is rejected in any function. Pointer-derived views and other unmodeled aliases
-are not covered. The current origin summary tracks at most 64 globals. The rest
-of this page describes the intended contract, not a guarantee that every case
-is enforced today.
+is rejected in any function. A view reached through a local pointer created
+with Jai `*value` protects its pointee binding and pointer aliases while live.
+Views reached through unknown heap pointers or host boundaries remain
+unmodeled. The current origin summary tracks at most 64 globals. The rest of
+this page describes the intended contract, not a guarantee that every case is
+enforced today.
 
 A fresh `Vec` call result used as a whole expression statement is dropped
 immediately. A result used for member or index access must first be bound to a

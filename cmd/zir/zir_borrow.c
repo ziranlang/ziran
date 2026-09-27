@@ -33,6 +33,8 @@ typedef struct BorrowBinding {
     int global_index;
     int text_borrow_count;
     struct BorrowBinding *text_backing;
+    struct BorrowBinding *address_backing;
+    int address_known;
 } BorrowBinding;
 
 typedef struct ActiveTextBorrow {
@@ -88,6 +90,17 @@ reject(BorrowCheck *check, ZirSourceSpan span, const char *message)
     if(!check->failed)
         Diagnostic(span, "check.slice_lifetime", "%s", message);
     check->failed = 1;
+}
+
+static int
+text_backing_conflict(BorrowBinding *backing)
+{
+    for(int depth = 0; backing != NULL && depth < 64; depth++) {
+        if(backing->text_borrow_count != 0)
+            return 1;
+        backing = backing->address_backing;
+    }
+    return 0;
 }
 
 static void
@@ -184,6 +197,30 @@ destination_root(const ZirFunction *fn, int index)
 
 static Origin expression_origin(BorrowCheck *check, int index);
 
+static BorrowBinding *backing_identifier(BorrowCheck *check, int index);
+
+static BorrowBinding *
+address_backing(BorrowCheck *check, int index, int *known)
+{
+    *known = 0;
+    if(index < 0)
+        return NULL;
+    const ZirExpr *expression = &check->current->fn->exprs[index];
+    if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "&")) {
+        BorrowBinding *backing = backing_identifier(check, expression->right);
+        *known = backing != NULL &&
+            (backing->type[0] != '*' || backing->address_known);
+        return backing;
+    }
+    if(expression->kind != ZIR_EXPR_IDENT)
+        return NULL;
+    BorrowBinding *source = binding(check, expression->name);
+    if(source == NULL || source->type[0] != '*')
+        return NULL;
+    *known = source->address_known;
+    return source->address_backing != NULL ? source->address_backing : source;
+}
+
 static BorrowBinding *
 backing_identifier(BorrowCheck *check, int index)
 {
@@ -211,7 +248,15 @@ text_view_backing(BorrowCheck *check, int index)
         return NULL;
     if(expression->kind == ZIR_EXPR_IDENT) {
         BorrowBinding *source = binding(check, expression->name);
-        return source == NULL ? NULL : source->text_backing;
+        if(source == NULL)
+            return NULL;
+        if(source->address_known && source->address_backing != NULL)
+            return source->address_backing;
+        if(source->text_backing != NULL)
+            return source->text_backing;
+        if(source->address_backing != NULL && source->address_backing->local < 0)
+            return source->address_backing;
+        return source->local < 0 ? source : NULL;
     }
     if(expression->kind == ZIR_EXPR_MEMBER ||
        expression->kind == ZIR_EXPR_POINTER_MEMBER ||
@@ -310,6 +355,15 @@ expression_origin(BorrowCheck *check, int index)
             if(source != NULL && source->local < 0 &&
                source->origin.depth == 1 && !source->origin.invalid)
                 return source->origin;
+            if(source != NULL && source->address_known &&
+               source->address_backing != NULL) {
+                Origin pointee = {0};
+                pointee.depth = source->depth;
+                if(source->address_backing->global_index >= 0)
+                    pointee.globals = UINT64_C(1) <<
+                        source->address_backing->global_index;
+                return pointee;
+            }
             Origin unknown = {0};
             unknown.unknown = 1;
             return unknown;
@@ -480,7 +534,7 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                         break;
                     }
             if(backing != NULL &&
-               (backing->text_borrow_count != 0 || global_alias))
+               (text_backing_conflict(backing) || global_alias))
                 reject(check, statement->span,
                        "mutating text backing storage while its view is live");
         }
@@ -502,11 +556,23 @@ check_function(BorrowCheck *check, BorrowFunction *function)
             BorrowBinding *declared = add_binding(check, statement->name,
                     statement->type, (Origin){0}, i, check->depth, 0);
             declared->text_backing = text_view_backing(check, statement->expr_root);
+            declared->address_backing = statement->type[0] == '*' ?
+                address_backing(check, statement->expr_root,
+                                &declared->address_known) : NULL;
             if(view_type(check, statement->type))
                 add_active_text_borrow(check, declared->text_backing,
                                        check->depth);
         } else if(statement->kind == ZIR_STMT_ASSIGN && statement->lhs_root >= 0) {
             const ZirExpr *destination = &fn->exprs[statement->lhs_root];
+            const ZirExpr *assignment_root =
+                destination_root(fn, statement->lhs_root);
+            BorrowBinding *assignment_target =
+                assignment_root == NULL ? NULL :
+                binding(check, assignment_root->name);
+            if(destination->type[0] == '*' && assignment_target != NULL)
+                assignment_target->address_backing =
+                    address_backing(check, statement->expr_root,
+                                    &assignment_target->address_known);
             if(view_type(check, destination->type)) {
                 const ZirExpr *root = destination_root(fn, statement->lhs_root);
                 BorrowBinding *target = root == NULL ? NULL : binding(check, root->name);

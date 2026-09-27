@@ -522,8 +522,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   record-return aliases. View-bearing globals retain their global-backing
   origin across functions and alias chains: local-backed views cannot escape
   into global storage, and mutation of a tracked backing global is rejected in
-  any function. This summary currently supports 64 globals. Pointer-derived
-  origins still need one complete cross-target contract.
+  any function. This summary currently supports 64 globals. A view through a
+  local `*value` pointer tracks its pointee and rejects mutation through either
+  the original binding or the pointer while live. Unknown heap-pointer and
+  host-backed origins still need a complete cross-target contract.
   `make check` compares source and saved-IR bundles with C, C++, and Go on a
   string program and rejects out-of-range indexing.
 - Portable bundles retain referenced module globals, including records and
@@ -709,9 +711,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Extend the `.zib` linker and verifier to all checked expressions and native
   features, including complete host capability coverage. The current bundle
   embeds checked `.zir` and follows direct calls, but it remains a subset.
-- Complete ownership edge cases: mutable pointer-derived and global view
-  aliases, moving individual nested fields, vector-bearing record-literal
-  fields, and reclaimable storage detached by `BuilderFinish`.
+- Complete ownership edge cases: unknown heap and host-backed view aliases,
+  moving individual nested fields, vector-bearing record-literal fields, and
+  reclaimable storage detached by `BuilderFinish`.
 - Finish numerical edge-case agreement, JSON diagnostic fields, the versioned
   feature registry, and cross-target capability reporting.
 - Complete native backend parity, FFI capability checks, law coverage, Plan 9

@@ -23,9 +23,10 @@ device backend. `text_view_mutable_bytes` reports the current observable
 divergence when backing bytes are mutated after making a view: native C/C++
 borrow those bytes, while Go and `.zib` copy them. Checking rejects direct
 mutation of local backing storage while a direct, field-held, aliased, or
-checked-call-produced view is live; pointer-derived views, globals, and
-unmodeled aliases are not yet covered. Portable code should avoid those
-mutations until the rule is complete.
+checked-call-produced view is live. Global views track their backing-global
+origins and alias chains, and views through local `*value` pointers protect
+their pointee and pointer aliases. Unknown heap and host-backed aliases are
+not yet covered; portable code should avoid those mutations.
 
 `automatic_vec_drop` is `true` for every target: direct owned `Vec` locals
 and parameters are released at scope exit or return, as are vectors reachable
@@ -33,8 +34,9 @@ through record fields and fixed arrays. Global storage remains shared and is
 not automatically released.
 `text_view_local_mutation_check` is `true` for every target: checking rejects
 direct mutation of local backing storage while a direct, field-held, aliased,
-or checked-call-produced `TextView` is live. Pointer-derived views, globals,
-and unmodeled aliases are outside this field.
+or checked-call-produced `TextView` is live. Global backing origins and
+local `*value` pointer aliases are included; unknown heap and host-backed
+aliases are outside this field.
 `aggregate_vec_transfer` is `true`: whole local aggregates and fresh aggregate
 call results can move through assignment, argument passing, and return, with
 native targets recursively clearing every moved vector field. `diagnostics_json` is `partial` because some compiler paths

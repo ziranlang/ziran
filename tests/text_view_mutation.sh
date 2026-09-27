@@ -48,6 +48,42 @@ Good :: () -> s32 {
 }
 ZI
 
+cat > "$work/pointer_direct.zi" <<'ZI'
+Node :: struct { values: [1]u8; }
+Bad :: () -> s32 {
+    node: Node
+    pointer := *node
+    text := TextView(pointer.values[:])
+    node.values[0] = cast(u8)98
+    return cast(s32)text[0]
+}
+ZI
+
+cat > "$work/pointer_alias.zi" <<'ZI'
+Node :: struct { values: [1]u8; }
+Bad :: () -> s32 {
+    node: Node
+    pointer := *node
+    text := TextView(pointer.values[:])
+    pointer.values[0] = cast(u8)98
+    return cast(s32)text[0]
+}
+ZI
+
+cat > "$work/pointer_scope.zi" <<'ZI'
+Node :: struct { values: [1]u8; }
+Good :: () -> s32 {
+    node: Node
+    pointer := *node
+    {
+        text := TextView(pointer.values[:])
+    }
+    node.values[0] = cast(u8)98
+    pointer.values[0] += cast(u8)1
+    return cast(s32)node.values[0]
+}
+ZI
+
 cat > "$work/call_alias.zi" <<'ZI'
 Alias :: (bytes: []u8) -> string { return TextView(bytes[:]) }
 Bad :: () -> s32 {
@@ -69,7 +105,7 @@ Bad :: () -> s32 {
 }
 ZI
 
-for name in direct field nested call_alias record_return; do
+for name in direct field nested pointer_direct pointer_alias call_alias record_return; do
     if "$ziran" check --diagnostics=json --root "$work" \
         "$work/$name.zi" > "$work/$name.out" 2> "$work/$name.err"; then
         echo "$name accepted mutation of live text backing storage" >&2
@@ -91,5 +127,6 @@ for target in c cpp go; do
 done
 
 "$ziran" check --root "$work" "$work/scope.zi"
+"$ziran" check --root "$work" "$work/pointer_scope.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/scope.zi"
 "$ziran" check --root "$work/ir" "$work/ir/scope.zir"

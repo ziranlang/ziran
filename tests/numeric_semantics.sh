@@ -7,6 +7,17 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/numeric.zi" <<'ZI'
+COMPILE_MIN_WORD :: #run cast(s32)(-2147483647 - 1) / cast(s32)(-1);
+COMPILE_MIN_LONG :: #run cast(s64)(-9223372036854775807 - 1) / cast(s64)(-1);
+COMPILE_WRAPPED_BYTE :: #run cast(s8)(cast(u8)200);
+COMPILE_WRAPPED_ADD :: #run cast(u8)200 + cast(u8)100;
+COMPILE_SIGNED_ADD :: #run cast(s8)127 + cast(s8)1;
+#assert COMPILE_MIN_WORD == cast(s32)(-2147483647 - 1)
+#assert COMPILE_MIN_LONG == cast(s64)(-9223372036854775807 - 1)
+#assert COMPILE_WRAPPED_BYTE == cast(s8)(-56)
+#assert COMPILE_WRAPPED_ADD == cast(u8)44
+#assert COMPILE_SIGNED_ADD == cast(s8)(-128)
+
 #program_export
 Answer :: () -> s32 {
     byte: u8 = cast(u8)1

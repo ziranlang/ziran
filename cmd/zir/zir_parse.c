@@ -2896,6 +2896,10 @@ eval_unary(ZirEval *ev)
     }
     if(*ev->p == '-') {
         long value;
+        if(strncmp(ev->p + 1, "9223372036854775808", 19) == 0) {
+            ev->p += 20;
+            return LONG_MIN;
+        }
         ev->p++;
         value = eval_unary(ev);
         if(value == LONG_MIN) { ev->known = 0; return 0; }
@@ -2912,7 +2916,7 @@ static int
 checked_add_long(long left, long right, long *result)
 {
     if((right > 0 && left > LONG_MAX - right) ||
-       (right < 0 && left < LONG_MIN - right))
+       (right < 0 && left < LONG_MIN + right))
         return 0;
     *result = left + right;
     return 1;
@@ -2960,10 +2964,11 @@ eval_mul(ZirEval *ev)
         op = *ev->p++;
         left_known = ev->known;
         right = eval_unary(ev);
-        if(!left_known || !ev->known || (right == 0 && op != '*') ||
-           (left == LONG_MIN && right == -1 && op != '*')) {
+        if(!left_known || !ev->known || (right == 0 && op != '*')) {
             ev->known = 0;
             left = 0;
+        } else if(left == LONG_MIN && right == -1) {
+            left = op == '*' || op == '/' ? LONG_MIN : 0;
         } else if(op == '*') {
             if(!checked_mul_long(left, right, &left)) {
                 ev->known = 0;
@@ -3232,8 +3237,10 @@ static int
 compile_type_value(const char *type, CompileValue *value)
 {
     if(eval_integer_type(type, 0))
-        return value->kind == COMPILE_INTEGER &&
-               eval_integer_type(type, value->integer);
+        if(value->kind != COMPILE_INTEGER ||
+           !eval_integer_type(type, value->integer)) return 0;
+        copy_text(value->type, sizeof(value->type), type);
+        return compile_value_literal(value);
     if(!strcmp(type, "float32") || !strcmp(type, "float64")) {
         if(value->kind == COMPILE_INTEGER) {
             value->real = (double)value->integer;
@@ -3242,6 +3249,7 @@ compile_type_value(const char *type, CompileValue *value)
         if(value->kind != COMPILE_REAL) return 0;
         if(!strcmp(type, "float32"))
             value->real = (float)value->real;
+        copy_text(value->type, sizeof(value->type), type);
         return isfinite(value->real) && compile_value_literal(value);
     }
     if(!strcmp(type, "string")) return value->kind == COMPILE_STRING;
@@ -3250,6 +3258,18 @@ compile_type_value(const char *type, CompileValue *value)
     return 0;
 }
 
+static int
+wrap_compile_integer(const char *type, long *value)
+{
+    if(!strcmp(type, "s8")) *value = (int8_t)*value;
+    else if(!strcmp(type, "u8")) *value = (uint8_t)*value;
+    else if(!strcmp(type, "s16")) *value = (int16_t)*value;
+    else if(!strcmp(type, "u16")) *value = (uint16_t)*value;
+    else if(!strcmp(type, "s32")) *value = (int32_t)*value;
+    else if(!strcmp(type, "u32")) *value = (uint32_t)*value;
+    else return !strcmp(type, "s64");
+    return 1;
+}
 
 static int
 compile_values_equal(const CompileValue *left, const CompileValue *right,
@@ -3577,7 +3597,14 @@ evaluate_typed_node(const ZirFunction *probe, int index,
         result->integer = (long)size;
         return compile_value_literal(result);
     }
-    case ZIR_EXPR_UNARY:
+    case ZIR_EXPR_UNARY: {
+        const ZirExpr *operand = &probe->exprs[expression->right];
+        if(!strcmp(expression->op, "-") && operand->kind == ZIR_EXPR_INT &&
+           !strcmp(operand->text, "9223372036854775808")) {
+            result->kind = COMPILE_INTEGER;
+            result->integer = LONG_MIN;
+            return compile_value_literal(result);
+        }
         if(!evaluate_typed_node(probe, expression->right, module, path,
                                 depth + 1, fuel, &right)) return 0;
         if(!strcmp(expression->op, "!")) {
@@ -3598,6 +3625,7 @@ evaluate_typed_node(const ZirFunction *probe, int index,
             result->integer = ~right.integer;
         } else return 0;
         return compile_value_literal(result);
+    }
     case ZIR_EXPR_BINARY: {
         const char *op = expression->op;
         if(!evaluate_typed_node(probe, expression->left, module, path,
@@ -3649,10 +3677,10 @@ evaluate_typed_node(const ZirFunction *probe, int index,
                 if(!checked_sub_long(x, y, &folded)) return 0;
             } else if(!strcmp(op, "*")) {
                 if(!checked_mul_long(x, y, &folded)) return 0;
-            } else if(!strcmp(op, "/") && y != 0 &&
-                      !(x == LONG_MIN && y == -1)) folded = x / y;
-            else if(!strcmp(op, "%") && y != 0 &&
-                    !(x == LONG_MIN && y == -1)) folded = x % y;
+            } else if(!strcmp(op, "/") && y != 0)
+                folded = x == LONG_MIN && y == -1 ? x : x / y;
+            else if(!strcmp(op, "%") && y != 0)
+                folded = x == LONG_MIN && y == -1 ? 0 : x % y;
             else if(!strcmp(op, "&")) folded = x & y;
             else if(!strcmp(op, "|")) folded = x | y;
             else if(!strcmp(op, "^")) folded = x ^ y;
@@ -3664,6 +3692,8 @@ evaluate_typed_node(const ZirFunction *probe, int index,
             else return 0;
             result->kind = COMPILE_INTEGER;
             result->integer = folded;
+            if(wrap_compile_integer(left.type, &result->integer))
+                copy_text(result->type, sizeof(result->type), left.type);
             return compile_value_literal(result);
         }
         result->kind = COMPILE_REAL;
@@ -3721,13 +3751,15 @@ evaluate_typed_node(const ZirFunction *probe, int index,
     case ZIR_EXPR_CAST:
         if(!evaluate_typed_node(probe, expression->right, module, path,
                                 depth + 1, fuel, result)) return 0;
+        if(result->kind == COMPILE_INTEGER &&
+           wrap_compile_integer(expression->name, &result->integer))
+            copy_text(result->type, sizeof(result->type), expression->name);
         if(eval_integer_type(expression->name, 0) &&
            result->kind == COMPILE_REAL) {
             if(result->real < (double)LONG_MIN ||
                result->real >= -(double)LONG_MIN) return 0;
             result->integer = (long)result->real;
             result->kind = COMPILE_INTEGER;
-            compile_value_literal(result);
         }
         return compile_type_value(expression->name, result);
     case ZIR_EXPR_CONDITIONAL:

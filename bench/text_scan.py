@@ -98,7 +98,7 @@ def versions():
              'go': ['go', 'version'],
              'rustc': ['rustc', '--version'], 'javac': ['javac', '-version'],
              'java': ['java', '-version'], 'node': ['node', '--version'],
-             'python': ['python3', '--version']}
+             'python': ['python3', '--version'], '9c': ['9c']}
     result = {}
     for name, command in tools.items():
         if not shutil.which(command[0]):
@@ -298,8 +298,62 @@ print(total)
 ''')
 
 
+def output_hashes(directory):
+    return {str(path.relative_to(directory)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(directory.glob('*.[ch]')) if path.is_file()}
+
+
+def write_plan9_compat(directory, entry):
+    directory.mkdir()
+    (directory / 'u.h').write_text("""#ifndef FAKE_U_H
+#define FAKE_U_H
+typedef signed char schar;
+typedef unsigned char uchar;
+typedef short ushort;
+typedef unsigned int uint;
+typedef long long vlong;
+typedef unsigned long long uvlong;
+typedef unsigned long usize;
+#endif
+""")
+    (directory / 'libc.h').write_text("""#ifndef FAKE_LIBC_H
+#define FAKE_LIBC_H
+extern void *realloc(void *, unsigned long);
+extern void free(void *);
+extern void *memmove(void *, const void *, unsigned long);
+extern void *memcpy(void *, const void *, unsigned long);
+extern void *memset(void *, int, unsigned long);
+extern int memcmp(const void *, const void *, unsigned long);
+extern int fprint(int, const char *, ...);
+extern void abort(void);
+#endif
+""")
+    (directory / 'runner.c').write_text(f"""#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+int {entry}(long long);
+int fprint(int fd, const char *format, ...) {{
+    char buffer[512];
+    va_list args;
+    va_start(args, format);
+    int count = vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    return count < 0 ? count :
+        (int)write(fd, buffer, (unsigned long)count);
+}}
+int main(int argc, char **argv) {{
+    if (argc != 2) return 2;
+    long long value = strtoll(argv[1], NULL, 10);
+    printf("%lld\\n", (long long){entry}(value));
+    return 0;
+}}
+""")
+
+
 def main():
-    required = [BIN / name for name in ['zi2zir', 'zi2c', 'zi2cpp', 'zi2go', 'zi2zib']]
+    required = [BIN / name for name in ['ziran', 'zi2zir', 'zi2c',
+                                          'zi2cpp', 'zi2go', 'zi2zib']]
     missing = [str(path) for path in required if not path.is_file()]
     missing += [name for name in ['gcc', 'g++', 'go'] if not shutil.which(name)]
     if missing:
@@ -325,7 +379,9 @@ def main():
                          'Ziran, C, and C++ use explicit UTF-8 decoders; Go, Rust, Java, JavaScript, and Python use their native codepoint iteration.',
                          'No CPU isolation; medians are not regression thresholds.',
                          'VM large run omitted because its instruction budget is too small.',
-                         'RSS from wait4 includes launcher accounting and is omitted from the table.'],
+                         'RSS from wait4 includes launcher accounting and is omitted from the table.',
+                         'Plan 9 C emission includes checking, target lowering, and the post-pass in one process; compare it with direct C emission rather than interpreting the difference as an isolated post-pass cost.',
+                         'Plan 9 dialect execution is compiled by host GCC against a minimal fake Plan 9 libc when no Plan 9 compiler is installed; it validates output and dialect shape but is not Plan 9 hardware performance.'],
                 unsupported=[])
     root_args = ['--root', FIX, '--module-path', ROOT / 'std']
     repeated([BIN / 'zi2zir', '--check-only', *root_args, ZI],
@@ -375,6 +431,36 @@ def main():
         equality[target] = generated['source'] == generated['saved']
         if not equality[target]:
             raise AssertionError(f'{target} source and saved IR emission differ')
+    plan9_generated = {}
+    plan9_direct_equal = {}
+    plan9_compat = OUT / 'plan9-include'
+    write_plan9_compat(plan9_compat, 'Kernel')
+    for kind, root, source in [('source', FIX, ZI), ('saved', IR, SAVED)]:
+        output = OUT / f'plan9-{kind}'
+        repeated([BIN / 'ziran', 'build', '--target=plan9-c',
+                  '--root', root, '--module-path', ROOT / 'std',
+                  '--entry', 'text_scan:Kernel', '-o', output, source],
+                 'ziran', f'{kind} to plan9-c (dispatcher)')
+        direct = OUT / f'plan9-direct-{kind}'
+        repeated([BIN / 'zi2c', '--target=plan9-c',
+                  '--root', root, '--module-path', ROOT / 'std',
+                  '--entry', 'text_scan:Kernel', '-o', direct, source],
+                 'ziran', f'{kind} to plan9-c (direct)')
+        plan9_generated[kind] = output_hashes(output)
+        plan9_direct_equal[kind] = output_hashes(output) == output_hashes(direct)
+        if not plan9_direct_equal[kind]:
+            raise AssertionError(f'plan9-c {kind} dispatcher and direct output differ')
+        build = ['gcc', '-std=c11', '-O2', '-I', plan9_compat, '-I', output,
+                 *sorted(output.glob('*.c')), plan9_compat / 'runner.c',
+                 '-o', output / 'app', '-lm']
+        repeated(build, 'fake Plan 9 compile',
+                 f'ziran plan9-c ({kind})')
+        runtime[f'ziran plan9-c dialect ({kind})'] = [output / 'app']
+    equality['plan9-c'] = plan9_generated['source'] == plan9_generated['saved']
+    if not equality['plan9-c']:
+        raise AssertionError('plan9-c source and saved IR emission differ')
+    if not shutil.which('9c'):
+        meta['unsupported'].append('Plan 9 native execution: 9c unavailable')
     for kind, root, source in [('source', FIX, ZI), ('saved', IR, SAVED)]:
         repeated([BIN / 'zi2zib', 'bundle', '--root', root,
                   '--module-path', ROOT / 'std', '--entry', 'text_scan:Answer',
@@ -432,6 +518,11 @@ def main():
         print(f'run rounds={size}: {len(cases)} implementations x '
               f'{args.run_repetitions}', flush=True)
     meta['generated_source_equality'] = equality
+    meta['plan9_dispatcher_direct_equality'] = plan9_direct_equal
+    meta['plan9_post_pass_measurement'] = {
+        'method': 'compare direct C and direct plan9-c whole-process emission',
+        'isolated': False,
+    }
     meta['source_saved_bundle_identical'] = True
     meta['source_hashes_unchanged_during_measurement'] = before == source_hashes()
     meta['fixture_hashes'] = {str(p.relative_to(OUT)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -442,6 +533,13 @@ def main():
             directory = OUT / f'{target}-{kind}'
             products.extend(directory.glob(f'*.{extension}'))
             products.append(directory / 'app')
+    for prefix in ['plan9', 'plan9-direct']:
+        for kind in ['source', 'saved']:
+            directory = OUT / f'{prefix}-{kind}'
+            products.extend(directory.glob('*.c'))
+            products.extend(directory.glob('*.h'))
+            if (directory / 'app').is_file():
+                products.append(directory / 'app')
     products += [FIX / 'hand-c', FIX / 'hand-cpp', FIX / 'hand-go']
     if 'hand Rust' in comparisons:
         products.append(FIX / 'hand-rust')

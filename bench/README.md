@@ -78,8 +78,13 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/text_scan.py
 
 The text has 10 bytes and 4 Unicode scalar values; every runtime sample must
 return `148921 * rounds`. The harness compares Ziran source and saved IR to
-C, C++, Go, and `.zib`, plus handwritten C, C++, Go, Rust, Java, JavaScript,
-and Python when installed. It validates generated-source and bundle equality
-and records unavailable tools rather than estimating them. The
+C, C++, Go, Plan 9 C, and `.zib`, plus handwritten C, C++, Go, Rust, Java,
+JavaScript, and Python when installed. It validates generated-source and
+bundle equality, compares canonical Plan 9 dispatcher output with direct
+`zi2c --target=plan9-c`, and records unavailable tools rather than estimating
+them. When no Plan 9 compiler is installed, the harness still compiles the
+emitted Plan 9 dialect with host GCC against a minimal fake Plan 9 libc and
+marks those runtime samples as dialect validation rather than Plan 9 hardware
+performance. The
 [committed-head result](results/2026-09-27-text-scan-multilang/README.md)
 contains 206 validated samples across 50 phase/case combinations.

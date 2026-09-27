@@ -115,7 +115,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     if project && !PkgHasArgument(arguments, "--root") {
         child[count] = "--root"
         count += 1
-        child[count] = PkgJoin(root, "/src")
+        child[count] = PkgJoin3(root, "/", current.roots[0])
         count += 1
     }
     has_source: bool = false

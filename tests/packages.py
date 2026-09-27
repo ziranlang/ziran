@@ -122,6 +122,22 @@ ref = "master"
         call(ziran, "add", "example/library", cwd=add_app, env=add_env)
         assert '[dependencies.library]' in (add_app / "ziran.toml").read_text()
         call(ziran, "check", "--project", cwd=add_app, env=add_env)
+
+        # A package whose modules live at its root checks from that root.
+        flat_app = root / "flat-app"
+        flat_app.mkdir()
+        write(flat_app / "ziran.toml", f'''[package]
+name = "Flat"
+module_roots = ["."]
+[toolchain]
+git = "{compiler.as_uri()}"
+ref = "master"
+''')
+        write(flat_app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        write(flat_app / "helper.zi", "Helper :: () -> s32 { return 0 }\n")
+        write(flat_app / "flat.zi", '#import "helper"\nFlat :: () -> s32 { return Helper() }\n')
+        call(ziran, "lock", cwd=flat_app, env=env)
+        call(ziran, "check", "--project", "flat.zi", cwd=flat_app, env=env)
         base_manifest = f'''[package]
 name = "App"
 entry = "src/app.zi"

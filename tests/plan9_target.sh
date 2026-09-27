@@ -62,6 +62,80 @@ if rg -n 'plan9-c' "$work/generated"/*.c "$work/generated"/*.h; then
     exit 1
 fi
 
+mkdir -p "$work/plan9-include"
+cat > "$work/plan9-include/u.h" <<'EOF'
+#ifndef FAKE_U_H
+#define FAKE_U_H
+typedef signed char schar;
+typedef unsigned char uchar;
+typedef short ushort;
+typedef unsigned int uint;
+typedef long long vlong;
+typedef unsigned long long uvlong;
+typedef unsigned long usize;
+#endif
+EOF
+cat > "$work/plan9-include/libc.h" <<'EOF'
+#ifndef FAKE_LIBC_H
+#define FAKE_LIBC_H
+extern void *realloc(void *, unsigned long);
+extern void free(void *);
+extern void *memmove(void *, const void *, unsigned long);
+extern void *memcpy(void *, const void *, unsigned long);
+extern void *memset(void *, int, unsigned long);
+extern int memcmp(const void *, const void *, unsigned long);
+extern int fprint(int, const char *, ...);
+extern int snprint(char *, int, const char *, ...);
+extern void exits(const char *);
+extern void abort(void);
+#endif
+EOF
+
+cat > "$work/src/status_main.zi" <<'EOF'
+#program_export
+main :: () -> s32 { return 42 }
+EOF
+
+"$ziran" build --target=plan9-c --root "$work/src" \
+    -o "$work/generated-status" "$work/src/status_main.zi"
+rg -q '^int32_t ziran_plan9_main\(void\);$' \
+    "$work/generated-status/status_main.h"
+rg -q '^void main\(void\);$' "$work/generated-status/status_main.h"
+cat > "$work/fake-plan9-exits.c" <<'EOF'
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+int fprint(int fd, const char *format, ...) {
+    char buffer[512];
+    va_list arguments;
+    int result;
+    va_start(arguments, format);
+    result = vsnprintf(buffer, sizeof(buffer), format, arguments);
+    va_end(arguments);
+    return result < 0 ? result :
+        (int)write(fd, buffer, (unsigned long)result);
+}
+int snprint(char *buffer, int size, const char *format, ...) {
+    va_list arguments;
+    int result;
+    va_start(arguments, format);
+    result = vsnprintf(buffer, (size_t)size, format, arguments);
+    va_end(arguments);
+    return result;
+}
+void exits(const char *status) {
+    if(status == NULL || strcmp(status, "42") == 0)
+        exit(0);
+    exit(1);
+}
+EOF
+"${CC:-cc}" -std=c11 -I"$work/plan9-include" \
+    -I"$work/generated-status" "$work/generated-status"/*.c \
+    "$work/fake-plan9-exits.c" -o "$work/plan9-status-runner"
+"$work/plan9-status-runner"
+
 cat > "$work/src/vec_main.zi" <<'EOF'
 #import "vec"
 Location :: (location: Source_Code_Location = #caller_location) -> Source_Code_Location { return location }
@@ -89,33 +163,12 @@ if rg -n 'zir_vec\.h|zir_string\.h|zir_bounds\.h' \
     exit 1
 fi
 rg -q 'ZirVecReserve' "$work/generated-vec/zir_plan9_runtime.h"
+if rg -q '^void main\(void\);$' "$work/generated-vec"/*.h; then
+    echo 'plan9-c wrapped a non-main export as main' >&2
+    exit 1
+fi
 # Compile the Plan 9 dialect with a minimal fake libc. This checks emitted C
 # syntax and runtime semantics when no Plan 9 host compiler is installed.
-mkdir "$work/plan9-include"
-cat > "$work/plan9-include/u.h" <<'EOF'
-#ifndef FAKE_U_H
-#define FAKE_U_H
-typedef signed char schar;
-typedef unsigned char uchar;
-typedef short ushort;
-typedef unsigned int uint;
-typedef long long vlong;
-typedef unsigned long long uvlong;
-typedef unsigned long usize;
-#endif
-EOF
-cat > "$work/plan9-include/libc.h" <<'EOF'
-#ifndef FAKE_LIBC_H
-#define FAKE_LIBC_H
-extern void *realloc(void *, unsigned long);
-extern void free(void *);
-extern void *memmove(void *, const void *, unsigned long);
-extern void *memset(void *, int, unsigned long);
-extern int memcmp(const void *, const void *, unsigned long);
-extern int fprint(int, const char *, ...);
-extern void abort(void);
-#endif
-EOF
 cat > "$work/plan9-runner.c" <<'EOF'
 #include <stdarg.h>
 #include <stdio.h>

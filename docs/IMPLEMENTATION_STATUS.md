@@ -666,10 +666,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `zi2c --target=plan9-c` accepts it directly. The shared C output is followed
   by a Plan 9-safe post-pass and native runtime header. The runtime supplies
   Plan 9 scalar, string, bounds, and vector helpers instead of hosted C headers;
-  the capability contract marks it experimental, 386-only, and serial.
-  `tests/plan9_target.sh` checks dispatcher/direct-tool equality, loop scoping,
-  vector/string output, and executes the dialect through a minimal fake Plan 9
-  libc when no Plan 9 compiler is installed.
+  the capability contract marks it experimental, 386-only, and serial. An
+  exported `main` becomes `ziran_plan9_main` and a Plan 9 `void main` wrapper
+  passes its status to `exits`. `tests/plan9_target.sh` checks
+  dispatcher/direct-tool equality, loop scoping, vector/string output, status
+  propagation, and executes the dialect through a minimal fake Plan 9 libc
+  when no Plan 9 compiler is installed.
 - `ziran explain` exposes a stable registry for every diagnostic code currently
   emitted by the compiler, with textual and JSON output. `ziran explain --list`
   enumerates the registry, and `tests/explain.sh` fails if a new emitted code is

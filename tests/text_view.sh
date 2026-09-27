@@ -123,6 +123,43 @@ fi
 rg -q 'mutating text backing storage while its view is live' \
     "$work/global-mutation.log"
 
+cat > "$work/global_fields.zi" <<'ZI'
+State :: struct { bytes: [3]u8; status: s32; }
+state: State;
+global_text: string;
+global_alias: string;
+
+Install :: () {
+    global_text = TextView(state.bytes[:])
+    global_alias = global_text
+}
+Safe :: () {
+    state.status = 1
+}
+ZI
+"$ziran" ir --root "$work" -o "$work/global-fields-ir" \
+    "$work/global_fields.zi"
+
+cat > "$work/global_field_mutation.zi" <<'ZI'
+State :: struct { bytes: [3]u8; status: s32; }
+state: State;
+global_text: string;
+
+Install :: () {
+    global_text = TextView(state.bytes[:])
+}
+Bad :: () {
+    state.bytes[0] = 120
+}
+ZI
+if "$ziran" ir --root "$work" -o "$work/global-field-mutation-ir" \
+    "$work/global_field_mutation.zi" > "$work/global-field-mutation.log" 2>&1; then
+    echo 'TextView allowed mutation of a borrowed global field' >&2
+    exit 1
+fi
+rg -q 'mutating text backing storage while its view is live' \
+    "$work/global-field-mutation.log"
+
 cat > "$work/global_alias_mutation.zi" <<'ZI'
 global_bytes: [3]u8 = .[97, 98, 99];
 global_text: string;

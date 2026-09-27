@@ -84,6 +84,46 @@ Good :: () -> s32 {
 }
 ZI
 
+cat > "$work/sibling_field.zi" <<'ZI'
+Node :: struct { values: [1]u8; result: s32; }
+Good :: () -> s32 {
+    node: Node
+    text := TextView(node.values[:])
+    node.result = 7
+    return node.result + cast(s32)text[0]
+}
+ZI
+
+cat > "$work/pointer_sibling_field.zi" <<'ZI'
+Node :: struct { values: [1]u8; result: s32; }
+Good :: () -> s32 {
+    node: Node
+    pointer := *node
+    text := TextView(pointer.values[:])
+    pointer.result = 7
+    node.result = 8
+    return node.result + cast(s32)text[0]
+}
+ZI
+
+cat > "$work/view_reassignment.zi" <<'ZI'
+Good :: (body: string) -> s64 {
+    body = body[1:body.count]
+    body = body[1:body.count]
+    return body.count
+}
+ZI
+
+cat > "$work/enclosing_record.zi" <<'ZI'
+Node :: struct { values: [1]u8; result: s32; }
+Bad :: () -> s32 {
+    node: Node
+    text := TextView(node.values[:])
+    node = Node.{}
+    return cast(s32)text[0]
+}
+ZI
+
 cat > "$work/call_alias.zi" <<'ZI'
 Alias :: (bytes: []u8) -> string { return TextView(bytes[:]) }
 Bad :: () -> s32 {
@@ -105,7 +145,7 @@ Bad :: () -> s32 {
 }
 ZI
 
-for name in direct field nested pointer_direct pointer_alias call_alias record_return; do
+for name in direct field nested pointer_direct pointer_alias call_alias record_return enclosing_record; do
     if "$ziran" check --diagnostics=json --root "$work" \
         "$work/$name.zi" > "$work/$name.out" 2> "$work/$name.err"; then
         echo "$name accepted mutation of live text backing storage" >&2
@@ -128,5 +168,8 @@ done
 
 "$ziran" check --root "$work" "$work/scope.zi"
 "$ziran" check --root "$work" "$work/pointer_scope.zi"
+"$ziran" check --root "$work" "$work/sibling_field.zi"
+"$ziran" check --root "$work" "$work/pointer_sibling_field.zi"
+"$ziran" check --root "$work" "$work/view_reassignment.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/scope.zi"
 "$ziran" check --root "$work/ir" "$work/ir/scope.zir"

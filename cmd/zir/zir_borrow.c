@@ -28,6 +28,7 @@ typedef struct BorrowBinding {
     int depth;
     int captured;
     int text_borrow_count;
+    struct BorrowBinding *text_backing;
 } BorrowBinding;
 
 typedef struct ActiveTextBorrow {
@@ -182,12 +183,59 @@ text_view_backing(BorrowCheck *check, int index)
 {
     const ZirFunction *fn = check->current->fn;
     const ZirExpr *expression = index < 0 ? NULL : &fn->exprs[index];
-    if(expression == NULL || expression->kind != ZIR_EXPR_CALL ||
-       strcmp(expression->name, "TextView") != 0 ||
-       expression->first_child < 0 ||
-       fn->exprs[expression->first_child].next_sibling >= 0)
+    if(expression == NULL)
         return NULL;
-    return backing_identifier(check, expression->first_child);
+    if(expression->kind == ZIR_EXPR_IDENT) {
+        BorrowBinding *source = binding(check, expression->name);
+        return source == NULL ? NULL : source->text_backing;
+    }
+    if(expression->kind == ZIR_EXPR_MEMBER ||
+       expression->kind == ZIR_EXPR_POINTER_MEMBER ||
+       expression->kind == ZIR_EXPR_INDEX ||
+       expression->kind == ZIR_EXPR_SLICE) {
+        BorrowBinding *source = text_view_backing(check, expression->left);
+        if(source != NULL)
+            return source;
+        return backing_identifier(check, index);
+    }
+    if(expression->kind != ZIR_EXPR_CALL)
+        return NULL;
+    if(!strcmp(expression->name, "TextView") ||
+       !strcmp(expression->name, "VecSlice")) {
+        if(expression->first_child < 0 ||
+           fn->exprs[expression->first_child].next_sibling >= 0)
+            return NULL;
+        return text_view_backing(check, expression->first_child);
+    }
+    if(!strcmp(expression->name, "BuilderFinish") ||
+       !view_type(check, expression->type))
+        return NULL;
+
+    const ZirModule *owner = NULL;
+    const ZirFunction *callee = NULL;
+    if(ResolveFunction(check->current->module, expression->name,
+                       &owner, &callee) <= 0)
+        return NULL;
+    BorrowFunction *summary = NULL;
+    for(int i = 0; i < check->count; i++)
+        if(check->functions[i].fn == callee)
+            summary = &check->functions[i];
+    if(summary == NULL)
+        return NULL;
+    BorrowBinding *result = NULL;
+    for(int child = expression->first_child; child >= 0;
+        child = fn->exprs[child].next_sibling) {
+        int parameter = fn->exprs[child].argument_index;
+        if(parameter < 0 || parameter >= 64 ||
+           !(summary->returned.parameters & (UINT64_C(1) << parameter)))
+            continue;
+        BorrowBinding *candidate = text_view_backing(check, child);
+        if(candidate == NULL)
+            candidate = backing_identifier(check, child);
+        if(candidate != NULL && result == NULL)
+            result = candidate;
+    }
+    return result;
 }
 
 static Origin
@@ -319,7 +367,7 @@ check_ranges(BorrowCheck *check, int index)
         check_ranges(check, child);
 }
 
-static void
+static BorrowBinding *
 add_binding(BorrowCheck *check, const char *name, const char *type,
             Origin origin, int local, int depth, int captured)
 {
@@ -330,6 +378,7 @@ add_binding(BorrowCheck *check, const char *name, const char *type,
     item->local = local;
     item->depth = depth;
     item->captured = captured;
+    return item;
 }
 
 static void
@@ -406,11 +455,11 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                            "slice initializer outlives its backing storage" :
                            "view initializer outlives its backing storage");
             }
-            add_binding(check, statement->name, statement->type, (Origin){0}, i,
-                        check->depth, 0);
+            BorrowBinding *declared = add_binding(check, statement->name,
+                    statement->type, (Origin){0}, i, check->depth, 0);
+            declared->text_backing = text_view_backing(check, statement->expr_root);
             if(!strcmp(statement->type, "string"))
-                add_active_text_borrow(check,
-                                       text_view_backing(check, statement->expr_root),
+                add_active_text_borrow(check, declared->text_backing,
                                        check->depth);
         } else if(statement->kind == ZIR_STMT_ASSIGN && statement->lhs_root >= 0) {
             const ZirExpr *destination = &fn->exprs[statement->lhs_root];

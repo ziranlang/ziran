@@ -444,7 +444,9 @@ add_extern(const char *source, const char *args, const char *ret,
 {
     ZirGoExtern *ex;
     if(target && !strncmp(target, "c.", 2)) {
-        fprintf(stderr, "%s:%d:%d: native Go cannot import a C ABI symbol: %s; use a Go package or host interface\n", span.path, span.line, span.column, target);
+        Diagnostic(span, "zir_go.import",
+                   "native Go cannot import a C ABI symbol: %s; use a Go package or host interface",
+                   target);
         exit(1);
     }
 

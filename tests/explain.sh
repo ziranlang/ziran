@@ -38,7 +38,7 @@ assert len(listing["codes"]) >= 1
 assert listing["codes"] == sorted(listing["codes"])
 
 emitted = set()
-for path in (repo / "cmd/zir").glob("*.c"):
+for path in (repo / "cmd").rglob("*.c"):
     text = path.read_text()
     for match in re.finditer(r"Diagnostic(?:V)?\s*\(", text):
         end = match.end()
@@ -50,6 +50,25 @@ assert set(listing["codes"]) == emitted, (
     sorted(emitted - set(listing["codes"])),
     sorted(set(listing["codes"]) - emitted),
 )
+PY
+cat > "$work/go-import.zi" <<'ZI'
+libc :: #system_library "libc";
+Read :: (value: s32) -> s32 #foreign libc "read";
+ZI
+if "$ziran" build --target=go --diagnostics=json --root "$work" \
+    -o "$work/go-import" "$work/go-import.zi" \
+    > "$work/go-import.out" 2> "$work/go-import.jsonl"; then
+    echo 'Go accepted a C ABI import' >&2
+    exit 1
+fi
+python3 - "$work/go-import.jsonl" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+items = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert any(item["code"] == "zir_go.import" and
+           "C ABI symbol" in item["message"] for item in items), items
 PY
 if "$ziran" explain check.not_a_code > "$work/bad.out" 2> "$work/bad.err"; then
     echo 'explain accepted an unknown diagnostic code' >&2

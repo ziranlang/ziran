@@ -1451,7 +1451,9 @@ drop_owned_value(Emitter *e, const char *value, const char *type,
         }
         return;
     }
-    if(ArrayElementType(type, element, sizeof(element), NULL)) {
+    int capacity = -1;
+    if(ArrayElementType(type, element, sizeof(element), &capacity) &&
+       capacity != 0) {
         char index[ZIR_NAME_MAX], item[ZIR_TEXT_MAX];
         fresh(e, index);
         if(e->target == ZIR_GO)
@@ -1504,7 +1506,9 @@ clear_owned_value(Emitter *e, const char *value, const char *type,
         }
         return;
     }
-    if(ArrayElementType(type, element, sizeof(element), NULL)) {
+    int capacity = -1;
+    if(ArrayElementType(type, element, sizeof(element), &capacity) &&
+       capacity != 0) {
         char index[ZIR_NAME_MAX], item[ZIR_TEXT_MAX];
         fresh(e, index);
         if(e->target == ZIR_GO)

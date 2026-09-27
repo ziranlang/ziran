@@ -9,7 +9,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/owned.zi" <<'ZI'
 #import "vec"
 Inner :: struct { items: Vec(s32); }
-Outer :: struct { inners: [2]Inner; extra: Vec(s32); }
+Outer :: struct { inners: [2]Inner; empty: [0]Inner; extra: Vec(s32); }
 Make :: () -> Outer {
     value: Outer
     VecPush(value.inners[0].items, 3)

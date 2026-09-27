@@ -46,8 +46,8 @@ if [ "$runtime_include_count" -ne 1 ]; then
     echo 'plan9-c emitted duplicate runtime includes' >&2
     exit 1
 fi
-if rg -n '__auto_type|\{\s*\.|for\s*\(\s*(int|s32|u32)' \
-        "$work/generated"/*.c; then
+if rg -n 'static inline|__auto_type|\{\s*\.|for\s*\(\s*(int|s32|u32)|[0-9]U?LL' \
+        "$work/generated"/*.c "$work/generated"/*.h; then
     echo 'plan9-c output retained unsupported C constructs' >&2
     exit 1
 fi
@@ -92,12 +92,18 @@ extern void abort(void);
 EOF
 
 cat > "$work/src/status_main.zi" <<'EOF'
+#import "c_string"
 #program_export
-main :: () -> s32 { return 42 }
+main :: () -> s32 {
+    output: [8]u8
+    if !CopyCString("42", output[:]) { return 2 }
+    return 42
+}
 EOF
 
 "$ziran" build --target=plan9-c --root "$work/src" \
-    -o "$work/generated-status" "$work/src/status_main.zi"
+    --module-path "$repo/std" -o "$work/generated-status" \
+    "$work/src/status_main.zi"
 rg -q '^int32_t ziran_plan9_main\(void\);$' \
     "$work/generated-status/status_main.h"
 rg -q '^void main\(void\);$' "$work/generated-status/status_main.h"

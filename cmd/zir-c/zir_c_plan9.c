@@ -1466,11 +1466,38 @@ c_plan9_write_runtime(const char *out_dir)
 "typedef usize size_t;\n"
 "typedef int bool;\n\n"
 "#define NULL ((void*)0)\n"
+"typedef struct Slice {\n"
+"    void *data;\n"
+"    int64_t length;\n"
+"} Slice;\n\n"
+"static int64_t\n"
+"SliceIndex(Slice source, int64_t index)\n"
+"{\n"
+"    if(index < 0 || index >= source.length) {\n"
+"        fprint(2, \"ziran: slice index out of bounds\\n\");\n"
+"        abort();\n"
+"    }\n"
+"    return index;\n"
+"}\n\n"
+"static Slice\n"
+"SliceRange(Slice source, int64_t low, int64_t high,\n"
+"           size_t element_size)\n"
+"{\n"
+"    Slice result;\n"
+"    if(low < 0 || high < low || high > source.length) {\n"
+"        fprint(2, \"ziran: slice range out of bounds\\n\");\n"
+"        abort();\n"
+"    }\n"
+"    result.data = source.data != NULL ?\n"
+"        (char *)source.data + (size_t)low * element_size : NULL;\n"
+"    result.length = high - low;\n"
+"    return result;\n"
+"}\n\n"
 "#define false 0\n"
 "#define true 1\n"
-"#define UINT64_C(value) value##ULL\n"
-"#define UINT64_MAX 18446744073709551615ULL\n"
-"#define INT64_MAX 9223372036854775807LL\n"
+"#define UINT64_C(value) ((uint64_t)(value))\n"
+"#define UINT64_MAX ((uint64_t)-1)\n"
+"#define INT64_MAX ((int64_t)((((uint64_t)1 << 63) - 1)))\n"
 "#define INT64_MIN (-INT64_MAX - 1)\n"
 "#define SIZE_MAX ((size_t)-1)\n\n"
 "typedef struct String {\n"
@@ -1698,6 +1725,80 @@ c_plan9_rewrite(const char *text)
     return current;
 }
 
+static void
+rewrite_integer_suffixes(char *line)
+{
+    enum { CODE, STRING, CHARACTER, LINE_COMMENT, BLOCK_COMMENT } state = CODE;
+    char *write = line;
+    const char *read;
+
+    for(read = line; *read != '\0'; read++) {
+        if(state == LINE_COMMENT) {
+            *write++ = *read;
+            if(*read == '\n')
+                state = CODE;
+            continue;
+        }
+        if(state == BLOCK_COMMENT) {
+            *write++ = *read;
+            if(read[0] == '*' && read[1] == '/') {
+                *write++ = *++read;
+                state = CODE;
+            }
+            continue;
+        }
+        if(state == STRING || state == CHARACTER) {
+            *write++ = *read;
+            if(*read == '\\')
+                *write++ = *++read;
+            else if((*read == '"' && state == STRING) ||
+                    (*read == '\'' && state == CHARACTER))
+                state = CODE;
+            continue;
+        }
+        if(read[0] == '/' && read[1] == '/') {
+            *write++ = *read++;
+            *write++ = *read;
+            state = LINE_COMMENT;
+            continue;
+        }
+        if(read[0] == '/' && read[1] == '*') {
+            *write++ = *read++;
+            *write++ = *read;
+            state = BLOCK_COMMENT;
+            continue;
+        }
+        if(*read == '"') {
+            *write++ = *read;
+            state = STRING;
+            continue;
+        }
+        if(*read == '\'') {
+            *write++ = *read;
+            state = CHARACTER;
+            continue;
+        }
+        {
+            const char *token_start = read;
+            while(token_start > line &&
+                  (isalnum((unsigned char)token_start[-1]) ||
+                   token_start[-1] == '_'))
+                token_start--;
+            if(token_start > line &&
+               isdigit((unsigned char)read[-1]) &&
+               isdigit((unsigned char)*token_start) &&
+               ((read[0] == 'L' && read[1] == 'L') ||
+                (read[0] == 'U' && read[1] == 'L' && read[2] == 'L')) &&
+               !isalnum((unsigned char)read[(read[0] == 'U' ? 3 : 2)])) {
+                read += read[0] == 'U' ? 2 : 1;
+                continue;
+            }
+        }
+        *write++ = *read;
+    }
+    *write = '\0';
+}
+
 char *
 c_plan9_rewrite_once(const char *text)
 {
@@ -1736,6 +1837,7 @@ c_plan9_rewrite_once(const char *text)
         current[n] = '\0';
         cursor += n;
         lineno++;
+        rewrite_integer_suffixes(current);
 
         while(ilen + 1 < sizeof(indent) &&
               (current[ilen] == ' ' || current[ilen] == '\t')) {
@@ -1770,12 +1872,26 @@ c_plan9_rewrite_once(const char *text)
            strstr(current, "#include <stdlib.h>") != NULL ||
            strstr(current, "#include \"zir_bounds.h\"") != NULL ||
            strstr(current, "#include \"zir_string.h\"") != NULL ||
+           strstr(current, "#include \"zir_slice.h\"") != NULL ||
            strstr(current, "#include \"zir_vec.h\"") != NULL) {
             if(runtime_include == 0) {
                 if(buf_puts(&out, "#include \"zir_plan9_runtime.h\"\n") < 0)
                     goto fail;
                 runtime_include = 1;
             }
+            continue;
+        }
+
+        if(strstr(current, "static inline ") != NULL) {
+            const char *inline_at = strstr(current, "static inline ");
+            size_t prefix = (size_t)(inline_at - current);
+            if(snprintf(rewritten, sizeof(rewritten), "%.*s%s",
+                        (int)prefix, current,
+                        inline_at + strlen("static inline ")) >=
+                (int)sizeof(rewritten))
+                goto fail;
+            if(buf_puts(&out, rewritten) < 0)
+                goto fail;
             continue;
         }
 

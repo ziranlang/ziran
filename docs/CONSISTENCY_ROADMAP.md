@@ -44,11 +44,11 @@ expression. These fixes do not complete the ownership or diagnostic contracts.
    mutation of local backing storage while a direct or record-held `TextView`
    is live and releases that borrow at scope close. Recursive origin checks
    reject a record literal, nested record, field assignment, or checked-call
-   result that returns a view of a local byte array. Pointer-derived views,
-   globals, calls, and other mutable aliases still need a complete lifetime
-   model; reject escapes that cannot be proved safe.
-   A complete immutable-borrow rule also needs tracking through arrays,
-   returns, and host boundaries.
+   result that returns a view of a local byte array. The mutation gate also
+   follows bindings, fields, aliases, checked-call results, arrays, and views
+   nested in returned records. Pointer-derived views, globals, and other
+   unmodeled mutable aliases still need a complete lifetime model; reject
+   escapes that cannot be proved safe. Host boundaries remain untracked.
 3. **Numerical edge cases.** Expand differential tests beyond the corrected
    8/16-bit shifts and floating zero division: signed overflow, minimum
    integer divided by minus one, all cast widths, negative and oversized

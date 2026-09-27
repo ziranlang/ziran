@@ -48,7 +48,28 @@ Good :: () -> s32 {
 }
 ZI
 
-for name in direct field nested; do
+cat > "$work/call_alias.zi" <<'ZI'
+Alias :: (bytes: []u8) -> string { return TextView(bytes[:]) }
+Bad :: () -> s32 {
+    bytes: [1]u8
+    text := Alias(bytes[:])
+    bytes[0] = cast(u8)98
+    return cast(s32)text[0]
+}
+ZI
+
+cat > "$work/record_return.zi" <<'ZI'
+Box :: struct { text: string; }
+Alias :: (bytes: []u8) -> Box { return Box.{text = TextView(bytes[:])} }
+Bad :: () -> s32 {
+    bytes: [1]u8
+    value := Alias(bytes[:])
+    bytes[0] = cast(u8)98
+    return cast(s32)value.text[0]
+}
+ZI
+
+for name in direct field nested call_alias record_return; do
     if "$ziran" check --diagnostics=json --root "$work" \
         "$work/$name.zi" > "$work/$name.out" 2> "$work/$name.err"; then
         echo "$name accepted mutation of live text backing storage" >&2

@@ -18,7 +18,9 @@ template from `std/option.zi` to be visible in the using module.
 `Vec` locals and parameters at block close, return, break, and continue. A
 direct move clears its source before the next drop. A direct or record-held
 `TextView` rejects mutation of its local backing binding until the view leaves
-scope; pointer-derived views, globals, and unmodeled aliases are not covered.
+scope, including views returned by checked calls and views nested in their
+result records; pointer-derived views, globals, and unmodeled aliases are not
+covered.
 The checker rejects initializing, assigning, passing, or returning aggregates
 containing a `Vec`; their fields can still hold vectors and be used in place.
 Aggregate moves and

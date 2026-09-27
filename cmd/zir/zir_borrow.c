@@ -192,12 +192,8 @@ text_view_backing(BorrowCheck *check, int index)
     if(expression->kind == ZIR_EXPR_MEMBER ||
        expression->kind == ZIR_EXPR_POINTER_MEMBER ||
        expression->kind == ZIR_EXPR_INDEX ||
-       expression->kind == ZIR_EXPR_SLICE) {
-        BorrowBinding *source = text_view_backing(check, expression->left);
-        if(source != NULL)
-            return source;
-        return backing_identifier(check, index);
-    }
+       expression->kind == ZIR_EXPR_SLICE)
+        return text_view_backing(check, expression->left);
     if(expression->kind != ZIR_EXPR_CALL)
         return NULL;
     if(!strcmp(expression->name, "TextView") ||
@@ -205,7 +201,10 @@ text_view_backing(BorrowCheck *check, int index)
         if(expression->first_child < 0 ||
            fn->exprs[expression->first_child].next_sibling >= 0)
             return NULL;
-        return text_view_backing(check, expression->first_child);
+        BorrowBinding *source =
+            text_view_backing(check, expression->first_child);
+        return source != NULL ? source :
+            backing_identifier(check, expression->first_child);
     }
     if(!strcmp(expression->name, "BuilderFinish") ||
        !view_type(check, expression->type))
@@ -230,8 +229,12 @@ text_view_backing(BorrowCheck *check, int index)
            !(summary->returned.parameters & (UINT64_C(1) << parameter)))
             continue;
         BorrowBinding *candidate = text_view_backing(check, child);
-        if(candidate == NULL)
+        if(candidate == NULL) {
             candidate = backing_identifier(check, child);
+            if(candidate != NULL && candidate->type[0] != '[' &&
+               strncmp(candidate->type, "Vec(", 4) != 0)
+                candidate = NULL;
+        }
         if(candidate != NULL && result == NULL)
             result = candidate;
     }
@@ -458,7 +461,7 @@ check_function(BorrowCheck *check, BorrowFunction *function)
             BorrowBinding *declared = add_binding(check, statement->name,
                     statement->type, (Origin){0}, i, check->depth, 0);
             declared->text_backing = text_view_backing(check, statement->expr_root);
-            if(!strcmp(statement->type, "string"))
+            if(view_type(check, statement->type))
                 add_active_text_borrow(check, declared->text_backing,
                                        check->depth);
         } else if(statement->kind == ZIR_STMT_ASSIGN && statement->lhs_root >= 0) {

@@ -517,9 +517,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   non-byte arguments. Borrow origins now flow through record/array values and
   checked calls, so returning a record containing a `TextView` of a local
   byte array is rejected; `tests/aggregate_view_lifetime.sh` covers literal,
-  nested, array-field, assigned-field, and call-result escapes. Mutable backing-byte
-  aliasing and pointer-derived origins still need one complete cross-target
-  contract.
+  nested, array-field, assigned-field, and call-result escapes. The mutation
+  gate follows local bindings, fields, aliases, checked-call results, and
+  record-return aliases; pointer-derived origins and globals still need one
+  complete cross-target contract.
   `make check` compares source and saved-IR bundles with C, C++, and Go on a
   string program and rejects out-of-range indexing.
 - Portable bundles retain referenced module globals, including records and
@@ -626,128 +627,6 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `route` block words. Source, saved-IR, and portable bundle tests cover
   these names as ordinary declarations and calls.
 
-## Still required
-
-- Complete Jai syntax coverage and replace remaining Ziran-only host
-  conventions with language-compatible forms. Variant declarations and
-  generated operations, checker branches, and IR fields have been removed;
-  postfix `?` lowering has also been removed.
-  The inherited `Name :: C_declarator #type` spelling is rejected and its
-  parser, checker, IR exception, and emitters are removed. Kryon's host adapter
-  now declares callbacks with Jai `#type (...) -> Result #c_call;` and stores
-  the resulting C callback pointers in records. Native C and C++ emit that ABI;
-  reachable callback values cannot enter portable bundles, and Go output
-  rejects the declarations.
-  Direct type application now works in record fields, signatures, globals,
-  locals, and nested generic records; further expression forms need
-  conformance coverage. Jai `cast(Type)`, `Type.{...}`, and context-inferred
-  `.{...}` record literals are accepted and
-  C-style casts and compound literals are rejected; array declarations accept
-  `.[...]` directly in the expression parser without rewriting through a
-  C-style literal. Explicit nonempty typed arrays such as `s32.[1, 2]` and
-  `Module.Point.[first, second]` infer their fixed capacity from the elements;
-  zero-element typed arrays and context-inferred `.[]` have count and size zero
-  and null `.data`. `tests/zero_arrays.sh` covers locals, globals, aliases,
-  nested arrays and records, arguments, returns, and invalid indexing from
-  source and saved IR on C, C++, Go, and `.zib`, including open and named
-  imported array aliases in globals, records, signatures, nested arrays, and
-  `size_of`. A chain of two public `using` import re-exports also resolves a fixed-array
-  alias in declarations and `size_of` across source and saved IR on every
-  target. Private and ambiguous imported or re-exported aliases are rejected,
-  while a local record type keeps precedence over an open-imported alias. C/C++ use a
-  GNU-compatible zero-array extension for zero-byte storage. Native C/C++
-  foreign array returns use a hidden result parameter; exact Jai ABI
-  conformance and nonempty `.data` behavior remain open.
-  Generic records store zero-capacity arrays, and generic procedures can
-  return them, on source and saved IR across C, C++, Go, and `.zib`.
-  Specialized array signatures are normalized before serialization so saved
-  IR checks without changing their spelling on a second pass.
-  Jai `#this` resolves the enclosing procedure for calls and
-  typed procedure values across native and portable targets, and resolves the
-  enclosing type in plain and polymorphic struct fields. Saved IR preserves
-  self references even when a parameter shadows the procedure name. Jai
-  primitive spellings, including Jai `float` as `float32`, and ASCII `#char`
-  are accepted; `#char` lowers to an integer expression and the retired
-  character IR kind and scalar handling are gone. The inherited source
-  `char` type is rejected while `char` can name local
-  bindings and record fields; C and C++ lower reserved field names without
-  changing source names. Kryon's C callback declarations use Jai `*u8` for borrowed byte
-  pointers. Exported procedures named after C or C++ keywords now use a legal
-  generated identifier while preserving their exact linker symbol; quoted
-  keyword export symbols use the same mapping. `tests/program_export.sh`
-  checks those names, including an escape-name collision, on source and saved
-  IR with C99 and C++17. Cross-module collisions of procedures and other
-  symbols still need package-wide native name mapping. Record, union, and
-  enum type names shared by linked modules
-  or reserved by C, C++, or Go receive distinct native names on all three
-  targets. Colliding or keyword enum members follow the mapped type name;
-  `tests/global_names.sh` checks source and saved IR with target keyword types.
-  `tests/imported_type_names.sh` and `tests/imported_enum_names.sh` check
-  qualified uses, fields, signatures, globals, literals, and source/saved-IR
-  execution on all four targets. Go output gives modules distinct filenames
-  and function prefixes when case or identifier normalization would collide;
-  C and C++ headers use distinct guards and give private functions valid names
-  when a root source filename contains punctuation. `tests/module_symbol_names.sh`
-  checks both source and saved IR on all four targets.
-  `Vec(T)` now provides growable
-  storage for locals, globals, and record fields across C99, C++, Go, and
-  `.zib`, with
-  checked indexing, push, clear, free, swap, `VecPop` and `VecGet` results as
-  `Option(T)` records, and a `Vec(u8)` string builder through `BuilderAppend`
-  and `BuilderFinish`. Direct vector bindings have move checks on assignment,
-  argument passing, and return, including use-after-move and overwrite checks.
-  `VecClone(dest, src)` copies into a fresh or
-  moved-from destination with a recoverable failure result, and
-  `VecSlice(values, low, high)` declares a borrowed `[]T` view whose live
-  scope blocks moving or mutating its source. Direct owned vector locals and
-  parameters drop on scope exit in C99, C++, Go, and the portable VM. The
-  checker rejects initializing, assigning, passing, or returning aggregates
-  containing vectors until
-  recursive ownership is supported; field operations remain available.
-  Explicit cleanup is still needed for prompt release of vector fields. Go
-  cannot recover from physical
-  allocation failure. The intended [owned-value contract](OWNED_VALUES.md)
-  distinguishes the target rules from current behavior.
-- Audit parser, checker, IR, and backend paths for remaining UI assumptions.
-  Finish general procedure values and imports for ordinary libraries.
-  Named capture-free callbacks, including stored values, and typed record
-  calls work in native targets and `.zib`. Jai named call arguments retain
-  source evaluation order while binding by parameter name in source, saved IR,
-  native targets, `.zib`, and pure integer compile-time calls. Declared
-  procedures now accept Jai default arguments, including defaults before
-  required named parameters and inferred `name := expression` parameters.
-  Inference resolves literals, imported constants, and procedure results in
-  the declaring module. Omitted defaults are added to checked calls in
-  source order and survive saved IR, native targets, `.zib`, and supported
-  compile-time evaluation. Concrete procedure defaults execute through a
-  checked helper in the declaration module, so local and imported caller names
-  cannot capture the default's constants, globals, or procedure calls.
-  Polymorphic defaults with a declaration-resolvable expression type now use
-  the same helper path; scope-independent literals and literal `T.{...}`
-  record defaults preserve their specialized type context. Concrete field
-  expressions in polymorphic record defaults resolve in the declaring module,
-  including procedure calls when an importing caller has a same-named local
-  procedure. Fields whose expression type depends on the specialization still
-  need specialization support. Defaults on
-  procedure-type values and broader procedure value support also remain.
-- Make structured `.zir` authoritative across all features: the checker now
-  validates saved expression graphs directly, and the shared typed emitter and
-  portable VM consume them. The C, C++, and Go body emitters no longer have a
-  statement-text fallback. Source, saved-IR, and mixed builds rerun the checker
-  across all modules. Remaining target-specific declaration and import
-  lowering still needs a typed representation.
-- Extend the `.zib` linker and verifier beyond the current subset:
-  state, and all checked expressions. Extend host capabilities to portable handles, arrays, and
-  equivalent behavior
-  for all supported language features. The current bundle embeds checked
-  `.zir`; the linker follows direct function calls and retains the types
-  those functions use. The portable interpreter executes plain records and
-  enums but does not yet cover every checked expression or native feature.
-  Kryon's old `.krb` compiler has been removed. Existing `.krb` files cannot
-  be loaded as `.zib`.
-- Complete native C++, C, and Go backend parity, FFI, capability checks, and
-  language law tests independent of UI assumptions. The current `make check`
-  only covers the stated C/C++/Go subset.
 - Named `#law NAME kind payload;` obligations are implemented for the
   `type`, `bounds`, `effect`, `abi`, and `custom` kinds: `ziran check`
   prints one JSON result object per obligation, `disproved` and unwaived
@@ -783,5 +662,43 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   rules; with no GPU device capability in this repository every GPU region
   runs on the CPU worker path with an emitted downgrade marker. Actual
   device offload to a GPU API remains future work.
-- Pass the full supported target and downstream application gates, then make
-  the planned single breaking cutover. See [Migration](MIGRATION.md).
+- `ziran build --target=plan9-c` dispatches the canonical Plan 9 C target and
+  `zi2c --target=plan9-c` accepts it directly. The shared C output is followed
+  by a Plan 9-safe post-pass; the capability contract marks it experimental,
+  386-only, and serial. `tests/plan9_target.sh` checks dispatcher/direct-tool
+  equality and Plan 9 loop scoping.
+- `ziran explain` exposes a stable registry for every diagnostic code currently
+  emitted by the compiler, with textual and JSON output. `ziran explain --list`
+  enumerates the registry, and `tests/explain.sh` fails if a new emitted code is
+  omitted.
+- Validated benchmark harnesses record compilation and runtime samples with
+  command lines, versions, hashes, hardware, and checked outputs. The multilingual
+  UTF-8 harness compares source and saved IR across C, C++, Go, `.zib`, and
+  handwritten C, C++, Go, Rust, Java, JavaScript, and Python implementations.
+- Package manifests and lockfiles can pin source-only dependencies without a
+  Ziran manifest. Resolution, checkout, map generation, drift detection, and
+  `ziran add --source` are covered by `tests/packages.py`.
+
+## Still required
+
+- Finish Jai parity and specialization: cover remaining expression forms,
+  exact foreign array ABI behavior (including nonempty `.data`), generic fields
+  whose types depend on specialization parameters, and broader procedure-value
+  support.
+- Complete ordinary-library procedure values and imports. Named capture-free
+  callbacks and stored procedure values already work across native targets and
+  `.zib`; procedure-valued defaults and the remaining general import forms do
+  not.
+- Move remaining target-specific declaration and import lowering from text into
+  typed IR, then enforce target capability errors uniformly.
+- Extend the `.zib` linker and verifier to all checked expressions and native
+  features, including complete host capability coverage. The current bundle
+  embeds checked `.zir` and follows direct calls, but it remains a subset.
+- Complete recursive ownership: aggregate-owned `Vec` transfer/drop, mutable
+  pointer-derived and global view aliases, and reclaimable storage detached by
+  `BuilderFinish`.
+- Finish numerical edge-case agreement, JSON diagnostic fields, the versioned
+  feature registry, and cross-target capability reporting.
+- Complete native backend parity, FFI capability checks, law coverage, Plan 9
+  target-aware lowering, and downstream application gates, then make the
+  planned single breaking cutover. See [Migration](MIGRATION.md).

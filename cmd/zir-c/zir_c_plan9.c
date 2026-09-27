@@ -1437,6 +1437,87 @@ for_decl_split(const char *line, char *type, size_t type_size,
 }
 
 /* ------------------------------------------------------------------ */
+/* Native Plan 9 runtime                                             */
+/* ------------------------------------------------------------------ */
+
+int
+c_plan9_write_runtime(const char *out_dir)
+{
+    char path[1024];
+    FILE *file;
+
+    snprintf(path, sizeof(path), "%s/zir_plan9_runtime.h", out_dir);
+    file = fopen(path, "wb");
+    if(file == NULL)
+        return -1;
+    fputs(
+"#ifndef ZIR_PLAN9_RUNTIME_H\n"
+"#define ZIR_PLAN9_RUNTIME_H\n\n"
+"#include <u.h>\n"
+"#include <libc.h>\n\n"
+"typedef schar int8_t;\n"
+"typedef uchar uint8_t;\n"
+"typedef short int16_t;\n"
+"typedef ushort uint16_t;\n"
+"typedef int int32_t;\n"
+"typedef uint uint32_t;\n"
+"typedef vlong int64_t;\n"
+"typedef uvlong uint64_t;\n"
+"typedef usize size_t;\n"
+"typedef int bool;\n\n"
+"#define NULL ((void*)0)\n"
+"#define false 0\n"
+"#define true 1\n"
+"#define UINT64_C(value) value##ULL\n"
+"#define UINT64_MAX 18446744073709551615ULL\n"
+"#define INT64_MAX 9223372036854775807LL\n"
+"#define INT64_MIN (-INT64_MAX - 1)\n\n"
+"typedef struct String {\n"
+"    const char *data;\n"
+"    size_t length;\n"
+"} String;\n\n"
+"static String\nStringView(const char *data, size_t length)\n"
+"{\n"
+"    String value;\n"
+"    value.data = data;\n"
+"    value.length = length;\n"
+"    return value;\n"
+"}\n\n"
+"#define StringLiteral(text) StringView((text), sizeof(text) - 1)\n\n"
+"static String\nStringRange(String source, int64_t low, int64_t high)\n"
+"{\n"
+"    if(low < 0 || high < low || (uint64_t)high > source.length ||\n"
+"       (source.data == NULL && source.length != 0)) {\n"
+"        fprint(2, \"ziran: string range out of bounds\\n\");\n"
+"        abort();\n"
+"    }\n"
+"    return StringView(source.data == NULL ? \"\" : source.data + low,\n"
+"                      (size_t)(high - low));\n"
+"}\n\n"
+"static bool\nStringEqual(String left, String right)\n"
+"{\n"
+"    return left.length == right.length &&\n"
+"        (left.length == 0 ||\n"
+"         memcmp(left.data, right.data, left.length) == 0);\n"
+"}\n\n"
+"static size_t\nPlan9EmptyArrayIndex(size_t index)\n"
+"{\n"
+"    (void)index;\n"
+"    fprint(2, \"ziran: index out of bounds for empty array\\n\");\n"
+"    abort();\n"
+"    return 0;\n"
+"}\n"
+"#define ZIRAN_INDEX(base, length, index) ((base)[(index)])\n"
+"#define ZIRAN_EMPTY_INDEX(base, index) \\\n"
+"    ((base)[Plan9EmptyArrayIndex((size_t)(index))])\n\n"
+"#endif\n",
+        file);
+    if(fclose(file) != 0)
+        return -1;
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
 /* Public entry points                                               */
 /* ------------------------------------------------------------------ */
 
@@ -1538,6 +1619,7 @@ c_plan9_rewrite_once(const char *text)
     int pending_depths[256];
     int pending_count = 0;
     int depth = 0;
+    int runtime_include = 0;
 
     line = malloc(PLAN9_LINE_MAX);
     if(line == NULL)
@@ -1578,6 +1660,20 @@ c_plan9_rewrite_once(const char *text)
             pending_count--;
             if(buf_printf(&out, "%s}\n", indent) < 0)
                 goto fail;
+        }
+
+        if(strstr(current, "#include <stdint.h>") != NULL ||
+           strstr(current, "#include <stddef.h>") != NULL ||
+           strstr(current, "#include <stdbool.h>") != NULL ||
+           strstr(current, "#include <stdlib.h>") != NULL ||
+           strstr(current, "#include \"zir_bounds.h\"") != NULL ||
+           strstr(current, "#include \"zir_string.h\"") != NULL) {
+            if(runtime_include == 0) {
+                if(buf_puts(&out, "#include \"zir_plan9_runtime.h\"\n") < 0)
+                    goto fail;
+                runtime_include = 1;
+            }
+            continue;
         }
 
         if(line_passthrough(current)) {

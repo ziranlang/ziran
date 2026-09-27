@@ -30,5 +30,6 @@ int c_plan9_rewrite_file(const char *path);
 /* Number of __auto_type declarations left unresolved by the last
  * c_plan9_rewrite call (reported once per run by main). */
 int c_plan9_unresolved(void);
+int c_plan9_write_runtime(const char *out_dir);
 
 #endif

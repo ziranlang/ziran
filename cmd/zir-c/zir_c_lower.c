@@ -817,6 +817,8 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
     snprintf(hpath, sizeof(hpath), "%s/%s.h", out_dir, stem);
     snprintf(cpath, sizeof(cpath), "%s/%s.c", out_dir, stem);
     mkdir_parent(hpath);
+    if(c_plan9_enabled() && c_plan9_write_runtime(out_dir) != 0)
+        return;
 
     /* --- header --- */
     h = fopen(hpath, "wb");
@@ -1079,6 +1081,7 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
     }
     fprintf(h, "\n#ifdef __cplusplus\n}\n#endif\n\n#endif /* %s */\n", guard);
     fclose(h);
+    c_plan9_rewrite_file(hpath);
 
     /* Type-only modules have a header but no translation unit to compile. */
     if(linked && m->function_count == 0 && m->global_count == 0 &&

@@ -600,6 +600,28 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     while index < locked.count {
         item: *PkgLocked = *locked.packages[index]
         override: string = PkgFindOverride(overrides, item.name, root)
+        // ziran lock matches overrides by dependency alias; accept the same
+        // names here so both commands select the same checkout.
+        edge: s32 = 0
+        while override.count == 0 && edge < locked.root_edge_count {
+            if locked.root_edges[edge].value == item.id {
+                override = PkgFindOverride(overrides,
+                    locked.root_edges[edge].name, root)
+            }
+            edge += 1
+        }
+        owner: s32 = 0
+        while override.count == 0 && owner < locked.count {
+            edge = 0
+            while override.count == 0 && edge < locked.packages[owner].edge_count {
+                if locked.packages[owner].edges[edge].value == item.id {
+                    override = PkgFindOverride(overrides,
+                        locked.packages[owner].edges[edge].name, root)
+                }
+                edge += 1
+            }
+            owner += 1
+        }
         item.path = override
         if item.path.count == 0 {
             item.path = PkgCheckout(item.url, item.commit, offline)

@@ -342,6 +342,19 @@ Backend = "src/Backend.zi"
         assert "cannot resolve" in invalid
         write(app / "ziran.toml", sourced)
 
+        # Overrides may name a dependency by its alias; lock and fetch agree.
+        write(app / "ziran.toml", sourced +
+              f'\n[dependencies.pinned_library]\ngit = "{library.as_uri()}"\nref = "v2"\n')
+        call(ziran, "lock", cwd=app, env=env)
+        write(app / "ziran.local.toml",
+              f'[overrides]\nziran = "{compiler}"\npinned_library = "{library}"\n')
+        overridden = call(ziran, "pkg", "path", "pinned_library", cwd=app,
+                          env=env).strip()
+        assert Path(overridden).resolve() == library.resolve()
+        write(app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        write(app / "ziran.toml", sourced)
+        call(ziran, "lock", cwd=app, env=env)
+
         native_env = env.copy()
         native_env["GIT_CONFIG_COUNT"] = "2"
         native_env["GIT_CONFIG_KEY_1"] = f"url.{native.as_uri()}.insteadOf"

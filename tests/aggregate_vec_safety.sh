@@ -6,68 +6,173 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
-cat > "$work/copy.zi" <<'ZI'
+cat > "$work/owned.zi" <<'ZI'
 #import "vec"
-Holder :: struct { items: Vec(s32); }
+Inner :: struct { items: Vec(s32); }
+Outer :: struct { inners: [2]Inner; extra: Vec(s32); }
+Make :: () -> Outer {
+    value: Outer
+    VecPush(value.inners[0].items, 3)
+    VecPush(value.inners[1].items, 4)
+    VecPush(value.inners[0].items, 5)
+    VecPush(value.inners[1].items, 6)
+    VecPush(value.extra, 7)
+    return value
+}
+Take :: (value: Outer) -> s32 {
+    return value.inners[0].items[0] + value.inners[0].items[1] +
+           value.inners[1].items[0] + value.inners[1].items[1] +
+           value.extra[0]
+}
+Relay :: (value: Outer) -> Outer { return value }
+#program_export
 Check :: () -> s32 {
-    first: Holder
-    VecPush(first.items, 1)
-    second := first
-    VecFree(first.items)
-    VecFree(second.items)
-    return 0
+    made := Make()
+    first := Relay(made)
+    grown: Outer
+    VecPush(grown.inners[0].items, 8)
+    VecPush(grown.inners[1].items, 9)
+    VecPush(grown.inners[0].items, 10)
+    VecPush(grown.inners[1].items, 11)
+    VecPush(grown.extra, 12)
+    return Take(first) + Take(grown)
 }
 ZI
-cat > "$work/assign.zi" <<'ZI'
+cat > "$work/use_after_move.zi" <<'ZI'
 #import "vec"
-Holder :: struct { items: Vec(s32); }
+Inner :: struct { items: Vec(s32); }
+Outer :: struct { inner: Inner; }
 Check :: () -> s32 {
-    first: Holder
-    second: Holder
+    first: Outer
+    VecPush(first.inner.items, 1)
+    second := first
+    VecFree(first.inner.items)
+    return second.inner.items[0]
+}
+ZI
+cat > "$work/overwrite.zi" <<'ZI'
+#import "vec"
+Inner :: struct { items: Vec(s32); }
+Outer :: struct { inner: Inner; }
+Check :: () -> s32 {
+    first: Outer
+    second: Outer
+    VecPush(first.inner.items, 1)
+    VecPush(second.inner.items, 2)
     second = first
     return 0
 }
 ZI
-cat > "$work/argument.zi" <<'ZI'
-#import "vec"
-Holder :: struct { items: Vec(s32); }
-Take :: (value: Holder) -> s32 { return 0 }
-ZI
-cat > "$work/return.zi" <<'ZI'
-#import "vec"
-Holder :: struct { items: Vec(s32); }
-Make :: () -> Holder {
-    value: Holder
-    return value
-}
-ZI
-cat > "$work/field.zi" <<'ZI'
-#import "vec"
-Holder :: struct { items: Vec(s32); }
-Check :: () -> s32 {
-    value: Holder
-    VecPush(value.items, 42)
-    answer: s32 = value.items[0]
-    VecFree(value.items)
-    return answer
-}
-ZI
 
-for name in copy assign argument return; do
-    if "$ziran" check --diagnostics=json --root "$work" \
-        --module-path "$repo/std" "$work/$name.zi" \
-        > "$work/$name.out" 2> "$work/$name.err"; then
-        echo "$name unexpectedly copied aggregate-owned storage" >&2
-        exit 1
-    fi
-    python3 - "$work/$name.err" <<'PY'
+if "$ziran" check --diagnostics=json --root "$work" \
+    --module-path "$repo/std" "$work/use_after_move.zi" \
+    > "$work/use_after_move.out" 2> "$work/use_after_move.err"; then
+    echo 'aggregate Vec source was used after moving' >&2
+    exit 1
+fi
+if "$ziran" check --diagnostics=json --root "$work" \
+    --module-path "$repo/std" "$work/overwrite.zi" \
+    > "$work/overwrite.out" 2> "$work/overwrite.err"; then
+    echo 'assignment over live aggregate Vec storage was accepted' >&2
+    exit 1
+fi
+python3 - "$work/use_after_move.err" "$work/overwrite.err" <<'PY'
 import json
 from pathlib import Path
 import sys
 
-diagnostics = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-assert any('aggregate containing Vec' in item['message'] for item in diagnostics), diagnostics
+for path, expected in [(sys.argv[1], 'used after moving'),
+                       (sys.argv[2], 'leaks it')]:
+    diagnostics = [json.loads(line)
+                   for line in Path(path).read_text().splitlines()]
+    assert any(expected in item['message'] for item in diagnostics), diagnostics
 PY
+
+"$ziran" check --root "$work" --module-path "$repo/std" "$work/owned.zi"
+"$ziran" ir --root "$work" --module-path "$repo/std" \
+    -o "$work/ir" "$work/owned.zi"
+for kind in source saved; do
+    if test "$kind" = source; then
+        root=$work
+        module=$work/owned.zi
+    else
+        root=$work/ir
+        module=$work/ir/owned.zir
+    fi
+    "$ziran" bundle --entry owned:Check --root "$root" \
+        --module-path "$repo/std" -o "$work/$kind.zib" "$module"
+    test "$("$ziran" run "$work/$kind.zib")" = 75
+
+    c_output=$work/$kind-c
+    "$ziran" build --target=c --entry owned:Check --root "$root" \
+        --module-path "$repo/std" -o "$c_output" "$module"
+    cat > "$c_output/main.c" <<'C'
+#include "owned.h"
+#include <stddef.h>
+#include <stdlib.h>
+void *__real_realloc(void *, size_t);
+void __real_free(void *);
+static int outstanding;
+void *__wrap_realloc(void *p, size_t size) {
+    void *result = __real_realloc(p, size);
+    if (p == NULL && result != NULL) outstanding++;
+    return result;
+}
+void __wrap_free(void *p) {
+    if (p != NULL) outstanding--;
+    __real_free(p);
+}
+int main(void) {
+    if (Check() != 75) return 1;
+    return outstanding == 0 ? 0 : 2;
+}
+C
+    "${CC:-cc}" -std=c11 -I"$repo/include" -I"$c_output" \
+        "$c_output"/*.c -Wl,--wrap=realloc -Wl,--wrap=free \
+        -o "$work/test-$kind-c"
+    "$work/test-$kind-c"
+
+    cpp_output=$work/$kind-cpp
+    "$ziran" build --target=cpp --entry owned:Check --root "$root" \
+        --module-path "$repo/std" -o "$cpp_output" "$module"
+    cat > "$cpp_output/main.cpp" <<'CPP'
+#include "owned.hpp"
+#include <cstddef>
+extern "C" void *__real_realloc(void *, std::size_t);
+extern "C" void __real_free(void *);
+static int outstanding;
+extern "C" void *__wrap_realloc(void *p, std::size_t size) {
+    void *result = __real_realloc(p, size);
+    if (p == nullptr && result != nullptr) outstanding++;
+    return result;
+}
+extern "C" void __wrap_free(void *p) {
+    if (p != nullptr) outstanding--;
+    __real_free(p);
+}
+int main() {
+    if (Check() != 75) return 1;
+    return outstanding == 0 ? 0 : 2;
+}
+CPP
+    "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$cpp_output" \
+        "$cpp_output"/*.cpp -Wl,--wrap=realloc -Wl,--wrap=free \
+        -o "$work/test-$kind-cpp"
+    "$work/test-$kind-cpp"
+
+    go_output=$work/$kind-go
+    "$ziran" build --target=go --pkg main --entry owned:Check \
+        --root "$root" --module-path "$repo/std" \
+        -o "$go_output" "$module"
+    cat > "$go_output/main.go" <<'GO'
+package main
+func main() { if Owned_Check() != 75 { panic("aggregate Vec ownership") } }
+GO
+    GO111MODULE=off go run "$go_output"/*.go
 done
 
-"$ziran" check --root "$work" --module-path "$repo/std" "$work/field.zi"
+cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source-c/owned.c" "$work/saved-c/owned.c"
+cmp "$work/source-c/owned.h" "$work/saved-c/owned.h"
+cmp "$work/source-cpp/owned.cpp" "$work/saved-cpp/owned.cpp"
+cmp "$work/source-go/owned.go" "$work/saved-go/owned.go"

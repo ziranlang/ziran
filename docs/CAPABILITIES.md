@@ -28,14 +28,16 @@ unmodeled aliases are not yet covered. Portable code should avoid those
 mutations until the rule is complete.
 
 `automatic_vec_drop` is `true` for every target: direct owned `Vec` locals
-and parameters are released at scope exit or return. This does not cover
-vectors stored in aggregates or global storage.
+and parameters are released at scope exit or return, as are vectors reachable
+through record fields and fixed arrays. Global storage remains shared and is
+not automatically released.
 `text_view_local_mutation_check` is `true` for every target: checking rejects
 direct mutation of local backing storage while a direct, field-held, aliased,
 or checked-call-produced `TextView` is live. Pointer-derived views, globals,
 and unmodeled aliases are outside this field.
-`aggregate_vec_transfer` remains `false`: the checker rejects transfers of
-aggregates containing a `Vec`. `diagnostics_json` is `partial` because some compiler paths
+`aggregate_vec_transfer` is `true`: whole local aggregates and fresh aggregate
+call results can move through assignment, argument passing, and return, with
+native targets recursively clearing every moved vector field. `diagnostics_json` is `partial` because some compiler paths
 still print plain errors even when JSON is requested. These are current
 boundaries, not feature requests or guarantees about unlisted behavior. See
 [implementation status](IMPLEMENTATION_STATUS.md) and the

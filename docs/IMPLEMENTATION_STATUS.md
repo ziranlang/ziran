@@ -674,6 +674,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   emitted by the compiler, with textual and JSON output. `ziran explain --list`
   enumerates the registry, and `tests/explain.sh` fails if a new emitted code is
   omitted.
+- Whole local aggregates and fresh aggregate call results containing `Vec`
+  can move through declaration, assignment, argument passing, and return.
+  C, C++, Go, and the portable VM recursively drop vectors reached through
+  record fields and fixed arrays; native moves clear every reachable source
+  field. `tests/aggregate_vec_safety.sh` checks use-after-move and overwrite
+  rejection, allocator balance, source/saved-IR equality, and all four
+  execution paths with nested records and arrays.
 - Validated benchmark harnesses record compilation and runtime samples with
   command lines, versions, hashes, hardware, and checked outputs. The multilingual
   UTF-8 harness compares source and saved IR across C, C++, Go, `.zib`, and
@@ -697,9 +704,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Extend the `.zib` linker and verifier to all checked expressions and native
   features, including complete host capability coverage. The current bundle
   embeds checked `.zir` and follows direct calls, but it remains a subset.
-- Complete recursive ownership: aggregate-owned `Vec` transfer/drop, mutable
-  pointer-derived and global view aliases, and reclaimable storage detached by
-  `BuilderFinish`.
+- Complete ownership edge cases: mutable pointer-derived and global view
+  aliases, moving individual nested fields, vector-bearing record-literal
+  fields, and reclaimable storage detached by `BuilderFinish`.
 - Finish numerical edge-case agreement, JSON diagnostic fields, the versioned
   feature registry, and cross-target capability reporting.
 - Complete native backend parity, FFI capability checks, law coverage, Plan 9

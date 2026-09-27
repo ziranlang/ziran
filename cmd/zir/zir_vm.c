@@ -925,16 +925,41 @@ release_retired(Vm *vm)
     vm->retire_floor = remaining;
 }
 
-/* A direct Vec owns its record and backing array. Release that storage when
- * its lexical binding leaves scope; borrowed slices in surviving frames keep
- * their backing pinned until those views leave scope as well. */
+static int
+vm_type_contains_vec(const ZirModule *module, const char *type, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    const ZirModule *owner = NULL;
+    const ZirType *record = NULL;
+    if(depth > 32 || module == NULL || type == NULL || !*type || *type == '*')
+        return 0;
+    if(VecElementType(module, type, NULL, 0))
+        return 1;
+    if(ArrayElementType(type, element, sizeof(element), NULL))
+        return vm_type_contains_vec(module, element, depth + 1);
+    record = FindType(module, type, &owner);
+    if(record == NULL || record->is_enum || record->is_procedure_type ||
+       record->is_record_template || record->is_extern)
+        return 0;
+    size_t offset = 0;
+    ZirTypeField field;
+    while(TypeNextField(record, &offset, &field) == 1)
+        if(vm_type_contains_vec(owner ? owner : module,
+                                field.type, depth + 1))
+            return 1;
+    return 0;
+}
+
+/* An owned Vec or aggregate owns its reachable record and array storage.
+ * Release it when the binding leaves scope; borrowed slices in surviving
+ * frames keep their backing pinned until those views leave scope as well. */
 static void
 drop_owned_locals(Frame *frame, int first)
 {
     int retired = 0;
     for(int i = frame->local_count - 1; i >= first; i--) {
         Local *local = &frame->locals[i];
-        if(VecElementType(frame->module, local->type, NULL, 0) &&
+        if(vm_type_contains_vec(frame->module, local->type, 0) &&
            local->value.kind == VALUE_RECORD) {
             retire_value(frame->vm, local->value, 0);
             retired = 1;
@@ -2548,12 +2573,17 @@ eval(Frame *frame, int index, int depth)
         if(local != NULL) {
             Value stored = local->value;
             if(expression->is_move) {
-                if(!VecElementType(frame->module, expression->type,
-                                   NULL, 0) || stored.kind != VALUE_RECORD) {
+                if(stored.kind != VALUE_RECORD ||
+                   !vm_type_contains_vec(frame->module,
+                                         expression->type, 0)) {
                     frame->vm->failed = 1;
                     break;
                 }
-                local->value = (Value){.kind = VALUE_INVALID};
+                if(VecElementType(frame->module, expression->type, NULL, 0))
+                    local->value = (Value){.kind = VALUE_INVALID};
+                /* Aggregate storage is cloned at the destination boundary,
+                 * while the checker makes the source unusable afterward.
+                 * Retiring the same reachable tree twice is idempotent. */
             }
             return coerce_expression(frame->vm, frame->module,
                                      stored, expression->type);

@@ -52,6 +52,11 @@ if rg -n '__auto_type|\{\s*\.|for\s*\(\s*(int|s32|u32)' \
     exit 1
 fi
 
+rg -q '^int32_t ziran_plan9_main\(void\);$' "$work/generated/main.h"
+rg -q '^void main\(void\);$' "$work/generated/main.h"
+rg -q '^ziran_plan9_main\(void\)$' "$work/generated/main.c"
+rg -q '^[[:space:]]*exits\(status_text\);$' "$work/generated/main.c"
+
 if rg -n 'plan9-c' "$work/generated"/*.c "$work/generated"/*.h; then
     echo 'plan9-c leaked dispatcher metadata into generated C' >&2
     exit 1

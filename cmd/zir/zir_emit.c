@@ -1156,8 +1156,34 @@ EmitNumberSupport(FILE *out, ZirTarget target, const char *p)
     }
 }
 
+static int
+emitter_type_contains_vec(const ZirModule *module, const char *type, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    const ZirModule *owner = NULL;
+    const ZirType *record = NULL;
+    if(depth > 32 || module == NULL || type == NULL || !*type || *type == '*')
+        return 0;
+    if(VecElementType(module, type, NULL, 0))
+        return 1;
+    if(ArrayElementType(type, element, sizeof(element), NULL))
+        return emitter_type_contains_vec(module, element, depth + 1);
+    record = FindType(module, type, &owner);
+    if(record == NULL || record->is_enum || record->is_procedure_type ||
+       record->is_record_template || record->is_extern)
+        return 0;
+    size_t offset = 0;
+    ZirTypeField field;
+    while(TypeNextField(record, &offset, &field) == 1)
+        if(emitter_type_contains_vec(owner ? owner : module,
+                                     field.type, depth + 1))
+            return 1;
+    return 0;
+}
+
 typedef struct Local {
     char name[ZIR_NAME_MAX];
+    char type[ZIR_NAME_MAX];
     char drop_alias[ZIR_NAME_MAX];
     int depth;
 } Local;
@@ -1406,10 +1432,118 @@ resolve(Emitter *e, const char *name, char *out, size_t size)
 }
 
 static void
+drop_owned_value(Emitter *e, const char *value, const char *type,
+                 const ZirModule *module, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    if(depth > 32 || value == NULL || type == NULL)
+        return;
+    if(VecElementType(module, type, NULL, 0)) {
+        if(e->target == ZIR_GO) {
+            line(e, "%s.Data = nil", value);
+            line(e, "%s.Capacity = 0", value);
+            line(e, "%s.Count = 0", value);
+        } else {
+            line(e, "free(%s.data);", value);
+            line(e, "%s.data = NULL;", value);
+            line(e, "%s.capacity = 0;", value);
+            line(e, "%s.count = 0;", value);
+        }
+        return;
+    }
+    if(ArrayElementType(type, element, sizeof(element), NULL)) {
+        char index[ZIR_NAME_MAX], item[ZIR_TEXT_MAX];
+        fresh(e, index);
+        if(e->target == ZIR_GO)
+            line(e, "for %s := 0; %s < len(%s); %s++ {",
+                 index, index, value, index);
+        else
+            line(e, "for (size_t %s = 0; %s < sizeof(%s) / sizeof((%s)[0]); ++%s) {",
+                 index, index, value, value, index);
+        e->indent++;
+        format(item, sizeof(item), "(%s)[%s]", value, index);
+        drop_owned_value(e, item, element, module, depth + 1);
+        e->indent--;
+        line(e, "}");
+        return;
+    }
+    const ZirModule *owner = NULL;
+    const ZirType *record = FindType(module, type, &owner);
+    if(record == NULL || record->is_enum || record->is_procedure_type ||
+       record->is_record_template || record->is_extern)
+        return;
+    size_t offset = 0;
+    ZirTypeField field;
+    while(TypeNextField(record, &offset, &field) == 1) {
+        char member[ZIR_TEXT_MAX], native[ZIR_NAME_MAX];
+        TargetFieldName(record, e->target, field.name, native, sizeof(native));
+        if(e->target == ZIR_GO)
+            go_field_ident(native, native, sizeof(native));
+        format(member, sizeof(member), "(%s).%s", value, native);
+        drop_owned_value(e, member, field.type,
+                         owner ? owner : module, depth + 1);
+    }
+}
+
+static void
+clear_owned_value(Emitter *e, const char *value, const char *type,
+                  const ZirModule *module, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    if(depth > 32 || value == NULL || type == NULL)
+        return;
+    if(VecElementType(module, type, NULL, 0)) {
+        if(e->target == ZIR_GO) {
+            line(e, "%s.Data = nil", value);
+            line(e, "%s.Capacity = 0", value);
+            line(e, "%s.Count = 0", value);
+        } else {
+            line(e, "%s.data = NULL;", value);
+            line(e, "%s.capacity = 0;", value);
+            line(e, "%s.count = 0;", value);
+        }
+        return;
+    }
+    if(ArrayElementType(type, element, sizeof(element), NULL)) {
+        char index[ZIR_NAME_MAX], item[ZIR_TEXT_MAX];
+        fresh(e, index);
+        if(e->target == ZIR_GO)
+            line(e, "for %s := 0; %s < len(%s); %s++ {",
+                 index, index, value, index);
+        else
+            line(e, "for (size_t %s = 0; %s < sizeof(%s) / sizeof((%s)[0]); ++%s) {",
+                 index, index, value, value, index);
+        e->indent++;
+        format(item, sizeof(item), "(%s)[%s]", value, index);
+        clear_owned_value(e, item, element, module, depth + 1);
+        e->indent--;
+        line(e, "}");
+        return;
+    }
+    const ZirModule *owner = NULL;
+    const ZirType *record = FindType(module, type, &owner);
+    if(record == NULL || record->is_enum || record->is_procedure_type ||
+       record->is_record_template || record->is_extern)
+        return;
+    size_t offset = 0;
+    ZirTypeField field;
+    while(TypeNextField(record, &offset, &field) == 1) {
+        char member[ZIR_TEXT_MAX], native[ZIR_NAME_MAX];
+        TargetFieldName(record, e->target, field.name, native, sizeof(native));
+        if(e->target == ZIR_GO)
+            go_field_ident(native, native, sizeof(native));
+        format(member, sizeof(member), "(%s).%s", value, native);
+        clear_owned_value(e, member, field.type,
+                          owner ? owner : module, depth + 1);
+    }
+}
+
+static void
 track_local(Emitter *e, const char *name, const char *type)
 {
     Local *local = &e->locals[e->local_count++];
     copy_text(local->name, sizeof(local->name), name);
+    copy_text(local->type, sizeof(local->type), type);
     local->depth = e->depth;
     if(VecElementType(e->module, type, NULL, 0)) {
         char pointer_type[ZIR_NAME_MAX * 2];
@@ -1427,8 +1561,17 @@ static void
 drop_locals(Emitter *e, int first)
 {
     for(int i = e->local_count - 1; i >= first; i--) {
-        const char *alias = e->locals[i].drop_alias;
-        if(!*alias) continue;
+        Local *local = &e->locals[i];
+        const char *alias = local->drop_alias;
+        if(!*alias) {
+            char binding[ZIR_NAME_MAX];
+            if(!emitter_type_contains_vec(e->module, local->type, 0))
+                continue;
+            TargetBindingName(e->fn, e->target, local->name, binding,
+                              sizeof(binding));
+            drop_owned_value(e, binding, e->locals[i].type, e->module, 0);
+            continue;
+        }
         if(e->target == ZIR_GO) {
             line(e, "%s.Data = nil", alias);
             line(e, "%s.Capacity = 0", alias);
@@ -1461,7 +1604,8 @@ static int
 has_owned_locals(const Emitter *e)
 {
     for(int i = 0; i < e->local_count; i++)
-        if(*e->locals[i].drop_alias)
+        if(*e->locals[i].drop_alias ||
+           emitter_type_contains_vec(e->module, e->locals[i].type, 0))
             return 1;
     return 0;
 }
@@ -2980,22 +3124,11 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         }
         resolve(e, expr->name, result, sizeof(result));
         if(expr->is_move) {
-            char mapped[ZIR_NAME_MAX * 2];
-            const char *native = TargetType(expr->type, e->target);
-            if(!VecElementType(e->module, expr->type, NULL, 0))
-                fatal(expr, "move requires an owned vector");
-            if(native != NULL)
-                copy_text(mapped, sizeof(mapped), native);
-            else
-                e->resolve(e->context, expr->type, mapped,
-                           sizeof(mapped));
+            if(!emitter_type_contains_vec(e->module, expr->type, 0))
+                fatal(expr, "move requires an owned value");
             fresh(e, temp);
             declare(e, temp, expr->type, result);
-            if(e->target == ZIR_C)
-                line(e, "%s = (%s){0};", result, mapped);
-            else
-                line(e, "%s = %s{}%s", result, mapped,
-                     e->target == ZIR_CPP ? ";" : "");
+            clear_owned_value(e, result, expr->type, e->module, 0);
             copy_text(out, size, temp);
             e->pure = 0;
             return;

@@ -22,22 +22,21 @@ smoke checks, not a general speed ranking.
 
 Recent differential tests aligned narrow integer shifts, narrowing casts,
 and floating division between native and portable execution. Cleanup and one
-emitter path now use structured diagnostics. A checker guard rejects value
-transfers of aggregates containing `Vec`, preventing the reproduced record-copy
-double-free case. All four execution paths now drop direct owned vector locals
-and parameters on scope exits, and the checker rejects repeated moves within an
-expression. These fixes do not complete the ownership or diagnostic contracts.
+emitter path now use structured diagnostics. All four execution paths move and
+recursively drop vectors owned by records and fixed arrays, preventing the
+reproduced record-copy double-free case, and the checker rejects repeated moves
+within an expression. These fixes do not complete the ownership or diagnostic
+contracts.
 
 ## Priority 1: one safe meaning across targets
 
 1. **Automatic ownership cleanup.** All four execution paths now release direct
    owned `Vec` locals and parameters on return, break, continue, and normal
-   scope close; direct moves clear their source. Lower ownership into checked
-   IR rather than separate backend paths, then extend the checker and
-   lowering to nested records and arrays before allowing aggregate-owned
-   transfers again. Validate with allocation counts, AddressSanitizer, and
-   source/saved-IR tests across backends. Reclaiming the bytes detached by
-   `BuilderFinish` needs a separate string ownership policy.
+   scope close; direct and aggregate moves clear every reachable native source
+   field. Lower the remaining ownership decisions into checked IR rather than
+   separate backend paths, broaden allocation-count and AddressSanitizer
+   coverage, and keep source/saved-IR tests across backends. Reclaiming the
+   bytes detached by `BuilderFinish` needs a separate string ownership policy.
 2. **Borrowed views.** `TextView` of mutable bytes observes later mutation in
    generated C/C++ but retains the earlier bytes in Go and `.zib`. Choose one
    language rule, then enforce it consistently. The checker now rejects direct

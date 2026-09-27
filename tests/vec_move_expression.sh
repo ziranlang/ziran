@@ -60,9 +60,10 @@ from pathlib import Path
 import sys
 
 diagnostics = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-assert any('Vec binding is used after moving' in item['message'] or
+assert any('binding is used after moving' in item['message'] or
            'Vec operation moves its storage in an argument' in item['message'] or
-           'temporary Vec result must be bound' in item['message']
+           'temporary Vec result must be bound' in item['message'] or
+           'temporary owned result must be bound' in item['message']
            for item in diagnostics), diagnostics
 PY
 done

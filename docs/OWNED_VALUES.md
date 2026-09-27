@@ -7,26 +7,28 @@ portable VM), checked indexing, fallible `VecPush`, `VecClear`, `VecFree`,
 `Vec(u8)` string builder through `BuilderAppend` and `BuilderFinish`, an
 explicit `VecClone(dest, src)` with a recoverable failure result, and
 `VecSlice(values, low, high)` borrowed views, in C99,
-C++, Go, and the portable VM. A vector can live in a local, global, or record
-field. Direct vector bindings have partial move checks on assignment,
-argument passing, and return. Go can report capacity overflow but its runtime
-may terminate on physical allocation failure; this is not yet the full
-recoverable failure contract below. `VecPop` and `VecGet` require the `Option` record
-template from `std/option.zi` to be visible in the using module.
+C++, Go, and the portable VM. A vector can live in a local, global, record
+field, or fixed-array element reached from a record. Direct vector bindings and
+whole aggregates containing vectors have move checks on declaration,
+assignment, argument passing, and return. Go can report capacity overflow but
+its runtime may terminate on physical allocation failure; this is not yet the
+full recoverable failure contract below. `VecPop` and `VecGet` require the
+`Option` record template from `std/option.zi` to be visible in the using module.
 
 **Current safety limits:** C99, C++, Go, and the portable VM drop direct owned
-`Vec` locals and parameters at block close, return, break, and continue. A
-direct move clears its source before the next drop. A direct or record-held
-`TextView` rejects mutation of its local backing binding until the view leaves
-scope, including views returned by checked calls and views nested in their
-result records; pointer-derived views, globals, and unmodeled aliases are not
-covered.
-The checker rejects initializing, assigning, passing, or returning aggregates
-containing a `Vec`; their fields can still hold vectors and be used in place.
-Aggregate moves and
-automatic drops require recursive ownership checking. The rest of this page
-describes the intended contract, not a guarantee that every case is enforced
-today.
+`Vec` locals and parameters at block close, return, break, and continue. They
+also recursively drop vectors reachable through record fields and fixed arrays.
+A direct move clears its source before the next drop; an aggregate move clears
+every reachable vector field in native targets, while the portable VM clones at
+the destination boundary and relies on the checker to make the source
+unreachable. An aggregate move source must be a whole local binding or fresh
+call result, and its destination must be a simple local. Record literals cannot
+yet initialize vector-bearing fields by moving a vector. A direct or
+record-held `TextView` rejects mutation of its local backing binding until the
+view leaves scope, including views returned by checked calls and views nested
+in their result records; pointer-derived views, globals, and unmodeled aliases
+are not covered. The rest of this page describes the intended contract, not a
+guarantee that every case is enforced today.
 
 A fresh `Vec` call result used as a whole expression statement is dropped
 immediately. A result used for member or index access must first be bound to a
@@ -53,12 +55,12 @@ value-copy semantics. An owned value, including `Vec[T]`, should move on assignm
 argument passing, and return. A move source must be a local binding or a fresh
 call result: the checker rejects moving nested record storage and moving a
 global, because both keep shared storage that other code can reach. The
-checker rejects use after move and assignment over a direct owned vector; moves
-inside an `if` whose every arm returns do not reach the join. The target rule
-is that every path drops each owned local exactly once, with a moved source
-zeroed so a later drop is harmless. All current backends implement this for
-direct `Vec` bindings; aggregates containing vectors still need recursive
-ownership checking and dropping.
+checker rejects use after move and assignment over a direct or aggregate-held
+owned vector; moves inside an `if` whose every arm returns do not reach the
+join. The target rule is that every path drops each owned local exactly once,
+with a moved source zeroed so a later drop is harmless. All current backends
+implement this for direct `Vec` bindings and for recursively owned vectors in
+records and fixed arrays.
 A view declared as `[]T` from
 `VecSlice(values, low, high)` borrows its source binding until the view's
 scope closes: moving or mutating the source, including `VecPush`, `VecPop`,

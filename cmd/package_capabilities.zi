@@ -51,7 +51,7 @@ Capabilities :: (arguments: []string) -> s32 {
     PkgPrint("\"source_and_saved_ir\":true,", false)
     PkgPrint("\"gpu_execution\":\"cpu_fallback\",", false)
     PkgPrint("\"automatic_vec_drop\":true,", false)
-    PkgPrint("\"aggregate_vec_transfer\":false,", false)
+    PkgPrint("\"aggregate_vec_transfer\":true,", false)
     PkgPrint("\"text_view_local_mutation_check\":true,", false)
     PkgPrint("\"diagnostics_json\":\"partial\"}\n", false)
     return 0

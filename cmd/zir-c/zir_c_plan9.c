@@ -1630,6 +1630,37 @@ c_plan9_rewrite_file(const char *path)
     return 0;
 }
 
+static char *
+append_plan9_main_wrapper(const char *text)
+{
+    static const char wrapper[] =
+"\nvoid\nmain(void)\n{\n"
+"    int32_t status;\n"
+"    char status_text[32];\n"
+"    status = ziran_plan9_main();\n"
+"    if(status == 0)\n"
+"        exits(0);\n"
+"    if(snprint(status_text, sizeof(status_text), \"%d\",\n"
+"               (int)status) <= 0)\n"
+"        exits(\"ziran: invalid exit status\");\n"
+"    exits(status_text);\n"
+"}\n";
+    size_t length = strlen(text);
+    char *result;
+
+    if(length > 0 && text[length - 1] != '\n')
+        length++;
+    result = malloc(length + sizeof(wrapper));
+    if(result == NULL)
+        return NULL;
+    memcpy(result, text, strlen(text));
+    result[strlen(text)] = '\0';
+    if(strlen(text) == 0 || text[strlen(text) - 1] != '\n')
+        strcat(result, "\n");
+    strcat(result, wrapper);
+    return result;
+}
+
 char *c_plan9_rewrite_once(const char *text);
 
 char *
@@ -1651,7 +1682,14 @@ c_plan9_rewrite(const char *text)
         if(next == NULL)
             return current;
         if(strcmp(next, current) == 0) {
+            char *with_main;
+
             free(next);
+            if(strstr(current, "ziran_plan9_main(void)\n{") != NULL) {
+                with_main = append_plan9_main_wrapper(current);
+                free(current);
+                return with_main;
+            }
             return current;
         }
         free(current);
@@ -1711,6 +1749,19 @@ c_plan9_rewrite_once(const char *text)
             pending_count--;
             if(buf_printf(&out, "%s}\n", indent) < 0)
                 goto fail;
+        }
+
+        if(strcmp(current, "int32_t main(void);\n") == 0) {
+            if(buf_puts(&out,
+                        "int32_t ziran_plan9_main(void);\n"
+                        "void main(void);\n") < 0)
+                goto fail;
+            continue;
+        }
+        if(strcmp(current, "main(void)\n") == 0) {
+            if(buf_puts(&out, "ziran_plan9_main(void)\n") < 0)
+                goto fail;
+            continue;
         }
 
         if(strstr(current, "#include <stdint.h>") != NULL ||

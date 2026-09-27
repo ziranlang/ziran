@@ -1655,6 +1655,26 @@ lexical_vec_binding(Checker *c, int index)
     return NULL;
 }
 
+/* Aggregate ownership follows the same move discipline as a direct Vec. */
+static Binding *
+lexical_owned_binding(Checker *c, int index)
+{
+    const ZirExpr *e;
+    if(index < 0 || index >= c->fn->expr_count)
+        return NULL;
+    e = &c->fn->exprs[index];
+    if(e->kind != ZIR_EXPR_IDENT || e->is_this ||
+       !strcmp(e->name, "true") || !strcmp(e->name, "false") ||
+       !strcmp(e->name, "null"))
+        return NULL;
+    for(int i = c->count - 1; i >= 0; i--)
+        if(!c->bindings[i].is_using_namespace &&
+           !strcmp(c->bindings[i].name, e->name) &&
+           contains_vec(c->module, c->bindings[i].type, 0))
+            return &c->bindings[i];
+    return NULL;
+}
+
 /* Only local bindings move. A global keeps shared module state, so moving it
  * would leave every other function reading transferred storage. */
 static int
@@ -5287,14 +5307,14 @@ mark_expr_moves(Checker *c, int index)
     for(int child = e->first_child; child >= 0;
         child = c->fn->exprs[child].next_sibling) {
         Binding *binding = e->kind == ZIR_EXPR_CALL ?
-            lexical_vec_binding(c, child) : NULL;
+            lexical_owned_binding(c, child) : NULL;
         int consumes = binding != NULL &&
             (!primitive || !strcmp(e->name, "VecFree") ||
              !strcmp(e->name, "BuilderFinish"));
         if(consumes) {
             if(binding->moved) {
                 error(c, c->fn->exprs[child].span,
-                      "Vec binding is used after moving", binding->name);
+                      "owned binding is used after moving", binding->name);
                 continue;
             }
             if(binding->borrow_count > 0)
@@ -5327,16 +5347,16 @@ check_vec_call_results(Checker *c, int index, int transferred, int discarded)
         return;
     const ZirExpr *expr = &c->fn->exprs[index];
     if(expr->kind == ZIR_EXPR_CALL &&
-       VecElementType(c->module, expr->type, NULL, 0) &&
+       contains_vec(c->module, expr->type, 0) &&
        !transferred && !discarded)
         error(c, expr->span,
-              "temporary Vec result must be bound or passed to an owning call",
+              "temporary owned result must be bound or passed to an owning call",
               expr->name);
     for(int child = expr->first_child; child >= 0;
         child = c->fn->exprs[child].next_sibling) {
         int child_transfer = expr->kind == ZIR_EXPR_CALL &&
             !vec_primitive_name(expr->name) &&
-            VecElementType(c->module, c->fn->exprs[child].type, NULL, 0);
+            contains_vec(c->module, c->fn->exprs[child].type, 0);
         check_vec_call_results(c, child, child_transfer, 0);
     }
     check_vec_call_results(c, expr->left, 0, 0);
@@ -5355,11 +5375,6 @@ check_function(Checker *c, ZirFunction *fn)
     c->fn = fn;
     if(contains_vec(c->module, fn->return_type, 0) && fn->is_extern)
         error(c, fn->span, "Vec cannot cross an extern signature", fn->name);
-    if(contains_vec(c->module, fn->return_type, 0) &&
-       !VecElementType(c->module, fn->return_type, NULL, 0))
-        error(c, fn->span,
-              "returning an aggregate containing Vec is not supported",
-              fn->name);
     select_lookup_file(c->module, fn->span);
     const ZirType *return_slot = FindType(c->module, c->fn->return_type, NULL);
     if(return_slot != NULL && return_slot->is_record_template) {
@@ -5413,11 +5428,6 @@ restart:
             has_slots |= parameter_type != NULL && parameter_type->is_procedure_type;
             if(contains_vec(c->module, colon, 0) && fn->is_extern)
                 error(c, fn->span, "Vec cannot cross an extern signature", params[a]);
-            if(contains_vec(c->module, colon, 0) &&
-               !VecElementType(c->module, colon, NULL, 0))
-                error(c, fn->span,
-                      "passing an aggregate containing Vec is not supported",
-                      params[a]);
             has_arrays |= ArrayValueType(colon) || SliceElementType(colon, NULL, 0);
             bind(c, params[a], colon, c->fn->span);
             if((!fn->from_ir || fn->is_specialization) &&
@@ -5530,11 +5540,11 @@ restart:
         }
         c->destination_was_moved = -1;
         if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0) {
-            Binding *destination = lexical_vec_binding(c, st->lhs_root);
+            Binding *destination = lexical_owned_binding(c, st->lhs_root);
             c->destination_was_moved = destination != NULL && destination->moved;
         }
         if(c->errors == errors_at_statement && st->expr_root >= 0) {
-            Binding *moved_from = lexical_vec_binding(c, st->expr_root);
+            Binding *moved_from = lexical_owned_binding(c, st->expr_root);
             int consumed_root = 0;
             if(moved_from != NULL &&
                (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
@@ -5552,15 +5562,13 @@ restart:
             int root_transfer =
                 (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
                  st->kind == ZIR_STMT_RETURN) &&
-                VecElementType(c->module, fn->exprs[st->expr_root].type,
-                               NULL, 0);
+                contains_vec(c->module, fn->exprs[st->expr_root].type, 0);
             int root_discard = st->kind == ZIR_STMT_EXPR ||
                                st->kind == ZIR_STMT_UNUSED;
             check_vec_call_results(c, st->expr_root, root_transfer,
                                    root_discard);
             if(root_discard &&
-               VecElementType(c->module, fn->exprs[st->expr_root].type,
-                              NULL, 0) &&
+               contains_vec(c->module, fn->exprs[st->expr_root].type, 0) &&
                fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
                fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL)
                 error(c, st->span,
@@ -5571,7 +5579,7 @@ restart:
              * `v = Take(v)` also re-owns: the right side moved this binding
              * into the call and stores the result back into it. */
             if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0) {
-                Binding *destination = lexical_vec_binding(c, st->lhs_root);
+                Binding *destination = lexical_owned_binding(c, st->lhs_root);
                 if(destination != NULL) {
                     if(destination->moved)
                         c->destination_was_moved = 1;
@@ -5624,12 +5632,6 @@ restart:
             }
             if(st->expr_root >= 0 &&
                contains_vec(c->module, st->type, 0) &&
-               !VecElementType(c->module, st->type, NULL, 0))
-                error(c, st->span,
-                      "initializing an aggregate containing Vec is not supported",
-                      st->name);
-            if(st->expr_root >= 0 &&
-               contains_vec(c->module, st->type, 0) &&
                c->fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
                c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL)
                 error(c, st->span,
@@ -5668,17 +5670,12 @@ restart:
             c->assign_destination = 1;
             const char *lhs = expression_type(c, st->lhs_root);
             c->assign_destination = 0;
-            if(contains_vec(c->module, lhs, 0) &&
-               !VecElementType(c->module, lhs, NULL, 0))
-                error(c, st->span,
-                      "assigning an aggregate containing Vec is not supported",
-                      st->text);
-            else if(contains_vec(c->module, lhs, 0)) {
+            if(contains_vec(c->module, lhs, 0)) {
                 if(c->fn->exprs[st->lhs_root].kind != ZIR_EXPR_IDENT)
                     error(c, st->span,
                           "Vec assignment requires a simple binding destination",
                           st->text);
-                else if(lexical_vec_binding(c, st->lhs_root) == NULL)
+                else if(lexical_owned_binding(c, st->lhs_root) == NULL)
                     error(c, st->span,
                           "global Vec assignment is not supported; move it into a local first",
                           st->text);
@@ -5726,12 +5723,12 @@ restart:
                     error(c, st->span, "assignment type mismatch", st->text);
             }
         } else if(st->kind == ZIR_STMT_RETURN) {
-            if(VecElementType(c->module, c->fn->return_type, NULL, 0) &&
+            if(contains_vec(c->module, c->fn->return_type, 0) &&
                st->expr_root >= 0 &&
                fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
                fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL)
                 error(c, st->span,
-                      "Vec return moves a binding or takes a call result",
+                      "owned return moves a binding or takes a call result",
                       c->fn->name);
             if(!compatible_checked(c, c->fn->return_type, type)) {
                 const char *converted = try_conversion(c, st->expr_root,

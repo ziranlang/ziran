@@ -136,10 +136,11 @@ ProjectRoot :: (output: []u8) -> string {
 // uses the installed resolver until its native replacement is ready.
 #program_export
 Add :: (launcher: string, arguments: []string) -> s32 {
-    if arguments.count < 1 { return Fail("usage: ziran add OWNER/REPO or ziran add NAME --git URL\n") }
+    if arguments.count < 1 { return Fail("usage: ziran add OWNER/REPO or ziran add NAME --git URL [--ref REF] [--source]\n") }
     requested: string = arguments[0]
     provided_git: string = ""
     reference: string = "master"
+    source: bool = false
     index: s32 = 1
     while index < cast(s32)arguments.count {
         if arguments[index] == "--git" && index + 1 < cast(s32)arguments.count {
@@ -148,6 +149,9 @@ Add :: (launcher: string, arguments: []string) -> s32 {
         } else if arguments[index] == "--ref" && index + 1 < cast(s32)arguments.count {
             reference = arguments[index + 1]
             index += 2
+        } else if arguments[index] == "--source" {
+            source = true
+            index += 1
         } else {
             return Fail("ziran add: invalid option\n")
         }
@@ -225,6 +229,7 @@ Add :: (launcher: string, arguments: []string) -> s32 {
     end = Copy(declaration[:], end, "\"\nref = \"")
     end = Copy(declaration[:], end, reference)
     end = Copy(declaration[:], end, "\"\n")
+    if source { end = Copy(declaration[:], end, "source = true\n") }
     if end < 0 { return Fail("ziran add: declaration too long\n") }
     file = OpenUpdate(manifest_path)
     if !file.valid { return Fail("ziran add: cannot update ziran.toml\n") }

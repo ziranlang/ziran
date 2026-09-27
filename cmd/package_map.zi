@@ -245,6 +245,10 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string
             if target < 0 || PkgHasModule(*graph.sets[target + 1], name) {
                 return ""
             }
+            if locked.packages[target].source {
+                direct += 1
+                continue
+            }
             PkgAppend(*builder, PkgJoin3("D\t", locked.packages[target].id,
                 "\t"))
             PkgAppend(*builder, name)

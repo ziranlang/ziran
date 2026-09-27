@@ -15,6 +15,7 @@ PkgLocked :: struct {
     ref: string
     commit: string
     path: string
+    source: bool
     edges: [24]PkgNamedValue
     edge_count: s32
     manifest: PkgManifest
@@ -38,6 +39,7 @@ PkgPending :: struct {
     alias: string
     url: string
     ref: string
+    source: bool
     refresh: bool
 }
 
@@ -118,6 +120,12 @@ PkgReadLock :: (path: string, output: *PkgLock) -> bool {
             locked.commit.count != 40 ||
             !PkgParseEdges(json, FieldAt(json, item, "dependencies"),
                 *locked.edges[0], *locked.edge_count) { return false }
+        source_at: s32 = FieldAt(json, item, "source")
+        if source_at >= 0 {
+            if MatchLiteral(json, source_at, "true") { locked.source = true }
+            else if !MatchLiteral(json, source_at, "false") { return false }
+            if locked.source && locked.edge_count > 0 { return false }
+        }
         index += 1
     }
     output.count = count
@@ -358,6 +366,7 @@ PkgWriteLock :: (root: string, locked: *PkgLock) -> bool {
         PkgAppendJson(*builder, item.name)
         PkgAppend(*builder, ",\n      \"ref\": ")
         PkgAppendJson(*builder, item.ref)
+        if item.source { PkgAppend(*builder, ",\n      \"source\": true") }
         PkgAppend(*builder, ",\n      \"url\": ")
         PkgAppendJson(*builder, item.url)
         PkgAppend(*builder, "\n    }")
@@ -407,7 +416,8 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                 old.root_edge_count, dep.alias)
             target: s32 = PkgFindById(old, id)
             if target < 0 || old.packages[target].url != dep.git ||
-                old.packages[target].ref != dep.ref {
+                old.packages[target].ref != dep.ref ||
+                old.packages[target].source != dep.source {
                 PkgFail("dependencies differ from ziran.lock; run ziran lock")
                 return false
             }
@@ -438,6 +448,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
         pending[pending_count].alias = dependency.alias
         pending[pending_count].url = dependency.git
         pending[pending_count].ref = dependency.ref
+        pending[pending_count].source = dependency.source
         pending[pending_count].refresh = refresh == "*" ||
             (refresh != "" && PkgFoldEqual(refresh, dependency.alias))
         pending_count += 1
@@ -483,11 +494,19 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                 }
                 item.path = PkgCheckout(next.url, item.commit, false)
             }
-            if !PkgValidCommit(item.commit) || item.path.count == 0 ||
-               !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"), *item.manifest) {
+            if !PkgValidCommit(item.commit) || item.path.count == 0 {
                 return false
             }
-            item.name = item.manifest.name
+            // A source package is a pinned checkout for platform builds. It
+            // has no manifest, modules, or dependencies of its own.
+            item.source = next.source
+            if item.source {
+                item.name = PkgJoin("", next.alias)
+            } else {
+                if !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"),
+                    *item.manifest) { return false }
+                item.name = item.manifest.name
+            }
             item.id = PkgSourceId(item.url, item.commit)
             resolved.count += 1
             index = 0
@@ -499,6 +518,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                 entry.alias = child.alias
                 entry.url = child.git
                 entry.ref = child.ref
+                entry.source = child.source
                 entry.refresh = next.refresh
                 if next.refresh {
                     shift: s32 = pending_count
@@ -514,6 +534,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                 index += 1
             }
         }
+        if resolved.packages[found].source != next.source { return false }
         if next.owner < 0 {
             if resolved.root_edge_count >= 24 { return false }
             resolved.root_edges[resolved.root_edge_count].name = next.alias
@@ -568,7 +589,8 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             dep.alias)
         found: s32 = PkgFindById(locked, id)
         if found < 0 || locked.packages[found].url != dep.git ||
-           locked.packages[found].ref != dep.ref {
+           locked.packages[found].ref != dep.ref ||
+           locked.packages[found].source != dep.source {
             PkgFail("dependencies differ from ziran.lock; run ziran lock")
             return false
         }
@@ -582,8 +604,13 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
         if item.path.count == 0 {
             item.path = PkgCheckout(item.url, item.commit, offline)
         }
-        if item.path.count == 0 ||
-           !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"), *item.manifest) ||
+        if item.path.count == 0 { return false }
+        if item.source {
+            if item.edge_count != 0 { return false }
+            index += 1
+            continue
+        }
+        if !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"), *item.manifest) ||
            item.manifest.name != item.name ||
            item.manifest.dependency_count != item.edge_count { return false }
         child: s32 = 0
@@ -592,7 +619,8 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             id: string = PkgEdgeValue(*item.edges[0], item.edge_count, dep.alias)
             target: s32 = PkgFindById(locked, id)
             if target < 0 || locked.packages[target].url != dep.git ||
-                locked.packages[target].ref != dep.ref { return false }
+                locked.packages[target].ref != dep.ref ||
+                locked.packages[target].source != dep.source { return false }
             child += 1
         }
         index += 1

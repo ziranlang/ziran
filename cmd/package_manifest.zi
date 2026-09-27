@@ -11,6 +11,7 @@ PkgDependency :: struct {
     alias: string
     git: string
     ref: string
+    source: bool
     aliases: [24]PkgNamedValue
     alias_count: s32
 }
@@ -256,13 +257,19 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
             if key == "git" { dep.git = value }
             if key == "ref" { dep.ref = value }
             if key == "module_aliases" && !PkgTomlAliases(raw, dep) { return false }
+            if key == "source" {
+                if raw == "true" { dep.source = true }
+                else if raw != "false" { return false }
+            }
         }
     }
     if !PkgPackageName(output.name) { return false }
     index: s32 = 0
     while index < output.dependency_count {
         if !PkgGitURL(output.dependencies[index].git) ||
-            output.dependencies[index].ref.count == 0 { return false }
+            output.dependencies[index].ref.count == 0 ||
+            (output.dependencies[index].source &&
+                output.dependencies[index].alias_count > 0) { return false }
         index += 1
     }
     output.valid = true

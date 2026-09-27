@@ -82,6 +82,23 @@ transitive dependency. Add `--submodules` when a platform build needs its
 vendored backend source. The command initializes the submodules at the commits
 recorded by that package; with `--offline`, it requires them to be present.
 
+A platform build can also pin a repository that is not a Ziran package, such
+as a C library it compiles from source. Mark the dependency with
+`source = true`:
+
+```toml
+[dependencies.sqlite]
+git = "https://github.com/sqlite/sqlite.git"
+ref = "master"
+source = true
+```
+
+`ziran add sqlite --git URL --source` writes the same declaration. A source
+package is locked, fetched, and cached like any other dependency, and
+`ziran pkg path sqlite --locked` returns its checkout, but it has no
+`ziran.toml`, exports no modules, and cannot declare dependencies or module
+aliases. Build scripts use that path instead of a `vendor/` submodule.
+
 For local development, an ignored `ziran.local.toml` can map package names to
 working directories:
 

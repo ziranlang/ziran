@@ -292,6 +292,52 @@ Backend = "src/Backend.zi"
                                  "--offline", cwd=app, env=env).strip())
         assert offline_path == backend_path
 
+        # A source package pins a repository without a Ziran manifest, such as
+        # a C library that a platform build compiles from source.
+        native = root / "native"
+        init(native, env)
+        write(native / "native.c", "int native_value(void) { return 7; }\n")
+        commit(native, env)
+        sourced = aliased + (
+            f'\n[dependencies.Backend]\ngit = "{backend.as_uri()}"\nref = "master"\n'
+            f'\n[dependencies.native]\ngit = "{native.as_uri()}"\nref = "master"\nsource = true\n')
+        write(app / "ziran.toml", sourced)
+        call(ziran, "lock", cwd=app, env=env)
+        locked = json.loads((app / "ziran.lock").read_text())
+        native_entry = next(item for item in locked["packages"]
+                            if item["name"] == "native")
+        assert native_entry["source"] is True and native_entry["dependencies"] == {}
+        assert all("source" not in item for item in locked["packages"]
+                   if item["name"] != "native")
+        native_path = Path(call(ziran, "pkg", "path", "native", cwd=app,
+                                env=env).strip())
+        assert (native_path / "native.c").is_file()
+        call(ziran, "fetch", "--offline", cwd=app, env=env)
+        call(ziran, "check", "--project", cwd=app, env=env)
+        saved_lock = (app / "ziran.lock").read_bytes()
+        call(ziran, "lock", cwd=app, env=env)
+        assert (app / "ziran.lock").read_bytes() == saved_lock
+        write(app / "ziran.toml", sourced.replace("source = true\n", ""))
+        drift = call(ziran, "check", "--project", cwd=app, env=env,
+                     succeed=False)
+        assert "differ from ziran.lock" in drift
+        write(app / "ziran.toml", sourced.replace("source = true", "source = yes"))
+        invalid = call(ziran, "lock", cwd=app, env=env, succeed=False)
+        assert "cannot resolve" in invalid
+        write(app / "ziran.toml", sourced)
+
+        native_env = env.copy()
+        native_env["GIT_CONFIG_COUNT"] = "2"
+        native_env["GIT_CONFIG_KEY_1"] = f"url.{native.as_uri()}.insteadOf"
+        native_env["GIT_CONFIG_VALUE_1"] = "https://example.invalid/native.git"
+        call(ziran, "add", "native", "--git", "https://example.invalid/native.git",
+             "--source", cwd=add_app, env=native_env)
+        assert "[dependencies.native]" in (add_app / "ziran.toml").read_text()
+        assert "source = true" in (add_app / "ziran.toml").read_text()
+        added = Path(call(ziran, "pkg", "path", "native", cwd=add_app,
+                          env=native_env).strip())
+        assert (added / "native.c").is_file()
+
 
 if __name__ == "__main__":
     main()

@@ -38,6 +38,24 @@ Answer :: () -> s32 {
        signed_word + cast(s32)1 != cast(s32)(-2147483647 - 1) {
         return 5
     }
+    minimum_word: s32 = cast(s32)(-2147483647 - 1)
+    minimum_long: s64 = cast(s64)(-9223372036854775807 - 1)
+    minus_one_word: s32 = cast(s32)(-1)
+    minus_one_long: s64 = cast(s64)(-1)
+    if minimum_word / minus_one_word != minimum_word ||
+       minimum_word % minus_one_word != cast(s32)0 ||
+       minimum_long / minus_one_long != minimum_long ||
+       minimum_long % minus_one_long != cast(s64)0 { return 6 }
+    if cast(s8)(cast(u8)200) != cast(s8)(-56) ||
+       cast(u8)(cast(s8)(-1)) != cast(u8)255 ||
+       cast(s16)(cast(u16)40000) != cast(s16)(-25536) ||
+       cast(u16)(cast(s16)(-1)) != cast(u16)65535 ||
+       cast(s32)(cast(u32)4294967295) != cast(s32)(-1) ||
+       cast(u32)(cast(s32)(-1)) != cast(u32)4294967295 ||
+       cast(s64)(cast(u64)18446744073709551615) != cast(s64)(-1) ||
+       cast(u64)(cast(s64)(-1)) != cast(u64)18446744073709551615 {
+        return 7
+    }
     return 42
 }
 

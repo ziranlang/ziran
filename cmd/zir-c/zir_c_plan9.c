@@ -1455,7 +1455,7 @@ c_plan9_write_runtime(const char *out_dir)
 "#define ZIR_PLAN9_RUNTIME_H\n\n"
 "#include <u.h>\n"
 "#include <libc.h>\n\n"
-"typedef schar int8_t;\n"
+"typedef char int8_t;\n"
 "typedef uchar uint8_t;\n"
 "typedef short int16_t;\n"
 "typedef ushort uint16_t;\n"
@@ -1463,6 +1463,7 @@ c_plan9_write_runtime(const char *out_dir)
 "typedef uint uint32_t;\n"
 "typedef vlong int64_t;\n"
 "typedef uvlong uint64_t;\n"
+"typedef long ptrdiff_t;\n"
 "typedef usize size_t;\n"
 "typedef int bool;\n\n"
 "#define NULL ((void*)0)\n"
@@ -1799,6 +1800,142 @@ rewrite_integer_suffixes(char *line)
     *write = '\0';
 }
 
+typedef struct {
+    char alias[PLAN9_NAME_MAX];
+    char symbol[PLAN9_NAME_MAX];
+} Plan9ForeignAlias;
+
+static int
+collect_plan9_foreign_aliases(const char *text,
+                              Plan9ForeignAlias *aliases,
+                              int alias_count)
+{
+    const char *cursor = text;
+    int count = 0;
+
+    while(*cursor != '\0') {
+        const char *nl = strchr(cursor, '\n');
+        const char *asm_at = strstr(cursor, "__asm__(\"");
+        const char *quote;
+        const char *close;
+        const char *alias_at;
+        const char *alias_end;
+        const char *scan;
+        size_t length;
+
+        if(asm_at == NULL)
+            break;
+        if(nl != NULL && asm_at > nl) {
+            cursor = nl + 1;
+            continue;
+        }
+        quote = asm_at + strlen("__asm__(\"");
+        close = strchr(quote, '"');
+        if(close == NULL || close == quote ||
+           (size_t)(close - quote) >= sizeof(aliases[0].symbol))
+            return -1;
+        alias_at = strstr(cursor, "zir_foreign_");
+        if(alias_at == NULL || alias_at > asm_at)
+            return -1;
+        alias_end = alias_at + strlen("zir_foreign_");
+        while(isalnum((unsigned char)*alias_end) || *alias_end == '_')
+            alias_end++;
+        length = (size_t)(alias_end - alias_at);
+        if(length == 0 || length >= sizeof(aliases[0].alias))
+            return -1;
+        if(count < alias_count) {
+            memcpy(aliases[count].alias, alias_at, length);
+            aliases[count].alias[length] = '\0';
+            length = (size_t)(close - quote);
+            memcpy(aliases[count].symbol, quote, length);
+            aliases[count].symbol[length] = '\0';
+            count++;
+        }
+        cursor = close + 1;
+    }
+    return count;
+}
+
+static int
+rewrite_plan9_foreign_aliases(const char *line,
+                              const Plan9ForeignAlias *aliases,
+                              int alias_count, char *output, size_t size)
+{
+    const char *read;
+    size_t written = 0;
+    char *asm_at;
+    const char *quote;
+    const char *close;
+    const char *tail;
+    size_t length;
+
+    for(read = line; *read != '\0';) {
+        int matched = -1;
+        int index;
+
+        for(index = 0; index < alias_count; index++) {
+            length = strlen(aliases[index].alias);
+            if(strncmp(read, aliases[index].alias, length) == 0 &&
+               !isalnum((unsigned char)read[length]) &&
+               read[length] != '_') {
+                matched = index;
+                break;
+            }
+        }
+        if(matched >= 0) {
+            const char *replacement = aliases[matched].symbol;
+
+            length = strlen(replacement);
+            if(written + length + 1 >= size)
+                return -1;
+            memcpy(output + written, replacement, length);
+            written += length;
+            read += strlen(aliases[matched].alias);
+            continue;
+        }
+        if(written + 2 > size)
+            return -1;
+        output[written++] = *read++;
+    }
+    output[written] = '\0';
+
+    asm_at = strstr(output, "__asm__(\"");
+    if(asm_at == NULL)
+        return 0;
+    quote = asm_at + strlen("__asm__(\"");
+    close = strchr(quote, '"');
+    if(close == NULL)
+        return -1;
+    tail = close + 1;
+    while(*tail == ' ' || *tail == '\t')
+        tail++;
+    if(*tail != ')' || tail[1] != ';')
+        return -1;
+    while(asm_at > output &&
+          (asm_at[-1] == ' ' || asm_at[-1] == '\t'))
+        asm_at--;
+    if((size_t)(asm_at - output) + 3 >= size)
+        return -1;
+    {
+        static const char * const runtime_symbols[] = {
+            "snprint", "getenv", "create", "write", "close",
+            "malloc", "calloc", "realloc", "free", NULL
+        };
+        size_t symbol_length = (size_t)(close - quote);
+        int index;
+
+        for(index = 0; runtime_symbols[index] != NULL; index++) {
+            if(strlen(runtime_symbols[index]) == symbol_length &&
+               strncmp(quote, runtime_symbols[index], symbol_length) == 0)
+                return 1;
+        }
+    }
+    asm_at[0] = ';';
+    asm_at[1] = '\n';
+    asm_at[2] = '\0';
+    return 0;
+}
+
 char *
 c_plan9_rewrite_once(const char *text)
 {
@@ -1810,6 +1947,12 @@ c_plan9_rewrite_once(const char *text)
     int pending_count = 0;
     int depth = 0;
     int runtime_include = 0;
+    Plan9ForeignAlias aliases[128];
+    int alias_count;
+
+    alias_count = collect_plan9_foreign_aliases(text, aliases, 128);
+    if(alias_count < 0)
+        return NULL;
 
     line = malloc(PLAN9_LINE_MAX);
     if(line == NULL)
@@ -1837,6 +1980,18 @@ c_plan9_rewrite_once(const char *text)
         current[n] = '\0';
         cursor += n;
         lineno++;
+        {
+            int foreign_result =
+                rewrite_plan9_foreign_aliases(current, aliases, alias_count,
+                                              rewritten, sizeof(rewritten));
+            if(foreign_result < 0)
+                goto fail;
+            if(foreign_result > 0)
+                continue;
+        }
+        if(snprintf(current, sizeof(current), "%s", rewritten) >=
+            (int)sizeof(current))
+            goto fail;
         rewrite_integer_suffixes(current);
 
         while(ilen + 1 < sizeof(indent) &&

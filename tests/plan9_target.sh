@@ -4,7 +4,7 @@ set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 zi2c="${ziran%/*}/zi2c"
-work=$(mktemp -d)
+work=$(mktemp -d "$repo/build/test/plan9_target.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 mkdir "$work/src"
@@ -13,13 +13,15 @@ Inner :: struct { value: s32 }
 Props :: struct { inner: Inner; scale: s32 }
 Make :: () -> Props { return .{inner = .{value = 40}, scale = 2} }
 Read :: (props: Props) -> s32 { return props.inner.value + props.scale }
+foreign_libc :: #system_library "libc";
+ForeignClose :: (descriptor: s32) -> s32 #foreign foreign_libc "close";
 #program_export
 main :: () -> s32 {
     local := Make()
     bytes: [3]u8 = .[97, 98, 99]
     text: string = "abc"
     part: string = text[0:2]
-    if Read(local) != 42 || text.count != 3 ||
+    if Read(local) != 42 || ForeignClose(-1) != -1 || text.count != 3 ||
         text[0] != bytes[0] || part != "ab" { return 1 }
     return 0
 }
@@ -51,6 +53,11 @@ if rg -n 'static inline|__auto_type|\{\s*\.|for\s*\(\s*(int|s32|u32)|[0-9]U?LL' 
     echo 'plan9-c output retained unsupported C constructs' >&2
     exit 1
 fi
+if rg -n '__asm__' "$work/generated"/*.c "$work/generated"/*.h; then
+    echo 'plan9-c retained unsupported assembler-name syntax' >&2
+    exit 1
+fi
+rg -q -F '    return close(descriptor);' "$work/generated/main.h"
 
 rg -q '^int32_t ziran_plan9_main\(void\);$' "$work/generated/main.h"
 rg -q '^void main\(void\);$' "$work/generated/main.h"
@@ -86,6 +93,7 @@ extern void *memset(void *, int, unsigned long);
 extern int memcmp(const void *, const void *, unsigned long);
 extern int fprint(int, const char *, ...);
 extern int snprint(char *, int, const char *, ...);
+extern int close(int);
 extern void exits(const char *);
 extern void abort(void);
 #endif

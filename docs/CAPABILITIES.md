@@ -37,9 +37,10 @@ direct mutation of local backing storage while a direct, field-held, aliased,
 or checked-call-produced `TextView` is live. Global backing origins and
 local `*value` pointer aliases are included; unknown heap and host-backed
 aliases are outside this field.
-`aggregate_vec_transfer` is `true`: whole local aggregates and fresh aggregate
-call results can move through assignment, argument passing, and return, with
-native targets recursively clearing every moved vector field. `diagnostics_json` is `partial` because some compiler paths
+`aggregate_vec_transfer` is `true`: whole local aggregates, fresh aggregate
+call results, and vector-bearing record-literal fields can move through
+assignment, argument passing, and return, with native targets recursively
+clearing every moved vector field. `diagnostics_json` is `partial` because some compiler paths
 still print plain errors even when JSON is requested. These are current
 boundaries, not feature requests or guarantees about unlisted behavior. See
 [implementation status](IMPLEMENTATION_STATUS.md) and the

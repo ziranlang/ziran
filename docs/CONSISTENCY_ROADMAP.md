@@ -33,8 +33,8 @@ aliases. These fixes do not complete the ownership or diagnostic contracts.
 
 1. **Automatic ownership cleanup.** All four execution paths now release direct
    owned `Vec` locals and parameters on return, break, continue, and normal
-   scope close; direct and aggregate moves clear every reachable native source
-   field. Lower the remaining ownership decisions into checked IR rather than
+   scope close; direct, aggregate, and record-literal field moves clear every
+   reachable native source field. Lower the remaining ownership decisions into checked IR rather than
    separate backend paths, broaden allocation-count and AddressSanitizer
    coverage, and keep source/saved-IR tests across backends. Reclaiming the
    bytes detached by `BuilderFinish` needs a separate string ownership policy.

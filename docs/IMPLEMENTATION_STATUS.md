@@ -681,13 +681,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   emitted by the compiler, with textual and JSON output. `ziran explain --list`
   enumerates the registry, and `tests/explain.sh` fails if a new emitted code is
   omitted.
-- Whole local aggregates and fresh aggregate call results containing `Vec`
-  can move through declaration, assignment, argument passing, and return.
-  C, C++, Go, and the portable VM recursively drop vectors reached through
-  record fields and fixed arrays; native moves clear every reachable source
-  field. `tests/aggregate_vec_safety.sh` checks use-after-move and overwrite
-  rejection, allocator balance, source/saved-IR equality, and all four
-  execution paths with nested records and arrays.
+- Whole local aggregates, fresh aggregate call results, and vector-bearing
+  record-literal fields can move through declaration, assignment, argument
+  passing, and return. C, C++, Go, and the portable VM recursively drop
+  vectors reached through record fields and fixed arrays; native moves clear
+  every reachable source field. `tests/aggregate_vec_safety.sh` checks
+  use-after-move, global-source, and overwrite rejection, record-literal field
+  moves, allocator balance, source/saved-IR equality, and all four execution
+  paths with nested records and arrays.
 - Validated benchmark harnesses record compilation and runtime samples with
   command lines, versions, hashes, hardware, and checked outputs. The multilingual
   UTF-8 harness compares source and saved IR across C, C++, Go, `.zib`, and
@@ -712,8 +713,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   features, including complete host capability coverage. The current bundle
   embeds checked `.zir` and follows direct calls, but it remains a subset.
 - Complete ownership edge cases: unknown heap and host-backed view aliases,
-  moving individual nested fields, vector-bearing record-literal fields, and
-  reclaimable storage detached by `BuilderFinish`.
+  moving individual nested fields, and reclaimable storage detached by
+  `BuilderFinish`.
 - Finish numerical edge-case agreement, JSON diagnostic fields, the versioned
   feature registry, and cross-target capability reporting.
 - Complete native backend parity, FFI capability checks, law coverage, Plan 9

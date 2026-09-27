@@ -8,9 +8,9 @@ portable VM), checked indexing, fallible `VecPush`, `VecClear`, `VecFree`,
 explicit `VecClone(dest, src)` with a recoverable failure result, and
 `VecSlice(values, low, high)` borrowed views, in C99,
 C++, Go, and the portable VM. A vector can live in a local, global, record
-field, or fixed-array element reached from a record. Direct vector bindings and
-whole aggregates containing vectors have move checks on declaration,
-assignment, argument passing, and return. Go can report capacity overflow but
+field, or fixed-array element reached from a record. Direct vector bindings,
+whole aggregates containing vectors, and vector-bearing record-literal fields
+have move checks on declaration, assignment, argument passing, and return. Go can report capacity overflow but
 its runtime may terminate on physical allocation failure; this is not yet the
 full recoverable failure contract below. `VecPop` and `VecGet` require the
 `Option` record template from `std/option.zi` to be visible in the using module.
@@ -22,8 +22,9 @@ A direct move clears its source before the next drop; an aggregate move clears
 every reachable vector field in native targets, while the portable VM clones at
 the destination boundary and relies on the checker to make the source
 unreachable. An aggregate move source must be a whole local binding or fresh
-call result, and its destination must be a simple local. Record literals cannot
-yet initialize vector-bearing fields by moving a vector. A direct or
+call result, and its destination must be a simple local. A record literal can
+initialize a vector-bearing field from a local vector or fresh call result;
+using that source again is rejected. A direct or
 record-held `TextView` rejects mutation of its local backing binding until the
 view leaves scope, including views returned by checked calls and views nested
 in their result records. A view-bearing global conservatively keeps its global

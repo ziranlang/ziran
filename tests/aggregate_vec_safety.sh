@@ -25,6 +25,11 @@ Take :: (value: Outer) -> s32 {
            value.extra[0]
 }
 Relay :: (value: Outer) -> Outer { return value }
+FieldMake :: () -> Inner {
+    items: Vec(s32)
+    VecPush(items, 11)
+    return Inner.{items = items}
+}
 #program_export
 Check :: () -> s32 {
     made := Make()
@@ -35,9 +40,35 @@ Check :: () -> s32 {
     VecPush(grown.inners[0].items, 10)
     VecPush(grown.inners[1].items, 11)
     VecPush(grown.extra, 12)
-    return Take(first) + Take(grown)
+    field := FieldMake()
+    literal_items: Vec(s32)
+    VecPush(literal_items, 13)
+    literal := Inner.{items = literal_items}
+    return Take(first) + Take(grown) + field.items[0] +
+           literal.items[0]
 }
 ZI
+cat > "$work/field_use_after_move.zi" <<'ZI'
+#import "vec"
+Inner :: struct { items: Vec(s32); }
+Check :: () -> s32 {
+    items: Vec(s32)
+    VecPush(items, 1)
+    value := Inner.{items = items}
+    return cast(s32)items.count + value.items[0]
+}
+ZI
+
+cat > "$work/global_field_move.zi" <<'ZI'
+#import "vec"
+Inner :: struct { items: Vec(s32); }
+items: Vec(s32);
+Check :: () -> s32 {
+    value := Inner.{items = items}
+    return cast(s32)value.items.count
+}
+ZI
+
 cat > "$work/use_after_move.zi" <<'ZI'
 #import "vec"
 Inner :: struct { items: Vec(s32); }
@@ -64,25 +95,29 @@ Check :: () -> s32 {
 }
 ZI
 
-if "$ziran" check --diagnostics=json --root "$work" \
-    --module-path "$repo/std" "$work/use_after_move.zi" \
-    > "$work/use_after_move.out" 2> "$work/use_after_move.err"; then
-    echo 'aggregate Vec source was used after moving' >&2
+for name in field_use_after_move global_field_move use_after_move; do
+    if "$ziran" check --diagnostics=json --root "$work" \
+    --module-path "$repo/std" "$work/$name.zi" \
+    > "$work/$name.out" 2> "$work/$name.err"; then
+    echo "$name was accepted despite invalid Vec field ownership" >&2
     exit 1
 fi
+done
 if "$ziran" check --diagnostics=json --root "$work" \
     --module-path "$repo/std" "$work/overwrite.zi" \
     > "$work/overwrite.out" 2> "$work/overwrite.err"; then
     echo 'assignment over live aggregate Vec storage was accepted' >&2
     exit 1
 fi
-python3 - "$work/use_after_move.err" "$work/overwrite.err" <<'PY'
+python3 - "$work/field_use_after_move.err" "$work/global_field_move.err" "$work/use_after_move.err" "$work/overwrite.err" <<'PY'
 import json
 from pathlib import Path
 import sys
 
 for path, expected in [(sys.argv[1], 'used after moving'),
-                       (sys.argv[2], 'leaks it')]:
+                       (sys.argv[2], 'global Vec storage cannot move'),
+                       (sys.argv[3], 'used after moving'),
+                       (sys.argv[4], 'leaks it')]:
     diagnostics = [json.loads(line)
                    for line in Path(path).read_text().splitlines()]
     assert any(expected in item['message'] for item in diagnostics), diagnostics
@@ -101,7 +136,7 @@ for kind in source saved; do
     fi
     "$ziran" bundle --entry owned:Check --root "$root" \
         --module-path "$repo/std" -o "$work/$kind.zib" "$module"
-    test "$("$ziran" run "$work/$kind.zib")" = 75
+    test "$("$ziran" run "$work/$kind.zib")" = 99
 
     c_output=$work/$kind-c
     "$ziran" build --target=c --entry owned:Check --root "$root" \
@@ -123,7 +158,7 @@ void __wrap_free(void *p) {
     __real_free(p);
 }
 int main(void) {
-    if (Check() != 75) return 1;
+    if (Check() != 99) return 1;
     return outstanding == 0 ? 0 : 2;
 }
 C
@@ -151,7 +186,7 @@ extern "C" void __wrap_free(void *p) {
     __real_free(p);
 }
 int main() {
-    if (Check() != 75) return 1;
+    if (Check() != 99) return 1;
     return outstanding == 0 ? 0 : 2;
 }
 CPP
@@ -166,7 +201,7 @@ CPP
         -o "$go_output" "$module"
     cat > "$go_output/main.go" <<'GO'
 package main
-func main() { if Owned_Check() != 75 { panic("aggregate Vec ownership") } }
+func main() { if Owned_Check() != 99 { panic("aggregate Vec ownership") } }
 GO
     GO111MODULE=off go run "$go_output"/*.go
 done

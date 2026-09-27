@@ -1685,10 +1685,47 @@ global_vec_source(Checker *c, int index)
     if(index < 0 || index >= c->fn->expr_count)
         return 0;
     e = &c->fn->exprs[index];
+    if(e->kind == ZIR_EXPR_COMPOUND) {
+        for(int child = e->first_child; child >= 0;
+            child = c->fn->exprs[child].next_sibling) {
+            const ZirExpr *entry = &c->fn->exprs[child];
+            if(entry->kind == ZIR_EXPR_FIELD_INIT &&
+               contains_vec(c->module, entry->type, 0) &&
+               global_vec_source(c, entry->right))
+                return 1;
+        }
+        return 0;
+    }
     if(e->kind != ZIR_EXPR_IDENT || *lookup_lexical(c, e->name))
         return 0;
     global = global_binding(c, e->name);
     return global != NULL && contains_vec(c->module, global->type, 0);
+}
+
+/* A constructing aggregate moves each owned field from a local binding, fresh
+ * call result, or another constructing aggregate with the same discipline. */
+static int
+owned_initializer_shape(Checker *c, int index)
+{
+    const ZirExpr *e;
+    if(index < 0 || index >= c->fn->expr_count)
+        return 0;
+    e = &c->fn->exprs[index];
+    if(e->kind == ZIR_EXPR_IDENT)
+        return !global_vec_source(c, index);
+    if(e->kind == ZIR_EXPR_CALL)
+        return 1;
+    if(e->kind != ZIR_EXPR_COMPOUND)
+        return 0;
+    for(int child = e->first_child; child >= 0;
+        child = c->fn->exprs[child].next_sibling) {
+        const ZirExpr *entry = &c->fn->exprs[child];
+        if(entry->kind == ZIR_EXPR_FIELD_INIT &&
+           contains_vec(c->module, entry->type, 0) &&
+           !owned_initializer_shape(c, entry->right))
+            return 0;
+    }
+    return 1;
 }
 
 static int
@@ -3197,8 +3234,11 @@ expression_type(Checker *c, int index)
             copy_text(entry->type, sizeof(entry->type), field.type);
             if(!compatible_checked(c, field.type, value_type))
                 error(c, entry->span, "initializer field type mismatch", field.name);
-            if(contains_vec(c->module, field.type, 0))
-                error(c, entry->span, "Vec values cannot be copied", field.name);
+            if(contains_vec(c->module, field.type, 0) &&
+               !owned_initializer_shape(c, entry->right))
+                error(c, entry->span,
+                      "owned record field moves a binding or takes a call result",
+                      field.name);
             ordinal++;
         }
         type = e->name;
@@ -3871,7 +3911,8 @@ expression_type(Checker *c, int index)
             const char *arg_type = expression_type(c, child);
             if(contains_vec(c->module, arg_type, 0) &&
                c->fn->exprs[child].kind != ZIR_EXPR_IDENT &&
-               c->fn->exprs[child].kind != ZIR_EXPR_CALL)
+               c->fn->exprs[child].kind != ZIR_EXPR_CALL &&
+               !owned_initializer_shape(c, child))
                 error(c, c->fn->exprs[child].span,
                       "Vec arguments move a binding or pass a call result",
                       display_name);
@@ -5294,6 +5335,36 @@ mark_expr_moves(Checker *c, int index)
     if(index < 0 || index >= c->fn->expr_count)
         return;
     e = &c->fn->exprs[index];
+    if(e->kind == ZIR_EXPR_FIELD_INIT &&
+       contains_vec(c->module, e->type, 0)) {
+        int right = e->right;
+        Binding *binding = lexical_owned_binding(c, right);
+        if(binding != NULL) {
+            if(binding->moved) {
+                error(c, c->fn->exprs[right].span,
+                      "owned binding is used after moving", binding->name);
+                return;
+            }
+            if(binding->borrow_count > 0) {
+                error(c, e->span,
+                      "cannot move a Vec with a live borrowed view",
+                      binding->name);
+                return;
+            }
+            binding->moved = 1;
+            c->fn->exprs[right].is_move = 1;
+            return;
+        }
+        if(c->fn->exprs[right].kind == ZIR_EXPR_COMPOUND ||
+           c->fn->exprs[right].kind == ZIR_EXPR_CALL) {
+            mark_expr_moves(c, right);
+            return;
+        }
+        error(c, c->fn->exprs[right].span,
+              "owned record field moves a binding or takes a call result",
+              e->name);
+        return;
+    }
     if(e->kind == ZIR_EXPR_IDENT) {
         Binding *binding = lexical_vec_binding(c, index);
         if(binding != NULL && binding->moved)
@@ -5354,9 +5425,13 @@ check_vec_call_results(Checker *c, int index, int transferred, int discarded)
               expr->name);
     for(int child = expr->first_child; child >= 0;
         child = c->fn->exprs[child].next_sibling) {
-        int child_transfer = expr->kind == ZIR_EXPR_CALL &&
-            !vec_primitive_name(expr->name) &&
-            contains_vec(c->module, c->fn->exprs[child].type, 0);
+        int child_transfer =
+            (expr->kind == ZIR_EXPR_CALL &&
+             !vec_primitive_name(expr->name) &&
+             contains_vec(c->module, c->fn->exprs[child].type, 0)) ||
+            (expr->kind == ZIR_EXPR_COMPOUND &&
+             c->fn->exprs[child].kind == ZIR_EXPR_FIELD_INIT &&
+             contains_vec(c->module, c->fn->exprs[child].type, 0));
         check_vec_call_results(c, child, child_transfer, 0);
     }
     check_vec_call_results(c, expr->left, 0, 0);
@@ -5633,7 +5708,8 @@ restart:
             if(st->expr_root >= 0 &&
                contains_vec(c->module, st->type, 0) &&
                c->fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
-               c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL)
+               c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
+               !owned_initializer_shape(c, st->expr_root))
                 error(c, st->span,
                       "Vec initialization moves a binding or takes a call result",
                       st->name);
@@ -5681,7 +5757,8 @@ restart:
                           st->text);
                 else if(st->expr_root >= 0 &&
                         c->fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
-                        c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL)
+                        c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
+                        !owned_initializer_shape(c, st->expr_root))
                     error(c, st->span,
                           "Vec assignment moves a binding or takes a call result",
                           st->text);
@@ -5726,7 +5803,8 @@ restart:
             if(contains_vec(c->module, c->fn->return_type, 0) &&
                st->expr_root >= 0 &&
                fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
-               fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL)
+               fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
+               !owned_initializer_shape(c, st->expr_root))
                 error(c, st->span,
                       "owned return moves a binding or takes a call result",
                       c->fn->name);

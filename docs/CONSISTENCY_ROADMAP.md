@@ -25,8 +25,9 @@ and floating division between native and portable execution. Cleanup and one
 emitter path now use structured diagnostics. All four execution paths move and
 recursively drop vectors owned by records and fixed arrays, preventing the
 reproduced record-copy double-free case, and the checker rejects repeated moves
-within an expression. These fixes do not complete the ownership or diagnostic
-contracts.
+within an expression. Global `TextView` storage now tracks its backing-global
+origin and rejects cross-function mutation through direct and chained global
+aliases. These fixes do not complete the ownership or diagnostic contracts.
 
 ## Priority 1: one safe meaning across targets
 
@@ -45,9 +46,12 @@ contracts.
    reject a record literal, nested record, field assignment, or checked-call
    result that returns a view of a local byte array. The mutation gate also
    follows bindings, fields, aliases, checked-call results, arrays, and views
-   nested in returned records. Pointer-derived views, globals, and other
-   unmodeled mutable aliases still need a complete lifetime model; reject
-   escapes that cannot be proved safe. Host boundaries remain untracked.
+   nested in returned records. View-bearing globals track the global storage
+   they alias and reject local-to-global escapes plus cross-function mutation
+   through direct and chained global aliases; this rule is intentionally
+   program-lifetime and currently supports 64 globals. Pointer-derived views
+   and other unmodeled mutable aliases still need a complete lifetime model;
+   reject escapes that cannot be proved safe. Host boundaries remain untracked.
 3. **Numerical edge cases.** Expand differential tests beyond the corrected
    8/16-bit shifts and floating zero division: signed overflow, minimum
    integer divided by minus one, all cast widths, negative and oversized

@@ -11,6 +11,7 @@ typedef struct Origin {
     int depth;
     int invalid;
     int unknown;
+    uint64_t globals;
 } Origin;
 
 typedef struct BorrowFunction {
@@ -21,12 +22,15 @@ typedef struct BorrowFunction {
 } BorrowFunction;
 
 typedef struct BorrowBinding {
+    const ZirModule *module;
+    const ZirGlobal *global;
     char name[ZIR_NAME_MAX];
     char type[ZIR_NAME_MAX];
     Origin origin;
     int local;
     int depth;
     int captured;
+    int global_index;
     int text_borrow_count;
     struct BorrowBinding *text_backing;
 } BorrowBinding;
@@ -42,6 +46,9 @@ typedef struct BorrowCheck {
     BorrowFunction *current;
     BorrowBinding *bindings;
     int binding_count;
+    BorrowBinding *globals;
+    int global_count;
+    Origin *global_origins;
     ActiveTextBorrow *active;
     int active_count;
     int depth;
@@ -53,6 +60,7 @@ static Origin
 merge(Origin a, Origin b)
 {
     a.parameters |= b.parameters;
+    a.globals |= b.globals;
     if(b.depth > a.depth)
         a.depth = b.depth;
     a.invalid |= b.invalid;
@@ -64,8 +72,11 @@ static void
 accumulate(BorrowCheck *check, Origin *destination, Origin source)
 {
     Origin next = merge(*destination, source);
-    if(next.parameters != destination->parameters || next.depth != destination->depth ||
-       next.invalid != destination->invalid || next.unknown != destination->unknown) {
+    if(next.parameters != destination->parameters ||
+       next.depth != destination->depth ||
+       next.invalid != destination->invalid ||
+       next.unknown != destination->unknown ||
+       next.globals != destination->globals) {
         *destination = next;
         check->changed = 1;
     }
@@ -105,12 +116,25 @@ release_active_text_borrows(BorrowCheck *check, int depth)
 }
 
 static BorrowBinding *
+global_binding(BorrowCheck *check, const char *name)
+{
+    const ZirModule *owner = NULL;
+    const ZirGlobal *global = NULL;
+    if(ResolveGlobal(check->current->module, name, &owner, &global) != 1)
+        return NULL;
+    for(int i = 0; i < check->global_count; i++)
+        if(check->globals[i].module == owner && check->globals[i].global == global)
+            return &check->globals[i];
+    return NULL;
+}
+
+static BorrowBinding *
 binding(BorrowCheck *check, const char *name)
 {
     for(int i = check->binding_count - 1; i >= 0; i--)
         if(!strcmp(check->bindings[i].name, name))
             return &check->bindings[i];
-    return NULL;
+    return global_binding(check, name);
 }
 
 static int
@@ -258,6 +282,7 @@ call_origin(BorrowCheck *check, const ZirExpr *expression)
     result.depth = summary->returned.depth;
     result.invalid = summary->returned.invalid;
     result.unknown = summary->returned.unknown;
+    result.globals = summary->returned.globals;
     for(int child = expression->first_child; child >= 0;
         child = check->current->fn->exprs[child].next_sibling) {
         int parameter = check->current->fn->exprs[child].argument_index;
@@ -304,8 +329,13 @@ expression_origin(BorrowCheck *check, int index)
         if(base->kind == ZIR_EXPR_IDENT &&
            ArrayElementType(base->type, NULL, 0, NULL)) {
             BorrowBinding *source = binding(check, base->name);
-            if(source != NULL)
-                return (Origin){0, source->depth, 0};
+            if(source != NULL) {
+                Origin origin = {0};
+                origin.depth = source->depth;
+                if(source->global_index >= 0)
+                    origin.globals = UINT64_C(1) << source->global_index;
+                return origin;
+            }
         }
         return expression_origin(check, expression->left);
     }
@@ -439,7 +469,18 @@ check_function(BorrowCheck *check, BorrowFunction *function)
         if(statement->kind == ZIR_STMT_ASSIGN && statement->lhs_root >= 0) {
             const ZirExpr *root = destination_root(fn, statement->lhs_root);
             BorrowBinding *backing = root == NULL ? NULL : binding(check, root->name);
-            if(backing != NULL && backing->text_borrow_count != 0)
+            int global_alias = 0;
+            if(backing != NULL && backing->global_index >= 0)
+                for(int g = 0; g < check->global_count; g++)
+                    if(contains_view(check->globals[g].module,
+                                     check->globals[g].type, 0) &&
+                       (check->global_origins[g].globals &
+                        (UINT64_C(1) << backing->global_index)) != 0) {
+                        global_alias = 1;
+                        break;
+                    }
+            if(backing != NULL &&
+               (backing->text_borrow_count != 0 || global_alias))
                 reject(check, statement->span,
                        "mutating text backing storage while its view is live");
         }
@@ -472,14 +513,15 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                 Origin source = expression_origin(check, statement->expr_root);
                 /* A zero value or a value backed only by static storage
                  * cannot escape a borrow, even through a pointer target. */
-                int independent_storage =
+                int static_storage =
                     !source.invalid && !source.unknown && source.depth == 0 &&
                     source.parameters == 0;
                 int direct_view = destination->kind == ZIR_EXPR_IDENT &&
                     (SliceElementType(destination->type, NULL, 0) ||
                      !strcmp(destination->type, "string"));
-                if(!independent_storage &&
-                   (target == NULL || target->captured ||
+                if(!static_storage &&
+                   (target == NULL ||
+                    (target->captured && target->global_index < 0) ||
                     (source.invalid && direct_view) ||
                     source.depth > target->depth)) {
                     reject(check, statement->span,
@@ -490,8 +532,18 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                            "view assignment may escape its backing storage");
                 } else if(target != NULL && target->local >= 0) {
                     accumulate(check, &function->locals[target->local], source);
+                } else if(target != NULL && target->global_index >= 0 &&
+                          static_storage) {
+                    BorrowBinding *backing =
+                        text_view_backing(check, statement->expr_root);
+                    accumulate(check, &check->global_origins[target->global_index],
+                               source);
+                    target->origin = check->global_origins[target->global_index];
+                    if(target->text_backing == NULL && backing != NULL)
+                        target->text_backing = backing;
                 }
-                if(!independent_storage && target != NULL && !target->captured)
+                if(!static_storage && target != NULL &&
+                   !(target->captured && target->global_index < 0))
                     add_active_text_borrow(check,
                                            text_view_backing(check, statement->expr_root),
                                            target->depth);
@@ -528,6 +580,44 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
     check.functions = calloc((size_t)check.count, sizeof(*check.functions));
     if(check.functions == NULL && check.count != 0)
         return 0;
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++)
+            check.global_count += programs[p]->modules[m].global_count;
+    check.globals = calloc((size_t)check.global_count, sizeof(*check.globals));
+    check.global_origins = calloc((size_t)check.global_count,
+                                  sizeof(*check.global_origins));
+    if((check.globals == NULL || check.global_origins == NULL) &&
+       check.global_count != 0) {
+        free(check.functions);
+        free(check.globals);
+        free(check.global_origins);
+        return 0;
+    }
+    if(check.global_count > 64) {
+        Diagnostic(programs[0]->modules[0].span, "check.slice_lifetime",
+                   "too many globals for text alias tracking");
+        free(check.functions);
+        free(check.globals);
+        free(check.global_origins);
+        return 0;
+    }
+    int global_index = 0;
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++) {
+            ZirModule *module = &programs[p]->modules[m];
+            for(int g = 0; g < module->global_count; g++) {
+                BorrowBinding *item = &check.globals[global_index];
+                item->module = module;
+                item->global = &module->globals[g];
+                copy_text(item->name, sizeof(item->name),
+                          module->globals[g].name);
+                copy_text(item->type, sizeof(item->type),
+                          module->globals[g].type);
+                item->local = -1;
+                item->captured = 1;
+                item->global_index = global_index++;
+            }
+        }
     int index = 0;
     for(int p = 0; p < count; p++) {
         for(int m = 0; m < programs[p]->module_count; m++) {
@@ -552,5 +642,7 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
     for(int i = 0; i < check.count; i++)
         free(check.functions[i].locals);
     free(check.functions);
+    free(check.globals);
+    free(check.global_origins);
     return !check.failed;
 }

@@ -26,9 +26,13 @@ call result, and its destination must be a simple local. Record literals cannot
 yet initialize vector-bearing fields by moving a vector. A direct or
 record-held `TextView` rejects mutation of its local backing binding until the
 view leaves scope, including views returned by checked calls and views nested
-in their result records; pointer-derived views, globals, and unmodeled aliases
-are not covered. The rest of this page describes the intended contract, not a
-guarantee that every case is enforced today.
+in their result records. A view-bearing global conservatively keeps its global
+backing aliases for the rest of the program: assignment from local or
+parameter-backed storage is rejected, and mutation of a tracked backing global
+is rejected in any function. Pointer-derived views and other unmodeled aliases
+are not covered. The current origin summary tracks at most 64 globals. The rest
+of this page describes the intended contract, not a guarantee that every case
+is enforced today.
 
 A fresh `Vec` call result used as a whole expression statement is dropped
 immediately. A result used for member or index access must first be bound to a

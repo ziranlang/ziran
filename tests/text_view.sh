@@ -104,6 +104,46 @@ Save :: () -> string {
 ZI
 "$ziran" ir --root "$work" -o "$work/global-ir" "$work/global.zi"
 
+cat > "$work/global_mutation.zi" <<'ZI'
+global_bytes: [3]u8 = .[97, 98, 99];
+global_text: string;
+
+Install :: () {
+    global_text = TextView(global_bytes[:])
+}
+Bad :: () {
+    global_bytes[0] = 120
+}
+ZI
+if "$ziran" ir --root "$work" -o "$work/global-mutation-ir" \
+    "$work/global_mutation.zi" > "$work/global-mutation.log" 2>&1; then
+    echo 'TextView allowed cross-function mutation of its global backing' >&2
+    exit 1
+fi
+rg -q 'mutating text backing storage while its view is live' \
+    "$work/global-mutation.log"
+
+cat > "$work/global_alias_mutation.zi" <<'ZI'
+global_bytes: [3]u8 = .[97, 98, 99];
+global_text: string;
+global_alias: string;
+
+Install :: () {
+    global_text = TextView(global_bytes[:])
+    global_alias = global_text
+}
+Bad :: () {
+    global_bytes[0] = 120
+}
+ZI
+if "$ziran" ir --root "$work" -o "$work/global-alias-mutation-ir" \
+    "$work/global_alias_mutation.zi" > "$work/global-alias-mutation.log" 2>&1; then
+    echo 'TextView lost backing through a global alias chain' >&2
+    exit 1
+fi
+rg -q 'mutating text backing storage while its view is live' \
+    "$work/global-alias-mutation.log"
+
 cat > "$work/global_escape.zi" <<'ZI'
 global_text: string;
 

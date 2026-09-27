@@ -519,8 +519,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   byte array is rejected; `tests/aggregate_view_lifetime.sh` covers literal,
   nested, array-field, assigned-field, and call-result escapes. The mutation
   gate follows local bindings, fields, aliases, checked-call results, and
-  record-return aliases; pointer-derived origins and globals still need one
-  complete cross-target contract.
+  record-return aliases. View-bearing globals retain their global-backing
+  origin across functions and alias chains: local-backed views cannot escape
+  into global storage, and mutation of a tracked backing global is rejected in
+  any function. This summary currently supports 64 globals. Pointer-derived
+  origins still need one complete cross-target contract.
   `make check` compares source and saved-IR bundles with C, C++, and Go on a
   string program and rejects out-of-range indexing.
 - Portable bundles retain referenced module globals, including records and

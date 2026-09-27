@@ -144,6 +144,43 @@ fi
 rg -q 'mutating text backing storage while its view is live' \
     "$work/global-alias-mutation.log"
 
+printf 'global_first: [3]u8 = .[97, 98, 99];\n' > "$work/many_globals_base.zi"
+index=0
+while [ "$index" -lt 80 ]; do
+    printf 'padding_%s: s32;\n' "$index" >> "$work/many_globals_base.zi"
+    index=$((index + 1))
+done
+cat >> "$work/many_globals_base.zi" <<'ZI'
+global_second: [3]u8 = .[100, 101, 102];
+global_text: string;
+global_alias: string;
+
+Choose :: (first: bool) -> string {
+    if first { return TextView(global_first[:]) }
+    return TextView(global_second[:])
+}
+Install :: () {
+    global_text = Choose(true)
+    global_alias = global_text
+}
+ZI
+cp "$work/many_globals_base.zi" "$work/many_globals_valid.zi"
+"$ziran" ir --root "$work" -o "$work/many-globals-valid-ir" \
+    "$work/many_globals_valid.zi"
+for backing in global_first global_second; do
+    cp "$work/many_globals_base.zi" "$work/many_globals_$backing.zi"
+    printf 'Bad :: () { %s[0] = 120 }\n' "$backing" \
+        >> "$work/many_globals_$backing.zi"
+    if "$ziran" ir --root "$work" -o "$work/many-globals-$backing-ir" \
+        "$work/many_globals_$backing.zi" \
+        > "$work/many-globals-$backing.log" 2>&1; then
+        echo "TextView allowed mutation of $backing through a global alias" >&2
+        exit 1
+    fi
+    rg -q 'mutating text backing storage while its view is live' \
+        "$work/many-globals-$backing.log"
+done
+
 cat > "$work/global_escape.zi" <<'ZI'
 global_text: string;
 

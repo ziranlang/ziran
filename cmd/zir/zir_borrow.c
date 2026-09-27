@@ -11,8 +11,14 @@ typedef struct Origin {
     int depth;
     int invalid;
     int unknown;
-    uint64_t globals;
+    const uint64_t *globals;
 } Origin;
+
+/* Origins share immutable bit sets until the lifetime check finishes. */
+typedef struct GlobalBits {
+    struct GlobalBits *next;
+    uint64_t words[];
+} GlobalBits;
 
 typedef struct BorrowFunction {
     const ZirModule *module;
@@ -50,7 +56,9 @@ typedef struct BorrowCheck {
     int binding_count;
     BorrowBinding *globals;
     int global_count;
+    size_t global_words;
     Origin *global_origins;
+    GlobalBits *global_bits;
     ActiveTextBorrow *active;
     int active_count;
     int depth;
@@ -58,22 +66,84 @@ typedef struct BorrowCheck {
     int failed;
 } BorrowCheck;
 
-static Origin
-merge(Origin a, Origin b)
+static void
+reject(BorrowCheck *check, ZirSourceSpan span, const char *message)
 {
-    a.parameters |= b.parameters;
-    a.globals |= b.globals;
-    if(b.depth > a.depth)
-        a.depth = b.depth;
-    a.invalid |= b.invalid;
-    a.unknown |= b.unknown;
-    return a;
+    if(!check->failed)
+        Diagnostic(span, "check.slice_lifetime", "%s", message);
+    check->failed = 1;
+}
+
+static uint64_t *
+new_global_bits(BorrowCheck *check)
+{
+    GlobalBits *bits = calloc(1, sizeof(*bits) +
+                                check->global_words * sizeof(bits->words[0]));
+    if(bits == NULL) {
+        reject(check, check->current->fn->span,
+               "out of memory checking global text aliases");
+        return NULL;
+    }
+    bits->next = check->global_bits;
+    check->global_bits = bits;
+    return bits->words;
+}
+
+static const uint64_t *
+global_bit(BorrowCheck *check, int index)
+{
+    uint64_t *bits = new_global_bits(check);
+    if(bits != NULL)
+        bits[(size_t)index / 64] = UINT64_C(1) << (index % 64);
+    return bits;
+}
+
+static int
+has_global(Origin origin, int index)
+{
+    return origin.globals != NULL &&
+        (origin.globals[(size_t)index / 64] &
+         (UINT64_C(1) << (index % 64))) != 0;
+}
+
+static Origin
+merge(BorrowCheck *check, Origin a, Origin b)
+{
+    Origin result = a;
+    result.parameters |= b.parameters;
+    if(b.depth > result.depth)
+        result.depth = b.depth;
+    result.invalid |= b.invalid;
+    result.unknown |= b.unknown;
+    if(a.globals == NULL) {
+        result.globals = b.globals;
+    } else if(b.globals != NULL && a.globals != b.globals) {
+        int a_extra = 0;
+        int b_extra = 0;
+        for(size_t i = 0; i < check->global_words; i++) {
+            a_extra |= (a.globals[i] & ~b.globals[i]) != 0;
+            b_extra |= (b.globals[i] & ~a.globals[i]) != 0;
+        }
+        if(!b_extra) {
+            result.globals = a.globals;
+        } else if(!a_extra) {
+            result.globals = b.globals;
+        } else {
+            uint64_t *bits = new_global_bits(check);
+            if(bits != NULL) {
+                for(size_t i = 0; i < check->global_words; i++)
+                    bits[i] = a.globals[i] | b.globals[i];
+            }
+            result.globals = bits;
+        }
+    }
+    return result;
 }
 
 static void
 accumulate(BorrowCheck *check, Origin *destination, Origin source)
 {
-    Origin next = merge(*destination, source);
+    Origin next = merge(check, *destination, source);
     if(next.parameters != destination->parameters ||
        next.depth != destination->depth ||
        next.invalid != destination->invalid ||
@@ -82,14 +152,6 @@ accumulate(BorrowCheck *check, Origin *destination, Origin source)
         *destination = next;
         check->changed = 1;
     }
-}
-
-static void
-reject(BorrowCheck *check, ZirSourceSpan span, const char *message)
-{
-    if(!check->failed)
-        Diagnostic(span, "check.slice_lifetime", "%s", message);
-    check->failed = 1;
 }
 
 static int
@@ -333,7 +395,7 @@ call_origin(BorrowCheck *check, const ZirExpr *expression)
         int parameter = check->current->fn->exprs[child].argument_index;
         if(parameter >= 0 && parameter < 64 &&
            (summary->returned.parameters & (UINT64_C(1) << parameter)))
-            result = merge(result, expression_origin(check, child));
+            result = merge(check, result, expression_origin(check, child));
     }
     return result;
 }
@@ -360,8 +422,8 @@ expression_origin(BorrowCheck *check, int index)
                 Origin pointee = {0};
                 pointee.depth = source->depth;
                 if(source->address_backing->global_index >= 0)
-                    pointee.globals = UINT64_C(1) <<
-                        source->address_backing->global_index;
+                    pointee.globals = global_bit(check,
+                        source->address_backing->global_index);
                 return pointee;
             }
             Origin unknown = {0};
@@ -387,14 +449,14 @@ expression_origin(BorrowCheck *check, int index)
                 Origin origin = {0};
                 origin.depth = source->depth;
                 if(source->global_index >= 0)
-                    origin.globals = UINT64_C(1) << source->global_index;
+                    origin.globals = global_bit(check, source->global_index);
                 return origin;
             }
         }
         return expression_origin(check, expression->left);
     }
     case ZIR_EXPR_CONDITIONAL:
-        return merge(expression_origin(check, expression->right),
+        return merge(check, expression_origin(check, expression->right),
                      expression_origin(check, expression->third));
     case ZIR_EXPR_FIELD_INIT:
         return expression_origin(check, expression->right);
@@ -403,7 +465,7 @@ expression_origin(BorrowCheck *check, int index)
         for(int child = expression->first_child; child >= 0;
             child = fn->exprs[child].next_sibling)
             if(view_type(check, fn->exprs[child].type))
-                result = merge(result, expression_origin(check, child));
+                result = merge(check, result, expression_origin(check, child));
         return result;
     }
     case ZIR_EXPR_CALL:
@@ -528,8 +590,8 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                 for(int g = 0; g < check->global_count; g++)
                     if(contains_view(check->globals[g].module,
                                      check->globals[g].type, 0) &&
-                       (check->global_origins[g].globals &
-                        (UINT64_C(1) << backing->global_index)) != 0) {
+                       has_global(check->global_origins[g],
+                                  backing->global_index)) {
                         global_alias = 1;
                         break;
                     }
@@ -649,19 +711,12 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++)
             check.global_count += programs[p]->modules[m].global_count;
+    check.global_words = ((size_t)check.global_count + 63) / 64;
     check.globals = calloc((size_t)check.global_count, sizeof(*check.globals));
     check.global_origins = calloc((size_t)check.global_count,
                                   sizeof(*check.global_origins));
     if((check.globals == NULL || check.global_origins == NULL) &&
        check.global_count != 0) {
-        free(check.functions);
-        free(check.globals);
-        free(check.global_origins);
-        return 0;
-    }
-    if(check.global_count > 64) {
-        Diagnostic(programs[0]->modules[0].span, "check.slice_lifetime",
-                   "too many globals for text alias tracking");
         free(check.functions);
         free(check.globals);
         free(check.global_origins);
@@ -707,6 +762,11 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
     } while(check.changed && !check.failed);
     for(int i = 0; i < check.count; i++)
         free(check.functions[i].locals);
+    while(check.global_bits != NULL) {
+        GlobalBits *next = check.global_bits->next;
+        free(check.global_bits);
+        check.global_bits = next;
+    }
     free(check.functions);
     free(check.globals);
     free(check.global_origins);

@@ -332,7 +332,7 @@ extern void abort(void);
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-int {entry}(long long);
+long long {entry}(long long);
 int fprint(int fd, const char *format, ...) {{
     char buffer[512];
     va_list args;

@@ -55,18 +55,19 @@ Capabilities :: (arguments: []string) -> s32 {
         if part == "--target=c" { target = "c" }
         else if part == "--target=cpp" { target = "cpp" }
         else if part == "--target=go" { target = "go" }
+        else if part == "--target=rust" { target = "rust" }
         else if part == "--target=zib" { target = "zib" }
         else if part == "--target=plan9-c" { target = "plan9-c" }
         else {
             return PkgFail(
-                "usage: ziran capabilities [--target=c|cpp|go|zib|plan9-c] [--json]")
+                "usage: ziran capabilities [--target=c|cpp|go|rust|zib|plan9-c] [--json]")
         }
         index += 1
     }
     PkgPrint("{\"schema_version\":1,", false)
     if target.count == 0 {
-        PkgPrint("\"targets\":[\"c\",\"cpp\",\"go\",\"zib\",\"plan9-c\"],", false)
-        PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"cpp\":\"threads\",\"go\":\"serial\",\"zib\":\"serial\",\"plan9-c\":\"serial\"},", false)
+        PkgPrint("\"targets\":[\"c\",\"cpp\",\"go\",\"rust\",\"zib\",\"plan9-c\"],", false)
+        PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"cpp\":\"threads\",\"go\":\"serial\",\"rust\":\"serial\",\"zib\":\"serial\",\"plan9-c\":\"serial\"},", false)
         PkgPrint("\"text_view_mutable_bytes\":{\"c\":\"borrowed\",\"cpp\":\"borrowed\",\"go\":\"snapshot\",\"zib\":\"snapshot\",\"plan9-c\":\"borrowed\"},", false)
     } else {
         PkgPrint("\"target\":\"", false)
@@ -83,6 +84,10 @@ Capabilities :: (arguments: []string) -> s32 {
         } else if target == "c" || target == "cpp" {
             PkgPrint("\"parallel_execution\":\"threads\",", false)
             PkgPrint("\"text_view_mutable_bytes\":\"borrowed\",", false)
+        } else if target == "rust" {
+            PkgPrint("\"parallel_execution\":\"serial\",", false)
+            PkgPrint("\"text_view_mutable_bytes\":\"borrowed\",", false)
+            PkgPrint("\"target_contract\":\"experimental\",", false)
         } else {
             PkgPrint("\"parallel_execution\":\"serial\",", false)
             PkgPrint("\"text_view_mutable_bytes\":\"snapshot\",", false)

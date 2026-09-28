@@ -2,7 +2,7 @@
 
 `ziran capabilities --json` prints one JSON object describing the currently
 supported output targets and shared limits. Use `--target=c`, `cpp`, `go`,
-`zib`, or `plan9-c` to select one target. The command works without a project or network
+`rust`, `zib`, or `plan9-c` to select one target. The command works without a project or network
 access, so an editor or coding agent can query the installed compiler before
 generating code. The `numeric_conformance` object is a stable-ID registry. Its `ids` cite the
 numerical cases proven by [numeric semantics](../tests/numeric_semantics.sh)

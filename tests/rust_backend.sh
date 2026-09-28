@@ -1,0 +1,67 @@
+#!/bin/sh
+set -eu
+
+ziran=${1:?pass the ziran command}
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT HUP INT TERM
+
+command -v cargo >/dev/null 2>&1 || {
+    echo 'cargo is required to test the Rust backend' >&2
+    exit 1
+}
+
+cat > "$work/scalars.zi" <<'ZI'
+Answer :: () -> s32 {
+    if Add(Loop(), -10) != 0 { return 1 }
+    return 0
+}
+Add :: (a: s32, b: s32) -> s32 { return a + b }
+Loop :: () -> s32 {
+    total: int = 0
+    for i: 0..3 { total += i }
+    if total != 6 { return 1 }
+    while total < 10 { total += 1 }
+    return cast(s32) total
+}
+ZI
+
+"$ziran" check --root "$work" "$work/scalars.zi"
+"$ziran" ir --root "$work" -o "$work/ir" "$work/scalars.zi"
+
+for input in source saved; do
+    if test "$input" = source; then
+        file=$work/scalars.zi
+        root=$work
+    else
+        file=$work/ir/scalars.zir
+        root=$work/ir
+    fi
+    "$ziran" build --target=rust --entry scalars:Answer --root "$root" \
+        --exe -o "$work/$input" "$file"
+    test -s "$work/$input/Cargo.toml"
+    test -s "$work/$input/src/main.rs"
+    cargo build --quiet --manifest-path "$work/$input/Cargo.toml"
+    "$work/$input/target/debug/ziran_generated"
+done
+
+cmp "$work/source/src/main.rs" "$work/saved/src/main.rs"
+cmp "$work/source/Cargo.toml" "$work/saved/Cargo.toml"
+
+"$ziran" capabilities --target=rust --json > "$work/capabilities.json"
+rg -q '"target":"rust".*"parallel_execution":"serial"' "$work/capabilities.json"
+rg -q '"target_contract":"experimental"' "$work/capabilities.json"
+
+cat > "$work/unsupported.zi" <<'ZI'
+#program_export
+Answer :: () -> s32 {
+    text: string = "not yet supported"
+    return cast(s32)text.count
+}
+ZI
+if "$ziran" build --target=rust --entry unsupported:Answer --root "$work" \
+    -o "$work/unsupported-output" "$work/unsupported.zi" \
+    > "$work/unsupported.out" 2> "$work/unsupported.err"; then
+    echo 'the initial Rust target accepted an unsupported aggregate' >&2
+    exit 1
+fi
+rg -q 'initial Rust target supports scalar non-text types' "$work/unsupported.err"

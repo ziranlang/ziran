@@ -45,7 +45,7 @@ for law-driven development, LLM tooling, parallel execution, and evolution.
 
 ```text
 .zi modules ──parse/check──> .zir modules
-.zir modules ──native backend──> C, C++, or native Go output
+.zir modules ──native backend──> C, C++, native Go, or experimental Rust output
 .zir modules ──link/verify──> .zib ──portable runtime + host capabilities──> process
 ```
 

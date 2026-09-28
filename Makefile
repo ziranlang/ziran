@@ -18,7 +18,7 @@ LIB_OBJECTS := $(patsubst cmd/zir/%.c,$(BUILD_DIR)/obj/%.o,$(LIB_SOURCES))
 
 .PHONY: all check curl-http-test clean install-user
 CHECK_JOBS ?= 4
-all: $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2zib $(BUILD_DIR)/libziran.a
+all: $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2zib $(BUILD_DIR)/libziran.a
 
 USER_BIN ?= $(HOME)/.local/bin
 USER_SHARE ?= $(HOME)/.local/share/ziran/bootstrap
@@ -26,7 +26,8 @@ install-user: all
 	mkdir -p $(USER_BIN) $(USER_SHARE)/build/bin
 	cp $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api \
 	    $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go \
-	    $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2zib $(USER_SHARE)/build/bin/
+	    $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2zib \
+	    $(USER_SHARE)/build/bin/
 	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add
 	printf '%s\n' '#!/bin/sh' 'set -eu' \
 		'exec "$(USER_SHARE)/build/bin/ziran" "$$@"' > $(USER_BIN)/ziran
@@ -77,6 +78,10 @@ $(BIN_DIR)/zi2go: cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c cmd/zir/zir_bundle
 
 $(BIN_DIR)/zi2cpp: cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c cmd/zir/zir_bundle.c $(FRONTEND) $(HEADERS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c cmd/zir/zir_bundle.c $(FRONTEND)
+
+$(BIN_DIR)/zi2rust: cmd/zir-rust/main.c cmd/zir-rust/zir_rust_lower.c cmd/zir/zir_bundle.c $(FRONTEND) $(HEADERS) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ cmd/zir-rust/main.c \
+	    cmd/zir-rust/zir_rust_lower.c cmd/zir/zir_bundle.c $(FRONTEND)
 
 $(BIN_DIR)/zi2zib: cmd/zir-zib/main.c $(BUILD_DIR)/libziran.a $(HEADERS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ cmd/zir-zib/main.c $(BUILD_DIR)/libziran.a

@@ -938,8 +938,16 @@ portable_type_path(const ZirModule *module, const char *type, const TypePath *pa
     int status;
 
     char slice_element[ZIR_NAME_MAX];
-    if(SliceElementType(type, slice_element, sizeof(slice_element)))
+    if(SliceElementType(type, slice_element, sizeof(slice_element))) {
+        /* A slice is a pointer and a count, so like `*T` it may refer back
+         * to a record whose layout is still being checked. */
+        const ZirModule *element_owner = NULL;
+        const ZirType *element = FindType(module, slice_element, &element_owner);
+        for(const TypePath *ancestor = path; element && ancestor; ancestor = ancestor->parent)
+            if(ancestor->record == element)
+                return 1;
         return portable_type_path(module, slice_element, path);
+    }
     if(!strcmp(type, "null")) return 1;
     if(TargetType(type, ZIR_C)) return 1;
     if(strchr(type, '*') != NULL) return 1;

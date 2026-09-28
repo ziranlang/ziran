@@ -266,8 +266,14 @@ portable_union(const ZirModule *module, const ZirType *record)
     return status == 0;
 }
 
+typedef struct VmTypePath {
+    const ZirType *record;
+    const struct VmTypePath *parent;
+} VmTypePath;
+
 static int
-portable_type_at(const ZirModule *module, const char *type, int depth)
+portable_type_at(const ZirModule *module, const char *type, int depth,
+                 const VmTypePath *path)
 {
     const ZirModule *owner = NULL;
     const ZirType *record;
@@ -283,20 +289,26 @@ portable_type_at(const ZirModule *module, const char *type, int depth)
         return 0;
     if(SliceElementType(type, element, sizeof(element))) {
         const ZirType *element_type = FindType(module, element, NULL);
+        /* A slice refers to its elements, so a record may hold a slice of
+         * itself; the record's own fields are already being checked. */
+        for(const VmTypePath *ancestor = path; element_type && ancestor;
+            ancestor = ancestor->parent)
+            if(ancestor->record == element_type)
+                return 1;
         return element[0] != '[' &&
                (element_type == NULL || !element_type->is_procedure_type) &&
-               portable_type_at(module, element, depth + 1);
+               portable_type_at(module, element, depth + 1, path);
     }
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
         return capacity >= 0 &&
                (size_t)capacity <= VM_MAX_ARRAY_BYTES / sizeof(Value) &&
-               portable_type_at(module, element, depth + 1);
+               portable_type_at(module, element, depth + 1, path);
     }
     record = FindType(module, type, &owner);
     if(record == NULL || record->is_extern)
         return 0;
     if(VecElementType(module, type, element, sizeof(element)))
-        return portable_type_at(module, element, depth + 1) &&
+        return portable_type_at(module, element, depth + 1, path) &&
                !VecElementType(module, element, NULL, 0);
     if(record->is_procedure_type) {
         if(record->is_c_call)
@@ -328,7 +340,7 @@ portable_type_at(const ZirModule *module, const char *type, int depth)
             parameter_type[length] = 0;
             if(length == 0 || ++parameters > VM_MAX_PARAMS ||
                strcmp(parameter_type, "void") == 0 ||
-               !portable_type_at(owner, parameter_type, depth + 1))
+               !portable_type_at(owner, parameter_type, depth + 1, path))
                 return 0;
             while(*cursor == ' ' || *cursor == '\t')
                 cursor++;
@@ -337,13 +349,14 @@ portable_type_at(const ZirModule *module, const char *type, int depth)
             if(*cursor++ != ',' || *cursor == 0)
                 return 0;
         }
-        return portable_type_at(owner, record->procedure_return_type, depth + 1);
+        return portable_type_at(owner, record->procedure_return_type, depth + 1, path);
     }
     if(record->is_enum)
         return EnumMemberValue(record, NULL, NULL);
+    VmTypePath current = {record, path};
     while((status = TypeNextField(record, &offset, &field)) == 1) {
         if(++count > VM_MAX_FIELDS || strcmp(field.type, "void") == 0 ||
-           !portable_type_at(owner, field.type, depth + 1))
+           !portable_type_at(owner, field.type, depth + 1, &current))
             return 0;
     }
     return status == 0;
@@ -352,7 +365,7 @@ portable_type_at(const ZirModule *module, const char *type, int depth)
 static int
 portable_type(const ZirModule *module, const char *type)
 {
-    return portable_type_at(module, type, 0);
+    return portable_type_at(module, type, 0, NULL);
 }
 
 /* Host values have a declared, recursive record or array shape. A slice

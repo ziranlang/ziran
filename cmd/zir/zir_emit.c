@@ -1249,11 +1249,12 @@ plain_identifier(const char *text)
 
 /* A materialized temporary only re-copies a value that earlier statements
  * already captured, so identifiers always pass through. Pure expressions
- * inline while they stay short enough to read. */
+ * inline while they stay short enough to read. C arrays are not values, so
+ * array results keep their temporary. */
 static int
-go_folds_text(const Emitter *e, const char *text)
+folds_text(const Emitter *e, const char *text, const char *type)
 {
-    if(e->target != ZIR_GO)
+    if(e->target != ZIR_GO && ArrayElementType(type, NULL, 0, NULL))
         return 0;
     if(plain_identifier(text))
         return 1;
@@ -3462,7 +3463,7 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
     default: fatal(expr,"unsupported structured expression");
     }
     e->pure = pure;
-    if(go_folds_text(e, result)) {
+    if(folds_text(e, result, type)) {
         /* declare() applies this cast for named enum types; inlined text has
          * to carry it so Go sees matching operand types. */
         if(!plain_identifier(result) && enum_type(e->module, type)) {
@@ -3472,7 +3473,10 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
                 e->resolve(e->context, type, resolved, sizeof(resolved));
                 scalar = resolved;
             }
-            format(out, size, "%s(%s)", scalar, result);
+            if(e->target == ZIR_GO)
+                format(out, size, "%s(%s)", scalar, result);
+            else
+                format(out, size, "((%s)(%s))", scalar, result);
         } else if(atom) {
             copy_text(out, size, result);
         } else {

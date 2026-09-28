@@ -36,7 +36,7 @@ for platform in desktop android web; do
         "$work/main.zi"
     "$tool_dir/zi2c" --no-main --root "$work" "$@" \
         -o "$work/$platform" "$work/main.zi"
-    if ! grep -Eq "value_0 = $expected;" "$work/$platform/platform.c"; then
+    if ! grep -Eq "return $expected;" "$work/$platform/platform.c"; then
         echo "wrong $platform branch in generated C" >&2
         grep -n -A 8 PlatformValue "$work/$platform/platform.c" >&2
         exit 1

@@ -5,6 +5,11 @@ ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
+command -v cargo >/dev/null 2>&1 || {
+    echo 'cargo is required to test Rust print output' >&2
+    exit 1
+}
+
 cat > "$work/greet.zi" <<'EOF'
 Twice :: (value: s32) -> s32 {
     print("[twice %]", value);
@@ -88,6 +93,13 @@ EOF
         fi
         cmp "$work/expected" "$out.out"
     done
+
+    rust_out="$work/$suffix-rust"
+    "$ziran" build --target=rust --exe --entry greet:Greet \
+        --root "$work" -o "$rust_out" "$input"
+    cargo build --quiet --manifest-path "$rust_out/Cargo.toml"
+    "$rust_out/target/debug/ziran_generated" > "$rust_out.out"
+    cmp "$work/expected" "$rust_out.out"
 done
 
 # The classic program: no return value, so `ziran run` prints only the text.
@@ -116,6 +128,9 @@ main :: () { print("% %\n", 1); }
 EOF
 reject too_many 'print format placeholders do not match arguments: 0 % for 1 argument' <<'EOF'
 main :: () { print("none\n", 1); }
+EOF
+reject trailing_percent 'print format placeholders do not match arguments: 1 % for 0 arguments' <<'EOF'
+main :: () { print("broken %\n"); }
 EOF
 reject dynamic_format 'print requires a string literal format' <<'EOF'
 main :: () { format := "%\n"; print(format, 1); }

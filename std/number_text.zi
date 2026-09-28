@@ -1,0 +1,85 @@
+#import "text_buffer"
+
+// Decimal text for numbers, written into a buffer the caller provides. The
+// returned view borrows the buffer and lasts until it is reused.
+
+// A whole number in base ten. The buffer needs 21 bytes for any s64.
+#program_export
+FormatInteger :: (value: s64, output: []u8) -> string {
+    end: s64 = cast(s64)output.count - 1
+    output[end] = cast(u8)0
+    negative: bool = value < cast(s64)0
+    remaining: s64 = value
+    if negative { remaining = cast(s64)0 - value }
+    if remaining == cast(s64)0 {
+        end -= 1
+        output[end] = cast(u8)48
+    }
+    while remaining > cast(s64)0 {
+        end -= 1
+        output[end] = cast(u8)(48 + cast(s32)(remaining % cast(s64)10))
+        remaining = remaining / cast(s64)10
+    }
+    if negative {
+        end -= 1
+        output[end] = cast(u8)45
+    }
+    return TextUntilNul(output[end:cast(s64)output.count])
+}
+
+// A number rounded to `places` digits after the point (at most 9), with
+// trailing zeros dropped: 0.5, 12, -3.25. The buffer needs 32 bytes.
+#program_export
+FormatDecimal :: (value: float64, places: s32, output: []u8) -> string {
+    digits: s32 = places
+    if digits < 0 { digits = 0 }
+    if digits > 9 { digits = 9 }
+    scale: s64 = cast(s64)1
+    step: s32 = 0
+    while step < digits {
+        scale = scale * cast(s64)10
+        step += 1
+    }
+    scaled: float64 = value * cast(float64)scale
+    if value < 0.0 { scaled = scaled - 0.5 } else { scaled = scaled + 0.5 }
+    units: s64 = cast(s64)scaled
+    negative: bool = units < cast(s64)0
+    remaining: s64 = units
+    if negative { remaining = cast(s64)0 - units }
+    whole: s64 = remaining / scale
+    fraction: s64 = remaining % scale
+    end: s64 = cast(s64)output.count - 1
+    output[end] = cast(u8)0
+    // The fraction's digits, least significant first, skipping zeros that
+    // trail it.
+    kept: s32 = digits
+    while kept > 0 && fraction % cast(s64)10 == cast(s64)0 {
+        fraction = fraction / cast(s64)10
+        kept -= 1
+    }
+    if kept > 0 {
+        step = 0
+        while step < kept {
+            end -= 1
+            output[end] = cast(u8)(48 + cast(s32)(fraction % cast(s64)10))
+            fraction = fraction / cast(s64)10
+            step += 1
+        }
+        end -= 1
+        output[end] = cast(u8)46
+    }
+    if whole == cast(s64)0 {
+        end -= 1
+        output[end] = cast(u8)48
+    }
+    while whole > cast(s64)0 {
+        end -= 1
+        output[end] = cast(u8)(48 + cast(s32)(whole % cast(s64)10))
+        whole = whole / cast(s64)10
+    }
+    if negative && units != cast(s64)0 {
+        end -= 1
+        output[end] = cast(u8)45
+    }
+    return TextUntilNul(output[end:cast(s64)output.count])
+}

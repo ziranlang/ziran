@@ -1,0 +1,20 @@
+#import "number_text"
+
+#program_export
+SelfTest :: () -> s32 {
+    bytes: [32]u8
+    if FormatInteger(cast(s64)0, bytes[:]) != "0" { return 1 }
+    if FormatInteger(cast(s64)1234567, bytes[:]) != "1234567" { return 2 }
+    if FormatInteger(cast(s64)-42, bytes[:]) != "-42" { return 3 }
+    if FormatDecimal(0.0, 3, bytes[:]) != "0" { return 4 }
+    if FormatDecimal(12.0, 3, bytes[:]) != "12" { return 5 }
+    if FormatDecimal(0.5, 3, bytes[:]) != "0.5" { return 6 }
+    if FormatDecimal(-3.25, 2, bytes[:]) != "-3.25" { return 7 }
+    if FormatDecimal(2.005, 2, bytes[:]) != "2.01" && FormatDecimal(2.005, 2, bytes[:]) != "2" { return 8 }
+    if FormatDecimal(0.5019608, 6, bytes[:]) != "0.501961" { return 9 }
+    if FormatDecimal(-0.0004, 2, bytes[:]) != "0" { return 10 }
+    if FormatDecimal(1.999, 2, bytes[:]) != "2" { return 11 }
+    if FormatDecimal(100.0, 0, bytes[:]) != "100" { return 12 }
+    if FormatDecimal(7.0, 12, bytes[:]) != "7" { return 13 }
+    return 42
+}

@@ -461,7 +461,10 @@ emit_sequence(Emitter *e,int begin,int end)
         char value[ZIR_TEXT_MAX],lhs[ZIR_TEXT_MAX],result[ZIR_TEXT_MAX];
         switch(st->kind) {
         case ZIR_STMT_DECL:
-            if(st->expr_root>=0)emit_expr(e,st->expr_root,st->type,value,sizeof(value));
+            if(st->expr_root>=0) {
+                e->call_in_place = 1;
+                emit_expr(e,st->expr_root,st->type,value,sizeof(value));
+            }
             else if(record_type(e->module, st->type)) {
                 zero_record(e, st->type, value, sizeof(value));
             }
@@ -494,6 +497,8 @@ emit_sequence(Emitter *e,int begin,int end)
                 if(width(type))number(e,type,old,type,value,e->fn->exprs[st->expr_root].type,operation(op),result,sizeof(result));
                 else format(result,sizeof(result),"%s %s %s",old,op,value);
             } else {
+                /* A call assigned to a name runs last, so it assigns directly. */
+                e->call_in_place = e->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT;
                 emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,value,sizeof(value));
                 copy_text(result,sizeof(result),value);
             }
@@ -501,6 +506,7 @@ emit_sequence(Emitter *e,int begin,int end)
             break;
         case ZIR_STMT_RETURN:
             if(st->expr_root >= 0) {
+                e->call_in_place = 1;
                 emit_expr(e, st->expr_root, e->fn->return_type, value, sizeof(value));
                 if((e->target == ZIR_C || e->target == ZIR_CPP) &&
                    ArrayElementType(e->fn->return_type, NULL, 0, NULL)) {

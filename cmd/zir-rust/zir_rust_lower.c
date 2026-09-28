@@ -1235,8 +1235,24 @@ static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
         }
         {
             char raw[ZIR_RUST_TEXT_MAX];
+            int later_calls = 0;
             emit_expression(emitter, argument_node, raw, sizeof(raw));
             rust_bare(raw, value, sizeof(value));
+            for(int next = function->exprs[argument_node].next_sibling; next >= 0;
+                next = function->exprs[next].next_sibling)
+                later_calls |= rust_expression_calls(function, next);
+            /* print! borrows its arguments and reads them after every one
+             * has run, so a value a later call could change is copied out
+             * first. A static is always copied: Rust warns on borrowing one. */
+            if(function->exprs[argument_node].kind != ZIR_EXPR_CALL &&
+               ((later_calls && function->exprs[argument_node].kind != ZIR_EXPR_INT &&
+                 function->exprs[argument_node].kind != ZIR_EXPR_FLOAT) ||
+                !strncmp(value, "ziran_global_", 13))) {
+                char copied[ZIR_RUST_TEXT_MAX];
+                snprintf(copied, sizeof(copied),
+                         !strcmp(type, "string") ? "%s.clone()" : "{ %s }", value);
+                snprintf(value, sizeof(value), "%s", copied);
+            }
         }
         format_used += (size_t)snprintf(format + format_used,
                                         ZIR_RUST_TEXT_MAX - format_used, "{}");

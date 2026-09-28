@@ -407,6 +407,54 @@ replace_call_placeholders(const char *text, char arguments[][ZIR_NAME_MAX],
     out[used < size ? used : size - 1] = '\0';
 }
 
+/* Whether a later call can change what this expression reads: a global,
+ * memory behind a pointer or slice, or any local once the function takes an
+ * address or a slice. Constants and results already captured never change. */
+static int
+call_can_change(const Emitter *e, int index)
+{
+    const ZirExpr *expr;
+    if(index < 0)
+        return 0;
+    expr = &e->fn->exprs[index];
+    switch(expr->kind) {
+    case ZIR_EXPR_INT: case ZIR_EXPR_FLOAT: case ZIR_EXPR_STRING:
+    case ZIR_EXPR_SIZE_OF: case ZIR_EXPR_COMPILE_TIME: case ZIR_EXPR_CALL:
+        return 0;
+    case ZIR_EXPR_IDENT: {
+        int local = 0;
+        for(int i = 0; i < e->module->define_count; i++)
+            if(!strcmp(e->module->defines[i].name, expr->name))
+                return 0;
+        for(int i = 0; i < e->local_count && !local; i++)
+            local = !strcmp(e->locals[i].name, expr->name);
+        if(!local)
+            return 1;
+        for(int i = 0; i < e->fn->expr_count; i++)
+            if(e->fn->exprs[i].kind == ZIR_EXPR_SLICE ||
+               (e->fn->exprs[i].kind == ZIR_EXPR_UNARY && !strcmp(e->fn->exprs[i].op, "&")))
+                return 1;
+        return 0;
+    }
+    case ZIR_EXPR_MEMBER:
+        return e->fn->exprs[expr->left].type[0] == '*' ||
+               call_can_change(e, expr->left);
+    case ZIR_EXPR_INDEX: {
+        const char *base = e->fn->exprs[expr->left].type;
+        return base[0] != '[' || base[1] == ']' ||
+               call_can_change(e, expr->left) || call_can_change(e, expr->right);
+    }
+    case ZIR_EXPR_UNARY:
+        if(!strcmp(expr->op, "*"))
+            return 1;
+        return strcmp(expr->op, "&") && call_can_change(e, expr->right);
+    case ZIR_EXPR_BINARY: case ZIR_EXPR_CAST:
+        return call_can_change(e, expr->left) || call_can_change(e, expr->right);
+    default:
+        return 1;
+    }
+}
+
 void
 emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size)
 {
@@ -447,7 +495,7 @@ emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, 
         n = (size_t)format(text, sizeof(text), "%s(", expr->name);
     }
     if(array_result != NULL) {
-        n += (size_t)format(text + n, sizeof(text) - n, "%s%s", count ? "," : "", array_result);
+        n += (size_t)format(text + n, sizeof(text) - n, "%s%s", count ? ", " : "", array_result);
         count++;
     }
     for(int child=expr->first_child;child>=0;child=e->fn->exprs[child].next_sibling) {
@@ -477,8 +525,9 @@ emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, 
             later_calls |= expression_calls(e->fn, next);
         e->call_in_place = !has_named && !later_calls;
         emit_expr(e,child,argument_type,argument,sizeof(argument));
-        if(!plain_identifier(argument) &&
-           (has_named || later_calls || strlen(argument) >= ZIR_NAME_MAX)) {
+        if((later_calls && call_can_change(e, child)) ||
+           (!plain_identifier(argument) &&
+            (has_named || strlen(argument) >= ZIR_NAME_MAX))) {
             char captured[ZIR_NAME_MAX];
             fresh(e, captured);
             declare(e, captured, argument_type, argument);
@@ -495,7 +544,7 @@ emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, 
         if(!arguments[ordinal][0])
             fatal(expr, "missing checked call argument");
         format(placeholder, sizeof(placeholder), "zir_call_argument_%d", ordinal);
-        n += (size_t)format(text+n, sizeof(text)-n, "%s%s", count ? "," : "",
+        n += (size_t)format(text+n, sizeof(text)-n, "%s%s", count ? ", " : "",
                             *expr->slot_type ? arguments[ordinal] : placeholder);
         count++;
     }
@@ -747,16 +796,41 @@ emit_print(Emitter *e, const ZirExpr *expr)
        (count = PrintFormatPieces(e->fn->exprs[first].text, pieces,
                                   PRINT_PIECES_MAX)) < 0)
         fatal(expr, "invalid checked print format");
-    /* Without calls no argument has an effect, so they read in place. */
+    /* Go prints with one fmt.Printf. C also prints with one printf unless a
+     * float or a NUL byte splits the output into several statements. */
+    int one_statement = 1;
+    for(int i = 0; i < count && e->target != ZIR_GO; i++) {
+        unsigned char bytes[ZIR_TEXT_MAX];
+        size_t length;
+        if(!pieces[i].is_argument &&
+           DecodeStringLiteral(pieces[i].literal, bytes, sizeof(bytes), &length) &&
+           memchr(bytes, 0, length) != NULL)
+            one_statement = 0;
+    }
     for(int child = e->fn->exprs[first].next_sibling; child >= 0;
-        child = e->fn->exprs[child].next_sibling)
+        child = e->fn->exprs[child].next_sibling) {
+        const char *type = ScalarType(e->fn->exprs[child].type);
         capture |= expression_calls(e->fn, child);
+        if(e->target != ZIR_GO &&
+           (!strcmp(type, "float32") || !strcmp(type, "float64")))
+            one_statement = 0;
+    }
     for(int child = e->fn->exprs[first].next_sibling; child >= 0;
         child = e->fn->exprs[child].next_sibling, argument++) {
+        int later_calls = 0, in_place;
         types[argument] = ScalarType(e->fn->exprs[child].type);
         children[argument] = child;
+        for(int next = e->fn->exprs[child].next_sibling; next >= 0;
+            next = e->fn->exprs[next].next_sibling)
+            later_calls |= expression_calls(e->fn, next);
+        /* Arguments run left to right, before any output. One reads in
+         * place when nothing runs after it; C names a string, which it
+         * reads twice. */
+        in_place = one_statement && !later_calls &&
+                   (e->target == ZIR_GO || strcmp(types[argument], "string"));
+        e->call_in_place = in_place;
         emit_expr(e, child, e->fn->exprs[child].type, value, sizeof(value));
-        if(capture) {
+        if(capture && !in_place && later_calls && call_can_change(e, child)) {
             fresh(e, values[argument]);
             declare(e, values[argument], types[argument], value);
         } else

@@ -280,7 +280,10 @@ cmp "$work/vector-source/src/main.rs" "$work/vector-saved/src/main.rs"
 
 "$ziran" capabilities --target=rust --json > "$work/capabilities.json"
 rg -q '"target":"rust".*"parallel_execution":"serial"' "$work/capabilities.json"
-rg -q '"target_contract":"experimental"' "$work/capabilities.json"
+if rg -q '"target_contract"' "$work/capabilities.json"; then
+    echo 'the Rust target is still marked experimental' >&2
+    exit 1
+fi
 
 cat > "$work/bounds.zi" <<'ZI'
 #program_export
@@ -316,3 +319,24 @@ set +e
 status=$?
 set -e
 test "$status" = 42
+
+# A Vec moves out of a record field, and the other field keeps its own.
+cat > "$work/vec_field.zi" <<'ZI'
+#import "vec"
+Inner :: struct { items: Vec(s32); other: Vec(s32); }
+Check :: () -> s32 {
+    value: Inner
+    VecPush(value.items, 1)
+    VecPush(value.other, 2)
+    moved := value.items
+    return moved[0] + value.other[0]
+}
+ZI
+"$ziran" build --target=rust --entry vec_field:Check --root "$work" \
+    --module-path std --exe -o "$work/vec_field" "$work/vec_field.zi"
+cargo build --quiet --manifest-path "$work/vec_field/Cargo.toml"
+set +e
+"$work/vec_field/target/debug/ziran_generated"
+status=$?
+set -e
+test "$status" = 3

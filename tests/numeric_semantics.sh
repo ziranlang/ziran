@@ -151,7 +151,7 @@ manifest_ids = [case['id'] for case in manifest['cases']]
 assert ids == manifest_ids, (ids, manifest_ids)
 assert capability['ids'] == manifest_ids
 assert len(manifest_ids) == len(set(manifest_ids))
-assert manifest['targets'] == ['c', 'cpp', 'go', 'zib']
+assert manifest['targets'] == ['c', 'cpp', 'go', 'rust', 'zib']
 PY
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/numeric.zi"
@@ -250,5 +250,24 @@ CPP
                 exit 1
             fi
         done
+    done
+
+    # Rust builds one executable per entry: Answer returns 42 as its exit
+    # status, and each bad shift must fail at run time.
+    for entry in Answer Bad8 Bad16 BadNegative; do
+        output=$work/rust-$input-$entry
+        "$ziran" build --target=rust --exe --entry "numeric:$entry" \
+            --root "$root" -o "$output" "$module"
+        CARGO_TARGET_DIR=$work/rust-target cargo build --quiet \
+            --manifest-path "$output/Cargo.toml"
+        cp "$work/rust-target/debug/ziran_generated" "$output/app"
+        if test "$entry" = Answer; then
+            status=0
+            "$output/app" || status=$?
+            test "$status" = 42
+        elif "$output/app" > "$output/bad.log" 2>&1; then
+            echo "rust accepted an oversized shift in $entry" >&2
+            exit 1
+        fi
     done
 done

@@ -5,6 +5,7 @@
     "c",
     "cpp",
     "go",
+    "rust",
     "zib"
   ],
   "evidence": "tests/numeric_semantics.sh",

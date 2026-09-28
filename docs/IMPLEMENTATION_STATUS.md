@@ -5,6 +5,15 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- The Rust backend builds every program the test suite builds for C, and
+  every program the suite runs on the portable VM prints the same output
+  and returns the same result as a Rust executable. It lowers unions,
+  pointers, slices, owned Vec storage, record and procedure templates,
+  host and variadic C foreign functions, labeled loops, and checked
+  shifts; `tests/numeric_semantics.sh` covers it in the numeric
+  differential matrix. Generated Rust keeps only the runtime a program
+  uses and wraps a body in `unsafe` only when it touches raw pointers or
+  globals.
 - `ziran features` publishes a versioned, stable-ID feature registry with
   syntax, status, target support, limits, accepted and rejected examples,
   rejection behavior, and evidence links. The initial registry covers

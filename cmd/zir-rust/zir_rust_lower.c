@@ -685,7 +685,7 @@ static void require_rust_type(RustEmitter *emitter, ZirSourceSpan span,
     if(rust_type(emitter, type, output, size))
         return;
     Diagnostic(span, "zir_rust.type",
-               "the initial Rust target supports scalar and borrowed text types only: %s",
+               "the Rust target cannot lower this type: %s",
                type);
     exit(1);
 }
@@ -810,7 +810,7 @@ static void unsupported_expression(RustEmitter *emitter,
 {
     (void)emitter;
     Diagnostic(expression->span, "zir_rust.expression",
-               "unsupported expression in the initial Rust target: %s",
+               "unsupported expression in the Rust target: %s",
                expression->text[0] ? expression->text :
                    ExprKindName(expression->kind));
     exit(1);
@@ -2250,7 +2250,7 @@ static void emit_compound_assignment(RustEmitter *emitter,
     }
     if(!strcmp(operation, "~")) {
         Diagnostic(statement->span, "zir_rust.assignment",
-                   "unsupported assignment operation in the initial Rust target: %s",
+                   "unsupported assignment operation in the Rust target: %s",
                    statement->assignment_op);
         exit(1);
     }
@@ -2536,7 +2536,7 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
         continue;
 unsupported_statement:
         Diagnostic(statement->span, "zir_rust.statement",
-                   "unsupported statement in the initial Rust target: %s",
+                   "unsupported statement in the Rust target: %s",
                    statement->text[0] ? statement->text :
                        StmtKindName(statement->kind));
         exit(1);
@@ -2599,7 +2599,7 @@ static void validate_module(const ZirModule *module)
             continue;
         if(!rust_record_type(&emitter, record->name, &owner, &checked)) {
             Diagnostic(record->span, "zir_rust.type",
-                       "the initial Rust target supports plain records with scalar fields only: %s",
+                       "the Rust target cannot lower this record: %s",
                        record->name);
             exit(1);
         }
@@ -2609,7 +2609,7 @@ static void validate_module(const ZirModule *module)
             if(!rust_type(&emitter, field.type, checked_type,
                           sizeof(checked_type))) {
                 Diagnostic(record->span, "zir_rust.type",
-                           "the initial Rust target supports plain records with scalar fields only: %s",
+                           "the Rust target cannot lower this record: %s",
                            record->name);
                 exit(1);
             }
@@ -2767,7 +2767,7 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     count = *function->args ? split_arguments(function->args, parts, 32) : 0;
     if(count < 0) {
         Diagnostic(function->span, "zir_rust.parameter",
-                   "too many parameters in the initial Rust target: %s",
+                   "too many parameters in the Rust target: %s",
                    function->name);
         exit(1);
     }

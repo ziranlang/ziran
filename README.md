@@ -17,7 +17,7 @@ remaining language work, and [Migration](docs/MIGRATION.md) for the
 two-repository cutover.
 
 The current compiler can check and compile a tested
-subset of non-UI `.zi` to C, C++, native Go, and experimental Rust; `plan9-c` provides an
+subset of non-UI `.zi` to C, C++, native Go, and Rust; `plan9-c` provides an
 experimental Plan 9 C path through a post-pass today. It can also save that subset as an
 experimental versioned `.zir` and build each native target from saved modules. It
 can build and run experimental `.zib` bundles for a non-graphical subset with

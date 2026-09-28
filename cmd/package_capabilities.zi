@@ -27,14 +27,14 @@ PkgPrintNumericIdList :: () -> void {
 PkgPrintNumericConformance :: (target: string) -> void {
     PkgPrint("\"numeric_conformance\":{\"schema_version\":1,\"stability\":\"stable-id\",\"targets\":[", false)
     if target.count == 0 {
-        PkgPrint("\"c\",\"cpp\",\"go\",\"zib\"", false)
-    } else if target != "plan9-c" && target != "rust" {
+        PkgPrint("\"c\",\"cpp\",\"go\",\"rust\",\"zib\"", false)
+    } else if target != "plan9-c" {
         PkgPrint("\"", false)
         PkgPrint(target, false)
         PkgPrint("\"", false)
     }
     PkgPrint("],\"ids\":", false)
-    if target != "plan9-c" && target != "rust" { PkgPrintNumericIdList() }
+    if target != "plan9-c" { PkgPrintNumericIdList() }
     else { PkgPrint("[]", false) }
     PkgPrint("}", false)
 }
@@ -87,7 +87,6 @@ Capabilities :: (arguments: []string) -> s32 {
         } else if target == "rust" {
             PkgPrint("\"parallel_execution\":\"serial\",", false)
             PkgPrint("\"text_view_mutable_bytes\":\"borrowed\",", false)
-            PkgPrint("\"target_contract\":\"experimental\",", false)
         } else {
             PkgPrint("\"parallel_execution\":\"serial\",", false)
             PkgPrint("\"text_view_mutable_bytes\":\"snapshot\",", false)

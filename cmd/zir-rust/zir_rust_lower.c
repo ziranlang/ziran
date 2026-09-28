@@ -5,6 +5,7 @@
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
 #include "zir_text.h"
+#include "zir_check.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -1528,6 +1529,32 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                      expression->name);
             break;
         }
+        {
+            int capacity = 0;
+            if(ArrayElementType(base_type, NULL, 0, &capacity)) {
+                if(!strcmp(expression->name, "count")) {
+                    snprintf(output, size, "%di64", capacity);
+                    break;
+                }
+                if(!strcmp(expression->name, "data")) {
+                    emit_destination(emitter, expression->left, base, sizeof(base));
+                    snprintf(output, size, "%s.as_mut_ptr()", base);
+                    break;
+                }
+            }
+            if(SliceElementType(base_type, NULL, 0) && !strcmp(expression->name, "data")) {
+                emit_expression(emitter, expression->left, base, sizeof(base));
+                snprintf(output, size, "%s.data", base);
+                break;
+            }
+        }
+        /* A field through a pointer reads the pointee: (*node).value. */
+        if(base_type[0] == '*' && rust_record_type(emitter, base_type + 1, &owner, &record)) {
+            emit_expression(emitter, expression->left, base, sizeof(base));
+            rust_field_name(record, expression->name, field, sizeof(field));
+            snprintf(output, size, "(*%s).%s", base, field);
+            break;
+        }
         if(!rust_record_type(emitter, base_type, &owner, &record)) {
             unsupported_expression(emitter, expression);
             break;
@@ -1535,6 +1562,22 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         emit_expression(emitter, expression->left, base, sizeof(base));
         rust_field_name(record, expression->name, field, sizeof(field));
         snprintf(output, size, "%s.%s", base, field);
+        break;
+    }
+    case ZIR_EXPR_POINTER_MEMBER: {
+        char base[ZIR_RUST_TEXT_MAX];
+        char field[ZIR_NAME_MAX];
+        const ZirModule *owner = NULL;
+        const ZirType *record = NULL;
+        const char *base_type = emitter->function->exprs[expression->left].type;
+        if(base_type[0] != '*' ||
+           !rust_record_type(emitter, base_type + 1, &owner, &record)) {
+            unsupported_expression(emitter, expression);
+            break;
+        }
+        emit_expression(emitter, expression->left, base, sizeof(base));
+        rust_field_name(record, expression->name, field, sizeof(field));
+        snprintf(output, size, "(*%s).%s", base, field);
         break;
     }
     case ZIR_EXPR_INDEX: {
@@ -1585,35 +1628,32 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                      base, low, high);
             break;
         }
-        if(!ArrayElementType(
-               emitter->function->exprs[expression->left].type, element,
-               sizeof(element), &capacity)) {
-            unsupported_expression(emitter, expression);
-            break;
-        }
         {
-            const char *open = strrchr(expression->text, '[');
-            const char *close = strrchr(expression->text, ']');
-            const char *colon = open != NULL && close > open ?
-                strchr(open, ':') : NULL;
-            char low[ZIR_RUST_TEXT_MAX] = "0";
+            /* Bounds come from the checked graph; a missing bound is the
+             * start or the end. Out-of-range views fail like other targets. */
+            const char *base_type = emitter->function->exprs[expression->left].type;
+            int array = ArrayElementType(base_type, element, sizeof(element), &capacity);
+            int slice = !array && SliceElementType(base_type, element, sizeof(element));
+            char low[ZIR_RUST_TEXT_MAX] = "0i64";
             char high[ZIR_RUST_TEXT_MAX];
-            if(open == NULL || close == NULL || colon == NULL ||
-               colon < open + 1 || colon > close - 1) {
+            if(!array && !slice) {
                 unsupported_expression(emitter, expression);
                 break;
             }
-            if(colon - open - 1 > 0)
-                snprintf(low, sizeof(low), "%.*s",
-                         (int)(colon - open - 1), open + 1);
-            if(close - colon - 1 == 0)
-                snprintf(high, sizeof(high), "%d", capacity);
+            if(expression->right >= 0)
+                emit_typed_expression(emitter, expression->right, "s64", low, sizeof(low));
+            if(expression->third >= 0)
+                emit_typed_expression(emitter, expression->third, "s64", high, sizeof(high));
+            else if(array)
+                snprintf(high, sizeof(high), "%di64", capacity);
             else
-                snprintf(high, sizeof(high), "%.*s",
-                         (int)(close - colon - 1), colon + 1);
-            snprintf(output, size,
-                     "ZiranSlice { data: %s.as_mut_ptr().offset(%s as isize), len: ((%s as isize) - (%s as isize)) as usize }",
-                     base, low, high, low);
+                snprintf(high, sizeof(high), "(%s.len as i64)", base);
+            if(array)
+                snprintf(output, size,
+                         "ZiranSlice::view(ZiranSlice { data: %s.as_mut_ptr(), len: %d }, %s, %s)",
+                         base, capacity, low, high);
+            else
+                snprintf(output, size, "ZiranSlice::view(%s, %s, %s)", base, low, high);
         }
         break;
     }
@@ -1633,12 +1673,10 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                 const ZirExpr *initializer =
                     &emitter->function->exprs[child_index];
                 char value[ZIR_RUST_TEXT_MAX];
-                if(initializer->kind != ZIR_EXPR_FIELD_INIT) {
-                    unsupported_expression(emitter, initializer);
-                    return;
-                }
-                emit_typed_expression(emitter, initializer->right, element,
-                                      value, sizeof(value));
+                emit_typed_expression(emitter,
+                                      initializer->kind == ZIR_EXPR_FIELD_INIT ?
+                                          initializer->right : child_index,
+                                      element, value, sizeof(value));
                 size_t used = strlen(output);
                 snprintf(output + used, size - used, "%s%s", first ? "" : ", ",
                          value);
@@ -1764,18 +1802,42 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                 snprintf(output, size, rust_plain_receiver(left) ? "%s.%s(%s)" : "(%s).%s(%s)",
                          left, wrapping_method(expression->op), right);
         }
-        else if(!strcmp(expression->op, "<<") ||
-                !strcmp(expression->op, ">>") ||
-                !strcmp(expression->op, "~"))
-            unsupported_expression(emitter, expression);
+        else if(!strcmp(expression->op, "<<") || !strcmp(expression->op, ">>")) {
+            /* A count below zero or at the width fails, as on other targets;
+             * >> on a signed type is arithmetic. */
+            char count[ZIR_RUST_TEXT_MAX];
+            emit_typed_expression(emitter, expression->left, expression->type,
+                                  left, sizeof(left));
+            emit_expression(emitter, expression->right, count, sizeof(count));
+            snprintf(output, size,
+                     "%s%s%s.%s(u32::try_from(%s).unwrap_or(u32::MAX)).expect(\"shift count out of range\")",
+                     rust_plain_receiver(left) ? "" : "(", left,
+                     rust_plain_receiver(left) ? "" : ")",
+                     !strcmp(expression->op, "<<") ? "checked_shl" : "checked_shr", count);
+        }
         else
             snprintf(output, size, "(%s %s %s)", left, expression->op, right);
         break;
     case ZIR_EXPR_UNARY:
+        if(!strcmp(expression->op, "&")) {
+            char pointee[ZIR_NAME_MAX];
+            emit_destination(emitter, expression->right, right, sizeof(right));
+            if(!rust_type(emitter, emitter->function->exprs[expression->right].type,
+                          pointee, sizeof(pointee))) {
+                unsupported_expression(emitter, expression);
+                break;
+            }
+            snprintf(output, size, "(&mut %s as *mut %s)", right, pointee);
+            break;
+        }
         emit_expression(emitter, expression->right, right, sizeof(right));
         if(!strcmp(expression->op, "!") || !strcmp(expression->op, "-") ||
            !strcmp(expression->op, "+"))
             snprintf(output, size, "(%s%s)", expression->op, right);
+        else if(!strcmp(expression->op, "~"))
+            snprintf(output, size, "(!%s)", right);
+        else if(!strcmp(expression->op, "*"))
+            snprintf(output, size, "(*%s)", right);
         else
             unsupported_expression(emitter, expression);
         break;
@@ -1783,6 +1845,18 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         emit_expression(emitter, expression->right, right, sizeof(right));
         snprintf(output, size, "(%s as %s)", right,
                  rust_scalar_type(expression->type));
+        break;
+    case ZIR_EXPR_SIZE_OF: {
+        size_t type_size, alignment;
+        if(!TypeLayout(emitter->module, expression->name, &type_size, &alignment)) {
+            unsupported_expression(emitter, expression);
+            break;
+        }
+        snprintf(output, size, "%zui64", type_size);
+        break;
+    }
+    case ZIR_EXPR_COMPILE_TIME:
+        snprintf(output, size, "false");
         break;
     case ZIR_EXPR_CONDITIONAL:
         emit_expression(emitter, expression->left, left, sizeof(left));
@@ -3042,7 +3116,13 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     emitter.program_count = program_count;
     fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n#![allow(improper_ctypes_definitions)]\n\n", output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranSlice<T> {\n"
-          "    pub data: *mut T,\n    pub len: usize,\n}\n\n", runtime);
+          "    pub data: *mut T,\n    pub len: usize,\n}\n\n"
+          "impl<T> ZiranSlice<T> {\n"
+          "    pub fn view(source: Self, low: i64, high: i64) -> Self {\n"
+          "        assert!(low >= 0 && low <= high && high as usize <= source.len, \"slice range out of bounds\");\n"
+          "        Self { data: unsafe { source.data.offset(low as isize) }, len: (high - low) as usize }\n"
+          "    }\n"
+          "}\n\n", runtime);
     emit_ziran_vec_runtime(runtime);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranText {\n"
           "    pub data: *const u8,\n    pub len: usize,\n"

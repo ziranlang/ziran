@@ -41,7 +41,7 @@ assert data[:8] == b'ZIR\0\x2a\0\0\0', data[:8]
 PY
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/hello.zi"
 test -s "$work/c/hello.c"
-grep -Eq '^#ifndef ZI_HELLO_H_[[:xdigit:]]{16}$' "$work/c/hello.h"
+grep -Fqx "#ifndef ZIRAN_HELLO_H" "$work/c/hello.h"
 grep -Fq 'Image(' "$work/c/hello.c"
 if grep -Fq 'RenderImage(' "$work/c/hello.c"; then
     echo 'generic Image call was rewritten as a UI host call' >&2
@@ -59,7 +59,7 @@ ${CC:-cc} -Iinclude -I"$work/c-ir" "$work/c-ir/hello.c" "$work/main.c" \
 "$work/hello-from-ir"
 "$ziran" build --target=cpp --root "$work" -o "$work/cpp" \
     "$work/hello.zi"
-grep -Eq '^#ifndef ZI_HELLO_H_[[:xdigit:]]{16}$' "$work/cpp/hello.hpp"
+grep -Fqx "#ifndef ZIRAN_HELLO_H" "$work/cpp/hello.hpp"
 cat > "$work/cpp/main.cpp" <<'EOF'
 #include "hello.hpp"
 int main() { return Answer() == 42 ? 0 : 1; }

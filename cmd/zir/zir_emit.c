@@ -580,14 +580,14 @@ NativeCFunctionName(const ZirModule *module, const ZirFunction *fn,
         copy_text(out, size, fn->name);
 }
 
+static void readable_module_name(const char *name, char *out, size_t size, int upper);
+
 void
 NativeCModuleInitName(const ZirModule *module, char *out, size_t size)
 {
-    uint64_t hash = UINT64_C(14695981039346656037);
-    for(const unsigned char *p = (const unsigned char *)module->name; *p; p++)
-        hash = (hash ^ *p) * UINT64_C(1099511628211);
-    format(out, size, "zir_module_init_%016llx",
-           (unsigned long long)hash);
+    char name[ZIR_PATH_MAX];
+    readable_module_name(module->name, name, sizeof(name), 0);
+    format(out, size, "ziran_init_%s", name);
 }
 
 typedef struct ModuleVisits {
@@ -694,30 +694,34 @@ NativeGoFunctionName(const ZirProgram *const *programs, int count,
     format(out, size, "%s_%s", guard, name);
 }
 
+/* A module name as an identifier fragment: hello, site_examples_hello. */
+static void
+readable_module_name(const char *name, char *out, size_t size, int upper)
+{
+    size_t used = 0;
+    for(const unsigned char *p = (const unsigned char *)name; *p && used + 1 < size; p++)
+        out[used++] = isalnum(*p) ? (char)(upper ? toupper(*p) : *p) : '_';
+    out[used] = '\0';
+}
+
+/* The generated header's include guard, named after its path: ZIRAN_HELLO_H.
+ * A capital letter gets a leading underscore, so foo and Foo differ. */
 void
 NativeHeaderGuard(const char *stem, char *out, size_t size)
 {
-    uint64_t hash = UINT64_C(14695981039346656037);
+    char name[ZIR_PATH_MAX];
     size_t used = 0;
-    if(size < 24) {
+    for(const unsigned char *p = (const unsigned char *)stem; *p && used + 2 < sizeof(name); p++) {
+        if(isupper(*p))
+            name[used++] = '_';
+        name[used++] = isalnum(*p) ? (char)toupper(*p) : '_';
+    }
+    name[used] = '\0';
+    if((size_t)format(out, size, "ZIRAN_%s_H", name) >= size) {
         Diagnostic((ZirSourceSpan){0}, "zir.output",
                    "generated header guard exceeds output limit");
         exit(1);
     }
-    out[used++] = 'Z';
-    out[used++] = 'I';
-    out[used++] = '_';
-    for(const unsigned char *p = (const unsigned char *)stem; *p; p++) {
-        hash = (hash ^ *p) * UINT64_C(1099511628211);
-        if(used + 20 >= size) {
-            Diagnostic((ZirSourceSpan){0}, "zir.output",
-                       "generated header guard exceeds output limit");
-            exit(1);
-        }
-        out[used++] = isalnum(*p) ? (char)toupper(*p) : '_';
-    }
-    format(out + used, size - used, "_H_%016llx",
-           (unsigned long long)hash);
 }
 
 static void
@@ -1078,10 +1082,9 @@ CanEmitBody(const ZirModule *module, const ZirFunction *fn)
 static void
 number_prefix(const ZirModule *module, char *out, size_t size)
 {
-    uint32_t hash = 2166136261u;
-    for(const unsigned char *p = (const unsigned char *)module->source_path; *p; p++)
-        hash = (hash ^ *p) * 16777619u;
-    format(out, size, "number_%08x", hash);
+    char name[ZIR_PATH_MAX];
+    readable_module_name(module->name, name, sizeof(name), 0);
+    format(out, size, "number_%s", name);
 }
 
 static int operation(const char *op);

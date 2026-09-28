@@ -866,6 +866,34 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
     unsupported_expression(emitter, expression);
 }
 
+/* One enclosing pair of parentheses removed from a standalone expression. */
+static const char *rust_bare(const char *text, char *output, size_t size)
+{
+    size_t length = strlen(text);
+    int depth = 0, whole = length >= 2 && text[0] == '(' && text[length - 1] == ')';
+    for(size_t index = 0; whole && index < length; index++) {
+        if(text[index] == '(') depth++;
+        else if(text[index] == ')' && --depth == 0 && index + 1 < length) whole = 0;
+    }
+    if(whole)
+        snprintf(output, size, "%.*s", (int)(length - 2), text + 1);
+    else
+        snprintf(output, size, "%s", text);
+    return output;
+}
+
+/* A method receiver needs parentheses unless it is a name or an unsigned
+ * suffixed literal. */
+static int rust_plain_receiver(const char *text)
+{
+    if(!isalnum((unsigned char)text[0]) && text[0] != '_')
+        return 0;
+    for(const char *c = text; *c; c++)
+        if(!isalnum((unsigned char)*c) && *c != '_' && *c != '.')
+            return 0;
+    return 1;
+}
+
 /* A suffixed Rust integer literal of this exact type, like 40i64. */
 static int rust_literal_bits(const char *text, const char *type, uint64_t *bits)
 {
@@ -1683,8 +1711,8 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                          "((%s as i64).%s(%s as i64))", left,
                          wrapping_method(expression->op), right);
             else
-                snprintf(output, size, "(%s).%s(%s)", left,
-                         wrapping_method(expression->op), right);
+                snprintf(output, size, rust_plain_receiver(left) ? "%s.%s(%s)" : "(%s).%s(%s)",
+                         left, wrapping_method(expression->op), right);
         }
         else if(!strcmp(expression->op, "<<") ||
                 !strcmp(expression->op, ">>") ||
@@ -1768,7 +1796,8 @@ static int emit_if(RustEmitter *emitter, int index, int end)
     int close = block_end(emitter->function, index, end);
     emit_expression(emitter, statement->expr_root, condition,
                     sizeof(condition));
-    write_line(emitter, "if %s {", condition);
+    char plain_condition[ZIR_RUST_TEXT_MAX];
+    write_line(emitter, "if %s {", rust_bare(condition, plain_condition, sizeof(plain_condition)));
     emitter->indent++;
     emit_sequence(emitter, index + 1, close);
     emitter->indent--;
@@ -1801,7 +1830,7 @@ static void emit_compound_assignment(RustEmitter *emitter,
     snprintf(operation, sizeof(operation), "%s", statement->assignment_op);
     operation[strlen(operation) - 1] = '\0';
     if(integer_type(left->type) && wrapping_operation(operation)) {
-        write_line(emitter, "%s = (%s).%s(%s);", name, name,
+        write_line(emitter, rust_plain_receiver(name) ? "%s = %s.%s(%s);" : "%s = (%s).%s(%s);", name, name,
                    wrapping_method(operation), value);
         return;
     }
@@ -2013,7 +2042,8 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
             if(statement->is_parallel || statement->is_gpu)
                 write_line(emitter,
                            "// ziran: #parallel region downgraded to serial");
-            write_line(emitter, "while %s {", value);
+            char plain_value[ZIR_RUST_TEXT_MAX];
+            write_line(emitter, "while %s {", rust_bare(value, plain_value, sizeof(plain_value)));
             emitter->indent++;
             emit_sequence(emitter, index + 1, close);
             emitter->indent--;

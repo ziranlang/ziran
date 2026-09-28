@@ -15,7 +15,7 @@ endif
 
 BUILD_DIR ?= build
 BIN_DIR := $(BUILD_DIR)/bin
-FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_parse.c cmd/zir/zir_text.c \
+FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_text.c \
     cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
     cmd/zir/zir_emit.c cmd/zir/zir_serial.c cmd/zir/zir_load.c \
@@ -27,8 +27,10 @@ LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(BUILD_DIR)/obj/check.o
-FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(BUILD_DIR)/obj/check.o
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(BUILD_DIR)/obj/check.o \
+    $(BUILD_DIR)/obj/parse.o
+FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(BUILD_DIR)/obj/check.o \
+    $(BUILD_DIR)/obj/parse.o
 BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
 
@@ -57,10 +59,16 @@ $(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
-# The checker compiles in parts, then merges into one object; its shared
-# helpers are hidden and localized there so they never leave check.o.
+# The parser and checker compile in parts, then merge into one object each;
+# their shared helpers are hidden and localized so they never leave it.
+PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c \
+    _condition.c _discover.c _source.c)
 CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
     _function.c _link.c _program.c)
+
+$(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS))
+	$(CC) -r -nostdlib -o $@ $^
+	$(OBJCOPY) --localize-hidden $@
 
 $(BUILD_DIR)/obj/check.o: $(call obj,$(CHECK_PARTS))
 	$(CC) -r -nostdlib -o $@ $^

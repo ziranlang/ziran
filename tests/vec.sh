@@ -343,15 +343,16 @@ Consume :: (values: Vec(s32)) -> s32 {
 Bad :: () -> s32 {
     holder: Holder
     VecPush(holder.items, 1)
-    return Consume(holder.items)
+    Consume(holder.items)
+    return holder.items[0]
 }
 ZI
 if "$ziran" check --root "$work" --module-path "$repo/std" \
     "$work/nested.zi" 2> "$work/nested.err"; then
-    echo 'moving nested Vec storage was accepted' >&2
+    echo 'reusing moved nested Vec storage was accepted' >&2
     exit 1
 fi
-rg -q 'move a binding' "$work/nested.err"
+rg -q 'owned record field is used after moving' "$work/nested.err"
 
 cat > "$work/badborrow.zi" <<'ZI'
 #import "vec"

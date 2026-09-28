@@ -24,6 +24,8 @@ typedef struct Binding {
     int is_enum_namespace;
     int root_index;
     int moved;
+    char moved_paths[32][ZIR_NAME_MAX];
+    int moved_path_count;
     int touched;
     int borrow_count;
     int borrows_index;
@@ -38,6 +40,12 @@ typedef struct SpecializationRequest {
     char type[ZIR_NAME_MAX];
     ZirSourceSpan call_span;
 } SpecializationRequest;
+
+typedef struct MoveState {
+    int moved;
+    int moved_path_count;
+    char moved_paths[32][ZIR_NAME_MAX];
+} MoveState;
 
 typedef struct Checker {
     ZirProgram **programs;
@@ -58,7 +66,7 @@ typedef struct Checker {
     struct {
         int at;
         int count;
-        unsigned char *flags;
+        MoveState *states;
     } restores[64];
     int restore_count;
     SpecializationRequest *specializations;
@@ -831,6 +839,7 @@ bind(Checker *c, const char *name, const char *type, ZirSourceSpan span)
     c->bindings[c->count].is_enum_namespace = 0;
     c->bindings[c->count].root_index = -1;
     c->bindings[c->count].moved = 0;
+    c->bindings[c->count].moved_path_count = 0;
     c->bindings[c->count].touched = 0;
     c->bindings[c->count].borrow_count = 0;
     c->bindings[c->count].borrows_index = -1;
@@ -960,6 +969,7 @@ activate_using_filtered(Checker *c, const char *path,
             namespace->is_using_namespace = 1;
             namespace->is_enum_namespace = 1;
             namespace->moved = 0;
+            namespace->moved_path_count = 0;
             namespace->touched = 0;
             namespace->borrow_count = 0;
             namespace->borrows_index = -1;
@@ -1035,6 +1045,7 @@ activate_using_filtered(Checker *c, const char *path,
     namespace->is_using_namespace = 1;
     namespace->is_enum_namespace = 0;
     namespace->moved = 0;
+    namespace->moved_path_count = 0;
     namespace->touched = 0;
     namespace->borrow_count = 0;
     namespace->borrows_index = -1;
@@ -1675,6 +1686,135 @@ lexical_owned_binding(Checker *c, int index)
     return NULL;
 }
 
+/* Individual ownership moves are tracked by the lexical root and a
+ * member-field path. Index and pointer paths stay whole-binding moves until
+ * their aliasing can be represented safely. */
+static Binding *
+owned_member_path(Checker *c, int index, char *path, size_t capacity)
+{
+    const ZirExpr *e;
+    Binding *root;
+    size_t length;
+    int written;
+
+    if(index < 0 || index >= c->fn->expr_count || path == NULL ||
+       capacity == 0)
+        return NULL;
+    e = &c->fn->exprs[index];
+    if(e->kind != ZIR_EXPR_MEMBER)
+        return NULL;
+    if(e->left < 0 || e->left >= c->fn->expr_count)
+        return NULL;
+
+    const ZirExpr *base = &c->fn->exprs[e->left];
+    if(base->kind == ZIR_EXPR_IDENT && !base->is_this &&
+       strcmp(base->name, "true") && strcmp(base->name, "false") &&
+       strcmp(base->name, "null")) {
+        for(int i = c->count - 1; i >= 0; i--)
+            if(!c->bindings[i].is_using_namespace &&
+               !strcmp(c->bindings[i].name, base->name) &&
+               contains_vec(c->module, c->bindings[i].type, 0)) {
+                copy_text(path, capacity, e->name);
+                return &c->bindings[i];
+            }
+        return NULL;
+    }
+
+    root = owned_member_path(c, e->left, path, capacity);
+    if(root == NULL)
+        return NULL;
+    length = strlen(path);
+    written = snprintf(path + length, capacity - length, "%s%s",
+                       length != 0 ? "." : "", e->name);
+    if(written < 0 || (size_t)written >= capacity - length) {
+        path[length] = '\0';
+        return NULL;
+    }
+    return root;
+}
+
+static int
+path_prefix(const char *prefix, const char *value)
+{
+    size_t length = strlen(prefix);
+    if(strncmp(prefix, value, length) != 0)
+        return 0;
+    return value[length] == '\0' || value[length] == '.';
+}
+
+static int
+moved_path_conflict(const Binding *binding, const char *path, int owns_storage)
+{
+    if(binding == NULL || binding->moved)
+        return 1;
+    for(int i = 0; i < binding->moved_path_count; i++) {
+        const char *moved = binding->moved_paths[i];
+        if(path_prefix(moved, path) ||
+           (owns_storage && path_prefix(path, moved)))
+            return 1;
+    }
+    return 0;
+}
+
+static void
+check_moved_path_use(Checker *c, int index)
+{
+    const ZirExpr *e;
+    char path[ZIR_TEXT_MAX];
+    Binding *binding;
+
+    if(index < 0 || index >= c->fn->expr_count)
+        return;
+    e = &c->fn->exprs[index];
+    if(c->assign_destination)
+        return;
+    if(e->kind != ZIR_EXPR_MEMBER)
+        return;
+    binding = owned_member_path(c, index, path, sizeof(path));
+    if(binding != NULL &&
+       moved_path_conflict(binding, path,
+                           contains_vec(c->module, e->type, 0)))
+        error(c, e->span, "owned record field is used after moving", path);
+}
+
+static int
+mark_moved_member_path(Checker *c, int index)
+{
+    const ZirExpr *e;
+    char path[ZIR_TEXT_MAX];
+    Binding *binding;
+
+    if(index < 0 || index >= c->fn->expr_count)
+        return 0;
+    e = &c->fn->exprs[index];
+    if(e->kind != ZIR_EXPR_MEMBER ||
+       !VecElementType(c->module, e->type, NULL, 0))
+        return 0;
+    binding = owned_member_path(c, index, path, sizeof(path));
+    if(binding == NULL)
+        return 0;
+    if(moved_path_conflict(binding, path, 1)) {
+        error(c, e->span, "owned record field is used after moving", path);
+        return 1;
+    }
+    if(binding->borrow_count > 0) {
+        error(c, e->span,
+              "cannot move a Vec with a live borrowed view", binding->name);
+        return 1;
+    }
+    if(binding->moved_path_count >=
+       (int)(sizeof(binding->moved_paths) /
+             sizeof(binding->moved_paths[0]))) {
+        error(c, e->span,
+              "too many moved fields in one aggregate", binding->name);
+        return 1;
+    }
+    copy_text(binding->moved_paths[binding->moved_path_count++],
+              sizeof(binding->moved_paths[0]), path);
+    c->fn->exprs[index].is_move = 1;
+    return 1;
+}
+
 /* Only local bindings move. A global keeps shared module state, so moving it
  * would leave every other function reading transferred storage. */
 static int
@@ -1696,6 +1836,8 @@ global_vec_source(Checker *c, int index)
         }
         return 0;
     }
+    if(e->kind == ZIR_EXPR_MEMBER)
+        return global_vec_source(c, e->left);
     if(e->kind != ZIR_EXPR_IDENT || *lookup_lexical(c, e->name))
         return 0;
     global = global_binding(c, e->name);
@@ -1715,6 +1857,11 @@ owned_initializer_shape(Checker *c, int index)
         return !global_vec_source(c, index);
     if(e->kind == ZIR_EXPR_CALL)
         return 1;
+    if(e->kind == ZIR_EXPR_MEMBER &&
+       VecElementType(c->module, e->type, NULL, 0)) {
+        char path[ZIR_TEXT_MAX];
+        return owned_member_path(c, index, path, sizeof(path)) != NULL;
+    }
     if(e->kind != ZIR_EXPR_COMPOUND)
         return 0;
     for(int child = e->first_child; child >= 0;
@@ -3335,6 +3482,7 @@ expression_type(Checker *c, int index)
         if(!*member_type)
             error(c, e->span, "unknown record field", e->name);
         type = member_type;
+        check_moved_path_use(c, index);
         break;
     }
     case ZIR_EXPR_SLICE: {
@@ -3445,6 +3593,7 @@ expression_type(Checker *c, int index)
                               e->name);
                     break;
                 }
+            check_moved_path_use(c, index);
         }
         if(!*type) {
             CompoundConstant compound = {0};
@@ -5340,7 +5489,7 @@ mark_expr_moves(Checker *c, int index)
         int right = e->right;
         Binding *binding = lexical_owned_binding(c, right);
         if(binding != NULL) {
-            if(binding->moved) {
+            if(binding->moved || binding->moved_path_count != 0) {
                 error(c, c->fn->exprs[right].span,
                       "owned binding is used after moving", binding->name);
                 return;
@@ -5355,6 +5504,8 @@ mark_expr_moves(Checker *c, int index)
             c->fn->exprs[right].is_move = 1;
             return;
         }
+        if(mark_moved_member_path(c, right))
+            return;
         if(c->fn->exprs[right].kind == ZIR_EXPR_COMPOUND ||
            c->fn->exprs[right].kind == ZIR_EXPR_CALL) {
             mark_expr_moves(c, right);
@@ -5379,11 +5530,10 @@ mark_expr_moves(Checker *c, int index)
         child = c->fn->exprs[child].next_sibling) {
         Binding *binding = e->kind == ZIR_EXPR_CALL ?
             lexical_owned_binding(c, child) : NULL;
-        int consumes = binding != NULL &&
-            (!primitive || !strcmp(e->name, "VecFree") ||
-             !strcmp(e->name, "BuilderFinish"));
-        if(consumes) {
-            if(binding->moved) {
+        int consumes = !primitive || !strcmp(e->name, "VecFree") ||
+                       !strcmp(e->name, "BuilderFinish");
+        if(binding != NULL && consumes) {
+            if(binding->moved || binding->moved_path_count != 0) {
                 error(c, c->fn->exprs[child].span,
                       "owned binding is used after moving", binding->name);
                 continue;
@@ -5395,7 +5545,9 @@ mark_expr_moves(Checker *c, int index)
             binding->moved = 1;
             if(!primitive)
                 c->fn->exprs[child].is_move = 1;
-        } else
+        } else if(consumes && mark_moved_member_path(c, child))
+            continue;
+        else
             mark_expr_moves(c, child);
     }
     if(primitive && storage != NULL && !storage_was_moved &&
@@ -5472,7 +5624,7 @@ restart:
     for(int expression = 0; expression < fn->expr_count; expression++)
         fn->exprs[expression].is_move = 0;
     while(c->restore_count > 0)
-        free(c->restores[--c->restore_count].flags);
+        free(c->restores[--c->restore_count].states);
     c->count = 0; c->depth = 0;
     c->using_rewritten = 0;
     c->aggregate_rewritten = 0;
@@ -5521,14 +5673,21 @@ restart:
              * join; the state after it is the state before it. */
             int last = i;
             if(all_arms_return(fn, i, &last)) {
-                unsigned char *flags = malloc((size_t)(c->count > 0 ?
-                                                       c->count : 1));
-                if(flags != NULL) {
-                    for(int b = 0; b < c->count; b++)
-                        flags[b] = (unsigned char)c->bindings[b].moved;
+                MoveState *states = calloc((size_t)(c->count > 0 ?
+                                                      c->count : 1),
+                                            sizeof(*states));
+                if(states != NULL) {
+                    for(int b = 0; b < c->count; b++) {
+                        states[b].moved = c->bindings[b].moved;
+                        states[b].moved_path_count =
+                            c->bindings[b].moved_path_count;
+                        memcpy(states[b].moved_paths,
+                               c->bindings[b].moved_paths,
+                               sizeof(states[b].moved_paths));
+                    }
                     c->restores[c->restore_count].at = last;
                     c->restores[c->restore_count].count = c->count;
-                    c->restores[c->restore_count].flags = flags;
+                    c->restores[c->restore_count].states = states;
                     c->restore_count++;
                 }
             }
@@ -5536,9 +5695,16 @@ restart:
         for(int r = 0; r < c->restore_count; r++) {
             if(c->restores[r].at != i)
                 continue;
-            for(int b = 0; b < c->restores[r].count && b < c->count; b++)
-                c->bindings[b].moved = c->restores[r].flags[b] != 0;
-            free(c->restores[r].flags);
+            for(int b = 0; b < c->restores[r].count && b < c->count; b++) {
+                c->bindings[b].moved =
+                    c->restores[r].states[b].moved != 0;
+                c->bindings[b].moved_path_count =
+                    c->restores[r].states[b].moved_path_count;
+                memcpy(c->bindings[b].moved_paths,
+                       c->restores[r].states[b].moved_paths,
+                       sizeof(c->bindings[b].moved_paths));
+            }
+            free(c->restores[r].states);
             c->restores[r] = c->restores[c->restore_count - 1];
             c->restore_count--;
             r--;
@@ -5621,7 +5787,15 @@ restart:
         if(c->errors == errors_at_statement && st->expr_root >= 0) {
             Binding *moved_from = lexical_owned_binding(c, st->expr_root);
             int consumed_root = 0;
-            if(moved_from != NULL &&
+            if(moved_from != NULL && moved_from->moved_path_count != 0 &&
+               (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
+                st->kind == ZIR_STMT_RETURN)) {
+                error(c, st->span,
+                      "owned aggregate is used after moving one of its fields",
+                      moved_from->name);
+                consumed_root = 1;
+            }
+            if(moved_from != NULL && moved_from->moved_path_count == 0 &&
                (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
                 st->kind == ZIR_STMT_RETURN)) {
                 if(moved_from->borrow_count > 0)
@@ -5632,6 +5806,10 @@ restart:
                 c->fn->exprs[st->expr_root].is_move = 1;
                 consumed_root = 1;
             }
+            if(!consumed_root &&
+               (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
+                st->kind == ZIR_STMT_RETURN))
+                consumed_root = mark_moved_member_path(c, st->expr_root);
             if(!consumed_root)
                 mark_expr_moves(c, st->expr_root);
             int root_transfer =
@@ -7633,7 +7811,7 @@ CheckPrograms(ZirProgram **programs, int count)
                     int typed_valid = initializer.errors == 0 &&
                                       !initializer.failed;
                     for(int i = 0; i < initializer.restore_count; i++)
-                        free(initializer.restores[i].flags);
+                        free(initializer.restores[i].states);
                     free(initializer.bindings);
                     free(initializer.specializations);
                     if(!typed_valid) {

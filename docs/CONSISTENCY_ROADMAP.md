@@ -26,7 +26,9 @@ NaN and infinity behavior, and matching compile-time folding between native
 and portable execution. Cleanup and one emitter path now use structured
 diagnostics. All four execution paths move and recursively drop vectors owned
 by records and fixed arrays, preventing the reproduced record-copy double-free
-case, and the checker rejects repeated moves within an expression. Global
+case. Plain record-member `Vec` paths rooted at local aggregates move without
+invalidating sibling fields, and the checker rejects repeated moves within an
+expression. Global
 `TextView` storage now tracks its backing-global origin and rejects
 cross-function mutation through direct and chained global aliases. Local view
 mutation is field-sensitive: sibling record fields remain writable while the
@@ -35,13 +37,11 @@ protected. These fixes do not complete the ownership or diagnostic contracts.
 
 ## Priority 1: one safe meaning across targets
 
-1. **Automatic ownership cleanup.** All four execution paths now release direct
-   owned `Vec` locals and parameters on return, break, continue, and normal
-   scope close; direct, aggregate, and record-literal field moves clear every
-   reachable native source field. Lower the remaining ownership decisions into checked IR rather than
-   separate backend paths, broaden allocation-count and AddressSanitizer
-   coverage, and keep source/saved-IR tests across backends. Reclaiming the
-   bytes detached by `BuilderFinish` needs a separate string ownership policy.
+1. **Automatic ownership cleanup.** Lower the remaining ownership decisions
+   into checked IR rather than separate backend paths, broaden allocation-count
+   and AddressSanitizer coverage, and keep source/saved-IR tests across
+   backends. Reclaiming the bytes detached by `BuilderFinish` needs a separate
+   string ownership policy.
 2. **Borrowed views.** `TextView` of mutable bytes observes later mutation in
    generated C/C++ but retains the earlier bytes in Go and `.zib`. Choose one
    language rule, then enforce it consistently. The checker now rejects direct

@@ -2979,6 +2979,16 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         }
         emit_field_path(e->module, e->target, base_type, expr->name,
                         a, result, sizeof(result));
+        if(expr->is_move) {
+            if(!emitter_type_contains_vec(e->module, expr->type, 0))
+                fatal(expr, "move requires an owned value");
+            fresh(e, temp);
+            declare(e, temp, expr->type, result);
+            clear_owned_value(e, result, expr->type, e->module, 0);
+            copy_text(out, size, temp);
+            e->pure = 0;
+            return;
+        }
         pure = base_pure;
         break;
     }

@@ -688,14 +688,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   emitted by the compiler, with textual and JSON output. `ziran explain --list`
   enumerates the registry, and `tests/explain.sh` fails if a new emitted code is
   omitted.
-- Whole local aggregates, fresh aggregate call results, and vector-bearing
-  record-literal fields can move through declaration, assignment, argument
-  passing, and return. C, C++, Go, and the portable VM recursively drop
-  vectors reached through record fields and fixed arrays; native moves clear
-  every reachable source field. `tests/aggregate_vec_safety.sh` checks
-  use-after-move, global-source, and overwrite rejection, record-literal field
-  moves, allocator balance, source/saved-IR equality, and all four execution
-  paths with nested records and arrays.
+- Whole local aggregates, fresh aggregate call results, vector-bearing
+  record-literal fields, and plain record-member `Vec` paths rooted at local
+  aggregates can move through declaration, assignment, argument passing, and
+  return. C, C++, Go, and the portable VM recursively drop vectors reached
+  through record fields and fixed arrays; a member move clears only the native
+  source field and invalidates only the corresponding VM slot.
+  `tests/aggregate_vec_safety.sh` checks direct and nested member paths,
+  sibling-field usability, branch returns, use-after-move, global-source,
+  indexed/pointer limits, overwrite rejection, allocator balance,
+  source/saved-IR equality, and all four execution paths.
 - Validated benchmark harnesses record compilation and runtime samples with
   command lines, versions, hashes, hardware, and checked outputs. The multilingual
   UTF-8 harness compares source and saved IR across C, C++, Go, `.zib`, and

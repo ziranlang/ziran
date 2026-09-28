@@ -2695,6 +2695,20 @@ eval(Frame *frame, int index, int depth)
         break;
     }
     case ZIR_EXPR_MEMBER: {
+        if(expression->is_move) {
+            Value *source = assignment_slot(frame, index, depth + 1);
+            char element[ZIR_NAME_MAX];
+            if(source == NULL ||
+               !VecElementType(frame->module, expression->type,
+                               element, sizeof(element))) {
+                frame->vm->failed = 1;
+                break;
+            }
+            left = *source;
+            *source = (Value){.kind = VALUE_INVALID};
+            return coerce_expression(frame->vm, frame->module, left,
+                                     expression->type);
+        }
         left = eval(frame, expression->left, depth + 1);
         if(left.kind == VALUE_STRING &&
            strcmp(expression->name, "count") == 0) {

@@ -9,8 +9,9 @@ explicit `VecClone(dest, src)` with a recoverable failure result, and
 `VecSlice(values, low, high)` borrowed views, in C99,
 C++, Go, and the portable VM. A vector can live in a local, global, record
 field, or fixed-array element reached from a record. Direct vector bindings,
-whole aggregates containing vectors, and vector-bearing record-literal fields
-have move checks on declaration, assignment, argument passing, and return. Go can report capacity overflow but
+whole aggregates containing vectors, vector-bearing record-literal fields, and
+plain record-member paths rooted at a local aggregate have move checks on
+declaration, assignment, argument passing, and return. Go can report capacity overflow but
 its runtime may terminate on physical allocation failure; this is not yet the
 full recoverable failure contract below. `VecPop` and `VecGet` require the
 `Option` record template from `std/option.zi` to be visible in the using module.
@@ -21,10 +22,13 @@ also recursively drop vectors reachable through record fields and fixed arrays.
 A direct move clears its source before the next drop; an aggregate move clears
 every reachable vector field in native targets, while the portable VM clones at
 the destination boundary and relies on the checker to make the source
-unreachable. An aggregate move source must be a whole local binding or fresh
-call result, and its destination must be a simple local. A record literal can
-initialize a vector-bearing field from a local vector or fresh call result;
-using that source again is rejected. A direct or
+unreachable. Moving a plain record-member path clears only that field in native
+targets and invalidates only the corresponding VM storage slot. An aggregate
+move source must be a whole local binding or fresh call result; a member move
+must be rooted at a local aggregate. A record literal can initialize a
+vector-bearing field from a local vector or fresh call result; using that
+source again is rejected. Indexed and pointer-backed member paths, and paths
+rooted at a global, remain whole-aggregate/global move errors. A direct or
 record-held `TextView` rejects mutation of its local backing place until the
 view leaves scope, including views returned by checked calls and views nested
 in their result records. The check is field-sensitive: sibling record fields
@@ -61,15 +65,16 @@ respectively.
 
 Scalars, immutable strings, and aggregates whose members are copyable retain
 value-copy semantics. An owned value, including `Vec[T]`, should move on assignment,
-argument passing, and return. A move source must be a local binding or a fresh
-call result: the checker rejects moving nested record storage and moving a
-global, because both keep shared storage that other code can reach. The
+argument passing, and return. A move source must be a local binding, a plain
+record-member path rooted at a local aggregate, or a fresh call result. The
+checker rejects moving indexed or pointer-backed member storage and moving a
+global, because their aliases cannot yet be represented precisely enough. The
 checker rejects use after move and assignment over a direct or aggregate-held
 owned vector; moves inside an `if` whose every arm returns do not reach the
 join. The target rule is that every path drops each owned local exactly once,
 with a moved source zeroed so a later drop is harmless. All current backends
-implement this for direct `Vec` bindings and for recursively owned vectors in
-records and fixed arrays.
+implement this for direct `Vec` bindings, plain record-member paths, and
+recursively owned vectors in records and fixed arrays.
 A view declared as `[]T` from
 `VecSlice(values, low, high)` borrows its source binding until the view's
 scope closes: moving or mutating the source, including `VecPush`, `VecPop`,

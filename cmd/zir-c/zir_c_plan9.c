@@ -1483,6 +1483,8 @@ c_plan9_write_runtime(const char *out_dir)
 "#define ZIR_PLAN9_RUNTIME_H\n\n"
 "#include <u.h>\n"
 "#include <libc.h>\n\n"
+"/* plan9port's u.h (_U_H_) already brings the POSIX integer types. */\n"
+"#ifndef _U_H_\n"
 "typedef char int8_t;\n"
 "typedef uchar uint8_t;\n"
 "typedef short int16_t;\n"
@@ -1493,8 +1495,11 @@ c_plan9_write_runtime(const char *out_dir)
 "typedef uvlong uint64_t;\n"
 "typedef long ptrdiff_t;\n"
 "typedef usize size_t;\n"
+"#endif\n"
 "typedef int bool;\n\n"
+"#ifndef NULL\n"
 "#define NULL ((void*)0)\n"
+"#endif\n"
 "typedef struct Slice {\n"
 "    void *data;\n"
 "    int64_t length;\n"
@@ -1524,11 +1529,13 @@ c_plan9_write_runtime(const char *out_dir)
 "}\n\n"
 "#define false 0\n"
 "#define true 1\n"
+"#ifndef _U_H_\n"
 "#define UINT64_C(value) ((uint64_t)(value))\n"
 "#define UINT64_MAX ((uint64_t)-1)\n"
 "#define INT64_MAX ((int64_t)((((uint64_t)1 << 63) - 1)))\n"
 "#define INT64_MIN (-INT64_MAX - 1)\n"
-"#define SIZE_MAX ((size_t)-1)\n\n"
+"#define SIZE_MAX ((size_t)-1)\n"
+"#endif\n\n"
 "typedef struct String {\n"
 "    const char *data;\n"
 "    size_t length;\n"
@@ -1600,6 +1607,11 @@ c_plan9_write_runtime(const char *out_dir)
 "        if(value < 0) write(1, \"-inf\", 4); else write(1, \"inf\", 3);\n"
 "        return;\n"
 "    }\n"
+"    /* Plan 9 formatting drops the sign of -0.0, so write it here. */\n"
+"    if(value < 0 || (value == 0 && 1 / value < 0)) {\n"
+"        write(1, \"-\", 1);\n"
+"        value = -value;\n"
+"    }\n"
 "    for(precision = 1; precision <= 17; precision++) {\n"
 "        snprint(scientific, sizeof(scientific), \"%.*e\", precision - 1, value);\n"
 "        if(single ? (float)strtod(scientific, NULL) == (float)value\n"
@@ -1607,7 +1619,6 @@ c_plan9_write_runtime(const char *out_dir)
 "            break;\n"
 "    }\n"
 "    p = scientific;\n"
-"    if(*p == '-') { write(1, \"-\", 1); p++; }\n"
 "    count = 0;\n"
 "    for(; *p != 'e' && *p != 'E' && *p != 0; p++)\n"
 "        if(*p != '.') digits[count++] = *p;\n"
@@ -2058,6 +2069,7 @@ c_plan9_rewrite_once(const char *text)
     /* print helpers need write and strtod; only printing files ask for them,
      * before any header can include the runtime. */
     if(strstr(text, "ZirPrint") != NULL &&
+       strncmp(text, "#define ZIR_PLAN9_PRINT 1\n", 26) != 0 &&
        buf_puts(&out, "#define ZIR_PLAN9_PRINT 1\n") < 0)
         goto fail;
 

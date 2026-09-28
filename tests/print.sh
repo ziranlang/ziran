@@ -52,6 +52,14 @@ EOF
 "$ziran" check --root "$work" "$work/greet.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/greet.zi"
 
+# Plan 9 C builds with plan9port when it is installed, else a host libc shim.
+plan9=${PLAN9:-}
+if test -z "$plan9"; then
+    for candidate in "$HOME/Projects/plan9port" /usr/local/plan9 /usr/lib/plan9; do
+        if test -x "$candidate/bin/9c"; then plan9=$candidate; break; fi
+    done
+fi
+
 for input in "$work/greet.zi" "$work/ir/greet.zir"; do
     case "$input" in
         *.zi) suffix=source ;;
@@ -101,15 +109,29 @@ EOF
     "$rust_out/target/debug/ziran_generated" > "$rust_out.out"
     cmp "$work/expected" "$rust_out.out"
 
-    # Plan 9 C runs on the host through a minimal u.h/libc.h shim.
+    # Plan 9 C: plan9port when installed, else the host through a libc shim.
     plan9_out="$work/$suffix-plan9"
     "$ziran" build --target=plan9-c --root "$work" -o "$plan9_out" "$input"
     if grep -n '#include <std' "$plan9_out"/*.c "$plan9_out"/*.h; then
         echo 'plan9-c print output retained hosted C headers' >&2
         exit 1
     fi
-    mkdir -p "$work/plan9-include"
-    cat > "$work/plan9-include/u.h" <<'EOF'
+    if test -n "$plan9" && test -x "$plan9/bin/9c"; then
+        # plan9port compiles against the real Plan 9 u.h and libc.h.
+        cat > "$plan9_out/driver.c" <<'EOF'
+#include <u.h>
+#include <libc.h>
+#include "greet.h"
+void main(int argc, char **argv) { USED(argc); USED(argv); Greet(); exits(nil); }
+EOF
+        (cd "$plan9_out" &&
+            PLAN9=$plan9 "$plan9/bin/9c" -I. greet.c driver.c 2> 9c.log &&
+            PLAN9=$plan9 "$plan9/bin/9l" -o program greet.o driver.o) ||
+            { cat "$plan9_out/9c.log" >&2; exit 1; }
+        "$plan9_out/program" > "$plan9_out.out"
+    else
+        mkdir -p "$work/plan9-include"
+        cat > "$work/plan9-include/u.h" <<'EOF'
 typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;
@@ -117,7 +139,7 @@ typedef long long vlong;
 typedef unsigned long long uvlong;
 typedef unsigned long usize;
 EOF
-    cat > "$work/plan9-include/libc.h" <<'EOF'
+        cat > "$work/plan9-include/libc.h" <<'EOF'
 extern void *realloc(void *, unsigned long);
 extern void free(void *);
 extern void *memmove(void *, const void *, unsigned long);
@@ -134,7 +156,7 @@ extern int isInf(double, int);
 extern void exits(const char *);
 extern void abort(void);
 EOF
-    cat > "$work/plan9-shim.c" <<'EOF'
+        cat > "$work/plan9-shim.c" <<'EOF'
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -164,16 +186,17 @@ int isInf(double value, int sign) {
 }
 void exits(const char *status) { exit(status == NULL || *status == 0 ? 0 : 1); }
 EOF
-    cat > "$plan9_out/driver.c" <<'EOF'
+        cat > "$plan9_out/driver.c" <<'EOF'
 #include <u.h>
 #include <libc.h>
 #include "greet.h"
 int main(void) { return Greet(); }
 EOF
-    "${CC:-cc}" -std=c11 -I"$work/plan9-include" -I"$plan9_out" \
-        "$plan9_out/greet.c" "$plan9_out/driver.c" "$work/plan9-shim.c" \
-        -lm -o "$plan9_out/program"
-    "$plan9_out/program" > "$plan9_out.out"
+        "${CC:-cc}" -std=c11 -I"$work/plan9-include" -I"$plan9_out" \
+            "$plan9_out/greet.c" "$plan9_out/driver.c" "$work/plan9-shim.c" \
+            -lm -o "$plan9_out/program"
+        "$plan9_out/program" > "$plan9_out.out"
+    fi
     cmp "$work/expected" "$plan9_out.out"
 done
 
@@ -186,6 +209,26 @@ EOF
 "$ziran" bundle --root "$work" --entry hello:main -o "$work/hello.zib" \
     "$work/hello.zi"
 test "$("$ziran" run "$work/hello.zib")" = "Hello, World!"
+
+# A whole Plan 9 program: the generated main wrapper must survive the print
+# helpers' guard, and its status becomes the exit status.
+if test -n "$plan9" && test -x "$plan9/bin/9c"; then
+    mkdir -p "$work/plan9-program"
+    cat > "$work/plan9-program/hello.zi" <<'EOF'
+#program_export
+main :: () -> s32 {
+    print("Hello, %!\n", "Plan 9");
+    return 0;
+}
+EOF
+    "$ziran" build --target=plan9-c --root "$work/plan9-program" \
+        -o "$work/plan9-program/out" "$work/plan9-program/hello.zi"
+    (cd "$work/plan9-program/out" &&
+        PLAN9=$plan9 "$plan9/bin/9c" -I. hello.c 2> 9c.log &&
+        PLAN9=$plan9 "$plan9/bin/9l" -o hello hello.o) ||
+        { cat "$work/plan9-program/out/9c.log" >&2; exit 1; }
+    test "$("$work/plan9-program/out/hello")" = "Hello, Plan 9!"
+fi
 
 reject() {
     name=$1

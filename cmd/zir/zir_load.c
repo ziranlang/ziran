@@ -241,6 +241,36 @@ add_program_named(LoadContext *context, const char *path, const char *root,
 }
 
 static int
+path_within(const char *path, const char *directory)
+{
+    size_t length = strlen(directory);
+    return strncmp(path, directory, length) == 0 &&
+           (path[length] == '/' || directory[length - 1] == '/');
+}
+
+/* An input outside the root but inside a module path gets that module
+ * path as its root, so passing a module by file names it the same way as
+ * importing it: c_string, not its absolute location. */
+static const char *
+input_root(const LoadContext *context, const char *input,
+           const char *canonical_root)
+{
+    char *canonical = realpath(input, NULL);
+    const char *root = canonical_root;
+    if(canonical == NULL || path_within(canonical, canonical_root)) {
+        free(canonical);
+        return root;
+    }
+    for(int i = 0; i < context->module_path_count; i++)
+        if(path_within(canonical, context->module_paths[i])) {
+            root = context->module_paths[i];
+            break;
+        }
+    free(canonical);
+    return root;
+}
+
+static int
 add_program(LoadContext *context, const char *path, const char *root)
 {
     return add_program_named(context, path, root, NULL);
@@ -648,7 +678,8 @@ ProgramsLoadWithDefines(ProgramSet *set, const char *root,
         if(context.packages == NULL) goto done;
     }
     for(int i = 0; i < input_count; i++)
-        if(!add_program(&context, inputs[i], canonical_root) ||
+        if(!add_program(&context, inputs[i],
+                        input_root(&context, inputs[i], canonical_root)) ||
            !promote_input(set, inputs[i], i))
             goto done;
     for(int p = 0; p < set->count; p++)

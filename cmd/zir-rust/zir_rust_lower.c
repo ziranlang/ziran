@@ -279,7 +279,10 @@ static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
                     continue;
                 count = *import->args ?
                     split_arguments(import->args, parts, 32) : 0;
-                if(count < 0 || import->is_varargs) {
+                /* A trailing ..any parameter is C's ... */
+                if(import->is_varargs && count > 0 && strstr(parts[count - 1], "..") != NULL)
+                    count--;
+                if(count < 0) {
                     Diagnostic(import->span, "zir_rust.import",
                                "unsupported foreign ABI for Rust: %s",
                                import->name);
@@ -328,6 +331,8 @@ static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
                                import->return_type);
                     exit(1);
                 }
+                if(import->is_varargs)
+                    fprintf(output, "%s...", count ? ", " : "");
                 if(import->return_type[0] &&
                    strcmp(import->return_type, "void") != 0)
                     fprintf(output, ") -> %s;\n", return_type);
@@ -1791,7 +1796,15 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             unsupported_expression(emitter, expression);
             break;
         }
-        snprintf(output, size, "%s { ", type_name);
+        {
+            /* A generic type in expression position needs ::<T>. */
+            const char *generic = strchr(type_name, '<');
+            if(generic != NULL)
+                snprintf(output, size, "%.*s::%s { ", (int)(generic - type_name),
+                         type_name, generic);
+            else
+                snprintf(output, size, "%s { ", type_name);
+        }
         rust_record_type(emitter, expression->type, &record_owner, &record);
         for(int child_index = expression->first_child; child_index >= 0;
             child_index = emitter->function->exprs[child_index].next_sibling) {
@@ -1983,6 +1996,22 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             break;
         }
         emit_expression(emitter, expression->right, right, sizeof(right));
+        {
+            /* A literal converts at compile time to its wrapped value;
+             * Rust rejects 258 as u8. */
+            const ZirExpr *operand = &emitter->function->exprs[expression->right];
+            size_t length = strspn(right, "0123456789");
+            if(operand->kind == ZIR_EXPR_INT && integer_type(expression->type) &&
+               strcmp(expression->type, "integer") != 0 && length > 0 &&
+               strspn(right + length, "iu0123456789") == strlen(right + length)) {
+                errno = 0;
+                unsigned long long value = strtoull(right, NULL, 10);
+                if(errno == 0) {
+                    rust_literal(expression->type, (uint64_t)value, output, size);
+                    break;
+                }
+            }
+        }
         if(rust_scalar_type(expression->type) != NULL)
             snprintf(output, size, "(%s as %s)", right,
                      rust_scalar_type(expression->type));
@@ -2104,8 +2133,13 @@ static void emit_compound_assignment(RustEmitter *emitter,
                    wrapping_method(operation), value);
         return;
     }
-    if(!strcmp(operation, "<<") || !strcmp(operation, ">>") ||
-       !strcmp(operation, "~")) {
+    if(!strcmp(operation, "<<") || !strcmp(operation, ">>")) {
+        write_line(emitter,
+                   "%s = %s.%s(u32::try_from(%s).unwrap_or(u32::MAX)).expect(\"shift count out of range\");",
+                   name, name, !strcmp(operation, "<<") ? "checked_shl" : "checked_shr", value);
+        return;
+    }
+    if(!strcmp(operation, "~")) {
         Diagnostic(statement->span, "zir_rust.assignment",
                    "unsupported assignment operation in the initial Rust target: %s",
                    statement->assignment_op);
@@ -2395,6 +2429,9 @@ static void validate_module(const ZirModule *module)
         const ZirModule *owner = NULL;
         const ZirType *checked = NULL;
         char checked_type[ZIR_NAME_MAX];
+        /* A record template has no layout; its specializations do. */
+        if(record->is_record_template)
+            continue;
         if(rust_owned_vec_type(&emitter, record->name, NULL, NULL,
                                checked_type, sizeof(checked_type)) ||
            rust_option_type(&emitter, record->name, NULL, NULL, checked_type,
@@ -2459,12 +2496,6 @@ static void validate_module(const ZirModule *module)
                        import->name);
             exit(1);
         }
-        if(import->is_varargs) {
-            Diagnostic(import->span, "zir_rust.import",
-                       "variadic foreign calls are unsupported by the Rust target: %s",
-                       import->name);
-            exit(1);
-        }
         if(*import->args) {
             char parts[32][ZIR_RUST_TEXT_MAX];
             int count = split_arguments(import->args, parts, 32);
@@ -2478,6 +2509,8 @@ static void validate_module(const ZirModule *module)
                 char *type = colon != NULL ? colon + 1 : parts[parameter];
                 while(*type == ' ' || *type == '\t')
                     type++;
+                if(import->is_varargs && !strncmp(type, "..", 2))
+                    continue;
                 if(colon == NULL ||
                    !rust_type(&emitter, type, checked_type,
                               sizeof(checked_type))) {

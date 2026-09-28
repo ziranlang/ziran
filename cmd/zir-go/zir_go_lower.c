@@ -479,6 +479,35 @@ add_extern(const char *source, const char *args, const char *ret,
              (char)tolower((unsigned char)g_guard[0]), g_guard + 1);
 }
 
+/* Whether any module names Source_Code_Location, the #caller_location type. */
+static int
+go_uses_caller_location(const ZirProgram *const *programs, int count)
+{
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++) {
+            const ZirModule *module = &programs[p]->modules[m];
+            for(int t = 0; t < module->type_count; t++)
+                if(strstr(module->types[t].body, "Source_Code_Location"))
+                    return 1;
+            for(int g = 0; g < module->global_count; g++)
+                if(strstr(module->globals[g].type, "Source_Code_Location"))
+                    return 1;
+            for(int f = 0; f < module->function_count; f++) {
+                const ZirFunction *fn = &module->functions[f];
+                if(strstr(fn->args, "Source_Code_Location") ||
+                   strstr(fn->return_type, "Source_Code_Location"))
+                    return 1;
+                for(int e = 0; e < fn->expr_count; e++)
+                    if(strstr(fn->exprs[e].type, "Source_Code_Location"))
+                        return 1;
+                for(int s = 0; s < fn->stmt_count; s++)
+                    if(strstr(fn->stmts[s].type, "Source_Code_Location"))
+                        return 1;
+            }
+        }
+    return 0;
+}
+
 /* Parse "name :: (args) -> ret #foreign library;" from a raw foreign import
  * line (the ZirImport.signature keeps the whole declaration). */
 static void
@@ -1291,17 +1320,31 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             }
             if(pointer_index || g_union_unsafe)
                 fprintf(f, "import \"unsafe\"\n");
-            int prints = 0;
-            for(int fi = 0; fi < m->function_count && !prints; fi++)
-                for(int ei = 0; ei < m->functions[fi].expr_count; ei++)
-                    if(m->functions[fi].exprs[ei].kind == ZIR_EXPR_CALL &&
-                       !strcmp(m->functions[fi].exprs[ei].name, "print")) {
-                        prints = 1;
-                        break;
+            /* print needs os; strconv and the float helper only for the
+             * argument types it formats. */
+            int prints = 0, formats = 0, float_prints = 0;
+            for(int fi = 0; fi < m->function_count; fi++) {
+                const ZirFunction *fn = &m->functions[fi];
+                for(int ei = 0; ei < fn->expr_count; ei++) {
+                    const ZirExpr *call = &fn->exprs[ei];
+                    if(call->kind != ZIR_EXPR_CALL || strcmp(call->name, "print"))
+                        continue;
+                    prints = 1;
+                    for(int arg = call->first_child >= 0 ?
+                            fn->exprs[call->first_child].next_sibling : -1;
+                        arg >= 0; arg = fn->exprs[arg].next_sibling) {
+                        const char *type = fn->exprs[arg].type;
+                        if(strcmp(type, "string"))
+                            formats = 1;
+                        if(!strcmp(type, "float32") || !strcmp(type, "float64"))
+                            float_prints = 1;
                     }
+                }
+            }
             if(prints)
-                fprintf(f, "import ziranos \"os\"\n"
-                           "import ziranstrconv \"strconv\"\n");
+                fprintf(f, "import ziranos \"os\"\n");
+            if(formats)
+                fprintf(f, "import ziranstrconv \"strconv\"\n");
             for(int i = 0; i < g_extern_count; i++) {
                 int duplicate = 0;
 
@@ -1320,9 +1363,9 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                             g_externs[i].go_import_alias,
                             g_externs[i].go_import_path);
             }
-            if(g_extern_count > 0 || pointer_index)
+            if(g_extern_count > 0 || pointer_index || g_union_unsafe || prints)
                 fprintf(f, "\n");
-            if(pi == 0 && mi == 0)
+            if(pi == 0 && mi == 0 && go_uses_caller_location(progs, prog_count))
                 fputs("type Source_Code_Location struct {\n"
                       "\tFullyPathedFilename string\n"
                       "\tLineNumber int64\n}\n\n", f);
@@ -1336,7 +1379,7 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                  * or to the Host interface below. */
             }
             EmitNumbers(f,m,ZIR_GO);
-            if(prints)
+            if(float_prints)
                 EmitGoPrintSupport(f, m);
             /* '#foreign host_api' bridge: one interface, one package var, one
              * setter. Generated frames call hostVar.Method(...) directly. */
@@ -1573,6 +1616,9 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             int startup_count = 0;
             for(int i = 0; i < m->function_count; i++)
                 startup_count += m->functions[i].is_global_initializer;
+            /* A module with nothing to set up needs no init; importers call
+             * a dependency's init only when it needs startup. */
+            if(ModuleNeedsStartup(m)) {
             fprintf(f, "var %s_ziranInitState uint8\n"
                        "func %s_ziranInit() {\n"
                        "\tif %s_ziranInitState == 2 { return }\n"
@@ -1599,7 +1645,17 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             if(startup_count) {
                 fprintf(f, "func init() { %s_ziranInit() }\n\n", guard);
             }
+            }
 
+            /* End with one newline, as gofmt does, not a blank line. */
+            long remaining = ftell(f);
+            while(remaining > 1) {
+                char tail[2];
+                if(fseek(f, remaining - 2, SEEK_SET) != 0 ||
+                   fread(tail, 1, 2, f) != 2 || tail[0] != '\n' || tail[1] != '\n')
+                    break;
+                remaining--;
+            }
             rewind(f);
             GeneratedOutputRecord(path);
             FILE *output = fopen(path, "wb");
@@ -1612,7 +1668,10 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             char buffer[8192];
             size_t bytes;
             int failed = 0;
-            while((bytes = fread(buffer, 1, sizeof(buffer), f)) != 0) {
+            while(remaining > 0 &&
+                  (bytes = fread(buffer, 1, remaining < (long)sizeof(buffer) ?
+                                 (size_t)remaining : sizeof(buffer), f)) != 0) {
+                remaining -= (long)bytes;
                 if(fwrite(buffer, 1, bytes, output) != bytes) {
                     failed = 1;
                     break;

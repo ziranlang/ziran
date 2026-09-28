@@ -1300,7 +1300,8 @@ static void
 line(Emitter *e, const char *format, ...)
 {
     va_list ap;
-    for(int i = 0; i < e->indent; i++) fputs("    ", e->out);
+    /* Go indents with tabs, as gofmt writes it. */
+    for(int i = 0; i < e->indent; i++) fputs(e->target == ZIR_GO ? "\t" : "    ", e->out);
     va_start(ap, format); vfprintf(e->out, format, ap); va_end(ap);
     fputc('\n', e->out);
 }

@@ -15,6 +15,9 @@ Answer :: () -> s32 {
     point: Point = MakePoint(2, 3)
     point.x += 1
     if point.x != 3 || point.y != 3 { return 1 }
+    values: [4]s32 = .[1, 2, 3, 4]
+    values[1] += 10
+    if Sum(values) != 20 { return 1 }
     if Add(Loop(), -10) != 0 { return 1 }
     return 0
 }
@@ -28,6 +31,11 @@ Loop :: () -> s32 {
 }
 Point :: struct { x: s32; y: s32 }
 MakePoint :: (x: s32, y: s32) -> Point { return .{x = x, y = y} }
+Sum :: (values: [4]s32) -> s32 {
+    total: s32 = 0
+    for value: values { total += value }
+    return total
+}
 ZI
 
 "$ziran" check --root "$work" "$work/scalars.zi"

@@ -70,6 +70,26 @@ items = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()
 assert any(item["code"] == "zir_go.import" and
            "C ABI symbol" in item["message"] for item in items), items
 PY
+cat > "$work/output.zi" <<'ZI'
+#program_export
+Answer :: () -> s32 { return 42 }
+ZI
+if "$ziran" build --target=go --diagnostics=json --root "$work" \
+    -o /proc/ziran-go-output "$work/output.zi" \
+    > "$work/output.out" 2> "$work/output.jsonl"; then
+    echo 'Go output failure did not fail the build' >&2
+    exit 1
+fi
+python3 - "$work/output.jsonl" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+items = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert any(item["code"] == "zir_go.global" and
+           "/proc/ziran-go-output" in item["message"] for item in items), items
+PY
+
 if "$ziran" explain check.not_a_code > "$work/bad.out" 2> "$work/bad.err"; then
     echo 'explain accepted an unknown diagnostic code' >&2
     exit 1

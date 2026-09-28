@@ -733,7 +733,9 @@ resolve_slot_type(void *context, const char *source, char *out, size_t size)
 {
     (void)context;
     if(!go_type(source, out, size)) {
-        fprintf(stderr, "unsupported slot parameter type: %s\n", source);
+        Diagnostic(type_scope != NULL ? type_scope->span : (ZirSourceSpan){0},
+                   "zir_go.parameter", "unsupported slot parameter type: %s",
+                   source);
         exit(1);
     }
 }
@@ -1261,7 +1263,8 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             mkdir_parent(path);
             f = tmpfile();
             if(f == NULL) {
-                fprintf(stderr, "zi2go: cannot write %s\n", path);
+                Diagnostic(m->span, "zir_go.global",
+                           "cannot create Go output: %s", path);
                 return 1;
             }
             type_scope = m;
@@ -1479,8 +1482,8 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                             fprintf(f, "\t%s %s\n", fname, gt);
                         }
                         if(status < 0) {
-                            fprintf(stderr, "%s:%d: malformed field in %s\n",
-                                    t->span.path, t->span.line, t->name);
+                            Diagnostic(t->span, "zir_go.type",
+                                       "malformed field in %s", t->name);
                             exit(1);
                         }
                     }
@@ -1587,7 +1590,8 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             rewind(f);
             FILE *output = fopen(path, "wb");
             if(output == NULL) {
-                fprintf(stderr, "zi2go: cannot write %s\n", path);
+                Diagnostic(m->span, "zir_go.global",
+                           "cannot create Go output: %s", path);
                 fclose(f);
                 return 1;
             }
@@ -1604,7 +1608,8 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             failed |= fclose(output) != 0;
             fclose(f);
             if(failed) {
-                fprintf(stderr, "zi2go: cannot finish %s\n", path);
+                Diagnostic(m->span, "zir_go.global",
+                           "cannot finish Go output: %s", path);
                 return 1;
             }
         }

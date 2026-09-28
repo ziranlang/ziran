@@ -687,7 +687,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - `ziran explain` exposes a stable registry for every diagnostic code currently
   emitted by the compiler, with textual and JSON output. `ziran explain --list`
   enumerates the registry, and `tests/explain.sh` fails if a new emitted code is
-  omitted.
+  omitted. Go lowering reports malformed module state and output-file failures
+  through registered `zir_go` codes, including JSON lines for unwritable output
+  destinations.
 - Whole local aggregates, fresh aggregate call results, vector-bearing
   record-literal fields, and plain record-member `Vec` paths rooted at local
   aggregates can move through declaration, assignment, argument passing, and
@@ -722,7 +724,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   features, including complete host capability coverage. The current bundle
   embeds checked `.zir` and follows direct calls, but it remains a subset.
 - Complete ownership edge cases: unknown heap and host-backed view aliases,
-  moving individual nested fields, and reclaimable storage detached by
+  indexed and pointer-backed field moves, and reclaimable storage detached by
   `BuilderFinish`.
 - Version numerical outcomes as conformance-test IDs, probe untested operator
   and mixed-width combinations, complete JSON diagnostic fields, the feature

@@ -157,6 +157,8 @@ void emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *
 void emit_function_value(Emitter *e, int index, char *out, size_t size);
 int member_path(const ZirFunction *fn, int index);
 int expression_calls(const ZirFunction *fn, int index);
+/* Whether a call run later could change what expression index reads. */
+int call_can_change(const Emitter *e, int index);
 void emit_print(Emitter *e, const ZirExpr *expr);
 void emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size);
 void zero_record(Emitter *e, const char *type, char *out, size_t size);

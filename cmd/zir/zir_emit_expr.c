@@ -738,6 +738,14 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         }
         emit_expr(e,expr->left,operand_type,a,sizeof(a));
         left_pure = e->pure;
+        /* The left side reads first: a call on the right that could change
+         * it runs only after the left value is taken. */
+        if(expression_calls(e->fn, expr->right) && call_can_change(e, expr->left)) {
+            fresh(e, temp);
+            declare(e, temp, operand_type, a);
+            copy_text(a, sizeof(a), temp);
+            left_pure = 1;
+        }
         if(!strcmp(expr->op,"&&") || !strcmp(expr->op,"||")) {
             /* A right side that needs no setup statements stays in place,
              * so the target's own && and || keep the short circuit. */

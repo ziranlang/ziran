@@ -410,7 +410,7 @@ replace_call_placeholders(const char *text, char arguments[][ZIR_NAME_MAX],
 /* Whether a later call can change what this expression reads: a global,
  * memory behind a pointer or slice, or any local once the function takes an
  * address or a slice. Constants and results already captured never change. */
-static int
+int
 call_can_change(const Emitter *e, int index)
 {
     const ZirExpr *expr;
@@ -519,11 +519,15 @@ emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, 
         /* Arguments run left to right. One can stay in the call text only
          * when no later argument calls something that could change it, and
          * named arguments, which may be reordered, are captured. */
-        int later_calls = 0;
+        int later_calls = 0, later_reads = 0;
         for(int next = e->fn->exprs[child].next_sibling; next >= 0;
-            next = e->fn->exprs[next].next_sibling)
+            next = e->fn->exprs[next].next_sibling) {
             later_calls |= expression_calls(e->fn, next);
-        e->call_in_place = !has_named && !later_calls;
+            later_reads |= call_can_change(e, next);
+        }
+        /* C and Go leave the order of a call's operands open, so a call goes
+         * in place only when no later argument reads what it could change. */
+        e->call_in_place = !has_named && !later_calls && !later_reads;
         emit_expr(e,child,argument_type,argument,sizeof(argument));
         if((later_calls && call_can_change(e, child)) ||
            (!plain_identifier(argument) &&
@@ -817,16 +821,18 @@ emit_print(Emitter *e, const ZirExpr *expr)
     }
     for(int child = e->fn->exprs[first].next_sibling; child >= 0;
         child = e->fn->exprs[child].next_sibling, argument++) {
-        int later_calls = 0, in_place;
+        int later_calls = 0, later_reads = 0, in_place;
         types[argument] = ScalarType(e->fn->exprs[child].type);
         children[argument] = child;
         for(int next = e->fn->exprs[child].next_sibling; next >= 0;
-            next = e->fn->exprs[next].next_sibling)
+            next = e->fn->exprs[next].next_sibling) {
             later_calls |= expression_calls(e->fn, next);
+            later_reads |= call_can_change(e, next);
+        }
         /* Arguments run left to right, before any output. One reads in
-         * place when nothing runs after it; C names a string, which it
-         * reads twice. */
-        in_place = one_statement && !later_calls &&
+         * place when nothing runs after it and no later argument reads what
+         * it could change; C names a string, which it reads twice. */
+        in_place = one_statement && !later_calls && !later_reads &&
                    (e->target == ZIR_GO || strcmp(types[argument], "string"));
         e->call_in_place = in_place;
         emit_expr(e, child, e->fn->exprs[child].type, value, sizeof(value));

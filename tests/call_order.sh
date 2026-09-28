@@ -12,6 +12,12 @@ cat > "$work/order.zi" <<'EOF'
 counter: s32 = 0;
 Next :: () -> s32 { counter += 1; return counter; }
 Pair :: (a: s32, b: s32) -> s32 { return a * 10 + b; }
+Holder :: struct { count: s32; }
+holder: Holder;
+Bump :: () -> s32 {
+    holder.count = holder.count + 1;
+    return holder.count;
+}
 Name :: (n: s32) -> string {
     if n % 2 == 0 {
         return "even";
@@ -26,6 +32,12 @@ main :: () {
     print("% %\n", counter + 1, Next());
     print("% %\n", Name(Next()), Name(Next()));
     print("% %\n", Next(), 1.5);
+    print("% % %\n", holder.count, Bump(), holder.count + 10);
+    total := Pair(holder.count, Bump());
+    print("%\n", total);
+    print("%\n", Pair(Next(), counter));
+    sum := counter + Next();
+    print("%\n", sum);
 }
 EOF
 cat > "$work/expected" <<'EOF'
@@ -36,6 +48,10 @@ cat > "$work/expected" <<'EOF'
 8 8
 odd even
 11 1.5
+0 1 11
+12
+132
+25
 EOF
 
 "$ziran" bundle --root "$work" --entry order:main -o "$work/order.zib" "$work/order.zi"

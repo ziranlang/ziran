@@ -312,8 +312,8 @@ rewrite_function_type_applications(ZirModule *module, ZirFunction *fn)
         ZirStmt *statement = &fn->stmts[s];
         if(!rewrite_type_applications(module, statement->text, expanded,
                 sizeof(expanded), statement->span, 0)) return 0;
-        if(strlen(expanded) >= sizeof(statement->text)) return 0;
-        copy_text(statement->text, sizeof(statement->text), expanded);
+        if(strlen(expanded) >= ZIR_TEXT_MAX) return 0;
+        statement->text = KeepText(expanded);
     }
     StructureFunction(fn, module);
     return 1;

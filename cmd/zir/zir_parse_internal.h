@@ -255,7 +255,7 @@ ZirConsts visible_compile_constants(const ZirConsts *parsed, const ZirConsts *fu
 ZirModule visible_compile_module(const ZirModule *parsed, const CompileParseContext *context, const ZirConsts *constants);
 void free_visible_compile_module(ZirModule *visible);
 int select_compile_condition(ZirModule *module, const ZirConsts *consts, const char *source, ZirSourceSpan span, const CompileParseContext *context, const char *source_path, int *deferred);
-char *find_unquoted_text(char *source, const char *needle);
+char *find_unquoted_text(const char *source, const char *needle);
 char *find_unquoted_word(char *source, const char *word);
 int lower_compile_ifx_value(char *value, size_t capacity, const ZirModule *module, const ZirConsts *consts, ZirSourceSpan span, int allow_deferred);
 int lower_compile_ifx_function(ZirFunction *fn, const ZirModule *module, const ZirConsts *consts, int allow_deferred);

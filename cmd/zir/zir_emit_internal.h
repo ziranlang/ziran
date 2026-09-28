@@ -63,6 +63,9 @@ typedef struct Emitter {
     /* Set by a consumer that evaluates nothing after this expression: a call
      * result may then go straight into it instead of a temporary. */
     int call_in_place;
+    /* Set for a Go declaration whose value already has the declared type,
+     * so it can read name := value. */
+    int short_declaration;
 } Emitter;
 
 /* Bound for readable inlined expressions. Longer results stay in named

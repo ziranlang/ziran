@@ -12,6 +12,7 @@
 
 typedef enum FieldKind {
     FIELD_STRING,
+    FIELD_TEXT, /* const char * kept with KeepText; same encoding as a string */
     FIELD_INTEGER,
     FIELD_U64,
     FIELD_SPAN
@@ -32,6 +33,8 @@ typedef struct Reader {
 
 #define STRING_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_STRING}
+#define TEXT_FIELD(type, name) \
+    {offsetof(type, name), ZIR_TEXT_MAX, FIELD_TEXT}
 #define INTEGER_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_INTEGER}
 #define U64_FIELD(type, name) \
@@ -54,7 +57,7 @@ static const Field import_fields[] = {
     SPAN_FIELD(ZirImport, span)
 };
 static const Field statement_fields[] = {
-    INTEGER_FIELD(ZirStmt, kind), STRING_FIELD(ZirStmt, text),
+    INTEGER_FIELD(ZirStmt, kind), TEXT_FIELD(ZirStmt, text),
     INTEGER_FIELD(ZirStmt, is_else), INTEGER_FIELD(ZirStmt, is_using),
     INTEGER_FIELD(ZirStmt, loop_id), INTEGER_FIELD(ZirStmt, target_id),
     INTEGER_FIELD(ZirStmt, expr_root),
@@ -66,7 +69,7 @@ static const Field statement_fields[] = {
 static const Field expression_fields[] = {
     INTEGER_FIELD(ZirExpr, kind), INTEGER_FIELD(ZirExpr, is_function_value),
     INTEGER_FIELD(ZirExpr, is_this),
-    STRING_FIELD(ZirExpr, slot_type), STRING_FIELD(ZirExpr, text),
+    STRING_FIELD(ZirExpr, slot_type), TEXT_FIELD(ZirExpr, text),
     STRING_FIELD(ZirExpr, name), STRING_FIELD(ZirExpr, argument_name),
     INTEGER_FIELD(ZirExpr, argument_index), STRING_FIELD(ZirExpr, op),
     INTEGER_FIELD(ZirExpr, left), INTEGER_FIELD(ZirExpr, right),
@@ -334,6 +337,10 @@ write_fields(FILE *out, const void *record, const Field *fields, size_t count)
         if(fields[i].kind == FIELD_STRING) {
             if(!write_string(out, value, fields[i].size))
                 return 0;
+        } else if(fields[i].kind == FIELD_TEXT) {
+            const char *text = *(const char *const *)value;
+            if(!write_string(out, text ? text : "", fields[i].size))
+                return 0;
         } else if(fields[i].kind == FIELD_INTEGER) {
             if(!write_u32(out, (uint32_t)*(const int *)value))
                 return 0;
@@ -355,6 +362,11 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
         if(fields[i].kind == FIELD_STRING) {
             if(!read_string(reader, value, fields[i].size))
                 return 0;
+        } else if(fields[i].kind == FIELD_TEXT) {
+            char text[ZIR_TEXT_MAX];
+            if(!read_string(reader, text, sizeof(text)))
+                return 0;
+            *(const char **)value = KeepText(text);
         } else if(fields[i].kind == FIELD_INTEGER) {
             uint32_t number;
             if(!read_u32(reader, &number))

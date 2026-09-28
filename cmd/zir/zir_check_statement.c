@@ -486,7 +486,7 @@ if_case_generated(ZirStmt *statement, ZirStmtKind kind,
 {
     memset(statement, 0, sizeof(*statement));
     statement->kind = kind;
-    copy_text(statement->text, sizeof(statement->text), text);
+    statement->text = KeepText(text);
     statement->expr_root = statement->lhs_root = -1;
     statement->span = span;
 }

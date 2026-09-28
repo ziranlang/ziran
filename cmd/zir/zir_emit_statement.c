@@ -383,6 +383,8 @@ emit_if(Emitter *e,int i,int end)
     char cond[ZIR_TEXT_MAX];
     int close=block_end(e->fn,i,end);
     char plain[ZIR_TEXT_MAX];
+    /* The condition runs last before the branch, so its calls stay in it. */
+    e->call_in_place = 1;
     emit_expr(e,e->fn->stmts[i].expr_root,"bool",cond,sizeof(cond));
     line(e,e->target==ZIR_GO?"if %s {":"if (%s) {",bare(cond,plain,sizeof(plain)));e->indent++;
     emit_sequence(e,i+1,close);e->indent--;
@@ -447,6 +449,23 @@ go_binding_read_later(const ZirFunction *fn, int declaration)
     return read;
 }
 
+/* Whether an initializer already has the declared type in Go, so the
+ * declaration can drop it. Untyped constants, null, enums, and procedure
+ * values keep the written type. */
+static int
+typed_initializer(const Emitter *e, int root, const char *declared)
+{
+    const ZirExpr *expr = &e->fn->exprs[root];
+    const char *type = canonical(expr->type);
+    const ZirType *record = FindType(e->module, canonical(declared), NULL);
+    if(expr->kind == ZIR_EXPR_INT || expr->kind == ZIR_EXPR_FLOAT ||
+       !strcmp(type, "integer") || !strcmp(type, "real") || !strcmp(type, "null") ||
+       strcmp(type, canonical(declared)) != 0 || enum_type(e->module, type) ||
+       (record != NULL && record->is_procedure_type))
+        return 0;
+    return 1;
+}
+
 static void
 emit_sequence(Emitter *e,int begin,int end)
 {
@@ -460,6 +479,8 @@ emit_sequence(Emitter *e,int begin,int end)
             if(st->expr_root>=0) {
                 e->call_in_place = 1;
                 emit_expr(e,st->expr_root,st->type,value,sizeof(value));
+                e->short_declaration = e->target == ZIR_GO &&
+                    typed_initializer(e, st->expr_root, st->type);
             }
             else if(record_type(e->module, st->type)) {
                 zero_record(e, st->type, value, sizeof(value));
@@ -579,6 +600,7 @@ emit_sequence(Emitter *e,int begin,int end)
                 int header = 0;
                 if(scratch != NULL) {
                     e->out = scratch;
+                    e->call_in_place = 1;
                     emit_expr(e,st->expr_root,"bool",value,sizeof(value));
                     fclose(scratch);
                     e->out = saved_out;
@@ -593,6 +615,7 @@ emit_sequence(Emitter *e,int begin,int end)
                 } else {
                     e->serial = saved_serial;
                     line(e,e->target==ZIR_GO?"for {":"while (true) {");e->indent++;
+                    e->call_in_place = 1;
                     emit_expr(e,st->expr_root,"bool",value,sizeof(value));
                     line(e,e->target==ZIR_GO?"if !%s { break }":"if (!%s) { break; }",value);
                 }

@@ -820,6 +820,87 @@ SpanPath(ZirSourceSpan span)
     return source_files.paths[span.file];
 }
 
+/* Statement and expression text is immutable and shared. Each distinct
+ * text is stored once, packed into blocks that live as long as the
+ * process, so copied nodes share it and reloading a program adds nothing.
+ * Text keeps the ZIR_TEXT_MAX limit node buffers always had. */
+static struct {
+    const char **texts;
+    size_t count;
+    size_t slot_count;
+    char *block;
+    size_t block_used;
+    size_t block_size;
+} kept_texts;
+
+static uint64_t
+text_hash(const char *text, size_t length)
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for(size_t i = 0; i < length; i++) {
+        hash ^= (unsigned char)text[i];
+        hash *= UINT64_C(1099511628211);
+    }
+    return hash;
+}
+
+static size_t
+kept_text_slot(const char *text, size_t length)
+{
+    size_t slot = (size_t)text_hash(text, length) & (kept_texts.slot_count - 1);
+    while(kept_texts.texts[slot] != NULL &&
+          (strncmp(kept_texts.texts[slot], text, length) != 0 ||
+           kept_texts.texts[slot][length] != '\0'))
+        slot = (slot + 1) & (kept_texts.slot_count - 1);
+    return slot;
+}
+
+static void
+kept_text_failed(void)
+{
+    fprintf(stderr, "out of memory keeping source text\n");
+    exit(1);
+}
+
+const char *
+KeepText(const char *text)
+{
+    if(text == NULL || *text == '\0')
+        return "";
+    size_t length = strnlen(text, ZIR_TEXT_MAX - 1);
+    if(kept_texts.count * 2 >= kept_texts.slot_count) {
+        size_t old_count = kept_texts.slot_count;
+        const char **old_texts = kept_texts.texts;
+        kept_texts.slot_count = old_count ? old_count * 2 : 4096;
+        kept_texts.texts = calloc(kept_texts.slot_count, sizeof(*kept_texts.texts));
+        if(kept_texts.texts == NULL)
+            kept_text_failed();
+        for(size_t i = 0; i < old_count; i++)
+            if(old_texts[i] != NULL)
+                kept_texts.texts[kept_text_slot(old_texts[i],
+                                                strlen(old_texts[i]))] = old_texts[i];
+        free(old_texts);
+    }
+    size_t slot = kept_text_slot(text, length);
+    if(kept_texts.texts[slot] != NULL)
+        return kept_texts.texts[slot];
+    if(kept_texts.block == NULL ||
+       kept_texts.block_used + length + 1 > kept_texts.block_size) {
+        kept_texts.block_size = length + 1 > 65536 ? length + 1 : 65536;
+        kept_texts.block = malloc(kept_texts.block_size);
+        if(kept_texts.block == NULL)
+            kept_text_failed();
+        kept_texts.block_used = 0;
+    }
+    char *copy = kept_texts.block + kept_texts.block_used;
+    memcpy(copy, text, length);
+    copy[length] = '\0';
+    kept_texts.block_used += length + 1;
+    kept_texts.texts[slot] = copy;
+    kept_texts.count++;
+    return copy;
+}
+
 ZirSourceSpan
 Span(const char *path, int line, int column)
 {
@@ -1103,7 +1184,7 @@ FunctionAddStmt(ZirFunction *fn, ZirStmtKind kind, const char *text,
     st = &fn->stmts[fn->stmt_count++];
     memset(st, 0, sizeof(*st));
     st->kind = kind;
-    copy_text(st->text, sizeof(st->text), text);
+    st->text = KeepText(text);
     st->expr_root = -1;
     st->lhs_root = -1;
     st->span = span;
@@ -1133,7 +1214,7 @@ FunctionAddExpr(ZirFunction *fn, ZirExprKind kind, const char *text,
     expr->next_sibling = -1;
     expr->third = -1;
     expr->argument_index = -1;
-    copy_text(expr->text, sizeof(expr->text), text);
+    expr->text = KeepText(text);
     expr->span = span;
     return expr;
 }

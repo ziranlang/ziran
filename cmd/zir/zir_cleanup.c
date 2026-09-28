@@ -82,7 +82,7 @@ action_kind(const char *text, ZirStmt *action)
            !strcmp(token.text, "^=") || !strcmp(token.text, "<<=") || !strcmp(token.text, ">>="))
             action->kind = ZIR_STMT_ASSIGN;
     } while(token.kind != ZIR_TOKEN_EOF);
-    copy_text(action->text, sizeof(action->text), text);
+    action->text = KeepText(text);
     if(!append(&temporary, action)) return 0;
     StructureFunction(&temporary, NULL);
     valid = temporary.stmts[0].expr_root >= 0 &&
@@ -147,10 +147,11 @@ normalize_control_body(BodyNormalizer *n, int depth)
         n->cursor < n->source->stmt_count &&
         n->source->stmts[n->cursor].kind == ZIR_STMT_BLOCK_OPEN;
     if(!explicit_block) {
-        size_t length = strlen(header.text);
-        if(length + 2 >= sizeof(header.text))
+        char opened[ZIR_TEXT_MAX];
+        if(snprintf(opened, sizeof(opened), "%s {", header.text) >=
+           (int)sizeof(opened))
             return fail(source, "control header exceeds statement limit");
-        memcpy(header.text + length, " {", 3);
+        header.text = KeepText(opened);
     }
     if(!append(&n->output, &header))
         return 0;
@@ -167,7 +168,7 @@ normalize_control_body(BodyNormalizer *n, int depth)
         return 0;
     ZirStmt close = {0};
     close.kind = ZIR_STMT_BLOCK_CLOSE;
-    copy_text(close.text, sizeof(close.text), "}");
+    close.text = KeepText("}");
     close.expr_root = close.lhs_root = -1;
     close.span = source->span;
     return append(&n->output, &close);
@@ -423,7 +424,7 @@ LowerCleanup(ZirFunction *fn)
                 goto done;
             }
             action->expr_root = -1;
-            copy_text(action->text, sizeof(action->text), body);
+            action->text = KeepText(body);
             entry->depth = depth;
             count++;
             continue;
@@ -443,16 +444,19 @@ LowerCleanup(ZirFunction *fn)
                 } while(collision);
                 result.kind = ZIR_STMT_DECL;
                 result.expr_root = st->expr_root;
-                if(snprintf(result.text, sizeof(result.text), "%s: %s = %s",
-                            name, fn->return_type, value) >= (int)sizeof(result.text)) {
+                char text[ZIR_TEXT_MAX];
+                if(snprintf(text, sizeof(text), "%s: %s = %s",
+                            name, fn->return_type, value) >= (int)sizeof(text)) {
                     fail(st, "return expression exceeds cleanup lowering limit");
                     goto done;
                 }
+                result.text = KeepText(text);
                 if(!append(&out, &result))
                     goto done;
                 result.kind = ZIR_STMT_RETURN;
                 result.expr_root = -1;
-                snprintf(result.text, sizeof(result.text), "return %s", name);
+                snprintf(text, sizeof(text), "return %s", name);
+                result.text = KeepText(text);
             }
             if(!emit(&out, entries, count, 0) || !append(&out, &result))
                 goto done;
@@ -732,7 +736,7 @@ lower_named_while(ZirFunction *fn, int index, const char *name,
         return fail(&header, "named while condition exceeds statement limit");
     for(int i = 0; i < index; i++)
         if(!append(&output, &fn->stmts[i])) goto done;
-    copy_text(header.text, sizeof(header.text), "while true {");
+    header.text = KeepText("while true {");
     if(!append(&output, &header) ||
        !range_line(&output, ZIR_STMT_DECL, declaration, header.span) ||
        !range_line(&output, ZIR_STMT_IF, check, header.span) ||

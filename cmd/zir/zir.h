@@ -102,7 +102,7 @@ typedef struct ZirStmt {
     int is_using; /* template namespace activation; lowered in checked bodies */
     int is_parallel; /* `#parallel for` region; serial lowering, checked rules */
     int is_gpu; /* `#parallel_gpu for` region; pointers rejected pre-offload */
-    char text[ZIR_TEXT_MAX];
+    const char *text; /* shared and immutable: assign KeepText(...) */
     int is_else;        /* checked branch role; source text is diagnostic only */
     int loop_id;        /* checked loop identity for named control flow */
     int target_id;      /* target loop for named break/continue; zero means innermost */
@@ -121,7 +121,7 @@ typedef struct ZirExpr {
     int is_global_value; /* in-memory only: identifier/call bound to a global */
     int is_move; /* in-memory only: a checked owned binding is consumed here */
     char slot_type[ZIR_NAME_MAX]; /* lexical callable signature, empty for ordinary calls */
-    char text[ZIR_TEXT_MAX];
+    const char *text; /* shared and immutable: assign KeepText(...) */
     char name[ZIR_NAME_MAX];
     char argument_name[ZIR_NAME_MAX]; /* name on a call argument, if supplied */
     int argument_index; /* checked callee parameter position, or -1 */
@@ -342,6 +342,7 @@ void ProgramFree(ZirProgram *program);
 void copy_text(char *dst, size_t dst_size, const char *src);
 ZirSourceSpan Span(const char *path, int line, int column);
 int SourceFile(const char *path);
+const char *KeepText(const char *text);
 const char *SpanPath(ZirSourceSpan span);
 ZirSourceSpan SpanEnd(const char *path, int line, int column,
                          int end_line, int end_column);

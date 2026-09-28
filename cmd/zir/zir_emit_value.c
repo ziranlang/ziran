@@ -137,7 +137,11 @@ declare_array(Emitter *e, const char *name, const char *type, const char *value)
     array_target_type(e, type, target_element, sizeof(target_element),
                       bounds, sizeof(bounds));
     if(e->target == ZIR_GO) {
-        if(value != NULL && *value)
+        int short_form = e->short_declaration;
+        e->short_declaration = 0;
+        if(value != NULL && *value && short_form)
+            line(e, "%s := %s", name, value);
+        else if(value != NULL && *value)
             line(e, "var %s %s%s = %s", name, bounds, target_element, value);
         else
             line(e, "var %s %s%s", name, bounds, target_element);
@@ -154,13 +158,31 @@ declare_array(Emitter *e, const char *name, const char *type, const char *value)
     }
 }
 
+/* A number or character constant, which Go leaves untyped. */
+static int
+numeric_literal(const char *text)
+{
+    while(*text == '-' || *text == '+' || *text == '(')
+        text++;
+    return isdigit((unsigned char)*text) || *text == '.' || *text == '\'';
+}
+
 void
 declare(Emitter *e, const char *name, const char *type, const char *value)
 {
     char binding[ZIR_NAME_MAX];
     char plain[ZIR_TEXT_MAX];
+    int short_form = e->short_declaration;
     if(value != NULL)
         value = bare(value, plain, sizeof(plain));
+    /* An untyped Go constant would take Go's default type, so a literal
+     * keeps the declared type. */
+    if(value == NULL || !*value || numeric_literal(value))
+        short_form = 0;
+    if(ArrayElementType(type, NULL, 0, NULL))
+        e->short_declaration = short_form;
+    else
+        e->short_declaration = 0;
     TargetBindingName(e->fn, e->target, name, binding, sizeof(binding));
     name = binding;
     if(ArrayElementType(type, NULL, 0, NULL)) {
@@ -214,7 +236,8 @@ declare(Emitter *e, const char *name, const char *type, const char *value)
                  value);
         return;
     }
-    if(e->target == ZIR_GO) line(e, "var %s %s = %s", name, target_type, value);
+    if(e->target == ZIR_GO && short_form) line(e, "%s := %s", name, value);
+    else if(e->target == ZIR_GO) line(e, "var %s %s = %s", name, target_type, value);
     else line(e, "%s%s %s = %s;",
               TypeHasZeroArray(e->module, type) ? "__extension__ " : "",
               target_type, name, value);

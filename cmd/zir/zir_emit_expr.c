@@ -813,6 +813,11 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
             pure = e->pure;
             break;
         }
+        /* A call on the left stays in place when the right reads nothing it
+         * could change and, in C, which orders no calls, makes no call. */
+        int logical = !strcmp(expr->op, "&&") || !strcmp(expr->op, "||");
+        e->call_in_place = !logical && !call_can_change(e, expr->right) &&
+                           (e->target == ZIR_GO || !expression_calls(e->fn, expr->right));
         emit_expr(e,expr->left,operand_type,a,sizeof(a));
         left_pure = e->pure;
         /* The left side reads first: a call on the right that could change
@@ -851,6 +856,9 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
             emit_expr(e,expr->right,"bool",b,sizeof(b));line(e,"%s = %s%s",temp,b,e->target==ZIR_GO?"":";");
             e->indent--;line(e,"}");copy_text(out,size,temp);e->pure=1;return;
         }
+        /* The left value is taken or cannot change, so a call on the right
+         * runs last and stays in place. */
+        e->call_in_place = 1;
         emit_expr(e,expr->right,(!strcmp(expr->op,"<<")||!strcmp(expr->op,">>"))?"s32":operand_type,b,sizeof(b));
         pure = left_pure && e->pure;
         if(slot_compare && !operand_slot->is_c_call &&
@@ -954,14 +962,12 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         if(integer_literal_bits(result, &constant))
             atom = 1;
     }
-    if(call_in_place && expr->kind == ZIR_EXPR_CALL &&
-       (e->minify || strlen(result) <= ZIR_INLINE_MAX) &&
-       (e->target == ZIR_GO || !ArrayElementType(type, NULL, 0, NULL))) {
-        copy_text(out, size, result);
-        e->pure = 0;
-        return;
-    }
-    if(folds_text(e, result, type)) {
+    /* A consumer that runs nothing after this expression takes its calls in
+     * place; otherwise they are captured below, in order. */
+    int in_place = call_in_place &&
+                   (e->minify || strlen(result) <= ZIR_INLINE_MAX) &&
+                   (e->target == ZIR_GO || !ArrayElementType(type, NULL, 0, NULL));
+    if(in_place || folds_text(e, result, type)) {
         /* declare() applies this cast for named enum types; inlined text has
          * to carry it so Go sees matching operand types. An explicit cast
          * keeps it even on a bare name: returning an s32 as an enum is not

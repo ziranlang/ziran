@@ -322,11 +322,13 @@ not_ready:
     return 0;
 }
 
+/* Like strstr, the result points into source and is writable exactly when
+ * the caller's source is. */
 char *
-find_unquoted_text(char *source, const char *needle)
+find_unquoted_text(const char *source, const char *needle)
 {
     size_t length = strlen(needle);
-    for(char *p = source; *p;) {
+    for(char *p = (char *)source; *p;) {
         if(*p == '"' || *p == '\'') {
             char quote = *p++;
             while(*p && *p != quote) {
@@ -491,9 +493,12 @@ lower_compile_ifx_function(ZirFunction *fn, const ZirModule *module,
             ZirStmt *st = &fn->stmts[i];
             if(find_unquoted_text(st->text, expr->text) == NULL)
                 continue;
-            if(!replace_compile_ifx(st->text, sizeof(st->text), fn, module,
+            char text[ZIR_TEXT_MAX];
+            copy_text(text, sizeof(text), st->text);
+            if(!replace_compile_ifx(text, sizeof(text), fn, module,
                                     expr, consts, st->span,
                                     allow_deferred)) return 0;
+            st->text = KeepText(text);
             replaced = 1;
             break;
         }

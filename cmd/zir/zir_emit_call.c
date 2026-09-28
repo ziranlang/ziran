@@ -525,19 +525,27 @@ emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, 
             later_calls |= expression_calls(e->fn, next);
             later_reads |= call_can_change(e, next);
         }
-        /* C and Go leave the order of a call's operands open, so a call goes
-         * in place only when no later argument reads what it could change. */
-        e->call_in_place = !has_named && !later_calls && !later_reads;
+        /* C and Go leave the order of a call's plain operands open, so a
+         * call goes in place only when no later argument reads what it could
+         * change. Go runs the calls themselves left to right; C does not. */
+        e->call_in_place = !has_named && !later_reads &&
+                           (e->target == ZIR_GO || !later_calls);
         emit_expr(e,child,argument_type,argument,sizeof(argument));
         if((later_calls && call_can_change(e, child)) ||
            (!plain_identifier(argument) &&
-            (has_named || strlen(argument) >= ZIR_NAME_MAX))) {
+            ((has_named && expression_calls(e->fn, child)) ||
+             strlen(argument) >= ZIR_NAME_MAX))) {
             char captured[ZIR_NAME_MAX];
             fresh(e, captured);
             declare(e, captured, argument_type, argument);
             copy_text(argument, sizeof(argument), captured);
         }
-        copy_text(arguments[ordinal], sizeof(arguments[ordinal]), argument);
+        {
+            /* An argument stands alone between commas. */
+            char plain[ZIR_TEXT_MAX];
+            copy_text(arguments[ordinal], sizeof(arguments[ordinal]),
+                      bare(argument, plain, sizeof(plain)));
+        }
         argument_count++;
     }
     /* Arguments are already lowered. The resolver maps every identifier in
@@ -776,7 +784,7 @@ print_run_flush(Emitter *e, PrintRun *run, int format_expr)
         ziran_literal_of(run->plain, run->plain_length, source, sizeof(source));
     else
         ziran_literal_of(run->format, run->format_length, source, sizeof(source));
-    copy_text(piece.text, sizeof(piece.text), source);
+    piece.text = KeepText(source);
     string_literal(&piece, e->target, literal, sizeof(literal));
     if(e->target == ZIR_GO)
         line(e, run->values ? "fmt.Printf(%s%s)" : "fmt.Print(%s%s)",
@@ -859,7 +867,7 @@ emit_print(Emitter *e, const ZirExpr *expr)
                 /* printf formats end at NUL; such text is written as bytes. */
                 ZirExpr piece = e->fn->exprs[first];
                 print_run_flush(e, &run, first);
-                copy_text(piece.text, sizeof(piece.text), pieces[i].literal);
+                piece.text = KeepText(pieces[i].literal);
                 string_literal(&piece, e->target, literal, sizeof(literal));
                 line(e, "fwrite(%s, 1, %zu, stdout);", literal, length);
                 continue;

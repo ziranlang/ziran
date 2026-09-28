@@ -534,8 +534,7 @@ prefix(ExprParser *p)
             if(written < 0 || (size_t)written >= sizeof(literal))
                 p->failed = 1;
             else
-                copy_text(p->fn->exprs[result].text,
-                          sizeof(p->fn->exprs[result].text), literal);
+                p->fn->exprs[result].text = KeepText(literal);
         }
     } else if(take(p, "#char")) {
         int value;
@@ -547,9 +546,11 @@ prefix(ExprParser *p)
         }
         next(p);
         result = node(p, ZIR_EXPR_INT, start, "", "", -1, -1);
-        if(result >= 0)
-            snprintf(p->fn->exprs[result].text,
-                     sizeof(p->fn->exprs[result].text), "%d", value);
+        if(result >= 0) {
+            char digits[32];
+            snprintf(digits, sizeof(digits), "%d", value);
+            p->fn->exprs[result].text = KeepText(digits);
+        }
     } else if(is(p, "ifx") || is(p, "#ifx")) {
         char op[8];
         copy_text(op, sizeof(op), p->token.text);

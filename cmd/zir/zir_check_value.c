@@ -1238,11 +1238,11 @@ TypeOfOperand(const char *source, char *operand, size_t capacity)
     return operand[0] != '\0';
 }
 
-static char *
-find_unquoted_expression(char *source, const char *needle)
+static const char *
+find_unquoted_expression(const char *source, const char *needle)
 {
     size_t length = strlen(needle);
-    for(char *p = source; *p;) {
+    for(const char *p = source; *p;) {
         if(*p == '"' || *p == '\'') {
             char quote = *p++;
             while(*p && *p != quote) {
@@ -1264,7 +1264,7 @@ replace_checked_text(char *source, size_t capacity, const char *needle,
                      const char *replacement)
 {
     char rewritten[ZIR_TEXT_MAX];
-    char *at = find_unquoted_expression(source, needle);
+    const char *at = find_unquoted_expression(source, needle);
     int written;
     if(at == NULL) return 0;
     written = snprintf(rewritten, sizeof(rewritten), "%.*s%s%s",
@@ -1280,11 +1280,13 @@ int
 rewrite_checked_text(Checker *c, const ZirExpr *expr, const char *replacement)
 {
     char needle[ZIR_TEXT_MAX];
+    char text[ZIR_TEXT_MAX];
     if(c->current_stmt == NULL || c->fn->from_ir) return 1;
     copy_text(needle, sizeof(needle), expr->text);
-    if(!replace_checked_text(c->current_stmt->text,
-                             sizeof(c->current_stmt->text), needle, replacement))
+    copy_text(text, sizeof(text), c->current_stmt->text);
+    if(!replace_checked_text(text, sizeof(text), needle, replacement))
         return 0;
+    c->current_stmt->text = KeepText(text);
     for(int i = 0; i < c->fn->expr_count; i++) {
         ZirExpr *candidate = &c->fn->exprs[i];
         if(candidate != expr &&
@@ -1296,10 +1298,12 @@ rewrite_checked_text(Checker *c, const ZirExpr *expr, const char *replacement)
            candidate->kind != ZIR_EXPR_FLOAT &&
            candidate->kind != ZIR_EXPR_MEMBER &&
            candidate->kind != ZIR_EXPR_POINTER_MEMBER &&
-           find_unquoted_expression(candidate->text, needle) != NULL &&
-           !replace_checked_text(candidate->text, sizeof(candidate->text),
-                                 needle, replacement))
-            return 0;
+           find_unquoted_expression(candidate->text, needle) != NULL) {
+            copy_text(text, sizeof(text), candidate->text);
+            if(!replace_checked_text(text, sizeof(text), needle, replacement))
+                return 0;
+            candidate->text = KeepText(text);
+        }
     }
     return 1;
 }
@@ -1319,7 +1323,7 @@ lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration,
         error(c, expr->span, "cannot lower enum member", expr->text);
         return 0;
     }
-    copy_text(expr->text, sizeof(expr->text), replacement);
+    expr->text = KeepText(replacement);
     expr->name[0] = '\0';
     expr->kind = ZIR_EXPR_INT;
     expr->left = expr->right = expr->third = -1;

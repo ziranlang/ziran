@@ -125,7 +125,7 @@ expression_type(Checker *c, int index)
             return "";
         }
         if(!c->fn->from_ir)
-            copy_text(e->text, sizeof(e->text), replacement);
+            e->text = KeepText(replacement);
         if(sized_type != e->name)
             copy_text(e->name, sizeof(e->name), sized_type);
         e->left = e->right = e->third = -1;
@@ -529,15 +529,17 @@ expression_type(Checker *c, int index)
                 bound_constant(c->module, e->name, 0, &value) :
                 string_status != 0 ? string_status : real_status;
             if(string_status == 1) {
-                copy_text(e->text, sizeof(e->text), literal);
+                e->text = KeepText(literal);
                 e->kind = ZIR_EXPR_STRING;
                 type = "string";
             } else if(real_status == 1) {
-                copy_text(e->text, sizeof(e->text), literal);
+                e->text = KeepText(literal);
                 e->kind = ZIR_EXPR_FLOAT;
                 type = "real";
             } else if(status == 1) {
-                snprintf(e->text, sizeof(e->text), "%lld", (long long)value);
+                char digits[32];
+                snprintf(digits, sizeof(digits), "%lld", (long long)value);
+                e->text = KeepText(digits);
                 e->kind = ZIR_EXPR_INT;
                 type = "integer";
             } else if(status < 0) {

@@ -75,6 +75,8 @@ static int rust_procedure_type(RustEmitter *emitter, const char *type,
                                const ZirModule **owner,
                                const ZirType **procedure);
 static int rust_copyable_type(RustEmitter *emitter, const char *type);
+static void rust_zero_value(RustEmitter *emitter, const char *type,
+                            char *output, size_t size);
 static int split_arguments(const char *text,
                            char parts[][ZIR_RUST_TEXT_MAX], int maximum);
 static void rust_identifier(const char *source, char *output, size_t size);
@@ -203,7 +205,11 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                     if(!rust_copyable_type(emitter, field.type))
                         copyable = 0;
                 offset = 0;
-                if(copyable)
+                if(record->is_union)
+                    fprintf(output,
+                            "#[repr(C)]\n#[derive(Clone, Copy)]\npub union %s {\n",
+                            type_name);
+                else if(copyable)
                     fprintf(output,
                             "#[repr(C)]\n#[derive(Clone, Copy)]\npub struct %s {\n",
                             type_name);
@@ -530,7 +536,7 @@ static int rust_record_type(RustEmitter *emitter, const char *type,
     const ZirModule *type_owner = NULL;
     const ZirType *declared = emitter != NULL ?
         FindType(emitter->module, type, &type_owner) : NULL;
-    if(declared == NULL || declared->is_enum || declared->is_union ||
+    if(declared == NULL || declared->is_enum ||
        declared->is_extern || declared->is_procedure_type ||
        declared->is_record_template || declared->is_type_instance ||
        declared->is_owned_vec) {
@@ -882,6 +888,8 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
             snprintf(output, size,
                      "unsafe { assert!((%s as isize) >= 0 && (%s as usize) < %s.count as usize); *%s.data.offset(%s as isize) }",
                      index, index, base, base, index);
+        else if(emitter->function->exprs[expression->left].type[0] == '*')
+            snprintf(output, size, "(*%s.offset(%s as isize))", base, index);
         else if(SliceElementType(
                     emitter->function->exprs[expression->left].type, element,
                     sizeof(element)))
@@ -911,11 +919,20 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
 /* A body needs an unsafe block only to reach static mut globals or go
  * through raw pointers; foreign calls and checked indexing carry their own
  * unsafe blocks. */
-static int rust_function_needs_unsafe(const ZirFunction *function)
+static int rust_union_field(const ZirModule *module, const char *type)
+{
+    const ZirType *declared = FindType(module, type, NULL);
+    return declared != NULL && declared->is_union;
+}
+
+static int rust_function_needs_unsafe(const ZirModule *module, const ZirFunction *function)
 {
     for(int index = 0; index < function->expr_count; index++) {
         const ZirExpr *expression = &function->exprs[index];
         if(expression->is_global_value || expression->kind == ZIR_EXPR_POINTER_MEMBER)
+            return 1;
+        if(expression->kind == ZIR_EXPR_MEMBER && expression->left >= 0 &&
+           rust_union_field(module, function->exprs[expression->left].type))
             return 1;
         if(expression->kind == ZIR_EXPR_UNARY &&
            (!strcmp(expression->op, "*") || !strcmp(expression->op, "&")))
@@ -1660,6 +1677,10 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                      index, index, base, base, index);
             break;
         }
+        if(emitter->function->exprs[expression->left].type[0] == '*') {
+            snprintf(output, size, "(*%s.offset(%s as isize))", base, index);
+            break;
+        }
         if(rust_owned_vec_type(
                emitter, emitter->function->exprs[expression->left].type,
                NULL, NULL, element, sizeof(element))) {
@@ -1777,8 +1798,34 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                      first ? "" : ", ", field_name, value);
             first = 0;
         }
+        /* Fields a literal leaves out start at their zero value. */
+        if(record != NULL && !record->is_union) {
+            size_t offset = 0;
+            ZirTypeField field;
+            while(TypeNextField(record, &offset, &field) == 1) {
+                int given = 0;
+                for(int child_index = expression->first_child; child_index >= 0;
+                    child_index = emitter->function->exprs[child_index].next_sibling)
+                    if(!strcmp(emitter->function->exprs[child_index].name, field.name))
+                        given = 1;
+                if(given)
+                    continue;
+                char value[ZIR_RUST_TEXT_MAX];
+                char field_name[ZIR_NAME_MAX];
+                const ZirModule *saved_module = emitter->module;
+                if(record_owner != NULL)
+                    emitter->module = record_owner;
+                rust_zero_value(emitter, field.type, value, sizeof(value));
+                emitter->module = saved_module;
+                rust_field_name(record, field.name, field_name, sizeof(field_name));
+                size_t used = strlen(output);
+                snprintf(output + used, size - used, "%s%s: %s",
+                         first ? "" : ", ", field_name, value);
+                first = 0;
+            }
+        }
         size_t used = strlen(output);
-        snprintf(output + used, size - used, " }");
+        snprintf(output + used, size - used, "%s}", first ? "" : " ");
         break;
     }
     case ZIR_EXPR_BINARY:
@@ -2138,10 +2185,11 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
     size_t offset = 0;
     ZirTypeField field;
     int first = 1;
-    while(TypeNextField(record, &offset, &field) == 1) {
+    while(TypeNextField(record, &offset, &field) == 1 && (first || !record->is_union)) {
         char field_name[ZIR_NAME_MAX];
         char value[ZIR_RUST_TEXT_MAX];
-        /* Field types are spelled in the record's own module. */
+        /* Field types are spelled in the record's own module. A union
+         * sets only its first field. */
         const ZirModule *saved_module = emitter->module;
         if(owner != NULL)
             emitter->module = owner;
@@ -2368,6 +2416,9 @@ static void validate_module(const ZirModule *module)
             }
             continue;
         }
+        /* A record template has no layout; its specializations do. */
+        if(record->is_record_template)
+            continue;
         if(!rust_record_type(&emitter, record->name, &owner, &checked)) {
             Diagnostic(record->span, "zir_rust.type",
                        "the initial Rust target supports plain records with scalar fields only: %s",
@@ -2601,7 +2652,7 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
         emit_sequence(emitter, 0, function->stmt_count);
         fclose(body);
         emitter->output = function_output;
-        if(rust_function_needs_unsafe(function) ||
+        if(rust_function_needs_unsafe(module, function) ||
            rust_text_needs_unsafe(body_text, body_size)) {
             fputs("    unsafe {\n", function_output);
             fwrite(body_text, 1, body_size, function_output);

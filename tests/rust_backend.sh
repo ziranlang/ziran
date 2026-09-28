@@ -298,18 +298,21 @@ set -e
 test "$status" -ne 0
 rg -q 'assertion failed: low >= 0 && low <= high' "$work/bounds.err"
 
-cat > "$work/unsupported.zi" <<'ZI'
-Value :: union { item: s32 }
+cat > "$work/union.zi" <<'ZI'
+Value :: union { item: s32; bits: u32 }
 Answer :: () -> s32 {
     value: Value
-    value.item = 1
+    value.item = -1
+    if value.bits != 4294967295 { return 1 }
+    value.item = 42
     return value.item
 }
 ZI
-if "$ziran" build --target=rust --entry unsupported:Answer --root "$work" \
-    -o "$work/unsupported-output" "$work/unsupported.zi" \
-    > "$work/unsupported.out" 2> "$work/unsupported.err"; then
-    echo 'the initial Rust target accepted an unsupported aggregate' >&2
-    exit 1
-fi
-rg -q 'initial Rust target supports' "$work/unsupported.err"
+"$ziran" build --target=rust --entry union:Answer --root "$work" --exe \
+    -o "$work/union" "$work/union.zi"
+cargo build --quiet --manifest-path "$work/union/Cargo.toml"
+set +e
+"$work/union/target/debug/ziran_generated"
+status=$?
+set -e
+test "$status" = 42

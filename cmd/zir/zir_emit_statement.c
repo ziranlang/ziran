@@ -984,6 +984,9 @@ emit_sequence(Emitter *e,int begin,int end)
         case ZIR_STMT_EXPR:case ZIR_STMT_UNUSED:
             if(st->expr_root>=0) {
                 const ZirExpr *expr = &e->fn->exprs[st->expr_root];
+                /* A call whose result goes unused is a statement of its own;
+                 * an owned Vec result is kept so it can be released. */
+                e->call_in_place = !VecElementType(e->module, expr->type, NULL, 0);
                 emit_expr(e, st->expr_root, expr->type, value,
                           sizeof(value));
                 if(*value && expr->kind == ZIR_EXPR_CALL &&
@@ -992,7 +995,9 @@ emit_sequence(Emitter *e,int begin,int end)
                     fresh(e, temporary);
                     declare(e, temporary, expr->type, value);
                     drop_temporary_vec(e, temporary);
-                } else if(*value)
+                } else if(*value && expr->kind == ZIR_EXPR_CALL && !plain_identifier(value))
+                    line(e, e->target == ZIR_GO ? "%s" : "%s;", value);
+                else if(*value)
                     line(e,e->target==ZIR_GO?"_ = %s":"(void)%s;",value);
             }break;
         default:break;

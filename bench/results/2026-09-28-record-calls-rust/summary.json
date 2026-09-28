@@ -1,0 +1,466 @@
+[
+  {
+    "phase": "cached go build",
+    "case": "hand Go",
+    "n": 3,
+    "median_ms": 70.870057,
+    "min_ms": 64.990451,
+    "max_ms": 73.822214
+  },
+  {
+    "phase": "cached go build",
+    "case": "ziran go (saved)",
+    "n": 3,
+    "median_ms": 67.062563,
+    "min_ms": 63.342378,
+    "max_ms": 97.681966
+  },
+  {
+    "phase": "cached go build",
+    "case": "ziran go (source)",
+    "n": 3,
+    "median_ms": 117.157916,
+    "min_ms": 67.253471,
+    "max_ms": 121.037799
+  },
+  {
+    "phase": "comparison compile",
+    "case": "hand C",
+    "n": 3,
+    "median_ms": 22.891385,
+    "min_ms": 21.76364,
+    "max_ms": 23.96832
+  },
+  {
+    "phase": "comparison compile",
+    "case": "hand C++",
+    "n": 3,
+    "median_ms": 30.386165,
+    "min_ms": 30.140905,
+    "max_ms": 32.579715
+  },
+  {
+    "phase": "comparison compile",
+    "case": "hand Java",
+    "n": 3,
+    "median_ms": 223.009207,
+    "min_ms": 215.996637,
+    "max_ms": 225.201949
+  },
+  {
+    "phase": "comparison compile",
+    "case": "hand Rust",
+    "n": 3,
+    "median_ms": 169.497679,
+    "min_ms": 161.732421,
+    "max_ms": 171.72494
+  },
+  {
+    "phase": "downstream compile",
+    "case": "ziran c (saved)",
+    "n": 3,
+    "median_ms": 44.549876,
+    "min_ms": 44.078107,
+    "max_ms": 47.203405
+  },
+  {
+    "phase": "downstream compile",
+    "case": "ziran c (source)",
+    "n": 3,
+    "median_ms": 44.606066,
+    "min_ms": 43.278931,
+    "max_ms": 46.724317
+  },
+  {
+    "phase": "downstream compile",
+    "case": "ziran cpp (saved)",
+    "n": 3,
+    "median_ms": 56.442127,
+    "min_ms": 56.189538,
+    "max_ms": 56.876685
+  },
+  {
+    "phase": "downstream compile",
+    "case": "ziran cpp (source)",
+    "n": 3,
+    "median_ms": 56.261908,
+    "min_ms": 55.270292,
+    "max_ms": 58.174189
+  },
+  {
+    "phase": "downstream compile",
+    "case": "ziran rust (saved)",
+    "n": 3,
+    "median_ms": 8.648754,
+    "min_ms": 8.152607,
+    "max_ms": 9.46687
+  },
+  {
+    "phase": "downstream compile",
+    "case": "ziran rust (source)",
+    "n": 3,
+    "median_ms": 8.959113,
+    "min_ms": 8.143707,
+    "max_ms": 8.998153
+  },
+  {
+    "phase": "run n=1000",
+    "case": "JavaScript",
+    "n": 5,
+    "median_ms": 15.526796,
+    "min_ms": 14.379851,
+    "max_ms": 18.794383
+  },
+  {
+    "phase": "run n=1000",
+    "case": "Python",
+    "n": 5,
+    "median_ms": 18.799572,
+    "min_ms": 18.355154,
+    "max_ms": 19.13564
+  },
+  {
+    "phase": "run n=1000",
+    "case": "hand C",
+    "n": 5,
+    "median_ms": 0.389009,
+    "min_ms": 0.322689,
+    "max_ms": 0.518048
+  },
+  {
+    "phase": "run n=1000",
+    "case": "hand C++",
+    "n": 5,
+    "median_ms": 0.312149,
+    "min_ms": 0.232899,
+    "max_ms": 0.643777
+  },
+  {
+    "phase": "run n=1000",
+    "case": "hand Go",
+    "n": 5,
+    "median_ms": 0.628397,
+    "min_ms": 0.604957,
+    "max_ms": 0.924516
+  },
+  {
+    "phase": "run n=1000",
+    "case": "hand Java",
+    "n": 5,
+    "median_ms": 18.873722,
+    "min_ms": 17.574697,
+    "max_ms": 20.078187
+  },
+  {
+    "phase": "run n=1000",
+    "case": "hand Rust",
+    "n": 5,
+    "median_ms": 0.492788,
+    "min_ms": 0.308119,
+    "max_ms": 0.631157
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran VM (saved)",
+    "n": 5,
+    "median_ms": 128.13136,
+    "min_ms": 124.520395,
+    "max_ms": 130.089982
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran VM (source)",
+    "n": 5,
+    "median_ms": 127.747932,
+    "min_ms": 126.181628,
+    "max_ms": 129.894743
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran c (saved)",
+    "n": 5,
+    "median_ms": 0.531068,
+    "min_ms": 0.517368,
+    "max_ms": 0.685297
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran c (source)",
+    "n": 5,
+    "median_ms": 0.783057,
+    "min_ms": 0.593207,
+    "max_ms": 0.831657
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran cpp (saved)",
+    "n": 5,
+    "median_ms": 0.570168,
+    "min_ms": 0.475379,
+    "max_ms": 1.003185
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran cpp (source)",
+    "n": 5,
+    "median_ms": 0.574558,
+    "min_ms": 0.500748,
+    "max_ms": 0.672218
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran go (saved)",
+    "n": 5,
+    "median_ms": 0.894046,
+    "min_ms": 0.715717,
+    "max_ms": 1.038586
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran go (source)",
+    "n": 5,
+    "median_ms": 0.787427,
+    "min_ms": 0.728497,
+    "max_ms": 1.012545
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran rust (saved)",
+    "n": 5,
+    "median_ms": 0.429398,
+    "min_ms": 0.364919,
+    "max_ms": 0.716377
+  },
+  {
+    "phase": "run n=1000",
+    "case": "ziran rust (source)",
+    "n": 5,
+    "median_ms": 0.647547,
+    "min_ms": 0.351528,
+    "max_ms": 0.678487
+  },
+  {
+    "phase": "run n=500000",
+    "case": "JavaScript",
+    "n": 5,
+    "median_ms": 141.106026,
+    "min_ms": 135.665159,
+    "max_ms": 143.080758
+  },
+  {
+    "phase": "run n=500000",
+    "case": "Python",
+    "n": 5,
+    "median_ms": 5795.590696,
+    "min_ms": 5650.490536,
+    "max_ms": 5956.59795
+  },
+  {
+    "phase": "run n=500000",
+    "case": "hand C",
+    "n": 5,
+    "median_ms": 12.573138,
+    "min_ms": 12.372789,
+    "max_ms": 13.172516
+  },
+  {
+    "phase": "run n=500000",
+    "case": "hand C++",
+    "n": 5,
+    "median_ms": 12.459129,
+    "min_ms": 11.91152,
+    "max_ms": 13.069016
+  },
+  {
+    "phase": "run n=500000",
+    "case": "hand Go",
+    "n": 5,
+    "median_ms": 13.733123,
+    "min_ms": 13.583983,
+    "max_ms": 14.196992
+  },
+  {
+    "phase": "run n=500000",
+    "case": "hand Java",
+    "n": 5,
+    "median_ms": 85.433287,
+    "min_ms": 82.654008,
+    "max_ms": 87.318039
+  },
+  {
+    "phase": "run n=500000",
+    "case": "hand Rust",
+    "n": 5,
+    "median_ms": 13.376065,
+    "min_ms": 12.844997,
+    "max_ms": 13.921532
+  },
+  {
+    "phase": "run n=500000",
+    "case": "ziran c (saved)",
+    "n": 5,
+    "median_ms": 122.450804,
+    "min_ms": 117.954362,
+    "max_ms": 124.003777
+  },
+  {
+    "phase": "run n=500000",
+    "case": "ziran c (source)",
+    "n": 5,
+    "median_ms": 120.97972,
+    "min_ms": 119.204677,
+    "max_ms": 126.285748
+  },
+  {
+    "phase": "run n=500000",
+    "case": "ziran cpp (saved)",
+    "n": 5,
+    "median_ms": 118.951868,
+    "min_ms": 116.770177,
+    "max_ms": 126.199368
+  },
+  {
+    "phase": "run n=500000",
+    "case": "ziran cpp (source)",
+    "n": 5,
+    "median_ms": 121.684336,
+    "min_ms": 120.570581,
+    "max_ms": 124.343005
+  },
+  {
+    "phase": "run n=500000",
+    "case": "ziran go (saved)",
+    "n": 5,
+    "median_ms": 84.381571,
+    "min_ms": 81.048035,
+    "max_ms": 85.197698
+  },
+  {
+    "phase": "run n=500000",
+    "case": "ziran go (source)",
+    "n": 5,
+    "median_ms": 83.324006,
+    "min_ms": 81.006145,
+    "max_ms": 85.681866
+  },
+  {
+    "phase": "run n=500000",
+    "case": "ziran rust (saved)",
+    "n": 5,
+    "median_ms": 16.699631,
+    "min_ms": 14.57029,
+    "max_ms": 18.285934
+  },
+  {
+    "phase": "run n=500000",
+    "case": "ziran rust (source)",
+    "n": 5,
+    "median_ms": 17.578467,
+    "min_ms": 14.47961,
+    "max_ms": 18.235765
+  },
+  {
+    "phase": "ziran",
+    "case": "saved IR check",
+    "n": 3,
+    "median_ms": 0.576698,
+    "min_ms": 0.569098,
+    "max_ms": 0.656997
+  },
+  {
+    "phase": "ziran",
+    "case": "saved to c",
+    "n": 3,
+    "median_ms": 1.478024,
+    "min_ms": 1.417614,
+    "max_ms": 1.725763
+  },
+  {
+    "phase": "ziran",
+    "case": "saved to cpp",
+    "n": 3,
+    "median_ms": 1.069836,
+    "min_ms": 1.016096,
+    "max_ms": 1.256115
+  },
+  {
+    "phase": "ziran",
+    "case": "saved to go",
+    "n": 3,
+    "median_ms": 1.909642,
+    "min_ms": 1.542424,
+    "max_ms": 3.586766
+  },
+  {
+    "phase": "ziran",
+    "case": "saved to rust",
+    "n": 3,
+    "median_ms": 1.253405,
+    "min_ms": 1.105345,
+    "max_ms": 1.262125
+  },
+  {
+    "phase": "ziran",
+    "case": "saved to zib",
+    "n": 3,
+    "median_ms": 1.361364,
+    "min_ms": 1.321285,
+    "max_ms": 1.828002
+  },
+  {
+    "phase": "ziran",
+    "case": "source check",
+    "n": 3,
+    "median_ms": 1.521183,
+    "min_ms": 1.507364,
+    "max_ms": 1.542504
+  },
+  {
+    "phase": "ziran",
+    "case": "source to c",
+    "n": 3,
+    "median_ms": 1.724043,
+    "min_ms": 1.638104,
+    "max_ms": 1.785013
+  },
+  {
+    "phase": "ziran",
+    "case": "source to cpp",
+    "n": 3,
+    "median_ms": 1.893992,
+    "min_ms": 1.726013,
+    "max_ms": 1.955442
+  },
+  {
+    "phase": "ziran",
+    "case": "source to go",
+    "n": 3,
+    "median_ms": 2.42872,
+    "min_ms": 2.34198,
+    "max_ms": 6.063895
+  },
+  {
+    "phase": "ziran",
+    "case": "source to rust",
+    "n": 3,
+    "median_ms": 1.587234,
+    "min_ms": 1.570594,
+    "max_ms": 1.606863
+  },
+  {
+    "phase": "ziran",
+    "case": "source to saved IR",
+    "n": 3,
+    "median_ms": 1.084786,
+    "min_ms": 1.071465,
+    "max_ms": 1.143235
+  },
+  {
+    "phase": "ziran",
+    "case": "source to zib",
+    "n": 3,
+    "median_ms": 1.828713,
+    "min_ms": 1.446564,
+    "max_ms": 1.834443
+  }
+]

@@ -74,9 +74,10 @@ Handwritten C, C++, Go, Rust, Java, JavaScript, and Python versions participate
 when installed. Every sample must match an independent Python oracle; source
 and saved-IR generated output and bundles are checked for equality. The VM runs
 the small input only because the large input exceeds its instruction budget.
-The [clean-head record-call baseline](results/2026-09-28-record-calls/README.md)
-contains 206 validated samples across 50 phase/case combinations and predates
-generated-Rust participation.
+The [clean-head generated-Rust record-call baseline](results/2026-09-28-record-calls-rust/README.md)
+contains 238 validated samples across 58 phase/case combinations. The
+[earlier baseline](results/2026-09-28-record-calls/README.md) contains 206
+samples across 50 combinations and predates generated-Rust participation.
 
 For a focused before/after comparison of two validated Go binaries, run
 `bench/vector_growth_ab.py --before PATH --after PATH --out NEW.json`. It

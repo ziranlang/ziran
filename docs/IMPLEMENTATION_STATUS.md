@@ -720,9 +720,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   access, wrapping `s32` updates, and an ordinary call in every round. It
   compares source and saved IR through generated C, C++, Go, generated Rust
   when Cargo is installed, and `.zib`, plus the available comparison languages.
-  Its earlier clean-head baseline contains 206 validated samples across 50
-  phase/case combinations in `bench/results/2026-09-28-record-calls/`; that
-  baseline predates generated-Rust participation.
+  The current clean-head baseline contains 238 validated samples across 58
+  phase/case combinations in `bench/results/2026-09-28-record-calls-rust/`;
+  the earlier 206-sample baseline in
+  `bench/results/2026-09-28-record-calls/` predates generated Rust.
 - Package manifests and lockfiles can pin source-only dependencies without a
   Ziran manifest. Resolution, checkout, map generation, drift detection, and
   `ziran add --source` are covered by `tests/packages.py`.

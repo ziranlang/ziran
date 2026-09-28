@@ -625,6 +625,11 @@ resolve_body_symbol(void *context, const char *text, char *out, size_t size)
     BodySymbols *symbols = context;
     const ZirModule *owner = NULL;
     const ZirGlobal *global = NULL;
+    /* A checked type qualified by an alias or by the module that declares
+     * it (a type reached only through another module) has one native name. */
+    if(strchr(text, '.') != NULL &&
+       NativeTypeAtUse(symbols->module, text, out, size))
+        return;
     if(ResolveGlobalAt(symbols->module, text, symbols->source_path,
                        &owner, &global) == 1) {
         TargetGlobalName(owner, ZIR_C, global->name, out, size);

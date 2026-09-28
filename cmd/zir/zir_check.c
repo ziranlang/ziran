@@ -2221,6 +2221,17 @@ compound_type_at_use(const ZirModule *module,
            FindType(module, target, NULL) == declared)
             return 1;
     }
+    /* The user reaches the type only through another module, for example
+     * a field of an imported record whose type module it does not import.
+     * Name it by its declaring module. */
+    if(visible == NULL && declaring != NULL && declared->is_public &&
+       !declared->is_file_private) {
+        int written = snprintf(target, size, "%s.%s", declaring->name,
+                               source);
+        if(written >= 0 && (size_t)written < size &&
+           FindType(module, target, NULL) == declared)
+            return 1;
+    }
     if(visible != declared)
         return 0;
     copy_text(target, size, source);

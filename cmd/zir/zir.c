@@ -415,6 +415,31 @@ BuiltinType(const char *name)
     return strcmp(name, location.name) == 0 ? &location : NULL;
 }
 
+/* Finds the module named `name` among those `module` reaches through its
+ * imports. A type written as `module_name.Type` names a type that is visible
+ * to its user only through another module, such as the type of a field of an
+ * imported record. Package modules carry unique internal names. */
+static const ZirModule *
+reachable_module(const ZirModule *module, const char *name, size_t length,
+                 const ZirModule **seen, int *seen_count, int capacity)
+{
+    for(int s = 0; s < *seen_count; s++)
+        if(seen[s] == module) return NULL;
+    if(*seen_count >= capacity) return NULL;
+    seen[(*seen_count)++] = module;
+    if(strlen(module->name) == length &&
+       strncmp(module->name, name, length) == 0)
+        return module;
+    for(int i = 0; i < module->import_count; i++) {
+        const ZirModule *target = module->imports[i].resolved_module;
+        if(target == NULL) continue;
+        const ZirModule *found = reachable_module(target, name, length,
+                                                  seen, seen_count, capacity);
+        if(found != NULL) return found;
+    }
+    return NULL;
+}
+
 static const ZirType *
 find_type_depth(const ZirModule *module, const char *name,
                 const ZirModule **owner, int depth)
@@ -456,6 +481,22 @@ find_type_depth(const ZirModule *module, const char *name,
                 if(found != NULL && found != nested) return NULL;
                 found = nested;
                 scope = nested_owner;
+            }
+        }
+        if(found == NULL) {
+            const ZirModule *seen[512];
+            int seen_count = 0;
+            const ZirModule *target = reachable_module(module, name,
+                                                       alias_length, seen,
+                                                       &seen_count, 512);
+            for(int t = 0; target != NULL && t < target->type_count; t++) {
+                const ZirType *candidate = &target->types[t];
+                if(candidate->is_public && !candidate->is_file_private &&
+                   strcmp(candidate->name, dot + 1) == 0) {
+                    found = candidate;
+                    scope = target;
+                    break;
+                }
             }
         }
         if(owner)

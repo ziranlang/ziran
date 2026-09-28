@@ -16,7 +16,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   converting a nonfinite float to an integer remains an error. Compile-time
   casts and arithmetic fold the tested boundaries with the same width rules.
   `tests/numeric_semantics.sh` checks these cases from source and saved IR on
-  C, C++, Go, and `.zib`.
+  C, C++, Go, and `.zib`. Its stable conformance IDs are published by
+  `ziran capabilities --json`, described by
+  `tests/numeric_conformance.json`, and kept synchronized with markers in the
+  differential test. Mixed-width narrowing/widening after addition and u8
+  bitwise AND/OR/XOR are included.
 - Jai `using record: Type` parameters and local declarations, plus `using
   record;` and nested paths such as `using entity.position;` in a procedure
   body, promote record fields into lexical lookup. Explicit local bindings

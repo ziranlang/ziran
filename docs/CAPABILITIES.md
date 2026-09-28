@@ -4,7 +4,10 @@
 supported output targets and shared limits. Use `--target=c`, `cpp`, `go`,
 `zib`, or `plan9-c` to select one target. The command works without a project or network
 access, so an editor or coding agent can query the installed compiler before
-generating code. `schema_version` starts at 1; consumers should reject schema
+generating code. The `numeric_conformance` object is a stable-ID registry. Its `ids` cite the
+numerical cases proven by [numeric semantics](../tests/numeric_semantics.sh)
+and are described by [numeric_conformance.json](../tests/numeric_conformance.json).
+`schema_version` starts at 1; consumers should reject schema
 versions they do not understand and ignore unknown fields within a version.
 
 `plan9-c` is the canonical interface for Plan 9 C output. Its current

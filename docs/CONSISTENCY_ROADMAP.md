@@ -59,13 +59,8 @@ protected. These fixes do not complete the ownership or diagnostic contracts.
    Unknown heap pointers and other unmodeled mutable aliases still need a
    complete lifetime model; reject escapes that cannot be proved safe. Host
    boundaries remain untracked.
-3. **Numerical contract coverage.** The current differential matrix covers
-   signed and unsigned wraparound, minimum signed integer division and
-   remainder, all eight integer cast widths, rejected negative or oversized
-   shifts, NaN comparisons, infinities, floating zero division, and matching
-   compile-time folding for those boundaries. Convert the outcomes into
-   conformance-test IDs and extend the matrix to operators and mixed-width
-   combinations that are not yet represented.
+3. **Numerical contract coverage.** Extend the stable conformance-ID matrix
+   to operators and mixed-width combinations that are not yet represented.
 4. **Target boundaries.** Give checked programs an explicit target capability
    error for unavailable FFI, pointer, union, host, or GPU behavior. Replace
    remaining textual declaration/import lowering with typed IR. A CPU fallback

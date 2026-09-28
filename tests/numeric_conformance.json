@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "stability": "stable-id",
+  "targets": [
+    "c",
+    "cpp",
+    "go",
+    "zib"
+  ],
+  "evidence": "tests/numeric_semantics.sh",
+  "cases": [
+    {
+      "id": "numeric.compile.div_min.s32",
+      "summary": "Compile-time s32 minimum divided by -1 wraps to the minimum."
+    },
+    {
+      "id": "numeric.compile.div_min.s64",
+      "summary": "Compile-time s64 minimum divided by -1 wraps to the minimum."
+    },
+    {
+      "id": "numeric.compile.cast_wrap.u8",
+      "summary": "Compile-time signed narrowing uses u8 bit width."
+    },
+    {
+      "id": "numeric.compile.wrap_add.u8",
+      "summary": "Compile-time u8 addition wraps modulo 256."
+    },
+    {
+      "id": "numeric.compile.wrap_add.s8",
+      "summary": "Compile-time s8 addition wraps to signed minimum."
+    },
+    {
+      "id": "numeric.shift.left.u8",
+      "summary": "Runtime u8 left shift uses u8 width."
+    },
+    {
+      "id": "numeric.shift.left.u16",
+      "summary": "Runtime u16 left shift uses u16 width."
+    },
+    {
+      "id": "numeric.shift.right.arithmetic.s8",
+      "summary": "Runtime s8 right shift is arithmetic."
+    },
+    {
+      "id": "numeric.shift.right.arithmetic.s16",
+      "summary": "Runtime s16 right shift is arithmetic."
+    },
+    {
+      "id": "numeric.float.cast.u16",
+      "summary": "Float-to-u16 conversion truncates within range."
+    },
+    {
+      "id": "numeric.float.cast.s8",
+      "summary": "Float-to-s8 conversion preserves a negative in-range value."
+    },
+    {
+      "id": "numeric.float.divide.zero.f64",
+      "summary": "Runtime float64 division by zero produces infinity."
+    },
+    {
+      "id": "numeric.float.compare.nan",
+      "summary": "NaN remains unequal to itself."
+    },
+    {
+      "id": "numeric.float.divide.zero.f32",
+      "summary": "Runtime float32 division by zero produces infinity."
+    },
+    {
+      "id": "numeric.wrap.add.u8",
+      "summary": "Runtime u8 addition wraps modulo 256."
+    },
+    {
+      "id": "numeric.wrap.add.s8",
+      "summary": "Runtime s8 signed overflow wraps."
+    },
+    {
+      "id": "numeric.wrap.sub.u8",
+      "summary": "Runtime u8 subtraction wraps below zero."
+    },
+    {
+      "id": "numeric.wrap.mul.s8",
+      "summary": "Runtime s8 multiplication wraps."
+    },
+    {
+      "id": "numeric.wrap.add.s32",
+      "summary": "Runtime s32 signed overflow wraps to the minimum."
+    },
+    {
+      "id": "numeric.div_min.s32",
+      "summary": "Runtime s32 minimum divided by -1 wraps to the minimum."
+    },
+    {
+      "id": "numeric.rem_min.s32",
+      "summary": "Runtime s32 minimum remainder with -1 is zero."
+    },
+    {
+      "id": "numeric.div_min.s64",
+      "summary": "Runtime s64 minimum divided by -1 wraps to the minimum."
+    },
+    {
+      "id": "numeric.rem_min.s64",
+      "summary": "Runtime s64 minimum remainder with -1 is zero."
+    },
+    {
+      "id": "numeric.cast.width_pairs.all",
+      "summary": "All eight signed/unsigned integer width pairs convert by declared width."
+    },
+    {
+      "id": "numeric.mixed.add.u16_to_u8",
+      "summary": "A u16 result narrows modulo u8 after u16-width addition."
+    },
+    {
+      "id": "numeric.mixed.add.u8_to_u16",
+      "summary": "A u8 result widens after u8-width wrapping addition."
+    },
+    {
+      "id": "numeric.bitwise.and.u8",
+      "summary": "u8 bitwise AND is unsigned and width-preserving."
+    },
+    {
+      "id": "numeric.bitwise.or.u8",
+      "summary": "u8 bitwise OR is unsigned and width-preserving."
+    },
+    {
+      "id": "numeric.bitwise.xor.u8",
+      "summary": "u8 bitwise XOR is unsigned and width-preserving."
+    },
+    {
+      "id": "numeric.shift.reject.width",
+      "summary": "A shift count at the operand bit width fails on every target."
+    },
+    {
+      "id": "numeric.shift.reject.negative",
+      "summary": "A negative shift count fails on every target."
+    }
+  ]
+}

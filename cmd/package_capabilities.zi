@@ -1,5 +1,45 @@
 #import "package_common"
 
+#scope_file
+NUMERIC_CONFORMANCE_IDS: string = "numeric.compile.div_min.s32\nnumeric.compile.div_min.s64\nnumeric.compile.cast_wrap.u8\nnumeric.compile.wrap_add.u8\nnumeric.compile.wrap_add.s8\nnumeric.shift.left.u8\nnumeric.shift.left.u16\nnumeric.shift.right.arithmetic.s8\nnumeric.shift.right.arithmetic.s16\nnumeric.float.cast.u16\nnumeric.float.cast.s8\nnumeric.float.divide.zero.f64\nnumeric.float.compare.nan\nnumeric.float.divide.zero.f32\nnumeric.wrap.add.u8\nnumeric.wrap.add.s8\nnumeric.wrap.sub.u8\nnumeric.wrap.mul.s8\nnumeric.wrap.add.s32\nnumeric.div_min.s32\nnumeric.rem_min.s32\nnumeric.div_min.s64\nnumeric.rem_min.s64\nnumeric.cast.width_pairs.all\nnumeric.mixed.add.u16_to_u8\nnumeric.mixed.add.u8_to_u16\nnumeric.bitwise.and.u8\nnumeric.bitwise.or.u8\nnumeric.bitwise.xor.u8\nnumeric.shift.reject.width\nnumeric.shift.reject.negative";
+
+PkgPrintNumericIdList :: () -> void {
+    PkgPrint("[", false)
+    at: s32 = 0
+    first: bool = true
+    while at < cast(s32)NUMERIC_CONFORMANCE_IDS.count {
+        end: s32 = at
+        while end < cast(s32)NUMERIC_CONFORMANCE_IDS.count &&
+              NUMERIC_CONFORMANCE_IDS[end] != cast(u8)10 { end += 1 }
+        if end > at {
+            if !first { PkgPrint(",", false) }
+            PkgPrint("\"", false)
+            PkgPrint(NUMERIC_CONFORMANCE_IDS[at:end], false)
+            PkgPrint("\"", false)
+            first = false
+        }
+        if end >= cast(s32)NUMERIC_CONFORMANCE_IDS.count { break }
+        at = end + 1
+    }
+    PkgPrint("]", false)
+}
+
+PkgPrintNumericConformance :: (target: string) -> void {
+    PkgPrint("\"numeric_conformance\":{\"schema_version\":1,\"stability\":\"stable-id\",\"targets\":[", false)
+    if target.count == 0 {
+        PkgPrint("\"c\",\"cpp\",\"go\",\"zib\"", false)
+    } else if target != "plan9-c" {
+        PkgPrint("\"", false)
+        PkgPrint(target, false)
+        PkgPrint("\"", false)
+    }
+    PkgPrint("],\"ids\":", false)
+    if target != "plan9-c" { PkgPrintNumericIdList() }
+    else { PkgPrint("[]", false) }
+    PkgPrint("}", false)
+}
+
+#scope_export
 Capabilities :: (arguments: []string) -> s32 {
     target: string = ""
     index: s32 = 0
@@ -52,6 +92,8 @@ Capabilities :: (arguments: []string) -> s32 {
     PkgPrint("\"gpu_execution\":\"cpu_fallback\",", false)
     PkgPrint("\"automatic_vec_drop\":true,", false)
     PkgPrint("\"aggregate_vec_transfer\":true,", false)
+    PkgPrintNumericConformance(target)
+    PkgPrint(",", false)
     PkgPrint("\"text_view_local_mutation_check\":true,", false)
     PkgPrint("\"diagnostics_json\":\"partial\"}\n", false)
     return 0

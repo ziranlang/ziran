@@ -765,9 +765,9 @@ classify_stmt(const char *s)
         return ZIR_STMT_RETURN;
     if(strcmp(s, "unreachable") == 0 || strcmp(s, "unreachable;") == 0)
         return ZIR_STMT_UNREACHABLE;
-    if(starts_word(s, "break"))
+    if(starts_word(s, "break") || strcmp(s, "break;") == 0)
         return ZIR_STMT_BREAK;
-    if(starts_word(s, "continue"))
+    if(starts_word(s, "continue") || strcmp(s, "continue;") == 0)
         return ZIR_STMT_CONTINUE;
     if(starts_word(s, "defer"))
         return ZIR_STMT_DEFER;

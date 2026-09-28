@@ -68,7 +68,8 @@ The compiler now implements named `type`, `effect`, `bounds`, `size`, `abi`,
 reports results as JSON. This remains narrower than the intended proof
 contract: `custom` evaluates closed compile-time expressions, `forall`
 (`#law N forall x: 0..4, k: SomeEnum => condition;`) checks every combination
-of integer ranges and enum members through the same evaluator (a domain over
+of integer ranges, enum members, and bounded integer sequences
+(`xs: [N]LO..HI`, N up to 16) through the same evaluator (a domain over
 1,000,000 cases or an undecidable condition is `unknown`, a failure reports
 the counterexample), `abi` checks
 the supported signature shape rather than proving foreign behavior, and law

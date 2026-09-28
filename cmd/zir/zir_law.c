@@ -541,7 +541,7 @@ evaluate_custom_law(const ZirModule *module, const ZirLaw *law,
         /* The typed evaluator also resolves enum members and casts. */
         int truth = 0;
         if(EvaluateCompileConditionBound(module, law->payload, law->span,
-                                         NULL, NULL, NULL, 0, &truth)) {
+                                         NULL, NULL, NULL, NULL, 0, &truth)) {
             snprintf(detail, size, "payload evaluated to %d", truth);
             return truth ? LAW_PROVED : LAW_DISPROVED;
         }
@@ -568,6 +568,7 @@ typedef struct ForallBuffers {
     char head[ZIR_TEXT_MAX];
     char parts[FORALL_MAX_VARIABLES][ZIR_TEXT_MAX];
     long members[FORALL_MAX_VARIABLES][FORALL_ENUM_MAX];
+    char exprs[FORALL_MAX_VARIABLES][ZIR_NAME_MAX];
 } ForallBuffers;
 
 static LawStatus evaluate_forall_law_with(const ZirModule *module,
@@ -626,7 +627,9 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
     char (*parts)[ZIR_TEXT_MAX] = buffers->parts;
     long low[FORALL_MAX_VARIABLES], span_count[FORALL_MAX_VARIABLES];
     long index[FORALL_MAX_VARIABLES], values[FORALL_MAX_VARIABLES];
-    int is_enum[FORALL_MAX_VARIABLES];
+    long element_span[FORALL_MAX_VARIABLES];
+    int is_enum[FORALL_MAX_VARIABLES], array_length[FORALL_MAX_VARIABLES];
+    char (*exprs)[ZIR_NAME_MAX] = buffers->exprs;
     const char *arrow = strstr(law->payload, "=>");
     const char *body;
     long total = 1, checked = 0;
@@ -656,8 +659,60 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
         snprintf(names[v], ZIR_NAME_MAX, "%s", parts[v]);
         types[v][0] = '\0';
         is_enum[v] = 0;
+        array_length[v] = 0;
+        element_span[v] = 0;
         dots = strstr(colon + 1, "..");
-        if(dots == NULL) {
+        if(*skip_ws(colon + 1) == '[' && dots != NULL) {
+            /* `NAME: [N]LO..HI`: every sequence of N elements in LO..HI. */
+            const char *open = skip_ws(colon + 1);
+            const char *close = strchr(open, ']');
+            char length_text[ZIR_NAME_MAX], lo_text[ZIR_NAME_MAX];
+            char hi_text[ZIR_NAME_MAX];
+            long length = 0, high = 0, cases = 1;
+            if(close == NULL || close > dots ||
+               (size_t)(close - open - 1) >= sizeof(length_text)) {
+                snprintf(detail, size, "%s needs `[N]LO..HI`", names[v]);
+                return LAW_DISPROVED;
+            }
+            snprintf(length_text, sizeof(length_text), "%.*s",
+                     (int)(close - open - 1), open + 1);
+            snprintf(lo_text, sizeof(lo_text), "%.*s", (int)(dots - close - 1),
+                     close + 1);
+            snprintf(hi_text, sizeof(hi_text), "%s", dots + 2);
+            trim_in_place(length_text);
+            trim_in_place(lo_text);
+            trim_in_place(hi_text);
+            if(!EvaluateCompileExpression(module, length_text, law->span, 0,
+                                          &length) ||
+               !EvaluateCompileExpression(module, lo_text, law->span, 0,
+                                          &low[v]) ||
+               !EvaluateCompileExpression(module, hi_text, law->span, 0,
+                                          &high)) {
+                snprintf(detail, size,
+                         "sequence bounds of %s are not compile-time values",
+                         names[v]);
+                return LAW_UNKNOWN;
+            }
+            if(length < 1 || length > 16 || high < low[v]) {
+                snprintf(detail, size,
+                         "%s needs a length of 1..16 and a non-empty range",
+                         names[v]);
+                return LAW_DISPROVED;
+            }
+            element_span[v] = high - low[v] + 1;
+            array_length[v] = (int)length;
+            for(long e = 0; e < length; e++) {
+                if(cases > FORALL_BUDGET / element_span[v]) {
+                    snprintf(detail, size,
+                             "domain exceeds the budget of %ld cases",
+                             FORALL_BUDGET);
+                    return LAW_UNKNOWN;
+                }
+                cases *= element_span[v];
+            }
+            span_count[v] = cases;
+            snprintf(types[v], ZIR_NAME_MAX, "[%ld]s32", length);
+        } else if(dots == NULL) {
             const ZirType *type;
             char type_name[ZIR_NAME_MAX];
             int members;
@@ -713,12 +768,30 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
     }
     for(;;) {
         int truth = 0;
-        for(int v = 0; v < count; v++)
+        for(int v = 0; v < count; v++) {
+            exprs[v][0] = '\0';
             values[v] = is_enum[v] ? buffers->members[v][index[v]] :
                         low[v] + index[v];
+            if(array_length[v] > 0) {
+                /* Digits of the case number, most significant first. */
+                long digits[16], rest = index[v];
+                size_t used = (size_t)snprintf(exprs[v], ZIR_NAME_MAX, "s32.[");
+                for(int e = array_length[v] - 1; e >= 0; e--) {
+                    digits[e] = low[v] + rest % element_span[v];
+                    rest /= element_span[v];
+                }
+                for(int e = 0; e < array_length[v] && used < ZIR_NAME_MAX; e++)
+                    used += (size_t)snprintf(exprs[v] + used,
+                                             ZIR_NAME_MAX - used, "%s%ld",
+                                             e ? ", " : "", digits[e]);
+                if(used + 2 < ZIR_NAME_MAX)
+                    snprintf(exprs[v] + used, ZIR_NAME_MAX - used, "]");
+            }
+        }
         if(!EvaluateCompileConditionBound(module, body, law->span,
                                           (const char (*)[ZIR_NAME_MAX])names,
                                           (const char (*)[ZIR_NAME_MAX])types,
+                                          (const char (*)[ZIR_NAME_MAX])exprs,
                                           values, count, &truth)) {
             size_t used = (size_t)snprintf(detail, size,
                 "condition is outside the compile-time evaluator at");
@@ -729,9 +802,16 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
         }
         if(!truth) {
             size_t used = (size_t)snprintf(detail, size, "counterexample");
-            for(int v = 0; v < count && used < size; v++)
-                used += (size_t)snprintf(detail + used, size - used, "%s%s=%ld",
-                                         v ? ", " : " ", names[v], values[v]);
+            for(int v = 0; v < count && used < size; v++) {
+                if(exprs[v][0])
+                    used += (size_t)snprintf(detail + used, size - used,
+                                             "%s%s=%s", v ? ", " : " ",
+                                             names[v], exprs[v]);
+                else
+                    used += (size_t)snprintf(detail + used, size - used,
+                                             "%s%s=%ld", v ? ", " : " ",
+                                             names[v], values[v]);
+            }
             return LAW_DISPROVED;
         }
         checked++;

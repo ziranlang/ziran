@@ -679,7 +679,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 - Named `#law NAME kind payload;` obligations are implemented for the
   `type`, `bounds`, `effect`, `abi`, `custom`, and `forall` kinds (`forall`
-  is exhaustive over integer ranges and enum types, with counterexamples
+  is exhaustive over integer ranges, enum types, and bounded integer
+  sequences (`[N]LO..HI`), with counterexamples
   and a 1,000,000-case budget): `ziran check`
   prints one JSON result object per obligation, `disproved` and unwaived
   `unknown` results fail the build, `#law_waive NAME "reason";` waives an

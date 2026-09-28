@@ -241,3 +241,66 @@ Answer :: () -> s32 { return 1 }
 ZI
 "$ziran" check --root "$work" "$work/enum_flow.zi" > "$work/enum_flow.json"
 test "$(rg -c '"status":"proved"' "$work/enum_flow.json")" = 4
+
+cat > "$work/sequence.zi" <<'ZI'
+Larger :: (a: s32, b: s32) -> s32 {
+    if a > b {
+        return a
+    }
+    return b
+}
+Merge :: (a: [3]s32, b: [3]s32) -> [3]s32 {
+    merged: [3]s32
+    day: s32 = 0
+    while day < 3 {
+        merged[day] = Larger(a[day], b[day])
+        day += 1
+    }
+    return merged
+}
+MergedAt :: (a: [3]s32, b: [3]s32, day: s32) -> s32 {
+    return Merge(a, b)[day]
+}
+#law MergeCommutes forall a: [3]0..2, b: [3]0..2, day: 0..2 => MergedAt(a, b, day) == MergedAt(b, a, day);
+#law MergeKeepsBoth forall a: [3]0..2, b: [3]0..2, day: 0..2 => MergedAt(a, b, day) >= a[day] && MergedAt(a, b, day) >= b[day];
+#law MergeIsIdempotent forall a: [3]0..3, day: 0..2 => MergedAt(a, a, day) == a[day];
+#program_export
+Answer :: () -> s32 { return 1 }
+ZI
+"$ziran" check --root "$work" "$work/sequence.zi" > "$work/sequence.json"
+rg -q '"law":"MergeCommutes".*"status":"proved".*held for all 2187 cases' "$work/sequence.json"
+rg -q '"law":"MergeKeepsBoth".*"status":"proved"' "$work/sequence.json"
+rg -q '"law":"MergeIsIdempotent".*"status":"proved".*held for all 192 cases' "$work/sequence.json"
+"$ziran" ir --root "$work" -o "$work/sir" "$work/sequence.zi"
+"$ziran" check --root "$work/sir" "$work/sir/sequence.zir" > "$work/sequence-saved.json"
+cmp "$work/sequence.json" "$work/sequence-saved.json"
+
+cat > "$work/sequence_bad.zi" <<'ZI'
+Smaller :: (a: s32, b: s32) -> s32 {
+    if a < b {
+        return a
+    }
+    return b
+}
+Merge :: (a: [2]s32, b: [2]s32) -> [2]s32 {
+    merged: [2]s32
+    merged[0] = Smaller(a[0], b[0])
+    merged[1] = Smaller(a[1], b[1])
+    return merged
+}
+MergedAt :: (a: [2]s32, b: [2]s32, day: s32) -> s32 {
+    return Merge(a, b)[day]
+}
+#law LosesData forall a: [2]0..2, b: [2]0..2, day: 0..1 => MergedAt(a, b, day) >= a[day];
+#law Huge forall a: [16]0..9 => a[0] >= 0;
+#program_export
+Answer :: () -> s32 { return 1 }
+ZI
+if "$ziran" check --root "$work" "$work/sequence_bad.zi" \
+    > "$work/sequence_bad.json" 2> /dev/null; then
+    echo 'a data-losing merge passed the gate' >&2
+    exit 1
+fi
+rg -q '"law":"LosesData".*"status":"disproved".*counterexample a=s32.\[0, 1\], b=s32.\[0, 0\], day=1' \
+    "$work/sequence_bad.json"
+rg -q '"law":"Huge".*"status":"unknown".*budget' "$work/sequence_bad.json"

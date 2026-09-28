@@ -504,6 +504,75 @@ typed_local_index(TypedBody *body, const char *name)
         if(!strcmp(body->names.items[i].name, name)) return i;
     return -1;
 }
+/* Zero literal for a local `name: [N]integer`, e.g. `s32.[0, 0, 0]`. */
+static int
+zero_array_literal(const char *type, char *out, size_t size)
+{
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    size_t used;
+    if(!ArrayElementType(type, element, sizeof(element), &capacity) ||
+       capacity < 1 || capacity > 256 || !eval_integer_type(element, 0))
+        return 0;
+    used = (size_t)snprintf(out, size, "%s.[", element);
+    for(int i = 0; i < capacity && used < size; i++)
+        used += (size_t)snprintf(out + used, size - used, "%s0",
+                                 i ? ", " : "");
+    if(used + 2 > size) return 0;
+    out[used] = ']';
+    out[used + 1] = '\0';
+    return 1;
+}
+
+/* Replace element `index` of a canonical array literal `T.[a, b, c]`. */
+static int
+store_array_element(const char *literal, long index, const char *replacement,
+                    char *out, size_t size)
+{
+    const char *open = strstr(literal, ".[");
+    const char *cursor;
+    size_t used;
+    long ordinal = 0;
+    int depth = 0;
+    if(open == NULL || index < 0) return 0;
+    cursor = open + 2;
+    used = (size_t)(cursor - literal);
+    if(used >= size) return 0;
+    memcpy(out, literal, used);
+    for(;;) {
+        const char *start = cursor;
+        while(*cursor && !(depth == 0 && (*cursor == ',' || *cursor == ']'))) {
+            if(*cursor == '[' || *cursor == '{' || *cursor == '(') depth++;
+            if(*cursor == ']' || *cursor == '}' || *cursor == ')') depth--;
+            cursor++;
+        }
+        if(*cursor == '\0') return 0;
+        if(ordinal == index) {
+            start = skip_ws(replacement);
+            size_t length = strlen(start);
+            if(used + length + 2 >= size) return 0;
+            memcpy(out + used, start, length);
+            used += length;
+        } else {
+            size_t length = (size_t)(cursor - start);
+            if(ordinal > 0 && *start == ' ') { start++; length--; }
+            if(used + length + 2 >= size) return 0;
+            memcpy(out + used, start, length);
+            used += length;
+        }
+        if(*cursor == ']') {
+            if(ordinal < index) return 0;
+            out[used++] = ']';
+            out[used] = '\0';
+            return 1;
+        }
+        out[used++] = ',';
+        out[used++] = ' ';
+        cursor++;
+        ordinal++;
+    }
+}
+
 /* Buffers typed_body_statements keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct TypedBodyStatementsBuffers {
@@ -614,6 +683,15 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
                 value.kind == COMPILE_COMPOUND ? value.type : "s64";
             if(equals != NULL && !compile_type_value(type, &value))
                 goto failed;
+            if(equals == NULL &&
+               zero_array_literal(type, buffers->combined,
+                                  sizeof(buffers->combined))) {
+                value.kind = COMPILE_COMPOUND;
+                copy_text(value.type, sizeof(value.type), type);
+                copy_text(value.literal, sizeof(value.literal),
+                          buffers->combined);
+                equals = (char *)"";
+            }
             if(!typed_add_local(body, buffers->text, type,
                                 equals != NULL ? &value : NULL)) goto failed;
             continue;
@@ -627,6 +705,39 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
             else op = '\0';
             *equals++ = '\0';
             trim_in_place(buffers->text);
+            {
+                char *bracket = strchr(buffers->text, '[');
+                if(bracket != NULL && !op) {
+                    /* `name[index] = value` on an array local. */
+                    char *close = strrchr(bracket, ']');
+                    CompileValue at = {0}, element = {0};
+                    char element_type[ZIR_NAME_MAX];
+                    int capacity = 0, target;
+                    if(close == NULL || close[1] != '\0') goto failed;
+                    *bracket++ = '\0';
+                    *close = '\0';
+                    trim_in_place(buffers->text);
+                    target = typed_local_index(body, buffers->text);
+                    if(target < 0 ||
+                       !ArrayElementType(body->names.items[target].type,
+                                         element_type, sizeof(element_type),
+                                         &capacity) ||
+                       !typed_body_expression(body, bracket, &at) ||
+                       at.kind != COMPILE_INTEGER || at.integer < 0 ||
+                       at.integer >= capacity ||
+                       !typed_body_expression(body, equals, &element) ||
+                       !compile_type_value(element_type, &element) ||
+                       !store_array_element(body->names.items[target].expr,
+                                            at.integer, element.literal,
+                                            buffers->combined,
+                                            sizeof(buffers->combined)))
+                        goto failed;
+                    copy_text(body->names.items[target].expr,
+                              sizeof(body->names.items[target].expr),
+                              buffers->combined);
+                    continue;
+                }
+            }
             int local = typed_local_index(body, buffers->text);
             if(local < 0) goto failed;
             CompileValue value = {0};
@@ -988,13 +1099,15 @@ int
 EvaluateCompileConditionBound(const ZirModule *module, const char *source,
                               ZirSourceSpan span, const char names[][ZIR_NAME_MAX],
                               const char types[][ZIR_NAME_MAX],
+                              const char exprs[][ZIR_NAME_MAX],
                               const long *values, int count, int *truth)
 {
     ZirConsts constants = {0};
     CompileValue value = {0};
     int fuel = 100000, ok;
     if(module == NULL || source == NULL || truth == NULL || count < 0 ||
-       (count > 0 && (names == NULL || types == NULL || values == NULL)))
+       (count > 0 && (names == NULL || types == NULL || exprs == NULL ||
+                      values == NULL)))
         return 0;
     constants.count = module->define_count + count;
     constants.items = calloc((size_t)constants.count + 1,
@@ -1015,8 +1128,11 @@ EvaluateCompileConditionBound(const ZirModule *module, const char *source,
         copy_text(constant->type, sizeof(constant->type),
                   types[i][0] ? types[i] : "s64");
         snprintf(constant->expr, sizeof(constant->expr), "%ld", values[i]);
-        enum_member_text(module, types[i], values[i], constant->expr,
-                         sizeof(constant->expr));
+        if(exprs[i][0])
+            copy_text(constant->expr, sizeof(constant->expr), exprs[i]);
+        else
+            enum_member_text(module, types[i], values[i], constant->expr,
+                             sizeof(constant->expr));
         copy_text(constant->path, sizeof(constant->path), SpanPath(span));
     }
     law_enum_members = 1;

@@ -76,3 +76,36 @@ CPP
     done
 done
 cmp "$work/source.zib" "$work/saved.zib"
+
+cat > "$work/field_type.zi" <<'ZI'
+Point :: struct { x: s64; }
+ZI
+cat > "$work/field_owner.zi" <<'ZI'
+#import, file "field_type.zi";
+Holder :: struct { point: Point; }
+Make :: () -> Point { return Point.{.x = 20} }
+ZI
+cat > "$work/field_app.zi" <<'ZI'
+Owner :: #import "field_owner";
+#program_export
+Answer :: () -> s64 {
+    value: Owner.Holder = Owner.Holder.{.point = Owner.Make()}
+    return value.point.x
+}
+ZI
+"$ziran" check --root "$work" "$work/field_app.zi"
+"$ziran" ir --root "$work" -o "$work/field-ir" "$work/field_app.zi"
+for input in "$work/field_app.zi" "$work/field-ir/field_app.zir"; do
+    case "$input" in
+        *.zi) root=$work; suffix=field-source ;;
+        *) root=$work/field-ir; suffix=field-saved ;;
+    esac
+    "$ziran" build --target=c --root "$root" -o "$work/$suffix" "$input"
+    cat > "$work/$suffix/main.c" <<'C'
+#include "field_app.h"
+int main(void) { return Answer() == 20 ? 0 : 1; }
+C
+    "${CC:-cc}" -std=c11 -I"$repo/include" -I"$work/$suffix" \
+        "$work/$suffix"/*.c -o "$work/$suffix/program"
+    "$work/$suffix/program"
+done

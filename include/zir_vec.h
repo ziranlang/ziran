@@ -1,5 +1,5 @@
-#ifndef ZIRAN_VEC_H
-#define ZIRAN_VEC_H
+#ifndef ZIRAN_RUNTIME_VEC_H
+#define ZIRAN_RUNTIME_VEC_H
 
 #include <stdint.h>
 #include <stddef.h>

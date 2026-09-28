@@ -53,6 +53,14 @@ typedef struct Emitter {
     int loop_count;
     int loop_start[128];
     int loop_id[128];
+    /* Whether each open loop is a native counting loop whose header does
+     * the stepping, so its marked step statements are left out. */
+    int loop_native[128];
+    /* A native header for the next lowered for loop's while, set by the
+     * block that holds it, and how many leading body statements the header
+     * already binds. */
+    char loop_header[ZIR_TEXT_MAX];
+    int loop_header_binds;
     int sequence_terminated;
     /* Expression folding (Go target): "pure" marks the last emitted expression
      * as free of side effects, so it can be inlined into its consumer instead

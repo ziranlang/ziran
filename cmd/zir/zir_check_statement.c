@@ -886,6 +886,9 @@ validate_loop_targets(Checker *c, const ZirFunction *fn)
         }
         if(st->loop_id < 0 || st->target_id < 0 ||
            (st->loop_id && st->kind != ZIR_STMT_WHILE) ||
+           st->for_form < 0 || st->for_form > 2 ||
+           (st->for_form && !st->loop_id) ||
+           st->for_step < 0 || (st->for_step && st->kind != ZIR_STMT_ASSIGN) ||
            (st->target_id && st->kind != ZIR_STMT_BREAK &&
             st->kind != ZIR_STMT_CONTINUE)) {
             error(c, st->span, "invalid loop control metadata", "");

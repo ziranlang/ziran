@@ -466,6 +466,130 @@ typed_initializer(const Emitter *e, int root, const char *declared)
     return 1;
 }
 
+/* A step of an open native counting loop: its header steps instead. */
+static int
+native_step(const Emitter *e, const ZirStmt *st)
+{
+    if(!st->for_step)
+        return 0;
+    for(int i = 0; i < e->loop_count; i++)
+        if(e->loop_native[i] && e->loop_id[i] == st->for_step)
+            return 1;
+    return 0;
+}
+
+/* Whether statements begin..end, other than the loop's own steps, read
+ * name. */
+static int
+loop_body_reads(const Emitter *e, int begin, int end, int loop, const char *name)
+{
+    const ZirFunction *fn = e->fn;
+    for(int s = begin; s < end; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        if(st->for_step == loop)
+            continue;
+        if(st->kind == ZIR_STMT_DECL && !strcmp(st->name, name))
+            return 1;
+        for(int root = st->expr_root; root >= 0; root = fn->exprs[root].next_sibling)
+            if(expression_reads(fn, root, name))
+                return 1;
+        if(st->lhs_root >= 0 && expression_reads(fn, st->lhs_root, name))
+            return 1;
+    }
+    return 0;
+}
+
+/* A lowered for loop is a block holding its counter and a marked while:
+ *     { step: s64 = 0; while step <= 2 { ...; step += 1 } }
+ * C and Go write it as one counting loop, and Go walks a local collection
+ * whose index goes unused with range. */
+static int
+native_for(Emitter *e, int open, int close)
+{
+    const ZirFunction *fn = e->fn;
+    const ZirStmt *counter, *loop;
+    char counter_name[ZIR_NAME_MAX], start[ZIR_TEXT_MAX], condition[ZIR_TEXT_MAX];
+    char plain[ZIR_TEXT_MAX];
+    const char *step = "++";
+    int loop_close, saved_locals = e->local_count, saved_serial = e->serial;
+    if(open + 2 >= close)
+        return 0;
+    counter = &fn->stmts[open + 1];
+    loop = &fn->stmts[open + 2];
+    if(counter->kind != ZIR_STMT_DECL || counter->expr_root < 0 ||
+       loop->kind != ZIR_STMT_WHILE || !loop->for_form || loop->is_parallel)
+        return 0;
+    loop_close = block_end(fn, open + 2, close);
+    if(loop_close + 1 != close)
+        return 0;
+    for(int s = open + 3; s < loop_close; s++)
+        if(fn->stmts[s].for_step == loop->loop_id) {
+            if(!strcmp(fn->stmts[s].assignment_op, "-="))
+                step = "--";
+            break;
+        }
+    TargetBindingName(fn, e->target, counter->name, counter_name, sizeof(counter_name));
+    /* Header parts must not need statements of their own. */
+    {
+        char *scratch_text = NULL;
+        size_t scratch_size = 0;
+        FILE *saved_out = e->out;
+        FILE *scratch = open_memstream(&scratch_text, &scratch_size);
+        if(scratch == NULL)
+            return 0;
+        e->out = scratch;
+        emit_expr(e, counter->expr_root, counter->type, start, sizeof(start));
+        track_local(e, counter->name, counter->type);
+        emit_expr(e, loop->expr_root, "bool", condition, sizeof(condition));
+        fclose(scratch);
+        e->out = saved_out;
+        free(scratch_text);
+        if(scratch_size != 0) {
+            e->local_count = saved_locals;
+            e->serial = saved_serial;
+            return 0;
+        }
+    }
+    bare(condition, plain, sizeof(plain));
+    e->loop_header_binds = 0;
+    if(loop->for_form == 2 && e->target == ZIR_GO && open + 3 < loop_close) {
+        const ZirStmt *value = &fn->stmts[open + 3];
+        const ZirExpr *index = value->kind == ZIR_STMT_DECL && value->expr_root >= 0 ?
+            &fn->exprs[value->expr_root] : NULL;
+        /* range over a string yields runes, not bytes, so strings count. */
+        if(index != NULL && index->kind == ZIR_EXPR_INDEX &&
+           fn->exprs[index->left].kind == ZIR_EXPR_IDENT &&
+           strcmp(canonical(fn->exprs[index->left].type), "string") != 0 &&
+           !call_can_change(e, index->left) &&
+           !loop_body_reads(e, open + 4, loop_close, loop->loop_id, counter->name)) {
+            char collection[ZIR_NAME_MAX], value_name[ZIR_NAME_MAX];
+            resolve(e, fn->exprs[index->left].name, collection, sizeof(collection));
+            TargetBindingName(fn, e->target, value->name, value_name, sizeof(value_name));
+            if(loop_body_reads(e, open + 4, loop_close, loop->loop_id, value->name))
+                format(e->loop_header, sizeof(e->loop_header), "for _, %s := range %s",
+                       value_name, collection);
+            else
+                format(e->loop_header, sizeof(e->loop_header), "for range %s", collection);
+            track_local(e, value->name, value->type);
+            e->loop_header_binds = 1;
+        }
+    }
+    if(!e->loop_header_binds) {
+        if(e->target == ZIR_GO)
+            format(e->loop_header, sizeof(e->loop_header), "for %s := %s(%s); %s; %s%s",
+                   counter_name, TargetType(counter->type, e->target), start,
+                   plain, counter_name, step);
+        else
+            format(e->loop_header, sizeof(e->loop_header), "for (%s %s = %s; %s; %s%s)",
+                   TargetType(counter->type, e->target), counter_name, start,
+                   plain, counter_name, step);
+    }
+    emit_sequence(e, open + 2, loop_close + 1);
+    e->loop_header[0] = '\0';
+    e->local_count = saved_locals;
+    return 1;
+}
+
 static void
 emit_sequence(Emitter *e,int begin,int end)
 {
@@ -473,6 +597,8 @@ emit_sequence(Emitter *e,int begin,int end)
     e->sequence_terminated=0;
     for(int i=begin;i<end;i++) {
         const ZirStmt *st=&e->fn->stmts[i];
+        if(st->kind == ZIR_STMT_ASSIGN && native_step(e, st))
+            continue;
         char value[ZIR_TEXT_MAX],lhs[ZIR_TEXT_MAX],result[ZIR_TEXT_MAX];
         switch(st->kind) {
         case ZIR_STMT_DECL:
@@ -513,6 +639,20 @@ emit_sequence(Emitter *e,int begin,int end)
                 const char *type=canonical(e->fn->exprs[st->lhs_root].type);
                 if(width(type))number(e,type,old,type,value,e->fn->exprs[st->expr_root].type,operation(op),result,sizeof(result));
                 else format(result,sizeof(result),"%s %s %s",old,op,value);
+                /* Go wraps its own compound operators, so x = x + 1 is x++
+                 * and x = x + y is x += y. */
+                size_t old_length = strlen(old);
+                if(e->target == ZIR_GO && !strcmp(old, lhs) &&
+                   !strncmp(result, old, old_length) && result[old_length] == ' ' &&
+                   !strncmp(result + old_length + 1, op, strlen(op)) &&
+                   result[old_length + 1 + strlen(op)] == ' ') {
+                    const char *operand = result + old_length + strlen(op) + 2;
+                    if(!strcmp(operand, "1") && (!strcmp(op, "+") || !strcmp(op, "-")))
+                        line(e, "%s%s", lhs, !strcmp(op, "+") ? "++" : "--");
+                    else
+                        line(e, "%s %s= %s", lhs, op, operand);
+                    break;
+                }
             } else {
                 /* A call assigned to a name runs last, so it assigns directly. */
                 e->call_in_place = e->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT;
@@ -589,7 +729,13 @@ emit_sequence(Emitter *e,int begin,int end)
                     labeled=1;
             if(labeled && e->target==ZIR_GO)
                 line(e,"zir_loop_%d:",st->loop_id);
-            {
+            int native = st->for_form && e->loop_header[0];
+            int binds = native ? e->loop_header_binds : 0;
+            if(native) {
+                line(e, "%s {", e->loop_header);
+                e->loop_header[0] = '\0';
+                e->indent++;
+            } else {
                 /* A condition that needs no setup statements goes in the
                  * loop header; otherwise it runs first in each iteration. */
                 char *scratch_text = NULL;
@@ -629,8 +775,9 @@ emit_sequence(Emitter *e,int begin,int end)
                 exit(1);
             }
             e->loop_start[e->loop_count] = e->local_count;
+            e->loop_native[e->loop_count] = native;
             e->loop_id[e->loop_count++] = st->loop_id;
-            emit_sequence(e,i+1,close);
+            emit_sequence(e,i+1+binds,close);
             e->loop_count--;
             if(labeled && e->target!=ZIR_GO) {
                 e->indent--;line(e,"}");
@@ -642,7 +789,11 @@ emit_sequence(Emitter *e,int begin,int end)
             i=close;break;
         }
         case ZIR_STMT_BLOCK_OPEN: {
-            int close=block_end(e->fn,i,end);line(e,"{");e->indent++;emit_sequence(e,i+1,close);e->indent--;line(e,"}");i=close;break;
+            int close=block_end(e->fn,i,end);
+            if(native_for(e, i, close)) {
+                i = close;
+                break;
+            }line(e,"{");e->indent++;emit_sequence(e,i+1,close);e->indent--;line(e,"}");i=close;break;
         }
         case ZIR_STMT_BREAK:case ZIR_STMT_CONTINUE:
             if(e->loop_count > 0) {

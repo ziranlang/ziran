@@ -856,7 +856,7 @@ range_line(ZirFunction *out, ZirStmtKind kind, const char *line,
 static int
 range_advance(ZirFunction *out, const char *cursor,
               const char *terminal, int reverse, ZirSourceSpan span,
-              int target_id)
+              int target_id, int step_of)
 {
     char line[ZIR_TEXT_MAX];
     /* Stepping past a constant bound cannot overflow, so only a computed
@@ -870,28 +870,35 @@ range_advance(ZirFunction *out, const char *cursor,
     if(*terminal)
         out->stmts[out->stmt_count - 2].target_id = target_id;
     if(snprintf(line, sizeof(line), "%s %s= 1", cursor,
-                reverse ? "-" : "+") >= (int)sizeof(line))
+                reverse ? "-" : "+") >= (int)sizeof(line) ||
+       !range_line(out, ZIR_STMT_ASSIGN, line, span))
         return 0;
-    return range_line(out, ZIR_STMT_ASSIGN, line, span);
+    out->stmts[out->stmt_count - 1].for_step = step_of;
+    return 1;
 }
 
+/* step_of names the loop whose native header can take over this step,
+ * or is zero. */
 static int
 loop_advance(ZirFunction *out, const char *cursor, const char *terminal,
-             int reverse, int is_range, ZirSourceSpan span, int target_id)
+             int reverse, int is_range, ZirSourceSpan span, int target_id,
+             int step_of)
 {
     char line[ZIR_TEXT_MAX];
     if(is_range)
         return range_advance(out, cursor, terminal, reverse, span,
-                             target_id);
-    if(snprintf(line, sizeof(line), "%s += 1", cursor) >= (int)sizeof(line))
+                             target_id, step_of);
+    if(snprintf(line, sizeof(line), "%s += 1", cursor) >= (int)sizeof(line) ||
+       !range_line(out, ZIR_STMT_ASSIGN, line, span))
         return 0;
-    return range_line(out, ZIR_STMT_ASSIGN, line, span);
+    out->stmts[out->stmt_count - 1].for_step = step_of;
+    return 1;
 }
 
 static int
 copy_loop_body(ZirFunction *out, const ZirFunction *fn, int index, int close,
                const char *cursor, const char *terminal, int reverse,
-               int is_range, int loop_id)
+               int is_range, int loop_id, int step_of)
 {
     ZirStmtKind *scopes = calloc((size_t)(close - index + 1), sizeof(*scopes));
     if(scopes == NULL) return 0;
@@ -910,7 +917,7 @@ copy_loop_body(ZirFunction *out, const ZirFunction *fn, int index, int close,
             if(((statement->target_id == loop_id && loop_id != 0) ||
                 (statement->target_id == 0 && !nested_loop)) &&
                !loop_advance(out, cursor, terminal, reverse, is_range,
-                             statement->span, statement->target_id)) {
+                             statement->span, statement->target_id, step_of)) {
                 ok = 0;
                 break;
             }
@@ -1031,9 +1038,10 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
                 reverse ? ">=" : "<=", reverse ? first : last) >=
        (int)sizeof(line) || !range_line(&out, ZIR_STMT_WHILE, line, span))
         goto done;
-    out.stmts[out.stmt_count - 1].loop_id = header->loop_id;
-    out.stmts[out.stmt_count - 1].is_parallel = header->is_parallel;
-    out.stmts[out.stmt_count - 1].is_gpu = header->is_gpu;
+    int while_at = out.stmt_count - 1;
+    out.stmts[while_at].loop_id = header->loop_id;
+    out.stmts[while_at].is_parallel = header->is_parallel;
+    out.stmts[while_at].is_gpu = header->is_gpu;
     if(!own_cursor &&
        (snprintf(line, sizeof(line), "%s: s64 = %s", binder, cursor) >=
         (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span)))
@@ -1049,9 +1057,14 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
     }
     {
         const char *terminal = constant ? "" : reverse ? first : last;
+        /* A constant range counted by its binder is a native counting loop
+         * on targets that have one: the header takes over each step. */
+        int step_of = constant && own_cursor ? header->loop_id : 0;
+        if(step_of)
+            out.stmts[while_at].for_form = 1;
         if(!copy_loop_body(&out, fn, index, close, cursor, terminal, reverse, 1,
-                           header->loop_id)) goto done;
-        if(!range_advance(&out, cursor, terminal, reverse, span, 0) ||
+                           header->loop_id, step_of)) goto done;
+        if(!range_advance(&out, cursor, terminal, reverse, span, 0, step_of) ||
            !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
            !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;
     }
@@ -1140,6 +1153,11 @@ lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
     out.stmts[out.stmt_count - 1].loop_id = header->loop_id;
     out.stmts[out.stmt_count - 1].is_parallel = header->is_parallel;
     out.stmts[out.stmt_count - 1].is_gpu = header->is_gpu;
+    /* A direct walk is a native counting loop, or a range loop, where the
+     * target has one; the value binding comes first in the body. */
+    if(direct && header->loop_id && !pointer)
+        out.stmts[out.stmt_count - 1].for_form = 2;
+    int step_of = direct && header->loop_id && !pointer ? header->loop_id : 0;
     if(!direct) {
         if(snprintf(line, sizeof(line), "%s: s64 = %s", item_index,
                     reverse ? "0" : cursor) >= (int)sizeof(line)) goto done;
@@ -1157,8 +1175,8 @@ lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
                  item_index) >= (int)sizeof(line) ||
         !range_line(&out, ZIR_STMT_DECL, line, span))) goto done;
     if(!copy_loop_body(&out, fn, index, close, cursor, "", 0, 0,
-                       header->loop_id) ||
-       !loop_advance(&out, cursor, "", 0, 0, span, 0) ||
+                       header->loop_id, step_of) ||
+       !loop_advance(&out, cursor, "", 0, 0, span, 0, step_of) ||
        !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
        !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;
     for(int i = close + 1; i < fn->stmt_count; i++)

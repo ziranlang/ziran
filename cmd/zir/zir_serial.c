@@ -42,7 +42,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 42u
+#define ZIR_FORMAT_VERSION 43u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -60,6 +60,7 @@ static const Field statement_fields[] = {
     INTEGER_FIELD(ZirStmt, kind), TEXT_FIELD(ZirStmt, text),
     INTEGER_FIELD(ZirStmt, is_else), INTEGER_FIELD(ZirStmt, is_using),
     INTEGER_FIELD(ZirStmt, loop_id), INTEGER_FIELD(ZirStmt, target_id),
+    INTEGER_FIELD(ZirStmt, for_form), INTEGER_FIELD(ZirStmt, for_step),
     INTEGER_FIELD(ZirStmt, expr_root),
     INTEGER_FIELD(ZirStmt, lhs_root), STRING_FIELD(ZirStmt, name),
     STRING_FIELD(ZirStmt, type), STRING_FIELD(ZirStmt, assignment_op),
@@ -667,6 +668,10 @@ validate_program(const ZirProgram *program)
                    (statement->is_else && statement->kind != ZIR_STMT_IF) ||
                    statement->loop_id < 0 || statement->target_id < 0 ||
                    (statement->loop_id && statement->kind != ZIR_STMT_WHILE) ||
+                   statement->for_form < 0 || statement->for_form > 2 ||
+                   (statement->for_form && !statement->loop_id) ||
+                   statement->for_step < 0 ||
+                   (statement->for_step && statement->kind != ZIR_STMT_ASSIGN) ||
                    (statement->target_id &&
                     statement->kind != ZIR_STMT_BREAK &&
                     statement->kind != ZIR_STMT_CONTINUE) ||

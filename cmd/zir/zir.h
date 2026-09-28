@@ -106,6 +106,8 @@ typedef struct ZirStmt {
     int is_else;        /* checked branch role; source text is diagnostic only */
     int loop_id;        /* checked loop identity for named control flow */
     int target_id;      /* target loop for named break/continue; zero means innermost */
+    int for_form;       /* on a lowered for loop's while: 1 counts, 2 walks a collection */
+    int for_step;       /* on a counting loop's step: that loop's loop_id */
     int expr_root;      /* index into enclosing function exprs, or -1 */
     int lhs_root;       /* structured assignment destination, or -1 */
     char name[ZIR_NAME_MAX]; /* declaration binding */

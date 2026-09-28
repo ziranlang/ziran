@@ -807,9 +807,15 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             break;
         }
         if(integer_type(expression->type) &&
-           wrapping_operation(expression->op))
-            snprintf(output, size, "(%s).%s(%s)", left,
-                     wrapping_method(expression->op), right);
+           wrapping_operation(expression->op)) {
+            if(!strcmp(expression->type, "integer"))
+                snprintf(output, size,
+                         "((%s as i64).%s(%s as i64))", left,
+                         wrapping_method(expression->op), right);
+            else
+                snprintf(output, size, "(%s).%s(%s)", left,
+                         wrapping_method(expression->op), right);
+        }
         else if(!strcmp(expression->op, "<<") ||
                 !strcmp(expression->op, ">>") ||
                 !strcmp(expression->op, "~"))
@@ -1110,11 +1116,6 @@ static void validate_module(const ZirModule *module)
 {
     RustEmitter emitter = {0};
     emitter.module = module;
-    if(module->define_count) {
-        Diagnostic(module->span, "zir_rust.module",
-                   "the initial Rust target does not support named constants yet");
-        exit(1);
-    }
     for(int index = 0; index < module->global_count; index++) {
         const ZirGlobal *global = &module->globals[index];
         char type_name[ZIR_NAME_MAX];

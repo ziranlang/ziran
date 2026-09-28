@@ -716,6 +716,11 @@ static void function_symbol(RustEmitter *emitter, const ZirModule *module,
                             const ZirFunction *function, char *output,
                             size_t size)
 {
+    /* #program_export fixes the linker name, as on the C targets. */
+    if(function->export_symbol[0]) {
+        snprintf(output, size, "%s", function->export_symbol);
+        return;
+    }
     NativeGoFunctionName(emitter->programs, emitter->program_count, module,
                          function, output, size);
 }
@@ -1500,8 +1505,13 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             unsupported_expression(emitter, expression);
         break;
     case ZIR_EXPR_FLOAT:
-        snprintf(output, size, "%s%s", expression->text,
-                 !strcmp(expression->type, "float32") ? "f32" : "f64");
+        /* An untyped float takes its type from context, like 1.5 in Rust. */
+        if(!strcmp(expression->type, "real"))
+            snprintf(output, size, "%s%s", expression->text,
+                     strpbrk(expression->text, ".eE") ? "" : ".0");
+        else
+            snprintf(output, size, "%s%s", expression->text,
+                     !strcmp(expression->type, "float32") ? "f32" : "f64");
         break;
     case ZIR_EXPR_CALL:
         emit_call(emitter, expression, output, size);
@@ -1584,7 +1594,13 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         char element[ZIR_NAME_MAX];
         char base[ZIR_RUST_TEXT_MAX];
         char index[ZIR_RUST_TEXT_MAX];
-        emit_destination(emitter, expression->left, base, sizeof(base));
+        ZirExprKind base_kind = emitter->function->exprs[expression->left].kind;
+        /* Only places are borrowed; a literal or call result is indexed as a value. */
+        if(base_kind == ZIR_EXPR_COMPOUND || base_kind == ZIR_EXPR_CALL ||
+           base_kind == ZIR_EXPR_CONDITIONAL)
+            emit_expression(emitter, expression->left, base, sizeof(base));
+        else
+            emit_destination(emitter, expression->left, base, sizeof(base));
         emit_expression(emitter, expression->right, index, sizeof(index));
         if(!strcmp(emitter->function->exprs[expression->left].type,
                    "string")) {
@@ -2014,9 +2030,21 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
         return;
     }
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
-        char zero[ZIR_NAME_MAX];
+        char zero[ZIR_RUST_TEXT_MAX];
         rust_zero_value(emitter, element, zero, sizeof(zero));
         snprintf(output, size, "[%s; %d]", zero, capacity);
+        return;
+    }
+    if(type[0] == '*') {
+        snprintf(output, size, "core::ptr::null_mut()");
+        return;
+    }
+    if(!strcmp(type, "bool")) {
+        snprintf(output, size, "false");
+        return;
+    }
+    if(float_type(type)) {
+        snprintf(output, size, "0.0");
         return;
     }
     if(!rust_record_type(emitter, type, &owner, &record) ||
@@ -2031,9 +2059,14 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
     int first = 1;
     while(TypeNextField(record, &offset, &field) == 1) {
         char field_name[ZIR_NAME_MAX];
-        char value[ZIR_NAME_MAX];
+        char value[ZIR_RUST_TEXT_MAX];
+        /* Field types are spelled in the record's own module. */
+        const ZirModule *saved_module = emitter->module;
+        if(owner != NULL)
+            emitter->module = owner;
         rust_field_name(record, field.name, field_name, sizeof(field_name));
         rust_zero_value(emitter, field.type, value, sizeof(value));
+        emitter->module = saved_module;
         used = strlen(output);
         snprintf(output + used, size - used, "%s%s: %s", first ? "" : ", ",
                  field_name, value);
@@ -2423,17 +2456,16 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     char parts[32][ZIR_RUST_TEXT_MAX];
     char symbol[ZIR_RUST_NAME_MAX * 2];
     int count;
-    if(function->is_extern || function->is_template ||
-       function->export_symbol[0]) {
-        Diagnostic(function->span, "zir_rust.function",
-                   "unsupported procedure form in the initial Rust target: %s",
-                   function->name);
-        exit(1);
-    }
+    /* Templates have no body of their own, only checked specializations,
+     * and foreign declarations are emitted with the imports. */
+    if(function->is_extern || function->is_template)
+        return;
     emitter->module = module;
     emitter->function = function;
     emitter->local_count = 0;
     function_symbol(emitter, module, function, symbol, sizeof(symbol));
+    if(function->export_symbol[0])
+        fputs("#[no_mangle]\n", emitter->output);
     fputs("#[inline(never)]\npub extern \"C\" fn ", emitter->output);
     fputs(symbol, emitter->output);
     fputc('(', emitter->output);

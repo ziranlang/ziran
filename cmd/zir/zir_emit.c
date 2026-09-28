@@ -4395,9 +4395,35 @@ emit_sequence(Emitter *e,int begin,int end)
                     labeled=1;
             if(labeled && e->target==ZIR_GO)
                 line(e,"zir_loop_%d:",st->loop_id);
-            line(e,e->target==ZIR_GO?"for {":"while (true) {");e->indent++;
-            emit_expr(e,st->expr_root,"bool",value,sizeof(value));
-            line(e,e->target==ZIR_GO?"if !%s { break }":"if (!%s) { break; }",value);
+            {
+                /* A condition that needs no setup statements goes in the
+                 * loop header; otherwise it runs first in each iteration. */
+                char *scratch_text = NULL;
+                size_t scratch_size = 0;
+                FILE *saved_out = e->out;
+                int saved_serial = e->serial;
+                FILE *scratch = open_memstream(&scratch_text, &scratch_size);
+                int header = 0;
+                if(scratch != NULL) {
+                    e->out = scratch;
+                    emit_expr(e,st->expr_root,"bool",value,sizeof(value));
+                    fclose(scratch);
+                    e->out = saved_out;
+                    header = scratch_size == 0;
+                    free(scratch_text);
+                }
+                if(header) {
+                    char plain[ZIR_TEXT_MAX];
+                    line(e,e->target==ZIR_GO?"for %s {":"while (%s) {",
+                         bare(value,plain,sizeof(plain)));
+                    e->indent++;
+                } else {
+                    e->serial = saved_serial;
+                    line(e,e->target==ZIR_GO?"for {":"while (true) {");e->indent++;
+                    emit_expr(e,st->expr_root,"bool",value,sizeof(value));
+                    line(e,e->target==ZIR_GO?"if !%s { break }":"if (!%s) { break; }",value);
+                }
+            }
             if(labeled && e->target!=ZIR_GO) {
                 line(e,"{");e->indent++;
             }

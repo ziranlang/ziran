@@ -5,10 +5,12 @@ CFLAGS ?= -O2
 CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
 DEPFLAGS = -MMD -MP
 
-# Build in parallel by default, but leave most of the machine free:
-# a quarter of the cores, between 2 and 8 jobs. `make -jN` still wins.
-JOBS ?= $(shell n=$$(nproc 2>/dev/null || echo 2); n=$$((n / 4)); \
-    [ $$n -lt 2 ] && n=2; [ $$n -gt 8 ] && n=8; echo $$n)
+# Build in parallel on half the cores, between 2 and 16 jobs, at low
+# priority so the desktop and other work keep the CPU when they need it.
+# `make -jN` and `NICE=` override.
+JOBS ?= $(shell n=$$(nproc 2>/dev/null || echo 2); n=$$((n / 2)); \
+    [ $$n -lt 2 ] && n=2; [ $$n -gt 16 ] && n=16; echo $$n)
+NICE ?= nice -n 10
 ifeq ($(filter -j%,$(MAKEFLAGS)),)
 MAKEFLAGS += -j$(JOBS)
 endif
@@ -53,11 +55,11 @@ install-user: all
 
 $(BUILD_DIR)/obj/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
+	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
+	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 # Large modules compile in parts, then merge into one object each; their
 # shared helpers are hidden and localized so they never leave it.
@@ -107,7 +109,7 @@ $(PACKAGE_C)/.generated: $(PACKAGE_SOURCES) $(BIN_DIR)/zi2c
 
 $(BUILD_DIR)/obj/package-c/%.o: $(PACKAGE_C)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I$(PACKAGE_C) $(DEPFLAGS) -c -o $@ $<
+	$(NICE) $(CC) $(CFLAGS) -I$(PACKAGE_C) $(DEPFLAGS) -c -o $@ $<
 
 $(call obj,cmd/package_main.c cmd/package_host.c): CFLAGS += -I$(PACKAGE_C)
 

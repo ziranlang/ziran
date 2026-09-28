@@ -157,7 +157,8 @@ main(int argc, char **argv)
             view.module_count = 1;
             c_build_syms(&view, &syms[i]);
         }
-        c_lower(linked, root, out_dir, syms, linked->module_count, 1);
+        if(!c_lower(linked, root, out_dir, syms, linked->module_count, 1))
+            goto done;
     } else {
         for(i = 0; i < file_count; i++)
             symbol_count += progs[i]->module_count;
@@ -175,7 +176,8 @@ main(int argc, char **argv)
             }
         /* Pass 2: lower with full cross-module resolution. */
         for(i = 0; i < file_count; i++)
-            c_lower(progs[i], root, out_dir, syms, symbol_count, 0);
+            if(!c_lower(progs[i], root, out_dir, syms, symbol_count, 0))
+                goto done;
     }
     result = 0;
 done:

@@ -133,7 +133,8 @@ main(int argc, char **argv)
             view.module_count = 1;
             cpp_build_syms(&view, &syms[position++]);
         }
-        cpp_lower(linked, root, out_dir, syms, symbol_count);
+        if(!cpp_lower(linked, root, out_dir, syms, symbol_count))
+            goto done;
     } else {
         for(i = 0; i < file_count; i++)
             for(int m = 0; m < progs[i]->module_count; m++) {
@@ -143,7 +144,8 @@ main(int argc, char **argv)
                 cpp_build_syms(&view, &syms[position++]);
             }
         for(i = 0; i < file_count; i++)
-            cpp_lower(progs[i], root, out_dir, syms, symbol_count);
+            if(!cpp_lower(progs[i], root, out_dir, syms, symbol_count))
+                goto done;
     }
     result = 0;
 done:

@@ -691,9 +691,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - `ziran explain` exposes a stable registry for every diagnostic code currently
   emitted by the compiler, with textual and JSON output. `ziran explain --list`
   enumerates the registry, and `tests/explain.sh` fails if a new emitted code is
-  omitted. Go lowering reports malformed module state and output-file failures
-  through registered `zir_go` codes, including JSON lines for unwritable output
-  destinations.
+  omitted. Native C, C++, and Go lowering reports malformed module state and
+  output-file failures through registered target codes, including JSON lines
+  for unwritable output destinations.
 - Whole local aggregates, fresh aggregate call results, vector-bearing
   record-literal fields, and plain record-member `Vec` paths rooted at local
   aggregates can move through declaration, assignment, argument passing, and

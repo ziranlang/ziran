@@ -20,7 +20,9 @@ format(char *out, size_t size, const char *format_string, ...)
     int n=vsnprintf(out,size,format_string,ap);
     va_end(ap);
     if(n<0 || (size_t)n>=size) {
-        fprintf(stderr,"generated expression exceeds output limit\n"); exit(1);
+        Diagnostic((ZirSourceSpan){0}, "zir.output",
+                   "generated expression exceeds output limit");
+        exit(1);
     }
     return n;
 }
@@ -697,7 +699,8 @@ NativeHeaderGuard(const char *stem, char *out, size_t size)
     uint64_t hash = UINT64_C(14695981039346656037);
     size_t used = 0;
     if(size < 24) {
-        fprintf(stderr, "generated header guard exceeds output limit\n");
+        Diagnostic((ZirSourceSpan){0}, "zir.output",
+                   "generated header guard exceeds output limit");
         exit(1);
     }
     out[used++] = 'Z';
@@ -706,7 +709,8 @@ NativeHeaderGuard(const char *stem, char *out, size_t size)
     for(const unsigned char *p = (const unsigned char *)stem; *p; p++) {
         hash = (hash ^ *p) * UINT64_C(1099511628211);
         if(used + 20 >= size) {
-            fprintf(stderr, "generated header guard exceeds output limit\n");
+            Diagnostic((ZirSourceSpan){0}, "zir.output",
+                       "generated header guard exceeds output limit");
             exit(1);
         }
         out[used++] = isalnum(*p) ? (char)toupper(*p) : '_';
@@ -830,7 +834,8 @@ emit_field_path(const ZirModule *module, ZirTarget target,
         size_t length = dot == NULL ? strlen(part) : (size_t)(dot - part);
         char name[ZIR_NAME_MAX], mapped[ZIR_NAME_MAX], next[ZIR_TEXT_MAX];
         if(length == 0 || length >= sizeof(name)) {
-            fprintf(stderr, "invalid checked record field path\n");
+            Diagnostic(module->span, "emit.expression",
+                       "invalid checked record field path");
             exit(1);
         }
         memcpy(name, part, length);
@@ -886,7 +891,8 @@ emit_field_path(const ZirModule *module, ZirTarget target,
                 break;
             }
         if(!found) {
-            fprintf(stderr, "invalid checked record field path\n");
+            Diagnostic(module->span, "emit.expression",
+                       "invalid checked record field path");
             exit(1);
         }
         part = dot + 1;
@@ -3981,7 +3987,11 @@ EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget targe
     e.out=out;e.module=module;e.fn=fn;e.target=target;e.resolve=resolver;e.context=context;e.indent=1;
     e.minify = zir_minify_output;
     e.locals=calloc((size_t)fn->stmt_count+65,sizeof(*e.locals));
-    if(!e.locals) { fprintf(stderr,"out of memory during scalar emission\n"); exit(1); }
+    if(!e.locals) {
+        Diagnostic(fn->span, "emit.expression",
+                   "out of memory during scalar emission");
+        exit(1);
+    }
     if(number_support && *number_support)
         copy_text(e.numbers, sizeof(e.numbers), number_support);
     else

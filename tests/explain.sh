@@ -90,6 +90,25 @@ assert any(item["code"] == "zir_go.global" and
            "/proc/ziran-go-output" in item["message"] for item in items), items
 PY
 
+for target in c cpp; do
+    if "$ziran" build "--target=$target" --diagnostics=json --root "$work" \
+        -o /proc/ziran-$target-output "$work/output.zi" \
+        > "$work/$target-output.out" 2> "$work/$target-output.jsonl"; then
+        echo "$target output failure did not fail the build" >&2
+        exit 1
+    fi
+done
+python3 - "$work/c-output.jsonl" "$work/cpp-output.jsonl" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+for path, code in zip(map(Path, sys.argv[1:]), ('zir_c.global', 'zir_cpp.global')):
+    items = [json.loads(line) for line in path.read_text().splitlines()]
+    assert any(item["code"] == code and "/proc/ziran-" in item["message"]
+               for item in items), (path, items)
+PY
+
 if "$ziran" explain check.not_a_code > "$work/bad.out" 2> "$work/bad.err"; then
     echo 'explain accepted an unknown diagnostic code' >&2
     exit 1

@@ -16,7 +16,7 @@ typedef struct ZirCppModuleSyms {
 
 /* Lower a ZirProgram to C++ source (.cpp/.hpp). restab/restab_count resolve
  * cross-module calls; pass NULL/0 to resolve same-module only. */
-void cpp_lower(const ZirProgram *program, const char *root,
+int cpp_lower(const ZirProgram *program, const char *root,
                const char *out_dir, const ZirCppModuleSyms *restab,
                int restab_count);
 

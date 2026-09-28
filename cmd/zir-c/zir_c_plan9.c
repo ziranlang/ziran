@@ -2068,10 +2068,14 @@ c_plan9_rewrite_once(const char *text)
     }
     /* print helpers need write and strtod; only printing files ask for them,
      * before any header can include the runtime. */
-    if(strstr(text, "ZirPrint") != NULL &&
-       strncmp(text, "#define ZIR_PLAN9_PRINT 1\n", 26) != 0 &&
-       buf_puts(&out, "#define ZIR_PLAN9_PRINT 1\n") < 0)
-        goto fail;
+    int print_guard = strstr(text, "ZirPrint") != NULL &&
+                      strstr(text, "#define ZIR_PLAN9_PRINT 1\n") == NULL;
+    /* The guard goes after the generated-file comment, else first. */
+    if(print_guard && strncmp(text, "/* Generated", 12) != 0) {
+        if(buf_puts(&out, "#define ZIR_PLAN9_PRINT 1\n") < 0)
+            goto fail;
+        print_guard = 0;
+    }
 
     while(*cursor != '\0') {
         const char *nl = strchr(cursor, '\n');
@@ -2091,6 +2095,12 @@ c_plan9_rewrite_once(const char *text)
         current[n] = '\0';
         cursor += n;
         lineno++;
+        if(lineno == 1 && print_guard) {
+            if(buf_puts(&out, current) < 0 ||
+               buf_puts(&out, "#define ZIR_PLAN9_PRINT 1\n") < 0)
+                goto fail;
+            continue;
+        }
         {
             int foreign_result =
                 rewrite_plan9_foreign_aliases(current, aliases, alias_count,

@@ -39,6 +39,8 @@ Answer :: () -> s32 {
        whole[3] != cast(u8)0 { return 8 }
     if Limit + Offset != 11 { return 9 }
     if Abs(-9) != 9 { return 10 }
+    callback: Callback = AddOne
+    if callback(41) != 42 { return 11 }
     return 0
 }
 Add :: (a: s32, b: s32) -> s32 { return a + b }
@@ -47,6 +49,8 @@ Limit :: 8;
 Offset :: 3;
 libc :: #system_library "libc";
 Abs :: (value: s32) -> s32 #foreign libc "abs";
+Callback :: #type (value: s32) -> s32;
+AddOne :: (value: s32) -> s32 { return value + 1 }
 Loop :: () -> s32 {
     total: int = 0
     for i: 0..3 { total += i }

@@ -93,11 +93,66 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                 char type_name[ZIR_NAME_MAX];
                 const ZirModule *enum_owner = NULL;
                 const ZirType *enumeration = NULL;
+                const ZirModule *procedure_owner = NULL;
+                const ZirType *procedure = NULL;
                 if(rust_owned_vec_type(emitter, record->name, NULL, NULL,
                                        NULL, 0) ||
                    rust_option_type(emitter, record->name, NULL, NULL,
                                     NULL, 0))
                     continue;
+                if(FindType(module, record->name, &procedure_owner) != NULL &&
+                   (procedure = FindType(module, record->name,
+                                         &procedure_owner)) != NULL &&
+                   procedure->is_procedure_type) {
+                    char parts[32][ZIR_RUST_TEXT_MAX];
+                    char return_type[ZIR_NAME_MAX];
+                    int count = *procedure->body ?
+                        split_arguments(procedure->body, parts, 32) : 0;
+                    if(count < 0 || procedure->is_c_call) {
+                        Diagnostic(procedure->span, "zir_rust.type",
+                                   "unsupported procedure type: %s",
+                                   procedure->name);
+                        exit(1);
+                    }
+                    NativeTypeName(procedure_owner, procedure, type_name,
+                                   sizeof(type_name));
+                    fprintf(output, "pub type %s = Option<fn(", type_name);
+                    for(int index = 0; index < count; index++) {
+                        char *colon = strchr(parts[index], ':');
+                        char parameter_type[ZIR_NAME_MAX];
+                        char *type;
+                        if(colon == NULL) {
+                            Diagnostic(procedure->span, "zir_rust.type",
+                                       "invalid procedure parameter: %s",
+                                       parts[index]);
+                            exit(1);
+                        }
+                        type = colon + 1;
+                        while(*type == ' ' || *type == '\t')
+                            type++;
+                        if(!rust_type(emitter, type, parameter_type,
+                                      sizeof(parameter_type))) {
+                            Diagnostic(procedure->span, "zir_rust.type",
+                                       "unsupported procedure parameter type: %s",
+                                       type);
+                            exit(1);
+                        }
+                        fprintf(output, "%s%s", index ? ", " : "",
+                                parameter_type);
+                    }
+                    if(!rust_type(emitter, procedure->procedure_return_type,
+                                  return_type, sizeof(return_type))) {
+                        Diagnostic(procedure->span, "zir_rust.type",
+                                   "unsupported procedure return type: %s",
+                                   procedure->procedure_return_type);
+                        exit(1);
+                    }
+                    if(strcmp(procedure->procedure_return_type, "void") != 0)
+                        fprintf(output, ") -> %s>;\n\n", return_type);
+                    else
+                        fprintf(output, ")>;\n\n");
+                    continue;
+                }
                 if(rust_enum_type(emitter, record->name, &enum_owner,
                                   &enumeration)) {
                     const char *backing = rust_scalar_type(
@@ -505,6 +560,12 @@ static int rust_type(RustEmitter *emitter, const char *type, char *output,
         return 1;
     }
     if(rust_enum_type(emitter, type, &owner, &record)) {
+        NativeTypeName(owner, record, output, size);
+        return 1;
+    }
+    if(FindType(emitter->module, type, &owner) != NULL &&
+       (record = FindType(emitter->module, type, &owner)) != NULL &&
+       record->is_procedure_type) {
         NativeTypeName(owner, record, output, size);
         return 1;
     }
@@ -950,7 +1011,31 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
                  child, child);
         return;
     }
-    if(expression->slot_type[0] || expression->is_function_value) {
+    if(expression->slot_type[0]) {
+        char callable[ZIR_RUST_TEXT_MAX];
+        char global_name[ZIR_RUST_NAME_MAX * 2];
+        if(expression->left >= 0)
+            emit_expression(emitter, expression->left, callable,
+                            sizeof(callable));
+        else if(global_reference(emitter, expression->name, global_name,
+                                 sizeof(global_name)))
+            snprintf(callable, sizeof(callable), "%s", global_name);
+        else
+            snprintf(callable, sizeof(callable), "%s",
+                     local_name(emitter, expression->name));
+        for(int child_index = expression->first_child; child_index >= 0;
+            child_index = emitter->function->exprs[child_index].next_sibling) {
+            emit_expression(emitter, child_index, child, sizeof(child));
+            if(*arguments)
+                strncat(arguments, ", ",
+                        sizeof(arguments) - strlen(arguments) - 1);
+            strncat(arguments, child,
+                    sizeof(arguments) - strlen(arguments) - 1);
+        }
+        snprintf(output, size, "(%s.unwrap()(%s))", callable, arguments);
+        return;
+    }
+    if(expression->is_function_value) {
         unsupported_expression(emitter, expression);
         return;
     }
@@ -1022,9 +1107,21 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
     switch(expression->kind) {
     case ZIR_EXPR_IDENT: {
         char global_name[ZIR_RUST_NAME_MAX * 2];
+        const ZirModule *function_owner = NULL;
+        const ZirFunction *function = NULL;
         if(global_reference(emitter, expression->name, global_name,
                             sizeof(global_name)))
             snprintf(output, size, "%s", global_name);
+        else if(expression->is_function_value &&
+                ResolveFunctionAt(emitter->module, expression->name,
+                                  emitter->function->span.path,
+                                  &function_owner, &function) == 1 &&
+                function_owner != NULL && function != NULL) {
+            char function_name[ZIR_RUST_NAME_MAX * 2];
+            function_symbol(emitter, function_owner, function,
+                            function_name, sizeof(function_name));
+            snprintf(output, size, "Some(%s)", function_name);
+        }
         else
             snprintf(output, size, "%s", local_name(emitter, expression->name));
         break;
@@ -1386,6 +1483,12 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
         snprintf(output, size, "ZiranVec::new()");
         return;
     }
+    if(FindType(emitter->module, type, &owner) != NULL &&
+       (record = FindType(emitter->module, type, &owner)) != NULL &&
+       record->is_procedure_type) {
+        snprintf(output, size, "None");
+        return;
+    }
     if(rust_option_type(emitter, type, &owner, &record, element,
                         sizeof(element))) {
         char value[ZIR_RUST_TEXT_MAX];
@@ -1581,6 +1684,19 @@ static void validate_module(const ZirModule *module)
                 Diagnostic(record->span, "zir_rust.enum",
                            "invalid enum backing type: %s",
                            checked->enum_backing);
+                exit(1);
+            }
+            continue;
+        }
+        if(FindType(module, record->name, &owner) != NULL &&
+           (checked = FindType(module, record->name, &owner)) != NULL &&
+           checked->is_procedure_type) {
+            char checked_return[ZIR_NAME_MAX];
+            if(checked->is_c_call ||
+               !rust_type(&emitter, checked->procedure_return_type,
+                          checked_return, sizeof(checked_return))) {
+                Diagnostic(record->span, "zir_rust.type",
+                           "unsupported procedure type: %s", record->name);
                 exit(1);
             }
             continue;

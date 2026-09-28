@@ -161,6 +161,7 @@ int has_owned_locals(const Emitter *e);
 int operation(const char *op);
 int integer_literal_bits(const char *text, uint64_t *bits);
 int enclosed(const char *text);
+void postfix_base(const char *text, char *out, size_t size);
 const char *bare(const char *text, char *out, size_t size);
 void number(Emitter *e, const char *type, const char *a, const char *a_type, const char *b, const char *b_type, int op, char *out, size_t size);
 void slice_index(Emitter *e, const char *type, const char *base, const char *index, char *out, size_t size);

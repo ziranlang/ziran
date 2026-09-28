@@ -858,7 +858,8 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             format(buffers->result, sizeof(buffers->result), "ZIRAN_INDEX(%s, %d, %s)",
                    buffers->a, capacity, buffers->b);
         } else {
-            format(buffers->result, sizeof(buffers->result), "%s[%s]", buffers->a, buffers->b);
+            postfix_base(buffers->a, buffers->source, sizeof(buffers->source));
+            format(buffers->result, sizeof(buffers->result), "%s[%s]", buffers->source, buffers->b);
         }
         break;
     }

@@ -822,6 +822,20 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
         free(buffers);
 }
 
+/* C text that starts with a prefix operator or a cast, such as *(p) or
+ * (uint8_t*)(p), binds looser than a postfix subscript; wrap it first. */
+void
+postfix_base(const char *text, char *out, size_t size)
+{
+    int prefix = text[0] == '*' || text[0] == '&' || text[0] == '-' ||
+                 text[0] == '!' || text[0] == '~' ||
+                 (text[0] == '(' && !enclosed(text));
+    if(prefix)
+        format(out, size, "(%s)", text);
+    else
+        copy_text(out, size, text);
+}
+
 void
 slice_index(Emitter *e, const char *type, const char *base, const char *index,
             char *out, size_t size)
@@ -858,6 +872,7 @@ go_pointer_index(Emitter *e, const char *base, const char *index,
 typedef struct EmitDestinationBuffers {
     char pointer[ZIR_TEXT_MAX];
     char base[ZIR_TEXT_MAX];
+    char wrapped[ZIR_TEXT_MAX + 2];
     char index[ZIR_TEXT_MAX];
 } EmitDestinationBuffers;
 
@@ -915,12 +930,16 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
                    buffers->base, buffers->base, buffers->index);
         else if(vector)
             format(out, size, "(%s).Data[%s]", buffers->base, buffers->index);
-        else if((e->target == ZIR_C || e->target == ZIR_CPP) &&
-           ArrayElementType(e->fn->exprs[expr->left].type, NULL, 0, NULL))
-            format(out, size, "ZIRAN_INDEX(%s, sizeof(%s) / sizeof(%s[0]), %s)",
-                   buffers->base, buffers->base, buffers->base, buffers->index);
-        else
-            format(out, size, "%s[%s]", buffers->base, buffers->index);
+        else {
+            const char *base = buffers->wrapped;
+            postfix_base(buffers->base, buffers->wrapped, sizeof(buffers->wrapped));
+            if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+               ArrayElementType(e->fn->exprs[expr->left].type, NULL, 0, NULL))
+                format(out, size, "ZIRAN_INDEX(%s, sizeof(%s) / sizeof(%s[0]), %s)",
+                       base, base, base, buffers->index);
+            else
+                format(out, size, "%s[%s]", base, buffers->index);
+        }
         return;
     }
     fatal(expr, "unsupported assignment destination");

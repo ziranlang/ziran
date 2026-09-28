@@ -12,7 +12,7 @@ PkgModule :: struct {
 }
 
 PkgModuleSet :: struct {
-    items: [512]PkgModule
+    items: [4096]PkgModule
     count: s32
 }
 
@@ -90,7 +90,7 @@ PkgScanModules :: (directory: string, manifest: *PkgManifest,
             }
             if name.count == 0 { continue }
             if !PkgIdentifier(name) || PkgHasModule(output, name) ||
-                output.count >= 512 { return false }
+                output.count >= 4096 { return false }
             output.items[output.count].name = name
             output.items[output.count].path = path
             output.count += 1
@@ -138,7 +138,9 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
         owner_directory = locked.packages[owner].path
         edge_count = locked.packages[owner].edge_count
     }
-    visible: [512]string
+    // On the heap: a package can export thousands of modules.
+    visible: *string = cast(*string)PkgAllocZero(4096 * cast(u64)size_of(string))
+    if visible == null { return false }
     visible_count: s32 = 0
     index: s32 = 0
     while index < owner_manifest.dependency_count {
@@ -182,7 +184,7 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
                 }
                 alias_index += 1
             }
-            if visible_count >= 512 { return false }
+            if visible_count >= 4096 { return false }
             visible[visible_count] = name
             visible_count += 1
             PkgAppend(builder, PkgJoin3("D\t", owner_id, "\t"))
@@ -201,10 +203,10 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
 
 PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string {
     graph: *PkgModuleGraph = cast(*PkgModuleGraph)(PkgAllocZero(PkgGraphSizeRaw()))
-    memory: *u8 = PkgAlloc(4194304)
+    memory: *u8 = PkgAlloc(33554432)
     if graph == null || memory == null { return "" }
     builder: PkgBuilder
-    builder.bytes = BytesFromPointer(memory, 4194304)
+    builder.bytes = BytesFromPointer(memory, 33554432)
     builder.valid = true
     if !PkgScanModules(root, current, *graph.sets[0]) { return "" }
     PkgAppendModuleSet(*builder, "root", root, *graph.sets[0])

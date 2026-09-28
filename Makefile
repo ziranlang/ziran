@@ -39,7 +39,7 @@ FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(BUILD_DIR)/obj/check.o \
 BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
 
-.PHONY: all check curl-http-test clean install-user package-objects
+.PHONY: all check curl-http-test clean install-user package-objects package-link
 CHECK_JOBS ?= 4
 all: $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BUILD_DIR)/libziran.a
 
@@ -126,9 +126,15 @@ $(call obj,cmd/package_main.c cmd/package_host.c): CFLAGS += -I$(PACKAGE_C)
 
 package-objects: $(PACKAGE_OBJECTS)
 
+# Make expands a whole recipe before running its first line, so the object
+# list is only correct in a fresh make started after generation. That sub-make
+# both compiles and links; linking in this recipe would miss the generated
+# objects on a clean build.
+package-link: $(PACKAGE_OBJECTS)
+	$(CC) $(CFLAGS) -o $(BIN_DIR)/ziran $(PACKAGE_OBJECTS) -lcrypto -lm
+
 $(BIN_DIR)/ziran: $(PACKAGE_C)/.generated cmd/package_main.c cmd/package_host.c $(HEADERS) | $(BIN_DIR)
-	+$(MAKE) --no-print-directory package-objects
-	$(CC) $(CFLAGS) -o $@ $(PACKAGE_OBJECTS) -lcrypto -lm
+	+$(MAKE) --no-print-directory package-link
 
 $(BIN_DIR)/zi-fmt: scripts/zi-fmt.sh | $(BIN_DIR)
 	cp $< $@

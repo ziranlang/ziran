@@ -211,9 +211,12 @@ show_module(const ZirModule *module, int json)
             json_member("body", type->body);
             putchar(',');
             json_member("type_parameters", type->template_params);
-            printf(",\"record_template\":%s,\"enum\":%s,",
+            printf(",\"record_template\":%s,\"enum\":%s,\"procedure\":%s,",
                    type->is_record_template ? "true" : "false",
-                   type->is_enum ? "true" : "false");
+                   type->is_enum ? "true" : "false",
+                   type->is_procedure_type ? "true" : "false");
+            json_member("return_type", type->procedure_return_type);
+            putchar(',');
             json_member("path", SpanPath(type->span));
             printf(",\"line\":%d}", type->span.line);
         }

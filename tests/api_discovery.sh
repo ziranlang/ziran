@@ -27,6 +27,7 @@ PUBLIC_CONSTANT :: 5;
 public_global: s32 = 6;
 host_api :: #system_library "host_api";
 CallHost :: (value: s32) -> s32 #foreign host_api;
+Handler :: #type (value: s32) -> bool;
 FEATURE :: #defined(HAS_EXTRA)
 #if FEATURE {
 Extra :: () -> s32 { return 1 }
@@ -66,7 +67,11 @@ for data in (source, saved):
     assert functions['Visible']['defaults']
     assert functions['Visible']['return_type'] == 'Choice'
     assert functions['Visible']['effect'] == 'pure'
-    assert {item['name'] for item in library['types']} == {'Choice'}
+    types = {item['name']: item for item in library['types']}
+    assert set(types) == {'Choice', 'Handler'}
+    assert not types['Choice']['procedure'] and types['Choice']['return_type'] == ''
+    assert types['Handler']['procedure'] and types['Handler']['return_type'] == 'bool'
+    assert types['Handler']['body'] == 'value: s32'
     assert {item['name'] for item in library['constants']} == {'PUBLIC_CONSTANT'}
     assert {item['name'] for item in library['globals']} == {'public_global'}
     assert library['globals'][0]['type'] == 's32'

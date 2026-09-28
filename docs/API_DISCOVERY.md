@@ -15,7 +15,8 @@ The JSON object has `schema_version: 1` and a `modules` array. Each module has
 Imports include their kind, alias/name, target, foreign target and symbol when
 present, signature, and source location. Constants expose their checked value
 text; globals expose their type and initializer text. A type includes its name,
-checked body text, type parameters, record-template and enum flags, and source path
+checked body text, type parameters, record-template, enum, and procedure flags,
+a procedure type's `return_type` (empty for other types), and source path
 and line. A function includes its name, checked parameter signature, return
 type, declaration defaults, inferred effect, `must_use`, template and host-use
 flags, and source path and line. Empty `defaults` and `effect` strings mean the

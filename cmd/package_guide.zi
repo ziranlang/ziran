@@ -30,7 +30,7 @@ Guide :: (arguments: []string) -> s32 {
     PkgPrint("float32/float64, string, [N]T arrays, []T slices, *T pointers.\n", false)
     PkgPrint("Use #import \"module\" for modules; std/vec.zi supplies Vec(T).\n\n", false)
     PkgPrint("Current boundaries:\n", false)
-    PkgPrint("  C, C++, Go, experimental Rust, portable .zib, and experimental plan9-c are output paths.\n", false)
+    PkgPrint("  C, C++, Go, Rust, and portable .zib are output paths; plan9-c is experimental.\n", false)
     PkgPrint("  Direct owned Vec locals and parameters drop at scope exit.\n", false)
     PkgPrint("  Aggregates containing Vec cannot be copied, passed, or returned.\n", false)
     PkgPrint("  TextView of mutable backing bytes has target-dependent aliasing.\n", false)

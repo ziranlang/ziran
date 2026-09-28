@@ -766,7 +766,7 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             if(strcmp(expression->op, "==") != 0 &&
                strcmp(expression->op, "!=") != 0)
                 unsupported_expression(emitter, expression);
-            snprintf(output, size, "%sZiranText::eq(&%s, &%s)",
+            snprintf(output, size, "%sZiranText::eq(%s, %s)",
                      !strcmp(expression->op, "==") ? "" : "!", left, right);
             break;
         }
@@ -1201,6 +1201,24 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     fputs("}\n\n", emitter->output);
 }
 
+static void rust_global_initializer(RustEmitter *emitter,
+                                     const ZirGlobal *global, char *output,
+                                     size_t size)
+{
+    const ZirModule *owner = NULL;
+    const ZirType *enumeration = NULL;
+    if(!strcmp(global->type, "string") &&
+       rust_string_literal(global->init, output, size))
+        return;
+    if((rust_scalar_type(global->type) != NULL ||
+        rust_enum_type(emitter, global->type, &owner, &enumeration)) &&
+       global->init[0] != '\0' && strchr(global->init, '(') == NULL) {
+        snprintf(output, size, "%s", global->init);
+        return;
+    }
+    rust_zero_value(emitter, global->type, output, size);
+}
+
 static void emit_global_definitions(RustEmitter *emitter, FILE *output)
 {
     for(int program_index = 0; program_index < emitter->program_count;
@@ -1220,7 +1238,7 @@ static void emit_global_definitions(RustEmitter *emitter, FILE *output)
                               sizeof(symbol));
                 require_rust_type(emitter, global->span, global->type,
                                   type_name, sizeof(type_name));
-                rust_zero_value(emitter, global->type, zero, sizeof(zero));
+                rust_global_initializer(emitter, global, zero, sizeof(zero));
                 fprintf(output, "static mut %s: %s = %s;\n\n", symbol,
                         type_name, zero);
             }
@@ -1425,7 +1443,7 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
           "    pub const fn new(value: &'static str) -> Self {\n"
           "        Self { data: value.as_ptr(), len: value.len() }\n"
           "    }\n"
-          "    pub fn eq(left: &Self, right: &Self) -> bool {\n"
+          "    pub fn eq(left: Self, right: Self) -> bool {\n"
           "        unsafe {\n"
           "            left.len == right.len &&\n"
           "            core::slice::from_raw_parts(left.data, left.len) ==\n"

@@ -640,13 +640,17 @@ c_wide_operand(const char *text, const char *optype, const char *type,
         inner[strlen(inner) - 1] = '\0';
     }
     /* (T)(X) at this width: C conversions are modular, so X widens to W
-     * directly. X that is already this arithmetic's W group stays as is. */
+     * directly. X keeps its text only when it already starts with a W cast;
+     * a narrower group such as ((uint32_t)x & 65535u) would otherwise shift
+     * or multiply at its own width. */
     prefix = strlen(native) + 2;
     (void)optype;
     if(inner[0] == '(' && !strncmp(inner + 1, native, strlen(native)) &&
        inner[prefix - 1] == ')' && enclosed(inner + prefix)) {
         const char *group = inner + prefix;
-        if(group[1] == '(')
+        size_t wide_length = strlen(wide);
+        if(group[1] == '(' && !strncmp(group + 2, wide, wide_length) &&
+           group[2 + wide_length] == ')')
             copy_text(out, size, group);
         else
             format(out, size, "(%s)%s", wide, group);

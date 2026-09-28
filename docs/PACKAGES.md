@@ -119,3 +119,65 @@ bridge_modules = ["app"]
 This makes only the named app module visible to direct dependencies. It does
 not change the package's public exports. Native system libraries remain
 ordinary platform build dependencies.
+
+## Project tools and their options
+
+A package can ship a project tool, such as the command that builds an
+application with a UI library. It names the tool and declares the options an
+application may set for it in its own `ziran.toml`:
+
+```toml
+[tool]
+project = "build/bin/kryon"
+
+[options]
+default_profile = "string"
+
+[options.profiles."*"]
+backend = "string!"
+codegen = "string=c99"
+
+[options.install]
+autostart = "bool=false"
+```
+
+`[options]` holds top-level keys, `[options.NAME]` one table, and
+`[options.NAME."*"]` any number of named tables. Each value is `"string"` or
+`"bool"`, followed by `!` when it is required or `=DEFAULT` for a default.
+
+The application sets those options under the dependency's alias, and its
+ignored `ziran.local.toml` may replace any of them on one machine:
+
+```toml
+[tool.Kryon]
+default_profile = "desktop"
+
+[tool.Kryon.profiles.desktop]
+backend = "desktop"
+```
+
+`ziran tool Kryon COMMAND` rebuilds the tool if its sources changed, checks
+every setting against the declaration, and reports an unknown or missing key
+with its file and line. It then runs the tool from the project root. The tool
+reads the merged settings as `KEY=VALUE` lines from the file named by
+`ZIRAN_TOOL_OPTIONS`, for example `default_profile=desktop`,
+`profiles=desktop` and `profiles.desktop.backend=desktop`, so no tool parses
+TOML itself. `ZIRAN_PROJECT_ROOT`, `ZIRAN_PROJECT_NAME`,
+`ZIRAN_PROJECT_ENTRY`, `ZIRAN_PACKAGE_ROOT`, `ZIRAN_PACKAGE_ID` and
+`ZIRAN_TOOLCHAIN_ROOT` describe the project and the tool's checkout.
+
+## Installing an application
+
+`[install]` names the dependency whose tool installs the application and the
+command name it installs as:
+
+```toml
+[install]
+tool = "Kryon"
+bin = "example"
+```
+
+`ziran install` runs that tool's `install` command with `ZIRAN_INSTALL_PREFIX`
+(`~/.local` unless `--prefix DIR` is given) and `ZIRAN_INSTALL_BIN`. Other
+arguments are passed on to the tool. The tool decides what else an install
+includes, such as a desktop entry, from its own options.

@@ -424,6 +424,94 @@ main :: () -> s32 {
         compile_app(ziran, bridged, root / "bridged-c", compiler, env,
                     bridged / "src/app.zi", True)
 
+        # A package declares its tool's options; ziran merges the app's
+        # [tool.ALIAS] tables with ziran.local.toml and hands the tool one
+        # KEY=VALUE file. `ziran install` runs the [install] tool.
+        tooling = root / "tooling"
+        init(tooling, env)
+        write(tooling / "ziran.toml", """[package]
+name = "Tooling"
+module_roots = ["src"]
+[exports]
+Tooling = "src/Tooling.zi"
+[tool]
+project = "build/tool"
+[options]
+mode = "string!"
+fast = "bool=false"
+[options.targets."*"]
+kind = "string!"
+level = "string=1"
+[options.install]
+label = "string"
+""")
+        write(tooling / "src/Tooling.zi", "ToolingValue :: 1;\n")
+        write(tooling / "tool.sh", """#!/bin/sh
+cat "$ZIRAN_TOOL_OPTIONS"
+echo "project=$ZIRAN_PROJECT_NAME entry=$ZIRAN_PROJECT_ENTRY args=$*"
+echo "install=${ZIRAN_INSTALL_PREFIX:-} ${ZIRAN_INSTALL_BIN:-}"
+""")
+        write(tooling / "Makefile",
+              "build/tool: tool.sh\n\tmkdir -p build\n\tcp tool.sh build/tool\n\tchmod 755 build/tool\n")
+        commit(tooling, env)
+        tooled = root / "tooled"
+        tooled.mkdir()
+        tooled_manifest = f'''[package]
+name = "Tooled"
+entry = "src/app.zi"
+[toolchain]
+git = "{compiler.as_uri()}"
+ref = "master"
+[dependencies.Tooling]
+git = "{tooling.as_uri()}"
+ref = "master"
+[install]
+tool = "Tooling"
+bin = "tooled"
+[tool.Tooling]
+mode = "fast"
+[tool.Tooling.targets.b]
+kind = "x"
+[tool.Tooling.targets.a]
+kind = "y"
+level = "3"
+'''
+        write(tooled / "ziran.toml", tooled_manifest)
+        write(tooled / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        write(tooled / "src/app.zi", "Main :: () -> s32 { return 0 }\n")
+        call(ziran, "lock", cwd=tooled, env=env)
+        output = call(ziran, "tool", "Tooling", "build", "--fast", cwd=tooled, env=env)
+        assert output.splitlines() == [
+            "mode=fast", "fast=false", "targets=b a",
+            "targets.b.kind=x", "targets.b.level=1",
+            "targets.a.kind=y", "targets.a.level=3",
+            "project=Tooled entry=src/app.zi args=build --fast", "install= ",
+        ], output
+        write(tooled / "ziran.local.toml",
+              f'[overrides]\nziran = "{compiler}"\n[tool.Tooling]\nmode = "slow"\n')
+        assert "mode=slow" in call(ziran, "tool", "Tooling", "build",
+                                   cwd=tooled, env=env).splitlines()
+        write(tooled / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        installed = call(ziran, "install", "--prefix", "local", "--quick",
+                         cwd=tooled, env=env).splitlines()
+        assert f"install={tooled.resolve()}/local tooled" in installed, installed
+        assert "project=Tooled entry=src/app.zi args=install --quick" in installed
+        for broken, message in (
+            (tooled_manifest.replace('mode = "fast"', 'mode = "fast"\nspeed = "x"'),
+             "ziran.toml:15: unknown Tooling option speed"),
+            (tooled_manifest.replace('kind = "x"\n', ''),
+             "missing required Tooling option targets.b.kind"),
+            (tooled_manifest.replace('[tool.Tooling.targets.b]', '[tool.Tooling.targets]'),
+             "name the table: [tool.Tooling.targets.NAME]"),
+            (tooled_manifest.replace('mode = "fast"', 'mode = "fast"\nfast = "yes"'),
+             "fast must be a non-empty bool"),
+        ):
+            write(tooled / "ziran.toml", broken)
+            failure = call(ziran, "tool", "Tooling", "build", cwd=tooled,
+                           env=env, succeed=False)
+            assert message in failure, failure
+        write(tooled / "ziran.toml", tooled_manifest)
+
 
 if __name__ == "__main__":
     main()

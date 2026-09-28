@@ -7,6 +7,7 @@
 #import "package_capabilities"
 #import "package_features"
 #import "package_explain"
+#import "package_options"
 #import "file_linux"
 
 PkgLauncherDirectory :: (launcher: string) -> string {
@@ -154,11 +155,86 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     return PkgRun(child[0:count], "", names[:], values[:])
 }
 
+// Runs a dependency's project tool from the project root with the resolved
+// [tool.ALIAS] options. The tool is rebuilt when its sources changed, so a
+// local override never runs a stale binary.
+PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
+    selector: string, arguments: []string, extra_names: []string,
+    extra_values: []string) -> s32 {
+    selected: s32 = PkgSelect(locked, selector)
+    if selected < 0 { return PkgFail("package is not locked") }
+    item: *PkgLocked = *locked.packages[selected]
+    relative: string = PkgJoin("", item.manifest.project_tool)
+    if relative.count == 0 || relative[0] == cast(u8)47 {
+        return PkgFail("package has no project tool")
+    }
+    at: s64 = 0
+    while at + 1 < cast(s64)relative.count {
+        if relative[at] == cast(u8)46 &&
+           relative[at + 1] == cast(u8)46 { return PkgFail("invalid project tool") }
+        at += 1
+    }
+    alias: string = item.name
+    index: s32 = 0
+    while index < current.dependency_count {
+        if PkgFoldEqual(current.dependencies[index].alias, selector) {
+            alias = current.dependencies[index].alias
+        }
+        index += 1
+    }
+    options: string = PkgResolveOptions(root, alias, item.path)
+    if options.count == 0 { return 2 }
+    make_args: [7]string
+    make_args[0] = "make"
+    make_args[1] = "--silent"
+    make_args[2] = "--no-print-directory"
+    make_args[3] = "-C"
+    make_args[4] = item.path
+    make_args[5] = relative
+    make_args[6] = PkgJoin("ZIRAN_DIR=", locked.tool_path)
+    empty: [0]string
+    if PkgRun(make_args[:], "", empty[:], empty[:]) != 0 {
+        return PkgFail("cannot build package tool")
+    }
+    names: [16]string
+    values: [16]string
+    names[0] = "ZIRAN_PROJECT_ROOT"
+    names[1] = "ZIRAN_PACKAGE_ROOT"
+    names[2] = "ZIRAN_PACKAGE_ID"
+    names[3] = "ZIRAN_TOOLCHAIN_ROOT"
+    names[4] = "ZIRAN_TOOL_OPTIONS"
+    names[5] = "ZIRAN_PROJECT_NAME"
+    names[6] = "ZIRAN_PROJECT_ENTRY"
+    values[0] = root
+    values[1] = item.path
+    values[2] = item.id
+    values[3] = locked.tool_path
+    values[4] = options
+    values[5] = current.name
+    values[6] = current.entry
+    count: s32 = 7
+    index = 0
+    while index < cast(s32)extra_names.count && count < 16 {
+        names[count] = extra_names[index]
+        values[count] = extra_values[index]
+        count += 1
+        index += 1
+    }
+    child: [257]string
+    child[0] = PkgJoin3(item.path, "/", relative)
+    index = 0
+    while index < cast(s32)arguments.count && index < 256 {
+        child[index + 1] = arguments[index]
+        index += 1
+    }
+    return PkgRun(child[0:index + 1], root, names[0:count], values[0:count])
+}
+
 #program_export
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
-        PkgPrint("usage: ziran guide|features|capabilities|explain|api|lock|update|fetch|add|pkg|tool|check|ir|build|bundle|run|fmt|inspect ...\n", false)
+        PkgPrint("usage: ziran guide|features|capabilities|explain|api|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         return 0
     }
@@ -170,7 +246,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "add" { return Add(launcher, arguments[1:]) }
     root: string = ""
     if command == "lock" || command == "update" || command == "fetch" ||
-       command == "tool" || command == "pkg" ||
+       command == "tool" || command == "install" || command == "pkg" ||
        PkgHasArgument(arguments, "--project") {
         root = PkgProjectRoot()
         if root.count == 0 { return PkgFail("no ziran.toml found") }
@@ -206,7 +282,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     }
     locked: *PkgLock = null
     current: *PkgManifest = null
-    if project || command == "fetch" || command == "pkg" || command == "tool" {
+    if project || command == "fetch" || command == "pkg" || command == "tool" ||
+       command == "install" {
         locked = PkgNewLock()
         current = PkgNewManifest()
         if locked == null || current == null ||
@@ -239,50 +316,47 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     }
     if command == "tool" {
         if count < 2 { return PkgFail("usage: ziran tool PACKAGE COMMAND") }
-        selected: s32 = PkgSelect(locked, filtered[0])
-        if selected < 0 { return PkgFail("package is not locked") }
-        item: *PkgLocked = *locked.packages[selected]
-        relative: string = PkgJoin("", item.manifest.project_tool)
-        if relative.count == 0 || relative[0] == cast(u8)47 {
-            return PkgFail("package has no project tool")
+        empty: [0]string
+        return PkgRunTool(root, locked, current, filtered[0], filtered[1:count],
+            empty[:], empty[:])
+    }
+    if command == "install" {
+        if current.install_tool.count == 0 {
+            return PkgFail("ziran.toml needs [install] tool = \"PACKAGE\"")
         }
-        at: s64 = 0
-        while at + 1 < cast(s64)relative.count {
-            if relative[at] == cast(u8)46 &&
-               relative[at + 1] == cast(u8)46 { return PkgFail("invalid project tool") }
-            at += 1
-        }
-        binary: string = PkgJoin3(item.path, "/", relative)
-        if !PathExists(binary) {
-            make_args: [5]string
-            make_args[0] = "make"
-            make_args[1] = "-C"
-            make_args[2] = item.path
-            make_args[3] = relative
-            make_args[4] = PkgJoin("ZIRAN_DIR=", locked.tool_path)
-            empty: [0]string
-            if PkgRun(make_args[:], "", empty[:], empty[:]) != 0 {
-                return PkgFail("cannot build package tool")
-            }
-        }
-        names: [4]string
-        values: [4]string
-        names[0] = "ZIRAN_PROJECT_ROOT"
-        names[1] = "ZIRAN_PACKAGE_ROOT"
-        names[2] = "ZIRAN_PACKAGE_ID"
-        names[3] = "ZIRAN_TOOLCHAIN_ROOT"
-        values[0] = root
-        values[1] = item.path
-        values[2] = item.id
-        values[3] = locked.tool_path
-        child: [256]string
-        child[0] = binary
-        index = 1
+        prefix: string = PkgJoin(PkgGetenv("HOME"), "/.local")
+        passed: [257]string
+        passed[0] = "install"
+        passed_count: s32 = 1
+        index = 0
         while index < count {
-            child[index] = filtered[index]
+            part: string = filtered[index]
+            if part == "--prefix" {
+                if index + 1 >= count { return PkgFail("--prefix needs a directory") }
+                prefix = filtered[index + 1]
+                index += 1
+            } else if part.count > 9 && part[0:9] == "--prefix=" {
+                prefix = part[9:]
+            } else {
+                passed[passed_count] = part
+                passed_count += 1
+            }
             index += 1
         }
-        return PkgRun(child[0:count], root, names[:], values[:])
+        if prefix.count == 0 || prefix == "/.local" {
+            return PkgFail("set HOME or pass --prefix")
+        }
+        if prefix[0] != cast(u8)47 { prefix = PkgJoin3(PkgCwd(), "/", prefix) }
+        bin: string = current.install_bin
+        if bin.count == 0 { bin = current.name }
+        names: [2]string
+        values: [2]string
+        names[0] = "ZIRAN_INSTALL_PREFIX"
+        names[1] = "ZIRAN_INSTALL_BIN"
+        values[0] = prefix
+        values[1] = bin
+        return PkgRunTool(root, locked, current, current.install_tool,
+            passed[0:passed_count], names[:], values[:])
     }
     return PkgDispatch(command, filtered[0:count], project, root, locked,
         current, launcher)

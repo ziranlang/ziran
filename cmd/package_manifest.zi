@@ -26,6 +26,8 @@ PkgManifest :: struct {
     tool_git: string
     tool_ref: string
     project_tool: string
+    install_tool: string
+    install_bin: string
     dependencies: [24]PkgDependency
     dependency_count: s32
     exports: [32]PkgNamedValue
@@ -239,6 +241,9 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
             if key == "ref" { output.tool_ref = value }
         } else if section == "tool" {
             if key == "project" { output.project_tool = value }
+        } else if section == "install" {
+            if key == "tool" { output.install_tool = value }
+            if key == "bin" { output.install_bin = value }
         } else if section == "exports" {
             if output.export_count >= 32 || !PkgIdentifier(key) || value.count == 0 {
                 return false
@@ -264,6 +269,9 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
         }
     }
     if !PkgPackageName(output.name) { return false }
+    if output.install_bin.count > 0 && !PkgPackageName(output.install_bin) {
+        return false
+    }
     index: s32 = 0
     while index < output.dependency_count {
         if !PkgGitURL(output.dependencies[index].git) ||

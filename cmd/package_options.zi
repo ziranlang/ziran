@@ -1,0 +1,427 @@
+#import "package_common"
+#import "package_manifest"
+#import "package_lock"
+#import "byte_text_linux"
+#import "file_linux"
+
+#scope_export
+// A package declares the options an application may set for its project tool
+// in the package's own ziran.toml:
+//
+//     [options]              keys set under [tool.Alias]
+//     [options.NAME]         keys set under [tool.Alias.NAME]
+//     [options.NAME."*"]     keys set under [tool.Alias.NAME.ANY]
+//
+// Each value is "string" or "bool", followed by "!" when it is required or by
+// "=DEFAULT" when it has a default. The application's ziran.toml sets values,
+// and ziran.local.toml may replace them. The merged result is written as
+// KEY=VALUE lines for the tool, so no tool parses TOML itself.
+PkgOptionSpec :: struct {
+    group: string
+    named: bool
+    key: string
+    kind: string
+    required: bool
+    fallback: string
+}
+
+PkgOptionValue :: struct {
+    group: string
+    name: string
+    key: string
+    value: string
+}
+
+PkgOptionTable :: struct {
+    group: string
+    name: string
+}
+
+PkgOptions :: struct {
+    specs: [64]PkgOptionSpec
+    spec_count: s32
+    values: [256]PkgOptionValue
+    value_count: s32
+    tables: [64]PkgOptionTable
+    table_count: s32
+    error: string
+}
+
+PkgDecimal :: (value: s32) -> string {
+    digits: [12]u8
+    at: s32 = 12
+    rest: s32 = value
+    if rest <= 0 { return "0" }
+    while rest > 0 && at > 0 {
+        at -= 1
+        digits[at] = cast(u8)(48 + rest % 10)
+        rest = rest / 10
+    }
+    return PkgJoin("", TextFromBytes(digits[at:12]))
+}
+
+PkgOptionError :: (options: *PkgOptions, file: string, line: s32,
+    message: string) -> bool {
+    if options.error.count == 0 {
+        place: string = file
+        if line > 0 { place = PkgJoin3(file, ":", PkgDecimal(line)) }
+        options.error = PkgJoin3(place, ": ", message)
+    }
+    return false
+}
+
+PkgOptionName :: (group: string, name: string, key: string) -> string {
+    if group.count == 0 { return key }
+    if name.count == 0 { return PkgJoin3(group, ".", key) }
+    return PkgJoin3(PkgJoin3(group, ".", name), ".", key)
+}
+
+// Returns -1 for an undeclared table, 0 for a fixed table, 1 for named tables.
+PkgOptionGroup :: (options: *PkgOptions, group: string) -> s32 {
+    index: s32 = 0
+    while index < options.spec_count {
+        if options.specs[index].group == group {
+            if options.specs[index].named { return 1 }
+            return 0
+        }
+        index += 1
+    }
+    if group.count == 0 { return 0 }
+    return -1
+}
+
+PkgFindOptionSpec :: (options: *PkgOptions, group: string, key: string) -> s32 {
+    index: s32 = 0
+    while index < options.spec_count {
+        if options.specs[index].group == group && options.specs[index].key == key {
+            return index
+        }
+        index += 1
+    }
+    return -1
+}
+
+PkgFindOptionValue :: (options: *PkgOptions, group: string, name: string,
+    key: string) -> s32 {
+    index: s32 = 0
+    while index < options.value_count {
+        item: *PkgOptionValue = *options.values[index]
+        if item.group == group && item.name == name && item.key == key {
+            return index
+        }
+        index += 1
+    }
+    return -1
+}
+
+PkgOptionGroupUsed :: (options: *PkgOptions, group: string) -> bool {
+    index: s32 = 0
+    while index < options.table_count {
+        if options.tables[index].group == group { return true }
+        index += 1
+    }
+    return false
+}
+
+PkgOptionSection :: (line: string) -> string {
+    if line.count < 3 || line[cast(s64)line.count - 1] != cast(u8)93 { return "" }
+    return line[1:cast(s64)line.count - 1]
+}
+
+PkgParseOptionSpecs :: (path: string, options: *PkgOptions) -> bool {
+    content: PkgReadResult = PkgRead(path)
+    if !content.valid { return PkgOptionError(options, path, 0, "cannot read") }
+    inside: bool = false
+    group: string = ""
+    named: bool = false
+    line_number: s32 = 0
+    at: s64 = 0
+    while at < cast(s64)content.text.count {
+        end: s64 = at
+        while end < cast(s64)content.text.count &&
+            content.text[end] != cast(u8)10 { end += 1 }
+        line: string = PkgStripComment(content.text[at:end])
+        at = end + 1
+        line_number += 1
+        if line.count == 0 { continue }
+        if line[0] == cast(u8)91 {
+            section: string = PkgOptionSection(line)
+            inside = false
+            if section == "options" {
+                inside = true
+                group = ""
+                named = false
+            } else if section.count > 8 && section[0:8] == "options." {
+                group = section[8:]
+                named = PkgEndsWith(group, ".\"*\"")
+                if named { group = group[0:cast(s64)group.count - 4] }
+                if !PkgIdentifier(group) {
+                    return PkgOptionError(options, path, line_number,
+                        "invalid options table")
+                }
+                inside = true
+            }
+            continue
+        }
+        if !inside { continue }
+        equal: s64 = 0
+        while equal < cast(s64)line.count && line[equal] != cast(u8)61 { equal += 1 }
+        key: string = PkgTrim(line[0:equal])
+        declared: string = ""
+        if equal < cast(s64)line.count { declared = PkgTomlText(line[equal + 1:]) }
+        if !PkgIdentifier(key) || declared.count == 0 {
+            return PkgOptionError(options, path, line_number,
+                "expected KEY = \"string\" or \"bool\"")
+        }
+        if options.spec_count >= 64 {
+            return PkgOptionError(options, path, line_number, "too many options")
+        }
+        existing: s32 = PkgOptionGroup(options, group)
+        if (existing == 1 && !named) || (existing == 0 && named && group.count > 0) {
+            return PkgOptionError(options, path, line_number,
+                "options table is both fixed and named")
+        }
+        if PkgFindOptionSpec(options, group, key) >= 0 {
+            return PkgOptionError(options, path, line_number, "duplicate option")
+        }
+        spec: *PkgOptionSpec = *options.specs[options.spec_count]
+        spec.group = group
+        spec.named = named
+        spec.key = key
+        spec.kind = declared
+        if PkgEndsWith(declared, "!") {
+            spec.kind = declared[0:cast(s64)declared.count - 1]
+            spec.required = true
+        } else {
+            split: s64 = 0
+            while split < cast(s64)declared.count &&
+                declared[split] != cast(u8)61 { split += 1 }
+            if split < cast(s64)declared.count {
+                spec.kind = declared[0:split]
+                spec.fallback = declared[split + 1:]
+                if spec.fallback.count == 0 {
+                    return PkgOptionError(options, path, line_number,
+                        "empty option default")
+                }
+            }
+        }
+        if spec.kind != "string" && spec.kind != "bool" {
+            return PkgOptionError(options, path, line_number,
+                "option type must be string or bool")
+        }
+        if spec.kind == "bool" && spec.fallback.count > 0 &&
+            spec.fallback != "true" && spec.fallback != "false" {
+            return PkgOptionError(options, path, line_number,
+                "bool default must be true or false")
+        }
+        options.spec_count += 1
+    }
+    return true
+}
+
+PkgParseOptionValues :: (path: string, alias: string, options: *PkgOptions) -> bool {
+    if !PathExists(path) { return true }
+    content: PkgReadResult = PkgRead(path)
+    if !content.valid { return PkgOptionError(options, path, 0, "cannot read") }
+    inside: bool = false
+    group: string = ""
+    name: string = ""
+    line_number: s32 = 0
+    at: s64 = 0
+    while at < cast(s64)content.text.count {
+        end: s64 = at
+        while end < cast(s64)content.text.count &&
+            content.text[end] != cast(u8)10 { end += 1 }
+        line: string = PkgStripComment(content.text[at:end])
+        at = end + 1
+        line_number += 1
+        if line.count == 0 { continue }
+        if line[0] == cast(u8)91 {
+            section: string = PkgOptionSection(line)
+            inside = false
+            if section.count <= 5 || section[0:5] != "tool." { continue }
+            rest: string = section[5:]
+            split: s64 = 0
+            while split < cast(s64)rest.count && rest[split] != cast(u8)46 { split += 1 }
+            if !PkgFoldEqual(rest[0:split], alias) { continue }
+            inside = true
+            group = ""
+            name = ""
+            if split < cast(s64)rest.count {
+                rest = rest[split + 1:]
+                split = 0
+                while split < cast(s64)rest.count && rest[split] != cast(u8)46 {
+                    split += 1
+                }
+                group = rest[0:split]
+                if split < cast(s64)rest.count { name = rest[split + 1:] }
+            }
+            kind: s32 = PkgOptionGroup(options, group)
+            if kind < 0 || (kind == 0 && name.count > 0) {
+                return PkgOptionError(options, path, line_number,
+                    PkgJoin3(PkgJoin3("unknown ", alias, " option table "),
+                        section, ""))
+            }
+            if kind == 1 && !PkgPackageName(name) {
+                return PkgOptionError(options, path, line_number,
+                    PkgJoin3("name the table: [tool.", alias,
+                        PkgJoin3(".", group, ".NAME]")))
+            }
+            // Tables are recorded when their header appears, even when empty,
+            // so their required keys are still checked. Named tables are
+            // listed in this order.
+            known: bool = group.count == 0
+            table: s32 = 0
+            while table < options.table_count {
+                if options.tables[table].group == group &&
+                    options.tables[table].name == name { known = true }
+                table += 1
+            }
+            if !known {
+                if options.table_count >= 64 {
+                    return PkgOptionError(options, path, line_number,
+                        "too many option tables")
+                }
+                options.tables[options.table_count].group = group
+                options.tables[options.table_count].name = name
+                options.table_count += 1
+            }
+            continue
+        }
+        if !inside { continue }
+        equal: s64 = 0
+        while equal < cast(s64)line.count && line[equal] != cast(u8)61 { equal += 1 }
+        if equal >= cast(s64)line.count {
+            return PkgOptionError(options, path, line_number, "expected KEY = VALUE")
+        }
+        key: string = PkgTrim(line[0:equal])
+        raw: string = PkgTrim(line[equal + 1:])
+        spec: s32 = PkgFindOptionSpec(options, group, key)
+        if spec < 0 {
+            return PkgOptionError(options, path, line_number,
+                PkgJoin3(PkgJoin3("unknown ", alias, " option "),
+                    PkgOptionName(group, name, key), ""))
+        }
+        value: string = ""
+        if options.specs[spec].kind == "bool" {
+            if raw == "true" || raw == "false" { value = raw }
+        } else {
+            value = PkgTomlText(raw)
+        }
+        if value.count == 0 {
+            return PkgOptionError(options, path, line_number,
+                PkgJoin3(PkgOptionName(group, name, key), " must be a ",
+                    PkgJoin3("non-empty ", options.specs[spec].kind, "")))
+        }
+        found: s32 = PkgFindOptionValue(options, group, name, key)
+        if found < 0 {
+            if options.value_count >= 256 {
+                return PkgOptionError(options, path, line_number, "too many options")
+            }
+            found = options.value_count
+            options.value_count += 1
+            options.values[found].group = group
+            options.values[found].name = name
+            options.values[found].key = key
+        }
+        options.values[found].value = value
+    }
+    return true
+}
+
+PkgAppendOption :: (builder: *PkgBuilder, name: string, value: string) -> void {
+    PkgAppend(builder, name)
+    PkgAppend(builder, "=")
+    PkgAppend(builder, value)
+    PkgAppend(builder, "\n")
+}
+
+// Appends one table's declared keys, applying defaults and required checks.
+PkgAppendOptionTable :: (builder: *PkgBuilder, options: *PkgOptions,
+    alias: string, group: string, name: string, used: bool) -> bool {
+    index: s32 = 0
+    while index < options.spec_count {
+        spec: *PkgOptionSpec = *options.specs[index]
+        index += 1
+        if spec.group != group { continue }
+        full: string = PkgOptionName(group, name, spec.key)
+        found: s32 = PkgFindOptionValue(options, group, name, spec.key)
+        if found >= 0 {
+            PkgAppendOption(builder, full, options.values[found].value)
+        } else if spec.fallback.count > 0 {
+            PkgAppendOption(builder, full, spec.fallback)
+        } else if spec.required && used {
+            return PkgOptionError(options, "ziran.toml", 0,
+                PkgJoin3(PkgJoin3("missing required ", alias, " option "), full, ""))
+        }
+    }
+    return true
+}
+
+PkgWriteOptions :: (root: string, alias: string, options: *PkgOptions) -> string {
+    memory: *u8 = PkgAlloc(1048576)
+    if memory == null { return "" }
+    builder: PkgBuilder
+    builder.bytes = BytesFromPointer(memory, 1048576)
+    builder.valid = true
+    if !PkgAppendOptionTable(*builder, options, alias, "", "", true) { return "" }
+    index: s32 = 0
+    while index < options.spec_count {
+        spec: *PkgOptionSpec = *options.specs[index]
+        earlier: s32 = 0
+        first: bool = spec.group.count > 0
+        while first && earlier < index {
+            if options.specs[earlier].group == spec.group { first = false }
+            earlier += 1
+        }
+        index += 1
+        if !first { continue }
+        if !spec.named {
+            if !PkgAppendOptionTable(*builder, options, alias, spec.group, "",
+                PkgOptionGroupUsed(options, spec.group)) { return "" }
+            continue
+        }
+        // Named tables: the list of names first, then each table's keys.
+        joined: string = ""
+        table: s32 = 0
+        while table < options.table_count {
+            if options.tables[table].group == spec.group {
+                if joined.count > 0 { joined = PkgJoin(joined, " ") }
+                joined = PkgJoin(joined, options.tables[table].name)
+            }
+            table += 1
+        }
+        PkgAppendOption(*builder, spec.group, joined)
+        table = 0
+        while table < options.table_count {
+            item: *PkgOptionTable = *options.tables[table]
+            table += 1
+            if item.group != spec.group { continue }
+            if !PkgAppendOptionTable(*builder, options, alias, item.group,
+                item.name, true) { return "" }
+        }
+    }
+    if !builder.valid { return "" }
+    directory: string = PkgJoin(root, "/build/.ziran/options")
+    if !PkgMkdirs(directory) { return "" }
+    path: string = PkgJoin3(directory, "/", PkgJoin(alias, ".env"))
+    if !PkgWrite(path, TextFromBytes(builder.bytes[0:builder.at])) { return "" }
+    return path
+}
+
+// Merges a package's declared options with the application's settings and
+// returns the path of the resolved KEY=VALUE file, or "" after reporting why.
+PkgResolveOptions :: (root: string, alias: string, package_path: string) -> string {
+    options: *PkgOptions = cast(*PkgOptions)(PkgAllocZero(cast(u64)size_of(PkgOptions)))
+    if options == null { PkgFail("out of memory"); return "" }
+    path: string = ""
+    if PkgParseOptionSpecs(PkgJoin(package_path, "/ziran.toml"), options) &&
+        PkgParseOptionValues(PkgJoin(root, "/ziran.toml"), alias, options) &&
+        PkgParseOptionValues(PkgJoin(root, "/ziran.local.toml"), alias, options) {
+        path = PkgWriteOptions(root, alias, options)
+    }
+    if path.count > 0 { return path }
+    if options.error.count == 0 { options.error = "cannot write tool options" }
+    PkgFail(options.error)
+    return ""
+}

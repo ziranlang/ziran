@@ -948,31 +948,63 @@ body_changes(const ZirFunction *fn, int index, int close, const char *name)
     for(int i = index + 1; i < close; i++) {
         ZirLexer lexer;
         ZirToken token;
-        int first = 1, address = 0;
+        int first = 1, address = 0, operand = 0;
         LexerInit(&lexer, fn->stmts[i].text, "");
         do {
             token = LexerNext(&lexer);
             if(token.kind == ZIR_TOKEN_IDENT && !strcmp(token.text, name) &&
                (address || (first && fn->stmts[i].kind == ZIR_STMT_ASSIGN)))
                 return 1;
-            address = token.kind != ZIR_TOKEN_EOF && !strcmp(token.text, "*");
+            /* A * after an operand multiplies; anywhere else it takes an
+             * address. */
+            address = token.kind != ZIR_TOKEN_EOF && !strcmp(token.text, "*") && !operand;
+            operand = token.kind == ZIR_TOKEN_IDENT || token.kind == ZIR_TOKEN_INT ||
+                      token.kind == ZIR_TOKEN_FLOAT || token.kind == ZIR_TOKEN_STRING ||
+                      token.kind == ZIR_TOKEN_CHAR ||
+                      (token.kind != ZIR_TOKEN_EOF &&
+                       (!strcmp(token.text, ")") || !strcmp(token.text, "]")));
             first = 0;
         } while(token.kind != ZIR_TOKEN_EOF);
     }
     return 0;
 }
 
-/* An integer literal bound, which the loop can use in place. */
+/* A bound known before the loop runs: an integer literal, or a module
+ * constant that is one and no local or parameter hides. */
 static int
-literal_bound(const char *text, long long *value)
+literal_bound(const ZirFunction *fn, const ZirModule *module, const char *text,
+              long long *value)
 {
-    char *end;
+    char *end, name[ZIR_NAME_MAX];
+    size_t length;
     while(*text == ' ') text++;
     if(!*text) return 0;
     errno = 0;
     *value = strtoll(text, &end, 0);
     while(*end == ' ') end++;
-    return errno == 0 && *end == '\0';
+    if(end != text && errno == 0 && *end == '\0')
+        return 1;
+    length = strlen(text);
+    while(length > 0 && text[length - 1] == ' ') length--;
+    if(length == 0 || length >= sizeof(name))
+        return 0;
+    memcpy(name, text, length);
+    name[length] = '\0';
+    if(mentions(fn->args, name))
+        return 0;
+    for(int i = 0; i < fn->stmt_count; i++)
+        if(fn->stmts[i].kind == ZIR_STMT_DECL && !strcmp(fn->stmts[i].name, name))
+            return 0;
+    for(int i = 0; i < module->define_count; i++)
+        if(!strcmp(module->defines[i].name, name)) {
+            const char *defined = module->defines[i].value;
+            while(*defined == ' ') defined++;
+            errno = 0;
+            *value = strtoll(defined, &end, 0);
+            while(*end == ' ') end++;
+            return end != defined && errno == 0 && *end == '\0';
+        }
+    return 0;
 }
 
 static int
@@ -995,7 +1027,8 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
     long long low, high;
     /* Constant bounds read in place, and a constant last value leaves room
      * to step past it. The binder counts itself unless the body changes it. */
-    int constant = literal_bound(start, &low) && literal_bound(end, &high) &&
+    int constant = literal_bound(fn, module, start, &low) &&
+                   literal_bound(fn, module, end, &high) &&
                    (reverse ? low > LLONG_MIN : high < LLONG_MAX);
     int own_cursor = !body_changes(fn, index, close, binder);
     int wants_index = body_mentions(fn, index, close, "it_index");
@@ -1014,8 +1047,8 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
            !range_name_used(fn, module, cursor)) break;
     }
     if(constant) {
-        snprintf(first, sizeof(first), "%lld", low);
-        snprintf(last, sizeof(last), "%lld", high);
+        snprintf(first, sizeof(first), "%s", start);
+        snprintf(last, sizeof(last), "%s", end);
     }
     if(own_cursor)
         snprintf(cursor, sizeof(cursor), "%s", binder);

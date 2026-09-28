@@ -521,6 +521,43 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         if(!strcmp(base_type, "string")) {
             emit_expr(e, expr->left, "string", source, sizeof(source));
             base_pure = e->pure;
+            /* Go checks a string slice's bounds itself; constant bounds it
+             * would reject at compile time keep the explicit check. */
+            if(e->target == ZIR_GO && plain_identifier(source) &&
+               !expression_calls(e->fn, expr->right) &&
+               !expression_calls(e->fn, expr->third)) {
+                uint64_t low_bits = 0, high_bits = 0;
+                int low_constant = 1, high_constant = 0;
+                low[0] = high[0] = '\0';
+                if(expr->right >= 0) {
+                    emit_expr(e, expr->right, "s64", low, sizeof(low));
+                    low_pure = e->pure;
+                    low_constant = integer_literal_bits(low, &low_bits);
+                }
+                if(expr->third >= 0) {
+                    emit_expr(e, expr->third, "s64", high, sizeof(high));
+                    high_pure = e->pure;
+                    high_constant = integer_literal_bits(high, &high_bits);
+                }
+                if(!(low_constant && low[0] == '-') && !(high_constant && high[0] == '-') &&
+                   !(low_constant && high_constant && low_bits > high_bits)) {
+                    pure = base_pure && low_pure && high_pure;
+                    format(result, sizeof(result), "%s[%s:%s]", source, low, high);
+                    break;
+                }
+                fresh(e, view);
+                line(e, "%s := %s", view, source);
+                if(!low[0]) copy_text(low, sizeof(low), "0");
+                if(!high[0]) format(high, sizeof(high), "int64(len(%s))", view);
+                line(e, "if %s < 0 || %s < %s || %s > int64(len(%s)) {", low, high, low, high, view);
+                e->indent++;
+                line(e, "panic(\"string range out of bounds\")");
+                e->indent--;
+                line(e, "}");
+                pure = base_pure && low_pure && high_pure;
+                format(result, sizeof(result), "%s[%s:%s]", view, low, high);
+                break;
+            }
             fresh(e, view);
             if(e->target == ZIR_GO)
                 line(e, "%s := %s", view, source);

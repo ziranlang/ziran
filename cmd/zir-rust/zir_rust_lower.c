@@ -67,6 +67,9 @@ static int rust_record_type(RustEmitter *emitter, const char *type,
 static int rust_type(RustEmitter *emitter, const char *type, char *output,
                      size_t size);
 static int rust_copyable_type(RustEmitter *emitter, const char *type);
+static int split_arguments(const char *text,
+                           char parts[][ZIR_RUST_TEXT_MAX], int maximum);
+static void rust_identifier(const char *source, char *output, size_t size);
 static void rust_field_name(const ZirType *record, const char *source,
                             char *output, size_t size);
 
@@ -147,6 +150,104 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
             }
         }
     }
+}
+
+static void rust_extern_symbol(RustEmitter *emitter, const ZirModule *module,
+                               const ZirImport *import, char *output,
+                               size_t size)
+{
+    char file_stem[1024];
+    char module_guard[1024];
+    char safe_module[ZIR_RUST_NAME_MAX];
+    char safe_name[ZIR_RUST_NAME_MAX];
+    NativeGoModuleIdentity(emitter->programs, emitter->program_count, module,
+                           file_stem, sizeof(file_stem),
+                           module_guard, sizeof(module_guard));
+    rust_identifier(module_guard, safe_module, sizeof(safe_module));
+    rust_identifier(import->name, safe_name, sizeof(safe_name));
+    snprintf(output, size, "ziran_foreign_%s_%s", safe_module, safe_name);
+    rust_identifier(output, output, size);
+}
+
+static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
+{
+    int opened = 0;
+    for(int program_index = 0; program_index < emitter->program_count;
+        program_index++) {
+        const ZirProgram *program = emitter->programs[program_index];
+        for(int module_index = 0; module_index < program->module_count;
+             module_index++) {
+            const ZirModule *module = &program->modules[module_index];
+            emitter->module = module;
+            for(int import_index = 0; import_index < module->import_count;
+                import_index++) {
+                const ZirImport *import = &module->imports[import_index];
+                char parts[32][ZIR_RUST_TEXT_MAX];
+                char return_type[ZIR_NAME_MAX];
+                char symbol[ZIR_RUST_NAME_MAX * 2];
+                int count;
+                if(import->kind != ZIR_IMPORT_EXTERN ||
+                   import->extern_kind != ZIR_EXTERN_C)
+                    continue;
+                count = *import->args ?
+                    split_arguments(import->args, parts, 32) : 0;
+                if(count < 0 || import->is_varargs) {
+                    Diagnostic(import->span, "zir_rust.import",
+                               "unsupported foreign ABI for Rust: %s",
+                               import->name);
+                    exit(1);
+                }
+                if(!opened) {
+                    fputs("extern \"C\" {\n", output);
+                    opened = 1;
+                }
+                rust_extern_symbol(emitter, module, import, symbol,
+                                   sizeof(symbol));
+                if(import->extern_symbol[0] &&
+                   strcmp(import->extern_symbol, import->name) != 0)
+                    fprintf(output, "    #[link_name = \"%s\"]\n",
+                            import->extern_symbol);
+                fprintf(output, "    fn %s(", symbol);
+                for(int index = 0; index < count; index++) {
+                    char *colon = strchr(parts[index], ':');
+                    char parameter_type[ZIR_NAME_MAX];
+                    char *type;
+                    if(colon == NULL) {
+                        Diagnostic(import->span, "zir_rust.import",
+                                   "invalid foreign parameter: %s",
+                                   parts[index]);
+                        exit(1);
+                    }
+                    type = colon + 1;
+                    while(*type == ' ' || *type == '\t')
+                        type++;
+                    if(!rust_type(emitter, type, parameter_type,
+                                  sizeof(parameter_type))) {
+                        Diagnostic(import->span, "zir_rust.import",
+                                   "unsupported foreign parameter type: %s",
+                                   type);
+                        exit(1);
+                    }
+                    fprintf(output, "%s_%d: %s", index ? ", " : "", index,
+                            parameter_type);
+                }
+                if(!rust_type(emitter, import->return_type, return_type,
+                              sizeof(return_type))) {
+                    Diagnostic(import->span, "zir_rust.import",
+                               "unsupported foreign return type: %s",
+                               import->return_type);
+                    exit(1);
+                }
+                if(import->return_type[0] &&
+                   strcmp(import->return_type, "void") != 0)
+                    fprintf(output, ") -> %s;\n", return_type);
+                else
+                    fprintf(output, ");\n");
+            }
+        }
+    }
+    if(opened)
+        fputs("}\n\n", output);
 }
 
 static void rust_identifier(const char *source, char *output, size_t size)
@@ -375,6 +476,14 @@ static int rust_type(RustEmitter *emitter, const char *type, char *output,
         snprintf(output, size, "ZiranText");
         return 1;
     }
+    if(type[0] == '*' && type[1] != '\0') {
+        char element_type[ZIR_NAME_MAX];
+        if(!rust_type(emitter, type + 1, element_type,
+                      sizeof(element_type)))
+            return 0;
+        snprintf(output, size, "*mut %s", element_type);
+        return 1;
+    }
     if(rust_scalar_type(type) != NULL) {
         snprintf(output, size, "%s", rust_scalar_type(type));
         return 1;
@@ -423,6 +532,8 @@ static int rust_copyable_type(RustEmitter *emitter, const char *type)
     const ZirType *record = NULL;
     char element[ZIR_NAME_MAX];
     int capacity = 0;
+    if(type[0] == '*' && type[1] != '\0')
+        return 1;
     if(rust_scalar_type(type) != NULL || !strcmp(type, "string") ||
        rust_enum_type(emitter, type, &owner, &record))
         return 1;
@@ -685,6 +796,19 @@ static void emit_integer_literal(const ZirExpr *expression, char *output,
     snprintf(output, size, "%s%s", expression->text, suffix);
 }
 
+static const ZirImport *rust_foreign_import(RustEmitter *emitter,
+                                            const char *name)
+{
+    for(int index = 0; index < emitter->module->import_count; index++) {
+        const ZirImport *import = &emitter->module->imports[index];
+        if(import->kind == ZIR_IMPORT_EXTERN &&
+           import->extern_kind == ZIR_EXTERN_C &&
+           strcmp(import->name, name) == 0)
+            return import;
+    }
+    return NULL;
+}
+
 static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
                       char *output, size_t size)
 {
@@ -694,6 +818,7 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
     char arguments[ZIR_RUST_TEXT_MAX] = "";
     char child[ZIR_RUST_TEXT_MAX];
     char element[ZIR_NAME_MAX];
+    const ZirImport *foreign = rust_foreign_import(emitter, expression->name);
     if(!strcmp(expression->name, "VecPush") ||
        !strcmp(expression->name, "VecPop") ||
        !strcmp(expression->name, "VecGet") ||
@@ -827,6 +952,21 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
     }
     if(expression->slot_type[0] || expression->is_function_value) {
         unsupported_expression(emitter, expression);
+        return;
+    }
+    if(foreign != NULL) {
+        rust_extern_symbol(emitter, emitter->module, foreign, symbol,
+                           sizeof(symbol));
+        for(int child_index = expression->first_child; child_index >= 0;
+            child_index = emitter->function->exprs[child_index].next_sibling) {
+            emit_expression(emitter, child_index, child, sizeof(child));
+            if(*arguments)
+                strncat(arguments, ", ",
+                        sizeof(arguments) - strlen(arguments) - 1);
+            strncat(arguments, child,
+                    sizeof(arguments) - strlen(arguments) - 1);
+        }
+        snprintf(output, size, "unsafe { %s(%s) }", symbol, arguments);
         return;
     }
     if(ResolveFunctionAt(emitter->module, expression->name,
@@ -1463,9 +1603,49 @@ static void validate_module(const ZirModule *module)
             }
     }
     for(int index = 0; index < module->import_count; index++) {
-        if(module->imports[index].kind == ZIR_IMPORT_EXTERN) {
-            Diagnostic(module->imports[index].span, "zir_rust.import",
-                       "foreign imports are unsupported by the initial Rust target");
+        const ZirImport *import = &module->imports[index];
+        char checked_type[ZIR_NAME_MAX];
+        if(import->kind != ZIR_IMPORT_EXTERN)
+            continue;
+        if(import->extern_kind != ZIR_EXTERN_C) {
+            Diagnostic(import->span, "zir_rust.import",
+                       "only the C foreign ABI is supported by the Rust target: %s",
+                       import->name);
+            exit(1);
+        }
+        if(import->is_varargs) {
+            Diagnostic(import->span, "zir_rust.import",
+                       "variadic foreign calls are unsupported by the Rust target: %s",
+                       import->name);
+            exit(1);
+        }
+        if(*import->args) {
+            char parts[32][ZIR_RUST_TEXT_MAX];
+            int count = split_arguments(import->args, parts, 32);
+            if(count < 0) {
+                Diagnostic(import->span, "zir_rust.import",
+                           "too many foreign parameters: %s", import->name);
+                exit(1);
+            }
+            for(int parameter = 0; parameter < count; parameter++) {
+                char *colon = strchr(parts[parameter], ':');
+                char *type = colon != NULL ? colon + 1 : parts[parameter];
+                while(*type == ' ' || *type == '\t')
+                    type++;
+                if(colon == NULL ||
+                   !rust_type(&emitter, type, checked_type,
+                              sizeof(checked_type))) {
+                    Diagnostic(import->span, "zir_rust.import",
+                               "unsupported foreign parameter type in %s",
+                               import->name);
+                    exit(1);
+                }
+            }
+        }
+        if(!rust_type(&emitter, import->return_type, checked_type,
+                      sizeof(checked_type))) {
+            Diagnostic(import->span, "zir_rust.import",
+                       "unsupported foreign return type: %s", import->name);
             exit(1);
         }
     }
@@ -1959,6 +2139,7 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
           "    }\n"
           "}\n\n", output);
     emit_type_definitions(&emitter, output);
+    emit_extern_definitions(&emitter, output);
     emit_global_definitions(&emitter, output);
     for(int program_index = 0; program_index < program_count; program_index++) {
         const ZirProgram *program = programs[program_index];

@@ -38,12 +38,15 @@ Answer :: () -> s32 {
     if view != "abc" || view.count != 3 || whole.count != 4 ||
        whole[3] != cast(u8)0 { return 8 }
     if Limit + Offset != 11 { return 9 }
+    if Abs(-9) != 9 { return 10 }
     return 0
 }
 Add :: (a: s32, b: s32) -> s32 { return a + b }
 Identify :: (value: Mode) -> Mode { return value }
 Limit :: 8;
 Offset :: 3;
+libc :: #system_library "libc";
+Abs :: (value: s32) -> s32 #foreign libc "abs";
 Loop :: () -> s32 {
     total: int = 0
     for i: 0..3 { total += i }

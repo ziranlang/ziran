@@ -1568,35 +1568,8 @@ c_plan9_write_runtime(const char *out_dir)
 "        (left.length == 0 ||\n"
 "         memcmp(left.data, right.data, left.length) == 0);\n"
 "}\n\n"
-"/* `print` output, spelled the same as on the hosted C targets. */\n"
+"/* print writes floats as the shortest decimal that reads back the same. */\n"
 "#ifdef ZIR_PLAN9_PRINT\n"
-"static void\nZirPrintString(String text)\n"
-"{\n"
-"    if(text.length > 0)\n"
-"        write(1, text.data, (long)text.length);\n"
-"}\n\n"
-"static void\nZirPrintBool(bool value)\n"
-"{\n"
-"    write(1, value ? \"true\" : \"false\", value ? 4 : 5);\n"
-"}\n\n"
-"static void\nZirPrintUnsigned(uint64_t value)\n"
-"{\n"
-"    char digits[24];\n"
-"    int used = sizeof(digits);\n"
-"    do {\n"
-"        digits[--used] = (char)('0' + value % 10);\n"
-"        value /= 10;\n"
-"    } while(value != 0);\n"
-"    write(1, digits + used, sizeof(digits) - used);\n"
-"}\n\n"
-"static void\nZirPrintSigned(int64_t value)\n"
-"{\n"
-"    if(value < 0) {\n"
-"        write(1, \"-\", 1);\n"
-"        ZirPrintUnsigned((uint64_t)0 - (uint64_t)value);\n"
-"    } else\n"
-"        ZirPrintUnsigned((uint64_t)value);\n"
-"}\n\n"
 "static void\nZirPrintFloat(double value, int single)\n"
 "{\n"
 "    char scientific[40], digits[24];\n"
@@ -2041,6 +2014,44 @@ rewrite_plan9_foreign_aliases(const char *line,
     return 0;
 }
 
+/* Plan 9's libc prints with print, spells unsigned %llud, and writes raw
+ * bytes with write. */
+static void
+rewrite_plan9_print(char *line, size_t size)
+{
+    char out[PLAN9_LINE_MAX];
+    size_t used = 0;
+    const char *p = line;
+    if(strstr(line, "printf(") == NULL && strstr(line, "fwrite(") == NULL)
+        return;
+    while(*p && used + 8 < sizeof(out)) {
+        if(!strncmp(p, "printf(", 7)) {
+            memcpy(out + used, "print(", 6);
+            used += 6;
+            p += 7;
+        } else if(!strncmp(p, "%llu", 4)) {
+            memcpy(out + used, "%llud", 5);
+            used += 5;
+            p += 4;
+        } else if(!strncmp(p, "fwrite(", 7)) {
+            /* fwrite(text, 1, n, stdout) -> write(1, text, n) */
+            const char *text = p + 7, *one = strstr(text, ", 1, ");
+            const char *count = one ? one + 5 : NULL;
+            const char *stream = count ? strstr(count, ", stdout)") : NULL;
+            if(stream == NULL) {
+                out[used++] = *p++;
+                continue;
+            }
+            used += (size_t)snprintf(out + used, sizeof(out) - used, "write(1, %.*s, %.*s)",
+                                     (int)(one - text), text, (int)(stream - count), count);
+            p = stream + 9;
+        } else
+            out[used++] = *p++;
+    }
+    out[used] = '\0';
+    snprintf(line, size, "%s", out);
+}
+
 char *
 c_plan9_rewrite_once(const char *text)
 {
@@ -2114,6 +2125,7 @@ c_plan9_rewrite_once(const char *text)
             (int)sizeof(current))
             goto fail;
         rewrite_integer_suffixes(current);
+        rewrite_plan9_print(current, sizeof(current));
 
         while(ilen + 1 < sizeof(indent) &&
               (current[ilen] == ' ' || current[ilen] == '\t')) {

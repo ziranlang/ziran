@@ -82,7 +82,7 @@ void EmitParallelWorkers(FILE *out, const ZirModule *module,
                          ZirResolveTarget resolve, void *context);
 void EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target);
 void EmitNumberSupport(FILE *out, ZirTarget target, const char *prefix);
-void EmitGoPrintSupport(FILE *out, const ZirModule *module);
+void EmitGoPrintSupport(FILE *out);
 int NativeMainReturnsStatus(const ZirFunction *fn);
 int FoldIntegerOperation(const char *op, const char *type, uint64_t a, uint64_t b,
                          uint64_t *result);

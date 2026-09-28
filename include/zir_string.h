@@ -38,25 +38,9 @@ static inline bool StringEqual(String a, String b) {
         (a.length == 0 || memcmp(a.data, b.data, a.length) == 0);
 }
 
-/* `print` output. Floats use the shortest decimal that reads back to the
- * same value, in plain positional notation, so every target agrees. */
-static inline void ZirPrintString(String text) {
-    if (text.length > 0)
-        fwrite(text.data, 1, text.length, stdout);
-}
-
-static inline void ZirPrintBool(bool value) {
-    fputs(value ? "true" : "false", stdout);
-}
-
-static inline void ZirPrintSigned(int64_t value) {
-    printf("%lld", (long long)value);
-}
-
-static inline void ZirPrintUnsigned(uint64_t value) {
-    printf("%llu", (unsigned long long)value);
-}
-
+/* print writes floats as the shortest decimal that reads back to the same
+ * value, in plain positional notation, so every target agrees. printf has
+ * no such format. */
 static inline void ZirPrintFloat(double value, int single) {
     char scientific[40], digits[24];
     int precision, exponent, count = 0;

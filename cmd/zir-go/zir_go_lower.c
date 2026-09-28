@@ -479,6 +479,31 @@ add_extern(const char *source, const char *args, const char *ret,
              (char)tolower((unsigned char)g_guard[0]), g_guard + 1);
 }
 
+/* Whether any module prints a float, which needs formatFloat. */
+static int
+go_prints_floats(const ZirProgram *const *programs, int count)
+{
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++) {
+            const ZirModule *module = &programs[p]->modules[m];
+            for(int f = 0; f < module->function_count; f++) {
+                const ZirFunction *fn = &module->functions[f];
+                for(int e = 0; e < fn->expr_count; e++) {
+                    const ZirExpr *call = &fn->exprs[e];
+                    if(call->kind != ZIR_EXPR_CALL || strcmp(call->name, "print") ||
+                       call->first_child < 0)
+                        continue;
+                    for(int arg = fn->exprs[call->first_child].next_sibling; arg >= 0;
+                        arg = fn->exprs[arg].next_sibling)
+                        if(!strcmp(fn->exprs[arg].type, "float32") ||
+                           !strcmp(fn->exprs[arg].type, "float64"))
+                            return 1;
+                }
+            }
+        }
+    return 0;
+}
+
 /* Whether any module names Source_Code_Location, the #caller_location type. */
 static int
 go_uses_caller_location(const ZirProgram *const *programs, int count)
@@ -1320,31 +1345,22 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             }
             if(pointer_index || g_union_unsafe)
                 fprintf(f, "import \"unsafe\"\n");
-            /* print needs os; strconv and the float helper only for the
-             * argument types it formats. */
-            int prints = 0, formats = 0, float_prints = 0;
-            for(int fi = 0; fi < m->function_count; fi++) {
-                const ZirFunction *fn = &m->functions[fi];
-                for(int ei = 0; ei < fn->expr_count; ei++) {
-                    const ZirExpr *call = &fn->exprs[ei];
-                    if(call->kind != ZIR_EXPR_CALL || strcmp(call->name, "print"))
-                        continue;
-                    prints = 1;
-                    for(int arg = call->first_child >= 0 ?
-                            fn->exprs[call->first_child].next_sibling : -1;
-                        arg >= 0; arg = fn->exprs[arg].next_sibling) {
-                        const char *type = fn->exprs[arg].type;
-                        if(strcmp(type, "string"))
-                            formats = 1;
-                        if(!strcmp(type, "float32") || !strcmp(type, "float64"))
-                            float_prints = 1;
+            /* print uses fmt. */
+            int prints = 0;
+            for(int fi = 0; fi < m->function_count && !prints; fi++)
+                for(int ei = 0; ei < m->functions[fi].expr_count; ei++)
+                    if(m->functions[fi].exprs[ei].kind == ZIR_EXPR_CALL &&
+                       !strcmp(m->functions[fi].exprs[ei].name, "print")) {
+                        prints = 1;
+                        break;
                     }
-                }
-            }
+            /* The package's first file holds formatFloat when any file
+             * prints a float. */
+            int float_helper = pi == 0 && mi == 0 && go_prints_floats(progs, prog_count);
             if(prints)
-                fprintf(f, "import ziranos \"os\"\n");
-            if(formats)
-                fprintf(f, "import ziranstrconv \"strconv\"\n");
+                fprintf(f, "import \"fmt\"\n");
+            if(float_helper)
+                fprintf(f, "import \"math\"\nimport \"strconv\"\n");
             for(int i = 0; i < g_extern_count; i++) {
                 int duplicate = 0;
 
@@ -1363,7 +1379,7 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                             g_externs[i].go_import_alias,
                             g_externs[i].go_import_path);
             }
-            if(g_extern_count > 0 || pointer_index || g_union_unsafe || prints)
+            if(g_extern_count > 0 || pointer_index || g_union_unsafe || prints || float_helper)
                 fprintf(f, "\n");
             if(pi == 0 && mi == 0 && go_uses_caller_location(progs, prog_count))
                 fputs("type Source_Code_Location struct {\n"
@@ -1379,8 +1395,8 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                  * or to the Host interface below. */
             }
             EmitNumbers(f,m,ZIR_GO);
-            if(float_prints)
-                EmitGoPrintSupport(f, m);
+            if(float_helper)
+                EmitGoPrintSupport(f);
             /* '#foreign host_api' bridge: one interface, one package var, one
              * setter. Generated frames call hostVar.Method(...) directly. */
             {

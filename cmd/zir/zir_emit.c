@@ -198,7 +198,8 @@ TargetBindingName(const ZirFunction *fn, ZirTarget target,
         "break", "case", "chan", "const", "continue", "default", "defer",
         "else", "fallthrough", "for", "func", "go", "goto", "if", "import",
         "interface", "map", "package", "range", "return", "select",
-        "struct", "switch", "type", "var", NULL
+        "struct", "switch", "type", "var", "fmt", "strconv", "math",
+        "formatFloat", NULL
     };
     const char *const *lists[] = {c_keywords, cpp_keywords, go_keywords};
     int reserved = 0;
@@ -1124,25 +1125,22 @@ EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target)
     EmitNumberSupport(out, target, p);
 }
 
-/* Go `print` float text: nan and inf spellings shared with every target,
- * then the shortest decimal that reads back to the same value. */
+/* Go `print` float text, once per package: nan and inf spelled as on every
+ * target, then the shortest decimal that reads back to the same value. */
 void
-EmitGoPrintSupport(FILE *out, const ZirModule *module)
+EmitGoPrintSupport(FILE *out)
 {
-    char p[64];
-    number_prefix(module, p, sizeof(p));
-    fprintf(out,
-        "func %s_print_float(value float64, bits int) string {\n"
-        "\tswitch {\n"
-        "\tcase value != value:\n"
-        "\t\treturn \"nan\"\n"
-        "\tcase value > 1.7976931348623157e308:\n"
-        "\t\treturn \"inf\"\n"
-        "\tcase value < -1.7976931348623157e308:\n"
-        "\t\treturn \"-inf\"\n"
-        "\t}\n"
-        "\treturn ziranstrconv.FormatFloat(value, 'f', -1, bits)\n"
-        "}\n\n", p);
+    fputs("func formatFloat(value float64, bits int) string {\n"
+          "\tswitch {\n"
+          "\tcase math.IsNaN(value):\n"
+          "\t\treturn \"nan\"\n"
+          "\tcase math.IsInf(value, 1):\n"
+          "\t\treturn \"inf\"\n"
+          "\tcase math.IsInf(value, -1):\n"
+          "\t\treturn \"-inf\"\n"
+          "\t}\n"
+          "\treturn strconv.FormatFloat(value, 'f', -1, bits)\n"
+          "}\n\n", out);
 }
 
 /* An exported void main is the C program entry: it returns status 0. */
@@ -2926,6 +2924,95 @@ expression_calls(const ZirFunction *fn, int index)
            expression_calls(fn, expr->third);
 }
 
+/* A run of print output for one standard call: the format text, the same
+ * text unescaped for a call without values, and the value arguments. */
+typedef struct PrintRun {
+    unsigned char format[ZIR_TEXT_MAX];
+    size_t format_length;
+    unsigned char plain[ZIR_TEXT_MAX];
+    size_t plain_length;
+    char arguments[ZIR_TEXT_MAX];
+    int values;
+} PrintRun;
+
+static void
+print_run_text(PrintRun *run, const unsigned char *bytes, size_t length)
+{
+    for(size_t i = 0; i < length; i++) {
+        if(run->plain_length + 1 < sizeof(run->plain))
+            run->plain[run->plain_length++] = bytes[i];
+        if(run->format_length + 2 < sizeof(run->format)) {
+            run->format[run->format_length++] = bytes[i];
+            if(bytes[i] == '%')
+                run->format[run->format_length++] = '%';
+        }
+    }
+}
+
+static void
+print_run_value(PrintRun *run, const char *verb, const char *argument)
+{
+    size_t used = strlen(run->arguments);
+    for(const char *c = verb; *c && run->format_length + 1 < sizeof(run->format); c++)
+        run->format[run->format_length++] = (unsigned char)*c;
+    format(run->arguments + used, sizeof(run->arguments) - used, ", %s", argument);
+    run->values++;
+}
+
+/* Bytes as a Ziran literal, so each target spells it through string_literal. */
+static void
+ziran_literal_of(const unsigned char *bytes, size_t length, char *out, size_t size)
+{
+    size_t used = 0;
+    out[used++] = '"';
+    for(size_t i = 0; i < length && used + 6 < size; i++) {
+        unsigned char byte = bytes[i];
+        if(byte == '"' || byte == '\\') {
+            out[used++] = '\\';
+            out[used++] = (char)byte;
+        } else if(byte == '\n') {
+            out[used++] = '\\';
+            out[used++] = 'n';
+        } else if(byte == '\t') {
+            out[used++] = '\\';
+            out[used++] = 't';
+        } else if(byte == '\r') {
+            out[used++] = '\\';
+            out[used++] = 'r';
+        } else if(byte < 0x20 || byte == 0x7f)
+            used += (size_t)snprintf(out + used, size - used, "\\x%02x", byte);
+        else
+            out[used++] = (char)byte;
+    }
+    out[used++] = '"';
+    out[used] = '\0';
+}
+
+static void
+print_run_flush(Emitter *e, PrintRun *run, int format_expr)
+{
+    char source[ZIR_TEXT_MAX], literal[ZIR_TEXT_MAX];
+    ZirExpr piece;
+    if(run->format_length == 0) {
+        memset(run, 0, sizeof(*run));
+        return;
+    }
+    piece = e->fn->exprs[format_expr];
+    /* Go prints text alone with fmt.Print; C always uses printf. */
+    if(run->values == 0 && e->target == ZIR_GO)
+        ziran_literal_of(run->plain, run->plain_length, source, sizeof(source));
+    else
+        ziran_literal_of(run->format, run->format_length, source, sizeof(source));
+    copy_text(piece.text, sizeof(piece.text), source);
+    string_literal(&piece, e->target, literal, sizeof(literal));
+    if(e->target == ZIR_GO)
+        line(e, run->values ? "fmt.Printf(%s%s)" : "fmt.Print(%s%s)",
+             literal, run->arguments);
+    else
+        line(e, "printf(%s%s);", literal, run->arguments);
+    memset(run, 0, sizeof(*run));
+}
+
 static void
 emit_print(Emitter *e, const ZirExpr *expr)
 {
@@ -2953,58 +3040,79 @@ emit_print(Emitter *e, const ZirExpr *expr)
         } else
             copy_text(values[argument], ZIR_TEXT_MAX, value);
     }
+    /* Each language's standard printing: one printf or fmt.Printf per run
+     * of text and values. C has no shortest round-trip float format, so a
+     * float prints through ZirPrintFloat between printf calls. */
+    PrintRun run = {0};
     argument = 0;
     for(int i = 0; i < count; i++) {
         const char *type, *name;
+        char operand[ZIR_TEXT_MAX];
         if(!pieces[i].is_argument) {
-            ZirExpr piece = e->fn->exprs[first];
-            copy_text(piece.text, sizeof(piece.text), pieces[i].literal);
-            string_literal(&piece, e->target, literal, sizeof(literal));
-            if(e->target == ZIR_GO)
-                line(e, "ziranos.Stdout.WriteString(%s)", literal);
-            else
-                line(e, "ZirPrintString(StringLiteral(%s));", literal);
+            unsigned char bytes[ZIR_TEXT_MAX];
+            size_t length;
+            if(!DecodeStringLiteral(pieces[i].literal, bytes, sizeof(bytes), &length))
+                fatal(expr, "invalid checked print format");
+            if(e->target != ZIR_GO && memchr(bytes, 0, length) != NULL) {
+                /* printf formats end at NUL; such text is written as bytes. */
+                ZirExpr piece = e->fn->exprs[first];
+                print_run_flush(e, &run, first);
+                copy_text(piece.text, sizeof(piece.text), pieces[i].literal);
+                string_literal(&piece, e->target, literal, sizeof(literal));
+                line(e, "fwrite(%s, 1, %zu, stdout);", literal, length);
+                continue;
+            }
+            print_run_text(&run, bytes, length);
             continue;
         }
         type = types[argument];
         name = values[argument++];
-        if(e->target != ZIR_GO) {
-            if(!strcmp(type, "string"))
-                line(e, "ZirPrintString(%s);", name);
-            else if(!strcmp(type, "bool"))
-                line(e, "ZirPrintBool(%s);", name);
-            else if(!strcmp(type, "float32") || !strcmp(type, "float64"))
-                line(e, !strcmp(type, "float32") ? "ZirPrintFloat((double)%s, 1);" :
-                     "ZirPrintFloat(%s, 0);", name);
-            else if(!strcmp(type, "u64"))
-                line(e, "ZirPrintUnsigned(%s);", name);
-            else if(type[0] == 'u')
-                line(e, "ZirPrintUnsigned((uint64_t)%s);", name);
-            else if(!strcmp(type, "s64"))
-                line(e, "ZirPrintSigned(%s);", name);
-            else
-                line(e, "ZirPrintSigned((int64_t)%s);", name);
-        } else if(!strcmp(type, "string"))
-            line(e, "ziranos.Stdout.WriteString(%s)", name);
-        else if(!strcmp(type, "bool"))
-            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatBool(%s))",
-                 name);
-        else if(!strcmp(type, "float64"))
-            line(e, "ziranos.Stdout.WriteString(%s_print_float(%s, 64))", e->numbers, name);
-        else if(!strcmp(type, "float32"))
-            line(e, "ziranos.Stdout.WriteString(%s_print_float(float64(%s), 32))",
-                 e->numbers, name);
-        else if(!strcmp(type, "u64"))
-            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatUint(%s, 10))", name);
-        else if(type[0] == 'u')
-            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatUint(uint64(%s), 10))",
-                 name);
-        else if(!strcmp(type, "s64"))
-            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatInt(%s, 10))", name);
+        if(plain_identifier(name))
+            copy_text(operand, sizeof(operand), name);
         else
-            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatInt(int64(%s), 10))",
-                 name);
+            format(operand, sizeof(operand), "(%s)", name);
+        if(e->target == ZIR_GO) {
+            if(!strcmp(type, "string"))
+                print_run_value(&run, "%s", name);
+            else if(!strcmp(type, "bool"))
+                print_run_value(&run, "%t", name);
+            else if(!strcmp(type, "float64") || !strcmp(type, "float32")) {
+                char text[ZIR_TEXT_MAX];
+                format(text, sizeof(text), !strcmp(type, "float64") ?
+                       "formatFloat(%s, 64)" : "formatFloat(float64(%s), 32)", name);
+                print_run_value(&run, "%s", text);
+            } else
+                print_run_value(&run, "%d", name);
+            continue;
+        }
+        if(!strcmp(type, "float32") || !strcmp(type, "float64")) {
+            print_run_flush(e, &run, first);
+            line(e, !strcmp(type, "float32") ? "ZirPrintFloat((double)%s, 1);" :
+                 "ZirPrintFloat(%s, 0);", name);
+        } else if(!strcmp(type, "string")) {
+            char text[ZIR_TEXT_MAX];
+            format(text, sizeof(text), "(int)%s.length, %s.data", operand, operand);
+            print_run_value(&run, "%.*s", text);
+        } else if(!strcmp(type, "bool")) {
+            char text[ZIR_TEXT_MAX];
+            format(text, sizeof(text), "%s ? \"true\" : \"false\"", operand);
+            print_run_value(&run, "%s", text);
+        } else {
+            /* A literal is written as a long long constant; other values
+             * convert to the width printf expects. */
+            char text[ZIR_TEXT_MAX];
+            uint64_t bits;
+            int is_unsigned = type[0] == 'u';
+            if(integer_literal_bits(name, &bits))
+                format(text, sizeof(text), is_unsigned ? "%lluULL" : "%lldLL",
+                       is_unsigned ? (unsigned long long)bits : (unsigned long long)(long long)bits);
+            else
+                format(text, sizeof(text), is_unsigned ? "(unsigned long long)%s" :
+                       "(long long)%s", operand);
+            print_run_value(&run, is_unsigned ? "%llu" : "%lld", text);
+        }
     }
+    print_run_flush(e, &run, first);
     free(pieces);
     free(values);
 }

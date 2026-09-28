@@ -1174,70 +1174,69 @@ static int rust_expression_calls(const ZirFunction *function, int index)
  * output, as on the other targets. */
 static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
 {
+    /* One print! per statement: text with {} for each value. print!
+     * evaluates every argument before it writes, as the other targets do. */
     PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
-    char (*values)[ZIR_RUST_TEXT_MAX] = calloc(PRINT_PIECES_MAX, sizeof(*values));
-    const char *types[PRINT_PIECES_MAX];
-    char literal[ZIR_RUST_TEXT_MAX];
+    char *format = calloc(1, ZIR_RUST_TEXT_MAX);
+    char *arguments = calloc(1, ZIR_RUST_TEXT_MAX);
     const ZirFunction *function = emitter->function;
-    int first = expression->first_child, count, arguments = 0, argument = 0;
-    int capture = 0;
-    if(pieces == NULL || values == NULL || first < 0 ||
+    int first = expression->first_child, count, argument_node;
+    size_t format_used = 0, arguments_used = 0;
+    if(pieces == NULL || format == NULL || arguments == NULL || first < 0 ||
        (count = PrintFormatPieces(function->exprs[first].text, pieces,
                                   PRINT_PIECES_MAX)) < 0) {
         free(pieces);
-        free(values);
+        free(format);
+        free(arguments);
         return 0;
     }
-    for(int child = function->exprs[first].next_sibling; child >= 0;
-        child = function->exprs[child].next_sibling)
-        capture |= rust_expression_calls(function, child);
-    for(int child = function->exprs[first].next_sibling;
-        child >= 0 && arguments < PRINT_PIECES_MAX;
-        child = function->exprs[child].next_sibling, arguments++) {
-        char value[ZIR_RUST_TEXT_MAX];
-        types[arguments] = function->exprs[child].type;
-        emit_expression(emitter, child, value, sizeof(value));
-        if(capture) {
-            snprintf(values[arguments], ZIR_RUST_TEXT_MAX,
-                     "print_value_%d", arguments);
-            write_line(emitter, "let %s = %s;", values[arguments], value);
-        } else
-            snprintf(values[arguments], ZIR_RUST_TEXT_MAX, "%s", value);
-    }
+    argument_node = function->exprs[first].next_sibling;
     for(int piece = 0; piece < count; piece++) {
-        const char *type, *value;
         if(!pieces[piece].is_argument) {
-            if(!rust_string_literal(pieces[piece].literal, literal, sizeof(literal))) {
-                free(pieces);
-                free(values);
-                return 0;
+            unsigned char bytes[ZIR_TEXT_MAX];
+            size_t length;
+            if(!DecodeStringLiteral(pieces[piece].literal, bytes, sizeof(bytes), &length))
+                break;
+            for(size_t i = 0; i < length && format_used + 12 < ZIR_RUST_TEXT_MAX; i++) {
+                unsigned char byte = bytes[i];
+                const char *escape = byte == '\n' ? "\\n" : byte == '\t' ? "\\t" :
+                    byte == '\r' ? "\\r" : byte == '"' ? "\\\"" : byte == '\\' ? "\\\\" :
+                    byte == '{' ? "{{" : byte == '}' ? "}}" : NULL;
+                if(escape != NULL)
+                    format_used += (size_t)snprintf(format + format_used,
+                                                    ZIR_RUST_TEXT_MAX - format_used, "%s", escape);
+                else if(byte < 0x20 || byte == 0x7f)
+                    format_used += (size_t)snprintf(format + format_used,
+                                                    ZIR_RUST_TEXT_MAX - format_used, "\\u{%x}", byte);
+                else
+                    format[format_used++] = (char)byte;
             }
-            write_line(emitter, "ZiranPrintString(%s);", literal);
             continue;
         }
-        if(argument >= arguments)
+        if(argument_node < 0)
             break;
-        type = types[argument];
-        value = values[argument++];
+        char value[ZIR_RUST_TEXT_MAX];
+        const char *type = function->exprs[argument_node].type;
+        emit_expression(emitter, argument_node, value, sizeof(value));
+        format_used += (size_t)snprintf(format + format_used,
+                                        ZIR_RUST_TEXT_MAX - format_used, "{}");
         if(!strcmp(type, "string"))
-            write_line(emitter, "ZiranPrintString(%s);", value);
-        else if(!strcmp(type, "bool"))
-            write_line(emitter, "ZiranPrintBool(%s);", value);
-        else if(!strcmp(type, "float64"))
-            write_line(emitter, "ZiranPrintFloat(%s, false);", value);
-        else if(!strcmp(type, "float32"))
-            write_line(emitter, "ZiranPrintFloat(%s as f64, true);", value);
-        else if(!strcmp(type, "u64"))
-            write_line(emitter, "ZiranPrintUnsigned(%s);", value);
-        else if(type[0] == 'u')
-            write_line(emitter, "ZiranPrintUnsigned(%s as u64);", value);
-        else if(!strcmp(type, "s64"))
-            write_line(emitter, "ZiranPrintSigned(%s);", value);
+            arguments_used += (size_t)snprintf(arguments + arguments_used,
+                ZIR_RUST_TEXT_MAX - arguments_used,
+                rust_plain_receiver(value) ? ", %s.as_str()" : ", (%s).as_str()", value);
+        else if(!strcmp(type, "float32") || !strcmp(type, "float64"))
+            arguments_used += (size_t)snprintf(arguments + arguments_used,
+                ZIR_RUST_TEXT_MAX - arguments_used, ", ZiranFloat(%s)", value);
         else
-            write_line(emitter, "ZiranPrintSigned(%s as i64);", value);
+            arguments_used += (size_t)snprintf(arguments + arguments_used,
+                ZIR_RUST_TEXT_MAX - arguments_used, ", %s", value);
+        argument_node = function->exprs[argument_node].next_sibling;
     }
+    format[format_used] = '\0';
+    write_line(emitter, "print!(\"%s\"%s);", format, arguments);
     free(pieces);
-    free(values);
+    free(format);
+    free(arguments);
     return 1;
 }
 
@@ -1428,95 +1427,9 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
         unsupported_expression(emitter, expression);
         return;
     }
+    /* print is a statement, lowered by emit_print_statement. */
     if(!strcmp(expression->name, "print")) {
-        PrintPiece pieces[PRINT_PIECES_MAX];
-        int argument_nodes[PRINT_PIECES_MAX];
-        char value[ZIR_RUST_TEXT_MAX];
-        char literal[ZIR_RUST_TEXT_MAX];
-        int first = expression->first_child;
-        int count, arguments = 0, argument = 0;
-        size_t used;
-        for(int child = first >= 0 ?
-                emitter->function->exprs[first].next_sibling : -1;
-            child >= 0 && arguments < PRINT_PIECES_MAX;
-            child = emitter->function->exprs[child].next_sibling)
-            argument_nodes[arguments++] = child;
-        if(first < 0 ||
-           (count = PrintFormatPieces(
-                emitter->function->exprs[first].text, pieces,
-                PRINT_PIECES_MAX)) < 0) {
-            unsupported_expression(emitter, expression);
-            return;
-        }
-        used = (size_t)snprintf(output, size, "{");
-        if(used >= size) {
-            unsupported_expression(emitter, expression);
-            return;
-        }
-        /* Match the other backends: evaluate every argument before writing
-         * any output, then print literals and values in format order. */
-        for(int index = 0; index < arguments; index++) {
-            emit_expression(emitter, argument_nodes[index], value,
-                            sizeof(value));
-            used += (size_t)snprintf(
-                output + used, size - used,
-                " let ziran_print_value_%d = %s;", index, value);
-            if(used >= size) {
-                unsupported_expression(emitter, expression);
-                return;
-            }
-        }
-        for(int piece = 0; piece < count; piece++) {
-            const char *type;
-            if(!pieces[piece].is_argument) {
-                if(!rust_string_literal(pieces[piece].literal, literal,
-                                        sizeof(literal))) {
-                    unsupported_expression(emitter, expression);
-                    return;
-                }
-                used += (size_t)snprintf(
-                    output + used, size - used,
-                    " ZiranPrintString(%s);", literal);
-            } else {
-                if(argument >= arguments) {
-                    unsupported_expression(emitter, expression);
-                    return;
-                }
-                type = emitter->function->exprs[argument_nodes[argument]].type;
-                if(!strcmp(type, "string"))
-                    used += (size_t)snprintf(
-                        output + used, size - used,
-                        " ZiranPrintString(ziran_print_value_%d);", argument);
-                else if(!strcmp(type, "bool"))
-                    used += (size_t)snprintf(
-                        output + used, size - used,
-                        " ZiranPrintBool(ziran_print_value_%d);", argument);
-                else if(!strcmp(type, "float32") || !strcmp(type, "float64"))
-                    used += (size_t)snprintf(
-                        output + used, size - used,
-                        " ZiranPrintFloat(ziran_print_value_%d as f64, %s);",
-                        argument,
-                        !strcmp(type, "float32") ? "true" : "false");
-                else if(type[0] == 'u')
-                    used += (size_t)snprintf(
-                        output + used, size - used,
-                        " ZiranPrintUnsigned(ziran_print_value_%d as u64);",
-                        argument);
-                else
-                    used += (size_t)snprintf(
-                        output + used, size - used,
-                        " ZiranPrintSigned(ziran_print_value_%d as i64);",
-                        argument);
-                argument++;
-            }
-            if(used >= size) {
-                unsupported_expression(emitter, expression);
-                return;
-            }
-        }
-        used += (size_t)snprintf(output + used, size - used, " }");
-        if(used >= size)
-            unsupported_expression(emitter, expression);
+        unsupported_expression(emitter, expression);
         return;
     }
     if(foreign != NULL) {
@@ -3297,62 +3210,13 @@ static void emit_ziran_vec_runtime(FILE *output)
     fputs("    text\n", output);
     fputs("}\n", output);
     fputs("\n", output);
-    fputs("pub fn ZiranPrintString(text: ZiranText) {\n", output);
-    fputs("    use std::io::Write;\n", output);
-    fputs("    let bytes = unsafe { core::slice::from_raw_parts(text.data, text.len) };\n", output);
-    fputs("    let _ = std::io::stdout().write_all(bytes);\n", output);
-    fputs("}\n", output);
+    /* print! spells floats as the shortest round-trip decimal, like every
+     * target; only NaN is written differently, as nan. */
+    fputs("pub struct ZiranFloat<T>(pub T);\n", output);
     fputs("\n", output);
-    fputs("pub fn ZiranPrintBool(value: bool) {\n", output);
-    fputs("    print!(\"{}\", value)\n", output);
-    fputs("}\n", output);
-    fputs("\n", output);
-    fputs("pub fn ZiranPrintSigned(value: i64) {\n", output);
-    fputs("    print!(\"{}\", value)\n", output);
-    fputs("}\n", output);
-    fputs("\n", output);
-    fputs("pub fn ZiranPrintUnsigned(value: u64) {\n", output);
-    fputs("    print!(\"{}\", value)\n", output);
-    fputs("}\n", output);
-    fputs("\n", output);
-    fputs("pub fn ZiranPrintFloat(value: f64, single: bool) {\n", output);
-    fputs("    if value.is_nan() { print!(\"nan\"); return; }\n", output);
-    fputs("    if value.is_infinite() { print!(\"{}\", if value < 0.0 { \"-inf\" } else { \"inf\" }); return; }\n", output);
-    fputs("    let mut scientific = String::new();\n", output);
-    fputs("    for precision in 1..=17 {\n", output);
-    fputs("        scientific = format!(\"{:.*e}\", precision - 1, value);\n", output);
-    fputs("        let same = if single {\n", output);
-    fputs("            scientific.parse::<f32>().map(|parsed| parsed as f64 == value)\n", output);
-    fputs("        } else {\n", output);
-    fputs("            scientific.parse::<f64>().map(|parsed| parsed == value)\n", output);
-    fputs("        };\n", output);
-    fputs("        if same.unwrap_or(false) { break; }\n", output);
-    fputs("    }\n", output);
-    fputs("    let split = scientific.split_once('e').unwrap();\n", output);
-    fputs("    let mantissa = split.0;\n", output);
-    fputs("    let exponent: i32 = split.1.parse().unwrap();\n", output);
-    fputs("    let negative = mantissa.starts_with('-');\n", output);
-    fputs("    let mut digits = [0u8; 24];\n", output);
-    fputs("    let mut count = 0;\n", output);
-    fputs("    for byte in mantissa.bytes().filter(|byte| byte.is_ascii_digit()) {\n", output);
-    fputs("        digits[count] = byte;\n", output);
-    fputs("        count += 1;\n", output);
-    fputs("    }\n", output);
-    fputs("    while count > 1 && digits[count - 1] == b'0' { count -= 1; }\n", output);
-    fputs("    if negative { print!(\"-\"); }\n", output);
-    fputs("    if exponent < 0 {\n", output);
-    fputs("        print!(\"0.\");\n", output);
-    fputs("        for _ in 1..-exponent { print!(\"0\"); }\n", output);
-    fputs("        for digit in &digits[..count] { print!(\"{}\", *digit as char); }\n", output);
-    fputs("    } else {\n", output);
-    fputs("        for index in 0..=exponent {\n", output);
-    fputs("            if (index as usize) < count { print!(\"{}\", digits[index as usize] as char); }\n", output);
-    fputs("            else { print!(\"0\"); }\n", output);
-    fputs("        }\n", output);
-    fputs("        if count as i32 > exponent + 1 {\n", output);
-    fputs("            print!(\".\");\n", output);
-    fputs("            for digit in &digits[(exponent as usize + 1)..count] { print!(\"{}\", *digit as char); }\n", output);
-    fputs("        }\n", output);
+    fputs("impl<T: core::fmt::Display + PartialEq> core::fmt::Display for ZiranFloat<T> {\n", output);
+    fputs("    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {\n", output);
+    fputs("        if self.0 != self.0 { f.write_str(\"nan\") } else { self.0.fmt(f) }\n", output);
     fputs("    }\n", output);
     fputs("}\n", output);
     fputs("\n", output);
@@ -3817,6 +3681,9 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
           "            core::slice::from_raw_parts(left.data, left.len) ==\n"
           "            core::slice::from_raw_parts(right.data, right.len)\n"
           "        }\n"
+          "    }\n"
+          "    pub fn as_str(self) -> std::borrow::Cow<'static, str> {\n"
+          "        String::from_utf8_lossy(unsafe { core::slice::from_raw_parts(self.data, self.len) })\n"
           "    }\n"
           "    pub fn at(self, index: i64) -> u8 {\n"
           "        assert!(index >= 0 && (index as usize) < self.len, \"string index out of bounds\");\n"

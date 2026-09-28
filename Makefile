@@ -81,7 +81,7 @@ $(BIN_DIR)/zi2cpp: cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c cmd/zir/zir_bu
 
 $(BIN_DIR)/zi2rust: cmd/zir-rust/main.c cmd/zir-rust/zir_rust_lower.c cmd/zir/zir_bundle.c $(FRONTEND) $(HEADERS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ cmd/zir-rust/main.c \
-	    cmd/zir-rust/zir_rust_lower.c cmd/zir/zir_bundle.c $(FRONTEND)
+	    cmd/zir-rust/zir_rust_lower.c cmd/zir/zir_bundle.c $(FRONTEND) -pthread
 
 $(BIN_DIR)/zi2zib: cmd/zir-zib/main.c $(BUILD_DIR)/libziran.a $(HEADERS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ cmd/zir-zib/main.c $(BUILD_DIR)/libziran.a

@@ -10,6 +10,7 @@
 #include "zir_bundle.h"
 #include "zir_rust_lower.h"
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,7 +39,38 @@ static int split_entry(const char *text, char *module, char *function)
     return 1;
 }
 
+static int rust_main(int argc, char **argv);
+
+typedef struct RustMainCall {
+    int argc;
+    char **argv;
+    int result;
+} RustMainCall;
+
+static void *
+run_rust_main(void *opaque)
+{
+    RustMainCall *call = opaque;
+    call->result = rust_main(call->argc, call->argv);
+    return NULL;
+}
+
+/* Lowering recurses through expressions with sizable text buffers, so it
+ * runs on a thread with a large stack; deep expressions cannot overflow. */
 int main(int argc, char **argv)
+{
+    RustMainCall call = {argc, argv, 1};
+    pthread_attr_t attributes;
+    pthread_t thread;
+    if(pthread_attr_init(&attributes) != 0 ||
+       pthread_attr_setstacksize(&attributes, (size_t)1 << 30) != 0 ||
+       pthread_create(&thread, &attributes, run_rust_main, &call) != 0)
+        return rust_main(argc, argv);
+    pthread_join(thread, NULL);
+    return call.result;
+}
+
+static int rust_main(int argc, char **argv)
 {
     const char *root = NULL;
     const char *output_directory = NULL;

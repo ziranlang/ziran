@@ -650,8 +650,10 @@ static int rust_copyable_type(RustEmitter *emitter, const char *type)
     if(rust_owned_vec_type(emitter, type, NULL, NULL, NULL, 0) ||
        rust_option_type(emitter, type, NULL, NULL, NULL, 0))
         return 0;
-    if(SliceElementType(type, element, sizeof(element)) ||
-       ArrayElementType(type, element, sizeof(element), &capacity))
+    /* A slice is a pointer and a length, Copy for any element. */
+    if(SliceElementType(type, element, sizeof(element)))
+        return 1;
+    if(ArrayElementType(type, element, sizeof(element), &capacity))
         return rust_copyable_type(emitter, element);
     if(rust_record_type(emitter, type, &owner, &record)) {
         size_t offset = 0;
@@ -3278,8 +3280,12 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     emitter.programs = programs;
     emitter.program_count = program_count;
     fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n#![allow(improper_ctypes_definitions)]\n\n", output);
-    fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranSlice<T> {\n"
+    fputs("#[repr(C)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n"
+          "impl<T> Clone for ZiranSlice<T> {\n"
+          "    fn clone(&self) -> Self { *self }\n"
+          "}\n\n"
+          "impl<T> Copy for ZiranSlice<T> {}\n\n"
           "impl<T> ZiranSlice<T> {\n"
           "    pub fn view(source: Self, low: i64, high: i64) -> Self {\n"
           "        assert!(low >= 0 && low <= high && high as usize <= source.len, \"slice range out of bounds\");\n"

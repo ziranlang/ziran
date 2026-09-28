@@ -905,17 +905,13 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
         if(rust_owned_vec_type(
                emitter, emitter->function->exprs[expression->left].type,
                NULL, NULL, element, sizeof(element)))
-            snprintf(output, size,
-                     "unsafe { assert!((%s as isize) >= 0 && (%s as usize) < %s.count as usize); *%s.data.offset(%s as isize) }",
-                     index, index, base, base, index);
+            snprintf(output, size, "(*%s.element(%s as i64))", base, index);
         else if(emitter->function->exprs[expression->left].type[0] == '*')
             snprintf(output, size, "(*%s.offset(%s as isize))", base, index);
         else if(SliceElementType(
                     emitter->function->exprs[expression->left].type, element,
                     sizeof(element)))
-            snprintf(output, size,
-                     "(*{ assert!((%s as isize) >= 0 && (%s as usize) < %s.len); %s.data.offset(%s as isize) })",
-                     index, index, base, base, index);
+            snprintf(output, size, "(*%s.element(%s as i64))", base, index);
         else
             snprintf(output, size, "%s[%s as usize]", base, index);
         return;
@@ -977,7 +973,7 @@ static int rust_function_needs_unsafe(const ZirModule *module, const ZirFunction
 static int rust_text_needs_unsafe(const char *text, size_t size)
 {
     static const char *const operations[] = {
-        ".offset(", ".read()", ".write(", "from_raw_parts", "core::ptr::",
+        ".offset(", ".read()", ".write(", ".element(", "from_raw_parts", "core::ptr::",
         "std::ptr::", "std::alloc::", "core::mem::zeroed", NULL};
     int depth = 0, inline_depth = -1;
     for(size_t index = 0; index < size; index++) {
@@ -1638,6 +1634,11 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                     break;
                 }
                 if(!strcmp(expression->name, "data")) {
+                    /* An empty array has no storage: its data is null. */
+                    if(capacity == 0) {
+                        snprintf(output, size, "core::ptr::null_mut()");
+                        break;
+                    }
                     emit_destination(emitter, expression->left, base, sizeof(base));
                     snprintf(output, size, "%s.as_mut_ptr()", base);
                     break;
@@ -1695,9 +1696,7 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         emit_expression(emitter, expression->right, index, sizeof(index));
         if(!strcmp(emitter->function->exprs[expression->left].type,
                    "string")) {
-            snprintf(output, size,
-                     "unsafe { assert!((%s as isize) >= 0 && (%s as usize) < %s.len); *%s.data.offset(%s as isize) }",
-                     index, index, base, base, index);
+            snprintf(output, size, "%s.at(%s as i64)", base, index);
             break;
         }
         if(emitter->function->exprs[expression->left].type[0] == '*') {
@@ -1707,17 +1706,13 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         if(rust_owned_vec_type(
                emitter, emitter->function->exprs[expression->left].type,
                NULL, NULL, element, sizeof(element))) {
-            snprintf(output, size,
-                     "unsafe { assert!((%s as isize) >= 0 && (%s as usize) < %s.count as usize); %s.data.offset(%s as isize).read() }",
-                     index, index, base, base, index);
+            snprintf(output, size, "%s.at(%s as i64)", base, index);
             break;
         }
         if(SliceElementType(
                emitter->function->exprs[expression->left].type, element,
                sizeof(element))) {
-            snprintf(output, size,
-                     "unsafe { assert!((%s as isize) >= 0 && (%s as usize) < %s.len); *%s.data.offset(%s as isize) }",
-                     index, index, base, base, index);
+            snprintf(output, size, "%s.get(%s as i64)", base, index);
         } else {
             snprintf(output, size, "%s[%s as usize]", base, index);
         }
@@ -1758,13 +1753,15 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             else if(array)
                 snprintf(high, sizeof(high), "%di64", capacity);
             else
-                snprintf(high, sizeof(high), "(%s.len as i64)", base);
+                high[0] = '\0';
             if(array)
                 snprintf(output, size,
                          "ZiranSlice::view(ZiranSlice { data: %s.as_mut_ptr(), len: %d }, %s, %s)",
                          base, capacity, low, high);
-            else
+            else if(high[0])
                 snprintf(output, size, "ZiranSlice::view(%s, %s, %s)", base, low, high);
+            else
+                snprintf(output, size, "ZiranSlice::view_from(%s, %s)", base, low);
         }
         break;
     }
@@ -2233,6 +2230,12 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
     if(!rust_record_type(emitter, type, &owner, &record) ||
        !rust_type(emitter, type, type_name, sizeof(type_name))) {
         snprintf(output, size, "0");
+        return;
+    }
+    /* A union's zero value is all of its bytes zero, whichever field is
+     * read, as on the other targets. */
+    if(record->is_union) {
+        snprintf(output, size, "unsafe { core::mem::zeroed::<%s>() }", type_name);
         return;
     }
     snprintf(output, size, "%s { ", type_name);
@@ -2818,10 +2821,10 @@ static void rust_global_initializer(RustEmitter *emitter,
             return;
         }
     }
-    if((rust_scalar_type(global->type) != NULL ||
-        rust_enum_type(emitter, global->type, &owner, &enumeration)) &&
-       global->init[0] != '\0' && strchr(global->init, '(') == NULL &&
-       strchr(global->init, '.') == NULL) {
+    if(global->init[0] != '\0' && strchr(global->init, '(') == NULL &&
+       (rust_scalar_type(global->type) != NULL ||
+        (rust_enum_type(emitter, global->type, &owner, &enumeration) &&
+         strchr(global->init, '.') == NULL))) {
         snprintf(output, size, "%s", global->init);
         return;
     }
@@ -3010,6 +3013,13 @@ static void emit_ziran_vec_runtime(FILE *output)
     fputs("impl<T> ZiranVec<T> {\n", output);
     fputs("    pub const fn new() -> Self {\n", output);
     fputs("        Self { data: core::ptr::null_mut(), count: 0, capacity: 0 }\n", output);
+    fputs("    }\n", output);
+    fputs("    pub fn element(&self, index: i64) -> *mut T {\n", output);
+    fputs("        assert!(index >= 0 && index < self.count, \"Vec index out of bounds\");\n", output);
+    fputs("        unsafe { self.data.offset(index as isize) }\n", output);
+    fputs("    }\n", output);
+    fputs("    pub fn at(&self, index: i64) -> T {\n", output);
+    fputs("        unsafe { self.element(index).read() }\n", output);
     fputs("    }\n", output);
     fputs("}\n", output);
     fputs("\n", output);
@@ -3417,7 +3427,7 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     emitter.output = body;
     emitter.programs = programs;
     emitter.program_count = program_count;
-    fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n#![allow(improper_ctypes_definitions)]\n\n", output);
+    fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n#![allow(improper_ctypes_definitions)]\n#![allow(arithmetic_overflow)]\n#![allow(unconditional_panic)]\n\n", output);
     fputs("#[repr(C)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n"
           "impl<T> Clone for ZiranSlice<T> {\n"
@@ -3428,6 +3438,16 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
           "    pub fn view(source: Self, low: i64, high: i64) -> Self {\n"
           "        assert!(low >= 0 && low <= high && high as usize <= source.len, \"slice range out of bounds\");\n"
           "        Self { data: unsafe { source.data.offset(low as isize) }, len: (high - low) as usize }\n"
+          "    }\n"
+          "    pub fn view_from(source: Self, low: i64) -> Self {\n"
+          "        Self::view(source, low, source.len as i64)\n"
+          "    }\n"
+          "    pub fn element(self, index: i64) -> *mut T {\n"
+          "        assert!(index >= 0 && (index as usize) < self.len, \"slice index out of bounds\");\n"
+          "        unsafe { self.data.offset(index as isize) }\n"
+          "    }\n"
+          "    pub fn get(self, index: i64) -> T {\n"
+          "        unsafe { self.element(index).read() }\n"
           "    }\n"
           "}\n\n", runtime);
     emit_ziran_vec_runtime(runtime);
@@ -3447,6 +3467,10 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
           "            core::slice::from_raw_parts(left.data, left.len) ==\n"
           "            core::slice::from_raw_parts(right.data, right.len)\n"
           "        }\n"
+          "    }\n"
+          "    pub fn at(self, index: i64) -> u8 {\n"
+          "        assert!(index >= 0 && (index as usize) < self.len, \"string index out of bounds\");\n"
+          "        unsafe { *self.data.offset(index as isize) }\n"
           "    }\n"
           "    pub fn slice(value: Self, low: isize, high: isize) -> Self {\n"
           "        assert!(low >= 0 && low <= high && high as usize <= value.len);\n"

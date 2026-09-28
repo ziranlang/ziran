@@ -7,6 +7,7 @@
 #include "zir.h"
 #include "zir_text.h"
 #include "zir_emit.h"
+#include "zir_runtime.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 
@@ -1122,6 +1123,11 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
                    "cannot replace C header output: %s", hpath);
         return 0;
     }
+    if(!c_plan9_enabled() && !EmitRuntimeHeaders(out_dir, hpath)) {
+        Diagnostic(m->span, "zir_c.global",
+                   "cannot write runtime headers beside %s", hpath);
+        return 0;
+    }
 
     /* Type-only modules have a header but no translation unit to compile. */
     if(linked && m->function_count == 0 && m->global_count == 0 &&
@@ -1345,6 +1351,11 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
     if(GeneratedOutputReplace(ctemp, cpath) != 0) {
         Diagnostic(m->span, "zir_c.global",
                    "cannot replace C source output: %s", cpath);
+        return 0;
+    }
+    if(!c_plan9_enabled() && !EmitRuntimeHeaders(out_dir, cpath)) {
+        Diagnostic(m->span, "zir_c.global",
+                   "cannot write runtime headers beside %s", cpath);
         return 0;
     }
     return 1;

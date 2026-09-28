@@ -41,7 +41,7 @@ static inline bool StringEqual(String a, String b) {
 /* print writes floats as the shortest decimal that reads back to the same
  * value, in plain positional notation, so every target agrees. printf has
  * no such format. */
-static inline void ZirPrintFloat(double value, int single) {
+static inline void print_float(double value, int single) {
     char scientific[40], digits[24];
     int precision, exponent, count = 0;
     const char *p;

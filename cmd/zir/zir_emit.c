@@ -3045,7 +3045,7 @@ emit_print(Emitter *e, const ZirExpr *expr)
     }
     /* Each language's standard printing: one printf or fmt.Printf per run
      * of text and values. C has no shortest round-trip float format, so a
-     * float prints through ZirPrintFloat between printf calls. */
+     * float prints through print_float between printf calls. */
     PrintRun run = {0};
     argument = 0;
     for(int i = 0; i < count; i++) {
@@ -3090,8 +3090,8 @@ emit_print(Emitter *e, const ZirExpr *expr)
         }
         if(!strcmp(type, "float32") || !strcmp(type, "float64")) {
             print_run_flush(e, &run, first);
-            line(e, !strcmp(type, "float32") ? "ZirPrintFloat((double)%s, 1);" :
-                 "ZirPrintFloat(%s, 0);", name);
+            line(e, !strcmp(type, "float32") ? "print_float((double)%s, 1);" :
+                 "print_float(%s, 0);", name);
         } else if(!strcmp(type, "string")) {
             char text[ZIR_TEXT_MAX];
             format(text, sizeof(text), "(int)%s.length, %s.data", operand, operand);

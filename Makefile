@@ -69,15 +69,23 @@ $(BIN_DIR)/zi-api: cmd/zir-api/main.c $(FRONTEND) $(HEADERS) | $(BIN_DIR)
 $(BIN_DIR)/zi-inspect: cmd/zir-inspect/main.c $(FRONTEND) $(HEADERS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ cmd/zir-inspect/main.c $(FRONTEND)
 
-$(BIN_DIR)/zi2c: $(wildcard cmd/zir-c/*.c) cmd/zir/zir_bundle.c $(FRONTEND) $(HEADERS) | $(BIN_DIR)
+RUNTIME_HEADERS := include/zir_bounds.h include/zir_string.h include/zir_slice.h \
+    include/zir_vec.h include/ziran_parallel.h
+RUNTIME := cmd/zir/zir_runtime.c $(BUILD_DIR)/runtime_headers.c
+
+$(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS)
+	mkdir -p $(dir $@)
+	sh scripts/embed_headers.sh $(RUNTIME_HEADERS) > $@
+
+$(BIN_DIR)/zi2c: $(wildcard cmd/zir-c/*.c) cmd/zir/zir_bundle.c $(FRONTEND) $(RUNTIME) $(HEADERS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ cmd/zir-c/main.c cmd/zir-c/zir_c_lower.c \
-	    cmd/zir-c/zir_c_plan9.c cmd/zir/zir_bundle.c $(FRONTEND)
+	    cmd/zir-c/zir_c_plan9.c cmd/zir/zir_bundle.c $(FRONTEND) $(RUNTIME)
 
 $(BIN_DIR)/zi2go: cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c cmd/zir/zir_bundle.c $(FRONTEND) $(HEADERS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c cmd/zir/zir_bundle.c $(FRONTEND)
 
-$(BIN_DIR)/zi2cpp: cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c cmd/zir/zir_bundle.c $(FRONTEND) $(HEADERS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c cmd/zir/zir_bundle.c $(FRONTEND)
+$(BIN_DIR)/zi2cpp: cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c cmd/zir/zir_bundle.c $(FRONTEND) $(RUNTIME) $(HEADERS) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c cmd/zir/zir_bundle.c $(FRONTEND) $(RUNTIME)
 
 $(BIN_DIR)/zi2rust: cmd/zir-rust/main.c cmd/zir-rust/zir_rust_lower.c cmd/zir/zir_bundle.c $(FRONTEND) $(HEADERS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ cmd/zir-rust/main.c \

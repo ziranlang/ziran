@@ -1570,7 +1570,7 @@ c_plan9_write_runtime(const char *out_dir)
 "}\n\n"
 "/* print writes floats as the shortest decimal that reads back the same. */\n"
 "#ifdef ZIR_PLAN9_PRINT\n"
-"static void\nZirPrintFloat(double value, int single)\n"
+"static void\nprint_float(double value, int single)\n"
 "{\n"
 "    char scientific[40], digits[24];\n"
 "    int precision, exponent, count, i;\n"
@@ -2079,7 +2079,7 @@ c_plan9_rewrite_once(const char *text)
     }
     /* print helpers need write and strtod; only printing files ask for them,
      * before any header can include the runtime. */
-    int print_guard = strstr(text, "ZirPrint") != NULL &&
+    int print_guard = strstr(text, "print_float(") != NULL &&
                       strstr(text, "#define ZIR_PLAN9_PRINT 1\n") == NULL;
     /* The guard goes after the generated-file comment, else first. */
     if(print_guard && strncmp(text, "/* Generated", 12) != 0) {

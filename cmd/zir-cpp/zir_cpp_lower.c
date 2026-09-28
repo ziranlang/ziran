@@ -7,6 +7,7 @@
 #include "zir.h"
 #include "zir_text.h"
 #include "zir_emit.h"
+#include "zir_runtime.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_diagnostic.h"
@@ -1140,6 +1141,11 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
                    "cannot replace C++ header output: %s", hpath);
         return 0;
     }
+    if(!EmitRuntimeHeaders(out_dir, hpath)) {
+        Diagnostic(m->span, "zir_cpp.global",
+                   "cannot write runtime headers beside %s", hpath);
+        return 0;
+    }
 
     /* --- source --- */
     c = GeneratedOutputOpen(cpath, ctemp, sizeof(ctemp));
@@ -1362,6 +1368,11 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
     if(GeneratedOutputReplace(ctemp, cpath) != 0) {
         Diagnostic(m->span, "zir_cpp.global",
                    "cannot replace C++ source output: %s", cpath);
+        return 0;
+    }
+    if(!EmitRuntimeHeaders(out_dir, cpath)) {
+        Diagnostic(m->span, "zir_cpp.global",
+                   "cannot write runtime headers beside %s", cpath);
         return 0;
     }
     return 1;

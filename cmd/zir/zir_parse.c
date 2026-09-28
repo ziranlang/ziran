@@ -564,6 +564,61 @@ parse_type_parameters(const char *after, const char *keyword,
 
 /* Resolve Jai's scope-relative type constant before field types enter IR. */
 static int
+line_is_abi_incomplete(const char *line, size_t length)
+{
+    static const char directive[] = "#abi_incomplete";
+    const char *start = line;
+    const char *end = line + length;
+
+    while(start < end && (*start == ' ' || *start == '\t' ||
+                          *start == '\r'))
+        start++;
+    while(end > start && (end[-1] == ' ' || end[-1] == '\t' ||
+                          end[-1] == '\r'))
+        end--;
+    if(end > start && end[-1] == ';')
+        end--;
+    while(end > start && (end[-1] == ' ' || end[-1] == '\t' ||
+                          end[-1] == '\r'))
+        end--;
+    return (size_t)(end - start) == sizeof(directive) - 1 &&
+        strncmp(start, directive, sizeof(directive) - 1) == 0;
+}
+
+static int
+take_abi_incomplete(ZirType *type)
+{
+    char body[sizeof(type->body)];
+    const char *line = type->body;
+    size_t used = 0;
+    int found = type->is_abi_incomplete != 0;
+
+    while(*line != '\0') {
+        const char *nl = strchr(line, '\n');
+        size_t length = nl != NULL ? (size_t)(nl - line) + 1 : strlen(line);
+        int skip = 0;
+
+        if(strstr(line, "#abi_incomplete") != NULL) {
+            if(found || !line_is_abi_incomplete(line, length))
+                return 0;
+            found = 1;
+            skip = 1;
+        }
+        if(!skip) {
+            if(used + length >= sizeof(body))
+                return 0;
+            memcpy(body + used, line, length);
+            used += length;
+        }
+        line = nl != NULL ? nl + 1 : line + length;
+    }
+    body[used] = '\0';
+    copy_text(type->body, sizeof(type->body), body);
+    type->is_abi_incomplete = found;
+    return 1;
+}
+
+static int
 expand_type_this(ZirType *type)
 {
     char replacement[ZIR_NAME_MAX];
@@ -5455,6 +5510,8 @@ discover_named_type(const char *source, const char *path, const char *rel,
         for(size_t i = 0; i < body_length; i++)
             if(type.body[i] == ';') type.body[i] = '\n';
     }
+    if(!type.is_enum && !take_abi_incomplete(&type))
+        return;
     if(!expand_type_this(&type)) return;
     if(future->count == future->capacity) {
         int capacity = future->capacity > 0 ? future->capacity * 2 : 8;
@@ -7798,6 +7855,9 @@ parse_source(const char *path, const char *root, const char *source,
                             if(ty->is_enum)
                                 lower_enum_values(ty);
                         }
+                        if(!take_abi_incomplete(ty))
+                            die_at(ty->span,
+                                   "#abi_incomplete must appear alone in a record body");
                         if(!expand_type_this(ty))
                             die_at(ty->span, "#this type body exceeds size limit");
                     } else {
@@ -7821,6 +7881,9 @@ parse_source(const char *path, const char *root, const char *source,
                 continue;
             if(t[0] == '}') {
                 ZirType *ty = &module->types[module->type_count - 1];
+                if(!take_abi_incomplete(ty))
+                    die_at(ty->span,
+                           "#abi_incomplete must appear alone in a record body");
                 if(!expand_type_this(ty))
                     die_at(ty->span, "#this type body exceeds size limit");
                 if(ty->is_enum)
@@ -7830,6 +7893,15 @@ parse_source(const char *path, const char *root, const char *source,
             } else if(strcmp(t, "{") == 0 &&
                       module->types[module->type_count - 1].body[0] == '\0') {
                 /* Jai commonly places a type's opening brace on the next line. */
+            } else if(starts_word(t, "#abi_incomplete")) {
+                ZirType *ty = &module->types[module->type_count - 1];
+                size_t length = strlen(t);
+
+                if(ty->is_enum || ty->is_abi_incomplete ||
+                   !line_is_abi_incomplete(t, length))
+                    die_at(Span(rel, line_no, 1),
+                           "#abi_incomplete must appear alone in a record body");
+                ty->is_abi_incomplete = 1;
             } else if(t[0] == '#') {
                 die_at(Span(rel, line_no, 1),
                        "unknown type-body directive: %s", t);

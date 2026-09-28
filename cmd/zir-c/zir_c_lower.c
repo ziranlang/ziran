@@ -881,6 +881,8 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
             if(!ty->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", guard);
             fprintf(h, "typedef %s %s %s;\n",
                     ty->is_union ? "union" : "struct", native, native);
+            if(ty->is_abi_incomplete)
+                fprintf(h, "#pragma ziran abi_incomplete %s\n", native);
             if(!ty->is_public) fputs("#endif\n", h);
         }
         if(ty->is_enum) {

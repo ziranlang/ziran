@@ -39,7 +39,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 41u
+#define ZIR_FORMAT_VERSION 42u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -132,7 +132,8 @@ static const Field type_fields[] = {
     STRING_FIELD(ZirType, enum_backing),
     INTEGER_FIELD(ZirType, is_record_template),
     INTEGER_FIELD(ZirType, is_owned_vec),
-    INTEGER_FIELD(ZirType, is_extern), SPAN_FIELD(ZirType, span)
+    INTEGER_FIELD(ZirType, is_extern),
+    INTEGER_FIELD(ZirType, is_abi_incomplete), SPAN_FIELD(ZirType, span)
 };
 
 static int
@@ -584,6 +585,12 @@ validate_program(const ZirProgram *program)
                (type->is_owned_vec != 0 && type->is_owned_vec != 1) ||
                (type->is_owned_vec &&
                 !VecElementType(module, type->name, NULL, 0)) ||
+               (type->is_abi_incomplete != 0 &&
+                type->is_abi_incomplete != 1) ||
+               (type->is_abi_incomplete &&
+                (type->is_enum || type->is_procedure_type ||
+                 type->is_record_template || type->is_extern ||
+                 type->is_owned_vec)) ||
                type->is_type_instance || type->template_name[0] ||
                type->template_args[0] ||
                (type->is_record_template &&

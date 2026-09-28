@@ -243,6 +243,7 @@ typedef struct ZirType {
     int is_synthetic_application; /* private name made from a direct type call */
     int is_owned_vec; /* specialized standard Vec storage */
     int is_extern; /* host-owned C record; native Go emits the declared shape */
+    int is_abi_incomplete; /* native ABI treats the complete record as opaque */
     int native_name_mangled; /* in-memory: shared spelling or target keyword */
     ZirSourceSpan span;
 } ZirType;

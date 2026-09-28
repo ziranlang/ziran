@@ -157,7 +157,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = ""},
     .{target = "zib", status = "supported", limit = ""},
-    .{target = "plan9-c", status = "experimental", limit = "Print lowering is inherited from the C post-pass and is not covered by the differential output matrix."}
+    .{target = "plan9-c", status = "supported", limit = "tests/print.sh builds it with plan9port when installed, otherwise through a host libc shim."}
     ]
     assert_targets: [6]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},

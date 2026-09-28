@@ -23,6 +23,30 @@ if grep -Fq '_bits(' "$work/c99/hello.c"; then
     exit 1
 fi
 
+# An empty record value zeroes every field in strict C99, which has no
+# empty braces, both returned and initializing a declaration.
+cat > "$work/empty.zi" <<'ZI'
+Pair :: struct {
+    left: s32
+    right: *u8
+}
+Empty :: (flag: bool) -> Pair {
+    if flag { return Pair.{} }
+    value: Pair = Pair.{}
+    value.left = 1
+    return value
+}
+#program_export
+main :: () -> s32 {
+    if Empty(true).left != 0 || Empty(false).left != 1 { return 1 }
+    return 0
+}
+ZI
+"$ziran" build --target=c --root "$work" -o "$work/empty-c" "$work/empty.zi"
+"${CC:-cc}" -std=c99 -pedantic-errors -Iinclude -I"$work/empty-c" \
+    "$work"/empty-c/*.c -o "$work/empty"
+"$work/empty"
+
 if "$ziran" build --target=c99 --root "$work" \
     -o "$work/c99-alias" "$work/hello.zi" 2> "$work/c99-alias.err"; then
     echo 'removed C99 target alias was accepted' >&2

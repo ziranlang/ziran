@@ -385,6 +385,9 @@ c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
         used += (size_t)format(text + used, used < sizeof(text) ? sizeof(text) - used : 0,
                                "%s", bare(value, plain, sizeof(plain)));
     }
+    /* An empty value zeroes every field; C99 has no empty braces. */
+    if(expr->first_child < 0)
+        used += (size_t)format(text + used, sizeof(text) - used, "0");
     if(used + 2 >= sizeof(text))
         fatal(expr, "record value is too long");
     copy_text(text + used, sizeof(text) - used, "}");

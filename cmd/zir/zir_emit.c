@@ -1089,21 +1089,30 @@ EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target)
         const ZirFunction *fn = &module->functions[i];
         if(!CanEmitBody(module, fn))
             continue;
+        /* + - * and bitwise operators and integer conversions lower
+         * directly; division, remainder, shifts, and float-to-integer
+         * conversions keep the checked helpers. */
         for(int e = 0; e < fn->expr_count; e++) {
             const ZirExpr *expr = &fn->exprs[e];
-            if(expr->kind == ZIR_EXPR_CAST ||
-               (expr->kind == ZIR_EXPR_BINARY && operation(expr->op)) ||
-               (expr->kind == ZIR_EXPR_UNARY &&
-                (!strcmp(expr->op, "-") || !strcmp(expr->op, "~")))) {
+            int op = expr->kind == ZIR_EXPR_BINARY ? operation(expr->op) : 0;
+            if((op >= 4 && op <= 7) ||
+               (expr->kind == ZIR_EXPR_CAST && expr->right >= 0 &&
+                canonical(fn->exprs[expr->right].type)[0] == 'f')) {
                 used = 1;
                 break;
             }
         }
-        for(int s = 0; s < fn->stmt_count; s++)
+        for(int s = 0; s < fn->stmt_count; s++) {
+            char op[4];
+            size_t length;
+            copy_text(op, sizeof(op), fn->stmts[s].assignment_op);
+            length = strlen(op);
+            if(length > 0 && op[length - 1] == '=')
+                op[length - 1] = '\0';
             if(fn->stmts[s].kind == ZIR_STMT_ASSIGN &&
-               fn->stmts[s].assignment_op[0] &&
-               strcmp(fn->stmts[s].assignment_op, "="))
+               operation(op) >= 4 && operation(op) <= 7)
                 used = 1;
+        }
     }
     if(!used) return;
     number_prefix(module, p, sizeof(p));
@@ -1686,11 +1695,226 @@ go_bits_operand(const char *value, int sign, const char *prefix,
         format(out, size, "uint64(%s)", value);
 }
 
+/* An emitted integer literal: optional sign, decimal or hex digits, and C
+ * suffixes. Its two's-complement bits go to *bits. */
+static int
+integer_literal_bits(const char *text, uint64_t *bits)
+{
+    const char *p = text;
+    int negative = 0;
+    char *end;
+    while(*p == '(') p++;
+    if(*p == '-') { negative = 1; p++; }
+    if(!isdigit((unsigned char)*p))
+        return 0;
+    errno = 0;
+    unsigned long long value = strtoull(p, &end, 0);
+    if(errno != 0)
+        return 0;
+    while(*end == 'u' || *end == 'U' || *end == 'l' || *end == 'L') end++;
+    while(*end == ')') end++;
+    if(*end != '\0')
+        return 0;
+    *bits = negative ? (uint64_t)0 - (uint64_t)value : (uint64_t)value;
+    return 1;
+}
+
+/* Fold op on literal operands with the checked width rule, as the number
+ * helpers would at run time. Division by zero and out-of-range shifts are
+ * left to fail when they execute. */
+static int
+fold_number(uint64_t a, uint64_t b, int w, int sign, int op, uint64_t *result)
+{
+    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;
+    a &= mask;
+    b &= mask;
+    int64_t sa = sign && w < 64 && (a >> (w - 1)) ? (int64_t)(a | ~mask) : (int64_t)a;
+    int64_t sb = sign && w < 64 && (b >> (w - 1)) ? (int64_t)(b | ~mask) : (int64_t)b;
+    switch(op) {
+    case 1: *result = (a + b) & mask; return 1;
+    case 2: *result = (a - b) & mask; return 1;
+    case 3: *result = (a * b) & mask; return 1;
+    case 4: case 5:
+        if(b == 0) return 0;
+        if(sign) {
+            if(sa == INT64_MIN && sb == -1) { *result = op == 4 ? a : 0; return 1; }
+            if(w < 64 && sa == -(int64_t)(mask >> 1) - 1 && sb == -1) {
+                *result = op == 4 ? a : 0;
+                return 1;
+            }
+            *result = (uint64_t)(op == 4 ? sa / sb : sa % sb) & mask;
+        } else
+            *result = op == 4 ? a / b : a % b;
+        return 1;
+    case 6: case 7:
+        if(b >= (uint64_t)w) return 0;
+        if(op == 6) *result = (a << b) & mask;
+        else if(sign && (a >> (w - 1)))
+            *result = ((a >> b) | (mask ^ (mask >> b))) & mask;
+        else
+            *result = a >> b;
+        return 1;
+    case 8: *result = a & b; return 1;
+    case 9: *result = a | b; return 1;
+    case 10: *result = a ^ b; return 1;
+    }
+    return 0;
+}
+
 static void
-number(Emitter *e, const char *type, const char *a, const char *b, int op, char *out, size_t size)
+number_literal(const Emitter *e, const char *type, uint64_t bits, char *out, size_t size)
+{
+    int w = width(type), sign = signed_type(type);
+    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;
+    bits &= mask;
+    if(sign && (bits >> (w - 1))) {
+        int64_t value = w == 64 ? (int64_t)bits : (int64_t)(bits | ~mask);
+        if(value == INT64_MIN)
+            format(out, size, e->target == ZIR_GO ? "(-9223372036854775807 - 1)" :
+                   "(-9223372036854775807LL - 1)");
+        else
+            format(out, size, e->target == ZIR_GO || w < 64 ? "(%lld)" : "(%lldLL)",
+                   (long long)value);
+    } else if(sign)
+        format(out, size, e->target == ZIR_GO || w < 64 ? "%llu" : "%lluLL",
+               (unsigned long long)bits);
+    else
+        format(out, size, e->target == ZIR_GO || w < 64 ? "%llu" : "%lluULL",
+               (unsigned long long)bits);
+}
+
+static int
+all_ones_operand(const char *text)
+{
+    return !strcmp(text, "^uint64(0)") || !strcmp(text, "UINT64_MAX");
+}
+
+/* Whether text is one balanced parenthesized group. */
+static int
+enclosed(const char *text)
+{
+    int depth = 0;
+    size_t length = strlen(text);
+    if(length < 2 || text[0] != '(' || text[length - 1] != ')')
+        return 0;
+    for(size_t i = 0; i < length; i++) {
+        if(text[i] == '(') depth++;
+        else if(text[i] == ')' && --depth == 0 && i + 1 < length) return 0;
+    }
+    return depth == 0;
+}
+
+static int
+same_number_type(const char *operand, const char *type)
+{
+    return operand == NULL || !strcmp(operand, "integer") ||
+           !strcmp(canonical(operand), type);
+}
+
+/* A C operand in the unsigned wide type W. A result of this same wrapping
+ * arithmetic at the same width is already W modulo 2^w, so it is reused
+ * without converting to the signed type and back. */
+static void
+c_wide_operand(const char *text, const char *optype, const char *type,
+               const char *native, const char *wide, char *out, size_t size)
+{
+    uint64_t bits;
+    char inner[ZIR_TEXT_MAX];
+    size_t prefix;
+    int w = width(type);
+    if(integer_literal_bits(text, &bits) && text[0] != '-' && text[1] != '-') {
+        if(w == 64) format(out, size, "UINT64_C(%llu)", (unsigned long long)bits);
+        else format(out, size, "%lluu", (unsigned long long)(bits & 0xffffffffu));
+        return;
+    }
+    copy_text(inner, sizeof(inner), text);
+    while(enclosed(inner)) {
+        memmove(inner, inner + 1, strlen(inner));
+        inner[strlen(inner) - 1] = '\0';
+    }
+    /* (T)(X) at this width: C conversions are modular, so X widens to W
+     * directly. X that is already this arithmetic's W group stays as is. */
+    prefix = strlen(native) + 2;
+    (void)optype;
+    if(inner[0] == '(' && !strncmp(inner + 1, native, strlen(native)) &&
+       inner[prefix - 1] == ')' && enclosed(inner + prefix)) {
+        const char *group = inner + prefix;
+        if(group[1] == '(')
+            copy_text(out, size, group);
+        else
+            format(out, size, "(%s)%s", wide, group);
+        return;
+    }
+    if(plain_identifier(text))
+        format(out, size, "(%s)%s", wide, text);
+    else
+        format(out, size, "(%s)(%s)", wide, text);
+}
+
+static void
+number(Emitter *e, const char *type, const char *a, const char *a_type,
+       const char *b, const char *b_type, int op, char *out, size_t size)
 {
     char bits[ZIR_TEXT_MAX];
     int w = width(type), sign = signed_type(type);
+    uint64_t left_bits, right_bits, folded;
+    int left_literal = integer_literal_bits(a, &left_bits);
+    int right_literal = all_ones_operand(b) ? (right_bits = UINT64_MAX, 1) :
+                        integer_literal_bits(b, &right_bits);
+    const char *native = TargetType(type, e->target);
+    char float_helper[80];
+    format(float_helper, sizeof(float_helper), "%s_float(", e->numbers);
+    /* An integer conversion keeps the low w bits: fold literals, convert
+     * other integers directly. Float operands keep the range-checked helper. */
+    if(op == 0 && native != NULL && strncmp(a, float_helper, strlen(float_helper)) != 0) {
+        if(left_literal)
+            number_literal(e, type, left_bits, out, size);
+        else if(a_type != NULL && !strcmp(canonical(a_type), type))
+            copy_text(out, size, a);
+        else if(e->target == ZIR_GO)
+            format(out, size, "%s(%s)", native, a);
+        else
+            format(out, size, "(%s)(%s)", native, a);
+        return;
+    }
+    if(op >= 1 && left_literal && right_literal &&
+       fold_number(left_bits, right_bits, w, sign, op, &folded)) {
+        number_literal(e, type, folded, out, size);
+        return;
+    }
+    /* + - * and bitwise operators wrap by construction: Go's sized integers
+     * wrap, and C computes them in an unsigned type no narrower than int. */
+    if(native != NULL && ((op >= 1 && op <= 3) || (op >= 8 && op <= 10))) {
+        static const char *const symbols[] = {"", "+", "-", "*", "", "", "", "", "&", "|", "^"};
+        if(e->target == ZIR_GO) {
+            char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
+            if(op == 10 && all_ones_operand(b)) {
+                format(out, size, "^%s(%s)", native, a);
+                return;
+            }
+            /* A literal wrapped to the width always fits the Go type. */
+            if(left_literal) number_literal(e, type, left_bits, left, sizeof(left));
+            else if(same_number_type(a_type, type)) copy_text(left, sizeof(left), a);
+            else format(left, sizeof(left), "%s(%s)", native, a);
+            if(right_literal) number_literal(e, type, right_bits, right, sizeof(right));
+            else if(same_number_type(b_type, type)) copy_text(right, sizeof(right), b);
+            else format(right, sizeof(right), "%s(%s)", native, b);
+            if(left_literal && right_literal)
+                format(left, sizeof(left), "%s(%s)", native, a);
+            format(out, size, "%s %s %s", left, symbols[op], right);
+            return;
+        }
+        const char *wide = w == 64 ? "uint64_t" : "uint32_t";
+        char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
+        c_wide_operand(a, a_type, type, native, wide, left, sizeof(left));
+        if(op == 10 && all_ones_operand(b)) {
+            format(out, size, "(%s)~%s", native, left);
+            return;
+        }
+        c_wide_operand(b, b_type, type, native, wide, right, sizeof(right));
+        format(out, size, "(%s)(%s %s %s)", native, left, symbols[op], right);
+        return;
+    }
     if(e->target == ZIR_GO) {
         char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
         go_bits_operand(a, sign, e->numbers, left, sizeof(left));
@@ -3441,7 +3665,7 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         }
         if(!strcmp(operand_type, "string") && (e->target == ZIR_C || e->target == ZIR_CPP))
             format(result, sizeof(result), "%sStringEqual(%s, %s)", !strcmp(expr->op, "!=") ? "!" : "", a, b);
-        else if(width(type) && operation(expr->op)) number(e,type,a,b,operation(expr->op),result,sizeof(result));
+        else if(width(type) && operation(expr->op)) number(e,type,a,e->fn->exprs[expr->left].type,b,e->fn->exprs[expr->right].type,operation(expr->op),result,sizeof(result));
         else format(result,sizeof(result),"%s %s %s",a,expr->op,b);
         if(enum_flags_type(e->module, type) &&
            (e->target == ZIR_C || e->target == ZIR_CPP)) {
@@ -3460,9 +3684,9 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         else
             emit_expr(e,expr->right,e->fn->exprs[expr->right].type,a,sizeof(a));
         pure = e->pure;
-        if(width(type) && !strcmp(expr->op,"-")) number(e,type,"0",a,2,result,sizeof(result));
+        if(width(type) && !strcmp(expr->op,"-")) number(e,type,"0",NULL,a,e->fn->exprs[expr->right].type,2,result,sizeof(result));
         else if(width(type) && !strcmp(expr->op,"~")) {
-            number(e,type,a,e->target==ZIR_GO?"^uint64(0)":"UINT64_MAX",10,result,sizeof(result));
+            number(e,type,a,e->fn->exprs[expr->right].type,e->target==ZIR_GO?"^uint64(0)":"UINT64_MAX",NULL,10,result,sizeof(result));
         } else if(!strcmp(expr->op, "&") || !strcmp(expr->op, "*"))
             format(result, sizeof(result), "%s(%s)", expr->op, a);
         else format(result,sizeof(result),"%s%s",expr->op,a);
@@ -3495,8 +3719,8 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
             if(canonical(e->fn->exprs[expr->right].type)[0]=='f') {
                 if(e->target==ZIR_GO) format(b,sizeof(b),"%s_float(float64(%s),%d,%s)",e->numbers,a,width(type),signed_type(type)?"true":"false");
                 else format(b,sizeof(b),"%s_float(%s,%d,%s)",e->numbers,a,width(type),signed_type(type)?"true":"false");
-                number(e,type,b,"0",0,result,sizeof(result));
-            } else number(e,type,a,"0",0,result,sizeof(result));
+                number(e,type,b,NULL,"0",NULL,0,result,sizeof(result));
+            } else number(e,type,a,e->fn->exprs[expr->right].type,"0",NULL,0,result,sizeof(result));
         }
         else {
             char cast_native[ZIR_NAME_MAX];
@@ -3981,7 +4205,7 @@ emit_sequence(Emitter *e,int begin,int end)
                 emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,value,sizeof(value));
                 char op[4];copy_text(op,sizeof(op),st->assignment_op);op[strlen(op)-1]=0;
                 const char *type=canonical(e->fn->exprs[st->lhs_root].type);
-                if(width(type))number(e,type,old,value,operation(op),result,sizeof(result));
+                if(width(type))number(e,type,old,type,value,e->fn->exprs[st->expr_root].type,operation(op),result,sizeof(result));
                 else format(result,sizeof(result),"%s %s %s",old,op,value);
             } else {
                 emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,value,sizeof(value));

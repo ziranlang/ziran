@@ -2155,11 +2155,20 @@ string_literal(const ZirExpr *expr, ZirTarget target, char *out, size_t size)
                 }
             }
             if(used + 8 >= size) fatal(expr, "string literal exceeds output limit");
-            if((target == ZIR_C || target == ZIR_CPP) &&
-               (byte < 32 || byte >= 127 || byte == '"' || byte == '\\' || byte == '?'))
+            /* Named escapes read like hand-written code. C keeps octal for
+             * other control and non-ASCII bytes so the source stays ASCII,
+             * and escapes ? so a C99 trigraph cannot form. */
+            const char *named = byte == '\n' ? "\\n" : byte == '\t' ? "\\t" :
+                byte == '\r' ? "\\r" : byte == '"' ? "\\\"" :
+                byte == '\\' ? "\\\\" : NULL;
+            if(named != NULL)
+                used += (size_t)format(out + used, size - used, "%s", named);
+            else if((target == ZIR_C || target == ZIR_CPP) && byte == '?')
+                used += (size_t)format(out + used, size - used, "\\?");
+            else if((target == ZIR_C || target == ZIR_CPP) && (byte < 32 || byte >= 127))
                 used += (size_t)format(out + used, size - used, "\\%03o", byte);
-            else if(byte < 32 || byte == '"' || byte == '\\' || byte == 127)
-                used += (size_t)format(out + used, size - used, "\\u%04x", byte);
+            else if(byte < 32 || byte == 127)
+                used += (size_t)format(out + used, size - used, "\\x%02x", byte);
             else
                 out[used++] = (char)byte;
         }

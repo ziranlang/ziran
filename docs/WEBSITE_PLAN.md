@@ -57,7 +57,12 @@ prebuilt releases, or production adopters it does not have.
 ## Cloudflare cutover
 
 The repository's publish directory is `site/`. The existing Cloudflare
-Pages project is `ziran`, with `master` as its production branch.
+Pages project is `ziran`, with `master` as its production branch. It is a
+direct-upload project, so Cloudflare does not build from Git: the
+`.github/workflows/site.yml` workflow deploys `site/` on every push to
+`master` that changes it, using the repository secrets
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. To publish by hand, run
+`npx wrangler pages deploy site --project-name=ziran --branch=master`.
 `ziran-lang.org` is attached to the project as an active custom domain,
 and its proxied apex CNAME points to `ziran-bwc.pages.dev`.
 

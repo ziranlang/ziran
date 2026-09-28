@@ -41,6 +41,8 @@ Answer :: () -> s32 {
     if Abs(-9) != 9 { return 10 }
     callback: Callback = AddOne
     if callback(41) != 42 { return 11 }
+    c_callback: CCallback = AddTwo
+    if c_callback(40) != 42 { return 12 }
     return 0
 }
 Add :: (a: s32, b: s32) -> s32 { return a + b }
@@ -51,6 +53,8 @@ libc :: #system_library "libc";
 Abs :: (value: s32) -> s32 #foreign libc "abs";
 Callback :: #type (value: s32) -> s32;
 AddOne :: (value: s32) -> s32 { return value + 1 }
+CCallback :: #type (value: s32) -> s32 #c_call;
+AddTwo :: (value: s32) -> s32 { return value + 2 }
 Loop :: () -> s32 {
     total: int = 0
     for i: 0..3 { total += i }

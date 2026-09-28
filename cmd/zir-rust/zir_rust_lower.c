@@ -108,7 +108,7 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                     char return_type[ZIR_NAME_MAX];
                     int count = *procedure->body ?
                         split_arguments(procedure->body, parts, 32) : 0;
-                    if(count < 0 || procedure->is_c_call) {
+                    if(count < 0) {
                         Diagnostic(procedure->span, "zir_rust.type",
                                    "unsupported procedure type: %s",
                                    procedure->name);
@@ -116,7 +116,9 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                     }
                     NativeTypeName(procedure_owner, procedure, type_name,
                                    sizeof(type_name));
-                    fprintf(output, "pub type %s = Option<fn(", type_name);
+                    fprintf(output,
+                            "pub type %s = Option<unsafe extern \"C\" fn(",
+                            type_name);
                     for(int index = 0; index < count; index++) {
                         char *colon = strchr(parts[index], ':');
                         char parameter_type[ZIR_NAME_MAX];
@@ -1783,8 +1785,7 @@ static void validate_module(const ZirModule *module)
            (checked = FindType(module, record->name, &owner)) != NULL &&
            checked->is_procedure_type) {
             char checked_return[ZIR_NAME_MAX];
-            if(checked->is_c_call ||
-               !rust_type(&emitter, checked->procedure_return_type,
+            if(!rust_type(&emitter, checked->procedure_return_type,
                           checked_return, sizeof(checked_return))) {
                 Diagnostic(record->span, "zir_rust.type",
                            "unsupported procedure type: %s", record->name);
@@ -1875,7 +1876,7 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     emitter->function = function;
     emitter->local_count = 0;
     function_symbol(emitter, module, function, symbol, sizeof(symbol));
-    fputs("#[inline(never)]\npub fn ", emitter->output);
+    fputs("#[inline(never)]\npub extern \"C\" fn ", emitter->output);
     fputs(symbol, emitter->output);
     fputc('(', emitter->output);
     count = *function->args ? split_arguments(function->args, parts, 32) : 0;
@@ -2380,7 +2381,7 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     emitter.output = output;
     emitter.programs = programs;
     emitter.program_count = program_count;
-    fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n\n", output);
+    fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n#![allow(improper_ctypes_definitions)]\n\n", output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n", output);
     emit_ziran_vec_runtime(output);

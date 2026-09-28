@@ -538,6 +538,13 @@ evaluate_custom_law(const ZirModule *module, const ZirLaw *law,
     long value = 0;
     if(!EvaluateCompileExpression(module, law->payload, law->span, 0,
                                   &value)) {
+        /* The typed evaluator also resolves enum members and casts. */
+        int truth = 0;
+        if(EvaluateCompileConditionBound(module, law->payload, law->span,
+                                         NULL, NULL, NULL, 0, &truth)) {
+            snprintf(detail, size, "payload evaluated to %d", truth);
+            return truth ? LAW_PROVED : LAW_DISPROVED;
+        }
         snprintf(detail, size,
                  "payload is outside the compile-time evaluator");
         return LAW_UNKNOWN;

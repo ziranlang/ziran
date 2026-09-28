@@ -159,3 +159,20 @@ rg -q '"law":"Wrong".*"status":"disproved".*counterexample k=1, n=0' \
     "$work/forall_bad.json"
 rg -q '"law":"TooBig".*"status":"unknown".*budget' "$work/forall_bad.json"
 rg -q '"law":"Outside".*"status":"unknown"' "$work/forall_bad.json"
+
+cat > "$work/custom_enum.zi" <<'ZI'
+Code :: enum { Ok :: 0; Failed :: 6; }
+#law WireOk custom cast(s32) Code.Ok == 0;
+#law WireFailed custom cast(s32) Code.Failed == 6;
+#law WireWrong custom cast(s32) Code.Failed == 7;
+#program_export
+Answer :: () -> s32 { return 1 }
+ZI
+if "$ziran" check --root "$work" "$work/custom_enum.zi" \
+    > "$work/custom_enum.json" 2> /dev/null; then
+    echo 'a wrong enum custom law passed the gate' >&2
+    exit 1
+fi
+rg -q '"law":"WireOk".*"status":"proved"' "$work/custom_enum.json"
+rg -q '"law":"WireFailed".*"status":"proved"' "$work/custom_enum.json"
+rg -q '"law":"WireWrong".*"status":"disproved"' "$work/custom_enum.json"

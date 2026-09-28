@@ -993,7 +993,8 @@ EvaluateCompileConditionBound(const ZirModule *module, const char *source,
     ZirConsts constants = {0};
     CompileValue value = {0};
     int fuel = 100000, ok;
-    if(module == NULL || source == NULL || truth == NULL || count < 0)
+    if(module == NULL || source == NULL || truth == NULL || count < 0 ||
+       (count > 0 && (names == NULL || types == NULL || values == NULL)))
         return 0;
     constants.count = module->define_count + count;
     constants.items = calloc((size_t)constants.count + 1,

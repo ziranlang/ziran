@@ -457,7 +457,8 @@ operator_rank(const char *op)
 }
 
 /* An operand that binds tighter than its operator needs no parentheses:
- * n % 15 == 0 rather than (n % 15) == 0. */
+ * n % 15 == 0 rather than (n % 15) == 0. An && inside || keeps them, as
+ * C compilers warn about that grouping under -Wall. */
 static void
 loose_operand(const Emitter *e, int child, const char *op, char *text, size_t size)
 {
@@ -469,6 +470,8 @@ loose_operand(const Emitter *e, int child, const char *op, char *text, size_t si
     inner = operator_rank(operand->op);
     if(!inner || !parent || inner < parent ||
        (inner == parent && parent != 1 && parent != 2))
+        return;
+    if(parent == 1 && inner == 2)
         return;
     copy_text(text, size, bare(text, plain, sizeof(plain)));
 }
@@ -765,8 +768,11 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             if(plain_identifier(buffers->high) || high_constant)
                 format(buffers->result, sizeof(buffers->result), "%s[%s:%s:%s]", buffers->source, buffers->low, buffers->high, buffers->high);
             else {
+                /* Go takes any integer type as an index, so the bound keeps
+                 * its own type; an s32 field is not assignable to int64. */
+                const char *high_type = e->fn->exprs[expr->third].type;
                 fresh(e, temp);
-                declare(e, temp, "s64", buffers->high);
+                declare(e, temp, width(high_type) ? high_type : "s64", buffers->high);
                 format(buffers->result, sizeof(buffers->result), "%s[%s:%s:%s]", buffers->source, buffers->low, temp, temp);
             }
             break;

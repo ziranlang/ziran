@@ -12,6 +12,8 @@
 // each pass in WebScope and WebEnd. WebKeep turns a temporary handle into one
 // that lasts until WebRelease, for objects a program holds on to.
 
+#import "byte_text_linux"
+
 web_browser :: #system_library "env";
 
 js_web_name :: (text: *u8, length: s32) -> s32 #foreign web_browser;
@@ -79,11 +81,6 @@ WebTypeFunction :: 6
 // Receives a JS function's first three arguments as handles that are valid
 // until it returns. Use WebKeep to hold one longer.
 WebCallback :: #type (context: s32, first: s32, second: s32, third: s32) #c_call;
-
-TextDescriptor :: struct {
-    data: *u8
-    length: usize
-}
 
 web_failed: bool;
 

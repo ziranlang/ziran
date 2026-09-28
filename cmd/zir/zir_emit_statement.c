@@ -377,8 +377,35 @@ zero_record(Emitter *e, const char *type, char *out, size_t size)
               TypeHasZeroArray(e->module, type) ? "{}" : "{0}");
 }
 
+/* Whether a condition lowers without statements of its own, so it can sit
+ * in an else if header. */
 static int
-emit_if(Emitter *e,int i,int end)
+condition_in_header(Emitter *e, int root)
+{
+    char cond[ZIR_TEXT_MAX];
+    char *scratch_text = NULL;
+    size_t scratch_size = 0;
+    FILE *saved_out = e->out;
+    int saved_serial = e->serial, saved_locals = e->local_count;
+    FILE *scratch = open_memstream(&scratch_text, &scratch_size);
+    if(scratch == NULL)
+        return 0;
+    e->out = scratch;
+    e->call_in_place = 1;
+    emit_expr(e, root, "bool", cond, sizeof(cond));
+    fclose(scratch);
+    e->out = saved_out;
+    free(scratch_text);
+    e->serial = saved_serial;
+    e->local_count = saved_locals;
+    return scratch_size == 0;
+}
+
+/* An if and its else branches. An else holding only another if whose
+ * condition needs no setup continues the chain as else if; chained is set
+ * for such a link, whose closing brace the first if writes. */
+static int
+emit_if(Emitter *e,int i,int end,int chained)
 {
     char cond[ZIR_TEXT_MAX];
     int close=block_end(e->fn,i,end);
@@ -386,16 +413,28 @@ emit_if(Emitter *e,int i,int end)
     /* The condition runs last before the branch, so its calls stay in it. */
     e->call_in_place = 1;
     emit_expr(e,e->fn->stmts[i].expr_root,"bool",cond,sizeof(cond));
-    line(e,e->target==ZIR_GO?"if %s {":"if (%s) {",bare(cond,plain,sizeof(plain)));e->indent++;
+    bare(cond,plain,sizeof(plain));
+    if(chained)
+        line(e,e->target==ZIR_GO?"} else if %s {":"} else if (%s) {",plain);
+    else
+        line(e,e->target==ZIR_GO?"if %s {":"if (%s) {",plain);
+    e->indent++;
     emit_sequence(e,i+1,close);e->indent--;
     if(close+1<end && e->fn->stmts[close+1].kind==ZIR_STMT_IF && e->fn->stmts[close+1].is_else) {
         int next=close+1;
-        line(e,"} else {");e->indent++;
-        if(e->fn->stmts[next].expr_root>=0)close=emit_if(e,next,end);
-        else {close=block_end(e->fn,next,end);emit_sequence(e,next+1,close);}
-        e->indent--;
+        if(e->fn->stmts[next].expr_root>=0 &&
+           condition_in_header(e, e->fn->stmts[next].expr_root))
+            close=emit_if(e,next,end,1);
+        else {
+            line(e,"} else {");e->indent++;
+            if(e->fn->stmts[next].expr_root>=0)close=emit_if(e,next,end,0);
+            else {close=block_end(e->fn,next,end);emit_sequence(e,next+1,close);}
+            e->indent--;
+        }
     }
-    line(e,"}");return close;
+    if(!chained)
+        line(e,"}");
+    return close;
 }
 
 static int
@@ -697,7 +736,7 @@ emit_sequence(Emitter *e,int begin,int end)
             drop_locals(e, 0);
             line(e,e->target==ZIR_GO?"panic(\"unreachable\")":"abort();");
             e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
-        case ZIR_STMT_IF:i=emit_if(e,i,end);break;
+        case ZIR_STMT_IF:i=emit_if(e,i,end,0);break;
         case ZIR_STMT_WHILE: {
             int close=block_end(e->fn,i,end);
             int labeled=0;

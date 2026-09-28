@@ -316,6 +316,39 @@ native_size_expression(Emitter *e, const char *type, char *out, size_t size)
         format(out, size, "sizeof(%s)", mapped);
 }
 
+/* Binding strength shared by C and Go for the operators whose order they
+ * agree on; bitwise operators, which C ranks below comparisons, have none. */
+static int
+operator_rank(const char *op)
+{
+    static const char *const ranks[][7] = {
+        {"||"}, {"&&"}, {"==", "!=", "<", "<=", ">", ">="},
+        {"+", "-", "*", "/", "%", "<<", ">>"},
+    };
+    for(int rank = 0; rank < 4; rank++)
+        for(int i = 0; i < 7 && ranks[rank][i] != NULL; i++)
+            if(!strcmp(ranks[rank][i], op))
+                return rank + 1;
+    return 0;
+}
+
+/* An operand that binds tighter than its operator needs no parentheses:
+ * n % 15 == 0 rather than (n % 15) == 0. */
+static void
+loose_operand(const Emitter *e, int child, const char *op, char *text, size_t size)
+{
+    const ZirExpr *operand = &e->fn->exprs[child];
+    int parent = operator_rank(op), inner;
+    char plain[ZIR_TEXT_MAX];
+    if(operand->kind != ZIR_EXPR_BINARY || !enclosed(text))
+        return;
+    inner = operator_rank(operand->op);
+    if(!inner || !parent || inner < parent ||
+       (inner == parent && parent != 1 && parent != 2))
+        return;
+    copy_text(text, size, bare(text, plain, sizeof(plain)));
+}
+
 void
 emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
 {
@@ -844,6 +877,8 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
                 int inline_right = scratch_size == 0;
                 free(scratch_text);
                 if(inline_right) {
+                    loose_operand(e, expr->left, expr->op, a, sizeof(a));
+                    loose_operand(e, expr->right, expr->op, b, sizeof(b));
                     format(result, sizeof(result), "%s %s %s", a, expr->op, b);
                     atom = 0;
                     pure = left_pure && e->pure;
@@ -875,7 +910,11 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         if(!strcmp(operand_type, "string") && (e->target == ZIR_C || e->target == ZIR_CPP))
             format(result, sizeof(result), "%sStringEqual(%s, %s)", !strcmp(expr->op, "!=") ? "!" : "", a, b);
         else if(width(type) && operation(expr->op)) number(e,type,a,e->fn->exprs[expr->left].type,b,e->fn->exprs[expr->right].type,operation(expr->op),result,sizeof(result));
-        else format(result,sizeof(result),"%s %s %s",a,expr->op,b);
+        else {
+            loose_operand(e, expr->left, expr->op, a, sizeof(a));
+            loose_operand(e, expr->right, expr->op, b, sizeof(b));
+            format(result,sizeof(result),"%s %s %s",a,expr->op,b);
+        }
         if(enum_flags_type(e->module, type) &&
            (e->target == ZIR_C || e->target == ZIR_CPP)) {
             copy_text(a, sizeof(a), result);

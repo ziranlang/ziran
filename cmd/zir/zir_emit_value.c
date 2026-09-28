@@ -759,7 +759,13 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
                 if(left_literal) number_literal(e, type, left_bits, left, sizeof(left));
                 else if(same_number_type(a_type, type)) copy_text(left, sizeof(left), a);
                 else format(left, sizeof(left), "(%s)(%s)", native, a);
-                format(out, size, "(%s)(%s %s %s)", native, left, symbols[op], right);
+                /* Narrower types promote to int and convert back; 32- and
+                 * 64-bit operands already compute in their own type. */
+                if(w >= 32 && (left_literal || same_number_type(a_type, type)) &&
+                   (right_literal || same_number_type(b_type, type)))
+                    format(out, size, "%s %s %s", left, symbols[op], right);
+                else
+                    format(out, size, "(%s)(%s %s %s)", native, left, symbols[op], right);
             }
             return;
         }

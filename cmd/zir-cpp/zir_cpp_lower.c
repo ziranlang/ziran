@@ -15,6 +15,47 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* An extern "C" block with nothing in it, left around main, is dropped. */
+static int
+drop_empty_extern_blocks(const char *path)
+{
+    static const char open_block[] = "extern \"C\" {\n";
+    FILE *file = fopen(path, "rb");
+    char *text = NULL;
+    long size;
+    if(file == NULL || fseek(file, 0, SEEK_END) != 0 || (size = ftell(file)) < 0 ||
+       fseek(file, 0, SEEK_SET) != 0 || (text = malloc((size_t)size + 1)) == NULL ||
+       fread(text, 1, (size_t)size, file) != (size_t)size) {
+        if(file != NULL) fclose(file);
+        free(text);
+        return 0;
+    }
+    fclose(file);
+    text[size] = '\0';
+    size_t used = 0;
+    for(const char *p = text; *p;) {
+        if(!strncmp(p, open_block, sizeof(open_block) - 1)) {
+            const char *q = p + sizeof(open_block) - 1;
+            while(*q == '\n') q++;
+            if(!strncmp(q, "}\n", 2)) {
+                p = q + 2;
+                while(used > 0 && text[used - 1] == '\n' && *p == '\n') p++;
+                continue;
+            }
+        }
+        text[used++] = *p++;
+    }
+    file = fopen(path, "wb");
+    if(file == NULL) {
+        free(text);
+        return 0;
+    }
+    int ok = fwrite(text, 1, used, file) == used;
+    ok &= fclose(file) == 0;
+    free(text);
+    return ok;
+}
 #include <sys/stat.h>
 
 #define LOWER_NAME_MAX 128
@@ -1240,6 +1281,8 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
             fprintf(c, "[[maybe_unused]] static %s\n%s(%s)\n{\n",
                     cret[0] ? cret : "void", cname, cargs);
         lower_body(c, m, restab, restab_count, fn);
+        if(NativeMainReturnsStatus(fn))
+            fputs("    return 0;\n", c);
         fprintf(c, "}\n");
         if(cpp_main)
             fputs("extern \"C\" {\n", c);
@@ -1288,6 +1331,12 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
     }
     fprintf(c, "\n}\n");
     if(ferror(c) != 0 || fclose(c) != 0) {
+        remove(ctemp);
+        Diagnostic(m->span, "zir_cpp.global",
+                   "cannot finish C++ source output: %s", cpath);
+        return 0;
+    }
+    if(!drop_empty_extern_blocks(ctemp)) {
         remove(ctemp);
         Diagnostic(m->span, "zir_cpp.global",
                    "cannot finish C++ source output: %s", cpath);

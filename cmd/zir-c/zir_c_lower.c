@@ -1271,6 +1271,8 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
             fprintf(c, "static %s\n%s(%s)\n{\n",
                     cret[0] ? cret : "void", cname, cargs);
         lower_body(c, m, restab, restab_count, fn);
+        if(NativeMainReturnsStatus(fn))
+            fputs("    return 0;\n", c);
         fprintf(c, "}\n");
     }
     int startup_count = 0;

@@ -81,7 +81,7 @@ Mix :: (left: Point, right: Point, index: s32, round: s32) -> Point {
 Kernel :: (rounds: s32) -> s64 {
     points: [32]Point
     index: s32 = 0
-    while index < cast(s32)points.count {
+    while index < 32 {
         points[index].x = index * 17 + 3
         points[index].y = index * 29 + 7
         index += 1
@@ -90,9 +90,9 @@ Kernel :: (rounds: s32) -> s64 {
     round: s32 = 0
     while round < rounds {
         index = 0
-        while index < cast(s32)points.count {
+        while index < 32 {
             next: s32 = index + 1
-            if next == cast(s32)points.count { next = 0 }
+            if next == 32 { next = 0 }
             points[index] = Mix(points[index], points[next], index, round)
             total += cast(s64)points[index].x + cast(s64)points[index].y
             index += 1
@@ -323,6 +323,7 @@ def source_hashes():
 def versions():
     tools = {'gcc': ['gcc', '--version'], 'g++': ['g++', '--version'],
              'go': ['go', 'version'], 'rustc': ['rustc', '--version'],
+             'cargo': ['cargo', '--version'],
              'javac': ['javac', '-version'], 'java': ['java', '-version'],
              'node': ['node', '--version'], 'python': ['python3', '--version']}
     result = {}
@@ -422,6 +423,33 @@ def main():
         repeated([BIN / 'zi2zib', 'bundle', '--root', root,
                   '--module-path', ROOT / 'std', '--entry', 'records:Answer',
                   '-o', OUT / f'{kind}.zib', source], 'ziran', f'{kind} to zib')
+    if (BIN / 'zi2rust').is_file() and shutil.which('cargo'):
+        generated = {}
+        for kind, root, source in [('source', FIX, ZI), ('saved', IR, SAVED)]:
+            output = OUT / f'rust-{kind}'
+            command = [BIN / 'zi2rust', '--root', root,
+                       '--module-path', ROOT / 'std', '--entry', 'records:Answer',
+                       '--no-main', '-o', output]
+            repeated([*command, source], 'ziran', f'{kind} to rust')
+            generated[kind] = {str(path.relative_to(output)): hashlib.sha256(path.read_bytes()).hexdigest()
+                               for path in sorted(output.rglob('*')) if path.is_file()}
+            wrapper = output / 'src/main.rs'
+            wrapper.write_text('fn main() {\n'
+                               '    let rounds: i32 = std::env::args().nth(1)'
+                               '.expect("missing rounds").parse()'
+                               '.expect("invalid rounds");\n'
+                               '    println!("{}", ziran_generated::Records_Kernel(rounds));\n'
+                               '}\n')
+            repeated(['cargo', 'build', '--release',
+                      '--manifest-path', output / 'Cargo.toml'],
+                     'downstream compile', f'ziran rust ({kind})')
+            runtime[f'ziran rust ({kind})'] = [
+                output / 'target/release/ziran_generated']
+        equality['rust'] = generated['source'] == generated['saved']
+        if not equality['rust']:
+            raise AssertionError('rust source and saved IR emission differ')
+    else:
+        meta['unsupported'].append('Generated Rust: zi2rust/cargo unavailable')
     if (OUT / 'source.zib').read_bytes() != (OUT / 'saved.zib').read_bytes():
         raise AssertionError('source and saved bundles differ')
     comparisons = {
@@ -478,11 +506,16 @@ def main():
     meta['fixture_hashes'] = {str(p.relative_to(OUT)): hashlib.sha256(p.read_bytes()).hexdigest()
                               for p in FIX.iterdir() if p.is_file()}
     products = [OUT / f'{kind}.zib' for kind in ['source', 'saved']]
-    for target, extension in [('c', 'c'), ('cpp', 'cpp'), ('go', 'go')]:
+    for target, extension in [('c', 'c'), ('cpp', 'cpp'), ('go', 'go'), ('rust', 'rs')]:
         for kind in ['source', 'saved']:
             directory = OUT / f'{target}-{kind}'
-            products.extend(directory.glob(f'*.{extension}'))
-            products.append(directory / 'app')
+            products.extend(directory.rglob(f'*.{extension}'))
+            if target == 'rust':
+                products.extend([directory / 'Cargo.toml',
+                                 directory / 'Cargo.lock',
+                                 directory / 'target/release/ziran_generated'])
+            else:
+                products.append(directory / 'app')
     products += [FIX / 'hand-c', FIX / 'hand-cpp', FIX / 'hand-go']
     if 'hand Rust' in comparisons:
         products.append(FIX / 'hand-rust')

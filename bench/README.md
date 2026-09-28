@@ -68,14 +68,15 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/record_calls.py
 
 Each round updates all records through a checked `Mix(Point, Point, s32, s32)`
 call and accumulates a signed 64-bit checksum with wrapping `s32` field
-arithmetic. The harness measures source and saved IR through C, C++, Go, and
-portable `.zib`, downstream native builds, and whole-process execution.
+arithmetic. The harness measures source and saved IR through C, C++, Go, Rust when Cargo is
+installed, and portable `.zib`, downstream native builds, and whole-process execution.
 Handwritten C, C++, Go, Rust, Java, JavaScript, and Python versions participate
 when installed. Every sample must match an independent Python oracle; source
 and saved-IR generated output and bundles are checked for equality. The VM runs
 the small input only because the large input exceeds its instruction budget.
 The [clean-head record-call baseline](results/2026-09-28-record-calls/README.md)
-contains 206 validated samples across 50 phase/case combinations.
+contains 206 validated samples across 50 phase/case combinations and predates
+generated-Rust participation.
 
 For a focused before/after comparison of two validated Go binaries, run
 `bench/vector_growth_ab.py --before PATH --after PATH --out NEW.json`. It
@@ -104,4 +105,5 @@ emitted Plan 9 dialect with host GCC against a minimal fake Plan 9 libc and
 marks those runtime samples as dialect validation rather than Plan 9 hardware
 performance. The
 [committed-head result](results/2026-09-27-text-scan-multilang/README.md)
-contains 206 validated samples across 50 phase/case combinations.
+contains 206 validated samples across 50 phase/case combinations and predates
+generated-Rust participation.

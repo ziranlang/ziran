@@ -652,10 +652,10 @@ same_folded_name(const char *left, const char *right)
     return *left == *right;
 }
 
-void
-NativeGoModuleIdentity(const ZirProgram *const *programs, int count,
-                       const ZirModule *module, char *file_stem,
-                       size_t file_size, char *guard, size_t guard_size)
+static void
+module_identity_uncached(const ZirProgram *const *programs, int count,
+                         const ZirModule *module, char *file_stem,
+                         size_t file_size, char *guard, size_t guard_size)
 {
     go_file_stem(module->source_path, file_stem, file_size);
     camel_ident(file_stem, guard, guard_size);
@@ -680,6 +680,76 @@ NativeGoModuleIdentity(const ZirProgram *const *programs, int count,
                    (unsigned long long)hash);
             return;
         }
+}
+
+/* Every emitted name asks for its module's identity, and each answer scans
+ * all modules for colliding stems. Remember answers per program set so a
+ * large program costs one scan per module instead of one per name. */
+typedef struct {
+    const ZirModule *module;
+    char file_stem[ZIR_PATH_MAX];
+    char guard[256];
+} ModuleIdentity;
+
+static struct {
+    const ZirProgram *const *programs;
+    int count;
+    ModuleIdentity *slots;
+    size_t capacity;
+    size_t used;
+} module_identities;
+
+static size_t
+module_identity_slot(const ZirModule *module, size_t capacity)
+{
+    uintptr_t key = (uintptr_t)module;
+    size_t slot = (size_t)((key >> 4) * UINT64_C(11400714819323198485)) &
+                  (capacity - 1);
+    while(module_identities.slots[slot].module != NULL &&
+          module_identities.slots[slot].module != module)
+        slot = (slot + 1) & (capacity - 1);
+    return slot;
+}
+
+static void
+reset_module_identities(const ZirProgram *const *programs, int count)
+{
+    size_t modules = 0;
+    for(int p = 0; p < count; p++)
+        modules += (size_t)programs[p]->module_count;
+    size_t capacity = 64;
+    while(capacity < modules * 2)
+        capacity *= 2;
+    free(module_identities.slots);
+    module_identities.slots = calloc(capacity, sizeof(ModuleIdentity));
+    if(module_identities.slots == NULL) abort();
+    module_identities.capacity = capacity;
+    module_identities.used = 0;
+    module_identities.programs = programs;
+    module_identities.count = count;
+}
+
+void
+NativeGoModuleIdentity(const ZirProgram *const *programs, int count,
+                       const ZirModule *module, char *file_stem,
+                       size_t file_size, char *guard, size_t guard_size)
+{
+    if(module_identities.slots == NULL ||
+       module_identities.programs != programs ||
+       module_identities.count != count ||
+       (module_identities.used + 1) * 2 > module_identities.capacity)
+        reset_module_identities(programs, count);
+    size_t slot = module_identity_slot(module, module_identities.capacity);
+    ModuleIdentity *entry = &module_identities.slots[slot];
+    if(entry->module == NULL) {
+        module_identity_uncached(programs, count, module,
+                                 entry->file_stem, sizeof(entry->file_stem),
+                                 entry->guard, sizeof(entry->guard));
+        entry->module = module;
+        module_identities.used++;
+    }
+    copy_text(file_stem, file_size, entry->file_stem);
+    copy_text(guard, guard_size, entry->guard);
 }
 
 void

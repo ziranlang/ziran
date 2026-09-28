@@ -57,10 +57,11 @@ cat > "$work/cpp/main.cpp" <<'EOF'
 #include "record_abi.hpp"
 int main() { return ReadForeignRecord() == 42 ? 0 : 1; }
 EOF
-"${CC:-cc}" -std=c11 -I"$work/c" "$work/c"/*.c "$work/c/main.c" \
-    -o "$work/c/runner"
+"${CC:-cc}" -std=c11 -I"$repo/include" -I"$work/c" \
+    "$work/c/record_abi.c" "$work/c/main.c" -o "$work/c/runner"
 "$work/c/runner"
-"${CXX:-c++}" -std=c++11 -I"$work/cpp" "$work/cpp"/*.cpp \
+"${CXX:-c++}" -std=c++11 -I"$repo/include" -I"$work/cpp" \
+    "$work/cpp/record_abi.cpp" \
     "$work/cpp/main.cpp" -o "$work/cpp/runner"
 "$work/cpp/runner"
 

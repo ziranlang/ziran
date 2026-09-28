@@ -1162,11 +1162,11 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
             }
         }
         {
-            char initw[LOWER_TEXT_MAX] = "";
+            char initw[LOWER_TEXT_MAX * 2 + 64] = "";
 
             /* initializers carry 'null' and module-local function refs */
             if(!ScalarLiteral(g->type, g->init, ZIR_CPP, g->span, initw, sizeof(initw))) {
-                char recordw[LOWER_TEXT_MAX] = "";
+                char recordw[LOWER_TEXT_MAX * 2 + 64] = "";
                 int compound = EmitGlobalInitializer(m, g, ZIR_CPP,
                     rewrite_global_scalar, NULL, NULL, NULL, recordw,
                     sizeof(recordw));

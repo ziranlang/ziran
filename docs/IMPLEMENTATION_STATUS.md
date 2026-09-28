@@ -708,6 +708,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   command lines, versions, hashes, hardware, and checked outputs. The multilingual
   UTF-8 harness compares source and saved IR across C, C++, Go, `.zib`, and
   handwritten C, C++, Go, Rust, Java, JavaScript, and Python implementations.
+  The record-call harness covers fixed arrays, record value parameters, field
+  access, wrapping `s32` updates, and an ordinary call in every round across
+  the same four Ziran execution paths plus the available comparison languages.
 - Package manifests and lockfiles can pin source-only dependencies without a
   Ziran manifest. Resolution, checkout, map generation, drift detection, and
   `ziran add --source` are covered by `tests/packages.py`.

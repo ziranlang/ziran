@@ -28,8 +28,8 @@ accordingly. JIT languages are launched fresh rather than timed at warmed
 steady state. The output records compiler revisions, source and tool hashes,
 tool versions, commands, fixture hashes, raw timings, and limitations so that
 a comparison can be checked against the exact experiment. A broader suite
-still needs arrays, records, generics, collections, text processing, larger
-module graphs, and real applications.
+still needs generics, larger module graphs, more compiler-scaling cases, and
+real applications.
 
 The first repeated baseline, including raw samples and machine metadata, is
 in [`results/2026-09-27`](results/2026-09-27/benchmark.md). It used three
@@ -59,6 +59,21 @@ case on one machine. The generated C and C++ runs were close to their
 handwritten comparisons for the large input; generated Go took about 22 ms
 versus 8 ms for handwritten Go. This identifies a workload for investigating
 vector lowering, not a general performance ranking.
+
+For a record-value and call workload over a fixed `[32]Point` table, run:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/record_calls.py
+```
+
+Each round updates all records through a checked `Mix(Point, Point, s32, s32)`
+call and accumulates a signed 64-bit checksum with wrapping `s32` field
+arithmetic. The harness measures source and saved IR through C, C++, Go, and
+portable `.zib`, downstream native builds, and whole-process execution.
+Handwritten C, C++, Go, Rust, Java, JavaScript, and Python versions participate
+when installed. Every sample must match an independent Python oracle; source
+and saved-IR generated output and bundles are checked for equality. The VM runs
+the small input only because the large input exceeds its instruction budget.
 
 For a focused before/after comparison of two validated Go binaries, run
 `bench/vector_growth_ab.py --before PATH --after PATH --out NEW.json`. It

@@ -151,8 +151,8 @@ profile before assigning its cause. These observations are workload-specific.
 A [validated UTF-8 scanning matrix](../bench/results/2026-09-27-text-scan-multilang/README.md)
 covers source and saved IR through C, C++, Go, and `.zib`, plus handwritten
 C, C++, Go, Rust, Java, JavaScript, and Python. Add validated workloads for
-arrays, records/calls, generic specialization, JSON scanning, sorting/maps
-when available, local I/O, and real applications. Scale compiler inputs by module count, source size,
+generic specialization, JSON scanning, sorting/maps when available, local
+I/O, compiler-input scaling, and real applications. Scale compiler inputs by module count, source size,
 generic instances, compile-time evaluation, and laws. Instrument compiler
 phases and allocations; do not present sums of separately sampled phases as
 measured end-to-end builds. Retain raw samples, exact source/input hashes,

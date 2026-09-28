@@ -528,11 +528,16 @@ eval(Frame *frame, int index, int depth)
                     frame->vm->failed = 1;
                     break;
                 }
-                if(VecElementType(frame->module, expression->type, NULL, 0))
-                    local->value = (Value){.kind = VALUE_INVALID};
-                /* Aggregate storage is cloned at the destination boundary,
-                 * while the checker makes the source unusable afterward.
-                 * Retiring the same reachable tree twice is idempotent. */
+                /* A move hands the storage to its destination; the source
+                 * binding no longer owns it, so scope exit must not release
+                 * it again. A destination that cloned leaves the original
+                 * with no owner, so it is retired here. */
+                local->value = (Value){.kind = VALUE_INVALID};
+                Value moved = coerce_expression(frame->vm, frame->module,
+                                                stored, expression->type);
+                if(moved.kind != VALUE_RECORD || moved.record != stored.record)
+                    retire_value(frame->vm, stored, 0);
+                return moved;
             }
             return coerce_expression(frame->vm, frame->module,
                                      stored, expression->type);

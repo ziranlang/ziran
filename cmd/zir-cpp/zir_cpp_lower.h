@@ -4,13 +4,15 @@
 #include "zir.h"
 
 /* Cross-module symbol table for resolving alias-qualified calls. */
+typedef struct ZirCppFunctionSym {
+    char source[ZIR_NAME_MAX];
+    char c[ZIR_NAME_MAX * 3];
+} ZirCppFunctionSym;
+
 typedef struct ZirCppModuleSyms {
     char module_stem[ZIR_PATH_MAX];  /* source path minus .zi */
     char module_slash[ZIR_PATH_MAX];
-    struct {
-        char source[ZIR_NAME_MAX];
-        char c[ZIR_NAME_MAX * 3];
-    } fns[256];
+    ZirCppFunctionSym *fns;          /* one entry per function, no fixed cap */
     int fn_count;
 } ZirCppModuleSyms;
 
@@ -21,7 +23,8 @@ int cpp_lower(const ZirProgram *program, const char *root,
                int restab_count);
 
 /* Build the symbol table entry for one program into out. */
-void cpp_build_syms(const ZirProgram *program, ZirCppModuleSyms *out);
+int cpp_build_syms(const ZirProgram *program, ZirCppModuleSyms *out);
+void cpp_free_syms(ZirCppModuleSyms *syms, int count);
 
 /* Full C name for a function (module prefix unless exported). */
 void cpp_function_name(const ZirModule *m, const ZirFunction *fn,

@@ -1403,14 +1403,15 @@ cpp_lower(const ZirProgram *program, const char *root, const char *out_dir, cons
     return 1;
 }
 
-void
+int
 cpp_build_syms(const ZirProgram *program, ZirCppModuleSyms *out)
 {
     int i, j;
+    int total = 0;
 
     memset(out, 0, sizeof(*out));
     if(program == NULL || program->module_count == 0)
-        return;
+        return 1;
     /* module slash path: the module name with dots -> slashes ("ide.state"
      * -> "ide/state"), matching how #import targets name modules. */
     {
@@ -1435,10 +1436,17 @@ cpp_build_syms(const ZirProgram *program, ZirCppModuleSyms *out)
         memcpy(out->module_stem, sp, n);
         out->module_stem[n] = '\0';
     }
-    for(i = 0; i < program->module_count && out->fn_count < 256; i++) {
+    for(i = 0; i < program->module_count; i++)
+        for(j = 0; j < program->modules[i].function_count; j++)
+            if(!program->modules[i].functions[j].is_template)
+                total++;
+    out->fns = calloc(total > 0 ? (size_t)total : 1, sizeof(*out->fns));
+    if(out->fns == NULL)
+        return 0;
+    for(i = 0; i < program->module_count; i++) {
         const ZirModule *m = &program->modules[i];
 
-        for(j = 0; j < m->function_count && out->fn_count < 256; j++) {
+        for(j = 0; j < m->function_count; j++) {
             const ZirFunction *fn = &m->functions[j];
             if(fn->is_template) continue;
 
@@ -1449,4 +1457,12 @@ cpp_build_syms(const ZirProgram *program, ZirCppModuleSyms *out)
             out->fn_count++;
         }
     }
+    return 1;
+}
+
+void
+cpp_free_syms(ZirCppModuleSyms *syms, int count)
+{
+    for(int i = 0; i < count; i++)
+        free(syms[i].fns);
 }

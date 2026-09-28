@@ -77,6 +77,7 @@ main(int argc, char **argv)
     int define_count = 0;
     ZirProgram **progs;
     ZirCModuleSyms *syms = NULL;
+    int syms_count = 0;
     int file_count;
     int symbol_count = 0;
     int i;
@@ -154,11 +155,13 @@ main(int argc, char **argv)
         syms = calloc((size_t)linked->module_count, sizeof(*syms));
         if(syms == NULL)
             goto done;
+        syms_count = linked->module_count;
         for(i = 0; i < linked->module_count; i++) {
             ZirProgram view = {0};
             view.modules = &linked->modules[i];
             view.module_count = 1;
-            c_build_syms(&view, &syms[i]);
+            if(!c_build_syms(&view, &syms[i]))
+                goto done;
         }
         if(!c_lower(linked, root, out_dir, syms, linked->module_count, 1))
             goto done;
@@ -168,6 +171,7 @@ main(int argc, char **argv)
         syms = calloc((size_t)symbol_count, sizeof(*syms));
         if(syms == NULL)
             goto done;
+        syms_count = symbol_count;
         /* Pass 1: build the cross-module symbol table. */
         int position = 0;
         for(i = 0; i < file_count; i++)
@@ -175,7 +179,8 @@ main(int argc, char **argv)
                 ZirProgram view = {0};
                 view.modules = &progs[i]->modules[m];
                 view.module_count = 1;
-                c_build_syms(&view, &syms[position++]);
+                if(!c_build_syms(&view, &syms[position++]))
+                    goto done;
             }
         /* Pass 2: lower with full cross-module resolution. */
         for(i = 0; i < file_count; i++)
@@ -186,6 +191,8 @@ main(int argc, char **argv)
 done:
     (void)no_main;
     ProgramsFree(&set);
+    if(syms != NULL)
+        c_free_syms(syms, syms_count);
     free(syms);
     ProgramFree(linked);
     free(merged.modules);

@@ -55,6 +55,7 @@ main(int argc, char **argv)
     int module_path_count = 0;
     ZirProgram **progs;
     ZirCppModuleSyms *syms = NULL;
+    int syms_count = 0;
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
     int result = 1;
@@ -128,13 +129,15 @@ main(int argc, char **argv)
     syms = calloc((size_t)symbol_count, sizeof(*syms));
     if(syms == NULL)
         goto done;
+    syms_count = symbol_count;
     int position = 0;
     if(linked != NULL) {
         for(i = 0; i < linked->module_count; i++) {
             ZirProgram view = {0};
             view.modules = &linked->modules[i];
             view.module_count = 1;
-            cpp_build_syms(&view, &syms[position++]);
+            if(!cpp_build_syms(&view, &syms[position++]))
+                goto done;
         }
         if(!cpp_lower(linked, root, out_dir, syms, symbol_count))
             goto done;
@@ -144,7 +147,8 @@ main(int argc, char **argv)
                 ZirProgram view = {0};
                 view.modules = &progs[i]->modules[m];
                 view.module_count = 1;
-                cpp_build_syms(&view, &syms[position++]);
+                if(!cpp_build_syms(&view, &syms[position++]))
+                    goto done;
             }
         for(i = 0; i < file_count; i++)
             if(!cpp_lower(progs[i], root, out_dir, syms, symbol_count))
@@ -154,6 +158,8 @@ main(int argc, char **argv)
 done:
     (void)no_main;
     ProgramsFree(&set);
+    if(syms != NULL)
+        cpp_free_syms(syms, syms_count);
     free(syms);
     ProgramFree(linked);
     free(merged.modules);

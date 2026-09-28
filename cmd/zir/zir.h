@@ -387,4 +387,12 @@ void ProgramDump(const ZirProgram *program, FILE *out);
 void GeneratedOutputRecord(const char *path);
 int GeneratedOutputPrune(const char *out_dir, const char *marker);
 
+/* Backends write each file through a hidden temporary next to it.
+ * GeneratedOutputOpen records path and opens that temporary, writing its
+ * name to temp. After the caller closes the file, GeneratedOutputReplace
+ * moves it over path only when the bytes differ, so an unchanged output
+ * keeps its timestamp and build tools recompile only what changed. */
+FILE *GeneratedOutputOpen(const char *path, char *temp, size_t size);
+int GeneratedOutputReplace(const char *temp, const char *path);
+
 #endif /* ZIRAN_ZIR_H */

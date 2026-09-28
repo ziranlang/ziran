@@ -813,6 +813,8 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
     char guard[600];
     char hpath[1024];
     char cpath[1024];
+    char htemp[1100];
+    char ctemp[1100];
     FILE *h;
     FILE *c;
     int i;
@@ -829,8 +831,7 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
     }
 
     /* --- header --- */
-    GeneratedOutputRecord(hpath);
-    h = fopen(hpath, "wb");
+    h = GeneratedOutputOpen(hpath, htemp, sizeof(htemp));
     if(h == NULL) {
         Diagnostic(m->span, "zir_c.global",
                    "cannot create C header output: %s", hpath);
@@ -1095,12 +1096,17 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
     }
     fprintf(h, "\n#ifdef __cplusplus\n}\n#endif\n\n#endif /* %s */\n", guard);
     if(ferror(h) != 0 || fclose(h) != 0) {
-        remove(hpath);
+        remove(htemp);
         Diagnostic(m->span, "zir_c.global",
                    "cannot finish C header output: %s", hpath);
         return 0;
     }
-    c_plan9_rewrite_file(hpath);
+    c_plan9_rewrite_file(htemp);
+    if(GeneratedOutputReplace(htemp, hpath) != 0) {
+        Diagnostic(m->span, "zir_c.global",
+                   "cannot replace C header output: %s", hpath);
+        return 0;
+    }
 
     /* Type-only modules have a header but no translation unit to compile. */
     if(linked && m->function_count == 0 && m->global_count == 0 &&
@@ -1108,8 +1114,7 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
         return 1;
 
     /* --- source --- */
-    GeneratedOutputRecord(cpath);
-    c = fopen(cpath, "wb");
+    c = GeneratedOutputOpen(cpath, ctemp, sizeof(ctemp));
     if(c == NULL) {
         Diagnostic(m->span, "zir_c.global",
                    "cannot create C source output: %s", cpath);
@@ -1306,12 +1311,17 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
                    "    %s();\n}\n", init_name, init_name);
     }
     if(ferror(c) != 0 || fclose(c) != 0) {
-        remove(cpath);
+        remove(ctemp);
         Diagnostic(m->span, "zir_c.global",
                    "cannot finish C source output: %s", cpath);
         return 0;
     }
-    c_plan9_rewrite_file(cpath);
+    c_plan9_rewrite_file(ctemp);
+    if(GeneratedOutputReplace(ctemp, cpath) != 0) {
+        Diagnostic(m->span, "zir_c.global",
+                   "cannot replace C source output: %s", cpath);
+        return 0;
+    }
     return 1;
 }
 

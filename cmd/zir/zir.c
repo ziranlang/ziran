@@ -1261,6 +1261,48 @@ GeneratedOutputRecord(const char *path)
     generated_outputs[generated_output_count++] = copy;
 }
 
+FILE *
+GeneratedOutputOpen(const char *path, char *temp, size_t size)
+{
+    const char *name = path_base_name(path);
+    int length = snprintf(temp, size, "%.*s.%s.tmp",
+                          (int)(name - path), path, name);
+    if(length < 0 || (size_t)length >= size) return NULL;
+    GeneratedOutputRecord(path);
+    return fopen(temp, "wb");
+}
+
+static int
+same_file_bytes(const char *left, const char *right)
+{
+    FILE *a = fopen(left, "rb");
+    FILE *b = fopen(right, "rb");
+    int same = a != NULL && b != NULL;
+    char abuf[8192];
+    char bbuf[8192];
+    while(same) {
+        size_t an = fread(abuf, 1, sizeof(abuf), a);
+        size_t bn = fread(bbuf, 1, sizeof(bbuf), b);
+        if(an != bn || memcmp(abuf, bbuf, an) != 0) same = 0;
+        else if(an == 0) break;
+    }
+    if(a != NULL) fclose(a);
+    if(b != NULL) fclose(b);
+    return same;
+}
+
+int
+GeneratedOutputReplace(const char *temp, const char *path)
+{
+    if(same_file_bytes(temp, path))
+        return remove(temp) == 0 ? 0 : -1;
+    if(rename(temp, path) != 0) {
+        remove(temp);
+        return -1;
+    }
+    return 0;
+}
+
 static int
 starts_with_marker(const char *path, const char *marker)
 {

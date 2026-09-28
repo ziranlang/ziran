@@ -271,8 +271,11 @@ static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
                 char return_type[ZIR_NAME_MAX];
                 char symbol[ZIR_RUST_NAME_MAX * 2];
                 int count;
+                /* Host functions are C functions the embedding program
+                 * provides under their Ziran names, as on the C targets. */
                 if(import->kind != ZIR_IMPORT_EXTERN ||
-                   import->extern_kind != ZIR_EXTERN_C)
+                   (import->extern_kind != ZIR_EXTERN_C &&
+                    import->extern_kind != ZIR_EXTERN_HOST))
                     continue;
                 count = *import->args ?
                     split_arguments(import->args, parts, 32) : 0;
@@ -288,7 +291,9 @@ static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
                 }
                 rust_extern_symbol(emitter, module, import, symbol,
                                    sizeof(symbol));
-                if(import->extern_symbol[0] &&
+                if(import->extern_kind == ZIR_EXTERN_HOST)
+                    fprintf(output, "    #[link_name = \"%s\"]\n", import->name);
+                else if(import->extern_symbol[0] &&
                    strcmp(import->extern_symbol, import->name) != 0)
                     fprintf(output, "    #[link_name = \"%s\"]\n",
                             import->extern_symbol);
@@ -735,6 +740,11 @@ static void function_symbol(RustEmitter *emitter, const ZirModule *module,
         snprintf(output, size, "%s", function->export_symbol);
         return;
     }
+    /* main stays module-qualified: the executable's own fn main calls it. */
+    if(function->exported && strcmp(function->name, "main") != 0) {
+        rust_identifier(function->name, output, size);
+        return;
+    }
     NativeGoFunctionName(emitter->programs, emitter->program_count, module,
                          function, output, size);
 }
@@ -1086,7 +1096,7 @@ static const ZirImport *rust_foreign_import(RustEmitter *emitter,
     for(int index = 0; index < emitter->module->import_count; index++) {
         const ZirImport *import = &emitter->module->imports[index];
         if(import->kind == ZIR_IMPORT_EXTERN &&
-           import->extern_kind == ZIR_EXTERN_C &&
+           (import->extern_kind == ZIR_EXTERN_C || import->extern_kind == ZIR_EXTERN_HOST) &&
            strcmp(import->name, name) == 0)
             return import;
     }
@@ -2443,7 +2453,7 @@ static void validate_module(const ZirModule *module)
         char checked_type[ZIR_NAME_MAX];
         if(import->kind != ZIR_IMPORT_EXTERN)
             continue;
-        if(import->extern_kind != ZIR_EXTERN_C) {
+        if(import->extern_kind != ZIR_EXTERN_C && import->extern_kind != ZIR_EXTERN_HOST) {
             Diagnostic(import->span, "zir_rust.import",
                        "only the C foreign ABI is supported by the Rust target: %s",
                        import->name);
@@ -2586,7 +2596,8 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     emitter->function = function;
     emitter->local_count = 0;
     function_symbol(emitter, module, function, symbol, sizeof(symbol));
-    if(function->export_symbol[0])
+    if(function->export_symbol[0] ||
+       (function->exported && strcmp(function->name, "main") != 0))
         fputs("#[no_mangle]\n", emitter->output);
     fputs("#[inline(never)]\npub extern \"C\" fn ", emitter->output);
     fputs(symbol, emitter->output);

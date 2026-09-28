@@ -3789,8 +3789,11 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
     }
     if(folds_text(e, result, type)) {
         /* declare() applies this cast for named enum types; inlined text has
-         * to carry it so Go sees matching operand types. */
-        if(!plain_identifier(result) && enum_type(e->module, type)) {
+         * to carry it so Go sees matching operand types. An explicit cast
+         * keeps it even on a bare name: returning an s32 as an enum is not
+         * an implicit conversion in C++ or Go. */
+        if((!plain_identifier(result) || expr->kind == ZIR_EXPR_CAST) &&
+           enum_type(e->module, type)) {
             const char *scalar = TargetType(type, e->target);
             char resolved[ZIR_NAME_MAX * 2];
             if(scalar == NULL) {

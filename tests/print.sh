@@ -100,6 +100,81 @@ EOF
     cargo build --quiet --manifest-path "$rust_out/Cargo.toml"
     "$rust_out/target/debug/ziran_generated" > "$rust_out.out"
     cmp "$work/expected" "$rust_out.out"
+
+    # Plan 9 C runs on the host through a minimal u.h/libc.h shim.
+    plan9_out="$work/$suffix-plan9"
+    "$ziran" build --target=plan9-c --root "$work" -o "$plan9_out" "$input"
+    if grep -n '#include <std' "$plan9_out"/*.c "$plan9_out"/*.h; then
+        echo 'plan9-c print output retained hosted C headers' >&2
+        exit 1
+    fi
+    mkdir -p "$work/plan9-include"
+    cat > "$work/plan9-include/u.h" <<'EOF'
+typedef unsigned char uchar;
+typedef unsigned short ushort;
+typedef unsigned int uint;
+typedef long long vlong;
+typedef unsigned long long uvlong;
+typedef unsigned long usize;
+EOF
+    cat > "$work/plan9-include/libc.h" <<'EOF'
+extern void *realloc(void *, unsigned long);
+extern void free(void *);
+extern void *memmove(void *, const void *, unsigned long);
+extern void *memcpy(void *, const void *, unsigned long);
+extern void *memset(void *, int, unsigned long);
+extern int memcmp(const void *, const void *, unsigned long);
+extern int fprint(int, const char *, ...);
+extern int snprint(char *, int, const char *, ...);
+extern long write(int, const void *, long);
+extern double strtod(const char *, char **);
+extern int atoi(const char *);
+extern int isNaN(double);
+extern int isInf(double, int);
+extern void exits(const char *);
+extern void abort(void);
+EOF
+    cat > "$work/plan9-shim.c" <<'EOF'
+#include <math.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+int fprint(int fd, const char *format, ...) {
+    char buffer[512];
+    va_list arguments;
+    int length;
+    va_start(arguments, format);
+    length = vsnprintf(buffer, sizeof(buffer), format, arguments);
+    va_end(arguments);
+    return (int)write(fd, buffer, (size_t)length);
+}
+int snprint(char *buffer, int size, const char *format, ...) {
+    va_list arguments;
+    int length;
+    va_start(arguments, format);
+    length = vsnprintf(buffer, (size_t)size, format, arguments);
+    va_end(arguments);
+    return length;
+}
+int isNaN(double value) { return isnan(value); }
+int isInf(double value, int sign) {
+    return sign == 0 ? isinf(value) != 0 :
+        sign > 0 ? value == INFINITY : value == -INFINITY;
+}
+void exits(const char *status) { exit(status == NULL || *status == 0 ? 0 : 1); }
+EOF
+    cat > "$plan9_out/driver.c" <<'EOF'
+#include <u.h>
+#include <libc.h>
+#include "greet.h"
+int main(void) { return Greet(); }
+EOF
+    "${CC:-cc}" -std=c11 -I"$work/plan9-include" -I"$plan9_out" \
+        "$plan9_out/greet.c" "$plan9_out/driver.c" "$work/plan9-shim.c" \
+        -lm -o "$plan9_out/program"
+    "$plan9_out/program" > "$plan9_out.out"
+    cmp "$work/expected" "$plan9_out.out"
 done
 
 # The classic program: no return value, so `ziran run` prints only the text.

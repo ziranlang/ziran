@@ -528,6 +528,34 @@ c_plan9_unresolved(void)
 /* ------------------------------------------------------------------ */
 
 static int
+rewrite_ziran_abi_marker(const char *line, Buf *out)
+{
+    static const char marker[] = "#pragma ziran abi_incomplete ";
+    char name[PLAN9_NAME_MAX];
+    const char *cursor;
+    const char *end;
+    size_t length;
+
+    if(strncmp(line, marker, sizeof(marker) - 1) != 0)
+        return 0;
+    cursor = line + sizeof(marker) - 1;
+    end = strchr(cursor, '\n');
+    end = end != NULL ? end : cursor + strlen(cursor);
+    while(end > cursor && (end[-1] == ' ' || end[-1] == '\t' ||
+                           end[-1] == '\r'))
+        end--;
+    length = (size_t)(end - cursor);
+    if(length == 0 || length >= sizeof(name))
+        return -1;
+    memcpy(name, cursor, length);
+    name[length] = '\0';
+    for(cursor = name; *cursor != '\0'; cursor++)
+        if(!isalnum((unsigned char)*cursor) && *cursor != '_')
+            return -1;
+    return buf_printf(out, "#pragma incomplete %s\n", name) < 0 ? -1 : 1;
+}
+
+static int
 line_passthrough(const char *line)
 {
     const char *p = line;
@@ -1533,6 +1561,70 @@ c_plan9_write_runtime(const char *out_dir)
 "        (left.length == 0 ||\n"
 "         memcmp(left.data, right.data, left.length) == 0);\n"
 "}\n\n"
+"/* `print` output, matching include/zir_string.h on hosted targets. */\n"
+"static void\nZirPrintString(String text)\n"
+"{\n"
+"    if(text.length > 0)\n"
+"        write(1, text.data, (long)text.length);\n"
+"}\n\n"
+"static void\nZirPrintBool(bool value)\n"
+"{\n"
+"    write(1, value ? \"true\" : \"false\", value ? 4 : 5);\n"
+"}\n\n"
+"static void\nZirPrintUnsigned(uint64_t value)\n"
+"{\n"
+"    char digits[24];\n"
+"    int used = sizeof(digits);\n"
+"    do {\n"
+"        digits[--used] = (char)('0' + value % 10);\n"
+"        value /= 10;\n"
+"    } while(value != 0);\n"
+"    write(1, digits + used, sizeof(digits) - used);\n"
+"}\n\n"
+"static void\nZirPrintSigned(int64_t value)\n"
+"{\n"
+"    if(value < 0) {\n"
+"        write(1, \"-\", 1);\n"
+"        ZirPrintUnsigned((uint64_t)0 - (uint64_t)value);\n"
+"    } else\n"
+"        ZirPrintUnsigned((uint64_t)value);\n"
+"}\n\n"
+"static void\nZirPrintFloat(double value, int single)\n"
+"{\n"
+"    char scientific[40], digits[24];\n"
+"    int precision, exponent, count, i;\n"
+"    char *p;\n"
+"    if(isNaN(value)) { write(1, \"nan\", 3); return; }\n"
+"    if(isInf(value, 0)) {\n"
+"        if(value < 0) write(1, \"-inf\", 4); else write(1, \"inf\", 3);\n"
+"        return;\n"
+"    }\n"
+"    for(precision = 1; precision <= 17; precision++) {\n"
+"        snprint(scientific, sizeof(scientific), \"%.*e\", precision - 1, value);\n"
+"        if(single ? (float)strtod(scientific, NULL) == (float)value\n"
+"                  : strtod(scientific, NULL) == value)\n"
+"            break;\n"
+"    }\n"
+"    p = scientific;\n"
+"    if(*p == '-') { write(1, \"-\", 1); p++; }\n"
+"    count = 0;\n"
+"    for(; *p != 'e' && *p != 'E' && *p != 0; p++)\n"
+"        if(*p != '.') digits[count++] = *p;\n"
+"    exponent = *p != 0 ? atoi(p + 1) : 0;\n"
+"    while(count > 1 && digits[count - 1] == '0') count--;\n"
+"    if(exponent < 0) {\n"
+"        write(1, \"0.\", 2);\n"
+"        for(i = 1; i < -exponent; i++) write(1, \"0\", 1);\n"
+"        write(1, digits, count);\n"
+"    } else {\n"
+"        for(i = 0; i <= exponent; i++)\n"
+"            write(1, i < count ? digits + i : \"0\", 1);\n"
+"        if(count > exponent + 1) {\n"
+"            write(1, \".\", 1);\n"
+"            write(1, digits + exponent + 1, count - exponent - 1);\n"
+"        }\n"
+"    }\n"
+"}\n\n"
 "static size_t\n"
 "ZirVecIndex(int64_t count, int64_t index)\n"
 "{\n"
@@ -2048,6 +2140,14 @@ c_plan9_rewrite_once(const char *text)
             if(buf_puts(&out, rewritten) < 0)
                 goto fail;
             continue;
+        }
+
+        {
+            int abi_result = rewrite_ziran_abi_marker(current, &out);
+            if(abi_result < 0)
+                goto fail;
+            if(abi_result > 0)
+                continue;
         }
 
         if(line_passthrough(current)) {

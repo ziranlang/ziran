@@ -66,6 +66,9 @@ static int rust_record_type(RustEmitter *emitter, const char *type,
                             const ZirModule **owner, const ZirType **record);
 static int rust_type(RustEmitter *emitter, const char *type, char *output,
                      size_t size);
+static int rust_procedure_type(RustEmitter *emitter, const char *type,
+                               const ZirModule **owner,
+                               const ZirType **procedure);
 static int rust_copyable_type(RustEmitter *emitter, const char *type);
 static int split_arguments(const char *text,
                            char parts[][ZIR_RUST_TEXT_MAX], int maximum);
@@ -116,9 +119,17 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                     }
                     NativeTypeName(procedure_owner, procedure, type_name,
                                    sizeof(type_name));
-                    fprintf(output,
-                            "pub type %s = Option<unsafe extern \"C\" fn(",
-                            type_name);
+                    if(!procedure->is_c_call) {
+                        fprintf(output,
+                                "#[repr(C)]\n#[derive(Clone, Copy)]\npub struct %s {\n"
+                                "    pub context: *mut core::ffi::c_void,\n"
+                                "    pub call: Option<unsafe extern \"C\" fn(*mut core::ffi::c_void",
+                                type_name);
+                    } else {
+                        fprintf(output,
+                                "pub type %s = Option<unsafe extern \"C\" fn(",
+                                type_name);
+                    }
                     for(int index = 0; index < count; index++) {
                         char *colon = strchr(parts[index], ':');
                         char parameter_type[ZIR_NAME_MAX];
@@ -139,7 +150,8 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                                        type);
                             exit(1);
                         }
-                        fprintf(output, "%s%s", index ? ", " : "",
+                        fprintf(output, "%s%s",
+                                index || !procedure->is_c_call ? ", " : "",
                                 parameter_type);
                     }
                     if(!rust_type(emitter, procedure->procedure_return_type,
@@ -149,7 +161,12 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                                    procedure->procedure_return_type);
                         exit(1);
                     }
-                    if(strcmp(procedure->procedure_return_type, "void") != 0)
+                    if(!procedure->is_c_call) {
+                        if(strcmp(procedure->procedure_return_type, "void") != 0)
+                            fprintf(output, ") -> %s>,\n}\n\n", return_type);
+                        else
+                            fprintf(output, ")>,\n}\n\n");
+                    } else if(strcmp(procedure->procedure_return_type, "void") != 0)
                         fprintf(output, ") -> %s>;\n\n", return_type);
                     else
                         fprintf(output, ")>;\n\n");
@@ -521,6 +538,23 @@ static int rust_record_type(RustEmitter *emitter, const char *type,
     return 1;
 }
 
+static int rust_procedure_type(RustEmitter *emitter, const char *type,
+                               const ZirModule **owner,
+                               const ZirType **procedure)
+{
+    const ZirModule *type_owner = NULL;
+    const ZirType *declared = emitter != NULL ?
+        FindType(emitter->module, type, &type_owner) : NULL;
+    if(declared == NULL || !declared->is_procedure_type) {
+        if(owner != NULL) *owner = NULL;
+        if(procedure != NULL) *procedure = NULL;
+        return 0;
+    }
+    if(owner != NULL) *owner = type_owner;
+    if(procedure != NULL) *procedure = declared;
+    return 1;
+}
+
 static int rust_type(RustEmitter *emitter, const char *type, char *output,
                      size_t size)
 {
@@ -565,9 +599,7 @@ static int rust_type(RustEmitter *emitter, const char *type, char *output,
         NativeTypeName(owner, record, output, size);
         return 1;
     }
-    if(FindType(emitter->module, type, &owner) != NULL &&
-       (record = FindType(emitter->module, type, &owner)) != NULL &&
-       record->is_procedure_type) {
+    if(rust_procedure_type(emitter, type, &owner, &record)) {
         NativeTypeName(owner, record, output, size);
         return 1;
     }
@@ -683,6 +715,16 @@ static void function_symbol(RustEmitter *emitter, const ZirModule *module,
 {
     NativeGoFunctionName(emitter->programs, emitter->program_count, module,
                          function, output, size);
+}
+
+static void slot_wrapper_symbol(RustEmitter *emitter, int expression,
+                                 char *output, size_t size)
+{
+    char symbol[ZIR_RUST_NAME_MAX * 2];
+    function_symbol(emitter, emitter->module, emitter->function, symbol,
+                    sizeof(symbol));
+    snprintf(output, size, "ziran_slot_%s_%d", symbol, expression);
+    rust_identifier(output, output, size);
 }
 
 static void global_symbol(RustEmitter *emitter, const ZirModule *module,
@@ -1017,6 +1059,9 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
     if(expression->slot_type[0]) {
         char callable[ZIR_RUST_TEXT_MAX];
         char global_name[ZIR_RUST_NAME_MAX * 2];
+        const ZirModule *slot_owner = NULL;
+        const ZirType *slot = FindType(emitter->module,
+                                       expression->slot_type, &slot_owner);
         if(expression->left >= 0)
             emit_expression(emitter, expression->left, callable,
                             sizeof(callable));
@@ -1035,7 +1080,11 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
             strncat(arguments, child,
                     sizeof(arguments) - strlen(arguments) - 1);
         }
-        snprintf(output, size, "(%s.unwrap()(%s))", callable, arguments);
+        if(slot != NULL && slot->is_procedure_type && !slot->is_c_call)
+            snprintf(output, size, "(%s.call.unwrap()(%s.context%s%s))",
+                     callable, callable, *arguments ? ", " : "", arguments);
+        else
+            snprintf(output, size, "(%s.unwrap()(%s))", callable, arguments);
         return;
     }
     if(expression->is_function_value) {
@@ -1203,9 +1252,23 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         char global_name[ZIR_RUST_NAME_MAX * 2];
         const ZirModule *function_owner = NULL;
         const ZirFunction *function = NULL;
+        const ZirModule *slot_owner = NULL;
+        const ZirType *slot = NULL;
         if(global_reference(emitter, expression->name, global_name,
                             sizeof(global_name)))
             snprintf(output, size, "%s", global_name);
+        else if(expression->is_function_value &&
+                rust_procedure_type(emitter, expression->type,
+                                    &slot_owner, &slot) &&
+                !slot->is_c_call) {
+            char wrapper[ZIR_RUST_NAME_MAX * 2];
+            char type_name[ZIR_NAME_MAX];
+            slot_wrapper_symbol(emitter, index, wrapper, sizeof(wrapper));
+            NativeTypeName(slot_owner, slot, type_name, sizeof(type_name));
+            snprintf(output, size,
+                     "%s { context: core::ptr::null_mut(), call: Some(%s) }",
+                     type_name, wrapper);
+        }
         else if(expression->is_function_value &&
                 ResolveFunctionAt(emitter->module, expression->name,
                                   emitter->function->span.path,
@@ -1407,6 +1470,52 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
     }
     case ZIR_EXPR_BINARY:
         left[0] = right[0] = '\0';
+        if(!strcmp(expression->op, "==") || !strcmp(expression->op, "!=")) {
+            const ZirExpr *left_expr = expression->left >= 0 ?
+                &emitter->function->exprs[expression->left] : NULL;
+            const ZirExpr *right_expr = expression->right >= 0 ?
+                &emitter->function->exprs[expression->right] : NULL;
+            int left_null = left_expr != NULL &&
+                !strcmp(left_expr->type, "null");
+            int right_null = right_expr != NULL &&
+                !strcmp(right_expr->type, "null");
+            const char *slot_type = left_null && right_expr != NULL ?
+                right_expr->type : right_null && left_expr != NULL ?
+                left_expr->type : NULL;
+            const ZirModule *slot_owner = NULL;
+            const ZirType *slot = slot_type != NULL ?
+                FindType(emitter->module, slot_type, &slot_owner) : NULL;
+            int equal = !strcmp(expression->op, "==");
+            if(slot == NULL && left_expr != NULL && right_expr != NULL)
+                slot = FindType(emitter->module, left_expr->type, &slot_owner);
+            if(slot != NULL && slot->is_procedure_type) {
+                int value_index = left_null ? expression->right :
+                    expression->left;
+                emit_expression(emitter, value_index, left, sizeof(left));
+                if(left_null || right_null) {
+                    if(slot->is_c_call)
+                        snprintf(output, size, "(%s.is_%s())", left,
+                                 equal ? "none" : "some");
+                    else
+                        snprintf(output, size, "(%s.call.is_%s())", left,
+                                 equal ? "none" : "some");
+                } else {
+                    emit_expression(emitter, expression->right, right,
+                                    sizeof(right));
+                    if(slot->is_c_call)
+                        snprintf(output, size,
+                                 "(match (%s, %s) { (left, right) => left %s right })",
+                                 left, right, equal ? "==" : "!=");
+                    else
+                        snprintf(output, size,
+                                 "(match (%s, %s) { (left, right) => left.call %s right.call %s left.context %s right.context })",
+                                 left, right, equal ? "==" : "!=",
+                                 equal ? "&&" : "||",
+                                 equal ? "==" : "!=");
+                }
+                break;
+            }
+        }
         if((expression->left >= 0 &&
             !strcmp(emitter->function->exprs[expression->left].type,
                     "string")) ||
@@ -1587,9 +1696,15 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
         snprintf(output, size, "ZiranVec::new()");
         return;
     }
-    if(FindType(emitter->module, type, &owner) != NULL &&
-       (record = FindType(emitter->module, type, &owner)) != NULL &&
-       record->is_procedure_type) {
+    if(rust_procedure_type(emitter, type, &owner, &record)) {
+        char type_name[ZIR_NAME_MAX];
+        NativeTypeName(owner, record, type_name, sizeof(type_name));
+        if(!record->is_c_call) {
+            snprintf(output, size,
+                     "%s { context: core::ptr::null_mut(), call: None }",
+                     type_name);
+            return;
+        }
         snprintf(output, size, "None");
         return;
     }
@@ -1870,6 +1985,91 @@ static void validate_module(const ZirModule *module)
     }
 }
 
+static void emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
+                               const ZirFunction *function)
+{
+    emitter->module = module;
+    emitter->function = function;
+    for(int index = 0; index < function->expr_count; index++) {
+        const ZirExpr *value = &function->exprs[index];
+        const ZirModule *slot_owner = NULL;
+        const ZirType *slot = FindType(module, value->type, &slot_owner);
+        char parts[32][ZIR_RUST_TEXT_MAX];
+        char wrapper[ZIR_RUST_NAME_MAX * 2];
+        char symbol[ZIR_RUST_NAME_MAX * 2];
+        const ZirModule *owner = NULL;
+        const ZirFunction *callee = NULL;
+        int count;
+        if(!value->is_function_value || slot == NULL ||
+           !slot->is_procedure_type || slot->is_c_call)
+            continue;
+        count = *slot->body ?
+            split_arguments(slot->body, parts, 32) : 0;
+        if(count < 0) {
+            Diagnostic(value->span, "zir_rust.slot",
+                       "too many procedure parameters: %s", value->type);
+            exit(1);
+        }
+        if(!strcmp(value->name, "#this")) {
+            owner = module;
+            callee = function;
+        } else if(ResolveFunctionAt(module, value->name, value->span.path,
+                                    &owner, &callee) != 1 ||
+                  owner == NULL || callee == NULL) {
+            Diagnostic(value->span, "zir_rust.slot",
+                       "unsupported procedure value: %s", value->name);
+            exit(1);
+        }
+        slot_wrapper_symbol(emitter, index, wrapper, sizeof(wrapper));
+        function_symbol(emitter, owner, callee, symbol, sizeof(symbol));
+        fprintf(emitter->output,
+                "unsafe extern \"C\" fn %s(_context: *mut core::ffi::c_void",
+                wrapper);
+        emitter->module = slot_owner;
+        for(int argument = 0; argument < count; argument++) {
+            char *colon = strchr(parts[argument], ':');
+            char parameter_type[ZIR_NAME_MAX];
+            const char *type;
+            if(colon == NULL) {
+                Diagnostic(value->span, "zir_rust.slot",
+                           "invalid procedure parameter: %s",
+                           parts[argument]);
+                exit(1);
+            }
+            type = colon + 1;
+            while(*type == ' ' || *type == '\t')
+                type++;
+            require_rust_type(emitter, value->span, type, parameter_type,
+                              sizeof(parameter_type));
+            fprintf(emitter->output, ", ziran_slot_arg_%d: %s", argument,
+                    parameter_type);
+        }
+        if(strcmp(slot->procedure_return_type, "void") != 0) {
+            char return_type[ZIR_NAME_MAX];
+            require_rust_type(emitter, value->span,
+                              slot->procedure_return_type, return_type,
+                              sizeof(return_type));
+            fprintf(emitter->output, ") -> %s {\n", return_type);
+        } else {
+            fprintf(emitter->output, ") {\n");
+        }
+        emitter->module = module;
+        fprintf(emitter->output, "    unsafe { ");
+        if(strcmp(slot->procedure_return_type, "void") != 0)
+            fputc('(', emitter->output);
+        fputs(symbol, emitter->output);
+        for(int argument = 0; argument < count; argument++)
+            fprintf(emitter->output, "%sziran_slot_arg_%d",
+                    argument ? ", " : "(", argument);
+        if(count == 0)
+            fputs("(", emitter->output);
+        fputs(")", emitter->output);
+        if(strcmp(slot->procedure_return_type, "void") != 0)
+            fputc(')', emitter->output);
+        fputs(" }\n}\n\n", emitter->output);
+    }
+}
+
 static void lower_function(RustEmitter *emitter, const ZirModule *module,
                            const ZirFunction *function)
 {
@@ -1939,6 +2139,7 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     emitter->indent = 1;
     write_line(emitter, "unsafe {");
     emitter->indent++;
+    emit_slot_wrappers(emitter, module, function);
     emit_sequence(emitter, 0, function->stmt_count);
     emitter->indent--;
     write_line(emitter, "}");

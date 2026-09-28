@@ -102,6 +102,76 @@ done
 cmp "$work/source/src/main.rs" "$work/saved/src/main.rs"
 cmp "$work/source/Cargo.toml" "$work/saved/Cargo.toml"
 
+cat > "$work/stored.zi" <<'ZI'
+Mode :: enum u8 { Off; On; }
+Callback :: #type (value: s32) -> s32;
+EnumCallback :: #type (mode: Mode) -> Mode;
+CCallback :: #type (value: s32) -> s32 #c_call;
+HolderBuilder :: #type (value: s32) -> Holder;
+Holder :: struct { callback: Callback; callbacks: [2]Callback; }
+EnumHolder :: struct { callback: EnumCallback; }
+installed: Callback;
+empty: CCallback;
+AddOne :: (value: s32) -> s32 { return value + 1 }
+AddTwo :: (value: s32) -> s32 { return value + 2 }
+Echo :: (mode: Mode) -> Mode { return mode }
+CUnset :: () -> CCallback { return empty }
+NewHolder :: (value: s32) -> Holder {
+    result: Holder
+    callback: Callback = AddOne
+    result.callback = callback
+    return result
+}
+Choose :: () -> Callback { return AddTwo }
+
+#program_export
+main :: () -> s32 {
+    first: Callback = AddOne
+    installed = first
+    holder: Holder
+    selected: Callback = Choose()
+    holder.callback = selected
+    holder.callbacks[0] = installed
+    holder.callbacks[1] = holder.callback
+    a: Callback = holder.callbacks[0]
+    b: Callback = holder.callbacks[1]
+    c: Callback = holder.callback
+    if holder.callback == null || null == holder.callback { return 1 }
+    enum_callback: EnumCallback = Echo
+    enum_holder: EnumHolder
+    enum_holder.callback = enum_callback
+    from_holder: EnumCallback = enum_holder.callback
+    if from_holder(Mode.On) != Mode.On { return 2 }
+    builder: HolderBuilder = NewHolder
+    built: Holder = builder(0)
+    built_callback: Callback = built.callback
+    if built_callback(1) != 2 { return 3 }
+    if a(38) + b(0) + c(1) != 44 { return 4 }
+    c_callback: CCallback = AddTwo
+    if c_callback == null || null != CUnset() || c_callback(40) != 42 {
+        return 5
+    }
+    return 0
+}
+ZI
+
+"$ziran" ir --root "$work" -o "$work/stored-ir" "$work/stored.zi"
+for input in source saved; do
+    if test "$input" = source; then
+        file=$work/stored.zi
+        root=$work
+    else
+        file=$work/stored-ir/stored.zir
+        root=$work/stored-ir
+    fi
+    "$ziran" build --target=rust --entry stored:main --root "$root" \
+        --exe -o "$work/stored-$input" "$file"
+    cargo build --quiet --manifest-path "$work/stored-$input/Cargo.toml"
+    "$work/stored-$input/target/debug/ziran_generated"
+done
+
+cmp "$work/stored-source/src/main.rs" "$work/stored-saved/src/main.rs"
+
 cat > "$work/vectors.zi" <<'ZI'
 #import "vec"
 #import "option"

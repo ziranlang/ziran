@@ -1588,6 +1588,7 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             }
 
             rewind(f);
+            GeneratedOutputRecord(path);
             FILE *output = fopen(path, "wb");
             if(output == NULL) {
                 Diagnostic(m->span, "zir_go.global",

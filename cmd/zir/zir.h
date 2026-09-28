@@ -378,4 +378,12 @@ ZirExpr *FunctionAddExpr(ZirFunction *fn, ZirExprKind kind,
                             const char *text, ZirSourceSpan span);
 void ProgramDump(const ZirProgram *program, FILE *out);
 
+/* Native backends record each file they write. After a successful build,
+ * GeneratedOutputPrune removes files in the output directory that start
+ * with the backend's generated-file marker but were not written this time,
+ * so a reused directory never links code from an earlier build. Files
+ * without the marker are never touched. */
+void GeneratedOutputRecord(const char *path);
+int GeneratedOutputPrune(const char *out_dir, const char *marker);
+
 #endif /* ZIRAN_ZIR_H */

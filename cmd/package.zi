@@ -114,6 +114,12 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     child[count] = binary
     count += 1
     if check { child[count] = "--check-only"; count += 1 }
+    // `ziran build -o DIR` owns DIR: generated files from an earlier build
+    // that this one does not write are removed so they cannot be linked.
+    if build && executable != "zi2rust" {
+        child[count] = "--prune-stale"
+        count += 1
+    }
     if bundle { child[count] = command; count += 1 }
     if project && !PkgHasArgument(arguments, "--root") {
         child[count] = "--root"

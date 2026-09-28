@@ -803,6 +803,7 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
     mkdir_parent(hpath);
 
     /* --- header --- */
+    GeneratedOutputRecord(hpath);
     h = fopen(hpath, "wb");
     if(h == NULL) {
         Diagnostic(m->span, "zir_cpp.global",
@@ -1079,6 +1080,7 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
     }
 
     /* --- source --- */
+    GeneratedOutputRecord(cpath);
     c = fopen(cpath, "wb");
     if(c == NULL) {
         Diagnostic(m->span, "zir_cpp.global",

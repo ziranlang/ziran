@@ -829,6 +829,7 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
     }
 
     /* --- header --- */
+    GeneratedOutputRecord(hpath);
     h = fopen(hpath, "wb");
     if(h == NULL) {
         Diagnostic(m->span, "zir_c.global",
@@ -1105,6 +1106,7 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
         return 1;
 
     /* --- source --- */
+    GeneratedOutputRecord(cpath);
     c = fopen(cpath, "wb");
     if(c == NULL) {
         Diagnostic(m->span, "zir_c.global",

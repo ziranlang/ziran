@@ -2,6 +2,8 @@
 #include "zir_parse.h"
 
 #include <ctype.h>
+#include <dirent.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1224,4 +1226,75 @@ ProgramDump(const ZirProgram *program, FILE *out)
             }
         }
     }
+}
+
+static char **generated_outputs;
+static int generated_output_count;
+static int generated_output_capacity;
+
+static const char *
+path_base_name(const char *path)
+{
+    const char *slash = strrchr(path, '/');
+    return slash != NULL ? slash + 1 : path;
+}
+
+void
+GeneratedOutputRecord(const char *path)
+{
+    const char *name = path_base_name(path);
+    for(int i = 0; i < generated_output_count; i++)
+        if(strcmp(generated_outputs[i], name) == 0) return;
+    if(generated_output_count == generated_output_capacity) {
+        int capacity = generated_output_capacity ?
+            generated_output_capacity * 2 : 64;
+        char **grown = realloc(generated_outputs,
+                               (size_t)capacity * sizeof(*grown));
+        if(grown == NULL) return;
+        generated_outputs = grown;
+        generated_output_capacity = capacity;
+    }
+    size_t length = strlen(name);
+    char *copy = malloc(length + 1);
+    if(copy == NULL) return;
+    memcpy(copy, name, length + 1);
+    generated_outputs[generated_output_count++] = copy;
+}
+
+static int
+starts_with_marker(const char *path, const char *marker)
+{
+    char line[256];
+    FILE *file = fopen(path, "rb");
+    if(file == NULL) return 0;
+    size_t length = strlen(marker);
+    int matches = length < sizeof(line) &&
+        fread(line, 1, length, file) == length &&
+        memcmp(line, marker, length) == 0;
+    fclose(file);
+    return matches;
+}
+
+int
+GeneratedOutputPrune(const char *out_dir, const char *marker)
+{
+    DIR *directory = opendir(out_dir);
+    if(directory == NULL) return 0;
+    int failed = 0;
+    struct dirent *entry;
+    while((entry = readdir(directory)) != NULL) {
+        const char *name = entry->d_name;
+        if(name[0] == '.') continue;
+        int written = 0;
+        for(int i = 0; i < generated_output_count && !written; i++)
+            written = strcmp(generated_outputs[i], name) == 0;
+        if(written) continue;
+        char path[4096];
+        int size = snprintf(path, sizeof(path), "%s/%s", out_dir, name);
+        if(size < 0 || (size_t)size >= sizeof(path)) continue;
+        if(starts_with_marker(path, marker) && remove(path) != 0)
+            failed = 1;
+    }
+    closedir(directory);
+    return failed ? -1 : 0;
 }

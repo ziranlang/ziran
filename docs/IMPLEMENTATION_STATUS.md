@@ -711,6 +711,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   The record-call harness covers fixed arrays, record value parameters, field
   access, wrapping `s32` updates, and an ordinary call in every round across
   the same four Ziran execution paths plus the available comparison languages.
+  Its clean-head baseline contains 206 validated samples across 50 phase/case
+  combinations in `bench/results/2026-09-28-record-calls/`.
 - Package manifests and lockfiles can pin source-only dependencies without a
   Ziran manifest. Resolution, checkout, map generation, drift detection, and
   `ziran add --source` are covered by `tests/packages.py`.

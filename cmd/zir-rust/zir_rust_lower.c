@@ -866,6 +866,56 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
     unsupported_expression(emitter, expression);
 }
 
+/* A body needs an unsafe block only to reach static mut globals or go
+ * through raw pointers; foreign calls and checked indexing carry their own
+ * unsafe blocks. */
+static int rust_function_needs_unsafe(const ZirFunction *function)
+{
+    for(int index = 0; index < function->expr_count; index++) {
+        const ZirExpr *expression = &function->exprs[index];
+        if(expression->is_global_value || expression->kind == ZIR_EXPR_POINTER_MEMBER)
+            return 1;
+        if(expression->kind == ZIR_EXPR_UNARY &&
+           (!strcmp(expression->op, "*") || !strcmp(expression->op, "&")))
+            return 1;
+        if((expression->kind == ZIR_EXPR_INDEX || expression->kind == ZIR_EXPR_SLICE ||
+            expression->kind == ZIR_EXPR_MEMBER) &&
+           expression->left >= 0 && function->exprs[expression->left].type[0] == '*')
+            return 1;
+        if(expression->type[0] == '*')
+            return 1;
+    }
+    for(int index = 0; index < function->stmt_count; index++)
+        if(function->stmts[index].type[0] == '*')
+            return 1;
+    return 0;
+}
+
+/* Raw-pointer operations written outside an inline unsafe block. */
+static int rust_text_needs_unsafe(const char *text, size_t size)
+{
+    static const char *const operations[] = {
+        ".offset(", ".read()", ".write(", "from_raw_parts", "core::ptr::",
+        "std::ptr::", "std::alloc::", "core::mem::zeroed", NULL};
+    int depth = 0, inline_depth = -1;
+    for(size_t index = 0; index < size; index++) {
+        if(inline_depth < 0 && index + 8 <= size && !strncmp(text + index, "unsafe {", 8)) {
+            inline_depth = depth;
+            depth++;
+            index += 7;
+            continue;
+        }
+        if(text[index] == '{') depth++;
+        else if(text[index] == '}' && --depth == inline_depth) inline_depth = -1;
+        if(inline_depth >= 0)
+            continue;
+        for(int op = 0; operations[op] != NULL; op++)
+            if(!strncmp(text + index, operations[op], strlen(operations[op])))
+                return 1;
+    }
+    return 0;
+}
+
 /* One enclosing pair of parentheses removed from a standalone expression. */
 static const char *rust_bare(const char *text, char *output, size_t size)
 {
@@ -2359,13 +2409,43 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
             fprintf(emitter->output, " -> %s", return_type);
     }
     fputs(" {\n", emitter->output);
-    emitter->indent = 1;
-    write_line(emitter, "unsafe {");
-    emitter->indent++;
-    emit_slot_wrappers(emitter, module, function);
-    emit_sequence(emitter, 0, function->stmt_count);
-    emitter->indent--;
-    write_line(emitter, "}");
+    {
+        /* The body is written inside unsafe first; the block stays only
+         * when the body needs it, otherwise the body moves out a level. */
+        FILE *function_output = emitter->output;
+        char *body_text = NULL;
+        size_t body_size = 0;
+        FILE *body = open_memstream(&body_text, &body_size);
+        if(body == NULL) {
+            Diagnostic(function->span, "zir_rust.output", "cannot buffer Rust output");
+            exit(1);
+        }
+        emitter->output = body;
+        emitter->indent = 2;
+        emit_slot_wrappers(emitter, module, function);
+        emit_sequence(emitter, 0, function->stmt_count);
+        fclose(body);
+        emitter->output = function_output;
+        if(rust_function_needs_unsafe(function) ||
+           rust_text_needs_unsafe(body_text, body_size)) {
+            fputs("    unsafe {\n", function_output);
+            fwrite(body_text, 1, body_size, function_output);
+            fputs("    }\n", function_output);
+        } else {
+            for(const char *line = body_text; line < body_text + body_size;) {
+                const char *next = memchr(line, '\n', (size_t)(body_text + body_size - line));
+                size_t length = next ? (size_t)(next - line) + 1 :
+                                (size_t)(body_text + body_size - line);
+                if(length > 4 && !strncmp(line, "    ", 4)) {
+                    line += 4;
+                    length -= 4;
+                }
+                fwrite(line, 1, length, function_output);
+                line += length;
+            }
+        }
+        free(body_text);
+    }
     emitter->indent = 0;
     fputs("}\n\n", emitter->output);
 }

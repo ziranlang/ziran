@@ -223,7 +223,7 @@
 <section id="vec"><p class="eyebrow">28 / std/vec.zi</p><h2>vec</h2><p>Owned growable storage. Operations on Vec values are compiler primitives; the data pointer is private to those operations.</p><p>Import with <code>#import "vec"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Vec :: struct($T: Type) { data: *T; count: s64; capacity: s64; }</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/vec.zi">Source ↗</a></p></section>
-<section id="web"><p class="eyebrow">29 / std/web.zi</p><h2>web</h2><p>Browser access for Ziran code compiled to WebAssembly. Any Web API is reachable through objects held in the page's handle table: read and write properties, call methods, construct objects, pass Ziran functions as callbacks, and wait on promises. The page side is web/ziran_web.js.  A handle is an s32; 0 means null or undefined, 1 is the global object, and 2 is Emscripten's Module. Names are interned once with WebName and reused, which keeps each call cheap. A handle stays valid until WebRelease.</p><p>Import with <code>#import "web"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="web"><p class="eyebrow">29 / std/web.zi</p><h2>web</h2><p>Browser access for Ziran code compiled to WebAssembly. Any Web API is reachable through objects held in the page's handle table: read and write properties, call methods, construct objects, pass Ziran functions as callbacks, and wait on promises. The page side is web/ziran_web.js.  A handle is an s32; 0 means null or undefined, 1 is the global object, and 2 is Emscripten's Module. Names are interned once with WebName and reused, which keeps each call cheap.  Handles the bridge returns are temporary: they all die when the current scope ends. A callback is its own scope; a long-running loop should wrap each pass in WebScope and WebEnd. WebKeep turns a temporary handle into one that lasts until WebRelease, for objects a program holds on to.</p><p>Import with <code>#import "web"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>WebValue :: struct { tag: s32; aux: s32; number: float64; }</code><p>A value crossing the boundary: a tag, a length or handle, and a number.</p></div>
 <div><code>WebUndefinedTag :: 0</code></div>
 <div><code>WebNullTag :: 1</code></div>
@@ -285,11 +285,14 @@
 <div><code>WebValueOf :: (handle: s32) -&gt; WebValue</code><p>The value a handle holds, such as the number a callback argument carries.</p></div>
 <div><code>WebNewObject :: () -&gt; s32</code></div>
 <div><code>WebNewArray :: () -&gt; s32</code></div>
-<div><code>WebRelease :: (handle: s32)</code></div>
-<div><code>WebKeep :: (handle: s32) -&gt; s32</code><p>Another handle to the same object, which outlives the callback that received the original.</p></div>
+<div><code>WebRelease :: (handle: s32)</code><p>Frees a handle made by WebKeep or WebFunction. Temporary handles need no release.</p></div>
+<div><code>WebScope :: () -&gt; s32</code><p>Starts a scope; WebEnd(mark) frees every temporary handle made since.</p></div>
+<div><code>WebEnd :: (mark: s32)</code></div>
+<div><code>WebKeep :: (handle: s32) -&gt; s32</code><p>A handle to the same object that lasts until WebRelease, unlike the temporary one it came from.</p></div>
+<div><code>WebLiveHandles :: () -&gt; s32</code><p>How many handles are live, for checking a program does not leak them.</p></div>
 <div><code>WebTypeOf :: (handle: s32) -&gt; s32</code></div>
 <div><code>WebInstanceOf :: (handle: s32, constructor: s32) -&gt; bool</code></div>
-<div><code>WebFunction :: (callback: WebCallback, context: s32) -&gt; s32</code><p>A JS function that runs `callback` with `context` and up to three argument handles. Release it when done.</p></div>
+<div><code>WebFunction :: (callback: WebCallback, context: s32) -&gt; s32</code><p>A JS function that runs `callback` with `context` and up to three argument handles, kept until released.</p></div>
 <div><code>WebStringLength :: (handle: s32) -&gt; s32</code><p>The length in bytes of a string handle's text.</p></div>
 <div><code>WebCopyString :: (handle: s32, buffer: []u8) -&gt; s32</code><p>Copies a string handle's text into `buffer`, NUL-terminated, and returns its length in bytes.</p></div>
 <div><code>WebBytes :: (kind: s32, data: *void, count: s32) -&gt; s32</code><p>A typed array holding a copy of `count` elements from `data`.</p></div>

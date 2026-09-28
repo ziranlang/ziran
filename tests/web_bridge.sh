@@ -155,6 +155,34 @@ BytesChecks :: () -> s32 {
     return 0
 }
 
+ScopeChecks :: () -> s32 {
+    json: s32 = WebGetObject(WebGlobal, WebName("JSON"))
+    kept: s32 = WebKeep(json)
+    baseline: s32 = WebLiveHandles()
+    // A scope frees every temporary handle made inside it.
+    round: s32 = 0
+    while round < 1000 {
+        mark: s32 = WebScope()
+        list: s32 = WebNewArray()
+        unused WebCall1(list, WebName("push"), WebNumber(1.0))
+        unused WebGetObject(WebGlobal, WebName("Math"))
+        WebEnd(mark)
+        round += 1
+    }
+    if WebLiveHandles() != baseline { return 1 }
+    // A kept handle survives the end of the scope that made it.
+    mark: s32 = WebScope()
+    made: s32 = WebKeep(WebNewObject())
+    WebEnd(mark)
+    if WebLiveHandles() != baseline + 1 { return 2 }
+    WebSet(made, WebName("a"), WebNumber(3.0))
+    if WebGetNumber(made, WebName("a")) != 3.0 { return 3 }
+    WebRelease(made)
+    WebRelease(kept)
+    if WebLiveHandles() != baseline - 1 { return 4 }
+    return 0
+}
+
 #program_export
 Answer :: () -> s32 {
     failed := ArrayChecks()
@@ -169,13 +197,14 @@ Answer :: () -> s32 {
     if failed != 0 { return 500 + failed }
     failed = BytesChecks()
     if failed != 0 { return 600 + failed }
+    failed = ScopeChecks()
+    if failed != 0 { return 700 + failed }
     return 42
 }
 ZI
 cat > "$work/post.js" <<'JS'
 Module.onRuntimeInitialized = async function () {
   var result = await Module.ccall('Answer', 'number', [], [], {async: true});
-  var handles = globalThis.__ziranWeb.handles.length - globalThis.__ziranWeb.free.length;
   console.log(result === 42 ? 'PASS' : 'FAIL ' + result);
   process.exit(result === 42 ? 0 : 1);
 };
@@ -187,6 +216,8 @@ EM_CACHE=$cache "$emcc" -O1 -I"$repo/include" -iquote "$work/c" \
     --post-js "$work/post.js" -sASYNCIFY -sEXPORTED_FUNCTIONS=_Answer \
     -sEXPORTED_RUNTIME_METHODS=ccall -sENVIRONMENT=node \
     -o "$work/app.js" 2>&1 | grep -v 'warning' || true
-result=$(node "$work/app.js" 2>&1 | tail -3)
-echo "$result"
-case "$result" in *PASS*) echo "Ziran web bridge passed" ;; *) exit 1 ;; esac
+output=$(node "$work/app.js" 2>&1 || true)
+case "$output" in
+*PASS*) echo "Ziran web bridge passed" ;;
+*) echo "$output" >&2; exit 1 ;;
+esac

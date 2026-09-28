@@ -5,13 +5,21 @@
 //
 // A handle is an s32; 0 means null or undefined, 1 is the global object, and
 // 2 is Emscripten's Module. Names are interned once with WebName and reused,
-// which keeps each call cheap. A handle stays valid until WebRelease.
+// which keeps each call cheap.
+//
+// Handles the bridge returns are temporary: they all die when the current
+// scope ends. A callback is its own scope; a long-running loop should wrap
+// each pass in WebScope and WebEnd. WebKeep turns a temporary handle into one
+// that lasts until WebRelease, for objects a program holds on to.
 
 web_browser :: #system_library "env";
 
 js_web_name :: (text: *u8, length: s32) -> s32 #foreign web_browser;
 js_web_release :: (handle: s32) #foreign web_browser;
 js_web_keep :: (handle: s32) -> s32 #foreign web_browser;
+js_web_scope :: () -> s32 #foreign web_browser;
+js_web_end :: (mark: s32) #foreign web_browser;
+js_web_live :: () -> s32 #foreign web_browser;
 js_web_error :: () -> s32 #foreign web_browser;
 js_web_get :: (object: s32, name: s32, result: *WebValue) -> s32 #foreign web_browser;
 js_web_set :: (object: s32, name: s32, value: *WebValue) -> s32 #foreign web_browser;
@@ -302,14 +310,30 @@ WebNewArray :: () -> s32 {
     return js_web_array()
 }
 
+// Frees a handle made by WebKeep or WebFunction. Temporary handles need no
+// release.
 WebRelease :: (handle: s32) {
     js_web_release(handle)
 }
 
-// Another handle to the same object, which outlives the callback that
-// received the original.
+// Starts a scope; WebEnd(mark) frees every temporary handle made since.
+WebScope :: () -> s32 {
+    return js_web_scope()
+}
+
+WebEnd :: (mark: s32) {
+    js_web_end(mark)
+}
+
+// A handle to the same object that lasts until WebRelease, unlike the
+// temporary one it came from.
 WebKeep :: (handle: s32) -> s32 {
     return js_web_keep(handle)
+}
+
+// How many handles are live, for checking a program does not leak them.
+WebLiveHandles :: () -> s32 {
+    return js_web_live()
 }
 
 WebTypeOf :: (handle: s32) -> s32 {
@@ -321,7 +345,7 @@ WebInstanceOf :: (handle: s32, constructor: s32) -> bool {
 }
 
 // A JS function that runs `callback` with `context` and up to three
-// argument handles. Release it when done.
+// argument handles, kept until released.
 WebFunction :: (callback: WebCallback, context: s32) -> s32 {
     return js_web_callback(callback, context)
 }

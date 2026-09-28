@@ -637,7 +637,6 @@ expression_type(Checker *c, int index)
             int text_finish = !strcmp(e->name, "BuilderFinish");
             int byte_builder = text_append || text_finish;
             char element[ZIR_NAME_MAX];
-            char option_type[ZIR_NAME_MAX];
             Binding *first_binding = lexical_vec_binding(c, first);
             int first_touched = first_binding != NULL &&
                                 first_binding->touched;
@@ -750,15 +749,17 @@ expression_type(Checker *c, int index)
             } else if(second >= 0)
                 error(c, e->span, "Vec operation takes one argument", e->name);
             if(pop) {
-                if(vec_option_result_type(c, element, e->span, option_type,
-                                           sizeof(option_type)))
-                    type = option_type;
+                /* The result outlives this block, so it goes in e->type. */
+                if(vec_option_result_type(c, element, e->span, e->type,
+                                           sizeof(e->type)))
+                    type = e->type;
                 else
                     type = "";
             } else if(get) {
-                if(vec_option_result_type(c, element, e->span, option_type,
-                                           sizeof(option_type)))
-                    type = option_type;
+                /* The result outlives this block, so it goes in e->type. */
+                if(vec_option_result_type(c, element, e->span, e->type,
+                                           sizeof(e->type)))
+                    type = e->type;
                 else
                     type = "";
             } else if(view) {

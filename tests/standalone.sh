@@ -853,7 +853,7 @@ Answer :: () -> s32 {
 EOF
 "$ziran" build --target=c --root "$work" -o "$work/blocks" \
     "$work/blocklib.zi" "$work/blockapp.zi"
-grep -Eq 'Button\(value_[0-9]+\)' "$work/blocks/blockapp.c"
+grep -Fq 'Button((Props){.value = 41})' "$work/blocks/blockapp.c"
 cat > "$work/blocks/main.c" <<'EOF'
 #include "blockapp.h"
 int main(void) { return Answer() == 42 ? 0 : 1; }

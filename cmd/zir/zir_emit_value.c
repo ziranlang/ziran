@@ -147,10 +147,12 @@ declare_array(Emitter *e, const char *name, const char *type, const char *value)
             line(e, "var %s %s%s", name, bounds, target_element);
     } else if(e->target == ZIR_C || e->target == ZIR_CPP) {
         int zero = TypeHasZeroArray(e->module, type);
+        /* A brace list initializes the array in place. */
+        int listed = value != NULL && value[0] == '{';
         line(e, "%s%s %s%s = %s;", zero ? "__extension__ " : "",
              target_element, name, bounds,
-             zero || e->target == ZIR_CPP ? "{}" : "{0}");
-        if(value != NULL && *value)
+             listed ? value : zero || e->target == ZIR_CPP ? "{}" : "{0}");
+        if(value != NULL && *value && !listed)
             assign_value(e, name, type, value);
     } else {
         Diagnostic(e->fn->span, "emit.array_target", "array values are supported only by native targets");

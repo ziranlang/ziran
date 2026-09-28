@@ -74,6 +74,9 @@ typedef struct Emitter {
     /* Set for a Go declaration whose value already has the declared type,
      * so it can read name := value. */
     int short_declaration;
+    /* Set by a C or C++ declaration whose initializer is a record or array
+     * value, which may then be written as a brace list. */
+    int braced_initializer;
 } Emitter;
 
 /* Bound for readable inlined expressions. Longer results stay in named

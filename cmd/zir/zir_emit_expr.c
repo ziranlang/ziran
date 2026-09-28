@@ -316,6 +316,58 @@ native_size_expression(Emitter *e, const char *type, char *out, size_t size)
         format(out, size, "sizeof(%s)", mapped);
 }
 
+/* A C record value as a compound literal, (Point){.x = 3, .y = 4}, or,
+ * initializing a declaration, a brace list: {.x = 3, .y = 4} or, for an
+ * array, {1, 2, 3}. Unnamed fields are zero either way. C++17 has no
+ * designated initializers, so its records keep field assignments; C arrays
+ * are not values, so array elements and fields keep them too. Calls in the
+ * values run first, in order, as separate statements. */
+static int
+c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
+             char *out, size_t size)
+{
+    int is_array = ArrayElementType(type, NULL, 0, NULL) != 0;
+    const ZirType *record = is_array ? NULL : field_record(e->module, type);
+    char value[ZIR_TEXT_MAX], text[ZIR_TEXT_MAX], native[ZIR_NAME_MAX * 2];
+    size_t used = 0;
+    if(e->target == ZIR_GO || (is_array && !braced) ||
+       (!is_array && (e->target != ZIR_C || record == NULL)) ||
+       TypeHasZeroArray(e->module, type))
+        return 0;
+    for(int child = expr->first_child; child >= 0; child = e->fn->exprs[child].next_sibling)
+        if(ArrayElementType(e->fn->exprs[child].type, NULL, 0, NULL) ||
+           VecElementType(e->module, e->fn->exprs[child].type, NULL, 0))
+            return 0;
+    if(!is_array && !braced) {
+        e->resolve(e->context, type, native, sizeof(native));
+        used = (size_t)format(text, sizeof(text), "(%s)", native);
+    }
+    used += (size_t)format(text + used, sizeof(text) - used, "{");
+    for(int child = expr->first_child; child >= 0; child = e->fn->exprs[child].next_sibling) {
+        const ZirExpr *entry = &e->fn->exprs[child];
+        char field[ZIR_NAME_MAX], plain[ZIR_TEXT_MAX];
+        /* Inside a declaration's brace list a nested value is braces too;
+         * inside a compound literal it is its own compound literal. */
+        e->braced_initializer = braced &&
+            e->fn->exprs[entry->right].kind == ZIR_EXPR_COMPOUND;
+        emit_expr(e, entry->right, entry->type, value, sizeof(value));
+        e->braced_initializer = 0;
+        if(!is_array)
+            TargetFieldName(record, e->target, entry->name, field, sizeof(field));
+        used += (size_t)format(text + used, used < sizeof(text) ? sizeof(text) - used : 0,
+                               "%s%s%s%s", child == expr->first_child ? "" : ", ",
+                               is_array ? "" : ".", is_array ? "" : field,
+                               is_array ? "" : " = ");
+        used += (size_t)format(text + used, used < sizeof(text) ? sizeof(text) - used : 0,
+                               "%s", bare(value, plain, sizeof(plain)));
+    }
+    if(used + 2 >= sizeof(text))
+        fatal(expr, "record value is too long");
+    copy_text(text + used, sizeof(text) - used, "}");
+    copy_text(out, size, text);
+    return 1;
+}
+
 /* The one member of a plain enum holding value, by the target's own
  * constant name: Shape_CIRCLE in C, ShapeCIRCLE in Go. Flags and values
  * two members share keep the number. */
@@ -402,6 +454,8 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
     char a[ZIR_TEXT_MAX],b[ZIR_TEXT_MAX],result[ZIR_TEXT_MAX],temp[ZIR_NAME_MAX];
     int pure=0;
     int call_in_place = e->call_in_place;
+    int braced = e->braced_initializer;
+    e->braced_initializer = 0;
     e->call_in_place = 0;
     /* Binary-shaped results re-bind when spliced into a parent expression, so
      * the tail parenthesizes them; identifiers, literals, calls, and slices
@@ -451,6 +505,10 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
                 fatal(expr, "record value is too long");
             copy_text(result + used, sizeof(result) - used, "}");
             break;
+        }
+        if(c_brace_list(e, expr, type, braced, out, size)) {
+            e->pure = 1;
+            return;
         }
         if(ArrayElementType(type, NULL, 0, NULL)) {
             fresh(e, temp);

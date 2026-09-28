@@ -357,6 +357,9 @@ ZirImport *ModuleAddImport(ZirModule *module, ZirImportKind kind,
 ZirFunction *ModuleAddFunction(ZirModule *module, const char *name,
                                   const char *args, const char *return_type,
                                   int exported, ZirSourceSpan span);
+/* A default value that means the same at every call site: a number, a
+ * plain string, true, false, or null. It needs no helper procedure. */
+int DefaultIsLiteral(const char *value);
 void FunctionDefaultHelperName(const ZirFunction *function, int parameter,
                                char *out, size_t size);
 void ModuleAddGlobal(ZirModule *module, const char *name, const char *type,

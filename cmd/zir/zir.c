@@ -993,6 +993,36 @@ ModuleAddFunction(ZirModule *module, const char *name, const char *args,
     return fn;
 }
 
+int
+DefaultIsLiteral(const char *value)
+{
+    size_t length;
+    while(*value == ' ' || *value == '\t') value++;
+    length = strlen(value);
+    while(length > 0 && (value[length - 1] == ' ' || value[length - 1] == '\t'))
+        length--;
+    if(length == 0)
+        return 0;
+    if((length == 4 && !strncmp(value, "true", 4)) ||
+       (length == 5 && !strncmp(value, "false", 5)) ||
+       (length == 4 && !strncmp(value, "null", 4)))
+        return 1;
+    if(value[0] == '"') {
+        for(size_t i = 1; i + 1 < length; i++) {
+            if(value[i] == '\\') { i++; continue; }
+            if(value[i] == '"') return 0;
+        }
+        return length >= 2 && value[length - 1] == '"';
+    }
+    size_t i = value[0] == '-' ? 1 : 0;
+    if(i >= length || !isdigit((unsigned char)value[i]))
+        return 0;
+    for(; i < length; i++)
+        if(!isalnum((unsigned char)value[i]) && value[i] != '.' && value[i] != '_')
+            return 0;
+    return 1;
+}
+
 void
 FunctionDefaultHelperName(const ZirFunction *function, int parameter,
                           char *out, size_t size)

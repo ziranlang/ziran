@@ -296,6 +296,8 @@ append_default_arguments(ExprParser *p, int callee,
                 break;
             }
             value = location_default;
+        } else if(DefaultIsLiteral(value)) {
+            /* The literal itself: it reads the same at every call site. */
         } else {
             int has_helper = !function->is_template;
             if(!has_helper && owner != NULL)

@@ -503,8 +503,9 @@ add_default_helpers(ZirProgram *program, ZirModule *module,
                            "#caller_location requires a Source_Code_Location parameter");
                 continue;
             }
-            if(function->is_template &&
-               default_is_scope_independent(value, SpanPath(function->span)))
+            if(DefaultIsLiteral(value) ||
+               (function->is_template &&
+                default_is_scope_independent(value, SpanPath(function->span))))
                 continue;
             char *colon = strchr(parameters[i], ':');
             if(colon == NULL)

@@ -1,0 +1,373 @@
+// Browser access for Ziran code compiled to WebAssembly. Any Web API is
+// reachable through objects held in the page's handle table: read and write
+// properties, call methods, construct objects, pass Ziran functions as
+// callbacks, and wait on promises. The page side is web/ziran_web.js.
+//
+// A handle is an s32; 0 means null or undefined, 1 is the global object, and
+// 2 is Emscripten's Module. Names are interned once with WebName and reused,
+// which keeps each call cheap. A handle stays valid until WebRelease.
+
+web_browser :: #system_library "env";
+
+js_web_name :: (text: *u8, length: s32) -> s32 #foreign web_browser;
+js_web_release :: (handle: s32) #foreign web_browser;
+js_web_keep :: (handle: s32) -> s32 #foreign web_browser;
+js_web_error :: () -> s32 #foreign web_browser;
+js_web_get :: (object: s32, name: s32, result: *WebValue) -> s32 #foreign web_browser;
+js_web_set :: (object: s32, name: s32, value: *WebValue) -> s32 #foreign web_browser;
+js_web_at :: (object: s32, index: s32, result: *WebValue) -> s32 #foreign web_browser;
+js_web_set_at :: (object: s32, index: s32, value: *WebValue) -> s32 #foreign web_browser;
+js_web_call :: (object: s32, name: s32, args: *WebValue, count: s32, result: *WebValue) -> s32 #foreign web_browser;
+js_web_new :: (constructor: s32, args: *WebValue, count: s32, result: *WebValue) -> s32 #foreign web_browser;
+js_web_value :: (handle: s32, result: *WebValue) #foreign web_browser;
+js_web_object :: () -> s32 #foreign web_browser;
+js_web_array :: () -> s32 #foreign web_browser;
+js_web_type :: (handle: s32) -> s32 #foreign web_browser;
+js_web_instance :: (handle: s32, constructor: s32) -> s32 #foreign web_browser;
+js_web_callback :: (callback: WebCallback, context: s32) -> s32 #foreign web_browser;
+js_web_string_length :: (handle: s32) -> s32 #foreign web_browser;
+js_web_string_copy :: (handle: s32, buffer: *u8, capacity: s32) -> s32 #foreign web_browser;
+js_web_bytes :: (kind: s32, data: *void, count: s32) -> s32 #foreign web_browser;
+js_web_copy_out :: (handle: s32, data: *void, capacity: s32) -> s32 #foreign web_browser;
+js_web_copy_in :: (handle: s32, data: *void, length: s32) -> s32 #foreign web_browser;
+js_web_await :: (promise: s32, result: *WebValue) -> s32 #foreign web_browser;
+js_web_sleep :: (milliseconds: s32) #foreign web_browser;
+js_web_next_frame :: (minimum_delay: float64) #foreign web_browser;
+
+// A value crossing the boundary: a tag, a length or handle, and a number.
+WebValue :: struct {
+    tag: s32
+    aux: s32
+    number: float64
+}
+
+WebUndefinedTag :: 0
+WebNullTag :: 1
+WebBoolTag :: 2
+WebNumberTag :: 3
+WebTextTag :: 4
+WebObjectTag :: 5
+WebStringTag :: 6
+
+WebGlobal :: 1
+WebModule :: 2
+
+// The kinds of typed array WebBytes builds.
+WebBytesUint8 :: 0
+WebBytesUint8Clamped :: 1
+WebBytesInt16 :: 2
+WebBytesInt32 :: 3
+WebBytesFloat32 :: 4
+
+// What WebTypeOf reports.
+WebTypeUndefined :: 0
+WebTypeNull :: 1
+WebTypeBool :: 2
+WebTypeNumber :: 3
+WebTypeString :: 4
+WebTypeObject :: 5
+WebTypeFunction :: 6
+
+// Receives a JS function's first three arguments as handles that are valid
+// until it returns. Use WebKeep to hold one longer.
+WebCallback :: #type (context: s32, first: s32, second: s32, third: s32) #c_call;
+
+TextDescriptor :: struct {
+    data: *u8
+    length: usize
+}
+
+web_failed: bool;
+
+// Interns a name for property and method access. Do this once per name.
+WebName :: (text: string) -> s32 {
+    copy: string = text
+    descriptor: *TextDescriptor = cast(*TextDescriptor)(*copy)
+    return js_web_name(descriptor.data, cast(s32)descriptor.length)
+}
+
+WebUndefined :: () -> WebValue {
+    return WebValue.{WebUndefinedTag, 0, 0.0}
+}
+
+WebNull :: () -> WebValue {
+    return WebValue.{WebNullTag, 0, 0.0}
+}
+
+WebBool :: (value: bool) -> WebValue {
+    if value { return WebValue.{WebBoolTag, 0, 1.0} }
+    return WebValue.{WebBoolTag, 0, 0.0}
+}
+
+WebNumber :: (value: float64) -> WebValue {
+    return WebValue.{WebNumberTag, 0, value}
+}
+
+// The text is read while the call it is passed to runs, so it must stay
+// alive until then.
+WebText :: (text: string) -> WebValue {
+    copy: string = text
+    descriptor: *TextDescriptor = cast(*TextDescriptor)(*copy)
+    return WebValue.{WebTextTag, cast(s32)descriptor.length,
+        cast(float64)cast(usize)descriptor.data}
+}
+
+WebObject :: (handle: s32) -> WebValue {
+    return WebValue.{WebObjectTag, handle, 0.0}
+}
+
+WebAsNumber :: (value: WebValue) -> float64 {
+    if value.tag == WebNumberTag || value.tag == WebBoolTag { return value.number }
+    return 0.0
+}
+
+WebAsBool :: (value: WebValue) -> bool {
+    return (value.tag == WebBoolTag || value.tag == WebNumberTag) && value.number != 0.0
+}
+
+// The handle of an object or string result, or 0.
+WebAsObject :: (value: WebValue) -> s32 {
+    if value.tag == WebObjectTag || value.tag == WebStringTag { return value.aux }
+    return 0
+}
+
+WebIsUndefined :: (value: WebValue) -> bool {
+    return value.tag == WebUndefinedTag || value.tag == WebNullTag
+}
+
+// Whether the last property access, call, or construction threw. The
+// exception is WebLastError.
+WebFailed :: () -> bool {
+    return web_failed
+}
+
+WebLastError :: () -> s32 {
+    return js_web_error()
+}
+
+WebGet :: (object: s32, name: s32) -> WebValue {
+    result: WebValue
+    web_failed = js_web_get(object, name, *result) != 0
+    return result
+}
+
+WebGetNumber :: (object: s32, name: s32) -> float64 {
+    return WebAsNumber(WebGet(object, name))
+}
+
+WebGetObject :: (object: s32, name: s32) -> s32 {
+    return WebAsObject(WebGet(object, name))
+}
+
+WebSet :: (object: s32, name: s32, value: WebValue) {
+    web_failed = js_web_set(object, name, *value) != 0
+}
+
+WebAt :: (object: s32, index: s32) -> WebValue {
+    result: WebValue
+    web_failed = js_web_at(object, index, *result) != 0
+    return result
+}
+
+WebSetAt :: (object: s32, index: s32, value: WebValue) {
+    web_failed = js_web_set_at(object, index, *value) != 0
+}
+
+WebCall :: (object: s32, name: s32, args: *WebValue, count: s32) -> WebValue {
+    result: WebValue
+    web_failed = js_web_call(object, name, args, count, *result) != 0
+    return result
+}
+
+WebCall0 :: (object: s32, name: s32) -> WebValue {
+    args: [1]WebValue
+    return WebCall(object, name, *args[0], 0)
+}
+
+WebCall1 :: (object: s32, name: s32, a: WebValue) -> WebValue {
+    args: [1]WebValue
+    args[0] = a
+    return WebCall(object, name, *args[0], 1)
+}
+
+WebCall2 :: (object: s32, name: s32, a: WebValue, b: WebValue) -> WebValue {
+    args: [2]WebValue
+    args[0] = a
+    args[1] = b
+    return WebCall(object, name, *args[0], 2)
+}
+
+WebCall3 :: (object: s32, name: s32, a: WebValue, b: WebValue,
+    c: WebValue) -> WebValue {
+    args: [3]WebValue
+    args[0] = a
+    args[1] = b
+    args[2] = c
+    return WebCall(object, name, *args[0], 3)
+}
+
+WebCall4 :: (object: s32, name: s32, a: WebValue, b: WebValue, c: WebValue,
+    d: WebValue) -> WebValue {
+    args: [4]WebValue
+    args[0] = a
+    args[1] = b
+    args[2] = c
+    args[3] = d
+    return WebCall(object, name, *args[0], 4)
+}
+
+WebCall5 :: (object: s32, name: s32, a: WebValue, b: WebValue, c: WebValue,
+    d: WebValue, e: WebValue) -> WebValue {
+    args: [5]WebValue
+    args[0] = a
+    args[1] = b
+    args[2] = c
+    args[3] = d
+    args[4] = e
+    return WebCall(object, name, *args[0], 5)
+}
+
+WebCall6 :: (object: s32, name: s32, a: WebValue, b: WebValue, c: WebValue,
+    d: WebValue, e: WebValue, f: WebValue) -> WebValue {
+    args: [6]WebValue
+    args[0] = a
+    args[1] = b
+    args[2] = c
+    args[3] = d
+    args[4] = e
+    args[5] = f
+    return WebCall(object, name, *args[0], 6)
+}
+
+WebCall8 :: (object: s32, name: s32, a: WebValue, b: WebValue, c: WebValue,
+    d: WebValue, e: WebValue, f: WebValue, g: WebValue,
+    h: WebValue) -> WebValue {
+    args: [8]WebValue
+    args[0] = a
+    args[1] = b
+    args[2] = c
+    args[3] = d
+    args[4] = e
+    args[5] = f
+    args[6] = g
+    args[7] = h
+    return WebCall(object, name, *args[0], 8)
+}
+
+// Constructs `new constructor(args...)`; returns the new object's handle.
+WebNew :: (constructor: s32, args: *WebValue, count: s32) -> s32 {
+    result: WebValue
+    web_failed = js_web_new(constructor, args, count, *result) != 0
+    return WebAsObject(result)
+}
+
+WebNew0 :: (constructor: s32) -> s32 {
+    args: [1]WebValue
+    return WebNew(constructor, *args[0], 0)
+}
+
+WebNew1 :: (constructor: s32, a: WebValue) -> s32 {
+    args: [1]WebValue
+    args[0] = a
+    return WebNew(constructor, *args[0], 1)
+}
+
+WebNew2 :: (constructor: s32, a: WebValue, b: WebValue) -> s32 {
+    args: [2]WebValue
+    args[0] = a
+    args[1] = b
+    return WebNew(constructor, *args[0], 2)
+}
+
+WebNew3 :: (constructor: s32, a: WebValue, b: WebValue, c: WebValue) -> s32 {
+    args: [3]WebValue
+    args[0] = a
+    args[1] = b
+    args[2] = c
+    return WebNew(constructor, *args[0], 3)
+}
+
+// The value a handle holds, such as the number a callback argument carries.
+WebValueOf :: (handle: s32) -> WebValue {
+    result: WebValue
+    js_web_value(handle, *result)
+    return result
+}
+
+WebNewObject :: () -> s32 {
+    return js_web_object()
+}
+
+WebNewArray :: () -> s32 {
+    return js_web_array()
+}
+
+WebRelease :: (handle: s32) {
+    js_web_release(handle)
+}
+
+// Another handle to the same object, which outlives the callback that
+// received the original.
+WebKeep :: (handle: s32) -> s32 {
+    return js_web_keep(handle)
+}
+
+WebTypeOf :: (handle: s32) -> s32 {
+    return js_web_type(handle)
+}
+
+WebInstanceOf :: (handle: s32, constructor: s32) -> bool {
+    return js_web_instance(handle, constructor) != 0
+}
+
+// A JS function that runs `callback` with `context` and up to three
+// argument handles. Release it when done.
+WebFunction :: (callback: WebCallback, context: s32) -> s32 {
+    return js_web_callback(callback, context)
+}
+
+// The length in bytes of a string handle's text.
+WebStringLength :: (handle: s32) -> s32 {
+    return js_web_string_length(handle)
+}
+
+// Copies a string handle's text into `buffer`, NUL-terminated, and returns
+// its length in bytes.
+WebCopyString :: (handle: s32, buffer: []u8) -> s32 {
+    if buffer.count == 0 { return 0 }
+    return js_web_string_copy(handle, *buffer[0], cast(s32)buffer.count)
+}
+
+// A typed array holding a copy of `count` elements from `data`.
+WebBytes :: (kind: s32, data: *void, count: s32) -> s32 {
+    return js_web_bytes(kind, data, count)
+}
+
+// Copies a typed array's bytes into `data`, at most `capacity`; returns the
+// number copied.
+WebCopyOut :: (handle: s32, data: *void, capacity: s32) -> s32 {
+    return js_web_copy_out(handle, data, capacity)
+}
+
+// Copies `length` bytes from `data` over the start of a typed array.
+WebCopyIn :: (handle: s32, data: *void, length: s32) -> s32 {
+    return js_web_copy_in(handle, data, length)
+}
+
+// Suspends until the promise settles. Returns whether it resolved, with its
+// value in `result`.
+WebAwait :: (promise: s32, result: *WebValue) -> bool {
+    ok: bool = js_web_await(promise, result) != 0
+    web_failed = !ok
+    return ok
+}
+
+WebSleep :: (milliseconds: s32) {
+    js_web_sleep(milliseconds)
+}
+
+// Suspends until the browser draws its next frame, and at least
+// `minimum_delay` milliseconds have passed.
+WebNextFrame :: (minimum_delay: float64) {
+    js_web_next_frame(minimum_delay)
+}

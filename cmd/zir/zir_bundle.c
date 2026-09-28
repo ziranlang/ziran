@@ -1001,8 +1001,8 @@ uses_imported_constant(const ZirModule *module, const unsigned char *keep,
 
 static int
 import_is_used(const ZirProgram *program, const ZirModule *module,
-               const unsigned char *keep, unsigned char **keep_types,
-               unsigned char **keep_defines,
+               const unsigned char *keep, unsigned char **keep_all,
+               unsigned char **keep_types, unsigned char **keep_defines,
                const ZirImport *import)
 {
     if(import->kind == ZIR_IMPORT_EXTERN) {
@@ -1019,6 +1019,16 @@ import_is_used(const ZirProgram *program, const ZirModule *module,
         import->kind != ZIR_IMPORT_MODULE) ||
        import->resolved_module == NULL)
         return 0;
+    /* A module kept only for a program export that a foreign call binds
+     * to is still reached through this import when output is reloaded. */
+    for(int m = 0; m < program->module_count; m++) {
+        if(import->resolved_module != &program->modules[m])
+            continue;
+        for(int f = 0; f < program->modules[m].function_count; f++)
+            if(keep_all[m][f] && program->modules[m].functions[f].exported &&
+               !program->modules[m].functions[f].is_extern)
+                return 1;
+    }
     for(int m = 0; m < program->module_count; m++)
         if(import->resolved_module == &program->modules[m] &&
            uses_imported_constant(module, keep,
@@ -1238,6 +1248,14 @@ link_checked_entry(const ZirProgram *program, const char *entry_module,
                                 }
                             }
                         if(external) {
+                            /* A native link resolves a foreign call to the
+                             * program export with the same linker symbol.
+                             * Host-library imports carry no stripped C
+                             * symbol; their symbol is the declared name. */
+                            const char *symbol =
+                                external_import->extern_symbol[0] ?
+                                external_import->extern_symbol :
+                                external_import->name;
                             if(native)
                                 for(int candidate = 0;
                                     candidate < program->module_count;
@@ -1247,9 +1265,13 @@ link_checked_entry(const ZirProgram *program, const char *entry_module,
                                         export++) {
                                         const ZirFunction *implementation =
                                             &program->modules[candidate].functions[export];
+                                        const char *provided =
+                                            implementation->export_symbol[0] ?
+                                            implementation->export_symbol :
+                                            implementation->name;
                                         if(implementation->exported &&
-                                           strcmp(implementation->name,
-                                                  external_import->extern_symbol) == 0 &&
+                                           !implementation->is_extern &&
+                                           strcmp(provided, symbol) == 0 &&
                                            !keep[candidate][export]) {
                                             keep[candidate][export] = 1;
                                             changed = 1;
@@ -1604,7 +1626,7 @@ link_checked_entry(const ZirProgram *program, const char *entry_module,
             kept_imports += source->imports[i].is_using ||
                            import_has_startup_path(program, startup_path,
                                                    &source->imports[i]) ||
-                           import_is_used(program, source, keep[m],
+                           import_is_used(program, source, keep[m], keep,
                                            keep_types, keep_defines,
                                            &source->imports[i]) ||
                            law_names_import(source, &source->imports[i]);
@@ -1619,7 +1641,7 @@ link_checked_entry(const ZirProgram *program, const char *entry_module,
                 if(source->imports[i].is_using ||
                    import_has_startup_path(program, startup_path,
                                            &source->imports[i]) ||
-                   import_is_used(program, source, keep[m], keep_types,
+                   import_is_used(program, source, keep[m], keep, keep_types,
                                   keep_defines,
                                   &source->imports[i]) ||
                    law_names_import(source, &source->imports[i]))

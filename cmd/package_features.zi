@@ -151,6 +151,14 @@ Features :: (arguments: []string) -> s32 {
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "experimental", limit = "Named imports are inherited from the C post-pass and are not covered by the multi-target differential matrix."}
     ]
+    print_targets: [6]PkgTargetSupport = .[
+    .{target = "c", status = "supported", limit = ""},
+    .{target = "cpp", status = "supported", limit = ""},
+    .{target = "go", status = "supported", limit = ""},
+    .{target = "rust", status = "supported", limit = ""},
+    .{target = "zib", status = "supported", limit = ""},
+    .{target = "plan9-c", status = "experimental", limit = "Print lowering is inherited from the C post-pass and is not covered by the differential output matrix."}
+    ]
     assert_targets: [6]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
@@ -159,7 +167,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "supported", limit = "Checked before native output."}
     ]
-    features: [5]PkgFeature = .[
+    base_features: [5]PkgFeature = .[
     .{
         id = "compile.assertions",
         status = "implemented",
@@ -215,6 +223,22 @@ Features :: (arguments: []string) -> s32 {
         evidence = "tests/aggregate_vec_safety.sh\ntests/vec_move_expression.sh\ntests/capabilities.sh\n",
         targets = record_targets
     },
+    ]
+    print_accepted: string = "#program_export\nAnswer :: () -> s32 {\n    print(\"count=% percent=%%\\n\", 3)\n    return 0\n}\n"
+    print_rejected: string = "#program_export\nAnswer :: () -> s32 {\n    format := \"count=%\\n\"\n    print(format, 3)\n    return 0\n}\n"
+    output_feature: PkgFeature
+    output_feature.id = "io.print"
+    output_feature.status = "implemented"
+    output_feature.syntax = "print(LITERAL_FORMAT, arguments...)"
+    output_feature.limits = "The format must be a string literal. Each % consumes one integer, float, bool, or string argument; %% prints one percent. Arguments are evaluated left to right before output, and floats use the shortest decimal that round-trips to the same value."
+    output_feature.accepted_example = print_accepted
+    output_feature.rejected_example = print_rejected
+    output_feature.rejection = "print requires a string literal format."
+    output_feature.evidence = "tests/print.sh\n"
+    output_feature.targets = print_targets
+    features: [6]PkgFeature = .[
+        base_features[0], output_feature, base_features[1],
+        base_features[2], base_features[3], base_features[4]
     ]
 
     json: bool = false

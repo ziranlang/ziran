@@ -1761,6 +1761,16 @@ fold_number(uint64_t a, uint64_t b, int w, int sign, int op, uint64_t *result)
     return 0;
 }
 
+/* Fold a checked integer operation for backends outside this emitter. */
+int
+FoldIntegerOperation(const char *op, const char *type, uint64_t a, uint64_t b,
+                     uint64_t *result)
+{
+    int w = width(canonical(type));
+    return w > 0 && operation(op) > 0 &&
+           fold_number(a, b, w, signed_type(canonical(type)), operation(op), result);
+}
+
 static void
 number_literal(const Emitter *e, const char *type, uint64_t bits, char *out, size_t size)
 {

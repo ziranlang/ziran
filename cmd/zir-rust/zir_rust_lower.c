@@ -7,6 +7,8 @@
 #include "zir_text.h"
 
 #include <ctype.h>
+#include <errno.h>
+#include <stdint.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -353,7 +355,7 @@ static void write_line(RustEmitter *emitter, const char *format, ...)
 {
     va_list arguments;
     for(int index = 0; index < emitter->indent; index++)
-        fputc(' ', emitter->output);
+        fputs("    ", emitter->output);
     va_start(arguments, format);
     vfprintf(emitter->output, format, arguments);
     va_end(arguments);
@@ -864,6 +866,38 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
     unsupported_expression(emitter, expression);
 }
 
+/* A suffixed Rust integer literal of this exact type, like 40i64. */
+static int rust_literal_bits(const char *text, const char *type, uint64_t *bits)
+{
+    const char *suffix = rust_scalar_type(type);
+    char *end;
+    if(suffix == NULL || !isdigit((unsigned char)text[0]))
+        return 0;
+    errno = 0;
+    unsigned long long value = strtoull(text, &end, 0);
+    if(errno != 0 || strcmp(end, suffix) != 0)
+        return 0;
+    *bits = (uint64_t)value;
+    return 1;
+}
+
+static void rust_literal(const char *type, uint64_t bits, char *output, size_t size)
+{
+    const char *suffix = rust_scalar_type(type);
+    int bits_width = suffix[1] == '8' ? 8 : suffix[1] == '1' ? 16 :
+                     suffix[1] == '3' ? 32 : 64;
+    uint64_t mask = bits_width == 64 ? UINT64_MAX : (UINT64_C(1) << bits_width) - 1;
+    bits &= mask;
+    if(suffix[0] == 'i' && (bits >> (bits_width - 1))) {
+        int64_t value = bits_width == 64 ? (int64_t)bits : (int64_t)(bits | ~mask);
+        if(value == INT64_MIN)
+            snprintf(output, size, "i64::MIN");
+        else
+            snprintf(output, size, "(%lld%s)", (long long)value, suffix);
+    } else
+        snprintf(output, size, "%llu%s", (unsigned long long)bits, suffix);
+}
+
 static void emit_typed_expression(RustEmitter *emitter, int index,
                                   const char *type, char *output, size_t size)
 {
@@ -872,7 +906,12 @@ static void emit_typed_expression(RustEmitter *emitter, int index,
         index < emitter->function->expr_count ?
             &emitter->function->exprs[index] : NULL;
     emit_expression(emitter, index, value, sizeof(value));
-    if(expression != NULL && strcmp(expression->type, type) != 0 &&
+    /* An untyped literal takes the type as a suffix: 2026i32. */
+    if(expression != NULL && expression->kind == ZIR_EXPR_INT &&
+       !strcmp(expression->type, "integer") && rust_scalar_type(type) != NULL &&
+       isdigit((unsigned char)value[0]) && strspn(value, "0123456789abcdefABCDEFxX") == strlen(value))
+        snprintf(output, size, "%s%s", value, rust_scalar_type(type));
+    else if(expression != NULL && strcmp(expression->type, type) != 0 &&
        rust_scalar_type(type) != NULL &&
        rust_scalar_type(expression->type) != NULL)
         snprintf(output, size, "((%s) as %s)", value,
@@ -913,6 +952,97 @@ static const ZirImport *rust_foreign_import(RustEmitter *emitter,
             return import;
     }
     return NULL;
+}
+
+static void emit_expression(RustEmitter *emitter, int index, char *output,
+                            size_t size);
+
+static int rust_expression_calls(const ZirFunction *function, int index)
+{
+    if(index < 0 || index >= function->expr_count)
+        return 0;
+    const ZirExpr *expression = &function->exprs[index];
+    if(expression->kind == ZIR_EXPR_CALL)
+        return 1;
+    for(int child = expression->first_child; child >= 0;
+        child = function->exprs[child].next_sibling)
+        if(rust_expression_calls(function, child))
+            return 1;
+    return rust_expression_calls(function, expression->left) ||
+           rust_expression_calls(function, expression->right) ||
+           rust_expression_calls(function, expression->third);
+}
+
+/* A print statement writes one call per piece. Arguments are bound first
+ * only when one contains a call, so every argument evaluates before any
+ * output, as on the other targets. */
+static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
+{
+    PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
+    char (*values)[ZIR_RUST_TEXT_MAX] = calloc(PRINT_PIECES_MAX, sizeof(*values));
+    const char *types[PRINT_PIECES_MAX];
+    char literal[ZIR_RUST_TEXT_MAX];
+    const ZirFunction *function = emitter->function;
+    int first = expression->first_child, count, arguments = 0, argument = 0;
+    int capture = 0;
+    if(pieces == NULL || values == NULL || first < 0 ||
+       (count = PrintFormatPieces(function->exprs[first].text, pieces,
+                                  PRINT_PIECES_MAX)) < 0) {
+        free(pieces);
+        free(values);
+        return 0;
+    }
+    for(int child = function->exprs[first].next_sibling; child >= 0;
+        child = function->exprs[child].next_sibling)
+        capture |= rust_expression_calls(function, child);
+    for(int child = function->exprs[first].next_sibling;
+        child >= 0 && arguments < PRINT_PIECES_MAX;
+        child = function->exprs[child].next_sibling, arguments++) {
+        char value[ZIR_RUST_TEXT_MAX];
+        types[arguments] = function->exprs[child].type;
+        emit_expression(emitter, child, value, sizeof(value));
+        if(capture) {
+            snprintf(values[arguments], ZIR_RUST_TEXT_MAX,
+                     "print_value_%d", arguments);
+            write_line(emitter, "let %s = %s;", values[arguments], value);
+        } else
+            snprintf(values[arguments], ZIR_RUST_TEXT_MAX, "%s", value);
+    }
+    for(int piece = 0; piece < count; piece++) {
+        const char *type, *value;
+        if(!pieces[piece].is_argument) {
+            if(!rust_string_literal(pieces[piece].literal, literal, sizeof(literal))) {
+                free(pieces);
+                free(values);
+                return 0;
+            }
+            write_line(emitter, "ZiranPrintString(%s);", literal);
+            continue;
+        }
+        if(argument >= arguments)
+            break;
+        type = types[argument];
+        value = values[argument++];
+        if(!strcmp(type, "string"))
+            write_line(emitter, "ZiranPrintString(%s);", value);
+        else if(!strcmp(type, "bool"))
+            write_line(emitter, "ZiranPrintBool(%s);", value);
+        else if(!strcmp(type, "float64"))
+            write_line(emitter, "ZiranPrintFloat(%s, false);", value);
+        else if(!strcmp(type, "float32"))
+            write_line(emitter, "ZiranPrintFloat(%s as f64, true);", value);
+        else if(!strcmp(type, "u64"))
+            write_line(emitter, "ZiranPrintUnsigned(%s);", value);
+        else if(type[0] == 'u')
+            write_line(emitter, "ZiranPrintUnsigned(%s as u64);", value);
+        else if(!strcmp(type, "s64"))
+            write_line(emitter, "ZiranPrintSigned(%s);", value);
+        else
+            write_line(emitter, "ZiranPrintSigned(%s as i64);", value);
+    }
+    free(pieces);
+    free(values);
+    return 1;
 }
 
 static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
@@ -1542,7 +1672,13 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                                   left, sizeof(left));
             emit_typed_expression(emitter, expression->right, expression->type,
                                   right, sizeof(right));
-            if(!strcmp(expression->type, "integer"))
+            uint64_t left_bits, right_bits, folded;
+            if(rust_literal_bits(left, expression->type, &left_bits) &&
+               rust_literal_bits(right, expression->type, &right_bits) &&
+               FoldIntegerOperation(expression->op, expression->type,
+                                    left_bits, right_bits, &folded))
+                rust_literal(expression->type, folded, output, size);
+            else if(!strcmp(expression->type, "integer"))
                 snprintf(output, size,
                          "((%s as i64).%s(%s as i64))", left,
                          wrapping_method(expression->op), right);
@@ -1754,6 +1890,57 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
     snprintf(output + used, size - used, " }");
 }
 
+/* The binding a place expression writes through, or NULL. */
+static const char *rust_place_base(const ZirFunction *function, int index)
+{
+    while(index >= 0 && index < function->expr_count) {
+        const ZirExpr *expression = &function->exprs[index];
+        if(expression->kind == ZIR_EXPR_IDENT)
+            return expression->name;
+        if(expression->kind != ZIR_EXPR_MEMBER && expression->kind != ZIR_EXPR_INDEX &&
+           expression->kind != ZIR_EXPR_SLICE)
+            return NULL;
+        index = expression->left;
+    }
+    return NULL;
+}
+
+/* A scalar or text local needs `mut` only when something may change it:
+ * an assignment to it, a borrow of it, or a Vec or builder operation on
+ * it. Other types, and names another declaration reuses, keep `mut`. */
+static int rust_binding_mutable(const ZirFunction *function, int declaration)
+{
+    const ZirStmt *declared = &function->stmts[declaration];
+    const char *name = declared->name;
+    if(strcmp(declared->type, "string") != 0 &&
+       (rust_scalar_type(declared->type) == NULL || !strcmp(declared->type, "void")))
+        return 1;
+    for(int index = 0; index < function->stmt_count; index++) {
+        const ZirStmt *statement = &function->stmts[index];
+        const char *base;
+        if(index != declaration && statement->kind == ZIR_STMT_DECL &&
+           !strcmp(statement->name, name))
+            return 1;
+        if(statement->kind == ZIR_STMT_ASSIGN &&
+           (base = rust_place_base(function, statement->lhs_root)) != NULL &&
+           !strcmp(base, name))
+            return 1;
+    }
+    for(int index = 0; index < function->expr_count; index++) {
+        const ZirExpr *expression = &function->exprs[index];
+        const char *base = NULL;
+        if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "&"))
+            base = rust_place_base(function, expression->right);
+        else if(expression->kind == ZIR_EXPR_CALL &&
+                (!strncmp(expression->name, "Vec", 3) ||
+                 !strncmp(expression->name, "Builder", 7)))
+            base = rust_place_base(function, expression->first_child);
+        if(base != NULL && !strcmp(base, name))
+            return 1;
+    }
+    return 0;
+}
+
 static void emit_sequence(RustEmitter *emitter, int begin, int end)
 {
     char value[ZIR_RUST_TEXT_MAX];
@@ -1768,7 +1955,8 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
             if(statement->expr_root >= 0) {
                 emit_typed_expression(emitter, statement->expr_root,
                                       statement->type, value, sizeof(value));
-                write_line(emitter, "let mut %s: %s = %s;",
+                write_line(emitter, "let %s%s: %s = %s;",
+                           rust_binding_mutable(emitter->function, index) ? "mut " : "",
                            local_name(emitter, statement->name),
                            type_name, value);
             } else if(!strcmp(statement->type, "bool")) {
@@ -1805,6 +1993,11 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
         case ZIR_STMT_EXPR:
         case ZIR_STMT_UNUSED:
             if(statement->expr_root < 0)
+                break;
+            if(emitter->function->exprs[statement->expr_root].kind == ZIR_EXPR_CALL &&
+               !strcmp(emitter->function->exprs[statement->expr_root].name, "print") &&
+               emit_print_statement(emitter,
+                                    &emitter->function->exprs[statement->expr_root]))
                 break;
             emit_expression(emitter, statement->expr_root, value,
                             sizeof(value));

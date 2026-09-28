@@ -60,7 +60,7 @@ show_function(const ZirFunction *fn, int json)
                fn->must_use ? "true" : "false",
                fn->is_template ? "true" : "false",
                fn->uses_host ? "true" : "false");
-        json_member("path", fn->span.path);
+        json_member("path", SpanPath(fn->span));
         printf(",\"line\":%d}", fn->span.line);
     } else {
         printf("  %s :: (%s) -> %s", fn->name,
@@ -70,7 +70,7 @@ show_function(const ZirFunction *fn, int json)
         if(fn->must_use) fputs(" [must use]", stdout);
         if(fn->effect_class[0]) printf(" [effect: %s]", fn->effect_class);
         if(fn->uses_host) fputs(" [host]", stdout);
-        printf(" @ %s:%d\n", fn->span.path, fn->span.line);
+        printf(" @ %s:%d\n", SpanPath(fn->span), fn->span.line);
     }
 }
 
@@ -161,7 +161,7 @@ show_module(const ZirModule *module, int json)
                    item->must_use ? "true" : "false",
                    item->required ? "true" : "false",
                    item->is_using ? "true" : "false");
-            json_member("path", item->span.path);
+            json_member("path", SpanPath(item->span));
             printf(",\"line\":%d}", item->span.line);
         }
         fputs("],\"constants\":[", stdout);
@@ -176,7 +176,7 @@ show_module(const ZirModule *module, int json)
             putchar(',');
             json_member("value", item->value);
             putchar(',');
-            json_member("path", item->span.path);
+            json_member("path", SpanPath(item->span));
             printf(",\"line\":%d}", item->span.line);
         }
         fputs("],\"globals\":[", stdout);
@@ -193,7 +193,7 @@ show_module(const ZirModule *module, int json)
             putchar(',');
             json_member("initializer", item->init);
             putchar(',');
-            json_member("path", item->span.path);
+            json_member("path", SpanPath(item->span));
             printf(",\"line\":%d}", item->span.line);
         }
         fputs("],\"types\":[", stdout);
@@ -214,7 +214,7 @@ show_module(const ZirModule *module, int json)
             printf(",\"record_template\":%s,\"enum\":%s,",
                    type->is_record_template ? "true" : "false",
                    type->is_enum ? "true" : "false");
-            json_member("path", type->span.path);
+            json_member("path", SpanPath(type->span));
             printf(",\"line\":%d}", type->span.line);
         }
         fputs("],\"functions\":[", stdout);
@@ -235,19 +235,19 @@ show_module(const ZirModule *module, int json)
             printf("  import %s %s", import_kind(item), item->name);
             if(item->target[0]) printf(" -> %s", item->target);
             if(item->signature[0]) printf(" : %s", item->signature);
-            printf(" @ %s:%d\n", item->span.path, item->span.line);
+            printf(" @ %s:%d\n", SpanPath(item->span), item->span.line);
         }
         for(int i = 0; i < module->define_count; i++) {
             const ZirDefine *item = &module->defines[i];
             if(!item->is_public || item->is_file_private) continue;
             printf("  constant %s = %s @ %s:%d\n", item->name,
-                   item->value, item->span.path, item->span.line);
+                   item->value, SpanPath(item->span), item->span.line);
         }
         for(int i = 0; i < module->global_count; i++) {
             const ZirGlobal *item = &module->globals[i];
             if(item->is_static || item->is_file_private) continue;
             printf("  global %s: %s @ %s:%d\n", item->name,
-                   item->type, item->span.path, item->span.line);
+                   item->type, SpanPath(item->span), item->span.line);
         }
         for(int i = 0; i < module->type_count; i++) {
             const ZirType *type = &module->types[i];
@@ -257,7 +257,7 @@ show_module(const ZirModule *module, int json)
             printf("  type %s", type->name);
             if(type->template_params[0])
                 printf("(%s)", type->template_params);
-            printf(" @ %s:%d\n", type->span.path, type->span.line);
+            printf(" @ %s:%d\n", SpanPath(type->span), type->span.line);
         }
         for(int i = 0; i < module->function_count; i++)
             if(visible_function(&module->functions[i]))

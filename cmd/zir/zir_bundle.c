@@ -928,7 +928,7 @@ global_is_used(const ZirProgram *program, unsigned char **keep,
                 const ZirGlobal *resolved_global = NULL;
                 if(expression->kind == ZIR_EXPR_IDENT &&
                    ResolveGlobalAt(module, expression->name,
-                                   expression->span.path, &resolved_owner,
+                                   SpanPath(expression->span), &resolved_owner,
                                    &resolved_global) == 1 &&
                    resolved_owner == owner && resolved_global == global)
                     return 1;
@@ -1096,7 +1096,7 @@ import_is_used(const ZirProgram *program, const ZirModule *module,
             const ZirGlobal *global = NULL;
             if(expression->kind == ZIR_EXPR_IDENT &&
                ResolveGlobalAt(module, expression->name,
-                               expression->span.path, &owner, &global) == 1 &&
+                               SpanPath(expression->span), &owner, &global) == 1 &&
                owner == import->resolved_module && global != NULL)
                 return 1;
         }

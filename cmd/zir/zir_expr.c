@@ -101,7 +101,7 @@ CallerLocationLiteral(const ZirModule *module, ZirSourceSpan location,
 {
     char candidate[ZIR_PATH_MAX * 2];
     char escaped[ZIR_TEXT_MAX];
-    const char *path = location.path;
+    const char *path = SpanPath(location);
     if(path[0] != '/' && module->source_root[0] != '\0') {
         int written = snprintf(candidate, sizeof(candidate), "%s/%s",
                                module->source_root, path);
@@ -236,7 +236,7 @@ append_default_arguments(ExprParser *p, int callee,
         return;
     const ZirModule *owner = NULL;
     const ZirFunction *function = NULL;
-    if(ResolveFunctionAt(p->module, target, p->span.path,
+    if(ResolveFunctionAt(p->module, target, SpanPath(p->span),
                          &owner, &function) != 1 ||
        function == NULL || !function->default_args[0])
         return;
@@ -317,7 +317,7 @@ append_default_arguments(ExprParser *p, int callee,
                 }
                 value = helper_call;
             } else if(!qualify_default_field_helpers(
-                          value, helper_name, target, p->span.path,
+                          value, helper_name, target, SpanPath(p->span),
                           qualified_default, sizeof(qualified_default))) {
                 p->failed = 1;
                 break;
@@ -858,7 +858,7 @@ parse_expr(ZirFunction *fn, const ZirModule *module, const char *text,
     p.expected_type = expected_type;
     p.stmt_index = stmt_index;
     p.expand_defaults = expand_defaults;
-    LexerInit(&p.lexer, text, span.path);
+    LexerInit(&p.lexer, text, SpanPath(span));
     next(&p);
     result = expression(&p, 1);
     take(&p, ";");
@@ -930,7 +930,7 @@ StructureFunction(ZirFunction *fn, const ZirModule *module)
             }
         } else if(st->kind == ZIR_STMT_ASSIGN) {
             ZirLexer lexer; ZirToken tok;
-            LexerInit(&lexer, text, st->span.path);
+            LexerInit(&lexer, text, SpanPath(st->span));
             do {
                 tok = LexerNext(&lexer);
                 if(!strcmp(tok.text, "=") || !strcmp(tok.text, "+=") ||

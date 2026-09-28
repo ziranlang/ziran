@@ -192,7 +192,7 @@ check_type_declarations(ZirModule *module)
         for(int previous = 0; previous < i; previous++) {
             const ZirType *other = &module->types[previous];
             if(strcmp(record->name, other->name) == 0 &&
-               !(strcmp(record->span.path, other->span.path) != 0 &&
+               !(strcmp(SpanPath(record->span), SpanPath(other->span)) != 0 &&
                  (record->is_file_private || other->is_file_private)))
                 return record_declaration_error(record, "duplicate type declaration", NULL);
         }
@@ -938,7 +938,7 @@ call_must_use(Checker *c, const ZirExpr *call)
 
     if(call->slot_type[0])
         return 0;
-    if(ResolveFunctionAt(c->module, call->name, call->span.path,
+    if(ResolveFunctionAt(c->module, call->name, SpanPath(call->span),
                          &owner, &callee) == 1 && callee != NULL)
         return callee->must_use;
     name = name != NULL ? name + 1 : call->name;

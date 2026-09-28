@@ -177,7 +177,7 @@ file_scope_visible(const ZirModule *module, int is_file_private,
                    ZirSourceSpan span)
 {
     return !is_file_private || module->lookup_path[0] == '\0' ||
-           strcmp(module->lookup_path, span.path) == 0;
+           strcmp(module->lookup_path, SpanPath(span)) == 0;
 }
 
 static int
@@ -185,7 +185,7 @@ file_scope_visible_at(const char *source_path, int is_file_private,
                       ZirSourceSpan span)
 {
     return !is_file_private || source_path == NULL || !source_path[0] ||
-           strcmp(source_path, span.path) == 0;
+           strcmp(source_path, SpanPath(span)) == 0;
 }
 
 static int
@@ -741,6 +741,85 @@ ProgramFree(ZirProgram *program)
     free(program);
 }
 
+/* Every span names its file, and the compiler makes many spans, so each
+ * path is stored once here and a span keeps its number. Number 0 is the
+ * empty path, so a zeroed span has none. */
+static struct {
+    char **paths;
+    int count;
+    int capacity;
+    int *slots; /* open addressing over path numbers; 0 is an empty slot */
+    size_t slot_count;
+} source_files;
+
+static size_t
+source_file_slot(const char *path)
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for(const unsigned char *p = (const unsigned char *)path; *p; p++) {
+        hash ^= *p;
+        hash *= UINT64_C(1099511628211);
+    }
+    size_t slot = (size_t)hash & (source_files.slot_count - 1);
+    while(source_files.slots[slot] != 0 &&
+          strcmp(source_files.paths[source_files.slots[slot]], path) != 0)
+        slot = (slot + 1) & (source_files.slot_count - 1);
+    return slot;
+}
+
+int
+SourceFile(const char *path)
+{
+    if(path == NULL || *path == '\0')
+        return 0;
+    if((size_t)source_files.count * 2 >= source_files.slot_count) {
+        size_t old_count = source_files.slot_count;
+        int *old_slots = source_files.slots;
+        source_files.slot_count = old_count ? old_count * 2 : 256;
+        source_files.slots = calloc(source_files.slot_count, sizeof(int));
+        if(source_files.slots == NULL) {
+            fprintf(stderr, "out of memory recording source paths\n");
+            exit(1);
+        }
+        for(size_t i = 0; i < old_count; i++)
+            if(old_slots[i] != 0)
+                source_files.slots[source_file_slot(
+                    source_files.paths[old_slots[i]])] = old_slots[i];
+        free(old_slots);
+    }
+    if(source_files.count == 0)
+        source_files.count = 1;
+    size_t slot = source_file_slot(path);
+    if(source_files.slots[slot] != 0)
+        return source_files.slots[slot];
+    if(source_files.count >= source_files.capacity) {
+        int capacity = source_files.capacity ? source_files.capacity * 2 : 64;
+        char **paths = realloc(source_files.paths, (size_t)capacity * sizeof(*paths));
+        if(paths == NULL) {
+            fprintf(stderr, "out of memory recording source paths\n");
+            exit(1);
+        }
+        source_files.paths = paths;
+        source_files.capacity = capacity;
+    }
+    char *copy = strdup(path);
+    if(copy == NULL) {
+        fprintf(stderr, "out of memory recording source paths\n");
+        exit(1);
+    }
+    source_files.paths[source_files.count] = copy;
+    source_files.slots[slot] = source_files.count;
+    return source_files.count++;
+}
+
+const char *
+SpanPath(ZirSourceSpan span)
+{
+    if(span.file <= 0 || span.file >= source_files.count)
+        return "";
+    return source_files.paths[span.file];
+}
+
 ZirSourceSpan
 Span(const char *path, int line, int column)
 {
@@ -753,7 +832,7 @@ SpanEnd(const char *path, int line, int column, int end_line, int end_column)
     ZirSourceSpan span;
 
     memset(&span, 0, sizeof(span));
-    copy_text(span.path, sizeof(span.path), path);
+    span.file = SourceFile(path);
     span.line = line;
     span.column = column;
     span.end_line = end_line;
@@ -838,7 +917,7 @@ FunctionDefaultHelperName(const ZirFunction *function, int parameter,
                           char *out, size_t size)
 {
     uint64_t hash = UINT64_C(14695981039346656037);
-    const char *pieces[] = {function->span.path, function->name, NULL};
+    const char *pieces[] = {SpanPath(function->span), function->name, NULL};
     for(int i = 0; pieces[i] != NULL; i++) {
         for(const unsigned char *p = (const unsigned char *)pieces[i]; *p; p++) {
             hash ^= *p;
@@ -1133,7 +1212,7 @@ StmtKindName(ZirStmtKind kind)
 static void
 dump_span(FILE *out, ZirSourceSpan span)
 {
-    fprintf(out, "%s:%d:%d", span.path, span.line, span.column);
+    fprintf(out, "%s:%d:%d", SpanPath(span), span.line, span.column);
     if(span.end_line > 0 && span.end_column > 0 &&
        (span.end_line != span.line || span.end_column != span.column))
         fprintf(out, "-%d:%d", span.end_line, span.end_column);

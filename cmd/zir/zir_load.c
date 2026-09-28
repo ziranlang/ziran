@@ -324,14 +324,14 @@ load_import(LoadContext *context, const char *owner_source,
                                  strcmp(slash + 1, "module.zi") == 0 ?
                                  mapped_name : NULL);
     }
-    if(!prefer_ir && import->span.path[0] != '\0') {
-        if(import->span.path[0] == '/')
-            owner_path = import->span.path;
-        else if(stat(import->span.path, &owner_info) == 0 &&
+    if(!prefer_ir && SpanPath(import->span)[0] != '\0') {
+        if(SpanPath(import->span)[0] == '/')
+            owner_path = SpanPath(import->span);
+        else if(stat(SpanPath(import->span), &owner_info) == 0 &&
                 S_ISREG(owner_info.st_mode))
-            owner_path = import->span.path;
+            owner_path = SpanPath(import->span);
         else if(snprintf(owner_file, sizeof(owner_file), "%s/%s",
-                         owner_root, import->span.path) <
+                         owner_root, SpanPath(import->span)) <
                 (int)sizeof(owner_file))
             owner_path = owner_file;
     }

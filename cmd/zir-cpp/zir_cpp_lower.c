@@ -679,7 +679,7 @@ lower_body(FILE *out, const ZirModule *module, const ZirCppModuleSyms *symbols,
            int symbol_count, const ZirFunction *function)
 {
     BodySymbols context = {module, symbols, symbol_count,
-                           function->span.path};
+                           SpanPath(function->span)};
     if(!EmitBody(out, module, function, ZIR_CPP,
                  resolve_body_symbol, &context)) {
         Diagnostic(function->span, "zir_cpp.body",
@@ -1212,7 +1212,7 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
                 cret[0] ? cret : "void", cname, cargs);
     }
     for(i = 0; i < m->global_count; i++) {
-        BodySymbols symbols = {m, restab, restab_count, m->globals[i].span.path};
+        BodySymbols symbols = {m, restab, restab_count, SpanPath(m->globals[i].span)};
         EmitGlobalSlotWrappers(c, m, &m->globals[i], ZIR_CPP,
                                resolve_body_symbol, &symbols);
     }

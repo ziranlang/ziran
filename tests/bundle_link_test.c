@@ -195,7 +195,7 @@ main(void)
     ZirProgram *private_set[] = {private_program};
     assert(CheckPrograms(private_set, 1));
     assert(private_program->modules[0].functions[0].is_file_private);
-    strcpy(private_program->modules[0].functions[1].span.path, "other.zi");
+    private_program->modules[0].functions[1].span.file = SourceFile("other.zi");
     saved = tmpfile();
     assert(saved != NULL && ProgramWrite(private_program, saved));
     rewind(saved);

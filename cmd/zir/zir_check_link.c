@@ -571,7 +571,7 @@ name_private_functions(ZirModule *module)
             const ZirFunction *candidate = &module->functions[other];
             if(other == f || strcmp(candidate->name, function->name) != 0)
                 continue;
-            if(strcmp(candidate->span.path, function->span.path) == 0) {
+            if(strcmp(SpanPath(candidate->span), SpanPath(function->span)) == 0) {
                 Diagnostic(function->span, "check.file_scope",
                            "duplicate procedure in one file: %s",
                            function->name);
@@ -616,7 +616,7 @@ name_private_functions(ZirModule *module)
                   expression->is_function_value)) ||
                !expression->name[0] ||
                ResolveFunctionAt(module, expression->name,
-                   caller->span.path, &owner, &target) != 1 ||
+                   SpanPath(caller->span), &owner, &target) != 1 ||
                owner != module)
                 continue;
             for(int i = 0; i < count; i++)
@@ -647,7 +647,7 @@ rewrite_private_reference(char *source, size_t capacity,
     size_t current_end, next_end, copied = 0, written = 0;
     char *output = calloc(capacity, 1);
     if(output == NULL) return 0;
-    LexerInit(&lexer, source, span.path);
+    LexerInit(&lexer, source, SpanPath(span));
     current = LexerNext(&lexer);
     current_end = lexer.pos;
     next = LexerNext(&lexer);
@@ -701,7 +701,7 @@ name_private_defines(ZirModule *module)
             const ZirDefine *candidate = &module->defines[other];
             if(other == d || strcmp(candidate->name, definition->name))
                 continue;
-            if(!strcmp(candidate->span.path, definition->span.path)) {
+            if(!strcmp(SpanPath(candidate->span), SpanPath(definition->span))) {
                 Diagnostic(definition->span, "check.file_scope",
                            "duplicate constant in one file: %s",
                            definition->name);
@@ -728,10 +728,10 @@ name_private_defines(ZirModule *module)
     }
     for(int r = 0; r < count; r++) {
         const PrivateDefineName *rename = &renames[r];
-        const char *path = rename->definition->span.path;
+        const char *path = SpanPath(rename->definition->span);
         for(int g = 0; g < module->global_count; g++) {
             ZirGlobal *global = &module->globals[g];
-            if(strcmp(global->span.path, path)) continue;
+            if(strcmp(SpanPath(global->span), path)) continue;
             if(!rewrite_private_reference(global->type,
                                           sizeof(global->type), global->span,
                                           rename->original, rename->internal) ||
@@ -742,7 +742,7 @@ name_private_defines(ZirModule *module)
         }
         for(int d = 0; d < module->define_count; d++) {
             ZirDefine *definition = &module->defines[d];
-            if(strcmp(definition->span.path, path)) continue;
+            if(strcmp(SpanPath(definition->span), path)) continue;
             if(!rewrite_private_reference(definition->value,
                                           sizeof(definition->value),
                                           definition->span, rename->original,
@@ -750,7 +750,7 @@ name_private_defines(ZirModule *module)
         }
         for(int t = 0; t < module->type_count; t++) {
             ZirType *type = &module->types[t];
-            if(strcmp(type->span.path, path)) continue;
+            if(strcmp(SpanPath(type->span), path)) continue;
             if(!rewrite_private_reference(type->body, sizeof(type->body),
                                           type->span, rename->original,
                                           rename->internal) ||
@@ -786,7 +786,7 @@ name_private_globals(ZirModule *module)
             const ZirGlobal *candidate = &module->globals[other];
             if(other == g || strcmp(candidate->name, global->name))
                 continue;
-            if(!strcmp(candidate->span.path, global->span.path)) {
+            if(!strcmp(SpanPath(candidate->span), SpanPath(global->span))) {
                 Diagnostic(global->span, "check.file_scope",
                            "duplicate global in one file: %s", global->name);
                 free(renames);
@@ -811,17 +811,17 @@ name_private_globals(ZirModule *module)
     }
     for(int r = 0; r < count; r++) {
         const PrivateGlobalName *rename = &renames[r];
-        const char *path = rename->global->span.path;
+        const char *path = SpanPath(rename->global->span);
         for(int g = 0; g < module->global_count; g++) {
             ZirGlobal *global = &module->globals[g];
-            if(strcmp(global->span.path, path)) continue;
+            if(strcmp(SpanPath(global->span), path)) continue;
             if(!rewrite_private_reference(global->init, sizeof(global->init),
                                           global->span, rename->original,
                                           rename->internal)) goto failed;
         }
         for(int f = 0; f < module->function_count; f++) {
             ZirFunction *caller = &module->functions[f];
-            if(strcmp(caller->span.path, path)) continue;
+            if(strcmp(SpanPath(caller->span), path)) continue;
             for(int x = 0; x < caller->expr_count; x++) {
                 ZirExpr *expression = &caller->exprs[x];
                 if(expression->is_global_value &&
@@ -849,7 +849,7 @@ template_parameter_shadows(const ZirType *type, const char *name)
 {
     ZirLexer lexer;
     ZirToken current, next;
-    LexerInit(&lexer, type->template_params, type->span.path);
+    LexerInit(&lexer, type->template_params, SpanPath(type->span));
     current = LexerNext(&lexer);
     next = LexerNext(&lexer);
     while(current.kind != ZIR_TOKEN_EOF) {
@@ -876,7 +876,7 @@ name_private_types(ZirModule *module)
         for(int other = 0; other < module->type_count; other++) {
             const ZirType *candidate = &module->types[other];
             if(other == t || strcmp(candidate->name, type->name)) continue;
-            if(!strcmp(candidate->span.path, type->span.path)) {
+            if(!strcmp(SpanPath(candidate->span), SpanPath(type->span))) {
                 Diagnostic(type->span, "check.file_scope",
                            "duplicate type in one file: %s", type->name);
                 free(renames);
@@ -901,10 +901,10 @@ name_private_types(ZirModule *module)
     }
     for(int r = 0; r < count; r++) {
         const PrivateTypeName *rename = &renames[r];
-        const char *path = rename->type->span.path;
+        const char *path = SpanPath(rename->type->span);
         for(int t = 0; t < module->type_count; t++) {
             ZirType *type = &module->types[t];
-            if(strcmp(type->span.path, path)) continue;
+            if(strcmp(SpanPath(type->span), path)) continue;
             if(!type->is_enum &&
                !template_parameter_shadows(type, rename->original) &&
                !rewrite_private_reference(type->body, sizeof(type->body),
@@ -925,7 +925,7 @@ name_private_types(ZirModule *module)
         }
         for(int g = 0; g < module->global_count; g++) {
             ZirGlobal *global = &module->globals[g];
-            if(strcmp(global->span.path, path)) continue;
+            if(strcmp(SpanPath(global->span), path)) continue;
             if(!rewrite_private_reference(global->type, sizeof(global->type),
                                           global->span, rename->original,
                                           rename->internal) ||
@@ -935,7 +935,7 @@ name_private_types(ZirModule *module)
         }
         for(int d = 0; d < module->define_count; d++) {
             ZirDefine *definition = &module->defines[d];
-            if(strcmp(definition->span.path, path)) continue;
+            if(strcmp(SpanPath(definition->span), path)) continue;
             if(!rewrite_private_reference(definition->value,
                                           sizeof(definition->value),
                                           definition->span, rename->original,
@@ -943,7 +943,7 @@ name_private_types(ZirModule *module)
         }
         for(int i = 0; i < module->import_count; i++) {
             ZirImport *import = &module->imports[i];
-            if(strcmp(import->span.path, path)) continue;
+            if(strcmp(SpanPath(import->span), path)) continue;
             if(!rewrite_private_reference(import->signature,
                                           sizeof(import->signature),
                                           import->span, rename->original,
@@ -958,7 +958,7 @@ name_private_types(ZirModule *module)
         }
         for(int f = 0; f < module->function_count; f++) {
             ZirFunction *function = &module->functions[f];
-            if(strcmp(function->span.path, path)) continue;
+            if(strcmp(SpanPath(function->span), path)) continue;
             if(!rewrite_private_reference(function->args,
                                           sizeof(function->args), function->span,
                                           rename->original, rename->internal) ||
@@ -1106,7 +1106,7 @@ instantiate_specializations(Checker *checker)
                 const ZirModule *callee_owner = NULL;
                 const ZirFunction *callee = NULL;
                 if(ResolveFunctionAt(template_owner, expression->name,
-                                     original.span.path,
+                                     SpanPath(original.span),
                                      &callee_owner, &callee) == 1 &&
                    callee_owner == template_owner && callee != NULL) {
                     for(int import_index = 0;

@@ -283,7 +283,7 @@ verify_expression(const ZirModule *module, const ZirFunction *function,
            strcmp(expression->name, "null") == 0 ||
            binding_index(bindings, binding_count, expression->name) >= 0 ||
            find_global_declaration(module, expression->name,
-                                   expression->span.path) != NULL)
+                                   SpanPath(expression->span)) != NULL)
             return 1;
         return 0;
     }
@@ -805,7 +805,7 @@ verify_sequence(const ZirModule *module, const ZirFunction *function,
                               assignment_root(function, statement->lhs_root)) < 0 &&
                 find_global_declaration(module,
                     assignment_root(function, statement->lhs_root),
-                    function->exprs[statement->lhs_root].span.path) == NULL) ||
+                    SpanPath(function->exprs[statement->lhs_root].span)) == NULL) ||
                statement->expr_root < 0 ||
                !verify_expression(module, function, bindings, binding_count,
                                   statement->lhs_root, 0) ||

@@ -275,7 +275,7 @@ evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
     char input[ZIR_TEXT_MAX], expanded[ZIR_TEXT_MAX];
     long integer;
     int root, ok;
-    const char *path = span.path;
+    const char *path = SpanPath(span);
     if(depth > 32 || source == NULL || --*fuel < 0) return 0;
     copy_text(input, sizeof(input), source);
     trim_in_place(input);
@@ -365,7 +365,7 @@ typed_add_local(TypedBody *body, const char *name, const char *type,
     memset(local, 0, sizeof(*local));
     copy_text(local->name, sizeof(local->name), name);
     copy_text(local->type, sizeof(local->type), type);
-    copy_text(local->path, sizeof(local->path), body->fn->span.path);
+    copy_text(local->path, sizeof(local->path), SpanPath(body->fn->span));
     if(value != NULL)
         copy_text(local->expr, sizeof(local->expr), value->literal);
     body->names.count++;
@@ -555,7 +555,7 @@ evaluate_typed_function(const ZirModule *module, const char *name,
     TypedBody body = {0};
     int expected, flow = 0, ok = 0;
     if(depth >= 32 || module == NULL || !name[0] ||
-       ResolveFunctionAt(module, name, call_span.path, &owner, &fn) != 1 ||
+       ResolveFunctionAt(module, name, SpanPath(call_span), &owner, &fn) != 1 ||
        fn == NULL || fn->is_extern || fn->is_template ||
        fn->stmt_count == 0) return 0;
     expected = *skip_ws(fn->args) ?
@@ -636,7 +636,7 @@ evaluate_typed_function(const ZirModule *module, const char *name,
         copy_text(binding->type, sizeof(binding->type), type);
         copy_text(binding->expr, sizeof(binding->expr),
                   ordered[i].literal);
-        copy_text(binding->path, sizeof(binding->path), fn->span.path);
+        copy_text(binding->path, sizeof(binding->path), SpanPath(fn->span));
         body.names.count++;
     }
     body.local_count = expected;
@@ -648,7 +648,7 @@ evaluate_typed_function(const ZirModule *module, const char *name,
         copy_text(constant->expr, sizeof(constant->expr),
                   definition->value);
         copy_text(constant->path, sizeof(constant->path),
-                  definition->span.path);
+                  SpanPath(definition->span));
         constant->is_file_private = definition->is_file_private;
     }
     ok = typed_body_statements(&body, 0, fn->stmt_count,
@@ -720,16 +720,16 @@ EvaluateCompileExpression(const ZirModule *module, const char *source,
             copy_text(constant->expr, sizeof(constant->expr),
                       definition->value);
             copy_text(constant->path, sizeof(constant->path),
-                      definition->span.path);
+                      SpanPath(definition->span));
             constant->is_file_private = definition->is_file_private;
         }
     }
     expand_compile_expr(expanded, sizeof(expanded), &constants,
-                        source, span.path);
+                        source, SpanPath(span));
     if(strstr(expanded, "size_of") != NULL)
         lower_size_of_value(expanded, sizeof(expanded), module, span);
     int ok = eval_const_condition(expanded, value, module, &constants,
-                                  span.path, span.line, executing ? 1 : 0);
+                                  SpanPath(span), span.line, executing ? 1 : 0);
     free(constants.items);
     return ok;
 }
@@ -757,7 +757,7 @@ EvaluateCompileLiteral(const ZirModule *module, const char *source,
         copy_text(constant->expr, sizeof(constant->expr),
                   definition->value);
         copy_text(constant->path, sizeof(constant->path),
-                  definition->span.path);
+                  SpanPath(definition->span));
         constant->is_file_private = definition->is_file_private;
     }
     int ok = evaluate_typed_expression(module, &constants, source,

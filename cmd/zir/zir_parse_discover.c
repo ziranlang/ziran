@@ -391,7 +391,7 @@ discover_body_statement(ZirFunction *function, char *source, int line,
         return 0;
     if(strlen(part) >= ZIR_TEXT_MAX) return 0;
     if(FunctionAddStmt(function, kind, part,
-                       Span(function->span.path, line, 1)) == NULL)
+                       Span(SpanPath(function->span), line, 1)) == NULL)
         die("out of memory discovering procedure body");
     if(kind == ZIR_STMT_RETURN) *saw_return = 1;
     return 1;
@@ -455,7 +455,7 @@ discover_compile_body(ZirFunction *function, const char *body,
                                             statement_line, 0, &saw_return))
                     goto unsupported;
                 if(FunctionAddStmt(function, ZIR_STMT_BLOCK_CLOSE, "}",
-                                   Span(function->span.path, line, 1)) == NULL)
+                                   Span(SpanPath(function->span), line, 1)) == NULL)
                     die("out of memory discovering procedure body");
                 blocks--;
                 statement = cursor + 1;

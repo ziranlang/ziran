@@ -5,7 +5,7 @@ static const char *apply_using_filter(const char *filter, const char *name, char
 void
 select_lookup_file(ZirModule *module, ZirSourceSpan span)
 {
-    copy_text(module->lookup_path, sizeof(module->lookup_path), span.path);
+    copy_text(module->lookup_path, sizeof(module->lookup_path), SpanPath(span));
 }
 
 int
@@ -13,7 +13,7 @@ in_lookup_file(const ZirModule *module, int is_file_private,
                ZirSourceSpan span)
 {
     return !is_file_private || module->lookup_path[0] == '\0' ||
-           strcmp(module->lookup_path, span.path) == 0;
+           strcmp(module->lookup_path, SpanPath(span)) == 0;
 }
 
 static int
@@ -25,46 +25,46 @@ file_private_name(const ZirModule *module, const char *name,
     for(int i = 0; i < module->function_count; i++)
         if(strcmp(module->functions[i].name, name) == 0 &&
            (!module->functions[i].is_file_private ||
-            strcmp(module->functions[i].span.path, path) == 0)) return 0;
+            strcmp(SpanPath(module->functions[i].span), path) == 0)) return 0;
     for(int i = 0; i < module->global_count; i++)
         if(strcmp(module->globals[i].name, name) == 0 &&
            (!module->globals[i].is_file_private ||
-            strcmp(module->globals[i].span.path, path) == 0)) return 0;
+            strcmp(SpanPath(module->globals[i].span), path) == 0)) return 0;
     for(int i = 0; i < module->define_count; i++)
         if(strcmp(module->defines[i].name, name) == 0 &&
            (!module->defines[i].is_file_private ||
-            strcmp(module->defines[i].span.path, path) == 0)) return 0;
+            strcmp(SpanPath(module->defines[i].span), path) == 0)) return 0;
     for(int i = 0; i < module->type_count; i++)
         if(strcmp(module->types[i].name, name) == 0 &&
            (!module->types[i].is_file_private ||
-            strcmp(module->types[i].span.path, path) == 0)) return 0;
+            strcmp(SpanPath(module->types[i].span), path) == 0)) return 0;
     for(int i = 0; i < module->import_count; i++)
         if(strcmp(module->imports[i].name, name) == 0 &&
            (!module->imports[i].is_file_private ||
-            strcmp(module->imports[i].span.path, path) == 0)) return 0;
+            strcmp(SpanPath(module->imports[i].span), path) == 0)) return 0;
     for(int i = 0; i < module->function_count; i++)
         if(module->functions[i].is_file_private &&
-           strcmp(module->functions[i].span.path, path) != 0 &&
+           strcmp(SpanPath(module->functions[i].span), path) != 0 &&
            strcmp(module->functions[i].name, name) == 0)
             return 1;
     for(int i = 0; i < module->global_count; i++)
         if(module->globals[i].is_file_private &&
-           strcmp(module->globals[i].span.path, path) != 0 &&
+           strcmp(SpanPath(module->globals[i].span), path) != 0 &&
            strcmp(module->globals[i].name, name) == 0)
             return 1;
     for(int i = 0; i < module->define_count; i++)
         if(module->defines[i].is_file_private &&
-           strcmp(module->defines[i].span.path, path) != 0 &&
+           strcmp(SpanPath(module->defines[i].span), path) != 0 &&
            strcmp(module->defines[i].name, name) == 0)
             return 1;
     for(int i = 0; i < module->type_count; i++)
         if(module->types[i].is_file_private &&
-           strcmp(module->types[i].span.path, path) != 0 &&
+           strcmp(SpanPath(module->types[i].span), path) != 0 &&
            strcmp(module->types[i].name, name) == 0)
             return 1;
     for(int i = 0; i < module->import_count; i++)
         if(module->imports[i].is_file_private &&
-           strcmp(module->imports[i].span.path, path) != 0 &&
+           strcmp(SpanPath(module->imports[i].span), path) != 0 &&
            strcmp(module->imports[i].name, name) == 0)
             return 1;
     return 0;
@@ -77,14 +77,14 @@ check_file_private_expression(const ZirModule *module, const char *source,
     ZirLexer lexer;
     ZirToken previous = {0};
     ZirToken current, next;
-    LexerInit(&lexer, source, span.path);
+    LexerInit(&lexer, source, SpanPath(span));
     current = LexerNext(&lexer);
     next = LexerNext(&lexer);
     while(current.kind != ZIR_TOKEN_EOF) {
         if(current.kind == ZIR_TOKEN_IDENT &&
            strcmp(previous.text, ".") != 0 &&
            strcmp(next.text, ":") != 0 &&
-           file_private_name(module, current.text, span.path)) {
+           file_private_name(module, current.text, SpanPath(span))) {
             Diagnostic(span, "check.file_scope",
                        "file-private declaration is not visible: %s",
                        current.text);
@@ -192,7 +192,7 @@ LowerFileScopeUsing(ZirModule *module, char *source, size_t capacity,
     size_t used = 0, copied = 0;
     copy_text(saved_path, sizeof(saved_path), module->lookup_path);
     select_lookup_file(module, span);
-    LexerInit(&lexer, source, span.path);
+    LexerInit(&lexer, source, SpanPath(span));
     ZirToken current = LexerNext(&lexer);
     size_t end = lexer.pos;
     while(current.kind != ZIR_TOKEN_EOF) {
@@ -1033,7 +1033,7 @@ lower_file_record_using(ZirModule *module, char *source, size_t capacity,
     ZirLexer lexer;
     ZirToken previous = {0};
     size_t used = 0, copied = 0;
-    LexerInit(&lexer, source, span.path);
+    LexerInit(&lexer, source, SpanPath(span));
     ZirToken current = LexerNext(&lexer);
     size_t end = lexer.pos;
     while(current.kind != ZIR_TOKEN_EOF) {
@@ -1413,7 +1413,7 @@ specialization_hash(const ZirModule *owner, const ZirModule *instance_owner,
                     const char *type)
 {
     uint64_t hash = UINT64_C(14695981039346656037);
-    const char *pieces[] = {owner->name, owner->source_path, fn->span.path,
+    const char *pieces[] = {owner->name, owner->source_path, SpanPath(fn->span),
                             fn->name, type, instance_owner->source_path, NULL};
     for(int i = 0; pieces[i]; i++) {
         for(const unsigned char *p = (const unsigned char *)pieces[i]; *p; p++) {

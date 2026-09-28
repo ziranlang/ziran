@@ -786,7 +786,7 @@ expression_type(Checker *c, int index)
         const ZirModule *callee_owner = NULL;
         if(callee != NULL) {
             const ZirFunction *resolved = NULL;
-            if(ResolveFunctionAt(c->module, e->name, e->span.path,
+            if(ResolveFunctionAt(c->module, e->name, SpanPath(e->span),
                                  &callee_owner, &resolved) != 1 ||
                resolved != callee) callee_owner = NULL;
         }
@@ -1198,7 +1198,7 @@ InferExpressionType(const ZirModule *module, const char *expression,
     int root, valid;
     const char *inferred;
 
-    copy_text(lookup.lookup_path, sizeof(lookup.lookup_path), span.path);
+    copy_text(lookup.lookup_path, sizeof(lookup.lookup_path), SpanPath(span));
     probe.span = span;
     root = ParseExprNoDefaults(&probe, &lookup, expression, span);
     checker.module = &lookup;

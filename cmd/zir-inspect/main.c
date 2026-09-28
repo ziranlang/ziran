@@ -33,8 +33,8 @@ quoted(const char *value)
 static void
 location(const ZirSourceSpan *span)
 {
-    if(span->path[0])
-        printf(" @ %s:%d:%d", span->path, span->line, span->column);
+    if(SpanPath(*span)[0])
+        printf(" @ %s:%d:%d", SpanPath(*span), span->line, span->column);
 }
 
 static void

@@ -44,7 +44,7 @@ visible_compile_usings(const ZirModule *parsed, const ZirUsings *future)
         const ZirUsing *candidate = &future->items[i];
         int present = 0;
         for(int j = 0; j < parsed->using_count; j++)
-            if(!strcmp(parsed->usings[j].span.path, candidate->span.path) &&
+            if(!strcmp(SpanPath(parsed->usings[j].span), SpanPath(candidate->span)) &&
                parsed->usings[j].span.line == candidate->span.line) {
                 present = 1;
                 break;
@@ -72,7 +72,7 @@ add_visible_compile_defines(ZirModule *visible, const ZirModule *parsed,
         int present = 0;
         for(int j = 0; j < parsed->define_count; j++)
             if(!strcmp(parsed->defines[j].name, constant->name) &&
-               !strcmp(parsed->defines[j].span.path, constant->path)) {
+               !strcmp(SpanPath(parsed->defines[j].span), constant->path)) {
                 present = 1;
                 break;
             }
@@ -105,7 +105,7 @@ add_visible_compile_imports(ZirModule *visible, const ZirModule *parsed,
         const ZirImport *candidate = &future->items[i];
         int present = 0;
         for(int j = 0; j < parsed->import_count; j++)
-            if(!strcmp(parsed->imports[j].span.path, candidate->span.path) &&
+            if(!strcmp(SpanPath(parsed->imports[j].span), SpanPath(candidate->span)) &&
                parsed->imports[j].span.line == candidate->span.line) {
                 present = 1;
                 break;
@@ -131,7 +131,7 @@ add_visible_compile_types(ZirModule *visible, const ZirModule *parsed,
         const ZirType *candidate = &future->items[i];
         int present = 0;
         for(int j = 0; j < parsed->type_count; j++)
-            if(!strcmp(parsed->types[j].span.path, candidate->span.path) &&
+            if(!strcmp(SpanPath(parsed->types[j].span), SpanPath(candidate->span)) &&
                parsed->types[j].span.line == candidate->span.line) {
                 present = 1;
                 break;
@@ -158,8 +158,8 @@ add_visible_compile_functions(ZirModule *visible, const ZirModule *parsed,
         const ZirFunction *candidate = &future->items[i];
         int present = 0;
         for(int j = 0; j < parsed->function_count; j++)
-            if(!strcmp(parsed->functions[j].span.path,
-                       candidate->span.path) &&
+            if(!strcmp(SpanPath(parsed->functions[j].span),
+                       SpanPath(candidate->span)) &&
                parsed->functions[j].span.line == candidate->span.line) {
                 present = 1;
                 break;
@@ -186,8 +186,8 @@ add_visible_compile_globals(ZirModule *visible, const ZirModule *parsed,
         const ZirGlobal *candidate = &future->items[i];
         int present = 0;
         for(int j = 0; j < parsed->global_count; j++)
-            if(!strcmp(parsed->globals[j].span.path,
-                       candidate->span.path) &&
+            if(!strcmp(SpanPath(parsed->globals[j].span),
+                       SpanPath(candidate->span)) &&
                parsed->globals[j].span.line == candidate->span.line) {
                 present = 1;
                 break;
@@ -242,8 +242,8 @@ select_compile_condition(ZirModule *module, const ZirConsts *consts,
     ZirModule using_scope = visible_compile_module(module, context, &visible);
     module = &using_scope;
     consts = &visible;
-    expand_compile_expr(expanded, sizeof(expanded), consts, source, span.path);
-    normalize_jai_source_tokens(expanded, span.path, source_path, span.line);
+    expand_compile_expr(expanded, sizeof(expanded), consts, source, SpanPath(span));
+    normalize_jai_source_tokens(expanded, SpanPath(span), source_path, span.line);
     if(using_scope.using_count > 0 && context != NULL &&
        context->resolver != NULL &&
        !context->resolver(context->resolver_context, context->program,
@@ -270,7 +270,7 @@ select_compile_condition(ZirModule *module, const ZirConsts *consts,
     if(strstr(expanded, "size_of") != NULL)
         lower_size_of_value(expanded, sizeof(expanded), module, span);
     known = eval_const_condition(expanded, &value, module, consts,
-                                 span.path, span.line, 0);
+                                 SpanPath(span), span.line, 0);
     if(!known)
         known = eval_typed_condition(expanded, module, consts,
                                      span, &value);
@@ -303,7 +303,7 @@ select_compile_condition(ZirModule *module, const ZirConsts *consts,
             die_at(span, "invalid #if enum member");
         }
         known = eval_const_condition(expanded, &value, module, consts,
-                                     span.path, span.line, 0);
+                                     SpanPath(span), span.line, 0);
         if(!known)
             known = eval_typed_condition(expanded, module, consts,
                                          span, &value);
@@ -422,13 +422,13 @@ replace_compile_ifx(char *source, size_t capacity, const ZirFunction *fn,
     if(expr->left < 0 || expr->right < 0 || expr->third < 0)
         die_at(span, "malformed #ifx expression");
     expand_compile_expr(condition, sizeof(condition), consts,
-                        fn->exprs[expr->left].text, span.path);
+                        fn->exprs[expr->left].text, SpanPath(span));
     if(allow_deferred && !compile_size_of_ready(module, condition))
         return 0;
     if(strstr(condition, "size_of") != NULL)
         lower_size_of_value(condition, sizeof(condition), module, span);
     if(!eval_const_condition(condition, &value, module, consts,
-                             span.path, span.line, 0) &&
+                             SpanPath(span), span.line, 0) &&
        !eval_typed_condition(condition, module, consts,
                              span, &value)) {
         if(allow_deferred) return 0;
@@ -594,14 +594,14 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
         copy_text(constant->name, sizeof(constant->name), definition->name);
         copy_text(constant->expr, sizeof(constant->expr), definition->value);
         copy_text(constant->path, sizeof(constant->path),
-                  definition->span.path);
+                  SpanPath(definition->span));
         constant->is_file_private = definition->is_file_private;
     }
     for(int i = 0; i < module->define_count; i++) {
         ZirDefine *definition = &module->defines[i];
         char before[ZIR_TEXT_MAX];
         copy_text(module->lookup_path, sizeof(module->lookup_path),
-                  definition->span.path);
+                  SpanPath(definition->span));
         copy_text(before, sizeof(before), definition->value);
         if(find_unquoted_text(definition->value, "#ifx") != NULL)
             lower_compile_ifx_value(definition->value,
@@ -622,7 +622,7 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
         ZirGlobal *global = &module->globals[i];
         char before[ZIR_TEXT_MAX];
         copy_text(module->lookup_path, sizeof(module->lookup_path),
-                  global->span.path);
+                  SpanPath(global->span));
         copy_text(before, sizeof(before), global->init);
         if(find_unquoted_text(global->init, "#ifx") != NULL)
             lower_compile_ifx_value(global->init, sizeof(global->init),
@@ -637,7 +637,7 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
     for(int i = 0; i < module->function_count; i++) {
         ZirFunction *fn = &module->functions[i];
         copy_text(module->lookup_path, sizeof(module->lookup_path),
-                  fn->span.path);
+                  SpanPath(fn->span));
         if(function_has_compile_ifx(fn)) {
             if(lower_compile_ifx_function(fn, module, &constants,
                                           allow_deferred)) progress++;

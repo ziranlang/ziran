@@ -53,14 +53,14 @@ DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list ar
         fputs(",\"message\":", stderr);
         json_string(stderr, message);
         fputs(",\"path\":", stderr);
-        json_string(stderr, span.path);
+        json_string(stderr, SpanPath(span));
         fprintf(stderr, ",\"line\":%d,\"column\":%d,"
                 "\"end_line\":%d,\"end_column\":%d}\n",
                 span.line, span.column,
                 span.end_line > 0 ? span.end_line : span.line,
                 span.end_column > 0 ? span.end_column : span.column);
-    } else if(span.path[0] != '\0') {
-        fprintf(stderr, "%s:%d:%d: %s\n", span.path, span.line, span.column, message);
+    } else if(SpanPath(span)[0] != '\0') {
+        fprintf(stderr, "%s:%d:%d: %s\n", SpanPath(span), span.line, span.column, message);
     } else {
         fprintf(stderr, "ziran: %s\n", message);
     }

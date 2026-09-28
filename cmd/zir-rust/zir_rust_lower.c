@@ -798,7 +798,7 @@ static int global_reference(RustEmitter *emitter, const char *name,
     const ZirGlobal *global = NULL;
     if(has_local(emitter, name) ||
        ResolveGlobalAt(emitter->module, name,
-                       emitter->function->span.path, &owner,
+                       SpanPath(emitter->function->span), &owner,
                        &global) != 1 || owner == NULL)
         return 0;
     global_symbol(emitter, owner, global, output, size);
@@ -1490,7 +1490,7 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
         return;
     }
     if(ResolveFunctionAt(emitter->module, expression->name,
-                         emitter->function->span.path, &owner, &callee) != 1 ||
+                         SpanPath(emitter->function->span), &owner, &callee) != 1 ||
        owner == NULL) {
         unsupported_expression(emitter, expression);
         return;
@@ -1609,7 +1609,7 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         }
         else if(expression->is_function_value &&
                 ResolveFunctionAt(emitter->module, expression->name,
-                                  emitter->function->span.path,
+                                  SpanPath(emitter->function->span),
                                   &function_owner, &function) == 1 &&
                 function_owner != NULL && function != NULL) {
             char function_name[ZIR_RUST_NAME_MAX * 2];
@@ -2651,7 +2651,7 @@ static void emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
         if(!strcmp(value->name, "#this")) {
             owner = module;
             callee = function;
-        } else if(ResolveFunctionAt(module, value->name, value->span.path,
+        } else if(ResolveFunctionAt(module, value->name, SpanPath(value->span),
                                     &owner, &callee) != 1 ||
                   owner == NULL || callee == NULL) {
             Diagnostic(value->span, "zir_rust.slot",
@@ -2724,7 +2724,7 @@ static int rust_function_is_value(RustEmitter *emitter, const ZirModule *module,
                     if(!expression->is_function_value ||
                        strcmp(expression->name, function->name) != 0)
                         continue;
-                    if(ResolveFunctionAt(scope, expression->name, user->span.path,
+                    if(ResolveFunctionAt(scope, expression->name, SpanPath(user->span),
                                          &owner, &target) == 1 &&
                        owner == module && target == function)
                         return 1;

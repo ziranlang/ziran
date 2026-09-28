@@ -386,7 +386,7 @@ native_top_hash(const ZirModule *module, ZirSourceSpan span,
                 const char *name)
 {
     uint64_t hash = UINT64_C(14695981039346656037);
-    const char *parts[] = {module->source_path, span.path, name};
+    const char *parts[] = {module->source_path, SpanPath(span), name};
     for(size_t part = 0; part < 3; part++) {
         for(const unsigned char *p = (const unsigned char *)parts[part];
             *p; p++)
@@ -521,7 +521,7 @@ NativeTypeName(const ZirModule *owner, const ZirType *type,
         return;
     }
     uint64_t hash = UINT64_C(14695981039346656037);
-    const char *paths[] = {owner->source_path, type->span.path};
+    const char *paths[] = {owner->source_path, SpanPath(type->span)};
     for(size_t part = 0; part < 2; part++) {
         for(const unsigned char *p = (const unsigned char *)paths[part];
             *p; p++)

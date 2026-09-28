@@ -78,7 +78,7 @@ find_global_value(Frame *frame, const char *name)
 {
     const ZirModule *owner = NULL;
     const ZirGlobal *declaration = NULL;
-    if(ResolveGlobalAt(frame->module, name, frame->function->span.path,
+    if(ResolveGlobalAt(frame->module, name, SpanPath(frame->function->span),
                        &owner, &declaration) != 1)
         return NULL;
     for(int i = 0; i < frame->vm->global_count; i++) {

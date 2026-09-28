@@ -64,13 +64,13 @@ action_kind(const char *text, ZirStmt *action)
     ZirFunction temporary = {0};
     int valid;
     action->kind = ZIR_STMT_EXPR;
-    LexerInit(&lexer, text, action->span.path);
+    LexerInit(&lexer, text, SpanPath(action->span));
     token = LexerNext(&lexer);
     if(!strcmp(token.text, "return") || !strcmp(token.text, "break") ||
        !strcmp(token.text, "continue") || !strcmp(token.text, "goto") ||
        !strcmp(token.text, "defer") || !strcmp(token.text, "if") ||
        !strcmp(token.text, "while") || !strcmp(token.text, "for")) return 0;
-    LexerInit(&lexer, text, action->span.path);
+    LexerInit(&lexer, text, SpanPath(action->span));
     do {
         token = LexerNext(&lexer);
         if(!strcmp(token.text, "=") || !strcmp(token.text, "+=") ||
@@ -356,7 +356,7 @@ LowerCleanup(ZirFunction *fn)
         if(st->kind == ZIR_STMT_DECL) {
             ZirLexer lexer;
             ZirToken name;
-            LexerInit(&lexer, st->text, st->span.path);
+            LexerInit(&lexer, st->text, SpanPath(st->span));
             name = LexerNext(&lexer);
             for(int d = 0; d < count; d++) {
                 if(cleanup_mentions(&entries[d], name.text)) {
@@ -369,7 +369,7 @@ LowerCleanup(ZirFunction *fn)
             for(int d = 0; d < count; d++) {
                 ZirLexer lexer;
                 ZirToken token;
-                LexerInit(&lexer, st->text, st->span.path);
+                LexerInit(&lexer, st->text, SpanPath(st->span));
                 do {
                     token = LexerNext(&lexer);
                     if(token.kind == ZIR_TOKEN_IDENT &&

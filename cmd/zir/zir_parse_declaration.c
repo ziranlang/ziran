@@ -233,7 +233,7 @@ lower_procedure_name_expression(char *part, size_t capacity,
     char lowered[ZIR_TEXT_MAX];
     size_t copied = 0, used = 0;
     int changed = 0;
-    LexerInit(&lexer, part, function->span.path);
+    LexerInit(&lexer, part, SpanPath(function->span));
     for(;;) {
         ZirToken token = LexerNext(&lexer);
         if(token.kind == ZIR_TOKEN_EOF) break;
@@ -316,7 +316,7 @@ lower_template_record_default(ZirModule *module,
         char *field_assignment = top_level_assignment(fields[field]);
         const char *field_value = skip_ws(field_assignment != NULL ?
                                           field_assignment + 1 : fields[field]);
-        if(!default_is_scope_independent(field_value, function->span.path)) {
+        if(!default_is_scope_independent(field_value, SpanPath(function->span))) {
             char result_type[ZIR_NAME_MAX];
             if(!InferExpressionType(module, field_value, function->span,
                                     result_type, sizeof(result_type)) ||
@@ -504,7 +504,7 @@ add_default_helpers(ZirProgram *program, ZirModule *module,
                 continue;
             }
             if(function->is_template &&
-               default_is_scope_independent(value, function->span.path))
+               default_is_scope_independent(value, SpanPath(function->span)))
                 continue;
             char *colon = strchr(parameters[i], ':');
             if(colon == NULL)

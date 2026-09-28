@@ -601,7 +601,7 @@ PrintLawResults(ZirProgram **programs, int count, FILE *out)
                 fprintf(out, ",\"kind\":");
                 print_json_string(out, law->kind);
                 fprintf(out, ",\"span\":{\"file\":");
-                print_json_string(out, law->span.path);
+                print_json_string(out, SpanPath(law->span));
                 fprintf(out, ",\"line\":%d,\"column\":%d},",
                         law->span.line, law->span.column);
                 fprintf(out, "\"status\":\"%s\",\"detail\":",
@@ -614,7 +614,7 @@ PrintLawResults(ZirProgram **programs, int count, FILE *out)
                 fprintf(out, "{\"law\":");
                 print_json_string(out, waiver->name);
                 fprintf(out, ",\"kind\":\"waiver\",\"span\":{\"file\":");
-                print_json_string(out, waiver->span.path);
+                print_json_string(out, SpanPath(waiver->span));
                 fprintf(out, ",\"line\":%d,\"column\":%d},",
                         waiver->span.line, waiver->span.column);
                 fprintf(out, "\"status\":\"waived\",\"detail\":");

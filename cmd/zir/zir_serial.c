@@ -295,7 +295,7 @@ read_string(Reader *reader, char *value, size_t capacity)
 static int
 write_span(FILE *out, const ZirSourceSpan *span)
 {
-    return write_string(out, span->path, sizeof(span->path)) &&
+    return write_string(out, SpanPath(*span), ZIR_PATH_MAX) &&
            write_u32(out, (uint32_t)span->line) &&
            write_u32(out, (uint32_t)span->column) &&
            write_u32(out, (uint32_t)span->end_line) &&
@@ -306,8 +306,10 @@ static int
 read_span(Reader *reader, ZirSourceSpan *span)
 {
     uint32_t numbers[4];
-    if(!read_string(reader, span->path, sizeof(span->path)))
+    char path[ZIR_PATH_MAX];
+    if(!read_string(reader, path, sizeof(path)))
         return 0;
+    span->file = SourceFile(path);
     for(int i = 0; i < 4; i++)
         if(!read_u32(reader, &numbers[i]))
             return 0;

@@ -1639,7 +1639,7 @@ parse_source(const char *path, const char *root, const char *source,
         for(int gi = 0; gi < module->global_count; gi++) {
             ZirGlobal *global = &module->globals[gi];
             copy_text(module->lookup_path, sizeof(module->lookup_path),
-                      global->span.path);
+                      SpanPath(global->span));
             if(find_unquoted_text(global->init, "#ifx") != NULL)
                 lower_compile_ifx_value(global->init, sizeof(global->init),
                                         module, &consts, global->span, 1);
@@ -1652,7 +1652,7 @@ parse_source(const char *path, const char *root, const char *source,
         for(int fi = 0; fi < module->function_count; fi++) {
             ZirFunction *fn = &module->functions[fi];
             copy_text(module->lookup_path, sizeof(module->lookup_path),
-                      fn->span.path);
+                      SpanPath(fn->span));
             int has_compile_ifx = 0;
             for(int si = 0; si < fn->stmt_count; si++)
                 if(find_unquoted_text(fn->stmts[si].text, "#ifx") != NULL) {

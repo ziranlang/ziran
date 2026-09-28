@@ -71,7 +71,7 @@ typedef enum ZirExprKind {
 } ZirExprKind;
 
 typedef struct ZirSourceSpan {
-    char path[ZIR_PATH_MAX];
+    int file; /* SourceFile number of the path; read it with SpanPath */
     int line;
     int column;
     int end_line;
@@ -341,6 +341,8 @@ ZirProgram *ProgramNew(void);
 void ProgramFree(ZirProgram *program);
 void copy_text(char *dst, size_t dst_size, const char *src);
 ZirSourceSpan Span(const char *path, int line, int column);
+int SourceFile(const char *path);
+const char *SpanPath(ZirSourceSpan span);
 ZirSourceSpan SpanEnd(const char *path, int line, int column,
                          int end_line, int end_column);
 ZirModule *ProgramAddModule(ZirProgram *program, const char *name,

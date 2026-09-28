@@ -220,7 +220,7 @@ CheckPrograms(ZirProgram **programs, int count)
                 ZirDefine *definition = &module->defines[d];
                 if(starts_word(definition->value, "#run")) continue;
                 ZirLexer lexer;
-                LexerInit(&lexer, definition->value, definition->span.path);
+                LexerInit(&lexer, definition->value, SpanPath(definition->span));
                 for(;;) {
                     ZirToken token = LexerNext(&lexer);
                     if(token.kind == ZIR_TOKEN_EOF) break;
@@ -454,7 +454,7 @@ CheckPrograms(ZirProgram **programs, int count)
                         if(node->kind == ZIR_EXPR_CALL ||
                            (node->kind == ZIR_EXPR_IDENT &&
                             ResolveGlobalAt(module, node->name,
-                                            global->span.path, &owner,
+                                            SpanPath(global->span), &owner,
                                             &referenced) == 1)) {
                             runtime_initializer = 1;
                             break;

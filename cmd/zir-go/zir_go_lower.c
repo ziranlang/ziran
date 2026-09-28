@@ -1251,7 +1251,7 @@ lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
             fprintf(f, " %s", ret);
         fprintf(f, " {\n");
     }
-    GoBodySymbols symbols = {m, fn->span.path};
+    GoBodySymbols symbols = {m, SpanPath(fn->span)};
     if(!EmitBody(f, m, fn, ZIR_GO, resolve_body_symbol, &symbols)) {
         Diagnostic(fn->span, "zir_go.body",
                    "function has no checked typed body: %s", fn->name);

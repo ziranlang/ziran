@@ -231,7 +231,7 @@ find_imported_define(const ZirModule *module, const char *lookup_path,
         const ZirImport *candidate = &module->imports[i];
         if(candidate->kind != ZIR_IMPORT_MODULE ||
            (candidate->is_file_private &&
-            strcmp(candidate->span.path, lookup_path) != 0) ||
+            strcmp(SpanPath(candidate->span), lookup_path) != 0) ||
            strlen(candidate->name) != alias_length ||
            strncmp(candidate->name, name, alias_length) != 0)
             continue;
@@ -280,17 +280,17 @@ eval_imported_integer_define(ZirEval *ev, const char *name, size_t length,
         copy_text(constant->name, sizeof(constant->name), source->name);
         copy_text(constant->expr, sizeof(constant->expr), source->value);
         copy_text(constant->path, sizeof(constant->path),
-                  source->span.path);
+                  SpanPath(source->span));
         constant->is_file_private = source->is_file_private;
         constant->source_line = source->span.line;
     }
     expand_compile_expr(expanded, sizeof(expanded), &names,
-                        definition->value, definition->span.path);
+                        definition->value, SpanPath(definition->span));
     if(strstr(expanded, "size_of") != NULL)
         lower_size_of_value(expanded, sizeof(expanded), owner,
                             definition->span);
     known = eval_const_condition_with_fuel(
-        expanded, value, owner, &names, definition->span.path,
+        expanded, value, owner, &names, SpanPath(definition->span),
         definition->span.line,
         ev->depth + 1, ev->fuel);
     free(names.items);
@@ -390,7 +390,7 @@ eval_primary(ZirEval *ev)
                                 &ev->module->defines[d];
                             if(strcmp(definition->name, name) == 0 &&
                                (!definition->is_file_private ||
-                                strcmp(definition->span.path,
+                                strcmp(SpanPath(definition->span),
                                        ev->lookup_path) == 0)) {
                                 found = 1;
                                 break;
@@ -1061,19 +1061,19 @@ local_value_name_visible(const ZirModule *module, const char *path,
     for(int i = 0; i < module->define_count; i++)
         if(!strcmp(module->defines[i].name, name) &&
            (!module->defines[i].is_file_private ||
-            !strcmp(module->defines[i].span.path, path))) return 1;
+            !strcmp(SpanPath(module->defines[i].span), path))) return 1;
     for(int i = 0; i < module->global_count; i++)
         if(!strcmp(module->globals[i].name, name) &&
            (!module->globals[i].is_file_private ||
-            !strcmp(module->globals[i].span.path, path))) return 1;
+            !strcmp(SpanPath(module->globals[i].span), path))) return 1;
     for(int i = 0; i < module->type_count; i++)
         if(!strcmp(module->types[i].name, name) &&
            (!module->types[i].is_file_private ||
-            !strcmp(module->types[i].span.path, path))) return 1;
+            !strcmp(SpanPath(module->types[i].span), path))) return 1;
     for(int i = 0; i < module->function_count; i++)
         if(!strcmp(module->functions[i].name, name) &&
            (!module->functions[i].is_file_private ||
-            !strcmp(module->functions[i].span.path, path))) return 1;
+            !strcmp(SpanPath(module->functions[i].span), path))) return 1;
     return 0;
 }
 
@@ -1088,7 +1088,7 @@ find_open_imported_define(const ZirModule *module, const char *path,
         if((import->kind != ZIR_IMPORT_OPEN &&
             !(import->kind == ZIR_IMPORT_MODULE && import->is_using)) ||
            (import->is_file_private &&
-            strcmp(import->span.path, path) != 0) ||
+            strcmp(SpanPath(import->span), path) != 0) ||
            import->resolved_module == NULL) continue;
         const ZirModule *owner = import->resolved_module;
         for(int j = 0; j < owner->define_count; j++) {
@@ -1125,7 +1125,7 @@ evaluate_imported_typed_define(const ZirModule *module, const char *path,
         copy_text(constant->name, sizeof(constant->name), source->name);
         copy_text(constant->expr, sizeof(constant->expr), source->value);
         copy_text(constant->path, sizeof(constant->path),
-                  source->span.path);
+                  SpanPath(source->span));
         constant->is_file_private = source->is_file_private;
         constant->source_line = source->span.line;
     }

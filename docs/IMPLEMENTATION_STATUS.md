@@ -8,8 +8,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - `ziran features` publishes a versioned, stable-ID feature registry with
   syntax, status, target support, limits, accepted and rejected examples,
   rejection behavior, and evidence links. The initial registry covers
-  compile-time assertions, integer width conformance, local `TextView`
-  mutation checks, and plain record-field `Vec` moves. `docs/FEATURES.json`
+  compile-time assertions, named module imports, integer width conformance,
+  local `TextView` mutation checks, and plain record-field `Vec` moves.
+  `docs/FEATURES.json`
   is byte-identical to `ziran features --json`; `tests/features.sh` checks
   schema, sorted unique IDs, evidence, target entries, every accepted example,
   and every explicit rejection.

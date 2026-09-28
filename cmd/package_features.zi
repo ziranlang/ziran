@@ -143,6 +143,14 @@ Features :: (arguments: []string) -> s32 {
     .{target = "zib", status = "supported", limit = "Mutable backing bytes are snapshotted."},
     .{target = "plan9-c", status = "experimental", limit = "Borrow behavior is inherited from the C post-pass and is not covered by the differential matrix."}
     ]
+    module_targets: [6]PkgTargetSupport = .[
+    .{target = "c", status = "supported", limit = ""},
+    .{target = "cpp", status = "supported", limit = ""},
+    .{target = "go", status = "supported", limit = ""},
+    .{target = "rust", status = "supported", limit = ""},
+    .{target = "zib", status = "supported", limit = ""},
+    .{target = "plan9-c", status = "experimental", limit = "Named imports are inherited from the C post-pass and are not covered by the multi-target differential matrix."}
+    ]
     assert_targets: [6]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
@@ -151,7 +159,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "supported", limit = "Checked before native output."}
     ]
-    features: [4]PkgFeature = .[
+    features: [5]PkgFeature = .[
     .{
         id = "compile.assertions",
         status = "implemented",
@@ -162,6 +170,17 @@ Features :: (arguments: []string) -> s32 {
         rejection = "A false compile-time assertion fails checking.",
         evidence = "tests/compile_run.sh\ntests/compile_time.sh\ncheck.assert\n",
         targets = assert_targets
+    },
+    .{
+        id = "modules.named-imports",
+        status = "implemented",
+        syntax = "Alias :: #import \"module\" and explicit Alias.symbol access",
+        limits = "The alias exposes public declarations; it does not re-export a dependency's private names or make every transitive import visible.",
+        accepted_example = "Text :: #import \"text\";\n#program_export\nAnswer :: () -> s32 {\n    if Text.LowerASCII(cast(u8)65) != cast(u8)97 { return 1 }\n    return 0\n}\n",
+        rejected_example = "Text :: #import <text>;\nAnswer :: () -> s32 { return 0 }\n",
+        rejection = "Jai imports require a quoted module or file name.",
+        evidence = "tests/module_paths.sh\ntests/named_imports.sh\nparse.syntax\n",
+        targets = module_targets
     },
     .{
         id = "numeric.integer-width-conformance",

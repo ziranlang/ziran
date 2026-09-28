@@ -242,10 +242,11 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string
         while direct < locked.root_edge_count {
             target: s32 = PkgFindById(locked,
                 locked.root_edges[direct].value)
-            if target < 0 || PkgHasModule(*graph.sets[target + 1], name) {
-                return ""
-            }
-            if locked.packages[target].source {
+            if target < 0 { return "" }
+            // A dependency resolves short imports in its own package first,
+            // so one that owns a module of this name keeps using its own.
+            if locked.packages[target].source ||
+                PkgHasModule(*graph.sets[target + 1], name) {
                 direct += 1
                 continue
             }

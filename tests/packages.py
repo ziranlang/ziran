@@ -367,6 +367,63 @@ Backend = "src/Backend.zi"
                           env=native_env).strip())
         assert (added / "native.c").is_file()
 
+        # A bridge makes the root's app module visible to direct dependencies,
+        # such as a UI host that calls the app's frame. A dependency that has
+        # its own app module (a library with a demo) keeps using that one.
+        host = root / "host"
+        init(host, env)
+        write(host / "ziran.toml", """[package]
+name = "Host"
+module_roots = ["src"]
+[exports]
+Host = "src/Host.zi"
+""")
+        write(host / "src/Host.zi", '#import "app"\nRunHost :: () -> s32 { return AppFrame() }\n')
+        commit(host, env)
+        demo = root / "demo"
+        init(demo, env)
+        write(demo / "ziran.toml", """[package]
+name = "Demo"
+entry = "src/app.zi"
+module_roots = ["src"]
+bridge_modules = ["app"]
+[exports]
+Demo = "src/Demo.zi"
+""")
+        write(demo / "src/app.zi", "DemoFrame :: () -> s32 { return 1 }\n")
+        write(demo / "src/Demo.zi", '#import "app"\nDemoValue :: () -> s32 { return DemoFrame() + 1 }\n')
+        commit(demo, env)
+        bridged = root / "bridged"
+        bridged.mkdir()
+        write(bridged / "ziran.toml", f'''[package]
+name = "Bridged"
+entry = "src/app.zi"
+module_roots = ["src"]
+bridge_modules = ["app"]
+[toolchain]
+git = "{compiler.as_uri()}"
+ref = "master"
+[dependencies.Host]
+git = "{host.as_uri()}"
+ref = "master"
+[dependencies.Demo]
+git = "{demo.as_uri()}"
+ref = "master"
+''')
+        write(bridged / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        write(bridged / "src/app.zi", '''#import "Host"
+#import "Demo"
+AppFrame :: () -> s32 { return 40 }
+#program_export
+main :: () -> s32 {
+    if RunHost() + DemoValue() == 42 { return 0 }
+    return 1
+}
+''')
+        call(ziran, "lock", cwd=bridged, env=env)
+        compile_app(ziran, bridged, root / "bridged-c", compiler, env,
+                    bridged / "src/app.zi", True)
+
 
 if __name__ == "__main__":
     main()

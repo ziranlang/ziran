@@ -42,6 +42,12 @@ typedef struct BorrowPlace {
     BorrowPath *path;
 } BorrowPlace;
 
+typedef struct BorrowSource {
+    BorrowPlace place;
+    struct BorrowSource *next;
+    struct BorrowSource *next_allocation;
+} BorrowSource;
+
 struct BorrowBinding {
     const ZirModule *module;
     const ZirGlobal *global;
@@ -54,6 +60,7 @@ struct BorrowBinding {
     int global_index;
     int global_backing_state;
     BorrowPlace text_backing;
+    BorrowSource *text_backings;
     BorrowPlace address_backing;
     int address_known;
 };
@@ -76,7 +83,9 @@ typedef struct BorrowCheck {
     GlobalBits *global_bits;
     ActiveTextBorrow *active;
     int active_count;
+    int active_capacity;
     BorrowPath *paths;
+    BorrowSource *sources;
     int depth;
     int changed;
     int failed;
@@ -239,6 +248,42 @@ same_place(BorrowPlace left, BorrowPlace right)
     return left.root == right.root && same_path(left.path, right.path);
 }
 
+static BorrowSource *
+add_source(BorrowCheck *check, BorrowSource *sources, BorrowPlace place)
+{
+    if(place.root == NULL)
+        return sources;
+    for(BorrowSource *source = sources; source != NULL; source = source->next)
+        if(same_place(source->place, place))
+            return sources;
+    BorrowSource *source = calloc(1, sizeof(*source));
+    if(source == NULL) {
+        reject(check, check->current->fn->span,
+               "out of memory checking text borrow sources");
+        return sources;
+    }
+    source->place = place;
+    source->next = sources;
+    source->next_allocation = check->sources;
+    check->sources = source;
+    return source;
+}
+
+static BorrowSource *
+merge_sources(BorrowCheck *check, BorrowSource *destination,
+              BorrowSource *sources)
+{
+    for(BorrowSource *source = sources; source != NULL; source = source->next)
+        destination = add_source(check, destination, source->place);
+    return destination;
+}
+
+static BorrowPlace
+first_source(BorrowSource *sources)
+{
+    return sources == NULL ? (BorrowPlace){0} : sources->place;
+}
+
 static int
 only_global(BorrowCheck *check, Origin origin, int index)
 {
@@ -263,13 +308,25 @@ text_backing_conflict(BorrowCheck *check, BorrowPlace destination)
 }
 
 static void
-add_active_text_borrow(BorrowCheck *check, BorrowPlace backing, int depth)
+add_active_text_borrows(BorrowCheck *check, BorrowSource *sources, int depth)
 {
-    if(backing.root == NULL)
-        return;
-    check->active[check->active_count].backing = backing;
-    check->active[check->active_count].depth = depth;
-    check->active_count++;
+    for(BorrowSource *source = sources; source != NULL; source = source->next) {
+        if(check->active_count == check->active_capacity) {
+            int capacity = check->active_capacity * 2;
+            ActiveTextBorrow *active = realloc(check->active,
+                (size_t)capacity * sizeof(*active));
+            if(active == NULL) {
+                reject(check, check->current->fn->span,
+                       "out of memory checking active text borrows");
+                return;
+            }
+            check->active = active;
+            check->active_capacity = capacity;
+        }
+        check->active[check->active_count].backing = source->place;
+        check->active[check->active_count].depth = depth;
+        check->active_count++;
+    }
 }
 
 static void
@@ -434,84 +491,90 @@ address_backing(BorrowCheck *check, int index, int *known)
         source->address_backing : root_place(source);
 }
 
-static BorrowPlace
-text_view_backing(BorrowCheck *check, int index)
+static BorrowSource *
+text_view_backings(BorrowCheck *check, int index)
 {
     const ZirFunction *fn = check->current->fn;
     const ZirExpr *expression = index < 0 ? NULL : &fn->exprs[index];
     if(expression == NULL)
-        return (BorrowPlace){0};
+        return NULL;
     if(expression->kind == ZIR_EXPR_IDENT) {
         BorrowBinding *source = binding(check, expression->name);
         if(source == NULL)
-            return (BorrowPlace){0};
+            return NULL;
         if(source->address_known && source->address_backing.root != NULL)
-            return source->address_backing;
-        if(source->text_backing.root != NULL)
-            return source->text_backing;
+            return add_source(check, NULL, source->address_backing);
+        if(source->text_backings != NULL)
+            return source->text_backings;
         if(source->address_backing.root != NULL &&
            source->address_backing.root->local < 0)
-            return source->address_backing;
-        return source->local < 0 ? root_place(source) : (BorrowPlace){0};
+            return add_source(check, NULL, source->address_backing);
+        return source->local < 0 ?
+            add_source(check, NULL, root_place(source)) : NULL;
     }
     if(expression->kind == ZIR_EXPR_MEMBER ||
-       expression->kind == ZIR_EXPR_POINTER_MEMBER)
-        return append_place(check, text_view_backing(check, expression->left),
-                            expression->name, 0);
-    if(expression->kind == ZIR_EXPR_INDEX)
-        return append_place(check, text_view_backing(check, expression->left),
-                            NULL, 1);
+       expression->kind == ZIR_EXPR_POINTER_MEMBER ||
+       expression->kind == ZIR_EXPR_INDEX) {
+        BorrowSource *result = NULL;
+        BorrowSource *sources = text_view_backings(check, expression->left);
+        for(BorrowSource *source = sources; source != NULL; source = source->next)
+            result = add_source(check, result,
+                append_place(check, source->place,
+                    expression->kind == ZIR_EXPR_INDEX ? NULL : expression->name,
+                    expression->kind == ZIR_EXPR_INDEX));
+        return result;
+    }
     if(expression->kind == ZIR_EXPR_SLICE) {
-        BorrowPlace source = text_view_backing(check, expression->left);
-        if(source.root != NULL)
-            return source;
+        BorrowSource *sources = text_view_backings(check, expression->left);
+        if(sources != NULL)
+            return sources;
         const ZirExpr *base = &fn->exprs[expression->left];
         return ArrayElementType(base->type, NULL, 0, NULL) ?
-            storage_place(check, expression->left, 1) : (BorrowPlace){0};
+            add_source(check, NULL, storage_place(check, expression->left, 1)) :
+            NULL;
     }
     if(expression->kind != ZIR_EXPR_CALL)
-        return (BorrowPlace){0};
+        return NULL;
     if(!strcmp(expression->name, "TextView") ||
        !strcmp(expression->name, "VecSlice")) {
         if(expression->first_child < 0 ||
            fn->exprs[expression->first_child].next_sibling >= 0)
-            return (BorrowPlace){0};
-        BorrowPlace source =
-            text_view_backing(check, expression->first_child);
-        if(source.root != NULL)
-            return source;
+            return NULL;
+        BorrowSource *sources =
+            text_view_backings(check, expression->first_child);
+        if(sources != NULL)
+            return sources;
         const ZirExpr *argument = &fn->exprs[expression->first_child];
         return !view_type(check, argument->type) ?
-            storage_place(check, expression->first_child, 1) :
-            (BorrowPlace){0};
+            add_source(check, NULL,
+                       storage_place(check, expression->first_child, 1)) : NULL;
     }
     if(!strcmp(expression->name, "BuilderFinish") ||
        !view_type(check, expression->type))
-        return (BorrowPlace){0};
+        return NULL;
 
     const ZirModule *owner = NULL;
     const ZirFunction *callee = NULL;
     if(ResolveFunction(check->current->module, expression->name,
                        &owner, &callee) <= 0)
-        return (BorrowPlace){0};
+        return NULL;
     BorrowFunction *summary = NULL;
     for(int i = 0; i < check->count; i++)
         if(check->functions[i].fn == callee)
             summary = &check->functions[i];
     if(summary == NULL)
-        return (BorrowPlace){0};
-    BorrowPlace result = {0};
+        return NULL;
+    BorrowSource *result = NULL;
     for(int child = expression->first_child; child >= 0;
         child = fn->exprs[child].next_sibling) {
         int parameter = fn->exprs[child].argument_index;
         if(parameter < 0 || parameter >= 64 ||
            !(summary->returned.parameters & (UINT64_C(1) << parameter)))
             continue;
-        BorrowPlace candidate = text_view_backing(check, child);
-        if(candidate.root == NULL && !view_type(check, fn->exprs[child].type))
-            candidate = storage_place(check, child, 1);
-        if(candidate.root != NULL && result.root == NULL)
-            result = candidate;
+        BorrowSource *candidate = text_view_backings(check, child);
+        if(candidate == NULL && !view_type(check, fn->exprs[child].type))
+            candidate = add_source(check, NULL, storage_place(check, child, 1));
+        result = merge_sources(check, result, candidate);
     }
     return result;
 }
@@ -696,6 +759,7 @@ check_function(BorrowCheck *check, BorrowFunction *function)
         reject(check, fn->span, "out of memory checking text borrows");
         return;
     }
+    check->active_capacity = fn->stmt_count + 1;
     char parameters[64][ZIR_TEXT_MAX];
     int count = *skip_ws(fn->args) ?
         split_top_level(fn->args, parameters[0], 64, sizeof(parameters[0])) : 0;
@@ -768,13 +832,15 @@ check_function(BorrowCheck *check, BorrowFunction *function)
             }
             BorrowBinding *declared = add_binding(check, statement->name,
                     statement->type, (Origin){0}, i, check->depth, 0);
-            declared->text_backing = text_view_backing(check, statement->expr_root);
+            declared->text_backings =
+                text_view_backings(check, statement->expr_root);
+            declared->text_backing = first_source(declared->text_backings);
             declared->address_backing = statement->type[0] == '*' ?
                 address_backing(check, statement->expr_root,
                                 &declared->address_known) : (BorrowPlace){0};
             if(text_view_type(check, statement->type))
-                add_active_text_borrow(check, declared->text_backing,
-                                       check->depth);
+                add_active_text_borrows(check, declared->text_backings,
+                                        check->depth);
         } else if(statement->kind == ZIR_STMT_ASSIGN && statement->lhs_root >= 0) {
             const ZirExpr *destination = &fn->exprs[statement->lhs_root];
             const ZirExpr *assignment_root =
@@ -811,15 +877,20 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                            "view assignment may escape its backing storage");
                 } else if(target != NULL && target->local >= 0) {
                     accumulate(check, &function->locals[target->local], source);
+                    target->text_backings = merge_sources(check,
+                        target->text_backings,
+                        text_view_backings(check, statement->expr_root));
+                    target->text_backing = first_source(target->text_backings);
                 } else if(target != NULL && target->global_index >= 0 &&
                           static_storage) {
-                    BorrowPlace backing =
-                        text_view_backing(check, statement->expr_root);
+                    BorrowSource *backings =
+                        text_view_backings(check, statement->expr_root);
+                    BorrowPlace backing = first_source(backings);
                     accumulate(check, &check->global_origins[target->global_index],
                                source);
                     target->origin = check->global_origins[target->global_index];
                     if(source.globals != NULL) {
-                        int precise = backing.root != NULL &&
+                        int precise = backings != NULL && backings->next == NULL &&
                             only_global(check, source,
                                         backing.root->global_index);
                         if(!precise) {
@@ -832,13 +903,15 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                             target->global_backing_state = 2;
                         }
                     }
+                    target->text_backings = merge_sources(check,
+                        target->text_backings, backings);
                 }
                 if(text_view_type(check, destination->type) &&
                    !static_storage && target != NULL &&
                    !(target->captured && target->global_index < 0))
-                    add_active_text_borrow(check,
-                                           text_view_backing(check, statement->expr_root),
-                                           target->depth);
+                    add_active_text_borrows(check,
+                        text_view_backings(check, statement->expr_root),
+                        target->depth);
             }
         } else if(statement->kind == ZIR_STMT_RETURN &&
                   view_type(check, fn->return_type)) {
@@ -860,6 +933,7 @@ check_function(BorrowCheck *check, BorrowFunction *function)
     check->bindings = NULL;
     free(check->active);
     check->active = NULL;
+    check->active_capacity = 0;
 }
 
 int
@@ -935,6 +1009,11 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
         BorrowPath *next = check.paths->next_allocation;
         free(check.paths);
         check.paths = next;
+    }
+    while(check.sources != NULL) {
+        BorrowSource *next = check.sources->next_allocation;
+        free(check.sources);
+        check.sources = next;
     }
     free(check.functions);
     free(check.globals);

@@ -56,11 +56,17 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$input.zib" "$file"
     test "$("$ziran" run "$work/$input.zib")" = 42
-    for target in c cpp go; do
+    for target in c cpp go rust; do
         out=$work/$target-$input
-        "$ziran" build --target="$target" --root "$root" \
-            --entry app:Answer \
-            -o "$out" "$file"
+        if test "$target" = rust; then
+            "$ziran" build --target="$target" --root "$root" \
+                --entry app:Answer --exe \
+                -o "$out" "$file"
+        else
+            "$ziran" build --target="$target" --root "$root" \
+                --entry app:Answer \
+                -o "$out" "$file"
+        fi
         case "$target" in
             c)
                 cat > "$out/main.c" <<'C'
@@ -79,6 +85,16 @@ CPP
                 "${CXX:-c++}" -std=c++17 -I"$repo/include" \
                     -I"$out" "$out"/*.cpp -o "$out/program"
                 "$out/program"
+                ;;
+            rust)
+                "$ziran" build --target=rust --entry app:Answer --root "$root" \
+                    --exe -o "$out" "$file"
+                cargo build --quiet --manifest-path "$out/Cargo.toml"
+                set +e
+                "$out/target/debug/ziran_generated"
+                status=$?
+                set -e
+                test "$status" -eq 42
                 ;;
             go)
                 cat > "$out/main_test.go" <<'GO'

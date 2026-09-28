@@ -33,6 +33,17 @@ typedef struct RustEmitter {
     int indent;
 } RustEmitter;
 
+typedef struct RustModuleVisit {
+    const ZirModule *module;
+    int state;
+} RustModuleVisit;
+
+typedef struct RustModuleVisits {
+    RustModuleVisit *items;
+    size_t count;
+    size_t capacity;
+} RustModuleVisits;
+
 static const char *const rust_keywords[] = {
     "as", "async", "await", "break", "const", "continue", "crate", "dyn",
     "else", "enum", "extern", "false", "fn", "for", "if", "impl", "in",
@@ -384,6 +395,44 @@ static void function_symbol(RustEmitter *emitter, const ZirModule *module,
                          function, output, size);
 }
 
+static void global_symbol(RustEmitter *emitter, const ZirModule *module,
+                           const ZirGlobal *global, char *output, size_t size)
+{
+    char file_stem[1024];
+    char module_guard[1024];
+    char safe_module[ZIR_RUST_NAME_MAX];
+    char safe_name[ZIR_RUST_NAME_MAX];
+    NativeGoModuleIdentity(emitter->programs, emitter->program_count, module,
+                           file_stem, sizeof(file_stem), module_guard,
+                           sizeof(module_guard));
+    rust_identifier(module_guard, safe_module, sizeof(safe_module));
+    rust_identifier(global->name, safe_name, sizeof(safe_name));
+    snprintf(output, size, "ziran_global_%s_%s", safe_module, safe_name);
+    rust_identifier(output, output, size);
+}
+
+static int has_local(RustEmitter *emitter, const char *source)
+{
+    for(int index = 0; index < emitter->local_count; index++)
+        if(strcmp(emitter->locals[index].source, source) == 0)
+            return 1;
+    return 0;
+}
+
+static int global_reference(RustEmitter *emitter, const char *name,
+                            char *output, size_t size)
+{
+    const ZirModule *owner = NULL;
+    const ZirGlobal *global = NULL;
+    if(has_local(emitter, name) ||
+       ResolveGlobalAt(emitter->module, name,
+                       emitter->function->span.path, &owner,
+                       &global) != 1 || owner == NULL)
+        return 0;
+    global_symbol(emitter, owner, global, output, size);
+    return 1;
+}
+
 static void unsupported_expression(RustEmitter *emitter,
                                    const ZirExpr *expression)
 {
@@ -408,7 +457,12 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
     }
     expression = &emitter->function->exprs[index];
     if(expression->kind == ZIR_EXPR_IDENT) {
-        snprintf(output, size, "%s", local_name(emitter, expression->name));
+        char global_name[ZIR_RUST_NAME_MAX * 2];
+        if(global_reference(emitter, expression->name, global_name,
+                            sizeof(global_name)))
+            snprintf(output, size, "%s", global_name);
+        else
+            snprintf(output, size, "%s", local_name(emitter, expression->name));
         return;
     }
     if(expression->kind == ZIR_EXPR_MEMBER) {
@@ -565,9 +619,15 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
     }
     expression = &emitter->function->exprs[index];
     switch(expression->kind) {
-    case ZIR_EXPR_IDENT:
-        snprintf(output, size, "%s", local_name(emitter, expression->name));
+    case ZIR_EXPR_IDENT: {
+        char global_name[ZIR_RUST_NAME_MAX * 2];
+        if(global_reference(emitter, expression->name, global_name,
+                            sizeof(global_name)))
+            snprintf(output, size, "%s", global_name);
+        else
+            snprintf(output, size, "%s", local_name(emitter, expression->name));
         break;
+    }
     case ZIR_EXPR_INT:
         emit_integer_literal(expression, output, size);
         break;
@@ -1014,10 +1074,16 @@ static void validate_module(const ZirModule *module)
 {
     RustEmitter emitter = {0};
     emitter.module = module;
-    if(module->global_count || module->define_count) {
+    if(module->define_count) {
         Diagnostic(module->span, "zir_rust.module",
-                   "the initial Rust target supports procedures and plain records only");
+                   "the initial Rust target does not support named constants yet");
         exit(1);
+    }
+    for(int index = 0; index < module->global_count; index++) {
+        const ZirGlobal *global = &module->globals[index];
+        char type_name[ZIR_NAME_MAX];
+        require_rust_type(&emitter, global->span, global->type, type_name,
+                          sizeof(type_name));
     }
     for(int index = 0; index < module->type_count; index++) {
         const ZirType *record = &module->types[index];
@@ -1066,7 +1132,7 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     char symbol[ZIR_RUST_NAME_MAX * 2];
     int count;
     if(function->is_extern || function->is_template ||
-       function->export_symbol[0] || function->is_global_initializer) {
+       function->export_symbol[0]) {
         Diagnostic(function->span, "zir_rust.function",
                    "unsupported procedure form in the initial Rust target: %s",
                    function->name);
@@ -1126,9 +1192,137 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     }
     fputs(" {\n", emitter->output);
     emitter->indent = 1;
+    write_line(emitter, "unsafe {");
+    emitter->indent++;
     emit_sequence(emitter, 0, function->stmt_count);
+    emitter->indent--;
+    write_line(emitter, "}");
     emitter->indent = 0;
     fputs("}\n\n", emitter->output);
+}
+
+static void emit_global_definitions(RustEmitter *emitter, FILE *output)
+{
+    for(int program_index = 0; program_index < emitter->program_count;
+        program_index++) {
+        const ZirProgram *program = emitter->programs[program_index];
+        for(int module_index = 0; module_index < program->module_count;
+            module_index++) {
+            const ZirModule *module = &program->modules[module_index];
+            emitter->module = module;
+            for(int global_index = 0; global_index < module->global_count;
+                global_index++) {
+                const ZirGlobal *global = &module->globals[global_index];
+                char symbol[ZIR_RUST_NAME_MAX * 2];
+                char type_name[ZIR_NAME_MAX];
+                char zero[ZIR_RUST_TEXT_MAX];
+                global_symbol(emitter, module, global, symbol,
+                              sizeof(symbol));
+                require_rust_type(emitter, global->span, global->type,
+                                  type_name, sizeof(type_name));
+                rust_zero_value(emitter, global->type, zero, sizeof(zero));
+                fprintf(output, "static mut %s: %s = %s;\n\n", symbol,
+                        type_name, zero);
+            }
+        }
+    }
+}
+
+static RustModuleVisit *module_visit(RustModuleVisits *visits,
+                                     const ZirModule *module)
+{
+    for(size_t index = 0; index < visits->count; index++)
+        if(visits->items[index].module == module)
+            return &visits->items[index];
+    if(visits->count == visits->capacity) {
+        size_t capacity = visits->capacity > 0 ? visits->capacity * 2 : 16;
+        RustModuleVisit *items = realloc(visits->items,
+                                         capacity * sizeof(*items));
+        if(items == NULL) {
+            Diagnostic(module->span, "zir_rust.startup",
+                       "out of memory ordering module startup");
+            exit(1);
+        }
+        visits->items = items;
+        visits->capacity = capacity;
+    }
+    visits->items[visits->count].module = module;
+    visits->items[visits->count].state = 0;
+    return &visits->items[visits->count++];
+}
+
+static void append_startup_module(RustModuleVisits *ordered,
+                                  const ZirModule *module)
+{
+    for(size_t index = 0; index < ordered->count; index++)
+        if(ordered->items[index].module == module)
+            return;
+    module_visit(ordered, module);
+}
+
+static void visit_startup_module(RustModuleVisits *visits,
+                                 RustModuleVisits *ordered,
+                                 const ZirModule *module)
+{
+    RustModuleVisit *visit = module_visit(visits, module);
+    if(visit->state == 1) {
+        Diagnostic(module->span, "zir_rust.startup",
+                   "cyclic module startup is unsupported");
+        exit(1);
+    }
+    if(visit->state == 2)
+        return;
+    visit->state = 1;
+    for(int index = 0; index < module->import_count; index++)
+        if(module->imports[index].resolved_module != NULL)
+            visit_startup_module(visits, ordered,
+                                 module->imports[index].resolved_module);
+    visit->state = 2;
+    for(int index = 0; index < module->function_count; index++)
+        if(module->functions[index].is_global_initializer) {
+            append_startup_module(ordered, module);
+            break;
+        }
+}
+
+static int emit_startup(RustEmitter *emitter, FILE *output)
+{
+    RustModuleVisits visits = {0};
+    RustModuleVisits ordered = {0};
+    for(int program_index = 0; program_index < emitter->program_count;
+        program_index++) {
+        const ZirProgram *program = emitter->programs[program_index];
+        for(int module_index = 0; module_index < program->module_count;
+             module_index++)
+            visit_startup_module(&visits, &ordered,
+                                 &program->modules[module_index]);
+    }
+    free(visits.items);
+    if(ordered.count == 0) {
+        free(ordered.items);
+        return 0;
+    }
+    fputs("static mut ZIRAN_STARTUP_STATE: u8 = 0;\n\n"
+          "pub fn ziran_startup() {\n    unsafe {\n"
+          "        if ZIRAN_STARTUP_STATE == 2 { return; }\n"
+          "        if ZIRAN_STARTUP_STATE == 1 { panic!(\"cyclic module startup\"); }\n"
+          "        ZIRAN_STARTUP_STATE = 1;\n", output);
+    for(size_t index = 0; index < ordered.count; index++) {
+        const ZirModule *module = ordered.items[index].module;
+        for(int function_index = 0; function_index < module->function_count;
+             function_index++) {
+            const ZirFunction *function = &module->functions[function_index];
+            char symbol[ZIR_RUST_NAME_MAX * 2];
+            if(!function->is_global_initializer)
+                continue;
+            function_symbol(emitter, module, function, symbol,
+                            sizeof(symbol));
+            fprintf(output, "        %s();\n", symbol);
+        }
+    }
+    fputs("        ZIRAN_STARTUP_STATE = 2;\n    }\n}\n\n", output);
+    free(ordered.items);
+    return 1;
 }
 
 static FILE *open_output(ZirSourceSpan span, const char *directory,
@@ -1220,14 +1414,15 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     emitter.output = output;
     emitter.programs = programs;
     emitter.program_count = program_count;
-    fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(unused)]\n\n", output);
+    fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n\n", output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n", output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranText {\n"
           "    pub data: *const u8,\n    pub len: usize,\n"
           "}\n\n"
+          "unsafe impl Sync for ZiranText {}\n\n"
           "impl ZiranText {\n"
-          "    pub fn new(value: &'static str) -> Self {\n"
+          "    pub const fn new(value: &'static str) -> Self {\n"
           "        Self { data: value.as_ptr(), len: value.len() }\n"
           "    }\n"
           "    pub fn eq(left: &Self, right: &Self) -> bool {\n"
@@ -1243,6 +1438,7 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
           "    }\n"
           "}\n\n", output);
     emit_type_definitions(&emitter, output);
+    emit_global_definitions(&emitter, output);
     for(int program_index = 0; program_index < program_count; program_index++) {
         const ZirProgram *program = programs[program_index];
         for(int module_index = 0; module_index < program->module_count;
@@ -1257,9 +1453,12 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
                                &module->functions[function_index]);
         }
     }
+    int has_startup = emit_startup(&emitter, output);
     if(executable) {
         function_symbol(&emitter, entry_owner, entry, symbol, sizeof(symbol));
         fputs("fn main() {\n", output);
+        if(has_startup)
+            fputs("    ziran_startup();\n", output);
         if(strcmp(entry->return_type, "void") == 0)
             fprintf(output, "    %s();\n", symbol);
         else if(strcmp(entry->return_type, "bool") == 0)

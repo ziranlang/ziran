@@ -2386,7 +2386,7 @@ c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *bu
         if(strstr(buffers->current, "static inline ") != NULL) {
             const char *inline_at = strstr(buffers->current, "static inline ");
             size_t prefix = (size_t)(inline_at - buffers->current);
-            if(snprintf(buffers->rewritten, sizeof(buffers->rewritten), "%.*s%s",
+            if(snprintf(buffers->rewritten, sizeof(buffers->rewritten), "%.*sstatic %s",
                         (int)prefix, buffers->current,
                         inline_at + strlen("static inline ")) >=
                 (int)sizeof(buffers->rewritten))

@@ -99,6 +99,53 @@ extern void abort(void);
 #endif
 EOF
 
+cat > "$work/src/helper_first.zi" <<'EOF'
+#program_export
+HelperFirst :: (value: float) -> s32 { return cast(s32)(value + 0.5) }
+EOF
+cat > "$work/src/helper_second.zi" <<'EOF'
+#import "helper_first"
+#program_export
+HelperSecond :: (value: float) -> s32 {
+    return HelperFirst(value) + cast(s32)(value * 2.0)
+}
+EOF
+cat > "$work/src/helper_main.zi" <<'EOF'
+#import "helper_second"
+#program_export
+HelperMain :: () -> s32 { return HelperSecond(20.0) }
+EOF
+"$ziran" build --target=plan9-c --root "$work/src" \
+    -o "$work/generated-helpers" "$work/src/helper_main.zi"
+for module in helper_first helper_second; do
+    rg -q '^static int64_t SignedBits\(' "$work/generated-helpers/$module.c"
+    rg -q '^static uint64_t FloatToInt\(' "$work/generated-helpers/$module.c"
+done
+if rg -n '^(int64_t|uint64_t) (SignedBits|FloatToInt)\(' \
+        "$work/generated-helpers"/*.c; then
+    echo 'plan9-c lowered inline helpers to duplicate external definitions' >&2
+    exit 1
+fi
+cat > "$work/helper-runner.c" <<'EOF'
+#include <stdarg.h>
+#include <stdio.h>
+#include <unistd.h>
+int HelperMain(void);
+int fprint(int fd, const char *format, ...) {
+    (void)format;
+    return write(fd, "plan9 helper failed\n", 20);
+}
+int main(void) {
+    int result = HelperMain();
+    printf("%d\n", result);
+    return result == 60 ? 0 : 1;
+}
+EOF
+"${CC:-cc}" -std=c11 -I"$work/plan9-include" \
+    -I"$work/generated-helpers" "$work/generated-helpers"/*.c \
+    "$work/helper-runner.c" -o "$work/helper-runner"
+test "$("$work/helper-runner")" = 60
+
 cat > "$work/src/status_main.zi" <<'EOF'
 #import "c_string"
 #program_export

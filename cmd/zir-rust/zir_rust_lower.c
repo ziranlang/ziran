@@ -1397,14 +1397,25 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
         else
             snprintf(callable, sizeof(callable), "%s",
                      local_name(emitter, expression->name));
-        for(int child_index = expression->first_child; child_index >= 0;
-            child_index = emitter->function->exprs[child_index].next_sibling) {
-            emit_expression(emitter, child_index, child, sizeof(child));
-            if(*arguments)
-                strncat(arguments, ", ",
+        {
+            /* Named arguments go to their checked parameter positions. */
+            int ordered[32], count = 0;
+            for(int child_index = expression->first_child;
+                child_index >= 0 && count < 32;
+                child_index = emitter->function->exprs[child_index].next_sibling)
+                ordered[count++] = child_index;
+            for(int position = 0; position < count; position++) {
+                int chosen = ordered[position];
+                for(int candidate = 0; candidate < count; candidate++)
+                    if(emitter->function->exprs[ordered[candidate]].argument_index == position)
+                        chosen = ordered[candidate];
+                emit_expression(emitter, chosen, child, sizeof(child));
+                if(*arguments)
+                    strncat(arguments, ", ",
+                            sizeof(arguments) - strlen(arguments) - 1);
+                strncat(arguments, child,
                         sizeof(arguments) - strlen(arguments) - 1);
-            strncat(arguments, child,
-                    sizeof(arguments) - strlen(arguments) - 1);
+            }
         }
         if(slot != NULL && slot->is_procedure_type && !slot->is_c_call)
             snprintf(output, size, "unsafe { %s.call.unwrap()(%s.context%s%s) }",
@@ -1541,6 +1552,37 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
             child_index >= 0 && count < 32;
             child_index = emitter->function->exprs[child_index].next_sibling)
             ordered[count++] = child_index;
+        int moved = 0, calls = 0;
+        for(int position = 0; position < count; position++) {
+            int chosen = -1;
+            for(int candidate = 0; candidate < count; candidate++)
+                if(emitter->function->exprs[ordered[candidate]].argument_index == position)
+                    chosen = ordered[candidate];
+            moved |= chosen >= 0 && chosen != ordered[position];
+        }
+        for(int position = 0; position < count; position++)
+            calls |= rust_expression_calls(emitter->function, ordered[position]);
+        if(moved && calls) {
+            /* Arguments evaluate in source order before the call, as on
+             * the other targets, then pass in parameter order. */
+            size_t used = (size_t)snprintf(output, size, "{ ");
+            for(int position = 0; position < count; position++) {
+                emit_expression(emitter, ordered[position], child, sizeof(child));
+                used += (size_t)snprintf(output + used, size > used ? size - used : 0,
+                                         "let argument_%d = %s; ", position, child);
+            }
+            used += (size_t)snprintf(output + used, size > used ? size - used : 0, "%s(", symbol);
+            for(int position = 0; position < count; position++) {
+                int source = position;
+                for(int candidate = 0; candidate < count; candidate++)
+                    if(emitter->function->exprs[ordered[candidate]].argument_index == position)
+                        source = candidate;
+                used += (size_t)snprintf(output + used, size > used ? size - used : 0,
+                                         "%sargument_%d", position ? ", " : "", source);
+            }
+            snprintf(output + used, size > used ? size - used : 0, ") }");
+            return;
+        }
         for(int position = 0; position < count; position++) {
             int chosen = -1;
             for(int candidate = 0; candidate < count; candidate++)
@@ -1965,7 +2007,15 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                      !strcmp(expression->op, "==") ? "" : "!", left, right);
             break;
         }
-        int wrapping = integer_type(expression->type) &&
+        /* An enum's arithmetic wraps at its backing integer type. */
+        const char *arithmetic_type = expression->type;
+        {
+            const ZirModule *enum_owner = NULL;
+            const ZirType *enumeration = NULL;
+            if(rust_enum_type(emitter, expression->type, &enum_owner, &enumeration))
+                arithmetic_type = enumeration->enum_backing;
+        }
+        int wrapping = integer_type(arithmetic_type) &&
                        wrapping_operation(expression->op);
         if(!wrapping) {
             /* Untyped literal operands take the operation's integer type;
@@ -2180,7 +2230,14 @@ static void emit_compound_assignment(RustEmitter *emitter,
     const char *name = destination_text;
     snprintf(operation, sizeof(operation), "%s", statement->assignment_op);
     operation[strlen(operation) - 1] = '\0';
-    if(integer_type(left->type) && wrapping_operation(operation)) {
+    const char *arithmetic_type = left->type;
+    {
+        const ZirModule *enum_owner = NULL;
+        const ZirType *enumeration = NULL;
+        if(rust_enum_type(emitter, left->type, &enum_owner, &enumeration))
+            arithmetic_type = enumeration->enum_backing;
+    }
+    if(integer_type(arithmetic_type) && wrapping_operation(operation)) {
         write_line(emitter, rust_plain_receiver(name) ? "%s = %s.%s(%s);" : "%s = (%s).%s(%s);", name, name,
                    wrapping_method(operation), value);
         return;
@@ -2796,6 +2853,23 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
 
 /* A parsed initializer names its record but not every node's type; the
  * declared type supplies each field's and element's type. */
+/* A type named in another module, spelled so the reading module finds it:
+ * through the import alias when needed, like Lib.Point. */
+static void rust_spelled_from(const ZirModule *reader, const ZirModule *owner,
+                              const char *type, char *output, size_t size)
+{
+    snprintf(output, size, "%s", type);
+    if(reader == NULL || owner == NULL || reader == owner ||
+       FindType(reader, type, NULL) != NULL)
+        return;
+    for(int index = 0; index < reader->import_count; index++)
+        if(reader->imports[index].resolved_module == owner &&
+           reader->imports[index].name[0]) {
+            snprintf(output, size, "%s.%s", reader->imports[index].name, type);
+            return;
+        }
+}
+
 static void rust_fill_literal_types(RustEmitter *emitter, ZirFunction *literal,
                                     int index, const char *type, int depth)
 {
@@ -2836,15 +2910,16 @@ static void rust_fill_literal_types(RustEmitter *emitter, ZirFunction *literal,
         }
         if(!field_type[0])
             continue;
-        const ZirModule *saved = emitter->module;
-        if(owner != NULL)
-            emitter->module = owner;
+        if(!array) {
+            char spelled[ZIR_NAME_MAX];
+            rust_spelled_from(emitter->module, owner, field_type, spelled, sizeof(spelled));
+            snprintf(field_type, sizeof(field_type), "%s", spelled);
+        }
         if(entry->kind == ZIR_EXPR_FIELD_INIT) {
             snprintf(entry->type, sizeof(entry->type), "%s", field_type);
             rust_fill_literal_types(emitter, literal, entry->right, field_type, depth + 1);
         } else
             rust_fill_literal_types(emitter, literal, child, field_type, depth + 1);
-        emitter->module = saved;
     }
 }
 

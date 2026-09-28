@@ -1,0 +1,37 @@
+// Structs: records with fields, passed and returned by value.
+Point :: struct {
+    x: s32;
+    y: s32;
+}
+
+Rectangle :: struct {
+    origin: Point;
+    width: s32;
+    height: s32;
+}
+
+Area :: (shape: Rectangle) -> s32 {
+    return shape.width * shape.height;
+}
+
+Grow :: (shape: Rectangle, amount: s32) -> Rectangle {
+    grown := shape;
+    grown.width += amount;
+    grown.height += amount;
+    return grown;
+}
+
+main :: () {
+    corner := Point.{x = 3, y = 4};
+    print("point: (%, %)\n", corner.x, corner.y);
+
+    box := Rectangle.{origin = corner, width = 10, height = 5};
+    print("area: %\n", Area(box));
+
+    box = Grow(box, 2);
+    print("grown: %x% with area %\n", box.width, box.height, Area(box));
+
+    copy := box;
+    copy.width = 1;
+    print("the copy is % wide, the original still %\n", copy.width, box.width);
+}

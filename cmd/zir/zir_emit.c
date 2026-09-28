@@ -1173,7 +1173,8 @@ EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target)
          * conversions keep the checked helpers. */
         for(int e = 0; e < fn->expr_count; e++) {
             const ZirExpr *expr = &fn->exprs[e];
-            int op = expr->kind == ZIR_EXPR_BINARY ? operation(expr->op) : 0;
+            int op = expr->kind == ZIR_EXPR_BINARY && width(canonical(expr->type)) ?
+                operation(expr->op) : 0;
             if((op >= 4 && op <= 7) ||
                (expr->kind == ZIR_EXPR_CAST && expr->right >= 0 &&
                 canonical(fn->exprs[expr->right].type)[0] == 'f')) {
@@ -1261,26 +1262,73 @@ EmitNumberSupport(FILE *out, ZirTarget target, const char *p)
             "    for(i = 0; i < w-sign; i++) bound *= 2;\n"
             "    if(!(x >= (sign ? -bound : 0) && x < bound)) abort();\n"
             "    return sign ? (uint64_t)(int64_t)x : (uint64_t)x;\n}\n", p);
-    } else if(target == ZIR_GO) {
-        fprintf(out,
-            "func %s_signed_bits(x int64) uint64 { return uint64(x) }\n", p);
-        fprintf(out,
-            "func %s_add(a, b uint64) uint64 { return a+b }\n"
-            "func %s_sub(a, b uint64) uint64 { return a-b }\n"
-            "func %s_mul(a, b uint64) uint64 { return a*b }\n", p, p, p);
-        fprintf(out,
-            "func %s_float(x float64, w uint, sign bool) uint64 {\n"
-            "    bits := w; if sign { bits-- }; bound := float64(1); for i := uint(0); i < bits; i++ { bound *= 2 }; lower := float64(0); if sign { lower = -bound }\n"
-            "    if !(x >= lower && x < bound) { panic(\"float conversion out of range\") }; if sign { return uint64(int64(x)) }; return uint64(x)\n}\n", p);
-        fprintf(out,
-            "func %s_bits(a, b uint64, w uint, sign bool, op int) uint64 {\n"
-            "    mask := ^uint64(0); if w < 64 { mask = (uint64(1) << w) - 1 }; shift := b; a &= mask; b &= mask\n"
-            "    switch op {\n"
-            "    case 0: return a\n    case 1: return (a+b)&mask\n    case 2: return (a-b)&mask\n    case 3: return (a*b)&mask\n"
-            "    case 4,5:\n        if b == 0 { panic(\"integer division by zero\") }\n"
-            "        if sign { x := int64(a << (64-w)) >> (64-w); y := int64(b << (64-w)) >> (64-w); if op == 4 { return uint64(x/y)&mask }; return uint64(x%%y)&mask }; if op == 4 { return a/b }; return a%%b\n"
-            "    case 6,7:\n        if shift >= uint64(w) { panic(\"invalid shift count\") }; if op == 6 { return (a<<shift)&mask }; if shift == 0 { return a }; result := a>>shift; if sign && (a & (uint64(1)<<(w-1))) != 0 { result |= mask ^ (mask>>shift) }; return result\n"
-            "    case 8: return a&b\n    case 9: return a|b\n    case 10: return a^b\n    }; panic(\"invalid numeric operation\")\n}\n\n", p);
+    }
+}
+
+/* Go numeric helpers, named for what they do. Each is written once per
+ * package, in the first generated file that calls it. */
+static const struct {
+    const char *name;
+    const char *definition;
+} go_number_helpers[] = {
+    {"signedBits", "func signedBits(x int64) uint64 { return uint64(x) }\n"},
+    {"wrapAdd", "func wrapAdd(a, b uint64) uint64 { return a + b }\n"},
+    {"wrapSub", "func wrapSub(a, b uint64) uint64 { return a - b }\n"},
+    {"wrapMul", "func wrapMul(a, b uint64) uint64 { return a * b }\n"},
+    {"floatToInt",
+     "// floatToInt converts x to a w-bit integer, panicking when it does not fit.\n"
+     "func floatToInt(x float64, w uint, signed bool) uint64 {\n"
+     "\tbits := w\n\tif signed {\n\t\tbits--\n\t}\n"
+     "\tbound := float64(uint64(1) << bits)\n"
+     "\tlower := float64(0)\n\tif signed {\n\t\tlower = -bound\n\t}\n"
+     "\tif !(x >= lower && x < bound) {\n\t\tpanic(\"float conversion out of range\")\n\t}\n"
+     "\tif signed {\n\t\treturn uint64(int64(x))\n\t}\n\treturn uint64(x)\n}\n"},
+    {"integerOp",
+     "// integerOp applies op to the low w bits of a and b: 0 convert, 1 add,\n"
+     "// 2 subtract, 3 multiply, 4 divide, 5 remainder, 6 shift left,\n"
+     "// 7 shift right, 8 and, 9 or, 10 xor. Division by zero and\n"
+     "// out-of-range shifts panic.\n"
+     "func integerOp(a, b uint64, w uint, signed bool, op int) uint64 {\n"
+     "\tmask := ^uint64(0)\n\tif w < 64 {\n\t\tmask = uint64(1)<<w - 1\n\t}\n"
+     "\tshift := b\n\ta &= mask\n\tb &= mask\n"
+     "\tswitch op {\n"
+     "\tcase 0:\n\t\treturn a\n"
+     "\tcase 1:\n\t\treturn (a + b) & mask\n"
+     "\tcase 2:\n\t\treturn (a - b) & mask\n"
+     "\tcase 3:\n\t\treturn (a * b) & mask\n"
+     "\tcase 4, 5:\n"
+     "\t\tif b == 0 {\n\t\t\tpanic(\"integer division by zero\")\n\t\t}\n"
+     "\t\tif signed {\n"
+     "\t\t\tx := int64(a<<(64-w)) >> (64 - w)\n"
+     "\t\t\ty := int64(b<<(64-w)) >> (64 - w)\n"
+     "\t\t\tif op == 4 {\n\t\t\t\treturn uint64(x/y) & mask\n\t\t\t}\n"
+     "\t\t\treturn uint64(x%y) & mask\n\t\t}\n"
+     "\t\tif op == 4 {\n\t\t\treturn a / b\n\t\t}\n\t\treturn a % b\n"
+     "\tcase 6, 7:\n"
+     "\t\tif shift >= uint64(w) {\n\t\t\tpanic(\"invalid shift count\")\n\t\t}\n"
+     "\t\tif op == 6 {\n\t\t\treturn (a << shift) & mask\n\t\t}\n"
+     "\t\tif shift == 0 {\n\t\t\treturn a\n\t\t}\n"
+     "\t\tresult := a >> shift\n"
+     "\t\tif signed && a&(uint64(1)<<(w-1)) != 0 {\n\t\t\tresult |= mask ^ (mask >> shift)\n\t\t}\n"
+     "\t\treturn result\n"
+     "\tcase 8:\n\t\treturn a & b\n"
+     "\tcase 9:\n\t\treturn a | b\n"
+     "\tcase 10:\n\t\treturn a ^ b\n"
+     "\t}\n\tpanic(\"invalid numeric operation\")\n}\n"},
+};
+
+void
+EmitGoNumberHelpers(FILE *out, const char *text, unsigned *written)
+{
+    for(size_t i = 0; i < sizeof(go_number_helpers) / sizeof(go_number_helpers[0]); i++) {
+        char call[32];
+        if(*written & (1u << i))
+            continue;
+        format(call, sizeof(call), "%s(", go_number_helpers[i].name);
+        if(strstr(text, call) == NULL)
+            continue;
+        fprintf(out, "\n%s", go_number_helpers[i].definition);
+        *written |= 1u << i;
     }
 }
 
@@ -1761,7 +1809,7 @@ operation(const char *op)
 }
 
 static void
-go_bits_operand(const char *value, int sign, const char *prefix,
+go_bits_operand(const char *value, int sign,
                 char *out, size_t size)
 {
     if(!strcmp(value, "^uint64(0)")) {
@@ -1783,7 +1831,7 @@ go_bits_operand(const char *value, int sign, const char *prefix,
         }
     }
     if(sign)
-        format(out, size, "%s_signed_bits(int64(%s))", prefix, value);
+        format(out, size, "signedBits(int64(%s))", value);
     else
         format(out, size, "uint64(%s)", value);
 }
@@ -1978,7 +2026,10 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
                         integer_literal_bits(b, &right_bits);
     const char *native = TargetType(type, e->target);
     char float_helper[80];
-    format(float_helper, sizeof(float_helper), "%s_float(", e->numbers);
+    if(e->target == ZIR_GO)
+        copy_text(float_helper, sizeof(float_helper), "floatToInt(");
+    else
+        format(float_helper, sizeof(float_helper), "%s_float(", e->numbers);
     /* An integer conversion keeps the low w bits: fold literals, convert
      * other integers directly. Float operands keep the range-checked helper. */
     if(op == 0 && native != NULL && strncmp(a, float_helper, strlen(float_helper)) != 0) {
@@ -2035,17 +2086,16 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
     }
     if(e->target == ZIR_GO) {
         char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
-        go_bits_operand(a, sign, e->numbers, left, sizeof(left));
-        go_bits_operand(b, sign, e->numbers, right, sizeof(right));
+        go_bits_operand(a, sign, left, sizeof(left));
+        go_bits_operand(b, sign, right, sizeof(right));
         if(op >= 1 && op <= 3) {
-            const char *name = op == 1 ? "add" : op == 2 ? "sub" : "mul";
+            const char *name = op == 1 ? "wrapAdd" : op == 2 ? "wrapSub" : "wrapMul";
             /* Narrowing the uint64 result below keeps the low w bits. This
              * matches the checked wrapping rule while giving Go a small
              * inlinable operation instead of the general switch helper. */
-            format(bits, sizeof(bits), "%s_%s(%s,%s)", e->numbers,
-                   name, left, right);
+            format(bits, sizeof(bits), "%s(%s, %s)", name, left, right);
         } else {
-            format(bits,sizeof(bits),"%s_bits(%s,%s,%d,%s,%d)",e->numbers,left,right,w,sign?"true":"false",op);
+            format(bits, sizeof(bits), "integerOp(%s, %s, %d, %s, %d)", left, right, w, sign ? "true" : "false", op);
         }
         format(out,size,"%s(%s)",TargetType(type,e->target),bits);
     } else {
@@ -3093,6 +3143,7 @@ emit_print(Emitter *e, const ZirExpr *expr)
     char (*values)[ZIR_TEXT_MAX] = calloc(PRINT_PIECES_MAX, sizeof(*values));
     int capture = 0;
     const char *types[PRINT_PIECES_MAX];
+    int children[PRINT_PIECES_MAX];
     char value[ZIR_TEXT_MAX], literal[ZIR_TEXT_MAX];
     int first = expr->first_child, count, argument = 0;
     if(pieces == NULL || values == NULL || first < 0 ||
@@ -3106,6 +3157,7 @@ emit_print(Emitter *e, const ZirExpr *expr)
     for(int child = e->fn->exprs[first].next_sibling; child >= 0;
         child = e->fn->exprs[child].next_sibling, argument++) {
         types[argument] = ScalarType(e->fn->exprs[child].type);
+        children[argument] = child;
         emit_expr(e, child, e->fn->exprs[child].type, value, sizeof(value));
         if(capture) {
             fresh(e, values[argument]);
@@ -3139,8 +3191,27 @@ emit_print(Emitter *e, const ZirExpr *expr)
             continue;
         }
         type = types[argument];
-        name = values[argument++];
-        if(plain_identifier(name))
+        name = values[argument];
+        /* A literal string argument is simply part of the text. */
+        if(e->fn->exprs[children[argument++]].kind == ZIR_EXPR_STRING) {
+            unsigned char bytes[ZIR_TEXT_MAX];
+            size_t length;
+            if(DecodeStringLiteral(e->fn->exprs[children[argument - 1]].text, bytes,
+                                   sizeof(bytes), &length) &&
+               (e->target == ZIR_GO || memchr(bytes, 0, length) == NULL)) {
+                print_run_text(&run, bytes, length);
+                continue;
+            }
+        }
+        {
+            /* An argument stands alone in the call; C wraps it once where
+             * an operator follows it. */
+            char plain[ZIR_TEXT_MAX];
+            bare(name, plain, sizeof(plain));
+            copy_text(values[argument - 1], ZIR_TEXT_MAX, plain);
+            name = values[argument - 1];
+        }
+        if(plain_identifier(name) || enclosed(name))
             copy_text(operand, sizeof(operand), name);
         else
             format(operand, sizeof(operand), "(%s)", name);
@@ -3927,6 +3998,28 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         emit_expr(e,expr->left,operand_type,a,sizeof(a));
         left_pure = e->pure;
         if(!strcmp(expr->op,"&&") || !strcmp(expr->op,"||")) {
+            /* A right side that needs no setup statements stays in place,
+             * so the target's own && and || keep the short circuit. */
+            char *scratch_text = NULL;
+            size_t scratch_size = 0;
+            FILE *saved_out = e->out;
+            int saved_serial = e->serial;
+            FILE *scratch = open_memstream(&scratch_text, &scratch_size);
+            if(scratch != NULL) {
+                e->out = scratch;
+                emit_expr(e,expr->right,"bool",b,sizeof(b));
+                fclose(scratch);
+                e->out = saved_out;
+                int inline_right = scratch_size == 0;
+                free(scratch_text);
+                if(inline_right) {
+                    format(result, sizeof(result), "%s %s %s", a, expr->op, b);
+                    atom = 0;
+                    pure = left_pure && e->pure;
+                    break;
+                }
+                e->serial = saved_serial;
+            }
             fresh(e,temp);declare(e,temp,"bool",a);
             line(e,e->target==ZIR_GO?"if %s%s {":"if (%s%s) {",!strcmp(expr->op,"||")?"!":"",temp);e->indent++;
             emit_expr(e,expr->right,"bool",b,sizeof(b));line(e,"%s = %s%s",temp,b,e->target==ZIR_GO?"":";");
@@ -3999,7 +4092,7 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
             copy_text(result, sizeof(result), temp);
         } else if(width(type)) {
             if(canonical(e->fn->exprs[expr->right].type)[0]=='f') {
-                if(e->target==ZIR_GO) format(b,sizeof(b),"%s_float(float64(%s),%d,%s)",e->numbers,a,width(type),signed_type(type)?"true":"false");
+                if(e->target==ZIR_GO) format(b,sizeof(b),"floatToInt(float64(%s), %d, %s)",a,width(type),signed_type(type)?"true":"false");
                 else format(b,sizeof(b),"%s_float(%s,%d,%s)",e->numbers,a,width(type),signed_type(type)?"true":"false");
                 number(e,type,b,NULL,"0",NULL,0,result,sizeof(result));
             } else number(e,type,a,e->fn->exprs[expr->right].type,"0",NULL,0,result,sizeof(result));

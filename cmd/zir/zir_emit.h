@@ -83,6 +83,8 @@ void EmitParallelWorkers(FILE *out, const ZirModule *module,
 void EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target);
 void EmitNumberSupport(FILE *out, ZirTarget target, const char *prefix);
 void EmitGoPrintSupport(FILE *out);
+/* Appends each Go numeric helper that text calls and *written lacks. */
+void EmitGoNumberHelpers(FILE *out, const char *text, unsigned *written);
 int NativeMainReturnsStatus(const ZirFunction *fn);
 int FoldIntegerOperation(const char *op, const char *type, uint64_t a, uint64_t b,
                          uint64_t *result);

@@ -1,0 +1,21 @@
+// Enums: named values and a switch over them.
+Shape :: enum {
+    CIRCLE;
+    SQUARE;
+    TRIANGLE;
+}
+
+Corners :: (shape: Shape) -> s32 {
+    if shape == {
+        case .CIRCLE; return 0;
+        case .SQUARE; return 4;
+        case .TRIANGLE; return 3;
+    }
+    return -1;
+}
+
+main :: () {
+    print("a circle has % corners\n", Corners(.CIRCLE));
+    print("a square has % corners\n", Corners(.SQUARE));
+    print("a triangle has % corners\n", Corners(.TRIANGLE));
+}

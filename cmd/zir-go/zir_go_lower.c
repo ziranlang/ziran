@@ -1295,6 +1295,7 @@ go_lower(const ZirProgram *const *progs, int prog_count,
           int no_main)
 {
     char path[1024];
+    unsigned number_helpers = 0;
     go_build_global_functions(progs, prog_count);
     for(int pi = 0; pi < prog_count; pi++) {
         const ZirProgram *prog = progs[pi];
@@ -1403,7 +1404,6 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                 /* ZIR_IMPORT_EXTERN lowers either to direct Go imports above
                  * or to the Host interface below. */
             }
-            EmitNumbers(f,m,ZIR_GO);
             if(float_helper)
                 EmitGoPrintSupport(f);
             /* '#foreign host_api' bridge: one interface, one package var, one
@@ -1672,6 +1672,21 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             }
             }
 
+            /* Numeric helpers follow the code, once per package. */
+            {
+                long length = ftell(f);
+                char *text = malloc((size_t)length + 1);
+                if(text == NULL) {
+                    Diagnostic(m->span, "zir_go.global", "out of memory writing %s", path);
+                    fclose(f);
+                    return 1;
+                }
+                rewind(f);
+                text[fread(text, 1, (size_t)length, f)] = '\0';
+                fseek(f, 0, SEEK_END);
+                EmitGoNumberHelpers(f, text, &number_helpers);
+                free(text);
+            }
             /* End with one newline, as gofmt does, not a blank line. */
             long remaining = ftell(f);
             while(remaining > 1) {

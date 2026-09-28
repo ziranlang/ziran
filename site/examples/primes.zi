@@ -1,0 +1,16 @@
+// The Sieve of Eratosthenes: cross out every multiple of each prime.
+LIMIT :: 50;
+
+main :: () {
+    composite: [LIMIT + 1]bool;
+    for number: 2..LIMIT {
+        if composite[number] { continue; }
+        print("% ", number);
+        multiple := number * number;
+        while multiple <= LIMIT {
+            composite[multiple] = true;
+            multiple += number;
+        }
+    }
+    print("\n");
+}

@@ -1,0 +1,23 @@
+// Loops: while, ranges, collections, break, and continue.
+main :: () {
+    index: s32 = 1;
+    while index <= 3 {
+        print("while %\n", index);
+        index += 1;
+    }
+
+    for step: 0..2 {
+        print("range %\n", step);
+    }
+
+    fruits := string.["apple", "banana", "cherry"];
+    for fruit, position: fruits {
+        print("% is at %\n", fruit, position);
+    }
+
+    for number: 0..9 {
+        if number % 2 == 0 { continue; }
+        if number > 7 { break; }
+        print("odd %\n", number);
+    }
+}

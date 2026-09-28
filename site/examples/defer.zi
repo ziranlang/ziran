@@ -1,0 +1,15 @@
+// defer runs a statement when its scope ends, last deferred first.
+Work :: (name: string) {
+    print("open %\n", name);
+    defer print("close %\n", name);
+    print("use %\n", name);
+}
+
+main :: () {
+    defer print("done\n");
+    Work("file");
+    {
+        defer print("leave the block\n");
+        print("inside the block\n");
+    }
+}

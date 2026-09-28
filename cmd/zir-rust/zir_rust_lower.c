@@ -1172,6 +1172,24 @@ static int rust_expression_calls(const ZirFunction *function, int index)
 /* A print statement writes one call per piece. Arguments are bound first
  * only when one contains a call, so every argument evaluates before any
  * output, as on the other targets. */
+/* Text inside a print! format: Rust string escapes, and braces doubled. */
+static void rust_format_text(char *format, size_t *used, const unsigned char *bytes,
+                             size_t length)
+{
+    for(size_t i = 0; i < length && *used + 12 < ZIR_RUST_TEXT_MAX; i++) {
+        unsigned char byte = bytes[i];
+        const char *escape = byte == '\n' ? "\\n" : byte == '\t' ? "\\t" :
+            byte == '\r' ? "\\r" : byte == '"' ? "\\\"" : byte == '\\' ? "\\\\" :
+            byte == '{' ? "{{" : byte == '}' ? "}}" : NULL;
+        if(escape != NULL)
+            *used += (size_t)snprintf(format + *used, ZIR_RUST_TEXT_MAX - *used, "%s", escape);
+        else if(byte < 0x20 || byte == 0x7f)
+            *used += (size_t)snprintf(format + *used, ZIR_RUST_TEXT_MAX - *used, "\\u{%x}", byte);
+        else
+            format[(*used)++] = (char)byte;
+    }
+}
+
 static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
 {
     /* One print! per statement: text with {} for each value. print!
@@ -1197,27 +1215,29 @@ static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
             size_t length;
             if(!DecodeStringLiteral(pieces[piece].literal, bytes, sizeof(bytes), &length))
                 break;
-            for(size_t i = 0; i < length && format_used + 12 < ZIR_RUST_TEXT_MAX; i++) {
-                unsigned char byte = bytes[i];
-                const char *escape = byte == '\n' ? "\\n" : byte == '\t' ? "\\t" :
-                    byte == '\r' ? "\\r" : byte == '"' ? "\\\"" : byte == '\\' ? "\\\\" :
-                    byte == '{' ? "{{" : byte == '}' ? "}}" : NULL;
-                if(escape != NULL)
-                    format_used += (size_t)snprintf(format + format_used,
-                                                    ZIR_RUST_TEXT_MAX - format_used, "%s", escape);
-                else if(byte < 0x20 || byte == 0x7f)
-                    format_used += (size_t)snprintf(format + format_used,
-                                                    ZIR_RUST_TEXT_MAX - format_used, "\\u{%x}", byte);
-                else
-                    format[format_used++] = (char)byte;
-            }
+            rust_format_text(format, &format_used, bytes, length);
             continue;
         }
         if(argument_node < 0)
             break;
         char value[ZIR_RUST_TEXT_MAX];
         const char *type = function->exprs[argument_node].type;
-        emit_expression(emitter, argument_node, value, sizeof(value));
+        /* A literal string argument is simply part of the text. */
+        if(function->exprs[argument_node].kind == ZIR_EXPR_STRING) {
+            unsigned char bytes[ZIR_TEXT_MAX];
+            size_t length;
+            if(DecodeStringLiteral(function->exprs[argument_node].text, bytes,
+                                   sizeof(bytes), &length)) {
+                rust_format_text(format, &format_used, bytes, length);
+                argument_node = function->exprs[argument_node].next_sibling;
+                continue;
+            }
+        }
+        {
+            char raw[ZIR_RUST_TEXT_MAX];
+            emit_expression(emitter, argument_node, raw, sizeof(raw));
+            rust_bare(raw, value, sizeof(value));
+        }
         format_used += (size_t)snprintf(format + format_used,
                                         ZIR_RUST_TEXT_MAX - format_used, "{}");
         if(!strcmp(type, "string"))
@@ -1732,10 +1752,19 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         emit_destination(emitter, expression->left, base, sizeof(base));
         if(!strcmp(emitter->function->exprs[expression->left].type,
                    "string")) {
-            char low[ZIR_RUST_TEXT_MAX];
+            char low[ZIR_RUST_TEXT_MAX] = "0";
             char high[ZIR_RUST_TEXT_MAX];
-            emit_expression(emitter, expression->right, low, sizeof(low));
-            emit_expression(emitter, expression->third, high, sizeof(high));
+            /* text[:] is the whole text; a missing bound is its start or end. */
+            if(expression->right < 0 && expression->third < 0) {
+                snprintf(output, size, "%s", base);
+                break;
+            }
+            if(expression->right >= 0)
+                emit_expression(emitter, expression->right, low, sizeof(low));
+            if(expression->third >= 0)
+                emit_expression(emitter, expression->third, high, sizeof(high));
+            else
+                snprintf(high, sizeof(high), "%s.len", base);
             snprintf(output, size,
                      "ZiranText::slice(%s, %s as isize, %s as isize)",
                      base, low, high);

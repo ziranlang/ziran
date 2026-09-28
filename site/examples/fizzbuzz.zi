@@ -1,0 +1,14 @@
+// FizzBuzz: multiples of 3 print Fizz, of 5 Buzz, and of both FizzBuzz.
+main :: () {
+    for number: 1..20 {
+        if number % 15 == 0 {
+            print("FizzBuzz\n");
+        } else if number % 3 == 0 {
+            print("Fizz\n");
+        } else if number % 5 == 0 {
+            print("Buzz\n");
+        } else {
+            print("%\n", number);
+        }
+    }
+}

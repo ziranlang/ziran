@@ -38,6 +38,11 @@ int ParseExprTyped(ZirFunction *fn, const ZirModule *module,
                const char *expected_type);
 int EvaluateCompileExpression(const ZirModule *module, const char *source,
                               ZirSourceSpan span, int executing, long *value);
+int EvaluateCompileConditionBound(const ZirModule *module, const char *source,
+                                  ZirSourceSpan span,
+                                  const char names[][ZIR_NAME_MAX],
+                                  const char types[][ZIR_NAME_MAX],
+                                  const long *values, int count, int *truth);
 /* Aggregate results also return their declaring module as a borrowed pointer. */
 int EvaluateCompileLiteral(const ZirModule *module, const char *source,
                            ZirSourceSpan span, int executing, char *literal,

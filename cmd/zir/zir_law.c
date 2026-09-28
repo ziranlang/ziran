@@ -546,6 +546,202 @@ evaluate_custom_law(const ZirModule *module, const ZirLaw *law,
     return value != 0 ? LAW_PROVED : LAW_DISPROVED;
 }
 
+/* kind: forall ---------------------------------------------------------- */
+
+#define FORALL_MAX_VARIABLES 8
+#define FORALL_BUDGET 1000000L
+
+/* `NAME: LO..HI, NAME: LO..HI => condition`: exhaustive over the inclusive
+ * integer ranges. A domain above the budget is unknown, never a pass. */
+#define FORALL_ENUM_MAX 256
+
+typedef struct ForallBuffers {
+    char names[FORALL_MAX_VARIABLES][ZIR_NAME_MAX];
+    char types[FORALL_MAX_VARIABLES][ZIR_NAME_MAX];
+    char head[ZIR_TEXT_MAX];
+    char parts[FORALL_MAX_VARIABLES][ZIR_TEXT_MAX];
+    long members[FORALL_MAX_VARIABLES][FORALL_ENUM_MAX];
+} ForallBuffers;
+
+static LawStatus evaluate_forall_law_with(const ZirModule *module,
+                    const ZirLaw *law, char *detail, size_t size,
+                    ForallBuffers *buffers);
+
+static LawStatus
+evaluate_forall_law(const ZirModule *module, const ZirLaw *law,
+                    char *detail, size_t size)
+{
+    ForallBuffers *buffers = AllocateOrExit(sizeof(*buffers));
+    LawStatus status = evaluate_forall_law_with(module, law, detail, size,
+                                                buffers);
+    free(buffers);
+    return status;
+}
+
+/* Collect the values of every member of an enum, in declaration order. */
+static int
+forall_enum_members(const ZirType *type, long *values, int max)
+{
+    const char *cursor = type->body;
+    int count = 0;
+    while(*cursor) {
+        char member[ZIR_NAME_MAX];
+        size_t length = 0;
+        int64_t value;
+        while(*cursor == ',' || isspace((unsigned char)*cursor))
+            cursor++;
+        if(*cursor == '\0')
+            break;
+        while((isalnum((unsigned char)*cursor) || *cursor == '_') &&
+              length + 1 < sizeof(member))
+            member[length++] = *cursor++;
+        member[length] = '\0';
+        while(*cursor && *cursor != ',' && *cursor != '\n')
+            cursor++;
+        if(length == 0 || count >= max ||
+           !EnumMemberValue(type, member, &value))
+            return -1;
+        values[count++] = (long)value;
+    }
+    return count;
+}
+
+/* `NAME: LO..HI` or `NAME: EnumType`, comma separated, then `=> condition`.
+ * Exhaustive over every combination. A domain above the budget, or a
+ * condition the evaluator cannot decide, is unknown, never a pass. */
+static LawStatus
+evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
+                    char *detail, size_t size, ForallBuffers *buffers)
+{
+    char (*names)[ZIR_NAME_MAX] = buffers->names;
+    char (*types)[ZIR_NAME_MAX] = buffers->types;
+    char *head = buffers->head;
+    char (*parts)[ZIR_TEXT_MAX] = buffers->parts;
+    long low[FORALL_MAX_VARIABLES], span_count[FORALL_MAX_VARIABLES];
+    long index[FORALL_MAX_VARIABLES], values[FORALL_MAX_VARIABLES];
+    int is_enum[FORALL_MAX_VARIABLES];
+    const char *arrow = strstr(law->payload, "=>");
+    const char *body;
+    long total = 1, checked = 0;
+    int count;
+    if(arrow == NULL) {
+        snprintf(detail, size, "forall laws need `NAME: LO..HI => condition`");
+        return LAW_DISPROVED;
+    }
+    body = skip_ws(arrow + 2);
+    snprintf(head, ZIR_TEXT_MAX, "%.*s", (int)(arrow - law->payload),
+             law->payload);
+    count = split_top_level(head, parts[0], FORALL_MAX_VARIABLES,
+                            sizeof(parts[0]));
+    if(count <= 0 || *body == '\0') {
+        snprintf(detail, size, "forall laws need variables and a condition");
+        return LAW_DISPROVED;
+    }
+    for(int v = 0; v < count; v++) {
+        char *colon = strchr(parts[v], ':');
+        char *dots;
+        if(colon == NULL) {
+            snprintf(detail, size, "variable %d needs `NAME: LO..HI`", v);
+            return LAW_DISPROVED;
+        }
+        *colon = '\0';
+        trim_in_place(parts[v]);
+        snprintf(names[v], ZIR_NAME_MAX, "%s", parts[v]);
+        types[v][0] = '\0';
+        is_enum[v] = 0;
+        dots = strstr(colon + 1, "..");
+        if(dots == NULL) {
+            const ZirType *type;
+            char type_name[ZIR_NAME_MAX];
+            int members;
+            snprintf(type_name, sizeof(type_name), "%s", colon + 1);
+            trim_in_place(type_name);
+            type = FindType(module, type_name, NULL);
+            if(type == NULL || !type->is_enum) {
+                snprintf(detail, size,
+                         "%s needs a range LO..HI or an enum type", names[v]);
+                return LAW_DISPROVED;
+            }
+            members = forall_enum_members(type, buffers->members[v],
+                                          FORALL_ENUM_MAX);
+            if(members <= 0) {
+                snprintf(detail, size, "enum %s has no usable members",
+                         type_name);
+                return LAW_DISPROVED;
+            }
+            is_enum[v] = 1;
+            snprintf(types[v], ZIR_NAME_MAX, "%s", type->name);
+            low[v] = 0;
+            span_count[v] = members;
+        } else {
+            char lo_text[ZIR_NAME_MAX], hi_text[ZIR_NAME_MAX];
+            long high = 0;
+            snprintf(lo_text, sizeof(lo_text), "%.*s",
+                     (int)(dots - colon - 1), colon + 1);
+            snprintf(hi_text, sizeof(hi_text), "%s", dots + 2);
+            trim_in_place(lo_text);
+            trim_in_place(hi_text);
+            if(!EvaluateCompileExpression(module, lo_text, law->span, 0,
+                                          &low[v]) ||
+               !EvaluateCompileExpression(module, hi_text, law->span, 0,
+                                          &high)) {
+                snprintf(detail, size,
+                         "range of %s is not a compile-time value", names[v]);
+                return LAW_UNKNOWN;
+            }
+            if(high < low[v]) {
+                snprintf(detail, size, "range of %s is empty", names[v]);
+                return LAW_DISPROVED;
+            }
+            span_count[v] = high - low[v] + 1;
+        }
+        if(span_count[v] > FORALL_BUDGET ||
+           total > FORALL_BUDGET / span_count[v]) {
+            snprintf(detail, size, "domain exceeds the budget of %ld cases",
+                     FORALL_BUDGET);
+            return LAW_UNKNOWN;
+        }
+        total *= span_count[v];
+        index[v] = 0;
+    }
+    for(;;) {
+        int truth = 0;
+        for(int v = 0; v < count; v++)
+            values[v] = is_enum[v] ? buffers->members[v][index[v]] :
+                        low[v] + index[v];
+        if(!EvaluateCompileConditionBound(module, body, law->span,
+                                          (const char (*)[ZIR_NAME_MAX])names,
+                                          (const char (*)[ZIR_NAME_MAX])types,
+                                          values, count, &truth)) {
+            size_t used = (size_t)snprintf(detail, size,
+                "condition is outside the compile-time evaluator at");
+            for(int v = 0; v < count && used < size; v++)
+                used += (size_t)snprintf(detail + used, size - used, "%s%s=%ld",
+                                         v ? ", " : " ", names[v], values[v]);
+            return LAW_UNKNOWN;
+        }
+        if(!truth) {
+            size_t used = (size_t)snprintf(detail, size, "counterexample");
+            for(int v = 0; v < count && used < size; v++)
+                used += (size_t)snprintf(detail + used, size - used, "%s%s=%ld",
+                                         v ? ", " : " ", names[v], values[v]);
+            return LAW_DISPROVED;
+        }
+        checked++;
+        {
+            int v = count - 1;
+            while(v >= 0 && index[v] == span_count[v] - 1) {
+                index[v] = 0;
+                v--;
+            }
+            if(v < 0) break;
+            index[v]++;
+        }
+    }
+    snprintf(detail, size, "held for all %ld cases", checked);
+    return LAW_PROVED;
+}
+
 int
 EvaluateLaw(const ZirProgram *program, const ZirModule *module,
             const ZirLaw *law, char *detail, size_t size)
@@ -563,6 +759,8 @@ EvaluateLaw(const ZirProgram *program, const ZirModule *module,
         status = evaluate_abi_law(module, law, detail, size);
     else if(!strcmp(law->kind, "size"))
         status = evaluate_size_law(module, law, detail, size);
+    else if(!strcmp(law->kind, "forall"))
+        status = evaluate_forall_law(module, law, detail, size);
     else if(!strcmp(law->kind, "custom"))
         status = evaluate_custom_law(module, law, detail, size);
     else {

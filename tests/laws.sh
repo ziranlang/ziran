@@ -108,3 +108,54 @@ rg -q '"status":"unknown"' "$work/waived.json"
     -o "$work/waived-saved.zib" "$work/wir/waived.zir"
 cmp "$work/waived-source.zib" "$work/waived-saved.zib"
 test "$("$ziran" run "$work/waived-source.zib")" = 7
+
+cat > "$work/forall.zi" <<'ZI'
+Kind :: enum { A, B, C }
+Step :: struct { attempt: s32; delay: s32; }
+Next :: (k: Kind, n: s32) -> Step {
+    if k == Kind.B {
+        return Step.{n + 1, 15}
+    }
+    return Step.{n, 0}
+}
+Delay :: (k: Kind, n: s32) -> s32 {
+    return Next(k, n).delay
+}
+#law Bounded forall k: Kind, n: 0..4 => Delay(k, n) <= 15;
+#law OnlyBWaits forall k: Kind, n: 0..4 => Next(k, n) == Step.{n, 0} || k == Kind.B;
+#law BWaits forall n: 0..4 => Next(Kind.B, n) == Step.{n + 1, 15};
+#program_export
+Answer :: () -> s32 { return 3 }
+ZI
+"$ziran" check --root "$work" "$work/forall.zi" > "$work/forall.json"
+rg -q '"law":"Bounded","kind":"forall".*"status":"proved".*held for all 15 cases' "$work/forall.json"
+rg -q '"law":"OnlyBWaits".*"status":"proved"' "$work/forall.json"
+rg -q '"law":"BWaits".*"status":"proved".*held for all 5 cases' "$work/forall.json"
+"$ziran" ir --root "$work" -o "$work/fir" "$work/forall.zi"
+"$ziran" check --root "$work/fir" "$work/fir/forall.zir" > "$work/forall-saved.json"
+cmp "$work/forall.json" "$work/forall-saved.json"
+
+cat > "$work/forall_bad.zi" <<'ZI'
+Kind :: enum { A, B }
+Next :: (k: Kind, n: s32) -> s32 {
+    if k == Kind.B {
+        return n + 1
+    }
+    return n
+}
+Big :: 2000000
+#law Wrong forall k: Kind, n: 0..3 => Next(k, n) == n;
+#law TooBig forall n: 0..Big => Next(Kind.A, n) == n;
+#law Outside forall n: 0..1 => Missing(n) == 0;
+#program_export
+Answer :: () -> s32 { return 1 }
+ZI
+if "$ziran" check --root "$work" "$work/forall_bad.zi" \
+    > "$work/forall_bad.json" 2> "$work/forall_bad.err"; then
+    echo 'a failing forall law passed the gate' >&2
+    exit 1
+fi
+rg -q '"law":"Wrong".*"status":"disproved".*counterexample k=1, n=0' \
+    "$work/forall_bad.json"
+rg -q '"law":"TooBig".*"status":"unknown".*budget' "$work/forall_bad.json"
+rg -q '"law":"Outside".*"status":"unknown"' "$work/forall_bad.json"

@@ -1,5 +1,34 @@
 #include "zir_parse_internal.h"
 
+/* Text of the qualified enum member holding `value`, so a bound enum value
+ * keeps its enum type after textual expansion. */
+static int
+enum_member_text(const ZirModule *module, const char *type, long value,
+                 char *out, size_t size)
+{
+    const ZirType *enumeration = type[0] ? FindType(module, type, NULL) : NULL;
+    const char *cursor;
+    if(enumeration == NULL || !enumeration->is_enum) return 0;
+    cursor = enumeration->body;
+    while(*cursor) {
+        char member[ZIR_NAME_MAX];
+        size_t length = 0;
+        int64_t member_value;
+        while(*cursor == ',' || isspace((unsigned char)*cursor)) cursor++;
+        while((isalnum((unsigned char)*cursor) || *cursor == '_') &&
+              length + 1 < sizeof(member))
+            member[length++] = *cursor++;
+        member[length] = '\0';
+        while(*cursor && *cursor != ',' && *cursor != '\n') cursor++;
+        if(length && EnumMemberValue(enumeration, member, &member_value) &&
+           member_value == value) {
+            snprintf(out, size, "%s.%s", enumeration->name, member);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int evaluate_typed_function(const ZirModule *module, const char *name, ZirSourceSpan call_span, CompileValue *arguments, char argument_names[][ZIR_NAME_MAX], int argument_count, int depth, int *fuel, CompileValue *result);
 /* Buffers evaluate_typed_node keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -8,6 +37,10 @@ typedef struct EvaluateTypedNodeBuffers {
     CompileValue args[16];
     char names[16][ZIR_NAME_MAX];
 } EvaluateTypedNodeBuffers;
+
+/* Enum members fold to typed integers only while a law is evaluated; other
+ * callers rely on member expressions staying symbolic. */
+static _Thread_local int law_enum_members;
 
 int evaluate_typed_node(const ZirFunction *probe, int index,
                     const ZirModule *module, const char *path,
@@ -188,6 +221,20 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                evaluate_imported_typed_define(module, path, qualified,
                                               depth + 1, fuel, result))
                 return 1;
+{
+            const ZirType *enumeration = FindType(module,
+                probe->exprs[expression->left].name, NULL);
+            int64_t member_value;
+            if(law_enum_members && enumeration != NULL && enumeration->is_enum &&
+               EnumMemberValue(enumeration, expression->name,
+                               &member_value)) {
+                result->kind = COMPILE_INTEGER;
+                result->integer = (long)member_value;
+                copy_text(result->type, sizeof(result->type),
+                          enumeration->name);
+                return compile_value_literal(result);
+            }
+}
         }
         if(!evaluate_typed_node(probe, expression->left, module, path,
                                 depth + 1, fuel, &left)) return 0;
@@ -747,6 +794,9 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
         copy_text(binding->type, sizeof(binding->type), type);
         copy_text(binding->expr, sizeof(binding->expr),
                   buffers->ordered[i].literal);
+        if(buffers->ordered[i].kind == COMPILE_INTEGER)
+            enum_member_text(owner, type, buffers->ordered[i].integer,
+                             binding->expr, sizeof(binding->expr));
         copy_text(binding->path, sizeof(binding->path), SpanPath(fn->span));
         body.names.count++;
     }
@@ -928,6 +978,51 @@ EvaluateCompileLiteral(const ZirModule *module, const char *source,
         copy_text(literal, literal_size, value.literal);
         if(type_owner != NULL) *type_owner = value.type_owner;
     }
+    free(constants.items);
+    return ok;
+}
+
+/* Evaluate a boolean expression with integer variables bound, for `forall`
+ * laws. Bindings shadow nothing: a bound name must not be a define. */
+int
+EvaluateCompileConditionBound(const ZirModule *module, const char *source,
+                              ZirSourceSpan span, const char names[][ZIR_NAME_MAX],
+                              const char types[][ZIR_NAME_MAX],
+                              const long *values, int count, int *truth)
+{
+    ZirConsts constants = {0};
+    CompileValue value = {0};
+    int fuel = 100000, ok;
+    if(module == NULL || source == NULL || truth == NULL || count < 0)
+        return 0;
+    constants.count = module->define_count + count;
+    constants.items = calloc((size_t)constants.count + 1,
+                             sizeof(*constants.items));
+    if(constants.items == NULL) return 0;
+    for(int i = 0; i < module->define_count; i++) {
+        const ZirDefine *definition = &module->defines[i];
+        ZirConst *constant = &constants.items[i];
+        copy_text(constant->name, sizeof(constant->name), definition->name);
+        copy_text(constant->expr, sizeof(constant->expr), definition->value);
+        copy_text(constant->path, sizeof(constant->path),
+                  SpanPath(definition->span));
+        constant->is_file_private = definition->is_file_private;
+    }
+    for(int i = 0; i < count; i++) {
+        ZirConst *constant = &constants.items[module->define_count + i];
+        copy_text(constant->name, sizeof(constant->name), names[i]);
+        copy_text(constant->type, sizeof(constant->type),
+                  types[i][0] ? types[i] : "s64");
+        snprintf(constant->expr, sizeof(constant->expr), "%ld", values[i]);
+        enum_member_text(module, types[i], values[i], constant->expr,
+                         sizeof(constant->expr));
+        copy_text(constant->path, sizeof(constant->path), SpanPath(span));
+    }
+    law_enum_members = 1;
+    ok = evaluate_typed_expression(module, &constants, source, span, 0,
+                                   &fuel, &value) &&
+         compile_truth(&value, truth);
+    law_enum_members = 0;
     free(constants.items);
     return ok;
 }

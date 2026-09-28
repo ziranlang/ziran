@@ -843,11 +843,12 @@ compile_truth(const CompileValue *value, int *truth)
 int
 compile_type_value(const char *type, CompileValue *value)
 {
-    if(eval_integer_type(type, 0))
+    if(eval_integer_type(type, 0)) {
         if(value->kind != COMPILE_INTEGER ||
            !eval_integer_type(type, value->integer)) return 0;
         copy_text(value->type, sizeof(value->type), type);
         return compile_value_literal(value);
+    }
     if(!strcmp(type, "float32") || !strcmp(type, "float64")) {
         if(value->kind == COMPILE_INTEGER) {
             value->real = (double)value->integer;
@@ -860,6 +861,10 @@ compile_type_value(const char *type, CompileValue *value)
         return isfinite(value->real) && compile_value_literal(value);
     }
     if(!strcmp(type, "string")) return value->kind == COMPILE_STRING;
+    if(!strcmp(type, "bool"))
+        return value->kind == COMPILE_INTEGER;
+    /* Enum and other named integer types are not checked here, as before. */
+    if(value->kind == COMPILE_INTEGER) return 1;
     if(value->kind == COMPILE_COMPOUND &&
        !strcmp(value->type, type)) return 1;
     return 0;
@@ -900,6 +905,13 @@ compile_values_equal_with_buffers(const CompileValue *left, const CompileValue *
     }
     if(left->kind == COMPILE_INTEGER && right->kind == COMPILE_INTEGER) {
         *equal = left->integer == right->integer;
+        return 1;
+    }
+    /* Compound literals are built in canonical text, so equal values of one
+     * type have equal text. */
+    if(left->kind == COMPILE_COMPOUND && right->kind == COMPILE_COMPOUND &&
+       !strcmp(left->type, right->type)) {
+        *equal = !strcmp(left->literal, right->literal);
         return 1;
     }
     if((left->kind == COMPILE_REAL || left->kind == COMPILE_INTEGER) &&

@@ -39,7 +39,7 @@ span. The contract has four parts.
 
 1. **Declaration.** `#law NAME kind payload;` binds the stable identifier
    `NAME` to one obligation at file scope. `kind` selects the checker:
-   `type`, `effect`, `bounds`, `size`, `abi`, or `custom`. `payload` is kind-specific
+   `type`, `effect`, `bounds`, `size`, `abi`, `custom`, or `forall`. `payload` is kind-specific
    checked source — a boolean procedure for `custom`, a shape description
    for the built-in kinds. A law with no checker for its kind is an error,
    never a pass.
@@ -64,9 +64,13 @@ span. The contract has four parts.
    `.zib` byte equality.
 
 The compiler now implements named `type`, `effect`, `bounds`, `size`, `abi`,
-and `custom` laws, writes law tables to checked `.zir` and linked `.zib`, and
+`custom`, and `forall` laws, writes law tables to checked `.zir` and linked `.zib`, and
 reports results as JSON. This remains narrower than the intended proof
-contract: `custom` evaluates closed compile-time expressions, `abi` checks
+contract: `custom` evaluates closed compile-time expressions, `forall`
+(`#law N forall x: 0..4, k: SomeEnum => condition;`) checks every combination
+of integer ranges and enum members through the same evaluator (a domain over
+1,000,000 cases or an undecidable condition is `unknown`, a failure reports
+the counterexample), `abi` checks
 the supported signature shape rather than proving foreign behavior, and law
 identity and waiver validation still need tightening. The contract above
 describes the intended guarantees where it exceeds this implementation.

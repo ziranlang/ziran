@@ -2368,10 +2368,20 @@ c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *bu
                 goto fail;
             continue;
         }
+        if(strcmp(buffers->current, "#include \"zir_plan9_runtime.h\"\n") == 0) {
+            if(runtime_include == 0) {
+                if(buf_puts(&out, buffers->current) < 0)
+                    goto fail;
+                runtime_include = 1;
+            }
+            continue;
+        }
+
         if(strstr(buffers->current, "#include <stdint.h>") != NULL ||
            strstr(buffers->current, "#include <stddef.h>") != NULL ||
            strstr(buffers->current, "#include <stdbool.h>") != NULL ||
            strstr(buffers->current, "#include <stdlib.h>") != NULL ||
+           strstr(buffers->current, "#include <string.h>") != NULL ||
            strstr(buffers->current, "#include \"zir_bounds.h\"") != NULL ||
            strstr(buffers->current, "#include \"zir_string.h\"") != NULL ||
            strstr(buffers->current, "#include \"zir_slice.h\"") != NULL ||
@@ -2519,39 +2529,6 @@ c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *bu
         }
     }
     free(line);
-    /* the pass emits memset() calls; make sure the declaration is
-     * included even when the lowered source never needed <string.h> */
-    if(strstr(out.data, "memset(") != NULL
-       && strstr(text, "#include <string.h>") == NULL) {
-        const char *scan = out.data;
-        const char *last_include = NULL;
-        int guard = 0;
-        while((scan = strstr(scan, "#include ")) != NULL) {
-            const char *eol = strchr(scan, '\n');
-            if(eol != NULL) {
-                last_include = eol + 1;
-                scan = eol + 1;
-            } else {
-                break;
-            }
-            if(++guard > 64)
-                break;
-        }
-        if(last_include != NULL) {
-            size_t at = (size_t)(last_include - out.data);
-            const char *inc = "#include <string.h>\n";
-            size_t inc_len = strlen(inc);
-            char *grown = realloc(out.data, out.len + inc_len + 1);
-            if(grown != NULL) {
-                out.data = grown;
-                memmove(out.data + at + inc_len, out.data + at,
-                        out.len - at + 1);
-                memcpy(out.data + at, inc, inc_len);
-                out.len += inc_len;
-                out.cap = out.len + 1;
-            }
-        }
-    }
     return out.data;
 fail:
     free(line);

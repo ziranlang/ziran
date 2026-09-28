@@ -62,7 +62,7 @@ rg -q -F '    return close(descriptor);' "$work/generated/main.h"
 rg -q '^int32_t ziran_plan9_main\(void\);$' "$work/generated/main.h"
 rg -q '^void main\(void\);$' "$work/generated/main.h"
 rg -q '^ziran_plan9_main\(void\)$' "$work/generated/main.c"
-rg -q '^[[:space:]]*exits\(status_text\);$' "$work/generated/main.c"
+rg -q -F '    exits(status_text);' "$work/generated/main.c"
 
 if rg -n 'plan9-c' "$work/generated"/*.c "$work/generated"/*.h; then
     echo 'plan9-c leaked dispatcher metadata into generated C' >&2
@@ -159,8 +159,12 @@ EOF
 "$ziran" build --target=plan9-c --root "$work/src" \
     --module-path "$repo/std" -o "$work/generated-status" \
     "$work/src/status_main.zi"
-rg -q '^int32_t ziran_plan9_main\(void\);$' \
+rg -q '^int32_t ziran_plan9_main\(void\);' \
     "$work/generated-status/status_main.h"
+if rg -n '^#include <string\.h>' "$work/generated-status"/*.c; then
+    echo 'plan9-c c_string output retained hosted string header' >&2
+    exit 1
+fi
 rg -q '^void main\(void\);$' "$work/generated-status/status_main.h"
 cat > "$work/fake-plan9-exits.c" <<'EOF'
 #include <stdarg.h>

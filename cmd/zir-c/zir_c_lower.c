@@ -1267,35 +1267,39 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
         startup_count += m->functions[i].is_global_initializer;
     char init_name[LOWER_NAME_MAX];
     NativeCModuleInitName(m, init_name, sizeof(init_name));
-    fprintf(c, "\n#include <stdlib.h>\n");
-    for(i = 0; i < m->import_count; i++) {
-        const ZirModule *dependency = m->imports[i].resolved_module;
-        if(ModuleNeedsStartup(dependency)) {
-            char name[LOWER_NAME_MAX];
-            NativeCModuleInitName(dependency, name, sizeof(name));
-            fprintf(c, "void %s(void);\n", name);
+    /* A module with no globals to set up, directly or through imports,
+     * needs no init function; callers skip it by the same test. */
+    if(ModuleNeedsStartup(m)) {
+        fprintf(c, "\n#include <stdlib.h>\n");
+        for(i = 0; i < m->import_count; i++) {
+            const ZirModule *dependency = m->imports[i].resolved_module;
+            if(ModuleNeedsStartup(dependency)) {
+                char name[LOWER_NAME_MAX];
+                NativeCModuleInitName(dependency, name, sizeof(name));
+                fprintf(c, "void %s(void);\n", name);
+            }
         }
+        fprintf(c, "\nstatic int %s_state;\nvoid\n%s(void)\n{\n"
+                   "    if(%s_state == 2) return;\n"
+                   "    if(%s_state == 1) abort();\n"
+                   "    %s_state = 1;\n",
+                init_name, init_name, init_name, init_name, init_name);
+        for(i = 0; i < m->import_count; i++) {
+            const ZirModule *dependency = m->imports[i].resolved_module;
+            if(ModuleNeedsStartup(dependency)) {
+                char name[LOWER_NAME_MAX];
+                NativeCModuleInitName(dependency, name, sizeof(name));
+                fprintf(c, "    %s();\n", name);
+            }
+        }
+        for(i = 0; i < m->function_count; i++)
+            if(m->functions[i].is_global_initializer) {
+                char name[LOWER_NAME_MAX];
+                function_c_name(m, &m->functions[i], name, sizeof(name));
+                fprintf(c, "    %s();\n", name);
+            }
+        fprintf(c, "    %s_state = 2;\n}\n", init_name);
     }
-    fprintf(c, "\nstatic int %s_state;\nvoid\n%s(void)\n{\n"
-               "    if(%s_state == 2) return;\n"
-               "    if(%s_state == 1) abort();\n"
-               "    %s_state = 1;\n",
-            init_name, init_name, init_name, init_name, init_name);
-    for(i = 0; i < m->import_count; i++) {
-        const ZirModule *dependency = m->imports[i].resolved_module;
-        if(ModuleNeedsStartup(dependency)) {
-            char name[LOWER_NAME_MAX];
-            NativeCModuleInitName(dependency, name, sizeof(name));
-            fprintf(c, "    %s();\n", name);
-        }
-    }
-    for(i = 0; i < m->function_count; i++)
-        if(m->functions[i].is_global_initializer) {
-            char name[LOWER_NAME_MAX];
-            function_c_name(m, &m->functions[i], name, sizeof(name));
-            fprintf(c, "    %s();\n", name);
-        }
-    fprintf(c, "    %s_state = 2;\n}\n", init_name);
     if(startup_count) {
         fprintf(c, "\n__attribute__((constructor)) static void\n"
                    "%s_constructor(void)\n{\n"

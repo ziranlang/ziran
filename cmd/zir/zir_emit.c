@@ -2644,6 +2644,43 @@ call_parameter_type(Emitter *e, const ZirExpr *call, int ordinal,
     free(parts);
 }
 
+static int
+identifier_byte(char c)
+{
+    return c == '_' || (c >= '0' && c <= '9') ||
+           (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+static void
+replace_call_placeholders(const char *text, char arguments[][ZIR_NAME_MAX],
+                          int count, char *out, size_t size)
+{
+    static const char prefix[] = "zir_call_argument_";
+    size_t used = 0;
+    const char *p = text;
+    while(*p && used + 1 < size) {
+        int ordinal = 0;
+        const char *digits = p + sizeof(prefix) - 1;
+        const char *end = digits;
+        if((p == text || !identifier_byte(p[-1])) &&
+           !strncmp(p, prefix, sizeof(prefix) - 1)) {
+            while(*end >= '0' && *end <= '9')
+                ordinal = ordinal * 10 + (*end++ - '0');
+        }
+        if(end > digits && !identifier_byte(*end) && ordinal < count) {
+            used += strlen(arguments[ordinal]);
+            if(used >= size)
+                break;
+            memcpy(out + used - strlen(arguments[ordinal]), arguments[ordinal],
+                   strlen(arguments[ordinal]));
+            p = end;
+            continue;
+        }
+        out[used++] = *p++;
+    }
+    out[used < size ? used : size - 1] = '\0';
+}
+
 static void
 emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size)
 {
@@ -2719,18 +2756,26 @@ emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, 
         copy_text(arguments[ordinal], sizeof(arguments[ordinal]), argument);
         argument_count++;
     }
+    /* Arguments are already lowered. The resolver maps every identifier in
+     * the call text to its global, so it sees placeholders instead: a local
+     * or parameter must never become an imported name it shadows. */
     for(int ordinal = 0; ordinal < argument_count; ordinal++) {
+        char placeholder[ZIR_NAME_MAX];
         if(!arguments[ordinal][0])
             fatal(expr, "missing checked call argument");
-        n += (size_t)format(text+n, sizeof(text)-n, "%s%s",
-                            count ? "," : "", arguments[ordinal]);
+        format(placeholder, sizeof(placeholder), "zir_call_argument_%d", ordinal);
+        n += (size_t)format(text+n, sizeof(text)-n, "%s%s", count ? "," : "",
+                            *expr->slot_type ? arguments[ordinal] : placeholder);
         count++;
     }
     format(text+n,sizeof(text)-n,")");
-    if(*expr->slot_type)
+    if(*expr->slot_type) {
         copy_text(out, size, text);
-    else
-        e->resolve(e->context,text,out,size);
+        return;
+    }
+    char resolved[ZIR_TEXT_MAX];
+    e->resolve(e->context, text, resolved, sizeof(resolved));
+    replace_call_placeholders(resolved, arguments, argument_count, out, size);
 }
 
 static void

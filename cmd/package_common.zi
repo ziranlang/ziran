@@ -217,6 +217,36 @@ PkgPrint :: (value: string, error: bool) -> void {
     }
 }
 
+PkgJsonString :: (value: string) -> void {
+    PkgPrint("\"", false)
+    index: s64 = 0
+    while index < cast(s64)value.count {
+        byte: u8 = value[index]
+        if byte == cast(u8)34 || byte == cast(u8)92 {
+            PkgPrint("\\", false)
+            if byte == cast(u8)34 { PkgPrint("\"", false) }
+            else { PkgPrint("\\", false) }
+        } else if byte == cast(u8)10 {
+            PkgPrint("\\n", false)
+        } else if byte == cast(u8)13 {
+            PkgPrint("\\r", false)
+        } else if byte == cast(u8)9 {
+            PkgPrint("\\t", false)
+        } else if byte < cast(u8)32 {
+            alphabet: string = "0123456789abcdef"
+            high: s32 = cast(s32)(byte >> cast(u8)4)
+            low: s32 = cast(s32)(byte & cast(u8)15)
+            PkgPrint("\\u00", false)
+            PkgPrint(alphabet[high:high + 1], false)
+            PkgPrint(alphabet[low:low + 1], false)
+        } else {
+            PkgPrint(value[index:index + 1], false)
+        }
+        index += 1
+    }
+    PkgPrint("\"", false)
+}
+
 PkgFail :: (message: string) -> s32 {
     PkgPrint("ziran: ", true)
     PkgPrint(message, true)

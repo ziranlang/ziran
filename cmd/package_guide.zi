@@ -12,6 +12,7 @@ Guide :: (arguments: []string) -> s32 {
     PkgPrint("  ziran bundle --root src --entry main:Answer -o build/app.zib src/main.zi\n", false)
     PkgPrint("  ziran run build/app.zib\n", false)
     PkgPrint("  For a ziran.toml project: ziran lock, then ziran check --project --locked.\n\n", false)
+    PkgPrint("  ziran features --id compile.assertions --json reports tested syntax.\n\n", false)
     PkgPrint("  ziran capabilities --target=go --json reports target limits.\n\n", false)
     PkgPrint("  ziran api --json --root src src/main.zi lists checked public APIs.\n\n", false)
     PkgPrint("  ziran explain check.type explains a diagnostic code.\n", false)

@@ -5,6 +5,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- `ziran features` publishes a versioned, stable-ID feature registry with
+  syntax, status, target support, limits, accepted and rejected examples,
+  rejection behavior, and evidence links. The initial registry covers
+  compile-time assertions, integer width conformance, local `TextView`
+  mutation checks, and plain record-field `Vec` moves. `docs/FEATURES.json`
+  is byte-identical to `ziran features --json`; `tests/features.sh` checks
+  schema, sorted unique IDs, evidence, target entries, every accepted example,
+  and every explicit rejection.
 - Source and saved-IR portable runs use the declared width for integer
   conversions between all eight `s8`, `u8`, `s16`, `u16`, `s32`, `u32`,
   `s64`, and `u64` forms. Signed overflow and unsigned wraparound follow the
@@ -735,9 +743,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Complete ownership edge cases: unknown heap and host-backed view aliases,
   indexed and pointer-backed field moves, and reclaimable storage detached by
   `BuilderFinish`.
-- Version numerical outcomes as conformance-test IDs, probe untested operator
-  and mixed-width combinations, complete JSON diagnostic fields, the feature
-  registry, and cross-target capability reporting.
+- Expand numerical conformance IDs and the initial feature registry to the full
+  language surface, complete JSON diagnostic fields, and cross-target
+  capability reporting.
 - Complete native backend parity, FFI capability checks, law coverage, Plan 9
   target-aware lowering, and downstream application gates, then make the
   planned single breaking cutover. See [Migration](MIGRATION.md).

@@ -5,6 +5,7 @@
 #import "package_add"
 #import "package_guide"
 #import "package_capabilities"
+#import "package_features"
 #import "package_explain"
 #import "file_linux"
 
@@ -149,12 +150,13 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
-        PkgPrint("usage: ziran guide|capabilities|explain|api|lock|update|fetch|add|pkg|tool|check|ir|build|bundle|run|fmt|inspect ...\n", false)
+        PkgPrint("usage: ziran guide|features|capabilities|explain|api|lock|update|fetch|add|pkg|tool|check|ir|build|bundle|run|fmt|inspect ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         return 0
     }
     command: string = arguments[0]
     if command == "guide" { return Guide(arguments[1:]) }
+    if command == "features" { return Features(arguments[1:]) }
     if command == "capabilities" { return Capabilities(arguments[1:]) }
     if command == "explain" { return Explain(arguments[1:]) }
     if command == "add" { return Add(launcher, arguments[1:]) }

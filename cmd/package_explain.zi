@@ -28,23 +28,6 @@ PkgKnownDiagnostic :: (code: string) -> bool {
     return false
 }
 
-PkgJsonString :: (value: string) -> void {
-    PkgPrint("\"", false)
-    index: s64 = 0
-    while index < cast(s64)value.count {
-        byte: u8 = value[index]
-        if byte == cast(u8)34 || byte == cast(u8)92 {
-            PkgPrint("\\", false)
-            if byte == cast(u8)34 { PkgPrint("\"", false) }
-            else { PkgPrint("\\", false) }
-        } else {
-            PkgPrint(value[index:index + 1], false)
-        }
-        index += 1
-    }
-    PkgPrint("\"", false)
-}
-
 PkgPrintCodeList :: (json: bool) -> void {
     if !json {
         PkgPrint(DIAGNOSTIC_CODES, false)

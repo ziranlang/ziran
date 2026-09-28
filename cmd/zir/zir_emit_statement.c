@@ -1089,7 +1089,11 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     fresh(e, temporary);
                     declare(e, temporary, expr->type, buffers->value);
                     drop_temporary_vec(e, temporary);
-                } else if(*buffers->value && expr->kind == ZIR_EXPR_CALL && !plain_identifier(buffers->value))
+                } else if(*buffers->value && expr->kind == ZIR_EXPR_CALL &&
+                          !plain_identifier(buffers->value) &&
+                          !(e->target == ZIR_GO && enum_type(e->module, expr->type)))
+                    /* Go writes an enum result as a conversion, which is not
+                     * a statement; that one keeps the blank assignment. */
                     line(e, e->target == ZIR_GO ? "%s" : "%s;", buffers->value);
                 else if(*buffers->value)
                     line(e,e->target==ZIR_GO?"_ = %s":"(void)%s;",buffers->value);

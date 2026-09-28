@@ -2,7 +2,7 @@ CC ?= cc
 AR ?= ar
 OBJCOPY ?= objcopy
 CFLAGS ?= -O2
-CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
+override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
 DEPFLAGS = -MMD -MP
 
 # Build in parallel on half the cores, between 2 and 16 jobs, at low

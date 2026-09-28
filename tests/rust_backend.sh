@@ -12,9 +12,10 @@ command -v cargo >/dev/null 2>&1 || {
 
 cat > "$work/scalars.zi" <<'ZI'
 Answer :: () -> s32 {
-    point: Point = MakePoint(2, 3)
+    mode: Mode = Identify(Mode.On)
+    point: Point = MakePoint(2, 3, mode)
     point.x += 1
-    if point.x != 3 || point.y != 3 { return 1 }
+    if point.x != 3 || point.y != 3 || point.mode != Mode.On { return 1 }
     values: [4]s32 = .[1, 2, 3, 4]
     values[1] += 10
     if Sum(values) != 20 { return 1 }
@@ -29,6 +30,7 @@ Answer :: () -> s32 {
     return 0
 }
 Add :: (a: s32, b: s32) -> s32 { return a + b }
+Identify :: (value: Mode) -> Mode { return value }
 Loop :: () -> s32 {
     total: int = 0
     for i: 0..3 { total += i }
@@ -36,8 +38,11 @@ Loop :: () -> s32 {
     while total < 10 { total += 1 }
     return cast(s32) total
 }
-Point :: struct { x: s32; y: s32 }
-MakePoint :: (x: s32, y: s32) -> Point { return .{x = x, y = y} }
+Mode :: enum { Off; On :: 4; }
+Point :: struct { x: s32; y: s32; mode: Mode }
+MakePoint :: (x: s32, y: s32, mode: Mode) -> Point {
+    return .{x = x, y = y, mode = mode}
+}
 Sum :: (values: [4]s32) -> s32 {
     total: s32 = 0
     for value: values { total += value }

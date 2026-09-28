@@ -42,8 +42,12 @@ static const char *const rust_keywords[] = {
 };
 
 static const char *rust_scalar_type(const char *type);
+static int rust_enum_type(RustEmitter *emitter, const char *type,
+                          const ZirModule **owner, const ZirType **enumeration);
 static int rust_record_type(RustEmitter *emitter, const char *type,
                             const ZirModule **owner, const ZirType **record);
+static int rust_type(RustEmitter *emitter, const char *type, char *output,
+                     size_t size);
 static void rust_field_name(const ZirType *record, const char *source,
                             char *output, size_t size);
 
@@ -65,6 +69,24 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                 type_index++) {
                 const ZirType *record = &module->types[type_index];
                 char type_name[ZIR_NAME_MAX];
+                const ZirModule *enum_owner = NULL;
+                const ZirType *enumeration = NULL;
+                if(rust_enum_type(emitter, record->name, &enum_owner,
+                                  &enumeration)) {
+                    const char *backing = rust_scalar_type(
+                        enumeration->enum_backing);
+                    if(backing == NULL) {
+                        Diagnostic(enumeration->span, "zir_rust.enum",
+                                   "invalid enum backing type: %s",
+                                   enumeration->enum_backing);
+                        exit(1);
+                    }
+                    NativeTypeName(enum_owner, enumeration, type_name,
+                                   sizeof(type_name));
+                    fprintf(output, "pub type %s = %s;\n\n", type_name,
+                            backing);
+                    continue;
+                }
                 if(!rust_record_type(emitter, record->name, NULL, NULL))
                     continue;
                 NativeTypeName(module, record, type_name, sizeof(type_name));
@@ -75,10 +97,18 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                 ZirTypeField field;
                 while(TypeNextField(record, &offset, &field) == 1) {
                     char field_name[ZIR_NAME_MAX];
+                    char field_type[ZIR_NAME_MAX];
                     rust_field_name(record, field.name, field_name,
                                     sizeof(field_name));
+                    if(!rust_type(emitter, field.type, field_type,
+                                  sizeof(field_type))) {
+                        Diagnostic(record->span, "zir_rust.type",
+                                   "unsupported record field type: %s",
+                                   field.type);
+                        exit(1);
+                    }
                     fprintf(output, "    pub %s: %s,\n", field_name,
-                            rust_scalar_type(field.type));
+                            field_type);
                 }
                 fputs("}\n\n", output);
             }
@@ -213,6 +243,22 @@ static int float_type(const char *type)
            !strcmp(type, "real");
 }
 
+static int rust_enum_type(RustEmitter *emitter, const char *type,
+                          const ZirModule **owner, const ZirType **enumeration)
+{
+    const ZirModule *type_owner = NULL;
+    const ZirType *declared = emitter != NULL ?
+        FindType(emitter->module, type, &type_owner) : NULL;
+    if(declared == NULL || !declared->is_enum) {
+        if(owner != NULL) *owner = NULL;
+        if(enumeration != NULL) *enumeration = NULL;
+        return 0;
+    }
+    if(owner != NULL) *owner = type_owner;
+    if(enumeration != NULL) *enumeration = declared;
+    return 1;
+}
+
 static int rust_record_type(RustEmitter *emitter, const char *type,
                             const ZirModule **owner, const ZirType **record)
 {
@@ -246,6 +292,10 @@ static int rust_type(RustEmitter *emitter, const char *type, char *output,
     }
     if(rust_scalar_type(type) != NULL) {
         snprintf(output, size, "%s", rust_scalar_type(type));
+        return 1;
+    }
+    if(rust_enum_type(emitter, type, &owner, &record)) {
+        NativeTypeName(owner, record, output, size);
         return 1;
     }
     if(SliceElementType(type, element, sizeof(element)) &&
@@ -440,7 +490,7 @@ static void emit_integer_literal(const ZirExpr *expression, char *output,
         snprintf(output, size, "%s", expression->text);
         return;
     }
-    suffix = "i64";
+    suffix = "";
     if(!strcmp(expression->type, "s8")) suffix = "i8";
     else if(!strcmp(expression->type, "s16")) suffix = "i16";
     else if(!strcmp(expression->type, "s32")) suffix = "i32";
@@ -973,6 +1023,16 @@ static void validate_module(const ZirModule *module)
         const ZirType *record = &module->types[index];
         const ZirModule *owner = NULL;
         const ZirType *checked = NULL;
+        char checked_type[ZIR_NAME_MAX];
+        if(rust_enum_type(&emitter, record->name, &owner, &checked)) {
+            if(rust_scalar_type(checked->enum_backing) == NULL) {
+                Diagnostic(record->span, "zir_rust.enum",
+                           "invalid enum backing type: %s",
+                           checked->enum_backing);
+                exit(1);
+            }
+            continue;
+        }
         if(!rust_record_type(&emitter, record->name, &owner, &checked)) {
             Diagnostic(record->span, "zir_rust.type",
                        "the initial Rust target supports plain records with scalar fields only: %s",
@@ -982,7 +1042,8 @@ static void validate_module(const ZirModule *module)
         size_t offset = 0;
         ZirTypeField field;
         while(TypeNextField(record, &offset, &field) == 1)
-            if(rust_scalar_type(field.type) == NULL) {
+            if(!rust_type(&emitter, field.type, checked_type,
+                          sizeof(checked_type))) {
                 Diagnostic(record->span, "zir_rust.type",
                            "the initial Rust target supports plain records with scalar fields only: %s",
                            record->name);
@@ -1159,7 +1220,7 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     emitter.output = output;
     emitter.programs = programs;
     emitter.program_count = program_count;
-    fputs("#![allow(non_snake_case)]\n#![allow(unused)]\n\n", output);
+    fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(unused)]\n\n", output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n", output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranText {\n"

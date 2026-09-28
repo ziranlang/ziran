@@ -2955,7 +2955,13 @@ static void rust_global_initializer(RustEmitter *emitter,
         ZirFunction probe = {0};
         int root = ParseExprTyped(&probe, emitter->module, global->init,
                                   global->span, global->type);
-        if(root >= 0 && probe.exprs[root].kind == ZIR_EXPR_COMPOUND) {
+        /* Only literals of constants; a literal naming a procedure or
+         * global is set up by module startup. */
+        int constant = root >= 0;
+        for(int index = 0; index < probe.expr_count && constant; index++)
+            constant = probe.exprs[index].kind != ZIR_EXPR_IDENT &&
+                       probe.exprs[index].kind != ZIR_EXPR_CALL;
+        if(constant && probe.exprs[root].kind == ZIR_EXPR_COMPOUND) {
             const ZirFunction *saved = emitter->function;
             rust_fill_literal_types(emitter, &probe, root, global->type, 0);
             emitter->function = &probe;
@@ -3345,6 +3351,10 @@ typedef struct RustRuntimeItem {
     char name[ZIR_NAME_MAX];
     char impl_type[ZIR_NAME_MAX];
     int kept;
+    /* A method of a split impl, or the impl's opening or closing line. */
+    int method;
+    int impl_line;
+    int block; /* index of the impl opening line for methods and the close */
 } RustRuntimeItem;
 
 static int rust_names(const char *text, size_t length, const char *name)
@@ -3367,11 +3377,12 @@ static int rust_names(const char *text, size_t length, const char *name)
 static void rust_item_name(RustRuntimeItem *item)
 {
     const char *end = item->start + item->length;
-    const char *markers[] = {"pub struct ", "pub fn ", "pub const fn "};
+    const char *markers[] = {"pub struct ", "pub fn ", "pub const fn ",
+                             "    pub fn ", "    pub const fn "};
     for(const char *line = item->start; line < end;) {
         const char *next = memchr(line, '\n', (size_t)(end - line));
         size_t size = next != NULL ? (size_t)(next - line) : (size_t)(end - line);
-        for(int m = 0; m < 3; m++) {
+        for(int m = 0; m < 5; m++) {
             size_t marker = strlen(markers[m]);
             if(size > marker && memcmp(line, markers[m], marker) == 0) {
                 size_t used = 0;
@@ -3405,6 +3416,115 @@ static void rust_item_name(RustRuntimeItem *item)
     }
 }
 
+static RustRuntimeItem *rust_add_item(RustRuntimeItem **items, int *count,
+                                      int *capacity, const char *start,
+                                      size_t length)
+{
+    if(*count == *capacity) {
+        *capacity = *capacity ? *capacity * 2 : 64;
+        RustRuntimeItem *grown = realloc(*items, (size_t)*capacity * sizeof(**items));
+        if(grown == NULL)
+            return NULL;
+        *items = grown;
+    }
+    RustRuntimeItem *item = &(*items)[(*count)++];
+    memset(item, 0, sizeof(*item));
+    item->start = start;
+    item->length = length;
+    item->block = -1;
+    return item;
+}
+
+/* An inherent impl is split into its opening line, one piece per method,
+ * and its closing line, so each method is kept only when used. */
+static int rust_add_impl(RustRuntimeItem **items, int *count, int *capacity,
+                         const char *start, size_t length)
+{
+    const char *end = start + length;
+    const char *first_line_end = memchr(start, '\n', length);
+    int methods = 0;
+    for(const char *line = start; line < end;) {
+        const char *next = memchr(line, '\n', (size_t)(end - line));
+        if(!strncmp(line, "    pub fn ", 11) || !strncmp(line, "    pub const fn ", 17) ||
+           !strncmp(line, "    fn ", 7))
+            methods++;
+        line = next ? next + 1 : end;
+    }
+    RustRuntimeItem *whole = rust_add_item(items, count, capacity, start, length);
+    if(whole == NULL)
+        return 0;
+    rust_item_name(whole);
+    if(methods < 2 || !whole->impl_type[0] || first_line_end == NULL)
+        return 1;
+    /* Replace the whole impl with its pieces. */
+    (*count)--;
+    int opening = *count;
+    RustRuntimeItem *head = rust_add_item(items, count, capacity, start,
+                                          (size_t)(first_line_end + 1 - start));
+    if(head == NULL)
+        return 0;
+    rust_item_name(head);
+    head->impl_line = 1;
+    const char *method_start = NULL;
+    const char *close = end;
+    while(close > start && close[-1] == '\n') close--;
+    while(close > start && close[-1] != '\n') close--;
+    for(const char *line = first_line_end + 1; line <= close;) {
+        int starts = line == close || !strncmp(line, "    pub fn ", 11) ||
+                     !strncmp(line, "    pub const fn ", 17) || !strncmp(line, "    fn ", 7);
+        if(starts && method_start != NULL) {
+            RustRuntimeItem *method = rust_add_item(items, count, capacity, method_start,
+                                                    (size_t)(line - method_start));
+            if(method == NULL)
+                return 0;
+            rust_item_name(method);
+            method->method = 1;
+            method->block = opening;
+            snprintf(method->impl_type, sizeof(method->impl_type), "%s",
+                     (*items)[opening].impl_type);
+        }
+        if(line == close)
+            break;
+        if(starts)
+            method_start = line;
+        const char *next = memchr(line, '\n', (size_t)(end - line));
+        line = next ? next + 1 : end;
+    }
+    RustRuntimeItem *tail = rust_add_item(items, count, capacity, close,
+                                          (size_t)(end - close));
+    if(tail == NULL)
+        return 0;
+    tail->impl_line = 1;
+    tail->block = opening;
+    return 1;
+}
+
+/* A method is called as .name( or Type::name(; other items by name. */
+static int rust_mentions(const char *text, size_t length, const char *name, int method)
+{
+    if(!method)
+        return rust_names(text, length, name);
+    size_t size = strlen(name);
+    for(size_t index = 1; index + size < length; index++)
+        if(memcmp(text + index, name, size) == 0 && text[index + size] == '(' &&
+           (text[index - 1] == '.' || text[index - 1] == ':'))
+            return 1;
+    return 0;
+}
+
+static int rust_item_referenced(RustRuntimeItem *items, int count, int self,
+                                const char *body, size_t body_size)
+{
+    int method = items[self].method;
+    if(rust_mentions(body, body_size, items[self].name, method))
+        return 1;
+    for(int other = 0; other < count; other++)
+        if(other != self && items[other].kept &&
+           rust_mentions(items[other].start, items[other].length, items[self].name, method))
+            return 1;
+    return 0;
+}
+
 static int write_used_runtime(FILE *output, const char *runtime, size_t runtime_size,
                               const char *body, size_t body_size)
 {
@@ -3428,44 +3548,56 @@ static int write_used_runtime(FILE *output, const char *runtime, size_t runtime_
            (memcmp(line_end - 3, "{}\n", 3) == 0 || memcmp(line_end - 2, ";\n", 2) == 0))
             open = 0;
         if(item_start != NULL && !open) {
-            if(count == capacity) {
-                capacity = capacity ? capacity * 2 : 32;
-                RustRuntimeItem *grown = realloc(items, (size_t)capacity * sizeof(*items));
-                if(grown == NULL) { free(items); return 0; }
-                items = grown;
+            if(!rust_add_impl(&items, &count, &capacity, item_start,
+                              (size_t)(line_end - item_start))) {
+                free(items);
+                return 0;
             }
-            memset(&items[count], 0, sizeof(items[count]));
-            items[count].start = item_start;
-            items[count].length = (size_t)(line_end - item_start);
-            rust_item_name(&items[count]);
-            count++;
             item_start = NULL;
         }
         line = line_end;
     }
     for(int i = 0; i < count; i++)
-        if(items[i].name[0] && rust_names(body, body_size, items[i].name))
+        if(!items[i].method && !items[i].impl_line && items[i].name[0] &&
+           rust_names(body, body_size, items[i].name))
             items[i].kept = 1;
     while(changed) {
         changed = 0;
         for(int i = 0; i < count; i++) {
-            if(items[i].kept)
+            int keep = 0;
+            if(items[i].kept || items[i].impl_line)
                 continue;
-            for(int j = 0; j < count && !items[i].kept; j++) {
-                if(!items[j].kept)
-                    continue;
-                if(items[i].impl_type[0] ?
-                   !strcmp(items[i].impl_type, items[j].name) :
-                   (items[i].name[0] &&
-                    rust_names(items[j].start, items[j].length, items[i].name)))
-                    items[i].kept = changed = 1;
-            }
+            if(items[i].method) {
+                /* A method stays when its type does and something calls it. */
+                for(int j = 0; j < count && !keep; j++)
+                    keep = items[j].kept && !items[j].method && !items[j].impl_line &&
+                           !strcmp(items[j].name, items[i].impl_type);
+                keep = keep && rust_item_referenced(items, count, i, body, body_size);
+            } else if(items[i].impl_type[0]) {
+                for(int j = 0; j < count && !keep; j++)
+                    keep = items[j].kept && !items[j].method &&
+                           !strcmp(items[i].impl_type, items[j].name);
+            } else if(items[i].name[0])
+                keep = rust_item_referenced(items, count, i, body, body_size);
+            if(keep)
+                items[i].kept = changed = 1;
         }
     }
+    /* A split impl's opening and closing lines stay with any kept method. */
+    for(int i = 0; i < count; i++)
+        if(items[i].method && items[i].kept && items[i].block >= 0) {
+            items[items[i].block].kept = 1;
+            for(int j = items[i].block + 1; j < count; j++)
+                if(items[j].impl_line && items[j].block == items[i].block) {
+                    items[j].kept = 1;
+                    break;
+                }
+        }
     for(int i = 0; i < count; i++)
         if(items[i].kept) {
             fwrite(items[i].start, 1, items[i].length, output);
-            fputc('\n', output);
+            if(!items[i].method && !(items[i].impl_line && items[i].block < 0))
+                fputc('\n', output);
         }
     free(items);
     return 1;

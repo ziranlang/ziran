@@ -148,6 +148,26 @@ Bad :: () -> s32 {
 }
 ZI
 
+cat > "$work/conditional_alias.zi" <<'ZI'
+Bad :: (use_first: bool) -> s32 {
+    first: [1]u8
+    second: [1]u8
+    text := ifx use_first then TextView(first[:]) else TextView(second[:])
+    second[0] = cast(u8)98
+    return cast(s32)text[0]
+}
+ZI
+
+cat > "$work/record_literal_alias.zi" <<'ZI'
+Box :: struct { text: string; }
+Bad :: () -> s32 {
+    bytes: [1]u8
+    value := Box.{text = TextView(bytes[:])}
+    bytes[0] = cast(u8)98
+    return cast(s32)value.text[0]
+}
+ZI
+
 cat > "$work/record_return.zi" <<'ZI'
 Box :: struct { text: string; }
 Alias :: (bytes: []u8) -> Box { return Box.{text = TextView(bytes[:])} }
@@ -159,7 +179,7 @@ Bad :: () -> s32 {
 }
 ZI
 
-for name in direct field nested pointer_direct pointer_alias call_alias call_second_alias record_return enclosing_record; do
+for name in direct field nested pointer_direct pointer_alias call_alias call_second_alias conditional_alias record_literal_alias record_return enclosing_record; do
     if "$ziran" check --diagnostics=json --root "$work" \
         "$work/$name.zi" > "$work/$name.out" 2> "$work/$name.err"; then
         echo "$name accepted mutation of live text backing storage" >&2

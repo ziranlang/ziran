@@ -533,6 +533,21 @@ text_view_backings(BorrowCheck *check, int index)
             add_source(check, NULL, storage_place(check, expression->left, 1)) :
             NULL;
     }
+    if(expression->kind == ZIR_EXPR_CONDITIONAL)
+        return merge_sources(check,
+            text_view_backings(check, expression->right),
+            text_view_backings(check, expression->third));
+    if(expression->kind == ZIR_EXPR_FIELD_INIT)
+        return text_view_backings(check, expression->right);
+    if(expression->kind == ZIR_EXPR_COMPOUND) {
+        BorrowSource *result = NULL;
+        for(int child = expression->first_child; child >= 0;
+            child = fn->exprs[child].next_sibling)
+            if(view_type(check, fn->exprs[child].type))
+                result = merge_sources(check, result,
+                    text_view_backings(check, child));
+        return result;
+    }
     if(expression->kind != ZIR_EXPR_CALL)
         return NULL;
     if(!strcmp(expression->name, "TextView") ||

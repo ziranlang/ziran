@@ -1343,9 +1343,8 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                     }
                 }
             }
-            if(pointer_index || g_union_unsafe)
-                fprintf(f, "import \"unsafe\"\n");
-            /* print uses fmt. */
+            /* print uses fmt; the package's first file holds formatFloat
+             * when any file prints a float. */
             int prints = 0;
             for(int fi = 0; fi < m->function_count && !prints; fi++)
                 for(int ei = 0; ei < m->functions[fi].expr_count; ei++)
@@ -1354,14 +1353,19 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                         prints = 1;
                         break;
                     }
-            /* The package's first file holds formatFloat when any file
-             * prints a float. */
             int float_helper = pi == 0 && mi == 0 && go_prints_floats(progs, prog_count);
+            /* Imports are written as one gofmt block, standard packages first. */
+            char imports[64][ZIR_PATH_MAX + ZIR_GO_NAME_MAX + 8];
+            int import_count = 0;
             if(prints)
-                fprintf(f, "import \"fmt\"\n");
-            if(float_helper)
-                fprintf(f, "import \"math\"\nimport \"strconv\"\n");
-            for(int i = 0; i < g_extern_count; i++) {
+                snprintf(imports[import_count++], sizeof(imports[0]), "\"fmt\"");
+            if(float_helper) {
+                snprintf(imports[import_count++], sizeof(imports[0]), "\"math\"");
+                snprintf(imports[import_count++], sizeof(imports[0]), "\"strconv\"");
+            }
+            if(pointer_index || g_union_unsafe)
+                snprintf(imports[import_count++], sizeof(imports[0]), "\"unsafe\"");
+            for(int i = 0; i < g_extern_count && import_count < 64; i++) {
                 int duplicate = 0;
 
                 if(!g_externs[i].direct_go)
@@ -1375,12 +1379,17 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                     }
                 }
                 if(!duplicate)
-                    fprintf(f, "import %s \"%s\"\n",
-                            g_externs[i].go_import_alias,
-                            g_externs[i].go_import_path);
+                    snprintf(imports[import_count++], sizeof(imports[0]), "%s \"%s\"",
+                             g_externs[i].go_import_alias, g_externs[i].go_import_path);
             }
-            if(g_extern_count > 0 || pointer_index || g_union_unsafe || prints || float_helper)
-                fprintf(f, "\n");
+            if(import_count == 1)
+                fprintf(f, "import %s\n\n", imports[0]);
+            else if(import_count > 1) {
+                fputs("import (\n", f);
+                for(int i = 0; i < import_count; i++)
+                    fprintf(f, "\t%s\n", imports[i]);
+                fputs(")\n\n", f);
+            }
             if(pi == 0 && mi == 0 && go_uses_caller_location(progs, prog_count))
                 fputs("type Source_Code_Location struct {\n"
                       "\tFullyPathedFilename string\n"

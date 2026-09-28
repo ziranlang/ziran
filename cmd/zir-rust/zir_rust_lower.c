@@ -1233,7 +1233,13 @@ static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
         argument_node = function->exprs[argument_node].next_sibling;
     }
     format[format_used] = '\0';
-    write_line(emitter, "print!(\"%s\"%s);", format, arguments);
+    /* A line ending in a newline is println!, as Rust code writes it. */
+    if(format_used >= 2 && !strcmp(format + format_used - 2, "\\n") &&
+       (format_used < 3 || format[format_used - 3] != '\\')) {
+        format[format_used - 2] = '\0';
+        write_line(emitter, "println!(\"%s\"%s);", format, arguments);
+    } else
+        write_line(emitter, "print!(\"%s\"%s);", format, arguments);
     free(pieces);
     free(format);
     free(arguments);

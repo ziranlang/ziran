@@ -1561,7 +1561,8 @@ c_plan9_write_runtime(const char *out_dir)
 "        (left.length == 0 ||\n"
 "         memcmp(left.data, right.data, left.length) == 0);\n"
 "}\n\n"
-"/* `print` output, matching include/zir_string.h on hosted targets. */\n"
+"/* `print` output, spelled the same as on the hosted C targets. */\n"
+"#ifdef ZIR_PLAN9_PRINT\n"
 "static void\nZirPrintString(String text)\n"
 "{\n"
 "    if(text.length > 0)\n"
@@ -1625,6 +1626,7 @@ c_plan9_write_runtime(const char *out_dir)
 "        }\n"
 "    }\n"
 "}\n\n"
+"#endif\n\n"
 "static size_t\n"
 "ZirVecIndex(int64_t count, int64_t index)\n"
 "{\n"
@@ -2053,6 +2055,11 @@ c_plan9_rewrite_once(const char *text)
         free(line);
         return NULL;
     }
+    /* print helpers need write and strtod; only printing files ask for them,
+     * before any header can include the runtime. */
+    if(strstr(text, "ZirPrint") != NULL &&
+       buf_puts(&out, "#define ZIR_PLAN9_PRINT 1\n") < 0)
+        goto fail;
 
     while(*cursor != '\0') {
         const char *nl = strchr(cursor, '\n');

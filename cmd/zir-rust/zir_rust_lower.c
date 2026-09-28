@@ -2525,6 +2525,141 @@ static void emit_ziran_vec_runtime(FILE *output)
     fputs("}\n", output);
 }
 
+/* The Rust runtime is written in full, then only the items the program
+ * refers to are kept: a struct or function stays when the program or a kept
+ * item names it, and an impl stays with its type. */
+typedef struct RustRuntimeItem {
+    const char *start;
+    size_t length;
+    char name[ZIR_NAME_MAX];
+    char impl_type[ZIR_NAME_MAX];
+    int kept;
+} RustRuntimeItem;
+
+static int rust_names(const char *text, size_t length, const char *name)
+{
+    size_t size = strlen(name);
+    if(size == 0)
+        return 0;
+    for(size_t index = 0; index + size <= length; index++) {
+        if(memcmp(text + index, name, size) != 0)
+            continue;
+        if(index > 0 && is_ident_char((unsigned char)text[index - 1]))
+            continue;
+        if(index + size < length && is_ident_char((unsigned char)text[index + size]))
+            continue;
+        return 1;
+    }
+    return 0;
+}
+
+static void rust_item_name(RustRuntimeItem *item)
+{
+    const char *end = item->start + item->length;
+    const char *markers[] = {"pub struct ", "pub fn ", "pub const fn "};
+    for(const char *line = item->start; line < end;) {
+        const char *next = memchr(line, '\n', (size_t)(end - line));
+        size_t size = next != NULL ? (size_t)(next - line) : (size_t)(end - line);
+        for(int m = 0; m < 3; m++) {
+            size_t marker = strlen(markers[m]);
+            if(size > marker && memcmp(line, markers[m], marker) == 0) {
+                size_t used = 0;
+                for(const char *c = line + marker; c < line + size &&
+                    is_ident_char((unsigned char)*c) && used + 1 < sizeof(item->name); c++)
+                    item->name[used++] = *c;
+                item->name[used] = '\0';
+                return;
+            }
+        }
+        if((size > 4 && memcmp(line, "impl", 4) == 0) ||
+           (size > 11 && memcmp(line, "unsafe impl", 11) == 0)) {
+            /* The implemented type follows " for " when present. */
+            const char *type = NULL;
+            for(const char *c = line; c + 5 <= line + size; c++)
+                if(memcmp(c, " for ", 5) == 0) { type = c + 5; break; }
+            if(type == NULL) {
+                type = line + (line[0] == 'u' ? 11 : 4);
+                if(*type == '<')
+                    while(type < line + size && *type != '>') type++;
+                while(type < line + size && !is_ident_char((unsigned char)*type)) type++;
+            }
+            size_t used = 0;
+            while(type < line + size && is_ident_char((unsigned char)*type) &&
+                  used + 1 < sizeof(item->impl_type))
+                item->impl_type[used++] = *type++;
+            item->impl_type[used] = '\0';
+            return;
+        }
+        line = next != NULL ? next + 1 : end;
+    }
+}
+
+static int write_used_runtime(FILE *output, const char *runtime, size_t runtime_size,
+                              const char *body, size_t body_size)
+{
+    RustRuntimeItem *items = NULL;
+    int count = 0, capacity = 0, changed = 1;
+    const char *end = runtime + runtime_size;
+    const char *item_start = NULL;
+    int open = 0;
+    for(const char *line = runtime; line < end;) {
+        const char *next = memchr(line, '\n', (size_t)(end - line));
+        const char *line_end = next != NULL ? next + 1 : end;
+        size_t size = (size_t)(line_end - line);
+        int blank = size <= 1;
+        if(item_start == NULL && !blank) {
+            item_start = line;
+            open = 1;
+        }
+        if(item_start != NULL && open && line[0] == '}' )
+            open = 0;
+        if(item_start != NULL && open && size >= 3 && line[0] != ' ' &&
+           (memcmp(line_end - 3, "{}\n", 3) == 0 || memcmp(line_end - 2, ";\n", 2) == 0))
+            open = 0;
+        if(item_start != NULL && !open) {
+            if(count == capacity) {
+                capacity = capacity ? capacity * 2 : 32;
+                RustRuntimeItem *grown = realloc(items, (size_t)capacity * sizeof(*items));
+                if(grown == NULL) { free(items); return 0; }
+                items = grown;
+            }
+            memset(&items[count], 0, sizeof(items[count]));
+            items[count].start = item_start;
+            items[count].length = (size_t)(line_end - item_start);
+            rust_item_name(&items[count]);
+            count++;
+            item_start = NULL;
+        }
+        line = line_end;
+    }
+    for(int i = 0; i < count; i++)
+        if(items[i].name[0] && rust_names(body, body_size, items[i].name))
+            items[i].kept = 1;
+    while(changed) {
+        changed = 0;
+        for(int i = 0; i < count; i++) {
+            if(items[i].kept)
+                continue;
+            for(int j = 0; j < count && !items[i].kept; j++) {
+                if(!items[j].kept)
+                    continue;
+                if(items[i].impl_type[0] ?
+                   !strcmp(items[i].impl_type, items[j].name) :
+                   (items[i].name[0] &&
+                    rust_names(items[j].start, items[j].length, items[i].name)))
+                    items[i].kept = changed = 1;
+            }
+        }
+    }
+    for(int i = 0; i < count; i++)
+        if(items[i].kept) {
+            fwrite(items[i].start, 1, items[i].length, output);
+            fputc('\n', output);
+        }
+    free(items);
+    return 1;
+}
+
 int rust_lower(const ZirProgram *const *programs, int program_count,
                const char *output_directory, const char *entry_module,
                const char *entry_function, int executable)
@@ -2590,13 +2725,22 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
             "[profile.dev]\npanic = \"abort\"\n\n"
             "[profile.release]\npanic = \"abort\"\n");
     fclose(cargo);
-    emitter.output = output;
+    char *runtime_text = NULL, *body_text = NULL;
+    size_t runtime_size = 0, body_size = 0;
+    FILE *runtime = open_memstream(&runtime_text, &runtime_size);
+    FILE *body = open_memstream(&body_text, &body_size);
+    if(runtime == NULL || body == NULL) {
+        Diagnostic(Span(output_directory, 1, 1), "zir_rust.output",
+                   "cannot buffer Rust output");
+        return 1;
+    }
+    emitter.output = body;
     emitter.programs = programs;
     emitter.program_count = program_count;
     fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n#![allow(improper_ctypes_definitions)]\n\n", output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranSlice<T> {\n"
-          "    pub data: *mut T,\n    pub len: usize,\n}\n\n", output);
-    emit_ziran_vec_runtime(output);
+          "    pub data: *mut T,\n    pub len: usize,\n}\n\n", runtime);
+    emit_ziran_vec_runtime(runtime);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranText {\n"
           "    pub data: *const u8,\n    pub len: usize,\n"
           "}\n\n"
@@ -2616,16 +2760,16 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
           "        assert!(low >= 0 && low <= high && high as usize <= value.len);\n"
           "        Self { data: unsafe { value.data.offset(low) }, len: (high - low) as usize }\n"
           "    }\n"
-          "}\n\n", output);
-    emit_type_definitions(&emitter, output);
-    emit_extern_definitions(&emitter, output);
-    emit_global_definitions(&emitter, output);
+          "}\n\n", runtime);
+    emit_type_definitions(&emitter, body);
+    emit_extern_definitions(&emitter, body);
+    emit_global_definitions(&emitter, body);
     for(int program_index = 0; program_index < program_count; program_index++) {
         const ZirProgram *program = programs[program_index];
         for(int module_index = 0; module_index < program->module_count;
             module_index++) {
             const ZirModule *module = &program->modules[module_index];
-            fprintf(output,
+            fprintf(body,
                     "// Code generated by zi2rust from %s. DO NOT EDIT.\n",
                     module->source_path);
             for(int function_index = 0; function_index < module->function_count;
@@ -2634,23 +2778,34 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
                                &module->functions[function_index]);
         }
     }
-    int has_startup = emit_startup(&emitter, output);
+    int has_startup = emit_startup(&emitter, body);
     if(executable) {
         function_symbol(&emitter, entry_owner, entry, symbol, sizeof(symbol));
-        fputs("fn main() {\n", output);
+        fputs("fn main() {\n", body);
         if(has_startup)
-            fputs("    ziran_startup();\n", output);
+            fputs("    ziran_startup();\n", body);
         if(strcmp(entry->return_type, "void") == 0) {
-            fprintf(output, "    %s();\n", symbol);
+            fprintf(body, "    %s();\n", symbol);
         } else if(strcmp(entry->return_type, "bool") == 0) {
-            fprintf(output, "    let failed = %s();\n", symbol);
-            fprintf(output, "    if failed { std::process::exit(1); }\n");
+            fprintf(body, "    let failed = %s();\n", symbol);
+            fprintf(body, "    if failed { std::process::exit(1); }\n");
         } else {
-            fprintf(output, "    let code = %s() as i32;\n", symbol);
-            fprintf(output, "    std::process::exit(code);\n");
+            fprintf(body, "    let code = %s() as i32;\n", symbol);
+            fprintf(body, "    std::process::exit(code);\n");
         }
-        fputs("}\n", output);
+        fputs("}\n", body);
     }
+    if(fclose(runtime) != 0 || fclose(body) != 0 ||
+       !write_used_runtime(output, runtime_text, runtime_size, body_text, body_size)) {
+        free(runtime_text);
+        free(body_text);
+        Diagnostic(Span(output_directory, 1, 1), "zir_rust.output",
+                   "cannot buffer Rust output");
+        return 1;
+    }
+    fwrite(body_text, 1, body_size, output);
+    free(runtime_text);
+    free(body_text);
     if(fclose(output) != 0) {
         Diagnostic(Span(output_directory, 1, 1), "zir_rust.output",
                    "cannot finish Rust output");

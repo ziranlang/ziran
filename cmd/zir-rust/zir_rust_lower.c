@@ -2744,6 +2744,32 @@ static void emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
     }
 }
 
+/* Whether any program takes this function as a procedure value. */
+static int rust_function_is_value(RustEmitter *emitter, const ZirModule *module,
+                                  const ZirFunction *function)
+{
+    for(int p = 0; p < emitter->program_count; p++)
+        for(int m = 0; m < emitter->programs[p]->module_count; m++) {
+            const ZirModule *scope = &emitter->programs[p]->modules[m];
+            for(int f = 0; f < scope->function_count; f++) {
+                const ZirFunction *user = &scope->functions[f];
+                for(int e = 0; e < user->expr_count; e++) {
+                    const ZirExpr *expression = &user->exprs[e];
+                    const ZirModule *owner = NULL;
+                    const ZirFunction *target = NULL;
+                    if(!expression->is_function_value ||
+                       strcmp(expression->name, function->name) != 0)
+                        continue;
+                    if(ResolveFunctionAt(scope, expression->name, user->span.path,
+                                         &owner, &target) == 1 &&
+                       owner == module && target == function)
+                        return 1;
+                }
+            }
+        }
+    return 0;
+}
+
 static void lower_function(RustEmitter *emitter, const ZirModule *module,
                            const ZirFunction *function)
 {
@@ -2758,10 +2784,15 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     emitter->function = function;
     emitter->local_count = 0;
     function_symbol(emitter, module, function, symbol, sizeof(symbol));
+    /* Only what C can see or call keeps the C ABI: exported functions and
+     * functions taken as procedure values. Others are ordinary Rust fns. */
     if(function->export_symbol[0] ||
        (function->exported && strcmp(function->name, "main") != 0))
-        fputs("#[no_mangle]\n", emitter->output);
-    fputs("#[inline(never)]\npub extern \"C\" fn ", emitter->output);
+        fputs("#[no_mangle]\npub extern \"C\" fn ", emitter->output);
+    else if(rust_function_is_value(emitter, module, function))
+        fputs("extern \"C\" fn ", emitter->output);
+    else
+        fputs("fn ", emitter->output);
     fputs(symbol, emitter->output);
     fputc('(', emitter->output);
     count = *function->args ? split_arguments(function->args, parts, 32) : 0;
@@ -3603,6 +3634,73 @@ static int write_used_runtime(FILE *output, const char *runtime, size_t runtime_
     return 1;
 }
 
+static int rust_text_has(const char *first, size_t first_size,
+                         const char *second, size_t second_size, const char *needle)
+{
+    size_t length = strlen(needle);
+    for(int part = 0; part < 2; part++) {
+        const char *text = part ? second : first;
+        size_t size = part ? second_size : first_size;
+        for(size_t index = 0; index + length <= size; index++)
+            if(!memcmp(text + index, needle, length))
+                return 1;
+    }
+    return 0;
+}
+
+/* A definition keyword followed by a name containing an uppercase letter
+ * or underscore, like fn Hello_Main or struct Source_Code_Location. */
+static int rust_text_names(const char *first, size_t first_size,
+                           const char *second, size_t second_size,
+                           const char *keyword, int (*unusual)(int))
+{
+    size_t length = strlen(keyword);
+    for(int part = 0; part < 2; part++) {
+        const char *text = part ? second : first;
+        size_t size = part ? second_size : first_size;
+        for(size_t index = 0; index + length < size; index++) {
+            if(memcmp(text + index, keyword, length) != 0 ||
+               (index > 0 && is_ident_char((unsigned char)text[index - 1])))
+                continue;
+            for(size_t c = index + length; c < size && is_ident_char((unsigned char)text[c]); c++)
+                if(unusual((unsigned char)text[c]))
+                    return 1;
+        }
+    }
+    return 0;
+}
+
+static int rust_upper(int c) { return isupper(c); }
+static int rust_underscore(int c) { return c == '_'; }
+
+/* Only the lints the generated names and code can trigger are allowed. */
+static void write_rust_lint_allowances(FILE *output, const char *runtime, size_t runtime_size,
+                                       const char *body, size_t body_size, int executable)
+{
+    int any = 0;
+    if(rust_text_names(runtime, runtime_size, body, body_size, "fn ", rust_upper))
+        any = fputs("#![allow(non_snake_case)]\n", output) >= 0;
+    if(rust_text_names(runtime, runtime_size, body, body_size, "struct ", rust_underscore) ||
+       rust_text_names(runtime, runtime_size, body, body_size, "union ", rust_underscore) ||
+       rust_text_names(runtime, runtime_size, body, body_size, "type ", rust_underscore))
+        any = fputs("#![allow(non_camel_case_types)]\n", output) >= 0;
+    if(rust_text_has(runtime, runtime_size, body, body_size, "static mut "))
+        any = fputs("#![allow(non_upper_case_globals)]\n", output) >= 0;
+    if(!executable || rust_text_has("", 0, body, body_size, "let ") ||
+       rust_text_has(runtime, runtime_size, body, body_size, "static mut "))
+        any = fputs("#![allow(unused)]\n", output) >= 0;
+    if(rust_text_has(runtime, runtime_size, body, body_size, "extern \"C\""))
+        any = fputs("#![allow(improper_ctypes_definitions)]\n", output) >= 0;
+    if(rust_text_has(runtime, runtime_size, body, body_size, ".wrapping_") ||
+       rust_text_has(runtime, runtime_size, body, body_size, ".checked_") ||
+       rust_text_has(runtime, runtime_size, body, body_size, " as usize]")) {
+        fputs("#![allow(arithmetic_overflow)]\n", output);
+        any = fputs("#![allow(unconditional_panic)]\n", output) >= 0;
+    }
+    if(any)
+        fputc('\n', output);
+}
+
 int rust_lower(const ZirProgram *const *programs, int program_count,
                const char *output_directory, const char *entry_module,
                const char *entry_function, int executable)
@@ -3680,7 +3778,6 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     emitter.output = body;
     emitter.programs = programs;
     emitter.program_count = program_count;
-    fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n#![allow(improper_ctypes_definitions)]\n#![allow(arithmetic_overflow)]\n#![allow(unconditional_panic)]\n\n", output);
     fputs("#[repr(C)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n"
           "impl<T> Clone for ZiranSlice<T> {\n"
@@ -3738,9 +3835,10 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
         for(int module_index = 0; module_index < program->module_count;
             module_index++) {
             const ZirModule *module = &program->modules[module_index];
-            fprintf(body,
-                    "// Code generated by zi2rust from %s. DO NOT EDIT.\n",
-                    module->source_path);
+            if(program_count != 1 || programs[0]->module_count != 1)
+                fprintf(body,
+                        "// Code generated by zi2rust from %s. DO NOT EDIT.\n",
+                        module->source_path);
             for(int function_index = 0; function_index < module->function_count;
                 function_index++)
                 lower_function(&emitter, module,
@@ -3764,15 +3862,27 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
         }
         fputs("}\n", body);
     }
-    if(fclose(runtime) != 0 || fclose(body) != 0 ||
-       !write_used_runtime(output, runtime_text, runtime_size, body_text, body_size)) {
+    char *kept_text = NULL;
+    size_t kept_size = 0;
+    FILE *kept = open_memstream(&kept_text, &kept_size);
+    if(kept == NULL || fclose(runtime) != 0 || fclose(body) != 0 ||
+       !write_used_runtime(kept, runtime_text, runtime_size, body_text, body_size) ||
+       fclose(kept) != 0) {
         free(runtime_text);
         free(body_text);
+        free(kept_text);
         Diagnostic(Span(output_directory, 1, 1), "zir_rust.output",
                    "cannot buffer Rust output");
         return 1;
     }
+    if(program_count == 1 && programs[0]->module_count == 1)
+        fprintf(output, "// Code generated by zi2rust from %s. DO NOT EDIT.\n",
+                programs[0]->modules[0].source_path);
+    write_rust_lint_allowances(output, kept_text, kept_size, body_text, body_size,
+                               executable);
+    fwrite(kept_text, 1, kept_size, output);
     fwrite(body_text, 1, body_size, output);
+    free(kept_text);
     free(runtime_text);
     free(body_text);
     if(fclose(output) != 0) {

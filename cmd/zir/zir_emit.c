@@ -877,7 +877,12 @@ emit_field_path(const ZirModule *module, ZirTarget target,
         else
             TargetFieldName(record, target, name, mapped, sizeof(mapped));
         const char *base = skip_ws(current_type);
-        format(next, sizeof(next), "(%s)%s%s", result,
+        /* A name or member chain binds tighter than . and -> already. */
+        int chain = result[0] != '\0' && !isdigit((unsigned char)result[0]);
+        for(const char *c = result; *c && chain; c++)
+            chain = is_ident_char((unsigned char)*c) || *c == '.' ||
+                    (c[0] == '-' && c[1] == '>') || (c[0] == '>' && c > result && c[-1] == '-');
+        format(next, sizeof(next), chain ? "%s%s%s" : "(%s)%s%s", result,
                target != ZIR_GO && *base == '*' ? "->" : ".", mapped);
         copy_text(result, sizeof(result), next);
         if(dot == NULL) break;
@@ -1325,9 +1330,14 @@ fresh(Emitter *e, char *name)
 
 /* Array expressions are values. Their source is captured before any write,
  * so even a self-assignment or an overlapping record destination is safe. */
+static int enclosed(const char *text);
+static const char *bare(const char *text, char *out, size_t size);
+
 static void
 assign_value(Emitter *e, const char *destination, const char *type, const char *source)
 {
+    char plain[ZIR_TEXT_MAX];
+    source = bare(source, plain, sizeof(plain));
     if(ArrayElementType(type, NULL, 0, NULL) &&
        (e->target == ZIR_C || e->target == ZIR_CPP)) {
         line(e, "memmove(%s, %s, sizeof(%s));", destination, source, destination);
@@ -1406,6 +1416,9 @@ static void
 declare(Emitter *e, const char *name, const char *type, const char *value)
 {
     char binding[ZIR_NAME_MAX];
+    char plain[ZIR_TEXT_MAX];
+    if(value != NULL)
+        value = bare(value, plain, sizeof(plain));
     TargetBindingName(e->fn, e->target, name, binding, sizeof(binding));
     name = binding;
     if(ArrayElementType(type, NULL, 0, NULL)) {
@@ -1812,6 +1825,18 @@ enclosed(const char *text)
         else if(text[i] == ')' && --depth == 0 && i + 1 < length) return 0;
     }
     return depth == 0;
+}
+
+/* A whole expression standing alone needs no outer parentheses. */
+static const char *
+bare(const char *text, char *out, size_t size)
+{
+    copy_text(out, size, text);
+    if(enclosed(out)) {
+        memmove(out, out + 1, strlen(out));
+        out[strlen(out) - 1] = '\0';
+    }
+    return out;
 }
 
 static int
@@ -4188,8 +4213,9 @@ emit_if(Emitter *e,int i,int end)
 {
     char cond[ZIR_TEXT_MAX];
     int close=block_end(e->fn,i,end);
+    char plain[ZIR_TEXT_MAX];
     emit_expr(e,e->fn->stmts[i].expr_root,"bool",cond,sizeof(cond));
-    line(e,e->target==ZIR_GO?"if %s {":"if (%s) {",cond);e->indent++;
+    line(e,e->target==ZIR_GO?"if %s {":"if (%s) {",bare(cond,plain,sizeof(plain)));e->indent++;
     emit_sequence(e,i+1,close);e->indent--;
     if(close+1<end && e->fn->stmts[close+1].kind==ZIR_STMT_IF && e->fn->stmts[close+1].is_else) {
         int next=close+1;
@@ -4283,8 +4309,16 @@ emit_sequence(Emitter *e,int begin,int end)
         case ZIR_STMT_ASSIGN:
             emit_destination(e, st->lhs_root, lhs, sizeof(lhs));
             if(strcmp(st->assignment_op,"=")) {
-                char old[ZIR_NAME_MAX];fresh(e,old);
-                declare(e,old,e->fn->exprs[st->lhs_root].type,lhs);
+                /* The target's old value reads in place unless a call on
+                 * either side could run first or change it. */
+                char old[ZIR_TEXT_MAX];
+                if(expression_calls(e->fn, st->lhs_root) ||
+                   expression_calls(e->fn, st->expr_root) ||
+                   ArrayElementType(e->fn->exprs[st->lhs_root].type, NULL, 0, NULL)) {
+                    fresh(e,old);
+                    declare(e,old,e->fn->exprs[st->lhs_root].type,lhs);
+                } else
+                    copy_text(old, sizeof(old), lhs);
                 emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,value,sizeof(value));
                 char op[4];copy_text(op,sizeof(op),st->assignment_op);op[strlen(op)-1]=0;
                 const char *type=canonical(e->fn->exprs[st->lhs_root].type);
@@ -4315,7 +4349,9 @@ emit_sequence(Emitter *e,int begin,int end)
                         drop_locals(e, 0);
                         copy_text(value, sizeof(value), returned);
                     }
-                    line(e, "return %s%s", value, e->target == ZIR_GO ? "" : ";");
+                    char plain[ZIR_TEXT_MAX];
+                    line(e, "return %s%s", bare(value, plain, sizeof(plain)),
+                         e->target == ZIR_GO ? "" : ";");
                 }
             }
             else {

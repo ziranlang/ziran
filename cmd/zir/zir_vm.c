@@ -3443,16 +3443,21 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
             }
             if(slot == NULL)
                 return FLOW_ERROR;
+            /* A compound assignment reads its target before the right side
+             * runs, as native targets do: x += Bump() adds to the old x. */
+            int compound = strcmp(statement->assignment_op, "=") != 0;
+            Value current = {0};
+            if(compound)
+                current = union_record != NULL ?
+                    union_member_read(vm, union_record, union_type) : *slot;
             Value right = eval(frame, statement->expr_root, 0);
             if(vm->failed)
                 return FLOW_ERROR;
-            if(strcmp(statement->assignment_op, "=") != 0) {
+            if(compound) {
                 const char *operation = assignment_binary_operator(
                     statement->assignment_op);
                 if(operation == NULL)
                     return FLOW_ERROR;
-                Value current = union_record != NULL ?
-                    union_member_read(vm, union_record, union_type) : *slot;
                 right = binary_value(vm, operation, current, right,
                     function->exprs[statement->lhs_root].type,
                     function->exprs[statement->expr_root].type);

@@ -24,7 +24,7 @@ assert features
 ids = [feature["id"] for feature in features]
 assert ids == sorted(ids)
 assert len(ids) == len(set(ids))
-targets = ["c", "cpp", "go", "zib", "plan9-c"]
+targets = ["c", "cpp", "go", "rust", "zib", "plan9-c"]
 required = {
     "id", "status", "syntax", "target_support", "limits",
     "accepted_example", "rejected_example", "rejection", "evidence"
@@ -38,7 +38,7 @@ for feature in features:
     ))
     assert [item["target"] for item in feature["target_support"]] == targets
     assert all(set(item) == {"target", "status", "limit"} for item in feature["target_support"])
-    assert all(item["status"] in ("supported", "experimental") for item in feature["target_support"])
+    assert all(item["status"] in ("supported", "experimental", "unsupported") for item in feature["target_support"])
     for evidence in feature["evidence"]:
         if "/" in evidence:
             assert (repo / evidence).is_file(), evidence
@@ -87,15 +87,19 @@ assert selected["stability"] == "stable-id"
 assert selected["feature"]["id"] == sys.argv[2]
 PY
 
+"$ziran" capabilities --json > "$work/capabilities.json"
 "$ziran" guide > "$work/guide.txt"
 "$ziran" --help > "$work/help.txt"
-python3 - "$work/features.json" "$work/guide.txt" "$work/help.txt" <<'PY'
+python3 - "$work/features.json" "$work/capabilities.json" \
+        "$work/guide.txt" "$work/help.txt" <<'PY'
 import json
 from pathlib import Path
 import sys
-capabilities = json.loads(Path(sys.argv[1]).read_text())
-guide = Path(sys.argv[2]).read_text()
-help_text = Path(sys.argv[3]).read_text()
+manifest = json.loads(Path(sys.argv[1]).read_text())
+capabilities = json.loads(Path(sys.argv[2]).read_text())
+guide = Path(sys.argv[3]).read_text()
+help_text = Path(sys.argv[4]).read_text()
+assert capabilities["targets"] == [item["target"] for item in manifest["features"][0]["target_support"]]
 assert "ziran features --id compile.assertions --json" in guide
 assert "features" in help_text
 PY

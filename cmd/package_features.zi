@@ -15,7 +15,7 @@ PkgFeature :: struct {
     rejected_example: string
     rejection: string
     evidence: string
-    targets: [5]PkgTargetSupport
+    targets: [6]PkgTargetSupport
 }
 
 
@@ -119,31 +119,35 @@ PkgPrintFeatureList :: (items: []PkgFeature, json: bool) -> void {
 
 #scope_export
 Features :: (arguments: []string) -> s32 {
-    numeric_targets: [5]PkgTargetSupport = .[
+    numeric_targets: [6]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
+    .{target = "rust", status = "experimental", limit = "The initial Rust backend is not covered by the numeric differential matrix."},
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "experimental", limit = "Not covered by the numeric differential matrix."}
     ]
-    record_targets: [5]PkgTargetSupport = .[
+    record_targets: [6]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
+    .{target = "rust", status = "unsupported", limit = "The initial Rust backend does not lower owned Vec storage."},
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "experimental", limit = "Not covered by the aggregate-ownership differential matrix."}
     ]
-    view_targets: [5]PkgTargetSupport = .[
+    view_targets: [6]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
     .{target = "cpp", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
     .{target = "go", status = "supported", limit = "Mutable backing bytes are snapshotted."},
+    .{target = "rust", status = "unsupported", limit = "The initial Rust backend does not lower text values or TextView."},
     .{target = "zib", status = "supported", limit = "Mutable backing bytes are snapshotted."},
     .{target = "plan9-c", status = "experimental", limit = "Borrow behavior is inherited from the C post-pass and is not covered by the differential matrix."}
     ]
-    assert_targets: [5]PkgTargetSupport = .[
+    assert_targets: [6]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
+    .{target = "rust", status = "supported", limit = "Checked before native output."},
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "supported", limit = "Checked before native output."}
     ]

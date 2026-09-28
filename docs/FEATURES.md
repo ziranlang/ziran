@@ -6,7 +6,8 @@ entry. The checked-in [FEATURES.json](FEATURES.json) must be byte-identical to
 the command output, and [tests/features.sh](../tests/features.sh) validates:
 
 - stable, unique, sorted IDs;
-- syntax, status, limits, rejection behavior, and target support;
+- syntax, status, limits, rejection behavior, and target support,
+  including explicit unsupported experimental targets;
 - referenced tests, conformance IDs, and diagnostic codes;
 - every accepted example with `ziran check`; and
 - rejection of every negative example.

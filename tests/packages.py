@@ -51,7 +51,9 @@ def compile_app(ziran: str, app: Path, output: Path, compiler: Path,
 
 def main() -> None:
     ziran = str(Path(sys.argv[1]).resolve())
-    compiler = Path(ziran).parents[2]
+    # The compiler repository is the one holding this test, wherever the
+    # binary under test was built.
+    compiler = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory(prefix="ziran-packages-") as scratch:
         root = Path(scratch)
         env = os.environ.copy()

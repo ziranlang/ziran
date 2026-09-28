@@ -6,6 +6,7 @@
 #include "zir_emit.h"
 #include "zir_text.h"
 #include "zir_check.h"
+#include "zir_parse.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -2371,7 +2372,17 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
                 write_line(emitter,
                            "// ziran: #parallel region downgraded to serial");
             char plain_value[ZIR_RUST_TEXT_MAX];
-            write_line(emitter, "while %s {", rust_bare(value, plain_value, sizeof(plain_value)));
+            /* A loop a named break or continue targets carries a label. */
+            int labeled = 0;
+            for(int target = 0; target < emitter->function->stmt_count; target++)
+                if(statement->loop_id &&
+                   emitter->function->stmts[target].target_id == statement->loop_id)
+                    labeled = 1;
+            if(labeled)
+                write_line(emitter, "'zir_loop_%d: while %s {", statement->loop_id,
+                           rust_bare(value, plain_value, sizeof(plain_value)));
+            else
+                write_line(emitter, "while %s {", rust_bare(value, plain_value, sizeof(plain_value)));
             emitter->indent++;
             emit_sequence(emitter, index + 1, close);
             emitter->indent--;
@@ -2401,10 +2412,14 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
                 write_line(emitter, "return;");
             break;
         case ZIR_STMT_BREAK:
-            write_line(emitter, "break;");
-            break;
         case ZIR_STMT_CONTINUE:
-            write_line(emitter, "continue;");
+            if(statement->target_id)
+                write_line(emitter, "%s 'zir_loop_%d;",
+                           statement->kind == ZIR_STMT_BREAK ? "break" : "continue",
+                           statement->target_id);
+            else
+                write_line(emitter, "%s;",
+                           statement->kind == ZIR_STMT_BREAK ? "break" : "continue");
             break;
         case ZIR_STMT_UNREACHABLE:
             write_line(emitter, "unreachable!();");
@@ -2730,6 +2745,60 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     fputs("}\n\n", emitter->output);
 }
 
+/* A parsed initializer names its record but not every node's type; the
+ * declared type supplies each field's and element's type. */
+static void rust_fill_literal_types(RustEmitter *emitter, ZirFunction *literal,
+                                    int index, const char *type, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    const ZirModule *owner = NULL;
+    const ZirType *record = NULL;
+    int position = 0;
+    if(index < 0 || index >= literal->expr_count || depth > 32)
+        return;
+    ZirExpr *node = &literal->exprs[index];
+    if(node->type[0] == '\0' || !strcmp(node->type, "integer") ||
+       !strcmp(node->type, "real") || node->kind == ZIR_EXPR_COMPOUND)
+        snprintf(node->type, sizeof(node->type), "%s", type);
+    if(node->kind != ZIR_EXPR_COMPOUND)
+        return;
+    int array = ArrayElementType(type, element, sizeof(element), NULL);
+    if(!array)
+        rust_record_type(emitter, type, &owner, &record);
+    for(int child = node->first_child; child >= 0;
+        child = literal->exprs[child].next_sibling, position++) {
+        ZirExpr *entry = &literal->exprs[child];
+        char field_type[ZIR_NAME_MAX] = "";
+        if(array)
+            snprintf(field_type, sizeof(field_type), "%s", element);
+        else if(record != NULL) {
+            size_t offset = 0;
+            int ordinal = 0;
+            ZirTypeField field;
+            while(TypeNextField(record, &offset, &field) == 1) {
+                if(entry->name[0] ? !strcmp(field.name, entry->name) : ordinal == position) {
+                    snprintf(field_type, sizeof(field_type), "%s", field.type);
+                    if(!entry->name[0])
+                        snprintf(entry->name, sizeof(entry->name), "%s", field.name);
+                    break;
+                }
+                ordinal++;
+            }
+        }
+        if(!field_type[0])
+            continue;
+        const ZirModule *saved = emitter->module;
+        if(owner != NULL)
+            emitter->module = owner;
+        if(entry->kind == ZIR_EXPR_FIELD_INIT) {
+            snprintf(entry->type, sizeof(entry->type), "%s", field_type);
+            rust_fill_literal_types(emitter, literal, entry->right, field_type, depth + 1);
+        } else
+            rust_fill_literal_types(emitter, literal, child, field_type, depth + 1);
+        emitter->module = saved;
+    }
+}
+
 static void rust_global_initializer(RustEmitter *emitter,
                                      const ZirGlobal *global, char *output,
                                      size_t size)
@@ -2755,6 +2824,23 @@ static void rust_global_initializer(RustEmitter *emitter,
        strchr(global->init, '.') == NULL) {
         snprintf(output, size, "%s", global->init);
         return;
+    }
+    if(global->init[0] != '\0') {
+        /* A constant record or array literal lowers like any checked
+         * expression; Rust accepts it as a static initializer. */
+        ZirFunction probe = {0};
+        int root = ParseExprTyped(&probe, emitter->module, global->init,
+                                  global->span, global->type);
+        if(root >= 0 && probe.exprs[root].kind == ZIR_EXPR_COMPOUND) {
+            const ZirFunction *saved = emitter->function;
+            rust_fill_literal_types(emitter, &probe, root, global->type, 0);
+            emitter->function = &probe;
+            emit_typed_expression(emitter, root, global->type, output, size);
+            emitter->function = saved;
+            free(probe.exprs);
+            return;
+        }
+        free(probe.exprs);
     }
     rust_zero_value(emitter, global->type, output, size);
 }

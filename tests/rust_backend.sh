@@ -43,6 +43,7 @@ Answer :: () -> s32 {
     if callback(41) != 42 { return 11 }
     c_callback: CCallback = AddTwo
     if c_callback(40) != 42 { return 12 }
+    if Recursive(2) != 2 { return 13 }
     return 0
 }
 Add :: (a: s32, b: s32) -> s32 { return a + b }
@@ -55,6 +56,11 @@ Callback :: #type (value: s32) -> s32;
 AddOne :: (value: s32) -> s32 { return value + 1 }
 CCallback :: #type (value: s32) -> s32 #c_call;
 AddTwo :: (value: s32) -> s32 { return value + 2 }
+Recursive :: (value: s32) -> s32 {
+    if value <= 0 { return 0 }
+    callback: Callback = #this
+    return 1 + callback(value - 1)
+}
 Loop :: () -> s32 {
     total: int = 0
     for i: 0..3 { total += i }

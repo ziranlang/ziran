@@ -851,6 +851,7 @@ static void emit_integer_literal(const ZirExpr *expression, char *output,
     if(!strcmp(expression->type, "s8")) suffix = "i8";
     else if(!strcmp(expression->type, "s16")) suffix = "i16";
     else if(!strcmp(expression->type, "s32")) suffix = "i32";
+    else if(!strcmp(expression->type, "s64")) suffix = "i64";
     else if(!strcmp(expression->type, "u8")) suffix = "u8";
     else if(!strcmp(expression->type, "u16")) suffix = "u16";
     else if(!strcmp(expression->type, "u32")) suffix = "u32";
@@ -1405,23 +1406,33 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         break;
     }
     case ZIR_EXPR_BINARY:
-        emit_expression(emitter, expression->left, left, sizeof(left));
-        emit_expression(emitter, expression->right, right, sizeof(right));
+        left[0] = right[0] = '\0';
         if((expression->left >= 0 &&
             !strcmp(emitter->function->exprs[expression->left].type,
                     "string")) ||
            (expression->right >= 0 &&
             !strcmp(emitter->function->exprs[expression->right].type,
                     "string"))) {
-            if(strcmp(expression->op, "==") != 0 &&
-               strcmp(expression->op, "!=") != 0)
-                unsupported_expression(emitter, expression);
+           if(strcmp(expression->op, "==") != 0 &&
+              strcmp(expression->op, "!=") != 0)
+               unsupported_expression(emitter, expression);
+            emit_expression(emitter, expression->left, left, sizeof(left));
+            emit_expression(emitter, expression->right, right, sizeof(right));
             snprintf(output, size, "%sZiranText::eq(%s, %s)",
                      !strcmp(expression->op, "==") ? "" : "!", left, right);
             break;
         }
-        if(integer_type(expression->type) &&
-           wrapping_operation(expression->op)) {
+        int wrapping = integer_type(expression->type) &&
+                       wrapping_operation(expression->op);
+        if(!wrapping) {
+            emit_expression(emitter, expression->left, left, sizeof(left));
+            emit_expression(emitter, expression->right, right, sizeof(right));
+        }
+        if(wrapping) {
+            emit_typed_expression(emitter, expression->left, expression->type,
+                                  left, sizeof(left));
+            emit_typed_expression(emitter, expression->right, expression->type,
+                                  right, sizeof(right));
             if(!strcmp(expression->type, "integer"))
                 snprintf(output, size,
                          "((%s as i64).%s(%s as i64))", left,

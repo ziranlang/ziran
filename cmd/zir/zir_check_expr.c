@@ -534,7 +534,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                                     buffers->literal, sizeof(buffers->literal)) : 0;
             int64_t value = 0;
             int status = string_status == 0 && real_status == 0 ?
-                bound_constant(c->module, e->name, 0, &value) :
+                integer_constant(c->module, e->name, &value) :
                 string_status != 0 ? string_status : real_status;
             if(string_status == 1) {
                 e->text = KeepText(buffers->literal);

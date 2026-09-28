@@ -314,15 +314,20 @@ integer_type(const char *type)
             (scalar[0] == 's' || scalar[0] == 'u'));
 }
 
-int
-bound_expression(const ZirModule *module, const ZirFunction *expression, int index,
-                 int depth, int64_t *value)
+static int constant_value(const ZirModule *module, const char *name, int depth,
+                          int64_t *value, int wide);
+
+/* Folds an integer constant expression. Array bounds stay within s32;
+ * a wide fold, used for named constants, spans s64 with checked overflow. */
+static int
+integer_expression(const ZirModule *module, const ZirFunction *expression,
+                   int index, int depth, int64_t *value, int wide)
 {
     if(index < 0 || depth > 128)
         return -1;
     const ZirExpr *node = &expression->exprs[index];
     if(node->kind == ZIR_EXPR_IDENT)
-        return bound_constant(module, node->name, depth + 1, value);
+        return constant_value(module, node->name, depth + 1, value, wide);
     if(node->kind == ZIR_EXPR_SIZE_OF) {
         size_t size, alignment;
         if(!layout_type(module, node->name, depth + 1,
@@ -336,37 +341,39 @@ bound_expression(const ZirModule *module, const ZirFunction *expression, int ind
         char *end;
         errno = 0;
         *value = strtoll(node->text, &end, 0);
-        if(errno || end == node->text || *end || *value < 0 || *value > INT32_MAX)
+        if(errno || end == node->text || *end || *value < 0 ||
+           (!wide && *value > INT32_MAX))
             return -1;
         return 1;
     }
     int64_t left = 0, right = 0;
     if(node->kind == ZIR_EXPR_UNARY) {
-        int status = bound_expression(module, expression, node->right, depth + 1, &right);
+        int status = integer_expression(module, expression, node->right, depth + 1, &right, wide);
         if(status != 1)
             return status;
         if(!strcmp(node->op, "+"))
             *value = right;
-        else if(!strcmp(node->op, "-"))
+        else if(!strcmp(node->op, "-") && right != INT64_MIN)
             *value = -right;
         else
             return -1;
     } else if(node->kind == ZIR_EXPR_BINARY) {
-        int status = bound_expression(module, expression, node->left, depth + 1, &left);
+        int status = integer_expression(module, expression, node->left, depth + 1, &left, wide);
         if(status != 1)
             return status;
-        status = bound_expression(module, expression, node->right, depth + 1, &right);
+        status = integer_expression(module, expression, node->right, depth + 1, &right, wide);
         if(status != 1)
             return status;
-        if(left == INT32_MIN && right == -1 &&
+        if((left == INT32_MIN || left == INT64_MIN) && right == -1 &&
            (!strcmp(node->op, "/") || !strcmp(node->op, "%")))
             return -1;
-        if(!strcmp(node->op, "+"))
-            *value = left + right;
-        else if(!strcmp(node->op, "-"))
-            *value = left - right;
-        else if(!strcmp(node->op, "*"))
-            *value = left * right;
+        if(!strcmp(node->op, "+")) {
+            if(__builtin_add_overflow(left, right, value)) return -1;
+        } else if(!strcmp(node->op, "-")) {
+            if(__builtin_sub_overflow(left, right, value)) return -1;
+        } else if(!strcmp(node->op, "*")) {
+            if(__builtin_mul_overflow(left, right, value)) return -1;
+        }
         else if(!strcmp(node->op, "/") && right != 0)
             *value = left / right;
         else if(!strcmp(node->op, "%") && right != 0)
@@ -376,11 +383,21 @@ bound_expression(const ZirModule *module, const ZirFunction *expression, int ind
     } else {
         return -1;
     }
+    if(wide)
+        return 1;
     return *value >= INT32_MIN && *value <= INT32_MAX ? 1 : -1;
 }
 
 int
-bound_constant(const ZirModule *module, const char *name, int depth, int64_t *value)
+bound_expression(const ZirModule *module, const ZirFunction *expression, int index,
+                 int depth, int64_t *value)
+{
+    return integer_expression(module, expression, index, depth, value, 0);
+}
+
+static int
+constant_value(const ZirModule *module, const char *name, int depth,
+               int64_t *value, int wide)
 {
     if(depth > 128)
         return -1;
@@ -391,9 +408,22 @@ bound_constant(const ZirModule *module, const char *name, int depth, int64_t *va
         return found;
     ZirFunction expression = {0};
     int index = ParseExpr(&expression, owner, definition->value, definition->span);
-    int status = bound_expression(owner, &expression, index, depth + 1, value);
+    int status = integer_expression(owner, &expression, index, depth + 1, value, wide);
     free(expression.exprs);
     return status;
+}
+
+int
+bound_constant(const ZirModule *module, const char *name, int depth, int64_t *value)
+{
+    return constant_value(module, name, depth, value, 0);
+}
+
+/* A named integer constant at its full s64 value. */
+int
+integer_constant(const ZirModule *module, const char *name, int64_t *value)
+{
+    return constant_value(module, name, 0, value, 1);
 }
 
 /* Resolve a literal string definition into the expression graph. The source

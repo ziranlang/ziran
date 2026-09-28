@@ -7681,7 +7681,9 @@ parse_source(const char *path, const char *root, const char *source,
                         is_identifier_text(expr) && !known_alias &&
                         strcmp(expr, "true") && strcmp(expr, "false") &&
                         strcmp(expr, "null");
-                    if(!starts_word(expr, "#defined") &&
+                    /* A platform predicate may negate or group
+                     * `#defined`, as in `!#defined(_WIN32) && ...`. */
+                    if(find_unquoted_text(expr, "#defined") == NULL &&
                        (!is_identifier_text(expr) || known_alias ||
                         using_alias)) {
                         def = ModuleAddDefine(module, cname, expr,

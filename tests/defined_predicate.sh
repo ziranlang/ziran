@@ -69,3 +69,33 @@ EOF
 ${CC:-cc} -Iinclude -I"$work/c" "$work/c/predicate.c" \
     "$work/c/main.c" -o "$work/c/app"
 "$work/c/app"
+
+# A predicate constant may start with a negation or a group.
+cat > "$work/negated.zi" <<'EOF'
+NATIVE :: !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD)
+GROUPED :: !(#defined(PLATFORM_WEB) || #defined(ANDROID_BUILD))
+
+#program_export
+Answer :: () -> s32 {
+    result: s32 = 0
+    #if NATIVE {
+        result += 1
+    }
+    #if GROUPED {
+        result += 10
+    }
+    return result
+}
+EOF
+"$ziran" bundle --root "$work" --entry negated:Answer \
+    -o "$work/native.zib" "$work/negated.zi"
+test "$("$ziran" run "$work/native.zib")" = 11
+"$(dirname "$ziran")/zi2c" --no-main --define PLATFORM_WEB --root "$work" \
+    -o "$work/web" "$work/negated.zi"
+cat > "$work/web/main.c" <<'EOF'
+#include "negated.h"
+int main(void) { return Answer() == 0 ? 0 : 1; }
+EOF
+${CC:-cc} -Iinclude -I"$work/web" "$work/web/negated.c" \
+    "$work/web/main.c" -o "$work/web/app"
+"$work/web/app"

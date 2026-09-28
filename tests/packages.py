@@ -547,6 +547,29 @@ ref = "master"
         compile_app(ziran, wide_app, root / "wide-c", compiler, env,
                     wide_app / "src/app.zi", True)
 
+        # A dependency may be pinned by a full commit hash instead of a
+        # branch or tag.
+        pinned_commit = call("git", "rev-parse", "HEAD", cwd=wide, env=env).strip()
+        pinned = root / "pinned-app"
+        pinned.mkdir()
+        write(pinned / "ziran.toml", f'''[package]
+name = "PinnedApp"
+entry = "src/app.zi"
+[toolchain]
+git = "{compiler.as_uri()}"
+ref = "master"
+[dependencies.Wide]
+git = "{wide.as_uri()}"
+ref = "{pinned_commit}"
+''')
+        write(pinned / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        write(pinned / "src/app.zi",
+              '#import "w7"\n#program_export\nmain :: () -> s32 { return W7() - 7 }\n')
+        call(ziran, "lock", cwd=pinned, env=env)
+        assert pinned_commit in (pinned / "ziran.lock").read_text()
+        compile_app(ziran, pinned, root / "pinned-c", compiler, env,
+                    pinned / "src/app.zi", True)
+
 
 if __name__ == "__main__":
     main()

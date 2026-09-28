@@ -199,6 +199,8 @@ PkgGitHead :: (directory: string) -> string {
 
 PkgRemoteCommit :: (url: string, ref: string) -> string {
     if !PkgGitURL(url) { return "" }
+    // A full commit hash names itself; ls-remote only matches branches and tags.
+    if PkgValidCommit(ref) { return ref }
     args: [4]string
     args[0] = "git"
     args[1] = "ls-remote"

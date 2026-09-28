@@ -113,6 +113,25 @@ Deferred :: () -> s32 {
     return values[0]
 }
 
+CorePrimitives :: () -> s32 {
+    builder: Vec(u8)
+    if !BuilderAppend(builder, "rust") { return 16 }
+    if BuilderFinish(builder) != "rust" { return 17 }
+    first: Vec(s32)
+    second: Vec(s32)
+    VecPush(first, 18)
+    VecPush(second, 19)
+    VecSwap(first, second)
+    if first[0] != 19 || second[0] != 18 || first.capacity < first.count {
+        VecFree(first); VecFree(second); return 20
+    }
+    VecClear(first)
+    if first.count != 0 { VecFree(first); VecFree(second); return 21 }
+    VecFree(first)
+    VecFree(second)
+    return 22
+}
+
 #program_export
 main :: () -> s32 {
     values: Vec(s32)
@@ -130,6 +149,7 @@ main :: () -> s32 {
     if Consume(moved) != 1 { return 7 }
     if Early() != 13 { return 8 }
     if Deferred() != 15 { return 15 }
+    if CorePrimitives() != 22 { return 23 }
     holder: Holder
     if !VecPush(holder.values, 14) { return 9 }
     if holder.values.count != 1 || holder.values[0] != 14 { return 10 }

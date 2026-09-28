@@ -699,7 +699,11 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
        !strcmp(expression->name, "VecGet") ||
        !strcmp(expression->name, "VecFree") ||
        !strcmp(expression->name, "VecClone") ||
-       !strcmp(expression->name, "VecSlice")) {
+       !strcmp(expression->name, "VecSlice") ||
+       !strcmp(expression->name, "VecClear") ||
+       !strcmp(expression->name, "VecSwap") ||
+       !strcmp(expression->name, "BuilderAppend") ||
+       !strcmp(expression->name, "BuilderFinish")) {
         int first = expression->first_child;
         int second = first >= 0 ?
             emitter->function->exprs[first].next_sibling : -1;
@@ -754,7 +758,7 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
             snprintf(output, size, "ZiranVecClone(&mut %s, &%s)",
                      child, source);
             return;
-        } else {
+        } else if(!strcmp(expression->name, "VecSlice")) {
             char low[ZIR_RUST_TEXT_MAX];
             char high[ZIR_RUST_TEXT_MAX];
             int fourth = third >= 0 ?
@@ -769,8 +773,41 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
             emit_expression(emitter, third, high, sizeof(high));
             snprintf(output, size,
                      "ZiranVecSlice(&%s, %s as isize, %s as isize)",
-                     child, low, high);
+                    child, low, high);
             return;
+        } else if(!strcmp(expression->name, "VecClear")) {
+            if(second >= 0) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            snprintf(output, size, "ZiranVecClear(&mut %s)", child);
+        } else if(!strcmp(expression->name, "VecSwap")) {
+            char other[ZIR_RUST_TEXT_MAX];
+            if(second < 0 || third >= 0 ||
+               strcmp(emitter->function->exprs[first].type,
+                      emitter->function->exprs[second].type)) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            emit_expression(emitter, second, other, sizeof(other));
+            snprintf(output, size, "core::mem::swap(&mut %s, &mut %s)",
+                     child, other);
+        } else if(!strcmp(expression->name, "BuilderAppend")) {
+            char text[ZIR_RUST_TEXT_MAX];
+            if(second < 0 || third >= 0 || strcmp(element, "u8") ||
+               strcmp(emitter->function->exprs[second].type, "string")) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            emit_expression(emitter, second, text, sizeof(text));
+            snprintf(output, size, "ZiranBuilderAppend(&mut %s, %s)",
+                     child, text);
+        } else {
+            if(second >= 0 || strcmp(element, "u8")) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            snprintf(output, size, "ZiranBuilderFinish(&mut %s)", child);
         }
         return;
     }
@@ -882,9 +919,11 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             break;
         }
         if(rust_owned_vec_type(emitter, base_type, NULL, NULL, NULL, 0) &&
-           !strcmp(expression->name, "count")) {
+           (!strcmp(expression->name, "count") ||
+            !strcmp(expression->name, "capacity"))) {
             emit_expression(emitter, expression->left, base, sizeof(base));
-            snprintf(output, size, "(%s.count as i64)", base);
+            snprintf(output, size, "(%s.%s as i64)", base,
+                     expression->name);
             break;
         }
         if(!rust_record_type(emitter, base_type, &owner, &record)) {
@@ -1787,6 +1826,27 @@ static void emit_ziran_vec_runtime(FILE *output)
     fputs("        data: unsafe { vector.data.offset(low) },\n", output);
     fputs("        len: (high - low) as usize,\n", output);
     fputs("    }\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("pub fn ZiranVecClear<T>(vector: &mut ZiranVec<T>) {\n", output);
+    fputs("    vector.count = 0;\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("pub fn ZiranBuilderAppend(vector: &mut ZiranVec<u8>, text: ZiranText) -> bool {\n", output);
+    fputs("    for index in 0..text.len {\n", output);
+    fputs("        if !ZiranVecPush(vector, unsafe { *text.data.offset(index as isize) }) {\n", output);
+    fputs("            return false;\n", output);
+    fputs("        }\n", output);
+    fputs("    }\n", output);
+    fputs("    true\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("pub fn ZiranBuilderFinish(vector: &mut ZiranVec<u8>) -> ZiranText {\n", output);
+    fputs("    let text = ZiranText { data: vector.data, len: vector.count as usize };\n", output);
+    fputs("    vector.data = core::ptr::null_mut();\n", output);
+    fputs("    vector.count = 0;\n", output);
+    fputs("    vector.capacity = 0;\n", output);
+    fputs("    text\n", output);
     fputs("}\n", output);
     fputs("\n", output);
     fputs("pub fn ZiranVecFree<T>(vector: &mut ZiranVec<T>) {\n", output);

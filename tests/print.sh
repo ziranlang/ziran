@@ -109,6 +109,12 @@ EOF
     "$rust_out/target/debug/ziran_generated" > "$rust_out.out"
     cmp "$work/expected" "$rust_out.out"
 
+    py_out="$work/$suffix-py"
+    "$ziran" build --target=py --exe --entry greet:Greet \
+        --root "$work" -o "$py_out" "$input"
+    python3 "$py_out" > "$py_out.out"
+    cmp "$work/expected" "$py_out.out"
+
     # Plan 9 C: plan9port when installed, else the host through a libc shim.
     plan9_out="$work/$suffix-plan9"
     "$ziran" build --target=plan9-c --root "$work" -o "$plan9_out" "$input"

@@ -2,7 +2,7 @@
 set -eu
 
 # Every site example with a main prints the same text on the portable VM
-# and as C, C++, Go, Rust, and (with plan9port installed) Plan 9 C.
+# and as C, C++, Go, Rust, Python, and (with plan9port installed) Plan 9 C.
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 examples=$repo/site/examples
@@ -50,7 +50,11 @@ for source in "$examples"/*.zi; do
         --manifest-path "$out/rust/Cargo.toml"
     "$work/rust-target/debug/ziran_generated" > "$out/rust.out"
 
-    for target in c cpp go rust; do
+    "$ziran" build --target=py --exe --entry "$name:main" \
+        --root "$examples" -o "$out/py" "$source"
+    python3 "$out/py" > "$out/py.out"
+
+    for target in c cpp go rust py; do
         if ! cmp -s "$out/expected" "$out/$target.out"; then
             echo "$name: $target output differs from the portable VM" >&2
             diff "$out/expected" "$out/$target.out" >&2 || true

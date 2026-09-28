@@ -5,6 +5,21 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- The Python backend (`zi2py`, `ziran build --target=py`) writes one Python
+  3.10 file that uses only the standard library: `__main__.py` for
+  `--exe --entry`, otherwise `__init__.py`. Every program the test suite
+  runs on the portable VM prints the same output and returns the same
+  result as Python, and every program it builds for C also lowers to Python
+  that compiles. Integer arithmetic wraps at each type's width, division
+  truncates toward zero, and shifts check their count. Records and fixed
+  arrays copy by value; pointers are objects that reach a list item, a
+  field, or a boxed local; unions share a byte buffer; C foreign functions
+  go through `ctypes`, and host capabilities through a `host` object the
+  embedding program sets. A view of mutable bytes is a snapshot.
+  `tests/py_backend.sh` covers it, and `tests/numeric_semantics.sh`,
+  `tests/print.sh`, `tests/examples.sh`, and `tests/named_imports.sh` compare
+  it with the other targets.
+
 - The Rust backend builds every program the test suite builds for C, and
   every program the suite runs on the portable VM prints the same output
   and returns the same result as a Rust executable. It lowers unions,

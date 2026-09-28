@@ -6,6 +6,7 @@
     "cpp",
     "go",
     "rust",
+    "py",
     "zib"
   ],
   "evidence": "tests/numeric_semantics.sh",

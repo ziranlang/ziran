@@ -17,7 +17,7 @@ remaining language work, and [Migration](docs/MIGRATION.md) for the
 two-repository cutover.
 
 The current compiler can check and compile a tested
-subset of non-UI `.zi` to C, C++, native Go, and Rust; `plan9-c` provides an
+subset of non-UI `.zi` to C, C++, native Go, Rust, and Python; `plan9-c` provides an
 experimental Plan 9 C path through a post-pass today. It can also save that subset as an
 experimental versioned `.zir` and build each native target from saved modules. It
 can build and run experimental `.zib` bundles for a non-graphical subset with
@@ -34,7 +34,7 @@ Run `make` to build the current toolchain and `make check` for its language,
 backend, and portable bundle tests. `make check` runs independent test scripts
 with four workers by default; set `CHECK_JOBS=1` to run them serially or choose
 another positive worker count. The compiler commands are `zi2zir` (including
-`--check-only`), `zi2c`, `zi2cpp`, `zi2go`, `zi2rust`, and `zi2zib`.
+`--check-only`), `zi2c`, `zi2cpp`, `zi2go`, `zi2rust`, `zi2py`, and `zi2zib`.
 `zi-fmt` formats source. `ziran guide` prints a short reference from the
 installed compiler, including current safety and target limits.
 `ziran capabilities --target=go --json` reports a versioned machine-readable
@@ -46,6 +46,8 @@ then reports their public types and procedure signatures; see the
 for the same tools. [Cross-target benchmarks](bench/README.md) measure the
 compiler, downstream toolchains, and validated runtime cases separately.
 Use `ziran build --target=c` for C99 output. Use
+`ziran build --target=py --exe --entry module:function -o DIR` for Python 3.10
+source that `python3 DIR` runs; it needs only the standard library. Use
 `ziran build --target=plan9-c` for the experimental Plan 9 C output path.
 Pass `--entry module:function` to a C99 build to retain functions, types,
 globals, and constants reachable from that entry. A native host implementation

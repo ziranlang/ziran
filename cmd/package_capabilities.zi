@@ -27,7 +27,7 @@ PkgPrintNumericIdList :: () -> void {
 PkgPrintNumericConformance :: (target: string) -> void {
     PkgPrint("\"numeric_conformance\":{\"schema_version\":1,\"stability\":\"stable-id\",\"targets\":[", false)
     if target.count == 0 {
-        PkgPrint("\"c\",\"cpp\",\"go\",\"rust\",\"zib\"", false)
+        PkgPrint("\"c\",\"cpp\",\"go\",\"rust\",\"py\",\"zib\"", false)
     } else if target != "plan9-c" {
         PkgPrint("\"", false)
         PkgPrint(target, false)
@@ -56,19 +56,20 @@ Capabilities :: (arguments: []string) -> s32 {
         else if part == "--target=cpp" { target = "cpp" }
         else if part == "--target=go" { target = "go" }
         else if part == "--target=rust" { target = "rust" }
+        else if part == "--target=py" { target = "py" }
         else if part == "--target=zib" { target = "zib" }
         else if part == "--target=plan9-c" { target = "plan9-c" }
         else {
             return PkgFail(
-                "usage: ziran capabilities [--target=c|cpp|go|rust|zib|plan9-c] [--json]")
+                "usage: ziran capabilities [--target=c|cpp|go|rust|py|zib|plan9-c] [--json]")
         }
         index += 1
     }
     PkgPrint("{\"schema_version\":1,", false)
     if target.count == 0 {
-        PkgPrint("\"targets\":[\"c\",\"cpp\",\"go\",\"rust\",\"zib\",\"plan9-c\"],", false)
-        PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"cpp\":\"threads\",\"go\":\"serial\",\"rust\":\"serial\",\"zib\":\"serial\",\"plan9-c\":\"serial\"},", false)
-        PkgPrint("\"text_view_mutable_bytes\":{\"c\":\"borrowed\",\"cpp\":\"borrowed\",\"go\":\"snapshot\",\"rust\":\"borrowed\",\"zib\":\"snapshot\",\"plan9-c\":\"borrowed\"},", false)
+        PkgPrint("\"targets\":[\"c\",\"cpp\",\"go\",\"rust\",\"py\",\"zib\",\"plan9-c\"],", false)
+        PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"cpp\":\"threads\",\"go\":\"serial\",\"rust\":\"serial\",\"py\":\"serial\",\"zib\":\"serial\",\"plan9-c\":\"serial\"},", false)
+        PkgPrint("\"text_view_mutable_bytes\":{\"c\":\"borrowed\",\"cpp\":\"borrowed\",\"go\":\"snapshot\",\"rust\":\"borrowed\",\"py\":\"snapshot\",\"zib\":\"snapshot\",\"plan9-c\":\"borrowed\"},", false)
     } else {
         PkgPrint("\"target\":\"", false)
         PkgPrint(target, false)

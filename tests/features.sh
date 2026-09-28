@@ -24,7 +24,7 @@ assert features
 ids = [feature["id"] for feature in features]
 assert ids == sorted(ids)
 assert len(ids) == len(set(ids))
-targets = ["c", "cpp", "go", "rust", "zib", "plan9-c"]
+targets = ["c", "cpp", "go", "rust", "py", "zib", "plan9-c"]
 required = {
     "id", "status", "syntax", "target_support", "limits",
     "accepted_example", "rejected_example", "rejection", "evidence"

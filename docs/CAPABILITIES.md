@@ -20,11 +20,11 @@ target can be declared first-class.
 
 `source_and_saved_ir` reports that the target accepts checked source and saved
 `.zir` inputs. `parallel_execution` is `threads` for C/C++ forward CPU regions
-and `serial` for Rust, Go, and the portable VM. Rust is experimental.
+and `serial` for Rust, Python, Go, and the portable VM.
 It does not promise a parallel result reduction. `gpu_execution` is `cpu_fallback` for every target: there is no
 device backend. `text_view_mutable_bytes` reports the current observable
 divergence when backing bytes are mutated after making a view: native C/C++/Rust
-borrow those bytes, while Go and `.zib` copy them. Checking rejects mutation
+borrow those bytes, while Go, Python, and `.zib` copy them. Checking rejects mutation
 of local backing storage while a direct, field-held, aliased, or
 checked-call-produced view is live. Field-sensitive checks protect the
 borrowed field or array while allowing sibling record fields to change. Global

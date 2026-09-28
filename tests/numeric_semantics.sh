@@ -151,7 +151,7 @@ manifest_ids = [case['id'] for case in manifest['cases']]
 assert ids == manifest_ids, (ids, manifest_ids)
 assert capability['ids'] == manifest_ids
 assert len(manifest_ids) == len(set(manifest_ids))
-assert manifest['targets'] == ['c', 'cpp', 'go', 'rust', 'zib']
+assert manifest['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zib']
 PY
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/numeric.zi"
@@ -267,6 +267,21 @@ CPP
             test "$status" = 42
         elif "$output/app" > "$output/bad.log" 2>&1; then
             echo "rust accepted an oversized shift in $entry" >&2
+            exit 1
+        fi
+    done
+
+    # Python builds one program per entry the same way.
+    for entry in Answer Bad8 Bad16 BadNegative; do
+        output=$work/py-$input-$entry
+        "$ziran" build --target=py --exe --entry "numeric:$entry" \
+            --root "$root" -o "$output" "$module"
+        if test "$entry" = Answer; then
+            status=0
+            python3 "$output" || status=$?
+            test "$status" = 42
+        elif python3 "$output" > "$output.log" 2>&1; then
+            echo "python accepted an oversized shift in $entry" >&2
             exit 1
         fi
     done

@@ -15,7 +15,7 @@ PkgFeature :: struct {
     rejected_example: string
     rejection: string
     evidence: string
-    targets: [6]PkgTargetSupport
+    targets: [7]PkgTargetSupport
 }
 
 
@@ -119,51 +119,57 @@ PkgPrintFeatureList :: (items: []PkgFeature, json: bool) -> void {
 
 #scope_export
 Features :: (arguments: []string) -> s32 {
-    numeric_targets: [6]PkgTargetSupport = .[
+    numeric_targets: [7]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = ""},
+    .{target = "py", status = "supported", limit = ""},
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "experimental", limit = "Not covered by the numeric differential matrix."}
     ]
-    record_targets: [6]PkgTargetSupport = .[
+    record_targets: [7]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = ""},
+    .{target = "py", status = "supported", limit = ""},
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "experimental", limit = "Not covered by the aggregate-ownership differential matrix."}
     ]
-    view_targets: [6]PkgTargetSupport = .[
+    view_targets: [7]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
     .{target = "cpp", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
     .{target = "go", status = "supported", limit = "Mutable backing bytes are snapshotted."},
     .{target = "rust", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
+    .{target = "py", status = "supported", limit = "Mutable backing bytes are snapshotted."},
     .{target = "zib", status = "supported", limit = "Mutable backing bytes are snapshotted."},
     .{target = "plan9-c", status = "experimental", limit = "Borrow behavior is inherited from the C post-pass and is not covered by the differential matrix."}
     ]
-    module_targets: [6]PkgTargetSupport = .[
+    module_targets: [7]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = ""},
+    .{target = "py", status = "supported", limit = ""},
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "experimental", limit = "Named imports are inherited from the C post-pass and are not covered by the multi-target differential matrix."}
     ]
-    print_targets: [6]PkgTargetSupport = .[
+    print_targets: [7]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = ""},
+    .{target = "py", status = "supported", limit = ""},
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "supported", limit = "tests/print.sh builds it with plan9port when installed, otherwise through a host libc shim."}
     ]
-    assert_targets: [6]PkgTargetSupport = .[
+    assert_targets: [7]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "cpp", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = "Checked before native output."},
+    .{target = "py", status = "supported", limit = "Checked before native output."},
     .{target = "zib", status = "supported", limit = ""},
     .{target = "plan9-c", status = "supported", limit = "Checked before native output."}
     ]
@@ -209,7 +215,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "Check :: () -> s32 {\n    bytes: [1]u8 = .[97]\n    {\n        text := TextView(bytes[:])\n        if text.count != 1 { return 1 }\n    }\n    bytes[0] = cast(u8)98\n    return cast(s32)bytes[0]\n}\n",
         rejected_example = "Check :: () -> s32 {\n    bytes: [1]u8\n    text := TextView(bytes[:])\n    bytes[0] = cast(u8)98\n    return cast(s32)text[0]\n}\n",
         rejection = "Mutable backing storage cannot be changed while a view of it is live.",
-        evidence = "tests/text_view_mutation.sh\ntests/aggregate_view_lifetime.sh\ntests/rust_backend.sh\ntests/capabilities.sh\n",
+        evidence = "tests/text_view_mutation.sh\ntests/aggregate_view_lifetime.sh\ntests/rust_backend.sh\ntests/py_backend.sh\ntests/capabilities.sh\n",
         targets = view_targets
     },
     .{
@@ -220,7 +226,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "#import \"vec\"\nInner :: struct { items: Vec(s32); other: Vec(s32); }\nCheck :: () -> s32 {\n    value: Inner\n    VecPush(value.items, 1)\n    VecPush(value.other, 2)\n    moved := value.items\n    return moved[0] + value.other[0]\n}\n",
         rejected_example = "#import \"vec\"\nInner :: struct { items: Vec(s32); }\nBox :: struct { inners: [2]Inner; }\nCheck :: () -> s32 {\n    value: Box\n    VecPush(value.inners[0].items, 1)\n    moved := value.inners[0].items\n    return moved[0]\n}\n",
         rejection = "Indexed aggregate fields do not yet have a precise per-element ownership transfer.",
-        evidence = "tests/aggregate_vec_safety.sh\ntests/vec_move_expression.sh\ntests/rust_backend.sh\ntests/capabilities.sh\n",
+        evidence = "tests/aggregate_vec_safety.sh\ntests/vec_move_expression.sh\ntests/rust_backend.sh\ntests/py_backend.sh\ntests/capabilities.sh\n",
         targets = record_targets
     },
     ]

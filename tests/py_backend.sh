@@ -1,0 +1,335 @@
+#!/bin/sh
+set -eu
+
+ziran=${1:?pass the ziran command}
+script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+mkdir -p "$script_dir/../build"
+work=$(mktemp -d "$script_dir/../build/py-backend.XXXXXX")
+trap 'rm -rf "$work"' EXIT HUP INT TERM
+
+command -v python3 >/dev/null 2>&1 || {
+    echo 'python3 is required to test the Python backend' >&2
+    exit 1
+}
+
+cat > "$work/scalars.zi" <<'ZI'
+Answer :: () -> s32 {
+    mode: Mode = Identify(Mode.On)
+    point: Point = MakePoint(2, 3, mode)
+    point.x += 1
+    if point.x != 3 || point.y != 3 || point.mode != Mode.On { return 1 }
+    values: [4]s32 = .[1, 2, 3, 4]
+    values[1] += 10
+    if Sum(values) != 20 { return 1 }
+    if Add(Loop(), -10) != 0 { return 1 }
+    text: string = "A\u00e9B"
+    if text.count != 4 { return 2 }
+    if text[0] != cast(u8)65 { return 3 }
+    if text[1:3].count != 2 { return 4 }
+    if text[1:3] != "\u00e9" { return 5 }
+    if "\a" != "\u0007" { return 6 }
+    if text != "A\u00e9B" { return 7 }
+    bytes: [4]u8
+    bytes[0] = cast(u8)97
+    bytes[1] = cast(u8)98
+    bytes[2] = cast(u8)99
+    view := TextView(bytes[0:3])
+    whole := TextView(bytes[:])
+    if view != "abc" || view.count != 3 || whole.count != 4 ||
+       whole[3] != cast(u8)0 { return 8 }
+    if Limit + Offset != 11 { return 9 }
+    if Abs(-9) != 9 { return 10 }
+    callback: Callback = AddOne
+    if callback(41) != 42 { return 11 }
+    c_callback: CCallback = AddTwo
+    if c_callback(40) != 42 { return 12 }
+    if Recursive(2) != 2 { return 13 }
+    return 0
+}
+Add :: (a: s32, b: s32) -> s32 { return a + b }
+Identify :: (value: Mode) -> Mode { return value }
+Limit :: 8;
+Offset :: 3;
+libc :: #system_library "libc";
+Abs :: (value: s32) -> s32 #foreign libc "abs";
+Callback :: #type (value: s32) -> s32;
+AddOne :: (value: s32) -> s32 { return value + 1 }
+CCallback :: #type (value: s32) -> s32 #c_call;
+AddTwo :: (value: s32) -> s32 { return value + 2 }
+Recursive :: (value: s32) -> s32 {
+    if value <= 0 { return 0 }
+    callback: Callback = #this
+    return 1 + callback(value - 1)
+}
+Loop :: () -> s32 {
+    total: int = 0
+    for i: 0..3 { total += i }
+    if total != 6 { return 1 }
+    while total < 10 { total += 1 }
+    return cast(s32) total
+}
+Mode :: enum { Off; On :: 4; }
+Point :: struct { x: s32; y: s32; mode: Mode }
+MakePoint :: (x: s32, y: s32, mode: Mode) -> Point {
+    return .{x = x, y = y, mode = mode}
+}
+Sum :: (values: [4]s32) -> s32 {
+    total: s32 = 0
+    for value: values { total += value }
+    return total
+}
+ZI
+
+"$ziran" check --root "$work" "$work/scalars.zi"
+"$ziran" ir --root "$work" -o "$work/ir" "$work/scalars.zi"
+
+for input in source saved; do
+    if test "$input" = source; then
+        file=$work/scalars.zi
+        root=$work
+    else
+        file=$work/ir/scalars.zir
+        root=$work/ir
+    fi
+    "$ziran" build --target=py --entry scalars:Answer --root "$root" \
+        --exe -o "$work/$input" "$file"
+    test -s "$work/$input/__main__.py"
+    python3 "$work/$input"
+done
+
+cmp "$work/source/__main__.py" "$work/saved/__main__.py"
+
+cat > "$work/stored.zi" <<'ZI'
+Mode :: enum u8 { Off; On; }
+Callback :: #type (value: s32) -> s32;
+EnumCallback :: #type (mode: Mode) -> Mode;
+CCallback :: #type (value: s32) -> s32 #c_call;
+HolderBuilder :: #type (value: s32) -> Holder;
+Holder :: struct { callback: Callback; callbacks: [2]Callback; }
+EnumHolder :: struct { callback: EnumCallback; }
+installed: Callback;
+empty: CCallback;
+AddOne :: (value: s32) -> s32 { return value + 1 }
+AddTwo :: (value: s32) -> s32 { return value + 2 }
+Echo :: (mode: Mode) -> Mode { return mode }
+CUnset :: () -> CCallback { return empty }
+NewHolder :: (value: s32) -> Holder {
+    result: Holder
+    callback: Callback = AddOne
+    result.callback = callback
+    return result
+}
+Choose :: () -> Callback { return AddTwo }
+
+#program_export
+main :: () -> s32 {
+    first: Callback = AddOne
+    installed = first
+    holder: Holder
+    selected: Callback = Choose()
+    holder.callback = selected
+    holder.callbacks[0] = installed
+    holder.callbacks[1] = holder.callback
+    a: Callback = holder.callbacks[0]
+    b: Callback = holder.callbacks[1]
+    c: Callback = holder.callback
+    if holder.callback == null || null == holder.callback { return 1 }
+    enum_callback: EnumCallback = Echo
+    enum_holder: EnumHolder
+    enum_holder.callback = enum_callback
+    from_holder: EnumCallback = enum_holder.callback
+    if from_holder(Mode.On) != Mode.On { return 2 }
+    builder: HolderBuilder = NewHolder
+    built: Holder = builder(0)
+    built_callback: Callback = built.callback
+    if built_callback(1) != 2 { return 3 }
+    if a(38) + b(0) + c(1) != 44 { return 4 }
+    c_callback: CCallback = AddTwo
+    if c_callback == null || null != CUnset() || c_callback(40) != 42 {
+        return 5
+    }
+    return 0
+}
+ZI
+
+"$ziran" ir --root "$work" -o "$work/stored-ir" "$work/stored.zi"
+for input in source saved; do
+    if test "$input" = source; then
+        file=$work/stored.zi
+        root=$work
+    else
+        file=$work/stored-ir/stored.zir
+        root=$work/stored-ir
+    fi
+    "$ziran" build --target=py --entry stored:main --root "$root" \
+        --exe -o "$work/stored-$input" "$file"
+    python3 "$work/stored-$input"
+done
+
+cmp "$work/stored-source/__main__.py" "$work/stored-saved/__main__.py"
+
+cat > "$work/vectors.zi" <<'ZI'
+#import "vec"
+#import "option"
+Holder :: struct { values: Vec(s32); }
+
+Make :: () -> Vec(s32) {
+    result: Vec(s32)
+    VecPush(result, 12)
+    return result
+}
+
+Consume :: (items: Vec(s32)) -> s32 {
+    return cast(s32) items.count
+}
+
+Early :: () -> s32 {
+    values: Vec(s32)
+    VecPush(values, 13)
+    return values[0]
+}
+
+Deferred :: () -> s32 {
+    values: Vec(s32)
+    defer { VecFree(values) }
+    VecPush(values, 15)
+    return values[0]
+}
+
+CorePrimitives :: () -> s32 {
+    builder: Vec(u8)
+    if !BuilderAppend(builder, "python") { return 16 }
+    if BuilderFinish(builder) != "python" { return 17 }
+    first: Vec(s32)
+    second: Vec(s32)
+    VecPush(first, 18)
+    VecPush(second, 19)
+    VecSwap(first, second)
+    if first[0] != 19 || second[0] != 18 || first.capacity < first.count {
+        VecFree(first); VecFree(second); return 20
+    }
+    VecClear(first)
+    if first.count != 0 { VecFree(first); VecFree(second); return 21 }
+    VecFree(first)
+    VecFree(second)
+    return 22
+}
+
+#program_export
+main :: () -> s32 {
+    values: Vec(s32)
+    if !VecPush(values, 7) { return 1 }
+    if !VecPush(values, 9) { return 2 }
+    if values.count != 2 || values[1] != 9 { return 3 }
+    if !VecGet(values, 0).has_value { return 4 }
+    if !VecPop(values).has_value { return 5 }
+    VecFree(values)
+    {
+        nested: Vec(s32) = Make()
+        if nested.count != 1 { return 6 }
+    }
+    moved: Vec(s32) = Make()
+    if Consume(moved) != 1 { return 7 }
+    if Early() != 13 { return 8 }
+    if Deferred() != 15 { return 15 }
+    if CorePrimitives() != 22 { return 23 }
+    holder: Holder
+    if !VecPush(holder.values, 14) { return 9 }
+    if holder.values.count != 1 || holder.values[0] != 14 { return 10 }
+    VecFree(holder.values)
+    original: Vec(s32)
+    VecPush(original, 4)
+    VecPush(original, 5)
+    VecPush(original, 6)
+    copy: Vec(s32)
+    if !VecClone(copy, original) { VecFree(original); VecFree(copy); return 11 }
+    {
+        view: []s32 = VecSlice(original, 1, 3)
+        if view.count != 2 || view[0] != 5 || view[1] != 6 {
+            return 12
+        }
+    }
+    if !VecPush(copy, 7) { return 13 }
+    if original.count != 3 || copy.count != 4 || copy[3] != 7 {
+        return 14
+    }
+    return 0
+}
+ZI
+"$ziran" check --root "$work" --module-path std "$work/vectors.zi"
+"$ziran" ir --root "$work" --module-path std -o "$work/vector-ir" \
+    "$work/vectors.zi"
+for input in source saved; do
+    if test "$input" = source; then
+        file=$work/vectors.zi
+        root=$work
+    else
+        file=$work/vector-ir/vectors.zir
+        root=$work/vector-ir
+    fi
+    "$ziran" build --target=py --entry vectors:main --root "$root" \
+        --module-path std --exe -o "$work/vector-$input" "$file"
+    python3 "$work/vector-$input"
+done
+cmp "$work/vector-source/__main__.py" "$work/vector-saved/__main__.py"
+
+"$ziran" capabilities --target=py --json > "$work/capabilities.json"
+rg -q '"target":"py".*"parallel_execution":"serial"' "$work/capabilities.json"
+if rg -q '"target_contract"' "$work/capabilities.json"; then
+    echo 'the Python target is marked experimental' >&2
+    exit 1
+fi
+
+cat > "$work/bounds.zi" <<'ZI'
+#program_export
+main :: () -> s32 {
+    text: string = "A"
+    return cast(s32)text[2:1].count
+}
+ZI
+"$ziran" build --target=py --entry bounds:main --root "$work" --exe \
+    -o "$work/bounds" "$work/bounds.zi"
+set +e
+python3 "$work/bounds" > "$work/bounds.out" 2> "$work/bounds.err"
+status=$?
+set -e
+test "$status" -ne 0
+rg -q 'IndexError: slice range out of bounds' "$work/bounds.err"
+
+cat > "$work/union.zi" <<'ZI'
+Value :: union { item: s32; bits: u32 }
+Answer :: () -> s32 {
+    value: Value
+    value.item = -1
+    if value.bits != 4294967295 { return 1 }
+    value.item = 42
+    return value.item
+}
+ZI
+"$ziran" build --target=py --entry union:Answer --root "$work" --exe \
+    -o "$work/union" "$work/union.zi"
+set +e
+python3 "$work/union"
+status=$?
+set -e
+test "$status" = 42
+
+# A Vec moves out of a record field, and the other field keeps its own.
+cat > "$work/vec_field.zi" <<'ZI'
+#import "vec"
+Inner :: struct { items: Vec(s32); other: Vec(s32); }
+Check :: () -> s32 {
+    value: Inner
+    VecPush(value.items, 1)
+    VecPush(value.other, 2)
+    moved := value.items
+    return moved[0] + value.other[0]
+}
+ZI
+"$ziran" build --target=py --entry vec_field:Check --root "$work" \
+    --module-path std --exe -o "$work/vec_field" "$work/vec_field.zi"
+set +e
+python3 "$work/vec_field"
+status=$?
+set -e
+test "$status" = 3

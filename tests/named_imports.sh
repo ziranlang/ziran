@@ -39,9 +39,14 @@ for input in source saved; do
         root=$work/ir
         file=$work/ir/app.zir
     fi
-    for target in c cpp go rust; do
+    for target in c cpp go rust py; do
         out=$work/$target-$input
-        if test "$target" = rust; then
+        if test "$target" = py; then
+            "$ziran" build --target=py --root "$root" \
+                --module-path "$repo/std" --entry app:Answer --exe \
+                -o "$out" "$file"
+            python3 "$out"
+        elif test "$target" = rust; then
             "$ziran" build --target=rust --root "$root" \
                 --module-path "$repo/std" --entry app:Answer --exe \
                 -o "$out" "$file"
@@ -86,3 +91,4 @@ cmp "$work/cpp-source/text.cpp" "$work/cpp-saved/text.cpp"
 cmp "$work/go-source/app.go" "$work/go-saved/app.go"
 cmp "$work/go-source/text.go" "$work/go-saved/text.go"
 cmp "$work/rust-source/src/main.rs" "$work/rust-saved/src/main.rs"
+cmp "$work/py-source/__main__.py" "$work/py-saved/__main__.py"

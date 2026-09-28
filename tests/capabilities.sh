@@ -14,9 +14,11 @@ import sys
 
 item = json.loads(Path(sys.argv[1]).read_text())
 assert item['schema_version'] == 1
-assert item['targets'] == ['c', 'cpp', 'go', 'rust', 'zib', 'plan9-c']
+assert item['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zib', 'plan9-c']
 assert item['parallel_execution']['rust'] == 'serial'
 assert item['text_view_mutable_bytes']['rust'] == 'borrowed'
+assert item['parallel_execution']['py'] == 'serial'
+assert item['text_view_mutable_bytes']['py'] == 'snapshot'
 assert item['source_and_saved_ir'] is True
 assert item['automatic_vec_drop'] is True
 assert item['aggregate_vec_transfer'] is True
@@ -26,13 +28,13 @@ manifest = json.loads((Path(sys.argv[2]) / 'tests/numeric_conformance.json').rea
 numeric = item['numeric_conformance']
 assert numeric['schema_version'] == 1
 assert numeric['stability'] == 'stable-id'
-assert numeric['targets'] == ['c', 'cpp', 'go', 'rust', 'zib']
+assert numeric['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zib']
 assert numeric['ids'] == [case['id'] for case in manifest['cases']]
 assert len(numeric['ids']) == len(set(numeric['ids']))
 assert item['diagnostics_json'] == 'partial'
 PY
 
-for target in c cpp go rust zib plan9-c; do
+for target in c cpp go rust py zib plan9-c; do
     "$ziran" capabilities "--target=$target" --json > "$work/$target.json"
     python3 - "$work/$target.json" "$target" \
             "$repo/tests/numeric_conformance.json" <<'PY'
@@ -46,7 +48,7 @@ manifest = json.loads(Path(sys.argv[3]).read_text())
 assert item['target'] == target
 threads = target in ('c', 'cpp')
 assert item['parallel_execution'] == ('threads' if threads else 'serial')
-if target == 'rust':
+if target in ('rust', 'py'):
     assert 'target_contract' not in item
 borrowed = target in ('c', 'cpp', 'rust', 'plan9-c')
 assert item['text_view_mutable_bytes'] == ('borrowed' if borrowed else 'snapshot')

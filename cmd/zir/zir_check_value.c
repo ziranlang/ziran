@@ -487,6 +487,19 @@ compound_type_at_use(const ZirModule *module,
                      char *target, size_t size)
 {
     char element[ZIR_NAME_MAX];
+    /* A pointer or slice names its target the same way at the use site:
+     * *Box from the declaring module is *Lib.Box to a named importer. */
+    if(source[0] == '*' || (source[0] == '[' && source[1] == ']')) {
+        size_t prefix = source[0] == '*' ? 0 : 2;
+        while(source[prefix] == '*')
+            prefix++;
+        char qualified[ZIR_NAME_MAX];
+        if(!compound_type_at_use(module, compound, skip_ws(source + prefix),
+                                 qualified, sizeof(qualified))) return 0;
+        int written = snprintf(target, size, "%.*s%s", (int)prefix, source,
+                               qualified);
+        return written >= 0 && (size_t)written < size;
+    }
     if(ArrayElementType(source, element, sizeof(element), NULL)) {
         const char *close = strchr(source, ']');
         char qualified[ZIR_NAME_MAX];

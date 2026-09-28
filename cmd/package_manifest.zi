@@ -30,7 +30,7 @@ PkgManifest :: struct {
     install_bin: string
     dependencies: [24]PkgDependency
     dependency_count: s32
-    exports: [32]PkgNamedValue
+    exports: [4096]PkgNamedValue
     export_count: s32
     valid: bool
 }
@@ -245,7 +245,7 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
             if key == "tool" { output.install_tool = value }
             if key == "bin" { output.install_bin = value }
         } else if section == "exports" {
-            if output.export_count >= 32 || !PkgIdentifier(key) || value.count == 0 {
+            if output.export_count >= 4096 || !PkgIdentifier(key) || value.count == 0 {
                 return false
             }
             duplicate: s32 = 0

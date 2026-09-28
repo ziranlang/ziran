@@ -514,6 +514,39 @@ level = "3"
             assert message in failure, failure
         write(tooled / "ziran.toml", tooled_manifest)
 
+        # A package can export many modules: an icon set has one per icon,
+        # far more than a handful of entry points.
+        wide = root / "wide"
+        init(wide, env)
+        exports = "".join(f'w{index} = "src/w{index}.zi"\n' for index in range(300))
+        write(wide / "ziran.toml", f'''[package]
+name = "Wide"
+module_roots = ["src"]
+[exports]
+{exports}''')
+        for index in range(300):
+            write(wide / f"src/w{index}.zi",
+                  f"W{index} :: () -> s32 {{ return {index} }}\n")
+        commit(wide, env)
+        wide_app = root / "wide-app"
+        wide_app.mkdir()
+        write(wide_app / "ziran.toml", f'''[package]
+name = "WideApp"
+entry = "src/app.zi"
+[toolchain]
+git = "{compiler.as_uri()}"
+ref = "master"
+[dependencies.Wide]
+git = "{wide.as_uri()}"
+ref = "master"
+''')
+        write(wide_app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        write(wide_app / "src/app.zi",
+              '#import "w299"\n#program_export\nmain :: () -> s32 { return W299() - 299 }\n')
+        call(ziran, "lock", cwd=wide_app, env=env)
+        compile_app(ziran, wide_app, root / "wide-c", compiler, env,
+                    wide_app / "src/app.zi", True)
+
 
 if __name__ == "__main__":
     main()

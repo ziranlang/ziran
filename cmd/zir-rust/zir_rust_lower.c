@@ -40,9 +40,49 @@ static const char *const rust_keywords[] = {
     "unsafe", "use", "where", "while", NULL
 };
 
+static const char *rust_scalar_type(const char *type);
+static int rust_record_type(RustEmitter *emitter, const char *type,
+                            const ZirModule **owner, const ZirType **record);
+static void rust_field_name(const ZirType *record, const char *source,
+                            char *output, size_t size);
+
 static int identifier_character(int character)
 {
     return isalnum((unsigned char)character) || character == '_';
+}
+
+static void emit_type_definitions(RustEmitter *emitter, FILE *output)
+{
+    for(int program_index = 0; program_index < emitter->program_count;
+        program_index++) {
+        const ZirProgram *program = emitter->programs[program_index];
+        for(int module_index = 0; module_index < program->module_count;
+            module_index++) {
+            const ZirModule *module = &program->modules[module_index];
+            emitter->module = module;
+            for(int type_index = 0; type_index < module->type_count;
+                type_index++) {
+                const ZirType *record = &module->types[type_index];
+                char type_name[ZIR_NAME_MAX];
+                if(!rust_record_type(emitter, record->name, NULL, NULL))
+                    continue;
+                NativeTypeName(module, record, type_name, sizeof(type_name));
+                fprintf(output,
+                        "#[repr(C)]\n#[derive(Clone, Copy)]\npub struct %s {\n",
+                        type_name);
+                size_t offset = 0;
+                ZirTypeField field;
+                while(TypeNextField(record, &offset, &field) == 1) {
+                    char field_name[ZIR_NAME_MAX];
+                    rust_field_name(record, field.name, field_name,
+                                    sizeof(field_name));
+                    fprintf(output, "    pub %s: %s,\n", field_name,
+                            rust_scalar_type(field.type));
+                }
+                fputs("}\n\n", output);
+            }
+        }
+    }
 }
 
 static void rust_identifier(const char *source, char *output, size_t size)
@@ -127,9 +167,46 @@ static int float_type(const char *type)
            !strcmp(type, "real");
 }
 
-static void require_rust_type(ZirSourceSpan span, const char *type)
+static int rust_record_type(RustEmitter *emitter, const char *type,
+                            const ZirModule **owner, const ZirType **record)
 {
-    if(rust_scalar_type(type) != NULL)
+    const ZirModule *type_owner = NULL;
+    const ZirType *declared = emitter != NULL ?
+        FindType(emitter->module, type, &type_owner) : NULL;
+    if(declared == NULL || declared->is_enum || declared->is_union ||
+       declared->is_extern || declared->is_procedure_type ||
+       declared->is_record_template || declared->is_type_instance ||
+       declared->is_owned_vec) {
+        if(owner != NULL) *owner = NULL;
+        if(record != NULL) *record = NULL;
+        return 0;
+    }
+    if(owner != NULL) *owner = type_owner;
+    if(record != NULL) *record = declared;
+    return 1;
+}
+
+static int rust_type(RustEmitter *emitter, const char *type, char *output,
+                     size_t size)
+{
+    const ZirModule *owner = NULL;
+    const ZirType *record = NULL;
+    if(rust_scalar_type(type) != NULL) {
+        snprintf(output, size, "%s", rust_scalar_type(type));
+        return 1;
+    }
+    if(rust_record_type(emitter, type, &owner, &record)) {
+        NativeTypeName(owner, record, output, size);
+        return 1;
+    }
+    output[0] = '\0';
+    return 0;
+}
+
+static void require_rust_type(RustEmitter *emitter, ZirSourceSpan span,
+                              const char *type, char *output, size_t size)
+{
+    if(rust_type(emitter, type, output, size))
         return;
     Diagnostic(span, "zir_rust.type",
                "the initial Rust target supports scalar non-text types only: %s",
@@ -162,6 +239,30 @@ static const char *local_name(RustEmitter *emitter, const char *source)
     return source;
 }
 
+static void rust_field_name(const ZirType *record, const char *source,
+                            char *output, size_t size)
+{
+    rust_identifier(source, output, size);
+    if(strcmp(output, source) == 0 || record == NULL)
+        return;
+    for(size_t serial = 0; ; serial++) {
+        char candidate[ZIR_NAME_MAX];
+        ZirTypeField field;
+        size_t offset = 0;
+        int collision = 0;
+        snprintf(candidate, sizeof(candidate), "ziran_keyword_%s_%zu",
+                 source, serial);
+        while(TypeNextField(record, &offset, &field) == 1)
+            if(strcmp(field.name, source) != 0 &&
+               strcmp(field.name, candidate) == 0)
+                collision = 1;
+        if(!collision) {
+            snprintf(output, size, "%s", candidate);
+            return;
+        }
+    }
+}
+
 static void function_symbol(RustEmitter *emitter, const ZirModule *module,
                             const ZirFunction *function, char *output,
                             size_t size)
@@ -173,6 +274,7 @@ static void function_symbol(RustEmitter *emitter, const ZirModule *module,
 static void unsupported_expression(RustEmitter *emitter,
                                    const ZirExpr *expression)
 {
+    (void)emitter;
     Diagnostic(expression->span, "zir_rust.expression",
                "unsupported expression in the initial Rust target: %s",
                expression->text[0] ? expression->text :
@@ -182,6 +284,39 @@ static void unsupported_expression(RustEmitter *emitter,
 
 static void emit_expression(RustEmitter *emitter, int index, char *output,
                             size_t size);
+
+static void emit_destination(RustEmitter *emitter, int index, char *output,
+                             size_t size)
+{
+    const ZirExpr *expression;
+    if(index < 0 || index >= emitter->function->expr_count) {
+        snprintf(output, size, "()");
+        return;
+    }
+    expression = &emitter->function->exprs[index];
+    if(expression->kind == ZIR_EXPR_IDENT) {
+        snprintf(output, size, "%s", local_name(emitter, expression->name));
+        return;
+    }
+    if(expression->kind == ZIR_EXPR_MEMBER) {
+        char base[ZIR_RUST_TEXT_MAX];
+        char field[ZIR_NAME_MAX];
+        const ZirModule *owner = NULL;
+        const ZirType *record = NULL;
+        char base_type[ZIR_NAME_MAX];
+        snprintf(base_type, sizeof(base_type), "%s",
+                 emitter->function->exprs[expression->left].type);
+        if(!rust_record_type(emitter, base_type, &owner, &record)) {
+            unsupported_expression(emitter, expression);
+            return;
+        }
+        emit_destination(emitter, expression->left, base, sizeof(base));
+        rust_field_name(record, expression->name, field, sizeof(field));
+        snprintf(output, size, "%s.%s", base, field);
+        return;
+    }
+    unsupported_expression(emitter, expression);
+}
 
 static void emit_typed_expression(RustEmitter *emitter, int index,
                                   const char *type, char *output, size_t size)
@@ -296,6 +431,42 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
     case ZIR_EXPR_CALL:
         emit_call(emitter, expression, output, size);
         break;
+    case ZIR_EXPR_MEMBER:
+        emit_destination(emitter, index, output, size);
+        break;
+    case ZIR_EXPR_COMPOUND: {
+        char type_name[ZIR_NAME_MAX];
+        const ZirModule *record_owner = NULL;
+        const ZirType *record = NULL;
+        int first = 1;
+        if(!rust_type(emitter, expression->type, type_name,
+                      sizeof(type_name))) {
+            unsupported_expression(emitter, expression);
+            break;
+        }
+        snprintf(output, size, "%s { ", type_name);
+        rust_record_type(emitter, expression->type, &record_owner, &record);
+        for(int child_index = expression->first_child; child_index >= 0;
+            child_index = emitter->function->exprs[child_index].next_sibling) {
+            const ZirExpr *initializer = &emitter->function->exprs[child_index];
+            char value[ZIR_RUST_TEXT_MAX];
+            char field_name[ZIR_NAME_MAX];
+            if(initializer->kind != ZIR_EXPR_FIELD_INIT) {
+                unsupported_expression(emitter, initializer);
+                return;
+            }
+            emit_expression(emitter, initializer->right, value, sizeof(value));
+            size_t used = strlen(output);
+            rust_field_name(record, initializer->name, field_name,
+                            sizeof(field_name));
+            snprintf(output + used, size - used, "%s%s: %s",
+                     first ? "" : ", ", field_name, value);
+            first = 0;
+        }
+        size_t used = strlen(output);
+        snprintf(output + used, size - used, " }");
+        break;
+    }
     case ZIR_EXPR_BINARY:
         emit_expression(emitter, expression->left, left, sizeof(left));
         emit_expression(emitter, expression->right, right, sizeof(right));
@@ -409,12 +580,12 @@ static int emit_if(RustEmitter *emitter, int index, int end)
 
 static void emit_compound_assignment(RustEmitter *emitter,
                                      const ZirStmt *statement,
-                                     const ZirExpr *destination,
+                                     const char *destination_text,
                                      const char *value)
 {
     char operation[4];
     const ZirExpr *left = &emitter->function->exprs[statement->lhs_root];
-    const char *name = local_name(emitter, destination->name);
+    const char *name = destination_text;
     snprintf(operation, sizeof(operation), "%s", statement->assignment_op);
     operation[strlen(operation) - 1] = '\0';
     if(integer_type(left->type) && wrapping_operation(operation)) {
@@ -432,20 +603,53 @@ static void emit_compound_assignment(RustEmitter *emitter,
     write_line(emitter, "%s = %s %s %s;", name, name, operation, value);
 }
 
+static void rust_zero_value(RustEmitter *emitter, const char *type,
+                            char *output, size_t size)
+{
+    const ZirModule *owner = NULL;
+    const ZirType *record = NULL;
+    char type_name[ZIR_NAME_MAX];
+    if(!rust_record_type(emitter, type, &owner, &record) ||
+       !rust_type(emitter, type, type_name, sizeof(type_name))) {
+        snprintf(output, size, "0");
+        return;
+    }
+    snprintf(output, size, "%s { ", type_name);
+    size_t used = 0;
+    size_t offset = 0;
+    ZirTypeField field;
+    int first = 1;
+    while(TypeNextField(record, &offset, &field) == 1) {
+        char field_name[ZIR_NAME_MAX];
+        char value[ZIR_NAME_MAX];
+        rust_field_name(record, field.name, field_name, sizeof(field_name));
+        rust_zero_value(emitter, field.type, value, sizeof(value));
+        used = strlen(output);
+        snprintf(output + used, size - used, "%s%s: %s", first ? "" : ", ",
+                 field_name, value);
+        first = 0;
+    }
+    used = strlen(output);
+    snprintf(output + used, size - used, " }");
+}
+
 static void emit_sequence(RustEmitter *emitter, int begin, int end)
 {
     char value[ZIR_RUST_TEXT_MAX];
+    char type_name[ZIR_NAME_MAX];
+    char destination[ZIR_RUST_TEXT_MAX];
     for(int index = begin; index < end; index++) {
         const ZirStmt *statement = &emitter->function->stmts[index];
         switch(statement->kind) {
         case ZIR_STMT_DECL:
-            require_rust_type(statement->span, statement->type);
+            require_rust_type(emitter, statement->span, statement->type,
+                              type_name, sizeof(type_name));
             if(statement->expr_root >= 0) {
                 emit_typed_expression(emitter, statement->expr_root,
                                       statement->type, value, sizeof(value));
                 write_line(emitter, "let mut %s: %s = %s;",
                            local_name(emitter, statement->name),
-                           rust_scalar_type(statement->type), value);
+                           type_name, value);
             } else if(!strcmp(statement->type, "bool")) {
                 write_line(emitter, "let mut %s: bool = false;",
                            local_name(emitter, statement->name));
@@ -455,24 +659,26 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
                            rust_scalar_type(statement->type),
                            !strcmp(statement->type, "float32") ? "f32" : "f64");
             } else {
-                write_line(emitter, "let mut %s: %s = 0;",
-                           local_name(emitter, statement->name),
-                           rust_scalar_type(statement->type));
+                char zero[ZIR_RUST_TEXT_MAX];
+                rust_zero_value(emitter, statement->type, zero, sizeof(zero));
+                write_line(emitter, "let mut %s: %s = %s;",
+                           local_name(emitter, statement->name), type_name,
+                           zero);
             }
             register_local(emitter, statement->name);
             break;
         case ZIR_STMT_ASSIGN: {
             const ZirExpr *target = &emitter->function->exprs[statement->lhs_root];
-            if(target->kind != ZIR_EXPR_IDENT)
-                goto unsupported_statement;
+            emit_destination(emitter, statement->lhs_root, destination,
+                             sizeof(destination));
             emit_typed_expression(emitter, statement->expr_root,
                                   emitter->function->exprs[statement->lhs_root].type,
                                   value, sizeof(value));
             if(strcmp(statement->assignment_op, "=") == 0)
-                write_line(emitter, "%s = %s;",
-                           local_name(emitter, target->name), value);
+                write_line(emitter, "%s = %s;", destination, value);
             else
-                emit_compound_assignment(emitter, statement, target, value);
+                emit_compound_assignment(emitter, statement, destination,
+                                         value);
             break;
         }
         case ZIR_STMT_EXPR:
@@ -546,10 +752,32 @@ unsupported_statement:
 
 static void validate_module(const ZirModule *module)
 {
-    if(module->global_count || module->define_count || module->type_count) {
+    RustEmitter emitter = {0};
+    emitter.module = module;
+    if(module->global_count || module->define_count) {
         Diagnostic(module->span, "zir_rust.module",
-                   "the initial Rust target supports scalar procedures only");
+                   "the initial Rust target supports procedures and plain records only");
         exit(1);
+    }
+    for(int index = 0; index < module->type_count; index++) {
+        const ZirType *record = &module->types[index];
+        const ZirModule *owner = NULL;
+        const ZirType *checked = NULL;
+        if(!rust_record_type(&emitter, record->name, &owner, &checked)) {
+            Diagnostic(record->span, "zir_rust.type",
+                       "the initial Rust target supports plain records with scalar fields only: %s",
+                       record->name);
+            exit(1);
+        }
+        size_t offset = 0;
+        ZirTypeField field;
+        while(TypeNextField(record, &offset, &field) == 1)
+            if(rust_scalar_type(field.type) == NULL) {
+                Diagnostic(record->span, "zir_rust.type",
+                           "the initial Rust target supports plain records with scalar fields only: %s",
+                           record->name);
+                exit(1);
+            }
     }
     for(int index = 0; index < module->import_count; index++) {
         if(module->imports[index].kind == ZIR_IMPORT_EXTERN) {
@@ -610,16 +838,21 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
         type = colon + 1;
         while(*type == ' ' || *type == '\t')
             type++;
-        require_rust_type(function->span, type);
+        char parameter_type[ZIR_NAME_MAX];
+        require_rust_type(emitter, function->span, type, parameter_type,
+                          sizeof(parameter_type));
         fprintf(emitter->output, "%smut %s: %s", index ? ", " : "",
-                rust_name, rust_scalar_type(type));
+                rust_name, parameter_type);
         register_local(emitter, source_name);
     }
     fputc(')', emitter->output);
-    require_rust_type(function->span, function->return_type);
-    if(*rust_scalar_type(function->return_type))
-        fprintf(emitter->output, " -> %s",
-                rust_scalar_type(function->return_type));
+    {
+        char return_type[ZIR_NAME_MAX];
+        require_rust_type(emitter, function->span, function->return_type,
+                          return_type, sizeof(return_type));
+        if(*return_type)
+            fprintf(emitter->output, " -> %s", return_type);
+    }
     fputs(" {\n", emitter->output);
     emitter->indent = 1;
     emit_sequence(emitter, 0, function->stmt_count);
@@ -717,6 +950,7 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     emitter.programs = programs;
     emitter.program_count = program_count;
     fputs("#![allow(non_snake_case)]\n#![allow(unused)]\n\n", output);
+    emit_type_definitions(&emitter, output);
     for(int program_index = 0; program_index < program_count; program_index++) {
         const ZirProgram *program = programs[program_index];
         for(int module_index = 0; module_index < program->module_count;

@@ -12,6 +12,9 @@ command -v cargo >/dev/null 2>&1 || {
 
 cat > "$work/scalars.zi" <<'ZI'
 Answer :: () -> s32 {
+    point: Point = MakePoint(2, 3)
+    point.x += 1
+    if point.x != 3 || point.y != 3 { return 1 }
     if Add(Loop(), -10) != 0 { return 1 }
     return 0
 }
@@ -23,6 +26,8 @@ Loop :: () -> s32 {
     while total < 10 { total += 1 }
     return cast(s32) total
 }
+Point :: struct { x: s32; y: s32 }
+MakePoint :: (x: s32, y: s32) -> Point { return .{x = x, y = y} }
 ZI
 
 "$ziran" check --root "$work" "$work/scalars.zi"

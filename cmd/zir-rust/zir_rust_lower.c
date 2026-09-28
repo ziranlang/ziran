@@ -819,6 +819,46 @@ static void unsupported_expression(RustEmitter *emitter,
 static void emit_expression(RustEmitter *emitter, int index, char *output,
                             size_t size);
 
+/* A field reached through using fields is a dotted path (middle.point.x);
+ * each step is named in its own record. */
+static void rust_member_path(RustEmitter *emitter, const ZirModule *owner,
+                             const ZirType *record, const char *path,
+                             char *output, size_t size)
+{
+    char part[ZIR_NAME_MAX];
+    size_t used = 0;
+    output[0] = '\0';
+    while(*path && record != NULL) {
+        const char *dot = strchr(path, '.');
+        size_t length = dot ? (size_t)(dot - path) : strlen(path);
+        char field_name[ZIR_NAME_MAX];
+        snprintf(part, sizeof(part), "%.*s", (int)length, path);
+        rust_field_name(record, part, field_name, sizeof(field_name));
+        used += (size_t)snprintf(output + used, size > used ? size - used : 0, "%s%s",
+                                 used ? "." : "", field_name);
+        if(dot == NULL)
+            break;
+        {
+            size_t offset = 0;
+            ZirTypeField field;
+            const ZirType *next = NULL;
+            const ZirModule *next_owner = NULL;
+            const ZirModule *saved = emitter->module;
+            while(TypeNextField(record, &offset, &field) == 1)
+                if(!strcmp(field.name, part)) {
+                    if(owner != NULL)
+                        emitter->module = owner;
+                    rust_record_type(emitter, field.type, &next_owner, &next);
+                    emitter->module = saved;
+                    break;
+                }
+            record = next;
+            owner = next_owner;
+        }
+        path = dot + 1;
+    }
+}
+
 static void emit_destination(RustEmitter *emitter, int index, char *output,
                              size_t size)
 {
@@ -861,7 +901,7 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
         if(base_type[0] == '*' &&
            rust_record_type(emitter, base_type + 1, &owner, &record)) {
             emit_expression(emitter, expression->left, base, sizeof(base));
-            rust_field_name(record, expression->name, field, sizeof(field));
+            rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
             snprintf(output, size, "(*%s).%s", base, field);
             return;
         }
@@ -870,7 +910,7 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
             return;
         }
         emit_destination(emitter, expression->left, base, sizeof(base));
-        rust_field_name(record, expression->name, field, sizeof(field));
+        rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
         snprintf(output, size, "%s.%s", base, field);
         return;
     }
@@ -886,7 +926,7 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
             return;
         }
         emit_expression(emitter, expression->left, base, sizeof(base));
-        rust_field_name(record, expression->name, field, sizeof(field));
+        rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
         snprintf(output, size, "(*%s).%s", base, field);
         return;
     }
@@ -1636,7 +1676,13 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                 if(!strcmp(expression->name, "data")) {
                     /* An empty array has no storage: its data is null. */
                     if(capacity == 0) {
-                        snprintf(output, size, "core::ptr::null_mut()");
+                        char element_type[ZIR_NAME_MAX];
+                        char element[ZIR_NAME_MAX];
+                        ArrayElementType(base_type, element, sizeof(element), NULL);
+                        if(rust_type(emitter, element, element_type, sizeof(element_type)))
+                            snprintf(output, size, "core::ptr::null_mut::<%s>()", element_type);
+                        else
+                            snprintf(output, size, "core::ptr::null_mut()");
                         break;
                     }
                     emit_destination(emitter, expression->left, base, sizeof(base));
@@ -1653,7 +1699,7 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         /* A field through a pointer reads the pointee: (*node).value. */
         if(base_type[0] == '*' && rust_record_type(emitter, base_type + 1, &owner, &record)) {
             emit_expression(emitter, expression->left, base, sizeof(base));
-            rust_field_name(record, expression->name, field, sizeof(field));
+            rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
             snprintf(output, size, "(*%s).%s", base, field);
             break;
         }
@@ -1662,7 +1708,7 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             break;
         }
         emit_expression(emitter, expression->left, base, sizeof(base));
-        rust_field_name(record, expression->name, field, sizeof(field));
+        rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
         snprintf(output, size, "%s.%s", base, field);
         break;
     }
@@ -1678,7 +1724,7 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             break;
         }
         emit_expression(emitter, expression->left, base, sizeof(base));
-        rust_field_name(record, expression->name, field, sizeof(field));
+        rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
         snprintf(output, size, "(*%s).%s", base, field);
         break;
     }

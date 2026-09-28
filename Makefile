@@ -102,9 +102,17 @@ PACKAGE_SOURCES := cmd/package.zi cmd/package_add.zi cmd/package_guide.zi \
 PACKAGE_OBJECTS = $(patsubst $(PACKAGE_C)/%.c,$(BUILD_DIR)/obj/package-c/%.o,$(wildcard $(PACKAGE_C)/*.c)) \
     $(call obj,cmd/package_main.c cmd/package_host.c)
 
+# Regenerate beside the old output and copy over only files whose text
+# changed, so a compiler edit that leaves ziran's C alone recompiles nothing.
 $(PACKAGE_C)/.generated: $(PACKAGE_SOURCES) $(BIN_DIR)/zi2c
-	rm -rf $(PACKAGE_C)
-	$(BIN_DIR)/zi2c --no-main --root cmd --module-path std -o $(PACKAGE_C) cmd/package.zi
+	rm -rf $(PACKAGE_C).next
+	$(BIN_DIR)/zi2c --no-main --root cmd --module-path std -o $(PACKAGE_C).next cmd/package.zi
+	mkdir -p $(PACKAGE_C)
+	for f in $(PACKAGE_C).next/*; do \
+	    cmp -s "$$f" "$(PACKAGE_C)/$${f##*/}" || cp "$$f" $(PACKAGE_C)/; done
+	for f in $(PACKAGE_C)/*; do \
+	    [ -e "$(PACKAGE_C).next/$${f##*/}" ] || rm -f "$$f"; done
+	rm -rf $(PACKAGE_C).next
 	touch $@
 
 $(BUILD_DIR)/obj/package-c/%.o: $(PACKAGE_C)/%.c

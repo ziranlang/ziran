@@ -124,6 +124,11 @@ $(BUILD_DIR)/obj/package-c/%.o: $(PACKAGE_C)/%.c
 
 $(call obj,cmd/package_main.c cmd/package_host.c): CFLAGS += -I$(PACKAGE_C)
 
+# The compiler's version comes from VERSION so a release edits one file.
+ZIRAN_VERSION := $(shell cat VERSION)
+$(call obj,cmd/package_main.c): CFLAGS += -DZIRAN_VERSION='"$(ZIRAN_VERSION)"'
+$(call obj,cmd/package_main.c): VERSION
+
 package-objects: $(PACKAGE_OBJECTS)
 
 # Make expands a whole recipe before running its first line, so the object

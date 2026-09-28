@@ -237,7 +237,7 @@ PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
-        PkgPrint("usage: ziran guide|features|capabilities|explain|api|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect ...\n", false)
+        PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         return 0
     }

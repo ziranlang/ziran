@@ -16,7 +16,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#define ZIR_RUST_TEXT_MAX 8192
+#define ZIR_RUST_TEXT_MAX 65536
 #define ZIR_RUST_NAME_MAX 256
 #define ZIR_RUST_LOCAL_MAX 512
 
@@ -406,6 +406,7 @@ static const char *rust_scalar_type(const char *type)
     if(!strcmp(type, "u16")) return "u16";
     if(!strcmp(type, "u32")) return "u32";
     if(!strcmp(type, "u64") || !strcmp(type, "usize")) return "u64";
+    if(!strcmp(type, "isize")) return "i64";
     if(!strcmp(type, "float32")) return "f32";
     if(!strcmp(type, "float64") || !strcmp(type, "real")) return "f64";
     if(!strcmp(type, "void")) return "";
@@ -463,7 +464,8 @@ static int integer_type(const char *type)
            !strcmp(type, "s32") || !strcmp(type, "s64") ||
            !strcmp(type, "integer") || !strcmp(type, "u8") ||
            !strcmp(type, "u16") || !strcmp(type, "u32") ||
-           !strcmp(type, "u64") || !strcmp(type, "usize");
+           !strcmp(type, "u64") || !strcmp(type, "usize") ||
+           !strcmp(type, "isize");
 }
 
 static int float_type(const char *type)
@@ -926,7 +928,10 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
         snprintf(output, size, "(%s.len as i64)", base);
         return;
     }
-    if(expression->kind == ZIR_EXPR_SLICE) {
+    /* A slice, call result, or literal is read in place, not borrowed. */
+    if(expression->kind == ZIR_EXPR_SLICE || expression->kind == ZIR_EXPR_CALL ||
+       expression->kind == ZIR_EXPR_COMPOUND || expression->kind == ZIR_EXPR_STRING ||
+       expression->kind == ZIR_EXPR_CONDITIONAL) {
         emit_expression(emitter, index, output, size);
         return;
     }
@@ -1919,13 +1924,16 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         int wrapping = integer_type(expression->type) &&
                        wrapping_operation(expression->op);
         if(!wrapping) {
-            /* Two untyped literals compare as s64, as on the other targets. */
+            /* Untyped literal operands take the operation's integer type;
+             * two compared with each other are s64, as on other targets. */
             int untyped = expression->left >= 0 && expression->right >= 0 &&
                 !strcmp(emitter->function->exprs[expression->left].type, "integer") &&
                 !strcmp(emitter->function->exprs[expression->right].type, "integer");
+            const char *operand_type = integer_type(expression->type) &&
+                strcmp(expression->type, "integer") != 0 ? expression->type : "s64";
             if(untyped) {
-                emit_typed_expression(emitter, expression->left, "s64", left, sizeof(left));
-                emit_typed_expression(emitter, expression->right, "s64", right, sizeof(right));
+                emit_typed_expression(emitter, expression->left, operand_type, left, sizeof(left));
+                emit_typed_expression(emitter, expression->right, operand_type, right, sizeof(right));
             } else {
                 emit_expression(emitter, expression->left, left, sizeof(left));
                 emit_expression(emitter, expression->right, right, sizeof(right));

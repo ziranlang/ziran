@@ -19,6 +19,13 @@ Answer :: () -> s32 {
     values[1] += 10
     if Sum(values) != 20 { return 1 }
     if Add(Loop(), -10) != 0 { return 1 }
+    text: string = "A\u00e9B"
+    if text.count != 4 { return 2 }
+    if text[0] != cast(u8)65 { return 3 }
+    if text[1:3].count != 2 { return 4 }
+    if text[1:3] != "\u00e9" { return 5 }
+    if "\a" != "\u0007" { return 6 }
+    if text != "A\u00e9B" { return 7 }
     return 0
 }
 Add :: (a: s32, b: s32) -> s32 { return a + b }
@@ -64,17 +71,34 @@ cmp "$work/source/Cargo.toml" "$work/saved/Cargo.toml"
 rg -q '"target":"rust".*"parallel_execution":"serial"' "$work/capabilities.json"
 rg -q '"target_contract":"experimental"' "$work/capabilities.json"
 
-cat > "$work/unsupported.zi" <<'ZI'
+cat > "$work/bounds.zi" <<'ZI'
 #program_export
+main :: () -> s32 {
+    text: string = "A"
+    return cast(s32)text[2:1].count
+}
+ZI
+"$ziran" build --target=rust --entry bounds:main --root "$work" --exe     -o "$work/bounds" "$work/bounds.zi"
+cargo build --quiet --manifest-path "$work/bounds/Cargo.toml"
+set +e
+"$work/bounds/target/debug/ziran_generated" > "$work/bounds.out" 2> "$work/bounds.err"
+status=$?
+set -e
+test "$status" -ne 0
+rg -q 'assertion failed: low >= 0 && low <= high' "$work/bounds.err"
+
+cat > "$work/unsupported.zi" <<'ZI'
+#import "vec"
 Answer :: () -> s32 {
-    text: string = "not yet supported"
-    return cast(s32)text.count
+    values: Vec(s32)
+    if !VecPush(values, 1) { return 1 }
+    return cast(s32)values.count
 }
 ZI
 if "$ziran" build --target=rust --entry unsupported:Answer --root "$work" \
-    -o "$work/unsupported-output" "$work/unsupported.zi" \
+    --module-path std -o "$work/unsupported-output" "$work/unsupported.zi" \
     > "$work/unsupported.out" 2> "$work/unsupported.err"; then
     echo 'the initial Rust target accepted an unsupported aggregate' >&2
     exit 1
 fi
-rg -q 'initial Rust target supports scalar non-text types' "$work/unsupported.err"
+rg -q 'initial Rust target supports' "$work/unsupported.err"

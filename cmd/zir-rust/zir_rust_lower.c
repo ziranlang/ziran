@@ -4,6 +4,7 @@
 #include "zir_rust_lower.h"
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
+#include "zir_text.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -152,6 +153,51 @@ static const char *rust_scalar_type(const char *type)
     return NULL;
 }
 
+static int rust_string_literal(const char *source, char *output, size_t size)
+{
+    static const char escapes[] = { 'n', 'r', 't', '0' };
+    static const unsigned char values[] = { '\n', '\r', '\t', 0 };
+    unsigned char decoded[ZIR_TEXT_MAX];
+    size_t length = 0;
+    size_t used = 0;
+
+    int written;
+
+    if(!DecodeStringLiteral(source, decoded, sizeof(decoded), &length))
+        return 0;
+    written = snprintf(output + used, size - used, "ZiranText::new(\"");
+    if(written < 0 || used + (size_t)written >= size)
+        return 0;
+    used += (size_t)written;
+    for(size_t index = 0; index < length; index++) {
+        unsigned char byte = decoded[index];
+        int escape = -1;
+        for(size_t candidate = 0; candidate < sizeof(values); candidate++)
+            if(byte == values[candidate])
+                escape = (int)candidate;
+        if(byte == '"' || byte == '\\' || escape >= 0) {
+            if(used + 3 >= size)
+                return 0;
+            output[used++] = '\\';
+            output[used++] = byte == '"' ? '"' :
+                byte == '\\' ? '\\' : escapes[escape];
+        } else if(byte < 0x20 || byte == 0x7f) {
+            written = snprintf(output + used, size - used, "\\u{%02x}", byte);
+            if(written < 0 || used + (size_t)written >= size)
+                return 0;
+            used += (size_t)written;
+        } else {
+            if(used + 1 >= size)
+                return 0;
+            output[used++] = (char)byte;
+        }
+    }
+    written = snprintf(output + used, size - used, "\")");
+    if(written < 0 || used + (size_t)written >= size)
+        return 0;
+    return 1;
+}
+
 static int integer_type(const char *type)
 {
     return !strcmp(type, "s8") || !strcmp(type, "s16") ||
@@ -194,6 +240,10 @@ static int rust_type(RustEmitter *emitter, const char *type, char *output,
     char element[ZIR_NAME_MAX];
     char element_type[ZIR_NAME_MAX];
     int capacity = 0;
+    if(!strcmp(type, "string")) {
+        snprintf(output, size, "ZiranText");
+        return 1;
+    }
     if(rust_scalar_type(type) != NULL) {
         snprintf(output, size, "%s", rust_scalar_type(type));
         return 1;
@@ -222,7 +272,7 @@ static void require_rust_type(RustEmitter *emitter, ZirSourceSpan span,
     if(rust_type(emitter, type, output, size))
         return;
     Diagnostic(span, "zir_rust.type",
-               "the initial Rust target supports scalar non-text types only: %s",
+               "the initial Rust target supports scalar and borrowed text types only: %s",
                type);
     exit(1);
 }
@@ -319,7 +369,8 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
         char base_type[ZIR_NAME_MAX];
         snprintf(base_type, sizeof(base_type), "%s",
                  emitter->function->exprs[expression->left].type);
-        if(SliceElementType(base_type, NULL, 0) &&
+        if((SliceElementType(base_type, NULL, 0) ||
+            !strcmp(base_type, "string")) &&
            !strcmp(expression->name, "count")) {
             emit_destination(emitter, expression->left, base, sizeof(base));
             snprintf(output, size, "(%s.len as i64)", base);
@@ -355,6 +406,10 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
         char base[ZIR_RUST_TEXT_MAX];
         emit_destination(emitter, expression->left, base, sizeof(base));
         snprintf(output, size, "(%s.len as i64)", base);
+        return;
+    }
+    if(expression->kind == ZIR_EXPR_SLICE) {
+        emit_expression(emitter, index, output, size);
         return;
     }
     unsupported_expression(emitter, expression);
@@ -466,6 +521,10 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
     case ZIR_EXPR_INT:
         emit_integer_literal(expression, output, size);
         break;
+    case ZIR_EXPR_STRING:
+        if(!rust_string_literal(expression->text, output, size))
+            unsupported_expression(emitter, expression);
+        break;
     case ZIR_EXPR_FLOAT:
         snprintf(output, size, "%s%s", expression->text,
                  !strcmp(expression->type, "float32") ? "f32" : "f64");
@@ -482,6 +541,13 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         char index[ZIR_RUST_TEXT_MAX];
         emit_destination(emitter, expression->left, base, sizeof(base));
         emit_expression(emitter, expression->right, index, sizeof(index));
+        if(!strcmp(emitter->function->exprs[expression->left].type,
+                   "string")) {
+            snprintf(output, size,
+                     "unsafe { assert!((%s as isize) >= 0 && (%s as usize) < %s.len); *%s.data.offset(%s as isize) }",
+                     index, index, base, base, index);
+            break;
+        }
         if(SliceElementType(
                emitter->function->exprs[expression->left].type, element,
                sizeof(element))) {
@@ -498,6 +564,17 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         char element[ZIR_NAME_MAX];
         int capacity = 0;
         emit_destination(emitter, expression->left, base, sizeof(base));
+        if(!strcmp(emitter->function->exprs[expression->left].type,
+                   "string")) {
+            char low[ZIR_RUST_TEXT_MAX];
+            char high[ZIR_RUST_TEXT_MAX];
+            emit_expression(emitter, expression->right, low, sizeof(low));
+            emit_expression(emitter, expression->third, high, sizeof(high));
+            snprintf(output, size,
+                     "ZiranText::slice(%s, %s as isize, %s as isize)",
+                     base, low, high);
+            break;
+        }
         if(!ArrayElementType(
                emitter->function->exprs[expression->left].type, element,
                sizeof(element), &capacity)) {
@@ -570,6 +647,19 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
     case ZIR_EXPR_BINARY:
         emit_expression(emitter, expression->left, left, sizeof(left));
         emit_expression(emitter, expression->right, right, sizeof(right));
+        if((expression->left >= 0 &&
+            !strcmp(emitter->function->exprs[expression->left].type,
+                    "string")) ||
+           (expression->right >= 0 &&
+            !strcmp(emitter->function->exprs[expression->right].type,
+                    "string"))) {
+            if(strcmp(expression->op, "==") != 0 &&
+               strcmp(expression->op, "!=") != 0)
+                unsupported_expression(emitter, expression);
+            snprintf(output, size, "%sZiranText::eq(&%s, &%s)",
+                     !strcmp(expression->op, "==") ? "" : "!", left, right);
+            break;
+        }
         if(integer_type(expression->type) &&
            wrapping_operation(expression->op))
             snprintf(output, size, "(%s).%s(%s)", left,
@@ -711,6 +801,10 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
     char type_name[ZIR_NAME_MAX];
     char element[ZIR_NAME_MAX];
     int capacity = 0;
+    if(!strcmp(type, "string")) {
+        snprintf(output, size, "ZiranText::new(\"\")");
+        return;
+    }
     if(SliceElementType(type, element, sizeof(element))) {
         char element_type[ZIR_NAME_MAX];
         rust_type(emitter, element, element_type, sizeof(element_type));
@@ -1068,6 +1162,25 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     fputs("#![allow(non_snake_case)]\n#![allow(unused)]\n\n", output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n", output);
+    fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranText {\n"
+          "    pub data: *const u8,\n    pub len: usize,\n"
+          "}\n\n"
+          "impl ZiranText {\n"
+          "    pub fn new(value: &'static str) -> Self {\n"
+          "        Self { data: value.as_ptr(), len: value.len() }\n"
+          "    }\n"
+          "    pub fn eq(left: &Self, right: &Self) -> bool {\n"
+          "        unsafe {\n"
+          "            left.len == right.len &&\n"
+          "            core::slice::from_raw_parts(left.data, left.len) ==\n"
+          "            core::slice::from_raw_parts(right.data, right.len)\n"
+          "        }\n"
+          "    }\n"
+          "    pub fn slice(value: Self, low: isize, high: isize) -> Self {\n"
+          "        assert!(low >= 0 && low <= high && high as usize <= value.len);\n"
+          "        Self { data: unsafe { value.data.offset(low) }, len: (high - low) as usize }\n"
+          "    }\n"
+          "}\n\n", output);
     emit_type_definitions(&emitter, output);
     for(int program_index = 0; program_index < program_count; program_index++) {
         const ZirProgram *program = programs[program_index];

@@ -1889,7 +1889,10 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
         if(e->target == ZIR_GO) {
             char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
             if(op == 10 && all_ones_operand(b)) {
-                format(out, size, "^%s(%s)", native, a);
+                if(same_number_type(a_type, type) && !left_literal)
+                    format(out, size, "^%s", a);
+                else
+                    format(out, size, "^%s(%s)", native, a);
                 return;
             }
             /* A literal wrapped to the width always fits the Go type. */
@@ -3743,6 +3746,12 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
     default: fatal(expr,"unsupported structured expression");
     }
     e->pure = pure;
+    {
+        /* A folded constant is a single operand, not a binary expression. */
+        uint64_t constant;
+        if(integer_literal_bits(result, &constant))
+            atom = 1;
+    }
     if(folds_text(e, result, type)) {
         /* declare() applies this cast for named enum types; inlined text has
          * to carry it so Go sees matching operand types. */
@@ -4182,6 +4191,61 @@ emit_if(Emitter *e,int i,int end)
     line(e,"}");return close;
 }
 
+static int
+expression_reads(const ZirFunction *fn, int index, const char *name)
+{
+    if(index < 0 || index >= fn->expr_count)
+        return 0;
+    const ZirExpr *expr = &fn->exprs[index];
+    if(expr->kind == ZIR_EXPR_IDENT && !strcmp(expr->name, name))
+        return 1;
+    /* An array's count and data, including an array field's, can lower to
+     * constants that never read the base. */
+    if(expr->kind == ZIR_EXPR_MEMBER && expr->left >= 0 &&
+       (!strcmp(expr->name, "count") || !strcmp(expr->name, "data")) &&
+       ArrayElementType(fn->exprs[expr->left].type, NULL, 0, NULL))
+        return 0;
+    /* Slicing an empty array likewise lowers without its base; the bounds
+     * are still read. */
+    if(expr->kind == ZIR_EXPR_SLICE && expr->left >= 0 &&
+       ArrayElementType(fn->exprs[expr->left].type, NULL, 0, NULL))
+        return expression_reads(fn, expr->right, name) ||
+               expression_reads(fn, expr->third, name);
+    for(int child = expr->first_child; child >= 0; child = fn->exprs[child].next_sibling)
+        if(expression_reads(fn, child, name))
+            return 1;
+    return expression_reads(fn, expr->left, name) ||
+           expression_reads(fn, expr->right, name) ||
+           expression_reads(fn, expr->third, name);
+}
+
+/* Go rejects a local that is never read. A binding needs no `_ =` when a
+ * later statement reads it and no other declaration reuses its name, so
+ * the read cannot belong to a shadowing binding. Assigning to the whole
+ * variable is not a read. */
+static int
+go_binding_read_later(const ZirFunction *fn, int declaration)
+{
+    const char *name = fn->stmts[declaration].name;
+    int read = 0;
+    /* A fixed array's count, data, and empty slices can lower to constants
+     * that never read the variable. */
+    if(ArrayElementType(fn->stmts[declaration].type, NULL, 0, NULL))
+        return 0;
+    for(int s = 0; s < fn->stmt_count; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        if(s != declaration && st->kind == ZIR_STMT_DECL && !strcmp(st->name, name))
+            return 0;
+        if(s <= declaration || read)
+            continue;
+        for(int root = st->expr_root; root >= 0 && !read; root = fn->exprs[root].next_sibling)
+            read = expression_reads(fn, root, name);
+        if(!read && st->lhs_root >= 0 && fn->exprs[st->lhs_root].kind != ZIR_EXPR_IDENT)
+            read = expression_reads(fn, st->lhs_root, name);
+    }
+    return read;
+}
+
 static void
 emit_sequence(Emitter *e,int begin,int end)
 {
@@ -4198,7 +4262,7 @@ emit_sequence(Emitter *e,int begin,int end)
             }
             else copy_text(value, sizeof(value), zero_value(st->type, e->target));
             declare(e,st->name,st->type,value);
-            if(e->target == ZIR_GO) {
+            if(e->target == ZIR_GO && !go_binding_read_later(e->fn, i)) {
                 char binding[ZIR_NAME_MAX];
                 TargetBindingName(e->fn, e->target, st->name, binding,
                                   sizeof(binding));

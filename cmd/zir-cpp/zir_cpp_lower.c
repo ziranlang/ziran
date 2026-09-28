@@ -1055,6 +1055,8 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
         convert_args(m, fn, abi_args, cargs, sizeof(cargs));
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
+        if(NativeMainReturnsStatus(fn))
+            copy_text(cret, sizeof(cret), "int32_t");
         if(strcmp(cname, "main") == 0) {
             /* The C++ runtime expects main with C++ language linkage. */
             fprintf(h, "}\nextern \"C++\" {\n%s %s(%s);\n"
@@ -1140,6 +1142,8 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
         convert_args(m, fn, abi_args, cargs, sizeof(cargs));
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
+        if(NativeMainReturnsStatus(fn))
+            copy_text(cret, sizeof(cret), "int32_t");
         fprintf(c, "[[maybe_unused]] static %s %s(%s);\n",
                 cret[0] ? cret : "void", cname, cargs);
     }
@@ -1211,6 +1215,8 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
         convert_args(m, fn, abi_args, cargs, sizeof(cargs));
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
+        if(NativeMainReturnsStatus(fn))
+            copy_text(cret, sizeof(cret), "int32_t");
         if(fn->is_extern) {
             /* extern: prototype only, no body */
             fprintf(c, "\n");

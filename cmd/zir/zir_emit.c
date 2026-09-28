@@ -1145,6 +1145,14 @@ EmitGoPrintSupport(FILE *out, const ZirModule *module)
         "}\n\n", p);
 }
 
+/* An exported void main is the C program entry: it returns status 0. */
+int
+NativeMainReturnsStatus(const ZirFunction *fn)
+{
+    return fn->exported && !strcmp(fn->name, "main") &&
+           (!fn->return_type[0] || !strcmp(fn->return_type, "void"));
+}
+
 void
 EmitNumberSupport(FILE *out, ZirTarget target, const char *p)
 {
@@ -4344,7 +4352,8 @@ emit_sequence(Emitter *e,int begin,int end)
                     /* value is a captured true array; output is an ABI pointer. */
                     line(e, "memmove(%s, %s, sizeof(%s));", output, value, value);
                     drop_locals(e, 0);
-                    line(e, "return;");
+                    line(e, e->target != ZIR_GO && NativeMainReturnsStatus(e->fn) ?
+                         "return 0;" : "return;");
                 } else {
                     if(has_owned_locals(e)) {
                         char returned[ZIR_NAME_MAX];
@@ -4360,7 +4369,8 @@ emit_sequence(Emitter *e,int begin,int end)
             }
             else {
                 drop_locals(e, 0);
-                line(e,e->target==ZIR_GO?"return":"return;");
+                line(e,e->target==ZIR_GO?"return":
+                       NativeMainReturnsStatus(e->fn)?"return 0;":"return;");
             }
             e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
         case ZIR_STMT_UNREACHABLE:

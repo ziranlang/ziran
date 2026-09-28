@@ -106,6 +106,13 @@ Early :: () -> s32 {
     return values[0]
 }
 
+Deferred :: () -> s32 {
+    values: Vec(s32)
+    defer { VecFree(values) }
+    VecPush(values, 15)
+    return values[0]
+}
+
 #program_export
 main :: () -> s32 {
     values: Vec(s32)
@@ -122,6 +129,7 @@ main :: () -> s32 {
     moved: Vec(s32) = Make()
     if Consume(moved) != 1 { return 7 }
     if Early() != 13 { return 8 }
+    if Deferred() != 15 { return 15 }
     holder: Holder
     if !VecPush(holder.values, 14) { return 9 }
     if holder.values.count != 1 || holder.values[0] != 14 { return 10 }

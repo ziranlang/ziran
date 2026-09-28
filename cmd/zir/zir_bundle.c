@@ -1000,6 +1000,37 @@ uses_imported_constant(const ZirModule *module, const unsigned char *keep,
     return 0;
 }
 
+/* True when `via` is `target` or reaches it through `using` imports, the
+ * way a public module entry re-exports the modules it names. */
+static int
+reexports_module(const ZirModule *via, const ZirModule *target, int depth)
+{
+    if(via == NULL || depth > 32) return 0;
+    if(via == target) return 1;
+    for(int i = 0; i < via->import_count; i++)
+        if(via->imports[i].is_using &&
+           reexports_module(via->imports[i].resolved_module, target, depth + 1))
+            return 1;
+    return 0;
+}
+
+/* True when a module reached through `via` (itself or a re-export) keeps a
+ * declaration, so an importer can still resolve it through `via`. */
+static int
+reexports_kept(const ZirProgram *program, const ZirModule *via,
+               unsigned char **keep_all, unsigned char **keep_types)
+{
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *candidate = &program->modules[m];
+        if(candidate == via || !reexports_module(via, candidate, 0))
+            continue;
+        if(memchr(keep_all[m], 1, (size_t)candidate->function_count) != NULL ||
+           memchr(keep_types[m], 1, (size_t)candidate->type_count) != NULL)
+            return 1;
+    }
+    return 0;
+}
+
 static int
 import_is_used(const ZirProgram *program, const ZirModule *module,
                const unsigned char *keep, unsigned char **keep_all,
@@ -1020,6 +1051,8 @@ import_is_used(const ZirProgram *program, const ZirModule *module,
         import->kind != ZIR_IMPORT_MODULE) ||
        import->resolved_module == NULL)
         return 0;
+    if(reexports_kept(program, import->resolved_module, keep_all, keep_types))
+        return 1;
     /* A module kept only for a program export that a foreign call binds
      * to is still reached through this import when output is reloaded. */
     for(int m = 0; m < program->module_count; m++) {
@@ -1522,7 +1555,15 @@ link_checked_entry(const ZirProgram *program, const char *entry_module,
             const ZirModule *module = &program->modules[m];
             for(int i = 0; i < module->import_count; i++) {
                 const ZirImport *import = &module->imports[i];
-                if(!import->is_using || import->resolved_module == NULL)
+                if(import->resolved_module == NULL)
+                    continue;
+                /* A plain import keeps a re-exporting module only while it
+                 * still leads to something retained. */
+                if(!import->is_using &&
+                   ((import->kind != ZIR_IMPORT_OPEN &&
+                     import->kind != ZIR_IMPORT_MODULE) ||
+                    !reexports_kept(program, import->resolved_module, keep,
+                                    keep_types)))
                     continue;
                 for(int d = 0; d < program->module_count; d++)
                     if(import->resolved_module == &program->modules[d] &&

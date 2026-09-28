@@ -1,0 +1,7 @@
+main :: () {
+    name := "Ziran";
+    year: s32 = 2026;
+    print("Hello, %! It is %.\n", name, year);
+    print("% + % = %\n", 40, 2, 40 + 2);
+    print("pi is about %, and 100%% sure\n", 3.14159);
+}

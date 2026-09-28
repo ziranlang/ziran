@@ -1,0 +1,13 @@
+Score :: struct {
+    value: s32;
+    bonus: s32;
+}
+
+Total :: (score: Score) -> s32 {
+    return score.value + score.bonus;
+}
+
+Answer :: () -> s32 {
+    score: Score = Score.{value = 40, bonus = 2};
+    return Total(score);
+}

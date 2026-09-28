@@ -794,6 +794,41 @@ print_run_flush(Emitter *e, PrintRun *run, int format_expr)
     memset(run, 0, sizeof(*run));
 }
 
+/* A name followed only by member access, calls, and indexing, such as
+ * corner.x or Area(box), binds tighter than a cast and needs no
+ * parentheses under one. */
+static int
+postfix_expression(const char *text)
+{
+    const char *p = text;
+    if(!(isalpha((unsigned char)*p) || *p == '_'))
+        return 0;
+    while(isalnum((unsigned char)*p) || *p == '_') p++;
+    while(*p) {
+        if(*p == '.' || (p[0] == '-' && p[1] == '>')) {
+            p += *p == '.' ? 1 : 2;
+            if(!(isalpha((unsigned char)*p) || *p == '_'))
+                return 0;
+            while(isalnum((unsigned char)*p) || *p == '_') p++;
+        } else if(*p == '(' || *p == '[') {
+            int depth = 0, quoted = 0;
+            do {
+                if(quoted) {
+                    if(*p == '\\' && p[1]) p++;
+                    else if(*p == '"') quoted = 0;
+                } else if(*p == '"') quoted = 1;
+                else if(*p == '(' || *p == '[') depth++;
+                else if(*p == ')' || *p == ']') depth--;
+                p++;
+            } while(*p && depth > 0);
+            if(depth != 0)
+                return 0;
+        } else
+            return 0;
+    }
+    return 1;
+}
+
 void
 emit_print(Emitter *e, const ZirExpr *expr)
 {
@@ -896,7 +931,7 @@ emit_print(Emitter *e, const ZirExpr *expr)
             copy_text(values[argument - 1], ZIR_TEXT_MAX, plain);
             name = values[argument - 1];
         }
-        if(plain_identifier(name) || enclosed(name))
+        if(postfix_expression(name) || enclosed(name))
             copy_text(operand, sizeof(operand), name);
         else
             format(operand, sizeof(operand), "(%s)", name);

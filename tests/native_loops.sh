@@ -2,7 +2,7 @@
 set -eu
 
 # for loops come out as the target's own loops: a counting for in C and Go,
-# and range in Go when the index goes unused. continue, named continue,
+# range in Go when the index goes unused, and for ... in in Rust. continue, named continue,
 # reverse ranges, and strings behave the same on every target.
 ziran=$1
 work=$(mktemp -d)
@@ -80,6 +80,8 @@ grep -Fq 'for _, it := range values {' "$work/go/loops.go"
 CARGO_TARGET_DIR=$work/rust-target cargo build --quiet \
     --manifest-path "$work/rust/Cargo.toml" 2> /dev/null
 "$work/rust-target/debug/ziran_generated" > "$work/rust.out"
+grep -Fq 'for step in 0i64..=3i64 {' "$work/rust/src/main.rs"
+grep -Fq 'for down in (1i64..=3i64).rev() {' "$work/rust/src/main.rs"
 
 for target in vm c cpp go rust; do
     if ! cmp -s "$work/expected" "$work/$target.out"; then

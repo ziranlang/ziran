@@ -126,6 +126,22 @@ main :: () -> s32 {
     if !VecPush(holder.values, 14) { return 9 }
     if holder.values.count != 1 || holder.values[0] != 14 { return 10 }
     VecFree(holder.values)
+    original: Vec(s32)
+    VecPush(original, 4)
+    VecPush(original, 5)
+    VecPush(original, 6)
+    copy: Vec(s32)
+    if !VecClone(copy, original) { VecFree(original); VecFree(copy); return 11 }
+    {
+        view: []s32 = VecSlice(original, 1, 3)
+        if view.count != 2 || view[0] != 5 || view[1] != 6 {
+            return 12
+        }
+    }
+    if !VecPush(copy, 7) { return 13 }
+    if original.count != 3 || copy.count != 4 || copy[3] != 7 {
+        return 14
+    }
     return 0
 }
 ZI

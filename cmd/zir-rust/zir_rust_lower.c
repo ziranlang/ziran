@@ -697,13 +697,15 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
     if(!strcmp(expression->name, "VecPush") ||
        !strcmp(expression->name, "VecPop") ||
        !strcmp(expression->name, "VecGet") ||
-       !strcmp(expression->name, "VecFree")) {
+       !strcmp(expression->name, "VecFree") ||
+       !strcmp(expression->name, "VecClone") ||
+       !strcmp(expression->name, "VecSlice")) {
         int first = expression->first_child;
         int second = first >= 0 ?
             emitter->function->exprs[first].next_sibling : -1;
         int third = second >= 0 ?
             emitter->function->exprs[second].next_sibling : -1;
-        if(first < 0 || third >= 0 ||
+        if(first < 0 ||
            !rust_owned_vec_type(
                emitter, emitter->function->exprs[first].type, NULL, NULL,
                element, sizeof(element))) {
@@ -731,7 +733,7 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
                 return;
             }
             snprintf(output, size, "ZiranVecPop(&mut %s)", child);
-        } else {
+        } else if(!strcmp(expression->name, "VecGet")) {
             char index[ZIR_RUST_TEXT_MAX];
             if(second < 0) {
                 unsupported_expression(emitter, expression);
@@ -740,6 +742,35 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
             emit_expression(emitter, second, index, sizeof(index));
             snprintf(output, size, "ZiranVecGet(&mut %s, %s as usize)",
                      child, index);
+        } else if(!strcmp(expression->name, "VecClone")) {
+            char source[ZIR_RUST_TEXT_MAX];
+            if(third >= 0 || second < 0 ||
+               strcmp(emitter->function->exprs[first].type,
+                      emitter->function->exprs[second].type)) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            emit_expression(emitter, second, source, sizeof(source));
+            snprintf(output, size, "ZiranVecClone(&mut %s, &%s)",
+                     child, source);
+            return;
+        } else {
+            char low[ZIR_RUST_TEXT_MAX];
+            char high[ZIR_RUST_TEXT_MAX];
+            int fourth = third >= 0 ?
+                emitter->function->exprs[third].next_sibling : -1;
+            if(third < 0 || fourth >= 0 ||
+               !integer_type(emitter->function->exprs[second].type) ||
+               !integer_type(emitter->function->exprs[third].type)) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            emit_expression(emitter, second, low, sizeof(low));
+            emit_expression(emitter, third, high, sizeof(high));
+            snprintf(output, size,
+                     "ZiranVecSlice(&%s, %s as isize, %s as isize)",
+                     child, low, high);
+            return;
         }
         return;
     }
@@ -1706,6 +1737,27 @@ static void emit_ziran_vec_runtime(FILE *output)
     fputs("    true\n", output);
     fputs("}\n", output);
     fputs("\n", output);
+    fputs("pub fn ZiranVecClone<T>(destination: &mut ZiranVec<T>, source: &ZiranVec<T>) -> bool {\n", output);
+    fputs("    ZiranVecFree(destination);\n", output);
+    fputs("    if source.count == 0 {\n", output);
+    fputs("        return true;\n", output);
+    fputs("    }\n", output);
+    fputs("    let count = source.count as usize;\n", output);
+    fputs("    let layout = match std::alloc::Layout::array::<T>(count) {\n", output);
+    fputs("        Ok(layout) => layout,\n", output);
+    fputs("        Err(_) => return false,\n", output);
+    fputs("    };\n", output);
+    fputs("    let allocation = unsafe { std::alloc::alloc(layout) };\n", output);
+    fputs("    if allocation.is_null() {\n", output);
+    fputs("        return false;\n", output);
+    fputs("    }\n", output);
+    fputs("    unsafe { core::ptr::copy_nonoverlapping(source.data, allocation as *mut T, count); }\n", output);
+    fputs("    destination.data = allocation as *mut T;\n", output);
+    fputs("    destination.count = source.count;\n", output);
+    fputs("    destination.capacity = source.count;\n", output);
+    fputs("    true\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
     fputs("pub fn ZiranVecPop<T>(vector: &mut ZiranVec<T>) -> ZiranOption<T> {\n", output);
     fputs("    if vector.count == 0 {\n", output);
     fputs("        return ZiranOption {\n", output);
@@ -1727,6 +1779,14 @@ static void emit_ziran_vec_runtime(FILE *output)
     fputs("    }\n", output);
     fputs("    let value = unsafe { vector.data.offset(index as isize).read() };\n", output);
     fputs("    ZiranOption { has_value: true, value }\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("pub fn ZiranVecSlice<T>(vector: &ZiranVec<T>, low: isize, high: isize) -> ZiranSlice<T> {\n", output);
+    fputs("    assert!(low >= 0 && low <= high && high as usize <= vector.count as usize);\n", output);
+    fputs("    ZiranSlice {\n", output);
+    fputs("        data: unsafe { vector.data.offset(low) },\n", output);
+    fputs("        len: (high - low) as usize,\n", output);
+    fputs("    }\n", output);
     fputs("}\n", output);
     fputs("\n", output);
     fputs("pub fn ZiranVecFree<T>(vector: &mut ZiranVec<T>) {\n", output);

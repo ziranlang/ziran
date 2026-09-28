@@ -603,14 +603,15 @@ law_names_import(const ZirModule *module, const ZirImport *import)
 }
 
 static int
-vec_operation(const char *name)
+builtin_call(const char *name)
 {
     return !strcmp(name, "TextView") ||
            !strcmp(name, "VecPush") || !strcmp(name, "VecClear") ||
            !strcmp(name, "VecFree") || !strcmp(name, "VecSwap") ||
            !strcmp(name, "VecPop") || !strcmp(name, "VecGet") ||
            !strcmp(name, "VecClone") || !strcmp(name, "VecSlice") ||
-           !strcmp(name, "BuilderAppend") || !strcmp(name, "BuilderFinish");
+           !strcmp(name, "BuilderAppend") || !strcmp(name, "BuilderFinish") ||
+           !strcmp(name, "print");
 }
 
 static const char *
@@ -1197,7 +1198,7 @@ link_checked_entry(const ZirProgram *program, const char *entry_module,
                        expression->slot_type[0] != '\0')
                         continue;
                     if(expression->kind == ZIR_EXPR_CALL &&
-                       vec_operation(expression->name))
+                       builtin_call(expression->name))
                         continue;
                     if(ResolveFunction(module, expression->name,
                                        &owner, &callee) != 1 ||

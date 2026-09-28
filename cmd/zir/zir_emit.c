@@ -2562,6 +2562,80 @@ member_path(const ZirFunction *fn, int index)
 
 static void zero_record(Emitter *e, const char *type, char *out, size_t size);
 
+/* Checked `print`: evaluate every argument left to right, then write the
+ * format's literal pieces and argument values to standard output in order. */
+static void
+emit_print(Emitter *e, const ZirExpr *expr)
+{
+    PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
+    char values[PRINT_PIECES_MAX][ZIR_NAME_MAX];
+    const char *types[PRINT_PIECES_MAX];
+    char value[ZIR_TEXT_MAX], literal[ZIR_TEXT_MAX];
+    int first = expr->first_child, count, argument = 0;
+    if(pieces == NULL || first < 0 ||
+       (count = PrintFormatPieces(e->fn->exprs[first].text, pieces,
+                                  PRINT_PIECES_MAX)) < 0)
+        fatal(expr, "invalid checked print format");
+    for(int child = e->fn->exprs[first].next_sibling; child >= 0;
+        child = e->fn->exprs[child].next_sibling, argument++) {
+        types[argument] = ScalarType(e->fn->exprs[child].type);
+        emit_expr(e, child, e->fn->exprs[child].type, value, sizeof(value));
+        fresh(e, values[argument]);
+        declare(e, values[argument], types[argument], value);
+    }
+    argument = 0;
+    for(int i = 0; i < count; i++) {
+        const char *type, *name;
+        if(!pieces[i].is_argument) {
+            ZirExpr piece = e->fn->exprs[first];
+            copy_text(piece.text, sizeof(piece.text), pieces[i].literal);
+            string_literal(&piece, e->target, literal, sizeof(literal));
+            if(e->target == ZIR_GO)
+                line(e, "ziranos.Stdout.WriteString(%s)", literal);
+            else
+                line(e, "ZirPrintString(StringLiteral(%s));", literal);
+            continue;
+        }
+        type = types[argument];
+        name = values[argument++];
+        if(e->target != ZIR_GO) {
+            if(!strcmp(type, "string"))
+                line(e, "ZirPrintString(%s);", name);
+            else if(!strcmp(type, "bool"))
+                line(e, "ZirPrintBool(%s);", name);
+            else if(!strcmp(type, "float32") || !strcmp(type, "float64"))
+                line(e, "ZirPrintFloat((double)(%s), %d);", name,
+                     !strcmp(type, "float32"));
+            else if(type[0] == 'u')
+                line(e, "ZirPrintUnsigned((uint64_t)(%s));", name);
+            else
+                line(e, "ZirPrintSigned((int64_t)(%s));", name);
+        } else if(!strcmp(type, "string"))
+            line(e, "ziranos.Stdout.WriteString(%s)", name);
+        else if(!strcmp(type, "bool"))
+            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatBool(%s))",
+                 name);
+        else if(!strcmp(type, "float32") || !strcmp(type, "float64")) {
+            line(e, "if %s != %s {", name, name);
+            line(e, "\tziranos.Stdout.WriteString(\"nan\")");
+            line(e, "} else if float64(%s) > 1.7976931348623157e308 {", name);
+            line(e, "\tziranos.Stdout.WriteString(\"inf\")");
+            line(e, "} else if float64(%s) < -1.7976931348623157e308 {", name);
+            line(e, "\tziranos.Stdout.WriteString(\"-inf\")");
+            line(e, "} else {");
+            line(e, "\tziranos.Stdout.WriteString(ziranstrconv.FormatFloat(float64(%s), 'f', -1, %d))",
+                 name, !strcmp(type, "float32") ? 32 : 64);
+            line(e, "}");
+        } else if(type[0] == 'u')
+            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatUint(uint64(%s), 10))",
+                 name);
+        else
+            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatInt(int64(%s), 10))",
+                 name);
+    }
+    free(pieces);
+}
+
 /* Keep collection lowering outside recursive expression lowering: its large
  * target buffers must not increase every nested expression stack frame. */
 static void
@@ -3216,6 +3290,12 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
            !strcmp(expr->name, "BuilderAppend") ||
            !strcmp(expr->name, "BuilderFinish")) {
             emit_vec_call(e, expr, out, size);
+            return;
+        }
+        if(!strcmp(expr->name, "print")) {
+            emit_print(e, expr);
+            out[0] = '\0';
+            e->pure = 0;
             return;
         }
         if((e->target == ZIR_C || e->target == ZIR_CPP) &&

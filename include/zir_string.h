@@ -38,4 +38,55 @@ static inline bool StringEqual(String a, String b) {
         (a.length == 0 || memcmp(a.data, b.data, a.length) == 0);
 }
 
+/* `print` output. Floats use the shortest decimal that reads back to the
+ * same value, in plain positional notation, so every target agrees. */
+static inline void ZirPrintString(String text) {
+    if (text.length > 0)
+        fwrite(text.data, 1, text.length, stdout);
+}
+
+static inline void ZirPrintBool(bool value) {
+    fputs(value ? "true" : "false", stdout);
+}
+
+static inline void ZirPrintSigned(int64_t value) {
+    printf("%lld", (long long)value);
+}
+
+static inline void ZirPrintUnsigned(uint64_t value) {
+    printf("%llu", (unsigned long long)value);
+}
+
+static inline void ZirPrintFloat(double value, int single) {
+    char scientific[40], digits[24];
+    int precision, exponent, count = 0;
+    const char *p;
+    if (value != value) { fputs("nan", stdout); return; }
+    if (value - value != 0) { fputs(value < 0 ? "-inf" : "inf", stdout); return; }
+    for (precision = 1; precision <= 17; precision++) {
+        snprintf(scientific, sizeof(scientific), "%.*e", precision - 1, value);
+        if (single ? strtof(scientific, NULL) == (float)value
+                   : strtod(scientific, NULL) == value)
+            break;
+    }
+    p = scientific;
+    if (*p == '-') { fputc('-', stdout); p++; }
+    for (; *p != 'e'; p++)
+        if (*p != '.') digits[count++] = *p;
+    exponent = atoi(p + 1);
+    while (count > 1 && digits[count - 1] == '0') count--;
+    if (exponent < 0) {
+        fputs("0.", stdout);
+        for (int i = 1; i < -exponent; i++) fputc('0', stdout);
+        fwrite(digits, 1, (size_t)count, stdout);
+    } else {
+        for (int i = 0; i <= exponent; i++)
+            fputc(i < count ? digits[i] : '0', stdout);
+        if (count > exponent + 1) {
+            fputc('.', stdout);
+            fwrite(digits + exponent + 1, 1, (size_t)(count - exponent - 1), stdout);
+        }
+    }
+}
+
 #endif

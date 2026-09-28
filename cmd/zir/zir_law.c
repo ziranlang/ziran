@@ -717,7 +717,7 @@ sweep_effect_class(ZirProgram *program)
                    expr->slot_type[0])
                     continue;
                 imported = imported_callee_class(module, expr->name);
-                if(imported != NULL) {
+                if(imported != NULL || !strcmp(expr->name, "print")) {
                     rank = 3;
                     continue;
                 }
@@ -1044,6 +1044,11 @@ check_parallel_region(const ZirProgram *program, const ZirModule *module,
                         Diagnostic(st->span, "parallel.effect",
                                    "#parallel cannot call foreign code: %s",
                                    expr->name);
+                        return 0;
+                    }
+                    if(!strcmp(expr->name, "print")) {
+                        Diagnostic(st->span, "parallel.effect",
+                                   "#parallel cannot print; output order would depend on scheduling");
                         return 0;
                     }
                     callee = parallel_callee(module, expr);

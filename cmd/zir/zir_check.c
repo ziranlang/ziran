@@ -3678,6 +3678,62 @@ expression_type(Checker *c, int index)
             type = "string";
             break;
         }
+        if(!strcmp(e->name, "print")) {
+            PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
+            int first = e->first_child, placeholders = 0, arguments = 0;
+            int count;
+            for(int child = first; child >= 0;
+                child = c->fn->exprs[child].next_sibling) {
+                const char *arg_type = expression_type(c, child);
+                const char *scalar = ScalarType(arg_type);
+                if(c->fn->exprs[child].argument_name[0])
+                    error(c, c->fn->exprs[child].span,
+                          "print has no named parameters",
+                          c->fn->exprs[child].argument_name);
+                if(child == first)
+                    continue;
+                arguments++;
+                if(!strcmp(arg_type, "integer"))
+                    copy_text(c->fn->exprs[child].type, ZIR_NAME_MAX, "s64");
+                else if(!strcmp(arg_type, "real"))
+                    copy_text(c->fn->exprs[child].type, ZIR_NAME_MAX, "float64");
+                else if(scalar == NULL ||
+                        (!integer_type(arg_type) &&
+                         strcmp(scalar, "bool") &&
+                         strcmp(scalar, "float32") &&
+                         strcmp(scalar, "float64") &&
+                         strcmp(scalar, "string")))
+                    error(c, c->fn->exprs[child].span,
+                          "print argument must be an integer, float, bool, or string",
+                          arg_type);
+            }
+            if(pieces == NULL) {
+                c->failed = 1;
+                break;
+            }
+            if(first < 0 || c->fn->exprs[first].kind != ZIR_EXPR_STRING)
+                error(c, e->span, "print requires a string literal format",
+                      e->name);
+            else if((count = PrintFormatPieces(c->fn->exprs[first].text,
+                                               pieces, PRINT_PIECES_MAX)) < 0)
+                error(c, c->fn->exprs[first].span,
+                      "print format is invalid or too long", e->name);
+            else {
+                for(int i = 0; i < count; i++)
+                    placeholders += pieces[i].is_argument;
+                if(placeholders != arguments) {
+                    char detail[64];
+                    snprintf(detail, sizeof(detail), "%d %% for %d argument%s",
+                             placeholders, arguments, arguments == 1 ? "" : "s");
+                    error(c, e->span,
+                          "print format placeholders do not match arguments",
+                          detail);
+                }
+            }
+            free(pieces);
+            type = "void";
+            break;
+        }
         if(!strcmp(e->name, "VecPush") || !strcmp(e->name, "VecClear") ||
            !strcmp(e->name, "VecFree") || !strcmp(e->name, "VecSwap") ||
            !strcmp(e->name, "VecPop") || !strcmp(e->name, "VecGet") ||

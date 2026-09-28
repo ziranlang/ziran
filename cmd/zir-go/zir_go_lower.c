@@ -1291,6 +1291,17 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             }
             if(pointer_index || g_union_unsafe)
                 fprintf(f, "import \"unsafe\"\n");
+            int prints = 0;
+            for(int fi = 0; fi < m->function_count && !prints; fi++)
+                for(int ei = 0; ei < m->functions[fi].expr_count; ei++)
+                    if(m->functions[fi].exprs[ei].kind == ZIR_EXPR_CALL &&
+                       !strcmp(m->functions[fi].exprs[ei].name, "print")) {
+                        prints = 1;
+                        break;
+                    }
+            if(prints)
+                fprintf(f, "import ziranos \"os\"\n"
+                           "import ziranstrconv \"strconv\"\n");
             for(int i = 0; i < g_extern_count; i++) {
                 int duplicate = 0;
 

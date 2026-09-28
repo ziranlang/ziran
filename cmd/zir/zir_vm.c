@@ -1514,6 +1514,31 @@ verify_expression(const ZirModule *module, const ZirFunction *function,
                    verify_expression(module, function, bindings,
                                      binding_count, first, depth + 1);
         }
+        if(!strcmp(expression->name, "print")) {
+            PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
+            int first = expression->first_child, count, placeholders = 0;
+            int arguments = 0, valid;
+            valid = pieces != NULL && first >= 0 &&
+                    function->exprs[first].kind == ZIR_EXPR_STRING &&
+                    strcmp(expression->type, "void") == 0 &&
+                    (count = PrintFormatPieces(function->exprs[first].text,
+                                               pieces, PRINT_PIECES_MAX)) >= 0;
+            for(int i = 0; valid && i < count; i++)
+                placeholders += pieces[i].is_argument;
+            free(pieces);
+            for(int child = first; valid && child >= 0;
+                child = function->exprs[child].next_sibling) {
+                const char *type = ScalarType(function->exprs[child].type);
+                if(child != first) {
+                    arguments++;
+                    valid = type[0] != '\0' && strcmp(type, "void") != 0;
+                }
+                valid = valid && verify_expression(module, function, bindings,
+                                                   binding_count, child,
+                                                   depth + 1);
+            }
+            return valid && placeholders == arguments;
+        }
         if(!strcmp(expression->name, "VecPush") ||
            !strcmp(expression->name, "VecClear") ||
            !strcmp(expression->name, "VecFree") ||
@@ -2127,6 +2152,70 @@ static Value run_function(Vm *vm, const ZirModule *module,
                           const ZirFunction *function, const Value *args,
                           int arg_count);
 static Value eval(Frame *frame, int index, int depth);
+
+/* Checked `print`: evaluate every argument left to right, then write literal
+ * pieces and values to standard output with the native targets' spelling. */
+static void
+vm_print(Frame *frame, const ZirExpr *expression, int depth)
+{
+    const ZirFunction *function = frame->function;
+    PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
+    Value values[PRINT_PIECES_MAX];
+    const char *types[PRINT_PIECES_MAX];
+    int first = expression->first_child, count, argument = 0;
+    if(pieces == NULL || first < 0 ||
+       (count = PrintFormatPieces(function->exprs[first].text, pieces,
+                                  PRINT_PIECES_MAX)) < 0) {
+        free(pieces);
+        frame->vm->failed = 1;
+        return;
+    }
+    for(int child = function->exprs[first].next_sibling;
+        child >= 0 && !frame->vm->failed && argument < PRINT_PIECES_MAX;
+        child = function->exprs[child].next_sibling, argument++) {
+        types[argument] = ScalarType(function->exprs[child].type);
+        values[argument] = eval(frame, child, depth + 1);
+    }
+    argument = 0;
+    for(int i = 0; i < count && !frame->vm->failed; i++) {
+        unsigned char bytes[ZIR_TEXT_MAX];
+        char text[64];
+        size_t length;
+        Value value;
+        const char *type;
+        if(!pieces[i].is_argument) {
+            if(DecodeStringLiteral(pieces[i].literal, bytes, sizeof(bytes),
+                                   &length))
+                fwrite(bytes, 1, length, stdout);
+            continue;
+        }
+        value = values[argument];
+        type = types[argument++];
+        if(!strcmp(type, "string")) {
+            if(value.kind != VALUE_STRING) {
+                frame->vm->failed = 1;
+                break;
+            }
+            if(value.length > 0)
+                fwrite(value.data, 1, value.length, stdout);
+            continue;
+        }
+        if(!strcmp(type, "bool"))
+            snprintf(text, sizeof(text), "%s", truthy(value) ? "true" : "false");
+        else if(!strcmp(type, "float32") || !strcmp(type, "float64"))
+            FormatPrintFloat(value.kind == VALUE_REAL ? value.real :
+                             (double)value.integer,
+                             !strcmp(type, "float32"), text, sizeof(text));
+        else if(type[0] == 'u')
+            snprintf(text, sizeof(text), "%llu",
+                     (unsigned long long)integer_bits(value));
+        else
+            snprintf(text, sizeof(text), "%lld",
+                     (long long)signed64(integer_bits(value)));
+        fputs(text, stdout);
+    }
+    free(pieces);
+}
 
 static Local *
 find_local(Frame *frame, const char *name)
@@ -2881,6 +2970,11 @@ eval(Frame *frame, int index, int depth)
             item->next = frame->vm->strings;
             frame->vm->strings = item;
             value = string_value(item->data, item->length);
+            break;
+        }
+        if(!strcmp(expression->name, "print")) {
+            vm_print(frame, expression, depth);
+            value.kind = VALUE_VOID;
             break;
         }
         if(!strcmp(expression->name, "VecPush") ||

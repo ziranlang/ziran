@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int
@@ -334,4 +335,135 @@ DecodeStringLiteral(const char *source, unsigned char *out, size_t capacity,
         return 0;
     *length = used;
     return 1;
+}
+
+static int
+encode_string_literal(const unsigned char *bytes, size_t length, char *out,
+                      size_t capacity)
+{
+    size_t used = 0;
+    if(capacity < 3)
+        return 0;
+    out[used++] = '"';
+    for(size_t i = 0; i < length; i++) {
+        char escaped[8];
+        unsigned char byte = bytes[i];
+        if(byte == '"' || byte == '\\')
+            snprintf(escaped, sizeof(escaped), "\\%c", byte);
+        else if(byte == '\n')
+            snprintf(escaped, sizeof(escaped), "\\n");
+        else if(byte == '\t')
+            snprintf(escaped, sizeof(escaped), "\\t");
+        else if(byte < 0x20 || byte == 0x7f)
+            snprintf(escaped, sizeof(escaped), "\\x%02x", byte);
+        else {
+            escaped[0] = (char)byte;
+            escaped[1] = '\0';
+        }
+        size_t size = strlen(escaped);
+        if(used + size + 2 > capacity)
+            return 0;
+        memcpy(out + used, escaped, size);
+        used += size;
+    }
+    out[used++] = '"';
+    out[used] = '\0';
+    return 1;
+}
+
+/* Split a `print` format literal at `%` placeholders; `%%` is one literal
+ * percent. Literal pieces are re-encoded as Ziran string literals so every
+ * backend lowers them through its ordinary string path. Empty literal pieces
+ * are omitted. Returns the piece count, or -1 for an invalid literal or when
+ * the pieces do not fit. */
+int
+PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity)
+{
+    unsigned char bytes[4096], text[4096];
+    size_t length, pending = 0;
+    int count = 0;
+    if(!DecodeStringLiteral(format, bytes, sizeof(bytes), &length))
+        return -1;
+    for(size_t i = 0; i <= length; i++) {
+        int placeholder = i < length && bytes[i] == '%' &&
+                          (i + 1 >= length || bytes[i + 1] != '%');
+        if(i < length && !placeholder) {
+            text[pending++] = bytes[i];
+            if(bytes[i] == '%' && i + 1 < length && bytes[i + 1] == '%')
+                i++;
+            continue;
+        }
+        if(pending > 0) {
+            if(count >= capacity ||
+               !encode_string_literal(text, pending, pieces[count].literal,
+                                      sizeof(pieces[count].literal)))
+                return -1;
+            pieces[count++].is_argument = 0;
+            pending = 0;
+        }
+        if(placeholder) {
+            if(count >= capacity)
+                return -1;
+            pieces[count].literal[0] = '\0';
+            pieces[count++].is_argument = 1;
+        }
+    }
+    return count;
+}
+
+/* Portable `print` float text: the shortest decimal that reads back to the
+ * same value, in positional notation. Native C/C++ output uses the matching
+ * ZirPrintFloat helper in include/zir_string.h. */
+void
+FormatPrintFloat(double value, int single, char *out, size_t capacity)
+{
+    char scientific[40], digits[24];
+    int precision, exponent, count = 0;
+    size_t used = 0;
+    const char *p;
+    if(value != value) {
+        snprintf(out, capacity, "nan");
+        return;
+    }
+    if(value - value != 0) {
+        snprintf(out, capacity, "%s", value < 0 ? "-inf" : "inf");
+        return;
+    }
+    for(precision = 1; precision <= 17; precision++) {
+        snprintf(scientific, sizeof(scientific), "%.*e", precision - 1, value);
+        if(single ? strtof(scientific, NULL) == (float)value
+                  : strtod(scientific, NULL) == value)
+            break;
+    }
+    p = scientific;
+#define PUT(c) do { if(used + 1 < capacity) out[used++] = (c); } while(0)
+    if(*p == '-') {
+        PUT('-');
+        p++;
+    }
+    for(; *p != 'e'; p++)
+        if(*p != '.')
+            digits[count++] = *p;
+    exponent = atoi(p + 1);
+    while(count > 1 && digits[count - 1] == '0')
+        count--;
+    if(exponent < 0) {
+        PUT('0');
+        PUT('.');
+        for(int i = 1; i < -exponent; i++)
+            PUT('0');
+        for(int i = 0; i < count; i++)
+            PUT(digits[i]);
+    } else {
+        for(int i = 0; i <= exponent; i++)
+            PUT(i < count ? digits[i] : '0');
+        if(count > exponent + 1) {
+            PUT('.');
+            for(int i = exponent + 1; i < count; i++)
+                PUT(digits[i]);
+        }
+    }
+#undef PUT
+    if(capacity > 0)
+        out[used] = '\0';
 }

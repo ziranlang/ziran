@@ -287,15 +287,26 @@ try_module(LoadContext *context, const char *directory, const char *load_root,
     }
     return 0;
 }
+/* Buffers load_import keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LoadImportBuffers {
+    char directory[ZIR_PATH_MAX * 2];
+    char owner_file[ZIR_PATH_MAX * 3];
+    char mapped_path[ZIR_PATH_MAX * 3];
+    char parent[ZIR_PATH_MAX * 3];
+    char module_root[ZIR_PATH_MAX * 3];
+    char candidate[ZIR_PATH_MAX * 3];
+} LoadImportBuffers;
+
+static int load_import(LoadContext *context, const char *owner_source,
+            const char *owner_root, ZirImport *import);
 
 static int
-load_import(LoadContext *context, const char *owner_source,
-            const char *owner_root, ZirImport *import)
+load_import_with_buffers(LoadContext *context, const char *owner_source,
+            const char *owner_root, ZirImport *import, LoadImportBuffers *buffers)
 {
     ProgramSet *set = context->set;
     const char *target = import->target;
-    char directory[ZIR_PATH_MAX * 2];
-    char owner_file[ZIR_PATH_MAX * 3];
     struct stat owner_info;
     const char *owner_path = owner_source;
     int prefer_ir = PathIsIR(owner_source);
@@ -303,10 +314,9 @@ load_import(LoadContext *context, const char *owner_source,
         if(import->resolved_module != NULL &&
            module_loaded(set, import->target)) return 1;
         const char *owner = PackageOwner(context->packages, owner_source);
-        char mapped_path[ZIR_PATH_MAX * 3];
         char mapped_name[ZIR_NAME_MAX];
         if(owner == NULL || !PackageResolve(context->packages, owner,
-                    target, mapped_path, sizeof(mapped_path), mapped_name,
+                    target, buffers->mapped_path, sizeof(buffers->mapped_path), mapped_name,
                     sizeof(mapped_name))) {
             Diagnostic(import->span, "package.not_found",
                        "module %s is not in package %s or its direct dependencies (%s)",
@@ -315,12 +325,11 @@ load_import(LoadContext *context, const char *owner_source,
         }
         snprintf(import->target, sizeof(import->target), "%s", mapped_name);
         if(module_loaded(set, mapped_name)) return 1;
-        char parent[ZIR_PATH_MAX * 3];
-        snprintf(parent, sizeof(parent), "%s", mapped_path);
-        char *slash = strrchr(parent, '/');
+        snprintf(buffers->parent, sizeof(buffers->parent), "%s", buffers->mapped_path);
+        char *slash = strrchr(buffers->parent, '/');
         if(slash == NULL) return 0;
         *slash = '\0';
-        return add_program_named(context, mapped_path, parent,
+        return add_program_named(context, buffers->mapped_path, buffers->parent,
                                  strcmp(slash + 1, "module.zi") == 0 ?
                                  mapped_name : NULL);
     }
@@ -330,48 +339,45 @@ load_import(LoadContext *context, const char *owner_source,
         else if(stat(SpanPath(import->span), &owner_info) == 0 &&
                 S_ISREG(owner_info.st_mode))
             owner_path = SpanPath(import->span);
-        else if(snprintf(owner_file, sizeof(owner_file), "%s/%s",
+        else if(snprintf(buffers->owner_file, sizeof(buffers->owner_file), "%s/%s",
                          owner_root, SpanPath(import->span)) <
-                (int)sizeof(owner_file))
-            owner_path = owner_file;
+                (int)sizeof(buffers->owner_file))
+            owner_path = buffers->owner_file;
     }
     const char *slash = strrchr(owner_path, '/');
     if(!prefer_ir && strncmp(import->signature, "dir:", 4) == 0) {
-        char module_root[ZIR_PATH_MAX * 3];
-        char candidate[ZIR_PATH_MAX * 3];
         struct stat info;
         size_t directory_length = slash == NULL ? 0 :
                                   (size_t)(slash - owner_path);
         if(slash == NULL ||
-           snprintf(module_root, sizeof(module_root), "%.*s/%s",
+           snprintf(buffers->module_root, sizeof(buffers->module_root), "%.*s/%s",
                     (int)directory_length, owner_path,
-                    import->signature + 4) >= (int)sizeof(module_root) ||
-           snprintf(candidate, sizeof(candidate), "%s/module.zi",
-                    module_root) >= (int)sizeof(candidate) ||
-           stat(candidate, &info) != 0 || !S_ISREG(info.st_mode)) {
+                    import->signature + 4) >= (int)sizeof(buffers->module_root) ||
+           snprintf(buffers->candidate, sizeof(buffers->candidate), "%s/module.zi",
+                    buffers->module_root) >= (int)sizeof(buffers->candidate) ||
+           stat(buffers->candidate, &info) != 0 || !S_ISREG(info.st_mode)) {
             Diagnostic(import->span, "module.not_found",
                        "cannot find imported directory module: %s",
                        import->signature + 4);
             return 0;
         }
-        return add_program_named(context, candidate, module_root,
+        return add_program_named(context, buffers->candidate, buffers->module_root,
                                  target);
     }
     if(!prefer_ir && strncmp(import->signature, "file:", 5) == 0) {
-        char candidate[ZIR_PATH_MAX * 3];
         struct stat info;
         size_t directory_length = slash == NULL ? 0 :
                                   (size_t)(slash - owner_path);
         if(slash == NULL ||
-           snprintf(candidate, sizeof(candidate), "%.*s/%s",
+           snprintf(buffers->candidate, sizeof(buffers->candidate), "%.*s/%s",
                     (int)directory_length, owner_path,
-                    import->signature + 5) >= (int)sizeof(candidate) ||
-           stat(candidate, &info) != 0 || !S_ISREG(info.st_mode)) {
+                    import->signature + 5) >= (int)sizeof(buffers->candidate) ||
+           stat(buffers->candidate, &info) != 0 || !S_ISREG(info.st_mode)) {
             Diagnostic(import->span, "module.not_found",
                        "cannot find imported file: %s", import->signature + 5);
             return 0;
         }
-        char *canonical = realpath(candidate, NULL);
+        char *canonical = realpath(buffers->candidate, NULL);
         if(canonical == NULL) {
             Diagnostic(import->span, "module.not_found",
                        "cannot find imported file: %s", import->signature + 5);
@@ -383,7 +389,7 @@ load_import(LoadContext *context, const char *owner_source,
             return 0;
         }
         *parent = '\0';
-        int loaded = add_program(context, candidate, canonical);
+        int loaded = add_program(context, buffers->candidate, canonical);
         free(canonical);
         return loaded;
     }
@@ -391,10 +397,10 @@ load_import(LoadContext *context, const char *owner_source,
         return 1;
     if(slash != NULL) {
         size_t length = (size_t)(slash - owner_path);
-        if(length < sizeof(directory)) {
-            memcpy(directory, owner_path, length);
-            directory[length] = '\0';
-            int result = try_module(context, directory, owner_root,
+        if(length < sizeof(buffers->directory)) {
+            memcpy(buffers->directory, owner_path, length);
+            buffers->directory[length] = '\0';
+            int result = try_module(context, buffers->directory, owner_root,
                                     target, prefer_ir);
             if(result != 0)
                 return result > 0;
@@ -420,6 +426,22 @@ load_import(LoadContext *context, const char *owner_source,
     Diagnostic(import->span, "module.not_found",
                "cannot find imported module: %s", target);
     return 0;
+}
+
+static int
+load_import(LoadContext *context, const char *owner_source,
+            const char *owner_root, ZirImport *import)
+{
+    static _Thread_local LoadImportBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LoadImportBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = load_import_with_buffers(context, owner_source, owner_root, import, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static ZirModule *

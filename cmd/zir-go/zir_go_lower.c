@@ -344,37 +344,54 @@ go_extern_index(const char *name, size_t len)
     }
     return -1;
 }
-
-/* "a: int, b: char*" -> parameter names/types on ex. */
-static void
-split_params(const char *args, ZirGoExtern *ex)
-{
+/* Buffers split_params keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct SplitParamsBuffers {
     char parts[ZIR_GO_EXTERN_PARAM_MAX][ZIR_GO_TEXT_MAX];
-    int n = split_top(args, parts, ZIR_GO_EXTERN_PARAM_MAX);
+} SplitParamsBuffers;
 
+static void split_params(const char *args, ZirGoExtern *ex);
+
+static void
+split_params_with_buffers(const char *args, ZirGoExtern *ex, SplitParamsBuffers *buffers)
+{
+    int n = split_top(args, buffers->parts, ZIR_GO_EXTERN_PARAM_MAX);
     ex->pcount = 0;
     for(int i = 0; i < n; i++) {
-        char *colon = strchr(parts[i], ':');
+        char *colon = strchr(buffers->parts[i], ':');
         size_t nl;
-
         if(colon == NULL)
             continue;
-        nl = (size_t)(colon - parts[i]);
-        while(nl > 0 && parts[i][nl - 1] == ' ')
+        nl = (size_t)(colon - buffers->parts[i]);
+        while(nl > 0 && buffers->parts[i][nl - 1] == ' ')
             nl--;
         if(nl == 0 || ex->pcount >= ZIR_GO_EXTERN_PARAM_MAX)
             continue;
         snprintf(ex->pnames[ex->pcount], ZIR_GO_NAME_MAX, "%.*s", (int)nl,
-                 parts[i]);
+                 buffers->parts[i]);
         {
             const char *pt = colon + 1;
-
             while(*pt == ' ' || *pt == '\t')
                 pt++;
             snprintf(ex->ptypes[ex->pcount], ZIR_GO_NAME_MAX, "%s", pt);
         }
         ex->pcount++;
     }
+}
+
+/* "a: int, b: char*" -> parameter names/types on ex. */
+static void
+split_params(const char *args, ZirGoExtern *ex)
+{
+    static _Thread_local SplitParamsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    SplitParamsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    split_params_with_buffers(args, ex, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* Extract the Go method name from a resolved #foreign package target: the segment
@@ -532,31 +549,32 @@ go_uses_caller_location(const ZirProgram *const *programs, int count)
         }
     return 0;
 }
-
-/* Parse "name :: (args) -> ret #foreign library;" from a raw foreign import
- * line (the ZirImport.signature keeps the whole declaration). */
-static void
-parse_extern_import(const ZirImport *imp)
-{
+/* Buffers parse_extern_import keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ParseExternImportBuffers {
     char args[ZIR_GO_TEXT_MAX];
-    char ret[ZIR_GO_NAME_MAX];
     char target[ZIR_PATH_MAX];
+} ParseExternImportBuffers;
+
+static void parse_extern_import(const ZirImport *imp);
+
+static void
+parse_extern_import_with_buffers(const ZirImport *imp, ParseExternImportBuffers *buffers)
+{
+    char ret[ZIR_GO_NAME_MAX];
     const char *lp = strchr(imp->signature, '(');
     const char *rp = lp != NULL ? strchr(lp, ')') : NULL;
     const char *dir = strstr(imp->signature, "#foreign");
-
-    args[0] = '\0';
+    buffers->args[0] = '\0';
     snprintf(ret, sizeof(ret), "void");
-    target[0] = '\0';
+    buffers->target[0] = '\0';
     if(lp != NULL && rp != NULL && rp > lp)
-        snprintf(args, sizeof(args), "%.*s", (int)(rp - lp - 1), lp + 1);
+        snprintf(buffers->args, sizeof(buffers->args), "%.*s", (int)(rp - lp - 1), lp + 1);
     if(rp != NULL) {
         const char *arrow = strstr(rp, "->");
-
         if(arrow != NULL && (dir == NULL || arrow < dir)) {
             const char *r = arrow + 2;
             size_t n = 0;
-
             while(*r == ' ' || *r == '\t')
                 r++;
             while(*r != '\0' && *r != '#' && n + 1 < sizeof(ret))
@@ -567,30 +585,48 @@ parse_extern_import(const ZirImport *imp)
         }
     }
     if(imp->target[0] != '\0' && strcmp(imp->target, imp->name) != 0) {
-        snprintf(target, sizeof(target), "%s", imp->target);
+        snprintf(buffers->target, sizeof(buffers->target), "%s", imp->target);
     } else if(dir != NULL) {
         const char *q = strchr(dir + 7, '"');
-
         if(q != NULL) {
             size_t n = 0;
             const char *r = q + 1;
-
-            while(*r != '\0' && *r != '"' && n + 1 < sizeof(target))
-                target[n++] = *r++;
-            target[n] = '\0';
+            while(*r != '\0' && *r != '"' && n + 1 < sizeof(buffers->target))
+                buffers->target[n++] = *r++;
+            buffers->target[n] = '\0';
         }
     }
-    add_extern(imp->name, args, ret, target, imp->extern_symbol, imp->span);
+    add_extern(imp->name, buffers->args, ret, buffers->target, imp->extern_symbol, imp->span);
 }
 
-/* Parse enum body members. The parser may deliver them newline-separated or
- * comma-joined on one line ('A = 0, B, C'), so split on both. */
+/* Parse "name :: (args) -> ret #foreign library;" from a raw foreign import
+ * line (the ZirImport.signature keeps the whole declaration). */
 static void
-parse_enum(const ZirModule *owner, const ZirType *t)
+parse_extern_import(const ZirImport *imp)
+{
+    static _Thread_local ParseExternImportBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ParseExternImportBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    parse_extern_import_with_buffers(imp, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers parse_enum keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ParseEnumBuffers {
+    char line[ZIR_GO_TEXT_MAX];
+} ParseEnumBuffers;
+
+static void parse_enum(const ZirModule *owner, const ZirType *t);
+
+static void
+parse_enum_with_buffers(const ZirModule *owner, const ZirType *t, ParseEnumBuffers *buffers)
 {
     ZirGoEnum *e;
     const char *p = t->body;
-
     if(g_enum_count >= 32)
         return;
     e = &g_enums[g_enum_count++];
@@ -601,36 +637,32 @@ parse_enum(const ZirModule *owner, const ZirType *t)
         camel_ident(t->name, e->go_type, sizeof(e->go_type));
     camel_ident(t->name, e->prefix, sizeof(e->prefix));
     while(*p != '\0') {
-        char line[ZIR_GO_TEXT_MAX];
         char *name, *val;
         size_t n = 0;
-
         /* collect one member: up to ',' or newline */
         while(*p != '\0' && *p != ',' && *p != '\n' &&
-              n + 1 < sizeof(line))
-            line[n++] = *p++;
+              n + 1 < sizeof(buffers->line))
+            buffers->line[n++] = *p++;
         if(*p == ',' || *p == '\n')
             p++;
-        line[n] = '\0';
+        buffers->line[n] = '\0';
         /* trim */
         {
-            char *s = line;
-
+            char *s = buffers->line;
             while(*s == ' ' || *s == '\t' || *s == '\r')
                 s++;
-            memmove(line, s, strlen(s) + 1);
+            memmove(buffers->line, s, strlen(s) + 1);
         }
         {
-            size_t ln = strlen(line);
-
-            while(ln > 0 && (line[ln - 1] == ' ' || line[ln - 1] == '\t' ||
-                             line[ln - 1] == '\r'))
-                line[--ln] = '\0';
+            size_t ln = strlen(buffers->line);
+            while(ln > 0 && (buffers->line[ln - 1] == ' ' || buffers->line[ln - 1] == '\t' ||
+                             buffers->line[ln - 1] == '\r'))
+                buffers->line[--ln] = '\0';
         }
-        if(line[0] == '\0')
+        if(buffers->line[0] == '\0')
             continue;
-        name = line;
-        val = strchr(line, '=');
+        name = buffers->line;
+        val = strchr(buffers->line, '=');
         if(val != NULL) {
             *val = '\0';
             val++;
@@ -639,7 +671,6 @@ parse_enum(const ZirModule *owner, const ZirType *t)
         }
         {
             size_t nn = strlen(name);
-
             while(nn > 0 && (name[nn - 1] == ' ' || name[nn - 1] == '\t'))
                 name[--nn] = '\0';
         }
@@ -659,6 +690,22 @@ parse_enum(const ZirModule *owner, const ZirType *t)
         if(val != NULL)
             snprintf(m->val, sizeof(m->val), "%s", val);
     }
+}
+
+/* Parse enum body members. The parser may deliver them newline-separated or
+ * comma-joined on one line ('A = 0, B, C'), so split on both. */
+static void
+parse_enum(const ZirModule *owner, const ZirType *t)
+{
+    static _Thread_local ParseEnumBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ParseEnumBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    parse_enum_with_buffers(owner, t, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* (Re)build the per-module context: extern bridge + enum constants. Must run
@@ -712,19 +759,24 @@ conv_arg(const char *source_type, const char *expr)
 /* Forward */
 static void tx_expr(const ZirModule *m, const char *src, char *dst,
                     size_t dst_size);
+/* Buffers tx_group keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct TxGroupBuffers {
+    char mid[ZIR_GO_TEXT_MAX];
+    char out[ZIR_GO_TEXT_MAX];
+} TxGroupBuffers;
 
-/* Translate the inside of a braced/paren group starting after the opener;
- * returns the position after the matching closer. */
+static const char *tx_group(const ZirModule *m, const char *src, char *dst, size_t *dn,
+         char open, char close);
+
 static const char *
-tx_group(const ZirModule *m, const char *src, char *dst, size_t *dn,
-         char open, char close)
+tx_group_with_buffers(const ZirModule *m, const char *src, char *dst, size_t *dn,
+         char open, char close, TxGroupBuffers *buffers)
 {
     int depth = 1;
-    char mid[ZIR_GO_TEXT_MAX];
     size_t mn = 0;
     const char *p = src;
-
-    while(*p != '\0' && depth > 0 && mn + 1 < sizeof(mid)) {
+    while(*p != '\0' && depth > 0 && mn + 1 < sizeof(buffers->mid)) {
         if(*p == open)
             depth++;
         else if(*p == close) {
@@ -733,26 +785,42 @@ tx_group(const ZirModule *m, const char *src, char *dst, size_t *dn,
                 break;
         } else if(*p == '"' || *p == '\'') {
             char q = *p;
-            mid[mn++] = *p++;
-            while(*p != '\0' && *p != q && mn + 1 < sizeof(mid))
-                mid[mn++] = *p++;
+            buffers->mid[mn++] = *p++;
+            while(*p != '\0' && *p != q && mn + 1 < sizeof(buffers->mid))
+                buffers->mid[mn++] = *p++;
             if(*p == q)
-                mid[mn++] = *p++;
+                buffers->mid[mn++] = *p++;
             continue;
         }
-        mid[mn++] = *p++;
+        buffers->mid[mn++] = *p++;
     }
-    mid[mn] = '\0';
+    buffers->mid[mn] = '\0';
     {
-        char out[ZIR_GO_TEXT_MAX];
-
-        tx_expr(m, mid, out, sizeof(out));
-        if(*dn + strlen(out) + 1 < ZIR_GO_TEXT_MAX) {
-            memcpy(dst + *dn, out, strlen(out));
-            *dn += strlen(out);
+        tx_expr(m, buffers->mid, buffers->out, sizeof(buffers->out));
+        if(*dn + strlen(buffers->out) + 1 < ZIR_GO_TEXT_MAX) {
+            memcpy(dst + *dn, buffers->out, strlen(buffers->out));
+            *dn += strlen(buffers->out);
         }
     }
     return *p == close && depth == 0 ? p + 1 : p;
+}
+
+/* Translate the inside of a braced/paren group starting after the opener;
+ * returns the position after the matching closer. */
+static const char *
+tx_group(const ZirModule *m, const char *src, char *dst, size_t *dn,
+         char open, char close)
+{
+    static _Thread_local TxGroupBuffers *spares[16];
+    static _Thread_local int spare_count;
+    TxGroupBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    const char *returned = tx_group_with_buffers(m, src, dst, dn, open, close, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* Split top-level (depth-0) comma parts. */
@@ -820,14 +888,24 @@ module_global_owner(const ZirModule *module, const char *name)
     const ZirGlobal *global = NULL;
     return ResolveGlobal(module, name, &owner, &global) == 1 ? owner : NULL;
 }
+/* Buffers tx_expr keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct TxExprBuffers {
+    char out[ZIR_GO_TEXT_MAX];
+    char mapped[ZIR_GO_NAME_MAX * 2];
+    char raw[ZIR_GO_TEXT_MAX];
+    char parts[ZIR_GO_EXTERN_PARAM_MAX][ZIR_GO_TEXT_MAX];
+    char arg[ZIR_GO_TEXT_MAX];
+    char fname[ZIR_GO_NAME_MAX * 2];
+} TxExprBuffers;
+
+static void tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size);
 
 static void
-tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
+tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_size, TxExprBuffers *buffers)
 {
     size_t dn = 0;
     const char *p = src;
-    char out[ZIR_GO_TEXT_MAX];
-
     if(dst_size > ZIR_GO_TEXT_MAX)
         dst_size = ZIR_GO_TEXT_MAX;
     while(*p != '\0' && dn + 8 < dst_size) {
@@ -861,7 +939,6 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
         if(isdigit((unsigned char)*p)) {
             const char *q = p;
             const char *num_end;
-
             if(*q == '0' && (q[1] == 'x' || q[1] == 'X')) {
                 q += 2;
                 while(isxdigit((unsigned char)*q))
@@ -888,7 +965,6 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
             char ident[ZIR_GO_NAME_MAX];
             size_t il = 0;
             int fni;
-
             while(is_ident_char((unsigned char)*q) && il + 1 < sizeof(ident))
                 ident[il++] = *q++;
             ident[il] = '\0';
@@ -909,32 +985,31 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
                    length < ZIR_GO_NAME_MAX) {
                     char source_name[ZIR_GO_NAME_MAX];
                     char prefix[ZIR_GO_NAME_MAX];
-                    char mapped[ZIR_GO_NAME_MAX * 2];
                     int64_t value;
                     memcpy(source_name, member, length);
                     source_name[length] = '\0';
                     if(EnumMemberValue(enumeration, source_name, &value)) {
                         if(enum_owner == NULL ||
                            !NativeEnumMemberName(enum_owner, enumeration,
-                                                 source_name, mapped,
-                                                 sizeof(mapped))) {
+                                                 source_name, buffers->mapped,
+                                                 sizeof(buffers->mapped))) {
                             camel_ident(enumeration->name, prefix,
                                         sizeof(prefix));
                             if(prefix[0] &&
                                strncmp(source_name, prefix,
                                        strlen(prefix)) == 0)
-                                camel_ident(source_name, mapped, sizeof(mapped));
+                                camel_ident(source_name, buffers->mapped, sizeof(buffers->mapped));
                             else
-                                snprintf(mapped, sizeof(mapped), "%s%s",
+                                snprintf(buffers->mapped, sizeof(buffers->mapped), "%s%s",
                                          prefix, source_name);
                         }
-                        length = strlen(mapped);
+                        length = strlen(buffers->mapped);
                         if(dn + length >= dst_size) {
                             Diagnostic(enumeration->span, "zir_go.enum",
                                        "enum member target name exceeds output limit");
                             exit(1);
                         }
-                        memcpy(dst + dn, mapped, length);
+                        memcpy(dst + dn, buffers->mapped, length);
                         dn += length;
                         p = end;
                         continue;
@@ -947,24 +1022,21 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
              * also sit in the function table (bodyless). */
             {
                 int xi = go_extern_index(ident, il);
-
                 if(xi >= 0 && *skip_ws(q) == '(') {
-                    char raw[ZIR_GO_TEXT_MAX];
                     const char *ap = skip_ws(q) + 1;
                     const char *ae = ap;
                     int depth = 1;
                     size_t rn = 0;
                     int all_ws = 1;
-
-                    while(*ae != '\0' && depth > 0 && rn + 1 < sizeof(raw)) {
+                    while(*ae != '\0' && depth > 0 && rn + 1 < sizeof(buffers->raw)) {
                         if(*ae == '"') {
                             all_ws = 0;
-                            raw[rn++] = *ae++;
+                            buffers->raw[rn++] = *ae++;
                             while(*ae != '\0' && *ae != '"' &&
-                                  rn + 1 < sizeof(raw))
-                                raw[rn++] = *ae++;
+                                  rn + 1 < sizeof(buffers->raw))
+                                buffers->raw[rn++] = *ae++;
                             if(*ae == '"')
-                                raw[rn++] = *ae++;
+                                buffers->raw[rn++] = *ae++;
                             continue;
                         }
                         if(*ae == '(' || *ae == '[' || *ae == '{')
@@ -975,9 +1047,9 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
                                 break;
                         } else if(*ae != ' ' && *ae != '\t')
                             all_ws = 0;
-                        raw[rn++] = *ae++;
+                        buffers->raw[rn++] = *ae++;
                     }
-                    raw[rn] = '\0';
+                    buffers->raw[rn] = '\0';
                     if(*ae == ')')
                         ae++;
                     p = ae;
@@ -997,24 +1069,20 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
                                                g_externs[xi].go);
                     }
                     if(!all_ws) {
-                        char parts[ZIR_GO_EXTERN_PARAM_MAX][ZIR_GO_TEXT_MAX];
-                        int n = split_top(raw, parts, ZIR_GO_EXTERN_PARAM_MAX);
-
+                        int n = split_top(buffers->raw, buffers->parts, ZIR_GO_EXTERN_PARAM_MAX);
                         for(int i = 0; i < n; i++) {
-                            char arg[ZIR_GO_TEXT_MAX];
-
-                            tx_expr(m, skip_ws(parts[i]), arg, sizeof(arg));
+                            tx_expr(m, skip_ws(buffers->parts[i]), buffers->arg, sizeof(buffers->arg));
                             if(i > 0)
                                 dn += (size_t)snprintf(dst + dn,
                                                        ZIR_GO_TEXT_MAX - dn, ", ");
                             if(i < g_externs[xi].pcount) {
                                 dn += (size_t)snprintf(
                                     dst + dn, ZIR_GO_TEXT_MAX - dn, "%s",
-                                    conv_arg(g_externs[xi].ptypes[i], arg));
+                                    conv_arg(g_externs[xi].ptypes[i], buffers->arg));
                             } else {
                                 dn += (size_t)snprintf(dst + dn,
                                                        ZIR_GO_TEXT_MAX - dn, "%s",
-                                                       arg);
+                                                       buffers->arg);
                             }
                         }
                     }
@@ -1060,18 +1128,15 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
             }
             fni = module_fn_index(m, ident, il);
             if(fni >= 0 && *skip_ws(q) == '(') {
-                char fname[ZIR_GO_NAME_MAX * 2];
                 size_t fl;
-
                 {
                     char local[ZIR_GO_NAME_MAX];
-
                     camel_ident(m->functions[fni].name, local, sizeof(local));
-                    snprintf(fname, sizeof(fname), "%s_%s", g_guard, local);
+                    snprintf(buffers->fname, sizeof(buffers->fname), "%s_%s", g_guard, local);
                 }
-                fl = strlen(fname);
+                fl = strlen(buffers->fname);
                 if(dn + fl + 16 < dst_size) {
-                    memcpy(dst + dn, fname, fl);
+                    memcpy(dst + dn, buffers->fname, fl);
                     dn += fl;
                     dst[dn++] = '(';
                 }
@@ -1080,10 +1145,8 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
             }
             if(*skip_ws(q) == '(') {
                 int gfi = go_global_function_index(m, ident, il);
-
                 if(gfi >= 0 && strcmp(g_functions[gfi].guard, g_guard) != 0) {
                     size_t fl = strlen(g_functions[gfi].go);
-
                     if(dn + fl + 16 < dst_size) {
                         memcpy(dst + dn, g_functions[gfi].go, fl);
                         dn += fl;
@@ -1096,7 +1159,6 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
             /* plain identifier: verbatim */
             if(dn + il + 1 < dst_size) {
                 const char *local = go_local_name_for(ident);
-
                 if(local != NULL) {
                     size_t ll = strlen(local);
                     if(dn + ll + 1 < dst_size) {
@@ -1143,7 +1205,6 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
             const char *q = p + 1;
             char field[ZIR_GO_NAME_MAX], mapped[ZIR_GO_NAME_MAX];
             size_t fl = 0;
-
             while(is_ident_char((unsigned char)*q) && fl + 1 < sizeof(field))
                 field[fl++] = *q++;
             field[fl] = '\0';
@@ -1160,7 +1221,21 @@ tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
         p++;
     }
     dst[dn] = '\0';
-    (void)out;
+    (void)buffers->out;
+}
+
+static void
+tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
+{
+    static _Thread_local TxExprBuffers *spares[16];
+    static _Thread_local int spare_count;
+    TxExprBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    tx_expr_with_buffers(m, src, dst, dst_size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* -------------------------------------------------------- module lowering */
@@ -1188,45 +1263,48 @@ resolve_body_symbol(void *context, const char *text, char *out, size_t size)
     }
     tx_expr(module, text, out, size);
 }
+/* Buffers lower_function keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerFunctionBuffers {
+    char fname[ZIR_GO_NAME_MAX * 2];
+    char parts[32][ZIR_GO_TEXT_MAX];
+} LowerFunctionBuffers;
+
+static void lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
+               const char *guard);
 
 static void
-lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
-               const char *guard)
+lower_function_with_buffers(FILE *f, const ZirModule *m, const ZirFunction *fn,
+               const char *guard, LowerFunctionBuffers *buffers)
 {
-    char fname[ZIR_GO_NAME_MAX * 2];
     char ret[ZIR_GO_NAME_MAX];
     int saved_local_count = zir_go_local_count;
-
     if(fn->export_symbol[0]) {
         Diagnostic(fn->span, "zir_go.export",
                    "quoted #program_export symbol requires the C or C++ target");
         exit(1);
     }
-
     zir_go_local_count = 0;
-    camel_ident(fn->name, fname, sizeof(fname));
+    camel_ident(fn->name, buffers->fname, sizeof(buffers->fname));
     /* signature: converted arguments */
     {
-        char parts[32][ZIR_GO_TEXT_MAX];
         int n, i;
         int emitted = 0;
-
         fputs("func ", f);
-        fprintf(f, "%s_%s(", guard, fname);
+        fprintf(f, "%s_%s(", guard, buffers->fname);
         if(fn->args[0] != '\0') {
-            n = split_top(fn->args, parts, 32);
+            n = split_top(fn->args, buffers->parts, 32);
             for(i = 0; i < n; i++) {
-                char *colon = strchr(parts[i], ':');
+                char *colon = strchr(buffers->parts[i], ':');
                 char aname[ZIR_GO_NAME_MAX], atype[ZIR_GO_NAME_MAX];
                 char gt[ZIR_GO_NAME_MAX];
                 const char *name_start;
                 size_t al;
-
                 if(colon == NULL) {
-                    Diagnostic(fn->span, "zir_go.parameter", "parameters require name: type: %s", parts[i]);
+                    Diagnostic(fn->span, "zir_go.parameter", "parameters require name: type: %s", buffers->parts[i]);
                     exit(1);
                 }
-                name_start = skip_ws(parts[i]);
+                name_start = skip_ws(buffers->parts[i]);
                 al = (size_t)(colon - name_start);
                 while(al > 0 && isspace((unsigned char)name_start[al - 1]))
                     al--;
@@ -1261,6 +1339,21 @@ lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
     zir_go_local_count = saved_local_count;
 }
 
+static void
+lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
+               const char *guard)
+{
+    static _Thread_local LowerFunctionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    lower_function_with_buffers(f, m, fn, guard, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+
 static int
 rewrite_global_scalar(const ZirModule *module, const char *source,
                       char *out, size_t size, void *context)
@@ -1288,24 +1381,38 @@ rewrite_global_field(const ZirType *record, const char *source,
     (void)context;
     go_field_ident(source, out, size);
 }
-
-int
-go_lower(const ZirProgram *const *progs, int prog_count,
-          const char *root, const char *out_dir, const char *pkg,
-          int no_main)
-{
+/* Buffers go_lower keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct GoLowerBuffers {
     char path[1024];
+    char stem[512];
+    char imports[64][ZIR_PATH_MAX + ZIR_GO_NAME_MAX + 8];
+    char val[ZIR_GO_TEXT_MAX];
+    char cval[ZIR_GO_TEXT_MAX];
+    ZirFunction probe;
+    char ginit[ZIR_GO_TEXT_MAX];
+    char stem_2[ZIR_PATH_MAX];
+    char buffer[8192];
+} GoLowerBuffers;
+
+int go_lower(const ZirProgram *const *progs, int prog_count,
+          const char *root, const char *out_dir, const char *pkg,
+          int no_main);
+
+static int
+go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
+          const char *root, const char *out_dir, const char *pkg,
+          int no_main, GoLowerBuffers *buffers)
+{
     unsigned number_helpers = 0;
     go_build_global_functions(progs, prog_count);
     for(int pi = 0; pi < prog_count; pi++) {
         const ZirProgram *prog = progs[pi];
-
         for(int mi = 0; mi < prog->module_count; mi++) {
             const ZirModule *m = &prog->modules[mi];
-            char stem[512], guard[ZIR_GO_NAME_MAX];
+            char guard[ZIR_GO_NAME_MAX];
             FILE *f;
-
-            NativeGoModuleIdentity(progs, prog_count, m, stem, sizeof(stem),
+            NativeGoModuleIdentity(progs, prog_count, m, buffers->stem, sizeof(buffers->stem),
                                    guard, sizeof(guard));
             for(int fi = 0; fi < m->function_count; fi++)
                 if(m->functions[fi].is_global_initializer &&
@@ -1314,12 +1421,12 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                                "Go global startup cannot call a host before binding");
                     return 1;
                 }
-            snprintf(path, sizeof(path), "%s/%s.go", out_dir, stem);
-            mkdir_parent(path);
+            snprintf(buffers->path, sizeof(buffers->path), "%s/%s.go", out_dir, buffers->stem);
+            mkdir_parent(buffers->path);
             f = tmpfile();
             if(f == NULL) {
                 Diagnostic(m->span, "zir_go.global",
-                           "cannot create Go output: %s", path);
+                           "cannot create Go output: %s", buffers->path);
                 return 1;
             }
             type_scope = m;
@@ -1356,19 +1463,17 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                     }
             int float_helper = pi == 0 && mi == 0 && go_prints_floats(progs, prog_count);
             /* Imports are written as one gofmt block, standard packages first. */
-            char imports[64][ZIR_PATH_MAX + ZIR_GO_NAME_MAX + 8];
             int import_count = 0;
             if(prints)
-                snprintf(imports[import_count++], sizeof(imports[0]), "\"fmt\"");
+                snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"fmt\"");
             if(float_helper) {
-                snprintf(imports[import_count++], sizeof(imports[0]), "\"math\"");
-                snprintf(imports[import_count++], sizeof(imports[0]), "\"strconv\"");
+                snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"math\"");
+                snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"strconv\"");
             }
             if(pointer_index || g_union_unsafe)
-                snprintf(imports[import_count++], sizeof(imports[0]), "\"unsafe\"");
+                snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"unsafe\"");
             for(int i = 0; i < g_extern_count && import_count < 64; i++) {
                 int duplicate = 0;
-
                 if(!g_externs[i].direct_go)
                     continue;
                 for(int j = 0; j < i; j++) {
@@ -1380,25 +1485,23 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                     }
                 }
                 if(!duplicate)
-                    snprintf(imports[import_count++], sizeof(imports[0]), "%s \"%s\"",
+                    snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "%s \"%s\"",
                              g_externs[i].go_import_alias, g_externs[i].go_import_path);
             }
             if(import_count == 1)
-                fprintf(f, "import %s\n\n", imports[0]);
+                fprintf(f, "import %s\n\n", buffers->imports[0]);
             else if(import_count > 1) {
                 fputs("import (\n", f);
                 for(int i = 0; i < import_count; i++)
-                    fprintf(f, "\t%s\n", imports[i]);
+                    fprintf(f, "\t%s\n", buffers->imports[i]);
                 fputs(")\n\n", f);
             }
             if(pi == 0 && mi == 0 && go_uses_caller_location(progs, prog_count))
                 fputs("type Source_Code_Location struct {\n"
                       "\tFullyPathedFilename string\n"
                       "\tLineNumber int64\n}\n\n", f);
-
             for(int i = 0; i < m->import_count; i++) {
                 const ZirImport *imp = &m->imports[i];
-
                 if(imp->kind == ZIR_IMPORT_OPEN)
                     fprintf(f, "// #import %s\n", imp->target);
                 /* ZIR_IMPORT_EXTERN lowers either to direct Go imports above
@@ -1411,7 +1514,6 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             {
                 int first_host = -1;
                 int host_count = 0;
-
                 for(int i = 0; i < g_extern_count; i++) {
                     if(g_externs[i].direct_go || g_externs[i].direct_ziran)
                         continue;
@@ -1427,13 +1529,11 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                 for(int i = 0; i < g_extern_count; i++) {
                     const ZirGoExtern *ex = &g_externs[i];
                     char gt[ZIR_GO_NAME_MAX];
-
                     if(ex->direct_go || ex->direct_ziran)
                         continue;
                     fprintf(f, "\t%s(", ex->go);
                     for(int a = 0; a < ex->pcount; a++) {
                         char aname[ZIR_GO_NAME_MAX];
-
                         camel_ident(ex->pnames[a], aname, sizeof(aname));
                         require_go_type(ex->ptypes[a], gt, sizeof(gt), m->span);
                         fprintf(f, "%s%s %s", a > 0 ? ", " : "", aname, gt);
@@ -1457,7 +1557,6 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             }
             /* types */
             int enum_idx = 0;
-
             for(int i = 0; i < m->type_count; i++) {
                 const ZirType *t = &m->types[i];
                 char native[ZIR_GO_NAME_MAX];
@@ -1495,7 +1594,6 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                 }
                 if(t->is_extern || t->is_record_template)
                     continue;
-
                 if(t->is_procedure_type) {
                     if(t->is_c_call) {
                         Diagnostic(t->span, "zir_go.type",
@@ -1510,7 +1608,6 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                          * (g_enums was built in the same order as m->types) */
                         ZirGoEnum *e = enum_idx < g_enum_count
                                          ? &g_enums[enum_idx++] : NULL;
-
                         if(e == NULL)
                             continue;
                         const char *backing = enum_storage_type(t->enum_backing);
@@ -1523,20 +1620,18 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                         fprintf(f, "const (\n");
                         for(int mI = 0; mI < e->count; mI++) {
                             ZirGoEnumMember *mem = &e->members[mI];
-                            char val[ZIR_GO_TEXT_MAX];
-
                             if(mem->val[0] != '\0') {
-                                tx_expr(m, mem->val, val, sizeof(val));
+                                tx_expr(m, mem->val, buffers->val, sizeof(buffers->val));
                             } else if(mI == 0) {
-                                snprintf(val, sizeof(val), "0");
+                                snprintf(buffers->val, sizeof(buffers->val), "0");
                             } else {
                                 /* Refer to the previous constant: negative
                                  * values and expressions need no host-side
                                  * evaluator or sentinel counter. */
-                                snprintf(val, sizeof(val), "%s + 1",
+                                snprintf(buffers->val, sizeof(buffers->val), "%s + 1",
                                          e->members[mI - 1].go);
                             }
-                            fprintf(f, "\t%s = %s\n", mem->go, val);
+                            fprintf(f, "\t%s = %s\n", mem->go, buffers->val);
                         }
                         fprintf(f, ")\n\n");
                     } else {
@@ -1545,7 +1640,6 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                         size_t offset = 0;
                         ZirTypeField field;
                         int status;
-
                         while((status = TypeNextField(t, &offset, &field)) == 1) {
                             char fname[ZIR_GO_NAME_MAX], gt[ZIR_GO_NAME_MAX];
                             go_field_ident(field.name, fname, sizeof(fname));
@@ -1574,9 +1668,7 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             /* defines -> consts; array type aliases become Go types */
             for(int i = 0; i < m->define_count; i++) {
                 char cname[ZIR_GO_NAME_MAX];
-                char cval[ZIR_GO_TEXT_MAX];
                 const char *value = skip_ws(m->defines[i].value);
-
                 TargetDefineName(m, ZIR_GO, m->defines[i].name,
                                  cname, sizeof(cname));
                 if(value[0] == '[') {
@@ -1586,34 +1678,33 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                     fprintf(f, "type %s %s\n", cname, aliased);
                     continue;
                 }
-                ZirFunction probe = {0};
-                int root = ParseExpr(&probe, m, value,
+                memset(&buffers->probe, 0, sizeof(buffers->probe));
+                int root = ParseExpr(&buffers->probe, m, value,
                                      m->defines[i].span);
                 int aggregate = root >= 0 &&
-                    probe.exprs[root].kind == ZIR_EXPR_COMPOUND;
-                free(probe.exprs);
+                    buffers->probe.exprs[root].kind == ZIR_EXPR_COMPOUND;
+                free(buffers->probe.exprs);
                 if(aggregate) {
                     /* The checker embeds aggregate values in checked uses
                      * and lowers direct global initializers to literals. */
                     continue;
                 }
-                tx_expr(m, m->defines[i].value, cval, sizeof(cval));
-                fprintf(f, "const %s = %s\n", cname, cval);
+                tx_expr(m, m->defines[i].value, buffers->cval, sizeof(buffers->cval));
+                fprintf(f, "const %s = %s\n", cname, buffers->cval);
             }
             /* globals */
             for(int i = 0; i < m->global_count; i++) {
                 const ZirGlobal *g = &m->globals[i];
-                char gname[ZIR_GO_NAME_MAX], gt[ZIR_GO_NAME_MAX], ginit[ZIR_GO_TEXT_MAX];
-
+                char gname[ZIR_GO_NAME_MAX], gt[ZIR_GO_NAME_MAX];
                 TargetGlobalName(m, ZIR_GO, g->name, gname,
                                  sizeof(gname));
                 require_go_type(g->type, gt, sizeof(gt), g->span);
                 if(!ScalarLiteral(g->type, g->init, ZIR_GO, g->span,
-                                  ginit, sizeof(ginit))) {
+                                  buffers->ginit, sizeof(buffers->ginit))) {
                     int compound = EmitGlobalInitializer(m, g, ZIR_GO,
                         rewrite_global_scalar, rewrite_global_type,
-                        rewrite_global_field, (void *)g, ginit,
-                        sizeof(ginit));
+                        rewrite_global_field, (void *)g, buffers->ginit,
+                        sizeof(buffers->ginit));
                     if(compound < 0) {
                         Diagnostic(g->span, "zir_go.global",
                                    "cannot lower compound global initializer: %s",
@@ -1621,13 +1712,13 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                         exit(1);
                     }
                     if(compound == 0)
-                        tx_expr(m, g->init, ginit, sizeof(ginit));
+                        tx_expr(m, g->init, buffers->ginit, sizeof(buffers->ginit));
                 }
-                if(ginit[0] != '\0') {
-                    if(ginit[0] == '{')
-                        fprintf(f, "var %s = %s%s\n", gname, gt, ginit);
+                if(buffers->ginit[0] != '\0') {
+                    if(buffers->ginit[0] == '{')
+                        fprintf(f, "var %s = %s%s\n", gname, gt, buffers->ginit);
                     else
-                        fprintf(f, "var %s %s = %s\n", gname, gt, ginit);
+                        fprintf(f, "var %s %s = %s\n", gname, gt, buffers->ginit);
                 } else
                     fprintf(f, "var %s %s\n", gname, gt);
             }
@@ -1653,9 +1744,9 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             for(int i = 0; i < m->import_count; i++) {
                 const ZirModule *dependency = m->imports[i].resolved_module;
                 if(ModuleNeedsStartup(dependency)) {
-                    char stem[ZIR_PATH_MAX], dep_guard[ZIR_GO_NAME_MAX];
+                    char dep_guard[ZIR_GO_NAME_MAX];
                     NativeGoModuleIdentity(progs, prog_count,
-                        dependency, stem, sizeof(stem), dep_guard,
+                        dependency, buffers->stem_2, sizeof(buffers->stem_2), dep_guard,
                         sizeof(dep_guard));
                     fprintf(f, "\t%s_ziranInit()\n", dep_guard);
                 }
@@ -1671,13 +1762,12 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                 fprintf(f, "func init() { %s_ziranInit() }\n\n", guard);
             }
             }
-
             /* Numeric helpers follow the code, once per package. */
             {
                 long length = ftell(f);
                 char *text = malloc((size_t)length + 1);
                 if(text == NULL) {
-                    Diagnostic(m->span, "zir_go.global", "out of memory writing %s", path);
+                    Diagnostic(m->span, "zir_go.global", "out of memory writing %s", buffers->path);
                     fclose(f);
                     return 1;
                 }
@@ -1697,22 +1787,21 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                 remaining--;
             }
             rewind(f);
-            GeneratedOutputRecord(path);
-            FILE *output = fopen(path, "wb");
+            GeneratedOutputRecord(buffers->path);
+            FILE *output = fopen(buffers->path, "wb");
             if(output == NULL) {
                 Diagnostic(m->span, "zir_go.global",
-                           "cannot create Go output: %s", path);
+                           "cannot create Go output: %s", buffers->path);
                 fclose(f);
                 return 1;
             }
-            char buffer[8192];
             size_t bytes;
             int failed = 0;
             while(remaining > 0 &&
-                  (bytes = fread(buffer, 1, remaining < (long)sizeof(buffer) ?
-                                 (size_t)remaining : sizeof(buffer), f)) != 0) {
+                  (bytes = fread(buffers->buffer, 1, remaining < (long)sizeof(buffers->buffer) ?
+                                 (size_t)remaining : sizeof(buffers->buffer), f)) != 0) {
                 remaining -= (long)bytes;
-                if(fwrite(buffer, 1, bytes, output) != bytes) {
+                if(fwrite(buffers->buffer, 1, bytes, output) != bytes) {
                     failed = 1;
                     break;
                 }
@@ -1722,10 +1811,27 @@ go_lower(const ZirProgram *const *progs, int prog_count,
             fclose(f);
             if(failed) {
                 Diagnostic(m->span, "zir_go.global",
-                           "cannot finish Go output: %s", path);
+                           "cannot finish Go output: %s", buffers->path);
                 return 1;
             }
         }
     }
     return 0;
+}
+
+int
+go_lower(const ZirProgram *const *progs, int prog_count,
+          const char *root, const char *out_dir, const char *pkg,
+          int no_main)
+{
+    static _Thread_local GoLowerBuffers *spares[16];
+    static _Thread_local int spare_count;
+    GoLowerBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = go_lower_with_buffers(progs, prog_count, root, out_dir, pkg, no_main, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

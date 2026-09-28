@@ -57,38 +57,60 @@ defer_block(const ZirStmt *st)
     const char *body = skip_ws(st->text + 5);
     return *body == '{' && *skip_ws(body + 1) == '\0';
 }
+/* Buffers action_kind keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ActionKindBuffers {
+    ZirToken token;
+    ZirFunction temporary;
+} ActionKindBuffers;
+
+static int action_kind(const char *text, ZirStmt *action);
+
+static int
+action_kind_with_buffers(const char *text, ZirStmt *action, ActionKindBuffers *buffers)
+{
+    ZirLexer lexer;
+    memset(&buffers->temporary, 0, sizeof(buffers->temporary));
+    int valid;
+    action->kind = ZIR_STMT_EXPR;
+    LexerInit(&lexer, text, SpanPath(action->span));
+    buffers->token = LexerNext(&lexer);
+    if(!strcmp(buffers->token.text, "return") || !strcmp(buffers->token.text, "break") ||
+       !strcmp(buffers->token.text, "continue") || !strcmp(buffers->token.text, "goto") ||
+       !strcmp(buffers->token.text, "defer") || !strcmp(buffers->token.text, "if") ||
+       !strcmp(buffers->token.text, "while") || !strcmp(buffers->token.text, "for")) return 0;
+    LexerInit(&lexer, text, SpanPath(action->span));
+    do {
+        buffers->token = LexerNext(&lexer);
+        if(!strcmp(buffers->token.text, "=") || !strcmp(buffers->token.text, "+=") ||
+           !strcmp(buffers->token.text, "-=") || !strcmp(buffers->token.text, "*=") ||
+           !strcmp(buffers->token.text, "/=") || !strcmp(buffers->token.text, "%=") ||
+           !strcmp(buffers->token.text, "&=") || !strcmp(buffers->token.text, "|=") ||
+           !strcmp(buffers->token.text, "^=") || !strcmp(buffers->token.text, "<<=") || !strcmp(buffers->token.text, ">>="))
+            action->kind = ZIR_STMT_ASSIGN;
+    } while(buffers->token.kind != ZIR_TOKEN_EOF);
+    action->text = KeepText(text);
+    if(!append(&buffers->temporary, action)) return 0;
+    StructureFunction(&buffers->temporary, NULL);
+    valid = buffers->temporary.stmts[0].expr_root >= 0 &&
+            buffers->temporary.exprs[buffers->temporary.stmts[0].expr_root].kind != ZIR_EXPR_UNKNOWN;
+    free(buffers->temporary.stmts); free(buffers->temporary.exprs);
+    return valid;
+}
 
 static int
 action_kind(const char *text, ZirStmt *action)
 {
-    ZirLexer lexer;
-    ZirToken token;
-    ZirFunction temporary = {0};
-    int valid;
-    action->kind = ZIR_STMT_EXPR;
-    LexerInit(&lexer, text, SpanPath(action->span));
-    token = LexerNext(&lexer);
-    if(!strcmp(token.text, "return") || !strcmp(token.text, "break") ||
-       !strcmp(token.text, "continue") || !strcmp(token.text, "goto") ||
-       !strcmp(token.text, "defer") || !strcmp(token.text, "if") ||
-       !strcmp(token.text, "while") || !strcmp(token.text, "for")) return 0;
-    LexerInit(&lexer, text, SpanPath(action->span));
-    do {
-        token = LexerNext(&lexer);
-        if(!strcmp(token.text, "=") || !strcmp(token.text, "+=") ||
-           !strcmp(token.text, "-=") || !strcmp(token.text, "*=") ||
-           !strcmp(token.text, "/=") || !strcmp(token.text, "%=") ||
-           !strcmp(token.text, "&=") || !strcmp(token.text, "|=") ||
-           !strcmp(token.text, "^=") || !strcmp(token.text, "<<=") || !strcmp(token.text, ">>="))
-            action->kind = ZIR_STMT_ASSIGN;
-    } while(token.kind != ZIR_TOKEN_EOF);
-    action->text = KeepText(text);
-    if(!append(&temporary, action)) return 0;
-    StructureFunction(&temporary, NULL);
-    valid = temporary.stmts[0].expr_root >= 0 &&
-            temporary.exprs[temporary.stmts[0].expr_root].kind != ZIR_EXPR_UNKNOWN;
-    free(temporary.stmts); free(temporary.exprs);
-    return valid;
+    static _Thread_local ActionKindBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ActionKindBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = action_kind_with_buffers(text, action, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -314,17 +336,26 @@ falls_through(const ZirFunction *fn, int start, int end)
     }
     return 1;
 }
+/* Buffers LowerCleanup keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerCleanupBuffers {
+    ZirFunction out;
+    ZirToken name;
+    ZirToken token;
+    char text[ZIR_TEXT_MAX];
+} LowerCleanupBuffers;
 
-int
-LowerCleanup(ZirFunction *fn)
+int LowerCleanup(ZirFunction *fn);
+
+static int
+LowerCleanup_with_buffers(ZirFunction *fn, LowerCleanupBuffers *buffers)
 {
     int has_cleanup = 0, depth = 0, count = 0, serial = 0, ok = 0;
     Cleanup *entries;
     ZirStmtKind *scopes;
     int *scope_loop_id;
     int *scope_start;
-    ZirFunction out = {0};
-
+    memset(&buffers->out, 0, sizeof(buffers->out));
     for(int i = 0; i < fn->stmt_count; i++)
         has_cleanup |= fn->stmts[i].kind == ZIR_STMT_DEFER;
     if(!has_cleanup)
@@ -341,7 +372,7 @@ LowerCleanup(ZirFunction *fn)
         if(st->kind == ZIR_STMT_CASE) {
             if(depth > 0 && scopes[depth] == ZIR_STMT_CASE) {
                 if(falls_through(fn, scope_start[depth], i) &&
-                   !emit(&out, entries, count, depth))
+                   !emit(&buffers->out, entries, count, depth))
                     goto done;
                 while(count && entries[count - 1].depth >= depth)
                     count--;
@@ -351,18 +382,17 @@ LowerCleanup(ZirFunction *fn)
                 fail(st, "case outside an if-case block");
                 goto done;
             }
-            if(!append(&out, st)) goto done;
+            if(!append(&buffers->out, st)) goto done;
             scopes[++depth] = ZIR_STMT_CASE;
             scope_start[depth] = i + 1;
             continue;
         }
         if(st->kind == ZIR_STMT_DECL) {
             ZirLexer lexer;
-            ZirToken name;
             LexerInit(&lexer, st->text, SpanPath(st->span));
-            name = LexerNext(&lexer);
+            buffers->name = LexerNext(&lexer);
             for(int d = 0; d < count; d++) {
-                if(cleanup_mentions(&entries[d], name.text)) {
+                if(cleanup_mentions(&entries[d], buffers->name.text)) {
                     fail(st, "a declaration cannot shadow a name referenced by an active defer");
                     goto done;
                 }
@@ -371,16 +401,15 @@ LowerCleanup(ZirFunction *fn)
         if(st->kind == ZIR_STMT_FOR) {
             for(int d = 0; d < count; d++) {
                 ZirLexer lexer;
-                ZirToken token;
                 LexerInit(&lexer, st->text, SpanPath(st->span));
                 do {
-                    token = LexerNext(&lexer);
-                    if(token.kind == ZIR_TOKEN_IDENT &&
-                       cleanup_mentions(&entries[d], token.text)) {
+                    buffers->token = LexerNext(&lexer);
+                    if(buffers->token.kind == ZIR_TOKEN_IDENT &&
+                       cleanup_mentions(&entries[d], buffers->token.text)) {
                         fail(st, "a for header cannot reuse a name referenced by an active defer; use a while loop");
                         goto done;
                     }
-                } while(token.kind != ZIR_TOKEN_EOF);
+                } while(buffers->token.kind != ZIR_TOKEN_EOF);
             }
         }
         if(st->kind == ZIR_STMT_DEFER) {
@@ -444,21 +473,20 @@ LowerCleanup(ZirFunction *fn)
                 } while(collision);
                 result.kind = ZIR_STMT_DECL;
                 result.expr_root = st->expr_root;
-                char text[ZIR_TEXT_MAX];
-                if(snprintf(text, sizeof(text), "%s: %s = %s",
-                            name, fn->return_type, value) >= (int)sizeof(text)) {
+                if(snprintf(buffers->text, sizeof(buffers->text), "%s: %s = %s",
+                            name, fn->return_type, value) >= (int)sizeof(buffers->text)) {
                     fail(st, "return expression exceeds cleanup lowering limit");
                     goto done;
                 }
-                result.text = KeepText(text);
-                if(!append(&out, &result))
+                result.text = KeepText(buffers->text);
+                if(!append(&buffers->out, &result))
                     goto done;
                 result.kind = ZIR_STMT_RETURN;
                 result.expr_root = -1;
-                snprintf(text, sizeof(text), "return %s", name);
-                result.text = KeepText(text);
+                snprintf(buffers->text, sizeof(buffers->text), "return %s", name);
+                result.text = KeepText(buffers->text);
             }
-            if(!emit(&out, entries, count, 0) || !append(&out, &result))
+            if(!emit(&buffers->out, entries, count, 0) || !append(&buffers->out, &result))
                 goto done;
             continue;
         }
@@ -473,13 +501,13 @@ LowerCleanup(ZirFunction *fn)
                 fail(st, "loop control outside a loop");
                 goto done;
             }
-            if(!emit(&out, entries, count, target))
+            if(!emit(&buffers->out, entries, count, target))
                 goto done;
         }
         if((strcmp(st->text, "#through") == 0 ||
             strcmp(st->text, "#through;") == 0) &&
            depth > 0 && scopes[depth] == ZIR_STMT_CASE) {
-            if(!emit(&out, entries, count, depth)) goto done;
+            if(!emit(&buffers->out, entries, count, depth)) goto done;
             while(count && entries[count - 1].depth >= depth)
                 count--;
             scope_start[depth] = i + 1;
@@ -487,7 +515,7 @@ LowerCleanup(ZirFunction *fn)
         if(st->kind == ZIR_STMT_BLOCK_CLOSE) {
             if(depth > 0 && scopes[depth] == ZIR_STMT_CASE) {
                 if(falls_through(fn, scope_start[depth], i) &&
-                   !emit(&out, entries, count, depth))
+                   !emit(&buffers->out, entries, count, depth))
                     goto done;
                 while(count && entries[count - 1].depth >= depth)
                     count--;
@@ -498,13 +526,13 @@ LowerCleanup(ZirFunction *fn)
                 goto done;
             }
             if(falls_through(fn, scope_start[depth], i) &&
-               !emit(&out, entries, count, depth))
+               !emit(&buffers->out, entries, count, depth))
                 goto done;
             while(count && entries[count - 1].depth >= depth)
                 count--;
             depth--;
         }
-        if(!append(&out, st))
+        if(!append(&buffers->out, st))
             goto done;
         if(opens_stmt(st)) {
             scopes[++depth] = st->kind;
@@ -512,21 +540,36 @@ LowerCleanup(ZirFunction *fn)
             scope_start[depth] = i + 1;
         }
     }
-    if(falls_through(fn, 0, fn->stmt_count) && !emit(&out, entries, count, 0))
+    if(falls_through(fn, 0, fn->stmt_count) && !emit(&buffers->out, entries, count, 0))
         goto done;
     free(fn->stmts);
-    fn->stmts = out.stmts;
-    fn->stmt_count = out.stmt_count;
-    fn->stmt_cap = out.stmt_cap;
-    out.stmts = NULL;
+    fn->stmts = buffers->out.stmts;
+    fn->stmt_count = buffers->out.stmt_count;
+    fn->stmt_cap = buffers->out.stmt_cap;
+    buffers->out.stmts = NULL;
     ok = 1;
 done:
-    free(out.stmts);
+    free(buffers->out.stmts);
     free(entries);
     free(scopes);
     free(scope_loop_id);
     free(scope_start);
     return ok;
+}
+
+int
+LowerCleanup(ZirFunction *fn)
+{
+    static _Thread_local LowerCleanupBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerCleanupBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = LowerCleanup_with_buffers(fn, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -590,13 +633,22 @@ range_header(const ZirStmt *statement, char *name, char *start, char *end,
     trim_in_place(end);
     return *start && *end;
 }
+/* Buffers collection_header keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CollectionHeaderBuffers {
+    char header[ZIR_TEXT_MAX];
+    char names[ZIR_TEXT_MAX];
+} CollectionHeaderBuffers;
+
+static int collection_header(const ZirStmt *statement, char *value_name,
+                  char *index_name, char *collection, int *reverse,
+                  int *pointer);
 
 static int
-collection_header(const ZirStmt *statement, char *value_name,
+collection_header_with_buffers(const ZirStmt *statement, char *value_name,
                   char *index_name, char *collection, int *reverse,
-                  int *pointer)
+                  int *pointer, CollectionHeaderBuffers *buffers)
 {
-    char header[ZIR_TEXT_MAX], names[ZIR_TEXT_MAX];
     const char *source = skip_ws(statement->text + 3);
     *reverse = *pointer = 0;
     while(*source == '<' || *source == '*') {
@@ -609,15 +661,15 @@ collection_header(const ZirStmt *statement, char *value_name,
         }
         source = skip_ws(source + 1);
     }
-    copy_text(header, sizeof(header), source);
-    trim_in_place(header);
-    size_t length = strlen(header);
-    if(length == 0 || header[length - 1] != '{') return 0;
-    header[length - 1] = '\0';
-    trim_in_place(header);
+    copy_text(buffers->header, sizeof(buffers->header), source);
+    trim_in_place(buffers->header);
+    size_t length = strlen(buffers->header);
+    if(length == 0 || buffers->header[length - 1] != '{') return 0;
+    buffers->header[length - 1] = '\0';
+    trim_in_place(buffers->header);
     int nesting = 0, quote = 0, escaped = 0, colon = -1;
-    for(int i = 0; header[i]; i++) {
-        char ch = header[i];
+    for(int i = 0; buffers->header[i]; i++) {
+        char ch = buffers->header[i];
         if(quote) {
             if(escaped) escaped = 0;
             else if(ch == '\\') escaped = 1;
@@ -628,7 +680,7 @@ collection_header(const ZirStmt *statement, char *value_name,
         if(ch == '(' || ch == '[' || ch == '{') { nesting++; continue; }
         if(ch == ')' || ch == ']' || ch == '}') { nesting--; continue; }
         if(nesting != 0) continue;
-        if(ch == '.' && header[i + 1] == '.') return 0;
+        if(ch == '.' && buffers->header[i + 1] == '.') return 0;
         if(ch == ':') {
             if(colon >= 0) return 0;
             colon = i;
@@ -638,27 +690,44 @@ collection_header(const ZirStmt *statement, char *value_name,
     copy_text(value_name, ZIR_NAME_MAX, "it");
     copy_text(index_name, ZIR_NAME_MAX, "it_index");
     if(colon >= 0) {
-        header[colon] = '\0';
-        copy_text(names, sizeof(names), header);
-        trim_in_place(names);
-        char *comma = strchr(names, ',');
+        buffers->header[colon] = '\0';
+        copy_text(buffers->names, sizeof(buffers->names), buffers->header);
+        trim_in_place(buffers->names);
+        char *comma = strchr(buffers->names, ',');
         if(comma != NULL) {
             *comma++ = '\0';
             if(strchr(comma, ',') != NULL) return 0;
             copy_text(index_name, ZIR_NAME_MAX, comma);
             trim_in_place(index_name);
         }
-        copy_text(value_name, ZIR_NAME_MAX, names);
+        copy_text(value_name, ZIR_NAME_MAX, buffers->names);
         trim_in_place(value_name);
         if(!range_identifier(value_name) ||
            !range_identifier(index_name) ||
            strcmp(value_name, index_name) == 0) return 0;
-        copy_text(collection, ZIR_TEXT_MAX, skip_ws(header + colon + 1));
+        copy_text(collection, ZIR_TEXT_MAX, skip_ws(buffers->header + colon + 1));
     } else {
-        copy_text(collection, ZIR_TEXT_MAX, header);
+        copy_text(collection, ZIR_TEXT_MAX, buffers->header);
     }
     trim_in_place(collection);
     return *collection != '\0';
+}
+
+static int
+collection_header(const ZirStmt *statement, char *value_name,
+                  char *index_name, char *collection, int *reverse,
+                  int *pointer)
+{
+    static _Thread_local CollectionHeaderBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CollectionHeaderBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = collection_header_with_buffers(statement, value_name, index_name, collection, reverse, pointer, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -719,45 +788,78 @@ control_name(const ZirStmt *statement, char *name)
     }
     return *cursor == '\0';
 }
+/* Buffers lower_named_while keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerNamedWhileBuffers {
+    ZirFunction output;
+    char declaration[ZIR_TEXT_MAX];
+    char check[ZIR_TEXT_MAX];
+} LowerNamedWhileBuffers;
+
+static int lower_named_while(ZirFunction *fn, int index, const char *name,
+                  const char *condition);
+
+static int
+lower_named_while_with_buffers(ZirFunction *fn, int index, const char *name,
+                  const char *condition, LowerNamedWhileBuffers *buffers)
+{
+    memset(&buffers->output, 0, sizeof(buffers->output));
+    ZirStmt header = fn->stmts[index];
+    int ok = 0;
+    if(snprintf(buffers->declaration, sizeof(buffers->declaration), "%s: bool = %s",
+                name, condition) >= (int)sizeof(buffers->declaration) ||
+       snprintf(buffers->check, sizeof(buffers->check), "if !%s {", name) >=
+           (int)sizeof(buffers->check))
+        return fail(&header, "named while condition exceeds statement limit");
+    for(int i = 0; i < index; i++)
+        if(!append(&buffers->output, &fn->stmts[i])) goto done;
+    header.text = KeepText("while true {");
+    if(!append(&buffers->output, &header) ||
+       !range_line(&buffers->output, ZIR_STMT_DECL, buffers->declaration, header.span) ||
+       !range_line(&buffers->output, ZIR_STMT_IF, buffers->check, header.span) ||
+       !range_line(&buffers->output, ZIR_STMT_BREAK, "break", header.span) ||
+       !range_line(&buffers->output, ZIR_STMT_BLOCK_CLOSE, "}", header.span))
+        goto done;
+    for(int i = index + 1; i < fn->stmt_count; i++)
+        if(!append(&buffers->output, &fn->stmts[i])) goto done;
+    free(fn->stmts);
+    fn->stmts = buffers->output.stmts;
+    fn->stmt_count = buffers->output.stmt_count;
+    fn->stmt_cap = buffers->output.stmt_cap;
+    buffers->output.stmts = NULL;
+    ok = 1;
+done:
+    free(buffers->output.stmts);
+    return ok;
+}
 
 static int
 lower_named_while(ZirFunction *fn, int index, const char *name,
                   const char *condition)
 {
-    ZirFunction output = {0};
-    ZirStmt header = fn->stmts[index];
-    char declaration[ZIR_TEXT_MAX];
-    char check[ZIR_TEXT_MAX];
-    int ok = 0;
-    if(snprintf(declaration, sizeof(declaration), "%s: bool = %s",
-                name, condition) >= (int)sizeof(declaration) ||
-       snprintf(check, sizeof(check), "if !%s {", name) >=
-           (int)sizeof(check))
-        return fail(&header, "named while condition exceeds statement limit");
-    for(int i = 0; i < index; i++)
-        if(!append(&output, &fn->stmts[i])) goto done;
-    header.text = KeepText("while true {");
-    if(!append(&output, &header) ||
-       !range_line(&output, ZIR_STMT_DECL, declaration, header.span) ||
-       !range_line(&output, ZIR_STMT_IF, check, header.span) ||
-       !range_line(&output, ZIR_STMT_BREAK, "break", header.span) ||
-       !range_line(&output, ZIR_STMT_BLOCK_CLOSE, "}", header.span))
-        goto done;
-    for(int i = index + 1; i < fn->stmt_count; i++)
-        if(!append(&output, &fn->stmts[i])) goto done;
-    free(fn->stmts);
-    fn->stmts = output.stmts;
-    fn->stmt_count = output.stmt_count;
-    fn->stmt_cap = output.stmt_cap;
-    output.stmts = NULL;
-    ok = 1;
-done:
-    free(output.stmts);
-    return ok;
+    static _Thread_local LowerNamedWhileBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerNamedWhileBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = lower_named_while_with_buffers(fn, index, name, condition, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
+/* Buffers BindJaiLoopControls keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct BindJaiLoopControlsBuffers {
+    char first[ZIR_TEXT_MAX];
+    char last[ZIR_TEXT_MAX];
+    char condition[ZIR_TEXT_MAX];
+} BindJaiLoopControlsBuffers;
 
-int
-BindJaiLoopControls(ZirFunction *fn)
+int BindJaiLoopControls(ZirFunction *fn);
+
+static int
+BindJaiLoopControls_with_buffers(ZirFunction *fn, BindJaiLoopControlsBuffers *buffers)
 {
     LoopScope *scopes = calloc((size_t)fn->stmt_count + 1, sizeof(*scopes));
     int depth = 0, next_id = 1, ok = 0;
@@ -801,17 +903,15 @@ BindJaiLoopControls(ZirFunction *fn)
         scope->kind = statement->kind;
         if(statement->kind == ZIR_STMT_FOR) {
             char name[ZIR_NAME_MAX], second[ZIR_NAME_MAX];
-            char first[ZIR_TEXT_MAX], last[ZIR_TEXT_MAX];
             int reverse, pointer;
-            if(range_header(statement, name, first, last, &reverse) ||
-               collection_header(statement, name, second, first,
+            if(range_header(statement, name, buffers->first, buffers->last, &reverse) ||
+               collection_header(statement, name, second, buffers->first,
                                  &reverse, &pointer)) {
                 copy_text(scope->name, sizeof(scope->name), name);
                 scope->loop_id = statement->loop_id = next_id++;
             }
         } else if(statement->kind == ZIR_STMT_WHILE) {
-            char condition[ZIR_TEXT_MAX];
-            if(named_while_header(statement, scope->name, condition))
+            if(named_while_header(statement, scope->name, buffers->condition))
                 scope->loop_id = statement->loop_id = next_id++;
         }
     }
@@ -820,16 +920,31 @@ BindJaiLoopControls(ZirFunction *fn)
         goto done;
     }
     for(int i = fn->stmt_count - 1; i >= 0; i--) {
-        char name[ZIR_NAME_MAX], condition[ZIR_TEXT_MAX];
+        char name[ZIR_NAME_MAX];
         if(fn->stmts[i].kind == ZIR_STMT_WHILE &&
-           named_while_header(&fn->stmts[i], name, condition) &&
-           !lower_named_while(fn, i, name, condition))
+           named_while_header(&fn->stmts[i], name, buffers->condition) &&
+           !lower_named_while(fn, i, name, buffers->condition))
             goto done;
     }
     ok = 1;
 done:
     free(scopes);
     return ok;
+}
+
+int
+BindJaiLoopControls(ZirFunction *fn)
+{
+    static _Thread_local BindJaiLoopControlsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    BindJaiLoopControlsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = BindJaiLoopControls_with_buffers(fn, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -1006,20 +1121,29 @@ literal_bound(const ZirFunction *fn, const ZirModule *module, const char *text,
         }
     return 0;
 }
+/* Buffers lower_one_range keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerOneRangeBuffers {
+    char start[ZIR_TEXT_MAX];
+    char end[ZIR_TEXT_MAX];
+    char line[ZIR_TEXT_MAX];
+    ZirFunction out;
+} LowerOneRangeBuffers;
+
+static int lower_one_range(ZirFunction *fn, const ZirModule *module, int index);
 
 static int
-lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
+lower_one_range_with_buffers(ZirFunction *fn, const ZirModule *module, int index, LowerOneRangeBuffers *buffers)
 {
     const ZirStmt *header = &fn->stmts[index];
     int close = end_block(fn, index, fn->stmt_count);
-    char binder[ZIR_NAME_MAX], start[ZIR_TEXT_MAX], end[ZIR_TEXT_MAX];
+    char binder[ZIR_NAME_MAX];
     char first[ZIR_NAME_MAX], last[ZIR_NAME_MAX], cursor[ZIR_NAME_MAX];
-    char line[ZIR_TEXT_MAX];
     int reverse;
     if(strchr(header->text, ';') != NULL)
         return fail(header, "C-style for headers are not Jai syntax");
     if(close >= fn->stmt_count ||
-       !range_header(header, binder, start, end, &reverse))
+       !range_header(header, binder, buffers->start, buffers->end, &reverse))
         return fail(header,
             "for currently supports Jai integer ranges: for index: first..last { ... }");
     if(strcmp(binder, "it_index") == 0)
@@ -1027,8 +1151,8 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
     long long low, high;
     /* Constant bounds read in place, and a constant last value leaves room
      * to step past it. The binder counts itself unless the body changes it. */
-    int constant = literal_bound(fn, module, start, &low) &&
-                   literal_bound(fn, module, end, &high) &&
+    int constant = literal_bound(fn, module, buffers->start, &low) &&
+                   literal_bound(fn, module, buffers->end, &high) &&
                    (reverse ? low > LLONG_MIN : high < LLONG_MAX);
     int own_cursor = !body_changes(fn, index, close, binder);
     int wants_index = body_mentions(fn, index, close, "it_index");
@@ -1047,46 +1171,46 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
            !range_name_used(fn, module, cursor)) break;
     }
     if(constant) {
-        snprintf(first, sizeof(first), "%s", start);
-        snprintf(last, sizeof(last), "%s", end);
+        snprintf(first, sizeof(first), "%s", buffers->start);
+        snprintf(last, sizeof(last), "%s", buffers->end);
     }
     if(own_cursor)
         snprintf(cursor, sizeof(cursor), "%s", binder);
-    ZirFunction out = {0};
+    memset(&buffers->out, 0, sizeof(buffers->out));
     ZirSourceSpan span = header->span;
     int ok = 0;
     for(int i = 0; i < index; i++)
-        if(!append(&out, &fn->stmts[i])) goto done;
-    if(!range_line(&out, ZIR_STMT_BLOCK_OPEN, "{", span)) goto done;
+        if(!append(&buffers->out, &fn->stmts[i])) goto done;
+    if(!range_line(&buffers->out, ZIR_STMT_BLOCK_OPEN, "{", span)) goto done;
     if(!constant &&
-       (snprintf(line, sizeof(line), "%s: s64 = %s", first, start) >=
-        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span) ||
-        snprintf(line, sizeof(line), "%s: s64 = %s", last, end) >=
-        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span)))
+       (snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", first, buffers->start) >=
+        (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span) ||
+        snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", last, buffers->end) >=
+        (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)))
         goto done;
-    if(snprintf(line, sizeof(line), "%s: s64 = %s", cursor,
-                reverse ? last : first) >= (int)sizeof(line) ||
-       !range_line(&out, ZIR_STMT_DECL, line, span)) goto done;
-    if(snprintf(line, sizeof(line), "while %s %s %s {", cursor,
+    if(snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", cursor,
+                reverse ? last : first) >= (int)sizeof(buffers->line) ||
+       !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)) goto done;
+    if(snprintf(buffers->line, sizeof(buffers->line), "while %s %s %s {", cursor,
                 reverse ? ">=" : "<=", reverse ? first : last) >=
-       (int)sizeof(line) || !range_line(&out, ZIR_STMT_WHILE, line, span))
+       (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_WHILE, buffers->line, span))
         goto done;
-    int while_at = out.stmt_count - 1;
-    out.stmts[while_at].loop_id = header->loop_id;
-    out.stmts[while_at].is_parallel = header->is_parallel;
-    out.stmts[while_at].is_gpu = header->is_gpu;
+    int while_at = buffers->out.stmt_count - 1;
+    buffers->out.stmts[while_at].loop_id = header->loop_id;
+    buffers->out.stmts[while_at].is_parallel = header->is_parallel;
+    buffers->out.stmts[while_at].is_gpu = header->is_gpu;
     if(!own_cursor &&
-       (snprintf(line, sizeof(line), "%s: s64 = %s", binder, cursor) >=
-        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span)))
+       (snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", binder, cursor) >=
+        (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)))
         goto done;
     if(wants_index) {
         if(constant && !reverse && low == 0)
-            snprintf(line, sizeof(line), "it_index: s64 = %s", cursor);
-        else if(snprintf(line, sizeof(line), "it_index: s64 = %s - %s",
+            snprintf(buffers->line, sizeof(buffers->line), "it_index: s64 = %s", cursor);
+        else if(snprintf(buffers->line, sizeof(buffers->line), "it_index: s64 = %s - %s",
                          reverse ? last : cursor, reverse ? cursor : first) >=
-                (int)sizeof(line))
+                (int)sizeof(buffers->line))
             goto done;
-        if(!range_line(&out, ZIR_STMT_DECL, line, span)) goto done;
+        if(!range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)) goto done;
     }
     {
         const char *terminal = constant ? "" : reverse ? first : last;
@@ -1094,25 +1218,40 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
          * on targets that have one: the header takes over each step. */
         int step_of = constant && own_cursor ? header->loop_id : 0;
         if(step_of)
-            out.stmts[while_at].for_form = 1;
-        if(!copy_loop_body(&out, fn, index, close, cursor, terminal, reverse, 1,
+            buffers->out.stmts[while_at].for_form = 1;
+        if(!copy_loop_body(&buffers->out, fn, index, close, cursor, terminal, reverse, 1,
                            header->loop_id, step_of)) goto done;
-        if(!range_advance(&out, cursor, terminal, reverse, span, 0, step_of) ||
-           !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
-           !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;
+        if(!range_advance(&buffers->out, cursor, terminal, reverse, span, 0, step_of) ||
+           !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
+           !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;
     }
     for(int i = close + 1; i < fn->stmt_count; i++)
-        if(!append(&out, &fn->stmts[i])) goto done;
+        if(!append(&buffers->out, &fn->stmts[i])) goto done;
     free(fn->stmts);
-    fn->stmts = out.stmts;
-    fn->stmt_count = out.stmt_count;
-    fn->stmt_cap = out.stmt_cap;
-    out.stmts = NULL;
+    fn->stmts = buffers->out.stmts;
+    fn->stmt_count = buffers->out.stmt_count;
+    fn->stmt_cap = buffers->out.stmt_cap;
+    buffers->out.stmts = NULL;
     ok = 1;
 done:
-    free(out.stmts);
+    free(buffers->out.stmts);
     if(!ok) fail(header, "for range lowering exceeds compiler limits");
     return ok;
+}
+
+static int
+lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
+{
+    static _Thread_local LowerOneRangeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerOneRangeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = lower_one_range_with_buffers(fn, module, index, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* A lone identifier, such as a local array or slice. */
@@ -1126,21 +1265,29 @@ plain_name(const char *text)
     if(token.kind != ZIR_TOKEN_IDENT) return 0;
     return LexerNext(&lexer).kind == ZIR_TOKEN_EOF;
 }
+/* Buffers lower_one_collection keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerOneCollectionBuffers {
+    char collection[ZIR_TEXT_MAX];
+    char line[ZIR_TEXT_MAX];
+    ZirFunction out;
+} LowerOneCollectionBuffers;
+
+static int lower_one_collection(ZirFunction *fn, const ZirModule *module, int index);
 
 static int
-lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
+lower_one_collection_with_buffers(ZirFunction *fn, const ZirModule *module, int index, LowerOneCollectionBuffers *buffers)
 {
     const ZirStmt *header = &fn->stmts[index];
     int close = end_block(fn, index, fn->stmt_count);
     char value_name[ZIR_NAME_MAX], index_name[ZIR_NAME_MAX];
-    char collection[ZIR_TEXT_MAX], view[ZIR_NAME_MAX];
+    char view[ZIR_NAME_MAX];
     char count[ZIR_NAME_MAX], cursor[ZIR_NAME_MAX], item_index[ZIR_NAME_MAX];
-    char line[ZIR_TEXT_MAX];
     int reverse, pointer;
     if(strchr(header->text, ';') != NULL)
         return fail(header, "C-style for headers are not Jai syntax");
     if(close >= fn->stmt_count ||
-       !collection_header(header, value_name, index_name, collection,
+       !collection_header(header, value_name, index_name, buffers->collection,
                           &reverse, &pointer))
         return fail(header,
             "for currently supports Jai integer ranges or array and slice iteration");
@@ -1156,88 +1303,126 @@ lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
     }
     /* A forward loop over a name the body leaves alone indexes it
      * directly, counting with its own index name. */
-    int direct = !reverse && !header->is_parallel && plain_name(collection) &&
-                 !body_changes(fn, index, close, collection) &&
+    int direct = !reverse && !header->is_parallel && plain_name(buffers->collection) &&
+                 !body_changes(fn, index, close, buffers->collection) &&
                  !body_changes(fn, index, close, index_name);
     if(direct) {
-        snprintf(view, sizeof(view), "%s", collection);
-        snprintf(count, sizeof(count), "%s.count", collection);
+        snprintf(view, sizeof(view), "%s", buffers->collection);
+        snprintf(count, sizeof(count), "%s.count", buffers->collection);
         snprintf(cursor, sizeof(cursor), "%s", index_name);
         snprintf(item_index, sizeof(item_index), "%s", index_name);
     }
-    ZirFunction out = {0};
+    memset(&buffers->out, 0, sizeof(buffers->out));
     ZirSourceSpan span = header->span;
     int ok = 0;
     for(int i = 0; i < index; i++)
-        if(!append(&out, &fn->stmts[i])) goto done;
-    if(!range_line(&out, ZIR_STMT_BLOCK_OPEN, "{", span)) goto done;
+        if(!append(&buffers->out, &fn->stmts[i])) goto done;
+    if(!range_line(&buffers->out, ZIR_STMT_BLOCK_OPEN, "{", span)) goto done;
     if(!direct &&
-       (snprintf(line, sizeof(line), "%s := %s[:]", view, collection) >=
-        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span) ||
-        snprintf(line, sizeof(line), "%s: s64 = %s.count", count, view) >=
-        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span)))
+       (snprintf(buffers->line, sizeof(buffers->line), "%s := %s[:]", view, buffers->collection) >=
+        (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span) ||
+        snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s.count", count, view) >=
+        (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)))
         goto done;
-    if(snprintf(line, sizeof(line), "%s: s64 = 0", cursor) >=
-       (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span))
+    if(snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = 0", cursor) >=
+       (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span))
         goto done;
-    if(snprintf(line, sizeof(line), "while %s < %s {", cursor, count) >=
-       (int)sizeof(line) || !range_line(&out, ZIR_STMT_WHILE, line, span))
+    if(snprintf(buffers->line, sizeof(buffers->line), "while %s < %s {", cursor, count) >=
+       (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_WHILE, buffers->line, span))
         goto done;
-    out.stmts[out.stmt_count - 1].loop_id = header->loop_id;
-    out.stmts[out.stmt_count - 1].is_parallel = header->is_parallel;
-    out.stmts[out.stmt_count - 1].is_gpu = header->is_gpu;
+    buffers->out.stmts[buffers->out.stmt_count - 1].loop_id = header->loop_id;
+    buffers->out.stmts[buffers->out.stmt_count - 1].is_parallel = header->is_parallel;
+    buffers->out.stmts[buffers->out.stmt_count - 1].is_gpu = header->is_gpu;
     /* A direct walk is a native counting loop, or a range loop, where the
      * target has one; the value binding comes first in the body. */
     if(direct && header->loop_id && !pointer)
-        out.stmts[out.stmt_count - 1].for_form = 2;
+        buffers->out.stmts[buffers->out.stmt_count - 1].for_form = 2;
     int step_of = direct && header->loop_id && !pointer ? header->loop_id : 0;
     if(!direct) {
-        if(snprintf(line, sizeof(line), "%s: s64 = %s", item_index,
-                    reverse ? "0" : cursor) >= (int)sizeof(line)) goto done;
-        if(reverse && snprintf(line, sizeof(line), "%s: s64 = %s - %s - 1",
-                               item_index, count, cursor) >= (int)sizeof(line))
+        if(snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", item_index,
+                    reverse ? "0" : cursor) >= (int)sizeof(buffers->line)) goto done;
+        if(reverse && snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s - %s - 1",
+                               item_index, count, cursor) >= (int)sizeof(buffers->line))
             goto done;
-        if(!range_line(&out, ZIR_STMT_DECL, line, span)) goto done;
+        if(!range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)) goto done;
     }
-    if(snprintf(line, sizeof(line), "%s := %s%s[%s]", value_name,
+    if(snprintf(buffers->line, sizeof(buffers->line), "%s := %s%s[%s]", value_name,
                 pointer ? "*" : "", view, item_index) >=
-       (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span))
+       (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span))
         goto done;
     if(!direct && body_mentions(fn, index, close, index_name) &&
-       (snprintf(line, sizeof(line), "%s: s64 = %s", index_name,
-                 item_index) >= (int)sizeof(line) ||
-        !range_line(&out, ZIR_STMT_DECL, line, span))) goto done;
-    if(!copy_loop_body(&out, fn, index, close, cursor, "", 0, 0,
+       (snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", index_name,
+                 item_index) >= (int)sizeof(buffers->line) ||
+        !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span))) goto done;
+    if(!copy_loop_body(&buffers->out, fn, index, close, cursor, "", 0, 0,
                        header->loop_id, step_of) ||
-       !loop_advance(&out, cursor, "", 0, 0, span, 0, step_of) ||
-       !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
-       !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;
+       !loop_advance(&buffers->out, cursor, "", 0, 0, span, 0, step_of) ||
+       !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
+       !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;
     for(int i = close + 1; i < fn->stmt_count; i++)
-        if(!append(&out, &fn->stmts[i])) goto done;
+        if(!append(&buffers->out, &fn->stmts[i])) goto done;
     free(fn->stmts);
-    fn->stmts = out.stmts;
-    fn->stmt_count = out.stmt_count;
-    fn->stmt_cap = out.stmt_cap;
-    out.stmts = NULL;
+    fn->stmts = buffers->out.stmts;
+    fn->stmt_count = buffers->out.stmt_count;
+    fn->stmt_cap = buffers->out.stmt_cap;
+    buffers->out.stmts = NULL;
     ok = 1;
 done:
-    free(out.stmts);
+    free(buffers->out.stmts);
     if(!ok) fail(header, "for collection lowering exceeds compiler limits");
     return ok;
 }
 
-int
-LowerJaiFor(ZirFunction *fn, const ZirModule *module)
+static int
+lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
+{
+    static _Thread_local LowerOneCollectionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerOneCollectionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = lower_one_collection_with_buffers(fn, module, index, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers LowerJaiFor keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerJaiForBuffers {
+    char first[ZIR_TEXT_MAX];
+    char last[ZIR_TEXT_MAX];
+} LowerJaiForBuffers;
+
+int LowerJaiFor(ZirFunction *fn, const ZirModule *module);
+
+static int
+LowerJaiFor_with_buffers(ZirFunction *fn, const ZirModule *module, LowerJaiForBuffers *buffers)
 {
     for(int i = fn->stmt_count - 1; i >= 0; i--) {
         if(fn->stmts[i].kind != ZIR_STMT_FOR) continue;
-        char binder[ZIR_NAME_MAX], first[ZIR_TEXT_MAX], last[ZIR_TEXT_MAX];
+        char binder[ZIR_NAME_MAX];
         int reverse;
-        if(range_header(&fn->stmts[i], binder, first, last, &reverse)) {
+        if(range_header(&fn->stmts[i], binder, buffers->first, buffers->last, &reverse)) {
             if(!lower_one_range(fn, module, i)) return 0;
         } else if(!lower_one_collection(fn, module, i)) {
             return 0;
         }
     }
     return 1;
+}
+
+int
+LowerJaiFor(ZirFunction *fn, const ZirModule *module)
+{
+    static _Thread_local LowerJaiForBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerJaiForBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = LowerJaiFor_with_buffers(fn, module, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

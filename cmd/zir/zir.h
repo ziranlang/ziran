@@ -345,6 +345,7 @@ void copy_text(char *dst, size_t dst_size, const char *src);
 ZirSourceSpan Span(const char *path, int line, int column);
 int SourceFile(const char *path);
 const char *KeepText(const char *text);
+void *AllocateOrExit(size_t size);
 const char *SpanPath(ZirSourceSpan span);
 ZirSourceSpan SpanEnd(const char *path, int line, int column,
                          int end_line, int end_column);

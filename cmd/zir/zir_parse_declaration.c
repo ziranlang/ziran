@@ -224,29 +224,39 @@ default_is_scope_independent(const char *expression, const char *path)
         previous = token;
     }
 }
+/* Buffers lower_procedure_name_expression keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerProcedureNameExpressionBuffers {
+    char lowered[ZIR_TEXT_MAX];
+    ZirToken token;
+    ZirToken open;
+    ZirToken close;
+} LowerProcedureNameExpressionBuffers;
 
-int
-lower_procedure_name_expression(char *part, size_t capacity,
-                                const ZirFunction *function)
+int lower_procedure_name_expression(char *part, size_t capacity,
+                                const ZirFunction *function);
+
+static int
+lower_procedure_name_expression_with_buffers(char *part, size_t capacity,
+                                const ZirFunction *function, LowerProcedureNameExpressionBuffers *buffers)
 {
     ZirLexer lexer;
-    char lowered[ZIR_TEXT_MAX];
     size_t copied = 0, used = 0;
     int changed = 0;
     LexerInit(&lexer, part, SpanPath(function->span));
     for(;;) {
-        ZirToken token = LexerNext(&lexer);
-        if(token.kind == ZIR_TOKEN_EOF) break;
-        size_t start = lexer.pos - strlen(token.text);
-        if(token.kind == ZIR_TOKEN_OPERATOR &&
-           strcmp(token.text, "/") == 0 && part[start + 1] == '/')
+        buffers->token = LexerNext(&lexer);
+        if(buffers->token.kind == ZIR_TOKEN_EOF) break;
+        size_t start = lexer.pos - strlen(buffers->token.text);
+        if(buffers->token.kind == ZIR_TOKEN_OPERATOR &&
+           strcmp(buffers->token.text, "/") == 0 && part[start + 1] == '/')
             break;
-        if(token.kind != ZIR_TOKEN_DIRECTIVE ||
-           strcmp(token.text, "#procedure_name") != 0)
+        if(buffers->token.kind != ZIR_TOKEN_DIRECTIVE ||
+           strcmp(buffers->token.text, "#procedure_name") != 0)
             continue;
-        ZirToken open = LexerNext(&lexer);
-        ZirToken close = LexerNext(&lexer);
-        if(strcmp(open.text, "(") || strcmp(close.text, ")"))
+        buffers->open = LexerNext(&lexer);
+        buffers->close = LexerNext(&lexer);
+        if(strcmp(buffers->open.text, "(") || strcmp(buffers->close.text, ")"))
             die_at(function->span,
                    "#procedure_name() requires empty parentheses");
         char literal[ZIR_NAME_MAX + 3];
@@ -254,28 +264,56 @@ lower_procedure_name_expression(char *part, size_t capacity,
                                function->name);
         if(written < 0 || (size_t)written >= sizeof(literal) ||
            start < copied || used + start - copied + (size_t)written >=
-           sizeof(lowered))
+           sizeof(buffers->lowered))
             die_at(function->span, "procedure name expression is too long");
-        memcpy(lowered + used, part + copied, start - copied);
+        memcpy(buffers->lowered + used, part + copied, start - copied);
         used += start - copied;
-        memcpy(lowered + used, literal, (size_t)written);
+        memcpy(buffers->lowered + used, literal, (size_t)written);
         used += (size_t)written;
         copied = lexer.pos;
         changed = 1;
     }
     if(!changed) return 0;
     size_t rest = strlen(part + copied);
-    if(used + rest >= sizeof(lowered) || used + rest >= capacity)
+    if(used + rest >= sizeof(buffers->lowered) || used + rest >= capacity)
         die_at(function->span, "procedure name expression is too long");
-    memcpy(lowered + used, part + copied, rest + 1);
-    copy_text(part, capacity, lowered);
+    memcpy(buffers->lowered + used, part + copied, rest + 1);
+    copy_text(part, capacity, buffers->lowered);
     return 1;
 }
 
-static int
-lower_template_record_default(ZirModule *module,
+int
+lower_procedure_name_expression(char *part, size_t capacity,
+                                const ZirFunction *function)
+{
+    static _Thread_local LowerProcedureNameExpressionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerProcedureNameExpressionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = lower_procedure_name_expression_with_buffers(part, capacity, function, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers lower_template_record_default keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerTemplateRecordDefaultBuffers {
+    char body[ZIR_TEXT_MAX];
+    char normalized[ZIR_TEXT_MAX];
+    char return_text[ZIR_TEXT_MAX];
+    char rewritten[ZIR_TEXT_MAX];
+} LowerTemplateRecordDefaultBuffers;
+
+static int lower_template_record_default(ZirModule *module,
                               const ZirFunction *function, int parameter,
-                              char *part, size_t capacity)
+                              char *part, size_t capacity);
+
+static int
+lower_template_record_default_with_buffers(ZirModule *module,
+                              const ZirFunction *function, int parameter,
+                              char *part, size_t capacity, LowerTemplateRecordDefaultBuffers *buffers)
 {
     char *assignment = top_level_assignment(part);
     if(!function->is_template || assignment == NULL) return 0;
@@ -293,23 +331,21 @@ lower_template_record_default(ZirModule *module,
        value[value_length - 1] != '}') return 0;
     const char *closing = value + value_length - 1;
     if(closing < opening) return 0;
-    char body[ZIR_TEXT_MAX];
     size_t body_length = (size_t)(closing - opening - 1);
-    if(body_length >= sizeof(body))
+    if(body_length >= sizeof(buffers->body))
         die_at(function->span, "default record initializer is too long");
-    memcpy(body, opening + 1, body_length);
-    body[body_length] = '\0';
+    memcpy(buffers->body, opening + 1, body_length);
+    buffers->body[body_length] = '\0';
     char (*fields)[ZIR_TEXT_MAX] = calloc(65, sizeof(*fields));
     if(fields == NULL)
         die("out of memory lowering default record initializer");
-    int field_count = *skip_ws(body) ?
-        split_top_level(body, fields[0], 65, sizeof(fields[0])) : 0;
+    int field_count = *skip_ws(buffers->body) ?
+        split_top_level(buffers->body, fields[0], 65, sizeof(fields[0])) : 0;
     if(field_count > 64)
         die_at(function->span, "too many default record initializer fields");
-    char normalized[ZIR_TEXT_MAX];
-    int written = snprintf(normalized, sizeof(normalized), "%.*s.{",
+    int written = snprintf(buffers->normalized, sizeof(buffers->normalized), "%.*s.{",
                            (int)(assignment + 1 - part), part);
-    if(written < 0 || (size_t)written >= sizeof(normalized))
+    if(written < 0 || (size_t)written >= sizeof(buffers->normalized))
         die_at(function->span, "default parameter expression is too long");
     size_t used = (size_t)written;
     for(int field = 0; field < field_count; field++) {
@@ -340,10 +376,9 @@ lower_template_record_default(ZirModule *module,
                 if(!strcmp(module->functions[f].name, helper_name))
                     die_at(function->span,
                            "default field helper name conflicts with a procedure");
-            char return_text[ZIR_TEXT_MAX];
-            written = snprintf(return_text, sizeof(return_text),
+            written = snprintf(buffers->return_text, sizeof(buffers->return_text),
                                "return %s", field_value);
-            if(written < 0 || (size_t)written >= sizeof(return_text))
+            if(written < 0 || (size_t)written >= sizeof(buffers->return_text))
                 die_at(function->span, "default field expression is too long");
             ZirFunction *helper = ModuleAddFunction(module, helper_name, "",
                                                     result_type, 0,
@@ -352,38 +387,67 @@ lower_template_record_default(ZirModule *module,
                 die("out of memory creating default field helper");
             helper->is_public = function->is_public;
             helper->is_file_private = function->is_file_private;
-            if(FunctionAddStmt(helper, ZIR_STMT_RETURN, return_text,
+            if(FunctionAddStmt(helper, ZIR_STMT_RETURN, buffers->return_text,
                                function->span) == NULL)
                 die("out of memory creating default field helper body");
-            char rewritten[ZIR_TEXT_MAX];
             written = field_assignment != NULL ?
-                snprintf(rewritten, sizeof(rewritten), "%.*s %s()",
+                snprintf(buffers->rewritten, sizeof(buffers->rewritten), "%.*s %s()",
                          (int)(field_assignment + 1 - fields[field]),
                          fields[field], helper_name) :
-                snprintf(rewritten, sizeof(rewritten), "%s()", helper_name);
-            if(written < 0 || (size_t)written >= sizeof(rewritten))
+                snprintf(buffers->rewritten, sizeof(buffers->rewritten), "%s()", helper_name);
+            if(written < 0 || (size_t)written >= sizeof(buffers->rewritten))
                 die_at(function->span, "default field initializer is too long");
-            copy_text(fields[field], sizeof(fields[field]), rewritten);
+            copy_text(fields[field], sizeof(fields[field]), buffers->rewritten);
         }
-        written = snprintf(normalized + used, sizeof(normalized) - used,
+        written = snprintf(buffers->normalized + used, sizeof(buffers->normalized) - used,
                            "%s%s", field ? ", " : "", fields[field]);
-        if(written < 0 || (size_t)written >= sizeof(normalized) - used)
+        if(written < 0 || (size_t)written >= sizeof(buffers->normalized) - used)
             die_at(function->span, "default record initializer is too long");
         used += (size_t)written;
     }
-    if(used + 2 > sizeof(normalized))
+    if(used + 2 > sizeof(buffers->normalized))
         die_at(function->span, "default record initializer is too long");
-    normalized[used++] = '}';
-    normalized[used] = '\0';
-    copy_text(part, capacity, normalized);
+    buffers->normalized[used++] = '}';
+    buffers->normalized[used] = '\0';
+    copy_text(part, capacity, buffers->normalized);
     free(fields);
     return 1;
 }
 
-void
-add_default_helpers(ZirProgram *program, ZirModule *module,
+static int
+lower_template_record_default(ZirModule *module,
+                              const ZirFunction *function, int parameter,
+                              char *part, size_t capacity)
+{
+    static _Thread_local LowerTemplateRecordDefaultBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerTemplateRecordDefaultBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = lower_template_record_default_with_buffers(module, function, parameter, part, capacity, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers add_default_helpers keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct AddDefaultHelpersBuffers {
+    char value[ZIR_TEXT_MAX];
+    ZirFunction signature;
+    char args[ZIR_TEXT_MAX];
+    char full[ZIR_TEXT_MAX];
+    char body[ZIR_TEXT_MAX];
+} AddDefaultHelpersBuffers;
+
+void add_default_helpers(ZirProgram *program, ZirModule *module,
                     const char *source_path, const char *root,
-                    ZirCompileImportResolver resolver, void *resolver_context)
+                    ZirCompileImportResolver resolver, void *resolver_context);
+
+static void
+add_default_helpers_with_buffers(ZirProgram *program, ZirModule *module,
+                    const char *source_path, const char *root,
+                    ZirCompileImportResolver resolver, void *resolver_context, AddDefaultHelpersBuffers *buffers)
 {
     int declarations = module->function_count;
     int imports_resolved = 0;
@@ -414,9 +478,9 @@ add_default_helpers(ZirProgram *program, ZirModule *module,
             if(colon == NULL || *skip_ws(colon + 1) != '\0')
                 die_at(function->span, "inferred default parameter needs a name");
             *colon = '\0';
-            char name[ZIR_NAME_MAX], value[ZIR_TEXT_MAX], type[ZIR_NAME_MAX];
+            char name[ZIR_NAME_MAX], type[ZIR_NAME_MAX];
             copy_text(name, sizeof(name), trim(parameters[i]));
-            copy_text(value, sizeof(value), trim(assignment + 1));
+            copy_text(buffers->value, sizeof(buffers->value), trim(assignment + 1));
             for(int imported = 0; imported < module->import_count; imported++) {
                 ZirImport *import = &module->imports[imported];
                 if(import->resolved_module != NULL ||
@@ -438,11 +502,11 @@ add_default_helpers(ZirProgram *program, ZirModule *module,
                 imports_resolved = 1;
             }
             int type_known;
-            if(strcmp(value, "#caller_location") == 0) {
+            if(strcmp(buffers->value, "#caller_location") == 0) {
                 copy_text(type, sizeof(type), "Source_Code_Location");
                 type_known = 1;
             } else
-                type_known = InferExpressionType(module, value,
+                type_known = InferExpressionType(module, buffers->value,
                                                  function->span, type,
                                                  sizeof(type));
             if(!is_identifier_text(name) || !type_known ||
@@ -454,40 +518,40 @@ add_default_helpers(ZirProgram *program, ZirModule *module,
             if(written < 0 || (size_t)written >= sizeof(parameters[i]))
                 die_at(function->span, "procedure parameters exceed size limit");
             written = snprintf(defaults[i], sizeof(defaults[i]),
-                               "%s = %s", parameters[i], value);
+                               "%s = %s", parameters[i], buffers->value);
             if(written < 0 || (size_t)written >= sizeof(defaults[i]))
                 die_at(function->span, "default parameters exceed size limit");
             inferred = 1;
         }
-        ZirFunction signature = module->functions[fi];
+        buffers->signature = module->functions[fi];
         for(int i = 0; i < count; i++)
             if((contextual[i] = lower_template_record_default(
-                    module, &signature, i, defaults[i],
+                    module, &buffers->signature, i, defaults[i],
                     sizeof(defaults[i]))))
                 inferred = 1;
         if(inferred) {
-            char args[ZIR_TEXT_MAX] = "", full[ZIR_TEXT_MAX] = "";
+            buffers->args[0] = '\0'; buffers->full[0] = '\0';
             size_t args_used = 0, full_used = 0;
             for(int i = 0; i < count; i++) {
-                int written = snprintf(args + args_used,
-                                       sizeof(args) - args_used, "%s%s",
+                int written = snprintf(buffers->args + args_used,
+                                       sizeof(buffers->args) - args_used, "%s%s",
                                        i ? ", " : "", parameters[i]);
-                if(written < 0 || (size_t)written >= sizeof(args) - args_used)
+                if(written < 0 || (size_t)written >= sizeof(buffers->args) - args_used)
                     die_at(function->span,
                            "procedure parameters exceed size limit");
                 args_used += (size_t)written;
-                written = snprintf(full + full_used,
-                                   sizeof(full) - full_used, "%s%s",
+                written = snprintf(buffers->full + full_used,
+                                   sizeof(buffers->full) - full_used, "%s%s",
                                    i ? ", " : "", defaults[i]);
-                if(written < 0 || (size_t)written >= sizeof(full) - full_used)
+                if(written < 0 || (size_t)written >= sizeof(buffers->full) - full_used)
                     die_at(function->span,
                            "default parameters exceed size limit");
                 full_used += (size_t)written;
             }
             copy_text(module->functions[fi].args,
-                      sizeof(module->functions[fi].args), args);
+                      sizeof(module->functions[fi].args), buffers->args);
             copy_text(module->functions[fi].default_args,
-                      sizeof(module->functions[fi].default_args), full);
+                      sizeof(module->functions[fi].default_args), buffers->full);
         }
         for(int i = 0; i < count; i++) {
             function = &module->functions[fi];
@@ -512,7 +576,6 @@ add_default_helpers(ZirProgram *program, ZirModule *module,
                 die_at(function->span, "default parameter needs a type");
             char helper_name[ZIR_NAME_MAX];
             char result_type[ZIR_NAME_MAX];
-            char body[ZIR_TEXT_MAX];
             ZirSourceSpan span = function->span;
             int is_public = function->is_public;
             int is_file_private = function->is_file_private;
@@ -530,8 +593,8 @@ add_default_helpers(ZirProgram *program, ZirModule *module,
             for(int f = 0; f < module->function_count; f++)
                 if(!strcmp(module->functions[f].name, helper_name))
                     die_at(span, "default helper name conflicts with a procedure");
-            int written = snprintf(body, sizeof(body), "return %s", value);
-            if(written < 0 || (size_t)written >= sizeof(body))
+            int written = snprintf(buffers->body, sizeof(buffers->body), "return %s", value);
+            if(written < 0 || (size_t)written >= sizeof(buffers->body))
                 die_at(span, "default parameter expression is too long");
             ZirFunction *helper = ModuleAddFunction(module, helper_name,
                                                     "", result_type, 0, span);
@@ -539,13 +602,29 @@ add_default_helpers(ZirProgram *program, ZirModule *module,
                 die("out of memory creating default argument helper");
             helper->is_public = is_public;
             helper->is_file_private = is_file_private;
-            if(FunctionAddStmt(helper, ZIR_STMT_RETURN, body, span) == NULL)
+            if(FunctionAddStmt(helper, ZIR_STMT_RETURN, buffers->body, span) == NULL)
                 die("out of memory creating default argument body");
         }
         module->functions[fi].default_helpers_created = 1;
         free(parameters);
         free(defaults);
     }
+}
+
+void
+add_default_helpers(ZirProgram *program, ZirModule *module,
+                    const char *source_path, const char *root,
+                    ZirCompileImportResolver resolver, void *resolver_context)
+{
+    static _Thread_local AddDefaultHelpersBuffers *spares[16];
+    static _Thread_local int spare_count;
+    AddDefaultHelpersBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    add_default_helpers_with_buffers(program, module, source_path, root, resolver, resolver_context, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 int
@@ -737,17 +816,29 @@ parse_foreign_library_line(const char *path, int line_no, const char *line,
     (*count)++;
     return 1;
 }
+/* Buffers parse_foreign_line keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ParseForeignLineBuffers {
+    char target[ZIR_PATH_MAX];
+    char parameters[8][ZIR_TEXT_MAX];
+} ParseForeignLineBuffers;
 
-int
-parse_foreign_line(ZirModule *module, const char *path, int line_no,
+int parse_foreign_line(ZirModule *module, const char *path, int line_no,
                    const char *line, int scope_public,
                    char names[][ZIR_NAME_MAX],
                    char targets[][ZIR_PATH_MAX],
                    char paths[][SOURCE_PATH_MAX],
-                   const int *file_private, int count)
+                   const int *file_private, int count);
+
+static int
+parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no,
+                   const char *line, int scope_public,
+                   char names[][ZIR_NAME_MAX],
+                   char targets[][ZIR_PATH_MAX],
+                   char paths[][SOURCE_PATH_MAX],
+                   const int *file_private, int count, ParseForeignLineBuffers *buffers)
 {
     char name[ZIR_NAME_MAX];
-    char target[ZIR_PATH_MAX];
     char symbol[ZIR_NAME_MAX];
     char library[ZIR_NAME_MAX];
     char foreign_name[ZIR_NAME_MAX];
@@ -800,25 +891,25 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
     if(library_target == NULL)
         die_at(Span(path, line_no, 1),
                "#foreign library is not declared: %s", library);
-    target[0] = '\0';
+    buffers->target[0] = '\0';
     symbol[0] = '\0';
     if(strcmp(library_target, "host_api") == 0) {
         if(strcmp(foreign_name, name) != 0)
             die_at(Span(path, line_no, 1),
                    "host capability cannot rename a #foreign symbol");
     } else if(strchr(library_target, '/') != NULL) {
-        if(snprintf(target, sizeof(target), "%s.%s", library_target,
-                    foreign_name) >= (int)sizeof(target))
+        if(snprintf(buffers->target, sizeof(buffers->target), "%s.%s", library_target,
+                    foreign_name) >= (int)sizeof(buffers->target))
             die_at(Span(path, line_no, 1), "#foreign target is too long");
     } else {
-        if(snprintf(target, sizeof(target), "c.%s", foreign_name) >=
-           (int)sizeof(target))
+        if(snprintf(buffers->target, sizeof(buffers->target), "c.%s", foreign_name) >=
+           (int)sizeof(buffers->target))
             die_at(Span(path, line_no, 1), "#foreign target is too long");
     }
-    extern_kind = classify_extern_target(target, symbol, sizeof(symbol),
+    extern_kind = classify_extern_target(buffers->target, symbol, sizeof(symbol),
                                          path, line_no);
     imp = ModuleAddImport(module, ZIR_IMPORT_EXTERN,
-                             name, target[0] ? target : name, line, 1,
+                             name, buffers->target[0] ? buffers->target : name, line, 1,
                              Span(path, line_no, 1));
     if(imp != NULL) {
         char parsed_name[ZIR_NAME_MAX];
@@ -834,12 +925,11 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
         /* A trailing `..any` parameter marks a variadic C ABI: calls may
          * pass any number of extra arguments after the fixed ones. */
         {
-            char parameters[8][ZIR_TEXT_MAX];
             int parameter_count = *skip_ws(imp->args) ?
-                split_top_level(imp->args, parameters[0], 8,
-                                sizeof(parameters[0])) : 0;
+                split_top_level(imp->args, buffers->parameters[0], 8,
+                                sizeof(buffers->parameters[0])) : 0;
             if(parameter_count > 0) {
-                const char *last = skip_ws(parameters[parameter_count - 1]);
+                const char *last = skip_ws(buffers->parameters[parameter_count - 1]);
                 const char *colon = strchr(last, ':');
                 const char *tail = colon != NULL ? skip_ws(colon + 1) : last;
                 if(!strcmp(tail, "..any") || !strcmp(last, "..any"))
@@ -848,6 +938,26 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
         }
     }
     return 1;
+}
+
+int
+parse_foreign_line(ZirModule *module, const char *path, int line_no,
+                   const char *line, int scope_public,
+                   char names[][ZIR_NAME_MAX],
+                   char targets[][ZIR_PATH_MAX],
+                   char paths[][SOURCE_PATH_MAX],
+                   const int *file_private, int count)
+{
+    static _Thread_local ParseForeignLineBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ParseForeignLineBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = parse_foreign_line_with_buffers(module, path, line_no, line, scope_public, names, targets, paths, file_private, count, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -1026,11 +1136,20 @@ if_header_then(char *line)
     }
     return NULL;
 }
+/* Buffers split_jai_control_line keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct SplitJaiControlLineBuffers {
+    char body[SOURCE_LINE_MAX * 2];
+} SplitJaiControlLineBuffers;
 
-void
-split_jai_control_line(char *line, size_t capacity,
+void split_jai_control_line(char *line, size_t capacity,
                        char queue[16][SOURCE_LINE_MAX * 2], int *count,
-                       ZirSourceSpan span)
+                       ZirSourceSpan span);
+
+static void
+split_jai_control_line_with_buffers(char *line, size_t capacity,
+                       char queue[16][SOURCE_LINE_MAX * 2], int *count,
+                       ZirSourceSpan span, SplitJaiControlLineBuffers *buffers)
 {
     char *then = if_header_then(line);
     if(then != NULL) {
@@ -1039,21 +1158,20 @@ split_jai_control_line(char *line, size_t capacity,
         if(then == condition)
             die_at(span, "if then requires a condition");
         const char *after = skip_ws(then + 4);
-        char body[SOURCE_LINE_MAX * 2];
-        if(strlen(after) >= sizeof(body))
+        if(strlen(after) >= sizeof(buffers->body))
             die_at(span, "if body exceeds source limit");
-        copy_text(body, sizeof(body), after);
+        copy_text(buffers->body, sizeof(buffers->body), after);
         char *end = then;
         while(end > line && isspace((unsigned char)end[-1]))
             end--;
         *end = '\0';
-        if(body[0] == '{') {
+        if(buffers->body[0] == '{') {
             size_t used = strlen(line);
-            if(snprintf(line + used, capacity - used, " %s", body) >=
+            if(snprintf(line + used, capacity - used, " %s", buffers->body) >=
                (int)(capacity - used))
                 die_at(span, "if header exceeds source limit");
-        } else if(body[0] != '\0') {
-            prepend_logical_line(queue, count, body, span);
+        } else if(buffers->body[0] != '\0') {
+            prepend_logical_line(queue, count, buffers->body, span);
         }
     }
     if(starts_word(line, "else")) {
@@ -1065,6 +1183,22 @@ split_jai_control_line(char *line, size_t capacity,
             line[4] = '\0';
         }
     }
+}
+
+void
+split_jai_control_line(char *line, size_t capacity,
+                       char queue[16][SOURCE_LINE_MAX * 2], int *count,
+                       ZirSourceSpan span)
+{
+    static _Thread_local SplitJaiControlLineBuffers *spares[16];
+    static _Thread_local int spare_count;
+    SplitJaiControlLineBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    split_jai_control_line_with_buffers(line, capacity, queue, count, span, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 int

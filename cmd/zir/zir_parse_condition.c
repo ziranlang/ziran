@@ -408,6 +408,57 @@ compile_size_of_ready(const ZirModule *module, char *condition)
     }
     return 1;
 }
+/* Buffers replace_compile_ifx keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ReplaceCompileIfxBuffers {
+    char condition[ZIR_TEXT_MAX];
+    char rewritten[ZIR_TEXT_MAX];
+} ReplaceCompileIfxBuffers;
+
+static int replace_compile_ifx(char *source, size_t capacity, const ZirFunction *fn,
+                    const ZirModule *module, const ZirExpr *expr,
+                    const ZirConsts *consts,
+                    ZirSourceSpan span, int allow_deferred);
+
+static int
+replace_compile_ifx_with_buffers(char *source, size_t capacity, const ZirFunction *fn,
+                    const ZirModule *module, const ZirExpr *expr,
+                    const ZirConsts *consts,
+                    ZirSourceSpan span, int allow_deferred, ReplaceCompileIfxBuffers *buffers)
+{
+    long value = 0;
+    char *at;
+    const char *selected;
+    int written;
+    if(expr->left < 0 || expr->right < 0 || expr->third < 0)
+        die_at(span, "malformed #ifx expression");
+    expand_compile_expr(buffers->condition, sizeof(buffers->condition), consts,
+                        fn->exprs[expr->left].text, SpanPath(span));
+    if(allow_deferred && !compile_size_of_ready(module, buffers->condition))
+        return 0;
+    if(strstr(buffers->condition, "size_of") != NULL)
+        lower_size_of_value(buffers->condition, sizeof(buffers->condition), module, span);
+    if(!eval_const_condition(buffers->condition, &value, module, consts,
+                             SpanPath(span), span.line, 0) &&
+       !eval_typed_condition(buffers->condition, module, consts,
+                             span, &value)) {
+        if(allow_deferred) return 0;
+        die_at(span, "#ifx condition is not a compile-time constant: %s",
+               buffers->condition);
+    }
+    selected = fn->exprs[value ? expr->right : expr->third].text;
+    at = find_unquoted_text(source, expr->text);
+    if(at == NULL)
+        die_at(span, "cannot locate #ifx expression in source");
+    written = snprintf(buffers->rewritten, sizeof(buffers->rewritten), "%.*s(%s)%s",
+                       (int)(at - source), source, selected,
+                       at + strlen(expr->text));
+    if(written < 0 || (size_t)written >= sizeof(buffers->rewritten) ||
+       (size_t)written >= capacity)
+        die_at(span, "#ifx selection exceeds expression limit");
+    copy_text(source, capacity, buffers->rewritten);
+    return 1;
+}
 
 static int
 replace_compile_ifx(char *source, size_t capacity, const ZirFunction *fn,
@@ -415,40 +466,49 @@ replace_compile_ifx(char *source, size_t capacity, const ZirFunction *fn,
                     const ZirConsts *consts,
                     ZirSourceSpan span, int allow_deferred)
 {
-    char condition[ZIR_TEXT_MAX], rewritten[ZIR_TEXT_MAX];
-    long value = 0;
-    char *at;
-    const char *selected;
-    int written;
+    static _Thread_local ReplaceCompileIfxBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ReplaceCompileIfxBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = replace_compile_ifx_with_buffers(source, capacity, fn, module, expr, consts, span, allow_deferred, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers lower_compile_ifx_value keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerCompileIfxValueBuffers {
+    ZirFunction probe;
+} LowerCompileIfxValueBuffers;
 
-    if(expr->left < 0 || expr->right < 0 || expr->third < 0)
-        die_at(span, "malformed #ifx expression");
-    expand_compile_expr(condition, sizeof(condition), consts,
-                        fn->exprs[expr->left].text, SpanPath(span));
-    if(allow_deferred && !compile_size_of_ready(module, condition))
-        return 0;
-    if(strstr(condition, "size_of") != NULL)
-        lower_size_of_value(condition, sizeof(condition), module, span);
-    if(!eval_const_condition(condition, &value, module, consts,
-                             SpanPath(span), span.line, 0) &&
-       !eval_typed_condition(condition, module, consts,
-                             span, &value)) {
-        if(allow_deferred) return 0;
-        die_at(span, "#ifx condition is not a compile-time constant: %s",
-               condition);
+int lower_compile_ifx_value(char *value, size_t capacity,
+                        const ZirModule *module, const ZirConsts *consts,
+                        ZirSourceSpan span, int allow_deferred);
+
+static int
+lower_compile_ifx_value_with_buffers(char *value, size_t capacity,
+                        const ZirModule *module, const ZirConsts *consts,
+                        ZirSourceSpan span, int allow_deferred, LowerCompileIfxValueBuffers *buffers)
+{
+    for(int pass = 0; pass < 128; pass++) {
+        memset(&buffers->probe, 0, sizeof(buffers->probe));
+        ParseExpr(&buffers->probe, module, value, span);
+        const ZirExpr *expr = outer_compile_ifx(&buffers->probe);
+        if(expr == NULL) {
+            free(buffers->probe.exprs);
+            if(find_unquoted_text(value, "#ifx") != NULL)
+                die_at(span, "invalid #ifx expression");
+            return 1;
+        }
+        int replaced = replace_compile_ifx(value, capacity, &buffers->probe, module,
+                                           expr, consts, span,
+                                           allow_deferred);
+        free(buffers->probe.exprs);
+        if(!replaced) return 0;
     }
-    selected = fn->exprs[value ? expr->right : expr->third].text;
-    at = find_unquoted_text(source, expr->text);
-    if(at == NULL)
-        die_at(span, "cannot locate #ifx expression in source");
-    written = snprintf(rewritten, sizeof(rewritten), "%.*s(%s)%s",
-                       (int)(at - source), source, selected,
-                       at + strlen(expr->text));
-    if(written < 0 || (size_t)written >= sizeof(rewritten) ||
-       (size_t)written >= capacity)
-        die_at(span, "#ifx selection exceeds expression limit");
-    copy_text(source, capacity, rewritten);
-    return 1;
+    die_at(span, "too many nested #ifx expressions");
 }
 
 int
@@ -456,23 +516,16 @@ lower_compile_ifx_value(char *value, size_t capacity,
                         const ZirModule *module, const ZirConsts *consts,
                         ZirSourceSpan span, int allow_deferred)
 {
-    for(int pass = 0; pass < 128; pass++) {
-        ZirFunction probe = {0};
-        ParseExpr(&probe, module, value, span);
-        const ZirExpr *expr = outer_compile_ifx(&probe);
-        if(expr == NULL) {
-            free(probe.exprs);
-            if(find_unquoted_text(value, "#ifx") != NULL)
-                die_at(span, "invalid #ifx expression");
-            return 1;
-        }
-        int replaced = replace_compile_ifx(value, capacity, &probe, module,
-                                           expr, consts, span,
-                                           allow_deferred);
-        free(probe.exprs);
-        if(!replaced) return 0;
-    }
-    die_at(span, "too many nested #ifx expressions");
+    static _Thread_local LowerCompileIfxValueBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerCompileIfxValueBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = lower_compile_ifx_value_with_buffers(value, capacity, module, consts, span, allow_deferred, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int
@@ -527,20 +580,27 @@ first_size_of(const ZirFunction *fn, int include_type_of)
             return &fn->exprs[i];
     return NULL;
 }
+/* Buffers replace_size_of keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ReplaceSizeOfBuffers {
+    char rewritten[ZIR_TEXT_MAX];
+    char operand[ZIR_TEXT_MAX];
+} ReplaceSizeOfBuffers;
+
+static void replace_size_of(char *source, size_t capacity, const ZirModule *module,
+                const ZirExpr *expr, ZirSourceSpan span);
 
 static void
-replace_size_of(char *source, size_t capacity, const ZirModule *module,
-                const ZirExpr *expr, ZirSourceSpan span)
+replace_size_of_with_buffers(char *source, size_t capacity, const ZirModule *module,
+                const ZirExpr *expr, ZirSourceSpan span, ReplaceSizeOfBuffers *buffers)
 {
-    char rewritten[ZIR_TEXT_MAX];
-    char operand[ZIR_TEXT_MAX], inferred[ZIR_NAME_MAX];
+    char inferred[ZIR_NAME_MAX];
     size_t size, alignment;
     char *at = find_unquoted_text(source, expr->text);
     const char *sized_type = expr->name;
     int written;
-
-    if(TypeOfOperand(expr->name, operand, sizeof(operand))) {
-        if(!InferExpressionType(module, operand, span, inferred,
+    if(TypeOfOperand(expr->name, buffers->operand, sizeof(buffers->operand))) {
+        if(!InferExpressionType(module, buffers->operand, span, inferred,
                                 sizeof(inferred)))
             die_at(span, "size_of(type_of(...)) requires a checked expression");
         sized_type = inferred;
@@ -550,33 +610,71 @@ replace_size_of(char *source, size_t capacity, const ZirModule *module,
         die_at(span, "size_of requires a known sized type: %s", sized_type);
     if(at == NULL)
         die_at(span, "cannot locate size_of expression in source");
-    written = snprintf(rewritten, sizeof(rewritten), "%.*s(%zu)%s",
+    written = snprintf(buffers->rewritten, sizeof(buffers->rewritten), "%.*s(%zu)%s",
                        (int)(at - source), source, size,
                        at + strlen(expr->text));
-    if(written < 0 || (size_t)written >= sizeof(rewritten) ||
+    if(written < 0 || (size_t)written >= sizeof(buffers->rewritten) ||
        (size_t)written >= capacity)
         die_at(span, "size_of selection exceeds expression limit");
-    copy_text(source, capacity, rewritten);
+    copy_text(source, capacity, buffers->rewritten);
+}
+
+static void
+replace_size_of(char *source, size_t capacity, const ZirModule *module,
+                const ZirExpr *expr, ZirSourceSpan span)
+{
+    static _Thread_local ReplaceSizeOfBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ReplaceSizeOfBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    replace_size_of_with_buffers(source, capacity, module, expr, span, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers lower_size_of_value keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerSizeOfValueBuffers {
+    ZirFunction probe;
+} LowerSizeOfValueBuffers;
+
+void lower_size_of_value(char *value, size_t capacity, const ZirModule *module,
+                    ZirSourceSpan span);
+
+static void
+lower_size_of_value_with_buffers(char *value, size_t capacity, const ZirModule *module,
+                    ZirSourceSpan span, LowerSizeOfValueBuffers *buffers)
+{
+    for(int pass = 0; pass < 128; pass++) {
+        memset(&buffers->probe, 0, sizeof(buffers->probe));
+        ParseExpr(&buffers->probe, module, value, span);
+        const ZirExpr *expr = first_size_of(&buffers->probe, 1);
+        if(expr == NULL) {
+            free(buffers->probe.exprs);
+            if(find_unquoted_word(value, "size_of") != NULL)
+                die_at(span, "invalid size_of expression");
+            return;
+        }
+        replace_size_of(value, capacity, module, expr, span);
+        free(buffers->probe.exprs);
+    }
+    die_at(span, "too many size_of expressions");
 }
 
 void
 lower_size_of_value(char *value, size_t capacity, const ZirModule *module,
                     ZirSourceSpan span)
 {
-    for(int pass = 0; pass < 128; pass++) {
-        ZirFunction probe = {0};
-        ParseExpr(&probe, module, value, span);
-        const ZirExpr *expr = first_size_of(&probe, 1);
-        if(expr == NULL) {
-            free(probe.exprs);
-            if(find_unquoted_word(value, "size_of") != NULL)
-                die_at(span, "invalid size_of expression");
-            return;
-        }
-        replace_size_of(value, capacity, module, expr, span);
-        free(probe.exprs);
-    }
-    die_at(span, "too many size_of expressions");
+    static _Thread_local LowerSizeOfValueBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerSizeOfValueBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    lower_size_of_value_with_buffers(value, capacity, module, span, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* Imports are linked after parsing. Finish any #ifx selection that called
@@ -653,48 +751,52 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
     free(constants.items);
     return progress;
 }
-
-int
-parse_compile_check(ZirModule *module, const char *path, int line_no,
-                    char *line, const ZirConsts *consts)
-{
+/* Buffers parse_compile_check keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ParseCompileCheckBuffers {
     char cond[ZIR_TEXT_MAX];
     char raw[ZIR_TEXT_MAX];
     char msg[ZIR_TEXT_MAX];
+} ParseCompileCheckBuffers;
 
+int parse_compile_check(ZirModule *module, const char *path, int line_no,
+                    char *line, const ZirConsts *consts);
+
+static int
+parse_compile_check_with_buffers(ZirModule *module, const char *path, int line_no,
+                    char *line, const ZirConsts *consts, ParseCompileCheckBuffers *buffers)
+{
     if(strncmp(line, "#assert", 7) == 0 &&
        (line[7] == '\0' || isspace((unsigned char)line[7]))) {
         char *body = trim(line + 7);
         char *comma;
-
         if(body[0] == '\0')
             die_at(Span(path, line_no, 1), "#assert needs a condition");
         comma = find_top_comma(body);
         if(comma != NULL) {
             *comma = '\0';
-            snprintf(msg, sizeof(msg), "%s", trim(comma + 1));
-            if(msg[0] == '\0')
-                snprintf(msg, sizeof(msg), "\"Ziran #assert failed\"");
+            snprintf(buffers->msg, sizeof(buffers->msg), "%s", trim(comma + 1));
+            if(buffers->msg[0] == '\0')
+                snprintf(buffers->msg, sizeof(buffers->msg), "\"Ziran #assert failed\"");
         } else {
-            snprintf(msg, sizeof(msg), "\"Ziran #assert failed\"");
+            snprintf(buffers->msg, sizeof(buffers->msg), "\"Ziran #assert failed\"");
         }
-        copy_text(raw, sizeof(raw), trim(body));
-        expand_compile_expr(cond, sizeof(cond), consts, raw, path);
+        copy_text(buffers->raw, sizeof(buffers->raw), trim(body));
+        expand_compile_expr(buffers->cond, sizeof(buffers->cond), consts, buffers->raw, path);
         {
             long value = 0;
-            int known = strstr(cond, "size_of") == NULL &&
-                (eval_const_condition(cond, &value, module, consts,
+            int known = strstr(buffers->cond, "size_of") == NULL &&
+                (eval_const_condition(buffers->cond, &value, module, consts,
                                       path, line_no, 0) ||
-                 eval_typed_condition(cond, module, consts,
+                 eval_typed_condition(buffers->cond, module, consts,
                                       Span(path, line_no, 1), &value));
-
             if(known && !value)
-                die_at(Span(path, line_no, 1), "#assert failed: %s", msg);
+                die_at(Span(path, line_no, 1), "#assert failed: %s", buffers->msg);
             if(known)
-                copy_text(cond, sizeof(cond), value ? "1" : "0");
+                copy_text(buffers->cond, sizeof(buffers->cond), value ? "1" : "0");
             else
-                copy_text(cond, sizeof(cond), raw);
-            if(!ModuleAddAssert(module, cond, msg, Span(path, line_no, 1)))
+                copy_text(buffers->cond, sizeof(buffers->cond), buffers->raw);
+            if(!ModuleAddAssert(module, buffers->cond, buffers->msg, Span(path, line_no, 1)))
                 die_at(Span(path, line_no, 1),
                        "out of memory while recording #assert");
         }
@@ -703,12 +805,27 @@ parse_compile_check(ZirModule *module, const char *path, int line_no,
     if(strncmp(line, "#error", 6) == 0 &&
        (line[6] == '\0' || isspace((unsigned char)line[6]))) {
         char *body = trim(line + 6);
-
         if(body[0] == '\0')
             die_at(Span(path, line_no, 1), "#error needs a message");
         die_at(Span(path, line_no, 1), "#error: %s", body);
     }
     return 0;
+}
+
+int
+parse_compile_check(ZirModule *module, const char *path, int line_no,
+                    char *line, const ZirConsts *consts)
+{
+    static _Thread_local ParseCompileCheckBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ParseCompileCheckBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = parse_compile_check_with_buffers(module, path, line_no, line, consts, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* Returns 1 when the line is consumed by top-level conditional handling

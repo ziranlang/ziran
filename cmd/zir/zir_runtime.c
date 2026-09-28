@@ -21,27 +21,34 @@ same_contents(const char *path, const char *text)
         fclose(file);
     return same && used == length;
 }
+/* Buffers EmitRuntimeHeaders keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitRuntimeHeadersBuffers {
+    char line[4096];
+    char path[4096];
+} EmitRuntimeHeadersBuffers;
 
-int
-EmitRuntimeHeaders(const char *out_dir, const char *generated_path)
+int EmitRuntimeHeaders(const char *out_dir, const char *generated_path);
+
+static int
+EmitRuntimeHeaders_with_buffers(const char *out_dir, const char *generated_path, EmitRuntimeHeadersBuffers *buffers)
 {
     FILE *file = fopen(generated_path, "rb");
-    char line[4096];
     if(file == NULL)
         return 0;
-    while(fgets(line, sizeof(line), file) != NULL) {
+    while(fgets(buffers->line, sizeof(buffers->line), file) != NULL) {
         for(const ZirRuntimeHeader *header = ZirRuntimeHeaders; header->name; header++) {
-            char include[256], path[4096];
+            char include[256];
             FILE *out;
             snprintf(include, sizeof(include), "#include \"%s\"", header->name);
-            if(strncmp(line, include, strlen(include)) != 0)
+            if(strncmp(buffers->line, include, strlen(include)) != 0)
                 continue;
-            snprintf(path, sizeof(path), "%s/%s", out_dir, header->name);
-            GeneratedOutputRecord(path);
+            snprintf(buffers->path, sizeof(buffers->path), "%s/%s", out_dir, header->name);
+            GeneratedOutputRecord(buffers->path);
             /* An unchanged header keeps its timestamp for build tools. */
-            if(same_contents(path, header->text))
+            if(same_contents(buffers->path, header->text))
                 continue;
-            out = fopen(path, "wb");
+            out = fopen(buffers->path, "wb");
             if(out == NULL || fputs(header->text, out) < 0) {
                 if(out != NULL) fclose(out);
                 fclose(file);
@@ -55,4 +62,19 @@ EmitRuntimeHeaders(const char *out_dir, const char *generated_path)
     }
     fclose(file);
     return 1;
+}
+
+int
+EmitRuntimeHeaders(const char *out_dir, const char *generated_path)
+{
+    static _Thread_local EmitRuntimeHeadersBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitRuntimeHeadersBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = EmitRuntimeHeaders_with_buffers(out_dir, generated_path, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

@@ -9,6 +9,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef enum {
@@ -62,12 +63,20 @@ evaluate_type_law(const ZirModule *module, const ZirLaw *law,
         return LAW_DISPROVED;
     }
 }
+/* Buffers evaluate_bounds_law keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EvaluateBoundsLawBuffers {
+    char type[ZIR_TEXT_MAX];
+    char resolved[ZIR_TEXT_MAX];
+    char buffer[ZIR_TEXT_MAX];
+} EvaluateBoundsLawBuffers;
 
-/* kind: bounds ---------------------------------------------------------- */
+static LawStatus evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
+                    char *detail, size_t size);
 
 static LawStatus
-evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
-                    char *detail, size_t size)
+evaluate_bounds_law_with_buffers(const ZirModule *module, const ZirLaw *law,
+                    char *detail, size_t size, EvaluateBoundsLawBuffers *buffers)
 {
     {
         /* `Type == N` / `>= N` / `<= N` compare the resolved bound. */
@@ -76,16 +85,15 @@ evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
             const char *op = strstr(law->payload, ops[o]);
             if(op == NULL)
                 continue;
-            char type[ZIR_TEXT_MAX];
             char wanted_text[ZIR_NAME_MAX];
             long wanted = 0;
             long bound = 0;
             size_t length = (size_t)(op - law->payload);
-            if(length == 0 || length >= sizeof(type))
+            if(length == 0 || length >= sizeof(buffers->type))
                 break;
-            memcpy(type, law->payload, length);
-            type[length] = '\0';
-            trim_in_place(type);
+            memcpy(buffers->type, law->payload, length);
+            buffers->type[length] = '\0';
+            trim_in_place(buffers->type);
             snprintf(wanted_text, sizeof(wanted_text), "%s",
                      skip_ws(op + 2));
             trim_in_place(wanted_text);
@@ -97,8 +105,7 @@ evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
                 return LAW_UNKNOWN;
             }
             {
-                char resolved[ZIR_TEXT_MAX];
-                const char *cursor = type;
+                const char *cursor = buffers->type;
                 for(int depth = 0; depth < 8; depth++) {
                     const ZirDefine *found = NULL;
                     if(cursor[0] == '[')
@@ -112,27 +119,27 @@ evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
                         break;
                     cursor = skip_ws(found->value);
                 }
-                snprintf(resolved, sizeof(resolved), "%s", cursor);
-                trim_in_place(resolved);
+                snprintf(buffers->resolved, sizeof(buffers->resolved), "%s", cursor);
+                trim_in_place(buffers->resolved);
                 {
-                    const char *close = strchr(resolved, ']');
+                    const char *close = strchr(buffers->resolved, ']');
                     char bound_text[ZIR_NAME_MAX];
                     if(close == NULL ||
-                       (size_t)(close - resolved - 1) >=
+                       (size_t)(close - buffers->resolved - 1) >=
                            sizeof(bound_text)) {
                         snprintf(detail, size,
-                                 "%s does not name a fixed-array type", type);
+                                 "%s does not name a fixed-array type", buffers->type);
                         return LAW_DISPROVED;
                     }
-                    memcpy(bound_text, resolved + 1,
-                           (size_t)(close - resolved - 1));
-                    bound_text[close - resolved - 1] = '\0';
+                    memcpy(bound_text, buffers->resolved + 1,
+                           (size_t)(close - buffers->resolved - 1));
+                    bound_text[close - buffers->resolved - 1] = '\0';
                     trim_in_place(bound_text);
                     if(!EvaluateCompileExpression(module, bound_text,
                                                   law->span, 0, &bound)) {
                         snprintf(detail, size,
                                  "%s has a bound the evaluator cannot fold",
-                                 type);
+                                 buffers->type);
                         return LAW_UNKNOWN;
                     }
                 }
@@ -140,7 +147,7 @@ evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
             {
                 int holds = o == 0 ? bound == wanted :
                              o == 1 ? bound >= wanted : bound <= wanted;
-                snprintf(detail, size, "%s bound %ld %s %ld", type, bound,
+                snprintf(detail, size, "%s bound %ld %s %ld", buffers->type, bound,
                          ops[o], wanted);
                 return holds ? LAW_PROVED : LAW_DISPROVED;
             }
@@ -149,7 +156,6 @@ evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
     {
     const char *payload = skip_ws(law->payload);
     const char *resolved = payload;
-    char buffer[ZIR_TEXT_MAX];
     char element[ZIR_NAME_MAX];
     int capacity;
     for(int depth = 0; depth < 8; depth++) {
@@ -167,7 +173,7 @@ evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
             resolved = skip_ws(found->value);
         }
     }
-    if(strlen(resolved) >= sizeof(buffer) ||
+    if(strlen(resolved) >= sizeof(buffers->buffer) ||
        !ArrayElementType(resolved, element, sizeof(element), &capacity)) {
         snprintf(detail, size, "%s does not name a fixed-array type",
                  law->payload);
@@ -208,6 +214,24 @@ evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
              law->payload);
     return LAW_UNKNOWN;
     }
+}
+
+/* kind: bounds ---------------------------------------------------------- */
+
+static LawStatus
+evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
+                    char *detail, size_t size)
+{
+    static _Thread_local EvaluateBoundsLawBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EvaluateBoundsLawBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    LawStatus returned = evaluate_bounds_law_with_buffers(module, law, detail, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* kind: effect ---------------------------------------------------------- */
@@ -385,14 +409,21 @@ portable_signature_type(const ZirModule *module, const char *type, int depth)
         return status == 0;
     }
 }
+/* Buffers evaluate_abi_law keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EvaluateAbiLawBuffers {
+    char parameters[64][ZIR_TEXT_MAX];
+} EvaluateAbiLawBuffers;
+
+static LawStatus evaluate_abi_law(const ZirModule *module, const ZirLaw *law,
+                 char *detail, size_t size);
 
 static LawStatus
-evaluate_abi_law(const ZirModule *module, const ZirLaw *law,
-                 char *detail, size_t size)
+evaluate_abi_law_with_buffers(const ZirModule *module, const ZirLaw *law,
+                 char *detail, size_t size, EvaluateAbiLawBuffers *buffers)
 {
     const ZirModule *owner = NULL;
     const ZirFunction *fn = NULL;
-    char parameters[64][ZIR_TEXT_MAX];
     int count;
     if(ResolveFunction(module, law->payload, &owner, &fn) <= 0 ||
         fn == NULL) {
@@ -413,10 +444,10 @@ evaluate_abi_law(const ZirModule *module, const ZirLaw *law,
         return LAW_UNKNOWN;
     }
     count = *skip_ws(fn->args) ?
-        split_top_level(fn->args, parameters[0], 64,
-                        sizeof(parameters[0])) : 0;
+        split_top_level(fn->args, buffers->parameters[0], 64,
+                        sizeof(buffers->parameters[0])) : 0;
     for(int p = 0; p < count; p++) {
-        char *colon = strchr(parameters[p], ':');
+        char *colon = strchr(buffers->parameters[p], ':');
         if(colon == NULL ||
            !portable_signature_type(module, skip_ws(colon + 1), 0)) {
             snprintf(detail, size,
@@ -432,6 +463,22 @@ evaluate_abi_law(const ZirModule *module, const ZirLaw *law,
     }
     snprintf(detail, size, "%s has a portable signature", law->payload);
     return LAW_PROVED;
+}
+
+static LawStatus
+evaluate_abi_law(const ZirModule *module, const ZirLaw *law,
+                 char *detail, size_t size)
+{
+    static _Thread_local EvaluateAbiLawBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EvaluateAbiLawBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    LawStatus returned = evaluate_abi_law_with_buffers(module, law, detail, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* kind: size ------------------------------------------------------------ */

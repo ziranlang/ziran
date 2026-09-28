@@ -1133,12 +1133,17 @@ readonly_text_destination(Checker *c, int index)
     }
     return 0;
 }
+/* Buffers contextual_slot keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ContextualSlotBuffers {
+    char actual[64][ZIR_TEXT_MAX];
+    char wanted[64][ZIR_TEXT_MAX];
+} ContextualSlotBuffers;
 
-/* Function values require a slot context; ordinary names retain lexical lookup.
- * Annotate before recursively checking expressions so a declaration identifier
- * is not mistaken for an unresolved variable. */
-void
-contextual_slot(Checker *c, int index, const char *expected)
+void contextual_slot(Checker *c, int index, const char *expected);
+
+static void
+contextual_slot_with_buffers(Checker *c, int index, const char *expected, ContextualSlotBuffers *buffers)
 {
     const ZirModule *slot_owner = NULL;
     const ZirType *slot = FindType(c->module, expected, &slot_owner);
@@ -1169,15 +1174,14 @@ contextual_slot(Checker *c, int index, const char *expected)
                 !strcmp(declaration->return_type, slot->procedure_return_type);
         }
     }
-    char actual[64][ZIR_TEXT_MAX], wanted[64][ZIR_TEXT_MAX];
     int actual_count = matches && *skip_ws(declaration->args) ?
-        split_top_level(declaration->args, actual[0], 64, sizeof(actual[0])) : 0;
+        split_top_level(declaration->args, buffers->actual[0], 64, sizeof(buffers->actual[0])) : 0;
     int wanted_count = *skip_ws(slot->body) ?
-        split_top_level(slot->body, wanted[0], 64, sizeof(wanted[0])) : 0;
+        split_top_level(slot->body, buffers->wanted[0], 64, sizeof(buffers->wanted[0])) : 0;
     matches &= actual_count == wanted_count;
     for(int i = 0; matches && i < wanted_count; i++) {
-        const char *actual_type = strchr(actual[i], ':');
-        const char *wanted_type = strchr(wanted[i], ':');
+        const char *actual_type = strchr(buffers->actual[i], ':');
+        const char *wanted_type = strchr(buffers->wanted[i], ':');
         if(actual_type == NULL || wanted_type == NULL) {
             matches = 0;
             break;
@@ -1204,6 +1208,23 @@ contextual_slot(Checker *c, int index, const char *expected)
     }
     value->is_function_value = 1;
     copy_text(value->type, sizeof(value->type), expected);
+}
+
+/* Function values require a slot context; ordinary names retain lexical lookup.
+ * Annotate before recursively checking expressions so a declaration identifier
+ * is not mistaken for an unresolved variable. */
+void
+contextual_slot(Checker *c, int index, const char *expected)
+{
+    static _Thread_local ContextualSlotBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ContextualSlotBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    contextual_slot_with_buffers(c, index, expected, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 int

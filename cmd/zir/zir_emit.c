@@ -449,17 +449,23 @@ ArrayAbiName(const ZirFunction *fn, int parameter, char *out, size_t size)
         collision = function_mentions(fn, out);
     } while(collision);
 }
+/* Buffers ArrayAbiArgs keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ArrayAbiArgsBuffers {
+    char parameters[64][ZIR_TEXT_MAX];
+} ArrayAbiArgsBuffers;
 
-void
-ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size)
+void ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size);
+
+static void
+ArrayAbiArgs_with_buffers(const ZirFunction *fn, char *out, size_t size, ArrayAbiArgsBuffers *buffers)
 {
     if(fn->return_type[0] != '[' && strchr(fn->args, '[') == NULL) {
         copy_text(out, size, fn->args);
         return;
     }
-    char parameters[64][ZIR_TEXT_MAX];
     int count = *skip_ws(fn->args) ?
-        split_top_level(fn->args, parameters[0], 64, sizeof(parameters[0])) : 0;
+        split_top_level(fn->args, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
     size_t used = 0;
     out[0] = '\0';
     if(ArrayElementType(fn->return_type, NULL, 0, NULL)) {
@@ -468,7 +474,7 @@ ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size)
         used += (size_t)format(out, size, "%s: %s", name, fn->return_type);
     }
     for(int i = 0; i < count; i++) {
-        char *colon = strchr(parameters[i], ':');
+        char *colon = strchr(buffers->parameters[i], ':');
         if(colon != NULL && ArrayValueType(skip_ws(colon + 1))) {
             char name[ZIR_NAME_MAX];
             ArrayAbiName(fn, i, name, sizeof(name));
@@ -476,9 +482,23 @@ ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size)
                                    used ? ", " : "", name, skip_ws(colon + 1));
         } else {
             used += (size_t)format(out + used, size - used, "%s%s",
-                                   used ? ", " : "", parameters[i]);
+                                   used ? ", " : "", buffers->parameters[i]);
         }
     }
+}
+
+void
+ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size)
+{
+    static _Thread_local ArrayAbiArgsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ArrayAbiArgsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    ArrayAbiArgs_with_buffers(fn, out, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 const char *
@@ -831,21 +851,28 @@ slot_native_type(const char *source, ZirTarget target, char *out, size_t size)
     const char *scalar = TargetType(source, target);
     copy_text(out, size, scalar ? scalar : source);
 }
-
-void
-EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
-                ZirResolveTarget resolve_type, void *context)
-{
+/* Buffers EmitSlotType keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitSlotTypeBuffers {
     char parameters[64][ZIR_TEXT_MAX];
+} EmitSlotTypeBuffers;
+
+void EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
+                ZirResolveTarget resolve_type, void *context);
+
+static void
+EmitSlotType_with_buffers(FILE *out, const ZirType *slot, ZirTarget target,
+                ZirResolveTarget resolve_type, void *context, EmitSlotTypeBuffers *buffers)
+{
     int count = *skip_ws(slot->body) ?
-        split_top_level(slot->body, parameters[0], 64, sizeof(parameters[0])) : 0;
+        split_top_level(slot->body, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
     if(slot->is_c_call) {
         char result[ZIR_NAME_MAX];
         slot_native_type(slot->procedure_return_type, target, result,
                          sizeof(result));
         fprintf(out, "typedef %s (*%s)(", result, slot->name);
         for(int i = 0; i < count; i++) {
-            const char *source = skip_ws(strchr(parameters[i], ':') + 1);
+            const char *source = skip_ws(strchr(buffers->parameters[i], ':') + 1);
             char type[ZIR_NAME_MAX];
             slot_native_type(source, target, type, sizeof(type));
             fprintf(out, "%s%s", i ? ", " : "", type);
@@ -870,7 +897,7 @@ EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
     else
         fprintf(out, "typedef struct %s {\n    void *context;\n    %s (*call)(void *", slot->name, result_type);
     for(int i = 0; i < count; i++) {
-        char *colon = strchr(parameters[i], ':');
+        char *colon = strchr(buffers->parameters[i], ':');
         char type[ZIR_NAME_MAX];
         const char *source = skip_ws(colon + 1);
         if(target == ZIR_GO) {
@@ -887,6 +914,21 @@ EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
         fprintf(out, ")%s%s\n\n", result_type[0] ? " " : "", result_type);
     else
         fprintf(out, ");\n} %s;\n", slot->name);
+}
+
+void
+EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
+                ZirResolveTarget resolve_type, void *context)
+{
+    static _Thread_local EmitSlotTypeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitSlotTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    EmitSlotType_with_buffers(out, slot, target, resolve_type, context, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 int width(const char *type) { return (*type == 's' || *type == 'u') ? atoi(type + 1) : 0; }
@@ -920,19 +962,29 @@ field_record(const ZirModule *module, const char *type)
     while(*base == '*') base = skip_ws(base + 1);
     return FindType(module, base, NULL);
 }
+/* Buffers emit_field_path keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitFieldPathBuffers {
+    char result[ZIR_TEXT_MAX];
+    char next[ZIR_TEXT_MAX];
+} EmitFieldPathBuffers;
 
-void
-emit_field_path(const ZirModule *module, ZirTarget target,
+void emit_field_path(const ZirModule *module, ZirTarget target,
                 const char *base_type, const char *path,
-                const char *base_expression, char *out, size_t size)
+                const char *base_expression, char *out, size_t size);
+
+static void
+emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
+                const char *base_type, const char *path,
+                const char *base_expression, char *out, size_t size, EmitFieldPathBuffers *buffers)
 {
-    char result[ZIR_TEXT_MAX], current_type[ZIR_NAME_MAX];
-    copy_text(result, sizeof(result), base_expression);
+    char current_type[ZIR_NAME_MAX];
+    copy_text(buffers->result, sizeof(buffers->result), base_expression);
     copy_text(current_type, sizeof(current_type), base_type);
     for(const char *part = path; *part;) {
         const char *dot = strchr(part, '.');
         size_t length = dot == NULL ? strlen(part) : (size_t)(dot - part);
-        char name[ZIR_NAME_MAX], mapped[ZIR_NAME_MAX], next[ZIR_TEXT_MAX];
+        char name[ZIR_NAME_MAX], mapped[ZIR_NAME_MAX];
         if(length == 0 || length >= sizeof(name)) {
             Diagnostic(module->span, "emit.expression",
                        "invalid checked record field path");
@@ -962,10 +1014,10 @@ emit_field_path(const ZirModule *module, ZirTarget target,
                    enumeration->is_enum)
                     go_type = field_type;
                 if(go_type != NULL) {
-                    format(next, sizeof(next),
+                    format(buffers->next, sizeof(buffers->next),
                            "*(*%s)(unsafe.Pointer(&%s.data[0]))", go_type,
-                           result);
-                    copy_text(result, sizeof(result), next);
+                           buffers->result);
+                    copy_text(buffers->result, sizeof(buffers->result), buffers->next);
                     if(dot == NULL) break;
                     part = dot + 1;
                     continue;
@@ -978,13 +1030,13 @@ emit_field_path(const ZirModule *module, ZirTarget target,
             TargetFieldName(record, target, name, mapped, sizeof(mapped));
         const char *base = skip_ws(current_type);
         /* A name or member chain binds tighter than . and -> already. */
-        int chain = result[0] != '\0' && !isdigit((unsigned char)result[0]);
-        for(const char *c = result; *c && chain; c++)
+        int chain = buffers->result[0] != '\0' && !isdigit((unsigned char)buffers->result[0]);
+        for(const char *c = buffers->result; *c && chain; c++)
             chain = is_ident_char((unsigned char)*c) || *c == '.' ||
-                    (c[0] == '-' && c[1] == '>') || (c[0] == '>' && c > result && c[-1] == '-');
-        format(next, sizeof(next), chain ? "%s%s%s" : "(%s)%s%s", result,
+                    (c[0] == '-' && c[1] == '>') || (c[0] == '>' && c > buffers->result && c[-1] == '-');
+        format(buffers->next, sizeof(buffers->next), chain ? "%s%s%s" : "(%s)%s%s", buffers->result,
                target != ZIR_GO && *base == '*' ? "->" : ".", mapped);
-        copy_text(result, sizeof(result), next);
+        copy_text(buffers->result, sizeof(buffers->result), buffers->next);
         if(dot == NULL) break;
         size_t offset = 0;
         ZirTypeField field;
@@ -1002,7 +1054,23 @@ emit_field_path(const ZirModule *module, ZirTarget target,
         }
         part = dot + 1;
     }
-    copy_text(out, size, result);
+    copy_text(out, size, buffers->result);
+}
+
+void
+emit_field_path(const ZirModule *module, ZirTarget target,
+                const char *base_type, const char *path,
+                const char *base_expression, char *out, size_t size)
+{
+    static _Thread_local EmitFieldPathBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitFieldPathBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_field_path_with_buffers(module, target, base_type, path, base_expression, out, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 void
@@ -1026,9 +1094,16 @@ zero_value(const char *type, ZirTarget target)
     if(!strcmp(canonical(type), "bool")) return "false";
     return "0";
 }
+/* Buffers portable_type_path keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct PortableTypePathBuffers {
+    char parameters[64][ZIR_TEXT_MAX];
+} PortableTypePathBuffers;
+
+static int portable_type_path(const ZirModule *module, const char *type, const TypePath *path);
 
 static int
-portable_type_path(const ZirModule *module, const char *type, const TypePath *path)
+portable_type_path_with_buffers(const ZirModule *module, const char *type, const TypePath *path, PortableTypePathBuffers *buffers)
 {
     const ZirModule *owner = NULL;
     const ZirType *record;
@@ -1036,7 +1111,6 @@ portable_type_path(const ZirModule *module, const char *type, const TypePath *pa
     ZirTypeField field;
     int fields = 0;
     int status;
-
     char slice_element[ZIR_NAME_MAX];
     if(SliceElementType(type, slice_element, sizeof(slice_element))) {
         /* A slice is a pointer and a count, so like `*T` it may refer back
@@ -1053,7 +1127,6 @@ portable_type_path(const ZirModule *module, const char *type, const TypePath *pa
     if(strchr(type, '*') != NULL) return 1;
     {
         char element[ZIR_NAME_MAX];
-
         if(ArrayElementType(type, element, sizeof(element), NULL))
             return portable_type_path(module, element, path);
     }
@@ -1065,11 +1138,10 @@ portable_type_path(const ZirModule *module, const char *type, const TypePath *pa
     if(record->is_procedure_type) {
         if(record->is_c_call)
             return 1; /* Native callback; the VM and Go target reject it. */
-        char parameters[64][ZIR_TEXT_MAX];
         int count = *skip_ws(record->body) ?
-            split_top_level(record->body, parameters[0], 64, sizeof(parameters[0])) : 0;
+            split_top_level(record->body, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
         for(int i = 0; i < count; i++) {
-            char *colon = strchr(parameters[i], ':');
+            char *colon = strchr(buffers->parameters[i], ':');
             if(colon == NULL || !portable_type_path(owner, skip_ws(colon + 1), path))
                 return 0;
         }
@@ -1086,6 +1158,21 @@ portable_type_path(const ZirModule *module, const char *type, const TypePath *pa
         fields++;
     }
     return status == 0 && fields > 0;
+}
+
+static int
+portable_type_path(const ZirModule *module, const char *type, const TypePath *path)
+{
+    static _Thread_local PortableTypePathBuffers *spares[16];
+    static _Thread_local int spare_count;
+    PortableTypePathBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = portable_type_path_with_buffers(module, type, path, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -1130,19 +1217,25 @@ supported_expression(const ZirModule *module, const ZirFunction *fn, int index)
         if(!supported_expression(module, fn, child)) return 0;
     return 1;
 }
-
-int
-CanEmitBody(const ZirModule *module, const ZirFunction *fn)
-{
+/* Buffers CanEmitBody keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CanEmitBodyBuffers {
     char params[64][ZIR_TEXT_MAX];
+} CanEmitBodyBuffers;
+
+int CanEmitBody(const ZirModule *module, const ZirFunction *fn);
+
+static int
+CanEmitBody_with_buffers(const ZirModule *module, const ZirFunction *fn, CanEmitBodyBuffers *buffers)
+{
     int count;
     int result;
     /* Eligibility follows the typed function body and its operations.
      * Host calls and unsupported composition fail the same checks. */
     if(!fn->checked || fn->is_extern || !portable_type(module, fn->return_type)) return 0;
-    count = *skip_ws(fn->args) ? split_top_level(fn->args, params[0], 64, sizeof(params[0])) : 0;
+    count = *skip_ws(fn->args) ? split_top_level(fn->args, buffers->params[0], 64, sizeof(buffers->params[0])) : 0;
     for(int i = 0; i < count; i++) {
-        char *colon = strchr(params[i], ':');
+        char *colon = strchr(buffers->params[i], ':');
         if(!colon || !portable_type(module, skip_ws(colon + 1))) return 0;
     }
     for(int i = 0; i < fn->stmt_count; i++) {
@@ -1167,6 +1260,21 @@ CanEmitBody(const ZirModule *module, const ZirFunction *fn)
         if(!supported_expression(module, fn, st->expr_root) || !supported_expression(module, fn, st->lhs_root)) return 0;
     }
     return 1;
+}
+
+int
+CanEmitBody(const ZirModule *module, const ZirFunction *fn)
+{
+    static _Thread_local CanEmitBodyBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CanEmitBodyBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = CanEmitBody_with_buffers(module, fn, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 void

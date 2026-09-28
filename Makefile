@@ -4,6 +4,9 @@ OBJCOPY ?= objcopy
 CFLAGS ?= -O2
 override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
 DEPFLAGS = -MMD -MP
+# Compiler code keeps large buffers on the heap so the deepest nesting the
+# language allows fits the default stack; a bigger frame is a build error.
+FRAMEFLAGS = -Werror=frame-larger-than=16384
 
 # Build in parallel on half the cores, between 2 and 16 jobs, at low
 # priority so the desktop and other work keep the CPU when they need it.
@@ -55,7 +58,7 @@ install-user: all
 
 $(BUILD_DIR)/obj/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c
 	@mkdir -p $(dir $@)
@@ -159,7 +162,7 @@ $(BIN_DIR)/zi2cpp: $(call obj,cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c) \
 	$(CC) $(CFLAGS) -o $@ $^
 
 $(BIN_DIR)/zi2rust: $(call obj,cmd/zir-rust/main.c cmd/zir-rust/zir_rust_lower.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -pthread
+	$(CC) $(CFLAGS) -o $@ $^
 
 $(BIN_DIR)/zi2zib: $(call obj,cmd/zir-zib/main.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^

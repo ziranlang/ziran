@@ -818,14 +818,22 @@ ProgramLoad(const char *path, const char *root)
     fclose(file);
     return program;
 }
+/* Buffers CheckCanonicalPrograms keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CheckCanonicalProgramsBuffers {
+    unsigned char left[8192];
+    unsigned char right[8192];
+} CheckCanonicalProgramsBuffers;
 
-int
-CheckCanonicalPrograms(ZirProgram **programs, int count,
-                       const char *const *input_paths)
+int CheckCanonicalPrograms(ZirProgram **programs, int count,
+                       const char *const *input_paths);
+
+static int
+CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
+                       const char *const *input_paths, CheckCanonicalProgramsBuffers *buffers)
 {
     FILE *before = NULL;
     FILE *after = NULL;
-    unsigned char left[8192], right[8192];
     int saved_count = 0;
     int first_saved = -1;
     int valid = 0;
@@ -879,10 +887,10 @@ CheckCanonicalPrograms(ZirProgram **programs, int count,
     if(fseek(before, 0, SEEK_SET) || fseek(after, 0, SEEK_SET))
         goto failed;
     for(;;) {
-        size_t left_count = fread(left, 1, sizeof(left), before);
-        size_t right_count = fread(right, 1, sizeof(right), after);
+        size_t left_count = fread(buffers->left, 1, sizeof(buffers->left), before);
+        size_t right_count = fread(buffers->right, 1, sizeof(buffers->right), after);
         if(left_count != right_count ||
-           memcmp(left, right, left_count) != 0) {
+           memcmp(buffers->left, buffers->right, left_count) != 0) {
             Diagnostic(Span(input_paths != NULL ? input_paths[first_saved] : "<bundle>",
                             1, 1), "zir.noncanonical",
                        "saved IR does not match the checked program");
@@ -910,4 +918,20 @@ done:
     if(after != NULL)
         fclose(after);
     return valid;
+}
+
+int
+CheckCanonicalPrograms(ZirProgram **programs, int count,
+                       const char *const *input_paths)
+{
+    static _Thread_local CheckCanonicalProgramsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CheckCanonicalProgramsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = CheckCanonicalPrograms_with_buffers(programs, count, input_paths, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

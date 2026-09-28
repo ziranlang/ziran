@@ -877,17 +877,25 @@ wrap_compile_integer(const char *type, long *value)
     else return !strcmp(type, "s64");
     return 1;
 }
+/* Buffers compile_values_equal keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CompileValuesEqualBuffers {
+    unsigned char a[ZIR_TEXT_MAX];
+    unsigned char b[ZIR_TEXT_MAX];
+} CompileValuesEqualBuffers;
 
-int
-compile_values_equal(const CompileValue *left, const CompileValue *right,
-                     int *equal)
+int compile_values_equal(const CompileValue *left, const CompileValue *right,
+                     int *equal);
+
+static int
+compile_values_equal_with_buffers(const CompileValue *left, const CompileValue *right,
+                     int *equal, CompileValuesEqualBuffers *buffers)
 {
     if(left->kind == COMPILE_STRING && right->kind == COMPILE_STRING) {
-        unsigned char a[ZIR_TEXT_MAX], b[ZIR_TEXT_MAX];
         size_t an, bn;
-        if(!DecodeStringLiteral(left->literal, a, sizeof(a), &an) ||
-           !DecodeStringLiteral(right->literal, b, sizeof(b), &bn)) return 0;
-        *equal = an == bn && memcmp(a, b, an) == 0;
+        if(!DecodeStringLiteral(left->literal, buffers->a, sizeof(buffers->a), &an) ||
+           !DecodeStringLiteral(right->literal, buffers->b, sizeof(buffers->b), &bn)) return 0;
+        *equal = an == bn && memcmp(buffers->a, buffers->b, an) == 0;
         return 1;
     }
     if(left->kind == COMPILE_INTEGER && right->kind == COMPILE_INTEGER) {
@@ -904,6 +912,22 @@ compile_values_equal(const CompileValue *left, const CompileValue *right,
         return 1;
     }
     return 0;
+}
+
+int
+compile_values_equal(const CompileValue *left, const CompileValue *right,
+                     int *equal)
+{
+    static _Thread_local CompileValuesEqualBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CompileValuesEqualBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = compile_values_equal_with_buffers(left, right, equal, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int
@@ -987,30 +1011,39 @@ compile_compound_value(const ZirFunction *probe, const ZirExpr *expression,
     result->type_owner = module;
     return 1;
 }
+/* Buffers compile_compound_member keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CompileCompoundMemberBuffers {
+    ZirFunction probe;
+} CompileCompoundMemberBuffers;
 
-int
-compile_compound_member(const CompileValue *compound, const char *member,
+int compile_compound_member(const CompileValue *compound, const char *member,
                         const ZirModule *module, const char *path, int depth,
-                        int *fuel, CompileValue *result)
+                        int *fuel, CompileValue *result);
+
+static int
+compile_compound_member_with_buffers(const CompileValue *compound, const char *member,
+                        const ZirModule *module, const char *path, int depth,
+                        int *fuel, CompileValue *result, CompileCompoundMemberBuffers *buffers)
 {
     if(compound->type_owner != NULL)
         module = compound->type_owner;
-    ZirFunction probe = {0};
-    int root = ParseExpr(&probe, module, compound->literal,
+    memset(&buffers->probe, 0, sizeof(buffers->probe));
+    int root = ParseExpr(&buffers->probe, module, compound->literal,
                          Span(path, 1, 1));
     int found = 0;
-    if(root >= 0 && probe.exprs[root].kind == ZIR_EXPR_COMPOUND) {
+    if(root >= 0 && buffers->probe.exprs[root].kind == ZIR_EXPR_COMPOUND) {
         const ZirType *record = FindType(module, compound->type, NULL);
-        for(int child = probe.exprs[root].first_child; child >= 0;
-            child = probe.exprs[child].next_sibling) {
-            const ZirExpr *entry = &probe.exprs[child];
+        for(int child = buffers->probe.exprs[root].first_child; child >= 0;
+            child = buffers->probe.exprs[child].next_sibling) {
+            const ZirExpr *entry = &buffers->probe.exprs[child];
             if(!strcmp(entry->name, member)) {
                 ZirTypeField field;
                 size_t offset = 0;
                 while(record != NULL &&
                       TypeNextField(record, &offset, &field) == 1)
                     if(!strcmp(field.name, member)) {
-                        found = evaluate_typed_node(&probe, entry->right,
+                        found = evaluate_typed_node(&buffers->probe, entry->right,
                                                     module, path, depth + 1,
                                                     fuel, result) &&
                                 compile_type_value(field.type, result);
@@ -1020,14 +1053,40 @@ compile_compound_member(const CompileValue *compound, const char *member,
             }
         }
     }
-    free(probe.exprs);
+    free(buffers->probe.exprs);
     return found;
 }
 
 int
-compile_compound_index(const CompileValue *compound, long index,
+compile_compound_member(const CompileValue *compound, const char *member,
+                        const ZirModule *module, const char *path, int depth,
+                        int *fuel, CompileValue *result)
+{
+    static _Thread_local CompileCompoundMemberBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CompileCompoundMemberBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = compile_compound_member_with_buffers(compound, member, module, path, depth, fuel, result, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers compile_compound_index keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CompileCompoundIndexBuffers {
+    ZirFunction probe;
+} CompileCompoundIndexBuffers;
+
+int compile_compound_index(const CompileValue *compound, long index,
                        const ZirModule *module, const char *path, int depth,
-                       int *fuel, CompileValue *result)
+                       int *fuel, CompileValue *result);
+
+static int
+compile_compound_index_with_buffers(const CompileValue *compound, long index,
+                       const ZirModule *module, const char *path, int depth,
+                       int *fuel, CompileValue *result, CompileCompoundIndexBuffers *buffers)
 {
     if(compound->type_owner != NULL)
         module = compound->type_owner;
@@ -1036,22 +1095,39 @@ compile_compound_index(const CompileValue *compound, long index,
     if(!ArrayElementType(compound->type, element, sizeof(element),
                          &capacity) || index < 0 || index >= capacity)
         return 0;
-    ZirFunction probe = {0};
-    int root = ParseExpr(&probe, module, compound->literal,
+    memset(&buffers->probe, 0, sizeof(buffers->probe));
+    int root = ParseExpr(&buffers->probe, module, compound->literal,
                          Span(path, 1, 1));
     int found = 0, ordinal = 0;
-    if(root >= 0 && probe.exprs[root].kind == ZIR_EXPR_COMPOUND)
-        for(int child = probe.exprs[root].first_child; child >= 0;
-            child = probe.exprs[child].next_sibling, ordinal++)
+    if(root >= 0 && buffers->probe.exprs[root].kind == ZIR_EXPR_COMPOUND)
+        for(int child = buffers->probe.exprs[root].first_child; child >= 0;
+            child = buffers->probe.exprs[child].next_sibling, ordinal++)
             if(ordinal == index) {
-                found = evaluate_typed_node(&probe, probe.exprs[child].right,
+                found = evaluate_typed_node(&buffers->probe, buffers->probe.exprs[child].right,
                                             module, path, depth + 1, fuel,
                                             result) &&
                         compile_type_value(element, result);
                 break;
             }
-    free(probe.exprs);
+    free(buffers->probe.exprs);
     return found;
+}
+
+int
+compile_compound_index(const CompileValue *compound, long index,
+                       const ZirModule *module, const char *path, int depth,
+                       int *fuel, CompileValue *result)
+{
+    static _Thread_local CompileCompoundIndexBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CompileCompoundIndexBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = compile_compound_index_with_buffers(compound, index, module, path, depth, fuel, result, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int

@@ -90,12 +90,24 @@ global_type_at_use(const ZirModule *module, const ZirModule *scope,
     }
     return 0;
 }
+/* Buffers emit_global_literal_node keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitGlobalLiteralNodeBuffers {
+    char call[ZIR_TEXT_MAX];
+    char resolved[ZIR_TEXT_MAX];
+    char scalar[ZIR_TEXT_MAX * 2];
+} EmitGlobalLiteralNodeBuffers;
 
-static int
-emit_global_literal_node(GlobalLiteralEmit *emit, int index,
+static int emit_global_literal_node(GlobalLiteralEmit *emit, int index,
                          const ZirModule *scope, const char *type,
                          char *out, size_t size,
-                         size_t *used, int depth)
+                         size_t *used, int depth);
+
+static int
+emit_global_literal_node_with_buffers(GlobalLiteralEmit *emit, int index,
+                         const ZirModule *scope, const char *type,
+                         char *out, size_t size,
+                         size_t *used, int depth, EmitGlobalLiteralNodeBuffers *buffers)
 {
     if(index < 0 || index >= emit->probe->expr_count || depth > 32)
         return 0;
@@ -187,17 +199,16 @@ emit_global_literal_node(GlobalLiteralEmit *emit, int index,
     const ZirType *slot = global_function_slot(emit->module, scope,
                                                 type, expr);
     if(slot != NULL) {
-        char call[ZIR_TEXT_MAX], resolved[ZIR_TEXT_MAX];
         size_t length;
         if(emit->target == ZIR_GO || slot->is_c_call) {
             if(emit->scalar == NULL) return 0;
-            format(call, sizeof(call), "%s()", expr->name);
-            if(!emit->scalar(emit->module, call, resolved,
-                             sizeof(resolved), emit->context)) return 0;
-            length = strlen(resolved);
-            if(length < 2 || strcmp(resolved + length - 2, "()")) return 0;
-            resolved[length - 2] = '\0';
-            return append_global_literal(out, size, used, "%s", resolved);
+            format(buffers->call, sizeof(buffers->call), "%s()", expr->name);
+            if(!emit->scalar(emit->module, buffers->call, buffers->resolved,
+                             sizeof(buffers->resolved), emit->context)) return 0;
+            length = strlen(buffers->resolved);
+            if(length < 2 || strcmp(buffers->resolved + length - 2, "()")) return 0;
+            buffers->resolved[length - 2] = '\0';
+            return append_global_literal(out, size, used, "%s", buffers->resolved);
         }
         char wrapper[ZIR_NAME_MAX];
         global_slot_wrapper_name(emit->module, emit->global, index,
@@ -207,14 +218,70 @@ emit_global_literal_node(GlobalLiteralEmit *emit, int index,
                                                              "{nullptr, %s}",
                                      wrapper);
     }
-    char scalar[ZIR_TEXT_MAX * 2];
     if(!ScalarLiteral(type, expr->text, emit->target, emit->span,
-                      scalar, sizeof(scalar))) {
+                      buffers->scalar, sizeof(buffers->scalar))) {
         if(emit->scalar == NULL ||
-           !emit->scalar(emit->module, expr->text, scalar,
-                         sizeof(scalar), emit->context)) return 0;
+           !emit->scalar(emit->module, expr->text, buffers->scalar,
+                         sizeof(buffers->scalar), emit->context)) return 0;
     }
-    return append_global_literal(out, size, used, "%s", scalar);
+    return append_global_literal(out, size, used, "%s", buffers->scalar);
+}
+
+static int
+emit_global_literal_node(GlobalLiteralEmit *emit, int index,
+                         const ZirModule *scope, const char *type,
+                         char *out, size_t size,
+                         size_t *used, int depth)
+{
+    static _Thread_local EmitGlobalLiteralNodeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitGlobalLiteralNodeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = emit_global_literal_node_with_buffers(emit, index, scope, type, out, size, used, depth, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers EmitGlobalInitializer keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitGlobalInitializerBuffers {
+    ZirFunction probe;
+} EmitGlobalInitializerBuffers;
+
+int EmitGlobalInitializer(const ZirModule *module, const ZirGlobal *global,
+                      ZirTarget target, ZirGlobalScalarRewrite scalar,
+                      ZirGlobalTypeRewrite type_name,
+                      ZirGlobalFieldRewrite field_name, void *context,
+                      char *out, size_t size);
+
+static int
+EmitGlobalInitializer_with_buffers(const ZirModule *module, const ZirGlobal *global,
+                      ZirTarget target, ZirGlobalScalarRewrite scalar,
+                      ZirGlobalTypeRewrite type_name,
+                      ZirGlobalFieldRewrite field_name, void *context,
+                      char *out, size_t size, EmitGlobalInitializerBuffers *buffers)
+{
+    memset(&buffers->probe, 0, sizeof(buffers->probe));
+    int root, ok;
+    size_t used = 0;
+    if(size == 0 || !global->init[0]) return 0;
+    out[0] = '\0';
+    root = ParseExprTyped(&buffers->probe, module, global->init,
+                          global->span, global->type);
+    if(root < 0 || (buffers->probe.exprs[root].kind != ZIR_EXPR_COMPOUND &&
+       global_function_slot(module, module, global->type,
+                            &buffers->probe.exprs[root]) == NULL)) {
+        free(buffers->probe.exprs);
+        return 0;
+    }
+    GlobalLiteralEmit emit = {module, global, &buffers->probe, target, global->span,
+                              scalar, type_name, field_name, context};
+    ok = emit_global_literal_node(&emit, root, module, global->type, out, size,
+                                  &used, 0);
+    free(buffers->probe.exprs);
+    return ok ? 1 : -1;
 }
 
 int
@@ -224,34 +291,39 @@ EmitGlobalInitializer(const ZirModule *module, const ZirGlobal *global,
                       ZirGlobalFieldRewrite field_name, void *context,
                       char *out, size_t size)
 {
-    ZirFunction probe = {0};
-    int root, ok;
-    size_t used = 0;
-    if(size == 0 || !global->init[0]) return 0;
-    out[0] = '\0';
-    root = ParseExprTyped(&probe, module, global->init,
-                          global->span, global->type);
-    if(root < 0 || (probe.exprs[root].kind != ZIR_EXPR_COMPOUND &&
-       global_function_slot(module, module, global->type,
-                            &probe.exprs[root]) == NULL)) {
-        free(probe.exprs);
-        return 0;
-    }
-    GlobalLiteralEmit emit = {module, global, &probe, target, global->span,
-                              scalar, type_name, field_name, context};
-    ok = emit_global_literal_node(&emit, root, module, global->type, out, size,
-                                  &used, 0);
-    free(probe.exprs);
-    return ok ? 1 : -1;
+    static _Thread_local EmitGlobalInitializerBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitGlobalInitializerBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = EmitGlobalInitializer_with_buffers(module, global, target, scalar, type_name, field_name, context, out, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
+/* Buffers emit_global_slot_wrappers_node keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitGlobalSlotWrappersNodeBuffers {
+    char parameters[64][ZIR_TEXT_MAX];
+    char call[ZIR_TEXT_MAX];
+    char resolved[ZIR_TEXT_MAX];
+} EmitGlobalSlotWrappersNodeBuffers;
 
-static void
-emit_global_slot_wrappers_node(FILE *out, const ZirModule *module,
+static void emit_global_slot_wrappers_node(FILE *out, const ZirModule *module,
                                const ZirGlobal *global,
                                const ZirFunction *probe, int index,
                                const ZirModule *scope, const char *type,
                                ZirTarget target, ZirResolveTarget resolver,
-                               void *context, int depth)
+                               void *context, int depth);
+
+static void
+emit_global_slot_wrappers_node_with_buffers(FILE *out, const ZirModule *module,
+                               const ZirGlobal *global,
+                               const ZirFunction *probe, int index,
+                               const ZirModule *scope, const char *type,
+                               ZirTarget target, ZirResolveTarget resolver,
+                               void *context, int depth, EmitGlobalSlotWrappersNodeBuffers *buffers)
 {
     if(index < 0 || index >= probe->expr_count || depth > 32) return;
     const ZirExpr *value = &probe->exprs[index];
@@ -280,11 +352,10 @@ emit_global_slot_wrappers_node(FILE *out, const ZirModule *module,
     }
     const ZirType *slot = global_function_slot(module, scope, type, value);
     if(slot == NULL || slot->is_c_call) return;
-    char parameters[64][ZIR_TEXT_MAX];
     int count = *skip_ws(slot->body) ?
-        split_top_level(slot->body, parameters[0], 64,
-                        sizeof(parameters[0])) : 0;
-    char wrapper[ZIR_NAME_MAX], call[ZIR_TEXT_MAX], resolved[ZIR_TEXT_MAX];
+        split_top_level(slot->body, buffers->parameters[0], 64,
+                        sizeof(buffers->parameters[0])) : 0;
+    char wrapper[ZIR_NAME_MAX];
     char result_type[ZIR_NAME_MAX], resolved_result[ZIR_NAME_MAX];
     slot_native_type(slot->procedure_return_type, target,
                      result_type, sizeof(result_type));
@@ -293,24 +364,69 @@ emit_global_slot_wrappers_node(FILE *out, const ZirModule *module,
     global_slot_wrapper_name(module, global, index,
                              wrapper, sizeof(wrapper));
     fprintf(out, "static %s %s(void *context", resolved_result, wrapper);
-    size_t length = (size_t)format(call, sizeof(call), "%s(", value->name);
+    size_t length = (size_t)format(buffers->call, sizeof(buffers->call), "%s(", value->name);
     for(int argument = 0; argument < count; argument++) {
-        const char *separator = strchr(parameters[argument], ':');
+        const char *separator = strchr(buffers->parameters[argument], ':');
         if(separator == NULL) break;
         const char *source = skip_ws(separator + 1);
         char native_type[ZIR_NAME_MAX], resolved_type[ZIR_NAME_MAX];
         slot_native_type(source, target, native_type, sizeof(native_type));
         resolver(context, native_type, resolved_type, sizeof(resolved_type));
         fprintf(out, ", %s slot_arg_%d", resolved_type, argument);
-        length += (size_t)format(call + length, sizeof(call) - length,
+        length += (size_t)format(buffers->call + length, sizeof(buffers->call) - length,
                                   "%sslot_arg_%d",
                                   argument ? ", " : "", argument);
     }
-    format(call + length, sizeof(call) - length, ")");
-    resolver(context, call, resolved, sizeof(resolved));
+    format(buffers->call + length, sizeof(buffers->call) - length, ")");
+    resolver(context, buffers->call, buffers->resolved, sizeof(buffers->resolved));
     fprintf(out, ")\n{\n    (void)context;\n    %s%s;\n}\n",
             strcmp(slot->procedure_return_type, "void") ? "return " : "",
-            resolved);
+            buffers->resolved);
+}
+
+static void
+emit_global_slot_wrappers_node(FILE *out, const ZirModule *module,
+                               const ZirGlobal *global,
+                               const ZirFunction *probe, int index,
+                               const ZirModule *scope, const char *type,
+                               ZirTarget target, ZirResolveTarget resolver,
+                               void *context, int depth)
+{
+    static _Thread_local EmitGlobalSlotWrappersNodeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitGlobalSlotWrappersNodeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_global_slot_wrappers_node_with_buffers(out, module, global, probe, index, scope, type, target, resolver, context, depth, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers EmitGlobalSlotWrappers keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitGlobalSlotWrappersBuffers {
+    ZirFunction probe;
+} EmitGlobalSlotWrappersBuffers;
+
+void EmitGlobalSlotWrappers(FILE *out, const ZirModule *module,
+                       const ZirGlobal *global, ZirTarget target,
+                       ZirResolveTarget resolver, void *context);
+
+static void
+EmitGlobalSlotWrappers_with_buffers(FILE *out, const ZirModule *module,
+                       const ZirGlobal *global, ZirTarget target,
+                       ZirResolveTarget resolver, void *context, EmitGlobalSlotWrappersBuffers *buffers)
+{
+    memset(&buffers->probe, 0, sizeof(buffers->probe));
+    if((target != ZIR_C && target != ZIR_CPP) || !global->init[0])
+        return;
+    int root = ParseExprTyped(&buffers->probe, module, global->init,
+                              global->span, global->type);
+    if(root >= 0)
+        emit_global_slot_wrappers_node(out, module, global, &buffers->probe, root,
+                                       module, global->type, target,
+                                       resolver, context, 0);
+    free(buffers->probe.exprs);
 }
 
 void
@@ -318,16 +434,15 @@ EmitGlobalSlotWrappers(FILE *out, const ZirModule *module,
                        const ZirGlobal *global, ZirTarget target,
                        ZirResolveTarget resolver, void *context)
 {
-    ZirFunction probe = {0};
-    if((target != ZIR_C && target != ZIR_CPP) || !global->init[0])
-        return;
-    int root = ParseExprTyped(&probe, module, global->init,
-                              global->span, global->type);
-    if(root >= 0)
-        emit_global_slot_wrappers_node(out, module, global, &probe, root,
-                                       module, global->type, target,
-                                       resolver, context, 0);
-    free(probe.exprs);
+    static _Thread_local EmitGlobalSlotWrappersBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitGlobalSlotWrappersBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    EmitGlobalSlotWrappers_with_buffers(out, module, global, target, resolver, context, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static void
@@ -454,12 +569,23 @@ call_can_change(const Emitter *e, int index)
         return 1;
     }
 }
-
-void
-emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size)
-{
+/* Buffers emit_call keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitCallBuffers {
     char text[ZIR_TEXT_MAX];
-    char arguments[64][ZIR_NAME_MAX] = {{0}};
+    char arguments[64][ZIR_NAME_MAX];
+    char source[ZIR_TEXT_MAX];
+    char argument[ZIR_TEXT_MAX];
+    char plain[ZIR_TEXT_MAX];
+    char resolved[ZIR_TEXT_MAX];
+} EmitCallBuffers;
+
+void emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size);
+
+static void
+emit_call_with_buffers(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size, EmitCallBuffers *buffers)
+{
+    memset(buffers->arguments, 0, sizeof(buffers->arguments));
     int count=0;
     int argument_count = 0;
     int has_named = 0;
@@ -470,39 +596,37 @@ emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, 
     if(*expr->slot_type) {
         char callable[ZIR_NAME_MAX];
         fresh(e, callable);
-        char source[ZIR_TEXT_MAX];
         if(expr->name[0]) {
-            resolve(e, expr->name, source, sizeof(source));
+            resolve(e, expr->name, buffers->source, sizeof(buffers->source));
         } else {
             /* Anonymous slot call: the callee expression (a record field,
              * a local, or an index) names the callable. */
-            source[0] = '\0';
-            emit_expr(e, expr->left, expr->slot_type, source, sizeof(source));
+            buffers->source[0] = '\0';
+            emit_expr(e, expr->left, expr->slot_type, buffers->source, sizeof(buffers->source));
         }
-        declare(e, callable, expr->slot_type, source);
+        declare(e, callable, expr->slot_type, buffers->source);
         if(e->target == ZIR_C || e->target == ZIR_CPP) {
             const ZirType *slot = FindType(e->module, expr->slot_type, NULL);
             if(slot != NULL && slot->is_c_call) {
-                n = (size_t)format(text, sizeof(text), "%s(", callable);
+                n = (size_t)format(buffers->text, sizeof(buffers->text), "%s(", callable);
             } else {
-                n = (size_t)format(text, sizeof(text), "%s.call(%s.context", callable, callable);
+                n = (size_t)format(buffers->text, sizeof(buffers->text), "%s.call(%s.context", callable, callable);
                 count = 1;
             }
         } else {
-            n = (size_t)format(text, sizeof(text), "%s(", callable);
+            n = (size_t)format(buffers->text, sizeof(buffers->text), "%s(", callable);
         }
     } else {
-        n = (size_t)format(text, sizeof(text), "%s(", expr->name);
+        n = (size_t)format(buffers->text, sizeof(buffers->text), "%s(", expr->name);
     }
     if(array_result != NULL) {
-        n += (size_t)format(text + n, sizeof(text) - n, "%s%s", count ? ", " : "", array_result);
+        n += (size_t)format(buffers->text + n, sizeof(buffers->text) - n, "%s%s", count ? ", " : "", array_result);
         count++;
     }
     for(int child=expr->first_child;child>=0;child=e->fn->exprs[child].next_sibling) {
         int ordinal = e->fn->exprs[child].argument_index;
-        char argument[ZIR_TEXT_MAX];
         char argument_type[ZIR_NAME_MAX];
-        if(ordinal < 0 || ordinal >= 64 || arguments[ordinal][0])
+        if(ordinal < 0 || ordinal >= 64 || buffers->arguments[ordinal][0])
             fatal(expr, "invalid checked call argument order");
         copy_text(argument_type, sizeof(argument_type),
                   e->fn->exprs[child].type);
@@ -530,21 +654,20 @@ emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, 
          * change. Go runs the calls themselves left to right; C does not. */
         e->call_in_place = !has_named && !later_reads &&
                            (e->target == ZIR_GO || !later_calls);
-        emit_expr(e,child,argument_type,argument,sizeof(argument));
+        emit_expr(e,child,argument_type,buffers->argument,sizeof(buffers->argument));
         if((later_calls && call_can_change(e, child)) ||
-           (!plain_identifier(argument) &&
+           (!plain_identifier(buffers->argument) &&
             ((has_named && expression_calls(e->fn, child)) ||
-             strlen(argument) >= ZIR_NAME_MAX))) {
+             strlen(buffers->argument) >= ZIR_NAME_MAX))) {
             char captured[ZIR_NAME_MAX];
             fresh(e, captured);
-            declare(e, captured, argument_type, argument);
-            copy_text(argument, sizeof(argument), captured);
+            declare(e, captured, argument_type, buffers->argument);
+            copy_text(buffers->argument, sizeof(buffers->argument), captured);
         }
         {
             /* An argument stands alone between commas. */
-            char plain[ZIR_TEXT_MAX];
-            copy_text(arguments[ordinal], sizeof(arguments[ordinal]),
-                      bare(argument, plain, sizeof(plain)));
+            copy_text(buffers->arguments[ordinal], sizeof(buffers->arguments[ordinal]),
+                      bare(buffers->argument, buffers->plain, sizeof(buffers->plain)));
         }
         argument_count++;
     }
@@ -553,21 +676,34 @@ emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, 
      * or parameter must never become an imported name it shadows. */
     for(int ordinal = 0; ordinal < argument_count; ordinal++) {
         char placeholder[ZIR_NAME_MAX];
-        if(!arguments[ordinal][0])
+        if(!buffers->arguments[ordinal][0])
             fatal(expr, "missing checked call argument");
         format(placeholder, sizeof(placeholder), "zir_call_argument_%d", ordinal);
-        n += (size_t)format(text+n, sizeof(text)-n, "%s%s", count ? ", " : "",
-                            *expr->slot_type ? arguments[ordinal] : placeholder);
+        n += (size_t)format(buffers->text+n, sizeof(buffers->text)-n, "%s%s", count ? ", " : "",
+                            *expr->slot_type ? buffers->arguments[ordinal] : placeholder);
         count++;
     }
-    format(text+n,sizeof(text)-n,")");
+    format(buffers->text+n,sizeof(buffers->text)-n,")");
     if(*expr->slot_type) {
-        copy_text(out, size, text);
+        copy_text(out, size, buffers->text);
         return;
     }
-    char resolved[ZIR_TEXT_MAX];
-    e->resolve(e->context, text, resolved, sizeof(resolved));
-    replace_call_placeholders(resolved, arguments, argument_count, out, size);
+    e->resolve(e->context, buffers->text, buffers->resolved, sizeof(buffers->resolved));
+    replace_call_placeholders(buffers->resolved, buffers->arguments, argument_count, out, size);
+}
+
+void
+emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size)
+{
+    static _Thread_local EmitCallBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitCallBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_call_with_buffers(e, expr, array_result, out, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static void
@@ -578,12 +714,20 @@ slot_wrapper_name(const ZirModule *module, const ZirFunction *fn, int index,
     number_prefix(module, prefix, sizeof(prefix));
     format(out, size, "%s_slot_%ld_%d", prefix, (long)(fn - module->functions), index);
 }
+/* Buffers EmitSlotWrappers keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitSlotWrappersBuffers {
+    char parameters[64][ZIR_TEXT_MAX];
+    char call[ZIR_TEXT_MAX];
+    char resolved[ZIR_TEXT_MAX];
+} EmitSlotWrappersBuffers;
 
-/* C has no lexical function values. A file-scope adapter supplies the uniform
- * borrowed-context slot ABI while ordinary Ziran functions keep their own ABI. */
-void
-EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
-                    ZirTarget target, ZirResolveTarget resolver, void *context)
+void EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                    ZirTarget target, ZirResolveTarget resolver, void *context);
+
+static void
+EmitSlotWrappers_with_buffers(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                    ZirTarget target, ZirResolveTarget resolver, void *context, EmitSlotWrappersBuffers *buffers)
 {
     if((target != ZIR_C && target != ZIR_CPP) || !CanEmitBody(module, fn))
         return;
@@ -594,10 +738,9 @@ EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
         const ZirType *slot = FindType(module, value->type, NULL);
         if(slot == NULL || slot->is_c_call)
             continue;
-        char parameters[64][ZIR_TEXT_MAX];
         int count = *skip_ws(slot->body) ?
-            split_top_level(slot->body, parameters[0], 64, sizeof(parameters[0])) : 0;
-        char wrapper[ZIR_NAME_MAX], call[ZIR_TEXT_MAX], resolved[ZIR_TEXT_MAX];
+            split_top_level(slot->body, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
+        char wrapper[ZIR_NAME_MAX];
         char result_type[ZIR_NAME_MAX], resolved_result[ZIR_NAME_MAX];
         slot_native_type(slot->procedure_return_type, target,
                          result_type, sizeof(result_type));
@@ -605,40 +748,67 @@ EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                  sizeof(resolved_result));
         slot_wrapper_name(module, fn, index, wrapper, sizeof(wrapper));
         fprintf(out, "static %s %s(void *context", resolved_result, wrapper);
-        size_t length = (size_t)format(call, sizeof(call), "%s(", value->name);
+        size_t length = (size_t)format(buffers->call, sizeof(buffers->call), "%s(", value->name);
         for(int argument = 0; argument < count; argument++) {
-            const char *source = skip_ws(strchr(parameters[argument], ':') + 1);
+            const char *source = skip_ws(strchr(buffers->parameters[argument], ':') + 1);
             char native_type[ZIR_NAME_MAX], resolved_type[ZIR_NAME_MAX];
             slot_native_type(source, target, native_type,
                              sizeof(native_type));
             resolver(context, native_type, resolved_type,
                      sizeof(resolved_type));
             fprintf(out, ", %s slot_arg_%d", resolved_type, argument);
-            length += (size_t)format(call + length, sizeof(call) - length,
+            length += (size_t)format(buffers->call + length, sizeof(buffers->call) - length,
                                       "%sslot_arg_%d", argument ? ", " : "", argument);
         }
-        format(call + length, sizeof(call) - length, ")");
-        resolver(context, call, resolved, sizeof(resolved));
+        format(buffers->call + length, sizeof(buffers->call) - length, ")");
+        resolver(context, buffers->call, buffers->resolved, sizeof(buffers->resolved));
         fprintf(out, ")\n{\n    (void)context;\n    %s%s;\n}\n",
-                strcmp(slot->procedure_return_type, "void") ? "return " : "", resolved);
+                strcmp(slot->procedure_return_type, "void") ? "return " : "", buffers->resolved);
     }
 }
 
+/* C has no lexical function values. A file-scope adapter supplies the uniform
+ * borrowed-context slot ABI while ordinary Ziran functions keep their own ABI. */
 void
-emit_function_value(Emitter *e, int index, char *out, size_t size)
+EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                    ZirTarget target, ZirResolveTarget resolver, void *context)
+{
+    static _Thread_local EmitSlotWrappersBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitSlotWrappersBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    EmitSlotWrappers_with_buffers(out, module, fn, target, resolver, context, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers emit_function_value keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitFunctionValueBuffers {
+    char call[ZIR_TEXT_MAX];
+    char resolved[ZIR_TEXT_MAX];
+    char parameters[64][ZIR_TEXT_MAX];
+    char arguments[ZIR_TEXT_MAX];
+    char signature[ZIR_TEXT_MAX];
+} EmitFunctionValueBuffers;
+
+void emit_function_value(Emitter *e, int index, char *out, size_t size);
+
+static void
+emit_function_value_with_buffers(Emitter *e, int index, char *out, size_t size, EmitFunctionValueBuffers *buffers)
 {
     const ZirExpr *value = &e->fn->exprs[index];
     const ZirType *slot = FindType(e->module, value->type, NULL);
     if(e->target == ZIR_C || e->target == ZIR_CPP) {
         if(slot != NULL && slot->is_c_call) {
-            char call[ZIR_TEXT_MAX], resolved[ZIR_TEXT_MAX];
             size_t length;
-            format(call, sizeof(call), "%s()", value->name);
-            e->resolve(e->context, call, resolved, sizeof(resolved));
-            length = strlen(resolved);
-            if(length >= 2 && !strcmp(resolved + length - 2, "()"))
-                resolved[length - 2] = '\0';
-            copy_text(out, size, resolved);
+            format(buffers->call, sizeof(buffers->call), "%s()", value->name);
+            e->resolve(e->context, buffers->call, buffers->resolved, sizeof(buffers->resolved));
+            length = strlen(buffers->resolved);
+            if(length >= 2 && !strcmp(buffers->resolved + length - 2, "()"))
+                buffers->resolved[length - 2] = '\0';
+            copy_text(out, size, buffers->resolved);
             return;
         }
         char wrapper[ZIR_NAME_MAX];
@@ -646,31 +816,29 @@ emit_function_value(Emitter *e, int index, char *out, size_t size)
         format(out, size, "(%s){NULL, %s}", value->type, wrapper);
         return;
     }
-    char parameters[64][ZIR_TEXT_MAX];
     int count = *skip_ws(slot->body) ?
-        split_top_level(slot->body, parameters[0], 64, sizeof(parameters[0])) : 0;
-    char arguments[ZIR_TEXT_MAX] = "", signature[ZIR_TEXT_MAX] = "";
-    char call[ZIR_TEXT_MAX], resolved[ZIR_TEXT_MAX];
+        split_top_level(slot->body, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
+    buffers->arguments[0] = '\0'; buffers->signature[0] = '\0';
     size_t length = 0, signature_length = 0;
     for(int argument = 0; argument < count; argument++) {
         char parameter[ZIR_NAME_MAX];
         fresh(e, parameter);
-        length += (size_t)format(arguments + length, sizeof(arguments) - length,
+        length += (size_t)format(buffers->arguments + length, sizeof(buffers->arguments) - length,
                                   "%s%s", argument ? ", " : "", parameter);
         if(e->target == ZIR_GO) {
-            const char *source = skip_ws(strchr(parameters[argument], ':') + 1);
+            const char *source = skip_ws(strchr(buffers->parameters[argument], ':') + 1);
             const char *scalar = TargetType(source, ZIR_GO);
             char type[ZIR_NAME_MAX];
             if(scalar)
                 copy_text(type, sizeof(type), scalar);
             else
                 e->resolve(e->context, source, type, sizeof(type));
-            signature_length += (size_t)format(signature + signature_length,
-                sizeof(signature) - signature_length, "%s%s %s", argument ? ", " : "", parameter, type);
+            signature_length += (size_t)format(buffers->signature + signature_length,
+                sizeof(buffers->signature) - signature_length, "%s%s %s", argument ? ", " : "", parameter, type);
         }
     }
-    format(call, sizeof(call), "%s(%s)", value->name, arguments);
-    e->resolve(e->context, call, resolved, sizeof(resolved));
+    format(buffers->call, sizeof(buffers->call), "%s(%s)", value->name, buffers->arguments);
+    e->resolve(e->context, buffers->call, buffers->resolved, sizeof(buffers->resolved));
     if(e->target == ZIR_GO) {
         char result_type[ZIR_NAME_MAX] = "";
         if(strcmp(slot->procedure_return_type, "void")) {
@@ -681,12 +849,26 @@ emit_function_value(Emitter *e, int index, char *out, size_t size)
                 e->resolve(e->context, slot->procedure_return_type,
                            result_type, sizeof(result_type));
         }
-        format(out, size, "func(%s)%s%s { %s%s }", signature,
+        format(out, size, "func(%s)%s%s { %s%s }", buffers->signature,
                result_type[0] ? " " : "", result_type,
-               result_type[0] ? "return " : "", resolved);
+               result_type[0] ? "return " : "", buffers->resolved);
     }
     else
-        format(out, size, "(%s) => %s", arguments, resolved);
+        format(out, size, "(%s) => %s", buffers->arguments, buffers->resolved);
+}
+
+void
+emit_function_value(Emitter *e, int index, char *out, size_t size)
+{
+    static _Thread_local EmitFunctionValueBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitFunctionValueBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_function_value_with_buffers(e, index, out, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 int
@@ -768,30 +950,51 @@ ziran_literal_of(const unsigned char *bytes, size_t length, char *out, size_t si
     out[used++] = '"';
     out[used] = '\0';
 }
+/* Buffers print_run_flush keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct PrintRunFlushBuffers {
+    char source[ZIR_TEXT_MAX];
+    char literal[ZIR_TEXT_MAX];
+    ZirExpr piece;
+} PrintRunFlushBuffers;
+
+static void print_run_flush(Emitter *e, PrintRun *run, int format_expr);
 
 static void
-print_run_flush(Emitter *e, PrintRun *run, int format_expr)
+print_run_flush_with_buffers(Emitter *e, PrintRun *run, int format_expr, PrintRunFlushBuffers *buffers)
 {
-    char source[ZIR_TEXT_MAX], literal[ZIR_TEXT_MAX];
-    ZirExpr piece;
     if(run->format_length == 0) {
         memset(run, 0, sizeof(*run));
         return;
     }
-    piece = e->fn->exprs[format_expr];
+    buffers->piece = e->fn->exprs[format_expr];
     /* Go prints text alone with fmt.Print; C always uses printf. */
     if(run->values == 0 && e->target == ZIR_GO)
-        ziran_literal_of(run->plain, run->plain_length, source, sizeof(source));
+        ziran_literal_of(run->plain, run->plain_length, buffers->source, sizeof(buffers->source));
     else
-        ziran_literal_of(run->format, run->format_length, source, sizeof(source));
-    piece.text = KeepText(source);
-    string_literal(&piece, e->target, literal, sizeof(literal));
+        ziran_literal_of(run->format, run->format_length, buffers->source, sizeof(buffers->source));
+    buffers->piece.text = KeepText(buffers->source);
+    string_literal(&buffers->piece, e->target, buffers->literal, sizeof(buffers->literal));
     if(e->target == ZIR_GO)
         line(e, run->values ? "fmt.Printf(%s%s)" : "fmt.Print(%s%s)",
-             literal, run->arguments);
+             buffers->literal, run->arguments);
     else
-        line(e, "printf(%s%s);", literal, run->arguments);
+        line(e, "printf(%s%s);", buffers->literal, run->arguments);
     memset(run, 0, sizeof(*run));
+}
+
+static void
+print_run_flush(Emitter *e, PrintRun *run, int format_expr)
+{
+    static _Thread_local PrintRunFlushBuffers *spares[16];
+    static _Thread_local int spare_count;
+    PrintRunFlushBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    print_run_flush_with_buffers(e, run, format_expr, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* A name followed only by member access, calls, and indexing, such as
@@ -828,16 +1031,28 @@ postfix_expression(const char *text)
     }
     return 1;
 }
+/* Buffers emit_print keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitPrintBuffers {
+    char value[ZIR_TEXT_MAX];
+    char literal[ZIR_TEXT_MAX];
+    unsigned char bytes[ZIR_TEXT_MAX];
+    char operand[ZIR_TEXT_MAX];
+    ZirExpr piece;
+    char plain[ZIR_TEXT_MAX];
+    char text[ZIR_TEXT_MAX];
+} EmitPrintBuffers;
 
-void
-emit_print(Emitter *e, const ZirExpr *expr)
+void emit_print(Emitter *e, const ZirExpr *expr);
+
+static void
+emit_print_with_buffers(Emitter *e, const ZirExpr *expr, EmitPrintBuffers *buffers)
 {
     PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
     char (*values)[ZIR_TEXT_MAX] = calloc(PRINT_PIECES_MAX, sizeof(*values));
     int capture = 0;
     const char *types[PRINT_PIECES_MAX];
     int children[PRINT_PIECES_MAX];
-    char value[ZIR_TEXT_MAX], literal[ZIR_TEXT_MAX];
     int first = expr->first_child, count, argument = 0;
     if(pieces == NULL || values == NULL || first < 0 ||
        (count = PrintFormatPieces(e->fn->exprs[first].text, pieces,
@@ -847,11 +1062,10 @@ emit_print(Emitter *e, const ZirExpr *expr)
      * float or a NUL byte splits the output into several statements. */
     int one_statement = 1;
     for(int i = 0; i < count && e->target != ZIR_GO; i++) {
-        unsigned char bytes[ZIR_TEXT_MAX];
         size_t length;
         if(!pieces[i].is_argument &&
-           DecodeStringLiteral(pieces[i].literal, bytes, sizeof(bytes), &length) &&
-           memchr(bytes, 0, length) != NULL)
+           DecodeStringLiteral(pieces[i].literal, buffers->bytes, sizeof(buffers->bytes), &length) &&
+           memchr(buffers->bytes, 0, length) != NULL)
             one_statement = 0;
     }
     for(int child = e->fn->exprs[first].next_sibling; child >= 0;
@@ -878,12 +1092,12 @@ emit_print(Emitter *e, const ZirExpr *expr)
         in_place = one_statement && !later_calls && !later_reads &&
                    (e->target == ZIR_GO || strcmp(types[argument], "string"));
         e->call_in_place = in_place;
-        emit_expr(e, child, e->fn->exprs[child].type, value, sizeof(value));
+        emit_expr(e, child, e->fn->exprs[child].type, buffers->value, sizeof(buffers->value));
         if(capture && !in_place && later_calls && call_can_change(e, child)) {
             fresh(e, values[argument]);
-            declare(e, values[argument], types[argument], value);
+            declare(e, values[argument], types[argument], buffers->value);
         } else
-            copy_text(values[argument], ZIR_TEXT_MAX, value);
+            copy_text(values[argument], ZIR_TEXT_MAX, buffers->value);
     }
     /* Each language's standard printing: one printf or fmt.Printf per run
      * of text and values. C has no shortest round-trip float format, so a
@@ -892,59 +1106,54 @@ emit_print(Emitter *e, const ZirExpr *expr)
     argument = 0;
     for(int i = 0; i < count; i++) {
         const char *type, *name;
-        char operand[ZIR_TEXT_MAX];
         if(!pieces[i].is_argument) {
-            unsigned char bytes[ZIR_TEXT_MAX];
             size_t length;
-            if(!DecodeStringLiteral(pieces[i].literal, bytes, sizeof(bytes), &length))
+            if(!DecodeStringLiteral(pieces[i].literal, buffers->bytes, sizeof(buffers->bytes), &length))
                 fatal(expr, "invalid checked print format");
-            if(e->target != ZIR_GO && memchr(bytes, 0, length) != NULL) {
+            if(e->target != ZIR_GO && memchr(buffers->bytes, 0, length) != NULL) {
                 /* printf formats end at NUL; such text is written as bytes. */
-                ZirExpr piece = e->fn->exprs[first];
+                buffers->piece = e->fn->exprs[first];
                 print_run_flush(e, &run, first);
-                piece.text = KeepText(pieces[i].literal);
-                string_literal(&piece, e->target, literal, sizeof(literal));
-                line(e, "fwrite(%s, 1, %zu, stdout);", literal, length);
+                buffers->piece.text = KeepText(pieces[i].literal);
+                string_literal(&buffers->piece, e->target, buffers->literal, sizeof(buffers->literal));
+                line(e, "fwrite(%s, 1, %zu, stdout);", buffers->literal, length);
                 continue;
             }
-            print_run_text(&run, bytes, length);
+            print_run_text(&run, buffers->bytes, length);
             continue;
         }
         type = types[argument];
         name = values[argument];
         /* A literal string argument is simply part of the text. */
         if(e->fn->exprs[children[argument++]].kind == ZIR_EXPR_STRING) {
-            unsigned char bytes[ZIR_TEXT_MAX];
             size_t length;
-            if(DecodeStringLiteral(e->fn->exprs[children[argument - 1]].text, bytes,
-                                   sizeof(bytes), &length) &&
-               (e->target == ZIR_GO || memchr(bytes, 0, length) == NULL)) {
-                print_run_text(&run, bytes, length);
+            if(DecodeStringLiteral(e->fn->exprs[children[argument - 1]].text, buffers->bytes,
+                                   sizeof(buffers->bytes), &length) &&
+               (e->target == ZIR_GO || memchr(buffers->bytes, 0, length) == NULL)) {
+                print_run_text(&run, buffers->bytes, length);
                 continue;
             }
         }
         {
             /* An argument stands alone in the call; C wraps it once where
              * an operator follows it. */
-            char plain[ZIR_TEXT_MAX];
-            bare(name, plain, sizeof(plain));
-            copy_text(values[argument - 1], ZIR_TEXT_MAX, plain);
+            bare(name, buffers->plain, sizeof(buffers->plain));
+            copy_text(values[argument - 1], ZIR_TEXT_MAX, buffers->plain);
             name = values[argument - 1];
         }
         if(postfix_expression(name) || enclosed(name))
-            copy_text(operand, sizeof(operand), name);
+            copy_text(buffers->operand, sizeof(buffers->operand), name);
         else
-            format(operand, sizeof(operand), "(%s)", name);
+            format(buffers->operand, sizeof(buffers->operand), "(%s)", name);
         if(e->target == ZIR_GO) {
             if(!strcmp(type, "string"))
                 print_run_value(&run, "%s", name);
             else if(!strcmp(type, "bool"))
                 print_run_value(&run, "%t", name);
             else if(!strcmp(type, "float64") || !strcmp(type, "float32")) {
-                char text[ZIR_TEXT_MAX];
-                format(text, sizeof(text), !strcmp(type, "float64") ?
+                format(buffers->text, sizeof(buffers->text), !strcmp(type, "float64") ?
                        "formatFloat(%s, 64)" : "formatFloat(float64(%s), 32)", name);
-                print_run_value(&run, "%s", text);
+                print_run_value(&run, "%s", buffers->text);
             } else
                 print_run_value(&run, "%d", name);
             continue;
@@ -954,29 +1163,40 @@ emit_print(Emitter *e, const ZirExpr *expr)
             line(e, !strcmp(type, "float32") ? "print_float((double)%s, 1);" :
                  "print_float(%s, 0);", name);
         } else if(!strcmp(type, "string")) {
-            char text[ZIR_TEXT_MAX];
-            format(text, sizeof(text), "(int)%s.length, %s.data", operand, operand);
-            print_run_value(&run, "%.*s", text);
+            format(buffers->text, sizeof(buffers->text), "(int)%s.length, %s.data", buffers->operand, buffers->operand);
+            print_run_value(&run, "%.*s", buffers->text);
         } else if(!strcmp(type, "bool")) {
-            char text[ZIR_TEXT_MAX];
-            format(text, sizeof(text), "%s ? \"true\" : \"false\"", operand);
-            print_run_value(&run, "%s", text);
+            format(buffers->text, sizeof(buffers->text), "%s ? \"true\" : \"false\"", buffers->operand);
+            print_run_value(&run, "%s", buffers->text);
         } else {
             /* A literal is written as a long long constant; other values
              * convert to the width printf expects. */
-            char text[ZIR_TEXT_MAX];
             uint64_t bits;
             int is_unsigned = type[0] == 'u';
             if(integer_literal_bits(name, &bits))
-                format(text, sizeof(text), is_unsigned ? "%lluULL" : "%lldLL",
+                format(buffers->text, sizeof(buffers->text), is_unsigned ? "%lluULL" : "%lldLL",
                        is_unsigned ? (unsigned long long)bits : (unsigned long long)(long long)bits);
             else
-                format(text, sizeof(text), is_unsigned ? "(unsigned long long)%s" :
-                       "(long long)%s", operand);
-            print_run_value(&run, is_unsigned ? "%llu" : "%lld", text);
+                format(buffers->text, sizeof(buffers->text), is_unsigned ? "(unsigned long long)%s" :
+                       "(long long)%s", buffers->operand);
+            print_run_value(&run, is_unsigned ? "%llu" : "%lld", buffers->text);
         }
     }
     print_run_flush(e, &run, first);
     free(pieces);
     free(values);
+}
+
+void
+emit_print(Emitter *e, const ZirExpr *expr)
+{
+    static _Thread_local EmitPrintBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitPrintBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_print_with_buffers(e, expr, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }

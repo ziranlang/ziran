@@ -1,7 +1,18 @@
 #include "zir_check_internal.h"
+/* Buffers expression_type keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ExpressionTypeBuffers {
+    char operand[ZIR_TEXT_MAX];
+    ZirFunction probe;
+    char replacement[ZIR_TEXT_MAX];
+    char literal[ZIR_TEXT_MAX];
+    char specialized_args[ZIR_TEXT_MAX];
+} ExpressionTypeBuffers;
 
-const char *
-expression_type(Checker *c, int index)
+const char *expression_type(Checker *c, int index);
+
+static const char *
+expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffers)
 {
     ZirExpr *e;
     const char *type = "", *left = "", *right = "";
@@ -91,19 +102,19 @@ expression_type(Checker *c, int index)
     }
     if(e->kind == ZIR_EXPR_SIZE_OF) {
         size_t size, alignment;
-        char operand[ZIR_TEXT_MAX], resolved[ZIR_NAME_MAX];
+        char resolved[ZIR_NAME_MAX];
         const char *sized_type = e->name;
-        int from_value = TypeOfOperand(e->name, operand, sizeof(operand));
+        int from_value = TypeOfOperand(e->name, buffers->operand, sizeof(buffers->operand));
         if(!from_value && !JaiTypeSpelling(e->span, e->name)) {
             c->errors++;
             return "";
         }
         if(from_value) {
-            ZirFunction probe = {0};
+            memset(&buffers->probe, 0, sizeof(buffers->probe));
             ZirFunction *saved_fn = c->fn;
             ZirStmt *saved_stmt = c->current_stmt;
-            int root = ParseExpr(&probe, c->module, operand, e->span);
-            c->fn = &probe;
+            int root = ParseExpr(&buffers->probe, c->module, buffers->operand, e->span);
+            c->fn = &buffers->probe;
             c->current_stmt = NULL;
             const char *inferred = expression_type(c, root);
             copy_text(resolved, sizeof(resolved),
@@ -111,21 +122,20 @@ expression_type(Checker *c, int index)
                       !strcmp(inferred, "real") ? "float64" : inferred);
             c->fn = saved_fn;
             c->current_stmt = saved_stmt;
-            free(probe.exprs);
+            free(buffers->probe.exprs);
             sized_type = resolved;
         }
         if(!TypeLayout(c->module, sized_type, &size, &alignment)) {
             error(c, e->span, "size_of requires a known sized type", e->name);
             return "";
         }
-        char replacement[ZIR_TEXT_MAX];
-        snprintf(replacement, sizeof(replacement), "size_of(%s)", sized_type);
-        if(!rewrite_checked_text(c, e, replacement)) {
+        snprintf(buffers->replacement, sizeof(buffers->replacement), "size_of(%s)", sized_type);
+        if(!rewrite_checked_text(c, e, buffers->replacement)) {
             error(c, e->span, "cannot lower size_of expression", e->text);
             return "";
         }
         if(!c->fn->from_ir)
-            e->text = KeepText(replacement);
+            e->text = KeepText(buffers->replacement);
         if(sized_type != e->name)
             copy_text(e->name, sizeof(e->name), sized_type);
         e->left = e->right = e->third = -1;
@@ -402,7 +412,6 @@ expression_type(Checker *c, int index)
     }
     case ZIR_EXPR_INDEX: {
         char element[ZIR_NAME_MAX];
-
         /* Native pointer indexing follows the same element type as a
          * borrowed array. Portable bundles reject reachable raw pointers. */
         if(!strcmp(left, "string")) {
@@ -518,22 +527,21 @@ expression_type(Checker *c, int index)
                     }
                 }
             }
-            char literal[ZIR_TEXT_MAX];
             int string_status = bound_string_constant(c->module, e->name, 0,
-                                                       literal, sizeof(literal));
+                                                       buffers->literal, sizeof(buffers->literal));
             int real_status = string_status == 0 ?
                 bound_real_constant(c->module, e->name, 0,
-                                    literal, sizeof(literal)) : 0;
+                                    buffers->literal, sizeof(buffers->literal)) : 0;
             int64_t value = 0;
             int status = string_status == 0 && real_status == 0 ?
                 bound_constant(c->module, e->name, 0, &value) :
                 string_status != 0 ? string_status : real_status;
             if(string_status == 1) {
-                e->text = KeepText(literal);
+                e->text = KeepText(buffers->literal);
                 e->kind = ZIR_EXPR_STRING;
                 type = "string";
             } else if(real_status == 1) {
-                e->text = KeepText(literal);
+                e->text = KeepText(buffers->literal);
                 e->kind = ZIR_EXPR_FLOAT;
                 type = "real";
             } else if(status == 1) {
@@ -793,7 +801,7 @@ expression_type(Checker *c, int index)
                                  &callee_owner, &resolved) != 1 ||
                resolved != callee) callee_owner = NULL;
         }
-        char specialized_args[ZIR_TEXT_MAX] = "";
+        buffers->specialized_args[0] = '\0';
         char specialized_return[ZIR_NAME_MAX] = "";
         if(callee != NULL && callee->is_template) {
             const ZirModule *owner = NULL;
@@ -856,7 +864,7 @@ expression_type(Checker *c, int index)
                 error(c, e->span, "cannot infer polymorphic type", e->name);
                 break;
             }
-            if(!replace_template_type(specialized_args, sizeof(specialized_args),
+            if(!replace_template_type(buffers->specialized_args, sizeof(buffers->specialized_args),
                                       callee->args, callee->template_param, concrete) ||
                !replace_template_type(specialized_return,
                                       sizeof(specialized_return),
@@ -890,7 +898,7 @@ expression_type(Checker *c, int index)
         if(callee != NULL && callee->is_extern && callee->extern_kind == ZIR_EXTERN_HOST)
             c->fn->uses_host = 1;
         const char *args = slot ? slot->body :
-                           specialized_args[0] ? specialized_args :
+                           buffers->specialized_args[0] ? buffers->specialized_args :
                            callee ? callee->args : NULL;
         const char *return_type = slot ? slot->procedure_return_type :
                                   specialized_return[0] ? specialized_return :
@@ -1191,30 +1199,70 @@ expression_type(Checker *c, int index)
     return e->type;
 }
 
+const char *
+expression_type(Checker *c, int index)
+{
+    static _Thread_local ExpressionTypeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ExpressionTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    const char *returned = expression_type_with_buffers(c, index, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers InferExpressionType keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct InferExpressionTypeBuffers {
+    ZirModule lookup;
+    ZirFunction probe;
+    Checker checker;
+} InferExpressionTypeBuffers;
+
+int InferExpressionType(const ZirModule *module, const char *expression,
+                    ZirSourceSpan span, char *type, size_t capacity);
+
+static int
+InferExpressionType_with_buffers(const ZirModule *module, const char *expression,
+                    ZirSourceSpan span, char *type, size_t capacity, InferExpressionTypeBuffers *buffers)
+{
+    buffers->lookup = *module;
+    memset(&buffers->probe, 0, sizeof(buffers->probe));
+    memset(&buffers->checker, 0, sizeof(buffers->checker));
+    int root, valid;
+    const char *inferred;
+    copy_text(buffers->lookup.lookup_path, sizeof(buffers->lookup.lookup_path), SpanPath(span));
+    buffers->probe.span = span;
+    root = ParseExprNoDefaults(&buffers->probe, &buffers->lookup, expression, span);
+    buffers->checker.module = &buffers->lookup;
+    buffers->checker.fn = &buffers->probe;
+    buffers->checker.inference_only = 1;
+    inferred = root >= 0 ? expression_type(&buffers->checker, root) : "";
+    if(strcmp(inferred, "integer") == 0) inferred = "s64";
+    else if(strcmp(inferred, "real") == 0) inferred = "float64";
+    valid = buffers->checker.errors == 0 && *inferred != '\0' &&
+            strlen(inferred) < capacity;
+    if(valid) copy_text(type, capacity, inferred);
+    free(buffers->checker.bindings);
+    free(buffers->checker.specializations);
+    free(buffers->probe.exprs);
+    return valid;
+}
+
 int
 InferExpressionType(const ZirModule *module, const char *expression,
                     ZirSourceSpan span, char *type, size_t capacity)
 {
-    ZirModule lookup = *module;
-    ZirFunction probe = {0};
-    Checker checker = {0};
-    int root, valid;
-    const char *inferred;
-
-    copy_text(lookup.lookup_path, sizeof(lookup.lookup_path), SpanPath(span));
-    probe.span = span;
-    root = ParseExprNoDefaults(&probe, &lookup, expression, span);
-    checker.module = &lookup;
-    checker.fn = &probe;
-    checker.inference_only = 1;
-    inferred = root >= 0 ? expression_type(&checker, root) : "";
-    if(strcmp(inferred, "integer") == 0) inferred = "s64";
-    else if(strcmp(inferred, "real") == 0) inferred = "float64";
-    valid = checker.errors == 0 && *inferred != '\0' &&
-            strlen(inferred) < capacity;
-    if(valid) copy_text(type, capacity, inferred);
-    free(checker.bindings);
-    free(checker.specializations);
-    free(probe.exprs);
-    return valid;
+    static _Thread_local InferExpressionTypeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    InferExpressionTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = InferExpressionType_with_buffers(module, expression, span, type, capacity, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

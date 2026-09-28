@@ -227,24 +227,31 @@ parallel_region_fits(const ZirFunction *fn, int while_index)
     ParallelRegion region;
     return parallel_region_at(fn, while_index, &region) && region.forward;
 }
+/* Buffers parallel_region_dispatch keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ParallelRegionDispatchBuffers {
+    char start_value[ZIR_TEXT_MAX];
+    char end_value[ZIR_TEXT_MAX];
+} ParallelRegionDispatchBuffers;
+
+static void parallel_region_dispatch(Emitter *e, const ParallelRegion *region);
 
 static void
-parallel_region_dispatch(Emitter *e, const ParallelRegion *region)
+parallel_region_dispatch_with_buffers(Emitter *e, const ParallelRegion *region, ParallelRegionDispatchBuffers *buffers)
 {
-    char start_value[ZIR_TEXT_MAX], end_value[ZIR_TEXT_MAX];
     const ZirStmt *first_decl = &e->fn->stmts[region->while_index - 3];
     const ZirStmt *last_decl = &e->fn->stmts[region->while_index - 2];
     char ctx[ZIR_NAME_MAX];
-    emit_expr(e, first_decl->expr_root, "s64", start_value,
-              sizeof(start_value));
-    emit_expr(e, last_decl->expr_root, "s64", end_value,
-              sizeof(end_value));
+    emit_expr(e, first_decl->expr_root, "s64", buffers->start_value,
+              sizeof(buffers->start_value));
+    emit_expr(e, last_decl->expr_root, "s64", buffers->end_value,
+              sizeof(buffers->end_value));
     fresh(e, ctx);
     line(e, "{");
     e->indent++;
     line(e, "struct %s_ctx %s;", region->worker, ctx);
-    line(e, "%s.start = %s;", ctx, start_value);
-    line(e, "%s.end = %s;", ctx, end_value);
+    line(e, "%s.start = %s;", ctx, buffers->start_value);
+    line(e, "%s.end = %s;", ctx, buffers->end_value);
     {
         ParallelRegion full;
         parallel_region_at(e->fn, region->while_index, &full);
@@ -257,6 +264,20 @@ parallel_region_dispatch(Emitter *e, const ParallelRegion *region)
          region->worker, ctx, ctx, ctx);
     e->indent--;
     line(e, "}");
+}
+
+static void
+parallel_region_dispatch(Emitter *e, const ParallelRegion *region)
+{
+    static _Thread_local ParallelRegionDispatchBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ParallelRegionDispatchBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    parallel_region_dispatch_with_buffers(e, region, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 int
@@ -401,24 +422,27 @@ condition_in_header(Emitter *e, int root)
     e->local_count = saved_locals;
     return scratch_size == 0;
 }
-
-/* An if and its else branches. An else holding only another if whose
- * condition needs no setup continues the chain as else if; chained is set
- * for such a link, whose closing brace the first if writes. */
-static int
-emit_if(Emitter *e,int i,int end,int chained)
-{
+/* Buffers emit_if keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitIfBuffers {
     char cond[ZIR_TEXT_MAX];
-    int close=block_end(e->fn,i,end);
     char plain[ZIR_TEXT_MAX];
+} EmitIfBuffers;
+
+static int emit_if(Emitter *e,int i,int end,int chained);
+
+static int
+emit_if_with_buffers(Emitter *e,int i,int end,int chained, EmitIfBuffers *buffers)
+{
+    int close=block_end(e->fn,i,end);
     /* The condition runs last before the branch, so its calls stay in it. */
     e->call_in_place = 1;
-    emit_expr(e,e->fn->stmts[i].expr_root,"bool",cond,sizeof(cond));
-    bare(cond,plain,sizeof(plain));
+    emit_expr(e,e->fn->stmts[i].expr_root,"bool",buffers->cond,sizeof(buffers->cond));
+    bare(buffers->cond,buffers->plain,sizeof(buffers->plain));
     if(chained)
-        line(e,e->target==ZIR_GO?"} else if %s {":"} else if (%s) {",plain);
+        line(e,e->target==ZIR_GO?"} else if %s {":"} else if (%s) {",buffers->plain);
     else
-        line(e,e->target==ZIR_GO?"if %s {":"if (%s) {",plain);
+        line(e,e->target==ZIR_GO?"if %s {":"if (%s) {",buffers->plain);
     e->indent++;
     emit_sequence(e,i+1,close);e->indent--;
     if(close+1<end && e->fn->stmts[close+1].kind==ZIR_STMT_IF && e->fn->stmts[close+1].is_else) {
@@ -436,6 +460,24 @@ emit_if(Emitter *e,int i,int end,int chained)
     if(!chained)
         line(e,"}");
     return close;
+}
+
+/* An if and its else branches. An else holding only another if whose
+ * condition needs no setup continues the chain as else if; chained is set
+ * for such a link, whose closing brace the first if writes. */
+static int
+emit_if(Emitter *e,int i,int end,int chained)
+{
+    static _Thread_local EmitIfBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitIfBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = emit_if_with_buffers(e, i, end, chained, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -538,18 +580,22 @@ loop_body_reads(const Emitter *e, int begin, int end, int loop, const char *name
     }
     return 0;
 }
+/* Buffers native_for keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct NativeForBuffers {
+    char start[ZIR_TEXT_MAX];
+    char condition[ZIR_TEXT_MAX];
+    char plain[ZIR_TEXT_MAX];
+} NativeForBuffers;
 
-/* A lowered for loop is a block holding its counter and a marked while:
- *     { step: s64 = 0; while step <= 2 { ...; step += 1 } }
- * C and Go write it as one counting loop, and Go walks a local collection
- * whose index goes unused with range. */
+static int native_for(Emitter *e, int open, int close);
+
 static int
-native_for(Emitter *e, int open, int close)
+native_for_with_buffers(Emitter *e, int open, int close, NativeForBuffers *buffers)
 {
     const ZirFunction *fn = e->fn;
     const ZirStmt *counter, *loop;
-    char counter_name[ZIR_NAME_MAX], start[ZIR_TEXT_MAX], condition[ZIR_TEXT_MAX];
-    char plain[ZIR_TEXT_MAX];
+    char counter_name[ZIR_NAME_MAX];
     const char *step = "++";
     int loop_close, saved_locals = e->local_count, saved_serial = e->serial;
     if(open + 2 >= close)
@@ -578,9 +624,9 @@ native_for(Emitter *e, int open, int close)
         if(scratch == NULL)
             return 0;
         e->out = scratch;
-        emit_expr(e, counter->expr_root, counter->type, start, sizeof(start));
+        emit_expr(e, counter->expr_root, counter->type, buffers->start, sizeof(buffers->start));
         track_local(e, counter->name, counter->type);
-        emit_expr(e, loop->expr_root, "bool", condition, sizeof(condition));
+        emit_expr(e, loop->expr_root, "bool", buffers->condition, sizeof(buffers->condition));
         fclose(scratch);
         e->out = saved_out;
         free(scratch_text);
@@ -590,7 +636,7 @@ native_for(Emitter *e, int open, int close)
             return 0;
         }
     }
-    bare(condition, plain, sizeof(plain));
+    bare(buffers->condition, buffers->plain, sizeof(buffers->plain));
     e->loop_header_binds = 0;
     if(loop->for_form == 2 && e->target == ZIR_GO && open + 3 < loop_close) {
         const ZirStmt *value = &fn->stmts[open + 3];
@@ -617,17 +663,36 @@ native_for(Emitter *e, int open, int close)
     if(!e->loop_header_binds) {
         if(e->target == ZIR_GO)
             format(e->loop_header, sizeof(e->loop_header), "for %s := %s(%s); %s; %s%s",
-                   counter_name, TargetType(counter->type, e->target), start,
-                   plain, counter_name, step);
+                   counter_name, TargetType(counter->type, e->target), buffers->start,
+                   buffers->plain, counter_name, step);
         else
             format(e->loop_header, sizeof(e->loop_header), "for (%s %s = %s; %s; %s%s)",
-                   TargetType(counter->type, e->target), counter_name, start,
-                   plain, counter_name, step);
+                   TargetType(counter->type, e->target), counter_name, buffers->start,
+                   buffers->plain, counter_name, step);
     }
     emit_sequence(e, open + 2, loop_close + 1);
     e->loop_header[0] = '\0';
     e->local_count = saved_locals;
     return 1;
+}
+
+/* A lowered for loop is a block holding its counter and a marked while:
+ *     { step: s64 = 0; while step <= 2 { ...; step += 1 } }
+ * C and Go write it as one counting loop, and Go walks a local collection
+ * whose index goes unused with range. */
+static int
+native_for(Emitter *e, int open, int close)
+{
+    static _Thread_local NativeForBuffers *spares[16];
+    static _Thread_local int spare_count;
+    NativeForBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = native_for_with_buffers(e, open, close, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* Collects the constants an if-case arm compares its value with:
@@ -663,20 +728,24 @@ contains_break(const ZirFunction *fn, int begin, int end)
             return 1;
     return 0;
 }
+/* Buffers emit_switch keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitSwitchBuffers {
+    char value[ZIR_TEXT_MAX];
+    char plain[ZIR_TEXT_MAX];
+    char text[ZIR_TEXT_MAX];
+    char label[ZIR_TEXT_MAX];
+} EmitSwitchBuffers;
 
-/* An if-case lowers to case_value_N: T = value and an if / else if chain
- * comparing it with constants. That is a switch in C and Go. A break in an
- * arm would leave the switch instead of its loop, so such chains stay ifs,
- * and C switches only on integers. Returns the last statement written, or
- * -1 to write the statements as they are. */
+static int emit_switch(Emitter *e, int declaration, int end);
+
 static int
-emit_switch(Emitter *e, int declaration, int end)
+emit_switch_with_buffers(Emitter *e, int declaration, int end, EmitSwitchBuffers *buffers)
 {
     const ZirFunction *fn = e->fn;
     const ZirStmt *decl = &fn->stmts[declaration];
     const char *type = canonical(decl->type);
     int arms[64], arm_count = 0, close = -1, last_else = -1;
-    char value[ZIR_TEXT_MAX], plain[ZIR_TEXT_MAX];
     if(strncmp(decl->name, "case_value_", 11) || decl->expr_root < 0 ||
        declaration + 1 >= end || fn->stmts[declaration + 1].kind != ZIR_STMT_IF ||
        fn->stmts[declaration + 1].is_else)
@@ -706,13 +775,12 @@ emit_switch(Emitter *e, int declaration, int end)
             if(fn->stmts[s].kind != ZIR_STMT_IF && expression_reads(fn, root, decl->name))
                 return -1;
     e->call_in_place = 1;
-    emit_expr(e, decl->expr_root, decl->type, value, sizeof(value));
-    bare(value, plain, sizeof(plain));
-    line(e, e->target == ZIR_GO ? "switch %s {" : "switch (%s) {", plain);
+    emit_expr(e, decl->expr_root, decl->type, buffers->value, sizeof(buffers->value));
+    bare(buffers->value, buffers->plain, sizeof(buffers->plain));
+    line(e, e->target == ZIR_GO ? "switch %s {" : "switch (%s) {", buffers->plain);
     for(int arm = 0; arm <= arm_count; arm++) {
         int at = arm < arm_count ? arms[arm] : last_else;
         int labels[16], count = 0, body_end;
-        char text[ZIR_TEXT_MAX];
         size_t used = 0;
         if(at < 0)
             break;
@@ -720,14 +788,13 @@ emit_switch(Emitter *e, int declaration, int end)
         if(arm < arm_count) {
             case_labels(e, fn->stmts[at].expr_root, decl->name, labels, &count);
             for(int l = 0; l < count; l++) {
-                char label[ZIR_TEXT_MAX];
-                emit_expr(e, labels[l], decl->type, label, sizeof(label));
-                used += (size_t)format(text + used, sizeof(text) - used,
+                emit_expr(e, labels[l], decl->type, buffers->label, sizeof(buffers->label));
+                used += (size_t)format(buffers->text + used, sizeof(buffers->text) - used,
                                        e->target == ZIR_GO ? "%s%s" : "%scase %s:",
                                        l ? (e->target == ZIR_GO ? ", " : " ") : "",
-                                       bare(label, plain, sizeof(plain)));
+                                       bare(buffers->label, buffers->plain, sizeof(buffers->plain)));
             }
-            line(e, e->target == ZIR_GO ? "case %s:" : "%s", text);
+            line(e, e->target == ZIR_GO ? "case %s:" : "%s", buffers->text);
         } else
             line(e, "default:");
         e->indent++;
@@ -752,8 +819,39 @@ emit_switch(Emitter *e, int declaration, int end)
     return close;
 }
 
+/* An if-case lowers to case_value_N: T = value and an if / else if chain
+ * comparing it with constants. That is a switch in C and Go. A break in an
+ * arm would leave the switch instead of its loop, so such chains stay ifs,
+ * and C switches only on integers. Returns the last statement written, or
+ * -1 to write the statements as they are. */
+static int
+emit_switch(Emitter *e, int declaration, int end)
+{
+    static _Thread_local EmitSwitchBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitSwitchBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = emit_switch_with_buffers(e, declaration, end, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers emit_sequence keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitSequenceBuffers {
+    char value[ZIR_TEXT_MAX];
+    char lhs[ZIR_TEXT_MAX];
+    char result[ZIR_TEXT_MAX];
+    char old[ZIR_TEXT_MAX];
+    char plain[ZIR_TEXT_MAX];
+} EmitSequenceBuffers;
+
+static void emit_sequence(Emitter *e,int begin,int end);
+
 static void
-emit_sequence(Emitter *e,int begin,int end)
+emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *buffers)
 {
     int saved=e->local_count;e->depth++;
     e->sequence_terminated=0;
@@ -761,7 +859,6 @@ emit_sequence(Emitter *e,int begin,int end)
         const ZirStmt *st=&e->fn->stmts[i];
         if(st->kind == ZIR_STMT_ASSIGN && native_step(e, st))
             continue;
-        char value[ZIR_TEXT_MAX],lhs[ZIR_TEXT_MAX],result[ZIR_TEXT_MAX];
         switch(st->kind) {
         case ZIR_STMT_DECL: {
             int switch_end = emit_switch(e, i, end);
@@ -774,14 +871,14 @@ emit_sequence(Emitter *e,int begin,int end)
                 e->call_in_place = 1;
                 e->braced_initializer = e->target != ZIR_GO &&
                     e->fn->exprs[st->expr_root].kind == ZIR_EXPR_COMPOUND;
-                emit_expr(e,st->expr_root,st->type,value,sizeof(value));
+                emit_expr(e,st->expr_root,st->type,buffers->value,sizeof(buffers->value));
                 e->short_declaration = typed_initializer(e, st->expr_root, st->type);
             }
             else if(record_type(e->module, st->type)) {
-                zero_record(e, st->type, value, sizeof(value));
+                zero_record(e, st->type, buffers->value, sizeof(buffers->value));
             }
-            else copy_text(value, sizeof(value), zero_value(st->type, e->target));
-            declare(e,st->name,st->type,value);
+            else copy_text(buffers->value, sizeof(buffers->value), zero_value(st->type, e->target));
+            declare(e,st->name,st->type,buffers->value);
             if(e->target == ZIR_GO && !go_binding_read_later(e->fn, i)) {
                 char binding[ZIR_NAME_MAX];
                 TargetBindingName(e->fn, e->target, st->name, binding,
@@ -791,55 +888,54 @@ emit_sequence(Emitter *e,int begin,int end)
             track_local(e, st->name, st->type);
             break;
         case ZIR_STMT_ASSIGN:
-            emit_destination(e, st->lhs_root, lhs, sizeof(lhs));
+            emit_destination(e, st->lhs_root, buffers->lhs, sizeof(buffers->lhs));
             if(strcmp(st->assignment_op,"=")) {
                 /* The target's old value reads in place unless a call on
                  * either side could run first or change it. */
-                char old[ZIR_TEXT_MAX];
                 if(expression_calls(e->fn, st->lhs_root) ||
                    expression_calls(e->fn, st->expr_root) ||
                    ArrayElementType(e->fn->exprs[st->lhs_root].type, NULL, 0, NULL)) {
-                    fresh(e,old);
-                    declare(e,old,e->fn->exprs[st->lhs_root].type,lhs);
+                    fresh(e,buffers->old);
+                    declare(e,buffers->old,e->fn->exprs[st->lhs_root].type,buffers->lhs);
                 } else
-                    copy_text(old, sizeof(old), lhs);
-                emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,value,sizeof(value));
+                    copy_text(buffers->old, sizeof(buffers->old), buffers->lhs);
+                emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,buffers->value,sizeof(buffers->value));
                 char op[4];copy_text(op,sizeof(op),st->assignment_op);op[strlen(op)-1]=0;
                 const char *type=canonical(e->fn->exprs[st->lhs_root].type);
-                if(width(type))number(e,type,old,type,value,e->fn->exprs[st->expr_root].type,operation(op),result,sizeof(result));
-                else format(result,sizeof(result),"%s %s %s",old,op,value);
+                if(width(type))number(e,type,buffers->old,type,buffers->value,e->fn->exprs[st->expr_root].type,operation(op),buffers->result,sizeof(buffers->result));
+                else format(buffers->result,sizeof(buffers->result),"%s %s %s",buffers->old,op,buffers->value);
                 /* Go wraps its own compound operators, so x = x + 1 is x++
                  * and x = x + y is x += y. */
-                size_t old_length = strlen(old);
-                if(e->target == ZIR_GO && !strcmp(old, lhs) &&
-                   !strncmp(result, old, old_length) && result[old_length] == ' ' &&
-                   !strncmp(result + old_length + 1, op, strlen(op)) &&
-                   result[old_length + 1 + strlen(op)] == ' ') {
-                    const char *operand = result + old_length + strlen(op) + 2;
+                size_t old_length = strlen(buffers->old);
+                if(e->target == ZIR_GO && !strcmp(buffers->old, buffers->lhs) &&
+                   !strncmp(buffers->result, buffers->old, old_length) && buffers->result[old_length] == ' ' &&
+                   !strncmp(buffers->result + old_length + 1, op, strlen(op)) &&
+                   buffers->result[old_length + 1 + strlen(op)] == ' ') {
+                    const char *operand = buffers->result + old_length + strlen(op) + 2;
                     if(!strcmp(operand, "1") && (!strcmp(op, "+") || !strcmp(op, "-")))
-                        line(e, "%s%s", lhs, !strcmp(op, "+") ? "++" : "--");
+                        line(e, "%s%s", buffers->lhs, !strcmp(op, "+") ? "++" : "--");
                     else
-                        line(e, "%s %s= %s", lhs, op, operand);
+                        line(e, "%s %s= %s", buffers->lhs, op, operand);
                     break;
                 }
             } else {
                 /* A call assigned to a name runs last, so it assigns directly. */
                 e->call_in_place = e->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT;
-                emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,value,sizeof(value));
-                copy_text(result,sizeof(result),value);
+                emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,buffers->value,sizeof(buffers->value));
+                copy_text(buffers->result,sizeof(buffers->result),buffers->value);
             }
-            assign_value(e, lhs, e->fn->exprs[st->lhs_root].type, result);
+            assign_value(e, buffers->lhs, e->fn->exprs[st->lhs_root].type, buffers->result);
             break;
         case ZIR_STMT_RETURN:
             if(st->expr_root >= 0) {
                 e->call_in_place = 1;
-                emit_expr(e, st->expr_root, e->fn->return_type, value, sizeof(value));
+                emit_expr(e, st->expr_root, e->fn->return_type, buffers->value, sizeof(buffers->value));
                 if((e->target == ZIR_C || e->target == ZIR_CPP) &&
                    ArrayElementType(e->fn->return_type, NULL, 0, NULL)) {
                     char output[ZIR_NAME_MAX];
                     ArrayAbiName(e->fn, -1, output, sizeof(output));
                     /* value is a captured true array; output is an ABI pointer. */
-                    line(e, "memmove(%s, %s, sizeof(%s));", output, value, value);
+                    line(e, "memmove(%s, %s, sizeof(%s));", output, buffers->value, buffers->value);
                     drop_locals(e, 0);
                     line(e, e->target != ZIR_GO && NativeMainReturnsStatus(e->fn) ?
                          "return 0;" : "return;");
@@ -847,12 +943,11 @@ emit_sequence(Emitter *e,int begin,int end)
                     if(has_owned_locals(e)) {
                         char returned[ZIR_NAME_MAX];
                         fresh(e, returned);
-                        declare(e, returned, e->fn->return_type, value);
+                        declare(e, returned, e->fn->return_type, buffers->value);
                         drop_locals(e, 0);
-                        copy_text(value, sizeof(value), returned);
+                        copy_text(buffers->value, sizeof(buffers->value), returned);
                     }
-                    char plain[ZIR_TEXT_MAX];
-                    line(e, "return %s%s", bare(value, plain, sizeof(plain)),
+                    line(e, "return %s%s", bare(buffers->value, buffers->plain, sizeof(buffers->plain)),
                          e->target == ZIR_GO ? "" : ";");
                 }
             }
@@ -916,23 +1011,22 @@ emit_sequence(Emitter *e,int begin,int end)
                 if(scratch != NULL) {
                     e->out = scratch;
                     e->call_in_place = 1;
-                    emit_expr(e,st->expr_root,"bool",value,sizeof(value));
+                    emit_expr(e,st->expr_root,"bool",buffers->value,sizeof(buffers->value));
                     fclose(scratch);
                     e->out = saved_out;
                     header = scratch_size == 0;
                     free(scratch_text);
                 }
                 if(header) {
-                    char plain[ZIR_TEXT_MAX];
                     line(e,e->target==ZIR_GO?"for %s {":"while (%s) {",
-                         bare(value,plain,sizeof(plain)));
+                         bare(buffers->value,buffers->plain,sizeof(buffers->plain)));
                     e->indent++;
                 } else {
                     e->serial = saved_serial;
                     line(e,e->target==ZIR_GO?"for {":"while (true) {");e->indent++;
                     e->call_in_place = 1;
-                    emit_expr(e,st->expr_root,"bool",value,sizeof(value));
-                    line(e,e->target==ZIR_GO?"if !%s { break }":"if (!%s) { break; }",value);
+                    emit_expr(e,st->expr_root,"bool",buffers->value,sizeof(buffers->value));
+                    line(e,e->target==ZIR_GO?"if !%s { break }":"if (!%s) { break; }",buffers->value);
                 }
             }
             if(labeled && e->target!=ZIR_GO) {
@@ -987,18 +1081,18 @@ emit_sequence(Emitter *e,int begin,int end)
                 /* A call whose result goes unused is a statement of its own;
                  * an owned Vec result is kept so it can be released. */
                 e->call_in_place = !VecElementType(e->module, expr->type, NULL, 0);
-                emit_expr(e, st->expr_root, expr->type, value,
-                          sizeof(value));
-                if(*value && expr->kind == ZIR_EXPR_CALL &&
+                emit_expr(e, st->expr_root, expr->type, buffers->value,
+                          sizeof(buffers->value));
+                if(*buffers->value && expr->kind == ZIR_EXPR_CALL &&
                    VecElementType(e->module, expr->type, NULL, 0)) {
                     char temporary[ZIR_NAME_MAX];
                     fresh(e, temporary);
-                    declare(e, temporary, expr->type, value);
+                    declare(e, temporary, expr->type, buffers->value);
                     drop_temporary_vec(e, temporary);
-                } else if(*value && expr->kind == ZIR_EXPR_CALL && !plain_identifier(value))
-                    line(e, e->target == ZIR_GO ? "%s" : "%s;", value);
-                else if(*value)
-                    line(e,e->target==ZIR_GO?"_ = %s":"(void)%s;",value);
+                } else if(*buffers->value && expr->kind == ZIR_EXPR_CALL && !plain_identifier(buffers->value))
+                    line(e, e->target == ZIR_GO ? "%s" : "%s;", buffers->value);
+                else if(*buffers->value)
+                    line(e,e->target==ZIR_GO?"_ = %s":"(void)%s;",buffers->value);
             }break;
         default:break;
         }
@@ -1007,11 +1101,33 @@ emit_sequence(Emitter *e,int begin,int end)
     e->local_count=saved;e->depth--;e->sequence_terminated=0;
 }
 
-int
-EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
-            ZirResolveTarget resolver,void *context)
+static void
+emit_sequence(Emitter *e,int begin,int end)
 {
-    Emitter e={0};char params[64][ZIR_TEXT_MAX];int count;
+    static _Thread_local EmitSequenceBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitSequenceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_sequence_with_buffers(e, begin, end, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers EmitBody keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitBodyBuffers {
+    char params[64][ZIR_TEXT_MAX];
+} EmitBodyBuffers;
+
+int EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
+            ZirResolveTarget resolver,void *context);
+
+static int
+EmitBody_with_buffers(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
+            ZirResolveTarget resolver,void *context, EmitBodyBuffers *buffers)
+{
+    Emitter e={0};int count;
     if(!CanEmitBody(module, fn))return 0;
     e.out=out;e.module=module;e.fn=fn;e.target=target;e.resolve=resolver;e.context=context;e.indent=1;
     e.minify = zir_minify_output;
@@ -1021,19 +1137,19 @@ EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget targe
                    "out of memory during scalar emission");
         exit(1);
     }
-    count=*skip_ws(fn->args)?split_top_level(fn->args,params[0],64,sizeof(params[0])):0;
+    count=*skip_ws(fn->args)?split_top_level(fn->args,buffers->params[0],64,sizeof(buffers->params[0])):0;
     for(int i=0;i<count;i++) {
-        char *colon=strchr(params[i],':');*colon++=0;trim_in_place(params[i]);
+        char *colon=strchr(buffers->params[i],':');*colon++=0;trim_in_place(buffers->params[i]);
         const char *type=canonical(skip_ws(colon));
         if((target == ZIR_C || target == ZIR_CPP) &&
            ArrayValueType(type)) {
             char incoming[ZIR_NAME_MAX];
             char binding[ZIR_NAME_MAX];
             ArrayAbiName(fn, i, incoming, sizeof(incoming));
-            TargetBindingName(fn, target, params[i], binding, sizeof(binding));
+            TargetBindingName(fn, target, buffers->params[i], binding, sizeof(binding));
             declare_array(&e, binding, type, incoming);
         }
-        track_local(&e, params[i], type);
+        track_local(&e, buffers->params[i], type);
     }
     emit_sequence(&e,0,fn->stmt_count);
     if(!e.sequence_terminated) {
@@ -1042,4 +1158,20 @@ EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget targe
             line(&e, target == ZIR_GO ? "panic(\"unreachable\")" : "abort();");
     }
     free(e.locals);return 1;
+}
+
+int
+EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
+            ZirResolveTarget resolver,void *context)
+{
+    static _Thread_local EmitBodyBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitBodyBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = EmitBody_with_buffers(out, module, fn, target, resolver, context, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

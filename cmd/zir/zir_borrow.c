@@ -753,9 +753,16 @@ add_binding(BorrowCheck *check, const char *name, const char *type,
     item->global_index = -1;
     return item;
 }
+/* Buffers check_function keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CheckFunctionBuffers {
+    char parameters[64][ZIR_TEXT_MAX];
+} CheckFunctionBuffers;
+
+static void check_function(BorrowCheck *check, BorrowFunction *function);
 
 static void
-check_function(BorrowCheck *check, BorrowFunction *function)
+check_function_with_buffers(BorrowCheck *check, BorrowFunction *function, CheckFunctionBuffers *buffers)
 {
     const ZirFunction *fn = function->fn;
     check->current = function;
@@ -775,15 +782,14 @@ check_function(BorrowCheck *check, BorrowFunction *function)
         return;
     }
     check->active_capacity = fn->stmt_count + 1;
-    char parameters[64][ZIR_TEXT_MAX];
     int count = *skip_ws(fn->args) ?
-        split_top_level(fn->args, parameters[0], 64, sizeof(parameters[0])) : 0;
+        split_top_level(fn->args, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
     for(int i = 0; i < count; i++) {
-        char *colon = strchr(parameters[i], ':');
+        char *colon = strchr(buffers->parameters[i], ':');
         if(colon == NULL)
             continue;
         *colon++ = '\0';
-        trim_in_place(parameters[i]);
+        trim_in_place(buffers->parameters[i]);
         trim_in_place(colon);
         Origin origin = {0};
         int local = -1;
@@ -794,7 +800,7 @@ check_function(BorrowCheck *check, BorrowFunction *function)
         } else if(colon[0] == '*') {
             origin.depth = 1;
         }
-        add_binding(check, parameters[i], colon, origin, local, 1, 0);
+        add_binding(check, buffers->parameters[i], colon, origin, local, 1, 0);
     }
     for(int i = 0; i < fn->stmt_count && !check->failed; i++) {
         const ZirStmt *statement = &fn->stmts[i];
@@ -949,6 +955,20 @@ check_function(BorrowCheck *check, BorrowFunction *function)
     free(check->active);
     check->active = NULL;
     check->active_capacity = 0;
+}
+
+static void
+check_function(BorrowCheck *check, BorrowFunction *function)
+{
+    static _Thread_local CheckFunctionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CheckFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    check_function_with_buffers(check, function, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 int

@@ -855,6 +855,19 @@ kept_text_slot(const char *text, size_t length)
     return slot;
 }
 
+/* Scratch memory the compiler cannot work without; there is no useful
+ * way to continue when it is missing. */
+void *
+AllocateOrExit(size_t size)
+{
+    void *memory = malloc(size);
+    if(memory == NULL) {
+        fprintf(stderr, "out of memory\n");
+        exit(1);
+    }
+    return memory;
+}
+
 static void
 kept_text_failed(void)
 {
@@ -1461,24 +1474,45 @@ GeneratedOutputOpen(const char *path, char *temp, size_t size)
     GeneratedOutputRecord(path);
     return fopen(temp, "wb");
 }
+/* Buffers same_file_bytes keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct SameFileBytesBuffers {
+    char abuf[8192];
+    char bbuf[8192];
+} SameFileBytesBuffers;
+
+static int same_file_bytes(const char *left, const char *right);
 
 static int
-same_file_bytes(const char *left, const char *right)
+same_file_bytes_with_buffers(const char *left, const char *right, SameFileBytesBuffers *buffers)
 {
     FILE *a = fopen(left, "rb");
     FILE *b = fopen(right, "rb");
     int same = a != NULL && b != NULL;
-    char abuf[8192];
-    char bbuf[8192];
     while(same) {
-        size_t an = fread(abuf, 1, sizeof(abuf), a);
-        size_t bn = fread(bbuf, 1, sizeof(bbuf), b);
-        if(an != bn || memcmp(abuf, bbuf, an) != 0) same = 0;
+        size_t an = fread(buffers->abuf, 1, sizeof(buffers->abuf), a);
+        size_t bn = fread(buffers->bbuf, 1, sizeof(buffers->bbuf), b);
+        if(an != bn || memcmp(buffers->abuf, buffers->bbuf, an) != 0) same = 0;
         else if(an == 0) break;
     }
     if(a != NULL) fclose(a);
     if(b != NULL) fclose(b);
     return same;
+}
+
+static int
+same_file_bytes(const char *left, const char *right)
+{
+    static _Thread_local SameFileBytesBuffers *spares[16];
+    static _Thread_local int spare_count;
+    SameFileBytesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = same_file_bytes_with_buffers(left, right, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int

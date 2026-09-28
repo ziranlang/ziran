@@ -18,6 +18,7 @@
  * line-by-line exactly like the per-app scripts it replaces.
  */
 #include "zir_c_plan9.h"
+#include "zir.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -81,7 +82,7 @@ buf_init(Buf *b)
 }
 
 static int
-buf_append(Buf *b, const char *text, size_t n)
+buf_reserve(Buf *b, size_t n)
 {
     if(b->data == NULL)
         return -1;
@@ -96,6 +97,14 @@ buf_append(Buf *b, const char *text, size_t n)
         b->data = grown;
         b->cap = cap;
     }
+    return 0;
+}
+
+static int
+buf_append(Buf *b, const char *text, size_t n)
+{
+    if(buf_reserve(b, n) != 0)
+        return -1;
     memcpy(b->data + b->len, text, n);
     b->len += n;
     b->data[b->len] = '\0';
@@ -111,18 +120,23 @@ buf_puts(Buf *b, const char *text)
 static int
 buf_printf(Buf *b, const char *fmt, ...)
 {
-    char tmp[16384];
-    va_list ap;
+    va_list ap, measure;
     int n;
 
+    /* Measure first, then format straight into the buffer: no stack copy
+     * and no length limit. */
     va_start(ap, fmt);
-    n = vsnprintf(tmp, sizeof(tmp), fmt, ap);
-    va_end(ap);
-    if(n < 0)
+    va_copy(measure, ap);
+    n = vsnprintf(NULL, 0, fmt, measure);
+    va_end(measure);
+    if(n < 0 || buf_reserve(b, (size_t)n) != 0) {
+        va_end(ap);
         return -1;
-    if((size_t)n >= sizeof(tmp))
-        n = (int)sizeof(tmp) - 1;
-    return buf_append(b, tmp, (size_t)n);
+    }
+    vsnprintf(b->data + b->len, (size_t)n + 1, fmt, ap);
+    va_end(ap);
+    b->len += (size_t)n;
+    return 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -368,61 +382,64 @@ proto_add_macro(const char *line)
         }
     }
 }
-
-static void
-proto_add_file(const char *path, int allow_c)
-{
-    FILE *f;
+/* Buffers proto_add_file keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ProtoAddFileBuffers {
     char pending[16384];
     char pending_text[16384];
     char line[8192];
+    char joined[16384];
+} ProtoAddFileBuffers;
 
-    pending[0] = '\0';
+static void proto_add_file(const char *path, int allow_c);
+
+static void
+proto_add_file_with_buffers(const char *path, int allow_c, ProtoAddFileBuffers *buffers)
+{
+    FILE *f;
+    buffers->pending[0] = '\0';
     f = fopen(path, "r");
     if(f == NULL)
         return;
-    while(fgets(line, sizeof(line), f) != NULL) {
-        char joined[16384];
+    while(fgets(buffers->line, sizeof(buffers->line), f) != NULL) {
         char name[PLAN9_NAME_MAX];
         char type[PLAN9_TYPE_MAX];
         int i;
-
         if(!allow_c) {
-            proto_add_macro(line);
+            proto_add_macro(buffers->line);
         } else {
             /* in .c files only static definition headers are recorded,
              * before any continuation joining so body lines never
              * accumulate into a candidate */
-            const char *nospace = line + strspn(line, " \t");
-
+            const char *nospace = buffers->line + strspn(buffers->line, " \t");
             if(strncmp(nospace, "static ", 7) != 0)
                 continue;
         }
-        if(pending[0] != '\0') {
-            snprintf(pending_text, sizeof(pending_text), "%s", pending);
-            pending[0] = '\0';
-            if(snprintf(joined, sizeof(joined), "%s%s", pending_text, line)
-               >= (int)sizeof(joined))
+        if(buffers->pending[0] != '\0') {
+            snprintf(buffers->pending_text, sizeof(buffers->pending_text), "%s", buffers->pending);
+            buffers->pending[0] = '\0';
+            if(snprintf(buffers->joined, sizeof(buffers->joined), "%s%s", buffers->pending_text, buffers->line)
+               >= (int)sizeof(buffers->joined))
                 continue;
             /* a '{' after the arguments is a definition header: the
              * parser cuts at it */
-            if(strchr(joined, ';') == NULL && strchr(joined, '{') == NULL) {
-                if(strlen(joined) + 1 < sizeof(pending))
-                    snprintf(pending, sizeof(pending), "%s", joined);
+            if(strchr(buffers->joined, ';') == NULL && strchr(buffers->joined, '{') == NULL) {
+                if(strlen(buffers->joined) + 1 < sizeof(buffers->pending))
+                    snprintf(buffers->pending, sizeof(buffers->pending), "%s", buffers->joined);
                 continue;
             }
         } else {
-            snprintf(joined, sizeof(joined), "%s", line);
-            if(strchr(joined, ';') == NULL && strchr(joined, '{') == NULL
-               && strlen(joined) + 1 < sizeof(pending)
-               && (strchr(joined, '(') != NULL
-                   || strncmp(joined + strspn(joined, " \t"),
+            snprintf(buffers->joined, sizeof(buffers->joined), "%s", buffers->line);
+            if(strchr(buffers->joined, ';') == NULL && strchr(buffers->joined, '{') == NULL
+               && strlen(buffers->joined) + 1 < sizeof(buffers->pending)
+               && (strchr(buffers->joined, '(') != NULL
+                   || strncmp(buffers->joined + strspn(buffers->joined, " \t"),
                               "static ", 7) == 0)) {
-                snprintf(pending, sizeof(pending), "%s", joined);
+                snprintf(buffers->pending, sizeof(buffers->pending), "%s", buffers->joined);
                 continue;
             }
         }
-        if(!proto_line_parse(joined, name, sizeof(name), type, sizeof(type)))
+        if(!proto_line_parse(buffers->joined, name, sizeof(name), type, sizeof(type)))
             continue;
         for(i = 0; i < proto_count; i++) {
             if(strcmp(protos[i].name, name) == 0)
@@ -437,6 +454,20 @@ proto_add_file(const char *path, int allow_c)
         proto_count++;
     }
     fclose(f);
+}
+
+static void
+proto_add_file(const char *path, int allow_c)
+{
+    static _Thread_local ProtoAddFileBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ProtoAddFileBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    proto_add_file_with_buffers(path, allow_c, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static void
@@ -735,23 +766,28 @@ body_is_zero(const char *body, int len)
     }
     return seen;
 }
-
-/* Emit statements that build `Type temp` from the literal body and
- * append them to out. Returns 0 on success. */
-static int
-emit_compound_temp(Buf *out, const char *indent, const char *type,
-                   const char *body, int body_len, const char *temp)
-{
+/* Buffers emit_compound_temp keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitCompoundTempBuffers {
     char value[PLAN9_LINE_MAX];
+    char ibody[PLAN9_LINE_MAX];
+    char inner[PLAN9_LINE_MAX];
+} EmitCompoundTempBuffers;
+
+static int emit_compound_temp(Buf *out, const char *indent, const char *type,
+                   const char *body, int body_len, const char *temp);
+
+static int
+emit_compound_temp_with_buffers(Buf *out, const char *indent, const char *type,
+                   const char *body, int body_len, const char *temp, EmitCompoundTempBuffers *buffers)
+{
     char field[PLAN9_NAME_MAX];
     int pos = 0;
     const char *bracket = strchr(type, '[');
-
     if(bracket != NULL) {
         /* array literal: declare the temporary with its size */
         char base[PLAN9_TYPE_MAX];
         size_t n = (size_t)(bracket - type);
-
         if(n == 0 || n >= sizeof(base))
             return -1;
         memcpy(base, type, n);
@@ -761,26 +797,22 @@ emit_compound_temp(Buf *out, const char *indent, const char *type,
         return buf_printf(out, "%smemset(%s, 0, sizeof(%s));\n",
                           indent, temp, temp);
     }
-
     if(body_is_zero(body, body_len)) {
         if(buf_printf(out, "%s%s %s;\n", indent, type, temp) < 0)
             return -1;
         return buf_printf(out, "%smemset(&%s, 0, sizeof(%s));\n",
                           indent, temp, temp);
     }
-
     if(!body_all_designated(body, body_len)) {
         /* full positional initializer in a declaration is 8c-safe */
-        if(copy_trimmed(body, 0, body_len, value, sizeof(value)) < 0)
+        if(copy_trimmed(body, 0, body_len, buffers->value, sizeof(buffers->value)) < 0)
             return -1;
-        return buf_printf(out, "%s%s %s = {%s};\n", indent, type, temp, value);
+        return buf_printf(out, "%s%s %s = {%s};\n", indent, type, temp, buffers->value);
     }
-
     if(buf_printf(out, "%s%s %s;\n", indent, type, temp) < 0)
         return -1;
     if(buf_printf(out, "%smemset(&%s, 0, sizeof(%s));\n", indent, temp, temp) < 0)
         return -1;
-
     while(pos < body_len) {
         int comma = find_top_level_comma(body, pos, body_len);
         int stop = comma < 0 ? body_len : comma;
@@ -788,7 +820,6 @@ emit_compound_temp(Buf *out, const char *indent, const char *type,
         int i = pos;
         int fstart;
         int fend;
-
         while(i < stop && isspace((unsigned char)body[i]))
             i++;
         if(i >= stop || body[i] != '.')
@@ -807,45 +838,41 @@ emit_compound_temp(Buf *out, const char *indent, const char *type,
         if(i >= stop || body[i] != '=')
             return -1;
         i++;
-        if(copy_trimmed(body, i, stop, value, sizeof(value)) < 0)
+        if(copy_trimmed(body, i, stop, buffers->value, sizeof(buffers->value)) < 0)
             return -1;
-
         /* a field value that is itself a cast literal needs its own
          * temporary before the assignment */
-        if(value[0] == '(' ) {
+        if(buffers->value[0] == '(' ) {
             char itype[PLAN9_TYPE_MAX];
             size_t it = 1;
-            size_t vn = strlen(value);
+            size_t vn = strlen(buffers->value);
             size_t ob;
             int cb;
             int valid = 0;
-
-            while(it < vn && (isalnum((unsigned char)value[it])
-                              || value[it] == '_' || value[it] == ' '
-                              || value[it] == '*'))
+            while(it < vn && (isalnum((unsigned char)buffers->value[it])
+                              || buffers->value[it] == '_' || buffers->value[it] == ' '
+                              || buffers->value[it] == '*'))
                 it++;
-            if(it > 1 && it < sizeof(itype) && value[it] == ')'
-               && value[it + 1] == '{'
-               && (isalpha((unsigned char)value[1]) || value[1] == '_')) {
-                memcpy(itype, value + 1, it - 1);
+            if(it > 1 && it < sizeof(itype) && buffers->value[it] == ')'
+               && buffers->value[it + 1] == '{'
+               && (isalpha((unsigned char)buffers->value[1]) || buffers->value[1] == '_')) {
+                memcpy(itype, buffers->value + 1, it - 1);
                 itype[it - 1] = '\0';
                 ob = it + 2;
-                cb = find_matching_brace(value, (int)ob);
-                if(cb > 0 && (value[cb + 1] == '\0'))
+                cb = find_matching_brace(buffers->value, (int)ob);
+                if(cb > 0 && (buffers->value[cb + 1] == '\0'))
                     valid = 1;
             }
             if(valid) {
                 char itemp[PLAN9_NAME_MAX];
                 static int inner_seq = 0;
-                char ibody[PLAN9_LINE_MAX];
                 size_t ibn = (size_t)cb - ob;
-
                 snprintf(itemp, sizeof(itemp), "__zir_c_p9i%d", inner_seq++);
-                if(ibn >= sizeof(ibody))
+                if(ibn >= sizeof(buffers->ibody))
                     return -1;
-                memcpy(ibody, value + ob, ibn);
-                ibody[ibn] = '\0';
-                if(emit_compound_temp(out, indent, itype, ibody,
+                memcpy(buffers->ibody, buffers->value + ob, ibn);
+                buffers->ibody[ibn] = '\0';
+                if(emit_compound_temp(out, indent, itype, buffers->ibody,
                                       (int)ibn, itemp) < 0)
                     return -1;
                 if(buf_printf(out, "%s%s.%s = %s;\n",
@@ -857,23 +884,20 @@ emit_compound_temp(Buf *out, const char *indent, const char *type,
                 continue;
             }
         }
-
         nested = nested_field_type(field);
-        if(nested != NULL && value[0] == '{' && value[strlen(value) - 1] == '}') {
-            char inner[PLAN9_LINE_MAX];
-            size_t n = strlen(value) - 2;
-
-            if(n >= sizeof(inner))
+        if(nested != NULL && buffers->value[0] == '{' && buffers->value[strlen(buffers->value) - 1] == '}') {
+            size_t n = strlen(buffers->value) - 2;
+            if(n >= sizeof(buffers->inner))
                 return -1;
-            memcpy(inner, value + 1, n);
-            inner[n] = '\0';
+            memcpy(buffers->inner, buffers->value + 1, n);
+            buffers->inner[n] = '\0';
             if(buf_printf(out, "%s%s %s_%s = {%s};\n%s%s.%s = %s_%s;\n",
-                          indent, nested, temp, field, inner,
+                          indent, nested, temp, field, buffers->inner,
                           indent, temp, field, temp, field) < 0)
                 return -1;
         } else {
             if(buf_printf(out, "%s%s.%s = %s;\n",
-                          indent, temp, field, value) < 0)
+                          indent, temp, field, buffers->value) < 0)
                 return -1;
         }
         if(comma < 0)
@@ -881,6 +905,24 @@ emit_compound_temp(Buf *out, const char *indent, const char *type,
         pos = comma + 1;
     }
     return 0;
+}
+
+/* Emit statements that build `Type temp` from the literal body and
+ * append them to out. Returns 0 on success. */
+static int
+emit_compound_temp(Buf *out, const char *indent, const char *type,
+                   const char *body, int body_len, const char *temp)
+{
+    static _Thread_local EmitCompoundTempBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitCompoundTempBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = emit_compound_temp_with_buffers(out, indent, type, body, body_len, temp, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* Find the next cast-shaped compound literal "(Ident]){{" on the line,
@@ -958,10 +1000,16 @@ find_cast_literal(const char *line, int cursor, int *cast_start, int *cast_end,
     }
     return 0;
 }
+/* Buffers rewrite_line_compound keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RewriteLineCompoundBuffers {
+    char body[PLAN9_LINE_MAX];
+} RewriteLineCompoundBuffers;
 
-/* Rewrite every cast literal on one line into temps + rebuilt line. */
+static int rewrite_line_compound(Buf *out, const char *line, int lineno, int *rewrote);
+
 static int
-rewrite_line_compound(Buf *out, const char *line, int lineno, int *rewrote)
+rewrite_line_compound_with_buffers(Buf *out, const char *line, int lineno, int *rewrote, RewriteLineCompoundBuffers *buffers)
 {
     char indent[256];
     size_t ilen = 0;
@@ -974,39 +1022,33 @@ rewrite_line_compound(Buf *out, const char *line, int lineno, int *rewrote)
     int cast_end;
     int brace_open;
     int brace_close;
-    char body[PLAN9_LINE_MAX];
     char temp[PLAN9_NAME_MAX];
     int n;
-
     while(ilen + 1 < sizeof(indent) &&
           (line[ilen] == ' ' || line[ilen] == '\t')) {
         indent[ilen] = line[ilen];
         ilen++;
     }
     indent[ilen] = '\0';
-
     if(!buf_init(&temps) || !buf_init(&rebuilt)) {
         free(temps.data);
         free(rebuilt.data);
         return -1;
     }
-
     while(find_cast_literal(line, cursor, &cast_start, &cast_end,
                             &brace_open, type, sizeof(type))) {
         brace_close = find_matching_brace(line, brace_open);
         if(brace_close < 0)
             break; /* multi-line literal: leave the rest untouched */
         n = brace_close - brace_open - 1;
-        if((size_t)n >= sizeof(body))
+        if((size_t)n >= sizeof(buffers->body))
             break;
-        memcpy(body, line + brace_open + 1, (size_t)n);
-        body[n] = '\0';
-
+        memcpy(buffers->body, line + brace_open + 1, (size_t)n);
+        buffers->body[n] = '\0';
         snprintf(temp, sizeof(temp), "%s%d_%d", PLAN9_TEMP_PREFIX,
                  lineno, temp_index);
         temp_index++;
-
-        if(emit_compound_temp(&temps, indent, type, body, n, temp) < 0)
+        if(emit_compound_temp(&temps, indent, type, buffers->body, n, temp) < 0)
             break;
         if(buf_append(&rebuilt, line + cursor,
                       (size_t)(cast_start - cursor)) < 0)
@@ -1028,6 +1070,22 @@ rewrite_line_compound(Buf *out, const char *line, int lineno, int *rewrote)
     free(temps.data);
     free(rebuilt.data);
     return 0;
+}
+
+/* Rewrite every cast literal on one line into temps + rebuilt line. */
+static int
+rewrite_line_compound(Buf *out, const char *line, int lineno, int *rewrote)
+{
+    static _Thread_local RewriteLineCompoundBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RewriteLineCompoundBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = rewrite_line_compound_with_buffers(out, line, lineno, rewrote, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1089,29 +1147,32 @@ merge_type(char *acc, int *have, const char *next)
         return 1;
     return 0;
 }
+/* Buffers expr_type keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ExprTypeBuffers {
+    char inner[PLAN9_LINE_MAX];
+} ExprTypeBuffers;
+
+static int expr_type(const char *expr, size_t len, char *type, size_t type_size);
 
 static int
-expr_type(const char *expr, size_t len, char *type, size_t type_size)
+expr_type_with_buffers(const char *expr, size_t len, char *type, size_t type_size, ExprTypeBuffers *buffers)
 {
     char acc[PLAN9_TYPE_MAX];
     char one[PLAN9_TYPE_MAX];
     int have = 0;
     size_t i = 0;
-
     while(i < len && (expr[i] == ' ' || expr[i] == '\t'))
         i++;
     if(i >= len)
         return 0;
     if(expr[i] == '&' || expr[i] == '*')
         return 0; /* pointers handled by the caller */
-
     while(i < len) {
         if(expr[i] == '(') {
             size_t depth = 0;
             size_t k = i;
-            char inner[PLAN9_LINE_MAX];
             char inner_type[PLAN9_TYPE_MAX];
-
             while(k < len) {
                 if(expr[k] == '(')
                     depth++;
@@ -1122,11 +1183,11 @@ expr_type(const char *expr, size_t len, char *type, size_t type_size)
                 }
                 k++;
             }
-            if(k >= len || k - i - 1 >= sizeof(inner))
+            if(k >= len || k - i - 1 >= sizeof(buffers->inner))
                 return 0;
-            memcpy(inner, expr + i + 1, k - i - 1);
-            inner[k - i - 1] = '\0';
-            if(!expr_type(inner, strlen(inner), inner_type,
+            memcpy(buffers->inner, expr + i + 1, k - i - 1);
+            buffers->inner[k - i - 1] = '\0';
+            if(!expr_type(buffers->inner, strlen(buffers->inner), inner_type,
                           sizeof(inner_type)))
                 return 0;
             if(!merge_type(acc, &have, inner_type))
@@ -1136,7 +1197,6 @@ expr_type(const char *expr, size_t len, char *type, size_t type_size)
         }
         if(isdigit((unsigned char)expr[i])) {
             size_t j = i;
-
             while(j < len && (isdigit((unsigned char)expr[j])
                               || expr[j] == '.' || expr[j] == 'u'
                               || expr[j] == 'U' || expr[j] == 'l'
@@ -1152,14 +1212,12 @@ expr_type(const char *expr, size_t len, char *type, size_t type_size)
         }
         if(isalpha((unsigned char)expr[i]) || expr[i] == '_') {
             size_t j = i;
-
             while(j < len && (isalnum((unsigned char)expr[j])
                               || expr[j] == '_'))
                 j++;
             if(j < len && expr[j] == '(') {
                 size_t depth = 0;
                 size_t k = j;
-
                 while(k < len) {
                     if(expr[k] == '(')
                         depth++;
@@ -1184,7 +1242,6 @@ expr_type(const char *expr, size_t len, char *type, size_t type_size)
                 snprintf(one, sizeof(one), "int");
             if(!merge_type(acc, &have, one))
                 return 0;
-
             i = j;
             continue;
         }
@@ -1201,6 +1258,21 @@ expr_type(const char *expr, size_t len, char *type, size_t type_size)
         return 0;
     snprintf(type, type_size, "%s", acc);
     return 1;
+}
+
+static int
+expr_type(const char *expr, size_t len, char *type, size_t type_size)
+{
+    static _Thread_local ExprTypeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ExprTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = expr_type_with_buffers(expr, len, type, type_size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -2137,24 +2209,28 @@ rewrite_plan9_foreign_aliases(const char *line,
     asm_at[2] = '\0';
     return 0;
 }
-
-/* Plan 9's libc prints with print, spells unsigned %llud, and writes raw
- * bytes with write. */
-static void
-rewrite_plan9_print(char *line, size_t size)
-{
+/* Buffers rewrite_plan9_print keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RewritePlan9PrintBuffers {
     char out[PLAN9_LINE_MAX];
+} RewritePlan9PrintBuffers;
+
+static void rewrite_plan9_print(char *line, size_t size);
+
+static void
+rewrite_plan9_print_with_buffers(char *line, size_t size, RewritePlan9PrintBuffers *buffers)
+{
     size_t used = 0;
     const char *p = line;
     if(strstr(line, "printf(") == NULL && strstr(line, "fwrite(") == NULL)
         return;
-    while(*p && used + 8 < sizeof(out)) {
+    while(*p && used + 8 < sizeof(buffers->out)) {
         if(!strncmp(p, "printf(", 7)) {
-            memcpy(out + used, "print(", 6);
+            memcpy(buffers->out + used, "print(", 6);
             used += 6;
             p += 7;
         } else if(!strncmp(p, "%llu", 4)) {
-            memcpy(out + used, "%llud", 5);
+            memcpy(buffers->out + used, "%llud", 5);
             used += 5;
             p += 4;
         } else if(!strncmp(p, "fwrite(", 7)) {
@@ -2163,37 +2239,59 @@ rewrite_plan9_print(char *line, size_t size)
             const char *count = one ? one + 5 : NULL;
             const char *stream = count ? strstr(count, ", stdout)") : NULL;
             if(stream == NULL) {
-                out[used++] = *p++;
+                buffers->out[used++] = *p++;
                 continue;
             }
-            used += (size_t)snprintf(out + used, sizeof(out) - used, "write(1, %.*s, %.*s)",
+            used += (size_t)snprintf(buffers->out + used, sizeof(buffers->out) - used, "write(1, %.*s, %.*s)",
                                      (int)(one - text), text, (int)(stream - count), count);
             p = stream + 9;
         } else
-            out[used++] = *p++;
+            buffers->out[used++] = *p++;
     }
-    out[used] = '\0';
-    snprintf(line, size, "%s", out);
+    buffers->out[used] = '\0';
+    snprintf(line, size, "%s", buffers->out);
 }
 
-char *
-c_plan9_rewrite_once(const char *text)
+/* Plan 9's libc prints with print, spells unsigned %llud, and writes raw
+ * bytes with write. */
+static void
+rewrite_plan9_print(char *line, size_t size)
+{
+    static _Thread_local RewritePlan9PrintBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RewritePlan9PrintBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    rewrite_plan9_print_with_buffers(line, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers c_plan9_rewrite_once keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CPlan9RewriteOnceBuffers {
+    int pending_depths[256];
+    Plan9ForeignAlias aliases[128];
+    char current[PLAN9_LINE_MAX];
+    char rewritten[PLAN9_LINE_MAX];
+} CPlan9RewriteOnceBuffers;
+
+char *c_plan9_rewrite_once(const char *text);
+
+static char *
+c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *buffers)
 {
     Buf out;
     char *line;
     const char *cursor = text;
     int lineno = 0;
-    int pending_depths[256];
     int pending_count = 0;
     int depth = 0;
     int runtime_include = 0;
-    Plan9ForeignAlias aliases[128];
     int alias_count;
-
-    alias_count = collect_plan9_foreign_aliases(text, aliases, 128);
+    alias_count = collect_plan9_foreign_aliases(text, buffers->aliases, 128);
     if(alias_count < 0)
         return NULL;
-
     line = malloc(PLAN9_LINE_MAX);
     if(line == NULL)
         return NULL;
@@ -2211,81 +2309,73 @@ c_plan9_rewrite_once(const char *text)
             goto fail;
         print_guard = 0;
     }
-
     while(*cursor != '\0') {
         const char *nl = strchr(cursor, '\n');
         size_t n = nl != NULL ? (size_t)(nl - cursor) + 1 : strlen(cursor);
-        char current[PLAN9_LINE_MAX];
-        char rewritten[PLAN9_LINE_MAX];
         char indent[256];
         size_t ilen = 0;
         char ftype[64];
         char fname[PLAN9_NAME_MAX];
         const char *rest;
         int emitted = 0;
-
         if(n >= PLAN9_LINE_MAX)
             n = PLAN9_LINE_MAX - 1;
-        memcpy(current, cursor, n);
-        current[n] = '\0';
+        memcpy(buffers->current, cursor, n);
+        buffers->current[n] = '\0';
         cursor += n;
         lineno++;
         if(lineno == 1 && print_guard) {
-            if(buf_puts(&out, current) < 0 ||
+            if(buf_puts(&out, buffers->current) < 0 ||
                buf_puts(&out, "#define ZIR_PLAN9_PRINT 1\n") < 0)
                 goto fail;
             continue;
         }
         {
             int foreign_result =
-                rewrite_plan9_foreign_aliases(current, aliases, alias_count,
-                                              rewritten, sizeof(rewritten));
+                rewrite_plan9_foreign_aliases(buffers->current, buffers->aliases, alias_count,
+                                              buffers->rewritten, sizeof(buffers->rewritten));
             if(foreign_result < 0)
                 goto fail;
             if(foreign_result > 0)
                 continue;
         }
-        if(snprintf(current, sizeof(current), "%s", rewritten) >=
-            (int)sizeof(current))
+        if(snprintf(buffers->current, sizeof(buffers->current), "%s", buffers->rewritten) >=
+            (int)sizeof(buffers->current))
             goto fail;
-        rewrite_integer_suffixes(current);
-        rewrite_plan9_print(current, sizeof(current));
-
+        rewrite_integer_suffixes(buffers->current);
+        rewrite_plan9_print(buffers->current, sizeof(buffers->current));
         while(ilen + 1 < sizeof(indent) &&
-              (current[ilen] == ' ' || current[ilen] == '\t')) {
-            indent[ilen] = current[ilen];
+              (buffers->current[ilen] == ' ' || buffers->current[ilen] == '\t')) {
+            indent[ilen] = buffers->current[ilen];
             ilen++;
         }
         indent[ilen] = '\0';
-
         /* close for-decl blocks that ended at this depth */
-        while(pending_count > 0 && depth == pending_depths[pending_count - 1]) {
+        while(pending_count > 0 && depth == buffers->pending_depths[pending_count - 1]) {
             pending_count--;
             if(buf_printf(&out, "%s}\n", indent) < 0)
                 goto fail;
         }
-
-        if(strcmp(current, "int32_t main(void);\n") == 0) {
+        if(strcmp(buffers->current, "int32_t main(void);\n") == 0) {
             if(buf_puts(&out,
                         "int32_t ziran_plan9_main(void);\n"
                         "void main(void);\n") < 0)
                 goto fail;
             continue;
         }
-        if(strcmp(current, "main(void)\n") == 0) {
+        if(strcmp(buffers->current, "main(void)\n") == 0) {
             if(buf_puts(&out, "ziran_plan9_main(void)\n") < 0)
                 goto fail;
             continue;
         }
-
-        if(strstr(current, "#include <stdint.h>") != NULL ||
-           strstr(current, "#include <stddef.h>") != NULL ||
-           strstr(current, "#include <stdbool.h>") != NULL ||
-           strstr(current, "#include <stdlib.h>") != NULL ||
-           strstr(current, "#include \"zir_bounds.h\"") != NULL ||
-           strstr(current, "#include \"zir_string.h\"") != NULL ||
-           strstr(current, "#include \"zir_slice.h\"") != NULL ||
-           strstr(current, "#include \"zir_vec.h\"") != NULL) {
+        if(strstr(buffers->current, "#include <stdint.h>") != NULL ||
+           strstr(buffers->current, "#include <stddef.h>") != NULL ||
+           strstr(buffers->current, "#include <stdbool.h>") != NULL ||
+           strstr(buffers->current, "#include <stdlib.h>") != NULL ||
+           strstr(buffers->current, "#include \"zir_bounds.h\"") != NULL ||
+           strstr(buffers->current, "#include \"zir_string.h\"") != NULL ||
+           strstr(buffers->current, "#include \"zir_slice.h\"") != NULL ||
+           strstr(buffers->current, "#include \"zir_vec.h\"") != NULL) {
             if(runtime_include == 0) {
                 if(buf_puts(&out, "#include \"zir_plan9_runtime.h\"\n") < 0)
                     goto fail;
@@ -2293,45 +2383,40 @@ c_plan9_rewrite_once(const char *text)
             }
             continue;
         }
-
-        if(strstr(current, "static inline ") != NULL) {
-            const char *inline_at = strstr(current, "static inline ");
-            size_t prefix = (size_t)(inline_at - current);
-            if(snprintf(rewritten, sizeof(rewritten), "%.*s%s",
-                        (int)prefix, current,
+        if(strstr(buffers->current, "static inline ") != NULL) {
+            const char *inline_at = strstr(buffers->current, "static inline ");
+            size_t prefix = (size_t)(inline_at - buffers->current);
+            if(snprintf(buffers->rewritten, sizeof(buffers->rewritten), "%.*s%s",
+                        (int)prefix, buffers->current,
                         inline_at + strlen("static inline ")) >=
-                (int)sizeof(rewritten))
+                (int)sizeof(buffers->rewritten))
                 goto fail;
-            if(buf_puts(&out, rewritten) < 0)
+            if(buf_puts(&out, buffers->rewritten) < 0)
                 goto fail;
             continue;
         }
-
         {
-            int abi_result = rewrite_ziran_abi_marker(current, &out);
+            int abi_result = rewrite_ziran_abi_marker(buffers->current, &out);
             if(abi_result < 0)
                 goto fail;
             if(abi_result > 0)
                 continue;
         }
-
-        if(line_passthrough(current)) {
-            if(buf_puts(&out, current) < 0)
+        if(line_passthrough(buffers->current)) {
+            if(buf_puts(&out, buffers->current) < 0)
                 goto fail;
             continue;
         }
-
         /* 1. __auto_type: resolve to a concrete type where possible */
-        if(strstr(current, "__auto_type") != NULL) {
-            if(rewrite_autotype(current, rewritten, sizeof(rewritten))) {
-                snprintf(current, sizeof(current), "%s", rewritten);
+        if(strstr(buffers->current, "__auto_type") != NULL) {
+            if(rewrite_autotype(buffers->current, buffers->rewritten, sizeof(buffers->rewritten))) {
+                snprintf(buffers->current, sizeof(buffers->current), "%s", buffers->rewritten);
             } else {
                 unresolved_count++;
             }
         }
-
         /* 2. for-declaration hoisting */
-        if(for_decl_split(current, ftype, sizeof(ftype), fname,
+        if(for_decl_split(buffers->current, ftype, sizeof(ftype), fname,
                           sizeof(fname), &rest)) {
             if(buf_printf(&out, "%s{\n", indent) < 0)
                 goto fail;
@@ -2340,29 +2425,25 @@ c_plan9_rewrite_once(const char *text)
             if(buf_printf(&out, "%s    for(%s%s", indent, fname, rest) < 0)
                 goto fail;
             if(pending_count < 256) {
-                pending_depths[pending_count] = depth;
+                buffers->pending_depths[pending_count] = depth;
                 pending_count++;
             }
-            depth += brace_delta(current);
+            depth += brace_delta(buffers->current);
             emitted = 1; /* statement fully emitted above */
         }
-
         /* 3. compound literals in the statement */
         if(!emitted) {
             int rewrote = 0;
-
             /* "Type name[N] = (Type[N]){0};" is an array declaration:
              * zero the named array instead of assigning through a temp */
             {
-                const char *eq = strchr(current, '=');
+                const char *eq = strchr(buffers->current, '=');
                 const char *assign = NULL;
                 const char *scan_eq;
                 const char *cut = NULL;
-
                 for(scan_eq = eq; scan_eq != NULL;
                     scan_eq = strchr(scan_eq + 1, '=')) {
                     const char *after = scan_eq + 1;
-
                     while(*after == ' ' || *after == '\t')
                         after++;
                     if(*after == '(' && after[-1] != '=' && after[-1] != '!'
@@ -2372,47 +2453,44 @@ c_plan9_rewrite_once(const char *text)
                         break;
                     }
                 }
-
-                if(assign != NULL && strchr(current, '[') != NULL) {
+                if(assign != NULL && strchr(buffers->current, '[') != NULL) {
                     const char *close = strchr(assign + 1, ')');
                     const char *brace_p = close != NULL ? strchr(close, '{')
                                                         : NULL;
                     const char *close_b = brace_p != NULL
                         ? strchr(brace_p + 1, '}') : NULL;
                     const char *tail = close_b != NULL ? close_b + 1 : NULL;
-
                     if(tail != NULL && (*tail == ';' || *tail == '\n'
                                         || *tail == '\0')
-                       && assign > current
-                       && memchr(current, ']', (size_t)(assign - current))
+                       && assign > buffers->current
+                       && memchr(buffers->current, ']', (size_t)(assign - buffers->current))
                           != NULL
-                       && memchr(current, '(', (size_t)(assign - current))
+                       && memchr(buffers->current, '(', (size_t)(assign - buffers->current))
                           == NULL) {
                         char name[PLAN9_NAME_MAX];
-                        const char *bracket = memchr(current, '[',
-                            (size_t)(assign - current));
+                        const char *bracket = memchr(buffers->current, '[',
+                            (size_t)(assign - buffers->current));
                         const char *name_end = bracket;
                         const char *name_start;
                         size_t nlen;
-
-                        while(name_end > current
+                        while(name_end > buffers->current
                               && (name_end[-1] == ' ' || name_end[-1] == '\t'))
                             name_end--;
                         name_start = name_end;
-                        while(name_start > current
+                        while(name_start > buffers->current
                               && (isalnum((unsigned char)name_start[-1])
                                   || name_start[-1] == '_'))
                             name_start--;
                         nlen = (size_t)(name_end - name_start);
                         if(nlen > 0 && nlen < sizeof(name)
-                           && name_start > current + ilen
-                           && memchr(current, '.', (size_t)(name_start - current)) == NULL
-                           && (name_start - current < 2
-                               || memmem(current, (size_t)(name_start - current), "->", 2) == NULL)) {
+                           && name_start > buffers->current + ilen
+                           && memchr(buffers->current, '.', (size_t)(name_start - buffers->current)) == NULL
+                           && (name_start - buffers->current < 2
+                               || memmem(buffers->current, (size_t)(name_start - buffers->current), "->", 2) == NULL)) {
                             memcpy(name, name_start, nlen);
                             name[nlen] = '\0';
-                            if(buf_append(&out, current,
-                                          (size_t)(cut - current)) < 0
+                            if(buf_append(&out, buffers->current,
+                                          (size_t)(cut - buffers->current)) < 0
                                || buf_puts(&out, ";\n") < 0
                                || buf_printf(&out,
                                              "%smemset(%s, 0, sizeof(%s));\n",
@@ -2423,26 +2501,24 @@ c_plan9_rewrite_once(const char *text)
                     }
                 }
             }
-            if(!emitted && strstr(current, "){") != NULL
-               && strchr(current, '(') != NULL) {
-                if(rewrite_line_compound(&out, current, lineno, &rewrote) < 0)
+            if(!emitted && strstr(buffers->current, "){") != NULL
+               && strchr(buffers->current, '(') != NULL) {
+                if(rewrite_line_compound(&out, buffers->current, lineno, &rewrote) < 0)
                     goto fail;
             }
             if(rewrote == 0 && emitted == 0) {
-                if(buf_puts(&out, current) < 0)
+                if(buf_puts(&out, buffers->current) < 0)
                     goto fail;
             }
-            depth += brace_delta(current);
+            depth += brace_delta(buffers->current);
         }
-
-        while(pending_count > 0 && depth == pending_depths[pending_count - 1]) {
+        while(pending_count > 0 && depth == buffers->pending_depths[pending_count - 1]) {
             pending_count--;
             if(buf_printf(&out, "%s}\n", indent) < 0)
                 goto fail;
         }
     }
     free(line);
-
     /* the pass emits memset() calls; make sure the declaration is
      * included even when the lowered source never needed <string.h> */
     if(strstr(out.data, "memset(") != NULL
@@ -2450,10 +2526,8 @@ c_plan9_rewrite_once(const char *text)
         const char *scan = out.data;
         const char *last_include = NULL;
         int guard = 0;
-
         while((scan = strstr(scan, "#include ")) != NULL) {
             const char *eol = strchr(scan, '\n');
-
             if(eol != NULL) {
                 last_include = eol + 1;
                 scan = eol + 1;
@@ -2468,7 +2542,6 @@ c_plan9_rewrite_once(const char *text)
             const char *inc = "#include <string.h>\n";
             size_t inc_len = strlen(inc);
             char *grown = realloc(out.data, out.len + inc_len + 1);
-
             if(grown != NULL) {
                 out.data = grown;
                 memmove(out.data + at + inc_len, out.data + at,
@@ -2480,9 +2553,23 @@ c_plan9_rewrite_once(const char *text)
         }
     }
     return out.data;
-
 fail:
     free(line);
     free(out.data);
     return NULL;
+}
+
+char *
+c_plan9_rewrite_once(const char *text)
+{
+    static _Thread_local CPlan9RewriteOnceBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CPlan9RewriteOnceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    char *returned = c_plan9_rewrite_once_with_buffers(text, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

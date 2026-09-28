@@ -35,23 +35,27 @@ SetDiagnosticFormat(const char *format)
         return 0;
     return 1;
 }
-
-void
-DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args)
-{
+/* Buffers DiagnosticV keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct DiagnosticVBuffers {
     char message[ZIR_TEXT_MAX * 2];
+} DiagnosticVBuffers;
 
-    vsnprintf(message, sizeof(message), format, args);
+void DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args);
+
+static void
+DiagnosticV_with_buffers(ZirSourceSpan span, const char *code, const char *format, va_list args, DiagnosticVBuffers *buffers)
+{
+    vsnprintf(buffers->message, sizeof(buffers->message), format, args);
     if(diagnostic_json < 0) {
         const char *environment = getenv("ZIRAN_DIAGNOSTICS");
-
         diagnostic_json = environment != NULL && strcmp(environment, "json") == 0;
     }
     if(diagnostic_json) {
         fputs("{\"severity\":\"error\",\"code\":", stderr);
         json_string(stderr, code);
         fputs(",\"message\":", stderr);
-        json_string(stderr, message);
+        json_string(stderr, buffers->message);
         fputs(",\"path\":", stderr);
         json_string(stderr, SpanPath(span));
         fprintf(stderr, ",\"line\":%d,\"column\":%d,"
@@ -60,10 +64,24 @@ DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list ar
                 span.end_line > 0 ? span.end_line : span.line,
                 span.end_column > 0 ? span.end_column : span.column);
     } else if(SpanPath(span)[0] != '\0') {
-        fprintf(stderr, "%s:%d:%d: %s\n", SpanPath(span), span.line, span.column, message);
+        fprintf(stderr, "%s:%d:%d: %s\n", SpanPath(span), span.line, span.column, buffers->message);
     } else {
-        fprintf(stderr, "ziran: %s\n", message);
+        fprintf(stderr, "ziran: %s\n", buffers->message);
     }
+}
+
+void
+DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args)
+{
+    static _Thread_local DiagnosticVBuffers *spares[16];
+    static _Thread_local int spare_count;
+    DiagnosticVBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    DiagnosticV_with_buffers(span, code, format, args, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 void

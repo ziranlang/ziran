@@ -1,4 +1,5 @@
 #include "zir_text.h"
+#include "zir.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -370,32 +371,34 @@ encode_string_literal(const unsigned char *bytes, size_t length, char *out,
     out[used] = '\0';
     return 1;
 }
+/* Buffers PrintFormatPieces keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct PrintFormatPiecesBuffers {
+    unsigned char bytes[4096];
+    unsigned char text[4096];
+} PrintFormatPiecesBuffers;
 
-/* Split a `print` format literal at `%` placeholders; `%%` is one literal
- * percent. Literal pieces are re-encoded as Ziran string literals so every
- * backend lowers them through its ordinary string path. Empty literal pieces
- * are omitted. Returns the piece count, or -1 for an invalid literal or when
- * the pieces do not fit. */
-int
-PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity)
+int PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity);
+
+static int
+PrintFormatPieces_with_buffers(const char *format, PrintPiece *pieces, int capacity, PrintFormatPiecesBuffers *buffers)
 {
-    unsigned char bytes[4096], text[4096];
     size_t length, pending = 0;
     int count = 0;
-    if(!DecodeStringLiteral(format, bytes, sizeof(bytes), &length))
+    if(!DecodeStringLiteral(format, buffers->bytes, sizeof(buffers->bytes), &length))
         return -1;
     for(size_t i = 0; i <= length; i++) {
-        int placeholder = i < length && bytes[i] == '%' &&
-                          (i + 1 >= length || bytes[i + 1] != '%');
+        int placeholder = i < length && buffers->bytes[i] == '%' &&
+                          (i + 1 >= length || buffers->bytes[i + 1] != '%');
         if(i < length && !placeholder) {
-            text[pending++] = bytes[i];
-            if(bytes[i] == '%' && i + 1 < length && bytes[i + 1] == '%')
+            buffers->text[pending++] = buffers->bytes[i];
+            if(buffers->bytes[i] == '%' && i + 1 < length && buffers->bytes[i + 1] == '%')
                 i++;
             continue;
         }
         if(pending > 0) {
             if(count >= capacity ||
-               !encode_string_literal(text, pending, pieces[count].literal,
+               !encode_string_literal(buffers->text, pending, pieces[count].literal,
                                       sizeof(pieces[count].literal)))
                 return -1;
             pieces[count++].is_argument = 0;
@@ -409,6 +412,26 @@ PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity)
         }
     }
     return count;
+}
+
+/* Split a `print` format literal at `%` placeholders; `%%` is one literal
+ * percent. Literal pieces are re-encoded as Ziran string literals so every
+ * backend lowers them through its ordinary string path. Empty literal pieces
+ * are omitted. Returns the piece count, or -1 for an invalid literal or when
+ * the pieces do not fit. */
+int
+PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity)
+{
+    static _Thread_local PrintFormatPiecesBuffers *spares[16];
+    static _Thread_local int spare_count;
+    PrintFormatPiecesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = PrintFormatPieces_with_buffers(format, pieces, capacity, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* Portable `print` float text: the shortest decimal that reads back to the

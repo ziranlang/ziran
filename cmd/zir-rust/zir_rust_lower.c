@@ -91,8 +91,16 @@ static int identifier_character(int character)
 {
     return isalnum((unsigned char)character) || character == '_';
 }
+/* Buffers emit_type_definitions keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitTypeDefinitionsBuffers {
+    char parts[32][ZIR_RUST_TEXT_MAX];
+} EmitTypeDefinitionsBuffers;
 
-static void emit_type_definitions(RustEmitter *emitter, FILE *output)
+static void emit_type_definitions(RustEmitter *emitter, FILE *output);
+
+static void
+emit_type_definitions_with_buffers(RustEmitter *emitter, FILE *output, EmitTypeDefinitionsBuffers *buffers)
 {
     for(int program_index = 0; program_index < emitter->program_count;
         program_index++) {
@@ -118,10 +126,9 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                    (procedure = FindType(module, record->name,
                                          &procedure_owner)) != NULL &&
                    procedure->is_procedure_type) {
-                    char parts[32][ZIR_RUST_TEXT_MAX];
                     char return_type[ZIR_NAME_MAX];
                     int count = *procedure->body ?
-                        split_arguments(procedure->body, parts, 32) : 0;
+                        split_arguments(procedure->body, buffers->parts, 32) : 0;
                     if(count < 0) {
                         Diagnostic(procedure->span, "zir_rust.type",
                                    "unsupported procedure type: %s",
@@ -142,13 +149,13 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                                 type_name);
                     }
                     for(int index = 0; index < count; index++) {
-                        char *colon = strchr(parts[index], ':');
+                        char *colon = strchr(buffers->parts[index], ':');
                         char parameter_type[ZIR_NAME_MAX];
                         char *type;
                         if(colon == NULL) {
                             Diagnostic(procedure->span, "zir_rust.type",
                                        "invalid procedure parameter: %s",
-                                       parts[index]);
+                                       buffers->parts[index]);
                             exit(1);
                         }
                         type = colon + 1;
@@ -241,6 +248,20 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
     }
 }
 
+static void
+emit_type_definitions(RustEmitter *emitter, FILE *output)
+{
+    static _Thread_local EmitTypeDefinitionsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitTypeDefinitionsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_type_definitions_with_buffers(emitter, output, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+
 static void rust_extern_symbol(RustEmitter *emitter, const ZirModule *module,
                                const ZirImport *import, char *output,
                                size_t size)
@@ -257,8 +278,17 @@ static void rust_extern_symbol(RustEmitter *emitter, const ZirModule *module,
     snprintf(output, size, "ziran_foreign_%s_%s", safe_module, safe_name);
     rust_identifier(output, output, size);
 }
+/* Buffers emit_extern_definitions keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitExternDefinitionsBuffers {
+    char parts[32][ZIR_RUST_TEXT_MAX];
+    char symbol[ZIR_RUST_NAME_MAX * 2];
+} EmitExternDefinitionsBuffers;
 
-static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
+static void emit_extern_definitions(RustEmitter *emitter, FILE *output);
+
+static void
+emit_extern_definitions_with_buffers(RustEmitter *emitter, FILE *output, EmitExternDefinitionsBuffers *buffers)
 {
     int opened = 0;
     for(int program_index = 0; program_index < emitter->program_count;
@@ -271,9 +301,7 @@ static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
             for(int import_index = 0; import_index < module->import_count;
                 import_index++) {
                 const ZirImport *import = &module->imports[import_index];
-                char parts[32][ZIR_RUST_TEXT_MAX];
                 char return_type[ZIR_NAME_MAX];
-                char symbol[ZIR_RUST_NAME_MAX * 2];
                 int count;
                 /* Host functions are C functions the embedding program
                  * provides under their Ziran names, as on the C targets. */
@@ -282,9 +310,9 @@ static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
                     import->extern_kind != ZIR_EXTERN_HOST))
                     continue;
                 count = *import->args ?
-                    split_arguments(import->args, parts, 32) : 0;
+                    split_arguments(import->args, buffers->parts, 32) : 0;
                 /* A trailing ..any parameter is C's ... */
-                if(import->is_varargs && count > 0 && strstr(parts[count - 1], "..") != NULL)
+                if(import->is_varargs && count > 0 && strstr(buffers->parts[count - 1], "..") != NULL)
                     count--;
                 if(count < 0) {
                     Diagnostic(import->span, "zir_rust.import",
@@ -296,23 +324,23 @@ static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
                     fputs("extern \"C\" {\n", output);
                     opened = 1;
                 }
-                rust_extern_symbol(emitter, module, import, symbol,
-                                   sizeof(symbol));
+                rust_extern_symbol(emitter, module, import, buffers->symbol,
+                                   sizeof(buffers->symbol));
                 if(import->extern_kind == ZIR_EXTERN_HOST)
                     fprintf(output, "    #[link_name = \"%s\"]\n", import->name);
                 else if(import->extern_symbol[0] &&
                    strcmp(import->extern_symbol, import->name) != 0)
                     fprintf(output, "    #[link_name = \"%s\"]\n",
                             import->extern_symbol);
-                fprintf(output, "    fn %s(", symbol);
+                fprintf(output, "    fn %s(", buffers->symbol);
                 for(int index = 0; index < count; index++) {
-                    char *colon = strchr(parts[index], ':');
+                    char *colon = strchr(buffers->parts[index], ':');
                     char parameter_type[ZIR_NAME_MAX];
                     char *type;
                     if(colon == NULL) {
                         Diagnostic(import->span, "zir_rust.import",
                                    "invalid foreign parameter: %s",
-                                   parts[index]);
+                                   buffers->parts[index]);
                         exit(1);
                     }
                     type = colon + 1;
@@ -347,6 +375,20 @@ static void emit_extern_definitions(RustEmitter *emitter, FILE *output)
     }
     if(opened)
         fputs("}\n\n", output);
+}
+
+static void
+emit_extern_definitions(RustEmitter *emitter, FILE *output)
+{
+    static _Thread_local EmitExternDefinitionsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitExternDefinitionsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_extern_definitions_with_buffers(emitter, output, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static void rust_identifier(const char *source, char *output, size_t size)
@@ -861,9 +903,21 @@ static void rust_member_path(RustEmitter *emitter, const ZirModule *owner,
         path = dot + 1;
     }
 }
+/* Buffers emit_destination keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitDestinationBuffers {
+    char global_name[ZIR_RUST_NAME_MAX * 2];
+    char base[ZIR_RUST_TEXT_MAX];
+    char pointer[ZIR_RUST_TEXT_MAX];
+    char index[ZIR_RUST_TEXT_MAX];
+} EmitDestinationBuffers;
 
 static void emit_destination(RustEmitter *emitter, int index, char *output,
-                             size_t size)
+                             size_t size);
+
+static void
+emit_destination_with_buffers(RustEmitter *emitter, int index, char *output,
+                             size_t size, EmitDestinationBuffers *buffers)
 {
     const ZirExpr *expression;
     if(index < 0 || index >= emitter->function->expr_count) {
@@ -872,16 +926,14 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
     }
     expression = &emitter->function->exprs[index];
     if(expression->kind == ZIR_EXPR_IDENT) {
-        char global_name[ZIR_RUST_NAME_MAX * 2];
-        if(global_reference(emitter, expression->name, global_name,
-                            sizeof(global_name)))
-            snprintf(output, size, "%s", global_name);
+        if(global_reference(emitter, expression->name, buffers->global_name,
+                            sizeof(buffers->global_name)))
+            snprintf(output, size, "%s", buffers->global_name);
         else
             snprintf(output, size, "%s", local_name(emitter, expression->name));
         return;
     }
     if(expression->kind == ZIR_EXPR_MEMBER) {
-        char base[ZIR_RUST_TEXT_MAX];
         char field[ZIR_NAME_MAX];
         const ZirModule *owner = NULL;
         const ZirType *record = NULL;
@@ -894,31 +946,30 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
             if((SliceElementType(base_type, NULL, 0) ||
                 !strcmp(base_type, "string") || owned_vec) &&
                !strcmp(expression->name, "count")) {
-                emit_destination(emitter, expression->left, base,
-                                 sizeof(base));
-                snprintf(output, size, "(%s.%s as i64)", base,
+                emit_destination(emitter, expression->left, buffers->base,
+                                 sizeof(buffers->base));
+                snprintf(output, size, "(%s.%s as i64)", buffers->base,
                          owned_vec ? "count" : "len");
                 return;
             }
         }
         if(base_type[0] == '*' &&
            rust_record_type(emitter, base_type + 1, &owner, &record)) {
-            emit_expression(emitter, expression->left, base, sizeof(base));
+            emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
             rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
-            snprintf(output, size, "(*%s).%s", base, field);
+            snprintf(output, size, "(*%s).%s", buffers->base, field);
             return;
         }
         if(!rust_record_type(emitter, base_type, &owner, &record)) {
             unsupported_expression(emitter, expression);
             return;
         }
-        emit_destination(emitter, expression->left, base, sizeof(base));
+        emit_destination(emitter, expression->left, buffers->base, sizeof(buffers->base));
         rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
-        snprintf(output, size, "%s.%s", base, field);
+        snprintf(output, size, "%s.%s", buffers->base, field);
         return;
     }
     if(expression->kind == ZIR_EXPR_POINTER_MEMBER) {
-        char base[ZIR_RUST_TEXT_MAX];
         char field[ZIR_NAME_MAX];
         const ZirModule *owner = NULL;
         const ZirType *record = NULL;
@@ -928,44 +979,40 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
             unsupported_expression(emitter, expression);
             return;
         }
-        emit_expression(emitter, expression->left, base, sizeof(base));
+        emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
         rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
-        snprintf(output, size, "(*%s).%s", base, field);
+        snprintf(output, size, "(*%s).%s", buffers->base, field);
         return;
     }
     if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*")) {
-        char pointer[ZIR_RUST_TEXT_MAX];
-        emit_expression(emitter, expression->right, pointer, sizeof(pointer));
-        snprintf(output, size, "(*%s)", pointer);
+        emit_expression(emitter, expression->right, buffers->pointer, sizeof(buffers->pointer));
+        snprintf(output, size, "(*%s)", buffers->pointer);
         return;
     }
     if(expression->kind == ZIR_EXPR_INDEX) {
-        char base[ZIR_RUST_TEXT_MAX];
-        char index[ZIR_RUST_TEXT_MAX];
         char element[ZIR_NAME_MAX];
-        emit_destination(emitter, expression->left, base, sizeof(base));
-        emit_expression(emitter, expression->right, index, sizeof(index));
+        emit_destination(emitter, expression->left, buffers->base, sizeof(buffers->base));
+        emit_expression(emitter, expression->right, buffers->index, sizeof(buffers->index));
         if(rust_owned_vec_type(
                emitter, emitter->function->exprs[expression->left].type,
                NULL, NULL, element, sizeof(element)))
-            snprintf(output, size, "(*%s.element(%s as i64))", base, index);
+            snprintf(output, size, "(*%s.element(%s as i64))", buffers->base, buffers->index);
         else if(emitter->function->exprs[expression->left].type[0] == '*')
-            snprintf(output, size, "(*%s.offset(%s as isize))", base, index);
+            snprintf(output, size, "(*%s.offset(%s as isize))", buffers->base, buffers->index);
         else if(SliceElementType(
                     emitter->function->exprs[expression->left].type, element,
                     sizeof(element)))
-            snprintf(output, size, "(*%s.element(%s as i64))", base, index);
+            snprintf(output, size, "(*%s.element(%s as i64))", buffers->base, buffers->index);
         else
-            snprintf(output, size, "%s[%s as usize]", base, index);
+            snprintf(output, size, "%s[%s as usize]", buffers->base, buffers->index);
         return;
     }
     if(expression->kind == ZIR_EXPR_MEMBER &&
        SliceElementType(emitter->function->exprs[expression->left].type,
                         NULL, 0) &&
        !strcmp(expression->name, "count")) {
-        char base[ZIR_RUST_TEXT_MAX];
-        emit_destination(emitter, expression->left, base, sizeof(base));
-        snprintf(output, size, "(%s.len as i64)", base);
+        emit_destination(emitter, expression->left, buffers->base, sizeof(buffers->base));
+        snprintf(output, size, "(%s.len as i64)", buffers->base);
         return;
     }
     /* A slice, call result, or literal is read in place, not borrowed. */
@@ -976,6 +1023,21 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
         return;
     }
     unsupported_expression(emitter, expression);
+}
+
+static void
+emit_destination(RustEmitter *emitter, int index, char *output,
+                             size_t size)
+{
+    static _Thread_local EmitDestinationBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitDestinationBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_destination_with_buffers(emitter, index, output, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* A body needs an unsafe block only to reach static mut globals or go
@@ -1096,27 +1158,50 @@ static void rust_literal(const char *type, uint64_t bits, char *output, size_t s
     } else
         snprintf(output, size, "%llu%s", (unsigned long long)bits, suffix);
 }
+/* Buffers emit_typed_expression keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitTypedExpressionBuffers {
+    char value[ZIR_RUST_TEXT_MAX];
+} EmitTypedExpressionBuffers;
 
 static void emit_typed_expression(RustEmitter *emitter, int index,
-                                  const char *type, char *output, size_t size)
+                                  const char *type, char *output, size_t size);
+
+static void
+emit_typed_expression_with_buffers(RustEmitter *emitter, int index,
+                                  const char *type, char *output, size_t size, EmitTypedExpressionBuffers *buffers)
 {
-    char value[ZIR_RUST_TEXT_MAX];
     const ZirExpr *expression = index >= 0 &&
         index < emitter->function->expr_count ?
             &emitter->function->exprs[index] : NULL;
-    emit_expression(emitter, index, value, sizeof(value));
+    emit_expression(emitter, index, buffers->value, sizeof(buffers->value));
     /* An untyped literal takes the type as a suffix: 2026i32. */
     if(expression != NULL && expression->kind == ZIR_EXPR_INT &&
        !strcmp(expression->type, "integer") && rust_scalar_type(type) != NULL &&
-       isdigit((unsigned char)value[0]) && strspn(value, "0123456789abcdefABCDEFxX") == strlen(value))
-        snprintf(output, size, "%s%s", value, rust_scalar_type(type));
+       isdigit((unsigned char)buffers->value[0]) && strspn(buffers->value, "0123456789abcdefABCDEFxX") == strlen(buffers->value))
+        snprintf(output, size, "%s%s", buffers->value, rust_scalar_type(type));
     else if(expression != NULL && strcmp(expression->type, type) != 0 &&
        rust_scalar_type(type) != NULL &&
        rust_scalar_type(expression->type) != NULL)
-        snprintf(output, size, "((%s) as %s)", value,
+        snprintf(output, size, "((%s) as %s)", buffers->value,
                  rust_scalar_type(type));
     else
-        snprintf(output, size, "%s", value);
+        snprintf(output, size, "%s", buffers->value);
+}
+
+static void
+emit_typed_expression(RustEmitter *emitter, int index,
+                                  const char *type, char *output, size_t size)
+{
+    static _Thread_local EmitTypedExpressionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitTypedExpressionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_typed_expression_with_buffers(emitter, index, type, output, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static void emit_integer_literal(const ZirExpr *expression, char *output,
@@ -1192,8 +1277,19 @@ static void rust_format_text(char *format, size_t *used, const unsigned char *by
             format[(*used)++] = (char)byte;
     }
 }
+/* Buffers emit_print_statement keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitPrintStatementBuffers {
+    unsigned char bytes[ZIR_TEXT_MAX];
+    char value[ZIR_RUST_TEXT_MAX];
+    char raw[ZIR_RUST_TEXT_MAX];
+    char copied[ZIR_RUST_TEXT_MAX];
+} EmitPrintStatementBuffers;
 
-static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
+static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression);
+
+static int
+emit_print_statement_with_buffers(RustEmitter *emitter, const ZirExpr *expression, EmitPrintStatementBuffers *buffers)
 {
     /* One print! per statement: text with {} for each value. print!
      * evaluates every argument before it writes, as the other targets do. */
@@ -1214,33 +1310,29 @@ static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
     argument_node = function->exprs[first].next_sibling;
     for(int piece = 0; piece < count; piece++) {
         if(!pieces[piece].is_argument) {
-            unsigned char bytes[ZIR_TEXT_MAX];
             size_t length;
-            if(!DecodeStringLiteral(pieces[piece].literal, bytes, sizeof(bytes), &length))
+            if(!DecodeStringLiteral(pieces[piece].literal, buffers->bytes, sizeof(buffers->bytes), &length))
                 break;
-            rust_format_text(format, &format_used, bytes, length);
+            rust_format_text(format, &format_used, buffers->bytes, length);
             continue;
         }
         if(argument_node < 0)
             break;
-        char value[ZIR_RUST_TEXT_MAX];
         const char *type = function->exprs[argument_node].type;
         /* A literal string argument is simply part of the text. */
         if(function->exprs[argument_node].kind == ZIR_EXPR_STRING) {
-            unsigned char bytes[ZIR_TEXT_MAX];
             size_t length;
-            if(DecodeStringLiteral(function->exprs[argument_node].text, bytes,
-                                   sizeof(bytes), &length)) {
-                rust_format_text(format, &format_used, bytes, length);
+            if(DecodeStringLiteral(function->exprs[argument_node].text, buffers->bytes,
+                                   sizeof(buffers->bytes), &length)) {
+                rust_format_text(format, &format_used, buffers->bytes, length);
                 argument_node = function->exprs[argument_node].next_sibling;
                 continue;
             }
         }
         {
-            char raw[ZIR_RUST_TEXT_MAX];
             int later_calls = 0;
-            emit_expression(emitter, argument_node, raw, sizeof(raw));
-            rust_bare(raw, value, sizeof(value));
+            emit_expression(emitter, argument_node, buffers->raw, sizeof(buffers->raw));
+            rust_bare(buffers->raw, buffers->value, sizeof(buffers->value));
             for(int next = function->exprs[argument_node].next_sibling; next >= 0;
                 next = function->exprs[next].next_sibling)
                 later_calls |= rust_expression_calls(function, next);
@@ -1250,11 +1342,10 @@ static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
             if(function->exprs[argument_node].kind != ZIR_EXPR_CALL &&
                ((later_calls && function->exprs[argument_node].kind != ZIR_EXPR_INT &&
                  function->exprs[argument_node].kind != ZIR_EXPR_FLOAT) ||
-                !strncmp(value, "ziran_global_", 13))) {
-                char copied[ZIR_RUST_TEXT_MAX];
-                snprintf(copied, sizeof(copied),
-                         !strcmp(type, "string") ? "%s.clone()" : "{ %s }", value);
-                snprintf(value, sizeof(value), "%s", copied);
+                !strncmp(buffers->value, "ziran_global_", 13))) {
+                snprintf(buffers->copied, sizeof(buffers->copied),
+                         !strcmp(type, "string") ? "%s.clone()" : "{ %s }", buffers->value);
+                snprintf(buffers->value, sizeof(buffers->value), "%s", buffers->copied);
             }
         }
         format_used += (size_t)snprintf(format + format_used,
@@ -1262,13 +1353,13 @@ static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
         if(!strcmp(type, "string"))
             arguments_used += (size_t)snprintf(arguments + arguments_used,
                 ZIR_RUST_TEXT_MAX - arguments_used,
-                rust_plain_receiver(value) ? ", %s.as_str()" : ", (%s).as_str()", value);
+                rust_plain_receiver(buffers->value) ? ", %s.as_str()" : ", (%s).as_str()", buffers->value);
         else if(!strcmp(type, "float32") || !strcmp(type, "float64"))
             arguments_used += (size_t)snprintf(arguments + arguments_used,
-                ZIR_RUST_TEXT_MAX - arguments_used, ", ZiranFloat(%s)", value);
+                ZIR_RUST_TEXT_MAX - arguments_used, ", ZiranFloat(%s)", buffers->value);
         else
             arguments_used += (size_t)snprintf(arguments + arguments_used,
-                ZIR_RUST_TEXT_MAX - arguments_used, ", %s", value);
+                ZIR_RUST_TEXT_MAX - arguments_used, ", %s", buffers->value);
         argument_node = function->exprs[argument_node].next_sibling;
     }
     format[format_used] = '\0';
@@ -1285,14 +1376,47 @@ static int emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
     return 1;
 }
 
+static int
+emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
+{
+    static _Thread_local EmitPrintStatementBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitPrintStatementBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = emit_print_statement_with_buffers(emitter, expression, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers emit_call keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitCallBuffers {
+    char symbol[ZIR_RUST_NAME_MAX * 2];
+    char arguments[ZIR_RUST_TEXT_MAX];
+    char child[ZIR_RUST_TEXT_MAX];
+    char value[ZIR_RUST_TEXT_MAX];
+    char index[ZIR_RUST_TEXT_MAX];
+    char source[ZIR_RUST_TEXT_MAX];
+    char low[ZIR_RUST_TEXT_MAX];
+    char high[ZIR_RUST_TEXT_MAX];
+    char other[ZIR_RUST_TEXT_MAX];
+    char text[ZIR_RUST_TEXT_MAX];
+    char callable[ZIR_RUST_TEXT_MAX];
+    char global_name[ZIR_RUST_NAME_MAX * 2];
+} EmitCallBuffers;
+
 static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
-                      char *output, size_t size)
+                      char *output, size_t size);
+
+static void
+emit_call_with_buffers(RustEmitter *emitter, const ZirExpr *expression,
+                      char *output, size_t size, EmitCallBuffers *buffers)
 {
     const ZirModule *owner = NULL;
     const ZirFunction *callee = NULL;
-    char symbol[ZIR_RUST_NAME_MAX * 2];
-    char arguments[ZIR_RUST_TEXT_MAX] = "";
-    char child[ZIR_RUST_TEXT_MAX];
+    buffers->arguments[0] = '\0';
     char element[ZIR_NAME_MAX];
     const ZirImport *foreign = rust_foreign_import(emitter, expression->name);
     if(!strcmp(expression->name, "VecPush") ||
@@ -1317,51 +1441,46 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
             unsupported_expression(emitter, expression);
             return;
         }
-        emit_expression(emitter, first, child, sizeof(child));
+        emit_expression(emitter, first, buffers->child, sizeof(buffers->child));
         if(!strcmp(expression->name, "VecFree")) {
             if(second >= 0) {
                 unsupported_expression(emitter, expression);
                 return;
             }
-            snprintf(output, size, "ZiranVecFree(&mut %s)", child);
+            snprintf(output, size, "ZiranVecFree(&mut %s)", buffers->child);
         } else if(!strcmp(expression->name, "VecPush")) {
-            char value[ZIR_RUST_TEXT_MAX];
             if(second < 0) {
                 unsupported_expression(emitter, expression);
                 return;
             }
-            emit_expression(emitter, second, value, sizeof(value));
-            snprintf(output, size, "ZiranVecPush(&mut %s, %s)", child, value);
+            emit_expression(emitter, second, buffers->value, sizeof(buffers->value));
+            snprintf(output, size, "ZiranVecPush(&mut %s, %s)", buffers->child, buffers->value);
         } else if(!strcmp(expression->name, "VecPop")) {
             if(second >= 0) {
                 unsupported_expression(emitter, expression);
                 return;
             }
-            snprintf(output, size, "ZiranVecPop(&mut %s)", child);
+            snprintf(output, size, "ZiranVecPop(&mut %s)", buffers->child);
         } else if(!strcmp(expression->name, "VecGet")) {
-            char index[ZIR_RUST_TEXT_MAX];
             if(second < 0) {
                 unsupported_expression(emitter, expression);
                 return;
             }
-            emit_expression(emitter, second, index, sizeof(index));
+            emit_expression(emitter, second, buffers->index, sizeof(buffers->index));
             snprintf(output, size, "ZiranVecGet(&mut %s, %s as usize)",
-                     child, index);
+                     buffers->child, buffers->index);
         } else if(!strcmp(expression->name, "VecClone")) {
-            char source[ZIR_RUST_TEXT_MAX];
             if(third >= 0 || second < 0 ||
                strcmp(emitter->function->exprs[first].type,
                       emitter->function->exprs[second].type)) {
                 unsupported_expression(emitter, expression);
                 return;
             }
-            emit_expression(emitter, second, source, sizeof(source));
+            emit_expression(emitter, second, buffers->source, sizeof(buffers->source));
             snprintf(output, size, "ZiranVecClone(&mut %s, &%s)",
-                     child, source);
+                     buffers->child, buffers->source);
             return;
         } else if(!strcmp(expression->name, "VecSlice")) {
-            char low[ZIR_RUST_TEXT_MAX];
-            char high[ZIR_RUST_TEXT_MAX];
             int fourth = third >= 0 ?
                 emitter->function->exprs[third].next_sibling : -1;
             if(third < 0 || fourth >= 0 ||
@@ -1370,45 +1489,43 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
                 unsupported_expression(emitter, expression);
                 return;
             }
-            emit_expression(emitter, second, low, sizeof(low));
-            emit_expression(emitter, third, high, sizeof(high));
+            emit_expression(emitter, second, buffers->low, sizeof(buffers->low));
+            emit_expression(emitter, third, buffers->high, sizeof(buffers->high));
             snprintf(output, size,
                      "ZiranVecSlice(&%s, %s as isize, %s as isize)",
-                    child, low, high);
+                    buffers->child, buffers->low, buffers->high);
             return;
         } else if(!strcmp(expression->name, "VecClear")) {
             if(second >= 0) {
                 unsupported_expression(emitter, expression);
                 return;
             }
-            snprintf(output, size, "ZiranVecClear(&mut %s)", child);
+            snprintf(output, size, "ZiranVecClear(&mut %s)", buffers->child);
         } else if(!strcmp(expression->name, "VecSwap")) {
-            char other[ZIR_RUST_TEXT_MAX];
             if(second < 0 || third >= 0 ||
                strcmp(emitter->function->exprs[first].type,
                       emitter->function->exprs[second].type)) {
                 unsupported_expression(emitter, expression);
                 return;
             }
-            emit_expression(emitter, second, other, sizeof(other));
+            emit_expression(emitter, second, buffers->other, sizeof(buffers->other));
             snprintf(output, size, "core::mem::swap(&mut %s, &mut %s)",
-                     child, other);
+                     buffers->child, buffers->other);
         } else if(!strcmp(expression->name, "BuilderAppend")) {
-            char text[ZIR_RUST_TEXT_MAX];
             if(second < 0 || third >= 0 || strcmp(element, "u8") ||
                strcmp(emitter->function->exprs[second].type, "string")) {
                 unsupported_expression(emitter, expression);
                 return;
             }
-            emit_expression(emitter, second, text, sizeof(text));
+            emit_expression(emitter, second, buffers->text, sizeof(buffers->text));
             snprintf(output, size, "ZiranBuilderAppend(&mut %s, %s)",
-                     child, text);
+                     buffers->child, buffers->text);
         } else {
             if(second >= 0 || strcmp(element, "u8")) {
                 unsupported_expression(emitter, expression);
                 return;
             }
-            snprintf(output, size, "ZiranBuilderFinish(&mut %s)", child);
+            snprintf(output, size, "ZiranBuilderFinish(&mut %s)", buffers->child);
         }
         return;
     }
@@ -1419,27 +1536,25 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
             unsupported_expression(emitter, expression);
             return;
         }
-        emit_expression(emitter, expression->first_child, child,
-                        sizeof(child));
+        emit_expression(emitter, expression->first_child, buffers->child,
+                        sizeof(buffers->child));
         snprintf(output, size,
                  "ZiranText { data: %s.data as *const u8, len: %s.len }",
-                 child, child);
+                 buffers->child, buffers->child);
         return;
     }
     if(expression->slot_type[0]) {
-        char callable[ZIR_RUST_TEXT_MAX];
-        char global_name[ZIR_RUST_NAME_MAX * 2];
         const ZirModule *slot_owner = NULL;
         const ZirType *slot = FindType(emitter->module,
                                        expression->slot_type, &slot_owner);
         if(expression->left >= 0)
-            emit_expression(emitter, expression->left, callable,
-                            sizeof(callable));
-        else if(global_reference(emitter, expression->name, global_name,
-                                 sizeof(global_name)))
-            snprintf(callable, sizeof(callable), "%s", global_name);
+            emit_expression(emitter, expression->left, buffers->callable,
+                            sizeof(buffers->callable));
+        else if(global_reference(emitter, expression->name, buffers->global_name,
+                                 sizeof(buffers->global_name)))
+            snprintf(buffers->callable, sizeof(buffers->callable), "%s", buffers->global_name);
         else
-            snprintf(callable, sizeof(callable), "%s",
+            snprintf(buffers->callable, sizeof(buffers->callable), "%s",
                      local_name(emitter, expression->name));
         {
             /* Named arguments go to their checked parameter positions. */
@@ -1453,19 +1568,19 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
                 for(int candidate = 0; candidate < count; candidate++)
                     if(emitter->function->exprs[ordered[candidate]].argument_index == position)
                         chosen = ordered[candidate];
-                emit_expression(emitter, chosen, child, sizeof(child));
-                if(*arguments)
-                    strncat(arguments, ", ",
-                            sizeof(arguments) - strlen(arguments) - 1);
-                strncat(arguments, child,
-                        sizeof(arguments) - strlen(arguments) - 1);
+                emit_expression(emitter, chosen, buffers->child, sizeof(buffers->child));
+                if(*buffers->arguments)
+                    strncat(buffers->arguments, ", ",
+                            sizeof(buffers->arguments) - strlen(buffers->arguments) - 1);
+                strncat(buffers->arguments, buffers->child,
+                        sizeof(buffers->arguments) - strlen(buffers->arguments) - 1);
             }
         }
         if(slot != NULL && slot->is_procedure_type && !slot->is_c_call)
             snprintf(output, size, "unsafe { %s.call.unwrap()(%s.context%s%s) }",
-                     callable, callable, *arguments ? ", " : "", arguments);
+                     buffers->callable, buffers->callable, *buffers->arguments ? ", " : "", buffers->arguments);
         else
-            snprintf(output, size, "unsafe { %s.unwrap()(%s) }", callable, arguments);
+            snprintf(output, size, "unsafe { %s.unwrap()(%s) }", buffers->callable, buffers->arguments);
         return;
     }
     if(expression->is_function_value) {
@@ -1478,18 +1593,18 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
         return;
     }
     if(foreign != NULL) {
-        rust_extern_symbol(emitter, emitter->module, foreign, symbol,
-                           sizeof(symbol));
+        rust_extern_symbol(emitter, emitter->module, foreign, buffers->symbol,
+                           sizeof(buffers->symbol));
         for(int child_index = expression->first_child; child_index >= 0;
             child_index = emitter->function->exprs[child_index].next_sibling) {
-            emit_expression(emitter, child_index, child, sizeof(child));
-            if(*arguments)
-                strncat(arguments, ", ",
-                        sizeof(arguments) - strlen(arguments) - 1);
-            strncat(arguments, child,
-                    sizeof(arguments) - strlen(arguments) - 1);
+            emit_expression(emitter, child_index, buffers->child, sizeof(buffers->child));
+            if(*buffers->arguments)
+                strncat(buffers->arguments, ", ",
+                        sizeof(buffers->arguments) - strlen(buffers->arguments) - 1);
+            strncat(buffers->arguments, buffers->child,
+                    sizeof(buffers->arguments) - strlen(buffers->arguments) - 1);
         }
-        snprintf(output, size, "unsafe { %s(%s) }", symbol, arguments);
+        snprintf(output, size, "unsafe { %s(%s) }", buffers->symbol, buffers->arguments);
         return;
     }
     if(ResolveFunctionAt(emitter->module, expression->name,
@@ -1502,7 +1617,7 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
         unsupported_expression(emitter, expression);
         return;
     }
-    function_symbol(emitter, owner, callee, symbol, sizeof(symbol));
+    function_symbol(emitter, owner, callee, buffers->symbol, sizeof(buffers->symbol));
     {
         /* Named arguments go to their checked parameter positions. */
         int ordered[32], count = 0;
@@ -1525,11 +1640,11 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
              * the other targets, then pass in parameter order. */
             size_t used = (size_t)snprintf(output, size, "{ ");
             for(int position = 0; position < count; position++) {
-                emit_expression(emitter, ordered[position], child, sizeof(child));
+                emit_expression(emitter, ordered[position], buffers->child, sizeof(buffers->child));
                 used += (size_t)snprintf(output + used, size > used ? size - used : 0,
-                                         "let argument_%d = %s; ", position, child);
+                                         "let argument_%d = %s; ", position, buffers->child);
             }
-            used += (size_t)snprintf(output + used, size > used ? size - used : 0, "%s(", symbol);
+            used += (size_t)snprintf(output + used, size > used ? size - used : 0, "%s(", buffers->symbol);
             for(int position = 0; position < count; position++) {
                 int source = position;
                 for(int candidate = 0; candidate < count; candidate++)
@@ -1548,13 +1663,28 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
                     chosen = ordered[candidate];
             if(chosen < 0)
                 chosen = ordered[position];
-            emit_expression(emitter, chosen, child, sizeof(child));
-            if(*arguments)
-                strncat(arguments, ", ", sizeof(arguments) - strlen(arguments) - 1);
-            strncat(arguments, child, sizeof(arguments) - strlen(arguments) - 1);
+            emit_expression(emitter, chosen, buffers->child, sizeof(buffers->child));
+            if(*buffers->arguments)
+                strncat(buffers->arguments, ", ", sizeof(buffers->arguments) - strlen(buffers->arguments) - 1);
+            strncat(buffers->arguments, buffers->child, sizeof(buffers->arguments) - strlen(buffers->arguments) - 1);
         }
     }
-    snprintf(output, size, "%s(%s)", symbol, arguments);
+    snprintf(output, size, "%s(%s)", buffers->symbol, buffers->arguments);
+}
+
+static void
+emit_call(RustEmitter *emitter, const ZirExpr *expression,
+                      char *output, size_t size)
+{
+    static _Thread_local EmitCallBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitCallBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_call_with_buffers(emitter, expression, output, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static int wrapping_operation(const char *operation)
@@ -1573,14 +1703,31 @@ static const char *wrapping_method(const char *operation)
     if(!strcmp(operation, "%")) return "wrapping_rem";
     return NULL;
 }
-
-static void emit_expression(RustEmitter *emitter, int index, char *output,
-                            size_t size)
-{
-    const ZirExpr *expression;
+/* Buffers emit_expression keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitExpressionBuffers {
     char left[ZIR_RUST_TEXT_MAX];
     char right[ZIR_RUST_TEXT_MAX];
     char third[ZIR_RUST_TEXT_MAX];
+    char global_name[ZIR_RUST_NAME_MAX * 2];
+    char wrapper[ZIR_RUST_NAME_MAX * 2];
+    char function_name[ZIR_RUST_NAME_MAX * 2];
+    char base[ZIR_RUST_TEXT_MAX];
+    char index[ZIR_RUST_TEXT_MAX];
+    char low[ZIR_RUST_TEXT_MAX];
+    char high[ZIR_RUST_TEXT_MAX];
+    char value[ZIR_RUST_TEXT_MAX];
+    char count[ZIR_RUST_TEXT_MAX];
+} EmitExpressionBuffers;
+
+static void emit_expression(RustEmitter *emitter, int index, char *output,
+                            size_t size);
+
+static void
+emit_expression_with_buffers(RustEmitter *emitter, int index, char *output,
+                            size_t size, EmitExpressionBuffers *buffers)
+{
+    const ZirExpr *expression;
     if(index < 0 || index >= emitter->function->expr_count) {
         snprintf(output, size, "()");
         return;
@@ -1588,37 +1735,34 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
     expression = &emitter->function->exprs[index];
     switch(expression->kind) {
     case ZIR_EXPR_IDENT: {
-        char global_name[ZIR_RUST_NAME_MAX * 2];
         const ZirModule *function_owner = NULL;
         const ZirFunction *function = NULL;
         const ZirModule *slot_owner = NULL;
         const ZirType *slot = NULL;
         if(!strcmp(expression->type, "null") || !strcmp(expression->name, "null"))
             snprintf(output, size, "core::ptr::null_mut()");
-        else if(global_reference(emitter, expression->name, global_name,
-                            sizeof(global_name)))
-            snprintf(output, size, "%s", global_name);
+        else if(global_reference(emitter, expression->name, buffers->global_name,
+                            sizeof(buffers->global_name)))
+            snprintf(output, size, "%s", buffers->global_name);
         else if(expression->is_function_value &&
                 rust_procedure_type(emitter, expression->type,
                                     &slot_owner, &slot) &&
                 !slot->is_c_call) {
-            char wrapper[ZIR_RUST_NAME_MAX * 2];
             char type_name[ZIR_NAME_MAX];
-            slot_wrapper_symbol(emitter, index, wrapper, sizeof(wrapper));
+            slot_wrapper_symbol(emitter, index, buffers->wrapper, sizeof(buffers->wrapper));
             NativeTypeName(slot_owner, slot, type_name, sizeof(type_name));
             snprintf(output, size,
                      "%s { context: core::ptr::null_mut(), call: Some(%s) }",
-                     type_name, wrapper);
+                     type_name, buffers->wrapper);
         }
         else if(expression->is_function_value &&
                 ResolveFunctionAt(emitter->module, expression->name,
                                   SpanPath(emitter->function->span),
                                   &function_owner, &function) == 1 &&
                 function_owner != NULL && function != NULL) {
-            char function_name[ZIR_RUST_NAME_MAX * 2];
             function_symbol(emitter, function_owner, function,
-                            function_name, sizeof(function_name));
-            snprintf(output, size, "Some(%s)", function_name);
+                            buffers->function_name, sizeof(buffers->function_name));
+            snprintf(output, size, "Some(%s)", buffers->function_name);
         }
         else
             snprintf(output, size, "%s", local_name(emitter, expression->name));
@@ -1644,7 +1788,6 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         emit_call(emitter, expression, output, size);
         break;
     case ZIR_EXPR_MEMBER: {
-        char base[ZIR_RUST_TEXT_MAX];
         char field[ZIR_NAME_MAX];
         const ZirModule *owner = NULL;
         const ZirType *record = NULL;
@@ -1654,15 +1797,15 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         if((SliceElementType(base_type, NULL, 0) ||
             !strcmp(base_type, "string")) &&
            !strcmp(expression->name, "count")) {
-            emit_expression(emitter, expression->left, base, sizeof(base));
-            snprintf(output, size, "(%s.len as i64)", base);
+            emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
+            snprintf(output, size, "(%s.len as i64)", buffers->base);
             break;
         }
         if(rust_owned_vec_type(emitter, base_type, NULL, NULL, NULL, 0) &&
            (!strcmp(expression->name, "count") ||
             !strcmp(expression->name, "capacity"))) {
-            emit_expression(emitter, expression->left, base, sizeof(base));
-            snprintf(output, size, "(%s.%s as i64)", base,
+            emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
+            snprintf(output, size, "(%s.%s as i64)", buffers->base,
                      expression->name);
             break;
         }
@@ -1685,35 +1828,34 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                             snprintf(output, size, "core::ptr::null_mut()");
                         break;
                     }
-                    emit_destination(emitter, expression->left, base, sizeof(base));
-                    snprintf(output, size, "%s.as_mut_ptr()", base);
+                    emit_destination(emitter, expression->left, buffers->base, sizeof(buffers->base));
+                    snprintf(output, size, "%s.as_mut_ptr()", buffers->base);
                     break;
                 }
             }
             if(SliceElementType(base_type, NULL, 0) && !strcmp(expression->name, "data")) {
-                emit_expression(emitter, expression->left, base, sizeof(base));
-                snprintf(output, size, "%s.data", base);
+                emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
+                snprintf(output, size, "%s.data", buffers->base);
                 break;
             }
         }
         /* A field through a pointer reads the pointee: (*node).value. */
         if(base_type[0] == '*' && rust_record_type(emitter, base_type + 1, &owner, &record)) {
-            emit_expression(emitter, expression->left, base, sizeof(base));
+            emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
             rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
-            snprintf(output, size, "(*%s).%s", base, field);
+            snprintf(output, size, "(*%s).%s", buffers->base, field);
             break;
         }
         if(!rust_record_type(emitter, base_type, &owner, &record)) {
             unsupported_expression(emitter, expression);
             break;
         }
-        emit_expression(emitter, expression->left, base, sizeof(base));
+        emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
         rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
-        snprintf(output, size, "%s.%s", base, field);
+        snprintf(output, size, "%s.%s", buffers->base, field);
         break;
     }
     case ZIR_EXPR_POINTER_MEMBER: {
-        char base[ZIR_RUST_TEXT_MAX];
         char field[ZIR_NAME_MAX];
         const ZirModule *owner = NULL;
         const ZirType *record = NULL;
@@ -1723,70 +1865,66 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             unsupported_expression(emitter, expression);
             break;
         }
-        emit_expression(emitter, expression->left, base, sizeof(base));
+        emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
         rust_member_path(emitter, owner, record, expression->name, field, sizeof(field));
-        snprintf(output, size, "(*%s).%s", base, field);
+        snprintf(output, size, "(*%s).%s", buffers->base, field);
         break;
     }
     case ZIR_EXPR_INDEX: {
         char element[ZIR_NAME_MAX];
-        char base[ZIR_RUST_TEXT_MAX];
-        char index[ZIR_RUST_TEXT_MAX];
         ZirExprKind base_kind = emitter->function->exprs[expression->left].kind;
         /* Only places are borrowed; a literal or call result is indexed as a value. */
         if(base_kind == ZIR_EXPR_COMPOUND || base_kind == ZIR_EXPR_CALL ||
            base_kind == ZIR_EXPR_CONDITIONAL)
-            emit_expression(emitter, expression->left, base, sizeof(base));
+            emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
         else
-            emit_destination(emitter, expression->left, base, sizeof(base));
-        emit_expression(emitter, expression->right, index, sizeof(index));
+            emit_destination(emitter, expression->left, buffers->base, sizeof(buffers->base));
+        emit_expression(emitter, expression->right, buffers->index, sizeof(buffers->index));
         if(!strcmp(emitter->function->exprs[expression->left].type,
                    "string")) {
-            snprintf(output, size, "%s.at(%s as i64)", base, index);
+            snprintf(output, size, "%s.at(%s as i64)", buffers->base, buffers->index);
             break;
         }
         if(emitter->function->exprs[expression->left].type[0] == '*') {
-            snprintf(output, size, "(*%s.offset(%s as isize))", base, index);
+            snprintf(output, size, "(*%s.offset(%s as isize))", buffers->base, buffers->index);
             break;
         }
         if(rust_owned_vec_type(
                emitter, emitter->function->exprs[expression->left].type,
                NULL, NULL, element, sizeof(element))) {
-            snprintf(output, size, "%s.at(%s as i64)", base, index);
+            snprintf(output, size, "%s.at(%s as i64)", buffers->base, buffers->index);
             break;
         }
         if(SliceElementType(
                emitter->function->exprs[expression->left].type, element,
                sizeof(element))) {
-            snprintf(output, size, "%s.get(%s as i64)", base, index);
+            snprintf(output, size, "%s.get(%s as i64)", buffers->base, buffers->index);
         } else {
-            snprintf(output, size, "%s[%s as usize]", base, index);
+            snprintf(output, size, "%s[%s as usize]", buffers->base, buffers->index);
         }
         break;
     }
     case ZIR_EXPR_SLICE: {
-        char base[ZIR_RUST_TEXT_MAX];
         char element[ZIR_NAME_MAX];
         int capacity = 0;
-        emit_destination(emitter, expression->left, base, sizeof(base));
+        emit_destination(emitter, expression->left, buffers->base, sizeof(buffers->base));
         if(!strcmp(emitter->function->exprs[expression->left].type,
                    "string")) {
-            char low[ZIR_RUST_TEXT_MAX] = "0";
-            char high[ZIR_RUST_TEXT_MAX];
+            strcpy(buffers->low, "0");
             /* text[:] is the whole text; a missing bound is its start or end. */
             if(expression->right < 0 && expression->third < 0) {
-                snprintf(output, size, "%s", base);
+                snprintf(output, size, "%s", buffers->base);
                 break;
             }
             if(expression->right >= 0)
-                emit_expression(emitter, expression->right, low, sizeof(low));
+                emit_expression(emitter, expression->right, buffers->low, sizeof(buffers->low));
             if(expression->third >= 0)
-                emit_expression(emitter, expression->third, high, sizeof(high));
+                emit_expression(emitter, expression->third, buffers->high, sizeof(buffers->high));
             else
-                snprintf(high, sizeof(high), "%s.len", base);
+                snprintf(buffers->high, sizeof(buffers->high), "%s.len", buffers->base);
             snprintf(output, size,
                      "ZiranText::slice(%s, %s as isize, %s as isize)",
-                     base, low, high);
+                     buffers->base, buffers->low, buffers->high);
             break;
         }
         {
@@ -1795,28 +1933,27 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             const char *base_type = emitter->function->exprs[expression->left].type;
             int array = ArrayElementType(base_type, element, sizeof(element), &capacity);
             int slice = !array && SliceElementType(base_type, element, sizeof(element));
-            char low[ZIR_RUST_TEXT_MAX] = "0i64";
-            char high[ZIR_RUST_TEXT_MAX];
+            strcpy(buffers->low, "0i64");
             if(!array && !slice) {
                 unsupported_expression(emitter, expression);
                 break;
             }
             if(expression->right >= 0)
-                emit_typed_expression(emitter, expression->right, "s64", low, sizeof(low));
+                emit_typed_expression(emitter, expression->right, "s64", buffers->low, sizeof(buffers->low));
             if(expression->third >= 0)
-                emit_typed_expression(emitter, expression->third, "s64", high, sizeof(high));
+                emit_typed_expression(emitter, expression->third, "s64", buffers->high, sizeof(buffers->high));
             else if(array)
-                snprintf(high, sizeof(high), "%di64", capacity);
+                snprintf(buffers->high, sizeof(buffers->high), "%di64", capacity);
             else
-                high[0] = '\0';
+                buffers->high[0] = '\0';
             if(array)
                 snprintf(output, size,
                          "ZiranSlice::view(ZiranSlice { data: %s.as_mut_ptr(), len: %d }, %s, %s)",
-                         base, capacity, low, high);
-            else if(high[0])
-                snprintf(output, size, "ZiranSlice::view(%s, %s, %s)", base, low, high);
+                         buffers->base, capacity, buffers->low, buffers->high);
+            else if(buffers->high[0])
+                snprintf(output, size, "ZiranSlice::view(%s, %s, %s)", buffers->base, buffers->low, buffers->high);
             else
-                snprintf(output, size, "ZiranSlice::view_from(%s, %s)", base, low);
+                snprintf(output, size, "ZiranSlice::view_from(%s, %s)", buffers->base, buffers->low);
         }
         break;
     }
@@ -1835,14 +1972,13 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                     emitter->function->exprs[child_index].next_sibling) {
                 const ZirExpr *initializer =
                     &emitter->function->exprs[child_index];
-                char value[ZIR_RUST_TEXT_MAX];
                 emit_typed_expression(emitter,
                                       initializer->kind == ZIR_EXPR_FIELD_INIT ?
                                           initializer->right : child_index,
-                                      element, value, sizeof(value));
+                                      element, buffers->value, sizeof(buffers->value));
                 size_t used = strlen(output);
                 snprintf(output + used, size - used, "%s%s", first ? "" : ", ",
-                         value);
+                         buffers->value);
                 first = 0;
             }
             size_t used = strlen(output);
@@ -1867,18 +2003,17 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         for(int child_index = expression->first_child; child_index >= 0;
             child_index = emitter->function->exprs[child_index].next_sibling) {
             const ZirExpr *initializer = &emitter->function->exprs[child_index];
-            char value[ZIR_RUST_TEXT_MAX];
             char field_name[ZIR_NAME_MAX];
             if(initializer->kind != ZIR_EXPR_FIELD_INIT) {
                 unsupported_expression(emitter, initializer);
                 return;
             }
-            emit_expression(emitter, initializer->right, value, sizeof(value));
+            emit_expression(emitter, initializer->right, buffers->value, sizeof(buffers->value));
             size_t used = strlen(output);
             rust_field_name(record, initializer->name, field_name,
                             sizeof(field_name));
             snprintf(output + used, size - used, "%s%s: %s",
-                     first ? "" : ", ", field_name, value);
+                     first ? "" : ", ", field_name, buffers->value);
             first = 0;
         }
         /* Fields a literal leaves out start at their zero value. */
@@ -1893,17 +2028,16 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                         given = 1;
                 if(given)
                     continue;
-                char value[ZIR_RUST_TEXT_MAX];
                 char field_name[ZIR_NAME_MAX];
                 const ZirModule *saved_module = emitter->module;
                 if(record_owner != NULL)
                     emitter->module = record_owner;
-                rust_zero_value(emitter, field.type, value, sizeof(value));
+                rust_zero_value(emitter, field.type, buffers->value, sizeof(buffers->value));
                 emitter->module = saved_module;
                 rust_field_name(record, field.name, field_name, sizeof(field_name));
                 size_t used = strlen(output);
                 snprintf(output + used, size - used, "%s%s: %s",
-                         first ? "" : ", ", field_name, value);
+                         first ? "" : ", ", field_name, buffers->value);
                 first = 0;
             }
         }
@@ -1912,7 +2046,7 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         break;
     }
     case ZIR_EXPR_BINARY:
-        left[0] = right[0] = '\0';
+        buffers->left[0] = buffers->right[0] = '\0';
         if(!strcmp(expression->op, "==") || !strcmp(expression->op, "!=")) {
             const ZirExpr *left_expr = expression->left >= 0 ?
                 &emitter->function->exprs[expression->left] : NULL;
@@ -1934,25 +2068,25 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             if(slot != NULL && slot->is_procedure_type) {
                 int value_index = left_null ? expression->right :
                     expression->left;
-                emit_expression(emitter, value_index, left, sizeof(left));
+                emit_expression(emitter, value_index, buffers->left, sizeof(buffers->left));
                 if(left_null || right_null) {
                     if(slot->is_c_call)
-                        snprintf(output, size, "(%s.is_%s())", left,
+                        snprintf(output, size, "(%s.is_%s())", buffers->left,
                                  equal ? "none" : "some");
                     else
-                        snprintf(output, size, "(%s.call.is_%s())", left,
+                        snprintf(output, size, "(%s.call.is_%s())", buffers->left,
                                  equal ? "none" : "some");
                 } else {
-                    emit_expression(emitter, expression->right, right,
-                                    sizeof(right));
+                    emit_expression(emitter, expression->right, buffers->right,
+                                    sizeof(buffers->right));
                     if(slot->is_c_call)
                         snprintf(output, size,
                                  "(match (%s, %s) { (left, right) => left %s right })",
-                                 left, right, equal ? "==" : "!=");
+                                 buffers->left, buffers->right, equal ? "==" : "!=");
                     else
                         snprintf(output, size,
                                  "(match (%s, %s) { (left, right) => left.call %s right.call %s left.context %s right.context })",
-                                 left, right, equal ? "==" : "!=",
+                                 buffers->left, buffers->right, equal ? "==" : "!=",
                                  equal ? "&&" : "||",
                                  equal ? "==" : "!=");
                 }
@@ -1968,10 +2102,10 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
            if(strcmp(expression->op, "==") != 0 &&
               strcmp(expression->op, "!=") != 0)
                unsupported_expression(emitter, expression);
-            emit_expression(emitter, expression->left, left, sizeof(left));
-            emit_expression(emitter, expression->right, right, sizeof(right));
+            emit_expression(emitter, expression->left, buffers->left, sizeof(buffers->left));
+            emit_expression(emitter, expression->right, buffers->right, sizeof(buffers->right));
             snprintf(output, size, "%sZiranText::eq(%s, %s)",
-                     !strcmp(expression->op, "==") ? "" : "!", left, right);
+                     !strcmp(expression->op, "==") ? "" : "!", buffers->left, buffers->right);
             break;
         }
         /* An enum's arithmetic wraps at its backing integer type. */
@@ -1993,68 +2127,67 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             const char *operand_type = integer_type(expression->type) &&
                 strcmp(expression->type, "integer") != 0 ? expression->type : "s64";
             if(untyped) {
-                emit_typed_expression(emitter, expression->left, operand_type, left, sizeof(left));
-                emit_typed_expression(emitter, expression->right, operand_type, right, sizeof(right));
+                emit_typed_expression(emitter, expression->left, operand_type, buffers->left, sizeof(buffers->left));
+                emit_typed_expression(emitter, expression->right, operand_type, buffers->right, sizeof(buffers->right));
             } else {
-                emit_expression(emitter, expression->left, left, sizeof(left));
-                emit_expression(emitter, expression->right, right, sizeof(right));
+                emit_expression(emitter, expression->left, buffers->left, sizeof(buffers->left));
+                emit_expression(emitter, expression->right, buffers->right, sizeof(buffers->right));
             }
         }
         if(wrapping) {
             emit_typed_expression(emitter, expression->left, expression->type,
-                                  left, sizeof(left));
+                                  buffers->left, sizeof(buffers->left));
             emit_typed_expression(emitter, expression->right, expression->type,
-                                  right, sizeof(right));
+                                  buffers->right, sizeof(buffers->right));
             uint64_t left_bits, right_bits, folded;
-            if(rust_literal_bits(left, expression->type, &left_bits) &&
-               rust_literal_bits(right, expression->type, &right_bits) &&
+            if(rust_literal_bits(buffers->left, expression->type, &left_bits) &&
+               rust_literal_bits(buffers->right, expression->type, &right_bits) &&
                FoldIntegerOperation(expression->op, expression->type,
                                     left_bits, right_bits, &folded))
                 rust_literal(expression->type, folded, output, size);
             else if(!strcmp(expression->type, "integer"))
                 snprintf(output, size,
-                         "((%s as i64).%s(%s as i64))", left,
-                         wrapping_method(expression->op), right);
+                         "((%s as i64).%s(%s as i64))", buffers->left,
+                         wrapping_method(expression->op), buffers->right);
             else
-                snprintf(output, size, rust_plain_receiver(left) ? "%s.%s(%s)" : "(%s).%s(%s)",
-                         left, wrapping_method(expression->op), right);
+                snprintf(output, size, rust_plain_receiver(buffers->left) ? "%s.%s(%s)" : "(%s).%s(%s)",
+                         buffers->left, wrapping_method(expression->op), buffers->right);
         }
         else if(!strcmp(expression->op, "<<") || !strcmp(expression->op, ">>")) {
             /* A count below zero or at the width fails, as on other targets;
              * >> on a signed type is arithmetic. */
-            char count[ZIR_RUST_TEXT_MAX];
             emit_typed_expression(emitter, expression->left, expression->type,
-                                  left, sizeof(left));
-            emit_expression(emitter, expression->right, count, sizeof(count));
+                                  buffers->left, sizeof(buffers->left));
+            emit_expression(emitter, expression->right, buffers->count, sizeof(buffers->count));
             snprintf(output, size,
                      "%s%s%s.%s(u32::try_from(%s).unwrap_or(u32::MAX)).expect(\"shift count out of range\")",
-                     rust_plain_receiver(left) ? "" : "(", left,
-                     rust_plain_receiver(left) ? "" : ")",
-                     !strcmp(expression->op, "<<") ? "checked_shl" : "checked_shr", count);
+                     rust_plain_receiver(buffers->left) ? "" : "(", buffers->left,
+                     rust_plain_receiver(buffers->left) ? "" : ")",
+                     !strcmp(expression->op, "<<") ? "checked_shl" : "checked_shr", buffers->count);
         }
         else
-            snprintf(output, size, "(%s %s %s)", left, expression->op, right);
+            snprintf(output, size, "(%s %s %s)", buffers->left, expression->op, buffers->right);
         break;
     case ZIR_EXPR_UNARY:
         if(!strcmp(expression->op, "&")) {
             char pointee[ZIR_NAME_MAX];
-            emit_destination(emitter, expression->right, right, sizeof(right));
+            emit_destination(emitter, expression->right, buffers->right, sizeof(buffers->right));
             if(!rust_type(emitter, emitter->function->exprs[expression->right].type,
                           pointee, sizeof(pointee))) {
                 unsupported_expression(emitter, expression);
                 break;
             }
-            snprintf(output, size, "(&mut %s as *mut %s)", right, pointee);
+            snprintf(output, size, "(&mut %s as *mut %s)", buffers->right, pointee);
             break;
         }
-        emit_expression(emitter, expression->right, right, sizeof(right));
+        emit_expression(emitter, expression->right, buffers->right, sizeof(buffers->right));
         if(!strcmp(expression->op, "!") || !strcmp(expression->op, "-") ||
            !strcmp(expression->op, "+"))
-            snprintf(output, size, "(%s%s)", expression->op, right);
+            snprintf(output, size, "(%s%s)", expression->op, buffers->right);
         else if(!strcmp(expression->op, "~"))
-            snprintf(output, size, "(!%s)", right);
+            snprintf(output, size, "(!%s)", buffers->right);
         else if(!strcmp(expression->op, "*"))
-            snprintf(output, size, "(*%s)", right);
+            snprintf(output, size, "(*%s)", buffers->right);
         else
             unsupported_expression(emitter, expression);
         break;
@@ -2064,17 +2197,17 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             snprintf(output, size, "core::ptr::null_mut()");
             break;
         }
-        emit_expression(emitter, expression->right, right, sizeof(right));
+        emit_expression(emitter, expression->right, buffers->right, sizeof(buffers->right));
         {
             /* A literal converts at compile time to its wrapped value;
              * Rust rejects 258 as u8. */
             const ZirExpr *operand = &emitter->function->exprs[expression->right];
-            size_t length = strspn(right, "0123456789");
+            size_t length = strspn(buffers->right, "0123456789");
             if(operand->kind == ZIR_EXPR_INT && integer_type(expression->type) &&
                strcmp(expression->type, "integer") != 0 && length > 0 &&
-               strspn(right + length, "iu0123456789") == strlen(right + length)) {
+               strspn(buffers->right + length, "iu0123456789") == strlen(buffers->right + length)) {
                 errno = 0;
-                unsigned long long value = strtoull(right, NULL, 10);
+                unsigned long long value = strtoull(buffers->right, NULL, 10);
                 if(errno == 0) {
                     rust_literal(expression->type, (uint64_t)value, output, size);
                     break;
@@ -2082,10 +2215,10 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             }
         }
         if(rust_scalar_type(expression->type) != NULL)
-            snprintf(output, size, "(%s as %s)", right,
+            snprintf(output, size, "(%s as %s)", buffers->right,
                      rust_scalar_type(expression->type));
         else if(rust_type(emitter, expression->type, target, sizeof(target)))
-            snprintf(output, size, "(%s as %s)", right, target);
+            snprintf(output, size, "(%s as %s)", buffers->right, target);
         else
             unsupported_expression(emitter, expression);
         break;
@@ -2103,15 +2236,30 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
         snprintf(output, size, "false");
         break;
     case ZIR_EXPR_CONDITIONAL:
-        emit_expression(emitter, expression->left, left, sizeof(left));
-        emit_expression(emitter, expression->right, right, sizeof(right));
-        emit_expression(emitter, expression->third, third, sizeof(third));
-        snprintf(output, size, "(if %s { %s } else { %s })", left, right,
-                 third);
+        emit_expression(emitter, expression->left, buffers->left, sizeof(buffers->left));
+        emit_expression(emitter, expression->right, buffers->right, sizeof(buffers->right));
+        emit_expression(emitter, expression->third, buffers->third, sizeof(buffers->third));
+        snprintf(output, size, "(if %s { %s } else { %s })", buffers->left, buffers->right,
+                 buffers->third);
         break;
     default:
         unsupported_expression(emitter, expression);
     }
+}
+
+static void
+emit_expression(RustEmitter *emitter, int index, char *output,
+                            size_t size)
+{
+    static _Thread_local EmitExpressionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitExpressionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_expression_with_buffers(emitter, index, output, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static int split_arguments(const char *text, char parts[][ZIR_RUST_TEXT_MAX],
@@ -2156,16 +2304,23 @@ static int block_end(const ZirFunction *function, int begin, int end)
 }
 
 static void emit_sequence(RustEmitter *emitter, int begin, int end);
+/* Buffers emit_if keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitIfBuffers {
+    char condition[ZIR_RUST_TEXT_MAX];
+    char plain_condition[ZIR_RUST_TEXT_MAX];
+} EmitIfBuffers;
 
-static int emit_if(RustEmitter *emitter, int index, int end)
+static int emit_if(RustEmitter *emitter, int index, int end);
+
+static int
+emit_if_with_buffers(RustEmitter *emitter, int index, int end, EmitIfBuffers *buffers)
 {
     const ZirStmt *statement = &emitter->function->stmts[index];
-    char condition[ZIR_RUST_TEXT_MAX];
     int close = block_end(emitter->function, index, end);
-    emit_expression(emitter, statement->expr_root, condition,
-                    sizeof(condition));
-    char plain_condition[ZIR_RUST_TEXT_MAX];
-    write_line(emitter, "if %s {", rust_bare(condition, plain_condition, sizeof(plain_condition)));
+    emit_expression(emitter, statement->expr_root, buffers->condition,
+                    sizeof(buffers->condition));
+    write_line(emitter, "if %s {", rust_bare(buffers->condition, buffers->plain_condition, sizeof(buffers->plain_condition)));
     emitter->indent++;
     emit_sequence(emitter, index + 1, close);
     emitter->indent--;
@@ -2185,6 +2340,21 @@ static int emit_if(RustEmitter *emitter, int index, int end)
     }
     write_line(emitter, "}");
     return close;
+}
+
+static int
+emit_if(RustEmitter *emitter, int index, int end)
+{
+    static _Thread_local EmitIfBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitIfBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = emit_if_with_buffers(emitter, index, end, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static void emit_compound_assignment(RustEmitter *emitter,
@@ -2223,9 +2393,19 @@ static void emit_compound_assignment(RustEmitter *emitter,
     }
     write_line(emitter, "%s = %s %s %s;", name, name, operation, value);
 }
+/* Buffers rust_zero_value keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RustZeroValueBuffers {
+    char value[ZIR_RUST_TEXT_MAX];
+    char zero[ZIR_RUST_TEXT_MAX];
+} RustZeroValueBuffers;
 
 static void rust_zero_value(RustEmitter *emitter, const char *type,
-                            char *output, size_t size)
+                            char *output, size_t size);
+
+static void
+rust_zero_value_with_buffers(RustEmitter *emitter, const char *type,
+                            char *output, size_t size, RustZeroValueBuffers *buffers)
 {
     const ZirModule *owner = NULL;
     const ZirType *record = NULL;
@@ -2255,10 +2435,9 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
     }
     if(rust_option_type(emitter, type, &owner, &record, element,
                         sizeof(element))) {
-        char value[ZIR_RUST_TEXT_MAX];
-        rust_zero_value(emitter, element, value, sizeof(value));
+        rust_zero_value(emitter, element, buffers->value, sizeof(buffers->value));
         snprintf(output, size,
-                 "ZiranOption { has_value: false, value: %s }", value);
+                 "ZiranOption { has_value: false, value: %s }", buffers->value);
         return;
     }
     if(SliceElementType(type, element, sizeof(element))) {
@@ -2270,16 +2449,15 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
         return;
     }
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
-        char zero[ZIR_RUST_TEXT_MAX];
-        rust_zero_value(emitter, element, zero, sizeof(zero));
+        rust_zero_value(emitter, element, buffers->zero, sizeof(buffers->zero));
         /* [x; N] needs Copy elements; others are listed. */
         if(rust_copyable_type(emitter, element) || capacity == 0)
-            snprintf(output, size, "[%s; %d]", zero, capacity);
+            snprintf(output, size, "[%s; %d]", buffers->zero, capacity);
         else {
             size_t used = (size_t)snprintf(output, size, "[");
             for(int index = 0; index < capacity && used < size; index++)
                 used += (size_t)snprintf(output + used, size - used, "%s%s",
-                                         index ? ", " : "", zero);
+                                         index ? ", " : "", buffers->zero);
             if(used < size)
                 snprintf(output + used, size - used, "]");
         }
@@ -2315,22 +2493,36 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
     int first = 1;
     while(TypeNextField(record, &offset, &field) == 1 && (first || !record->is_union)) {
         char field_name[ZIR_NAME_MAX];
-        char value[ZIR_RUST_TEXT_MAX];
         /* Field types are spelled in the record's own module. A union
          * sets only its first field. */
         const ZirModule *saved_module = emitter->module;
         if(owner != NULL)
             emitter->module = owner;
         rust_field_name(record, field.name, field_name, sizeof(field_name));
-        rust_zero_value(emitter, field.type, value, sizeof(value));
+        rust_zero_value(emitter, field.type, buffers->value, sizeof(buffers->value));
         emitter->module = saved_module;
         used = strlen(output);
         snprintf(output + used, size - used, "%s%s: %s", first ? "" : ", ",
-                 field_name, value);
+                 field_name, buffers->value);
         first = 0;
     }
     used = strlen(output);
     snprintf(output + used, size - used, " }");
+}
+
+static void
+rust_zero_value(RustEmitter *emitter, const char *type,
+                            char *output, size_t size)
+{
+    static _Thread_local RustZeroValueBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RustZeroValueBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    rust_zero_value_with_buffers(emitter, type, output, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* The binding a place expression writes through, or NULL. */
@@ -2400,16 +2592,21 @@ static int rust_native_step(const RustEmitter *emitter, int loop)
             return 1;
     return 0;
 }
+/* Buffers emit_native_for keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitNativeForBuffers {
+    char start[ZIR_RUST_TEXT_MAX];
+    char bound[ZIR_RUST_TEXT_MAX];
+} EmitNativeForBuffers;
 
-/* A lowered counting loop, { step: s64 = 0; while step <= 2 { ...;
- * step += 1 } }, is for step in 0i64..=2i64 in Rust, or .rev() for one
- * counting down. The range steps, so the marked step statements go. */
-static int emit_native_for(RustEmitter *emitter, int open, int close)
+static int emit_native_for(RustEmitter *emitter, int open, int close);
+
+static int
+emit_native_for_with_buffers(RustEmitter *emitter, int open, int close, EmitNativeForBuffers *buffers)
 {
     const ZirFunction *function = emitter->function;
     const ZirStmt *counter, *loop;
     const ZirExpr *condition;
-    char start[ZIR_RUST_TEXT_MAX], bound[ZIR_RUST_TEXT_MAX];
     int loop_close, reverse = 0, labeled = 0;
     if(open + 2 >= close || emitter->native_loop_count >= 64)
         return 0;
@@ -2436,8 +2633,8 @@ static int emit_native_for(RustEmitter *emitter, int open, int close)
         }
     if(reverse != !strcmp(condition->op, ">="))
         return 0;
-    emit_typed_expression(emitter, counter->expr_root, counter->type, start, sizeof(start));
-    emit_typed_expression(emitter, condition->right, counter->type, bound, sizeof(bound));
+    emit_typed_expression(emitter, counter->expr_root, counter->type, buffers->start, sizeof(buffers->start));
+    emit_typed_expression(emitter, condition->right, counter->type, buffers->bound, sizeof(buffers->bound));
     for(int target = 0; target < function->stmt_count; target++)
         if(loop->loop_id && function->stmts[target].target_id == loop->loop_id)
             labeled = 1;
@@ -2447,11 +2644,11 @@ static int emit_native_for(RustEmitter *emitter, int open, int close)
         snprintf(label, sizeof(label), "'zir_loop_%d: ", loop->loop_id);
     if(reverse)
         write_line(emitter, "%sfor %s in (%s..=%s).rev() {", label,
-                   local_name(emitter, counter->name), bound, start);
+                   local_name(emitter, counter->name), buffers->bound, buffers->start);
     else
         write_line(emitter, "%sfor %s in %s..%s%s {", label,
-                   local_name(emitter, counter->name), start,
-                   !strcmp(condition->op, "<=") ? "=" : "", bound);
+                   local_name(emitter, counter->name), buffers->start,
+                   !strcmp(condition->op, "<=") ? "=" : "", buffers->bound);
     emitter->native_loops[emitter->native_loop_count++] = loop->loop_id;
     emitter->indent++;
     emit_sequence(emitter, open + 3, loop_close);
@@ -2461,11 +2658,37 @@ static int emit_native_for(RustEmitter *emitter, int open, int close)
     return 1;
 }
 
-static void emit_sequence(RustEmitter *emitter, int begin, int end)
+/* A lowered counting loop, { step: s64 = 0; while step <= 2 { ...;
+ * step += 1 } }, is for step in 0i64..=2i64 in Rust, or .rev() for one
+ * counting down. The range steps, so the marked step statements go. */
+static int
+emit_native_for(RustEmitter *emitter, int open, int close)
 {
+    static _Thread_local EmitNativeForBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitNativeForBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = emit_native_for_with_buffers(emitter, open, close, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers emit_sequence keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitSequenceBuffers {
     char value[ZIR_RUST_TEXT_MAX];
-    char type_name[ZIR_NAME_MAX];
     char destination[ZIR_RUST_TEXT_MAX];
+    char plain_value[ZIR_RUST_TEXT_MAX];
+} EmitSequenceBuffers;
+
+static void emit_sequence(RustEmitter *emitter, int begin, int end);
+
+static void
+emit_sequence_with_buffers(RustEmitter *emitter, int begin, int end, EmitSequenceBuffers *buffers)
+{
+    char type_name[ZIR_NAME_MAX];
     for(int index = begin; index < end; index++) {
         const ZirStmt *statement = &emitter->function->stmts[index];
         if(statement->kind == ZIR_STMT_ASSIGN && statement->for_step &&
@@ -2479,26 +2702,26 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
              * initializer can read a shadowed outer binding. */
             if(statement->expr_root >= 0)
                 emit_typed_expression(emitter, statement->expr_root,
-                                      statement->type, value, sizeof(value));
+                                      statement->type, buffers->value, sizeof(buffers->value));
             else
-                rust_zero_value(emitter, statement->type, value, sizeof(value));
+                rust_zero_value(emitter, statement->type, buffers->value, sizeof(buffers->value));
             register_local(emitter, statement->name);
             write_line(emitter, "let %s%s: %s = %s;",
                        rust_binding_mutable(emitter->function, index) ? "mut " : "",
-                       local_name(emitter, statement->name), type_name, value);
+                       local_name(emitter, statement->name), type_name, buffers->value);
             break;
         case ZIR_STMT_ASSIGN: {
             const ZirExpr *target = &emitter->function->exprs[statement->lhs_root];
-            emit_destination(emitter, statement->lhs_root, destination,
-                             sizeof(destination));
+            emit_destination(emitter, statement->lhs_root, buffers->destination,
+                             sizeof(buffers->destination));
             emit_typed_expression(emitter, statement->expr_root,
                                   emitter->function->exprs[statement->lhs_root].type,
-                                  value, sizeof(value));
+                                  buffers->value, sizeof(buffers->value));
             if(strcmp(statement->assignment_op, "=") == 0)
-                write_line(emitter, "%s = %s;", destination, value);
+                write_line(emitter, "%s = %s;", buffers->destination, buffers->value);
             else
-                emit_compound_assignment(emitter, statement, destination,
-                                         value);
+                emit_compound_assignment(emitter, statement, buffers->destination,
+                                         buffers->value);
             break;
         }
         case ZIR_STMT_EXPR:
@@ -2510,25 +2733,24 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
                emit_print_statement(emitter,
                                     &emitter->function->exprs[statement->expr_root]))
                 break;
-            emit_expression(emitter, statement->expr_root, value,
-                            sizeof(value));
+            emit_expression(emitter, statement->expr_root, buffers->value,
+                            sizeof(buffers->value));
             /* A call stands as a statement; another value is dropped. */
             if(emitter->function->exprs[statement->expr_root].kind == ZIR_EXPR_CALL)
-                write_line(emitter, "%s;", value);
+                write_line(emitter, "%s;", buffers->value);
             else
-                write_line(emitter, "let _ = %s;", value);
+                write_line(emitter, "let _ = %s;", buffers->value);
             break;
         case ZIR_STMT_IF:
             index = emit_if(emitter, index, end);
             break;
         case ZIR_STMT_WHILE: {
             int close = block_end(emitter->function, index, end);
-            emit_expression(emitter, statement->expr_root, value,
-                            sizeof(value));
+            emit_expression(emitter, statement->expr_root, buffers->value,
+                            sizeof(buffers->value));
             if(statement->is_parallel || statement->is_gpu)
                 write_line(emitter,
                            "// ziran: #parallel region downgraded to serial");
-            char plain_value[ZIR_RUST_TEXT_MAX];
             /* A loop a named break or continue targets carries a label. */
             int labeled = 0;
             for(int target = 0; target < emitter->function->stmt_count; target++)
@@ -2537,9 +2759,9 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
                     labeled = 1;
             if(labeled)
                 write_line(emitter, "'zir_loop_%d: while %s {", statement->loop_id,
-                           rust_bare(value, plain_value, sizeof(plain_value)));
+                           rust_bare(buffers->value, buffers->plain_value, sizeof(buffers->plain_value)));
             else
-                write_line(emitter, "while %s {", rust_bare(value, plain_value, sizeof(plain_value)));
+                write_line(emitter, "while %s {", rust_bare(buffers->value, buffers->plain_value, sizeof(buffers->plain_value)));
             emitter->indent++;
             emit_sequence(emitter, index + 1, close);
             emitter->indent--;
@@ -2566,9 +2788,9 @@ static void emit_sequence(RustEmitter *emitter, int begin, int end)
         case ZIR_STMT_RETURN:
             if(statement->expr_root >= 0) {
                 emit_typed_expression(emitter, statement->expr_root,
-                                      emitter->function->return_type, value,
-                                      sizeof(value));
-                write_line(emitter, "return %s;", value);
+                                      emitter->function->return_type, buffers->value,
+                                      sizeof(buffers->value));
+                write_line(emitter, "return %s;", buffers->value);
             } else
                 write_line(emitter, "return;");
             break;
@@ -2598,14 +2820,37 @@ unsupported_statement:
     }
 }
 
-static void validate_module(const ZirModule *module)
+static void
+emit_sequence(RustEmitter *emitter, int begin, int end)
 {
-    RustEmitter emitter = {0};
-    emitter.module = module;
+    static _Thread_local EmitSequenceBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitSequenceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_sequence_with_buffers(emitter, begin, end, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers validate_module keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ValidateModuleBuffers {
+    RustEmitter emitter;
+    char parts[32][ZIR_RUST_TEXT_MAX];
+} ValidateModuleBuffers;
+
+static void validate_module(const ZirModule *module);
+
+static void
+validate_module_with_buffers(const ZirModule *module, ValidateModuleBuffers *buffers)
+{
+    memset(&buffers->emitter, 0, sizeof(buffers->emitter));
+    buffers->emitter.module = module;
     for(int index = 0; index < module->global_count; index++) {
         const ZirGlobal *global = &module->globals[index];
         char type_name[ZIR_NAME_MAX];
-        require_rust_type(&emitter, global->span, global->type, type_name,
+        require_rust_type(&buffers->emitter, global->span, global->type, type_name,
                           sizeof(type_name));
     }
     for(int index = 0; index < module->type_count; index++) {
@@ -2616,11 +2861,11 @@ static void validate_module(const ZirModule *module)
         /* A record template has no layout; its specializations do. */
         if(record->is_record_template)
             continue;
-        if(rust_owned_vec_type(&emitter, record->name, NULL, NULL,
+        if(rust_owned_vec_type(&buffers->emitter, record->name, NULL, NULL,
                                checked_type, sizeof(checked_type)) ||
-           rust_option_type(&emitter, record->name, NULL, NULL, checked_type,
+           rust_option_type(&buffers->emitter, record->name, NULL, NULL, checked_type,
                             sizeof(checked_type))) {
-            if(!rust_type(&emitter, checked_type, checked_type,
+            if(!rust_type(&buffers->emitter, checked_type, checked_type,
                           sizeof(checked_type))) {
                 Diagnostic(record->span, "zir_rust.type",
                            "unsupported template type: %s", record->name);
@@ -2628,7 +2873,7 @@ static void validate_module(const ZirModule *module)
             }
             continue;
         }
-        if(rust_enum_type(&emitter, record->name, &owner, &checked)) {
+        if(rust_enum_type(&buffers->emitter, record->name, &owner, &checked)) {
             if(rust_scalar_type(checked->enum_backing) == NULL) {
                 Diagnostic(record->span, "zir_rust.enum",
                            "invalid enum backing type: %s",
@@ -2641,7 +2886,7 @@ static void validate_module(const ZirModule *module)
            (checked = FindType(module, record->name, &owner)) != NULL &&
            checked->is_procedure_type) {
             char checked_return[ZIR_NAME_MAX];
-            if(!rust_type(&emitter, checked->procedure_return_type,
+            if(!rust_type(&buffers->emitter, checked->procedure_return_type,
                           checked_return, sizeof(checked_return))) {
                 Diagnostic(record->span, "zir_rust.type",
                            "unsupported procedure type: %s", record->name);
@@ -2652,7 +2897,7 @@ static void validate_module(const ZirModule *module)
         /* A record template has no layout; its specializations do. */
         if(record->is_record_template)
             continue;
-        if(!rust_record_type(&emitter, record->name, &owner, &checked)) {
+        if(!rust_record_type(&buffers->emitter, record->name, &owner, &checked)) {
             Diagnostic(record->span, "zir_rust.type",
                        "the Rust target cannot lower this record: %s",
                        record->name);
@@ -2661,7 +2906,7 @@ static void validate_module(const ZirModule *module)
         size_t offset = 0;
         ZirTypeField field;
         while(TypeNextField(record, &offset, &field) == 1)
-            if(!rust_type(&emitter, field.type, checked_type,
+            if(!rust_type(&buffers->emitter, field.type, checked_type,
                           sizeof(checked_type))) {
                 Diagnostic(record->span, "zir_rust.type",
                            "the Rust target cannot lower this record: %s",
@@ -2681,22 +2926,21 @@ static void validate_module(const ZirModule *module)
             exit(1);
         }
         if(*import->args) {
-            char parts[32][ZIR_RUST_TEXT_MAX];
-            int count = split_arguments(import->args, parts, 32);
+            int count = split_arguments(import->args, buffers->parts, 32);
             if(count < 0) {
                 Diagnostic(import->span, "zir_rust.import",
                            "too many foreign parameters: %s", import->name);
                 exit(1);
             }
             for(int parameter = 0; parameter < count; parameter++) {
-                char *colon = strchr(parts[parameter], ':');
-                char *type = colon != NULL ? colon + 1 : parts[parameter];
+                char *colon = strchr(buffers->parts[parameter], ':');
+                char *type = colon != NULL ? colon + 1 : buffers->parts[parameter];
                 while(*type == ' ' || *type == '\t')
                     type++;
                 if(import->is_varargs && !strncmp(type, "..", 2))
                     continue;
                 if(colon == NULL ||
-                   !rust_type(&emitter, type, checked_type,
+                   !rust_type(&buffers->emitter, type, checked_type,
                               sizeof(checked_type))) {
                     Diagnostic(import->span, "zir_rust.import",
                                "unsupported foreign parameter type in %s",
@@ -2705,7 +2949,7 @@ static void validate_module(const ZirModule *module)
                 }
             }
         }
-        if(!rust_type(&emitter, import->return_type, checked_type,
+        if(!rust_type(&buffers->emitter, import->return_type, checked_type,
                       sizeof(checked_type))) {
             Diagnostic(import->span, "zir_rust.import",
                        "unsupported foreign return type: %s", import->name);
@@ -2714,8 +2958,33 @@ static void validate_module(const ZirModule *module)
     }
 }
 
+static void
+validate_module(const ZirModule *module)
+{
+    static _Thread_local ValidateModuleBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ValidateModuleBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    validate_module_with_buffers(module, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers emit_slot_wrappers keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitSlotWrappersBuffers {
+    char parts[32][ZIR_RUST_TEXT_MAX];
+    char wrapper[ZIR_RUST_NAME_MAX * 2];
+    char symbol[ZIR_RUST_NAME_MAX * 2];
+} EmitSlotWrappersBuffers;
+
 static void emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
-                               const ZirFunction *function)
+                               const ZirFunction *function);
+
+static void
+emit_slot_wrappers_with_buffers(RustEmitter *emitter, const ZirModule *module,
+                               const ZirFunction *function, EmitSlotWrappersBuffers *buffers)
 {
     emitter->module = module;
     emitter->function = function;
@@ -2723,9 +2992,6 @@ static void emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
         const ZirExpr *value = &function->exprs[index];
         const ZirModule *slot_owner = NULL;
         const ZirType *slot = FindType(module, value->type, &slot_owner);
-        char parts[32][ZIR_RUST_TEXT_MAX];
-        char wrapper[ZIR_RUST_NAME_MAX * 2];
-        char symbol[ZIR_RUST_NAME_MAX * 2];
         const ZirModule *owner = NULL;
         const ZirFunction *callee = NULL;
         int count;
@@ -2733,7 +2999,7 @@ static void emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
            !slot->is_procedure_type || slot->is_c_call)
             continue;
         count = *slot->body ?
-            split_arguments(slot->body, parts, 32) : 0;
+            split_arguments(slot->body, buffers->parts, 32) : 0;
         if(count < 0) {
             Diagnostic(value->span, "zir_rust.slot",
                        "too many procedure parameters: %s", value->type);
@@ -2749,20 +3015,20 @@ static void emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
                        "unsupported procedure value: %s", value->name);
             exit(1);
         }
-        slot_wrapper_symbol(emitter, index, wrapper, sizeof(wrapper));
-        function_symbol(emitter, owner, callee, symbol, sizeof(symbol));
+        slot_wrapper_symbol(emitter, index, buffers->wrapper, sizeof(buffers->wrapper));
+        function_symbol(emitter, owner, callee, buffers->symbol, sizeof(buffers->symbol));
         fprintf(emitter->output,
                 "unsafe extern \"C\" fn %s(_context: *mut core::ffi::c_void",
-                wrapper);
+                buffers->wrapper);
         emitter->module = slot_owner;
         for(int argument = 0; argument < count; argument++) {
-            char *colon = strchr(parts[argument], ':');
+            char *colon = strchr(buffers->parts[argument], ':');
             char parameter_type[ZIR_NAME_MAX];
             const char *type;
             if(colon == NULL) {
                 Diagnostic(value->span, "zir_rust.slot",
                            "invalid procedure parameter: %s",
-                           parts[argument]);
+                           buffers->parts[argument]);
                 exit(1);
             }
             type = colon + 1;
@@ -2786,7 +3052,7 @@ static void emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
         fprintf(emitter->output, "    unsafe { ");
         if(strcmp(slot->procedure_return_type, "void") != 0)
             fputc('(', emitter->output);
-        fputs(symbol, emitter->output);
+        fputs(buffers->symbol, emitter->output);
         for(int argument = 0; argument < count; argument++)
             fprintf(emitter->output, "%sziran_slot_arg_%d",
                     argument ? ", " : "(", argument);
@@ -2797,6 +3063,21 @@ static void emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
             fputc(')', emitter->output);
         fputs(" }\n}\n\n", emitter->output);
     }
+}
+
+static void
+emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
+                               const ZirFunction *function)
+{
+    static _Thread_local EmitSlotWrappersBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitSlotWrappersBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_slot_wrappers_with_buffers(emitter, module, function, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* Whether any program takes this function as a procedure value. */
@@ -2824,12 +3105,20 @@ static int rust_function_is_value(RustEmitter *emitter, const ZirModule *module,
         }
     return 0;
 }
-
-static void lower_function(RustEmitter *emitter, const ZirModule *module,
-                           const ZirFunction *function)
-{
+/* Buffers lower_function keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerFunctionBuffers {
     char parts[32][ZIR_RUST_TEXT_MAX];
     char symbol[ZIR_RUST_NAME_MAX * 2];
+} LowerFunctionBuffers;
+
+static void lower_function(RustEmitter *emitter, const ZirModule *module,
+                           const ZirFunction *function);
+
+static void
+lower_function_with_buffers(RustEmitter *emitter, const ZirModule *module,
+                           const ZirFunction *function, LowerFunctionBuffers *buffers)
+{
     int count;
     /* Templates have no body of their own, only checked specializations,
      * and foreign declarations are emitted with the imports. */
@@ -2838,7 +3127,7 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     emitter->module = module;
     emitter->function = function;
     emitter->local_count = 0;
-    function_symbol(emitter, module, function, symbol, sizeof(symbol));
+    function_symbol(emitter, module, function, buffers->symbol, sizeof(buffers->symbol));
     /* Only what C can see or call keeps the C ABI: exported functions and
      * functions taken as procedure values. Others are ordinary Rust fns. */
     if(function->export_symbol[0] ||
@@ -2848,9 +3137,9 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
         fputs("extern \"C\" fn ", emitter->output);
     else
         fputs("fn ", emitter->output);
-    fputs(symbol, emitter->output);
+    fputs(buffers->symbol, emitter->output);
     fputc('(', emitter->output);
-    count = *function->args ? split_arguments(function->args, parts, 32) : 0;
+    count = *function->args ? split_arguments(function->args, buffers->parts, 32) : 0;
     if(count < 0) {
         Diagnostic(function->span, "zir_rust.parameter",
                    "too many parameters in the Rust target: %s",
@@ -2858,17 +3147,17 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
         exit(1);
     }
     for(int index = 0; index < count; index++) {
-        char *colon = strchr(parts[index], ':');
+        char *colon = strchr(buffers->parts[index], ':');
         char source_name[ZIR_NAME_MAX];
         char rust_name[ZIR_NAME_MAX];
         char *type;
         size_t length;
         if(colon == NULL) {
             Diagnostic(function->span, "zir_rust.parameter",
-                       "invalid parameter declaration: %s", parts[index]);
+                       "invalid parameter declaration: %s", buffers->parts[index]);
             exit(1);
         }
-        const char *name_start = parts[index];
+        const char *name_start = buffers->parts[index];
         while(*name_start == ' ' || *name_start == '\t')
             name_start++;
         length = (size_t)(colon - name_start);
@@ -2936,6 +3225,21 @@ static void lower_function(RustEmitter *emitter, const ZirModule *module,
     }
     emitter->indent = 0;
     fputs("}\n\n", emitter->output);
+}
+
+static void
+lower_function(RustEmitter *emitter, const ZirModule *module,
+                           const ZirFunction *function)
+{
+    static _Thread_local LowerFunctionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    lower_function_with_buffers(emitter, module, function, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* A parsed initializer names its record but not every node's type; the
@@ -3009,10 +3313,20 @@ static void rust_fill_literal_types(RustEmitter *emitter, ZirFunction *literal,
             rust_fill_literal_types(emitter, literal, child, field_type, depth + 1);
     }
 }
+/* Buffers rust_global_initializer keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RustGlobalInitializerBuffers {
+    ZirFunction probe;
+} RustGlobalInitializerBuffers;
 
 static void rust_global_initializer(RustEmitter *emitter,
                                      const ZirGlobal *global, char *output,
-                                     size_t size)
+                                     size_t size);
+
+static void
+rust_global_initializer_with_buffers(RustEmitter *emitter,
+                                     const ZirGlobal *global, char *output,
+                                     size_t size, RustGlobalInitializerBuffers *buffers)
 {
     const ZirModule *owner = NULL;
     const ZirType *enumeration = NULL;
@@ -3039,30 +3353,55 @@ static void rust_global_initializer(RustEmitter *emitter,
     if(global->init[0] != '\0') {
         /* A constant record or array literal lowers like any checked
          * expression; Rust accepts it as a static initializer. */
-        ZirFunction probe = {0};
-        int root = ParseExprTyped(&probe, emitter->module, global->init,
+        memset(&buffers->probe, 0, sizeof(buffers->probe));
+        int root = ParseExprTyped(&buffers->probe, emitter->module, global->init,
                                   global->span, global->type);
         /* Only literals of constants; a literal naming a procedure or
          * global is set up by module startup. */
         int constant = root >= 0;
-        for(int index = 0; index < probe.expr_count && constant; index++)
-            constant = probe.exprs[index].kind != ZIR_EXPR_IDENT &&
-                       probe.exprs[index].kind != ZIR_EXPR_CALL;
-        if(constant && probe.exprs[root].kind == ZIR_EXPR_COMPOUND) {
+        for(int index = 0; index < buffers->probe.expr_count && constant; index++)
+            constant = buffers->probe.exprs[index].kind != ZIR_EXPR_IDENT &&
+                       buffers->probe.exprs[index].kind != ZIR_EXPR_CALL;
+        if(constant && buffers->probe.exprs[root].kind == ZIR_EXPR_COMPOUND) {
             const ZirFunction *saved = emitter->function;
-            rust_fill_literal_types(emitter, &probe, root, global->type, 0);
-            emitter->function = &probe;
+            rust_fill_literal_types(emitter, &buffers->probe, root, global->type, 0);
+            emitter->function = &buffers->probe;
             emit_typed_expression(emitter, root, global->type, output, size);
             emitter->function = saved;
-            free(probe.exprs);
+            free(buffers->probe.exprs);
             return;
         }
-        free(probe.exprs);
+        free(buffers->probe.exprs);
     }
     rust_zero_value(emitter, global->type, output, size);
 }
 
-static void emit_global_definitions(RustEmitter *emitter, FILE *output)
+static void
+rust_global_initializer(RustEmitter *emitter,
+                                     const ZirGlobal *global, char *output,
+                                     size_t size)
+{
+    static _Thread_local RustGlobalInitializerBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RustGlobalInitializerBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    rust_global_initializer_with_buffers(emitter, global, output, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers emit_global_definitions keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitGlobalDefinitionsBuffers {
+    char symbol[ZIR_RUST_NAME_MAX * 2];
+    char zero[ZIR_RUST_TEXT_MAX];
+} EmitGlobalDefinitionsBuffers;
+
+static void emit_global_definitions(RustEmitter *emitter, FILE *output);
+
+static void
+emit_global_definitions_with_buffers(RustEmitter *emitter, FILE *output, EmitGlobalDefinitionsBuffers *buffers)
 {
     for(int program_index = 0; program_index < emitter->program_count;
         program_index++) {
@@ -3074,19 +3413,31 @@ static void emit_global_definitions(RustEmitter *emitter, FILE *output)
             for(int global_index = 0; global_index < module->global_count;
                 global_index++) {
                 const ZirGlobal *global = &module->globals[global_index];
-                char symbol[ZIR_RUST_NAME_MAX * 2];
                 char type_name[ZIR_NAME_MAX];
-                char zero[ZIR_RUST_TEXT_MAX];
-                global_symbol(emitter, module, global, symbol,
-                              sizeof(symbol));
+                global_symbol(emitter, module, global, buffers->symbol,
+                              sizeof(buffers->symbol));
                 require_rust_type(emitter, global->span, global->type,
                                   type_name, sizeof(type_name));
-                rust_global_initializer(emitter, global, zero, sizeof(zero));
-                fprintf(output, "static mut %s: %s = %s;\n\n", symbol,
-                        type_name, zero);
+                rust_global_initializer(emitter, global, buffers->zero, sizeof(buffers->zero));
+                fprintf(output, "static mut %s: %s = %s;\n\n", buffers->symbol,
+                        type_name, buffers->zero);
             }
         }
     }
+}
+
+static void
+emit_global_definitions(RustEmitter *emitter, FILE *output)
+{
+    static _Thread_local EmitGlobalDefinitionsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitGlobalDefinitionsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_global_definitions_with_buffers(emitter, output, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static RustModuleVisit *module_visit(RustModuleVisits *visits,
@@ -3707,17 +4058,27 @@ static void write_rust_lint_allowances(FILE *output, const char *runtime, size_t
     if(any)
         fputc('\n', output);
 }
+/* Buffers rust_lower keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RustLowerBuffers {
+    RustEmitter emitter;
+    char symbol[ZIR_RUST_NAME_MAX * 2];
+} RustLowerBuffers;
 
 int rust_lower(const ZirProgram *const *programs, int program_count,
                const char *output_directory, const char *entry_module,
-               const char *entry_function, int executable)
+               const char *entry_function, int executable);
+
+static int
+rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
+               const char *output_directory, const char *entry_module,
+               const char *entry_function, int executable, RustLowerBuffers *buffers)
 {
     FILE *output;
     FILE *cargo;
-    RustEmitter emitter = {0};
+    memset(&buffers->emitter, 0, sizeof(buffers->emitter));
     const ZirModule *entry_owner = NULL;
     const ZirFunction *entry = NULL;
-    char symbol[ZIR_RUST_NAME_MAX * 2];
     if(programs == NULL || program_count <= 0 || output_directory == NULL ||
        output_directory[0] == '\0') {
         Diagnostic(Span("<command>", 1, 1), "zir_rust.input",
@@ -3782,9 +4143,9 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
                    "cannot buffer Rust output");
         return 1;
     }
-    emitter.output = body;
-    emitter.programs = programs;
-    emitter.program_count = program_count;
+    buffers->emitter.output = body;
+    buffers->emitter.programs = programs;
+    buffers->emitter.program_count = program_count;
     fputs("#[repr(C)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n"
           "impl<T> Clone for ZiranSlice<T> {\n"
@@ -3837,9 +4198,9 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
           "        Self { data: unsafe { value.data.offset(low) }, len: (high - low) as usize }\n"
           "    }\n"
           "}\n\n", runtime);
-    emit_type_definitions(&emitter, body);
-    emit_extern_definitions(&emitter, body);
-    emit_global_definitions(&emitter, body);
+    emit_type_definitions(&buffers->emitter, body);
+    emit_extern_definitions(&buffers->emitter, body);
+    emit_global_definitions(&buffers->emitter, body);
     for(int program_index = 0; program_index < program_count; program_index++) {
         const ZirProgram *program = programs[program_index];
         for(int module_index = 0; module_index < program->module_count;
@@ -3851,23 +4212,23 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
                         module->source_path);
             for(int function_index = 0; function_index < module->function_count;
                 function_index++)
-                lower_function(&emitter, module,
+                lower_function(&buffers->emitter, module,
                                &module->functions[function_index]);
         }
     }
-    int has_startup = emit_startup(&emitter, body);
+    int has_startup = emit_startup(&buffers->emitter, body);
     if(executable) {
-        function_symbol(&emitter, entry_owner, entry, symbol, sizeof(symbol));
+        function_symbol(&buffers->emitter, entry_owner, entry, buffers->symbol, sizeof(buffers->symbol));
         fputs("fn main() {\n", body);
         if(has_startup)
             fputs("    ziran_startup();\n", body);
         if(strcmp(entry->return_type, "void") == 0) {
-            fprintf(body, "    %s();\n", symbol);
+            fprintf(body, "    %s();\n", buffers->symbol);
         } else if(strcmp(entry->return_type, "bool") == 0) {
-            fprintf(body, "    let failed = %s();\n", symbol);
+            fprintf(body, "    let failed = %s();\n", buffers->symbol);
             fprintf(body, "    if failed { std::process::exit(1); }\n");
         } else {
-            fprintf(body, "    let code = %s() as i32;\n", symbol);
+            fprintf(body, "    let code = %s() as i32;\n", buffers->symbol);
             fprintf(body, "    std::process::exit(code);\n");
         }
         fputs("}\n", body);
@@ -3901,4 +4262,21 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
         return 1;
     }
     return 0;
+}
+
+int
+rust_lower(const ZirProgram *const *programs, int program_count,
+               const char *output_directory, const char *entry_module,
+               const char *entry_function, int executable)
+{
+    static _Thread_local RustLowerBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RustLowerBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = rust_lower_with_buffers(programs, program_count, output_directory, entry_module, entry_function, executable, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

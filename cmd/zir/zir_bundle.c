@@ -184,19 +184,40 @@ read_name(FILE *in, char *name, size_t capacity)
     name[length] = 0;
     return 1;
 }
+/* Buffers copy_bytes keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CopyBytesBuffers {
+    unsigned char buffer[8192];
+} CopyBytesBuffers;
+
+static int copy_bytes(FILE *in, FILE *out, uint32_t count);
 
 static int
-copy_bytes(FILE *in, FILE *out, uint32_t count)
+copy_bytes_with_buffers(FILE *in, FILE *out, uint32_t count, CopyBytesBuffers *buffers)
 {
-    unsigned char buffer[8192];
     while(count > 0) {
-        size_t amount = count < sizeof(buffer) ? count : sizeof(buffer);
-        if(fread(buffer, 1, amount, in) != amount ||
-           fwrite(buffer, 1, amount, out) != amount)
+        size_t amount = count < sizeof(buffers->buffer) ? count : sizeof(buffers->buffer);
+        if(fread(buffers->buffer, 1, amount, in) != amount ||
+           fwrite(buffers->buffer, 1, amount, out) != amount)
             return 0;
         count -= (uint32_t)amount;
     }
     return 1;
+}
+
+static int
+copy_bytes(FILE *in, FILE *out, uint32_t count)
+{
+    static _Thread_local CopyBytesBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CopyBytesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = copy_bytes_with_buffers(in, out, count, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -280,12 +301,16 @@ failed:
     return NULL;
 }
 
+/* Dead-code pruning follows statements and conditions as deep as the VM
+ * runs them; deeper code is reported, never dropped silently. */
+enum { LIVE_NESTING_MAX = 128 };
+
 /* A known result here also means evaluating the expression has no effect.
  * In particular, `false && Call()` is known; `Call() && false` is not. */
 static int
 constant_bool(const ZirFunction *fn, int index, int depth)
 {
-    if(index < 0 || index >= fn->expr_count || depth > 64)
+    if(index < 0 || index >= fn->expr_count || depth > LIVE_NESTING_MAX)
         return -1;
     const ZirExpr *expr = &fn->exprs[index];
     if(expr->kind == ZIR_EXPR_IDENT) {
@@ -341,8 +366,12 @@ static int
 copy_live_sequence(const ZirFunction *from, ZirFunction *to,
                    int begin, int end, int depth, int *stops)
 {
-    if(depth > 64)
+    if(depth > LIVE_NESTING_MAX) {
+        Diagnostic(from->span, "zib.statement",
+                   "%s nests blocks deeper than %d levels", from->name,
+                   LIVE_NESTING_MAX);
         return 0;
+    }
     *stops = 0;
     for(int i = begin; i < end; i++) {
         const ZirStmt *statement = &from->stmts[i];
@@ -508,45 +537,68 @@ copy_live_expression(const ZirFunction *from, ZirFunction *to,
     to->exprs[result].next_sibling = -1;
     return result;
 }
+/* Buffers prune_function keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct PruneFunctionBuffers {
+    ZirFunction original;
+    ZirFunction output;
+} PruneFunctionBuffers;
+
+static int prune_function(ZirFunction *fn);
 
 static int
-prune_function(ZirFunction *fn)
+prune_function_with_buffers(ZirFunction *fn, PruneFunctionBuffers *buffers)
 {
-    ZirFunction original = *fn;
-    ZirFunction output = original;
-    output.stmts = calloc((size_t)(original.stmt_count ? original.stmt_count : 1),
-                          sizeof(*output.stmts));
-    output.exprs = calloc((size_t)(original.expr_count ? original.expr_count : 1),
-                          sizeof(*output.exprs));
-    int *mapping = malloc((size_t)(original.expr_count ? original.expr_count : 1) *
+    buffers->original = *fn;
+    buffers->output = buffers->original;
+    buffers->output.stmts = calloc((size_t)(buffers->original.stmt_count ? buffers->original.stmt_count : 1),
+                          sizeof(*buffers->output.stmts));
+    buffers->output.exprs = calloc((size_t)(buffers->original.expr_count ? buffers->original.expr_count : 1),
+                          sizeof(*buffers->output.exprs));
+    int *mapping = malloc((size_t)(buffers->original.expr_count ? buffers->original.expr_count : 1) *
                           sizeof(*mapping));
-    if(output.stmts == NULL || output.exprs == NULL || mapping == NULL) {
-        free(output.stmts); free(output.exprs); free(mapping);
+    if(buffers->output.stmts == NULL || buffers->output.exprs == NULL || mapping == NULL) {
+        free(buffers->output.stmts); free(buffers->output.exprs); free(mapping);
         return 0;
     }
-    output.stmt_count = output.expr_count = 0;
-    output.stmt_cap = original.stmt_count;
-    output.expr_cap = original.expr_count;
-    for(int i = 0; i < original.expr_count; i++) mapping[i] = -1;
+    buffers->output.stmt_count = buffers->output.expr_count = 0;
+    buffers->output.stmt_cap = buffers->original.stmt_count;
+    buffers->output.expr_cap = buffers->original.expr_count;
+    for(int i = 0; i < buffers->original.expr_count; i++) mapping[i] = -1;
     int stops = 0;
-    int ok = copy_live_sequence(&original, &output, 0, original.stmt_count,
+    int ok = copy_live_sequence(&buffers->original, &buffers->output, 0, buffers->original.stmt_count,
                                 0, &stops);
-    for(int s = 0; ok && s < output.stmt_count; s++) {
-        ZirStmt *statement = &output.stmts[s];
-        statement->expr_root = copy_live_expression(&original, &output,
+    for(int s = 0; ok && s < buffers->output.stmt_count; s++) {
+        ZirStmt *statement = &buffers->output.stmts[s];
+        statement->expr_root = copy_live_expression(&buffers->original, &buffers->output,
             mapping, statement->expr_root, 0);
-        statement->lhs_root = copy_live_expression(&original, &output,
+        statement->lhs_root = copy_live_expression(&buffers->original, &buffers->output,
             mapping, statement->lhs_root, 0);
         ok = statement->expr_root >= -1 && statement->lhs_root >= -1;
     }
     free(mapping);
     if(!ok) {
-        free(output.stmts); free(output.exprs);
+        free(buffers->output.stmts); free(buffers->output.exprs);
         return 0;
     }
-    free(original.stmts); free(original.exprs);
-    *fn = output;
+    free(buffers->original.stmts); free(buffers->original.exprs);
+    *fn = buffers->output;
     return 1;
+}
+
+static int
+prune_function(ZirFunction *fn)
+{
+    static _Thread_local PruneFunctionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    PruneFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = prune_function_with_buffers(fn, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 typedef struct FieldUse {
@@ -695,13 +747,18 @@ mark_signature_fields(const ZirModule *module, const char *args,
     }
     free(parts);
 }
+/* Buffers prune_record_fields keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct PruneRecordFieldsBuffers {
+    char body[sizeof(((ZirType *)0)->body)];
+} PruneRecordFieldsBuffers;
 
-/* Entry links are closed programs. A field unused by their checked graph
- * need not occupy every element of a large retained array. Host signatures
- * and the entry ABI keep their complete layouts. */
+static int prune_record_fields(ZirProgram *program, const char *entry_module,
+                    const char *entry_function);
+
 static int
-prune_record_fields(ZirProgram *program, const char *entry_module,
-                    const char *entry_function)
+prune_record_fields_with_buffers(ZirProgram *program, const char *entry_module,
+                    const char *entry_function, PruneRecordFieldsBuffers *buffers)
 {
     int use_count = 0;
     for(int m = 0; m < program->module_count; m++)
@@ -788,25 +845,25 @@ prune_record_fields(ZirProgram *program, const char *entry_module,
         FieldUse *use = &uses[i];
         if(use->type == NULL || use->count == 0)
             continue;
-        char body[sizeof(use->type->body)] = "";
+        buffers->body[0] = '\0';
         size_t length = 0, offset = 0;
         ZirTypeField field;
         int index = 0;
         while(TypeNextField(use->type, &offset, &field) == 1) {
             if(use->fields[index]) {
-                int written = snprintf(body + length, sizeof(body) - length,
+                int written = snprintf(buffers->body + length, sizeof(buffers->body) - length,
                                        "%s%s: %s\n",
                                        field.is_using ? "using " : "",
                                        field.name, field.type);
-                if(written < 0 || (size_t)written >= sizeof(body) - length)
+                if(written < 0 || (size_t)written >= sizeof(buffers->body) - length)
                     goto failed;
                 length += (size_t)written;
             }
             index++;
         }
         if(length == 0)
-            strcpy(body, "_unused: u8\n");
-        strcpy(use->type->body, body);
+            strcpy(buffers->body, "_unused: u8\n");
+        strcpy(use->type->body, buffers->body);
     }
     for(int i = 0; i < use_count; i++)
         free(uses[i].fields);
@@ -817,6 +874,25 @@ failed:
         free(uses[i].fields);
     free(uses);
     return 0;
+}
+
+/* Entry links are closed programs. A field unused by their checked graph
+ * need not occupy every element of a large retained array. Host signatures
+ * and the entry ABI keep their complete layouts. */
+static int
+prune_record_fields(ZirProgram *program, const char *entry_module,
+                    const char *entry_function)
+{
+    static _Thread_local PruneRecordFieldsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    PruneRecordFieldsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = prune_record_fields_with_buffers(program, entry_module, entry_function, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -1122,10 +1198,18 @@ import_has_startup_path(const ZirProgram *program,
             return startup_path[m] != 0;
     return 0;
 }
+/* Buffers link_checked_entry keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LinkCheckedEntryBuffers {
+    ZirFunction signature;
+} LinkCheckedEntryBuffers;
+
+static ZirProgram *link_checked_entry(const ZirProgram *program, const char *entry_module,
+           const char *entry_function, int native);
 
 static ZirProgram *
-link_checked_entry(const ZirProgram *program, const char *entry_module,
-           const char *entry_function, int native)
+link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_module,
+           const char *entry_function, int native, LinkCheckedEntryBuffers *buffers)
 {
     unsigned char **keep = NULL;
     unsigned char **keep_types = NULL;
@@ -1376,11 +1460,11 @@ link_checked_entry(const ZirProgram *program, const char *entry_module,
                 if(!keep_types[m][t])
                     continue;
                 if(module->types[t].is_procedure_type) {
-                    ZirFunction signature = {0};
-                    if(strlen(module->types[t].body) >= sizeof(signature.args))
+                    memset(&buffers->signature, 0, sizeof(buffers->signature));
+                    if(strlen(module->types[t].body) >= sizeof(buffers->signature.args))
                         goto failed;
-                    strcpy(signature.args, module->types[t].body);
-                    if(!mark_parameters(program, module, &signature,
+                    strcpy(buffers->signature.args, module->types[t].body);
+                    if(!mark_parameters(program, module, &buffers->signature,
                                         keep_types, &changed))
                         goto failed;
                     continue;
@@ -1726,6 +1810,22 @@ failed:
     free(startup_path);
     ProgramFree(linked);
     return NULL;
+}
+
+static ZirProgram *
+link_checked_entry(const ZirProgram *program, const char *entry_module,
+           const char *entry_function, int native)
+{
+    static _Thread_local LinkCheckedEntryBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LinkCheckedEntryBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    ZirProgram *returned = link_checked_entry_with_buffers(program, entry_module, entry_function, native, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 ZirProgram *

@@ -169,11 +169,22 @@ canonical_type_arguments(const char *source, char *output, size_t capacity)
     output[used] = '\0';
     return 1;
 }
+/* Buffers rewrite_type_applications keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RewriteTypeApplicationsBuffers {
+    char arguments[ZIR_TEXT_MAX];
+    char expanded[ZIR_TEXT_MAX];
+    char canonical[ZIR_TEXT_MAX];
+} RewriteTypeApplicationsBuffers;
 
-int
-rewrite_type_applications(ZirModule *module, const char *source,
+int rewrite_type_applications(ZirModule *module, const char *source,
                           char *output, size_t capacity,
-                          ZirSourceSpan span, int recursion)
+                          ZirSourceSpan span, int recursion);
+
+static int
+rewrite_type_applications_with_buffers(ZirModule *module, const char *source,
+                          char *output, size_t capacity,
+                          ZirSourceSpan span, int recursion, RewriteTypeApplicationsBuffers *buffers)
 {
     size_t used = 0;
     select_lookup_file(module, span);
@@ -224,17 +235,14 @@ rewrite_type_applications(ZirModule *module, const char *source,
                     Diagnostic(span, "check.type_application", "invalid type application: %s", base);
                     return 0;
                 }
-                char arguments[ZIR_TEXT_MAX];
-                char expanded[ZIR_TEXT_MAX];
-                memcpy(arguments, opening + 1,
+                memcpy(buffers->arguments, opening + 1,
                        (size_t)(closing - opening - 1));
-                arguments[closing - opening - 1] = '\0';
-                if(!rewrite_type_applications(module, arguments, expanded,
-                        sizeof(expanded), span, recursion + 1))
+                buffers->arguments[closing - opening - 1] = '\0';
+                if(!rewrite_type_applications(module, buffers->arguments, buffers->expanded,
+                        sizeof(buffers->expanded), span, recursion + 1))
                     return 0;
-                char canonical[ZIR_TEXT_MAX];
-                if(!canonical_type_arguments(expanded, canonical,
-                        sizeof(canonical))) {
+                if(!canonical_type_arguments(buffers->expanded, buffers->canonical,
+                        sizeof(buffers->canonical))) {
                     Diagnostic(span, "check.type_application",
                                "type application arguments are too long: %s", base);
                     return 0;
@@ -243,7 +251,7 @@ rewrite_type_applications(ZirModule *module, const char *source,
                 for(const unsigned char *p = (const unsigned char *)base; *p; p++)
                     hash = (hash ^ *p) * UINT64_C(1099511628211);
                 hash = (hash ^ '(') * UINT64_C(1099511628211);
-                for(const unsigned char *p = (const unsigned char *)canonical; *p; p++)
+                for(const unsigned char *p = (const unsigned char *)buffers->canonical; *p; p++)
                     hash = (hash ^ *p) * UINT64_C(1099511628211);
                 char name[ZIR_NAME_MAX];
                 snprintf(name, sizeof(name), "__type_%016llx",
@@ -258,7 +266,7 @@ rewrite_type_applications(ZirModule *module, const char *source,
                    (!instance->is_synthetic_application ||
                     (instance->is_type_instance &&
                      (strcmp(instance->template_name, base) != 0 ||
-                      strcmp(instance->template_args, canonical) != 0)))) {
+                      strcmp(instance->template_args, buffers->canonical) != 0)))) {
                     Diagnostic(span, "check.type_application",
                                "type application name collision: %s", base);
                     return 0;
@@ -275,7 +283,7 @@ rewrite_type_applications(ZirModule *module, const char *source,
                     copy_text(instance->template_name,
                               sizeof(instance->template_name), base);
                     copy_text(instance->template_args,
-                              sizeof(instance->template_args), canonical);
+                              sizeof(instance->template_args), buffers->canonical);
                 }
                 size_t name_length = strlen(name);
                 if(used + name_length >= capacity) return 0;
@@ -296,63 +304,107 @@ rewrite_type_applications(ZirModule *module, const char *source,
     return 1;
 }
 
-static int
-rewrite_function_type_applications(ZirModule *module, ZirFunction *fn)
+int
+rewrite_type_applications(ZirModule *module, const char *source,
+                          char *output, size_t capacity,
+                          ZirSourceSpan span, int recursion)
 {
+    static _Thread_local RewriteTypeApplicationsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RewriteTypeApplicationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = rewrite_type_applications_with_buffers(module, source, output, capacity, span, recursion, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers rewrite_function_type_applications keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RewriteFunctionTypeApplicationsBuffers {
     char expanded[ZIR_TEXT_MAX * 2];
-    if(!rewrite_type_applications(module, fn->args, expanded,
-            sizeof(expanded), fn->span, 0)) return 0;
-    if(strlen(expanded) >= sizeof(fn->args)) return 0;
-    copy_text(fn->args, sizeof(fn->args), expanded);
-    if(!rewrite_type_applications(module, fn->return_type, expanded,
-            sizeof(expanded), fn->span, 0)) return 0;
-    if(strlen(expanded) >= sizeof(fn->return_type)) return 0;
-    copy_text(fn->return_type, sizeof(fn->return_type), expanded);
+} RewriteFunctionTypeApplicationsBuffers;
+
+static int rewrite_function_type_applications(ZirModule *module, ZirFunction *fn);
+
+static int
+rewrite_function_type_applications_with_buffers(ZirModule *module, ZirFunction *fn, RewriteFunctionTypeApplicationsBuffers *buffers)
+{
+    if(!rewrite_type_applications(module, fn->args, buffers->expanded,
+            sizeof(buffers->expanded), fn->span, 0)) return 0;
+    if(strlen(buffers->expanded) >= sizeof(fn->args)) return 0;
+    copy_text(fn->args, sizeof(fn->args), buffers->expanded);
+    if(!rewrite_type_applications(module, fn->return_type, buffers->expanded,
+            sizeof(buffers->expanded), fn->span, 0)) return 0;
+    if(strlen(buffers->expanded) >= sizeof(fn->return_type)) return 0;
+    copy_text(fn->return_type, sizeof(fn->return_type), buffers->expanded);
     for(int s = 0; s < fn->stmt_count; s++) {
         ZirStmt *statement = &fn->stmts[s];
-        if(!rewrite_type_applications(module, statement->text, expanded,
-                sizeof(expanded), statement->span, 0)) return 0;
-        if(strlen(expanded) >= ZIR_TEXT_MAX) return 0;
-        statement->text = KeepText(expanded);
+        if(!rewrite_type_applications(module, statement->text, buffers->expanded,
+                sizeof(buffers->expanded), statement->span, 0)) return 0;
+        if(strlen(buffers->expanded) >= ZIR_TEXT_MAX) return 0;
+        statement->text = KeepText(buffers->expanded);
     }
     StructureFunction(fn, module);
     return 1;
 }
 
-int
-normalize_type_applications(ZirModule *module)
+static int
+rewrite_function_type_applications(ZirModule *module, ZirFunction *fn)
 {
+    static _Thread_local RewriteFunctionTypeApplicationsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RewriteFunctionTypeApplicationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = rewrite_function_type_applications_with_buffers(module, fn, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers normalize_type_applications keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct NormalizeTypeApplicationsBuffers {
     char expanded[ZIR_TEXT_MAX * 2];
+    char arguments[sizeof(((ZirType *)0)->template_args)];
+    char canonical[sizeof(((ZirType *)0)->template_args)];
+    char body[sizeof(((ZirType *)0)->body)];
+} NormalizeTypeApplicationsBuffers;
+
+int normalize_type_applications(ZirModule *module);
+
+static int
+normalize_type_applications_with_buffers(ZirModule *module, NormalizeTypeApplicationsBuffers *buffers)
+{
     int original_types = module->type_count;
     for(int t = 0; t < original_types; t++) {
         ZirType *type = &module->types[t];
         if(type->is_type_instance) {
-            char arguments[sizeof(type->template_args)];
-            copy_text(arguments, sizeof(arguments), type->template_args);
-            if(!rewrite_type_applications(module, arguments,
-                    expanded, sizeof(expanded), type->span, 0)) return 0;
-            char canonical[sizeof(type->template_args)];
-            if(!canonical_type_arguments(expanded, canonical,
-                    sizeof(canonical)))
+            copy_text(buffers->arguments, sizeof(buffers->arguments), type->template_args);
+            if(!rewrite_type_applications(module, buffers->arguments,
+                    buffers->expanded, sizeof(buffers->expanded), type->span, 0)) return 0;
+            if(!canonical_type_arguments(buffers->expanded, buffers->canonical,
+                    sizeof(buffers->canonical)))
                 return 0;
             copy_text(module->types[t].template_args,
-                      sizeof(module->types[t].template_args), canonical);
+                      sizeof(module->types[t].template_args), buffers->canonical);
         } else if(!type->is_record_template &&
                   !type->is_enum && type->body[0]) {
-            char body[sizeof(type->body)];
-            copy_text(body, sizeof(body), type->body);
-            if(!rewrite_type_applications(module, body, expanded,
-                    sizeof(expanded), type->span, 0)) return 0;
+            copy_text(buffers->body, sizeof(buffers->body), type->body);
+            if(!rewrite_type_applications(module, buffers->body, buffers->expanded,
+                    sizeof(buffers->expanded), type->span, 0)) return 0;
             copy_text(module->types[t].body,
-                      sizeof(module->types[t].body), expanded);
+                      sizeof(module->types[t].body), buffers->expanded);
         }
     }
     for(int g = 0; g < module->global_count; g++) {
         ZirGlobal *global = &module->globals[g];
-        if(!rewrite_type_applications(module, global->type, expanded,
-                sizeof(expanded), global->span, 0)) return 0;
-        if(strlen(expanded) >= sizeof(global->type)) return 0;
-        copy_text(global->type, sizeof(global->type), expanded);
+        if(!rewrite_type_applications(module, global->type, buffers->expanded,
+                sizeof(buffers->expanded), global->span, 0)) return 0;
+        if(strlen(buffers->expanded) >= sizeof(global->type)) return 0;
+        copy_text(global->type, sizeof(global->type), buffers->expanded);
     }
     for(int f = 0; f < module->function_count; f++) {
         ZirFunction *fn = &module->functions[f];
@@ -362,10 +414,30 @@ normalize_type_applications(ZirModule *module)
     return 1;
 }
 
-/* Native interfaces define records by value. Put a field's local record
- * before its owner, including records created by nested type application. */
 int
-order_local_types(ZirModule *module)
+normalize_type_applications(ZirModule *module)
+{
+    static _Thread_local NormalizeTypeApplicationsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    NormalizeTypeApplicationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = normalize_type_applications_with_buffers(module, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers order_local_types keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct OrderLocalTypesBuffers {
+    ZirType needed;
+} OrderLocalTypesBuffers;
+
+int order_local_types(ZirModule *module);
+
+static int
+order_local_types_with_buffers(ZirModule *module, OrderLocalTypesBuffers *buffers)
 {
     int count = module->type_count;
     if(count == 0) return 1;
@@ -381,10 +453,10 @@ order_local_types(ZirModule *module)
                 for(int dependency = t + 1; dependency < count; dependency++) {
                     if(strcmp(module->types[dependency].name, field.type) != 0)
                         continue;
-                    ZirType needed = module->types[dependency];
+                    buffers->needed = module->types[dependency];
                     memmove(&module->types[t + 1], &module->types[t],
-                            (size_t)(dependency - t) * sizeof(needed));
-                    module->types[t] = needed;
+                            (size_t)(dependency - t) * sizeof(buffers->needed));
+                    module->types[t] = buffers->needed;
                     moved = 1;
                     break;
                 }
@@ -396,6 +468,23 @@ order_local_types(ZirModule *module)
     Diagnostic(module->span, "check.type_order",
                "record values contain a cyclic type dependency");
     return 0;
+}
+
+/* Native interfaces define records by value. Put a field's local record
+ * before its owner, including records created by nested type application. */
+int
+order_local_types(ZirModule *module)
+{
+    static _Thread_local OrderLocalTypesBuffers *spares[16];
+    static _Thread_local int spare_count;
+    OrderLocalTypesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = order_local_types_with_buffers(module, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* Type spellings are validated after parsing and after generic expansion so
@@ -454,19 +543,40 @@ JaiTypeSpelling(ZirSourceSpan span, const char *type)
     }
     return 1;
 }
+/* Buffers jai_parameter_types keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct JaiParameterTypesBuffers {
+    char parameters[64][ZIR_TEXT_MAX];
+} JaiParameterTypesBuffers;
+
+static int jai_parameter_types(ZirSourceSpan span, const char *args);
 
 static int
-jai_parameter_types(ZirSourceSpan span, const char *args)
+jai_parameter_types_with_buffers(ZirSourceSpan span, const char *args, JaiParameterTypesBuffers *buffers)
 {
-    char parameters[64][ZIR_TEXT_MAX];
     int count = *skip_ws(args) ?
-        split_top_level(args, parameters[0], 64, sizeof(parameters[0])) : 0;
+        split_top_level(args, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
     for(int i = 0; i < count; i++) {
-        char *colon = strchr(parameters[i], ':');
+        char *colon = strchr(buffers->parameters[i], ':');
         if(colon != NULL && !JaiTypeSpelling(span, colon + 1))
             return 0;
     }
     return 1;
+}
+
+static int
+jai_parameter_types(ZirSourceSpan span, const char *args)
+{
+    static _Thread_local JaiParameterTypesBuffers *spares[16];
+    static _Thread_local int spare_count;
+    JaiParameterTypesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = jai_parameter_types_with_buffers(span, args, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int
@@ -635,29 +745,39 @@ name_private_functions(ZirModule *module)
     free(renames);
     return 1;
 }
+/* Buffers rewrite_private_reference keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RewritePrivateReferenceBuffers {
+    ZirToken previous;
+    ZirToken current;
+    ZirToken next;
+} RewritePrivateReferenceBuffers;
+
+static int rewrite_private_reference(char *source, size_t capacity,
+                          ZirSourceSpan span, const char *original,
+                          const char *internal);
 
 static int
-rewrite_private_reference(char *source, size_t capacity,
+rewrite_private_reference_with_buffers(char *source, size_t capacity,
                           ZirSourceSpan span, const char *original,
-                          const char *internal)
+                          const char *internal, RewritePrivateReferenceBuffers *buffers)
 {
     ZirLexer lexer;
-    ZirToken previous = {0};
-    ZirToken current, next;
+    memset(&buffers->previous, 0, sizeof(buffers->previous));
     size_t current_end, next_end, copied = 0, written = 0;
     char *output = calloc(capacity, 1);
     if(output == NULL) return 0;
     LexerInit(&lexer, source, SpanPath(span));
-    current = LexerNext(&lexer);
+    buffers->current = LexerNext(&lexer);
     current_end = lexer.pos;
-    next = LexerNext(&lexer);
+    buffers->next = LexerNext(&lexer);
     next_end = lexer.pos;
-    while(current.kind != ZIR_TOKEN_EOF) {
-        if(current.kind == ZIR_TOKEN_IDENT &&
-           !strcmp(current.text, original) &&
-           strcmp(previous.text, ".") != 0 &&
-           strcmp(next.text, ":") != 0) {
-            size_t start = current_end - strlen(current.text);
+    while(buffers->current.kind != ZIR_TOKEN_EOF) {
+        if(buffers->current.kind == ZIR_TOKEN_IDENT &&
+           !strcmp(buffers->current.text, original) &&
+           strcmp(buffers->previous.text, ".") != 0 &&
+           strcmp(buffers->next.text, ":") != 0) {
+            size_t start = current_end - strlen(buffers->current.text);
             size_t prefix = start - copied;
             size_t replacement = strlen(internal);
             if(written + prefix + replacement >= capacity) goto too_long;
@@ -667,10 +787,10 @@ rewrite_private_reference(char *source, size_t capacity,
             written += replacement;
             copied = current_end;
         }
-        previous = current;
-        current = next;
+        buffers->previous = buffers->current;
+        buffers->current = buffers->next;
         current_end = next_end;
-        next = LexerNext(&lexer);
+        buffers->next = LexerNext(&lexer);
         next_end = lexer.pos;
     }
     size_t suffix = strlen(source + copied);
@@ -684,6 +804,23 @@ too_long:
                "file-private reference exceeds text limit: %s", original);
     free(output);
     return 0;
+}
+
+static int
+rewrite_private_reference(char *source, size_t capacity,
+                          ZirSourceSpan span, const char *original,
+                          const char *internal)
+{
+    static _Thread_local RewritePrivateReferenceBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RewritePrivateReferenceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = rewrite_private_reference_with_buffers(source, capacity, span, original, internal, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int
@@ -1023,9 +1160,16 @@ substitute_field(char *field, size_t capacity, const char *parameter,
     free(copy);
     return ok;
 }
+/* Buffers instantiate_specializations keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct InstantiateSpecializationsBuffers {
+    ZirFunction original;
+} InstantiateSpecializationsBuffers;
 
-int
-instantiate_specializations(Checker *checker)
+int instantiate_specializations(Checker *checker);
+
+static int
+instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializationsBuffers *buffers)
 {
     for(int request_index = 0;
         request_index < checker->specialization_count; request_index++) {
@@ -1033,11 +1177,11 @@ instantiate_specializations(Checker *checker)
             &checker->specializations[request_index];
         ZirModule *template_owner = request->template_owner;
         ZirModule *owner = request->instance_owner;
-        ZirFunction original = template_owner->functions[request->template_index];
+        buffers->original = template_owner->functions[request->template_index];
         ZirFunction *instance = ModuleAddFunction(owner, request->name,
-            original.args, original.return_type, 0, original.span);
+            buffers->original.args, buffers->original.return_type, 0, buffers->original.span);
         if(instance == NULL) return 0;
-        *instance = original;
+        *instance = buffers->original;
         copy_text(instance->name, sizeof(instance->name), request->name);
         copy_text(instance->specialization_type,
                   sizeof(instance->specialization_type), request->type);
@@ -1059,17 +1203,17 @@ instantiate_specializations(Checker *checker)
             instance->stmts = malloc((size_t)instance->stmt_count *
                                      sizeof(*instance->stmts));
             if(instance->stmts == NULL) return 0;
-            memcpy(instance->stmts, original.stmts,
+            memcpy(instance->stmts, buffers->original.stmts,
                    (size_t)instance->stmt_count * sizeof(*instance->stmts));
         }
         if(instance->expr_count > 0) {
             instance->exprs = malloc((size_t)instance->expr_count *
                                      sizeof(*instance->exprs));
             if(instance->exprs == NULL) return 0;
-            memcpy(instance->exprs, original.exprs,
+            memcpy(instance->exprs, buffers->original.exprs,
                    (size_t)instance->expr_count * sizeof(*instance->exprs));
         }
-        const char *parameter = original.template_param;
+        const char *parameter = buffers->original.template_param;
         const char *concrete = request->type;
         /* A second check of saved IR must see the same array signature. */
         if(!substitute_field(instance->args, sizeof(instance->args),
@@ -1106,7 +1250,7 @@ instantiate_specializations(Checker *checker)
                 const ZirModule *callee_owner = NULL;
                 const ZirFunction *callee = NULL;
                 if(ResolveFunctionAt(template_owner, expression->name,
-                                     SpanPath(original.span),
+                                     SpanPath(buffers->original.span),
                                      &callee_owner, &callee) == 1 &&
                    callee_owner == template_owner && callee != NULL) {
                     for(int import_index = 0;
@@ -1131,4 +1275,19 @@ instantiate_specializations(Checker *checker)
     }
     checker->specialization_count = 0;
     return 1;
+}
+
+int
+instantiate_specializations(Checker *checker)
+{
+    static _Thread_local InstantiateSpecializationsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    InstantiateSpecializationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = instantiate_specializations_with_buffers(checker, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

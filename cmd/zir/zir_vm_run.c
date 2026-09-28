@@ -660,14 +660,23 @@ release_call_arrays(Vm *vm, uint64_t entry, uint64_t before_result)
         }
     }
 }
-
-Value
-run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
-             const Value *args, int arg_count)
-{
-    Frame frame = {0};
+/* Buffers run_function keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RunFunctionBuffers {
+    Frame frame;
     Parameter parameters[VM_MAX_PARAMS];
-    int count = parse_parameters(module, function, parameters);
+    VmHostValue host_args[VM_MAX_PARAMS];
+} RunFunctionBuffers;
+
+Value run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
+             const Value *args, int arg_count);
+
+static Value
+run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *function,
+             const Value *args, int arg_count, RunFunctionBuffers *buffers)
+{
+    memset(&buffers->frame, 0, sizeof(buffers->frame));
+    int count = parse_parameters(module, function, buffers->parameters);
     Value result = int_value(0);
     uint64_t allocation_entry = vm->allocation;
     if(vm->failed || vm->depth >= VM_MAX_DEPTH || count != arg_count) {
@@ -686,7 +695,7 @@ run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
             }
             return run_function(vm, provider_module, provider, args, arg_count);
         }
-        VmHostValue host_args[VM_MAX_PARAMS] = {0};
+        memset(buffers->host_args, 0, sizeof(buffers->host_args));
         VmHostValue host_result = {0};
         if(vm->host == NULL) {
             Diagnostic(function->span, "zib.capability",
@@ -715,49 +724,49 @@ run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
             if(vm->failed)
                 break;
             Value argument = coerce_expression(vm, module, args[i],
-                                               parameters[i].type);
+                                               buffers->parameters[i].type);
             if(vm->failed || !host_argument(module,
-                                            parameters[i].type, argument,
-                                            &host_args[i], 0)) {
+                                            buffers->parameters[i].type, argument,
+                                            &buffers->host_args[i], 0)) {
                 vm->failed = 1;
                 break;
             }
         }
         host_result.type = function->return_type;
         if(!vm->failed && !vm->host(vm->host_context, module->name,
-                                    function->name, host_args, count,
+                                    function->name, buffers->host_args, count,
                                     &host_result))
             vm->failed = 1;
         for(int i = 0; i < count && !vm->failed; i++)
-            host_copy_back(vm, module, parameters[i].type,
-                           args[i], &host_args[i]);
+            host_copy_back(vm, module, buffers->parameters[i].type,
+                           args[i], &buffers->host_args[i]);
         for(int i = 0; i < count; i++)
-            release_host_argument(&host_args[i], 0);
+            release_host_argument(&buffers->host_args[i], 0);
         if(vm->failed)
             return result;
         return host_return(vm, module, function->return_type,
                            &host_result, 0);
     }
     vm->depth++;
-    frame.vm = vm;
-    frame.module = module;
-    frame.function = function;
-    frame.caller = vm->active_frame;
-    vm->active_frame = &frame;
+    buffers->frame.vm = vm;
+    buffers->frame.module = module;
+    buffers->frame.function = function;
+    buffers->frame.caller = vm->active_frame;
+    vm->active_frame = &buffers->frame;
     for(int i = 0; i < count; i++) {
-        copy_text(frame.locals[i].name, sizeof(frame.locals[i].name),
-                  parameters[i].name);
-        copy_text(frame.locals[i].type, sizeof(frame.locals[i].type),
-                  parameters[i].type);
-        frame.locals[i].value = !VecElementType(module, parameters[i].type,
+        copy_text(buffers->frame.locals[i].name, sizeof(buffers->frame.locals[i].name),
+                  buffers->parameters[i].name);
+        copy_text(buffers->frame.locals[i].type, sizeof(buffers->frame.locals[i].type),
+                  buffers->parameters[i].type);
+        buffers->frame.locals[i].value = !VecElementType(module, buffers->parameters[i].type,
                                                 NULL, 0) &&
                                 parameter_read_only(function,
-                                                    parameters[i].name) ?
-            coerce_expression(vm, module, args[i], parameters[i].type) :
-            coerce(vm, module, args[i], parameters[i].type);
+                                                    buffers->parameters[i].name) ?
+            coerce_expression(vm, module, args[i], buffers->parameters[i].type) :
+            coerce(vm, module, args[i], buffers->parameters[i].type);
     }
-    frame.local_count = count;
-    Flow flow = execute_sequence(&frame, 0, function->stmt_count, 0, &result);
+    buffers->frame.local_count = count;
+    Flow flow = execute_sequence(&buffers->frame, 0, function->stmt_count, 0, &result);
     if(flow == FLOW_ERROR || flow == FLOW_BREAK || flow == FLOW_CONTINUE ||
        (flow != FLOW_RETURN && strcmp(function->return_type, "void") != 0))
         vm->failed = 1;
@@ -765,8 +774,8 @@ run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
     Value returned = coerce(vm, module, result, function->return_type);
     /* Nested return paths leave their locals in this frame. Materialize the
      * return value before releasing those bindings. */
-    drop_owned_locals(&frame, 0);
-    vm->active_frame = frame.caller;
+    drop_owned_locals(&buffers->frame, 0);
+    vm->active_frame = buffers->frame.caller;
     vm->depth--;
     /* Named Ziran procedure values carry no borrowed frame context. The
      * returned value has already been copied, so slot-using calls can drop
@@ -784,6 +793,22 @@ run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
         release_call_records(vm, allocation_entry, allocation_before_result);
         release_call_arrays(vm, allocation_entry, allocation_before_result);
     }
+    return returned;
+}
+
+Value
+run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
+             const Value *args, int arg_count)
+{
+    static _Thread_local RunFunctionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RunFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    Value returned = run_function_with_buffers(vm, module, function, args, arg_count, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
     return returned;
 }
 
@@ -923,9 +948,16 @@ initialize_module_startup(Vm *vm, const ZirProgram *program, int index,
     state[index] = 2;
     return 1;
 }
+/* Buffers initialize_globals keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct InitializeGlobalsBuffers {
+    ZirFunction probe;
+} InitializeGlobalsBuffers;
+
+static int initialize_globals(Vm *vm, const ZirProgram *program);
 
 static int
-initialize_globals(Vm *vm, const ZirProgram *program)
+initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlobalsBuffers *buffers)
 {
     int count = 0;
     for(int m = 0; m < program->module_count; m++) {
@@ -951,17 +983,17 @@ initialize_globals(Vm *vm, const ZirProgram *program)
                 const char *init = skip_ws(slot->declaration->init);
                 if(slot->value.kind == VALUE_ARRAY ||
                    slot->value.kind == VALUE_RECORD) {
-                    ZirFunction probe = {0};
-                    int root = ParseExprTyped(&probe, module,
+                    memset(&buffers->probe, 0, sizeof(buffers->probe));
+                    int root = ParseExprTyped(&buffers->probe, module,
                                                slot->declaration->init,
                                                slot->declaration->span,
                                                slot->declaration->type);
                     int matched = root >= 0 &&
-                        fold_global_element(vm, module, &probe, root,
+                        fold_global_element(vm, module, &buffers->probe, root,
                                             &slot->value,
                                             slot->declaration->type,
                                             slot->declaration->span);
-                    free(probe.exprs);
+                    free(buffers->probe.exprs);
                     if(!matched)
                         vm->failed = 1;
                 } else if(!strcmp(slot->declaration->type, "string")) {
@@ -1006,6 +1038,21 @@ initialize_globals(Vm *vm, const ZirProgram *program)
         initialized = initialize_module_startup(vm, program, m, state);
     free(state);
     return initialized;
+}
+
+static int
+initialize_globals(Vm *vm, const ZirProgram *program)
+{
+    static _Thread_local InitializeGlobalsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    InitializeGlobalsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = initialize_globals_with_buffers(vm, program, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 VmInstance *

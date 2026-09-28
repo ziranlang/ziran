@@ -352,20 +352,29 @@ is_member_path_text(const char *text)
             return 0;
     }
 }
+/* Buffers parse_file_global keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ParseFileGlobalBuffers {
+    char type[ZIR_TEXT_MAX];
+    char init[ZIR_TEXT_MAX];
+} ParseFileGlobalBuffers;
 
-void
-parse_file_global(ZirModule *module, const char *declaration,
+void parse_file_global(ZirModule *module, const char *declaration,
                   ZirSourceSpan span, int scope_public, int scope_file,
-                  char *name_out, size_t name_size)
+                  char *name_out, size_t name_size);
+
+static void
+parse_file_global_with_buffers(ZirModule *module, const char *declaration,
+                  ZirSourceSpan span, int scope_public, int scope_file,
+                  char *name_out, size_t name_size, ParseFileGlobalBuffers *buffers)
 {
-    char name[ZIR_NAME_MAX], type[ZIR_TEXT_MAX], init[ZIR_TEXT_MAX];
+    char name[ZIR_NAME_MAX];
     const char *colon = strchr(declaration, ':');
     const char *value = colon == NULL ? NULL : colon + 1;
     const char *equal = value == NULL ? NULL : strchr(value, '=');
     const char *type_end = equal == NULL ?
         declaration + strlen(declaration) : equal;
     size_t length = 0;
-
     if(colon == NULL || declaration[0] == '\0' ||
        declaration[strlen(declaration) - 1] != ';')
         die_at(span, "file-scope variable declaration needs ';'");
@@ -381,36 +390,52 @@ parse_file_global(ZirModule *module, const char *declaration,
         die_at(span, "invalid file-scope variable name");
     value = skip_ws(value);
     length = 0;
-    while(value < type_end && length + 1 < sizeof(type))
-        type[length++] = *value++;
+    while(value < type_end && length + 1 < sizeof(buffers->type))
+        buffers->type[length++] = *value++;
     if(value != type_end)
         die_at(span, "file-scope variable type is too long");
-    while(length > 0 && (isspace((unsigned char)type[length - 1]) ||
-                         type[length - 1] == ';')) length--;
-    type[length] = '\0';
-    if(type[0] == '\0')
+    while(length > 0 && (isspace((unsigned char)buffers->type[length - 1]) ||
+                         buffers->type[length - 1] == ';')) length--;
+    buffers->type[length] = '\0';
+    if(buffers->type[0] == '\0')
         die_at(span, "file-scope variable needs a type");
     length = 0;
     if(equal != NULL) {
         value = skip_ws(equal + 1);
-        while(*value != '\0' && length + 1 < sizeof(init))
-            init[length++] = *value++;
+        while(*value != '\0' && length + 1 < sizeof(buffers->init))
+            buffers->init[length++] = *value++;
         if(*value != '\0')
             die_at(span, "file-scope variable initializer is too long");
-        while(length > 0 && (isspace((unsigned char)init[length - 1]) ||
-                             init[length - 1] == ';')) length--;
+        while(length > 0 && (isspace((unsigned char)buffers->init[length - 1]) ||
+                             buffers->init[length - 1] == ';')) length--;
         if(length == 0)
             die_at(span, "file-scope variable initializer is empty");
     }
-    init[length] = '\0';
+    buffers->init[length] = '\0';
     if(scope_public)
-        ModuleAddGlobal(module, name, type, init, span);
+        ModuleAddGlobal(module, name, buffers->type, buffers->init, span);
     else
-        ModuleAddStatic(module, name, type, init, span);
+        ModuleAddStatic(module, name, buffers->type, buffers->init, span);
     if(module->global_count > 0)
         module->globals[module->global_count - 1].is_file_private = scope_file;
     if(name_out != NULL)
         copy_text(name_out, name_size, name);
+}
+
+void
+parse_file_global(ZirModule *module, const char *declaration,
+                  ZirSourceSpan span, int scope_public, int scope_file,
+                  char *name_out, size_t name_size)
+{
+    static _Thread_local ParseFileGlobalBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ParseFileGlobalBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    parse_file_global_with_buffers(module, declaration, span, scope_public, scope_file, name_out, name_size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 int
@@ -553,20 +578,24 @@ line_is_abi_incomplete(const char *line, size_t length)
     return (size_t)(end - start) == sizeof(directive) - 1 &&
         strncmp(start, directive, sizeof(directive) - 1) == 0;
 }
+/* Buffers take_abi_incomplete keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct TakeAbiIncompleteBuffers {
+    char body[sizeof(((ZirType *)0)->body)];
+} TakeAbiIncompleteBuffers;
 
-int
-take_abi_incomplete(ZirType *type)
+int take_abi_incomplete(ZirType *type);
+
+static int
+take_abi_incomplete_with_buffers(ZirType *type, TakeAbiIncompleteBuffers *buffers)
 {
-    char body[sizeof(type->body)];
     const char *line = type->body;
     size_t used = 0;
     int found = type->is_abi_incomplete != 0;
-
     while(*line != '\0') {
         const char *nl = strchr(line, '\n');
         size_t length = nl != NULL ? (size_t)(nl - line) + 1 : strlen(line);
         int skip = 0;
-
         if(strstr(line, "#abi_incomplete") != NULL) {
             if(found || !line_is_abi_incomplete(line, length))
                 return 0;
@@ -574,24 +603,45 @@ take_abi_incomplete(ZirType *type)
             skip = 1;
         }
         if(!skip) {
-            if(used + length >= sizeof(body))
+            if(used + length >= sizeof(buffers->body))
                 return 0;
-            memcpy(body + used, line, length);
+            memcpy(buffers->body + used, line, length);
             used += length;
         }
         line = nl != NULL ? nl + 1 : line + length;
     }
-    body[used] = '\0';
-    copy_text(type->body, sizeof(type->body), body);
+    buffers->body[used] = '\0';
+    copy_text(type->body, sizeof(type->body), buffers->body);
     type->is_abi_incomplete = found;
     return 1;
 }
 
 int
-expand_type_this(ZirType *type)
+take_abi_incomplete(ZirType *type)
+{
+    static _Thread_local TakeAbiIncompleteBuffers *spares[16];
+    static _Thread_local int spare_count;
+    TakeAbiIncompleteBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = take_abi_incomplete_with_buffers(type, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers expand_type_this keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ExpandTypeThisBuffers {
+    char body[sizeof(((ZirType *)0)->body)];
+} ExpandTypeThisBuffers;
+
+int expand_type_this(ZirType *type);
+
+static int
+expand_type_this_with_buffers(ZirType *type, ExpandTypeThisBuffers *buffers)
 {
     char replacement[ZIR_NAME_MAX];
-    char body[sizeof(type->body)];
     size_t used = 0;
     int quote = 0;
     int length = snprintf(replacement, sizeof(replacement), "%s%s%s%s",
@@ -601,28 +651,43 @@ expand_type_this(ZirType *type)
     for(const char *cursor = type->body; *cursor; ) {
         if(!quote && strncmp(cursor, "#this", 5) == 0 &&
            !isalnum((unsigned char)cursor[5]) && cursor[5] != '_') {
-            if(used + (size_t)length >= sizeof(body)) return 0;
-            memcpy(body + used, replacement, (size_t)length);
+            if(used + (size_t)length >= sizeof(buffers->body)) return 0;
+            memcpy(buffers->body + used, replacement, (size_t)length);
             used += (size_t)length;
             cursor += 5;
             continue;
         }
-        if(used + 1 >= sizeof(body)) return 0;
+        if(used + 1 >= sizeof(buffers->body)) return 0;
         if(quote && *cursor == '\\' && cursor[1]) {
-            if(used + 2 >= sizeof(body)) return 0;
-            body[used++] = *cursor++;
-            body[used++] = *cursor++;
+            if(used + 2 >= sizeof(buffers->body)) return 0;
+            buffers->body[used++] = *cursor++;
+            buffers->body[used++] = *cursor++;
             continue;
         }
         if(*cursor == '"' || *cursor == '\'') {
             if(!quote) quote = *cursor;
             else if(quote == *cursor) quote = 0;
         }
-        body[used++] = *cursor++;
+        buffers->body[used++] = *cursor++;
     }
-    body[used] = '\0';
-    copy_text(type->body, sizeof(type->body), body);
+    buffers->body[used] = '\0';
+    copy_text(type->body, sizeof(type->body), buffers->body);
     return 1;
+}
+
+int
+expand_type_this(ZirType *type)
+{
+    static _Thread_local ExpandTypeThisBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ExpandTypeThisBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = expand_type_this_with_buffers(type, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 const char *

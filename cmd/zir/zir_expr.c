@@ -213,10 +213,19 @@ call_name_shadowed(const ExprParser *p, const char *name)
     }
     return bindings > 0;
 }
+/* Buffers append_default_arguments keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct AppendDefaultArgumentsBuffers {
+    char qualified_default[ZIR_TEXT_MAX];
+    char location_default[ZIR_TEXT_MAX];
+} AppendDefaultArgumentsBuffers;
+
+static void append_default_arguments(ExprParser *p, int callee,
+                         const char *name, int *first, int *last);
 
 static void
-append_default_arguments(ExprParser *p, int callee,
-                         const char *name, int *first, int *last)
+append_default_arguments_with_buffers(ExprParser *p, int callee,
+                         const char *name, int *first, int *last, AppendDefaultArgumentsBuffers *buffers)
 {
     char qualified[ZIR_NAME_MAX];
     const char *target = name;
@@ -284,18 +293,16 @@ append_default_arguments(ExprParser *p, int callee,
         const char *value = skip_ws(assignment + 1);
         char helper_name[ZIR_NAME_MAX];
         char helper_call[ZIR_NAME_MAX * 2];
-        char qualified_default[ZIR_TEXT_MAX];
-        char location_default[ZIR_TEXT_MAX];
         FunctionDefaultHelperName(function, i, helper_name,
                                   sizeof(helper_name));
         if(strcmp(value, "#caller_location") == 0) {
             if(!CallerLocationLiteral(p->module, p->fn->exprs[callee].span,
-                                        location_default,
-                                        sizeof(location_default))) {
+                                        buffers->location_default,
+                                        sizeof(buffers->location_default))) {
                 p->failed = 1;
                 break;
             }
-            value = location_default;
+            value = buffers->location_default;
         } else if(DefaultIsLiteral(value)) {
             /* The literal itself: it reads the same at every call site. */
         } else {
@@ -320,11 +327,11 @@ append_default_arguments(ExprParser *p, int callee,
                 value = helper_call;
             } else if(!qualify_default_field_helpers(
                           value, helper_name, target, SpanPath(p->span),
-                          qualified_default, sizeof(qualified_default))) {
+                          buffers->qualified_default, sizeof(buffers->qualified_default))) {
                 p->failed = 1;
                 break;
             } else {
-                value = qualified_default;
+                value = buffers->qualified_default;
             }
         }
         default_expansion_depth++;
@@ -341,6 +348,21 @@ append_default_arguments(ExprParser *p, int callee,
     }
 done:
     free(parameters); free(defaults);
+}
+
+static void
+append_default_arguments(ExprParser *p, int callee,
+                         const char *name, int *first, int *last)
+{
+    static _Thread_local AppendDefaultArgumentsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    AppendDefaultArgumentsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    append_default_arguments_with_buffers(p, callee, name, first, last, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static int
@@ -373,10 +395,20 @@ jai_char_byte(const char *text, int *value)
     }
     return 0;
 }
+/* Buffers record_initializer keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct RecordInitializerBuffers {
+    ZirToken field;
+    ZirToken equals;
+    ZirToken following;
+} RecordInitializerBuffers;
+
+static int record_initializer(ExprParser *p, size_t start, const char *type,
+                   const char *open, const char *close);
 
 static int
-record_initializer(ExprParser *p, size_t start, const char *type,
-                   const char *open, const char *close)
+record_initializer_with_buffers(ExprParser *p, size_t start, const char *type,
+                   const char *open, const char *close, RecordInitializerBuffers *buffers)
 {
     int first = -1;
     int last = -1;
@@ -391,18 +423,18 @@ record_initializer(ExprParser *p, size_t start, const char *type,
         int named = 0;
         if(is(p, ".")) {
             ZirLexer lookahead = p->lexer;
-            ZirToken field = LexerNext(&lookahead);
-            ZirToken equals = LexerNext(&lookahead);
-            if(field.kind == ZIR_TOKEN_IDENT &&
-               !strcmp(equals.text, "=")) {
+            buffers->field = LexerNext(&lookahead);
+            buffers->equals = LexerNext(&lookahead);
+            if(buffers->field.kind == ZIR_TOKEN_IDENT &&
+               !strcmp(buffers->equals.text, "=")) {
                 next(p);
                 named = 1;
             }
         }
         if(!named && p->token.kind == ZIR_TOKEN_IDENT) {
             ZirLexer lookahead = p->lexer;
-            ZirToken following = LexerNext(&lookahead);
-            named = !strcmp(following.text, "=");
+            buffers->following = LexerNext(&lookahead);
+            named = !strcmp(buffers->following.text, "=");
         }
         if(named) {
             if(p->token.kind != ZIR_TOKEN_IDENT) {
@@ -474,6 +506,22 @@ record_initializer(ExprParser *p, size_t start, const char *type,
 }
 
 static int
+record_initializer(ExprParser *p, size_t start, const char *type,
+                   const char *open, const char *close)
+{
+    static _Thread_local RecordInitializerBuffers *spares[16];
+    static _Thread_local int spare_count;
+    RecordInitializerBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = record_initializer_with_buffers(p, start, type, open, close, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+
+static int
 typed_array_initializer(ExprParser *p, size_t start,
                         const char *element_type)
 {
@@ -497,12 +545,23 @@ typed_array_initializer(ExprParser *p, size_t start,
         p->failed = 1;
     return result;
 }
+/* Buffers prefix keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct PrefixBuffers {
+    ZirToken tok;
+    ZirToken after_type;
+    ZirToken following;
+    ZirToken dot;
+    ZirToken opener;
+} PrefixBuffers;
+
+static int prefix(ExprParser *p);
 
 static int
-prefix(ExprParser *p)
+prefix_with_buffers(ExprParser *p, PrefixBuffers *buffers)
 {
     size_t start = p->begin;
-    ZirToken tok = p->token;
+    buffers->tok = p->token;
     int result = -1;
     if(++p->depth > 128) { p->failed = 1; p->depth--; return -1; }
     if(take(p, "#this")) {
@@ -621,7 +680,7 @@ prefix(ExprParser *p)
     } else if(is(p, "+") || is(p, "-") || is(p, "!") || is(p, "~") ||
               is(p, "*")) {
         int right;
-        const char *op = !strcmp(tok.text, "*") ? "&" : tok.text;
+        const char *op = !strcmp(buffers->tok.text, "*") ? "&" : buffers->tok.text;
         next(p);
         right = prefix(p);
         result = node(p, ZIR_EXPR_UNARY, start, "", op, -1, right);
@@ -634,8 +693,8 @@ prefix(ExprParser *p)
             /* `(Color.{...})` is a parenthesized record literal, not a
              * C-style cast: the record marker `.` follows the type name. */
             ZirLexer lookahead = p->lexer;
-            ZirToken after_type = LexerNext(&lookahead);
-            int record_literal = is(p, ".") || !strcmp(after_type.text, ".");
+            buffers->after_type = LexerNext(&lookahead);
+            int record_literal = is(p, ".") || !strcmp(buffers->after_type.text, ".");
             if(!record_literal) {
                 Diagnostic(p->span, "parse.jai_syntax",
                            "C-style cast or literal is not valid Jai syntax; use cast(Type) value or Type.{...}");
@@ -671,7 +730,7 @@ prefix(ExprParser *p)
         }
     } else {
         ZirExprKind kind;
-        switch(tok.kind) {
+        switch(buffers->tok.kind) {
         case ZIR_TOKEN_IDENT: kind = ZIR_EXPR_IDENT; break;
         case ZIR_TOKEN_INT: kind = ZIR_EXPR_INT; break;
         case ZIR_TOKEN_FLOAT: kind = ZIR_EXPR_FLOAT; break;
@@ -685,33 +744,33 @@ prefix(ExprParser *p)
         next(p);
         if(kind == ZIR_EXPR_IDENT && is(p, ".")) {
             ZirLexer lookahead = p->lexer;
-            ZirToken following = LexerNext(&lookahead);
-            if(!strcmp(following.text, "{")) {
+            buffers->following = LexerNext(&lookahead);
+            if(!strcmp(buffers->following.text, "{")) {
                 const ZirType *record = p->module ?
-                    FindType(p->module, tok.text, NULL) : NULL;
+                    FindType(p->module, buffers->tok.text, NULL) : NULL;
                 if(record == NULL || record->is_enum) p->failed = 1;
                 next(p);
-                result = record_initializer(p, start, tok.text, "{", "}");
-            } else if(!strcmp(following.text, "[") &&
-                      type_name(p, tok.text)) {
+                result = record_initializer(p, start, buffers->tok.text, "{", "}");
+            } else if(!strcmp(buffers->following.text, "[") &&
+                      type_name(p, buffers->tok.text)) {
                 next(p);
-                result = typed_array_initializer(p, start, tok.text);
-            } else if(following.kind == ZIR_TOKEN_IDENT) {
-                ZirToken dot = LexerNext(&lookahead);
-                ZirToken opener = LexerNext(&lookahead);
+                result = typed_array_initializer(p, start, buffers->tok.text);
+            } else if(buffers->following.kind == ZIR_TOKEN_IDENT) {
+                buffers->dot = LexerNext(&lookahead);
+                buffers->opener = LexerNext(&lookahead);
                 char qualified[ZIR_NAME_MAX];
                 int length = snprintf(qualified, sizeof(qualified), "%s.%s",
-                                      tok.text, following.text);
-                if(!strcmp(dot.text, ".") &&
+                                      buffers->tok.text, buffers->following.text);
+                if(!strcmp(buffers->dot.text, ".") &&
                    length >= 0 &&
                    (size_t)length < sizeof(qualified) &&
                    type_name(p, qualified)) {
-                    if(!strcmp(opener.text, "[") ||
-                       !strcmp(opener.text, "{")) {
+                    if(!strcmp(buffers->opener.text, "[") ||
+                       !strcmp(buffers->opener.text, "{")) {
                         next(p);
                         next(p);
                         next(p);
-                        if(!strcmp(opener.text, "["))
+                        if(!strcmp(buffers->opener.text, "["))
                             result = typed_array_initializer(p, start,
                                                              qualified);
                         else {
@@ -729,7 +788,7 @@ prefix(ExprParser *p)
         }
         if(result < 0 && !p->failed)
             result = node(p, kind, start,
-                          kind == ZIR_EXPR_IDENT ? tok.text : "", "", -1, -1);
+                          kind == ZIR_EXPR_IDENT ? buffers->tok.text : "", "", -1, -1);
     }
     while(!p->failed) {
         if(take(p, "[")) {
@@ -769,8 +828,8 @@ prefix(ExprParser *p)
                 char argument_name[ZIR_NAME_MAX] = "";
                 if(p->token.kind == ZIR_TOKEN_IDENT) {
                     ZirLexer lookahead = p->lexer;
-                    ZirToken following = LexerNext(&lookahead);
-                    if(!strcmp(following.text, "=")) {
+                    buffers->following = LexerNext(&lookahead);
+                    if(!strcmp(buffers->following.text, "=")) {
                         copy_text(argument_name, sizeof(argument_name),
                                   p->token.text);
                         next(p);
@@ -808,6 +867,21 @@ prefix(ExprParser *p)
     }
     p->depth--;
     return result;
+}
+
+static int
+prefix(ExprParser *p)
+{
+    static _Thread_local PrefixBuffers *spares[16];
+    static _Thread_local int spare_count;
+    PrefixBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = prefix_with_buffers(p, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -893,29 +967,36 @@ ParseExprTyped(ZirFunction *fn, const ZirModule *module,
 {
     return parse_expr(fn, module, text, span, expected_type, -1, 0);
 }
+/* Buffers StructureFunction keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct StructureFunctionBuffers {
+    char text[ZIR_TEXT_MAX];
+    ZirToken tok;
+} StructureFunctionBuffers;
 
-void
-StructureFunction(ZirFunction *fn, const ZirModule *module)
+void StructureFunction(ZirFunction *fn, const ZirModule *module);
+
+static void
+StructureFunction_with_buffers(ZirFunction *fn, const ZirModule *module, StructureFunctionBuffers *buffers)
 {
     free(fn->exprs); fn->exprs = NULL; fn->expr_count = fn->expr_cap = 0;
     for(int i = 0; i < fn->stmt_count; i++) {
         ZirStmt *st = &fn->stmts[i];
-        char text[ZIR_TEXT_MAX];
         char *value = NULL;
-        copy_text(text, sizeof(text), st->text);
+        copy_text(buffers->text, sizeof(buffers->text), st->text);
         st->expr_root = st->lhs_root = -1;
         if(st->is_using && st->kind == ZIR_STMT_EXPR) {
             st->expr_root = ParseExprNoDefaults(fn, module, "0", st->span);
             continue;
         }
         st->is_else = st->kind == ZIR_STMT_IF &&
-                      strncmp(text, "else", 4) == 0 &&
-                      (text[4] == 0 || isspace((unsigned char)text[4]));
+                      strncmp(buffers->text, "else", 4) == 0 &&
+                      (buffers->text[4] == 0 || isspace((unsigned char)buffers->text[4]));
         if(st->kind == ZIR_STMT_DECL) {
-            char *colon = strchr(text, ':');
+            char *colon = strchr(buffers->text, ':');
             if(colon) {
-                *colon++ = 0; trim_in_place(text);
-                copy_text(st->name, sizeof(st->name), text);
+                *colon++ = 0; trim_in_place(buffers->text);
+                copy_text(st->name, sizeof(st->name), buffers->text);
                 value = strchr(colon, '=');
                 if(value) *value++ = 0;
                 trim_in_place(colon);
@@ -932,28 +1013,28 @@ StructureFunction(ZirFunction *fn, const ZirModule *module)
                 copy_text(st->type, sizeof(st->type), colon);
             }
         } else if(st->kind == ZIR_STMT_ASSIGN) {
-            ZirLexer lexer; ZirToken tok;
-            LexerInit(&lexer, text, SpanPath(st->span));
+            ZirLexer lexer; 
+            LexerInit(&lexer, buffers->text, SpanPath(st->span));
             do {
-                tok = LexerNext(&lexer);
-                if(!strcmp(tok.text, "=") || !strcmp(tok.text, "+=") ||
-                   !strcmp(tok.text, "-=") || !strcmp(tok.text, "*=") ||
-                   !strcmp(tok.text, "/=") || !strcmp(tok.text, "%=") ||
-                   !strcmp(tok.text, "&=") || !strcmp(tok.text, "|=") ||
-                   !strcmp(tok.text, "^=") || !strcmp(tok.text, "<<=") || !strcmp(tok.text, ">>=")) {
-                    value = text + lexer.pos;
-                    copy_text(st->assignment_op, sizeof(st->assignment_op), tok.text);
-                    text[lexer.pos - strlen(tok.text)] = 0;
-                    st->lhs_root = parse_expr(fn, module, text, st->span,
+                buffers->tok = LexerNext(&lexer);
+                if(!strcmp(buffers->tok.text, "=") || !strcmp(buffers->tok.text, "+=") ||
+                   !strcmp(buffers->tok.text, "-=") || !strcmp(buffers->tok.text, "*=") ||
+                   !strcmp(buffers->tok.text, "/=") || !strcmp(buffers->tok.text, "%=") ||
+                   !strcmp(buffers->tok.text, "&=") || !strcmp(buffers->tok.text, "|=") ||
+                   !strcmp(buffers->tok.text, "^=") || !strcmp(buffers->tok.text, "<<=") || !strcmp(buffers->tok.text, ">>=")) {
+                    value = buffers->text + lexer.pos;
+                    copy_text(st->assignment_op, sizeof(st->assignment_op), buffers->tok.text);
+                    buffers->text[lexer.pos - strlen(buffers->tok.text)] = 0;
+                    st->lhs_root = parse_expr(fn, module, buffers->text, st->span,
                                               NULL, i, 1);
                     break;
                 }
-            } while(tok.kind != ZIR_TOKEN_EOF);
-        } else if(st->kind == ZIR_STMT_RETURN) value = text + 6;
-        else if(st->kind == ZIR_STMT_UNUSED) value = text + 6;
-        else if(st->kind == ZIR_STMT_EXPR) value = text;
+            } while(buffers->tok.kind != ZIR_TOKEN_EOF);
+        } else if(st->kind == ZIR_STMT_RETURN) value = buffers->text + 6;
+        else if(st->kind == ZIR_STMT_UNUSED) value = buffers->text + 6;
+        else if(st->kind == ZIR_STMT_EXPR) value = buffers->text;
         else if(st->kind == ZIR_STMT_IF_CASE) {
-            char *condition = (char *)skip_ws(text + 2);
+            char *condition = (char *)skip_ws(buffers->text + 2);
             if(strncmp(condition, "#complete", 9) == 0 &&
                isspace((unsigned char)condition[9]))
                 condition = (char *)skip_ws(condition + 9);
@@ -965,8 +1046,8 @@ StructureFunction(ZirFunction *fn, const ZirModule *module)
             value = condition;
         }
         else if(st->kind == ZIR_STMT_WHILE || st->kind == ZIR_STMT_IF) {
-            strip_block_brace(text);
-            value = text;
+            strip_block_brace(buffers->text);
+            value = buffers->text;
             if(!strncmp(value, "else", 4)) value = (char *)skip_ws(value + 4);
             while(*value && !isspace((unsigned char)*value) && *value != '(') value++;
         }
@@ -981,4 +1062,18 @@ StructureFunction(ZirFunction *fn, const ZirModule *module)
                 st->kind == ZIR_STMT_DECL ? st->type : NULL, i, 1);
         }
     }
+}
+
+void
+StructureFunction(ZirFunction *fn, const ZirModule *module)
+{
+    static _Thread_local StructureFunctionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    StructureFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    StructureFunction_with_buffers(fn, module, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }

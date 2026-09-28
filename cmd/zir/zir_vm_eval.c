@@ -1,13 +1,18 @@
 #include "zir_vm_internal.h"
+/* Buffers vm_print keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct VmPrintBuffers {
+    Value values[PRINT_PIECES_MAX];
+    unsigned char bytes[ZIR_TEXT_MAX];
+} VmPrintBuffers;
 
-/* Checked `print`: evaluate every argument left to right, then write literal
- * pieces and values to standard output with the native targets' spelling. */
+static void vm_print(Frame *frame, const ZirExpr *expression, int depth);
+
 static void
-vm_print(Frame *frame, const ZirExpr *expression, int depth)
+vm_print_with_buffers(Frame *frame, const ZirExpr *expression, int depth, VmPrintBuffers *buffers)
 {
     const ZirFunction *function = frame->function;
     PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
-    Value values[PRINT_PIECES_MAX];
     const char *types[PRINT_PIECES_MAX];
     int first = expression->first_child, count, argument = 0;
     if(pieces == NULL || first < 0 ||
@@ -21,22 +26,21 @@ vm_print(Frame *frame, const ZirExpr *expression, int depth)
         child >= 0 && !frame->vm->failed && argument < PRINT_PIECES_MAX;
         child = function->exprs[child].next_sibling, argument++) {
         types[argument] = ScalarType(function->exprs[child].type);
-        values[argument] = eval(frame, child, depth + 1);
+        buffers->values[argument] = eval(frame, child, depth + 1);
     }
     argument = 0;
     for(int i = 0; i < count && !frame->vm->failed; i++) {
-        unsigned char bytes[ZIR_TEXT_MAX];
         char text[64];
         size_t length;
         Value value;
         const char *type;
         if(!pieces[i].is_argument) {
-            if(DecodeStringLiteral(pieces[i].literal, bytes, sizeof(bytes),
+            if(DecodeStringLiteral(pieces[i].literal, buffers->bytes, sizeof(buffers->bytes),
                                    &length))
-                fwrite(bytes, 1, length, stdout);
+                fwrite(buffers->bytes, 1, length, stdout);
             continue;
         }
-        value = values[argument];
+        value = buffers->values[argument];
         type = types[argument++];
         if(!strcmp(type, "string")) {
             if(value.kind != VALUE_STRING) {
@@ -62,6 +66,22 @@ vm_print(Frame *frame, const ZirExpr *expression, int depth)
         fputs(text, stdout);
     }
     free(pieces);
+}
+
+/* Checked `print`: evaluate every argument left to right, then write literal
+ * pieces and values to standard output with the native targets' spelling. */
+static void
+vm_print(Frame *frame, const ZirExpr *expression, int depth)
+{
+    static _Thread_local VmPrintBuffers *spares[16];
+    static _Thread_local int spare_count;
+    VmPrintBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    vm_print_with_buffers(frame, expression, depth, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static Local *
@@ -438,9 +458,17 @@ failed:
     vm->failed = 1;
     return int_value(0);
 }
+/* Buffers eval keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EvalBuffers {
+    Value args[VM_MAX_PARAMS];
+    ZirFunction signature;
+} EvalBuffers;
 
-Value
-eval(Frame *frame, int index, int depth)
+Value eval(Frame *frame, int index, int depth);
+
+static Value
+eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
 {
     const ZirExpr *expression;
     Value value = int_value(0), left, right;
@@ -1183,7 +1211,7 @@ eval(Frame *frame, int index, int depth)
             }
             break;
         }
-        Value args[VM_MAX_PARAMS] = {0};
+        memset(buffers->args, 0, sizeof(buffers->args));
         int count = 0;
         unsigned used = 0;
         const ZirModule *owner = NULL;
@@ -1215,26 +1243,26 @@ eval(Frame *frame, int index, int depth)
                 frame->vm->failed = 1;
                 break;
             }
-            args[position] = eval(frame, child, depth + 1);
+            buffers->args[position] = eval(frame, child, depth + 1);
             used |= 1u << position;
             count++;
         }
         if(!frame->vm->failed) {
             if(external != NULL) {
-                ZirFunction signature = {0};
-                copy_text(signature.name, sizeof(signature.name),
+                memset(&buffers->signature, 0, sizeof(buffers->signature));
+                copy_text(buffers->signature.name, sizeof(buffers->signature.name),
                           external->name);
-                copy_text(signature.args, sizeof(signature.args),
+                copy_text(buffers->signature.args, sizeof(buffers->signature.args),
                           external->args);
-                copy_text(signature.return_type,
-                          sizeof(signature.return_type),
+                copy_text(buffers->signature.return_type,
+                          sizeof(buffers->signature.return_type),
                           external->return_type);
-                signature.is_extern = 1;
-                signature.span = external->span;
+                buffers->signature.is_extern = 1;
+                buffers->signature.span = external->span;
                 value = run_function(frame->vm, frame->module,
-                                     &signature, args, count);
+                                     &buffers->signature, buffers->args, count);
             } else {
-                value = run_function(frame->vm, owner, callee, args, count);
+                value = run_function(frame->vm, owner, callee, buffers->args, count);
             }
         }
         break;
@@ -1245,4 +1273,19 @@ eval(Frame *frame, int index, int depth)
     }
     return coerce_expression(frame->vm, frame->module, value,
                              expression->type);
+}
+
+Value
+eval(Frame *frame, int index, int depth)
+{
+    static _Thread_local EvalBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EvalBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    Value returned = eval_with_buffers(frame, index, depth, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

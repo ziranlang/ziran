@@ -67,14 +67,38 @@ parse_parameters(const ZirModule *module, const ZirFunction *function,
     }
     return count;
 }
+/* Buffers parse_import_parameters keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ParseImportParametersBuffers {
+    ZirFunction signature;
+} ParseImportParametersBuffers;
+
+static int parse_import_parameters(const ZirModule *module, const ZirImport *import,
+                        Parameter *parameters);
+
+static int
+parse_import_parameters_with_buffers(const ZirModule *module, const ZirImport *import,
+                        Parameter *parameters, ParseImportParametersBuffers *buffers)
+{
+    memset(&buffers->signature, 0, sizeof(buffers->signature));
+    copy_text(buffers->signature.args, sizeof(buffers->signature.args), import->args);
+    return parse_parameters(module, &buffers->signature, parameters);
+}
 
 static int
 parse_import_parameters(const ZirModule *module, const ZirImport *import,
                         Parameter *parameters)
 {
-    ZirFunction signature = {0};
-    copy_text(signature.args, sizeof(signature.args), import->args);
-    return parse_parameters(module, &signature, parameters);
+    static _Thread_local ParseImportParametersBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ParseImportParametersBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = parse_import_parameters_with_buffers(module, import, parameters, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -190,17 +214,30 @@ same_verified_type(const ZirModule *declaration_module,
     const ZirType *resolved = FindType(use_module, checked, NULL);
     return source != NULL && source == resolved;
 }
+/* Buffers verify_expression keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct VerifyExpressionBuffers {
+    Parameter parameters[VM_MAX_PARAMS];
+    unsigned char bytes[ZIR_TEXT_MAX];
+    ZirFunction signature;
+    Parameter actual[VM_MAX_PARAMS];
+    Parameter expected[VM_MAX_PARAMS];
+    unsigned char seen[VM_MAX_FIELDS];
+} VerifyExpressionBuffers;
+
+static int verify_expression(const ZirModule *module, const ZirFunction *function,
+                  const Parameter *bindings, int binding_count,
+                  int index, int depth);
 
 static int
-verify_expression(const ZirModule *module, const ZirFunction *function,
+verify_expression_with_buffers(const ZirModule *module, const ZirFunction *function,
                   const Parameter *bindings, int binding_count,
-                  int index, int depth)
+                  int index, int depth, VerifyExpressionBuffers *buffers)
 {
     const ZirExpr *expression;
     const ZirModule *owner = NULL;
     const ZirFunction *callee = NULL;
     int children = 0;
-    Parameter parameters[VM_MAX_PARAMS];
     if(index < 0 || index >= function->expr_count || depth >= VM_MAX_DEPTH)
         return 0;
     expression = &function->exprs[index];
@@ -239,10 +276,9 @@ verify_expression(const ZirModule *module, const ZirFunction *function,
                isfinite(number);
     }
     case ZIR_EXPR_STRING: {
-        unsigned char bytes[ZIR_TEXT_MAX];
         size_t length;
         return strcmp(expression->type, "string") == 0 &&
-               DecodeStringLiteral(expression->text, bytes, sizeof(bytes), &length);
+               DecodeStringLiteral(expression->text, buffers->bytes, sizeof(buffers->bytes), &length);
     }
     case ZIR_EXPR_COMPILE_TIME:
         return strcmp(expression->type, "bool") == 0 &&
@@ -252,28 +288,27 @@ verify_expression(const ZirModule *module, const ZirFunction *function,
     case ZIR_EXPR_IDENT: {
         if(expression->is_function_value) {
             const ZirType *slot = FindType(module, expression->type, NULL);
-            ZirFunction signature = {0};
-            Parameter actual[VM_MAX_PARAMS], expected[VM_MAX_PARAMS];
+            memset(&buffers->signature, 0, sizeof(buffers->signature));
             int actual_count, expected_count;
             if(slot == NULL || !slot->is_procedure_type ||
                ResolveFunction(module, expression->name,
                                &owner, &callee) != 1 ||
                callee == NULL || callee->is_extern ||
-               strlen(slot->body) >= sizeof(signature.args) ||
+               strlen(slot->body) >= sizeof(buffers->signature.args) ||
                strcmp(callee->return_type, slot->procedure_return_type) != 0)
                 return 0;
-            copy_text(signature.args, sizeof(signature.args), slot->body);
-            actual_count = parse_parameters(owner, callee, actual);
-            expected_count = parse_parameters(module, &signature, expected);
+            copy_text(buffers->signature.args, sizeof(buffers->signature.args), slot->body);
+            actual_count = parse_parameters(owner, callee, buffers->actual);
+            expected_count = parse_parameters(module, &buffers->signature, buffers->expected);
             if(actual_count < 0 || actual_count != expected_count)
                 return 0;
             for(int i = 0; i < actual_count; i++) {
-                const ZirType *actual_type = FindType(owner, actual[i].type, NULL);
-                const ZirType *expected_type = FindType(module, expected[i].type, NULL);
+                const ZirType *actual_type = FindType(owner, buffers->actual[i].type, NULL);
+                const ZirType *expected_type = FindType(module, buffers->expected[i].type, NULL);
                 if(actual_type != NULL || expected_type != NULL) {
                     if(actual_type != expected_type)
                         return 0;
-                } else if(strcmp(actual[i].type, expected[i].type) != 0)
+                } else if(strcmp(buffers->actual[i].type, buffers->expected[i].type) != 0)
                     return 0;
             }
             return 1;
@@ -385,7 +420,7 @@ verify_expression(const ZirModule *module, const ZirFunction *function,
         const ZirModule *record_owner = NULL;
         const ZirType *record = FindType(module, expression->name,
                                          &record_owner);
-        unsigned char seen[VM_MAX_FIELDS] = {0};
+        memset(buffers->seen, 0, sizeof(buffers->seen));
         int children = 0;
         if(record == NULL || record->is_enum || record->is_procedure_type ||
            strcmp(expression->type, expression->name) != 0)
@@ -405,11 +440,11 @@ verify_expression(const ZirModule *module, const ZirFunction *function,
             int found = 0;
             while(TypeNextField(record, &offset, &field) == 1) {
                 if(strcmp(field.name, initializer->name) == 0) {
-                    if(seen[field_index] ||
+                    if(buffers->seen[field_index] ||
                        !same_verified_type(record_owner, field.type,
                                            module, initializer->type))
                         return 0;
-                    seen[field_index] = 1;
+                    buffers->seen[field_index] = 1;
                     found = 1;
                     break;
                 }
@@ -676,14 +711,14 @@ verify_expression(const ZirModule *module, const ZirFunction *function,
                                       expression->name);
             const ZirType *slot = FindType(module, expression->slot_type,
                                            NULL);
-            ZirFunction signature = {0};
+            memset(&buffers->signature, 0, sizeof(buffers->signature));
             if(index < 0 || slot == NULL || !slot->is_procedure_type ||
                strcmp(bindings[index].type, expression->slot_type) != 0 ||
-               strlen(slot->body) >= sizeof(signature.args) ||
+               strlen(slot->body) >= sizeof(buffers->signature.args) ||
                strcmp(expression->type, slot->procedure_return_type) != 0)
                 return 0;
-            copy_text(signature.args, sizeof(signature.args), slot->body);
-            int expected = parse_parameters(module, &signature, parameters);
+            copy_text(buffers->signature.args, sizeof(buffers->signature.args), slot->body);
+            int expected = parse_parameters(module, &buffers->signature, buffers->parameters);
             if(expected < 0)
                 return 0;
             unsigned used = 0;
@@ -720,13 +755,30 @@ verify_expression(const ZirModule *module, const ZirFunction *function,
             used |= 1u << position;
         }
         int expected = external != NULL ?
-            parse_import_parameters(module, external, parameters) :
-            parse_parameters(owner, callee, parameters);
+            parse_import_parameters(module, external, buffers->parameters) :
+            parse_parameters(owner, callee, buffers->parameters);
         return expected >= 0 && expected == children &&
                used == ((1u << expected) - 1u);
     default:
         return 0;
     }
+}
+
+static int
+verify_expression(const ZirModule *module, const ZirFunction *function,
+                  const Parameter *bindings, int binding_count,
+                  int index, int depth)
+{
+    static _Thread_local VerifyExpressionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    VerifyExpressionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = verify_expression_with_buffers(module, function, bindings, binding_count, index, depth, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 const ZirFunction *
@@ -970,39 +1022,72 @@ sequence_guarantees_return(const ZirFunction *function, int begin, int end,
     }
     return 0;
 }
+/* Buffers verify_global_aggregate keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct VerifyGlobalAggregateBuffers {
+    ZirFunction probe;
+} VerifyGlobalAggregateBuffers;
 
-/* Check aggregate literals with the same evaluator used during instance
- * creation, so nested runtime expressions fail before a bundle is written. */
+static int verify_global_aggregate(const ZirModule *module, const ZirGlobal *global);
+
 static int
-verify_global_aggregate(const ZirModule *module, const ZirGlobal *global)
+verify_global_aggregate_with_buffers(const ZirModule *module, const ZirGlobal *global, VerifyGlobalAggregateBuffers *buffers)
 {
-    ZirFunction probe = {0};
+    memset(&buffers->probe, 0, sizeof(buffers->probe));
     Vm scratch = {0};
     Value target = default_value(&scratch, module, global->type, 0);
-    int root = !scratch.failed ? ParseExprTyped(&probe, module, global->init,
+    int root = !scratch.failed ? ParseExprTyped(&buffers->probe, module, global->init,
                                                 global->span, global->type) : -1;
     int valid = root >= 0 && !scratch.failed &&
-        fold_global_element(&scratch, module, &probe, root, &target,
+        fold_global_element(&scratch, module, &buffers->probe, root, &target,
                             global->type, global->span) && !scratch.failed;
-    free(probe.exprs);
+    free(buffers->probe.exprs);
     free_records(&scratch);
     free_arrays(&scratch);
     free_strings(&scratch);
     return valid;
 }
 
-int
-VmVerify(const ZirProgram *program, const char *entry_module,
-            const char *entry_function)
+/* Check aggregate literals with the same evaluator used during instance
+ * creation, so nested runtime expressions fail before a bundle is written. */
+static int
+verify_global_aggregate(const ZirModule *module, const ZirGlobal *global)
+{
+    static _Thread_local VerifyGlobalAggregateBuffers *spares[16];
+    static _Thread_local int spare_count;
+    VerifyGlobalAggregateBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = verify_global_aggregate_with_buffers(module, global, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers VmVerify keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct VmVerifyBuffers {
+    Parameter bindings[VM_MAX_LOCALS];
+    Parameter expected[VM_MAX_PARAMS];
+    Parameter actual[VM_MAX_PARAMS];
+    Parameter parameters[VM_MAX_PARAMS];
+    char literal[ZIR_TEXT_MAX];
+} VmVerifyBuffers;
+
+int VmVerify(const ZirProgram *program, const char *entry_module,
+            const char *entry_function);
+
+static int
+VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
+            const char *entry_function, VmVerifyBuffers *buffers)
 {
     const ZirModule *entry_owner;
     const ZirFunction *entry;
-    Parameter bindings[VM_MAX_LOCALS];
     if(program == NULL || entry_module == NULL || entry_function == NULL)
         return 0;
     entry = find_entry(program, entry_module, entry_function, &entry_owner);
     if(entry == NULL || entry->is_extern ||
-       parse_parameters(entry_owner, entry, bindings) != 0 ||
+       parse_parameters(entry_owner, entry, buffers->bindings) != 0 ||
        (strcmp(entry->return_type, "s32") != 0 &&
         strcmp(entry->return_type, "s64") != 0 &&
         strcmp(entry->return_type, "bool") != 0 &&
@@ -1034,11 +1119,10 @@ VmVerify(const ZirProgram *program, const char *entry_module,
                     const ZirModule *provider_module = NULL;
                     const ZirFunction *provider = bound_provider(program,
                         import, &provider_module);
-                    Parameter expected[VM_MAX_PARAMS], actual[VM_MAX_PARAMS];
                     int expected_count = parse_import_parameters(module,
-                        import, expected);
+                        import, buffers->expected);
                     int actual_count = provider != NULL ?
-                        parse_parameters(provider_module, provider, actual) : -1;
+                        parse_parameters(provider_module, provider, buffers->actual) : -1;
                     int valid = provider != NULL &&
                         strcmp(import->return_type, provider->return_type) == 0 &&
                         expected_count >= 0 && expected_count == actual_count &&
@@ -1046,11 +1130,11 @@ VmVerify(const ZirProgram *program, const char *entry_module,
                         same_bound_type(module, provider_module,
                                         import->return_type);
                     for(int p = 0; valid && p < expected_count; p++)
-                        valid = strcmp(expected[p].type, actual[p].type) == 0 &&
-                            host_type_at(module, expected[p].type, 0, 1) &&
-                            strcmp(expected[p].type, "void") != 0 &&
+                        valid = strcmp(buffers->expected[p].type, buffers->actual[p].type) == 0 &&
+                            host_type_at(module, buffers->expected[p].type, 0, 1) &&
+                            strcmp(buffers->expected[p].type, "void") != 0 &&
                             same_bound_type(module, provider_module,
-                                            expected[p].type);
+                                            buffers->expected[p].type);
                     if(!valid) {
                         Diagnostic(import->span, "zib.bind",
                                    "bound Ziran host provider has a missing or mismatched signature: %s:%s",
@@ -1059,15 +1143,14 @@ VmVerify(const ZirProgram *program, const char *entry_module,
                     }
                     continue;
                 }
-                Parameter parameters[VM_MAX_PARAMS];
                 int count = parse_import_parameters(module,
-                    &module->imports[i], parameters);
+                    &module->imports[i], buffers->parameters);
                 int host_signature =
                     host_type_at(module, module->imports[i].return_type, 0, 0) &&
                     count >= 0;
                 for(int p = 0; host_signature && p < count; p++)
-                    host_signature = host_type_at(module, parameters[p].type, 0, 1) &&
-                        strcmp(parameters[p].type, "void") != 0;
+                    host_signature = host_type_at(module, buffers->parameters[p].type, 0, 1) &&
+                        strcmp(buffers->parameters[p].type, "void") != 0;
                 if(host_signature)
                     continue;
             }
@@ -1088,7 +1171,6 @@ VmVerify(const ZirProgram *program, const char *entry_module,
             }
             if(global->init[0]) {
                 long value = 0;
-                char literal[ZIR_TEXT_MAX];
                 int64_t folded = 0;
                 const char *init = skip_ws(global->init);
                 int literal_ok =
@@ -1128,7 +1210,7 @@ VmVerify(const ZirProgram *program, const char *entry_module,
         }
         for(int f = 0; f < module->function_count; f++) {
             const ZirFunction *function = &module->functions[f];
-            int binding_count = parse_parameters(module, function, bindings);
+            int binding_count = parse_parameters(module, function, buffers->bindings);
             if(!function->checked || function->is_extern ||
                !portable_type(module, function->return_type) ||
                binding_count < 0) {
@@ -1138,7 +1220,7 @@ VmVerify(const ZirProgram *program, const char *entry_module,
                 return 0;
             }
             if(!verify_sequence(module, function, 0, function->stmt_count,
-                                bindings, binding_count, 0, 0)) {
+                                buffers->bindings, binding_count, 0, 0)) {
                 Diagnostic(function->span, "zib.statement",
                            "statement is outside the portable subset in %s",
                            function->name);
@@ -1155,4 +1237,20 @@ VmVerify(const ZirProgram *program, const char *entry_module,
         }
     }
     return 1;
+}
+
+int
+VmVerify(const ZirProgram *program, const char *entry_module,
+            const char *entry_function)
+{
+    static _Thread_local VmVerifyBuffers *spares[16];
+    static _Thread_local int spare_count;
+    VmVerifyBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = VmVerify_with_buffers(program, entry_module, entry_function, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

@@ -657,12 +657,21 @@ c_wide_operand(const char *text, const char *optype, const char *type,
     else
         format(out, size, "(%s)(%s)", wide, text);
 }
-
-void
-number(Emitter *e, const char *type, const char *a, const char *a_type,
-       const char *b, const char *b_type, int op, char *out, size_t size)
-{
+/* Buffers number keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct NumberBuffers {
     char bits[ZIR_TEXT_MAX];
+    char left[ZIR_TEXT_MAX];
+    char right[ZIR_TEXT_MAX];
+} NumberBuffers;
+
+void number(Emitter *e, const char *type, const char *a, const char *a_type,
+       const char *b, const char *b_type, int op, char *out, size_t size);
+
+static void
+number_with_buffers(Emitter *e, const char *type, const char *a, const char *a_type,
+       const char *b, const char *b_type, int op, char *out, size_t size, NumberBuffers *buffers)
+{
     int w = width(type), sign = signed_type(type);
     uint64_t left_bits, right_bits, folded;
     int left_literal = integer_literal_bits(a, &left_bits);
@@ -697,7 +706,6 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
     if(native != NULL && ((op >= 1 && op <= 3) || (op >= 8 && op <= 10))) {
         static const char *const symbols[] = {"", "+", "-", "*", "", "", "", "", "&", "|", "^"};
         if(e->target == ZIR_GO) {
-            char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
             if(op == 10 && all_ones_operand(b)) {
                 if(same_number_type(a_type, type) && !left_literal)
                     format(out, size, "^%s", a);
@@ -706,26 +714,25 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
                 return;
             }
             /* A literal wrapped to the width always fits the Go type. */
-            if(left_literal) number_literal(e, type, left_bits, left, sizeof(left));
-            else if(same_number_type(a_type, type)) copy_text(left, sizeof(left), a);
-            else format(left, sizeof(left), "%s(%s)", native, a);
-            if(right_literal) number_literal(e, type, right_bits, right, sizeof(right));
-            else if(same_number_type(b_type, type)) copy_text(right, sizeof(right), b);
-            else format(right, sizeof(right), "%s(%s)", native, b);
+            if(left_literal) number_literal(e, type, left_bits, buffers->left, sizeof(buffers->left));
+            else if(same_number_type(a_type, type)) copy_text(buffers->left, sizeof(buffers->left), a);
+            else format(buffers->left, sizeof(buffers->left), "%s(%s)", native, a);
+            if(right_literal) number_literal(e, type, right_bits, buffers->right, sizeof(buffers->right));
+            else if(same_number_type(b_type, type)) copy_text(buffers->right, sizeof(buffers->right), b);
+            else format(buffers->right, sizeof(buffers->right), "%s(%s)", native, b);
             if(left_literal && right_literal)
-                format(left, sizeof(left), "%s(%s)", native, a);
-            format(out, size, "%s %s %s", left, symbols[op], right);
+                format(buffers->left, sizeof(buffers->left), "%s(%s)", native, a);
+            format(out, size, "%s %s %s", buffers->left, symbols[op], buffers->right);
             return;
         }
         const char *wide = w == 64 ? "uint64_t" : "uint32_t";
-        char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
-        c_wide_operand(a, a_type, type, native, wide, left, sizeof(left));
+        c_wide_operand(a, a_type, type, native, wide, buffers->left, sizeof(buffers->left));
         if(op == 10 && all_ones_operand(b)) {
-            format(out, size, "(%s)~%s", native, left);
+            format(out, size, "(%s)~%s", native, buffers->left);
             return;
         }
-        c_wide_operand(b, b_type, type, native, wide, right, sizeof(right));
-        format(out, size, "(%s)(%s %s %s)", native, left, symbols[op], right);
+        c_wide_operand(b, b_type, type, native, wide, buffers->right, sizeof(buffers->right));
+        format(out, size, "(%s)(%s %s %s)", native, buffers->left, symbols[op], buffers->right);
         return;
     }
     /* Division and remainder: Go's own / and % panic on zero and wrap the
@@ -743,59 +750,72 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
                 (e->target == ZIR_GO || op == 6 || !sign);
         if(plain) {
             static const char *const symbols[] = {"", "", "", "", "/", "%", "<<", ">>"};
-            char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
             if(op >= 6)
-                format(right, sizeof(right), "%llu", (unsigned long long)right_bits);
+                format(buffers->right, sizeof(buffers->right), "%llu", (unsigned long long)right_bits);
             else if(right_literal)
-                number_literal(e, type, right_bits, right, sizeof(right));
+                number_literal(e, type, right_bits, buffers->right, sizeof(buffers->right));
             else if(same_number_type(b_type, type))
-                copy_text(right, sizeof(right), b);
+                copy_text(buffers->right, sizeof(buffers->right), b);
             else
-                format(right, sizeof(right), "%s(%s)", native, b);
+                format(buffers->right, sizeof(buffers->right), "%s(%s)", native, b);
             if(e->target == ZIR_GO) {
-                if(left_literal) format(left, sizeof(left), "%s(%s)", native, a);
-                else if(same_number_type(a_type, type)) copy_text(left, sizeof(left), a);
-                else format(left, sizeof(left), "%s(%s)", native, a);
-                format(out, size, "%s %s %s", left, symbols[op], right);
+                if(left_literal) format(buffers->left, sizeof(buffers->left), "%s(%s)", native, a);
+                else if(same_number_type(a_type, type)) copy_text(buffers->left, sizeof(buffers->left), a);
+                else format(buffers->left, sizeof(buffers->left), "%s(%s)", native, a);
+                format(out, size, "%s %s %s", buffers->left, symbols[op], buffers->right);
             } else if(op == 6) {
                 /* Left shifts run unsigned, where C defines every result. */
                 c_wide_operand(a, a_type, type, native,
-                               w == 64 ? "uint64_t" : "uint32_t", left, sizeof(left));
-                format(out, size, "(%s)(%s << %s)", native, left, right);
+                               w == 64 ? "uint64_t" : "uint32_t", buffers->left, sizeof(buffers->left));
+                format(out, size, "(%s)(%s << %s)", native, buffers->left, buffers->right);
             } else {
-                if(left_literal) number_literal(e, type, left_bits, left, sizeof(left));
-                else if(same_number_type(a_type, type)) copy_text(left, sizeof(left), a);
-                else format(left, sizeof(left), "(%s)(%s)", native, a);
+                if(left_literal) number_literal(e, type, left_bits, buffers->left, sizeof(buffers->left));
+                else if(same_number_type(a_type, type)) copy_text(buffers->left, sizeof(buffers->left), a);
+                else format(buffers->left, sizeof(buffers->left), "(%s)(%s)", native, a);
                 /* Narrower types promote to int and convert back; 32- and
                  * 64-bit operands already compute in their own type. */
                 if(w >= 32 && (left_literal || same_number_type(a_type, type)) &&
                    (right_literal || same_number_type(b_type, type)))
-                    format(out, size, "%s %s %s", left, symbols[op], right);
+                    format(out, size, "%s %s %s", buffers->left, symbols[op], buffers->right);
                 else
-                    format(out, size, "(%s)(%s %s %s)", native, left, symbols[op], right);
+                    format(out, size, "(%s)(%s %s %s)", native, buffers->left, symbols[op], buffers->right);
             }
             return;
         }
     }
     if(e->target == ZIR_GO) {
-        char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
-        go_bits_operand(a, sign, left, sizeof(left));
-        go_bits_operand(b, sign, right, sizeof(right));
+        go_bits_operand(a, sign, buffers->left, sizeof(buffers->left));
+        go_bits_operand(b, sign, buffers->right, sizeof(buffers->right));
         if(op >= 1 && op <= 3) {
             const char *name = op == 1 ? "wrapAdd" : op == 2 ? "wrapSub" : "wrapMul";
             /* Narrowing the uint64 result below keeps the low w bits. This
              * matches the checked wrapping rule while giving Go a small
              * inlinable operation instead of the general switch helper. */
-            format(bits, sizeof(bits), "%s(%s, %s)", name, left, right);
+            format(buffers->bits, sizeof(buffers->bits), "%s(%s, %s)", name, buffers->left, buffers->right);
         } else {
-            format(bits, sizeof(bits), "integerOp(%s, %s, %d, %s, %d)", left, right, w, sign ? "true" : "false", op);
+            format(buffers->bits, sizeof(buffers->bits), "integerOp(%s, %s, %d, %s, %d)", buffers->left, buffers->right, w, sign ? "true" : "false", op);
         }
-        format(out,size,"%s(%s)",TargetType(type,e->target),bits);
+        format(out,size,"%s(%s)",TargetType(type,e->target),buffers->bits);
     } else {
-        format(bits, sizeof(bits), "IntegerOp((uint64_t)(%s), (uint64_t)(%s), %d, %d, %d)", a, b, w, sign, op);
-        if(sign) format(out, size, "(%s)SignedBits(%s, %d)", TargetType(type, e->target), bits, w);
-        else format(out,size,"(%s)(%s)",TargetType(type,e->target),bits);
+        format(buffers->bits, sizeof(buffers->bits), "IntegerOp((uint64_t)(%s), (uint64_t)(%s), %d, %d, %d)", a, b, w, sign, op);
+        if(sign) format(out, size, "(%s)SignedBits(%s, %d)", TargetType(type, e->target), buffers->bits, w);
+        else format(out,size,"(%s)(%s)",TargetType(type,e->target),buffers->bits);
     }
+}
+
+void
+number(Emitter *e, const char *type, const char *a, const char *a_type,
+       const char *b, const char *b_type, int op, char *out, size_t size)
+{
+    static _Thread_local NumberBuffers *spares[16];
+    static _Thread_local int spare_count;
+    NumberBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    number_with_buffers(e, type, a, a_type, b, b_type, op, out, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 void
@@ -829,16 +849,24 @@ go_pointer_index(Emitter *e, const char *base, const char *index,
            base, temporary, temporary);
     e->pure = 0;
 }
+/* Buffers emit_destination keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EmitDestinationBuffers {
+    char pointer[ZIR_TEXT_MAX];
+    char base[ZIR_TEXT_MAX];
+    char index[ZIR_TEXT_MAX];
+} EmitDestinationBuffers;
 
-void
-emit_destination(Emitter *e, int index, char *out, size_t size)
+void emit_destination(Emitter *e, int index, char *out, size_t size);
+
+static void
+emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, EmitDestinationBuffers *buffers)
 {
     const ZirExpr *expr = &e->fn->exprs[index];
     if(expr->kind == ZIR_EXPR_UNARY && !strcmp(expr->op, "*")) {
-        char pointer[ZIR_TEXT_MAX];
         emit_expr(e, expr->right, e->fn->exprs[expr->right].type,
-                  pointer, sizeof(pointer));
-        format(out, size, "*(%s)", pointer);
+                  buffers->pointer, sizeof(buffers->pointer));
+        format(out, size, "*(%s)", buffers->pointer);
         return;
     }
     if(expr->kind == ZIR_EXPR_IDENT) {
@@ -847,54 +875,65 @@ emit_destination(Emitter *e, int index, char *out, size_t size)
         return;
     }
     if(expr->kind == ZIR_EXPR_MEMBER || expr->kind == ZIR_EXPR_POINTER_MEMBER) {
-        char base[ZIR_TEXT_MAX];
         if(expr->kind == ZIR_EXPR_POINTER_MEMBER &&
            !member_path(e->fn, expr->left))
             emit_expr(e, expr->left, e->fn->exprs[expr->left].type,
-                      base, sizeof(base));
+                      buffers->base, sizeof(buffers->base));
         else
-            emit_destination(e, expr->left, base, sizeof(base));
+            emit_destination(e, expr->left, buffers->base, sizeof(buffers->base));
         emit_field_path(e->module, e->target,
                         e->fn->exprs[expr->left].type, expr->name,
-                        base, out, size);
+                        buffers->base, out, size);
         e->pure = 1;
         return;
     }
     if(expr->kind == ZIR_EXPR_INDEX) {
-        char base[ZIR_TEXT_MAX], index[ZIR_TEXT_MAX];
         int vector = VecElementType(e->module,
             e->fn->exprs[expr->left].type, NULL, 0);
-
         if(!strcmp(e->fn->exprs[expr->left].type, "string"))
             fatal(expr, "string bytes are read-only");
         if(SliceElementType(e->fn->exprs[expr->left].type, NULL, 0))
-            emit_expr(e, expr->left, e->fn->exprs[expr->left].type, base, sizeof(base));
+            emit_expr(e, expr->left, e->fn->exprs[expr->left].type, buffers->base, sizeof(buffers->base));
         else
-            emit_destination(e, expr->left, base, sizeof(base));
+            emit_destination(e, expr->left, buffers->base, sizeof(buffers->base));
         {
             int base_pure = e->pure;
-            emit_expr(e, expr->right, "s32", index, sizeof(index));
+            emit_expr(e, expr->right, "s32", buffers->index, sizeof(buffers->index));
             e->pure = base_pure && e->pure;
         }
         if(SliceElementType(e->fn->exprs[expr->left].type, NULL, 0))
-            slice_index(e, e->fn->exprs[expr->left].type, base, index, out, size);
+            slice_index(e, e->fn->exprs[expr->left].type, buffers->base, buffers->index, out, size);
         else if(e->target == ZIR_GO &&
                 e->fn->exprs[expr->left].type[0] == '*')
-            go_pointer_index(e, base, index, out, size);
+            go_pointer_index(e, buffers->base, buffers->index, out, size);
         else if(vector && (e->target == ZIR_C || e->target == ZIR_CPP))
             format(out, size, "ZIRAN_VEC_INDEX((%s).data, (%s).count, %s)",
-                   base, base, index);
+                   buffers->base, buffers->base, buffers->index);
         else if(vector)
-            format(out, size, "(%s).Data[%s]", base, index);
+            format(out, size, "(%s).Data[%s]", buffers->base, buffers->index);
         else if((e->target == ZIR_C || e->target == ZIR_CPP) &&
            ArrayElementType(e->fn->exprs[expr->left].type, NULL, 0, NULL))
             format(out, size, "ZIRAN_INDEX(%s, sizeof(%s) / sizeof(%s[0]), %s)",
-                   base, base, base, index);
+                   buffers->base, buffers->base, buffers->base, buffers->index);
         else
-            format(out, size, "%s[%s]", base, index);
+            format(out, size, "%s[%s]", buffers->base, buffers->index);
         return;
     }
     fatal(expr, "unsupported assignment destination");
+}
+
+void
+emit_destination(Emitter *e, int index, char *out, size_t size)
+{
+    static _Thread_local EmitDestinationBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EmitDestinationBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    emit_destination_with_buffers(e, index, out, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 void
@@ -1034,39 +1073,63 @@ string_literal(const ZirExpr *expr, ZirTarget target, char *out, size_t size)
     out[used++] = '"';
     out[used] = 0;
 }
+/* Buffers ScalarLiteral keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ScalarLiteralBuffers {
+    ZirFunction fn;
+    char value[ZIR_TEXT_MAX];
+} ScalarLiteralBuffers;
 
-int
-ScalarLiteral(const char *type, const char *text, ZirTarget target,
-                  ZirSourceSpan span, char *out, size_t size)
+int ScalarLiteral(const char *type, const char *text, ZirTarget target,
+                  ZirSourceSpan span, char *out, size_t size);
+
+static int
+ScalarLiteral_with_buffers(const char *type, const char *text, ZirTarget target,
+                  ZirSourceSpan span, char *out, size_t size, ScalarLiteralBuffers *buffers)
 {
-    ZirFunction fn={0};Emitter e={0};int ok=0;
+    memset(&buffers->fn, 0, sizeof(buffers->fn));Emitter e={0};int ok=0;
     type=canonical(type);e.target=target;
     if(!*type)return 0;
     if(!strcmp(type,"bool")) {
         if(!strcmp(text,"true") || !strcmp(text,"false")) {copy_text(out,size,text);return 1;}
         return 0;
     }
-    int index=ParseExpr(&fn,NULL,text,span);
+    int index=ParseExpr(&buffers->fn,NULL,text,span);
     if(index>=0) {
-        ZirExpr *expr=&fn.exprs[index];
+        ZirExpr *expr=&buffers->fn.exprs[index];
         if(expr->kind == ZIR_EXPR_STRING && !strcmp(type, "string")) {
-            char value[ZIR_TEXT_MAX];
-            string_literal(expr, target, value, sizeof(value));
+            string_literal(expr, target, buffers->value, sizeof(buffers->value));
             if(target == ZIR_C || target == ZIR_CPP)
-                format(out, size, "{%s, sizeof(%s) - 1}", value, value);
+                format(out, size, "{%s, sizeof(%s) - 1}", buffers->value, buffers->value);
             else
-                copy_text(out, size, value);
+                copy_text(out, size, buffers->value);
             ok = 1;
         } else if(expr->kind==ZIR_EXPR_INT && width(type)) {
             literal(&e,expr,type,0,out,size);ok=1;
         } else if(expr->kind==ZIR_EXPR_UNARY && !strcmp(expr->op,"-") &&
-                  fn.exprs[expr->right].kind==ZIR_EXPR_INT && width(type)) {
-            literal(&e,&fn.exprs[expr->right],type,1,out,size);ok=1;
+                  buffers->fn.exprs[expr->right].kind==ZIR_EXPR_INT && width(type)) {
+            literal(&e,&buffers->fn.exprs[expr->right],type,1,out,size);ok=1;
         } else if((expr->kind==ZIR_EXPR_FLOAT || expr->kind==ZIR_EXPR_INT) && type[0]=='f') {
             copy_text(out,size,text);size_t n=strlen(out);
             if(n && (out[n-1]=='f'||out[n-1]=='F'))out[n-1]=0;
             ok=1;
         }
     }
-    free(fn.exprs);return ok;
+    free(buffers->fn.exprs);return ok;
+}
+
+int
+ScalarLiteral(const char *type, const char *text, ZirTarget target,
+                  ZirSourceSpan span, char *out, size_t size)
+{
+    static _Thread_local ScalarLiteralBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ScalarLiteralBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = ScalarLiteral_with_buffers(type, text, target, span, out, size, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

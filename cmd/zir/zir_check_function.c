@@ -1,12 +1,19 @@
 #include "zir_check_internal.h"
+/* Buffers check_function keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CheckFunctionBuffers {
+    char params[64][ZIR_TEXT_MAX];
+    char parameters[64][ZIR_TEXT_MAX];
+} CheckFunctionBuffers;
 
-int
-check_function(Checker *c, ZirFunction *fn)
+int check_function(Checker *c, ZirFunction *fn);
+
+static int
+check_function_with_buffers(Checker *c, ZirFunction *fn, CheckFunctionBuffers *buffers)
 {
     int errors_before = c->errors;
     int has_slots;
     int has_arrays;
-    char params[64][ZIR_TEXT_MAX];
     int n;
     c->fn = fn;
     if(contains_vec(c->module, fn->return_type, 0) && fn->is_extern)
@@ -49,11 +56,11 @@ restart:
     has_slots = 0;
     has_arrays = fn->return_type[0] == '[';
     fn->uses_host = fn->is_extern && fn->extern_kind == ZIR_EXTERN_HOST;
-    n = *skip_ws(c->fn->args) ? split_top_level(c->fn->args, params[0], 64, sizeof(params[0])) : 0;
+    n = *skip_ws(c->fn->args) ? split_top_level(c->fn->args, buffers->params[0], 64, sizeof(buffers->params[0])) : 0;
     for(int a = 0; a < n; a++) {
-        char *colon = strchr(params[a], ':');
+        char *colon = strchr(buffers->params[a], ':');
         if(colon) {
-            *colon++ = 0; trim_in_place(params[a]); trim_in_place(colon);
+            *colon++ = 0; trim_in_place(buffers->params[a]); trim_in_place(colon);
             const ZirType *parameter_type = FindType(c->module, colon, NULL);
             if(parameter_type != NULL && parameter_type->is_record_template) {
                 Diagnostic(c->fn->span, "check.specialize",
@@ -63,13 +70,13 @@ restart:
             }
             has_slots |= parameter_type != NULL && parameter_type->is_procedure_type;
             if(contains_vec(c->module, colon, 0) && fn->is_extern)
-                error(c, fn->span, "Vec cannot cross an extern signature", params[a]);
+                error(c, fn->span, "Vec cannot cross an extern signature", buffers->params[a]);
             has_arrays |= ArrayValueType(colon) || SliceElementType(colon, NULL, 0);
-            bind(c, params[a], colon, c->fn->span);
+            bind(c, buffers->params[a], colon, c->fn->span);
             if((!fn->from_ir || fn->is_specialization) &&
                (fn->using_parameters & (UINT64_C(1) << a)))
-                activate_using(c, params[a], fn->span);
-        } else error(c, c->fn->span, "parameters require name: type", params[a]);
+                activate_using(c, buffers->params[a], fn->span);
+        } else error(c, c->fn->span, "parameters require name: type", buffers->params[a]);
     }
     c->restore_count = 0;
     for(int i = 0; i < c->fn->stmt_count; i++) {
@@ -435,11 +442,10 @@ restart:
            callee == NULL || callee->is_extern)
             continue;
         has_arrays |= ArrayValueType(callee->return_type);
-        char parameters[64][ZIR_TEXT_MAX];
         int count = *skip_ws(callee->args) ?
-            split_top_level(callee->args, parameters[0], 64, sizeof(parameters[0])) : 0;
+            split_top_level(callee->args, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
         for(int parameter = 0; parameter < count; parameter++) {
-            const char *colon = strchr(parameters[parameter], ':');
+            const char *colon = strchr(buffers->parameters[parameter], ':');
             if(colon != NULL)
                 has_arrays |= ArrayValueType(skip_ws(colon + 1));
         }
@@ -477,6 +483,21 @@ restart:
             fn->stmts[i].is_using = 0;
     }
     return !c->failed;
+}
+
+int
+check_function(Checker *c, ZirFunction *fn)
+{
+    static _Thread_local CheckFunctionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CheckFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = check_function_with_buffers(c, fn, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int
@@ -533,37 +554,42 @@ check_template_declaration(Checker *c, ZirFunction *fn)
         }
     return validate_loop_targets(c, fn);
 }
-
-/* Resolve every declaration before checking bodies, so imported and forward
- * calls compare the same array shapes regardless of traversal order. */
-int
-normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
-{
+/* Buffers normalize_function_arrays keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct NormalizeFunctionArraysBuffers {
     char parts[64][ZIR_TEXT_MAX];
-    char arguments[sizeof(fn->args)];
+    char arguments[sizeof(((ZirFunction *)0)->args)];
+    char original_type[ZIR_TEXT_MAX];
+    char normalized[sizeof(((ZirFunction *)0)->default_args)];
+} NormalizeFunctionArraysBuffers;
+
+int normalize_function_arrays(const ZirModule *module, ZirFunction *fn);
+
+static int
+normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn, NormalizeFunctionArraysBuffers *buffers)
+{
     size_t used = 0;
     int array_arguments = strchr(fn->args, '[') != NULL;
     int argument_alias_changed = 0;
     int count = *skip_ws(fn->args) ?
-        split_top_level(fn->args, parts[0], 64, sizeof(parts[0])) : 0;
-    arguments[0] = '\0';
+        split_top_level(fn->args, buffers->parts[0], 64, sizeof(buffers->parts[0])) : 0;
+    buffers->arguments[0] = '\0';
     for(int i = -1; i < count; i++) {
         char *type = fn->return_type;
         size_t capacity = sizeof(fn->return_type);
         if(i >= 0) {
-            char *colon = strchr(parts[i], ':');
+            char *colon = strchr(buffers->parts[i], ':');
             if(colon == NULL) {
-                Diagnostic(fn->span, "check.signature", "parameters require name: type: %s", parts[i]);
+                Diagnostic(fn->span, "check.signature", "parameters require name: type: %s", buffers->parts[i]);
                 return 0;
             }
             type = colon + 1;
             trim_in_place(type);
-            capacity = sizeof(parts[i]) - (size_t)(type - parts[i]);
+            capacity = sizeof(buffers->parts[i]) - (size_t)(type - buffers->parts[i]);
         }
-        char original_type[ZIR_TEXT_MAX];
-        copy_text(original_type, sizeof(original_type), type);
+        copy_text(buffers->original_type, sizeof(buffers->original_type), type);
         normalize_array(module, type, capacity);
-        if(i >= 0 && strcmp(original_type, type) != 0)
+        if(i >= 0 && strcmp(buffers->original_type, type) != 0)
             argument_alias_changed = 1;
         int host_buffer = i >= 0 && ArrayElementType(type, NULL, 0, NULL) &&
                           !ArrayValueType(type);
@@ -582,9 +608,9 @@ normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
             }
         }
         if(i >= 0) {
-            int length = snprintf(arguments + used, sizeof(arguments) - used,
-                                  "%s%s", used ? ", " : "", parts[i]);
-            if(length < 0 || (size_t)length >= sizeof(arguments) - used) {
+            int length = snprintf(buffers->arguments + used, sizeof(buffers->arguments) - used,
+                                  "%s%s", used ? ", " : "", buffers->parts[i]);
+            if(length < 0 || (size_t)length >= sizeof(buffers->arguments) - used) {
                 Diagnostic(fn->span, "check.array_signature", "function signature exceeds size limit");
                 return 0;
             }
@@ -592,15 +618,14 @@ normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
         }
     }
     if(array_arguments || argument_alias_changed)
-        copy_text(fn->args, sizeof(fn->args), arguments);
+        copy_text(fn->args, sizeof(fn->args), buffers->arguments);
     if(argument_alias_changed && fn->default_args[0]) {
         char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
         if(defaults == NULL) return 0;
         int default_count = split_top_level(fn->default_args, defaults[0],
                                             64, sizeof(defaults[0]));
-        char normalized[sizeof(fn->default_args)];
         size_t written = 0;
-        normalized[0] = '\0';
+        buffers->normalized[0] = '\0';
         if(default_count != count) {
             free(defaults);
             Diagnostic(fn->span, "check.signature",
@@ -611,13 +636,13 @@ normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
             char *assignment = top_level_assignment(defaults[i]);
             const char *default_value = assignment == NULL ? "" :
                                         skip_ws(assignment + 1);
-            int length = snprintf(normalized + written,
-                                  sizeof(normalized) - written,
-                                  "%s%s%s%s", i ? ", " : "", parts[i],
+            int length = snprintf(buffers->normalized + written,
+                                  sizeof(buffers->normalized) - written,
+                                  "%s%s%s%s", i ? ", " : "", buffers->parts[i],
                                   assignment == NULL ? "" : " = ",
                                   default_value);
             if(length < 0 || (size_t)length >=
-                             sizeof(normalized) - written) {
+                             sizeof(buffers->normalized) - written) {
                 free(defaults);
                 Diagnostic(fn->span, "check.signature",
                            "default argument signature exceeds size limit");
@@ -625,8 +650,25 @@ normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
             }
             written += (size_t)length;
         }
-        copy_text(fn->default_args, sizeof(fn->default_args), normalized);
+        copy_text(fn->default_args, sizeof(fn->default_args), buffers->normalized);
         free(defaults);
     }
     return 1;
+}
+
+/* Resolve every declaration before checking bodies, so imported and forward
+ * calls compare the same array shapes regardless of traversal order. */
+int
+normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
+{
+    static _Thread_local NormalizeFunctionArraysBuffers *spares[16];
+    static _Thread_local int spare_count;
+    NormalizeFunctionArraysBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = normalize_function_arrays_with_buffers(module, fn, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

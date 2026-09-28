@@ -1,11 +1,22 @@
 #include "zir_parse_internal.h"
 
 static int evaluate_typed_function(const ZirModule *module, const char *name, ZirSourceSpan call_span, CompileValue *arguments, char argument_names[][ZIR_NAME_MAX], int argument_count, int depth, int *fuel, CompileValue *result);
+/* Buffers evaluate_typed_node keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EvaluateTypedNodeBuffers {
+    unsigned char bytes[ZIR_TEXT_MAX];
+    CompileValue args[16];
+    char names[16][ZIR_NAME_MAX];
+} EvaluateTypedNodeBuffers;
 
-int
-evaluate_typed_node(const ZirFunction *probe, int index,
+int evaluate_typed_node(const ZirFunction *probe, int index,
                     const ZirModule *module, const char *path,
-                    int depth, int *fuel, CompileValue *result)
+                    int depth, int *fuel, CompileValue *result);
+
+static int
+evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
+                    const ZirModule *module, const char *path,
+                    int depth, int *fuel, CompileValue *result, EvaluateTypedNodeBuffers *buffers)
 {
     if(index < 0 || index >= probe->expr_count || depth > 64 ||
        --*fuel < 0) return 0;
@@ -182,9 +193,8 @@ evaluate_typed_node(const ZirFunction *probe, int index,
                                 depth + 1, fuel, &left)) return 0;
         if(left.kind == COMPILE_STRING &&
            !strcmp(expression->name, "count")) {
-            unsigned char bytes[ZIR_TEXT_MAX];
             size_t length;
-            if(!DecodeStringLiteral(left.literal, bytes, sizeof(bytes),
+            if(!DecodeStringLiteral(left.literal, buffers->bytes, sizeof(buffers->bytes),
                                      &length) || length > LONG_MAX) return 0;
             result->kind = COMPILE_INTEGER;
             result->integer = (long)length;
@@ -234,8 +244,8 @@ evaluate_typed_node(const ZirFunction *probe, int index,
                                    depth + 1, fuel, result);
     case ZIR_EXPR_CALL: {
         char name[ZIR_NAME_MAX];
-        CompileValue args[16] = {{0}};
-        char names[16][ZIR_NAME_MAX] = {{0}};
+        memset(buffers->args, 0, sizeof(buffers->args));
+        memset(buffers->names, 0, sizeof(buffers->names));
         int count = 0;
         copy_text(name, sizeof(name), expression->name);
         if(!name[0] && expression->left >= 0) {
@@ -250,14 +260,14 @@ evaluate_typed_node(const ZirFunction *probe, int index,
             child = probe->exprs[child].next_sibling) {
             if(count == 16 ||
                !evaluate_typed_node(probe, child, module, path,
-                                    depth + 1, fuel, &args[count])) return 0;
-            copy_text(names[count], sizeof(names[count]),
+                                    depth + 1, fuel, &buffers->args[count])) return 0;
+            copy_text(buffers->names[count], sizeof(buffers->names[count]),
                       probe->exprs[child].argument_name);
             count++;
         }
         ZirSourceSpan call_span = expression->left >= 0 ?
             probe->exprs[expression->left].span : expression->span;
-        return evaluate_typed_function(module, name, call_span, args, names,
+        return evaluate_typed_function(module, name, call_span, buffers->args, buffers->names,
                                        count, depth + 1, fuel, result);
     }
     default:
@@ -266,44 +276,88 @@ evaluate_typed_node(const ZirFunction *probe, int index,
 }
 
 int
-evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
+evaluate_typed_node(const ZirFunction *probe, int index,
+                    const ZirModule *module, const char *path,
+                    int depth, int *fuel, CompileValue *result)
+{
+    static _Thread_local EvaluateTypedNodeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EvaluateTypedNodeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = evaluate_typed_node_with_buffers(probe, index, module, path, depth, fuel, result, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers evaluate_typed_expression keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EvaluateTypedExpressionBuffers {
+    ZirFunction probe;
+    char input[ZIR_TEXT_MAX];
+    char expanded[ZIR_TEXT_MAX];
+} EvaluateTypedExpressionBuffers;
+
+int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
                           const char *source, ZirSourceSpan span, int depth,
-                          int *fuel, CompileValue *result)
+                          int *fuel, CompileValue *result);
+
+static int
+evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts *names,
+                          const char *source, ZirSourceSpan span, int depth,
+                          int *fuel, CompileValue *result, EvaluateTypedExpressionBuffers *buffers)
 {
     ZirConsts empty = {0};
-    ZirFunction probe = {0};
-    char input[ZIR_TEXT_MAX], expanded[ZIR_TEXT_MAX];
+    memset(&buffers->probe, 0, sizeof(buffers->probe));
     long integer;
     int root, ok;
     const char *path = SpanPath(span);
     if(depth > 32 || source == NULL || --*fuel < 0) return 0;
-    copy_text(input, sizeof(input), source);
-    trim_in_place(input);
-    size_t length = strlen(input);
-    if(length && input[length - 1] == ';') {
-        input[length - 1] = '\0';
-        trim_in_place(input);
+    copy_text(buffers->input, sizeof(buffers->input), source);
+    trim_in_place(buffers->input);
+    size_t length = strlen(buffers->input);
+    if(length && buffers->input[length - 1] == ';') {
+        buffers->input[length - 1] = '\0';
+        trim_in_place(buffers->input);
     }
-    if(!input[0]) return 0;
+    if(!buffers->input[0]) return 0;
     if(names == NULL) names = &empty;
-    expand_compile_expr(expanded, sizeof(expanded), names, input, path);
-    if(eval_const_condition_with_fuel(expanded, &integer, module, names,
+    expand_compile_expr(buffers->expanded, sizeof(buffers->expanded), names, buffers->input, path);
+    if(eval_const_condition_with_fuel(buffers->expanded, &integer, module, names,
                                      path, span.line, depth, fuel)) {
         result->kind = COMPILE_INTEGER;
         result->integer = integer;
         return compile_value_literal(result);
     }
-    root = ParseExpr(&probe, module, expanded, span);
+    root = ParseExpr(&buffers->probe, module, buffers->expanded, span);
     ok = root >= 0;
     if(depth == 0)
-        for(int i = 0; i < probe.expr_count; i++)
-            if(probe.exprs[i].kind == ZIR_EXPR_COMPILE_TIME)
+        for(int i = 0; i < buffers->probe.expr_count; i++)
+            if(buffers->probe.exprs[i].kind == ZIR_EXPR_COMPILE_TIME)
                 ok = 0;
     if(ok)
-        ok = evaluate_typed_node(&probe, root, module, path,
+        ok = evaluate_typed_node(&buffers->probe, root, module, path,
                                  depth + 1, fuel, result);
-    free(probe.exprs);
+    free(buffers->probe.exprs);
     return ok;
+}
+
+int
+evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
+                          const char *source, ZirSourceSpan span, int depth,
+                          int *fuel, CompileValue *result)
+{
+    static _Thread_local EvaluateTypedExpressionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EvaluateTypedExpressionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = evaluate_typed_expression_with_buffers(module, names, source, span, depth, fuel, result, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -317,28 +371,51 @@ typed_body_expression(TypedBody *body, const char *source,
                                      body->current_span, body->depth + 1,
                                      body->fuel, value);
 }
+/* Buffers typed_body_condition keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct TypedBodyConditionBuffers {
+    char condition[ZIR_TEXT_MAX];
+} TypedBodyConditionBuffers;
+
+static int typed_body_condition(TypedBody *body, const char *header,
+                     const char *word, int *truth);
+
+static int
+typed_body_condition_with_buffers(TypedBody *body, const char *header,
+                     const char *word, int *truth, TypedBodyConditionBuffers *buffers)
+{
+    const char *source = skip_ws(header + strlen(word));
+    copy_text(buffers->condition, sizeof(buffers->condition), source);
+    trim_in_place(buffers->condition);
+    size_t length = strlen(buffers->condition);
+    if(!length || buffers->condition[length - 1] != '{') return 0;
+    buffers->condition[length - 1] = '\0';
+    trim_in_place(buffers->condition);
+    length = strlen(buffers->condition);
+    if(length >= 4 && !strcmp(buffers->condition + length - 4, "then") &&
+       (length == 4 || isspace((unsigned char)buffers->condition[length - 5]))) {
+        buffers->condition[length - 4] = '\0';
+        trim_in_place(buffers->condition);
+    }
+    CompileValue value = {0};
+    return typed_body_expression(body, buffers->condition, &value) &&
+           compile_truth(&value, truth);
+}
 
 static int
 typed_body_condition(TypedBody *body, const char *header,
                      const char *word, int *truth)
 {
-    char condition[ZIR_TEXT_MAX];
-    const char *source = skip_ws(header + strlen(word));
-    copy_text(condition, sizeof(condition), source);
-    trim_in_place(condition);
-    size_t length = strlen(condition);
-    if(!length || condition[length - 1] != '{') return 0;
-    condition[length - 1] = '\0';
-    trim_in_place(condition);
-    length = strlen(condition);
-    if(length >= 4 && !strcmp(condition + length - 4, "then") &&
-       (length == 4 || isspace((unsigned char)condition[length - 5]))) {
-        condition[length - 4] = '\0';
-        trim_in_place(condition);
-    }
-    CompileValue value = {0};
-    return typed_body_expression(body, condition, &value) &&
-           compile_truth(&value, truth);
+    static _Thread_local TypedBodyConditionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    TypedBodyConditionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = typed_body_condition_with_buffers(body, header, word, truth, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static void
@@ -380,10 +457,20 @@ typed_local_index(TypedBody *body, const char *name)
         if(!strcmp(body->names.items[i].name, name)) return i;
     return -1;
 }
+/* Buffers typed_body_statements keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct TypedBodyStatementsBuffers {
+    char text[ZIR_TEXT_MAX];
+    char combined[ZIR_TEXT_MAX];
+    char control[ZIR_TEXT_MAX];
+} TypedBodyStatementsBuffers;
+
+static int typed_body_statements(TypedBody *body, int start, int stop,
+                      int *flow, CompileValue *result);
 
 static int
-typed_body_statements(TypedBody *body, int start, int stop,
-                      int *flow, CompileValue *result)
+typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
+                      int *flow, CompileValue *result, TypedBodyStatementsBuffers *buffers)
 {
     int saved = body->local_count;
     for(int i = start; i < stop && !*flow; i++) {
@@ -457,12 +544,11 @@ typed_body_statements(TypedBody *body, int start, int stop,
             break;
         }
         if(statement->kind == ZIR_STMT_DECL) {
-            char text[ZIR_TEXT_MAX];
-            copy_text(text, sizeof(text), source);
-            char *colon = strchr(text, ':');
+            copy_text(buffers->text, sizeof(buffers->text), source);
+            char *colon = strchr(buffers->text, ':');
             if(colon == NULL) goto failed;
             *colon++ = '\0';
-            trim_in_place(text);
+            trim_in_place(buffers->text);
             char *equals = strchr(colon, '=');
             if(equals != NULL) *equals++ = '\0';
             trim_in_place(colon);
@@ -481,30 +567,28 @@ typed_body_statements(TypedBody *body, int start, int stop,
                 value.kind == COMPILE_COMPOUND ? value.type : "s64";
             if(equals != NULL && !compile_type_value(type, &value))
                 goto failed;
-            if(!typed_add_local(body, text, type,
+            if(!typed_add_local(body, buffers->text, type,
                                 equals != NULL ? &value : NULL)) goto failed;
             continue;
         }
         if(statement->kind == ZIR_STMT_ASSIGN) {
-            char text[ZIR_TEXT_MAX];
-            copy_text(text, sizeof(text), source);
-            char *equals = strchr(text, '=');
+            copy_text(buffers->text, sizeof(buffers->text), source);
+            char *equals = strchr(buffers->text, '=');
             if(equals == NULL) goto failed;
-            char op = equals > text ? equals[-1] : '\0';
+            char op = equals > buffers->text ? equals[-1] : '\0';
             if(op && strchr("+-*/%", op) != NULL) equals[-1] = '\0';
             else op = '\0';
             *equals++ = '\0';
-            trim_in_place(text);
-            int local = typed_local_index(body, text);
+            trim_in_place(buffers->text);
+            int local = typed_local_index(body, buffers->text);
             if(local < 0) goto failed;
             CompileValue value = {0};
             if(op) {
-                char combined[ZIR_TEXT_MAX];
-                int written = snprintf(combined, sizeof(combined),
+                int written = snprintf(buffers->combined, sizeof(buffers->combined),
                     "(%s) %c (%s)", body->names.items[local].expr, op,
                     equals);
-                if(written < 0 || (size_t)written >= sizeof(combined) ||
-                   !typed_body_expression(body, combined, &value)) goto failed;
+                if(written < 0 || (size_t)written >= sizeof(buffers->combined) ||
+                   !typed_body_expression(body, buffers->combined, &value)) goto failed;
             } else if(!typed_body_expression(body, equals, &value)) goto failed;
             if(!compile_type_value(body->names.items[local].type,
                                    &value)) goto failed;
@@ -519,13 +603,12 @@ typed_body_statements(TypedBody *body, int start, int stop,
         }
         if(statement->kind == ZIR_STMT_BREAK ||
            statement->kind == ZIR_STMT_CONTINUE) {
-            char control[ZIR_TEXT_MAX];
-            copy_text(control, sizeof(control), source);
-            trim_in_place(control);
-            size_t length = strlen(control);
-            if(length && control[length - 1] == ';')
-                control[length - 1] = '\0';
-            if(strcmp(control, statement->kind == ZIR_STMT_BREAK ?
+            copy_text(buffers->control, sizeof(buffers->control), source);
+            trim_in_place(buffers->control);
+            size_t length = strlen(buffers->control);
+            if(length && buffers->control[length - 1] == ';')
+                buffers->control[length - 1] = '\0';
+            if(strcmp(buffers->control, statement->kind == ZIR_STMT_BREAK ?
                        "break" : "continue") != 0) goto failed;
             *flow = statement->kind == ZIR_STMT_BREAK ? 2 : 3;
             break;
@@ -540,17 +623,45 @@ failed:
 }
 
 static int
-evaluate_typed_function(const ZirModule *module, const char *name,
+typed_body_statements(TypedBody *body, int start, int stop,
+                      int *flow, CompileValue *result)
+{
+    static _Thread_local TypedBodyStatementsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    TypedBodyStatementsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = typed_body_statements_with_buffers(body, start, stop, flow, result, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers evaluate_typed_function keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EvaluateTypedFunctionBuffers {
+    char parameters[16][ZIR_TEXT_MAX];
+    char defaults[16][ZIR_TEXT_MAX];
+    CompileValue ordered[16];
+} EvaluateTypedFunctionBuffers;
+
+static int evaluate_typed_function(const ZirModule *module, const char *name,
                         ZirSourceSpan call_span, CompileValue *arguments,
                         char argument_names[][ZIR_NAME_MAX],
                         int argument_count, int depth, int *fuel,
-                        CompileValue *result)
+                        CompileValue *result);
+
+static int
+evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
+                        ZirSourceSpan call_span, CompileValue *arguments,
+                        char argument_names[][ZIR_NAME_MAX],
+                        int argument_count, int depth, int *fuel,
+                        CompileValue *result, EvaluateTypedFunctionBuffers *buffers)
 {
     const ZirModule *owner = NULL;
     const ZirFunction *fn = NULL;
-    char parameters[16][ZIR_TEXT_MAX];
-    char defaults[16][ZIR_TEXT_MAX] = {{0}};
-    CompileValue ordered[16] = {{0}};
+    memset(buffers->defaults, 0, sizeof(buffers->defaults));
+    memset(buffers->ordered, 0, sizeof(buffers->ordered));
     unsigned used = 0;
     TypedBody body = {0};
     int expected, flow = 0, ok = 0;
@@ -559,18 +670,18 @@ evaluate_typed_function(const ZirModule *module, const char *name,
        fn == NULL || fn->is_extern || fn->is_template ||
        fn->stmt_count == 0) return 0;
     expected = *skip_ws(fn->args) ?
-        split_top_level(fn->args, parameters[0], 16,
-                        sizeof(parameters[0])) : 0;
+        split_top_level(fn->args, buffers->parameters[0], 16,
+                        sizeof(buffers->parameters[0])) : 0;
     if(expected < 0 || argument_count > expected) return 0;
     if(fn->default_args[0] &&
-       split_top_level(fn->default_args, defaults[0], 16,
-                       sizeof(defaults[0])) != expected) return 0;
+       split_top_level(fn->default_args, buffers->defaults[0], 16,
+                       sizeof(buffers->defaults[0])) != expected) return 0;
     for(int argument = 0; argument < argument_count; argument++) {
         int position = -1;
         if(argument_names[argument][0]) {
             size_t length = strlen(argument_names[argument]);
             for(int i = 0; i < expected; i++) {
-                const char *start = skip_ws(parameters[i]);
+                const char *start = skip_ws(buffers->parameters[i]);
                 const char *colon = strchr(start, ':');
                 if(colon == NULL) continue;
                 const char *end = colon;
@@ -587,7 +698,7 @@ evaluate_typed_function(const ZirModule *module, const char *name,
         }
         if(position < 0 || (used & (1u << position))) return 0;
         used |= 1u << position;
-        ordered[position] = arguments[argument];
+        buffers->ordered[position] = arguments[argument];
     }
     body.capacity = expected + owner->define_count + fn->stmt_count + 1;
     body.names.items = calloc((size_t)body.capacity,
@@ -598,13 +709,13 @@ evaluate_typed_function(const ZirModule *module, const char *name,
     body.depth = depth;
     body.fuel = fuel;
     for(int i = 0; i < expected; i++) {
-        char *part = trim(parameters[i]);
+        char *part = trim(buffers->parameters[i]);
         char *colon = strchr(part, ':');
         if(colon == NULL) goto done;
         *colon++ = '\0';
         trim_in_place(part);
         char *type = trim(colon);
-        char *default_value = top_level_assignment(defaults[i]);
+        char *default_value = top_level_assignment(buffers->defaults[i]);
         if(default_value != NULL) default_value = trim(default_value + 1);
         char *embedded_default = strchr(type, '=');
         if(embedded_default != NULL) {
@@ -618,24 +729,24 @@ evaluate_typed_function(const ZirModule *module, const char *name,
         if(!(used & (1u << i))) {
             if(default_value == NULL) goto done;
             if(!strcmp(default_value, "#caller_location")) {
-                ordered[i].kind = COMPILE_COMPOUND;
-                copy_text(ordered[i].type, sizeof(ordered[i].type),
+                buffers->ordered[i].kind = COMPILE_COMPOUND;
+                copy_text(buffers->ordered[i].type, sizeof(buffers->ordered[i].type),
                           "Source_Code_Location");
-                ordered[i].type_owner = owner;
+                buffers->ordered[i].type_owner = owner;
                 if(!CallerLocationLiteral(module, call_span,
-                                          ordered[i].literal,
-                                          sizeof(ordered[i].literal))) goto done;
+                                          buffers->ordered[i].literal,
+                                          sizeof(buffers->ordered[i].literal))) goto done;
             } else if(!evaluate_typed_expression(owner, &body.names,
                        default_value, fn->span, depth + 1, fuel,
-                       &ordered[i])) goto done;
+                       &buffers->ordered[i])) goto done;
         }
         if(!is_identifier_text(part) ||
-           !compile_type_value(type, &ordered[i])) goto done;
+           !compile_type_value(type, &buffers->ordered[i])) goto done;
         ZirConst *binding = &body.names.items[i];
         copy_text(binding->name, sizeof(binding->name), part);
         copy_text(binding->type, sizeof(binding->type), type);
         copy_text(binding->expr, sizeof(binding->expr),
-                  ordered[i].literal);
+                  buffers->ordered[i].literal);
         copy_text(binding->path, sizeof(binding->path), SpanPath(fn->span));
         body.names.count++;
     }
@@ -659,31 +770,79 @@ done:
     return ok;
 }
 
+static int
+evaluate_typed_function(const ZirModule *module, const char *name,
+                        ZirSourceSpan call_span, CompileValue *arguments,
+                        char argument_names[][ZIR_NAME_MAX],
+                        int argument_count, int depth, int *fuel,
+                        CompileValue *result)
+{
+    static _Thread_local EvaluateTypedFunctionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EvaluateTypedFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = evaluate_typed_function_with_buffers(module, name, call_span, arguments, argument_names, argument_count, depth, fuel, result, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers evaluate_typed_integer_function keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EvaluateTypedIntegerFunctionBuffers {
+    CompileValue arguments[16];
+    char names[16][ZIR_NAME_MAX];
+} EvaluateTypedIntegerFunctionBuffers;
+
+int evaluate_typed_integer_function(ZirEval *ev, const char *name,
+                                const long *values,
+                                const char argument_names[][ZIR_NAME_MAX],
+                                int argument_count, long *result);
+
+static int
+evaluate_typed_integer_function_with_buffers(ZirEval *ev, const char *name,
+                                const long *values,
+                                const char argument_names[][ZIR_NAME_MAX],
+                                int argument_count, long *result, EvaluateTypedIntegerFunctionBuffers *buffers)
+{
+    CompileValue value = {0}; memset(buffers->arguments, 0, sizeof(buffers->arguments));
+    memset(buffers->names, 0, sizeof(buffers->names));
+    int local_fuel = 10000;
+    int *fuel = ev->fuel != NULL ? ev->fuel : &local_fuel;
+    if(ev->module == NULL || argument_count < 0 || argument_count > 16 ||
+       ev->depth >= 16) return 0;
+    for(int i = 0; i < argument_count; i++) {
+        buffers->arguments[i].kind = COMPILE_INTEGER;
+        buffers->arguments[i].integer = values[i];
+        if(!compile_value_literal(&buffers->arguments[i])) return 0;
+        copy_text(buffers->names[i], sizeof(buffers->names[i]), argument_names[i]);
+    }
+    if(!evaluate_typed_function(ev->module, name,
+                                Span(ev->lookup_path, ev->source_line, 1),
+                                buffers->arguments, buffers->names, argument_count,
+                                ev->depth + 1, fuel, &value) ||
+       value.kind != COMPILE_INTEGER) return 0;
+    *result = value.integer;
+    return 1;
+}
+
 int
 evaluate_typed_integer_function(ZirEval *ev, const char *name,
                                 const long *values,
                                 const char argument_names[][ZIR_NAME_MAX],
                                 int argument_count, long *result)
 {
-    CompileValue arguments[16] = {{0}}, value = {0};
-    char names[16][ZIR_NAME_MAX] = {{0}};
-    int local_fuel = 10000;
-    int *fuel = ev->fuel != NULL ? ev->fuel : &local_fuel;
-    if(ev->module == NULL || argument_count < 0 || argument_count > 16 ||
-       ev->depth >= 16) return 0;
-    for(int i = 0; i < argument_count; i++) {
-        arguments[i].kind = COMPILE_INTEGER;
-        arguments[i].integer = values[i];
-        if(!compile_value_literal(&arguments[i])) return 0;
-        copy_text(names[i], sizeof(names[i]), argument_names[i]);
-    }
-    if(!evaluate_typed_function(ev->module, name,
-                                Span(ev->lookup_path, ev->source_line, 1),
-                                arguments, names, argument_count,
-                                ev->depth + 1, fuel, &value) ||
-       value.kind != COMPILE_INTEGER) return 0;
-    *result = value.integer;
-    return 1;
+    static _Thread_local EvaluateTypedIntegerFunctionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    EvaluateTypedIntegerFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = evaluate_typed_integer_function_with_buffers(ev, name, values, argument_names, argument_count, result, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int

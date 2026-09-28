@@ -1,10 +1,29 @@
 #include "zir_check_internal.h"
+/* Buffers CheckPrograms keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CheckProgramsBuffers {
+    Checker c;
+    char saved_path[ZIR_PATH_MAX];
+    Checker scope;
+    ZirToken token;
+    char literal[ZIR_TEXT_MAX];
+    ZirFunction raw;
+    char lowered[ZIR_TEXT_MAX];
+    char folded[ZIR_TEXT_MAX];
+    ZirFunction expression;
+    Checker initializer;
+    char assignment[ZIR_TEXT_MAX];
+    char body[sizeof(((ZirType *)0)->body)];
+    char expanded[sizeof(((ZirType *)0)->body)];
+} CheckProgramsBuffers;
 
-int
-CheckPrograms(ZirProgram **programs, int count)
+int CheckPrograms(ZirProgram **programs, int count);
+
+static int
+CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffers *buffers)
 {
-    Checker c = {0};
-    c.programs = programs; c.program_count = count;
+    memset(&buffers->c, 0, sizeof(buffers->c));
+    buffers->c.programs = programs; buffers->c.program_count = count;
     if(!LinkImports(programs, count))
         return 0;
     for(int p = 0; p < count; p++)
@@ -146,8 +165,7 @@ CheckPrograms(ZirProgram **programs, int count)
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++) {
             ZirModule *module = &programs[p]->modules[m];
-            char saved_path[ZIR_PATH_MAX];
-            copy_text(saved_path, sizeof(saved_path), module->lookup_path);
+            copy_text(buffers->saved_path, sizeof(buffers->saved_path), module->lookup_path);
             for(int i = 0; i < module->using_count; i++) {
                 const ZirUsing *using = &module->usings[i];
                 select_lookup_file(module, using->span);
@@ -159,17 +177,17 @@ CheckPrograms(ZirProgram **programs, int count)
                     return 0;
                 }
                 if(type == NULL) {
-                    Checker scope = {0};
-                    scope.module = module;
-                    activate_using_filtered(&scope, using->path,
+                    memset(&buffers->scope, 0, sizeof(buffers->scope));
+                    buffers->scope.module = module;
+                    activate_using_filtered(&buffers->scope, using->path,
                                             using->filter, using->span);
-                    free(scope.bindings);
-                    if(scope.errors || scope.failed)
+                    free(buffers->scope.bindings);
+                    if(buffers->scope.errors || buffers->scope.failed)
                         return 0;
                 }
             }
             copy_text(module->lookup_path, sizeof(module->lookup_path),
-                      saved_path);
+                      buffers->saved_path);
             for(int g = 0; g < module->global_count; g++)
                 if(!lower_file_record_using(module, module->globals[g].init,
                          sizeof(module->globals[g].init),
@@ -186,7 +204,7 @@ CheckPrograms(ZirProgram **programs, int count)
                     int opened = opened_file_enum(module, definition->value,
                                                    definition->span, &value);
                     copy_text(module->lookup_path,
-                              sizeof(module->lookup_path), saved_path);
+                              sizeof(module->lookup_path), buffers->saved_path);
                     if(opened <= 0) {
                         if(opened == 0)
                             Diagnostic(definition->span, "check.enum_scope",
@@ -222,10 +240,10 @@ CheckPrograms(ZirProgram **programs, int count)
                 ZirLexer lexer;
                 LexerInit(&lexer, definition->value, SpanPath(definition->span));
                 for(;;) {
-                    ZirToken token = LexerNext(&lexer);
-                    if(token.kind == ZIR_TOKEN_EOF) break;
-                    if(token.kind == ZIR_TOKEN_DIRECTIVE &&
-                       strcmp(token.text, "#compile_time") == 0) {
+                    buffers->token = LexerNext(&lexer);
+                    if(buffers->token.kind == ZIR_TOKEN_EOF) break;
+                    if(buffers->token.kind == ZIR_TOKEN_DIRECTIVE &&
+                       strcmp(buffers->token.text, "#compile_time") == 0) {
                         Diagnostic(definition->span, "check.compile_time",
                                    "#compile_time cannot be used as a constant");
                         return 0;
@@ -255,13 +273,12 @@ CheckPrograms(ZirProgram **programs, int count)
                         snprintf(definition->value,
                                  sizeof(definition->value), "%ld", value);
                     } else {
-                        char literal[ZIR_TEXT_MAX];
                         if(!EvaluateCompileLiteral(module, expression,
-                                                   definition->span, 1, literal,
-                                                   sizeof(literal), NULL))
+                                                   definition->span, 1, buffers->literal,
+                                                   sizeof(buffers->literal), NULL))
                             continue;
                         copy_text(definition->value,
-                                  sizeof(definition->value), literal);
+                                  sizeof(definition->value), buffers->literal);
                     }
                     progress++;
                 }
@@ -298,16 +315,15 @@ CheckPrograms(ZirProgram **programs, int count)
                 long value = 0;
                 if(!EvaluateCompileExpression(module,
                         assertion->condition, assertion->span, 0, &value)) {
-                    char literal[ZIR_TEXT_MAX];
                     if(!EvaluateCompileLiteral(module,
                             assertion->condition, assertion->span, 0,
-                            literal, sizeof(literal), NULL) ||
-                       (strcmp(literal, "0") && strcmp(literal, "1"))) {
+                            buffers->literal, sizeof(buffers->literal), NULL) ||
+                       (strcmp(buffers->literal, "0") && strcmp(buffers->literal, "1"))) {
                         Diagnostic(assertion->span, "check.assert",
                                    "#assert requires a compile-time constant condition");
                         return 0;
                     }
-                    value = literal[0] == '1';
+                    value = buffers->literal[0] == '1';
                 }
                 snprintf(assertion->condition,
                          sizeof(assertion->condition), "%d", value != 0);
@@ -321,26 +337,26 @@ CheckPrograms(ZirProgram **programs, int count)
                 ZirGlobal *global = &module->globals[g];
                 if(!global->init[0]) continue;
                 select_lookup_file(module, global->span);
-                ZirFunction raw = {0};
-                int raw_root = ParseExpr(&raw, module, global->init,
+                memset(&buffers->raw, 0, sizeof(buffers->raw));
+                int raw_root = ParseExpr(&buffers->raw, module, global->init,
                                          global->span);
                 int literal_initializer = raw_root >= 0 &&
-                    raw.exprs[raw_root].kind == ZIR_EXPR_COMPOUND;
+                    buffers->raw.exprs[raw_root].kind == ZIR_EXPR_COMPOUND;
                 char constant_name[ZIR_NAME_MAX] = "";
                 if(raw_root >= 0 &&
-                   raw.exprs[raw_root].kind == ZIR_EXPR_IDENT)
+                   buffers->raw.exprs[raw_root].kind == ZIR_EXPR_IDENT)
                     copy_text(constant_name, sizeof(constant_name),
-                              raw.exprs[raw_root].name);
+                              buffers->raw.exprs[raw_root].name);
                 else if(raw_root >= 0 &&
-                        raw.exprs[raw_root].kind == ZIR_EXPR_MEMBER &&
-                        raw.exprs[raw_root].left >= 0 &&
-                        raw.exprs[raw.exprs[raw_root].left].kind ==
+                        buffers->raw.exprs[raw_root].kind == ZIR_EXPR_MEMBER &&
+                        buffers->raw.exprs[raw_root].left >= 0 &&
+                        buffers->raw.exprs[buffers->raw.exprs[raw_root].left].kind ==
                             ZIR_EXPR_IDENT) {
                     const ZirExpr *base =
-                        &raw.exprs[raw.exprs[raw_root].left];
+                        &buffers->raw.exprs[buffers->raw.exprs[raw_root].left];
                     int written = snprintf(constant_name,
                         sizeof(constant_name), "%s.%s", base->name,
-                        raw.exprs[raw_root].name);
+                        buffers->raw.exprs[raw_root].name);
                     if(written < 0 ||
                        (size_t)written >= sizeof(constant_name))
                         constant_name[0] = '\0';
@@ -349,106 +365,104 @@ CheckPrograms(ZirProgram **programs, int count)
                     CompoundConstant compound = {0};
                     if(bound_compound_constant(module, constant_name, 0,
                             &compound) == 1) {
-                        char lowered[ZIR_TEXT_MAX];
                         if(!lower_compound_global(module, global, &compound,
-                                                  lowered,
-                                                  sizeof(lowered))) {
+                                                  buffers->lowered,
+                                                  sizeof(buffers->lowered))) {
                             Diagnostic(global->span, "check.constant_type",
                                        "aggregate constant type is unavailable or mismatched: %s",
                                        constant_name);
-                            free(raw.exprs);
+                            free(buffers->raw.exprs);
                             return 0;
                         }
                         copy_text(global->init, sizeof(global->init),
-                                  lowered);
+                                  buffers->lowered);
                         literal_initializer = 1;
                     }
                 }
-                free(raw.exprs);
-                char folded[ZIR_TEXT_MAX];
+                free(buffers->raw.exprs);
                 const ZirModule *folded_owner = NULL;
                 if(!literal_initializer && strcmp(global->type, "bool") &&
                    (EvaluateCompileLiteral(module, global->init,
-                        global->span, 0, folded, sizeof(folded),
+                        global->span, 0, buffers->folded, sizeof(buffers->folded),
                         &folded_owner) ||
                     evaluate_global_startup_literal(module, g, global->init,
-                        global->span, folded, sizeof(folded),
+                        global->span, buffers->folded, sizeof(buffers->folded),
                         &folded_owner))) {
                     if(folded_owner != NULL) {
                         CompoundConstant compound = {0};
                         copy_text(compound.literal,
-                                  sizeof(compound.literal), folded);
+                                  sizeof(compound.literal), buffers->folded);
                         compound.owner = folded_owner;
                         compound_qualifier_for_global(&compound,
                                                       global->type);
                         if(!lower_compound_global(module, global, &compound,
-                                                  folded, sizeof(folded))) {
+                                                  buffers->folded, sizeof(buffers->folded))) {
                             Diagnostic(global->span, "check.constant_type",
                                        "aggregate initializer type is unavailable or mismatched: %s",
                                        global->init);
                             return 0;
                         }
                     }
-                    copy_text(global->init, sizeof(global->init), folded);
+                    copy_text(global->init, sizeof(global->init), buffers->folded);
                 }
                 if(!check_file_private_expression(module, global->init,
                                                   global->span))
                     return 0;
-                ZirFunction expression = {0};
-                int root = ParseExprTyped(&expression, module,
+                memset(&buffers->expression, 0, sizeof(buffers->expression));
+                int root = ParseExprTyped(&buffers->expression, module,
                                           global->init, global->span,
                                           global->type);
                 int valid = root >= 0 &&
-                    expression.exprs[root].kind != ZIR_EXPR_UNKNOWN;
-                if(valid && !check_file_scope_enum_names(module, &expression,
+                    buffers->expression.exprs[root].kind != ZIR_EXPR_UNKNOWN;
+                if(valid && !check_file_scope_enum_names(module, &buffers->expression,
                                                          global->span)) {
-                    free(expression.exprs);
+                    free(buffers->expression.exprs);
                     return 0;
                 }
                 if(valid) {
-                    Checker initializer = {0};
-                    initializer.module = module;
-                    initializer.fn = &expression;
-                    initializer.programs = programs;
-                    initializer.program_count = count;
-                    copy_text(initializer.expected_type,
-                              sizeof(initializer.expected_type),
+                    memset(&buffers->initializer, 0, sizeof(buffers->initializer));
+                    buffers->initializer.module = module;
+                    buffers->initializer.fn = &buffers->expression;
+                    buffers->initializer.programs = programs;
+                    buffers->initializer.program_count = count;
+                    copy_text(buffers->initializer.expected_type,
+                              sizeof(buffers->initializer.expected_type),
                               global->type);
-                    if(!reserve_compound_constants(module, &expression)) {
+                    if(!reserve_compound_constants(module, &buffers->expression)) {
                         Diagnostic(global->span, "check.global",
                                    "global initializer expression is too large");
-                        free(expression.exprs);
+                        free(buffers->expression.exprs);
                         return 0;
                     }
-                    const char *actual = expression_type(&initializer, root);
-                    if(initializer.errors == 0) {
+                    const char *actual = expression_type(&buffers->initializer, root);
+                    if(buffers->initializer.errors == 0) {
                         if(!actual[0])
-                            error(&initializer, global->span,
+                            error(&buffers->initializer, global->span,
                                   "cannot infer initializer type", global->name);
-                        else if(!compatible_checked(&initializer,
+                        else if(!compatible_checked(&buffers->initializer,
                                                     global->type, actual))
-                            error(&initializer, global->span,
+                            error(&buffers->initializer, global->span,
                                   "initializer type mismatch", global->name);
                     }
-                    int typed_valid = initializer.errors == 0 &&
-                                      !initializer.failed;
-                    for(int i = 0; i < initializer.restore_count; i++)
-                        free(initializer.restores[i].states);
-                    free(initializer.bindings);
-                    free(initializer.specializations);
+                    int typed_valid = buffers->initializer.errors == 0 &&
+                                      !buffers->initializer.failed;
+                    for(int i = 0; i < buffers->initializer.restore_count; i++)
+                        free(buffers->initializer.restores[i].states);
+                    free(buffers->initializer.bindings);
+                    free(buffers->initializer.specializations);
                     if(!typed_valid) {
-                        if(initializer.errors == 0)
+                        if(buffers->initializer.errors == 0)
                             Diagnostic(global->span, "check.global",
                                        "cannot check file-scope initializer: %s",
                                        global->name);
-                        free(expression.exprs);
+                        free(buffers->expression.exprs);
                         return 0;
                     }
                 }
                 int runtime_initializer = 0;
                 if(valid)
-                    for(int e = 0; e < expression.expr_count; e++) {
-                        const ZirExpr *node = &expression.exprs[e];
+                    for(int e = 0; e < buffers->expression.expr_count; e++) {
+                        const ZirExpr *node = &buffers->expression.exprs[e];
                         const ZirModule *owner = NULL;
                         const ZirGlobal *referenced = NULL;
                         if(node->kind == ZIR_EXPR_CALL ||
@@ -460,7 +474,7 @@ CheckPrograms(ZirProgram **programs, int count)
                             break;
                         }
                     }
-                free(expression.exprs);
+                free(buffers->expression.exprs);
                 if(!valid) {
                     Diagnostic(global->span, "check.global",
                                "invalid file-scope initializer: %s",
@@ -468,7 +482,7 @@ CheckPrograms(ZirProgram **programs, int count)
                     return 0;
                 }
                 if(runtime_initializer) {
-                    char name[ZIR_NAME_MAX], assignment[ZIR_TEXT_MAX];
+                    char name[ZIR_NAME_MAX];
                     int serial = 0, collision;
                     do {
                         snprintf(name, sizeof(name), "__global_init_%d_%d",
@@ -478,10 +492,10 @@ CheckPrograms(ZirProgram **programs, int count)
                             collision |= strcmp(module->functions[f].name,
                                                 name) == 0;
                     } while(collision);
-                    int written = snprintf(assignment, sizeof(assignment),
+                    int written = snprintf(buffers->assignment, sizeof(buffers->assignment),
                                            "%s = %s", global->name,
                                            global->init);
-                    if(written < 0 || (size_t)written >= sizeof(assignment)) {
+                    if(written < 0 || (size_t)written >= sizeof(buffers->assignment)) {
                         Diagnostic(global->span, "check.global",
                                    "global initializer expression is too large");
                         return 0;
@@ -489,7 +503,7 @@ CheckPrograms(ZirProgram **programs, int count)
                     ZirFunction *startup = ModuleAddFunction(module, name,
                         "", "void", 0, global->span);
                     if(startup == NULL ||
-                       FunctionAddStmt(startup, ZIR_STMT_ASSIGN, assignment,
+                       FunctionAddStmt(startup, ZIR_STMT_ASSIGN, buffers->assignment,
                                        global->span) == NULL)
                         return 0;
                     startup->is_global_initializer = 1;
@@ -588,14 +602,12 @@ CheckPrograms(ZirProgram **programs, int count)
                     }
                     type = &module->types[t];
                     if(type->body[0]) {
-                        char body[sizeof(type->body)];
-                        char expanded[sizeof(type->body)];
-                        copy_text(body, sizeof(body), type->body);
-                        if(!rewrite_type_applications(module, body, expanded,
-                                sizeof(expanded), type->span, 0))
+                        copy_text(buffers->body, sizeof(buffers->body), type->body);
+                        if(!rewrite_type_applications(module, buffers->body, buffers->expanded,
+                                sizeof(buffers->expanded), type->span, 0))
                             return 0;
                         copy_text(module->types[t].body,
-                                  sizeof(module->types[t].body), expanded);
+                                  sizeof(module->types[t].body), buffers->expanded);
                     }
                 }
                 type = &module->types[t];
@@ -615,18 +627,18 @@ CheckPrograms(ZirProgram **programs, int count)
             for(int d = 0; d < module->define_count; d++) {
                 ZirDefine *definition = &module->defines[d];
                 const char *value = skip_ws(definition->value);
-                ZirFunction expression = {0};
+                memset(&buffers->expression, 0, sizeof(buffers->expression));
                 int root;
                 int valid;
                 /* Array type aliases name a storage shape, not a value. */
                 if(value[0] == '[')
                     continue;
-                root = ParseExprNoDefaults(&expression, module,
+                root = ParseExprNoDefaults(&buffers->expression, module,
                                            definition->value,
                                            definition->span);
                 valid = root >= 0 &&
-                    expression.exprs[root].kind != ZIR_EXPR_UNKNOWN;
-                free(expression.exprs);
+                    buffers->expression.exprs[root].kind != ZIR_EXPR_UNKNOWN;
+                free(buffers->expression.exprs);
                 if(!valid) {
                     Diagnostic(definition->span, "check.constant",
                                "invalid file-scope constant: %s",
@@ -639,14 +651,13 @@ CheckPrograms(ZirProgram **programs, int count)
         for(int m = 0; m < programs[p]->module_count; m++) {
             ZirModule *module = &programs[p]->modules[m];
             for(int f = 0; f < module->function_count; f++) {
-                char saved_path[ZIR_PATH_MAX];
-                copy_text(saved_path, sizeof(saved_path),
+                copy_text(buffers->saved_path, sizeof(buffers->saved_path),
                           module->lookup_path);
                 select_lookup_file(module, module->functions[f].span);
                 int normalized = normalize_function_arrays(
                     module, &module->functions[f]);
                 copy_text(module->lookup_path, sizeof(module->lookup_path),
-                          saved_path);
+                          buffers->saved_path);
                 if(!normalized)
                     return 0;
             }
@@ -660,73 +671,71 @@ CheckPrograms(ZirProgram **programs, int count)
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++) {
             ZirModule *module = &programs[p]->modules[m];
-            char saved_path[ZIR_PATH_MAX];
-            copy_text(saved_path, sizeof(saved_path), module->lookup_path);
+            copy_text(buffers->saved_path, sizeof(buffers->saved_path), module->lookup_path);
             for(int g = 0; g < module->global_count; g++) {
                 ZirGlobal *global = &module->globals[g];
                 select_lookup_file(module, global->span);
                 normalize_array(module, global->type, sizeof(global->type));
             }
             copy_text(module->lookup_path, sizeof(module->lookup_path),
-                      saved_path);
+                      buffers->saved_path);
         }
     for(int p = 0; p < count; p++) for(int m = 0; m < programs[p]->module_count; m++) {
-        c.module = &programs[p]->modules[m];
-        for(int i = 0; i < c.module->global_count; i++) {
-            select_lookup_file(c.module, c.module->globals[i].span);
-            const char *type = c.module->globals[i].type;
+        buffers->c.module = &programs[p]->modules[m];
+        for(int i = 0; i < buffers->c.module->global_count; i++) {
+            select_lookup_file(buffers->c.module, buffers->c.module->globals[i].span);
+            const char *type = buffers->c.module->globals[i].type;
             ValidatedRecords checked = {0};
-            const char *error = storage_type_error(c.module, type, NULL, 0,
+            const char *error = storage_type_error(buffers->c.module, type, NULL, 0,
                                                    &checked, NULL, 0);
             free(checked.items);
             if(error != NULL) {
-                ZirSourceSpan span = c.module->globals[i].span;
+                ZirSourceSpan span = buffers->c.module->globals[i].span;
                 Diagnostic(span, "check.storage", "%s: %s", error, type);
-                free(c.bindings);
+                free(buffers->c.bindings);
                 return 0;
             }
         }
-        for(int f = 0; f < c.module->function_count; f++) {
-            if(c.module->functions[f].is_template) {
-                if(!check_template_declaration(&c,
-                        &c.module->functions[f])) {
-                    free(c.bindings);
-                    free(c.specializations);
+        for(int f = 0; f < buffers->c.module->function_count; f++) {
+            if(buffers->c.module->functions[f].is_template) {
+                if(!check_template_declaration(&buffers->c,
+                        &buffers->c.module->functions[f])) {
+                    free(buffers->c.bindings);
+                    free(buffers->c.specializations);
                     return 0;
                 }
                 continue;
             }
-            if(!check_function(&c, &c.module->functions[f])) {
-                free(c.bindings);
-                free(c.specializations);
+            if(!check_function(&buffers->c, &buffers->c.module->functions[f])) {
+                free(buffers->c.bindings);
+                free(buffers->c.specializations);
                 return 0;
             }
-
         }
-        c.module->lookup_path[0] = '\0';
+        buffers->c.module->lookup_path[0] = '\0';
     }
     for(;;) {
-        int pending = c.specialization_count;
+        int pending = buffers->c.specialization_count;
         if(pending == 0) break;
-        if(!instantiate_specializations(&c)) {
-            free(c.bindings);
-            free(c.specializations);
+        if(!instantiate_specializations(&buffers->c)) {
+            free(buffers->c.bindings);
+            free(buffers->c.specializations);
             return 0;
         }
         for(int p = 0; p < count; p++)
             for(int m = 0; m < programs[p]->module_count; m++) {
-                c.module = &programs[p]->modules[m];
-                for(int f = 0; f < c.module->function_count; f++) {
-                    ZirFunction *instance = &c.module->functions[f];
+                buffers->c.module = &programs[p]->modules[m];
+                for(int f = 0; f < buffers->c.module->function_count; f++) {
+                    ZirFunction *instance = &buffers->c.module->functions[f];
                     if(!instance->is_specialization || instance->checked)
                         continue;
-                    if(!check_function(&c, instance)) {
-                        free(c.bindings);
-                        free(c.specializations);
+                    if(!check_function(&buffers->c, instance)) {
+                        free(buffers->c.bindings);
+                        free(buffers->c.specializations);
                         return 0;
                     }
                 }
-                c.module->lookup_path[0] = '\0';
+                buffers->c.module->lookup_path[0] = '\0';
             }
     }
     /* Runtime implementations become host methods when they need host services.
@@ -756,9 +765,9 @@ CheckPrograms(ZirProgram **programs, int count)
             }
         }
     } while(changed);
-    free(c.bindings);
-    free(c.specializations);
-    if(c.failed || c.errors != 0 || !CheckSliceLifetimes(programs, count))
+    free(buffers->c.bindings);
+    free(buffers->c.specializations);
+    if(buffers->c.failed || buffers->c.errors != 0 || !CheckSliceLifetimes(programs, count))
         return 0;
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++)
@@ -773,4 +782,19 @@ CheckPrograms(ZirProgram **programs, int count)
     if(!CheckLawGates(programs, count))
         return 0;
     return 1;
+}
+
+int
+CheckPrograms(ZirProgram **programs, int count)
+{
+    static _Thread_local CheckProgramsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CheckProgramsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = CheckPrograms_with_buffers(programs, count, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }

@@ -69,32 +69,57 @@ file_private_name(const ZirModule *module, const char *name,
             return 1;
     return 0;
 }
+/* Buffers check_file_private_expression keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CheckFilePrivateExpressionBuffers {
+    ZirToken previous;
+    ZirToken current;
+    ZirToken next;
+} CheckFilePrivateExpressionBuffers;
+
+int check_file_private_expression(const ZirModule *module, const char *source,
+                              ZirSourceSpan span);
+
+static int
+check_file_private_expression_with_buffers(const ZirModule *module, const char *source,
+                              ZirSourceSpan span, CheckFilePrivateExpressionBuffers *buffers)
+{
+    ZirLexer lexer;
+    memset(&buffers->previous, 0, sizeof(buffers->previous));
+    LexerInit(&lexer, source, SpanPath(span));
+    buffers->current = LexerNext(&lexer);
+    buffers->next = LexerNext(&lexer);
+    while(buffers->current.kind != ZIR_TOKEN_EOF) {
+        if(buffers->current.kind == ZIR_TOKEN_IDENT &&
+           strcmp(buffers->previous.text, ".") != 0 &&
+           strcmp(buffers->next.text, ":") != 0 &&
+           file_private_name(module, buffers->current.text, SpanPath(span))) {
+            Diagnostic(span, "check.file_scope",
+                       "file-private declaration is not visible: %s",
+                       buffers->current.text);
+            return 0;
+        }
+        buffers->previous = buffers->current;
+        buffers->current = buffers->next;
+        buffers->next = LexerNext(&lexer);
+    }
+    return 1;
+}
 
 int
 check_file_private_expression(const ZirModule *module, const char *source,
                               ZirSourceSpan span)
 {
-    ZirLexer lexer;
-    ZirToken previous = {0};
-    ZirToken current, next;
-    LexerInit(&lexer, source, SpanPath(span));
-    current = LexerNext(&lexer);
-    next = LexerNext(&lexer);
-    while(current.kind != ZIR_TOKEN_EOF) {
-        if(current.kind == ZIR_TOKEN_IDENT &&
-           strcmp(previous.text, ".") != 0 &&
-           strcmp(next.text, ":") != 0 &&
-           file_private_name(module, current.text, SpanPath(span))) {
-            Diagnostic(span, "check.file_scope",
-                       "file-private declaration is not visible: %s",
-                       current.text);
-            return 0;
-        }
-        previous = current;
-        current = next;
-        next = LexerNext(&lexer);
-    }
-    return 1;
+    static _Thread_local CheckFilePrivateExpressionBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CheckFilePrivateExpressionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = check_file_private_expression_with_buffers(module, source, span, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -179,36 +204,46 @@ opened_file_enum(ZirModule *module, const char *name,
     }
     return found != NULL;
 }
-
-int
-LowerFileScopeUsing(ZirModule *module, char *source, size_t capacity,
-                    ZirSourceSpan span)
-{
-    if(module->using_count == 0 || !source[0]) return 1;
+/* Buffers LowerFileScopeUsing keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerFileScopeUsingBuffers {
     char saved_path[ZIR_PATH_MAX];
     char output[ZIR_TEXT_MAX];
+    ZirToken previous;
+    ZirToken current;
+    ZirToken next;
+} LowerFileScopeUsingBuffers;
+
+int LowerFileScopeUsing(ZirModule *module, char *source, size_t capacity,
+                    ZirSourceSpan span);
+
+static int
+LowerFileScopeUsing_with_buffers(ZirModule *module, char *source, size_t capacity,
+                    ZirSourceSpan span, LowerFileScopeUsingBuffers *buffers)
+{
+    if(module->using_count == 0 || !source[0]) return 1;
     ZirLexer lexer;
-    ZirToken previous = {0};
+    memset(&buffers->previous, 0, sizeof(buffers->previous));
     size_t used = 0, copied = 0;
-    copy_text(saved_path, sizeof(saved_path), module->lookup_path);
+    copy_text(buffers->saved_path, sizeof(buffers->saved_path), module->lookup_path);
     select_lookup_file(module, span);
     LexerInit(&lexer, source, SpanPath(span));
-    ZirToken current = LexerNext(&lexer);
+    buffers->current = LexerNext(&lexer);
     size_t end = lexer.pos;
-    while(current.kind != ZIR_TOKEN_EOF) {
-        ZirToken next = LexerNext(&lexer);
-        size_t start = end - strlen(current.text);
+    while(buffers->current.kind != ZIR_TOKEN_EOF) {
+        buffers->next = LexerNext(&lexer);
+        size_t start = end - strlen(buffers->current.text);
         int64_t value = 0;
         int opened = 0;
-        if(current.kind == ZIR_TOKEN_IDENT && !current.truncated &&
-           strcmp(previous.text, ".") != 0 &&
-           strcmp(next.text, "=") != 0 &&
-           strcmp(next.text, ":") != 0 &&
-           !file_scope_symbol_visible(module, current.text))
-            opened = opened_file_enum(module, current.text, span, &value);
+        if(buffers->current.kind == ZIR_TOKEN_IDENT && !buffers->current.truncated &&
+           strcmp(buffers->previous.text, ".") != 0 &&
+           strcmp(buffers->next.text, "=") != 0 &&
+           strcmp(buffers->next.text, ":") != 0 &&
+           !file_scope_symbol_visible(module, buffers->current.text))
+            opened = opened_file_enum(module, buffers->current.text, span, &value);
         if(opened < 0) {
             copy_text(module->lookup_path, sizeof(module->lookup_path),
-                      saved_path);
+                      buffers->saved_path);
             return 0;
         }
         if(opened > 0) {
@@ -216,28 +251,44 @@ LowerFileScopeUsing(ZirModule *module, char *source, size_t capacity,
             int length = snprintf(number, sizeof(number), "%lld",
                                   (long long)value);
             if(length < 0 || used + start - copied + (size_t)length >=
-                             sizeof(output)) goto failed;
-            memcpy(output + used, source + copied, start - copied);
+                             sizeof(buffers->output)) goto failed;
+            memcpy(buffers->output + used, source + copied, start - copied);
             used += start - copied;
-            memcpy(output + used, number, (size_t)length);
+            memcpy(buffers->output + used, number, (size_t)length);
             used += (size_t)length;
             copied = end;
         }
-        previous = current;
-        current = next;
+        buffers->previous = buffers->current;
+        buffers->current = buffers->next;
         end = lexer.pos;
     }
-    if(used + strlen(source + copied) >= sizeof(output) ||
+    if(used + strlen(source + copied) >= sizeof(buffers->output) ||
        used + strlen(source + copied) >= capacity) goto failed;
-    copy_text(output + used, sizeof(output) - used, source + copied);
-    copy_text(source, capacity, output);
-    copy_text(module->lookup_path, sizeof(module->lookup_path), saved_path);
+    copy_text(buffers->output + used, sizeof(buffers->output) - used, source + copied);
+    copy_text(source, capacity, buffers->output);
+    copy_text(module->lookup_path, sizeof(module->lookup_path), buffers->saved_path);
     return 1;
 failed:
-    copy_text(module->lookup_path, sizeof(module->lookup_path), saved_path);
+    copy_text(module->lookup_path, sizeof(module->lookup_path), buffers->saved_path);
     Diagnostic(span, "check.enum_scope",
                "cannot lower file-scope using expression");
     return 0;
+}
+
+int
+LowerFileScopeUsing(ZirModule *module, char *source, size_t capacity,
+                    ZirSourceSpan span)
+{
+    static _Thread_local LowerFileScopeUsingBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerFileScopeUsingBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = LowerFileScopeUsing_with_buffers(module, source, capacity, span, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int
@@ -326,18 +377,26 @@ align_size(size_t value, size_t alignment, size_t *rounded)
     *rounded = ((value + alignment - 1) / alignment) * alignment;
     return 1;
 }
+/* Buffers layout_type keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LayoutTypeBuffers {
+    ZirType instance;
+    ZirFunction probe;
+} LayoutTypeBuffers;
 
-int
-layout_type(const ZirModule *module, const char *source, int depth,
-            size_t *size, size_t *alignment)
+int layout_type(const ZirModule *module, const char *source, int depth,
+            size_t *size, size_t *alignment);
+
+static int
+layout_type_with_buffers(const ZirModule *module, const char *source, int depth,
+            size_t *size, size_t *alignment, LayoutTypeBuffers *buffers)
 {
     char type[ZIR_NAME_MAX], element[ZIR_NAME_MAX];
     const char *scalar;
     const ZirModule *owner = NULL;
     const ZirType *record;
-    ZirType instance = {0};
+    memset(&buffers->instance, 0, sizeof(buffers->instance));
     int capacity = 0;
-
     if(depth > 32 || strlen(source) >= sizeof(type)) return 0;
     copy_text(type, sizeof(type), source);
     trim_in_place(type);
@@ -394,7 +453,7 @@ layout_type(const ZirModule *module, const char *source, int depth,
         if(capacity < 0) {
             const char *close = strchr(type, ']');
             char bound[ZIR_NAME_MAX];
-            ZirFunction probe = {0};
+            memset(&buffers->probe, 0, sizeof(buffers->probe));
             int64_t resolved = -1;
             int root, status;
             size_t length = close ? (size_t)(close - type - 1) : 0;
@@ -402,10 +461,10 @@ layout_type(const ZirModule *module, const char *source, int depth,
             memcpy(bound, type + 1, length);
             bound[length] = '\0';
             trim_in_place(bound);
-            root = ParseExpr(&probe, module, bound, Span("", 0, 0));
-            status = bound_expression(module, &probe, root,
+            root = ParseExpr(&buffers->probe, module, bound, Span("", 0, 0));
+            status = bound_expression(module, &buffers->probe, root,
                                       depth + 1, &resolved);
-            free(probe.exprs);
+            free(buffers->probe.exprs);
             if(status != 1 || resolved < 0 || resolved > INT32_MAX)
                 return 0;
             capacity = (int)resolved;
@@ -435,21 +494,21 @@ layout_type(const ZirModule *module, const char *source, int depth,
             if(length > 0 && length < sizeof(base) && balanced &&
                nesting == 0 &&
                (size_t)(closing - opening - 1) <
-                   sizeof(instance.template_args)) {
+                   sizeof(buffers->instance.template_args)) {
                 memcpy(base, type, length);
                 base[length] = '\0';
                 trim_in_place(base);
                 const ZirType *generic = FindType(module, base, &owner);
                 if(generic != NULL && generic->is_record_template) {
-                    copy_text(instance.name, sizeof(instance.name), type);
-                    copy_text(instance.template_name,
-                              sizeof(instance.template_name), base);
-                    memcpy(instance.template_args, opening + 1,
+                    copy_text(buffers->instance.name, sizeof(buffers->instance.name), type);
+                    copy_text(buffers->instance.template_name,
+                              sizeof(buffers->instance.template_name), base);
+                    memcpy(buffers->instance.template_args, opening + 1,
                            (size_t)(closing - opening - 1));
-                    instance.template_args[closing - opening - 1] = '\0';
-                    instance.is_type_instance = 1;
-                    if(!InstantiateGenericRecord(&instance, generic)) return 0;
-                    record = &instance;
+                    buffers->instance.template_args[closing - opening - 1] = '\0';
+                    buffers->instance.is_type_instance = 1;
+                    if(!InstantiateGenericRecord(&buffers->instance, generic)) return 0;
+                    record = &buffers->instance;
                 }
             }
         }
@@ -457,10 +516,10 @@ layout_type(const ZirModule *module, const char *source, int depth,
         const ZirType *generic = FindType(owner ? owner : module,
                                           record->template_name, NULL);
         if(generic == NULL || !generic->is_record_template) return 0;
-        instance = *record;
-        instance.body[0] = '\0';
-        if(!InstantiateGenericRecord(&instance, generic)) return 0;
-        record = &instance;
+        buffers->instance = *record;
+        buffers->instance.body[0] = '\0';
+        if(!InstantiateGenericRecord(&buffers->instance, generic)) return 0;
+        record = &buffers->instance;
     }
     if(record == NULL) {
         const ZirDefine *definition = NULL;
@@ -499,6 +558,22 @@ layout_type(const ZirModule *module, const char *source, int depth,
         return 0;
     *alignment = maximum_alignment;
     return 1;
+}
+
+int
+layout_type(const ZirModule *module, const char *source, int depth,
+            size_t *size, size_t *alignment)
+{
+    static _Thread_local LayoutTypeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LayoutTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = layout_type_with_buffers(module, source, depth, size, alignment, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int
@@ -1009,89 +1084,117 @@ opened_file_record(Checker *scope, const char *name, ZirSourceSpan span,
     }
     return path[0] != '\0';
 }
+/* Buffers lower_file_record_using keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerFileRecordUsingBuffers {
+    char saved_path[ZIR_PATH_MAX];
+    Checker scope;
+    char output[ZIR_TEXT_MAX];
+    ZirToken previous;
+    ZirToken current;
+    ZirToken next;
+    char path[ZIR_TEXT_MAX];
+} LowerFileRecordUsingBuffers;
 
-int
-lower_file_record_using(ZirModule *module, char *source, size_t capacity,
-                        ZirSourceSpan span)
+int lower_file_record_using(ZirModule *module, char *source, size_t capacity,
+                        ZirSourceSpan span);
+
+static int
+lower_file_record_using_with_buffers(ZirModule *module, char *source, size_t capacity,
+                        ZirSourceSpan span, LowerFileRecordUsingBuffers *buffers)
 {
     if(module->using_count == 0 || !source[0]) return 1;
-    char saved_path[ZIR_PATH_MAX];
-    copy_text(saved_path, sizeof(saved_path), module->lookup_path);
+    copy_text(buffers->saved_path, sizeof(buffers->saved_path), module->lookup_path);
     select_lookup_file(module, span);
-    Checker scope = {.module = module};
+    memset(&buffers->scope, 0, sizeof(buffers->scope)); buffers->scope.module = module;
     for(int i = 0; i < module->using_count; i++) {
         const ZirUsing *using = &module->usings[i];
         if(!in_lookup_file(module, using->is_file_private, using->span))
             continue;
         const ZirType *type = FindType(module, using->path, NULL);
         if(type != NULL && type->is_enum) continue;
-        activate_using_filtered(&scope, using->path,
+        activate_using_filtered(&buffers->scope, using->path,
                                 using->filter, using->span);
-        if(scope.failed || scope.errors) goto failed;
+        if(buffers->scope.failed || buffers->scope.errors) goto failed;
     }
-    char output[ZIR_TEXT_MAX];
     ZirLexer lexer;
-    ZirToken previous = {0};
+    memset(&buffers->previous, 0, sizeof(buffers->previous));
     size_t used = 0, copied = 0;
     LexerInit(&lexer, source, SpanPath(span));
-    ZirToken current = LexerNext(&lexer);
+    buffers->current = LexerNext(&lexer);
     size_t end = lexer.pos;
-    while(current.kind != ZIR_TOKEN_EOF) {
-        ZirToken next = LexerNext(&lexer);
-        size_t start = end - strlen(current.text);
-        char path[ZIR_TEXT_MAX] = "";
+    while(buffers->current.kind != ZIR_TOKEN_EOF) {
+        buffers->next = LexerNext(&lexer);
+        size_t start = end - strlen(buffers->current.text);
+        buffers->path[0] = '\0';
         int opened = 0;
-        if(current.kind == ZIR_TOKEN_IDENT && !current.truncated &&
-           strcmp(previous.text, ".") != 0 &&
-           strcmp(next.text, "=") != 0 &&
-           strcmp(next.text, ":") != 0 &&
-           !file_scope_symbol_visible(module, current.text))
-            opened = opened_file_record(&scope, current.text, span,
-                                        path, sizeof(path));
+        if(buffers->current.kind == ZIR_TOKEN_IDENT && !buffers->current.truncated &&
+           strcmp(buffers->previous.text, ".") != 0 &&
+           strcmp(buffers->next.text, "=") != 0 &&
+           strcmp(buffers->next.text, ":") != 0 &&
+           !file_scope_symbol_visible(module, buffers->current.text))
+            opened = opened_file_record(&buffers->scope, buffers->current.text, span,
+                                        buffers->path, sizeof(buffers->path));
         if(opened > 0) {
             int64_t enum_value = 0;
-            int enumeration = opened_file_enum(module, current.text,
+            int enumeration = opened_file_enum(module, buffers->current.text,
                                                span, &enum_value);
             if(enumeration > 0) {
                 Diagnostic(span, "check.using_scope",
-                           "ambiguous using field: %s", current.text);
+                           "ambiguous using field: %s", buffers->current.text);
                 opened = -1;
             } else if(enumeration < 0)
                 opened = -1;
         }
         if(opened < 0) goto failed;
         if(opened > 0) {
-            size_t length = strlen(path);
-            if(used + start - copied + length >= sizeof(output)) {
+            size_t length = strlen(buffers->path);
+            if(used + start - copied + length >= sizeof(buffers->output)) {
                 Diagnostic(span, "check.using_scope",
                            "file-scope using expression is too long");
                 goto failed;
             }
-            memcpy(output + used, source + copied, start - copied);
+            memcpy(buffers->output + used, source + copied, start - copied);
             used += start - copied;
-            memcpy(output + used, path, length);
+            memcpy(buffers->output + used, buffers->path, length);
             used += length;
             copied = end;
         }
-        previous = current;
-        current = next;
+        buffers->previous = buffers->current;
+        buffers->current = buffers->next;
         end = lexer.pos;
     }
-    if(used + strlen(source + copied) >= sizeof(output) ||
+    if(used + strlen(source + copied) >= sizeof(buffers->output) ||
        used + strlen(source + copied) >= capacity) {
         Diagnostic(span, "check.using_scope",
                    "file-scope using expression is too long");
         goto failed;
     }
-    copy_text(output + used, sizeof(output) - used, source + copied);
-    copy_text(source, capacity, output);
-    free(scope.bindings);
-    copy_text(module->lookup_path, sizeof(module->lookup_path), saved_path);
+    copy_text(buffers->output + used, sizeof(buffers->output) - used, source + copied);
+    copy_text(source, capacity, buffers->output);
+    free(buffers->scope.bindings);
+    copy_text(module->lookup_path, sizeof(module->lookup_path), buffers->saved_path);
     return 1;
 failed:
-    free(scope.bindings);
-    copy_text(module->lookup_path, sizeof(module->lookup_path), saved_path);
+    free(buffers->scope.bindings);
+    copy_text(module->lookup_path, sizeof(module->lookup_path), buffers->saved_path);
     return 0;
+}
+
+int
+lower_file_record_using(ZirModule *module, char *source, size_t capacity,
+                        ZirSourceSpan span)
+{
+    static _Thread_local LowerFileRecordUsingBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerFileRecordUsingBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = lower_file_record_using_with_buffers(module, source, capacity, span, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* Earlier initialized globals have known startup values. Expose those values

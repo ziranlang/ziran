@@ -131,13 +131,20 @@ local_storage_error(const ZirModule *module, const char *type)
     free(checked.items);
     return problem;
 }
+/* Buffers declared_application_valid keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct DeclaredApplicationValidBuffers {
+    char arguments[ZIR_TEXT_MAX];
+    char actual[16][ZIR_NAME_MAX];
+    char parameters[16][ZIR_NAME_MAX];
+} DeclaredApplicationValidBuffers;
+
+static int declared_application_valid(const ZirModule *module, const char *text, int depth);
 
 static int
-declared_application_valid(const ZirModule *module, const char *text, int depth)
+declared_application_valid_with_buffers(const ZirModule *module, const char *text, int depth, DeclaredApplicationValidBuffers *buffers)
 {
     char name[ZIR_NAME_MAX];
-    char arguments[ZIR_TEXT_MAX];
-    char actual[16][ZIR_NAME_MAX], parameters[16][ZIR_NAME_MAX];
     size_t length = 0;
     const char *cursor = skip_ws(text);
     if(depth > 16) return 0;
@@ -155,26 +162,50 @@ declared_application_valid(const ZirModule *module, const char *text, int depth)
         if(nesting) cursor++;
     }
     if(nesting || *skip_ws(cursor + 1) != '\0' ||
-       (size_t)(cursor - start) >= sizeof(arguments)) return 0;
-    memcpy(arguments, start, (size_t)(cursor - start));
-    arguments[cursor - start] = '\0';
+       (size_t)(cursor - start) >= sizeof(buffers->arguments)) return 0;
+    memcpy(buffers->arguments, start, (size_t)(cursor - start));
+    buffers->arguments[cursor - start] = '\0';
     const ZirType *generic = FindType(module, name, NULL);
     if(generic == NULL || !generic->is_record_template)
         return 0;
-    int expected = split_top_level(generic->template_params, parameters[0],
-                                   16, sizeof(parameters[0]));
-    int count = split_top_level(arguments, actual[0],
-                                16, sizeof(actual[0]));
+    int expected = split_top_level(generic->template_params, buffers->parameters[0],
+                                   16, sizeof(buffers->parameters[0]));
+    int count = split_top_level(buffers->arguments, buffers->actual[0],
+                                16, sizeof(buffers->actual[0]));
     if(count != expected || count < 1 || count >= 16) return 0;
     for(int i = 0; i < count; i++)
-        if(!declared_application_valid(module, actual[i], depth + 1) &&
-           local_storage_error(module, actual[i]) != NULL)
+        if(!declared_application_valid(module, buffers->actual[i], depth + 1) &&
+           local_storage_error(module, buffers->actual[i]) != NULL)
             return 0;
     return 1;
 }
 
-int
-check_type_declarations(ZirModule *module)
+static int
+declared_application_valid(const ZirModule *module, const char *text, int depth)
+{
+    static _Thread_local DeclaredApplicationValidBuffers *spares[16];
+    static _Thread_local int spare_count;
+    DeclaredApplicationValidBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = declared_application_valid_with_buffers(module, text, depth, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers check_type_declarations keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CheckTypeDeclarationsBuffers {
+    char parameters[16][ZIR_NAME_MAX];
+    char concrete[16][ZIR_NAME_MAX];
+    char parameters_2[64][ZIR_TEXT_MAX];
+} CheckTypeDeclarationsBuffers;
+
+int check_type_declarations(ZirModule *module);
+
+static int
+check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuffers *buffers)
 {
     for(int i = 0; i < module->type_count; i++) {
         const ZirType *record = &module->types[i];
@@ -182,7 +213,6 @@ check_type_declarations(ZirModule *module)
         size_t offset = 0;
         int status;
         ZirTypeField field;
-
         if(record->name[0] == '#')
             return record_declaration_error(record,
                 "retired compiler-generated type", NULL);
@@ -197,28 +227,26 @@ check_type_declarations(ZirModule *module)
                 return record_declaration_error(record, "duplicate type declaration", NULL);
         }
         if(record->is_record_template) {
-            char parameters[16][ZIR_NAME_MAX];
-            char concrete[16][ZIR_NAME_MAX];
             int parameter_count = split_top_level(record->template_params,
-                parameters[0], 16, sizeof(parameters[0]));
+                buffers->parameters[0], 16, sizeof(buffers->parameters[0]));
             if(parameter_count < 1 || parameter_count >= 16)
                 return record_declaration_error(record,
                     "invalid generic type parameters", NULL);
             for(int parameter = 0; parameter < parameter_count; parameter++) {
                 const unsigned char *name =
-                    (const unsigned char *)parameters[parameter];
+                    (const unsigned char *)buffers->parameters[parameter];
                 if(!isalpha(*name) && *name != '_')
                     return record_declaration_error(record,
-                        "invalid generic type parameter", parameters[parameter]);
+                        "invalid generic type parameter", buffers->parameters[parameter]);
                 for(name++; *name; name++)
                     if(!isalnum(*name) && *name != '_')
                         return record_declaration_error(record,
-                            "invalid generic type parameter", parameters[parameter]);
+                            "invalid generic type parameter", buffers->parameters[parameter]);
                 for(int earlier = 0; earlier < parameter; earlier++)
-                    if(!strcmp(parameters[earlier], parameters[parameter]))
+                    if(!strcmp(buffers->parameters[earlier], buffers->parameters[parameter]))
                         return record_declaration_error(record,
-                            "duplicate generic type parameter", parameters[parameter]);
-                copy_text(concrete[parameter], sizeof(concrete[parameter]),
+                            "duplicate generic type parameter", buffers->parameters[parameter]);
+                copy_text(buffers->concrete[parameter], sizeof(buffers->concrete[parameter]),
                           "s32");
             }
             int members = 0;
@@ -240,7 +268,7 @@ check_type_declarations(ZirModule *module)
                     }
                     char resolved[ZIR_NAME_MAX];
                     if(!SubstituteGenericType(item.type, resolved,
-                            sizeof(resolved), parameters, concrete,
+                            sizeof(resolved), buffers->parameters, buffers->concrete,
                             parameter_count))
                         return record_declaration_error(record,
                             "generic record field type exceeds size limit",
@@ -278,15 +306,14 @@ check_type_declarations(ZirModule *module)
                (result_base_type && result_base_type->is_procedure_type))
                 return record_declaration_error(record,
                     "invalid procedure type result", record->procedure_return_type);
-            char parameters[64][ZIR_TEXT_MAX];
             int count = *skip_ws(record->body) ?
-                split_top_level(record->body, parameters[0], 64, sizeof(parameters[0])) : 0;
+                split_top_level(record->body, buffers->parameters_2[0], 64, sizeof(buffers->parameters_2[0])) : 0;
             for(int parameter = 0; parameter < count; parameter++) {
-                char *colon = strchr(parameters[parameter], ':');
+                char *colon = strchr(buffers->parameters_2[parameter], ':');
                 if(colon == NULL)
                     return record_declaration_error(record, "slot parameters require name: type", NULL);
                 *colon++ = '\0';
-                trim_in_place(parameters[parameter]);
+                trim_in_place(buffers->parameters_2[parameter]);
                 trim_in_place(colon);
                 /* Pointer slot parameters name a pointee type: strip the
                  * leading '*' chain before resolving the base type. */
@@ -296,23 +323,22 @@ check_type_declarations(ZirModule *module)
                 const ZirType *type = FindType(module, colon, NULL);
                 const ZirType *base_type = type != NULL ? type :
                     FindType(module, base, NULL);
-                if(!*parameters[parameter] || !strcmp(colon, "void") ||
+                if(!*buffers->parameters_2[parameter] || !strcmp(colon, "void") ||
                    (record->is_c_call ?
                     local_storage_error(module, colon) != NULL :
                     (TargetType(colon, ZIR_C) == NULL &&
                      TargetType(base, ZIR_C) == NULL && base_type == NULL)) ||
                    (base_type && base_type->is_procedure_type))
-                    return record_declaration_error(record, "invalid slot parameter", parameters[parameter]);
+                    return record_declaration_error(record, "invalid slot parameter", buffers->parameters_2[parameter]);
                 for(int previous = 0; previous < parameter; previous++)
-                    if(!strcmp(parameters[previous], parameters[parameter]))
-                        return record_declaration_error(record, "duplicate slot parameter", parameters[parameter]);
+                    if(!strcmp(buffers->parameters_2[previous], buffers->parameters_2[parameter]))
+                        return record_declaration_error(record, "duplicate slot parameter", buffers->parameters_2[parameter]);
             }
             continue;
         }
         while((status = TypeNextField(record, &offset, &field)) == 1) {
             size_t previous_offset = 0;
             ZirTypeField previous;
-
             if(strcmp(field.type, "void") == 0)
                 return record_declaration_error(record, "record field cannot have void type", field.name);
             if(field.is_using) {
@@ -344,11 +370,31 @@ check_type_declarations(ZirModule *module)
     return 1;
 }
 
-/* Checked record layouts carry concrete array sizes into saved IR and ZIB.
- * A bundle intentionally omits source definitions, so a field must not keep
- * depending on a compile-time name after this point. */
 int
-normalize_record_arrays(ZirModule *module)
+check_type_declarations(ZirModule *module)
+{
+    static _Thread_local CheckTypeDeclarationsBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CheckTypeDeclarationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = check_type_declarations_with_buffers(module, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
+}
+/* Buffers normalize_record_arrays keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct NormalizeRecordArraysBuffers {
+    char normalized[sizeof(((ZirTypeField *)0)->type)];
+    char body[sizeof(((ZirType *)0)->body)];
+} NormalizeRecordArraysBuffers;
+
+int normalize_record_arrays(ZirModule *module);
+
+static int
+normalize_record_arrays_with_buffers(ZirModule *module, NormalizeRecordArraysBuffers *buffers)
 {
     for(int i = 0; i < module->type_count; i++) {
         ZirType *record = &module->types[i];
@@ -359,25 +405,24 @@ normalize_record_arrays(ZirModule *module)
         ZirTypeField field;
         int status, changed = 0;
         while((status = TypeNextField(record, &offset, &field)) == 1) {
-            char normalized[sizeof(field.type)];
-            copy_text(normalized, sizeof(normalized), field.type);
-            normalize_array(module, normalized, sizeof(normalized));
-            if(strcmp(normalized, field.type) != 0)
+            copy_text(buffers->normalized, sizeof(buffers->normalized), field.type);
+            normalize_array(module, buffers->normalized, sizeof(buffers->normalized));
+            if(strcmp(buffers->normalized, field.type) != 0)
                 changed = 1;
         }
         if(status < 0)
             return 0;
         if(!changed)
             continue;
-        char body[sizeof(record->body)] = "";
+        buffers->body[0] = '\0';
         size_t used = 0;
         offset = 0;
         while((status = TypeNextField(record, &offset, &field)) == 1) {
             normalize_array(module, field.type, sizeof(field.type));
-            int length = snprintf(body + used, sizeof(body) - used,
+            int length = snprintf(buffers->body + used, sizeof(buffers->body) - used,
                                   "%s%s: %s\n", field.is_using ? "using " : "",
                                   field.name, field.type);
-            if(length < 0 || (size_t)length >= sizeof(body) - used) {
+            if(length < 0 || (size_t)length >= sizeof(buffers->body) - used) {
                 Diagnostic(record->span, "check.record", "normalized record is too large: %s",
                            record->name);
                 return 0;
@@ -386,9 +431,27 @@ normalize_record_arrays(ZirModule *module)
         }
         if(status < 0)
             return 0;
-        copy_text(record->body, sizeof(record->body), body);
+        copy_text(record->body, sizeof(record->body), buffers->body);
     }
     return 1;
+}
+
+/* Checked record layouts carry concrete array sizes into saved IR and ZIB.
+ * A bundle intentionally omits source definitions, so a field must not keep
+ * depending on a compile-time name after this point. */
+int
+normalize_record_arrays(ZirModule *module)
+{
+    static _Thread_local NormalizeRecordArraysBuffers *spares[16];
+    static _Thread_local int spare_count;
+    NormalizeRecordArraysBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = normalize_record_arrays_with_buffers(module, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 static int
@@ -634,11 +697,19 @@ enum_case_member(const ZirType *enumeration, const char *label,
     member[length] = '\0';
     return EnumMemberValue(enumeration, member, NULL);
 }
+/* Buffers lower_if_case keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerIfCaseBuffers {
+    char label[ZIR_TEXT_MAX];
+    char line[ZIR_TEXT_MAX];
+    char source[ZIR_TEXT_MAX];
+    char comparison[ZIR_TEXT_MAX];
+} LowerIfCaseBuffers;
 
-/* A Jai if-case evaluates its selector once. With #through, an active flag
- * carries execution into the next arm without retesting its label. */
-int
-lower_if_case(Checker *c, int index, const char *checked_type)
+int lower_if_case(Checker *c, int index, const char *checked_type);
+
+static int
+lower_if_case_with_buffers(Checker *c, int index, const char *checked_type, LowerIfCaseBuffers *buffers)
 {
     ZirFunction *fn = c->fn;
     ZirStmt *head = &fn->stmts[index];
@@ -659,8 +730,7 @@ lower_if_case(Checker *c, int index, const char *checked_type)
          enum_case_members(enumeration, members, member_capacity) : -1) : 0;
     ZirStmt *output = NULL;
     int count = 0, depth = 1, close = -1, default_arm = -1, ok = 0;
-    char label[ZIR_TEXT_MAX], line[ZIR_TEXT_MAX];
-    char source[ZIR_TEXT_MAX], temporary[ZIR_NAME_MAX];
+    char temporary[ZIR_NAME_MAX];
     char active[ZIR_NAME_MAX], matched_name[ZIR_NAME_MAX];
     int length;
     if(cases == NULL || through == NULL ||
@@ -673,7 +743,7 @@ lower_if_case(Checker *c, int index, const char *checked_type)
         if(statement->kind == ZIR_STMT_BLOCK_CLOSE) {
             if(--depth == 0) { close = i; break; }
         } else if(depth == 1 && statement->kind == ZIR_STMT_CASE) {
-            if(!scalar_case_label(statement, label, sizeof(label))) {
+            if(!scalar_case_label(statement, buffers->label, sizeof(buffers->label))) {
                 if_case_error(c, statement->span,
                             "scalar case requires 'case expression;' or 'case;'",
                             statement->text);
@@ -681,7 +751,7 @@ lower_if_case(Checker *c, int index, const char *checked_type)
             }
             if(enumeration != NULL) {
                 char member[ZIR_NAME_MAX];
-                if(!enum_case_member(enumeration, label, member,
+                if(!enum_case_member(enumeration, buffers->label, member,
                                      sizeof(member))) {
                     if_case_error(c, statement->span,
                         "enum case requires 'case .Member;' or 'case Enum.Member;'",
@@ -703,7 +773,7 @@ lower_if_case(Checker *c, int index, const char *checked_type)
                 if_case_error(c, statement->span, "default case must be last", "");
                 goto done;
             }
-            if(label[0] == '\0') default_arm = count;
+            if(buffers->label[0] == '\0') default_arm = count;
             cases[count++] = i;
         } else if(depth == 1 && count == 0) {
             if_case_error(c, statement->span,
@@ -727,14 +797,14 @@ lower_if_case(Checker *c, int index, const char *checked_type)
     if(has_through < 0) goto done;
     int all_return = has_through && (default_arm >= 0 || complete) &&
         if_cases_return(fn, cases, count, close, through);
-    copy_text(source, sizeof(source), head->text);
-    char *equals = strstr(source, "==");
+    copy_text(buffers->source, sizeof(buffers->source), head->text);
+    char *equals = strstr(buffers->source, "==");
     if(equals == NULL) {
         if_case_error(c, head->span, "if-case requires a block", "");
         goto done;
     }
     *equals = '\0';
-    const char *value = skip_ws(source + 2);
+    const char *value = skip_ws(buffers->source + 2);
     if(complete) value = skip_ws(value + strlen("#complete"));
     trim_in_place((char *)value);
     if(!*value) {
@@ -765,76 +835,75 @@ lower_if_case(Checker *c, int index, const char *checked_type)
     const char *storage = !strcmp(checked_type, "integer") ? "s64" :
                           !strcmp(checked_type, "real") ? "float64" :
                           checked_type;
-    length = snprintf(line, sizeof(line), "%s: %s = %s",
+    length = snprintf(buffers->line, sizeof(buffers->line), "%s: %s = %s",
                       temporary, storage, value);
-    if(length < 0 || (size_t)length >= sizeof(line)) goto too_long;
-    if_case_generated(&output[next++], ZIR_STMT_DECL, line, head->span);
+    if(length < 0 || (size_t)length >= sizeof(buffers->line)) goto too_long;
+    if_case_generated(&output[next++], ZIR_STMT_DECL, buffers->line, head->span);
     if(has_through) {
-        length = snprintf(line, sizeof(line), "%s: bool = false", active);
-        if(length < 0 || (size_t)length >= sizeof(line)) goto too_long;
-        if_case_generated(&output[next++], ZIR_STMT_DECL, line, head->span);
+        length = snprintf(buffers->line, sizeof(buffers->line), "%s: bool = false", active);
+        if(length < 0 || (size_t)length >= sizeof(buffers->line)) goto too_long;
+        if_case_generated(&output[next++], ZIR_STMT_DECL, buffers->line, head->span);
         if(default_arm >= 0 || complete) {
-            length = snprintf(line, sizeof(line), "%s: bool = false",
+            length = snprintf(buffers->line, sizeof(buffers->line), "%s: bool = false",
                               matched_name);
-            if(length < 0 || (size_t)length >= sizeof(line)) goto too_long;
-            if_case_generated(&output[next++], ZIR_STMT_DECL, line, head->span);
+            if(length < 0 || (size_t)length >= sizeof(buffers->line)) goto too_long;
+            if_case_generated(&output[next++], ZIR_STMT_DECL, buffers->line, head->span);
         }
     }
     for(int arm = 0; arm < count; arm++) {
         ZirSourceSpan span = fn->stmts[cases[arm]].span;
-        char comparison[ZIR_TEXT_MAX];
-        if(!scalar_case_label(&fn->stmts[cases[arm]], label,
-                              sizeof(label))) goto done;
+        if(!scalar_case_label(&fn->stmts[cases[arm]], buffers->label,
+                              sizeof(buffers->label))) goto done;
         if(enumeration != NULL) {
             char member[ZIR_NAME_MAX];
-            if(!enum_case_member(enumeration, label, member,
+            if(!enum_case_member(enumeration, buffers->label, member,
                                  sizeof(member))) goto done;
             /* Enum references lower to integer literals during a later
              * checker restart. Keep the generated comparison enum typed. */
-            length = snprintf(label, sizeof(label), "cast(%s) %s.%s",
+            length = snprintf(buffers->label, sizeof(buffers->label), "cast(%s) %s.%s",
                               enumeration->name, enumeration->name, member);
-            if(length < 0 || (size_t)length >= sizeof(label)) goto too_long;
+            if(length < 0 || (size_t)length >= sizeof(buffers->label)) goto too_long;
         }
         length = enumeration == NULL ?
-            snprintf(comparison, sizeof(comparison), "(%s)", label) :
-            snprintf(comparison, sizeof(comparison), "%s", label);
-        if(length < 0 || (size_t)length >= sizeof(comparison)) goto too_long;
-        if(label[0] == '\0')
+            snprintf(buffers->comparison, sizeof(buffers->comparison), "(%s)", buffers->label) :
+            snprintf(buffers->comparison, sizeof(buffers->comparison), "%s", buffers->label);
+        if(length < 0 || (size_t)length >= sizeof(buffers->comparison)) goto too_long;
+        if(buffers->label[0] == '\0')
             length = has_through ?
-                snprintf(line, sizeof(line), "if %s || !%s {",
+                snprintf(buffers->line, sizeof(buffers->line), "if %s || !%s {",
                          active, matched_name) :
-                snprintf(line, sizeof(line), "else {");
+                snprintf(buffers->line, sizeof(buffers->line), "else {");
         else
             length = has_through ?
-                snprintf(line, sizeof(line), "if %s || %s == %s {",
-                         active, temporary, comparison) :
-                snprintf(line, sizeof(line), "%s %s == %s {",
-                         arm ? "else if" : "if", temporary, comparison);
-        if(length < 0 || (size_t)length >= sizeof(line)) goto too_long;
-        if_case_generated(&output[next++], ZIR_STMT_IF, line, span);
+                snprintf(buffers->line, sizeof(buffers->line), "if %s || %s == %s {",
+                         active, temporary, buffers->comparison) :
+                snprintf(buffers->line, sizeof(buffers->line), "%s %s == %s {",
+                         arm ? "else if" : "if", temporary, buffers->comparison);
+        if(length < 0 || (size_t)length >= sizeof(buffers->line)) goto too_long;
+        if_case_generated(&output[next++], ZIR_STMT_IF, buffers->line, span);
         if(has_through && (default_arm >= 0 || complete)) {
-            length = snprintf(line, sizeof(line), "%s = true", matched_name);
-            if(length < 0 || (size_t)length >= sizeof(line)) goto too_long;
-            if_case_generated(&output[next++], ZIR_STMT_ASSIGN, line, span);
+            length = snprintf(buffers->line, sizeof(buffers->line), "%s = true", matched_name);
+            if(length < 0 || (size_t)length >= sizeof(buffers->line)) goto too_long;
+            if_case_generated(&output[next++], ZIR_STMT_ASSIGN, buffers->line, span);
         }
         int arm_end = arm + 1 < count ? cases[arm + 1] : close;
         for(int i = cases[arm] + 1; i < arm_end; i++)
             if(!(through[arm] && i == arm_end - 1))
                 output[next++] = fn->stmts[i];
         if(has_through) {
-            length = snprintf(line, sizeof(line), "%s = %s", active,
+            length = snprintf(buffers->line, sizeof(buffers->line), "%s = %s", active,
                               through[arm] ? "true" : "false");
-            if(length < 0 || (size_t)length >= sizeof(line)) goto too_long;
-            if_case_generated(&output[next++], ZIR_STMT_ASSIGN, line, span);
+            if(length < 0 || (size_t)length >= sizeof(buffers->line)) goto too_long;
+            if_case_generated(&output[next++], ZIR_STMT_ASSIGN, buffers->line, span);
         }
         if_case_generated(&output[next++], ZIR_STMT_BLOCK_CLOSE, "}", span);
     }
     if(complete) {
         length = has_through ?
-            snprintf(line, sizeof(line), "if !%s {", matched_name) :
-            snprintf(line, sizeof(line), "else {");
-        if(length < 0 || (size_t)length >= sizeof(line)) goto too_long;
-        if_case_generated(&output[next++], ZIR_STMT_IF, line, head->span);
+            snprintf(buffers->line, sizeof(buffers->line), "if !%s {", matched_name) :
+            snprintf(buffers->line, sizeof(buffers->line), "else {");
+        if(length < 0 || (size_t)length >= sizeof(buffers->line)) goto too_long;
+        if_case_generated(&output[next++], ZIR_STMT_IF, buffers->line, head->span);
         if_case_generated(&output[next++], ZIR_STMT_UNREACHABLE,
                           "unreachable", head->span);
         if_case_generated(&output[next++], ZIR_STMT_BLOCK_CLOSE, "}", head->span);
@@ -859,6 +928,23 @@ too_long:
 done:
     free(output); free(cases); free(through); free(members); free(seen);
     return ok;
+}
+
+/* A Jai if-case evaluates its selector once. With #through, an active flag
+ * carries execution into the next arm without retesting its label. */
+int
+lower_if_case(Checker *c, int index, const char *checked_type)
+{
+    static _Thread_local LowerIfCaseBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerIfCaseBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = lower_if_case_with_buffers(c, index, checked_type, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 int
@@ -987,6 +1073,34 @@ discarded_must_call(Checker *c, int index)
     }
     return -1;
 }
+/* Buffers conversion_matches keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ConversionMatchesBuffers {
+    char parameters[64][ZIR_TEXT_MAX];
+} ConversionMatchesBuffers;
+
+static int conversion_matches(Checker *c, const ZirFunction *conversion,
+                   const char *from, const char *to);
+
+static int
+conversion_matches_with_buffers(Checker *c, const ZirFunction *conversion,
+                   const char *from, const char *to, ConversionMatchesBuffers *buffers)
+{
+    int count;
+    char *colon;
+    if(conversion->is_template || conversion->is_extern ||
+       strcmp(conversion->return_type, to) != 0)
+        return 0;
+    count = *skip_ws(conversion->args) ?
+        split_top_level(conversion->args, buffers->parameters[0], 64,
+                        sizeof(buffers->parameters[0])) : 0;
+    if(count != 1)
+        return 0;
+    colon = strchr(buffers->parameters[0], ':');
+    if(colon == NULL)
+        return 0;
+    return compatible(skip_ws(colon + 1), from);
+}
 
 /* A conversion applies when its single parameter accepts `from` and its
  * result is exactly `to`. */
@@ -994,21 +1108,16 @@ static int
 conversion_matches(Checker *c, const ZirFunction *conversion,
                    const char *from, const char *to)
 {
-    char parameters[64][ZIR_TEXT_MAX];
-    int count;
-    char *colon;
-    if(conversion->is_template || conversion->is_extern ||
-       strcmp(conversion->return_type, to) != 0)
-        return 0;
-    count = *skip_ws(conversion->args) ?
-        split_top_level(conversion->args, parameters[0], 64,
-                        sizeof(parameters[0])) : 0;
-    if(count != 1)
-        return 0;
-    colon = strchr(parameters[0], ':');
-    if(colon == NULL)
-        return 0;
-    return compatible(skip_ws(colon + 1), from);
+    static _Thread_local ConversionMatchesBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ConversionMatchesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = conversion_matches_with_buffers(c, conversion, from, to, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* Rewrite an incompatible expression into a call on a visible `#as`

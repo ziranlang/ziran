@@ -1,12 +1,20 @@
 #include "zir_parse_internal.h"
 
 static void canonical_enum_values(ZirType *type);
+/* Buffers normalize_jai_source_tokens keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct NormalizeJaiSourceTokensBuffers {
+    char normalized[SOURCE_LINE_MAX];
+    char literal[ZIR_PATH_MAX * 4 + 4];
+    char directory[ZIR_PATH_MAX];
+} NormalizeJaiSourceTokensBuffers;
 
-/* Canonicalize Jai's scalar aliases and source-position expressions before
- * parsing declarations. Quoted text and comments are left intact. */
-void
-normalize_jai_source_tokens(char *line, const char *path,
-                            const char *physical_path, int line_no)
+void normalize_jai_source_tokens(char *line, const char *path,
+                            const char *physical_path, int line_no);
+
+static void
+normalize_jai_source_tokens_with_buffers(char *line, const char *path,
+                            const char *physical_path, int line_no, NormalizeJaiSourceTokensBuffers *buffers)
 {
     static const struct { const char *jai, *internal; } names[] = {
         {"int", "s64"}, {"float", "float32"}
@@ -14,31 +22,30 @@ normalize_jai_source_tokens(char *line, const char *path,
     static const char *const old[] = {
         "i8", "i16", "i32", "i64", "f32", "f64", "double", NULL
     };
-    char normalized[SOURCE_LINE_MAX];
     size_t used = 0;
     for(const char *p = line; *p; ) {
         if(*p == '/' && p[1] == '/') {
             size_t remaining = strlen(p);
-            if(used + remaining >= sizeof(normalized))
+            if(used + remaining >= sizeof(buffers->normalized))
                 die_at(Span(path, line_no, 1), "source line exceeds size limit");
-            memcpy(normalized + used, p, remaining + 1);
+            memcpy(buffers->normalized + used, p, remaining + 1);
             used += remaining;
             break;
         }
         if(*p == '"' || *p == '\'') {
             char quote = *p;
-            if(used + 1 >= sizeof(normalized))
+            if(used + 1 >= sizeof(buffers->normalized))
                 die_at(Span(path, line_no, 1), "source line exceeds size limit");
-            normalized[used++] = *p++;
+            buffers->normalized[used++] = *p++;
             while(*p) {
                 char next = *p++;
-                if(used + 1 >= sizeof(normalized))
+                if(used + 1 >= sizeof(buffers->normalized))
                     die_at(Span(path, line_no, 1), "source line exceeds size limit");
-                normalized[used++] = next;
+                buffers->normalized[used++] = next;
                 if(next == '\\' && *p) {
-                    if(used + 1 >= sizeof(normalized))
+                    if(used + 1 >= sizeof(buffers->normalized))
                         die_at(Span(path, line_no, 1), "source line exceeds size limit");
-                    normalized[used++] = *p++;
+                    buffers->normalized[used++] = *p++;
                 } else if(next == quote) {
                     break;
                 }
@@ -60,41 +67,39 @@ normalize_jai_source_tokens(char *line, const char *path,
         if(directive != NULL &&
            !isalnum((unsigned char)p[directive_length]) &&
            p[directive_length] != '_') {
-            char literal[ZIR_PATH_MAX * 4 + 4];
             int written;
             if(strcmp(directive, "#line") == 0)
-                written = snprintf(literal, sizeof(literal), "%d", line_no);
+                written = snprintf(buffers->literal, sizeof(buffers->literal), "%d", line_no);
             else {
-                char directory[ZIR_PATH_MAX];
                 const char *value = physical_path;
                 if(strcmp(directive, "#filepath") == 0) {
                     const char *slash = strrchr(physical_path, '/');
                     size_t length = slash == NULL ? 0 :
                                     slash == physical_path ? 1 :
                                     (size_t)(slash - physical_path);
-                    if(length >= sizeof(directory))
+                    if(length >= sizeof(buffers->directory))
                         die_at(Span(path, line_no, 1),
                                "source filepath exceeds size limit");
                     if(length == 0)
-                        copy_text(directory, sizeof(directory), ".");
+                        copy_text(buffers->directory, sizeof(buffers->directory), ".");
                     else {
-                        memcpy(directory, physical_path, length);
-                        directory[length] = '\0';
+                        memcpy(buffers->directory, physical_path, length);
+                        buffers->directory[length] = '\0';
                     }
-                    value = directory;
+                    value = buffers->directory;
                 }
-                literal[0] = '"';
-                size_t escaped = escape_c_string(value, literal + 1,
-                                                 sizeof(literal) - 2);
-                literal[escaped + 1] = '"';
-                literal[escaped + 2] = '\0';
+                buffers->literal[0] = '"';
+                size_t escaped = escape_c_string(value, buffers->literal + 1,
+                                                 sizeof(buffers->literal) - 2);
+                buffers->literal[escaped + 1] = '"';
+                buffers->literal[escaped + 2] = '\0';
                 written = (int)escaped + 2;
             }
             if(written < 0 ||
-               (size_t)written >= sizeof(normalized) - used)
+               (size_t)written >= sizeof(buffers->normalized) - used)
                 die_at(Span(path, line_no, 1),
                        "source line exceeds size limit");
-            memcpy(normalized + used, literal, (size_t)written);
+            memcpy(buffers->normalized + used, buffers->literal, (size_t)written);
             used += (size_t)written;
             p += directive_length;
             continue;
@@ -125,18 +130,35 @@ normalize_jai_source_tokens(char *line, const char *path,
                 start = replacement;
                 length = strlen(replacement);
             }
-            if(used + length >= sizeof(normalized))
+            if(used + length >= sizeof(buffers->normalized))
                 die_at(Span(path, line_no, 1), "source line exceeds size limit");
-            memcpy(normalized + used, start, length);
+            memcpy(buffers->normalized + used, start, length);
             used += length;
             continue;
         }
-        if(used + 1 >= sizeof(normalized))
+        if(used + 1 >= sizeof(buffers->normalized))
             die_at(Span(path, line_no, 1), "source line exceeds size limit");
-        normalized[used++] = *p++;
+        buffers->normalized[used++] = *p++;
     }
-    normalized[used] = '\0';
-    copy_text(line, SOURCE_LINE_MAX, normalized);
+    buffers->normalized[used] = '\0';
+    copy_text(line, SOURCE_LINE_MAX, buffers->normalized);
+}
+
+/* Canonicalize Jai's scalar aliases and source-position expressions before
+ * parsing declarations. Quoted text and comments are left intact. */
+void
+normalize_jai_source_tokens(char *line, const char *path,
+                            const char *physical_path, int line_no)
+{
+    static _Thread_local NormalizeJaiSourceTokensBuffers *spares[16];
+    static _Thread_local int spare_count;
+    NormalizeJaiSourceTokensBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    normalize_jai_source_tokens_with_buffers(line, path, physical_path, line_no, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 /* File and embedded declarations share the complete frontend. A line that
@@ -176,13 +198,25 @@ is_named_type_header(const char *line)
     return starts_word(body, "struct") || starts_word(body, "union") ||
            starts_word(body, "enum") || starts_word(body, "enum_flags");
 }
+/* Buffers discover_named_type keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct DiscoverNamedTypeBuffers {
+    char normalized[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX];
+    char line[SOURCE_LINE_MAX];
+    ZirType type;
+    char lowered[sizeof(((ZirType *)0)->body)];
+} DiscoverNamedTypeBuffers;
+
+static void discover_named_type(const char *source, const char *path, const char *rel,
+                    int line_no,
+                    int scope_public, int scope_file, ZirTypes *future);
 
 static void
-discover_named_type(const char *source, const char *path, const char *rel,
+discover_named_type_with_buffers(const char *source, const char *path, const char *rel,
                     int line_no,
-                    int scope_public, int scope_file, ZirTypes *future)
+                    int scope_public, int scope_file, ZirTypes *future, DiscoverNamedTypeBuffers *buffers)
 {
-    char normalized[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX] = "";
+    buffers->normalized[0] = '\0';
     size_t normalized_length = 0;
     int physical_line = line_no;
     if(contains_source_directive(source, "#if")) return;
@@ -190,20 +224,19 @@ discover_named_type(const char *source, const char *path, const char *rel,
         const char *end = strchr(cursor, '\n');
         size_t length = end == NULL ? strlen(cursor) :
                         (size_t)(end - cursor);
-        char line[SOURCE_LINE_MAX];
-        if(length >= sizeof(line)) return;
-        memcpy(line, cursor, length);
-        line[length] = '\0';
-        normalize_jai_source_tokens(line, rel, path, physical_line++);
-        length = strlen(line);
-        if(normalized_length + length + 2 >= sizeof(normalized)) return;
-        memcpy(normalized + normalized_length, line, length);
+        if(length >= sizeof(buffers->line)) return;
+        memcpy(buffers->line, cursor, length);
+        buffers->line[length] = '\0';
+        normalize_jai_source_tokens(buffers->line, rel, path, physical_line++);
+        length = strlen(buffers->line);
+        if(normalized_length + length + 2 >= sizeof(buffers->normalized)) return;
+        memcpy(buffers->normalized + normalized_length, buffers->line, length);
         normalized_length += length;
-        normalized[normalized_length++] = '\n';
-        normalized[normalized_length] = '\0';
+        buffers->normalized[normalized_length++] = '\n';
+        buffers->normalized[normalized_length] = '\0';
         cursor = end == NULL ? cursor + strlen(cursor) : end + 1;
     }
-    source = normalized;
+    source = buffers->normalized;
     const char *colons = strstr(source, "::");
     const char *after = colons == NULL ? NULL : skip_ws(colons + 2);
     const char *open = after == NULL ? NULL : strchr(after, '{');
@@ -224,61 +257,60 @@ discover_named_type(const char *source, const char *path, const char *rel,
     if(close == NULL) return;
     const char *tail = skip_ws(close + 1);
     if(*tail != '\0' && strcmp(tail, ";") != 0) return;
-    ZirType type = {0};
+    memset(&buffers->type, 0, sizeof(buffers->type));
     size_t name_length = (size_t)(colons - source);
-    if(name_length == 0 || name_length >= sizeof(type.name)) return;
-    memcpy(type.name, source, name_length);
-    type.name[name_length] = '\0';
-    trim_in_place(type.name);
-    if(!is_identifier_text(type.name)) return;
-    type.span = Span(rel, line_no, 1);
-    type.is_public = scope_public;
-    type.is_file_private = scope_file;
-    type.is_union = starts_word(after, "union");
-    type.is_enum_flags = starts_word(after, "enum_flags");
-    type.is_enum = type.is_enum_flags || starts_word(after, "enum");
-    if(type.is_enum)
-        parse_enum_backing(&type, after);
-    if(!type.is_enum &&
-       !parse_type_parameters(after, type.is_union ? "union" : "struct",
-                              type.template_params,
-                              sizeof(type.template_params))) return;
-    type.is_record_template = type.template_params[0] != '\0';
+    if(name_length == 0 || name_length >= sizeof(buffers->type.name)) return;
+    memcpy(buffers->type.name, source, name_length);
+    buffers->type.name[name_length] = '\0';
+    trim_in_place(buffers->type.name);
+    if(!is_identifier_text(buffers->type.name)) return;
+    buffers->type.span = Span(rel, line_no, 1);
+    buffers->type.is_public = scope_public;
+    buffers->type.is_file_private = scope_file;
+    buffers->type.is_union = starts_word(after, "union");
+    buffers->type.is_enum_flags = starts_word(after, "enum_flags");
+    buffers->type.is_enum = buffers->type.is_enum_flags || starts_word(after, "enum");
+    if(buffers->type.is_enum)
+        parse_enum_backing(&buffers->type, after);
+    if(!buffers->type.is_enum &&
+       !parse_type_parameters(after, buffers->type.is_union ? "union" : "struct",
+                              buffers->type.template_params,
+                              sizeof(buffers->type.template_params))) return;
+    buffers->type.is_record_template = buffers->type.template_params[0] != '\0';
     size_t body_length = (size_t)(close - open - 1);
-    if(body_length >= sizeof(type.body)) return;
-    memcpy(type.body, open + 1, body_length);
-    type.body[body_length] = '\0';
-    if(type.is_enum) {
-        if(type.is_enum_flags) {
+    if(body_length >= sizeof(buffers->type.body)) return;
+    memcpy(buffers->type.body, open + 1, body_length);
+    buffers->type.body[body_length] = '\0';
+    if(buffers->type.is_enum) {
+        if(buffers->type.is_enum_flags) {
             for(size_t i = 0; i < body_length; i++)
-                if(type.body[i] == ';') type.body[i] = '\n';
-            lower_enum_values(&type);
+                if(buffers->type.body[i] == ';') buffers->type.body[i] = '\n';
+            lower_enum_values(&buffers->type);
         } else {
-            char lowered[sizeof(type.body)];
             size_t used = 0;
-            for(const char *p = type.body; *p; p++) {
+            for(const char *p = buffers->type.body; *p; p++) {
                 if(p[0] == ':' && p[1] == ':') {
-                    if(used + 3 >= sizeof(lowered)) return;
-                    memcpy(lowered + used, " = ", 3);
+                    if(used + 3 >= sizeof(buffers->lowered)) return;
+                    memcpy(buffers->lowered + used, " = ", 3);
                     used += 3;
                     p++;
                 } else {
-                    if(used + 1 >= sizeof(lowered)) return;
-                    lowered[used++] = *p == ';' ? '\n' : *p;
+                    if(used + 1 >= sizeof(buffers->lowered)) return;
+                    buffers->lowered[used++] = *p == ';' ? '\n' : *p;
                 }
             }
-            lowered[used] = '\0';
-            copy_text(type.body, sizeof(type.body), lowered);
-            if(!EnumMemberValue(&type, NULL, NULL)) return;
-            canonical_enum_values(&type);
+            buffers->lowered[used] = '\0';
+            copy_text(buffers->type.body, sizeof(buffers->type.body), buffers->lowered);
+            if(!EnumMemberValue(&buffers->type, NULL, NULL)) return;
+            canonical_enum_values(&buffers->type);
         }
-    } else if(type.is_record_template) {
+    } else if(buffers->type.is_record_template) {
         for(size_t i = 0; i < body_length; i++)
-            if(type.body[i] == ';') type.body[i] = '\n';
+            if(buffers->type.body[i] == ';') buffers->type.body[i] = '\n';
     }
-    if(!type.is_enum && !take_abi_incomplete(&type))
+    if(!buffers->type.is_enum && !take_abi_incomplete(&buffers->type))
         return;
-    if(!expand_type_this(&type)) return;
+    if(!expand_type_this(&buffers->type)) return;
     if(future->count == future->capacity) {
         int capacity = future->capacity > 0 ? future->capacity * 2 : 8;
         ZirType *items = realloc(future->items,
@@ -287,7 +319,23 @@ discover_named_type(const char *source, const char *path, const char *rel,
         future->items = items;
         future->capacity = capacity;
     }
-    future->items[future->count++] = type;
+    future->items[future->count++] = buffers->type;
+}
+
+static void
+discover_named_type(const char *source, const char *path, const char *rel,
+                    int line_no,
+                    int scope_public, int scope_file, ZirTypes *future)
+{
+    static _Thread_local DiscoverNamedTypeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    DiscoverNamedTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    discover_named_type_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static void
@@ -339,23 +387,33 @@ free_deferred_types(ZirDeferredTypes *deferred)
     }
     free(deferred->items);
 }
+/* Buffers discover_function_header keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct DiscoverFunctionHeaderBuffers {
+    char line[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX];
+    char args[ZIR_TEXT_MAX];
+} DiscoverFunctionHeaderBuffers;
 
-static void
-discover_function_header(const char *source, const char *path,
+static void discover_function_header(const char *source, const char *path,
                          const char *rel, int line_no,
                          int scope_public, int scope_file,
-                         ZirFunctions *future)
+                         ZirFunctions *future);
+
+static void
+discover_function_header_with_buffers(const char *source, const char *path,
+                         const char *rel, int line_no,
+                         int scope_public, int scope_file,
+                         ZirFunctions *future, DiscoverFunctionHeaderBuffers *buffers)
 {
     if(!looks_like_function_header(source) ||
        (strchr(source, '{') == NULL &&
         strstr(source, "#foreign") == NULL)) return;
-    char line[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX];
-    char name[ZIR_NAME_MAX], args[ZIR_TEXT_MAX], result[ZIR_NAME_MAX];
-    copy_text(line, sizeof(line), source);
-    normalize_jai_source_tokens(line, rel, path, line_no);
-    if(closing_parenthesis(strchr(line, '(')) == NULL) return;
-    parse_function_header(name, sizeof(name), args, sizeof(args),
-                          result, sizeof(result), line);
+    char name[ZIR_NAME_MAX], result[ZIR_NAME_MAX];
+    copy_text(buffers->line, sizeof(buffers->line), source);
+    normalize_jai_source_tokens(buffers->line, rel, path, line_no);
+    if(closing_parenthesis(strchr(buffers->line, '(')) == NULL) return;
+    parse_function_header(name, sizeof(name), buffers->args, sizeof(buffers->args),
+                          result, sizeof(result), buffers->line);
     if(!is_identifier_text(name) || result[0] == '\0') return;
     if(future->count == future->capacity) {
         int capacity = future->capacity > 0 ? future->capacity * 2 : 8;
@@ -368,11 +426,28 @@ discover_function_header(const char *source, const char *path,
     ZirFunction *function = &future->items[future->count++];
     memset(function, 0, sizeof(*function));
     copy_text(function->name, sizeof(function->name), name);
-    copy_text(function->args, sizeof(function->args), args);
+    copy_text(function->args, sizeof(function->args), buffers->args);
     copy_text(function->return_type, sizeof(function->return_type), result);
     function->span = Span(rel, line_no, 1);
     function->is_public = scope_public;
     function->is_file_private = scope_file;
+}
+
+static void
+discover_function_header(const char *source, const char *path,
+                         const char *rel, int line_no,
+                         int scope_public, int scope_file,
+                         ZirFunctions *future)
+{
+    static _Thread_local DiscoverFunctionHeaderBuffers *spares[16];
+    static _Thread_local int spare_count;
+    DiscoverFunctionHeaderBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    discover_function_header_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 static int
@@ -573,25 +648,42 @@ possible_function_header(const char *line)
     const char *body = skip_ws(colons + 2);
     return *body == '(' && strchr(body, ';') == NULL;
 }
+/* Buffers discover_file_scope keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct DiscoverFileScopeBuffers {
+    char line[SOURCE_LINE_MAX];
+    char type_source[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX];
+    char function_source[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX];
+    char simple_body[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX];
+    char requested[SOURCE_PATH_MAX];
+    char candidate[SOURCE_PATH_MAX * 2];
+    char loaded_rel[SOURCE_PATH_MAX];
+    ZirModule discovered;
+} DiscoverFileScopeBuffers;
 
-/* Discover only unconditional file-scope declarations. Conditional and type
- * bodies stay opaque; supported procedure bodies are retained for bounded
- * compile-time evaluation. */
-void
-discover_file_scope(const char *source, const char *path, const char *rel,
+void discover_file_scope(const char *source, const char *path, const char *rel,
                     const char *root,
                     ZirConsts *future_constants, ZirUsings *future_usings,
                     ZirImports *future_imports, ZirTypes *future_types,
                     ZirDeferredTypes *deferred_types,
                     ZirFunctions *future_functions,
                     ZirGlobals *future_globals,
-                    ZirDiscoveredFiles *files, int depth)
+                    ZirDiscoveredFiles *files, int depth);
+
+static void
+discover_file_scope_with_buffers(const char *source, const char *path, const char *rel,
+                    const char *root,
+                    ZirConsts *future_constants, ZirUsings *future_usings,
+                    ZirImports *future_imports, ZirTypes *future_types,
+                    ZirDeferredTypes *deferred_types,
+                    ZirFunctions *future_functions,
+                    ZirGlobals *future_globals,
+                    ZirDiscoveredFiles *files, int depth, DiscoverFileScopeBuffers *buffers)
 {
     if(depth >= 32 || !remember_discovered_file(files, path)) return;
-    char line[SOURCE_LINE_MAX];
-    char type_source[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX] = "";
-    char function_source[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX] = "";
-    char simple_body[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX] = "";
+    buffers->type_source[0] = '\0';
+    buffers->function_source[0] = '\0';
+    buffers->simple_body[0] = '\0';
     int line_no = 0;
     int comment_depth = 0;
     int brace_depth = 0;
@@ -610,20 +702,19 @@ discover_file_scope(const char *source, const char *path, const char *rel,
     int simple_body_index = -1;
     int simple_body_overflow = 0;
     int simple_body_start_line = 0;
-
-    while(read_source_line(line, sizeof(line), &source, path, line_no) != NULL) {
+    while(read_source_line(buffers->line, sizeof(buffers->line), &source, path, line_no) != NULL) {
         line_no++;
-        strip_block_comments(line, &comment_depth);
-        char *t = trim(line);
+        strip_block_comments(buffers->line, &comment_depth);
+        char *t = trim(buffers->line);
         int brace_delta = net_block_braces(t);
         if(simple_body_index >= 0) {
-            append_type_source(simple_body, sizeof(simple_body), t,
+            append_type_source(buffers->simple_body, sizeof(buffers->simple_body), t,
                                &simple_body_overflow);
             if(brace_depth + brace_delta == 0) {
                 if(!simple_body_overflow)
                     discover_compile_body(
                         &future_functions->items[simple_body_index],
-                        simple_body, simple_body_start_line);
+                        buffers->simple_body, simple_body_start_line);
                 simple_body_index = -1;
             }
         } else if(collecting_type ||
@@ -631,23 +722,23 @@ discover_file_scope(const char *source, const char *path, const char *rel,
             if(!collecting_type) {
                 collecting_type = 1;
                 type_overflow = 0;
-                type_source[0] = '\0';
+                buffers->type_source[0] = '\0';
                 type_start_line = line_no;
                 type_scope_file = scope_file;
                 type_scope_public = scope_public;
             }
-            append_type_source(type_source, sizeof(type_source), t,
+            append_type_source(buffers->type_source, sizeof(buffers->type_source), t,
                                &type_overflow);
-            if(strchr(type_source, '{') != NULL &&
+            if(strchr(buffers->type_source, '{') != NULL &&
                brace_depth + brace_delta == 0) {
                 if(!type_overflow) {
-                    if(contains_source_directive(type_source, "#if"))
-                        defer_conditional_type(deferred_types, type_source,
+                    if(contains_source_directive(buffers->type_source, "#if"))
+                        defer_conditional_type(deferred_types, buffers->type_source,
                                                path, rel, type_start_line,
                                                type_scope_public,
                                                type_scope_file);
                     else
-                        discover_named_type(type_source, path, rel,
+                        discover_named_type(buffers->type_source, path, rel,
                                             type_start_line,
                                             type_scope_public, type_scope_file,
                                             future_types);
@@ -659,20 +750,20 @@ discover_file_scope(const char *source, const char *path, const char *rel,
             if(!collecting_function) {
                 collecting_function = 1;
                 function_overflow = 0;
-                function_source[0] = '\0';
+                buffers->function_source[0] = '\0';
                 function_start_line = line_no;
                 function_scope_file = scope_file;
                 function_scope_public = scope_public;
             }
-            append_type_source(function_source, sizeof(function_source), t,
+            append_type_source(buffers->function_source, sizeof(buffers->function_source), t,
                                &function_overflow);
             const char *closing = function_overflow ? NULL :
-                closing_parenthesis(strchr(function_source, '('));
+                closing_parenthesis(strchr(buffers->function_source, '('));
             if(closing != NULL &&
                (strchr(closing + 1, '{') != NULL ||
                 strstr(closing + 1, "#foreign") != NULL)) {
                 int previous = future_functions->count;
-                discover_function_header(function_source, path, rel,
+                discover_function_header(buffers->function_source, path, rel,
                                          function_start_line,
                                          function_scope_public,
                                          function_scope_file,
@@ -682,14 +773,14 @@ discover_file_scope(const char *source, const char *path, const char *rel,
                     simple_body_index = previous;
                     simple_body_overflow = 0;
                     simple_body_start_line = line_no;
-                    simple_body[0] = '\0';
-                    append_type_source(simple_body, sizeof(simple_body),
+                    buffers->simple_body[0] = '\0';
+                    append_type_source(buffers->simple_body, sizeof(buffers->simple_body),
                                        open + 1, &simple_body_overflow);
                     if(brace_depth + brace_delta == 0) {
                         if(!simple_body_overflow)
                             discover_compile_body(
                                 &future_functions->items[simple_body_index],
-                                simple_body, simple_body_start_line);
+                                buffers->simple_body, simple_body_start_line);
                         simple_body_index = -1;
                     }
                 }
@@ -712,33 +803,30 @@ discover_file_scope(const char *source, const char *path, const char *rel,
                 const char *end = *argument == '"' ?
                     strchr(argument + 1, '"') : NULL;
                 if(end != NULL && !strcmp(skip_ws(end + 1), ";")) {
-                    char requested[SOURCE_PATH_MAX];
                     size_t length = (size_t)(end - argument - 1);
-                    if(length > 3 && length < sizeof(requested)) {
-                        memcpy(requested, argument + 1, length);
-                        requested[length] = '\0';
-                        if(requested[0] != '/' &&
-                           !strcmp(requested + length - 3, ".zi") &&
-                           strchr(requested, '\\') == NULL) {
-                            char candidate[SOURCE_PATH_MAX * 2];
+                    if(length > 3 && length < sizeof(buffers->requested)) {
+                        memcpy(buffers->requested, argument + 1, length);
+                        buffers->requested[length] = '\0';
+                        if(buffers->requested[0] != '/' &&
+                           !strcmp(buffers->requested + length - 3, ".zi") &&
+                           strchr(buffers->requested, '\\') == NULL) {
                             const char *slash = strrchr(path, '/');
                             int written = slash == NULL ?
-                                snprintf(candidate, sizeof(candidate), "%s",
-                                         requested) :
-                                snprintf(candidate, sizeof(candidate),
+                                snprintf(buffers->candidate, sizeof(buffers->candidate), "%s",
+                                         buffers->requested) :
+                                snprintf(buffers->candidate, sizeof(buffers->candidate),
                                          "%.*s/%s", (int)(slash - path),
-                                         path, requested);
+                                         path, buffers->requested);
                             if(written > 0 &&
-                               (size_t)written < sizeof(candidate)) {
-                                char *loaded_path = realpath(candidate, NULL);
+                               (size_t)written < sizeof(buffers->candidate)) {
+                                char *loaded_path = realpath(buffers->candidate, NULL);
                                 if(loaded_path != NULL) {
-                                    char loaded_rel[SOURCE_PATH_MAX];
-                                    copy_text(loaded_rel, sizeof(loaded_rel),
+                                    copy_text(buffers->loaded_rel, sizeof(buffers->loaded_rel),
                                               relative_path(root, loaded_path));
                                     char *loaded = read_lowered_source(
                                         loaded_path);
                                     discover_file_scope(loaded, loaded_path,
-                                        loaded_rel, root, future_constants,
+                                        buffers->loaded_rel, root, future_constants,
                                         future_usings, future_imports,
                                         future_types, deferred_types,
                                         future_functions,
@@ -800,10 +888,10 @@ discover_file_scope(const char *source, const char *path, const char *rel,
                         string_import = starts_word(skip_ws(mode + 1),
                                                     "string");
                     if(!string_import) {
-                        ZirModule discovered = {0};
-                        if(parse_import_line(&discovered, rel, line_no, t,
+                        memset(&buffers->discovered, 0, sizeof(buffers->discovered));
+                        if(parse_import_line(&buffers->discovered, rel, line_no, t,
                                              scope_public) &&
-                           discovered.import_count > 0) {
+                           buffers->discovered.import_count > 0) {
                             if(future_imports->count ==
                                future_imports->capacity) {
                                 int capacity = future_imports->capacity > 0 ?
@@ -818,10 +906,10 @@ discover_file_scope(const char *source, const char *path, const char *rel,
                             }
                             ZirImport *import = &future_imports->items[
                                 future_imports->count++];
-                            *import = discovered.imports[0];
+                            *import = buffers->discovered.imports[0];
                             import->is_file_private = scope_file;
                         }
-                        free(discovered.imports);
+                        free(buffers->discovered.imports);
                     }
                 }
                 if(colons != NULL && !brace_outside_literals(t) &&
@@ -878,38 +966,91 @@ discover_file_scope(const char *source, const char *path, const char *rel,
     }
 }
 
+/* Discover only unconditional file-scope declarations. Conditional and type
+ * bodies stay opaque; supported procedure bodies are retained for bounded
+ * compile-time evaluation. */
+void
+discover_file_scope(const char *source, const char *path, const char *rel,
+                    const char *root,
+                    ZirConsts *future_constants, ZirUsings *future_usings,
+                    ZirImports *future_imports, ZirTypes *future_types,
+                    ZirDeferredTypes *deferred_types,
+                    ZirFunctions *future_functions,
+                    ZirGlobals *future_globals,
+                    ZirDiscoveredFiles *files, int depth)
+{
+    static _Thread_local DiscoverFileScopeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    DiscoverFileScopeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    discover_file_scope_with_buffers(source, path, rel, root, future_constants, future_usings, future_imports, future_types, deferred_types, future_functions, future_globals, files, depth, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers discover_conditional_type keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct DiscoverConditionalTypeBuffers {
+    char line[SOURCE_LINE_MAX];
+    char selected[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX];
+    ZirCondFrame frames[8];
+} DiscoverConditionalTypeBuffers;
+
+static int discover_conditional_type(const ZirDeferredType *item,
+                          ZirModule *module, const ZirConsts *constants,
+                          const CompileParseContext *context,
+                          ZirTypes *future, int allow_defer);
+
+static int
+discover_conditional_type_with_buffers(const ZirDeferredType *item,
+                          ZirModule *module, const ZirConsts *constants,
+                          const CompileParseContext *context,
+                          ZirTypes *future, int allow_defer, DiscoverConditionalTypeBuffers *buffers)
+{
+    const char *source = item->source;
+    buffers->selected[0] = '\0';
+    memset(buffers->frames, 0, sizeof(buffers->frames));
+    int frame_count = 0;
+    int line_no = item->line - 1;
+    int overflow = 0;
+    while(read_source_line(buffers->line, sizeof(buffers->line), &source,
+                           item->path, line_no) != NULL) {
+        int pending = 0;
+        line_no++;
+        char *text = trim(buffers->line);
+        int consumed = cond_top_step(text, buffers->frames, &frame_count,
+                                     module, constants, context,
+                                     item->path, item->rel, line_no,
+                                     allow_defer ? &pending : NULL);
+        if(pending) return 0;
+        if(consumed || (frame_count > 0 && !buffers->frames[frame_count - 1].active))
+            continue;
+        append_type_source(buffers->selected, sizeof(buffers->selected), text, &overflow);
+    }
+    if(!overflow && frame_count == 0)
+        discover_named_type(buffers->selected, item->path, item->rel,
+                            item->line, item->is_public,
+                            item->is_file_private, future);
+    return 1;
+}
+
 static int
 discover_conditional_type(const ZirDeferredType *item,
                           ZirModule *module, const ZirConsts *constants,
                           const CompileParseContext *context,
                           ZirTypes *future, int allow_defer)
 {
-    const char *source = item->source;
-    char line[SOURCE_LINE_MAX];
-    char selected[ZIR_TEXT_MAX * 2 + SOURCE_LINE_MAX] = "";
-    ZirCondFrame frames[8] = {0};
-    int frame_count = 0;
-    int line_no = item->line - 1;
-    int overflow = 0;
-    while(read_source_line(line, sizeof(line), &source,
-                           item->path, line_no) != NULL) {
-        int pending = 0;
-        line_no++;
-        char *text = trim(line);
-        int consumed = cond_top_step(text, frames, &frame_count,
-                                     module, constants, context,
-                                     item->path, item->rel, line_no,
-                                     allow_defer ? &pending : NULL);
-        if(pending) return 0;
-        if(consumed || (frame_count > 0 && !frames[frame_count - 1].active))
-            continue;
-        append_type_source(selected, sizeof(selected), text, &overflow);
-    }
-    if(!overflow && frame_count == 0)
-        discover_named_type(selected, item->path, item->rel,
-                            item->line, item->is_public,
-                            item->is_file_private, future);
-    return 1;
+    static _Thread_local DiscoverConditionalTypeBuffers *spares[16];
+    static _Thread_local int spare_count;
+    DiscoverConditionalTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    int returned = discover_conditional_type_with_buffers(item, module, constants, context, future, allow_defer, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 void
@@ -944,13 +1085,17 @@ discover_conditional_types(const ZirDeferredTypes *deferred,
     }
     free(done);
 }
+/* Buffers canonical_enum_values keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct CanonicalEnumValuesBuffers {
+    char canonical[sizeof(((ZirType *)0)->body)];
+} CanonicalEnumValuesBuffers;
 
-/* Jai constant declarations inside enums use 'Member :: value'. The checked
- * IR stores explicit values in the backend-neutral 'Member = value' form. */
+static void canonical_enum_values(ZirType *type);
+
 static void
-canonical_enum_values(ZirType *type)
+canonical_enum_values_with_buffers(ZirType *type, CanonicalEnumValuesBuffers *buffers)
 {
-    char canonical[sizeof(type->body)];
     size_t used = 0;
     const char *cursor = type->body;
     if(!EnumMemberValue(type, NULL, NULL))
@@ -969,42 +1114,66 @@ canonical_enum_values(ZirType *type)
         snprintf(name, sizeof(name), "%.*s", (int)length, start);
         if(!EnumMemberValue(type, name, &value))
             die_at(type->span, "invalid enum member: %s", name);
-        int written = snprintf(canonical + used, sizeof(canonical) - used,
+        int written = snprintf(buffers->canonical + used, sizeof(buffers->canonical) - used,
                                "%s = %lld\n", name, (long long)value);
-        if(written < 0 || (size_t)written >= sizeof(canonical) - used)
+        if(written < 0 || (size_t)written >= sizeof(buffers->canonical) - used)
             die_at(type->span, "enum body exceeds size limit");
         used += (size_t)written;
         while(*cursor && *cursor != ',' && *cursor != '\n') cursor++;
         if(*cursor) cursor++;
     }
-    canonical[used] = '\0';
-    copy_text(type->body, sizeof(type->body), canonical);
+    buffers->canonical[used] = '\0';
+    copy_text(type->body, sizeof(type->body), buffers->canonical);
 }
 
-void
-lower_enum_values(ZirType *type)
+/* Jai constant declarations inside enums use 'Member :: value'. The checked
+ * IR stores explicit values in the backend-neutral 'Member = value' form. */
+static void
+canonical_enum_values(ZirType *type)
 {
-    char lowered[sizeof(type->body)];
+    static _Thread_local CanonicalEnumValuesBuffers *spares[16];
+    static _Thread_local int spare_count;
+    CanonicalEnumValuesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    canonical_enum_values_with_buffers(type, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+}
+/* Buffers lower_enum_values keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct LowerEnumValuesBuffers {
+    char lowered[sizeof(((ZirType *)0)->body)];
+    char flags[sizeof(((ZirType *)0)->body)];
+    char member[ZIR_TEXT_MAX];
+} LowerEnumValuesBuffers;
+
+void lower_enum_values(ZirType *type);
+
+static void
+lower_enum_values_with_buffers(ZirType *type, LowerEnumValuesBuffers *buffers)
+{
     size_t used = 0;
     for(const char *p = type->body; *p; p++) {
         if(type->is_enum && *p == '=')
             die_at(type->span,
                    "enum members use Jai Member :: value syntax, not =");
         if(p[0] == ':' && p[1] == ':') {
-            if(used + 3 >= sizeof(lowered))
+            if(used + 3 >= sizeof(buffers->lowered))
                 die_at(type->span, "enum body exceeds size limit");
-            memcpy(lowered + used, " = ", 3);
+            memcpy(buffers->lowered + used, " = ", 3);
             used += 3;
             p++;
         } else {
-            if(used + 1 >= sizeof(lowered))
+            if(used + 1 >= sizeof(buffers->lowered))
                 die_at(type->span, "enum body exceeds size limit");
-            lowered[used++] = *p;
+            buffers->lowered[used++] = *p;
         }
     }
-    lowered[used] = '\0';
+    buffers->lowered[used] = '\0';
     if(type->is_enum_specified) {
-        for(const char *p = lowered; *p;) {
+        for(const char *p = buffers->lowered; *p;) {
             const char *end = p;
             while(*end && *end != '\n' && *end != ',') end++;
             const char *member = p;
@@ -1023,52 +1192,64 @@ lower_enum_values(ZirType *type)
         }
     }
     if(!type->is_enum_flags) {
-        copy_text(type->body, sizeof(type->body), lowered);
+        copy_text(type->body, sizeof(type->body), buffers->lowered);
         if(type->is_enum)
             canonical_enum_values(type);
         return;
     }
-    char flags[sizeof(type->body)];
     char previous[ZIR_NAME_MAX] = "";
     size_t emitted = 0;
-    for(char *p = lowered; *p;) {
-        char member[ZIR_TEXT_MAX];
+    for(char *p = buffers->lowered; *p;) {
         char name[ZIR_NAME_MAX];
         char *end = p;
         while(*end && *end != '\n' && *end != ',') end++;
-        if((size_t)(end - p) >= sizeof(member))
+        if((size_t)(end - p) >= sizeof(buffers->member))
             die_at(type->span, "enum_flags member exceeds size limit");
-        snprintf(member, sizeof(member), "%.*s", (int)(end - p), p);
-        trim_in_place(member);
+        snprintf(buffers->member, sizeof(buffers->member), "%.*s", (int)(end - p), p);
+        trim_in_place(buffers->member);
         p = *end ? end + 1 : end;
-        if(member[0] == '\0') continue;
+        if(buffers->member[0] == '\0') continue;
         size_t n = 0;
-        while(isalnum((unsigned char)member[n]) || member[n] == '_') n++;
+        while(isalnum((unsigned char)buffers->member[n]) || buffers->member[n] == '_') n++;
         if(n == 0 || n >= sizeof(name) ||
-           !(isalpha((unsigned char)member[0]) || member[0] == '_'))
-            die_at(type->span, "invalid enum_flags member: %s", member);
-        snprintf(name, sizeof(name), "%.*s", (int)n, member);
-        const char *rest = skip_ws(member + n);
+           !(isalpha((unsigned char)buffers->member[0]) || buffers->member[0] == '_'))
+            die_at(type->span, "invalid enum_flags member: %s", buffers->member);
+        snprintf(name, sizeof(name), "%.*s", (int)n, buffers->member);
+        const char *rest = skip_ws(buffers->member + n);
         int written;
         if(*rest == '=')
-            written = snprintf(flags + emitted, sizeof(flags) - emitted,
-                               "%s\n", member);
+            written = snprintf(buffers->flags + emitted, sizeof(buffers->flags) - emitted,
+                               "%s\n", buffers->member);
         else if(*rest == '\0' && previous[0])
-            written = snprintf(flags + emitted, sizeof(flags) - emitted,
+            written = snprintf(buffers->flags + emitted, sizeof(buffers->flags) - emitted,
                                "%s = %s << 1\n", name, previous);
         else if(*rest == '\0')
-            written = snprintf(flags + emitted, sizeof(flags) - emitted,
+            written = snprintf(buffers->flags + emitted, sizeof(buffers->flags) - emitted,
                                "%s = 1\n", name);
         else
-            die_at(type->span, "invalid enum_flags member: %s", member);
-        if(written < 0 || (size_t)written >= sizeof(flags) - emitted)
+            die_at(type->span, "invalid enum_flags member: %s", buffers->member);
+        if(written < 0 || (size_t)written >= sizeof(buffers->flags) - emitted)
             die_at(type->span, "enum_flags body exceeds size limit");
         emitted += (size_t)written;
         copy_text(previous, sizeof(previous), name);
     }
-    flags[emitted] = '\0';
-    copy_text(type->body, sizeof(type->body), flags);
+    buffers->flags[emitted] = '\0';
+    copy_text(type->body, sizeof(type->body), buffers->flags);
     canonical_enum_values(type);
+}
+
+void
+lower_enum_values(ZirType *type)
+{
+    static _Thread_local LowerEnumValuesBuffers *spares[16];
+    static _Thread_local int spare_count;
+    LowerEnumValuesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    lower_enum_values_with_buffers(type, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
 }
 
 void
@@ -1198,21 +1379,27 @@ InstantiateGenericRecord(ZirType *instance, const ZirType *generic)
     instance->template_args[0] = '\0';
     return 1;
 }
+/* Buffers read_lowered_source keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct ReadLoweredSourceBuffers {
+    unsigned char bytes[8192];
+} ReadLoweredSourceBuffers;
 
-char *
-read_lowered_source(const char *path)
+char *read_lowered_source(const char *path);
+
+static char *
+read_lowered_source_with_buffers(const char *path, ReadLoweredSourceBuffers *buffers)
 {
     FILE *in = fopen(path, "rb");
     if(in == NULL)
         die_at(Span(path, 0, 0), "open failed: %s", strerror(errno));
     SourceBuffer input = {0};
-    unsigned char bytes[8192];
     size_t count;
-    while((count = fread(bytes, 1, sizeof(bytes), in)) != 0)
+    while((count = fread(buffers->bytes, 1, sizeof(buffers->bytes), in)) != 0)
         for(size_t i = 0; i < count; i++) {
-            if(bytes[i] == 0)
+            if(buffers->bytes[i] == 0)
                 die_at(Span(path, 0, 0), "source contains a null byte");
-            source_append(&input, (char)bytes[i]);
+            source_append(&input, (char)buffers->bytes[i]);
         }
     if(ferror(in))
         die_at(Span(path, 0, 0), "read failed: %s", strerror(errno));
@@ -1226,6 +1413,21 @@ read_lowered_source(const char *path)
     char *lowered = lower_jai_multiline_strings(input.text, path);
     free(input.text);
     return lowered;
+}
+
+char *
+read_lowered_source(const char *path)
+{
+    static _Thread_local ReadLoweredSourceBuffers *spares[16];
+    static _Thread_local int spare_count;
+    ReadLoweredSourceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+        AllocateOrExit(sizeof(*buffers));
+    char *returned = read_lowered_source_with_buffers(path, buffers);
+    if(spare_count < 16)
+        spares[spare_count++] = buffers;
+    else
+        free(buffers);
+    return returned;
 }
 
 /* Decode the literal source of Jai's #import, string form. A raw #string

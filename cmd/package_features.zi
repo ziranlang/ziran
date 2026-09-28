@@ -139,7 +139,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "c", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
     .{target = "cpp", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
     .{target = "go", status = "supported", limit = "Mutable backing bytes are snapshotted."},
-    .{target = "rust", status = "unsupported", limit = "The initial Rust backend does not lower text values or TextView."},
+    .{target = "rust", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
     .{target = "zib", status = "supported", limit = "Mutable backing bytes are snapshotted."},
     .{target = "plan9-c", status = "experimental", limit = "Borrow behavior is inherited from the C post-pass and is not covered by the differential matrix."}
     ]
@@ -182,7 +182,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "Check :: () -> s32 {\n    bytes: [1]u8 = .[97]\n    {\n        text := TextView(bytes[:])\n        if text.count != 1 { return 1 }\n    }\n    bytes[0] = cast(u8)98\n    return cast(s32)bytes[0]\n}\n",
         rejected_example = "Check :: () -> s32 {\n    bytes: [1]u8\n    text := TextView(bytes[:])\n    bytes[0] = cast(u8)98\n    return cast(s32)text[0]\n}\n",
         rejection = "Mutable backing storage cannot be changed while a view of it is live.",
-        evidence = "tests/text_view_mutation.sh\ntests/aggregate_view_lifetime.sh\ntests/capabilities.sh\n",
+        evidence = "tests/text_view_mutation.sh\ntests/aggregate_view_lifetime.sh\ntests/rust_backend.sh\ntests/capabilities.sh\n",
         targets = view_targets
     },
     .{

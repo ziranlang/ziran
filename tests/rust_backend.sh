@@ -27,6 +27,14 @@ Answer :: () -> s32 {
     if text[1:3] != "\u00e9" { return 5 }
     if "\a" != "\u0007" { return 6 }
     if text != "A\u00e9B" { return 7 }
+    bytes: [4]u8
+    bytes[0] = cast(u8)97
+    bytes[1] = cast(u8)98
+    bytes[2] = cast(u8)99
+    view := TextView(bytes[0:3])
+    whole := TextView(bytes[:])
+    if view != "abc" || view.count != 3 || whole.count != 4 ||
+       whole[3] != cast(u8)0 { return 8 }
     return 0
 }
 Add :: (a: s32, b: s32) -> s32 { return a + b }

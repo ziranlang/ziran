@@ -564,6 +564,20 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
     char symbol[ZIR_RUST_NAME_MAX * 2];
     char arguments[ZIR_RUST_TEXT_MAX] = "";
     char child[ZIR_RUST_TEXT_MAX];
+    if(!strcmp(expression->name, "TextView")) {
+        if(expression->first_child < 0 ||
+           emitter->function->exprs[expression->first_child].next_sibling >= 0 ||
+           strcmp(expression->type, "string") != 0) {
+            unsupported_expression(emitter, expression);
+            return;
+        }
+        emit_expression(emitter, expression->first_child, child,
+                        sizeof(child));
+        snprintf(output, size,
+                 "ZiranText { data: %s.data as *const u8, len: %s.len }",
+                 child, child);
+        return;
+    }
     if(expression->slot_type[0] || expression->is_function_value) {
         unsupported_expression(emitter, expression);
         return;
@@ -691,8 +705,30 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
             unsupported_expression(emitter, expression);
             break;
         }
-        snprintf(output, size, "ZiranSlice { data: %s.as_mut_ptr(), len: %d }",
-                 base, capacity);
+        {
+            const char *open = strrchr(expression->text, '[');
+            const char *close = strrchr(expression->text, ']');
+            const char *colon = open != NULL && close > open ?
+                strchr(open, ':') : NULL;
+            char low[ZIR_RUST_TEXT_MAX] = "0";
+            char high[ZIR_RUST_TEXT_MAX];
+            if(open == NULL || close == NULL || colon == NULL ||
+               colon < open + 1 || colon > close - 1) {
+                unsupported_expression(emitter, expression);
+                break;
+            }
+            if(colon - open - 1 > 0)
+                snprintf(low, sizeof(low), "%.*s",
+                         (int)(colon - open - 1), open + 1);
+            if(close - colon - 1 == 0)
+                snprintf(high, sizeof(high), "%d", capacity);
+            else
+                snprintf(high, sizeof(high), "%.*s",
+                         (int)(close - colon - 1), colon + 1);
+            snprintf(output, size,
+                     "ZiranSlice { data: %s.as_mut_ptr().offset(%s as isize), len: ((%s as isize) - (%s as isize)) as usize }",
+                     base, low, high, low);
+        }
         break;
     }
     case ZIR_EXPR_COMPOUND: {

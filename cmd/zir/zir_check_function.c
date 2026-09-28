@@ -1,4 +1,16 @@
 #include "zir_check_internal.h"
+
+/* A pointer to a fixed array, such as *[16]float64. Native backends have no
+ * declarator for it yet, so the checker rejects it instead of emitting C
+ * that points at the wrong type. */
+static int
+pointer_to_array(const char *type)
+{
+    const char *base = type;
+    while(*base == '*')
+        base++;
+    return base != type && *base == '[';
+}
 /* Buffers check_function keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct CheckFunctionBuffers {
@@ -69,6 +81,8 @@ restart:
                 return 0;
             }
             has_slots |= parameter_type != NULL && parameter_type->is_procedure_type;
+            if(pointer_to_array(colon))
+                error(c, fn->span, "pointers to arrays are not supported; pass the element pointer", buffers->params[a]);
             if(contains_vec(c->module, colon, 0) && fn->is_extern)
                 error(c, fn->span, "Vec cannot cross an extern signature", buffers->params[a]);
             has_arrays |= ArrayValueType(colon) || SliceElementType(colon, NULL, 0);

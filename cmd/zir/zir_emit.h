@@ -82,6 +82,7 @@ void EmitParallelWorkers(FILE *out, const ZirModule *module,
                          ZirResolveTarget resolve, void *context);
 void EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target);
 void EmitNumberSupport(FILE *out, ZirTarget target, const char *prefix);
+void EmitGoPrintSupport(FILE *out, const ZirModule *module);
 void EmitStringType(FILE *out);
 void EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                          ZirTarget target, ZirResolveTarget resolver, void *context);

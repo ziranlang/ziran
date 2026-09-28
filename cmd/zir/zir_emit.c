@@ -1110,6 +1110,27 @@ EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target)
     EmitNumberSupport(out, target, p);
 }
 
+/* Go `print` float text: nan and inf spellings shared with every target,
+ * then the shortest decimal that reads back to the same value. */
+void
+EmitGoPrintSupport(FILE *out, const ZirModule *module)
+{
+    char p[64];
+    number_prefix(module, p, sizeof(p));
+    fprintf(out,
+        "func %s_print_float(value float64, bits int) string {\n"
+        "\tswitch {\n"
+        "\tcase value != value:\n"
+        "\t\treturn \"nan\"\n"
+        "\tcase value > 1.7976931348623157e308:\n"
+        "\t\treturn \"inf\"\n"
+        "\tcase value < -1.7976931348623157e308:\n"
+        "\t\treturn \"-inf\"\n"
+        "\t}\n"
+        "\treturn ziranstrconv.FormatFloat(value, 'f', -1, bits)\n"
+        "}\n\n", p);
+}
+
 void
 EmitNumberSupport(FILE *out, ZirTarget target, const char *p)
 {
@@ -2565,24 +2586,47 @@ static void zero_record(Emitter *e, const char *type, char *out, size_t size);
 
 /* Checked `print`: evaluate every argument left to right, then write the
  * format's literal pieces and argument values to standard output in order. */
+static int
+expression_calls(const ZirFunction *fn, int index)
+{
+    if(index < 0 || index >= fn->expr_count)
+        return 0;
+    const ZirExpr *expr = &fn->exprs[index];
+    if(expr->kind == ZIR_EXPR_CALL)
+        return 1;
+    for(int child = expr->first_child; child >= 0; child = fn->exprs[child].next_sibling)
+        if(expression_calls(fn, child))
+            return 1;
+    return expression_calls(fn, expr->left) || expression_calls(fn, expr->right) ||
+           expression_calls(fn, expr->third);
+}
+
 static void
 emit_print(Emitter *e, const ZirExpr *expr)
 {
     PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
-    char values[PRINT_PIECES_MAX][ZIR_NAME_MAX];
+    char (*values)[ZIR_TEXT_MAX] = calloc(PRINT_PIECES_MAX, sizeof(*values));
+    int capture = 0;
     const char *types[PRINT_PIECES_MAX];
     char value[ZIR_TEXT_MAX], literal[ZIR_TEXT_MAX];
     int first = expr->first_child, count, argument = 0;
-    if(pieces == NULL || first < 0 ||
+    if(pieces == NULL || values == NULL || first < 0 ||
        (count = PrintFormatPieces(e->fn->exprs[first].text, pieces,
                                   PRINT_PIECES_MAX)) < 0)
         fatal(expr, "invalid checked print format");
+    /* Without calls no argument has an effect, so they read in place. */
+    for(int child = e->fn->exprs[first].next_sibling; child >= 0;
+        child = e->fn->exprs[child].next_sibling)
+        capture |= expression_calls(e->fn, child);
     for(int child = e->fn->exprs[first].next_sibling; child >= 0;
         child = e->fn->exprs[child].next_sibling, argument++) {
         types[argument] = ScalarType(e->fn->exprs[child].type);
         emit_expr(e, child, e->fn->exprs[child].type, value, sizeof(value));
-        fresh(e, values[argument]);
-        declare(e, values[argument], types[argument], value);
+        if(capture) {
+            fresh(e, values[argument]);
+            declare(e, values[argument], types[argument], value);
+        } else
+            copy_text(values[argument], ZIR_TEXT_MAX, value);
     }
     argument = 0;
     for(int i = 0; i < count; i++) {
@@ -2605,36 +2649,39 @@ emit_print(Emitter *e, const ZirExpr *expr)
             else if(!strcmp(type, "bool"))
                 line(e, "ZirPrintBool(%s);", name);
             else if(!strcmp(type, "float32") || !strcmp(type, "float64"))
-                line(e, "ZirPrintFloat((double)(%s), %d);", name,
-                     !strcmp(type, "float32"));
+                line(e, !strcmp(type, "float32") ? "ZirPrintFloat((double)%s, 1);" :
+                     "ZirPrintFloat(%s, 0);", name);
+            else if(!strcmp(type, "u64"))
+                line(e, "ZirPrintUnsigned(%s);", name);
             else if(type[0] == 'u')
-                line(e, "ZirPrintUnsigned((uint64_t)(%s));", name);
+                line(e, "ZirPrintUnsigned((uint64_t)%s);", name);
+            else if(!strcmp(type, "s64"))
+                line(e, "ZirPrintSigned(%s);", name);
             else
-                line(e, "ZirPrintSigned((int64_t)(%s));", name);
+                line(e, "ZirPrintSigned((int64_t)%s);", name);
         } else if(!strcmp(type, "string"))
             line(e, "ziranos.Stdout.WriteString(%s)", name);
         else if(!strcmp(type, "bool"))
             line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatBool(%s))",
                  name);
-        else if(!strcmp(type, "float32") || !strcmp(type, "float64")) {
-            line(e, "if %s != %s {", name, name);
-            line(e, "\tziranos.Stdout.WriteString(\"nan\")");
-            line(e, "} else if float64(%s) > 1.7976931348623157e308 {", name);
-            line(e, "\tziranos.Stdout.WriteString(\"inf\")");
-            line(e, "} else if float64(%s) < -1.7976931348623157e308 {", name);
-            line(e, "\tziranos.Stdout.WriteString(\"-inf\")");
-            line(e, "} else {");
-            line(e, "\tziranos.Stdout.WriteString(ziranstrconv.FormatFloat(float64(%s), 'f', -1, %d))",
-                 name, !strcmp(type, "float32") ? 32 : 64);
-            line(e, "}");
-        } else if(type[0] == 'u')
+        else if(!strcmp(type, "float64"))
+            line(e, "ziranos.Stdout.WriteString(%s_print_float(%s, 64))", e->numbers, name);
+        else if(!strcmp(type, "float32"))
+            line(e, "ziranos.Stdout.WriteString(%s_print_float(float64(%s), 32))",
+                 e->numbers, name);
+        else if(!strcmp(type, "u64"))
+            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatUint(%s, 10))", name);
+        else if(type[0] == 'u')
             line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatUint(uint64(%s), 10))",
                  name);
+        else if(!strcmp(type, "s64"))
+            line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatInt(%s, 10))", name);
         else
             line(e, "ziranos.Stdout.WriteString(ziranstrconv.FormatInt(int64(%s), 10))",
                  name);
     }
     free(pieces);
+    free(values);
 }
 
 /* Keep collection lowering outside recursive expression lowering: its large

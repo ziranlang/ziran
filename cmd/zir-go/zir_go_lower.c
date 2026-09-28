@@ -1336,6 +1336,8 @@ go_lower(const ZirProgram *const *progs, int prog_count,
                  * or to the Host interface below. */
             }
             EmitNumbers(f,m,ZIR_GO);
+            if(prints)
+                EmitGoPrintSupport(f, m);
             /* '#foreign host_api' bridge: one interface, one package var, one
              * setter. Generated frames call hostVar.Method(...) directly. */
             {

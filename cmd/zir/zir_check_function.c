@@ -1,0 +1,632 @@
+#include "zir_check_internal.h"
+
+int
+check_function(Checker *c, ZirFunction *fn)
+{
+    int errors_before = c->errors;
+    int has_slots;
+    int has_arrays;
+    char params[64][ZIR_TEXT_MAX];
+    int n;
+    c->fn = fn;
+    if(contains_vec(c->module, fn->return_type, 0) && fn->is_extern)
+        error(c, fn->span, "Vec cannot cross an extern signature", fn->name);
+    select_lookup_file(c->module, fn->span);
+    const ZirType *return_slot = FindType(c->module, c->fn->return_type, NULL);
+    if(return_slot != NULL && return_slot->is_record_template) {
+        Diagnostic(c->fn->span, "check.specialize",
+                   "generic types require a concrete specialization: %s",
+                   c->fn->return_type);
+        return 0;
+    }
+    /* Source expressions need imported types to disambiguate casts. Saved
+     * IR already contains the checked graph: type-check that graph directly
+     * so its statement text cannot redefine program meaning. */
+    if(!c->fn->from_ir)
+        StructureFunction(c->fn, c->module);
+    if(!reserve_compound_constants(c->module, c->fn)) {
+        error(c, fn->span, "too many aggregate constant expressions",
+              fn->name);
+        return 0;
+    }
+restart:
+    for(int expression = 0; expression < fn->expr_count; expression++)
+        fn->exprs[expression].is_move = 0;
+    while(c->restore_count > 0)
+        free(c->restores[--c->restore_count].states);
+    c->count = 0; c->depth = 0;
+    c->using_rewritten = 0;
+    c->aggregate_rewritten = 0;
+    if(!fn->from_ir || fn->is_specialization)
+        for(int i = 0; i < c->module->using_count; i++) {
+            const ZirUsing *using = &c->module->usings[i];
+            if(!in_lookup_file(c->module, using->is_file_private,
+                               using->span))
+                continue;
+            activate_using_filtered(c, using->path, using->filter,
+                                    using->span);
+        }
+    has_slots = 0;
+    has_arrays = fn->return_type[0] == '[';
+    fn->uses_host = fn->is_extern && fn->extern_kind == ZIR_EXTERN_HOST;
+    n = *skip_ws(c->fn->args) ? split_top_level(c->fn->args, params[0], 64, sizeof(params[0])) : 0;
+    for(int a = 0; a < n; a++) {
+        char *colon = strchr(params[a], ':');
+        if(colon) {
+            *colon++ = 0; trim_in_place(params[a]); trim_in_place(colon);
+            const ZirType *parameter_type = FindType(c->module, colon, NULL);
+            if(parameter_type != NULL && parameter_type->is_record_template) {
+                Diagnostic(c->fn->span, "check.specialize",
+                           "generic types require a concrete specialization: %s",
+                           colon);
+                return 0;
+            }
+            has_slots |= parameter_type != NULL && parameter_type->is_procedure_type;
+            if(contains_vec(c->module, colon, 0) && fn->is_extern)
+                error(c, fn->span, "Vec cannot cross an extern signature", params[a]);
+            has_arrays |= ArrayValueType(colon) || SliceElementType(colon, NULL, 0);
+            bind(c, params[a], colon, c->fn->span);
+            if((!fn->from_ir || fn->is_specialization) &&
+               (fn->using_parameters & (UINT64_C(1) << a)))
+                activate_using(c, params[a], fn->span);
+        } else error(c, c->fn->span, "parameters require name: type", params[a]);
+    }
+    c->restore_count = 0;
+    for(int i = 0; i < c->fn->stmt_count; i++) {
+        ZirStmt *st = &c->fn->stmts[i];
+        int errors_at_statement;
+        c->current_stmt = st;
+        const char *type;
+        if(st->kind == ZIR_STMT_IF && c->restore_count < 64) {
+            /* Moves inside an if whose every arm returns never reach the
+             * join; the state after it is the state before it. */
+            int last = i;
+            if(all_arms_return(fn, i, &last)) {
+                MoveState *states = calloc((size_t)(c->count > 0 ?
+                                                      c->count : 1),
+                                            sizeof(*states));
+                if(states != NULL) {
+                    for(int b = 0; b < c->count; b++) {
+                        states[b].moved = c->bindings[b].moved;
+                        states[b].moved_path_count =
+                            c->bindings[b].moved_path_count;
+                        memcpy(states[b].moved_paths,
+                               c->bindings[b].moved_paths,
+                               sizeof(states[b].moved_paths));
+                    }
+                    c->restores[c->restore_count].at = last;
+                    c->restores[c->restore_count].count = c->count;
+                    c->restores[c->restore_count].states = states;
+                    c->restore_count++;
+                }
+            }
+        }
+        for(int r = 0; r < c->restore_count; r++) {
+            if(c->restores[r].at != i)
+                continue;
+            for(int b = 0; b < c->restores[r].count && b < c->count; b++) {
+                c->bindings[b].moved =
+                    c->restores[r].states[b].moved != 0;
+                c->bindings[b].moved_path_count =
+                    c->restores[r].states[b].moved_path_count;
+                memcpy(c->bindings[b].moved_paths,
+                       c->restores[r].states[b].moved_paths,
+                       sizeof(c->bindings[b].moved_paths));
+            }
+            free(c->restores[r].states);
+            c->restores[r] = c->restores[c->restore_count - 1];
+            c->restore_count--;
+            r--;
+        }
+        if(st->kind == ZIR_STMT_BLOCK_CLOSE) {
+            while(c->count && c->bindings[c->count - 1].depth == c->depth) {
+                Binding *popping = &c->bindings[c->count - 1];
+                if(popping->borrows_index >= 0 &&
+                   popping->borrows_index < c->count - 1)
+                    c->bindings[popping->borrows_index].borrow_count--;
+                c->count--;
+            }
+            if(c->depth) c->depth--;
+        }
+        if((!fn->from_ir || fn->is_specialization) &&
+           st->is_using && st->kind == ZIR_STMT_EXPR) {
+            activate_using_filtered(c, st->name, st->type, st->span);
+            expression_type(c, st->expr_root);
+            continue;
+        }
+        if(!fn->from_ir || fn->is_specialization) {
+            promote_using_tree(c, st->lhs_root);
+            promote_using_tree(c, st->expr_root);
+        }
+        if(st->kind == ZIR_STMT_DECL)
+            normalize_array(c->module, st->type, sizeof(st->type));
+        if(st->kind == ZIR_STMT_DECL)
+            contextual_slot(c, st->expr_root, st->type);
+        if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 &&
+           c->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT)
+            contextual_slot(c, st->expr_root, lookup(c, c->fn->exprs[st->lhs_root].name));
+        else if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 &&
+                (c->fn->exprs[st->lhs_root].kind == ZIR_EXPR_MEMBER ||
+                 c->fn->exprs[st->lhs_root].kind == ZIR_EXPR_POINTER_MEMBER))
+            contextual_slot(c, st->expr_root, expression_type(c, st->lhs_root));
+        c->expected_type[0] = '\0';
+        if(st->kind == ZIR_STMT_DECL)
+            copy_text(c->expected_type, sizeof(c->expected_type), st->type);
+        else if(st->kind == ZIR_STMT_RETURN)
+            copy_text(c->expected_type, sizeof(c->expected_type), c->fn->return_type);
+        else if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0) {
+            c->assign_destination = 1;
+            copy_text(c->expected_type, sizeof(c->expected_type),
+                      expression_type(c, st->lhs_root));
+            c->assign_destination = 0;
+        }
+        type = expression_type(c, st->expr_root);
+        c->expected_type[0] = '\0';
+        errors_at_statement = c->errors;
+        if(st->kind == ZIR_STMT_EXPR || st->kind == ZIR_STMT_UNUSED) {
+            int discarded = discarded_must_call(c, st->expr_root);
+            if(discarded >= 0) {
+                const ZirExpr *call = &fn->exprs[discarded];
+                error(c, call->span, "#must return value is ignored",
+                      call->name);
+            }
+        }
+        if(st->kind == ZIR_STMT_IF_CASE) {
+            const ZirType *enumeration = FindType(c->module, type, NULL);
+            int complete_case = starts_word(skip_ws(st->text + 2), "#complete");
+            if(fn->from_ir || c->errors != errors_before ||
+               !starts_word(st->text, "if") ||
+               strstr(st->text, "==") == NULL ||
+               (enumeration == NULL && !scalar_case_type(type)) ||
+               (enumeration != NULL && !enumeration->is_enum) ||
+               (enumeration == NULL && complete_case)) {
+                if_case_error(c, st->span,
+                              "if-case requires a checked enum or scalar value", type);
+                return 0;
+            }
+            if(!lower_if_case(c, i, type)) return 0;
+            StructureFunction(fn, c->module);
+            goto restart;
+        }
+        c->destination_was_moved = -1;
+        if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0) {
+            Binding *destination = lexical_owned_binding(c, st->lhs_root);
+            c->destination_was_moved = destination != NULL && destination->moved;
+        }
+        if(c->errors == errors_at_statement && st->expr_root >= 0) {
+            Binding *moved_from = lexical_owned_binding(c, st->expr_root);
+            int consumed_root = 0;
+            if(moved_from != NULL && moved_from->moved_path_count != 0 &&
+               (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
+                st->kind == ZIR_STMT_RETURN)) {
+                error(c, st->span,
+                      "owned aggregate is used after moving one of its fields",
+                      moved_from->name);
+                consumed_root = 1;
+            }
+            if(moved_from != NULL && moved_from->moved_path_count == 0 &&
+               (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
+                st->kind == ZIR_STMT_RETURN)) {
+                if(moved_from->borrow_count > 0)
+                    error(c, st->span,
+                          "cannot move a Vec with a live borrowed view",
+                          moved_from->name);
+                moved_from->moved = 1;
+                c->fn->exprs[st->expr_root].is_move = 1;
+                consumed_root = 1;
+            }
+            if(!consumed_root &&
+               (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
+                st->kind == ZIR_STMT_RETURN))
+                consumed_root = mark_moved_member_path(c, st->expr_root);
+            if(!consumed_root)
+                mark_expr_moves(c, st->expr_root);
+            int root_transfer =
+                (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
+                 st->kind == ZIR_STMT_RETURN) &&
+                contains_vec(c->module, fn->exprs[st->expr_root].type, 0);
+            int root_discard = st->kind == ZIR_STMT_EXPR ||
+                               st->kind == ZIR_STMT_UNUSED;
+            check_vec_call_results(c, st->expr_root, root_transfer,
+                                   root_discard);
+            if(root_discard &&
+               contains_vec(c->module, fn->exprs[st->expr_root].type, 0) &&
+               fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
+               fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL)
+                error(c, st->span,
+                      "discarded Vec value must be a binding or call result",
+                      st->text);
+            /* An assignment into a moved-from Vec binding re-owns it with
+             * the transferred or fresh value. The handoff form
+             * `v = Take(v)` also re-owns: the right side moved this binding
+             * into the call and stores the result back into it. */
+            if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0) {
+                Binding *destination = lexical_owned_binding(c, st->lhs_root);
+                if(destination != NULL) {
+                    if(destination->moved)
+                        c->destination_was_moved = 1;
+                    destination->moved = 0;
+                }
+            }
+        }
+        if(st->kind == ZIR_STMT_DECL) {
+            if(!*st->type) copy_text(st->type, sizeof(st->type),
+                !strcmp(type, "integer") ? "s64" : !strcmp(type, "real") ? "float64" : type);
+            else if(!compatible_checked(c, st->type, type)) {
+                const char *converted = try_conversion(c, st->expr_root,
+                                                       st->type, st->span);
+                if(converted != NULL)
+                    type = converted;
+                else
+                    error(c, st->span, "initializer type mismatch", st->name);
+            }
+            if(!strcmp(st->type, "null"))
+                error(c, st->span, "null requires an explicit pointer type", st->name);
+            if(st->type[0] == '[') {
+                const char *problem = local_storage_error(c->module, st->type);
+                if(problem != NULL)
+                    error(c, st->span, problem, st->name);
+            }
+            const ZirType *local_type = FindType(c->module, st->type, NULL);
+            if(local_type == NULL && st->type[0] != '[' &&
+               !TargetType(st->type, ZIR_C) &&
+               !SliceElementType(st->type, NULL, 0)) {
+                const char *base = st->type;
+                int resolvable = 0;
+                while(*base == '*')
+                    base++;
+                if(TargetType(base, ZIR_C) != NULL ||
+                   FindType(c->module, base, NULL) != NULL)
+                    resolvable = 1;
+                if(!resolvable)
+                    error(c, st->span, "unknown declaration type", st->type);
+            }
+            if(local_type != NULL && local_type->is_record_template)
+                error(c, st->span,
+                      "generic types require a concrete specialization",
+                      st->type);
+            if(local_type != NULL && local_type->is_procedure_type) {
+                has_slots = 1;
+                if(st->expr_root < 0) {
+                    Diagnostic(st->span, "check.slot_initializer", "slot bindings require an initializer");
+                    c->failed = 1;
+                }
+            }
+            if(st->expr_root >= 0 &&
+               contains_vec(c->module, st->type, 0) &&
+               c->fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
+               c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
+               !owned_initializer_shape(c, st->expr_root))
+                error(c, st->span,
+                      "Vec initialization moves a binding or takes a call result",
+                      st->name);
+            if(st->expr_root >= 0 &&
+               contains_vec(c->module, st->type, 0) &&
+               global_vec_source(c, st->expr_root))
+                error(c, st->span,
+                      "global Vec storage cannot move; use a local",
+                      st->name);
+            bind(c, st->name, st->type, st->span);
+            /* A declared VecSlice view borrows its source until the view's
+             * scope closes; the source cannot move or mutate meanwhile. */
+            if(st->expr_root >= 0 &&
+               c->fn->exprs[st->expr_root].kind == ZIR_EXPR_CALL &&
+               !strcmp(c->fn->exprs[st->expr_root].name, "VecSlice") &&
+               SliceElementType(st->type, NULL, 0)) {
+                int vector = c->fn->exprs[st->expr_root].first_child;
+                if(vector >= 0 &&
+                   c->fn->exprs[vector].kind == ZIR_EXPR_IDENT) {
+                    for(int b = c->count - 2; b >= 0; b--)
+                        if(!c->bindings[b].is_using_namespace &&
+                           !strcmp(c->bindings[b].name,
+                                   c->fn->exprs[vector].name) &&
+                           owned_vec_binding_type(c, c->bindings[b].type)) {
+                            c->bindings[c->count - 1].borrows_index = b;
+                            c->bindings[b].borrow_count++;
+                            break;
+                        }
+                }
+            }
+            if((!fn->from_ir || fn->is_specialization) && st->is_using)
+                activate_using_filtered(c, st->name, st->type, st->span);
+        } else if(st->kind == ZIR_STMT_ASSIGN) {
+            c->assign_destination = 1;
+            const char *lhs = expression_type(c, st->lhs_root);
+            c->assign_destination = 0;
+            if(contains_vec(c->module, lhs, 0)) {
+                if(c->fn->exprs[st->lhs_root].kind != ZIR_EXPR_IDENT)
+                    error(c, st->span,
+                          "Vec assignment requires a simple binding destination",
+                          st->text);
+                else if(lexical_owned_binding(c, st->lhs_root) == NULL)
+                    error(c, st->span,
+                          "global Vec assignment is not supported; move it into a local first",
+                          st->text);
+                else if(st->expr_root >= 0 &&
+                        c->fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
+                        c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
+                        !owned_initializer_shape(c, st->expr_root))
+                    error(c, st->span,
+                          "Vec assignment moves a binding or takes a call result",
+                          st->text);
+                else if(st->expr_root >= 0 &&
+                        global_vec_source(c, st->expr_root))
+                    error(c, st->span,
+                          "global Vec storage cannot move; use a local",
+                          st->text);
+                else if(c->destination_was_moved == 0)
+                    error(c, st->span,
+                          "assignment over an owned Vec leaks it; free or move it first",
+                          c->fn->exprs[st->lhs_root].name);
+            }
+            const ZirType *destination = FindType(c->module, lhs, NULL);
+            if(lhs[0] == '[' && strcmp(st->assignment_op, "="))
+                error(c, st->span, "array compound assignment is not supported", st->assignment_op);
+            if(destination != NULL && destination->is_enum &&
+               !destination->is_enum_flags && strcmp(st->assignment_op, "="))
+                error(c, st->span, "enum compound assignment requires an explicit numeric cast", st->assignment_op);
+            if(destination != NULL && destination->is_enum_flags &&
+               strcmp(st->assignment_op, "=") &&
+               strcmp(st->assignment_op, "|=") &&
+               strcmp(st->assignment_op, "&=") &&
+               strcmp(st->assignment_op, "^=") &&
+               strcmp(st->assignment_op, "+=") &&
+               strcmp(st->assignment_op, "-="))
+                error(c, st->span, "unsupported enum_flags compound assignment", st->assignment_op);
+            if(text_type(lhs) && strcmp(st->assignment_op, "="))
+                error(c, st->span, "string compound assignment is not supported", st->assignment_op);
+            if(!assignable(c, st->lhs_root)) error(c, st->span, "assignment requires an assignable destination", "");
+            if(readonly_text_destination(c, st->lhs_root))
+                error(c, st->span, "collection count and borrowed string bytes are read-only", "");
+            if(!compatible_checked(c, lhs, type)) {
+                const char *converted = try_conversion(c, st->expr_root, lhs,
+                                                       st->span);
+                if(converted != NULL)
+                    type = converted;
+                else
+                    error(c, st->span, "assignment type mismatch", st->text);
+            }
+        } else if(st->kind == ZIR_STMT_RETURN) {
+            if(contains_vec(c->module, c->fn->return_type, 0) &&
+               st->expr_root >= 0 &&
+               fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
+               fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
+               !owned_initializer_shape(c, st->expr_root))
+                error(c, st->span,
+                      "owned return moves a binding or takes a call result",
+                      c->fn->name);
+            if(!compatible_checked(c, c->fn->return_type, type)) {
+                const char *converted = try_conversion(c, st->expr_root,
+                                                       c->fn->return_type,
+                                                       st->span);
+                if(converted != NULL)
+                    type = converted;
+                else
+                    error(c, st->span, "return type mismatch", c->fn->name);
+            }
+            if((st->expr_root < 0) != !strcmp(c->fn->return_type, "void"))
+                error(c, st->span, "return value does not match function signature", c->fn->name);
+            if(contains_vec(c->module, c->fn->return_type, 0) &&
+               global_vec_source(c, st->expr_root))
+                error(c, st->span,
+                      "global Vec storage cannot move; use a local",
+                      c->fn->exprs[st->expr_root].name);
+        } else if(st->kind == ZIR_STMT_IF || st->kind == ZIR_STMT_WHILE) {
+            if(st->expr_root < 0 &&
+               (st->kind == ZIR_STMT_WHILE || !st->is_else ||
+                starts_word(skip_ws(st->text + 4), "if")))
+                error(c, st->span, "condition requires an expression", st->text);
+            if(*type && strcmp(type, "bool")) error(c, st->span, "condition requires bool", type);
+        } else if(st->kind == ZIR_STMT_UNKNOWN || st->kind == ZIR_STMT_FOR) {
+            error(c, st->span, "statement is not supported by language checking", st->text);
+        }
+        if(st->kind == ZIR_STMT_BLOCK_OPEN || st->kind == ZIR_STMT_IF ||
+           st->kind == ZIR_STMT_WHILE || st->kind == ZIR_STMT_FOR)
+            c->depth++;
+    }
+    for(int i = 0; i < fn->expr_count; i++) {
+        const ZirExpr *call = &fn->exprs[i];
+        has_arrays |= SliceElementType(call->type, NULL, 0);
+        if(call->kind != ZIR_EXPR_CALL)
+            continue;
+        const ZirFunction *callee = NULL;
+        const ZirModule *owner = NULL;
+        if(ResolveFunction(c->module, call->name, &owner, &callee) <= 0 ||
+           callee == NULL || callee->is_extern)
+            continue;
+        has_arrays |= ArrayValueType(callee->return_type);
+        char parameters[64][ZIR_TEXT_MAX];
+        int count = *skip_ws(callee->args) ?
+            split_top_level(callee->args, parameters[0], 64, sizeof(parameters[0])) : 0;
+        for(int parameter = 0; parameter < count; parameter++) {
+            const char *colon = strchr(parameters[parameter], ':');
+            if(colon != NULL)
+                has_arrays |= ArrayValueType(skip_ws(colon + 1));
+        }
+    }
+    if(!fn->is_extern && fn->return_type[0] == '[' &&
+       !sequence_returns(fn, 0, fn->stmt_count))
+        error(c, fn->span, "array or slice result requires a return on every path", fn->name);
+    if(c->conversions_applied &&
+       !rebuild_conversion_layout(fn)) {
+        error(c, fn->span, "cannot reorder #as conversion graph", fn->name);
+        return 0;
+    }
+    c->conversions_applied = 0;
+    if(!validate_loop_targets(c, fn))
+        return 0;
+    if((c->using_rewritten || c->aggregate_rewritten) &&
+       !order_using_expressions(fn)) {
+        error(c, fn->span, "cannot order checked expressions", fn->name);
+        return 0;
+    }
+    c->fn->checked = c->errors == errors_before;
+    for(int expression = 0; expression < c->fn->expr_count; expression++)
+        has_slots |= c->fn->exprs[expression].is_function_value;
+    /* Portable scalar emission classifies functions for bundles; a body the
+     * emitter cannot express is excluded there and re-verified by the bundle
+     * gate. Type checking itself stays complete, so native-only programs
+     * with host-bound state (raw pointers, foreign handles) check clean. */
+    if((has_slots || has_arrays) && !c->fn->is_extern && !c->fn->checked)
+        c->fn->checked = 0;
+    if(c->fn->checked && !c->fn->is_extern && !CanEmitBody(c->module, c->fn))
+        c->fn->checked = 0;
+    if(c->fn->checked) {
+        fn->using_parameters = 0;
+        for(int i = 0; i < fn->stmt_count; i++)
+            fn->stmts[i].is_using = 0;
+    }
+    return !c->failed;
+}
+
+int
+check_template_declaration(Checker *c, ZirFunction *fn)
+{
+    c->fn = fn;
+    select_lookup_file(c->module, fn->span);
+    if(!fn->from_ir)
+        StructureFunction(fn, c->module);
+    if(!fn->template_param[0] || fn->is_extern || fn->exported ||
+       strchr(fn->return_type, '$') != NULL) {
+        Diagnostic(fn->span, "check.template",
+                   "invalid polymorphic procedure declaration");
+        return 0;
+    }
+    char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
+    if(parameters == NULL) return 0;
+    int count = *skip_ws(fn->args) ?
+        split_top_level(fn->args, parameters[0], 64,
+                        sizeof(parameters[0])) : 0;
+    int binders = 0, valid = count > 0;
+    uint64_t allowed_using = count >= 64 ? UINT64_MAX :
+                             (UINT64_C(1) << count) - 1;
+    valid = valid && (fn->using_parameters & ~allowed_using) == 0;
+    for(int i = 0; i < count && valid; i++) {
+        char *colon = strchr(parameters[i], ':');
+        if(colon == NULL) { valid = 0; break; }
+        char *type = colon + 1;
+        trim_in_place(type);
+        if(type[0] == '$') {
+            if(strcmp(type + 1, fn->template_param)) valid = 0;
+            else binders++;
+        } else if(strchr(type, '$') != NULL)
+            valid = 0;
+    }
+    free(parameters);
+    if(!valid || binders == 0) {
+        Diagnostic(fn->span, "check.template",
+                   "polymorphic procedure requires a direct $Type parameter");
+        return 0;
+    }
+    for(int i = 0; i < fn->stmt_count; i++)
+        if(fn->stmts[i].kind == ZIR_STMT_UNKNOWN ||
+           fn->stmts[i].kind == ZIR_STMT_FOR) {
+            Diagnostic(fn->stmts[i].span, "check.template",
+                       "unsupported statement in polymorphic procedure");
+            return 0;
+        }
+    for(int i = 0; i < fn->expr_count; i++)
+        if(fn->exprs[i].kind == ZIR_EXPR_UNKNOWN) {
+            Diagnostic(fn->exprs[i].span, "check.template",
+                       "unsupported expression in polymorphic procedure");
+            return 0;
+        }
+    return validate_loop_targets(c, fn);
+}
+
+/* Resolve every declaration before checking bodies, so imported and forward
+ * calls compare the same array shapes regardless of traversal order. */
+int
+normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
+{
+    char parts[64][ZIR_TEXT_MAX];
+    char arguments[sizeof(fn->args)];
+    size_t used = 0;
+    int array_arguments = strchr(fn->args, '[') != NULL;
+    int argument_alias_changed = 0;
+    int count = *skip_ws(fn->args) ?
+        split_top_level(fn->args, parts[0], 64, sizeof(parts[0])) : 0;
+    arguments[0] = '\0';
+    for(int i = -1; i < count; i++) {
+        char *type = fn->return_type;
+        size_t capacity = sizeof(fn->return_type);
+        if(i >= 0) {
+            char *colon = strchr(parts[i], ':');
+            if(colon == NULL) {
+                Diagnostic(fn->span, "check.signature", "parameters require name: type: %s", parts[i]);
+                return 0;
+            }
+            type = colon + 1;
+            trim_in_place(type);
+            capacity = sizeof(parts[i]) - (size_t)(type - parts[i]);
+        }
+        char original_type[ZIR_TEXT_MAX];
+        copy_text(original_type, sizeof(original_type), type);
+        normalize_array(module, type, capacity);
+        if(i >= 0 && strcmp(original_type, type) != 0)
+            argument_alias_changed = 1;
+        int host_buffer = i >= 0 && ArrayElementType(type, NULL, 0, NULL) &&
+                          !ArrayValueType(type);
+        if(type[0] == '[' && !host_buffer) {
+            const char *problem = local_storage_error(module, type);
+            if(problem == NULL && fn->is_extern &&
+               (i < 0 || !SliceElementType(type, NULL, 0)))
+                problem = "direct array signatures require an ordinary Ziran function";
+            int bound = -1;
+            if(problem == NULL && !SliceElementType(type, NULL, 0) &&
+               array_capacity(module, type, &bound) != 1)
+                problem = "array signatures require a resolved capacity";
+            if(problem != NULL) {
+                Diagnostic(fn->span, "check.array_signature", "%s: %s", problem, type);
+                return 0;
+            }
+        }
+        if(i >= 0) {
+            int length = snprintf(arguments + used, sizeof(arguments) - used,
+                                  "%s%s", used ? ", " : "", parts[i]);
+            if(length < 0 || (size_t)length >= sizeof(arguments) - used) {
+                Diagnostic(fn->span, "check.array_signature", "function signature exceeds size limit");
+                return 0;
+            }
+            used += (size_t)length;
+        }
+    }
+    if(array_arguments || argument_alias_changed)
+        copy_text(fn->args, sizeof(fn->args), arguments);
+    if(argument_alias_changed && fn->default_args[0]) {
+        char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
+        if(defaults == NULL) return 0;
+        int default_count = split_top_level(fn->default_args, defaults[0],
+                                            64, sizeof(defaults[0]));
+        char normalized[sizeof(fn->default_args)];
+        size_t written = 0;
+        normalized[0] = '\0';
+        if(default_count != count) {
+            free(defaults);
+            Diagnostic(fn->span, "check.signature",
+                       "default arguments do not match procedure parameters");
+            return 0;
+        }
+        for(int i = 0; i < count; i++) {
+            char *assignment = top_level_assignment(defaults[i]);
+            const char *default_value = assignment == NULL ? "" :
+                                        skip_ws(assignment + 1);
+            int length = snprintf(normalized + written,
+                                  sizeof(normalized) - written,
+                                  "%s%s%s%s", i ? ", " : "", parts[i],
+                                  assignment == NULL ? "" : " = ",
+                                  default_value);
+            if(length < 0 || (size_t)length >=
+                             sizeof(normalized) - written) {
+                free(defaults);
+                Diagnostic(fn->span, "check.signature",
+                           "default argument signature exceeds size limit");
+                return 0;
+            }
+            written += (size_t)length;
+        }
+        copy_text(fn->default_args, sizeof(fn->default_args), normalized);
+        free(defaults);
+    }
+    return 1;
+}

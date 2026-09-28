@@ -1,5 +1,6 @@
 CC ?= cc
 AR ?= ar
+OBJCOPY ?= objcopy
 CFLAGS ?= -O2
 CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
 DEPFLAGS = -MMD -MP
@@ -16,7 +17,7 @@ BUILD_DIR ?= build
 BIN_DIR := $(BUILD_DIR)/bin
 FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_parse.c cmd/zir/zir_text.c \
     cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
-    cmd/zir/zir_check.c cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
+    cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
     cmd/zir/zir_emit.c cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
     cmd/zir/zir_diagnostic.c
@@ -26,8 +27,8 @@ LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES))
-FRONTEND_OBJECTS := $(call obj,$(FRONTEND))
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(BUILD_DIR)/obj/check.o
+FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(BUILD_DIR)/obj/check.o
 BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
 
@@ -55,6 +56,15 @@ $(BUILD_DIR)/obj/%.o: %.c
 $(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
+
+# The checker compiles in parts, then merges into one object; its shared
+# helpers are hidden and localized there so they never leave check.o.
+CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
+    _function.c _link.c _program.c)
+
+$(BUILD_DIR)/obj/check.o: $(call obj,$(CHECK_PARTS))
+	$(CC) -r -nostdlib -o $@ $^
+	$(OBJCOPY) --localize-hidden $@
 
 -include $(shell find $(BUILD_DIR)/obj -name '*.d' 2>/dev/null)
 

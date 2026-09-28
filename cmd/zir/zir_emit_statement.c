@@ -433,10 +433,6 @@ go_binding_read_later(const ZirFunction *fn, int declaration)
 {
     const char *name = fn->stmts[declaration].name;
     int read = 0;
-    /* A fixed array's count, data, and empty slices can lower to constants
-     * that never read the variable. */
-    if(ArrayElementType(fn->stmts[declaration].type, NULL, 0, NULL))
-        return 0;
     for(int s = 0; s < fn->stmt_count; s++) {
         const ZirStmt *st = &fn->stmts[s];
         if(s != declaration && st->kind == ZIR_STMT_DECL && !strcmp(st->name, name))

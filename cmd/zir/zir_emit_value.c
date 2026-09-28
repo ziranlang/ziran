@@ -77,14 +77,16 @@ assign_value(Emitter *e, const char *destination, const char *type, const char *
     }
 }
 
+/* A fixed array type's element type and bound list in the target: for
+ * [4][96]u8, uint8_t and [4][96]. */
 void
-declare_array(Emitter *e, const char *name, const char *type, const char *value)
+array_target_type(Emitter *e, const char *type, char *target_element,
+                  size_t element_size, char *bounds, size_t bounds_size)
 {
     char element[ZIR_NAME_MAX];
-    char target_element[ZIR_NAME_MAX * 2];
     /* Nested fixed arrays ([4][96]u8) flatten to one C dimension list:
      * uint8_t name[4][96]. Collect every bound outside-in. */
-    char bounds[ZIR_NAME_MAX * 2] = "";
+    bounds[0] = '\0';
     char working[ZIR_NAME_MAX * 2];
     int capacity;
 
@@ -107,24 +109,33 @@ declare_array(Emitter *e, const char *name, const char *type, const char *value)
         }
         copy_text(working, sizeof(working), inner);
         if(bounds[0] == '\0') {
-            copy_text(bounds, sizeof(bounds), bound);
-        } else if(strlen(bounds) + strlen(bound) < sizeof(bounds)) {
+            copy_text(bounds, bounds_size, bound);
+        } else if(strlen(bounds) + strlen(bound) < bounds_size) {
             strcat(bounds, bound);
         }
     }
     copy_text(element, sizeof(element), working);
     const char *scalar = TargetType(element, e->target);
     if(scalar != NULL) {
-        copy_text(target_element, sizeof(target_element), scalar);
+        copy_text(target_element, element_size, scalar);
     } else if(element[0] == '*') {
         /* Pointer elements lower through the same naming as slot types:
          * [4]*u8 emits uint8_t* name[4]. */
         char native[ZIR_NAME_MAX * 2];
         slot_native_type(element, e->target, native, sizeof(native));
-        copy_text(target_element, sizeof(target_element), native);
+        copy_text(target_element, element_size, native);
     } else {
-        e->resolve(e->context, element, target_element, sizeof(target_element));
+        e->resolve(e->context, element, target_element, element_size);
     }
+}
+
+void
+declare_array(Emitter *e, const char *name, const char *type, const char *value)
+{
+    char target_element[ZIR_NAME_MAX * 2];
+    char bounds[ZIR_NAME_MAX * 2];
+    array_target_type(e, type, target_element, sizeof(target_element),
+                      bounds, sizeof(bounds));
     if(e->target == ZIR_GO) {
         if(value != NULL && *value)
             line(e, "var %s %s%s = %s", name, bounds, target_element, value);

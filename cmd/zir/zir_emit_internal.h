@@ -135,6 +135,8 @@ void fatal(const ZirExpr *expr, const char *message);
 void fresh(Emitter *e, char *name);
 void assign_value(Emitter *e, const char *destination, const char *type, const char *source);
 void declare_array(Emitter *e, const char *name, const char *type, const char *value);
+void array_target_type(Emitter *e, const char *type, char *target_element,
+                       size_t element_size, char *bounds, size_t bounds_size);
 void declare(Emitter *e, const char *name, const char *type, const char *value);
 void resolve(Emitter *e, const char *name, char *out, size_t size);
 void clear_owned_value(Emitter *e, const char *value, const char *type, const ZirModule *module, int depth);

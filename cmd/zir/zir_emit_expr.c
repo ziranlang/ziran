@@ -344,6 +344,36 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         pure = 1;
         break;
     case ZIR_EXPR_COMPOUND: {
+        /* Go spells a record or array value as one literal, Point{X: 3, Y: 4}:
+         * its zero value is T{}, so unnamed fields keep their zero. */
+        if(e->target == ZIR_GO) {
+            int is_array = ArrayElementType(type, NULL, 0, NULL) != 0;
+            size_t used;
+            pure = 1;
+            if(is_array) {
+                char element[ZIR_NAME_MAX * 2], bounds[ZIR_NAME_MAX * 2];
+                array_target_type(e, type, element, sizeof(element), bounds, sizeof(bounds));
+                used = (size_t)format(result, sizeof(result), "%s%s{", bounds, element);
+            } else {
+                e->resolve(e->context, type, b, sizeof(b));
+                used = (size_t)format(result, sizeof(result), "%s{", b);
+            }
+            for(int child = expr->first_child; child >= 0; child = e->fn->exprs[child].next_sibling) {
+                const ZirExpr *entry = &e->fn->exprs[child];
+                char field_name[ZIR_NAME_MAX];
+                emit_expr(e, entry->right, entry->type, a, sizeof(a));
+                pure &= e->pure;
+                if(!is_array)
+                    go_field_ident(entry->name, field_name, sizeof(field_name));
+                used += (size_t)format(result + used, used < sizeof(result) ? sizeof(result) - used : 0,
+                                       "%s%s%s%s", child == expr->first_child ? "" : ", ",
+                                       is_array ? "" : field_name, is_array ? "" : ": ", a);
+            }
+            if(used + 2 >= sizeof(result))
+                fatal(expr, "record value is too long");
+            copy_text(result + used, sizeof(result) - used, "}");
+            break;
+        }
         if(ArrayElementType(type, NULL, 0, NULL)) {
             fresh(e, temp);
             declare(e, temp, type, NULL);
@@ -491,6 +521,45 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
             emit_expr(e, expr->left, base_type, source, sizeof(source));
         }
         base_pure = e->pure;
+        /* A fixed array's length is its capacity, so Go's own bounds check
+         * on arr[low:high:high] is exactly Ziran's. */
+        if(array && capacity > 0 && e->target == ZIR_GO) {
+            if(expr->right >= 0) {
+                emit_expr(e, expr->right, "s64", low, sizeof(low));
+                low_pure = e->pure;
+            } else copy_text(low, sizeof(low), "0");
+            if(expr->third >= 0) {
+                emit_expr(e, expr->third, "s64", high, sizeof(high));
+                high_pure = e->pure;
+            } else format(high, sizeof(high), "%d", capacity);
+            pure = base_pure && low_pure && high_pure;
+            /* Go rejects constant bounds outside the array at compile time;
+             * Ziran stops at run time, so those keep the checked form. */
+            uint64_t low_bits = 0, high_bits = 0;
+            int low_constant = integer_literal_bits(low, &low_bits);
+            int high_constant = integer_literal_bits(high, &high_bits);
+            if((low_constant && (low[0] == '-' || low_bits > (uint64_t)capacity)) ||
+               (high_constant && (high[0] == '-' || high_bits > (uint64_t)capacity)) ||
+               (low_constant && high_constant && low_bits > high_bits)) {
+                fresh(e, view);
+                line(e, "%s := %s[:]", view, source);
+                line(e, "if %s < 0 || %s < %s || %s > int64(len(%s)) {", low, high, low, high, view);
+                e->indent++;
+                line(e, "panic(\"slice range out of bounds\")");
+                e->indent--;
+                line(e, "}");
+                format(result, sizeof(result), "%s[%s:%s:%s]", view, low, high, high);
+                break;
+            }
+            if(plain_identifier(high) || high_constant)
+                format(result, sizeof(result), "%s[%s:%s:%s]", source, low, high, high);
+            else {
+                fresh(e, temp);
+                declare(e, temp, "s64", high);
+                format(result, sizeof(result), "%s[%s:%s:%s]", source, low, temp, temp);
+            }
+            break;
+        }
         fresh(e, view);
         if(array && capacity == 0 && e->target == ZIR_GO) {
             const char *scalar = TargetType(element, ZIR_GO);
@@ -499,6 +568,11 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
             line(e, "var %s []%s", view, mapped);
         } else if(array && capacity == 0) {
             line(e, "Slice %s = {NULL, 0};", view);
+        } else if(e->target == ZIR_GO && !array && plain_identifier(source) &&
+                  !expression_calls(e->fn, expr->right) &&
+                  !expression_calls(e->fn, expr->third)) {
+            /* A named slice is its own view while nothing can reassign it. */
+            copy_text(view, sizeof(view), source);
         } else if(e->target == ZIR_GO) {
             line(e, "%s := %s[:]", view, source);
         } else if(array) {
@@ -517,12 +591,15 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
             high_pure = e->pure;
         }
         else
-            format(high, sizeof(high), e->target == ZIR_GO ? "len(%s)" : "%s.length", view);
+            format(high, sizeof(high), e->target == ZIR_GO ? "int64(len(%s))" : "%s.length", view);
         pure = base_pure && low_pure && high_pure;
         if(e->target == ZIR_GO) {
-            line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) { panic(\"slice range out of bounds\") }",
-                 low, high, low, high, view);
-            format(result, sizeof(result), "%s[int64(%s):int64(%s):int64(%s)]", view, low, high, high);
+            line(e, "if %s < 0 || %s < %s || %s > int64(len(%s)) {", low, high, low, high, view);
+            e->indent++;
+            line(e, "panic(\"slice range out of bounds\")");
+            e->indent--;
+            line(e, "}");
+            format(result, sizeof(result), "%s[%s:%s:%s]", view, low, high, high);
         } else {
             const char *scalar = TargetType(element, e->target);
             if(scalar != NULL)

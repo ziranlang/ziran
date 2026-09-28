@@ -5,6 +5,8 @@
 #include "zir_expr.h"
 
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -853,13 +855,16 @@ range_advance(ZirFunction *out, const char *cursor,
               int target_id)
 {
     char line[ZIR_TEXT_MAX];
-    if(snprintf(line, sizeof(line), "if %s == %s {", cursor, terminal) >=
+    /* Stepping past a constant bound cannot overflow, so only a computed
+     * bound stops at the last value before it steps. */
+    if(*terminal && (snprintf(line, sizeof(line), "if %s == %s {", cursor, terminal) >=
        (int)sizeof(line) ||
        !range_line(out, ZIR_STMT_IF, line, span) ||
        !range_line(out, ZIR_STMT_BREAK, "break", span) ||
-       !range_line(out, ZIR_STMT_BLOCK_CLOSE, "}", span))
+       !range_line(out, ZIR_STMT_BLOCK_CLOSE, "}", span)))
         return 0;
-    out->stmts[out->stmt_count - 2].target_id = target_id;
+    if(*terminal)
+        out->stmts[out->stmt_count - 2].target_id = target_id;
     if(snprintf(line, sizeof(line), "%s %s= 1", cursor,
                 reverse ? "-" : "+") >= (int)sizeof(line))
         return 0;
@@ -916,6 +921,49 @@ copy_loop_body(ZirFunction *out, const ZirFunction *fn, int index, int close,
     return ok;
 }
 
+/* Whether the loop body between index and close names name, or might
+ * change it: assign to it or take its address. */
+static int
+body_mentions(const ZirFunction *fn, int index, int close, const char *name)
+{
+    for(int i = index + 1; i < close; i++)
+        if(mentions(fn->stmts[i].text, name)) return 1;
+    return 0;
+}
+
+static int
+body_changes(const ZirFunction *fn, int index, int close, const char *name)
+{
+    for(int i = index + 1; i < close; i++) {
+        ZirLexer lexer;
+        ZirToken token;
+        int first = 1, address = 0;
+        LexerInit(&lexer, fn->stmts[i].text, "");
+        do {
+            token = LexerNext(&lexer);
+            if(token.kind == ZIR_TOKEN_IDENT && !strcmp(token.text, name) &&
+               (address || (first && fn->stmts[i].kind == ZIR_STMT_ASSIGN)))
+                return 1;
+            address = token.kind != ZIR_TOKEN_EOF && !strcmp(token.text, "*");
+            first = 0;
+        } while(token.kind != ZIR_TOKEN_EOF);
+    }
+    return 0;
+}
+
+/* An integer literal bound, which the loop can use in place. */
+static int
+literal_bound(const char *text, long long *value)
+{
+    char *end;
+    while(*text == ' ') text++;
+    if(!*text) return 0;
+    errno = 0;
+    *value = strtoll(text, &end, 0);
+    while(*end == ' ') end++;
+    return errno == 0 && *end == '\0';
+}
+
 static int
 lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
 {
@@ -933,6 +981,19 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
             "for currently supports Jai integer ranges: for index: first..last { ... }");
     if(strcmp(binder, "it_index") == 0)
         return fail(header, "for range binder cannot be it_index");
+    long long low, high;
+    /* Constant bounds read in place, and a constant last value leaves room
+     * to step past it. The binder counts itself unless the body changes it. */
+    int constant = literal_bound(start, &low) && literal_bound(end, &high) &&
+                   (reverse ? low > LLONG_MIN : high < LLONG_MAX);
+    int own_cursor = !body_changes(fn, index, close, binder);
+    int wants_index = body_mentions(fn, index, close, "it_index");
+    /* Parallel regions keep the full form their workers are built from. */
+    if(header->is_parallel) {
+        constant = 0;
+        own_cursor = 0;
+        wants_index = 1;
+    }
     for(int serial = index;; serial++) {
         snprintf(first, sizeof(first), "range_first_%d", serial);
         snprintf(last, sizeof(last), "range_last_%d", serial);
@@ -941,17 +1002,23 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
            !range_name_used(fn, module, last) &&
            !range_name_used(fn, module, cursor)) break;
     }
+    if(constant) {
+        snprintf(first, sizeof(first), "%lld", low);
+        snprintf(last, sizeof(last), "%lld", high);
+    }
+    if(own_cursor)
+        snprintf(cursor, sizeof(cursor), "%s", binder);
     ZirFunction out = {0};
     ZirSourceSpan span = header->span;
     int ok = 0;
     for(int i = 0; i < index; i++)
         if(!append(&out, &fn->stmts[i])) goto done;
     if(!range_line(&out, ZIR_STMT_BLOCK_OPEN, "{", span)) goto done;
-    if(snprintf(line, sizeof(line), "%s: s64 = %s", first, start) >=
-       (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span))
-        goto done;
-    if(snprintf(line, sizeof(line), "%s: s64 = %s", last, end) >=
-       (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span))
+    if(!constant &&
+       (snprintf(line, sizeof(line), "%s: s64 = %s", first, start) >=
+        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span) ||
+        snprintf(line, sizeof(line), "%s: s64 = %s", last, end) >=
+        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span)))
         goto done;
     if(snprintf(line, sizeof(line), "%s: s64 = %s", cursor,
                 reverse ? last : first) >= (int)sizeof(line) ||
@@ -963,19 +1030,27 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
     out.stmts[out.stmt_count - 1].loop_id = header->loop_id;
     out.stmts[out.stmt_count - 1].is_parallel = header->is_parallel;
     out.stmts[out.stmt_count - 1].is_gpu = header->is_gpu;
-    if(snprintf(line, sizeof(line), "%s: s64 = %s", binder, cursor) >=
-       (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span))
+    if(!own_cursor &&
+       (snprintf(line, sizeof(line), "%s: s64 = %s", binder, cursor) >=
+        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span)))
         goto done;
-    if(snprintf(line, sizeof(line), "it_index: s64 = %s - %s",
-                reverse ? last : cursor, reverse ? cursor : first) >=
-       (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span))
-        goto done;
-    if(!copy_loop_body(&out, fn, index, close, cursor,
-                       reverse ? first : last, reverse, 1,
-                       header->loop_id)) goto done;
-    if(!range_advance(&out, cursor, reverse ? first : last, reverse, span, 0) ||
-       !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
-       !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;
+    if(wants_index) {
+        if(constant && !reverse && low == 0)
+            snprintf(line, sizeof(line), "it_index: s64 = %s", cursor);
+        else if(snprintf(line, sizeof(line), "it_index: s64 = %s - %s",
+                         reverse ? last : cursor, reverse ? cursor : first) >=
+                (int)sizeof(line))
+            goto done;
+        if(!range_line(&out, ZIR_STMT_DECL, line, span)) goto done;
+    }
+    {
+        const char *terminal = constant ? "" : reverse ? first : last;
+        if(!copy_loop_body(&out, fn, index, close, cursor, terminal, reverse, 1,
+                           header->loop_id)) goto done;
+        if(!range_advance(&out, cursor, terminal, reverse, span, 0) ||
+           !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
+           !range_line(&out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;
+    }
     for(int i = close + 1; i < fn->stmt_count; i++)
         if(!append(&out, &fn->stmts[i])) goto done;
     free(fn->stmts);
@@ -988,6 +1063,18 @@ done:
     free(out.stmts);
     if(!ok) fail(header, "for range lowering exceeds compiler limits");
     return ok;
+}
+
+/* A lone identifier, such as a local array or slice. */
+static int
+plain_name(const char *text)
+{
+    ZirLexer lexer;
+    ZirToken token;
+    LexerInit(&lexer, text, "");
+    token = LexerNext(&lexer);
+    if(token.kind != ZIR_TOKEN_IDENT) return 0;
+    return LexerNext(&lexer).kind == ZIR_TOKEN_EOF;
 }
 
 static int
@@ -1017,18 +1104,29 @@ lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
            !range_name_used(fn, module, cursor) &&
            !range_name_used(fn, module, item_index)) break;
     }
+    /* A forward loop over a name the body leaves alone indexes it
+     * directly, counting with its own index name. */
+    int direct = !reverse && !header->is_parallel && plain_name(collection) &&
+                 !body_changes(fn, index, close, collection) &&
+                 !body_changes(fn, index, close, index_name);
+    if(direct) {
+        snprintf(view, sizeof(view), "%s", collection);
+        snprintf(count, sizeof(count), "%s.count", collection);
+        snprintf(cursor, sizeof(cursor), "%s", index_name);
+        snprintf(item_index, sizeof(item_index), "%s", index_name);
+    }
     ZirFunction out = {0};
     ZirSourceSpan span = header->span;
     int ok = 0;
     for(int i = 0; i < index; i++)
         if(!append(&out, &fn->stmts[i])) goto done;
     if(!range_line(&out, ZIR_STMT_BLOCK_OPEN, "{", span)) goto done;
-    if(snprintf(line, sizeof(line), "%s := %s[:]", view, collection) >=
-       (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span))
+    if(!direct &&
+       (snprintf(line, sizeof(line), "%s := %s[:]", view, collection) >=
+        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span) ||
+        snprintf(line, sizeof(line), "%s: s64 = %s.count", count, view) >=
+        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span)))
         goto done;
-    if(snprintf(line, sizeof(line), "%s: s64 = %s.count",
-                count, view) >= (int)sizeof(line) ||
-       !range_line(&out, ZIR_STMT_DECL, line, span)) goto done;
     if(snprintf(line, sizeof(line), "%s: s64 = 0", cursor) >=
        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span))
         goto done;
@@ -1038,19 +1136,22 @@ lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
     out.stmts[out.stmt_count - 1].loop_id = header->loop_id;
     out.stmts[out.stmt_count - 1].is_parallel = header->is_parallel;
     out.stmts[out.stmt_count - 1].is_gpu = header->is_gpu;
-    if(snprintf(line, sizeof(line), "%s: s64 = %s", item_index,
-                reverse ? "0" : cursor) >= (int)sizeof(line)) goto done;
-    if(reverse && snprintf(line, sizeof(line), "%s: s64 = %s - %s - 1",
-                           item_index, count, cursor) >= (int)sizeof(line))
-        goto done;
-    if(!range_line(&out, ZIR_STMT_DECL, line, span)) goto done;
+    if(!direct) {
+        if(snprintf(line, sizeof(line), "%s: s64 = %s", item_index,
+                    reverse ? "0" : cursor) >= (int)sizeof(line)) goto done;
+        if(reverse && snprintf(line, sizeof(line), "%s: s64 = %s - %s - 1",
+                               item_index, count, cursor) >= (int)sizeof(line))
+            goto done;
+        if(!range_line(&out, ZIR_STMT_DECL, line, span)) goto done;
+    }
     if(snprintf(line, sizeof(line), "%s := %s%s[%s]", value_name,
                 pointer ? "*" : "", view, item_index) >=
        (int)sizeof(line) || !range_line(&out, ZIR_STMT_DECL, line, span))
         goto done;
-    if(snprintf(line, sizeof(line), "%s: s64 = %s", index_name,
-                item_index) >= (int)sizeof(line) ||
-       !range_line(&out, ZIR_STMT_DECL, line, span)) goto done;
+    if(!direct && body_mentions(fn, index, close, index_name) &&
+       (snprintf(line, sizeof(line), "%s: s64 = %s", index_name,
+                 item_index) >= (int)sizeof(line) ||
+        !range_line(&out, ZIR_STMT_DECL, line, span))) goto done;
     if(!copy_loop_body(&out, fn, index, close, cursor, "", 0, 0,
                        header->loop_id) ||
        !loop_advance(&out, cursor, "", 0, 0, span, 0) ||

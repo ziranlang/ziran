@@ -316,6 +316,51 @@ native_size_expression(Emitter *e, const char *type, char *out, size_t size)
         format(out, size, "sizeof(%s)", mapped);
 }
 
+/* The one member of a plain enum holding value, by the target's own
+ * constant name: Shape_CIRCLE in C, ShapeCIRCLE in Go. Flags and values
+ * two members share keep the number. */
+static int
+enum_constant(Emitter *e, const char *type, const char *value, char *out, size_t size)
+{
+    const ZirModule *owner = NULL;
+    const ZirType *enumeration = FindType(e->module, type, &owner);
+    char member[ZIR_NAME_MAX], found[ZIR_NAME_MAX], qualified[ZIR_NAME_MAX * 2];
+    char resolved[ZIR_TEXT_MAX], *end;
+    int64_t wanted, candidate;
+    int matches = 0;
+    if(enumeration == NULL || !enumeration->is_enum || enumeration->is_enum_flags)
+        return 0;
+    errno = 0;
+    wanted = strtoll(value, &end, 0);
+    if(errno != 0 || end == value || *end != '\0')
+        return 0;
+    for(const char *cursor = enumeration->body; *cursor;) {
+        size_t length = 0;
+        while(*cursor == ',' || isspace((unsigned char)*cursor)) cursor++;
+        while((isalnum((unsigned char)cursor[length]) || cursor[length] == '_') &&
+              length + 1 < sizeof(member))
+            length++;
+        if(length == 0)
+            break;
+        memcpy(member, cursor, length);
+        member[length] = '\0';
+        if(EnumMemberValue(enumeration, member, &candidate) && candidate == wanted) {
+            copy_text(found, sizeof(found), member);
+            matches++;
+        }
+        while(*cursor && *cursor != ',' && *cursor != '\n') cursor++;
+    }
+    if(matches != 1)
+        return 0;
+    format(qualified, sizeof(qualified), "%s.%s", type, found);
+    e->resolve(e->context, qualified, resolved, sizeof(resolved));
+    if(!strcmp(resolved, qualified) || strchr(resolved, '.') != NULL ||
+       !plain_identifier(resolved))
+        return 0;
+    copy_text(out, size, resolved);
+    return 1;
+}
+
 /* Binding strength shared by C and Go for the operators whose order they
  * agree on; bitwise operators, which C ranks below comparisons, have none. */
 static int
@@ -760,6 +805,10 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         break;
     case ZIR_EXPR_INT:
         literal(e,expr,type,0,result,sizeof(result));
+        if(enum_constant(e, type, expr->text, result, sizeof(result))) {
+            pure = 1;
+            break;
+        }
         if(e->target == ZIR_CPP && enum_type(e->module, type)) {
             copy_text(a, sizeof(a), result);
             char native[ZIR_NAME_MAX * 2];
@@ -980,6 +1029,11 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
         const char *declared_type = type;
         const char *operand_type = e->fn->exprs[expr->right].type;
         int right_pure;
+        /* A cast to the enum a value already has changes nothing. */
+        if(enum_type(e->module, type) && !strcmp(canonical(operand_type), type)) {
+            emit_expr(e, expr->right, operand_type, out, size);
+            return;
+        }
         if(enum_type(e->module, type))
             type = "s32";
         if(e->fn->exprs[expr->right].kind == ZIR_EXPR_INT &&

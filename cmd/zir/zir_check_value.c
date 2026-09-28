@@ -1319,7 +1319,11 @@ lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration,
         return 0;
     }
     snprintf(replacement, sizeof(replacement), "%lld", (long long)value);
-    if(!rewrite_checked_text(c, expr, replacement)) {
+    /* The statement text names the member with its type, so a checker
+     * restart that parses the text again reads the same enum value. */
+    char qualified[ZIR_NAME_MAX * 2 + 2];
+    snprintf(qualified, sizeof(qualified), "%s.%s", enumeration->name, member);
+    if(!rewrite_checked_text(c, expr, qualified)) {
         error(c, expr->span, "cannot lower enum member", expr->text);
         return 0;
     }

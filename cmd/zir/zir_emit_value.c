@@ -229,7 +229,12 @@ declare(Emitter *e, const char *name, const char *type, const char *value)
         target_type = resolved_type;
     }
     if(enum_type(e->module, type)) {
-        if(e->target == ZIR_GO)
+        /* A value that already has the enum type needs no conversion. */
+        if(short_form && e->target == ZIR_GO)
+            line(e, "%s := %s", name, value);
+        else if(short_form)
+            line(e, "%s %s = %s;", target_type, name, value);
+        else if(e->target == ZIR_GO)
             line(e, "var %s %s = %s(%s)", name, target_type, target_type, value);
         else
             line(e, "%s %s = (%s)(%s);", target_type, name, target_type,

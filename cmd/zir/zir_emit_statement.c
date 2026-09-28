@@ -1,6 +1,7 @@
 #include "zir_emit_internal.h"
 
 static void emit_sequence(Emitter *e,int begin,int end);
+static int emit_switch(Emitter *e, int declaration, int end);
 
 static int
 block_end(const ZirFunction *fn,int begin,int end)
@@ -488,9 +489,9 @@ go_binding_read_later(const ZirFunction *fn, int declaration)
     return read;
 }
 
-/* Whether an initializer already has the declared type in Go, so the
- * declaration can drop it. Untyped constants, null, enums, and procedure
- * values keep the written type. */
+/* Whether an initializer already has the declared type, so a Go
+ * declaration can drop the type and an enum one its conversion. Untyped
+ * constants, null, and procedure values keep the written type. */
 static int
 typed_initializer(const Emitter *e, int root, const char *declared)
 {
@@ -499,7 +500,7 @@ typed_initializer(const Emitter *e, int root, const char *declared)
     const ZirType *record = FindType(e->module, canonical(declared), NULL);
     if(expr->kind == ZIR_EXPR_INT || expr->kind == ZIR_EXPR_FLOAT ||
        !strcmp(type, "integer") || !strcmp(type, "real") || !strcmp(type, "null") ||
-       strcmp(type, canonical(declared)) != 0 || enum_type(e->module, type) ||
+       strcmp(type, canonical(declared)) != 0 ||
        (record != NULL && record->is_procedure_type))
         return 0;
     return 1;
@@ -629,6 +630,128 @@ native_for(Emitter *e, int open, int close)
     return 1;
 }
 
+/* Collects the constants an if-case arm compares its value with:
+ * value == A, or value == A || value == B. */
+static int
+case_labels(const Emitter *e, int root, const char *value, int labels[], int *count)
+{
+    const ZirExpr *expr = &e->fn->exprs[root];
+    if(expr->kind != ZIR_EXPR_BINARY)
+        return 0;
+    if(!strcmp(expr->op, "||"))
+        return case_labels(e, expr->left, value, labels, count) &&
+               case_labels(e, expr->right, value, labels, count);
+    if(strcmp(expr->op, "==") || *count >= 16)
+        return 0;
+    const ZirExpr *left = &e->fn->exprs[expr->left];
+    const ZirExpr *right = &e->fn->exprs[expr->right];
+    if(left->kind != ZIR_EXPR_IDENT || strcmp(left->name, value))
+        return 0;
+    if(right->kind == ZIR_EXPR_CAST)
+        right = &e->fn->exprs[right->right];
+    if(right->kind != ZIR_EXPR_INT && right->kind != ZIR_EXPR_STRING)
+        return 0;
+    labels[(*count)++] = expr->right;
+    return 1;
+}
+
+static int
+contains_break(const ZirFunction *fn, int begin, int end)
+{
+    for(int s = begin; s < end; s++)
+        if(fn->stmts[s].kind == ZIR_STMT_BREAK)
+            return 1;
+    return 0;
+}
+
+/* An if-case lowers to case_value_N: T = value and an if / else if chain
+ * comparing it with constants. That is a switch in C and Go. A break in an
+ * arm would leave the switch instead of its loop, so such chains stay ifs,
+ * and C switches only on integers. Returns the last statement written, or
+ * -1 to write the statements as they are. */
+static int
+emit_switch(Emitter *e, int declaration, int end)
+{
+    const ZirFunction *fn = e->fn;
+    const ZirStmt *decl = &fn->stmts[declaration];
+    const char *type = canonical(decl->type);
+    int arms[64], arm_count = 0, close = -1, last_else = -1;
+    char value[ZIR_TEXT_MAX], plain[ZIR_TEXT_MAX];
+    if(strncmp(decl->name, "case_value_", 11) || decl->expr_root < 0 ||
+       declaration + 1 >= end || fn->stmts[declaration + 1].kind != ZIR_STMT_IF ||
+       fn->stmts[declaration + 1].is_else)
+        return -1;
+    if(e->target != ZIR_GO && !width(type) && !enum_type(e->module, type))
+        return -1;
+    for(int at = declaration + 1; at < end && fn->stmts[at].kind == ZIR_STMT_IF &&
+        (at == declaration + 1 || fn->stmts[at].is_else);) {
+        int labels[16], count = 0;
+        close = block_end(fn, at, end);
+        if(fn->stmts[at].expr_root < 0) {
+            last_else = at;
+            if(contains_break(fn, at + 1, close))
+                return -1;
+            break;
+        }
+        if(arm_count >= 64 || !case_labels(e, fn->stmts[at].expr_root, decl->name, labels, &count) ||
+           contains_break(fn, at + 1, close))
+            return -1;
+        arms[arm_count++] = at;
+        at = close + 1;
+    }
+    if(arm_count < 2 || close < 0)
+        return -1;
+    for(int s = declaration + 2; s <= close; s++)
+        for(int root = fn->stmts[s].expr_root; root >= 0; root = fn->exprs[root].next_sibling)
+            if(fn->stmts[s].kind != ZIR_STMT_IF && expression_reads(fn, root, decl->name))
+                return -1;
+    e->call_in_place = 1;
+    emit_expr(e, decl->expr_root, decl->type, value, sizeof(value));
+    bare(value, plain, sizeof(plain));
+    line(e, e->target == ZIR_GO ? "switch %s {" : "switch (%s) {", plain);
+    for(int arm = 0; arm <= arm_count; arm++) {
+        int at = arm < arm_count ? arms[arm] : last_else;
+        int labels[16], count = 0, body_end;
+        char text[ZIR_TEXT_MAX];
+        size_t used = 0;
+        if(at < 0)
+            break;
+        body_end = block_end(fn, at, end);
+        if(arm < arm_count) {
+            case_labels(e, fn->stmts[at].expr_root, decl->name, labels, &count);
+            for(int l = 0; l < count; l++) {
+                char label[ZIR_TEXT_MAX];
+                emit_expr(e, labels[l], decl->type, label, sizeof(label));
+                used += (size_t)format(text + used, sizeof(text) - used,
+                                       e->target == ZIR_GO ? "%s%s" : "%scase %s:",
+                                       l ? (e->target == ZIR_GO ? ", " : " ") : "",
+                                       bare(label, plain, sizeof(plain)));
+            }
+            line(e, e->target == ZIR_GO ? "case %s:" : "%s", text);
+        } else
+            line(e, "default:");
+        e->indent++;
+        /* C allows no declaration straight after a label. */
+        int block = e->target != ZIR_GO && body_end > at + 1 &&
+                    fn->stmts[at + 1].kind == ZIR_STMT_DECL;
+        if(block) {
+            line(e, "{");
+            e->indent++;
+        }
+        emit_sequence(e, at + 1, body_end);
+        if(e->target != ZIR_GO && !e->sequence_terminated)
+            line(e, "break;");
+        if(block) {
+            e->indent--;
+            line(e, "}");
+        }
+        e->indent--;
+    }
+    line(e, "}");
+    e->sequence_terminated = 0;
+    return close;
+}
+
 static void
 emit_sequence(Emitter *e,int begin,int end)
 {
@@ -640,12 +763,17 @@ emit_sequence(Emitter *e,int begin,int end)
             continue;
         char value[ZIR_TEXT_MAX],lhs[ZIR_TEXT_MAX],result[ZIR_TEXT_MAX];
         switch(st->kind) {
-        case ZIR_STMT_DECL:
+        case ZIR_STMT_DECL: {
+            int switch_end = emit_switch(e, i, end);
+            if(switch_end >= 0) {
+                i = switch_end;
+                break;
+            }
+        }
             if(st->expr_root>=0) {
                 e->call_in_place = 1;
                 emit_expr(e,st->expr_root,st->type,value,sizeof(value));
-                e->short_declaration = e->target == ZIR_GO &&
-                    typed_initializer(e, st->expr_root, st->type);
+                e->short_declaration = typed_initializer(e, st->expr_root, st->type);
             }
             else if(record_type(e->module, st->type)) {
                 zero_record(e, st->type, value, sizeof(value));

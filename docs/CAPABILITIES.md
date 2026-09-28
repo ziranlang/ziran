@@ -6,7 +6,7 @@ supported output targets and shared limits. Use `--target=c`, `cpp`, `go`,
 access, so an editor or coding agent can query the installed compiler before
 generating code. The `numeric_conformance` object is a stable-ID registry. Its `ids` cite the
 numerical cases proven by [numeric semantics](../tests/numeric_semantics.sh)
-and are described by [numeric_conformance.json](../tests/numeric_conformance.json).
+for C, C++, Go, and `.zib`; they are described by [numeric_conformance.json](../tests/numeric_conformance.json).
 `schema_version` starts at 1; consumers should reject schema
 versions they do not understand and ignore unknown fields within a version.
 
@@ -20,10 +20,10 @@ target can be declared first-class.
 
 `source_and_saved_ir` reports that the target accepts checked source and saved
 `.zir` inputs. `parallel_execution` is `threads` for C/C++ forward CPU regions
-and `serial` for Go and the portable VM. It does not promise a parallel result
-reduction. `gpu_execution` is `cpu_fallback` for every target: there is no
+and `serial` for Rust, Go, and the portable VM. Rust is experimental.
+It does not promise a parallel result reduction. `gpu_execution` is `cpu_fallback` for every target: there is no
 device backend. `text_view_mutable_bytes` reports the current observable
-divergence when backing bytes are mutated after making a view: native C/C++
+divergence when backing bytes are mutated after making a view: native C/C++/Rust
 borrow those bytes, while Go and `.zib` copy them. Checking rejects mutation
 of local backing storage while a direct, field-held, aliased, or
 checked-call-produced view is live. Field-sensitive checks protect the

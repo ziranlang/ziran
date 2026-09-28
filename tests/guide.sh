@@ -14,7 +14,7 @@ import sys
 guide = Path(sys.argv[1]).read_text()
 help_text = Path(sys.argv[2]).read_text()
 assert 'ziran guide' in help_text
-assert 'C, C++, Go, portable .zib, and experimental plan9-c' in guide
+assert 'C, C++, Go, experimental Rust, portable .zib, and experimental plan9-c' in guide
 assert 'Direct owned Vec locals and parameters drop at scope exit' in guide
 assert 'ziran api --json' in guide
 source = guide.split('Source shape:\n', 1)[1].split('\n\nDeclarations', 1)[0]

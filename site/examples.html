@@ -6,9 +6,14 @@
   <title>Ziran examples</title><link rel="canonical" href="https://ziran-lang.org/examples"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"><script defer src="site.js"></script>
 </head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="index.html"><img class="brand-icon" src="assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="get-started.html">Get started</a><a href="examples.html" aria-current="page">Examples</a><a href="docs.html">Docs</a><a href="status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
-<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow">Learn / Examples</p><h1>See Ziran <em>in action.</em></h1><p>These examples are complete files in the repository. Build the toolchain with <code>make</code>, then run the commands from the repository root. The portable runner prints the entry result.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#print">Print</a><a href="#records">Records</a><a href="#text">Standard module</a><a href="#targets">Native targets</a></aside><div class="article-body">
-<section id="print"><p class="eyebrow">01 / Output</p><h2>Print values</h2><p><code>print</code> replaces each <code>%</code> with the next argument. Integers, floats, <code>bool</code>, and <code>string</code> values print on every target; <code>%%</code> prints a percent sign.</p><pre><code>main :: () {
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow">Learn / Examples</p><h1>See Ziran <em>in action.</em></h1><p>These examples are complete files in the repository, and the output shown is what they print. Build the toolchain with <code>make</code>, then run the commands from the repository root. For an entry that returns a value, the portable runner prints the result.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><!-- generated:examples_toc --><a href="#hello">Hello, World!</a><a href="#greet">Print values</a><a href="#values">Values</a><a href="#variables">Variables and constants</a><a href="#functions">Functions</a><a href="#conditions">Conditions</a><a href="#loops">Loops</a><a href="#arrays">Arrays and slices</a><a href="#structs">Structs</a><a href="#enums">Enums</a><a href="#text-basics">Strings</a><a href="#defer">Defer</a><a href="#fizzbuzz">FizzBuzz</a><a href="#primes">The Sieve of Eratosthenes</a><a href="#score">Model a score</a><a href="#text-demo">Use a standard module</a><!-- /generated:examples_toc --><a href="#targets">Native targets</a></aside><div class="article-body">
+<!-- generated:examples --><section id="hello"><p class="eyebrow">01 / hello.zi</p><h2>Hello, World!</h2><p>The smallest complete program.</p><pre><code>main :: () {
+    print("Hello, World!\n");
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry hello:main -o hello.zib site/examples/hello.zi
+build/bin/ziran run hello.zib
+# Hello, World!</code></pre><p><a class="text-link" href="examples/hello.zi" download>Download hello.zi ↓</a></p></section>
+<section id="greet"><p class="eyebrow">02 / greet.zi</p><h2>Print values</h2><p>Each % in a print format takes the next argument, and %% prints a percent sign.</p><pre><code>main :: () {
     name := "Ziran";
     year: s32 = 2026;
     print("Hello, %! It is %.\n", name, year);
@@ -19,7 +24,339 @@ build/bin/ziran run greet.zib
 # Hello, Ziran! It is 2026.
 # 40 + 2 = 42
 # pi is about 3.14159, and 100% sure</code></pre><p><a class="text-link" href="examples/greet.zi" download>Download greet.zi ↓</a></p></section>
-<section id="records"><p class="eyebrow">02 / Records and procedures</p><h2>Model a score</h2><p>Define a record, pass it to a procedure, and return the answer.</p><pre><code>Score :: struct {
+<section id="values"><p class="eyebrow">03 / values.zi</p><h2>Values</h2><p>Integers, floats, booleans, and text.</p><pre><code>main :: () {
+    print("text: %\n", "ziran");
+    print("1 + 1 = %\n", 1 + 1);
+    print("7.0 / 3.0 = %\n", 7.0 / 3.0);
+    print("true and false: %\n", true &amp;&amp; false);
+    print("true or false: %\n", true || false);
+    print("not true: %\n", !true);
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry values:main -o values.zib site/examples/values.zi
+build/bin/ziran run values.zib
+# text: ziran
+# 1 + 1 = 2
+# 7.0 / 3.0 = 2.3333333333333335
+# true and false: false
+# true or false: true
+# not true: false</code></pre><p><a class="text-link" href="examples/values.zi" download>Download values.zi ↓</a></p></section>
+<section id="variables"><p class="eyebrow">04 / variables.zi</p><h2>Variables and constants</h2><p>A declared type, an inferred type, a default zero value, and a compile-time constant.</p><pre><code>LIMIT :: 100;
+
+main :: () {
+    greeting: string = "initial";
+    print("%\n", greeting);
+
+    first: s32 = 1;
+    second: s32 = 2;
+    print("% %\n", first, second);
+
+    ready := true;
+    print("%\n", ready);
+
+    count: s32;
+    print("% (a variable starts at zero)\n", count);
+
+    fruit := "apple";
+    print("% and the limit is %\n", fruit, LIMIT);
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry variables:main -o variables.zib site/examples/variables.zi
+build/bin/ziran run variables.zib
+# initial
+# 1 2
+# true
+# 0 (a variable starts at zero)
+# apple and the limit is 100</code></pre><p><a class="text-link" href="examples/variables.zi" download>Download variables.zi ↓</a></p></section>
+<section id="functions"><p class="eyebrow">05 / functions.zi</p><h2>Functions</h2><p>Plain calls, default and named arguments, and recursion.</p><pre><code>Add :: (a: s32, b: s32) -&gt; s32 {
+    return a + b;
+}
+
+Greet :: (name: string, greeting: string = "Hello") {
+    print("%, %!\n", greeting, name);
+}
+
+Factorial :: (n: s64) -&gt; s64 {
+    if n &lt;= 1 { return 1; }
+    return n * Factorial(n - 1);
+}
+
+Fibonacci :: (n: s32) -&gt; s32 {
+    if n &lt; 2 { return n; }
+    return Fibonacci(n - 1) + Fibonacci(n - 2);
+}
+
+main :: () {
+    print("1 + 2 = %\n", Add(1, 2));
+    Greet("Ziran");
+    Greet("world", greeting = "Goodbye");
+    print("10! = %\n", Factorial(10));
+    print("fibonacci(20) = %\n", Fibonacci(20));
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry functions:main -o functions.zib site/examples/functions.zi
+build/bin/ziran run functions.zib
+# 1 + 2 = 3
+# Hello, Ziran!
+# Goodbye, world!
+# 10! = 3628800
+# fibonacci(20) = 6765</code></pre><p><a class="text-link" href="examples/functions.zi" download>Download functions.zi ↓</a></p></section>
+<section id="conditions"><p class="eyebrow">06 / conditions.zi</p><h2>Conditions</h2><p>If and else chains, and an if-case that picks a branch by value.</p><pre><code>Describe :: (number: s32) -&gt; string {
+    if number &lt; 0 {
+        return "negative";
+    } else if number == 0 {
+        return "zero";
+    }
+    return "positive";
+}
+
+DayKind :: (day: s32) -&gt; string {
+    if day == {
+        case 6; return "weekend";
+        case 7; return "weekend";
+    }
+    return "weekday";
+}
+
+main :: () {
+    print("-4 is %\n", Describe(-4));
+    print("0 is %\n", Describe(0));
+    print("9 is %\n", Describe(9));
+
+    if 7 % 2 == 0 {
+        print("7 is even\n");
+    } else {
+        print("7 is odd\n");
+    }
+
+    print("day 3 is a %\n", DayKind(3));
+    print("day 6 is a %\n", DayKind(6));
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry conditions:main -o conditions.zib site/examples/conditions.zi
+build/bin/ziran run conditions.zib
+# -4 is negative
+# 0 is zero
+# 9 is positive
+# 7 is odd
+# day 3 is a weekday
+# day 6 is a weekend</code></pre><p><a class="text-link" href="examples/conditions.zi" download>Download conditions.zi ↓</a></p></section>
+<section id="loops"><p class="eyebrow">07 / loops.zi</p><h2>Loops</h2><p>While, ranges, collections, break, and continue.</p><pre><code>main :: () {
+    index: s32 = 1;
+    while index &lt;= 3 {
+        print("while %\n", index);
+        index += 1;
+    }
+
+    for step: 0..2 {
+        print("range %\n", step);
+    }
+
+    fruits := string.["apple", "banana", "cherry"];
+    for fruit, position: fruits {
+        print("% is at %\n", fruit, position);
+    }
+
+    for number: 0..9 {
+        if number % 2 == 0 { continue; }
+        if number &gt; 7 { break; }
+        print("odd %\n", number);
+    }
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry loops:main -o loops.zib site/examples/loops.zi
+build/bin/ziran run loops.zib
+# while 1
+# while 2
+# while 3
+# range 0
+# range 1
+# range 2
+# apple is at 0
+# banana is at 1
+# cherry is at 2
+# odd 1
+# odd 3
+# odd 5
+# odd 7</code></pre><p><a class="text-link" href="examples/loops.zi" download>Download loops.zi ↓</a></p></section>
+<section id="arrays"><p class="eyebrow">08 / arrays.zi</p><h2>Arrays and slices</h2><p>A fixed array, a view into part of it, and a sum.</p><pre><code>Sum :: (numbers: []s32) -&gt; s32 {
+    total: s32 = 0;
+    for numbers { total += it; }
+    return total;
+}
+
+main :: () {
+    empty: [5]s32;
+    print("empty: % % % % %\n", empty[0], empty[1], empty[2], empty[3], empty[4]);
+
+    numbers := s32.[1, 2, 3, 4, 5];
+    numbers[4] = 100;
+    print("set: %, count: %\n", numbers[4], numbers.count);
+
+    middle := numbers[1:4];
+    print("middle has % items starting with %\n", middle.count, middle[0]);
+
+    print("sum of all: %\n", Sum(numbers[:]));
+    print("sum of middle: %\n", Sum(middle));
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry arrays:main -o arrays.zib site/examples/arrays.zi
+build/bin/ziran run arrays.zib
+# empty: 0 0 0 0 0
+# set: 100, count: 5
+# middle has 3 items starting with 2
+# sum of all: 110
+# sum of middle: 9</code></pre><p><a class="text-link" href="examples/arrays.zi" download>Download arrays.zi ↓</a></p></section>
+<section id="structs"><p class="eyebrow">09 / structs.zi</p><h2>Structs</h2><p>Records with fields, passed and returned by value.</p><pre><code>Point :: struct {
+    x: s32;
+    y: s32;
+}
+
+Rectangle :: struct {
+    origin: Point;
+    width: s32;
+    height: s32;
+}
+
+Area :: (shape: Rectangle) -&gt; s32 {
+    return shape.width * shape.height;
+}
+
+Grow :: (shape: Rectangle, amount: s32) -&gt; Rectangle {
+    grown := shape;
+    grown.width += amount;
+    grown.height += amount;
+    return grown;
+}
+
+main :: () {
+    corner := Point.{x = 3, y = 4};
+    print("point: (%, %)\n", corner.x, corner.y);
+
+    box := Rectangle.{origin = corner, width = 10, height = 5};
+    print("area: %\n", Area(box));
+
+    box = Grow(box, 2);
+    print("grown: %x% with area %\n", box.width, box.height, Area(box));
+
+    copy := box;
+    copy.width = 1;
+    print("the copy is % wide, the original still %\n", copy.width, box.width);
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry structs:main -o structs.zib site/examples/structs.zi
+build/bin/ziran run structs.zib
+# point: (3, 4)
+# area: 50
+# grown: 12x7 with area 84
+# the copy is 1 wide, the original still 12</code></pre><p><a class="text-link" href="examples/structs.zi" download>Download structs.zi ↓</a></p></section>
+<section id="enums"><p class="eyebrow">10 / enums.zi</p><h2>Enums</h2><p>Named values and a switch over them.</p><pre><code>Shape :: enum {
+    CIRCLE;
+    SQUARE;
+    TRIANGLE;
+}
+
+Corners :: (shape: Shape) -&gt; s32 {
+    if shape == {
+        case .CIRCLE; return 0;
+        case .SQUARE; return 4;
+        case .TRIANGLE; return 3;
+    }
+    return -1;
+}
+
+main :: () {
+    print("a circle has % corners\n", Corners(.CIRCLE));
+    print("a square has % corners\n", Corners(.SQUARE));
+    print("a triangle has % corners\n", Corners(.TRIANGLE));
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry enums:main -o enums.zib site/examples/enums.zi
+build/bin/ziran run enums.zib
+# a circle has 0 corners
+# a square has 4 corners
+# a triangle has 3 corners</code></pre><p><a class="text-link" href="examples/enums.zi" download>Download enums.zi ↓</a></p></section>
+<section id="text-basics"><p class="eyebrow">11 / text_basics.zi</p><h2>Strings</h2><p>Length, bytes, slices, and comparison.</p><pre><code>CountByte :: (text: string, wanted: u8) -&gt; s32 {
+    found: s32 = 0;
+    for byte: text {
+        if byte == wanted { found += 1; }
+    }
+    return found;
+}
+
+main :: () {
+    word := "banana";
+    print("% has % bytes\n", word, word.count);
+    print("the first byte is %\n", word[0]);
+    print("it contains % a's\n", CountByte(word, #char "a"));
+    print("its middle is %\n", word[1:5]);
+    print("equal to \"banana\": %\n", word == "banana");
+    print("equal to \"apple\": %\n", word == "apple");
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry text_basics:main -o text_basics.zib site/examples/text_basics.zi
+build/bin/ziran run text_basics.zib
+# banana has 6 bytes
+# the first byte is 98
+# it contains 3 a's
+# its middle is anan
+# equal to "banana": true
+# equal to "apple": false</code></pre><p><a class="text-link" href="examples/text_basics.zi" download>Download text_basics.zi ↓</a></p></section>
+<section id="defer"><p class="eyebrow">12 / defer.zi</p><h2>Defer</h2><p>A deferred statement runs when its scope ends, last deferred first.</p><pre><code>Work :: (name: string) {
+    print("open %\n", name);
+    defer print("close %\n", name);
+    print("use %\n", name);
+}
+
+main :: () {
+    defer print("done\n");
+    Work("file");
+    {
+        defer print("leave the block\n");
+        print("inside the block\n");
+    }
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry defer:main -o defer.zib site/examples/defer.zi
+build/bin/ziran run defer.zib
+# open file
+# use file
+# close file
+# inside the block
+# leave the block
+# done</code></pre><p><a class="text-link" href="examples/defer.zi" download>Download defer.zi ↓</a></p></section>
+<section id="fizzbuzz"><p class="eyebrow">13 / fizzbuzz.zi</p><h2>FizzBuzz</h2><p>Multiples of 3 print Fizz, of 5 Buzz, and of both FizzBuzz.</p><pre><code>main :: () {
+    for number: 1..20 {
+        if number % 15 == 0 {
+            print("FizzBuzz\n");
+        } else if number % 3 == 0 {
+            print("Fizz\n");
+        } else if number % 5 == 0 {
+            print("Buzz\n");
+        } else {
+            print("%\n", number);
+        }
+    }
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry fizzbuzz:main -o fizzbuzz.zib site/examples/fizzbuzz.zi
+build/bin/ziran run fizzbuzz.zib
+# 1
+# 2
+# Fizz
+# 4
+# Buzz
+# Fizz
+# 7
+# 8
+# Fizz
+# Buzz
+# 11
+# Fizz
+# 13
+# 14
+# FizzBuzz
+# 16
+# 17
+# Fizz
+# 19
+# Buzz</code></pre><p><a class="text-link" href="examples/fizzbuzz.zi" download>Download fizzbuzz.zi ↓</a></p></section>
+<section id="primes"><p class="eyebrow">14 / primes.zi</p><h2>The Sieve of Eratosthenes</h2><p>Cross out every multiple of each prime.</p><pre><code>LIMIT :: 50;
+
+main :: () {
+    composite: [LIMIT + 1]bool;
+    for number: 2..LIMIT {
+        if composite[number] { continue; }
+        print("% ", number);
+        multiple := number * number;
+        while multiple &lt;= LIMIT {
+            composite[multiple] = true;
+            multiple += number;
+        }
+    }
+    print("\n");
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry primes:main -o primes.zib site/examples/primes.zi
+build/bin/ziran run primes.zib
+# 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 </code></pre><p><a class="text-link" href="examples/primes.zi" download>Download primes.zi ↓</a></p></section>
+<section id="score"><p class="eyebrow">15 / score.zi</p><h2>Model a score</h2><p>Define a record, pass it to a procedure, and return the answer.</p><pre><code>Score :: struct {
     value: s32;
     bonus: s32;
 }
@@ -31,22 +368,24 @@ Total :: (score: Score) -&gt; s32 {
 Answer :: () -&gt; s32 {
     score: Score = Score.{value = 40, bonus = 2};
     return Total(score);
-}</code></pre><pre><code>build/bin/ziran check --root . site/examples/score.zi
-build/bin/ziran bundle --root . --entry score:Answer -o score.zib site/examples/score.zi
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry score:Answer -o score.zib site/examples/score.zi
 build/bin/ziran run score.zib
 # 42</code></pre><p><a class="text-link" href="examples/score.zi" download>Download score.zi ↓</a></p></section>
-<section id="text"><p class="eyebrow">03 / Standard module</p><h2>Process text</h2><p>Import the standard text module with <code>--module-path std</code>. This program returns <code>1</code> when a string starts with a prefix after ASCII case folding.</p><pre><code>#import "text"
+<section id="text-demo"><p class="eyebrow">16 / text_demo.zi</p><h2>Use a standard module</h2><p>Import the text module and test a prefix with ASCII case folding.</p><pre><code>#import "text"
 
 Answer :: () -&gt; s32 {
     if StartsWithFoldASCII("Ziran", "zi") {
         return 1;
     }
     return 0;
-}</code></pre><pre><code>build/bin/ziran check --root . --module-path std site/examples/text_demo.zi
-build/bin/ziran bundle --root . --module-path std --entry text_demo:Answer -o text_demo.zib site/examples/text_demo.zi
+}</code></pre><pre><code>build/bin/ziran bundle --root . --module-path std --entry text_demo:Answer -o text_demo.zib site/examples/text_demo.zi
 build/bin/ziran run text_demo.zib
 # 1</code></pre><p><a class="text-link" href="examples/text_demo.zi" download>Download text_demo.zi ↓</a></p></section>
-<section id="targets"><p class="eyebrow">04 / Native output</p><h2>Generate native code</h2><p>The same checked source can generate C, C++, or Go. These commands write source into separate output directories. A C compiler and <code>make</code> build the Ziran tools; Go is needed only if you compile the generated Go output.</p><pre><code>build/bin/ziran build --target=c --root . -o out/c site/examples/hello.zi
-build/bin/ziran build --target=cpp --root . -o out/cpp site/examples/hello.zi
-build/bin/ziran build --target=go --root . -o out/go site/examples/hello.zi</code></pre><p>Native and portable support can differ by feature. See the <a href="status.html">current status</a> before choosing a target.</p></section>
+<!-- /generated:examples -->
+<section id="targets"><p class="eyebrow">17 / Native output</p><h2>Generate native code</h2><p>Every program above prints the same output on the portable runner and as C, C++, Go, and Rust; <code>tests/examples.sh</code> checks it. For Rust and Go, <code>--exe</code> with an entry writes a runnable project. Go or Cargo is needed only to compile that output.</p><pre><code>build/bin/ziran build --target=rust --exe --entry fizzbuzz:main --root . -o out/rust site/examples/fizzbuzz.zi
+cargo run --manifest-path out/rust/Cargo.toml
+
+build/bin/ziran build --target=go --pkg main --exe --entry fizzbuzz:main --root . -o out/go site/examples/fizzbuzz.zi
+(cd out/go &amp;&amp; go run .)</code></pre><p>C and C++ output mirrors the source path, here <code>out/c/site/examples/fizzbuzz.c</code> and its header, which declares <code>fizzbuzz_main</code>; call it from your program, or put <code>#program_export</code> before <code>main</code> to make the output a complete program. <code>--target=plan9-c</code> writes experimental Plan 9 C.</p><pre><code>build/bin/ziran build --target=c --root . -o out/c site/examples/fizzbuzz.zi
+build/bin/ziran build --target=cpp --root . -o out/cpp site/examples/fizzbuzz.zi</code></pre><p>Native and portable support can differ by feature. See the <a href="status.html">current status</a> before choosing a target.</p></section>
 </div></div></main><footer><div class="footer-top"><a class="brand" href="index.html"><img class="brand-icon" src="assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="get-started.html">Get started</a><a href="examples.html">Examples</a><a href="docs.html">Docs</a><a href="status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

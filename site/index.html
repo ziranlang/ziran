@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f7f3eb">
-  <meta name="description" content="Ziran is an experimental, open-source programming language. Write checked .zi programs, build native C, C++, or Go output, and run supported portable bundles.">
+  <meta name="description" content="Ziran is an experimental, open-source programming language. Write checked .zi programs, build native C, C++, Go, or Rust output, and run supported portable bundles.">
   <title>Ziran — Build useful software</title>
   <link rel="canonical" href="https://ziran-lang.org/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -30,8 +30,8 @@
       <div class="hero-copy">
         <p class="eyebrow">Open source programming language · Experimental</p>
         <h1>Build useful software with <em>Ziran.</em></h1>
-        <p class="hero-lead">Write clear <code>.zi</code> programs, check them before they run, and choose native C, C++, Go, or a supported portable bundle.</p>
-        <ul class="hero-points"><li>Readable modules and explicit imports</li><li>One checker for native and portable paths</li><li>A small, growing standard library</li></ul>
+        <p class="hero-lead">Write clear <code>.zi</code> programs, check them before they run, and choose native C, C++, Go, or Rust output, or a portable bundle.</p>
+        <ul class="hero-points"><li>Readable modules and explicit imports</li><li>One checker for native and portable paths</li><li>A <a href="std.html">standard library</a> of text, data, and host modules</li></ul>
         <div class="actions"><a class="btn btn-primary" href="get-started.html">Get started <span aria-hidden="true">→</span></a><a class="btn" href="docs.html">Explore documentation</a></div>
         <p class="hero-note">Build from source today. <a href="status.html">See current support</a>.</p>
       </div>
@@ -50,15 +50,15 @@
       <div class="feature-grid">
         <article><span class="feature-number">01</span><h3>Write readable code</h3><p>Use procedures, records, enums, generics, imports, fixed arrays, and borrowed slices in the tested subset.</p><a href="language.html">Explore the language →</a></article>
         <article><span class="feature-number">02</span><h3>Check before building</h3><p>The compiler checks source and reports unsupported forms. Save checked <code>.zir</code> modules when you need an intermediate artifact.</p><a href="api.html#toolchain">Explore the tools →</a></article>
-        <article><span class="feature-number">03</span><h3>Choose an output</h3><p>Generate C, C++, or Go from supported programs. Package the portable subset as a <code>.zib</code> bundle.</p><a href="status.html">Check target coverage →</a></article>
+        <article><span class="feature-number">03</span><h3>Choose an output</h3><p>Generate readable C, C++, Go, or Rust from supported programs; a Plan 9 C target is experimental. Package the portable subset as a <code>.zib</code> bundle.</p><a href="status.html">Check target coverage →</a></article>
       </div>
     </section>
 
     <section class="use-section">
       <div class="section-heading"><p class="eyebrow">What you can build</p><h2>Start with real programs.</h2><p>The examples use supported features and include commands you can run locally.</p></div>
       <div class="use-grid">
-        <a href="examples.html#records"><span>01 / Language</span><strong>Records and procedures</strong><p>Model data and compute a result with a small complete program.</p><b>See example →</b></a>
-        <a href="examples.html#text"><span>02 / Library</span><strong>Text processing</strong><p>Import a standard module and check text with portable operations.</p><b>See example →</b></a>
+        <a href="examples.html#structs"><span>01 / Language</span><strong>Records and procedures</strong><p>Model data and compute a result with a small complete program.</p><b>See example →</b></a>
+        <a href="examples.html#text-demo"><span>02 / Library</span><strong>Text processing</strong><p>Import a standard module and check text with portable operations.</p><b>See example →</b></a>
         <a href="examples.html#targets"><span>03 / Toolchain</span><strong>Native output</strong><p>Take the same source through the checker and generate native targets.</p><b>See commands →</b></a>
       </div>
     </section>

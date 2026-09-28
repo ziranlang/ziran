@@ -176,3 +176,68 @@ fi
 rg -q '"law":"WireOk".*"status":"proved"' "$work/custom_enum.json"
 rg -q '"law":"WireFailed".*"status":"proved"' "$work/custom_enum.json"
 rg -q '"law":"WireWrong".*"status":"disproved"' "$work/custom_enum.json"
+
+cat > "$work/identity.zi" <<'ZI'
+Pure :: (a: s32, b: s32) -> s32 { return a + b }
+#law Same custom Pure(1, 1) == 2;
+#law Same custom Pure(2, 2) == 4;
+#law_waive Missing "no such law";
+#law_waive Same "proved laws need no waiver";
+#program_export
+Answer :: () -> s32 { return 1 }
+ZI
+if "$ziran" check --root "$work" "$work/identity.zi" \
+    > /dev/null 2> "$work/identity.err"; then
+    echo 'duplicate laws and stale waivers passed the gate' >&2
+    exit 1
+fi
+rg -q 'law Same is declared more than once' "$work/identity.err"
+rg -q 'waiver names no law: Missing' "$work/identity.err"
+rg -q 'law Same is proved; only unknown laws can be waived' "$work/identity.err"
+
+cat > "$work/waive_disproved.zi" <<'ZI'
+Pure :: (a: s32, b: s32) -> s32 { return a + b }
+#law Wrong custom Pure(1, 1) == 3;
+#law_waive Wrong "cannot hide a failure";
+#program_export
+Answer :: () -> s32 { return 1 }
+ZI
+if "$ziran" check --root "$work" "$work/waive_disproved.zi" \
+    > /dev/null 2> "$work/waive_disproved.err"; then
+    echo 'a waiver hid a disproved law' >&2
+    exit 1
+fi
+rg -q 'law Wrong is disproved' "$work/waive_disproved.err"
+rg -q 'only unknown laws can be waived' "$work/waive_disproved.err"
+
+cat > "$work/enum_flow.zi" <<'ZI'
+Kind :: enum { A, B, C }
+Cost :: (k: Kind) -> s32 {
+    if k == Kind.B {
+        return 2
+    }
+    return 1
+}
+Next :: (k: Kind) -> Kind {
+    if k == Kind.A {
+        return Kind.B
+    }
+    return Kind.C
+}
+Twice :: (k: Kind) -> s32 {
+    n := Next(k)
+    return Cost(n)
+}
+Local :: (k: Kind) -> s32 {
+    m: Kind = k
+    return Cost(m)
+}
+#law EnumResult forall k: Kind => Next(k) == Kind.C || k == Kind.A;
+#law EnumNested forall k: Kind => Cost(Next(k)) >= 1;
+#law EnumInferredLocal forall k: Kind => Twice(k) >= 1;
+#law EnumTypedLocal forall k: Kind => Local(k) == Cost(k);
+#program_export
+Answer :: () -> s32 { return 1 }
+ZI
+"$ziran" check --root "$work" "$work/enum_flow.zi" > "$work/enum_flow.json"
+test "$(rg -c '"status":"proved"' "$work/enum_flow.json")" = 4

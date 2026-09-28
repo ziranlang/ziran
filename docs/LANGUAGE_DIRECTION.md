@@ -72,7 +72,7 @@ of integer ranges and enum members through the same evaluator (a domain over
 1,000,000 cases or an undecidable condition is `unknown`, a failure reports
 the counterexample), `abi` checks
 the supported signature shape rather than proving foreign behavior, and law
-identity and waiver validation still need tightening. The contract above
+names must be unique and a waiver must name an unknown law, or the gate fails. The contract above
 describes the intended guarantees where it exceeds this implementation.
 
 ## Parallel computation

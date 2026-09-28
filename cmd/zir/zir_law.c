@@ -795,10 +795,54 @@ law_waived(const ZirProgram *program, const char *name)
     return 0;
 }
 
+/* Law identity: names are unique across the program, and a waiver must name
+ * an existing law. Waivers on laws that are not unknown are reported by the
+ * gate below. */
+static int
+check_law_identity(const ZirProgram *program)
+{
+    int failures = 0;
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        for(int l = 0; l < module->law_count; l++)
+            for(int n = 0; n < program->module_count; n++) {
+                const ZirModule *other = &program->modules[n];
+                for(int k = 0; k < other->law_count; k++) {
+                    if((n < m || (n == m && k <= l)) ||
+                       strcmp(module->laws[l].name, other->laws[k].name))
+                        continue;
+                    Diagnostic(other->laws[k].span, "law.identity",
+                               "law %s is declared more than once",
+                               other->laws[k].name);
+                    failures++;
+                }
+            }
+        for(int w = 0; w < module->law_waiver_count; w++) {
+            int found = 0;
+            for(int n = 0; n < program->module_count && !found; n++)
+                for(int k = 0; k < program->modules[n].law_count; k++)
+                    if(!strcmp(program->modules[n].laws[k].name,
+                               module->law_waivers[w].name)) {
+                        found = 1;
+                        break;
+                    }
+            if(!found) {
+                Diagnostic(module->law_waivers[w].span, "law.waiver",
+                           "waiver names no law: %s",
+                           module->law_waivers[w].name);
+                failures++;
+            }
+        }
+    }
+    return failures;
+}
+
 int
 CheckLawGates(ZirProgram **programs, int count)
 {
     int failures = 0;
+    for(int p = 0; p < count; p++)
+        failures += check_law_identity(programs[p]);
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++) {
             const ZirModule *module = &programs[p]->modules[m];
@@ -807,9 +851,15 @@ CheckLawGates(ZirProgram **programs, int count)
                 char detail[ZIR_TEXT_MAX];
                 int status = EvaluateLaw(programs[p], module, law, detail,
                                          sizeof(detail));
-                if(status == 0)
-                    continue;
                 if(status == 2 && law_waived(programs[p], law->name))
+                    continue;
+                if(status != 2 && law_waived(programs[p], law->name)) {
+                    Diagnostic(law->span, "law.waiver",
+                               "law %s is %s; only unknown laws can be waived",
+                               law->name, law_status_name((LawStatus)status));
+                    failures++;
+                }
+                if(status == 0)
                     continue;
                 Diagnostic(law->span, "law.gate",
                            "law %s is %s: %s", law->name,

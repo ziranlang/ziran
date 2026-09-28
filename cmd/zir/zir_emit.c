@@ -1177,44 +1177,14 @@ number_prefix(const ZirModule *module, char *out, size_t size)
     format(out, size, "number_%s", name);
 }
 
+/* C and C++ sources mark where numeric helpers go. Once the module is
+ * written, EmitResolveNumberHelpers puts in the ones its code calls. */
 void
 EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target)
 {
-    char p[64];
-    int used = 0;
-    for(int i = 0; i < module->function_count && !used; i++) {
-        const ZirFunction *fn = &module->functions[i];
-        if(!CanEmitBody(module, fn))
-            continue;
-        /* + - * and bitwise operators and integer conversions lower
-         * directly; division, remainder, shifts, and float-to-integer
-         * conversions keep the checked helpers. */
-        for(int e = 0; e < fn->expr_count; e++) {
-            const ZirExpr *expr = &fn->exprs[e];
-            int op = expr->kind == ZIR_EXPR_BINARY && width(canonical(expr->type)) ?
-                operation(expr->op) : 0;
-            if((op >= 4 && op <= 7) ||
-               (expr->kind == ZIR_EXPR_CAST && expr->right >= 0 &&
-                canonical(fn->exprs[expr->right].type)[0] == 'f')) {
-                used = 1;
-                break;
-            }
-        }
-        for(int s = 0; s < fn->stmt_count; s++) {
-            char op[4];
-            size_t length;
-            copy_text(op, sizeof(op), fn->stmts[s].assignment_op);
-            length = strlen(op);
-            if(length > 0 && op[length - 1] == '=')
-                op[length - 1] = '\0';
-            if(fn->stmts[s].kind == ZIR_STMT_ASSIGN &&
-               operation(op) >= 4 && operation(op) <= 7)
-                used = 1;
-        }
-    }
-    if(!used) return;
-    number_prefix(module, p, sizeof(p));
-    EmitNumberSupport(out, target, p);
+    (void)module;
+    if(target == ZIR_C || target == ZIR_CPP)
+        fputs(NUMBER_HELPERS_MARK, out);
 }
 
 /* Go `print` float text, once per package: nan and inf spelled as on every
@@ -1243,44 +1213,117 @@ NativeMainReturnsStatus(const ZirFunction *fn)
            (!fn->return_type[0] || !strcmp(fn->return_type, "void"));
 }
 
-void
-EmitNumberSupport(FILE *out, ZirTarget target, const char *p)
+/* C numeric helpers, named for what they do. IntegerOp reads signed
+ * operands through SignedBits, so SignedBits comes first. */
+static const struct {
+    const char *name;
+    const char *definition;
+} c_number_helpers[] = {
+    {"SignedBits",
+     "/* SignedBits reads the low w bits of x as a signed number. */\n"
+     "static inline int64_t SignedBits(uint64_t x, int w) {\n"
+     "    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;\n"
+     "    x &= mask;\n"
+     "    return x <= (mask >> 1) ? (int64_t)x : -1 - (int64_t)(mask - x);\n"
+     "}\n"},
+    {"IntegerOp",
+     "/* IntegerOp applies op to the low w bits of a and b: 0 convert, 1 add,\n"
+     " * 2 subtract, 3 multiply, 4 divide, 5 remainder, 6 shift left,\n"
+     " * 7 shift right, 8 and, 9 or, 10 xor. Division by zero and\n"
+     " * out-of-range shifts abort. */\n"
+     "static inline uint64_t IntegerOp(uint64_t a, uint64_t b, int w, int sign, int op) {\n"
+     "    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;\n"
+     "    uint64_t shift = b;\n"
+     "    a &= mask;\n"
+     "    b &= mask;\n"
+     "    switch(op) {\n"
+     "    case 0: return a;\n"
+     "    case 1: return (a + b) & mask;\n"
+     "    case 2: return (a - b) & mask;\n"
+     "    case 3: return (a * b) & mask;\n"
+     "    case 4: case 5:\n"
+     "        if(!b) abort();\n"
+     "        if(sign) {\n"
+     "            int64_t x = SignedBits(a, w), y = SignedBits(b, w);\n"
+     "            if(x == INT64_MIN && y == -1) return op == 4 ? a : 0;\n"
+     "            return (uint64_t)(op == 4 ? x / y : x % y) & mask;\n"
+     "        }\n"
+     "        return op == 4 ? a / b : a % b;\n"
+     "    case 6: case 7:\n"
+     "        if(shift >= (uint64_t)w) abort();\n"
+     "        if(op == 6) return (a << shift) & mask;\n"
+     "        if(!shift) return a;\n"
+     "        return (a >> shift) |\n"
+     "            ((sign && (a & (UINT64_C(1) << (w - 1)))) ? mask ^ (mask >> shift) : 0);\n"
+     "    case 8: return a & b;\n"
+     "    case 9: return a | b;\n"
+     "    case 10: return a ^ b;\n"
+     "    default: abort();\n"
+     "    }\n"
+     "    return 0;\n"
+     "}\n"},
+    {"FloatToInt",
+     "/* FloatToInt converts x to a w-bit integer, aborting when it does not fit. */\n"
+     "static inline uint64_t FloatToInt(double x, int w, int sign) {\n"
+     "    double bound = 1;\n"
+     "    int i;\n"
+     "    for(i = 0; i < w - sign; i++) bound *= 2;\n"
+     "    if(!(x >= (sign ? -bound : 0) && x < bound)) abort();\n"
+     "    return sign ? (uint64_t)(int64_t)x : (uint64_t)x;\n"
+     "}\n"},
+};
+
+/* Replaces the helper mark in a written C or C++ source with the numeric
+ * helpers its code calls, or with nothing. Returns 0 on success. */
+int
+EmitResolveNumberHelpers(const char *path)
 {
-    if(target == ZIR_C || target == ZIR_CPP) {
-        fprintf(out, "#include <stdint.h>\n#include <stdbool.h>\n#include <stdlib.h>\n\n");
-        fprintf(out,
-            "static inline int64_t %s_signed(uint64_t x, int w) {\n"
-            "    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;\n"
-            "    x &= mask;\n"
-            "    return x <= (mask >> 1) ? (int64_t)x : -1 - (int64_t)(mask - x);\n}\n", p);
-        fprintf(out,
-            "static inline uint64_t %s_bits(uint64_t a, uint64_t b, int w, int sign, int op) {\n"
-            "    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;\n"
-            "    uint64_t shift = b; a &= mask; b &= mask;\n"
-            "    switch(op) {\n"
-            "    case 0: return a; case 1: return (a + b) & mask;\n"
-            "    case 2: return (a - b) & mask; case 3: return (a * b) & mask;\n"
-            "    case 4: case 5:\n"
-            "        if(!b) abort();\n"
-            "        if(sign) { int64_t x = %s_signed(a,w), y = %s_signed(b,w);\n"
-            "            if(x == INT64_MIN && y == -1) return op == 4 ? a : 0;\n"
-            "            return (uint64_t)(op == 4 ? x / y : x %% y) & mask; }\n"
-            "        return op == 4 ? a / b : a %% b;\n"
-            "    case 6: case 7:\n"
-            "        if(shift >= (uint64_t)w) abort();\n"
-            "        if(op == 6) return (a << shift) & mask;\n"
-            "        if(!shift) return a;\n"
-            "        return (a >> shift) | ((sign && (a & (UINT64_C(1) << (w-1)))) ? mask ^ (mask >> shift) : 0);\n"
-            "    case 8: return a & b; case 9: return a | b; case 10: return a ^ b;\n"
-            "    default: abort(); }\n    return 0;\n}\n\n", p, p, p);
-        fprintf(out,
-            "static inline uint64_t %s_float(double x, int w, int sign) {\n"
-            "    double bound = 1;\n"
-            "    int i;\n"
-            "    for(i = 0; i < w-sign; i++) bound *= 2;\n"
-            "    if(!(x >= (sign ? -bound : 0) && x < bound)) abort();\n"
-            "    return sign ? (uint64_t)(int64_t)x : (uint64_t)x;\n}\n", p);
+    FILE *file = fopen(path, "rb");
+    char *text = NULL, *mark;
+    long length;
+    int needed[sizeof(c_number_helpers) / sizeof(c_number_helpers[0])] = {0};
+    int any = 0, status = 0;
+    if(file == NULL)
+        return -1;
+    if(fseek(file, 0, SEEK_END) != 0 || (length = ftell(file)) < 0 ||
+       fseek(file, 0, SEEK_SET) != 0 || (text = malloc((size_t)length + 1)) == NULL ||
+       fread(text, 1, (size_t)length, file) != (size_t)length) {
+        fclose(file);
+        free(text);
+        return -1;
     }
+    fclose(file);
+    text[length] = '\0';
+    mark = strstr(text, NUMBER_HELPERS_MARK);
+    if(mark == NULL) {
+        free(text);
+        return 0;
+    }
+    for(size_t i = 0; i < sizeof(needed) / sizeof(needed[0]); i++) {
+        char call[32];
+        format(call, sizeof(call), "%s(", c_number_helpers[i].name);
+        needed[i] = strstr(text, call) != NULL;
+    }
+    needed[0] |= needed[1];
+    for(size_t i = 0; i < sizeof(needed) / sizeof(needed[0]); i++)
+        any |= needed[i];
+    file = fopen(path, "wb");
+    if(file == NULL) {
+        free(text);
+        return -1;
+    }
+    fwrite(text, 1, (size_t)(mark - text), file);
+    if(any)
+        fputs("#include <stdint.h>\n#include <stdlib.h>\n\n", file);
+    for(size_t i = 0, written = 0; i < sizeof(needed) / sizeof(needed[0]); i++)
+        if(needed[i])
+            fprintf(file, "%s%s", written++ ? "\n" : "", c_number_helpers[i].definition);
+    fputs(mark + strlen(NUMBER_HELPERS_MARK), file);
+    status = ferror(file) ? -1 : 0;
+    if(fclose(file) != 0)
+        status = -1;
+    free(text);
+    return status;
 }
 
 void
@@ -1293,7 +1336,7 @@ EmitGoNumberHelpers(FILE *out, const char *text, unsigned *written)
         format(call, sizeof(call), "%s(", go_number_helpers[i].name);
         if(strstr(text, call) == NULL)
             continue;
-        fprintf(out, "\n%s", go_number_helpers[i].definition);
+        fprintf(out, "%s\n", go_number_helpers[i].definition);
         *written |= 1u << i;
     }
 }

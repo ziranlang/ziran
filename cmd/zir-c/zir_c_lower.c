@@ -664,7 +664,7 @@ lower_body(FILE *out, const ZirModule *module, const ZirCModuleSyms *symbols,
     BodySymbols context = {module, symbols, symbol_count,
                            function->span.path};
     if(!EmitBody(out, module, function, ZIR_C,
-                 resolve_body_symbol, &context, NULL)) {
+                 resolve_body_symbol, &context)) {
         Diagnostic(function->span, "zir_c.body",
                    "function has no checked typed body: %s", function->name);
         exit(1);
@@ -1342,6 +1342,12 @@ lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
                    "    %s();\n}\n", init_name, init_name);
     }
     if(ferror(c) != 0 || fclose(c) != 0) {
+        remove(ctemp);
+        Diagnostic(m->span, "zir_c.global",
+                   "cannot finish C source output: %s", cpath);
+        return 0;
+    }
+    if(EmitResolveNumberHelpers(ctemp) != 0) {
         remove(ctemp);
         Diagnostic(m->span, "zir_c.global",
                    "cannot finish C source output: %s", cpath);

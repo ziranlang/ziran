@@ -632,7 +632,7 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
     if(e->target == ZIR_GO)
         copy_text(float_helper, sizeof(float_helper), "floatToInt(");
     else
-        format(float_helper, sizeof(float_helper), "%s_float(", e->numbers);
+        copy_text(float_helper, sizeof(float_helper), "FloatToInt(");
     /* An integer conversion keeps the low w bits: fold literals, convert
      * other integers directly. Float operands keep the range-checked helper. */
     if(op == 0 && native != NULL && strncmp(a, float_helper, strlen(float_helper)) != 0) {
@@ -687,6 +687,49 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
         format(out, size, "(%s)(%s %s %s)", native, left, symbols[op], right);
         return;
     }
+    /* Division and remainder: Go's own / and % panic on zero and wrap the
+     * one overflow, as Ziran does. C divides natively by a constant that is
+     * neither zero nor -1. A shift by a constant below the width is a plain
+     * shift, except a signed right shift in C, whose sign fill C leaves
+     * to the compiler. */
+    if(native != NULL && op >= 4 && op <= 7) {
+        uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;
+        uint64_t divisor = right_bits & mask;
+        int plain = op <= 5 ?
+            e->target == ZIR_GO ||
+                (right_literal && divisor != 0 && !(sign && divisor == mask)) :
+            right_literal && right_bits < (uint64_t)w &&
+                (e->target == ZIR_GO || op == 6 || !sign);
+        if(plain) {
+            static const char *const symbols[] = {"", "", "", "", "/", "%", "<<", ">>"};
+            char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
+            if(op >= 6)
+                format(right, sizeof(right), "%llu", (unsigned long long)right_bits);
+            else if(right_literal)
+                number_literal(e, type, right_bits, right, sizeof(right));
+            else if(same_number_type(b_type, type))
+                copy_text(right, sizeof(right), b);
+            else
+                format(right, sizeof(right), "%s(%s)", native, b);
+            if(e->target == ZIR_GO) {
+                if(left_literal) format(left, sizeof(left), "%s(%s)", native, a);
+                else if(same_number_type(a_type, type)) copy_text(left, sizeof(left), a);
+                else format(left, sizeof(left), "%s(%s)", native, a);
+                format(out, size, "%s %s %s", left, symbols[op], right);
+            } else if(op == 6) {
+                /* Left shifts run unsigned, where C defines every result. */
+                c_wide_operand(a, a_type, type, native,
+                               w == 64 ? "uint64_t" : "uint32_t", left, sizeof(left));
+                format(out, size, "(%s)(%s << %s)", native, left, right);
+            } else {
+                if(left_literal) number_literal(e, type, left_bits, left, sizeof(left));
+                else if(same_number_type(a_type, type)) copy_text(left, sizeof(left), a);
+                else format(left, sizeof(left), "(%s)(%s)", native, a);
+                format(out, size, "(%s)(%s %s %s)", native, left, symbols[op], right);
+            }
+            return;
+        }
+    }
     if(e->target == ZIR_GO) {
         char left[ZIR_TEXT_MAX], right[ZIR_TEXT_MAX];
         go_bits_operand(a, sign, left, sizeof(left));
@@ -702,8 +745,8 @@ number(Emitter *e, const char *type, const char *a, const char *a_type,
         }
         format(out,size,"%s(%s)",TargetType(type,e->target),bits);
     } else {
-        format(bits,sizeof(bits),"%s_bits((uint64_t)(%s),(uint64_t)(%s),%d,%d,%d)",e->numbers,a,b,w,sign,op);
-        if(sign) format(out,size,"(%s)%s_signed(%s,%d)",TargetType(type,e->target),e->numbers,bits,w);
+        format(bits, sizeof(bits), "IntegerOp((uint64_t)(%s), (uint64_t)(%s), %d, %d, %d)", a, b, w, sign, op);
+        if(sign) format(out, size, "(%s)SignedBits(%s, %d)", TargetType(type, e->target), bits, w);
         else format(out,size,"(%s)(%s)",TargetType(type,e->target),bits);
     }
 }

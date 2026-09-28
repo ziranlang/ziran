@@ -81,7 +81,9 @@ void EmitParallelWorkers(FILE *out, const ZirModule *module,
                          const ZirFunction *fn, ZirTarget target,
                          ZirResolveTarget resolve, void *context);
 void EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target);
-void EmitNumberSupport(FILE *out, ZirTarget target, const char *prefix);
+/* The line EmitNumbers writes where C and C++ numeric helpers go. */
+#define NUMBER_HELPERS_MARK "/* ziran numeric helpers */\n"
+int EmitResolveNumberHelpers(const char *path);
 void EmitGoPrintSupport(FILE *out);
 /* Appends each Go numeric helper that text calls and *written lacks. */
 void EmitGoNumberHelpers(FILE *out, const char *text, unsigned *written);
@@ -93,11 +95,8 @@ void EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                          ZirTarget target, ZirResolveTarget resolver, void *context);
 void EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
                      ZirResolveTarget resolve_type, void *context);
-/* number_support overrides the module-local numeric helper prefix when a
- * package shares one definition. */
 int EmitBody(FILE *out, const ZirModule *module, const ZirFunction *fn,
-                ZirTarget target, ZirResolveTarget resolve, void *context,
-                const char *number_support);
+                ZirTarget target, ZirResolveTarget resolve, void *context);
 /* Dense-output switch for the Go target: remove the inlined-expression length
  * bound so single-use temporaries fold without a readability cap. Default off. */
 void EmitUseMinifiedOutput(int enabled);

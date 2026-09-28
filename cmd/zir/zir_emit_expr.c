@@ -841,9 +841,22 @@ emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
             copy_text(result, sizeof(result), temp);
         } else if(width(type)) {
             if(canonical(e->fn->exprs[expr->right].type)[0]=='f') {
-                if(e->target==ZIR_GO) format(b,sizeof(b),"floatToInt(float64(%s), %d, %s)",a,width(type),signed_type(type)?"true":"false");
-                else format(b,sizeof(b),"%s_float(%s,%d,%s)",e->numbers,a,width(type),signed_type(type)?"true":"false");
-                number(e,type,b,NULL,"0",NULL,0,result,sizeof(result));
+                if(e->target==ZIR_GO) {
+                    /* floatToInt checks the range; the conversion keeps the low bits. */
+                    const char *from = canonical(e->fn->exprs[expr->right].type);
+                    format(result, sizeof(result), strcmp(from, "float64") ?
+                           "%s(floatToInt(float64(%s), %d, %s))" : "%s(floatToInt(%s, %d, %s))",
+                           TargetType(type, e->target), a, width(type),
+                           signed_type(type) ? "true" : "false");
+                } else {
+                    /* FloatToInt checks the range; SignedBits reads a signed result. */
+                    if(signed_type(type))
+                        format(result, sizeof(result), "(%s)SignedBits(FloatToInt(%s, %d, 1), %d)",
+                               TargetType(type, e->target), a, width(type), width(type));
+                    else
+                        format(result, sizeof(result), "(%s)FloatToInt(%s, %d, 0)",
+                               TargetType(type, e->target), a, width(type));
+                }
             } else number(e,type,a,e->fn->exprs[expr->right].type,"0",NULL,0,result,sizeof(result));
         }
         else {

@@ -54,7 +54,6 @@ typedef struct Emitter {
     int loop_start[128];
     int loop_id[128];
     int sequence_terminated;
-    char numbers[64];
     /* Expression folding (Go target): "pure" marks the last emitted expression
      * as free of side effects, so it can be inlined into its consumer instead
      * of being captured in a value_N temporary. "minify" removes the inline

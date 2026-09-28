@@ -665,7 +665,7 @@ emit_sequence(Emitter *e,int begin,int end)
 
 int
 EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
-            ZirResolveTarget resolver,void *context,const char *number_support)
+            ZirResolveTarget resolver,void *context)
 {
     Emitter e={0};char params[64][ZIR_TEXT_MAX];int count;
     if(!CanEmitBody(module, fn))return 0;
@@ -677,10 +677,6 @@ EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget targe
                    "out of memory during scalar emission");
         exit(1);
     }
-    if(number_support && *number_support)
-        copy_text(e.numbers, sizeof(e.numbers), number_support);
-    else
-        number_prefix(module,e.numbers,sizeof(e.numbers));
     count=*skip_ws(fn->args)?split_top_level(fn->args,params[0],64,sizeof(params[0])):0;
     for(int i=0;i<count;i++) {
         char *colon=strchr(params[i],':');*colon++=0;trim_in_place(params[i]);

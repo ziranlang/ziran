@@ -9,10 +9,14 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 # A public module entry re-exports other modules with `using`. Importing it
 # without `using` still brings those names, so entry linking must keep the
 # entry module and its import even though the entry declares nothing.
+# Integer, real, and string constants pass through the same chain.
 cat > "$work/inner.zi" <<'ZI'
 Pair :: struct {
     value: s32
 }
+InnerStep :: 1;
+InnerScale :: 0.5;
+InnerLabel :: "ok";
 #program_export
 InnerValue :: () -> s32 { return 40 }
 ZI
@@ -24,7 +28,8 @@ cat > "$work/reexport.zi" <<'ZI'
 #program_export
 Answer :: () -> s32 {
     pair: Pair
-    pair.value = 2
+    pair.value = InnerStep + cast(s32)(InnerScale * 2.0)
+    if InnerLabel.count != 2 { return 0 }
     return InnerValue() + pair.value
 }
 ZI
@@ -74,4 +79,4 @@ CPP
         fi
     done
 done
-echo 'plain import of a re-exporting module: VM, C, C++, and Go passed'
+echo 'plain import of a re-exporting module and its constants: VM, C, C++, and Go passed'

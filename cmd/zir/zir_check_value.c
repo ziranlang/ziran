@@ -386,49 +386,9 @@ bound_constant(const ZirModule *module, const char *name, int depth, int64_t *va
         return -1;
     const ZirDefine *definition = NULL;
     const ZirModule *owner = NULL;
-    const char *dot = strchr(name, '.');
-    const char *symbol = dot == NULL ? name : dot + 1;
-    for(int pass = 0; pass < 2; pass++) {
-        if(dot != NULL && pass == 0)
-            continue;
-        int count = pass == 0 ? 1 : module->import_count;
-        for(int i = 0; i < count; i++) {
-            if(pass != 0) {
-                const ZirImport *import = &module->imports[i];
-                if(!in_lookup_file(module, import->is_file_private,
-                                   import->span))
-                    continue;
-                if(dot == NULL && import->kind != ZIR_IMPORT_OPEN &&
-                   !(import->kind == ZIR_IMPORT_MODULE &&
-                     import->is_using))
-                    continue;
-                if(dot != NULL &&
-                   (import->kind != ZIR_IMPORT_MODULE ||
-                    strlen(import->name) != (size_t)(dot - name) ||
-                    strncmp(import->name, name, (size_t)(dot - name)) != 0))
-                    continue;
-            }
-            const ZirModule *scope = pass == 0 ? module : module->imports[i].resolved_module;
-            if(scope == NULL)
-                continue;
-            for(int j = 0; j < scope->define_count; j++) {
-                const ZirDefine *candidate = &scope->defines[j];
-                if((pass != 0 && !candidate->is_public) ||
-                   (pass == 0 && !in_lookup_file(module,
-                       candidate->is_file_private, candidate->span)) ||
-                   strcmp(candidate->name, symbol))
-                    continue;
-                if(definition != NULL && definition != candidate)
-                    return -1;
-                definition = candidate;
-                owner = scope;
-            }
-        }
-        if(definition != NULL)
-            break;
-    }
-    if(definition == NULL)
-        return 0;
+    int found = visible_define(module, name, &definition, &owner, NULL);
+    if(found != 1)
+        return found;
     ZirFunction expression = {0};
     int index = ParseExpr(&expression, owner, definition->value, definition->span);
     int status = bound_expression(owner, &expression, index, depth + 1, value);
@@ -446,50 +406,9 @@ bound_string_constant(const ZirModule *module, const char *name, int depth,
         return -1;
     const ZirDefine *definition = NULL;
     const ZirModule *owner = NULL;
-    const char *dot = strchr(name, '.');
-    const char *symbol = dot == NULL ? name : dot + 1;
-    for(int pass = 0; pass < 2; pass++) {
-        if(dot != NULL && pass == 0)
-            continue;
-        int count = pass == 0 ? 1 : module->import_count;
-        for(int i = 0; i < count; i++) {
-            if(pass != 0) {
-                const ZirImport *import = &module->imports[i];
-                if(!in_lookup_file(module, import->is_file_private,
-                                   import->span))
-                    continue;
-                if(dot == NULL && import->kind != ZIR_IMPORT_OPEN &&
-                   !(import->kind == ZIR_IMPORT_MODULE &&
-                     import->is_using))
-                    continue;
-                if(dot != NULL &&
-                   (import->kind != ZIR_IMPORT_MODULE ||
-                    strlen(import->name) != (size_t)(dot - name) ||
-                    strncmp(import->name, name, (size_t)(dot - name)) != 0))
-                    continue;
-            }
-            const ZirModule *scope = pass == 0 ? module :
-                                     module->imports[i].resolved_module;
-            if(scope == NULL)
-                continue;
-            for(int j = 0; j < scope->define_count; j++) {
-                const ZirDefine *candidate = &scope->defines[j];
-                if((pass != 0 && !candidate->is_public) ||
-                   (pass == 0 && !in_lookup_file(module,
-                       candidate->is_file_private, candidate->span)) ||
-                   strcmp(candidate->name, symbol))
-                    continue;
-                if(definition != NULL && definition != candidate)
-                    return -1;
-                definition = candidate;
-                owner = scope;
-            }
-        }
-        if(definition != NULL)
-            break;
-    }
-    if(definition == NULL)
-        return 0;
+    int found = visible_define(module, name, &definition, &owner, NULL);
+    if(found != 1)
+        return found;
     ZirFunction expression = {0};
     int index = ParseExpr(&expression, owner, definition->value, definition->span);
     int status = 0;
@@ -515,40 +434,9 @@ bound_real_constant(const ZirModule *module, const char *name, int depth,
     if(depth > 128) return -1;
     const ZirDefine *definition = NULL;
     const ZirModule *owner = NULL;
-    const char *dot = strchr(name, '.');
-    const char *symbol = dot == NULL ? name : dot + 1;
-    for(int pass = 0; pass < 2; pass++) {
-        if(dot != NULL && pass == 0) continue;
-        int count = pass == 0 ? 1 : module->import_count;
-        for(int i = 0; i < count; i++) {
-            if(pass != 0) {
-                const ZirImport *import = &module->imports[i];
-                if(!in_lookup_file(module, import->is_file_private,
-                                   import->span)) continue;
-                if(dot == NULL && import->kind != ZIR_IMPORT_OPEN) continue;
-                if(dot != NULL &&
-                   (import->kind != ZIR_IMPORT_MODULE ||
-                    strlen(import->name) != (size_t)(dot - name) ||
-                    strncmp(import->name, name,
-                            (size_t)(dot - name)) != 0)) continue;
-            }
-            const ZirModule *scope = pass == 0 ? module :
-                                     module->imports[i].resolved_module;
-            if(scope == NULL) continue;
-            for(int j = 0; j < scope->define_count; j++) {
-                const ZirDefine *candidate = &scope->defines[j];
-                if((pass != 0 && !candidate->is_public) ||
-                   (pass == 0 && !in_lookup_file(module,
-                       candidate->is_file_private, candidate->span)) ||
-                   strcmp(candidate->name, symbol)) continue;
-                if(definition != NULL && definition != candidate) return -1;
-                definition = candidate;
-                owner = scope;
-            }
-        }
-        if(definition != NULL) break;
-    }
-    if(definition == NULL) return 0;
+    int found = visible_define(module, name, &definition, &owner, NULL);
+    if(found != 1)
+        return found;
     ZirFunction expression = {0};
     int index = ParseExpr(&expression, owner, definition->value,
                           definition->span);

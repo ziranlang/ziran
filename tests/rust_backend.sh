@@ -2,7 +2,9 @@
 set -eu
 
 ziran=${1:?pass the ziran command}
-work=$(mktemp -d)
+script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+mkdir -p "$script_dir/../build"
+work=$(mktemp -d "$script_dir/../build/rust-backend.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 command -v cargo >/dev/null 2>&1 || {
@@ -83,6 +85,68 @@ done
 cmp "$work/source/src/main.rs" "$work/saved/src/main.rs"
 cmp "$work/source/Cargo.toml" "$work/saved/Cargo.toml"
 
+cat > "$work/vectors.zi" <<'ZI'
+#import "vec"
+#import "option"
+Holder :: struct { values: Vec(s32); }
+
+Make :: () -> Vec(s32) {
+    result: Vec(s32)
+    VecPush(result, 12)
+    return result
+}
+
+Consume :: (items: Vec(s32)) -> s32 {
+    return cast(s32) items.count
+}
+
+Early :: () -> s32 {
+    values: Vec(s32)
+    VecPush(values, 13)
+    return values[0]
+}
+
+#program_export
+main :: () -> s32 {
+    values: Vec(s32)
+    if !VecPush(values, 7) { return 1 }
+    if !VecPush(values, 9) { return 2 }
+    if values.count != 2 || values[1] != 9 { return 3 }
+    if !VecGet(values, 0).has_value { return 4 }
+    if !VecPop(values).has_value { return 5 }
+    VecFree(values)
+    {
+        nested: Vec(s32) = Make()
+        if nested.count != 1 { return 6 }
+    }
+    moved: Vec(s32) = Make()
+    if Consume(moved) != 1 { return 7 }
+    if Early() != 13 { return 8 }
+    holder: Holder
+    if !VecPush(holder.values, 14) { return 9 }
+    if holder.values.count != 1 || holder.values[0] != 14 { return 10 }
+    VecFree(holder.values)
+    return 0
+}
+ZI
+"$ziran" check --root "$work" --module-path std "$work/vectors.zi"
+"$ziran" ir --root "$work" --module-path std -o "$work/vector-ir" \
+    "$work/vectors.zi"
+for input in source saved; do
+    if test "$input" = source; then
+        file=$work/vectors.zi
+        root=$work
+    else
+        file=$work/vector-ir/vectors.zir
+        root=$work/vector-ir
+    fi
+    "$ziran" build --target=rust --entry vectors:main --root "$root" \
+        --module-path std --exe -o "$work/vector-$input" "$file"
+    cargo build --quiet --manifest-path "$work/vector-$input/Cargo.toml"
+    "$work/vector-$input/target/debug/ziran_generated"
+done
+cmp "$work/vector-source/src/main.rs" "$work/vector-saved/src/main.rs"
+
 "$ziran" capabilities --target=rust --json > "$work/capabilities.json"
 rg -q '"target":"rust".*"parallel_execution":"serial"' "$work/capabilities.json"
 rg -q '"target_contract":"experimental"' "$work/capabilities.json"
@@ -104,15 +168,15 @@ test "$status" -ne 0
 rg -q 'assertion failed: low >= 0 && low <= high' "$work/bounds.err"
 
 cat > "$work/unsupported.zi" <<'ZI'
-#import "vec"
+Value :: union { item: s32 }
 Answer :: () -> s32 {
-    values: Vec(s32)
-    if !VecPush(values, 1) { return 1 }
-    return cast(s32)values.count
+    value: Value
+    value.item = 1
+    return value.item
 }
 ZI
 if "$ziran" build --target=rust --entry unsupported:Answer --root "$work" \
-    --module-path std -o "$work/unsupported-output" "$work/unsupported.zi" \
+    -o "$work/unsupported-output" "$work/unsupported.zi" \
     > "$work/unsupported.out" 2> "$work/unsupported.err"; then
     echo 'the initial Rust target accepted an unsupported aggregate' >&2
     exit 1

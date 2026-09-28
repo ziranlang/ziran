@@ -55,10 +55,18 @@ static const char *const rust_keywords[] = {
 static const char *rust_scalar_type(const char *type);
 static int rust_enum_type(RustEmitter *emitter, const char *type,
                           const ZirModule **owner, const ZirType **enumeration);
+static int rust_owned_vec_type(RustEmitter *emitter, const char *type,
+                               const ZirModule **owner,
+                               const ZirType **record, char *element,
+                               size_t element_size);
+static int rust_option_type(RustEmitter *emitter, const char *type,
+                            const ZirModule **owner, const ZirType **record,
+                            char *element, size_t element_size);
 static int rust_record_type(RustEmitter *emitter, const char *type,
                             const ZirModule **owner, const ZirType **record);
 static int rust_type(RustEmitter *emitter, const char *type, char *output,
                      size_t size);
+static int rust_copyable_type(RustEmitter *emitter, const char *type);
 static void rust_field_name(const ZirType *record, const char *source,
                             char *output, size_t size);
 
@@ -82,6 +90,11 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                 char type_name[ZIR_NAME_MAX];
                 const ZirModule *enum_owner = NULL;
                 const ZirType *enumeration = NULL;
+                if(rust_owned_vec_type(emitter, record->name, NULL, NULL,
+                                       NULL, 0) ||
+                   rust_option_type(emitter, record->name, NULL, NULL,
+                                    NULL, 0))
+                    continue;
                 if(rust_enum_type(emitter, record->name, &enum_owner,
                                   &enumeration)) {
                     const char *backing = rust_scalar_type(
@@ -100,12 +113,21 @@ static void emit_type_definitions(RustEmitter *emitter, FILE *output)
                 }
                 if(!rust_record_type(emitter, record->name, NULL, NULL))
                     continue;
-                NativeTypeName(module, record, type_name, sizeof(type_name));
-                fprintf(output,
-                        "#[repr(C)]\n#[derive(Clone, Copy)]\npub struct %s {\n",
-                        type_name);
+                int copyable = 1;
                 size_t offset = 0;
                 ZirTypeField field;
+                NativeTypeName(module, record, type_name, sizeof(type_name));
+                while(TypeNextField(record, &offset, &field) == 1)
+                    if(!rust_copyable_type(emitter, field.type))
+                        copyable = 0;
+                offset = 0;
+                if(copyable)
+                    fprintf(output,
+                            "#[repr(C)]\n#[derive(Clone, Copy)]\npub struct %s {\n",
+                            type_name);
+                else
+                    fprintf(output, "#[repr(C)]\npub struct %s {\n",
+                            type_name);
                 while(TypeNextField(record, &offset, &field) == 1) {
                     char field_name[ZIR_NAME_MAX];
                     char field_type[ZIR_NAME_MAX];
@@ -270,6 +292,58 @@ static int rust_enum_type(RustEmitter *emitter, const char *type,
     return 1;
 }
 
+static int rust_owned_vec_type(RustEmitter *emitter, const char *type,
+                               const ZirModule **owner,
+                               const ZirType **record, char *element,
+                               size_t element_size)
+{
+    const ZirModule *type_owner = NULL;
+    const ZirType *declared = emitter != NULL ?
+        FindType(emitter->module, type, &type_owner) : NULL;
+    ZirTypeField field;
+    size_t offset = 0;
+    if(declared == NULL ||
+       TypeNextField(declared, &offset, &field) != 1 ||
+       strcmp(field.name, "data") != 0 || field.type[0] != '*' ||
+       field.type[1] == '\0') {
+        if(owner != NULL) *owner = NULL;
+        if(record != NULL) *record = NULL;
+        return 0;
+    }
+    if(element != NULL)
+        snprintf(element, element_size, "%s", field.type + 1);
+    if(owner != NULL) *owner = type_owner;
+    if(record != NULL) *record = declared;
+    return 1;
+}
+
+static int rust_option_type(RustEmitter *emitter, const char *type,
+                            const ZirModule **owner, const ZirType **record,
+                            char *element, size_t element_size)
+{
+    const ZirModule *type_owner = NULL;
+    const ZirType *declared = emitter != NULL ?
+        FindType(emitter->module, type, &type_owner) : NULL;
+    ZirTypeField fields[2];
+    size_t offset = 0;
+    if(declared == NULL ||
+       TypeNextField(declared, &offset, &fields[0]) != 1 ||
+       TypeNextField(declared, &offset, &fields[1]) != 1 ||
+       strcmp(fields[0].name, "has_value") != 0 ||
+       strcmp(fields[0].type, "bool") != 0 ||
+       strcmp(fields[1].name, "value") != 0 ||
+       fields[1].type[0] == '\0') {
+        if(owner != NULL) *owner = NULL;
+        if(record != NULL) *record = NULL;
+        return 0;
+    }
+    if(element != NULL)
+        snprintf(element, element_size, "%s", fields[1].type);
+    if(owner != NULL) *owner = type_owner;
+    if(record != NULL) *record = declared;
+    return 1;
+}
+
 static int rust_record_type(RustEmitter *emitter, const char *type,
                             const ZirModule **owner, const ZirType **record)
 {
@@ -305,6 +379,22 @@ static int rust_type(RustEmitter *emitter, const char *type, char *output,
         snprintf(output, size, "%s", rust_scalar_type(type));
         return 1;
     }
+    if(rust_owned_vec_type(emitter, type, &owner, &record, element,
+                           sizeof(element))) {
+        char element_type[ZIR_NAME_MAX];
+        if(!rust_type(emitter, element, element_type, sizeof(element_type)))
+            return 0;
+        snprintf(output, size, "ZiranVec<%s>", element_type);
+        return 1;
+    }
+    if(rust_option_type(emitter, type, &owner, &record, element,
+                        sizeof(element))) {
+        char element_type[ZIR_NAME_MAX];
+        if(!rust_type(emitter, element, element_type, sizeof(element_type)))
+            return 0;
+        snprintf(output, size, "ZiranOption<%s>", element_type);
+        return 1;
+    }
     if(rust_enum_type(emitter, type, &owner, &record)) {
         NativeTypeName(owner, record, output, size);
         return 1;
@@ -324,6 +414,32 @@ static int rust_type(RustEmitter *emitter, const char *type, char *output,
         return 1;
     }
     output[0] = '\0';
+    return 0;
+}
+
+static int rust_copyable_type(RustEmitter *emitter, const char *type)
+{
+    const ZirModule *owner = NULL;
+    const ZirType *record = NULL;
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(rust_scalar_type(type) != NULL || !strcmp(type, "string") ||
+       rust_enum_type(emitter, type, &owner, &record))
+        return 1;
+    if(rust_owned_vec_type(emitter, type, NULL, NULL, NULL, 0) ||
+       rust_option_type(emitter, type, NULL, NULL, NULL, 0))
+        return 0;
+    if(SliceElementType(type, element, sizeof(element)) ||
+       ArrayElementType(type, element, sizeof(element), &capacity))
+        return rust_copyable_type(emitter, element);
+    if(rust_record_type(emitter, type, &owner, &record)) {
+        size_t offset = 0;
+        ZirTypeField field;
+        while(TypeNextField(record, &offset, &field) == 1)
+            if(!rust_copyable_type(emitter, field.type))
+                return 0;
+        return 1;
+    }
     return 0;
 }
 
@@ -473,12 +589,18 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
         char base_type[ZIR_NAME_MAX];
         snprintf(base_type, sizeof(base_type), "%s",
                  emitter->function->exprs[expression->left].type);
-        if((SliceElementType(base_type, NULL, 0) ||
-            !strcmp(base_type, "string")) &&
-           !strcmp(expression->name, "count")) {
-            emit_destination(emitter, expression->left, base, sizeof(base));
-            snprintf(output, size, "(%s.len as i64)", base);
-            return;
+        {
+            int owned_vec = rust_owned_vec_type(emitter, base_type, NULL,
+                                                NULL, NULL, 0);
+            if((SliceElementType(base_type, NULL, 0) ||
+                !strcmp(base_type, "string") || owned_vec) &&
+               !strcmp(expression->name, "count")) {
+                emit_destination(emitter, expression->left, base,
+                                 sizeof(base));
+                snprintf(output, size, "(%s.%s as i64)", base,
+                         owned_vec ? "count" : "len");
+                return;
+            }
         }
         if(!rust_record_type(emitter, base_type, &owner, &record)) {
             unsupported_expression(emitter, expression);
@@ -495,8 +617,15 @@ static void emit_destination(RustEmitter *emitter, int index, char *output,
         char element[ZIR_NAME_MAX];
         emit_destination(emitter, expression->left, base, sizeof(base));
         emit_expression(emitter, expression->right, index, sizeof(index));
-        if(SliceElementType(emitter->function->exprs[expression->left].type,
-                            element, sizeof(element)))
+        if(rust_owned_vec_type(
+               emitter, emitter->function->exprs[expression->left].type,
+               NULL, NULL, element, sizeof(element)))
+            snprintf(output, size,
+                     "unsafe { assert!((%s as isize) >= 0 && (%s as usize) < %s.count as usize); *%s.data.offset(%s as isize) }",
+                     index, index, base, base, index);
+        else if(SliceElementType(
+                    emitter->function->exprs[expression->left].type, element,
+                    sizeof(element)))
             snprintf(output, size, "*%s.data.offset(%s as isize)", base,
                      index);
         else
@@ -564,6 +693,56 @@ static void emit_call(RustEmitter *emitter, const ZirExpr *expression,
     char symbol[ZIR_RUST_NAME_MAX * 2];
     char arguments[ZIR_RUST_TEXT_MAX] = "";
     char child[ZIR_RUST_TEXT_MAX];
+    char element[ZIR_NAME_MAX];
+    if(!strcmp(expression->name, "VecPush") ||
+       !strcmp(expression->name, "VecPop") ||
+       !strcmp(expression->name, "VecGet") ||
+       !strcmp(expression->name, "VecFree")) {
+        int first = expression->first_child;
+        int second = first >= 0 ?
+            emitter->function->exprs[first].next_sibling : -1;
+        int third = second >= 0 ?
+            emitter->function->exprs[second].next_sibling : -1;
+        if(first < 0 || third >= 0 ||
+           !rust_owned_vec_type(
+               emitter, emitter->function->exprs[first].type, NULL, NULL,
+               element, sizeof(element))) {
+            unsupported_expression(emitter, expression);
+            return;
+        }
+        emit_expression(emitter, first, child, sizeof(child));
+        if(!strcmp(expression->name, "VecFree")) {
+            if(second >= 0) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            snprintf(output, size, "ZiranVecFree(&mut %s)", child);
+        } else if(!strcmp(expression->name, "VecPush")) {
+            char value[ZIR_RUST_TEXT_MAX];
+            if(second < 0) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            emit_expression(emitter, second, value, sizeof(value));
+            snprintf(output, size, "ZiranVecPush(&mut %s, %s)", child, value);
+        } else if(!strcmp(expression->name, "VecPop")) {
+            if(second >= 0) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            snprintf(output, size, "ZiranVecPop(&mut %s)", child);
+        } else {
+            char index[ZIR_RUST_TEXT_MAX];
+            if(second < 0) {
+                unsupported_expression(emitter, expression);
+                return;
+            }
+            emit_expression(emitter, second, index, sizeof(index));
+            snprintf(output, size, "ZiranVecGet(&mut %s, %s as usize)",
+                     child, index);
+        }
+        return;
+    }
     if(!strcmp(expression->name, "TextView")) {
         if(expression->first_child < 0 ||
            emitter->function->exprs[expression->first_child].next_sibling >= 0 ||
@@ -656,9 +835,36 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
     case ZIR_EXPR_CALL:
         emit_call(emitter, expression, output, size);
         break;
-    case ZIR_EXPR_MEMBER:
-        emit_destination(emitter, index, output, size);
+    case ZIR_EXPR_MEMBER: {
+        char base[ZIR_RUST_TEXT_MAX];
+        char field[ZIR_NAME_MAX];
+        const ZirModule *owner = NULL;
+        const ZirType *record = NULL;
+        char base_type[ZIR_NAME_MAX];
+        snprintf(base_type, sizeof(base_type), "%s",
+                 emitter->function->exprs[expression->left].type);
+        if((SliceElementType(base_type, NULL, 0) ||
+            !strcmp(base_type, "string")) &&
+           !strcmp(expression->name, "count")) {
+            emit_expression(emitter, expression->left, base, sizeof(base));
+            snprintf(output, size, "(%s.len as i64)", base);
+            break;
+        }
+        if(rust_owned_vec_type(emitter, base_type, NULL, NULL, NULL, 0) &&
+           !strcmp(expression->name, "count")) {
+            emit_expression(emitter, expression->left, base, sizeof(base));
+            snprintf(output, size, "(%s.count as i64)", base);
+            break;
+        }
+        if(!rust_record_type(emitter, base_type, &owner, &record)) {
+            unsupported_expression(emitter, expression);
+            break;
+        }
+        emit_expression(emitter, expression->left, base, sizeof(base));
+        rust_field_name(record, expression->name, field, sizeof(field));
+        snprintf(output, size, "%s.%s", base, field);
         break;
+    }
     case ZIR_EXPR_INDEX: {
         char element[ZIR_NAME_MAX];
         char base[ZIR_RUST_TEXT_MAX];
@@ -669,6 +875,14 @@ static void emit_expression(RustEmitter *emitter, int index, char *output,
                    "string")) {
             snprintf(output, size,
                      "unsafe { assert!((%s as isize) >= 0 && (%s as usize) < %s.len); *%s.data.offset(%s as isize) }",
+                     index, index, base, base, index);
+            break;
+        }
+        if(rust_owned_vec_type(
+               emitter, emitter->function->exprs[expression->left].type,
+               NULL, NULL, element, sizeof(element))) {
+            snprintf(output, size,
+                     "unsafe { assert!((%s as isize) >= 0 && (%s as usize) < %s.count as usize); %s.data.offset(%s as isize).read() }",
                      index, index, base, base, index);
             break;
         }
@@ -957,6 +1171,19 @@ static void rust_zero_value(RustEmitter *emitter, const char *type,
         snprintf(output, size, "ZiranText::new(\"\")");
         return;
     }
+    if(rust_owned_vec_type(emitter, type, NULL, NULL, element,
+                           sizeof(element))) {
+        snprintf(output, size, "ZiranVec::new()");
+        return;
+    }
+    if(rust_option_type(emitter, type, &owner, &record, element,
+                        sizeof(element))) {
+        char value[ZIR_RUST_TEXT_MAX];
+        rust_zero_value(emitter, element, value, sizeof(value));
+        snprintf(output, size,
+                 "ZiranOption { has_value: false, value: %s }", value);
+        return;
+    }
     if(SliceElementType(type, element, sizeof(element))) {
         char element_type[ZIR_NAME_MAX];
         rust_type(emitter, element, element_type, sizeof(element_type));
@@ -1127,6 +1354,18 @@ static void validate_module(const ZirModule *module)
         const ZirModule *owner = NULL;
         const ZirType *checked = NULL;
         char checked_type[ZIR_NAME_MAX];
+        if(rust_owned_vec_type(&emitter, record->name, NULL, NULL,
+                               checked_type, sizeof(checked_type)) ||
+           rust_option_type(&emitter, record->name, NULL, NULL, checked_type,
+                            sizeof(checked_type))) {
+            if(!rust_type(&emitter, checked_type, checked_type,
+                          sizeof(checked_type))) {
+                Diagnostic(record->span, "zir_rust.type",
+                           "unsupported template type: %s", record->name);
+                exit(1);
+            }
+            continue;
+        }
         if(rust_enum_type(&emitter, record->name, &owner, &checked)) {
             if(rust_scalar_type(checked->enum_backing) == NULL) {
                 Diagnostic(record->span, "zir_rust.enum",
@@ -1401,6 +1640,112 @@ static FILE *open_output(ZirSourceSpan span, const char *directory,
     return file;
 }
 
+static void emit_ziran_vec_runtime(FILE *output)
+{
+    fputs("#[repr(C)]\n", output);
+    fputs("pub struct ZiranOption<T> {\n", output);
+    fputs("    pub has_value: bool,\n", output);
+    fputs("    pub value: T,\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("#[repr(C)]\n", output);
+    fputs("pub struct ZiranVec<T> {\n", output);
+    fputs("    pub data: *mut T,\n", output);
+    fputs("    pub count: i64,\n", output);
+    fputs("    pub capacity: i64,\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("unsafe impl<T> Sync for ZiranVec<T> {}\n", output);
+    fputs("\n", output);
+    fputs("impl<T> ZiranVec<T> {\n", output);
+    fputs("    pub const fn new() -> Self {\n", output);
+    fputs("        Self { data: core::ptr::null_mut(), count: 0, capacity: 0 }\n", output);
+    fputs("    }\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("impl<T> Drop for ZiranVec<T> {\n", output);
+    fputs("    fn drop(&mut self) {\n", output);
+    fputs("        ZiranVecFree(self);\n", output);
+    fputs("    }\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("pub fn ZiranVecPush<T>(vector: &mut ZiranVec<T>, value: T) -> bool {\n", output);
+    fputs("    if vector.count == vector.capacity {\n", output);
+    fputs("        let capacity = if vector.capacity == 0 {\n", output);
+    fputs("            4\n", output);
+    fputs("        } else {\n", output);
+    fputs("            match (vector.capacity as usize).checked_mul(2) {\n", output);
+    fputs("                Some(capacity) if capacity <= i64::MAX as usize => capacity,\n", output);
+    fputs("                _ => return false,\n", output);
+    fputs("            }\n", output);
+    fputs("        };\n", output);
+    fputs("        let layout = match std::alloc::Layout::array::<T>(capacity) {\n", output);
+    fputs("            Ok(layout) => layout,\n", output);
+    fputs("            Err(_) => return false,\n", output);
+    fputs("        };\n", output);
+    fputs("        let old_size = vector.capacity as usize * core::mem::size_of::<T>();\n", output);
+    fputs("        let allocation = if vector.data.is_null() {\n", output);
+    fputs("            unsafe { std::alloc::alloc(layout) }\n", output);
+    fputs("        } else {\n", output);
+    fputs("            let pointer = vector.data as *mut u8;\n", output);
+    fputs("            let old_layout = match std::alloc::Layout::from_size_align(\n", output);
+    fputs("                old_size, layout.align()) {\n", output);
+    fputs("                Ok(layout) => layout,\n", output);
+    fputs("                Err(_) => return false,\n", output);
+    fputs("            };\n", output);
+    fputs("            unsafe { std::alloc::realloc(pointer, old_layout, layout.size()) }\n", output);
+    fputs("        };\n", output);
+    fputs("        if allocation.is_null() {\n", output);
+    fputs("            return false;\n", output);
+    fputs("        }\n", output);
+    fputs("        vector.data = allocation as *mut T;\n", output);
+    fputs("        vector.capacity = capacity as i64;\n", output);
+    fputs("    }\n", output);
+    fputs("    unsafe { vector.data.offset(vector.count as isize).write(value); }\n", output);
+    fputs("    vector.count += 1;\n", output);
+    fputs("    true\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("pub fn ZiranVecPop<T>(vector: &mut ZiranVec<T>) -> ZiranOption<T> {\n", output);
+    fputs("    if vector.count == 0 {\n", output);
+    fputs("        return ZiranOption {\n", output);
+    fputs("            has_value: false,\n", output);
+    fputs("            value: unsafe { core::mem::zeroed() },\n", output);
+    fputs("        };\n", output);
+    fputs("    }\n", output);
+    fputs("    vector.count -= 1;\n", output);
+    fputs("    let value = unsafe { vector.data.offset(vector.count as isize).read() };\n", output);
+    fputs("    ZiranOption { has_value: true, value }\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("pub fn ZiranVecGet<T>(vector: &mut ZiranVec<T>, index: usize) -> ZiranOption<T> {\n", output);
+    fputs("    if index >= vector.count as usize {\n", output);
+    fputs("        return ZiranOption {\n", output);
+    fputs("            has_value: false,\n", output);
+    fputs("            value: unsafe { core::mem::zeroed() },\n", output);
+    fputs("        };\n", output);
+    fputs("    }\n", output);
+    fputs("    let value = unsafe { vector.data.offset(index as isize).read() };\n", output);
+    fputs("    ZiranOption { has_value: true, value }\n", output);
+    fputs("}\n", output);
+    fputs("\n", output);
+    fputs("pub fn ZiranVecFree<T>(vector: &mut ZiranVec<T>) {\n", output);
+    fputs("    if !vector.data.is_null() {\n", output);
+    fputs("        let size = vector.capacity as usize * core::mem::size_of::<T>();\n", output);
+    fputs("        let align = core::mem::align_of::<T>();\n", output);
+    fputs("        match std::alloc::Layout::from_size_align(size, align) {\n", output);
+    fputs("            Ok(layout) => unsafe {\n", output);
+    fputs("                std::alloc::dealloc(vector.data as *mut u8, layout)\n", output);
+    fputs("            },\n", output);
+    fputs("            Err(_) => unreachable!(\"invalid Ziran vector layout\"),\n", output);
+    fputs("        }\n", output);
+    fputs("    }\n", output);
+    fputs("    vector.data = core::ptr::null_mut();\n", output);
+    fputs("    vector.count = 0;\n", output);
+    fputs("    vector.capacity = 0;\n", output);
+    fputs("}\n", output);
+}
+
 int rust_lower(const ZirProgram *const *programs, int program_count,
                const char *output_directory, const char *entry_module,
                const char *entry_function, int executable)
@@ -1472,6 +1817,7 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
     fputs("#![allow(non_snake_case)]\n#![allow(non_camel_case_types)]\n#![allow(non_upper_case_globals)]\n#![allow(unused)]\n\n", output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n", output);
+    emit_ziran_vec_runtime(output);
     fputs("#[repr(C)]\n#[derive(Clone, Copy)]\npub struct ZiranText {\n"
           "    pub data: *const u8,\n    pub len: usize,\n"
           "}\n\n"
@@ -1514,13 +1860,15 @@ int rust_lower(const ZirProgram *const *programs, int program_count,
         fputs("fn main() {\n", output);
         if(has_startup)
             fputs("    ziran_startup();\n", output);
-        if(strcmp(entry->return_type, "void") == 0)
+        if(strcmp(entry->return_type, "void") == 0) {
             fprintf(output, "    %s();\n", symbol);
-        else if(strcmp(entry->return_type, "bool") == 0)
-            fprintf(output,
-                    "    if %s() { std::process::exit(1); }\n", symbol);
-        else
-            fprintf(output, "    std::process::exit(%s() as i32);\n", symbol);
+        } else if(strcmp(entry->return_type, "bool") == 0) {
+            fprintf(output, "    let failed = %s();\n", symbol);
+            fprintf(output, "    if failed { std::process::exit(1); }\n");
+        } else {
+            fprintf(output, "    let code = %s() as i32;\n", symbol);
+            fprintf(output, "    std::process::exit(code);\n");
+        }
         fputs("}\n", output);
     }
     if(fclose(output) != 0) {

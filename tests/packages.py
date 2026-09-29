@@ -524,6 +524,55 @@ main :: () -> s32 {
         compile_app(ziran, bridged, root / "bridged-c", compiler, env,
                     bridged / "src/app.zi", True)
 
+        # A test host binds a capability that a dependency declares in a
+        # module it does not export, naming it by its import path.
+        hosted = root / "hosted"
+        init(hosted, env)
+        write(hosted / "ziran.toml", """[package]
+name = "Hosted"
+module_roots = ["src"]
+[exports]
+Hosted = "src/Hosted.zi"
+""")
+        write(hosted / "src/measure.zi", '''host_api :: #system_library "host_api";
+Measure :: (value: s32) -> s32 #foreign host_api;
+Measured :: (value: s32) -> s32 { return Measure(value) }
+''')
+        write(hosted / "src/Hosted.zi",
+              '#import "measure"\nHostedValue :: () -> s32 { return Measured(20) + 1 }\n')
+        commit(hosted, env)
+        host_app = root / "host-app"
+        host_app.mkdir()
+        write(host_app / "ziran.toml", f'''[package]
+name = "HostApp"
+entry = "src/app.zi"
+[toolchain]
+git = "{compiler.as_uri()}"
+ref = "master"
+[dependencies.hosted]
+git = "{hosted.as_uri()}"
+ref = "master"
+''')
+        write(host_app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        write(host_app / "src/app.zi", '''#import "hosted/Hosted"
+#program_export
+Doubled :: (value: s32) -> s32 { return value * 2 }
+#program_export
+main :: () -> s32 { return HostedValue() }
+''')
+        call(ziran, "lock", cwd=host_app, env=env)
+        call(ziran, "bundle", "--project", "--bind",
+             "hosted/measure:Measure=app:Doubled", "--entry", "app:main",
+             "-o", str(root / "hosted.zib"), str(host_app / "src/app.zi"),
+             cwd=host_app, env=env)
+        assert call(ziran, "run", str(root / "hosted.zib"), cwd=host_app,
+                    env=env).strip() == "41"
+        unbound = call(ziran, "bundle", "--project", "--bind",
+                       "hosted/missing:Measure=app:Doubled", "--entry", "app:main",
+                       "-o", str(root / "missing.zib"), str(host_app / "src/app.zi"),
+                       cwd=host_app, env=env, succeed=False)
+        assert "no direct dependency has" in unbound, unbound
+
         # A package declares its tool's options; ziran merges the app's
         # [tool.ALIAS] tables with ziran.local.toml and hands the tool one
         # KEY=VALUE file. `ziran install` runs the [install] tool.

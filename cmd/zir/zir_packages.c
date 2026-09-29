@@ -246,3 +246,26 @@ const char *PackageAmbiguity(const ZirPackageMap *map, const char *owner,
             return map->ambiguous[i].choices;
     return NULL;
 }
+
+int PackageDependencyModule(const ZirPackageMap *map, const char *owner,
+                            const char *qualified, char *identity,
+                            size_t identity_size)
+{
+    const char *slash = strchr(qualified, '/');
+    const char *target = NULL;
+    if(slash == NULL || slash == qualified || slash[1] == '\0') return 0;
+    size_t prefix = (size_t)(slash - qualified) + 1;
+    if(strncmp(qualified, "std/", 4) == 0)
+        target = "std";
+    for(int i = 0; target == NULL && i < map->dependency_count; i++)
+        if(strcmp(map->dependencies[i].owner, owner) == 0 &&
+           strncmp(map->dependencies[i].visible, qualified, prefix) == 0)
+            target = map->dependencies[i].target;
+    if(target == NULL) return 0;
+    for(int i = 0; i < map->module_count; i++)
+        if(strcmp(map->modules[i].id, target) == 0 &&
+           strcmp(map->modules[i].name, slash + 1) == 0)
+            return snprintf(identity, identity_size, "%s",
+                            map->modules[i].identity) < (int)identity_size;
+    return 0;
+}

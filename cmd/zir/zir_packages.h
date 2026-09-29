@@ -16,6 +16,12 @@ const char *PackageModuleName(const ZirPackageMap *map,
  * dependencies export, or NULL when the short name is not ambiguous. */
 const char *PackageAmbiguity(const ZirPackageMap *map, const char *owner,
                              const char *visible);
+/* Any module of a direct dependency by its import path, such as
+ * kryon/raster_text, exported or not. Host bindings use this so a test host
+ * can provide a capability that a dependency declares internally. */
+int PackageDependencyModule(const ZirPackageMap *map, const char *owner,
+                            const char *qualified, char *identity,
+                            size_t identity_size);
 int PackageResolve(const ZirPackageMap *map, const char *owner,
                    const char *visible, char *path, size_t path_size,
                    char *identity, size_t identity_size);

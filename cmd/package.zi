@@ -198,8 +198,28 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     }
     if project && !has_source &&
        (check || command == "ir" || command == "api" || build || command == "bundle") {
-        child[count] = PkgJoin3(root, "/", current.entry)
-        count += 1
+        entry: string = PkgJoin3(root, "/", current.entry)
+        // A library has no app entry; checking it checks what it exports.
+        if !PathExists(entry) && current.export_count > 0 &&
+           (check || command == "ir" || command == "api") {
+            index = 0
+            while index < current.export_count && count < 259 {
+                child[count] = PkgJoin3(root, "/", current.exports[index].value)
+                seen: bool = false
+                earlier: s32 = 0
+                while earlier < index {
+                    if current.exports[earlier].value == current.exports[index].value {
+                        seen = true
+                    }
+                    earlier += 1
+                }
+                if !seen { count += 1 }
+                index += 1
+            }
+        } else {
+            child[count] = entry
+            count += 1
+        }
     }
     return PkgRun(child[0:count], "", names[:], values[:])
 }

@@ -1,6 +1,7 @@
 #include "zir_bundle.h"
 #include "zir_check.h"
 #include "zir_law.h"
+#include "zir_packages.h"
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
 #include "zir_serial.h"
@@ -35,6 +36,33 @@ split_binding_name(const char *text, char *module, char *function)
     return 1;
 }
 
+/* A binding may name a module by its import path, such as
+ * kryon/raster_text:RasterText, when a project supplies the package map. */
+static int
+resolve_binding_module(char *module)
+{
+    if(strchr(module, '/') == NULL) return 1;
+    const char *path = getenv("ZIRAN_PACKAGE_MAP");
+    if(path == NULL || path[0] == '\0') {
+        Diagnostic(Span("<command>", 1, 1), "host.bind",
+                   "host binding %s names a package module; run it with --project",
+                   module);
+        return 0;
+    }
+    ZirPackageMap *map = PackageMapLoad(path);
+    char identity[ZIR_NAME_MAX];
+    int found = map != NULL &&
+        PackageDependencyModule(map, "root", module, identity, sizeof(identity));
+    PackageMapFree(map);
+    if(!found) {
+        Diagnostic(Span("<command>", 1, 1), "host.bind",
+                   "host binding names %s, which no direct dependency has", module);
+        return 0;
+    }
+    snprintf(module, ZIR_NAME_MAX, "%s", identity);
+    return 1;
+}
+
 int
 BindHostProvider(ZirProgram *program, const char *spec)
 {
@@ -59,6 +87,9 @@ BindHostProvider(ZirProgram *program, const char *spec)
                    "invalid host binding: %s", spec);
         return 0;
     }
+    if(!resolve_binding_module(source_module) ||
+       !resolve_binding_module(provider_module))
+        return 0;
     for(int m = 0; m < program->module_count; m++) {
         ZirModule *module = &program->modules[m];
         if(strcmp(module->name, source_module) == 0)

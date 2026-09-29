@@ -135,6 +135,18 @@ rg -q '"law":"BWaits".*"status":"proved".*held for all 5 cases' "$work/forall.js
 "$ziran" check --root "$work/fir" "$work/fir/forall.zir" > "$work/forall-saved.json"
 cmp "$work/forall.json" "$work/forall-saved.json"
 
+# Adding a negative number is ordinary arithmetic, not an overflow.
+cat > "$work/forall_negative.zi" <<'ZI'
+Add :: (x: s32, y: s32) -> s32 { return x + y }
+#law SumsCommute forall a: -4..4, b: -4..4 => a + b == b + a;
+#law AddsNegative forall a: 0..3, b: -4..-1 => Add(a, b) < a;
+#program_export
+Answer :: () -> s32 { return 5 }
+ZI
+"$ziran" check --root "$work" "$work/forall_negative.zi" > "$work/forall_negative.json"
+rg -q '"law":"SumsCommute".*"status":"proved".*held for all 81 cases' "$work/forall_negative.json"
+rg -q '"law":"AddsNegative".*"status":"proved".*held for all 16 cases' "$work/forall_negative.json"
+
 cat > "$work/forall_bad.zi" <<'ZI'
 Kind :: enum { A, B }
 Next :: (k: Kind, n: s32) -> s32 {

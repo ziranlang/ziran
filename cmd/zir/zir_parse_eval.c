@@ -542,8 +542,10 @@ eval_unary(ZirEval *ev)
 int
 checked_add_long(long left, long right, long *result)
 {
+    /* For a negative right, LONG_MIN + right would itself overflow and
+     * wrap, rejecting every such sum; the bound is LONG_MIN - right. */
     if((right > 0 && left > LONG_MAX - right) ||
-       (right < 0 && left < LONG_MIN + right))
+       (right < 0 && left < LONG_MIN - right))
         return 0;
     *result = left + right;
     return 1;

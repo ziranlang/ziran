@@ -1,0 +1,13 @@
+// Secure operating-system randomness for native Linux programs. The caller
+// owns the destination bytes and no fallback generator is permitted.
+libc :: #system_library "libc";
+
+GetRandomRaw :: (output: *u8, count: usize, flags: u32) -> isize #foreign libc "getrandom";
+
+#program_export
+FillSecure :: (output: []u8) -> bool {
+    if output.count == 0 { return false }
+    requested: usize = cast(usize)output.count
+    filled: isize = GetRandomRaw(*output[0], requested, 0)
+    return filled == cast(isize)requested
+}

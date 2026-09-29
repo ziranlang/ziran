@@ -1,0 +1,21 @@
+#import "random_linux"
+
+#program_export
+SelfTest :: () -> s32 {
+    empty: [0]u8
+    if FillSecure(empty[:]) { return 1 }
+
+    first: [256]u8
+    second: [256]u8
+    if !FillSecure(first[:]) || !FillSecure(second[:]) { return 2 }
+
+    same: bool = true
+    index: s32 = 0
+    while index < 256 {
+        if first[index] != second[index] { same = false }
+        index += 1
+    }
+    if same { return 3 }
+
+    return 42
+}

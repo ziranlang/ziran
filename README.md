@@ -164,6 +164,10 @@ platform adapter supplies transport and TLS; checked Ziran code owns request
 construction and response interpretation. A missing host binding is reported
 before a portable bundle runs.
 
+`std/constant_time.zi` compares equal-length byte spans without branching on
+byte values. Use fixed-size buffers for secret tags so unequal lengths remain
+public shape rather than a secret-dependent oracle.
+
 `std/process.zi` defines a line-oriented child-process capability with explicit
 arguments, stdin, an optional credential binding, a timeout, and a desktop
 isolation request. The host starts the child, yields output lines, and returns
@@ -172,7 +176,8 @@ bundle and through native C, C++, and Go mocks.
 
 Native Linux C builds can import `std/file_linux.zi` for positional byte I/O,
 `std/binary_linux.zi` for little-endian numbers, `std/date_time_linux.zi` for
-Unix time, and `std/byte_text_linux.zi` for borrowed byte-to-text views.
+Unix time, `std/random_linux.zi` for operating-system secure randomness, and
+`std/byte_text_linux.zi` for borrowed byte-to-text views.
 The file module can create a private file exclusively, sync its contents, and
 publish it through a hard link that fails if the destination already exists.
 `std/byte_text_linux.zi` also borrows caller-owned C strings and byte buffers;

@@ -1,0 +1,14 @@
+// Constant-time equality for caller-owned byte spans. The length check is
+// intentionally explicit; callers protecting secret tags should use fixed-size
+// buffers so unequal lengths do not become an oracle.
+#scope_export
+
+ConstantTimeEqual :: (left: []u8, right: []u8) -> bool {
+    difference: u8 = cast(u8)(left.count != right.count)
+    index: s32 = 0
+    while index < cast(s32)left.count && index < cast(s32)right.count {
+        difference |= cast(u8)(left[index] ^ right[index])
+        index += 1
+    }
+    return difference == cast(u8)0
+}

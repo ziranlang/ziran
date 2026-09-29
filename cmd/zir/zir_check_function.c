@@ -541,8 +541,9 @@ check_template_declaration(Checker *c, ZirFunction *fn)
         if(colon == NULL) { valid = 0; break; }
         char *type = colon + 1;
         trim_in_place(type);
-        if(type[0] == '$') {
-            if(strcmp(type + 1, fn->template_param)) valid = 0;
+        int prefix = TemplateBinderPrefix(type);
+        if(prefix >= 0) {
+            if(strcmp(type + prefix + 1, fn->template_param)) valid = 0;
             else binders++;
         } else if(strchr(type, '$') != NULL)
             valid = 0;
@@ -607,7 +608,8 @@ normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn,
             argument_alias_changed = 1;
         int host_buffer = i >= 0 && ArrayElementType(type, NULL, 0, NULL) &&
                           !ArrayValueType(type);
-        if(type[0] == '[' && !host_buffer) {
+        /* A polymorphic `[]$T` is checked once specialized. */
+        if(type[0] == '[' && !host_buffer && strchr(type, '$') == NULL) {
             const char *problem = local_storage_error(module, type);
             if(problem == NULL && fn->is_extern &&
                (i < 0 || !SliceElementType(type, NULL, 0)))

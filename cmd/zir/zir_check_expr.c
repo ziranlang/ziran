@@ -828,15 +828,27 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 const char *colon = strchr(parameters[argument], ':');
                 if(colon == NULL) continue;
                 const char *parameter_type = skip_ws(colon + 1);
-                if(*parameter_type != '$' ||
-                   strcmp(parameter_type + 1, callee->template_param))
+                int prefix = TemplateBinderPrefix(parameter_type);
+                if(prefix < 0 ||
+                   strcmp(parameter_type + prefix + 1, callee->template_param))
                     continue;
                 char saved_expected[ZIR_NAME_MAX];
                 copy_text(saved_expected, sizeof(saved_expected), c->expected_type);
-                if(concrete[0])
+                if(concrete[0] && prefix == 0)
                     copy_text(c->expected_type, sizeof(c->expected_type), concrete);
                 const char *actual_type = expression_type(c, child);
                 copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
+                if(prefix > 0) {
+                    /* `[]$T` binds a slice's element type and `*$T` a pointer's
+                     * target type. */
+                    if(strncmp(actual_type, parameter_type, (size_t)prefix)) {
+                        error(c, c->fn->exprs[child].span,
+                              prefix == 2 ? "polymorphic slice parameter needs a slice" :
+                              "polymorphic pointer parameter needs a pointer", e->name);
+                        continue;
+                    }
+                    actual_type += prefix;
+                }
                 if(!strcmp(actual_type, "integer") || !strcmp(actual_type, "real")) {
                     if(concrete[0]) actual_type = concrete;
                     else if(!strcmp(callee->return_type, callee->template_param) &&

@@ -985,7 +985,14 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         char *type = colon == NULL ? NULL : trim(colon + 1);
                         if(type == NULL || strchr(type, '$') == NULL)
                             continue;
-                        if(type[0] != '$' || !is_identifier_text(type + 1) ||
+                        int prefix = TemplateBinderPrefix(type);
+                        if(prefix < 0) {
+                            die_at(fn->span,
+                                   "polymorphic procedure requires one $Type parameter");
+                            continue;
+                        }
+                        type += prefix;
+                        if(!is_identifier_text(type + 1) ||
                            (fn->template_param[0] &&
                             strcmp(fn->template_param, type + 1)))
                             die_at(fn->span,

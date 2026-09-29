@@ -245,6 +245,13 @@ is_identifier_text(const char *text)
     return *cursor == '\0';
 }
 
+int
+TemplateBinderPrefix(const char *type)
+{
+    int prefix = !strncmp(type, "[]", 2) ? 2 : *type == '*' ? 1 : 0;
+    return type[prefix] == '$' ? prefix : -1;
+}
+
 /* Parse a using modifier clause: `, only("a", "b")`, `, except("c")`, or
  * `, map("x" = "a", "y" = "b")` directly after the `using` keyword. On
  * success `cursor` advances past the clause and a compact filter string

@@ -9,12 +9,14 @@
   <link rel="canonical" href="https://ziran-lang.org/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="playground.css">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://ziran-lang.org/">
   <meta property="og:title" content="Ziran — Build useful software">
   <meta property="og:description" content="A checked language with native output and an experimental portable runtime. Start with a real program.">
   <meta name="twitter:card" content="summary">
   <script defer src="site.js"></script>
+  <script defer src="playground.js"></script>
 </head>
 <body class="home">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -36,8 +38,8 @@
         <p class="hero-note">Latest release: <a href="https://github.com/ziranlang/ziran/releases/tag/v0.2.0">v0.2.0</a>. Build from source today. <a href="status.html">See current support</a>.</p>
       </div>
       <div class="hero-visual">
-        <div class="visual-caption"><span>A small beginning.</span><span>Real possibilities <span aria-hidden="true">↘</span></span></div>
-        <div class="hero-code" aria-label="Complete Ziran source examples and their results">
+        <div class="visual-caption"><span>Your code. Real results.</span><span>Edit it. Try it. <span aria-hidden="true">↘</span></span></div>
+        <div class="hero-code" aria-label="Editable Ziran examples and their results">
           <div class="code-title"><span class="code-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Ziran / source</span><span class="code-tag">.zi</span></div>
           <div class="example-tabs" role="tablist" aria-label="Source examples" hidden>
             <button type="button" role="tab" id="tab-hello" aria-controls="example-hello" aria-selected="false" tabindex="-1">Hello, World!</button>
@@ -78,7 +80,8 @@
 }</code></pre>
             <div class="code-output"><span class="output-label">Example output</span><code><span aria-hidden="true">› </span>1</code></div>
           </div>
-          <div class="code-foot"><span><span class="checked-dot" aria-hidden="true"></span>Examples you can run</span><a href="examples.html#text-demo" class="example-link">View source &amp; commands <span aria-hidden="true">↗</span></a></div>
+          <div class="playground-toolbar" hidden><div class="playground-buttons"><button class="playground-run" type="button">Run <span aria-hidden="true">↗</span></button><button class="playground-stop" type="button" hidden>Stop</button><button class="playground-reset" type="button">Reset</button></div><span class="playground-status" role="status">Edit the code, then Run.</span></div>
+          <div class="code-foot"><span><span class="checked-dot" aria-hidden="true"></span>Runs in your browser · portable subset</span><a href="examples.html#text-demo" class="example-link">Source &amp; commands <span aria-hidden="true">↗</span></a></div>
         </div>
         <ol class="source-flow" aria-label="From source to output">
           <li><span class="flow-symbol" aria-hidden="true">{ }</span><strong>Write</strong><span>.zi source</span></li>
@@ -104,11 +107,11 @@
     </section>
 
     <section class="use-section">
-      <div class="section-heading"><p class="eyebrow">What you can build</p><h2>Start with real programs.</h2><p>The examples use supported features and include commands you can run locally.</p></div>
+      <div class="section-heading"><p class="eyebrow">What you can build</p><h2>Small changes. <em>Visible results.</em></h2><p>Change a value, try a different prefix, or choose an output. Open the example in the editor to explore further.</p></div>
       <div class="use-grid">
-        <a href="examples.html#score"><div class="use-visual record-visual" aria-hidden="true"><div><small>Score</small><code>value <b>40</b></code><code>bonus <b>2</b></code></div><span>→</span><output>42</output></div><span>01 / Language</span><strong>Records and procedures</strong><p>Model data and compute a result with a small complete program.</p><b>See example <span aria-hidden="true">↗</span></b></a>
-        <a href="examples.html#text-demo"><div class="use-visual text-visual" aria-hidden="true"><code><b>Zi</b>ran</code><span><i>✓</i> Prefix matched</span></div><span>02 / Library</span><strong>Text processing</strong><p>Import a standard module and check text with portable operations.</p><b>See example <span aria-hidden="true">↗</span></b></a>
-        <a href="examples.html#targets"><div class="use-visual native-visual" aria-hidden="true"><code>source.zi</code><span>↓</span><div><code>C</code><code>Go</code><code>Rust</code></div></div><span>03 / Toolchain</span><strong>Native output</strong><p>Take the same source through the checker and generate native targets.</p><b>See commands <span aria-hidden="true">↗</span></b></a>
+        <article class="use-card"><div class="use-visual record-visual" aria-hidden="true"><div><small>Score</small><code>value <b class="record-value">40</b></code><code>bonus <b class="record-bonus">2</b></code></div><span>→</span><output class="record-total">42</output></div><span>01 / Language</span><strong>Records and procedures</strong><p>Change the fields and see their total.</p><div class="diagram-controls record-controls" hidden><label>Value<input class="record-value-input" type="number" value="40" min="-999" max="999" step="1"></label><label>Bonus<input class="record-bonus-input" type="number" value="2" min="-999" max="999" step="1"></label><output class="record-summary" aria-live="polite">40 + 2 = 42</output></div><button class="diagram-edit" type="button" data-example="score" hidden>Open in editor <span aria-hidden="true">↗</span></button><a href="examples.html#score">See example <span aria-hidden="true">↗</span></a></article>
+        <article class="use-card"><div class="use-visual text-visual" aria-hidden="true"><code class="text-preview"><b>Zi</b>ran</code><span class="text-match"><i>✓</i> Prefix matched</span></div><span>02 / Library</span><strong>Text processing</strong><p>Try a prefix with ASCII case folding.</p><div class="diagram-controls text-controls" hidden><label>Text<input class="text-value-input" type="text" value="Ziran" maxlength="40" spellcheck="false"></label><label>Prefix<input class="text-prefix-input" type="text" value="zi" maxlength="40" spellcheck="false"></label><output class="text-summary" aria-live="polite">Prefix matched</output></div><button class="diagram-edit" type="button" data-example="text" hidden>Open in editor <span aria-hidden="true">↗</span></button><a href="examples.html#text-demo">See example <span aria-hidden="true">↗</span></a></article>
+        <article class="use-card"><div class="use-visual native-visual" aria-hidden="true"><code>source.zi</code><span>↓</span><div><code data-target="c" class="is-selected">C</code><code data-target="cpp">C++</code><code data-target="go">Go</code><code data-target="rust">Rust</code><code data-target="py">Python</code></div></div><span>03 / Toolchain</span><strong>Native output</strong><p>Choose a target to see its build command.</p><div class="diagram-controls target-controls" hidden><label>Output<select class="target-select"><option value="c">C</option><option value="go">Go</option><option value="rust">Rust</option><option value="cpp">C++</option><option value="py">Python</option></select></label><output class="target-summary" aria-live="polite">Generate C output</output><pre class="target-command"><code>ziran build --target=c --root . -o out/c source.zi</code></pre></div><a href="examples.html#targets">See commands <span aria-hidden="true">↗</span></a></article>
       </div>
     </section>
 

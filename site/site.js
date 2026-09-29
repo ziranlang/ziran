@@ -45,6 +45,7 @@
         document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
       });
       if (exampleLink) exampleLink.href = 'examples.html#' + exampleAnchors[tab.getAttribute('aria-controls')];
+      exampleTabs.dispatchEvent(new Event('examplechange'));
     }
     tabs.forEach(function (tab, index) {
       tab.addEventListener('click', function () { selectExample(tab); });

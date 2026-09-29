@@ -9,7 +9,7 @@ name: Publish website
 on:
   push:
     branches: [master]
-    paths: ['site/**', '.github/workflows/site.yml']
+    paths: ['site/**', 'web/playground.c', 'scripts/build_playground.py', 'cmd/zir/**', 'std/**', 'Makefile', '.github/workflows/site.yml']
   workflow_dispatch:
 
 concurrency:
@@ -35,6 +35,16 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: steps.credentials.outputs.present == 'true'
+      - name: Set up Emscripten
+        if: steps.credentials.outputs.present == 'true'
+        uses: emscripten-core/setup-emsdk@v15
+        with:
+          version: '6.0.6'
+      - name: Build the browser playground
+        if: steps.credentials.outputs.present == 'true'
+        run: |
+          python3 scripts/build_playground.py
+          node tests/playground_runtime.cjs
       - name: Deploy site/ to Cloudflare Pages
         if: steps.credentials.outputs.present == 'true'
         uses: cloudflare/wrangler-action@v3

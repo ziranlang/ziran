@@ -1,0 +1,264 @@
+.code-editor-wrap {
+  position: relative;
+  height: 264px;
+}
+.home .hero-code .code-highlight {
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.code-editor {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 1.2rem 1.25rem;
+  border: 0;
+  border-radius: 0;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--editor-ink);
+  font: 0.79rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  tab-size: 4;
+  scrollbar-color: #6b8b77 var(--editor);
+}
+.code-editor::selection {
+  background: #8bbf9d55;
+}
+.home .c-comment {
+  color: #b4c7b8;
+}
+.home .code-output {
+  max-height: 190px;
+  overflow: auto;
+}
+.home .code-output code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  line-height: 1.6;
+}
+.home .code-output.has-error code {
+  color: #f0c6ac;
+}
+.playground-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.85rem 1.15rem;
+  border-top: 1px solid #ffffff1f;
+}
+.playground-toolbar[hidden],
+.diagram-controls[hidden],
+.diagram-edit[hidden],
+.playground-stop[hidden] {
+  display: none;
+}
+.playground-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.playground-buttons button {
+  min-height: 36px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #ffffff35;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--editor-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.playground-buttons .playground-run {
+  background: #c7d7a9;
+  color: #193b32;
+  border-color: #c7d7a9;
+}
+.playground-buttons button:hover {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.playground-run:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.playground-status {
+  color: var(--editor-muted);
+  font-size: 0.64rem;
+}
+.source-flow li[data-state="done"] .flow-symbol,
+.source-flow li[data-state="active"] .flow-symbol {
+  border-color: var(--accent);
+  background: var(--surface-muted);
+}
+.source-flow li[data-state="active"] .flow-symbol {
+  box-shadow: 0 0 0 3px var(--surface-muted);
+}
+.source-flow li[data-state="failed"] .flow-symbol {
+  border-color: var(--rust);
+  color: var(--rust);
+}
+.use-card {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  min-width: 0;
+  padding: 1rem 1rem 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.use-card > :not(.use-visual) {
+  margin-inline: 0.5rem;
+}
+.use-card > strong {
+  font-size: 1.6rem;
+}
+.use-card > a,
+.diagram-edit {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  align-self: stretch;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+.use-card > a {
+  margin-top: auto;
+  padding-top: 0.6rem;
+}
+.use-card > a:hover {
+  text-decoration: underline;
+}
+.diagram-edit {
+  min-height: 40px;
+  margin-bottom: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--code);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.diagram-edit:hover {
+  border-color: var(--accent);
+}
+.diagram-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.7rem;
+  align-self: stretch;
+  margin-block: 0.6rem 1rem;
+}
+.diagram-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+.diagram-controls input,
+.diagram-controls select {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--ink);
+  font: 0.85rem Manrope, Arial, sans-serif;
+}
+.diagram-controls > output,
+.target-command {
+  grid-column: 1 / -1;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.target-controls > label {
+  grid-column: 1 / -1;
+}
+.target-command {
+  min-width: 0;
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--code);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 0.68rem;
+}
+.native-visual .is-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.native-visual > div {
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100% - 1.5rem);
+}
+.native-visual > div > code {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.68rem;
+}
+.record-visual {
+  gap: 0.5rem;
+}
+.record-visual output {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  max-width: 5ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.text-visual > code {
+  max-width: calc(100% - 2rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 850px) and (min-width: 651px) {
+  .use-card {
+    display: grid;
+    grid-template-columns: 0.9fr 1fr;
+    gap: 0 1.5rem;
+  }
+  .use-card .use-visual {
+    grid-row: 1 / 8;
+  }
+  .use-card > :not(.use-visual) {
+    grid-column: 2;
+    margin-left: 0;
+  }
+}
+@media (max-width: 650px) {
+  .code-editor-wrap {
+    height: 280px;
+  }
+  .code-editor {
+    padding-inline: 1rem;
+    font-size: 1rem;
+  }
+  .home .hero-code .code-highlight {
+    font-size: 1rem;
+  }
+  .playground-buttons button {
+    min-height: 44px;
+  }
+  .playground-status {
+    flex-basis: 100%;
+  }
+  .diagram-controls input,
+  .diagram-controls select {
+    font-size: 1rem;
+    min-height: 44px;
+  }
+}

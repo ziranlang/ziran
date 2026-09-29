@@ -1,3 +1,5 @@
 /build/
 __pycache__/
 /.wrangler/
+/site/assets/playground-runtime.js
+/site/assets/playground-runtime.wasm

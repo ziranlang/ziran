@@ -902,7 +902,7 @@ fold_global_element(Vm *vm, const ZirModule *module, const ZirFunction *probe,
         return !vm->failed;
     }
     {
-        int64_t folded = 0;
+        long folded = 0;
         if(EvaluateCompileExpression(module, expr->text, span, 0, &folded)) {
             *target = target->kind == VALUE_REAL ?
                 real_value((double)folded) : int_value(folded);
@@ -999,7 +999,7 @@ initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlo
                 } else if(!strcmp(slot->declaration->type, "string")) {
                     slot->value = global_literal_string(vm, init);
                 } else {
-                    int64_t folded = 0;
+                    long folded = 0;
                     if(EvaluateCompileExpression(module, init,
                                                 slot->declaration->span, 0,
                                                 &folded)) {

@@ -96,7 +96,7 @@ type_has_zero_array(const ZirModule *module, const char *type, int depth)
         if(capacity < 0) {
             const char *close = strchr(type, ']');
             char bound[ZIR_NAME_MAX];
-            int64_t folded;
+            long folded;
             size_t length = close ? (size_t)(close - type - 1) : 0;
             if(length > 0 && length < sizeof(bound)) {
                 memcpy(bound, type + 1, length);

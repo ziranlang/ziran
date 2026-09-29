@@ -74,6 +74,19 @@ CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
 EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c)
 VM_PARTS := $(addprefix cmd/zir/zir_vm,.c _verify.c _eval.c _run.c)
 
+# wasm objcopy cannot localize hidden symbols. Browser builds give each
+# group's private helpers distinct names through generated prefix headers.
+ifneq ($(WASM_PRIVATE_HEADERS),)
+$(call obj,$(PARSE_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/parse.h
+$(call obj,$(PARSE_PARTS)): $(WASM_PRIVATE_HEADERS)/parse.h
+$(call obj,$(CHECK_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/check.h
+$(call obj,$(CHECK_PARTS)): $(WASM_PRIVATE_HEADERS)/check.h
+$(call obj,$(EMIT_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/emit.h
+$(call obj,$(EMIT_PARTS)): $(WASM_PRIVATE_HEADERS)/emit.h
+$(call obj,$(VM_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/vm.h
+$(call obj,$(VM_PARTS)): $(WASM_PRIVATE_HEADERS)/vm.h
+endif
+
 $(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS))
 	$(merge)
 

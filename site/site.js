@@ -32,6 +32,23 @@
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closeMenu();
   });
+  var supportNote = document.querySelector('.support-note');
+  document.querySelectorAll('[data-copy]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var label = button.getAttribute('aria-label').replace('Copy ', '');
+      if (!navigator.clipboard) {
+        if (supportNote) supportNote.textContent = 'Select the address to copy it, or scan its QR code.';
+        return;
+      }
+      navigator.clipboard.writeText(button.dataset.copy).then(function () {
+        button.classList.add('is-copied');
+        if (supportNote) supportNote.textContent = label.charAt(0).toUpperCase() + label.slice(1) + ' copied.';
+        setTimeout(function () { button.classList.remove('is-copied'); }, 1800);
+      }, function () {
+        if (supportNote) supportNote.textContent = 'Select the address to copy it, or scan its QR code.';
+      });
+    });
+  });
   document.querySelectorAll('.article-body pre').forEach(function (block) {
     var button = document.createElement('button');
     button.type = 'button';

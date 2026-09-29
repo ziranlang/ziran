@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f7f3eb">
-  <meta name="description" content="Ziran is an experimental, open-source programming language. Write checked .zi programs, build native C, C++, Go, or Rust output, and run supported portable bundles.">
+  <meta name="description" content="Ziran is an experimental, open-source programming language. Write checked .zi programs, build C, C++, Go, Rust, or Python output, and run supported portable bundles.">
   <title>Ziran — Build useful software</title>
   <link rel="canonical" href="https://ziran-lang.org/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -30,10 +30,10 @@
       <div class="hero-copy">
         <p class="eyebrow">Open source programming language · Experimental</p>
         <h1>Build useful software with <em>Ziran.</em></h1>
-        <p class="hero-lead">Write clear <code>.zi</code> programs, check them before they run, and choose native C, C++, Go, or Rust output, or a portable bundle.</p>
-        <ul class="hero-points"><li>Readable modules and explicit imports</li><li>One checker for native and portable paths</li><li>A <a href="std.html">standard library</a> of text, data, and host modules</li></ul>
+        <p class="hero-lead">Write clear <code>.zi</code> programs, check them before they run, and choose C, C++, Go, Rust, or Python output, or a portable bundle.</p>
+        <ul class="hero-points"><li>Readable modules and explicit imports</li><li>One checker for every output, with laws proved at build time</li><li>A <a href="std.html">standard library</a> of text, data, and host modules</li></ul>
         <div class="actions"><a class="btn btn-primary" href="get-started.html">Get started <span aria-hidden="true">→</span></a><a class="btn" href="docs.html">Explore documentation</a></div>
-        <p class="hero-note">Build from source today. <a href="status.html">See current support</a>.</p>
+        <p class="hero-note">Latest release: <a href="https://github.com/ziranlang/ziran/releases/tag/v0.2.0">v0.2.0</a>. Build from source today. <a href="status.html">See current support</a>.</p>
       </div>
       <div class="hero-code" aria-label="A complete Ziran source example and its result">
         <div class="code-title"><span class="code-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>hello.zi</span><span class="code-tag">Ziran</span></div>
@@ -48,9 +48,9 @@
     <section class="feature-section" id="why">
       <div class="section-heading"><p class="eyebrow">Why Ziran</p><h2>From source to software.</h2><p>Ziran keeps the language and toolchain together so you can start small and inspect each step.</p></div>
       <div class="feature-grid">
-        <article><span class="feature-number">01</span><h3>Write readable code</h3><p>Use procedures, records, enums, generics, imports, fixed arrays, and borrowed slices in the tested subset.</p><a href="language.html">Explore the language →</a></article>
-        <article><span class="feature-number">02</span><h3>Check before building</h3><p>The compiler checks source and reports unsupported forms. Save checked <code>.zir</code> modules when you need an intermediate artifact.</p><a href="api.html#toolchain">Explore the tools →</a></article>
-        <article><span class="feature-number">03</span><h3>Choose an output</h3><p>Generate readable C, C++, Go, or Rust from supported programs; a Plan 9 C target is experimental. Package the portable subset as a <code>.zib</code> bundle.</p><a href="status.html">Check target coverage →</a></article>
+        <article><span class="feature-number">01</span><h3>Write readable code</h3><p>Use procedures, records, enums, generic records and procedures, imports, fixed arrays, and borrowed slices in the tested subset.</p><a href="language.html">Explore the language →</a></article>
+        <article><span class="feature-number">02</span><h3>Check before building</h3><p>The compiler checks source, reports unsupported forms, and proves <code>#law</code> obligations, with a counterexample when one fails. Save checked <code>.zir</code> modules when you need an intermediate artifact.</p><a href="api.html#toolchain">Explore the tools →</a></article>
+        <article><span class="feature-number">03</span><h3>Choose an output</h3><p>Generate readable C, C++, Go, Rust, or Python from supported programs; a Plan 9 C target is experimental. Package the portable subset as a <code>.zib</code> bundle.</p><a href="status.html">Check target coverage →</a></article>
       </div>
     </section>
 
@@ -72,7 +72,16 @@
       <div><p class="eyebrow">Project status</p><h2>Working core.<br><em>Experimental edges.</em></h2></div>
       <div><p>Ziran is under active development. Native and portable targets cover tested subsets; language coverage and backend parity are still growing. The status page distinguishes what works today from planned work.</p><a class="btn" href="status.html">Read the current status →</a></div>
     </section>
+    <section class="support-section" id="support" aria-labelledby="support-title">
+      <div class="section-heading"><p class="eyebrow">Support Ziran</p><h2 id="support-title">Help keep it <em>growing.</em></h2><p>Ziran is independent, open-source work. If it is useful to you, a contribution funds development, maintenance, and research.</p></div>
+      <div class="support-grid">
+        <article><span class="support-label">Monero</span><button class="support-address" type="button" data-copy="48ms5LfFrPJ2LUvqP9Mm5BhDSnZnqu14jB8XpAukw3jDBKxRAxYvq3k4fEwXY7kCY3LrtycMUayJZR1YJuyvJHCDCcyw6pA" aria-label="Copy Monero address"><code>48ms5LfFrPJ2LUvqP9Mm5BhDSnZnqu14jB8XpAukw3jDBKxRAxYvq3k4fEwXY7kCY3LrtycMUayJZR1YJuyvJHCDCcyw6pA</code></button><details><summary>Show QR code</summary><img src="assets/support-monero.png" alt="QR code for the Monero address" width="172" height="172" loading="lazy"></details></article>
+        <article><span class="support-label">Bitcoin</span><button class="support-address" type="button" data-copy="bc1qxzcetg50f6epgddc09n82xqn3zswlmk44235y5" aria-label="Copy Bitcoin address"><code>bc1qxzcetg50f6epgddc09n82xqn3zswlmk44235y5</code></button><details><summary>Show QR code</summary><img src="assets/support-bitcoin.png" alt="QR code for the Bitcoin address" width="172" height="172" loading="lazy"></details></article>
+        <article><span class="support-label">Lightning</span><button class="support-address" type="button" data-copy="waozi@cake.cash" aria-label="Copy Lightning address"><code>waozi@cake.cash</code></button><details><summary>Show QR code</summary><img src="assets/support-lightning.png" alt="QR code for the Lightning address" width="172" height="172" loading="lazy"></details></article>
+      </div>
+      <p class="support-note" role="status">Select an address to copy it, or scan its QR code.</p>
+    </section>
   </main>
-  <footer><div class="footer-top"><a class="brand" href="index.html"><img class="brand-icon" src="assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="get-started.html">Get started</a><a href="examples.html">Examples</a><a href="docs.html">Docs</a><a href="status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer>
+  <footer><div class="footer-top"><a class="brand" href="index.html"><img class="brand-icon" src="assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="get-started.html">Get started</a><a href="examples.html">Examples</a><a href="docs.html">Docs</a><a href="status.html">Status</a><a href="index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer>
 </body>
 </html>

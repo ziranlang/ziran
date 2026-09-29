@@ -231,7 +231,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         int ordinal = 0;
         int mode = -1;
         if(record == NULL || record->is_enum || record->is_procedure_type ||
-           record->is_record_template) {
+           record->is_record_template || record->foreign_target[0]) {
             error(c, e->span, "initializer requires a declared record type", e->name);
             break;
         }

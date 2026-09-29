@@ -392,7 +392,11 @@ zero_record(Emitter *e, const char *type, char *out, size_t size)
     if(e->target == ZIR_GO) {
         char target_type[ZIR_NAME_MAX * 2];
         e->resolve(e->context, type, target_type, sizeof(target_type));
-        format(out, size, "%s{}", target_type);
+        const ZirType *record = FindType(e->module, type, NULL);
+        if(record != NULL && record->foreign_target[0])
+            format(out, size, "*new(%s)", target_type);
+        else
+            format(out, size, "%s{}", target_type);
         return;
     }
     copy_text(out, size, e->target == ZIR_CPP ||

@@ -100,6 +100,25 @@ TrimSpace :: (value: string) -> string #foreign strings "TrimSpace";
 The Go target emits a direct package call. These declarations remain Go
 imports in saved `.zir`; they are not portable host capabilities.
 
+### Foreign Go types
+
+Declare an opaque Go type alongside the package's foreign procedures:
+
+```jai
+json :: #system_library "go:encoding/json";
+RawMessage :: #type #foreign json "RawMessage";
+Envelope :: struct {
+    payload: RawMessage #go_tag "json:\"payload\""
+}
+```
+
+The Go target emits a type alias, preserving the imported type's identity,
+methods, interface behavior and zero value. Ziran can store, pass, return and
+assign these values, including across imports. Fields and layout remain opaque:
+record literals and `size_of` are unavailable. These declarations require an
+explicit `go:` package and are preserved in checked IR. Other targets reject
+foreign Go types; an entry build can discard them when they are unused.
+
 ### Go record metadata
 
 Go record fields can carry reflection tags. The checked string is preserved

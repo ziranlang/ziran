@@ -1,6 +1,7 @@
 #include "zir.h"
 #include "zir_parse.h"
 #include "zir_check.h"
+#include "zir_diagnostic.h"
 #include "zir_text.h"
 
 #include <ctype.h>
@@ -8,6 +9,40 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+int
+GoForeignTargetValid(const char *target)
+{
+    if(strncmp(target, "go:", 3) != 0)
+        return 0;
+    const char *dot = strrchr(target + 3, '.');
+    if(dot == NULL || dot == target + 3 ||
+       !(isalpha((unsigned char)dot[1]) || dot[1] == '_'))
+        return 0;
+    for(const unsigned char *p = (const unsigned char *)target + 3;
+        p < (const unsigned char *)dot; p++)
+        if(!(isalnum(*p) || *p == '_' || *p == '/' || *p == '.' || *p == '-'))
+            return 0;
+    for(const unsigned char *p = (const unsigned char *)dot + 2; *p; p++)
+        if(!(isalnum(*p) || *p == '_'))
+            return 0;
+    return 1;
+}
+
+int
+RejectForeignGoTypes(const ZirProgram *program)
+{
+    for(int m = 0; m < program->module_count; m++)
+        for(int t = 0; t < program->modules[m].type_count; t++) {
+            const ZirType *type = &program->modules[m].types[t];
+            if(type->foreign_target[0]) {
+                Diagnostic(type->span, "check.record",
+                           "foreign Go types require the Go target: %s", type->name);
+                return 0;
+            }
+        }
+    return 1;
+}
 
 int
 TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field)

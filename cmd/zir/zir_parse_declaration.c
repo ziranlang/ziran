@@ -850,7 +850,11 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
     const char *dir = strstr(line, "#foreign");
     if(dir == NULL)
         return 0;
-    if(*declaration != '(')
+    int foreign_type = starts_word(declaration, "#type");
+    if(foreign_type && skip_ws(declaration + strlen("#type")) != dir)
+        die_at(Span(path, line_no, 1),
+               "foreign type requires Name :: #type #foreign library;");
+    if(!foreign_type && *declaration != '(')
         return 0;
     if(strchr(line, '{') != NULL)
         die_at(Span(path, line_no, 1),
@@ -909,6 +913,18 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
     }
     extern_kind = classify_extern_target(buffers->target, symbol, sizeof(symbol),
                                          path, line_no);
+    if(foreign_type) {
+        if(!GoForeignTargetValid(buffers->target))
+            die_at(Span(path, line_no, 1),
+                   "foreign types require an explicit go: #system_library");
+        ZirType *type = ModuleAddType(module, name, Span(path, line_no, 1));
+        if(type == NULL)
+            die("out of memory declaring foreign type");
+        type->is_extern = 1;
+        type->is_public = scope_public;
+        copy_text(type->foreign_target, sizeof(type->foreign_target), buffers->target);
+        return 1;
+    }
     imp = ModuleAddImport(module, ZIR_IMPORT_EXTERN,
                              name, buffers->target[0] ? buffers->target : name, line, 1,
                              Span(path, line_no, 1));

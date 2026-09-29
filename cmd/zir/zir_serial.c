@@ -42,7 +42,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 44u
+#define ZIR_FORMAT_VERSION 45u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -125,6 +125,7 @@ static const Field type_fields[] = {
     STRING_FIELD(ZirType, name), STRING_FIELD(ZirType, body),
     STRING_FIELD(ZirType, template_params),
     STRING_FIELD(ZirType, template_name), STRING_FIELD(ZirType, template_args),
+    STRING_FIELD(ZirType, foreign_target),
     INTEGER_FIELD(ZirType, is_synthetic_application),
     INTEGER_FIELD(ZirType, is_procedure_type),
     INTEGER_FIELD(ZirType, is_c_call),
@@ -575,6 +576,13 @@ validate_program(const ZirProgram *program)
                 return 0;
         for(int t = 0; t < module->type_count; t++) {
             const ZirType *type = &module->types[t];
+            if(type->foreign_target[0] &&
+               (!GoForeignTargetValid(type->foreign_target) || !type->is_extern ||
+                type->body[0] || type->is_enum || type->is_union ||
+                type->is_procedure_type || type->is_record_template ||
+                type->is_synthetic_application || type->is_owned_vec ||
+                type->is_abi_incomplete))
+                return 0;
             if((type->is_file_private != 0 && type->is_file_private != 1) ||
                (type->is_file_private && type->is_public) ||
                (type->is_procedure_type &&

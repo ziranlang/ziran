@@ -997,6 +997,9 @@ same_declared_type(const ZirModule *module, const char *to,
     const ZirType *target = FindType(module, to, &target_owner);
     const ZirType *source = FindType(module, from, &source_owner);
     if(target != NULL && target == source) return 1;
+    if(target != NULL && source != NULL && target->foreign_target[0] &&
+       !strcmp(target->foreign_target, source->foreign_target))
+        return 1;
     if(target != NULL && source != NULL &&
        same_type_application(target_owner ? target_owner : module, target,
                              source_owner ? source_owner : module, source))

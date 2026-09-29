@@ -1570,6 +1570,30 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "%s \"%s\"",
                              g_externs[i].go_import_alias, g_externs[i].go_import_path);
             }
+            for(int i = 0; i < m->type_count; i++) {
+                const ZirType *type = &m->types[i];
+                if(!type->foreign_target[0])
+                    continue;
+                char path[ZIR_PATH_MAX], alias[ZIR_GO_NAME_MAX];
+                char declaration[ZIR_PATH_MAX + ZIR_GO_NAME_MAX + 8];
+                if(!extern_direct_go_target(type->foreign_target, path, sizeof(path),
+                                            alias, sizeof(alias))) {
+                    Diagnostic(type->span, "zir_go.type", "invalid foreign Go type");
+                    return 1;
+                }
+                snprintf(declaration, sizeof(declaration), "%s \"%s\"", alias, path);
+                int duplicate = 0;
+                for(int j = 0; j < import_count; j++)
+                    if(!strcmp(declaration, buffers->imports[j]))
+                        duplicate = 1;
+                if(!duplicate) {
+                    if(import_count == 64) {
+                        Diagnostic(type->span, "zir_go.type", "too many Go imports");
+                        return 1;
+                    }
+                    copy_text(buffers->imports[import_count++], sizeof(buffers->imports[0]), declaration);
+                }
+            }
             if(import_count == 1)
                 fprintf(f, "import %s\n\n", buffers->imports[0]);
             else if(import_count > 1) {
@@ -1645,6 +1669,14 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 NativeTypeName(m, t, native, sizeof(native));
                 if(synthetic_type_emitted(progs, pi, mi, t, native))
                     continue;
+                if(t->foreign_target[0]) {
+                    char path[ZIR_PATH_MAX], alias[ZIR_GO_NAME_MAX];
+                    extern_direct_go_target(t->foreign_target, path, sizeof(path),
+                                            alias, sizeof(alias));
+                    fprintf(f, "type %s = %s.%s\n\n", native, alias,
+                            strrchr(t->foreign_target, '.') + 1);
+                    continue;
+                }
                 if(t->is_union) {
                     size_t offset = 0;
                     ZirTypeField field;

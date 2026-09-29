@@ -837,7 +837,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                        foreign_library_file_private,
                        foreign_library_count))) {
             program_export = 0;
-            if(module->import_count > 0)
+            const char *declaration = strstr(t, "::");
+            if(declaration != NULL && starts_word(skip_ws(declaration + 2), "#type"))
+                module->types[module->type_count - 1].is_file_private = scope_file;
+            else if(module->import_count > 0)
                 module->imports[module->import_count - 1].is_file_private = scope_file;
             continue;
         } else if(mode == TOP && starts_word(t, "state") &&

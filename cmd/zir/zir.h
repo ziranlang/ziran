@@ -230,6 +230,7 @@ typedef struct ZirType {
     char template_params[ZIR_NAME_MAX]; /* generic record parameters */
     char template_name[ZIR_NAME_MAX]; /* specialization or checked direct origin */
     char template_args[ZIR_TEXT_MAX];
+    char foreign_target[ZIR_PATH_MAX]; /* opaque Go type: go:package.Type */
     int is_procedure_type; /* named procedure type; body holds parameters */
     int is_c_call; /* procedure type uses the native C callback ABI */
     char procedure_return_type[ZIR_NAME_MAX];
@@ -244,7 +245,7 @@ typedef struct ZirType {
     int is_type_instance; /* unresolved until imports are linked */
     int is_synthetic_application; /* private name made from a direct type call */
     int is_owned_vec; /* specialized standard Vec storage */
-    int is_extern; /* host-owned C record; native Go emits the declared shape */
+    int is_extern; /* host-owned record or opaque foreign type */
     int is_abi_incomplete; /* native ABI treats the complete record as opaque */
     int native_name_mangled; /* in-memory: shared spelling or target keyword */
     ZirSourceSpan span;
@@ -392,6 +393,8 @@ const char *ExprKindName(ZirExprKind kind);
 ZirExpr *FunctionAddExpr(ZirFunction *fn, ZirExprKind kind,
                             const char *text, ZirSourceSpan span);
 void ProgramDump(const ZirProgram *program, FILE *out);
+int GoForeignTargetValid(const char *target);
+int RejectForeignGoTypes(const ZirProgram *program);
 
 /* Native backends record each file they write. After a successful build,
  * GeneratedOutputPrune removes files in the output directory that start

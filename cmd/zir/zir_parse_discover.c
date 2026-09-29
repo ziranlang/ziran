@@ -879,6 +879,29 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
                 const char *colons = strstr(t, "::");
                 const char *declaration = colons != NULL ?
                     skip_ws(colons + 2) : t;
+                if(starts_word(declaration, "#type") &&
+                   starts_word(skip_ws(declaration + strlen("#type")), "#foreign")) {
+                    char name[ZIR_NAME_MAX];
+                    if(parse_symbol_before_colons(t, name, sizeof(name))) {
+                        if(future_types->count == future_types->capacity) {
+                            int capacity = future_types->capacity > 0 ?
+                                future_types->capacity * 2 : 8;
+                            ZirType *items = realloc(future_types->items,
+                                (size_t)capacity * sizeof(*items));
+                            if(items == NULL)
+                                die("out of memory discovering foreign types");
+                            future_types->items = items;
+                            future_types->capacity = capacity;
+                        }
+                        ZirType *type = &future_types->items[future_types->count++];
+                        memset(type, 0, sizeof(*type));
+                        copy_text(type->name, sizeof(type->name), name);
+                        type->is_extern = 1;
+                        type->is_public = scope_public;
+                        type->is_file_private = scope_file;
+                        type->span = Span(rel, line_no, 1);
+                    }
+                }
                 if(starts_word(declaration, "#import") ||
                    !strncmp(declaration, "#import,", 8)) {
                     const char *mode = skip_ws(declaration + 7);

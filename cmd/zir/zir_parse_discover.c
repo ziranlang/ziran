@@ -305,8 +305,7 @@ discover_named_type_with_buffers(const char *source, const char *path, const cha
             canonical_enum_values(&buffers->type);
         }
     } else if(buffers->type.is_record_template) {
-        for(size_t i = 0; i < body_length; i++)
-            if(buffers->type.body[i] == ';') buffers->type.body[i] = '\n';
+        normalize_record_separators(buffers->type.body, 0);
     }
     if(!buffers->type.is_enum && !take_abi_incomplete(&buffers->type))
         return;
@@ -1351,8 +1350,9 @@ InstantiateGenericRecord(ZirType *instance, const ZirType *generic)
                                    params, actual, parameter_count))
             return 0;
         int length = snprintf(instance->body + used,
-            sizeof(instance->body) - used, "%s%s: %s\n",
-            field.is_using ? "using " : "", field.name, type);
+            sizeof(instance->body) - used, "%s%s: %s%s%s\n",
+            field.is_using ? "using " : "", field.name, type,
+            field.go_tag[0] ? " #go_tag " : "", field.go_tag);
         if(length < 0 || (size_t)length >= sizeof(instance->body) - used)
             return 0;
         used += (size_t)length;

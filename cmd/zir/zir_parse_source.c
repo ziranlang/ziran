@@ -1269,23 +1269,16 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         die_at(Span(buffers->rel, line_no, 1),
                                "#extern is not Jai syntax for a type declaration");
                     const char *opening = strchr(after, '{');
-                    const char *closing = opening ? strchr(opening + 1, '}') : NULL;
+                    const char *closing = opening ?
+                        find_unquoted_text(opening + 1, "}") : NULL;
                     if(closing != NULL) {
                         size_t body_length = (size_t)(closing - opening - 1);
                         if(ty->is_record_template) {
                             if(body_length + 1 >= sizeof(ty->body))
                                 die_at(ty->span, "generic record body exceeds size limit");
                             memcpy(ty->body, opening + 1, body_length);
-                            int nesting = 0;
-                            for(size_t byte = 0; byte < body_length; byte++) {
-                                if(ty->body[byte] == '[' || ty->body[byte] == '(')
-                                    nesting++;
-                                if(ty->body[byte] == ']' || ty->body[byte] == ')')
-                                    nesting--;
-                                if((ty->body[byte] == ',' ||
-                                    ty->body[byte] == ';') && nesting == 0)
-                                    ty->body[byte] = '\n';
-                            }
+                            ty->body[body_length] = '\0';
+                            normalize_record_separators(ty->body, 1);
                             ty->body[body_length] = '\n';
                             ty->body[body_length + 1] = '\0';
                         } else {
@@ -1293,8 +1286,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                                 die_at(ty->span, "enum body exceeds size limit");
                             memcpy(ty->body, opening + 1, body_length);
                             ty->body[body_length] = '\0';
-                            for(size_t byte = 0; byte < body_length; byte++)
-                                if(ty->body[byte] == ';') ty->body[byte] = '\n';
+                            normalize_record_separators(ty->body, 0);
                             if(ty->is_enum)
                                 lower_enum_values(ty);
                         }
@@ -1356,8 +1348,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 if(written < 0 || (size_t)written >= capacity - used)
                     die_at(ty->span, "type body exceeds size limit");
                 if(!ty->is_record_template)
-                    for(size_t byte = used; byte < used + (size_t)written; byte++)
-                        if(body[byte] == ';') body[byte] = '\n';
+                    normalize_record_separators(body + used, 0);
             }
         } else if(mode == FUNCTION) {
             char *bcnd = NULL;

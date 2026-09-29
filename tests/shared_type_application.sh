@@ -8,6 +8,12 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/values.zi" <<'ZI'
 #import "vec"
 Box :: struct($T: Type) { value: T }
+Many :: struct($A: Type, $B: Type, $C: Type, $D: Type, $E: Type, $F: Type, $G: Type, $H: Type, $I: Type) { value: A }
+MakeMany :: () -> Many(u8, u8, u8, u8, u8, u8, u8, u8, u16) {
+    result: Many(u8, u8, u8, u8, u8, u8, u8, u8, u16)
+    result.value = cast(u8)42
+    return result
+}
 MakeBox :: () -> Box(u8) {
     result: Box(u8)
     result.value = cast(u8)42
@@ -32,7 +38,8 @@ SelfTest :: () -> s32 {
     }
     VecSwap(copy, values)
     boxed: Box(u8) = MakeBox()
-    if boxed.value != cast(u8)42 || copy.count != 2 {
+    many: Many(u8, u8, u8, u8, u8, u8, u8, u8, u16) = MakeMany()
+    if boxed.value != cast(u8)42 || many.value != cast(u8)42 || copy.count != 2 {
         return 0
     }
     return cast(s32)values[0] + cast(s32)values[1]
@@ -91,7 +98,14 @@ Wrong :: () -> s32 {
     return 0
 }
 ZI
-for invalid in different_argument different_template; do
+cat > "$work/different_phantom_argument.zi" <<'ZI'
+#import "values"
+Wrong :: () -> s32 {
+    value: Many(u8, u8, u8, u8, u8, u8, u8, u8, u8) = MakeMany()
+    return 0
+}
+ZI
+for invalid in different_argument different_template different_phantom_argument; do
     if "$ziran" check --root "$work" --module-path std "$work/$invalid.zi" \
         > "$work/$invalid.out" 2> "$work/$invalid.err"; then
         echo "incompatible direct type application was accepted: $invalid" >&2

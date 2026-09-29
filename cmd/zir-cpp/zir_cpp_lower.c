@@ -1038,50 +1038,23 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         fprintf(h, "\n%s%s %s {\n",
                 TypeHasZeroArray(m, ty->name) ? "__extension__ " : "",
                 ty->is_union ? "union" : "struct", native);
-        /* Each body line is a field decl: 'name: [N] Type' / 'name: Type'. */
+        /* Shared checked fields omit target-specific reflection metadata. */
         {
-            const char *line = ty->body;
-            while(line != NULL && *line != '\0') {
-                const char *nl = strchr(line, '\n');
-                size_t len = nl ? (size_t)(nl - line) : strlen(line);
-                char name[LOWER_NAME_MAX];
-                char mapped[LOWER_NAME_MAX];
-                char suffix[LOWER_NAME_MAX];
-                const char *colon;
-                if(len >= sizeof(buffers->raw))
-                    len = sizeof(buffers->raw) - 1;
-                memcpy(buffers->raw, line, len);
-                buffers->raw[len] = '\0';
-                colon = strchr(buffers->raw, ':');
-                if(colon != NULL) {
-                    const char *ty2 = colon + 1;
-                    size_t nl2 = (size_t)(colon - buffers->raw);
-                    while(*ty2 == ' ' || *ty2 == '\t')
-                        ty2++;
-                    if(nl2 >= sizeof(name))
-                        nl2 = sizeof(name) - 1;
-                    memcpy(name, buffers->raw, nl2);
-                    name[nl2] = '\0';
-                    trim_in_place(name);
-                    if(strncmp(name, "using", 5) == 0 &&
-                       isspace((unsigned char)name[5])) {
-                        const char *field_name = name + 5;
-                        while(isspace((unsigned char)*field_name))
-                            field_name++;
-                        memmove(name, field_name, strlen(field_name) + 1);
-                    }
-                    TargetFieldName(ty, ZIR_CPP, name, mapped, sizeof(mapped));
-                    snprintf(buffers->type, sizeof(buffers->type), "%s", ty2);
-                    trim_in_place(buffers->type);
-                    split_array_type(buffers->type, buffers->base, sizeof(buffers->base),
-                                     suffix, sizeof(suffix));
-                    {
-                        strip_alias_type(m, buffers->base, buffers->tmpb, sizeof(buffers->tmpb));
-                        snprintf(buffers->base, sizeof(buffers->base), "%s", buffers->tmpb);
-                    }
-                    fprintf(h, "    %s %s%s;\n", buffers->base, mapped, suffix);
-                }
-                line = nl ? nl + 1 : NULL;
+            size_t offset = 0;
+            ZirTypeField field;
+            int status;
+            while((status = TypeNextField(ty, &offset, &field)) == 1) {
+                char mapped[LOWER_NAME_MAX], suffix[LOWER_NAME_MAX];
+                TargetFieldName(ty, ZIR_CPP, field.name, mapped, sizeof(mapped));
+                split_array_type(field.type, buffers->base, sizeof(buffers->base),
+                                 suffix, sizeof(suffix));
+                strip_alias_type(m, buffers->base, buffers->tmpb, sizeof(buffers->tmpb));
+                snprintf(buffers->base, sizeof(buffers->base), "%s", buffers->tmpb);
+                fprintf(h, "    %s %s%s;\n", buffers->base, mapped, suffix);
+            }
+            if(status < 0) {
+                Diagnostic(ty->span, "check.record", "malformed field in %s", ty->name);
+                exit(1);
             }
         }
         fprintf(h, "};\n");

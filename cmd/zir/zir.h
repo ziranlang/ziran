@@ -253,6 +253,7 @@ typedef struct ZirType {
 typedef struct ZirTypeField {
     char name[ZIR_NAME_MAX];
     char type[ZIR_NAME_MAX];
+    char go_tag[512]; /* checked #go_tag string literal; Go reflection metadata */
     int is_using;
 } ZirTypeField;
 

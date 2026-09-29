@@ -593,6 +593,29 @@ typedef struct TakeAbiIncompleteBuffers {
 
 int take_abi_incomplete(ZirType *type);
 
+void
+normalize_record_separators(char *body, int split_commas)
+{
+    int quote = 0, nesting = 0;
+    for(char *cursor = body; *cursor; cursor++) {
+        if(quote) {
+            if(*cursor == '\\' && cursor[1])
+                cursor++;
+            else if(*cursor == '"')
+                quote = 0;
+        } else if(*cursor == '"') {
+            quote = 1;
+        } else if(*cursor == '[' || *cursor == '(') {
+            nesting++;
+        } else if(*cursor == ']' || *cursor == ')') {
+            nesting--;
+        } else if(nesting == 0 &&
+                  (*cursor == ';' || (split_commas && *cursor == ','))) {
+            *cursor = '\n';
+        }
+    }
+}
+
 static int
 take_abi_incomplete_with_buffers(ZirType *type, TakeAbiIncompleteBuffers *buffers)
 {
@@ -603,7 +626,7 @@ take_abi_incomplete_with_buffers(ZirType *type, TakeAbiIncompleteBuffers *buffer
         const char *nl = strchr(line, '\n');
         size_t length = nl != NULL ? (size_t)(nl - line) + 1 : strlen(line);
         int skip = 0;
-        if(strstr(line, "#abi_incomplete") != NULL) {
+        if(find_unquoted_text(line, "#abi_incomplete") != NULL) {
             if(found || !line_is_abi_incomplete(line, length))
                 return 0;
             found = 1;

@@ -72,6 +72,9 @@ specializations are stored as ordinary concrete types. Direct applications
 such as `Vec(u8)` retain their template and argument identities in version 44,
 so checked types have the same identity across importing modules and saved IR.
 Older binary versions are rejected.
+Record field bodies preserve checked `#go_tag` string literals for Go reflection
+metadata. These tags do not change field storage in other native targets or
+the portable runtime.
 Record bodies retain `using` on contained fields. A checked member expression
 that names a promoted field records its concrete contained-field path; the
 reader verifies each intermediate field is a `using` field. Native backends

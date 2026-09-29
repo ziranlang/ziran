@@ -1425,6 +1425,7 @@ synthetic_type_emitted(const ZirProgram *const *programs, int program_index,
                     require_go_type(right.type, right_type, sizeof(right_type), candidate->span);
                     type_scope = current;
                     if(strcmp(left.name, right.name) != 0 ||
+                       strcmp(left.go_tag, right.go_tag) != 0 ||
                        strcmp(left_type, right_type) != 0)
                         break;
                 }
@@ -1437,6 +1438,30 @@ synthetic_type_emitted(const ZirProgram *const *programs, int program_index,
         }
     }
     return 0;
+}
+
+static void
+emit_field_tag(FILE *out, const ZirTypeField *field, ZirSourceSpan span)
+{
+    if(!field->go_tag[0])
+        return;
+    unsigned char bytes[sizeof(field->go_tag)];
+    size_t length;
+    if(!DecodeStringLiteral(field->go_tag, bytes, sizeof(bytes), &length)) {
+        Diagnostic(span, "zir_go.type", "invalid Go field tag: %s", field->name);
+        exit(1);
+    }
+    fputs(" \"", out);
+    for(size_t i = 0; i < length; i++) {
+        unsigned char byte = bytes[i];
+        if(byte == '"' || byte == '\\')
+            fprintf(out, "\\%c", byte);
+        else if(byte < 32 || byte == 127)
+            fprintf(out, "\\x%02x", byte);
+        else
+            fputc(byte, out);
+    }
+    fputc('"', out);
 }
 /* Buffers go_lower keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -1713,7 +1738,9 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                             } else
                                 require_go_type(field.type, gt, sizeof(gt),
                                                 t->span);
-                            fprintf(f, "\t%s %s\n", fname, gt);
+                            fprintf(f, "\t%s %s", fname, gt);
+                            emit_field_tag(f, &field, t->span);
+                            fputc('\n', f);
                         }
                         if(status < 0) {
                             Diagnostic(t->span, "zir_go.type",

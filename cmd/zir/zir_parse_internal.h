@@ -202,6 +202,7 @@ int take_abi_incomplete(ZirType *type);
 int expand_type_this(ZirType *type);
 const char *relative_path(const char *root, const char *path);
 int parse_quoted(const char *s, char *out, size_t out_size);
+void normalize_record_separators(char *body, int split_commas);
 int is_c_ident(const char *s);
 ZirExternKind classify_extern_target(const char *target, char *symbol, size_t symbol_size, const char *path, int line_no);
 int net_block_braces(const char *s);

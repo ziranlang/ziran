@@ -19,7 +19,23 @@ TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field)
         return -1;
     while(*offset < length) {
         const char *start = record->body + *offset;
-        const char *end = start + strcspn(start, ";\n");
+        const char *end = start;
+        int quote = 0;
+        while(*end != '\0') {
+            if(quote) {
+                if(*end == '\\' && end[1] != '\0')
+                    end++;
+                else if(*end == '"')
+                    quote = 0;
+            } else if(*end == '"') {
+                quote = 1;
+            } else if(*end == ';' || *end == '\n') {
+                break;
+            }
+            end++;
+        }
+        if(quote)
+            return -1;
         const char *colon;
         const char *name_end;
         const char *type_start;
@@ -55,7 +71,33 @@ TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field)
         while(type_start < end && isspace((unsigned char)*type_start))
             type_start++;
         name_length = (size_t)(name_end - start);
-        type_length = (size_t)(end - type_start);
+        const char *type_end = end;
+        const char *tag = memchr(type_start, '#', (size_t)(end - type_start));
+        if(tag != NULL) {
+            static const char directive[] = "#go_tag";
+            if(record->is_union ||
+               (size_t)(end - tag) < sizeof(directive) ||
+               strncmp(tag, directive, sizeof(directive) - 1) != 0 ||
+               !isspace((unsigned char)tag[sizeof(directive) - 1]))
+                return -1;
+            const char *literal = tag + sizeof(directive) - 1;
+            while(literal < end && isspace((unsigned char)*literal))
+                literal++;
+            size_t tag_length = (size_t)(end - literal);
+            if(tag_length == 0 || tag_length >= sizeof(field->go_tag))
+                return -1;
+            memcpy(field->go_tag, literal, tag_length);
+            unsigned char decoded[sizeof(field->go_tag)];
+            size_t decoded_length;
+            if(!DecodeStringLiteral(field->go_tag, decoded, sizeof(decoded),
+                                    &decoded_length) ||
+               memchr(decoded, '\0', decoded_length) != NULL)
+                return -1;
+            type_end = tag;
+            while(type_end > type_start && isspace((unsigned char)type_end[-1]))
+                type_end--;
+        }
+        type_length = (size_t)(type_end - type_start);
         if(name_length == 0 || name_length >= sizeof(field->name) ||
            type_length == 0 || type_length >= sizeof(field->type))
             return -1;
@@ -1582,12 +1624,13 @@ same_type_application(const ZirModule *target_owner, const ZirType *target,
         /* A direct application has one identity across its consumers. Keep
          * separate templates and same-spelled local argument types nominal. */
         if(target_template != NULL && target_template == source_template) {
-            char target_args[8][ZIR_NAME_MAX], source_args[8][ZIR_NAME_MAX];
+            char target_args[16][ZIR_NAME_MAX], source_args[16][ZIR_NAME_MAX];
             int target_count = split_top_level(target->template_args,
-                                              target_args[0], 8, ZIR_NAME_MAX);
+                                              target_args[0], 16, ZIR_NAME_MAX);
             int source_count = split_top_level(source->template_args,
-                                              source_args[0], 8, ZIR_NAME_MAX);
-            int same = target_count == source_count;
+                                              source_args[0], 16, ZIR_NAME_MAX);
+            int same = target_count > 0 && target_count < 16 &&
+                       target_count == source_count;
             for(int i = 0; i < target_count && same; i++) {
                 const char *target_scalar = ScalarType(target_args[i]);
                 const char *source_scalar = ScalarType(source_args[i]);

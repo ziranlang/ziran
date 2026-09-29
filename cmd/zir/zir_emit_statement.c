@@ -885,6 +885,15 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                                   sizeof(binding));
                 line(e, "_ = %s", binding);
             }
+            if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+               TypeHasZeroArray(e->module, st->type)) {
+                /* Counts and null data views can fold away every runtime use
+                 * of zero-storage arrays, including nested array shapes. */
+                char binding[ZIR_NAME_MAX];
+                TargetBindingName(e->fn, e->target, st->name, binding,
+                                  sizeof(binding));
+                line(e, "(void)%s;", binding);
+            }
             track_local(e, st->name, st->type);
             break;
         case ZIR_STMT_ASSIGN:

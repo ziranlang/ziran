@@ -110,6 +110,17 @@ TrimSpace :: (value: string) -> string #foreign strings "TrimSpace";
 The Go target emits a direct package call. These declarations remain Go
 imports in saved `.zir`; they are not portable host capabilities.
 
+Go record fields can carry reflection tags. The checked string is preserved
+in saved IR and emitted as a Go struct tag; other targets keep the same fields
+and ignore this Go metadata:
+
+```jai
+Response :: struct {
+    userID: string #go_tag "json:\"user_id\""
+    expiresAt: s64 #go_tag "json:\"expires_at,omitempty\""
+}
+```
+
 Ziran also resolves `host_api :: #system_library "host_api";` to its host
 capability bridge. `ziran bundle --bind caller:capability=provider:function`
 can satisfy a portable host capability with an exported Ziran function in the

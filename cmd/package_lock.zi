@@ -1,5 +1,6 @@
 #import "package_common"
 #import "package_manifest"
+#import "package_source"
 #import "json_scan"
 #import "file_linux"
 #import "byte_text_linux"
@@ -165,7 +166,8 @@ PkgFindById :: (locked: *PkgLock, id: string) -> s32 {
 PkgFindBySource :: (locked: *PkgLock, url: string, ref: string) -> s32 {
     index: s32 = 0
     while index < locked.count {
-        if locked.packages[index].url == url && locked.packages[index].ref == ref {
+        if locked.packages[index].ref == ref &&
+            PkgSameSource(locked.packages[index].url, url) {
             return index
         }
         index += 1
@@ -197,6 +199,28 @@ PkgGitHead :: (directory: string) -> string {
     return PkgJoin("", result.text)
 }
 
+// Runs a Git command whose argument at url_index names a repository. When
+// that transport fails, such as SSH without a key in CI or HTTPS without
+// credentials for a private repository, the same repository is tried once
+// over the other transport. Neither attempt prompts for a password.
+PkgRemoteCapture :: (args: []string, url_index: s32) -> PkgProcessResult {
+    names: [1]string
+    values: [1]string
+    names[0] = "GIT_TERMINAL_PROMPT"
+    values[0] = "0"
+    url: string = args[url_index]
+    result: PkgProcessResult = PkgCaptureEnv(args, "", names[:], values[:])
+    alternate: string = PkgAlternateURL(url)
+    if result.code == 0 || alternate.count == 0 { return result }
+    args[url_index] = alternate
+    retried: PkgProcessResult = PkgCaptureEnv(args, "", names[:], values[:])
+    args[url_index] = url
+    if retried.code == 0 { return retried }
+    PkgPrint(result.text, true)
+    PkgPrint("\n", true)
+    return result
+}
+
 PkgRemoteCommit :: (url: string, ref: string) -> string {
     if !PkgGitURL(url) { return "" }
     // A full commit hash names itself; ls-remote only matches branches and tags.
@@ -206,7 +230,7 @@ PkgRemoteCommit :: (url: string, ref: string) -> string {
     args[1] = "ls-remote"
     args[2] = url
     args[3] = ref
-    result: PkgProcessResult = PkgCapture(args[:], "")
+    result: PkgProcessResult = PkgRemoteCapture(args[:], 2)
     if result.code != 0 || result.text.count < 40 { return "" }
     head_ref: string = ref
     tag_ref: string = ref
@@ -257,7 +281,7 @@ PkgCacheRoot :: () -> string {
 PkgCheckout :: (url: string, commit: string, offline: bool) -> string {
     if !PkgGitURL(url) || !PkgValidCommit(commit) { return "" }
     destination: string = PkgJoin3(PkgCacheRoot(), "/sources/",
-        PkgSourceId(url, commit))
+        PkgSourceId(PkgSourceKey(url), commit))
     if PathExists(destination) {
         if PkgGitHead(destination) == commit { return destination }
         return ""
@@ -266,12 +290,13 @@ PkgCheckout :: (url: string, commit: string, offline: bool) -> string {
     args: [6]string
     args[0] = "git"
     args[1] = "clone"
-    args[2] = "--no-checkout"
-    args[3] = url
-    args[4] = destination
+    args[2] = "--quiet"
+    args[3] = "--no-checkout"
+    args[4] = url
+    args[5] = destination
     names: [0]string
     values: [0]string
-    if PkgRun(args[0:5], "", names[:], values[:]) != 0 { return "" }
+    if PkgRemoteCapture(args[:], 4).code != 0 { return "" }
     args[0] = "git"
     args[1] = "-C"
     args[2] = destination
@@ -405,7 +430,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
     PkgReadLock(PkgJoin(root, "/ziran.lock"), old)
     if refresh == "ziran" {
         if !old.valid || current.name != old.root_name ||
-           current.tool_git != old.tool_url ||
+           !PkgSameSource(current.tool_git, old.tool_url) ||
            current.tool_ref != old.tool_ref ||
            current.dependency_count != old.root_edge_count {
             PkgFail("toolchain update needs a matching ziran.lock")
@@ -417,7 +442,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             id: string = PkgEdgeValue(*old.root_edges[0],
                 old.root_edge_count, dep.alias)
             target: s32 = PkgFindById(old, id)
-            if target < 0 || old.packages[target].url != dep.git ||
+            if target < 0 || !PkgSameSource(old.packages[target].url, dep.git) ||
                 old.packages[target].ref != dep.ref ||
                 old.packages[target].source != dep.source {
                 PkgFail("dependencies differ from ziran.lock; run ziran lock")
@@ -509,7 +534,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                     *item.manifest) { return false }
                 item.name = item.manifest.name
             }
-            item.id = PkgSourceId(item.url, item.commit)
+            item.id = PkgSourceId(PkgSourceKey(item.url), item.commit)
             resolved.count += 1
             index = 0
             while index < item.manifest.dependency_count {
@@ -557,7 +582,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
     tool_override: string = PkgFindOverride(overrides, "ziran", root)
     if tool_override.count > 0 {
         resolved.tool_commit = PkgGitHead(tool_override)
-    } else if old.valid && old.tool_url == resolved.tool_url &&
+    } else if old.valid && PkgSameSource(old.tool_url, resolved.tool_url) &&
         old.tool_ref == resolved.tool_ref && refresh != "*" &&
         refresh != "ziran" {
         resolved.tool_commit = old.tool_commit
@@ -580,7 +605,8 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     }
     if current.name != locked.root_name ||
        current.dependency_count != locked.root_edge_count ||
-       current.tool_git != locked.tool_url || current.tool_ref != locked.tool_ref {
+       !PkgSameSource(current.tool_git, locked.tool_url) ||
+       current.tool_ref != locked.tool_ref {
         PkgFail("dependencies differ from ziran.lock; run ziran lock")
         return false
     }
@@ -590,7 +616,7 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
         id: string = PkgEdgeValue(*locked.root_edges[0], locked.root_edge_count,
             dep.alias)
         found: s32 = PkgFindById(locked, id)
-        if found < 0 || locked.packages[found].url != dep.git ||
+        if found < 0 || !PkgSameSource(locked.packages[found].url, dep.git) ||
            locked.packages[found].ref != dep.ref ||
            locked.packages[found].source != dep.source {
             PkgFail("dependencies differ from ziran.lock; run ziran lock")
@@ -642,7 +668,7 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             dep: *PkgDependency = *item.manifest.dependencies[child]
             id: string = PkgEdgeValue(*item.edges[0], item.edge_count, dep.alias)
             target: s32 = PkgFindById(locked, id)
-            if target < 0 || locked.packages[target].url != dep.git ||
+            if target < 0 || !PkgSameSource(locked.packages[target].url, dep.git) ||
                 locked.packages[target].ref != dep.ref ||
                 locked.packages[target].source != dep.source { return false }
             child += 1

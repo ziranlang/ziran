@@ -277,14 +277,26 @@ add_program(LoadContext *context, const char *path, const char *root)
 }
 
 static int
-module_target(const char *target)
+module_target_part(const char *part, size_t length)
 {
-    if(!isalpha((unsigned char)target[0]) && target[0] != '_')
+    if(length == 0 || (!isalpha((unsigned char)part[0]) && part[0] != '_'))
         return 0;
-    for(const unsigned char *p = (const unsigned char *)target; *p; p++)
-        if(!isalnum(*p) && *p != '_')
+    for(size_t i = 0; i < length; i++)
+        if(!isalnum((unsigned char)part[i]) && part[i] != '_')
             return 0;
     return 1;
+}
+
+static int
+module_target(const char *target)
+{
+    /* PACKAGE/Module names a dependency's export; the parser has already
+     * checked that both parts are identifiers. */
+    const char *slash = strchr(target, '/');
+    if(slash != NULL)
+        return module_target_part(target, (size_t)(slash - target)) &&
+               module_target_part(slash + 1, strlen(slash + 1));
+    return module_target_part(target, strlen(target));
 }
 
 static int
@@ -348,9 +360,20 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         if(owner == NULL || !PackageResolve(context->packages, owner,
                     target, buffers->mapped_path, sizeof(buffers->mapped_path), mapped_name,
                     sizeof(mapped_name))) {
-            Diagnostic(import->span, "package.not_found",
-                       "module %s is not in package %s or its direct dependencies (%s)",
-                       target, owner == NULL ? "?" : owner, owner_source);
+            const char *choices = owner == NULL ? NULL :
+                PackageAmbiguity(context->packages, owner, target);
+            if(choices != NULL)
+                Diagnostic(import->span, "package.ambiguous",
+                           "module %s is exported by more than one dependency; "
+                           "import one of %s", target, choices);
+            else if(strchr(target, '/') != NULL)
+                Diagnostic(import->span, "package.not_found",
+                           "module %s is not exported by a direct dependency; "
+                           "ziran pkg list shows the importable modules", target);
+            else
+                Diagnostic(import->span, "package.not_found",
+                           "module %s is not in package %s or its direct dependencies (%s)",
+                           target, owner == NULL ? "?" : owner, owner_source);
             return 0;
         }
         snprintf(import->target, sizeof(import->target), "%s", mapped_name);
@@ -362,6 +385,17 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         return add_program_named(context, buffers->mapped_path, buffers->parent,
                                  strcmp(slash + 1, "module.zi") == 0 ?
                                  mapped_name : NULL);
+    }
+    /* Without a project there are no dependencies to qualify; std/NAME is
+     * the standard module NAME found on the module path. */
+    if(!prefer_ir && strchr(target, '/') != NULL) {
+        if(strncmp(target, "std/", 4) != 0) {
+            Diagnostic(import->span, "package.project",
+                       "package import %s needs a project: run with --project "
+                       "next to a ziran.toml that depends on it", target);
+            return 0;
+        }
+        memmove(import->target, target + 4, strlen(target + 4) + 1);
     }
     if(!prefer_ir && SpanPath(import->span)[0] != '\0') {
         if(SpanPath(import->span)[0] == '/')

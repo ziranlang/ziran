@@ -1,256 +1,147 @@
+#import "package_common"
+#import "package_manifest"
+#import "package_source"
 #import "byte_text_linux"
-#import "file_linux"
-#import "process_capture_linux"
 #import "text"
 
-libc :: #system_library "libc";
-CurrentDirectoryRaw :: (buffer: *u8, size: u64) -> *u8 #foreign libc "getcwd";
-WriteRaw :: (fd: s32, buffer: *u8, count: u64) -> s64 #foreign libc "write";
-TruncateRaw :: (fd: s32, size: s64) -> s32 #foreign libc "ftruncate";
-
-Fail :: (message: string) -> s32 {
-    buffer: [512]u8
-    if message.count <= buffer.count {
-        index: s32 = 0
-        while index < cast(s32)message.count {
-            buffer[index] = message[index]
-            index += 1
-        }
-        WriteRaw(2, *buffer[0], cast(u64)message.count)
+PkgValidRef :: (value: string) -> bool {
+    if value.count == 0 || value[0] == cast(u8)45 || value[0] == cast(u8)47 {
+        return false
     }
-    return 2
-}
-
-Copy :: (target: []u8, at: s32, value: string) -> s32 {
-    if at < 0 || at + cast(s32)value.count > cast(s32)target.count { return -1 }
-    index: s32 = 0
-    while index < cast(s32)value.count {
-        target[at + index] = value[index]
-        index += 1
-    }
-    return at + cast(s32)value.count
-}
-
-ValidPart :: (part: string) -> bool {
-    if part.count == 0 { return false }
-    index: s32 = 0
-    while index < cast(s32)part.count {
-        ch: u8 = part[index]
-        if !((ch >= cast(u8)65 && ch <= cast(u8)90) ||
-             (ch >= cast(u8)97 && ch <= cast(u8)122) ||
-             (ch >= cast(u8)48 && ch <= cast(u8)57) ||
-             ch == cast(u8)45 || ch == cast(u8)95) { return false }
-        index += 1
-    }
-    return true
-}
-
-ValidRef :: (value: string) -> bool {
-    if value.count == 0 { return false }
-    index: s32 = 0
-    while index < cast(s32)value.count {
+    index: s64 = 0
+    while index < cast(s64)value.count {
         ch: u8 = value[index]
-        if !((ch >= cast(u8)65 && ch <= cast(u8)90) ||
-             (ch >= cast(u8)97 && ch <= cast(u8)122) ||
-             (ch >= cast(u8)48 && ch <= cast(u8)57) ||
-             ch == cast(u8)45 || ch == cast(u8)95 ||
+        if !(PkgSourceLetter(ch) || ch == cast(u8)45 || ch == cast(u8)95 ||
              ch == cast(u8)46 || ch == cast(u8)47) { return false }
         index += 1
     }
-    return value[0] != cast(u8)45 && value[0] != cast(u8)47
-}
-
-ValidGitURL :: (value: string) -> bool {
-    if value.count < 12 || value[0:8] != "https://" { return false }
-    host_end: s32 = 8
-    while host_end < cast(s32)value.count && value[host_end] != cast(u8)47 {
-        host_end += 1
-    }
-    if host_end == 8 || host_end == cast(s32)value.count { return false }
-    index: s32 = 8
-    while index < cast(s32)value.count {
-        ch: u8 = value[index]
-        if !((ch >= cast(u8)65 && ch <= cast(u8)90) ||
-             (ch >= cast(u8)97 && ch <= cast(u8)122) ||
-             (ch >= cast(u8)48 && ch <= cast(u8)57) ||
-             ch == cast(u8)45 || ch == cast(u8)95 || ch == cast(u8)46 ||
-             ch == cast(u8)47 || ch == cast(u8)58 || ch == cast(u8)43 ||
-             ch == cast(u8)126 || ch == cast(u8)37) { return false }
-        index += 1
-    }
     return true
 }
 
-SameFold :: (left: string, right: string) -> bool {
-    if left.count != right.count { return false }
-    index: s32 = 0
-    while index < cast(s32)left.count {
-        if LowerASCII(left[index]) != LowerASCII(right[index]) { return false }
+// A repository name becomes an import prefix: kryon-ui -> kryon_ui.
+PkgAliasFromRepository :: (repository: string) -> string {
+    memory: *u8 = PkgAlloc(cast(u64)repository.count + 1)
+    if memory == null { return "" }
+    bytes: []u8 = BytesFromPointer(memory, cast(u64)repository.count + 1)
+    index: s64 = 0
+    while index < cast(s64)repository.count {
+        ch: u8 = LowerASCII(repository[index])
+        if ch == cast(u8)45 || ch == cast(u8)46 { ch = cast(u8)95 }
+        bytes[index] = ch
         index += 1
     }
-    return true
+    return TextFromBytes(bytes[0:index])
 }
 
-HasDependency :: (manifest: string, name: string) -> bool {
-    at: s32 = 0
-    while at < cast(s32)manifest.count {
-        end: s32 = at
-        while end < cast(s32)manifest.count && manifest[end] != cast(u8)10 { end += 1 }
-        line: string = manifest[at:end]
-        start: s32 = 0
-        while start < cast(s32)line.count &&
-              (line[start] == cast(u8)32 || line[start] == cast(u8)9) { start += 1 }
-        if cast(s32)line.count - start >= 16 && line[start:start + 14] == "[dependencies." {
-            close: s32 = start + 14
-            while close < cast(s32)line.count && line[close] != cast(u8)93 { close += 1 }
-            if close < cast(s32)line.count && SameFold(line[start + 14:close], name) {
-                return true
-            }
-        }
-        at = end + 1
-    }
-    return false
+PkgAddUsage :: () -> s32 {
+    return PkgFail("usage: ziran add URL|OWNER/REPO [--name NAME] [--ref REF] [--source]")
 }
 
-ProjectRoot :: (output: []u8) -> string {
-    if output.count < 2 || CurrentDirectoryRaw(*output[0], cast(u64)output.count) == null {
-        return ""
-    }
-    length: s32 = 0
-    while length < cast(s32)output.count && output[length] != cast(u8)0 { length += 1 }
-    while length > 0 {
-        path: [4096]u8
-        end: s32 = Copy(path[:], 0, TextFromBytes(output[0:length]))
-        end = Copy(path[:], end, "/ziran.toml")
-        if end > 0 && PathExists(TextFromBytes(path[0:end])) {
-            return TextFromBytes(output[0:length])
-        }
-        while length > 1 && output[length - 1] != cast(u8)47 { length -= 1 }
-        if length <= 1 { break }
-        length -= 1
-    }
-    return ""
-}
-
-// The package manifest change is written in Ziran. The lock command still
-// uses the installed resolver until its native replacement is ready.
+// `ziran add` accepts any spelling of a Git repository:
+//
+//   ziran add https://github.com/kryonlabs/plot.git
+//   ziran add git@github.com:kryonlabs/plot.git
+//   ziran add codeberg.org/owner/repo
+//   ziran add kryonlabs/plot            (GitHub)
+//
+// The dependency is named after the repository unless --name says
+// otherwise, and its modules are imported as NAME/Module.
 #program_export
 Add :: (launcher: string, arguments: []string) -> s32 {
-    if arguments.count < 1 { return Fail("usage: ziran add OWNER/REPO or ziran add NAME --git URL [--ref REF] [--source]\n") }
+    if arguments.count < 1 { return PkgAddUsage() }
     requested: string = arguments[0]
-    provided_git: string = ""
+    alias: string = ""
+    url: string = ""
     reference: string = "master"
     source: bool = false
     index: s32 = 1
     while index < cast(s32)arguments.count {
-        if arguments[index] == "--git" && index + 1 < cast(s32)arguments.count {
-            provided_git = arguments[index + 1]
+        part: string = arguments[index]
+        if (part == "--git" || part == "--name" || part == "--ref") &&
+           index + 1 >= cast(s32)arguments.count {
+            return PkgAddUsage()
+        }
+        if part == "--git" {
+            // The older spelling: ziran add NAME --git URL.
+            alias = requested
+            url = arguments[index + 1]
             index += 2
-        } else if arguments[index] == "--ref" && index + 1 < cast(s32)arguments.count {
+        } else if part == "--name" {
+            alias = arguments[index + 1]
+            index += 2
+        } else if part == "--ref" {
             reference = arguments[index + 1]
             index += 2
-        } else if arguments[index] == "--source" {
+        } else if part == "--source" {
             source = true
             index += 1
         } else {
-            return Fail("ziran add: invalid option\n")
+            return PkgAddUsage()
         }
     }
-    repository: string = requested
-    url_buffer: [4096]u8
-    url: string = provided_git
-    if provided_git.count == 0 {
-        separator: s32 = -1
-        index = 0
-        while index < cast(s32)requested.count {
-            if requested[index] == cast(u8)47 {
-                if separator >= 0 { return Fail("ziran add: use OWNER/REPO\n") }
-                separator = index
-            }
-            index += 1
-        }
-        if separator < 0 || !ValidPart(requested[0:separator]) ||
-           !ValidPart(requested[separator + 1:]) {
-            return Fail("ziran add: use OWNER/REPO\n")
-        }
-        repository = requested[separator + 1:]
-        end: s32 = Copy(url_buffer[:], 0, "https://github.com/")
-        end = Copy(url_buffer[:], end, requested)
-        end = Copy(url_buffer[:], end, ".git")
-        if end < 0 { return Fail("ziran add: repository path too long\n") }
-        url = TextFromBytes(url_buffer[0:end])
-    } else if !ValidPart(requested) {
-        return Fail("ziran add: invalid package name\n")
+    if url.count == 0 { url = PkgExpandSource(requested) }
+    if !PkgGitURL(url) {
+        return PkgFail(PkgJoin3("ziran add: not a Git repository URL: ", url,
+            "\nuse https://HOST/OWNER/REPO.git, git@HOST:OWNER/REPO.git, or OWNER/REPO"))
     }
-    if !ValidGitURL(url) || !ValidPart(repository) || !ValidRef(reference) {
-        return Fail("ziran add: invalid Git URL, package name, or ref\n")
+    if alias.count == 0 { alias = PkgAliasFromRepository(PkgRepositoryName(url)) }
+    if !PkgIdentifier(alias) {
+        return PkgFail(PkgJoin3("ziran add: ", alias,
+            " cannot name a dependency; pass --name NAME"))
     }
-    alias_bytes: [256]u8
-    if repository.count > alias_bytes.count { return Fail("ziran add: package name too long\n") }
+    if !PkgValidRef(reference) { return PkgFail("ziran add: invalid ref") }
+    root: string = PkgProjectRoot()
+    if root.count == 0 { return PkgFail("ziran add: no ziran.toml found") }
+    manifest_path: string = PkgJoin(root, "/ziran.toml")
+    original: PkgReadResult = PkgRead(manifest_path)
+    current: *PkgManifest = PkgNewManifest()
+    if !original.valid || current == null ||
+       !PkgParseManifest(manifest_path, current) {
+        return PkgFail("ziran add: cannot read ziran.toml")
+    }
     index = 0
-    while index < cast(s32)repository.count {
-        ch: u8 = LowerASCII(repository[index])
-        if ch == cast(u8)45 { ch = cast(u8)95 }
-        alias_bytes[index] = ch
+    while index < current.dependency_count {
+        dependency: *PkgDependency = *current.dependencies[index]
+        if PkgSameSource(dependency.git, url) {
+            return PkgFail(PkgJoin3("ziran add: repository is already the dependency ",
+                dependency.alias, ""))
+        }
+        if PkgFoldEqual(dependency.alias, alias) {
+            return PkgFail(PkgJoin3("ziran add: dependency ", dependency.alias,
+                " already exists; pass --name NAME"))
+        }
         index += 1
     }
-    alias: string = TextFromBytes(alias_bytes[0:index])
-    if alias.count == 0 || (alias[0] >= cast(u8)48 && alias[0] <= cast(u8)57) {
-        return Fail("ziran add: package name cannot begin with a digit\n")
+    declaration: string = PkgJoin3("\n[dependencies.", alias, "]\ngit = \"")
+    declaration = PkgJoin3(declaration, url, "\"\nref = \"")
+    declaration = PkgJoin3(declaration, reference, "\"\n")
+    if source { declaration = PkgJoin(declaration, "source = true\n") }
+    if !PkgWrite(manifest_path, PkgJoin(original.text, declaration)) {
+        return PkgFail("ziran add: cannot update ziran.toml")
     }
-    path_bytes: [4096]u8
-    root: string = ProjectRoot(path_bytes[:])
-    if root.count == 0 { return Fail("ziran add: no ziran.toml found\n") }
-    manifest_path_bytes: [4096]u8
-    end: s32 = Copy(manifest_path_bytes[:], 0, root)
-    end = Copy(manifest_path_bytes[:], end, "/ziran.toml")
-    if end < 0 { return Fail("ziran add: project path too long\n") }
-    manifest_path: string = TextFromBytes(manifest_path_bytes[0:end])
-    file: FileHandle = OpenRead(manifest_path)
-    if !file.valid { return Fail("ziran add: cannot read ziran.toml\n") }
-    size: s64 = FileSize(file)
-    if size < 0 || size > 1048576 {
-        CloseFile(file)
-        return Fail("ziran add: manifest too large\n")
-    }
-    content_bytes: [1048576]u8
-    if ReadAt(file, content_bytes[0:size], 0) != size {
-        CloseFile(file)
-        return Fail("ziran add: cannot read ziran.toml\n")
-    }
-    CloseFile(file)
-    content: string = TextFromBytes(content_bytes[0:size])
-    if HasDependency(content, alias) { return Fail("ziran add: dependency already exists\n") }
-    declaration: [8192]u8
-    end = Copy(declaration[:], 0, "\n[dependencies.")
-    end = Copy(declaration[:], end, alias)
-    end = Copy(declaration[:], end, "]\ngit = \"")
-    end = Copy(declaration[:], end, url)
-    end = Copy(declaration[:], end, "\"\nref = \"")
-    end = Copy(declaration[:], end, reference)
-    end = Copy(declaration[:], end, "\"\n")
-    if source { end = Copy(declaration[:], end, "source = true\n") }
-    if end < 0 { return Fail("ziran add: declaration too long\n") }
-    file = OpenUpdate(manifest_path)
-    if !file.valid { return Fail("ziran add: cannot update ziran.toml\n") }
-    if WriteAt(file, declaration[0:end], size) != cast(s64)end {
-        TruncateRaw(file.fd, size)
-        CloseFile(file)
-        return Fail("ziran add: cannot update ziran.toml\n")
-    }
-    CloseFile(file)
     command: [2]string
     command[0] = launcher
     command[1] = "lock"
-    output: [4096]u8
-    result: CaptureResult = CaptureOutput(command[:], output[:])
-    if result.error || result.code != 0 {
-        file = OpenUpdate(manifest_path)
-        if file.valid {
-            TruncateRaw(file.fd, size)
-            CloseFile(file)
-        }
-        return Fail("ziran add: lock failed; manifest restored\n")
+    locked: PkgProcessResult = PkgCapture(command[:], root)
+    if locked.code != 0 {
+        PkgWrite(manifest_path, original.text)
+        PkgPrint(locked.text, true)
+        PkgPrint("\n", true)
+        return PkgFail("ziran add: lock failed; ziran.toml restored")
+    }
+    PkgPrint(PkgJoin3("added ", alias, " from "), false)
+    PkgPrint(PkgJoin3(url, " at ", reference), false)
+    PkgPrint("\n", false)
+    if source { return 0 }
+    shown: [4]string
+    shown[0] = launcher
+    shown[1] = "pkg"
+    shown[2] = "list"
+    shown[3] = alias
+    listed: PkgProcessResult = PkgCapture(shown[:], root)
+    if listed.code == 0 {
+        PkgPrint(listed.text, false)
+        PkgPrint("\n", false)
     }
     return 0
 }

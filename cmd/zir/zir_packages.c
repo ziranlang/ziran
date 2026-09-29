@@ -24,6 +24,14 @@ typedef struct PackageDependency {
     char *exported;
 } PackageDependency;
 
+/* A short name exported by more than one direct dependency. Importing it
+ * reports the package-qualified spellings instead of choosing one. */
+typedef struct PackageAmbiguous {
+    char *owner;
+    char *visible;
+    char *choices;
+} PackageAmbiguous;
+
 struct ZirPackageMap {
     PackageRoot *roots;
     int root_count;
@@ -31,6 +39,8 @@ struct ZirPackageMap {
     int module_count;
     PackageDependency *dependencies;
     int dependency_count;
+    PackageAmbiguous *ambiguous;
+    int ambiguous_count;
 };
 
 static char *field(char **cursor)
@@ -66,9 +76,15 @@ void PackageMapFree(ZirPackageMap *map)
         free(map->dependencies[i].target);
         free(map->dependencies[i].exported);
     }
+    for(int i = 0; i < map->ambiguous_count; i++) {
+        free(map->ambiguous[i].owner);
+        free(map->ambiguous[i].visible);
+        free(map->ambiguous[i].choices);
+    }
     free(map->roots);
     free(map->modules);
     free(map->dependencies);
+    free(map->ambiguous);
     free(map);
 }
 
@@ -125,6 +141,17 @@ ZirPackageMap *PackageMapLoad(const char *path)
             item->target = cursor == NULL ? NULL : strdup(field(&cursor));
             item->exported = cursor == NULL ? NULL : strdup(field(&cursor));
             okay = item->owner && item->visible && item->target && item->exported;
+        } else if(strcmp(kind, "A") == 0) {
+            PackageAmbiguous *items = realloc(map->ambiguous,
+                (size_t)(map->ambiguous_count + 1) * sizeof(*items));
+            if(items == NULL) { okay = 0; break; }
+            map->ambiguous = items;
+            PackageAmbiguous *item = &map->ambiguous[map->ambiguous_count++];
+            memset(item, 0, sizeof(*item));
+            item->owner = strdup(field(&cursor));
+            item->visible = cursor == NULL ? NULL : strdup(field(&cursor));
+            item->choices = cursor == NULL ? NULL : strdup(field(&cursor));
+            okay = item->owner && item->visible && item->choices;
         } else okay = 0;
     }
     free(line);
@@ -167,7 +194,14 @@ int PackageResolve(const ZirPackageMap *map, const char *owner,
     const char *target = owner;
     const char *name = visible;
     int local = 0;
-    for(int i = 0; i < map->module_count; i++)
+    /* std/NAME always names the pinned standard library, even when the
+     * package or a dependency has a module called NAME. */
+    if(strncmp(visible, "std/", 4) == 0) {
+        target = "std";
+        name = visible + 4;
+        local = 1;
+    }
+    for(int i = 0; !local && i < map->module_count; i++)
         if(strcmp(map->modules[i].id, owner) == 0 &&
            strcmp(map->modules[i].name, visible) == 0) {
             local = 1;
@@ -185,6 +219,8 @@ int PackageResolve(const ZirPackageMap *map, const char *owner,
             }
         }
         if(target == NULL) {
+            if(PackageAmbiguity(map, owner, visible) != NULL ||
+               strchr(visible, '/') != NULL) return 0;
             target = "std";
             name = visible;
         }
@@ -199,4 +235,14 @@ int PackageResolve(const ZirPackageMap *map, const char *owner,
         return 1;
     }
     return 0;
+}
+
+const char *PackageAmbiguity(const ZirPackageMap *map, const char *owner,
+                             const char *visible)
+{
+    for(int i = 0; i < map->ambiguous_count; i++)
+        if(strcmp(map->ambiguous[i].owner, owner) == 0 &&
+           strcmp(map->ambiguous[i].visible, visible) == 0)
+            return map->ambiguous[i].choices;
+    return NULL;
 }

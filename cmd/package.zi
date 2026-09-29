@@ -54,6 +54,52 @@ PkgPrepareSubmodules :: (directory: string, offline: bool) -> bool {
     return true
 }
 
+// Shows each direct dependency, where it comes from, and the import path of
+// every module it exports:
+//
+//   kryon  git@github.com:kryonlabs/kryon.git  master  0123456789ab
+//     #import "kryon/Widgets"    src/ui/Widgets/module.zi
+PkgList :: (locked: *PkgLock, current: *PkgManifest, selector: string) -> s32 {
+    found: bool = false
+    index: s32 = 0
+    while index < current.dependency_count {
+        dependency: *PkgDependency = *current.dependencies[index]
+        index += 1
+        if selector.count > 0 && !PkgFoldEqual(dependency.alias, selector) {
+            continue
+        }
+        found = true
+        target: s32 = PkgFindById(locked, PkgEdgeValue(*locked.root_edges[0],
+            locked.root_edge_count, dependency.alias))
+        if target < 0 { return PkgFail("package is not locked; run ziran lock") }
+        item: *PkgLocked = *locked.packages[target]
+        PkgPrint(PkgJoin3(dependency.alias, "  ", dependency.git), false)
+        PkgPrint(PkgJoin3("  ", dependency.ref, "  "), false)
+        PkgPrint(item.commit[0:12], false)
+        PkgPrint(PkgJoin3("\n  checkout ", item.path, "\n"), false)
+        if item.source {
+            PkgPrint("  source checkout; no Ziran modules\n", false)
+            continue
+        }
+        exported: s32 = 0
+        while exported < item.manifest.export_count {
+            name: PkgNamedValue = item.manifest.exports[exported]
+            line: string = PkgJoin3("  #import \"", dependency.alias, "/")
+            line = PkgJoin3(line, name.name, "\"")
+            while line.count < 36 { line = PkgJoin(line, " ") }
+            PkgPrint(PkgJoin3(line, " ", name.value), false)
+            PkgPrint("\n", false)
+            exported += 1
+        }
+    }
+    if selector.count > 0 && !found { return PkgFail("no dependency with that name") }
+    if selector.count == 0 {
+        PkgPrint(PkgJoin3("std  ", locked.tool_path, "/std\n"), false)
+        PkgPrint("  #import \"std/NAME\"               the standard library\n", false)
+    }
+    return 0
+}
+
 PkgDispatch :: (command: string, arguments: []string, project: bool,
     root: string, locked: *PkgLock, current: *PkgManifest,
     launcher: string) -> s32 {
@@ -299,10 +345,16 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         }
     }
     if command == "fetch" { return 0 }
+    if command == "pkg" && count >= 1 && filtered[0] == "list" {
+        if count > 2 { return PkgFail("usage: ziran pkg list [PACKAGE]") }
+        selector: string = ""
+        if count == 2 { selector = filtered[1] }
+        return PkgList(locked, current, selector)
+    }
     if command == "pkg" {
         if count < 2 || count > 3 || filtered[0] != "path" ||
            (count == 3 && filtered[2] != "--submodules") {
-            return PkgFail("usage: ziran pkg path PACKAGE [--submodules]")
+            return PkgFail("usage: ziran pkg path PACKAGE [--submodules] | ziran pkg list [PACKAGE]")
         }
         if filtered[1] == "ziran" {
             if count == 3 { return PkgFail("Ziran has no package submodules") }

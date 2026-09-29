@@ -191,6 +191,17 @@ PkgCaptureRaw :: (arguments: []string, cwd: string) -> PkgProcessResult {
     return result
 }
 
+PkgCaptureEnv :: (arguments: []string, cwd: string, names: []string,
+    values: []string) -> PkgProcessResult {
+    result: PkgProcessResult
+    memory: *u8 = PkgMallocRaw(1048576)
+    if memory == null { result.code = -1; return result }
+    output: []u8 = BytesFromPointer(memory, 1048576)
+    result.code = PkgHostRun(arguments, cwd, names, values, output)
+    result.text = PkgTrim(TextFromCString(memory))
+    return result
+}
+
 PkgCapture :: (arguments: []string, cwd: string) -> PkgProcessResult {
     result: PkgProcessResult = PkgCaptureRaw(arguments, cwd)
     result.text = PkgTrim(result.text)

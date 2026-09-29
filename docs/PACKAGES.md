@@ -1,45 +1,72 @@
 # Packages and project imports
 
-A Ziran application is a package with a `ziran.toml` and a committed
-`ziran.lock`. The package command is compiled from Ziran source. Dependencies
-and the compiler are fetched from public HTTPS Git
-repositories and pinned to full commits in the lock. `make install-user`
-installs the native `ziran` command; project commands build and use the
-compiler pinned by the application lock.
+Ziran packages are Git repositories. There is no central registry: a
+dependency is the URL of the repository that holds it, pinned to a full commit
+in a committed `ziran.lock`. A Ziran application is itself a package with a
+`ziran.toml`. `make install-user` installs the native `ziran` command; project
+commands build and use the compiler pinned by the application lock.
+
+## Adding a dependency
+
+Pass any spelling of the repository to `ziran add`:
+
+```sh
+ziran add https://github.com/kryonlabs/plot.git
+ziran add git@github.com:kryonlabs/plot.git
+ziran add ssh://git@codeberg.org/owner/repo.git
+ziran add codeberg.org/owner/repo
+ziran add kryonlabs/plot            # OWNER/REPO means GitHub
+```
+
+The dependency is named after the repository (`plot`; `kryon-ui` becomes
+`kryon_ui`). Use `--name NAME` for another name, `--ref REF` for a branch, tag,
+or full commit instead of `master`, and `--source` for a repository that is not
+a Ziran package. `ziran add` writes the declaration, locks it, and prints the
+modules you can import:
 
 ```toml
-[package]
-name = "Example"
-entry = "src/app.zi"
-module_roots = ["src"]
-
-[toolchain]
-git = "https://github.com/ziranlang/ziran.git"
-ref = "master"
-
 [dependencies.plot]
-git = "https://github.com/kryonlabs/plot.git"
+git = "git@github.com:kryonlabs/plot.git"
 ref = "master"
 ```
 
-An exported module is a package-owned file. Its public name may differ from
-the file name, so a package can keep the short path `src/module.zi`:
+HTTPS and SSH name the same package. Ziran identifies a repository by its
+canonical HTTPS spelling, so switching a manifest between the two keeps the
+lock valid, and two packages that reach one repository over different
+transports share a single locked copy. Ziran fetches over the transport the
+manifest names; when that fails, for example SSH without a key in CI or HTTPS
+without credentials for a private repository, it retries once over the other
+transport. It never prompts for a password. URLs with embedded credentials are
+rejected.
 
-```toml
-[exports]
-plot = "src/module.zi"
-```
+## Importing modules
 
-Applications import the public entry by its module name:
+A dependency's exported modules are imported by the dependency name and the
+module name, so every import says where it comes from:
 
 ```zi
-using Charts :: #import "plot";
+#import "plot/Plot"
+using Widgets :: #import "kryon/Widgets";
+#import "std/text";
 ```
 
-Each module resolves short imports in its own package, then its direct
-dependencies, then the pinned standard library. Two direct dependencies that
-export the same module name produce an error. Rename one at the dependency
-declaration:
+`std/NAME` is the pinned standard library. Modules in your own package use
+their short names. `ziran pkg list` shows each direct dependency, its URL,
+ref, commit and checkout, and every import path it provides:
+
+```text
+plot  git@github.com:kryonlabs/plot.git  master  3e1433d0b2c1
+  checkout /home/me/.cache/ziran/sources/p1f0c…
+  #import "plot/Plot"                src/module.zi
+std  /home/me/.cache/ziran/sources/p5a7…/std
+  #import "std/NAME"               the standard library
+```
+
+A short import such as `#import "Plot"` also works. A short name resolves in
+the importing package first, then among its direct dependencies' exports, then
+in the standard library. When two direct dependencies export the same name,
+the short import reports both qualified spellings; import one of them, or
+rename one with `module_aliases`:
 
 ```toml
 [dependencies.Graphics]
@@ -48,31 +75,55 @@ ref = "master"
 module_aliases = { Drawing = "GraphicsDrawing" }
 ```
 
-Package modules receive an internal identity derived from their exact Git
-source and commit. Two versions of a transitive dependency can coexist in one
-build. The identity is carried through checked IR, saved `.zir`, portable
-bundles, and native output names. Source code continues to use short imports.
+Only the dependency's `[exports]` are visible. Its other modules are private
+to it, so their names never collide with yours.
 
-Commands:
+## Publishing a package
+
+An exported module is a package-owned file. Its public name may differ from
+the file name, so a package can keep the short path `src/module.zi`:
+
+```toml
+[package]
+name = "Plot"
+module_roots = ["src"]
+
+[toolchain]
+git = "https://github.com/ziranlang/ziran.git"
+ref = "master"
+
+[exports]
+Plot = "src/module.zi"
+```
+
+Push the repository anywhere Git can reach. Prefer HTTPS URLs in published
+manifests so fresh clones and CI can fetch without an SSH key.
+
+Package modules receive an internal identity derived from their repository
+and commit. Two versions of a transitive dependency can coexist in one build.
+The identity is carried through checked IR, saved `.zir`, portable bundles,
+and native output names.
+
+## Commands
 
 ```sh
-ziran add kryonlabs/plot
+ziran add URL|OWNER/REPO
 ziran lock
 ziran update
 ziran update plot
 ziran update ziran
 ziran fetch
+ziran pkg list [plot]
+ziran pkg path plot --locked
 ziran check --project
 ziran ir --project --entry app:main -o build/ir
 ziran build --project --target=c --entry app:main -o build/c
-ziran pkg path plot --locked
 ```
 
 `ziran update` refreshes every package and the toolchain to their current refs.
 `ziran update plot` refreshes Plot and its transitive dependencies while
 keeping unrelated packages pinned. `ziran update ziran` refreshes only the
-compiler toolchain. For other Git hosts, use
-`ziran add NAME --git https://HOST/OWNER/REPO.git`.
+compiler toolchain.
 
 `--locked` requires a matching lock and ignores local development overrides;
 `--offline` requires cached checkouts. The cache is under
@@ -93,7 +144,7 @@ ref = "master"
 source = true
 ```
 
-`ziran add sqlite --git URL --source` writes the same declaration. A source
+`ziran add URL --name sqlite --source` writes the same declaration. A source
 package is locked, fetched, and cached like any other dependency, and
 `ziran pkg path sqlite --locked` returns its checkout, but it has no
 `ziran.toml`, exports no modules, and cannot declare dependencies or module

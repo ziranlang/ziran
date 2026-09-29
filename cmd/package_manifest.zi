@@ -1,4 +1,5 @@
 #import "package_common"
+#import "package_source"
 #import "file_linux"
 
 #scope_export
@@ -77,22 +78,6 @@ PkgPackageName :: (value: string) -> bool {
         index += 1
     }
     return true
-}
-
-PkgGitURL :: (value: string) -> bool {
-    if value.count > 8 && value[0:8] == "https://" {
-        index: s64 = 8
-        host: bool = false
-        while index < cast(s64)value.count && value[index] != cast(u8)47 {
-            if value[index] == cast(u8)64 || value[index] <= cast(u8)32 ||
-                value[index] == cast(u8)34 || value[index] == cast(u8)92 { return false }
-            host = true
-            index += 1
-        }
-        return host && index < cast(s64)value.count - 1
-    }
-    return PkgGetenv("ZIRAN_TEST_ALLOW_LOCAL_GIT") == "1" &&
-        value.count > 7 && value[0:7] == "file://"
 }
 
 PkgTomlText :: (value: string) -> string {

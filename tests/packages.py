@@ -34,6 +34,18 @@ def init(repo: Path, env: dict) -> None:
     call("git", "init", "-qb", "master", cwd=repo, env=env)
 
 
+def git_env(env: dict, redirects: list) -> dict:
+    """Maps public URL prefixes to local fixtures with git's insteadOf."""
+    result = env.copy()
+    entries = [("protocol.file.allow", "always")]
+    entries += [(f"url.{target}.insteadOf", prefix) for prefix, target in redirects]
+    result["GIT_CONFIG_COUNT"] = str(len(entries))
+    for index, (key, value) in enumerate(entries):
+        result[f"GIT_CONFIG_KEY_{index}"] = key
+        result[f"GIT_CONFIG_VALUE_{index}"] = value
+    return result
+
+
 def compile_app(ziran: str, app: Path, output: Path, compiler: Path,
                 env: dict, source: Path, project: bool) -> None:
     args = [ziran, "build", "--target=c"]
@@ -124,6 +136,87 @@ ref = "master"
         call(ziran, "add", "example/library", cwd=add_app, env=add_env)
         assert '[dependencies.library]' in (add_app / "ziran.toml").read_text()
         call(ziran, "check", "--project", cwd=add_app, env=add_env)
+
+        # Any spelling of a Git repository can be added directly. SSH and
+        # HTTPS name the same package, and modules import as NAME/Module.
+        url_app = root / "url-app"
+        url_app.mkdir()
+        write(url_app / "ziran.toml", f'''[package]
+name = "UrlConsumer"
+entry = "src/app.zi"
+[toolchain]
+git = "{compiler.as_uri()}"
+ref = "master"
+''')
+        write(url_app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        write(url_app / "src/app.zi", '''#import "ssh_library/Value"
+#import "std/text"
+#program_export
+main :: () -> s32 {
+    if Value() == 2 && LowerASCII(cast(u8)65) == cast(u8)97 { return 0 }
+    return 1
+}
+''')
+        url_env = git_env(env, [
+            ("git@example.invalid:owner/ssh-library.git", library.as_uri()),
+            ("https://example.invalid/owner/ssh-library.git", library.as_uri()),
+            # SSH to fallback.git fails; its HTTPS spelling works.
+            ("git@example.invalid:owner/fallback", "file:///nonexistent-ssh-transport/"),
+            ("https://example.invalid/owner/fallback.git", library.as_uri()),
+        ])
+        added = call(ziran, "add", "git@example.invalid:owner/ssh-library.git",
+                     cwd=url_app, env=url_env)
+        assert "added ssh_library from git@example.invalid:owner/ssh-library.git" in added, added
+        assert '#import "ssh_library/Value"' in added, added
+        manifest = (url_app / "ziran.toml").read_text()
+        assert 'git = "git@example.invalid:owner/ssh-library.git"' in manifest
+        compile_app(ziran, url_app, root / "url-c", compiler, url_env,
+                    url_app / "src/app.zi", True)
+        # The HTTPS spelling of the same repository keeps the lock valid.
+        write(url_app / "ziran.toml", manifest.replace(
+            "git@example.invalid:owner/ssh-library.git",
+            "https://example.invalid/owner/ssh-library"))
+        call(ziran, "check", "--project", cwd=url_app, env=url_env)
+        duplicate = call(ziran, "add", "https://example.invalid/owner/ssh-library.git",
+                         cwd=url_app, env=url_env, succeed=False)
+        assert "already the dependency ssh_library" in duplicate, duplicate
+        write(url_app / "ziran.toml", manifest)
+        fallback = call(ziran, "add", "git@example.invalid:owner/fallback.git",
+                        "--name", "fallback", cwd=url_app, env=url_env)
+        assert "added fallback" in fallback, fallback
+        listed = call(ziran, "pkg", "list", cwd=url_app, env=url_env)
+        assert '#import "fallback/Value"' in listed, listed
+        assert '#import "std/NAME"' in listed, listed
+        for bad in ("https://user:secret@example.invalid/owner/repo.git",
+                    "-oProxyCommand=touch@example.invalid:owner/repo.git",
+                    "git@example.invalid:../escape.git", "not a url"):
+            rejected = call(ziran, "add", bad, cwd=url_app, env=url_env,
+                            succeed=False)
+            assert "not a Git repository URL" in rejected, rejected
+        # Two dependencies naming one repository over different transports
+        # share one locked package, so its types are the same everywhere.
+        write(url_app / "ziran.toml", manifest +
+              '\n[dependencies.over_https]\ngit = "https://example.invalid/owner/ssh-library.git"\n')
+        call(ziran, "lock", cwd=url_app, env=url_env)
+        shared = json.loads((url_app / "ziran.lock").read_text())
+        assert len(shared["packages"]) == 1, shared
+        assert len(set(shared["root"]["dependencies"].values())) == 1, shared
+        write(url_app / "ziran.toml", manifest)
+        call(ziran, "lock", cwd=url_app, env=url_env)
+
+        # Without a project, std/NAME finds NAME on the module path and a
+        # dependency import explains that it needs a project.
+        standalone = root / "standalone"
+        write(standalone / "main.zi", '''#import "std/text"
+#program_export
+main :: () -> s32 { return cast(s32)LowerASCII(cast(u8)65) - 97 }
+''')
+        call(ziran, "check", "--root", str(standalone), "--module-path",
+             str(compiler / "std"), str(standalone / "main.zi"), cwd=root, env=env)
+        write(standalone / "other.zi", '#import "kryon/Widgets"\n')
+        needs = call(ziran, "check", "--root", str(standalone),
+                     str(standalone / "other.zi"), cwd=root, env=env, succeed=False)
+        assert "needs a project" in needs, needs
 
         # A package whose modules live at its root checks from that root.
         flat_app = root / "flat-app"
@@ -245,7 +338,12 @@ A = "src/A.zi"
         call(ziran, "update", "b", cwd=app, env=env)
         collision = call(ziran, "check", "--project", cwd=app, env=env,
                          succeed=False)
-        assert "exported by both" in collision
+        assert "exported by more than one dependency; import one of A/A, B/A" in collision, collision
+        # The package-qualified names need no module_aliases.
+        write(app / "src/Public/module.zi", '''using First :: #import "A/A";
+using Second :: #import "B/A";
+''')
+        call(ziran, "check", "--project", cwd=app, env=env)
         aliased = base_manifest.replace(
             f'[dependencies.B]\ngit = "{providers[1].as_uri()}"\nref = "master"',
             f'[dependencies.B]\ngit = "{providers[1].as_uri()}"\nref = "master"\nmodule_aliases = {{ A = "OtherA" }}')

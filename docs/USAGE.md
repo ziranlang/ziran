@@ -154,6 +154,13 @@ END;
 
 ## Standard library
 
+Import a standard module as `#import "std/text"`. In a project the pinned
+toolchain supplies it; a standalone command finds `text` on its
+`--module-path`, so pass `--module-path std` from the Ziran checkout. The short
+spelling `#import "text"` also works when no module of your own has that name.
+Dependencies from other Git repositories import the same way, as
+`#import "NAME/Module"`; see [Packages](PACKAGES.md).
+
 ### Text and UTF-8
 
 `std/text.zi` supplies ASCII case folding, prefix matching, and substring

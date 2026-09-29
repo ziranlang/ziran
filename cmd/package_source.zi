@@ -1,0 +1,266 @@
+#import "package_common"
+#import "byte_text_linux"
+#import "text"
+
+#scope_export
+// A Git repository named by any of its public spellings:
+//
+//   https://github.com/owner/repo.git
+//   ssh://git@github.com/owner/repo.git
+//   git@github.com:owner/repo.git
+//
+// All three name the same package. Its identity is the canonical HTTPS
+// spelling, so the lock, the cache, and package-qualified module names do
+// not change when a manifest switches transport.
+PkgSource :: struct {
+    valid: bool
+    ssh: bool
+    // file:// fixtures, accepted only by the package tests.
+    local: bool
+    user: string
+    // Lower case, without the user or port.
+    host: string
+    // Without a leading slash, trailing slash, or .git suffix.
+    path: string
+    url: string
+}
+
+PkgSourceLetter :: (ch: u8) -> bool {
+    return (ch >= cast(u8)65 && ch <= cast(u8)90) ||
+        (ch >= cast(u8)97 && ch <= cast(u8)122) ||
+        (ch >= cast(u8)48 && ch <= cast(u8)57)
+}
+
+// Host names and SSH users never start with '-', so Git cannot read them
+// as options.
+PkgSourceHost :: (value: string) -> bool {
+    if value.count == 0 || value[0] == cast(u8)45 || value[0] == cast(u8)46 {
+        return false
+    }
+    index: s64 = 0
+    while index < cast(s64)value.count {
+        ch: u8 = value[index]
+        if !PkgSourceLetter(ch) && ch != cast(u8)45 && ch != cast(u8)46 {
+            return false
+        }
+        index += 1
+    }
+    return true
+}
+
+PkgSourceUser :: (value: string) -> bool {
+    if value.count == 0 || value[0] == cast(u8)45 { return false }
+    index: s64 = 0
+    while index < cast(s64)value.count {
+        ch: u8 = value[index]
+        if !PkgSourceLetter(ch) && ch != cast(u8)45 && ch != cast(u8)46 &&
+            ch != cast(u8)95 { return false }
+        index += 1
+    }
+    return true
+}
+
+PkgSourcePort :: (value: string) -> bool {
+    if value.count == 0 || value.count > 5 { return false }
+    index: s64 = 0
+    while index < cast(s64)value.count {
+        if value[index] < cast(u8)48 || value[index] > cast(u8)57 { return false }
+        index += 1
+    }
+    return true
+}
+
+// Repository paths are plain segments: no empty, '.', or '..' parts and no
+// characters that need quoting.
+PkgSourcePath :: (value: string) -> bool {
+    if value.count == 0 { return false }
+    start: s64 = 0
+    index: s64 = 0
+    while index <= cast(s64)value.count {
+        if index == cast(s64)value.count || value[index] == cast(u8)47 {
+            part: string = value[start:index]
+            if part.count == 0 || part == "." || part == ".." ||
+                part[0] == cast(u8)45 { return false }
+            start = index + 1
+        } else {
+            ch: u8 = value[index]
+            if !PkgSourceLetter(ch) && ch != cast(u8)45 && ch != cast(u8)46 &&
+                ch != cast(u8)95 && ch != cast(u8)126 && ch != cast(u8)43 {
+                return false
+            }
+        }
+        index += 1
+    }
+    return true
+}
+
+PkgSourceLower :: (value: string) -> string {
+    memory: *u8 = PkgAlloc(cast(u64)value.count + 1)
+    if memory == null { return "" }
+    bytes: []u8 = BytesFromPointer(memory, cast(u64)value.count + 1)
+    index: s64 = 0
+    while index < cast(s64)value.count {
+        bytes[index] = LowerASCII(value[index])
+        index += 1
+    }
+    bytes[index] = cast(u8)0
+    return TextFromBytes(bytes[0:index])
+}
+
+// Splits HOST[:PORT] and records the host in lower case.
+PkgSourceAuthority :: (authority: string, output: *PkgSource) -> bool {
+    colon: s64 = 0
+    while colon < cast(s64)authority.count && authority[colon] != cast(u8)58 {
+        colon += 1
+    }
+    host: string = authority[0:colon]
+    if colon < cast(s64)authority.count &&
+        !PkgSourcePort(authority[colon + 1:]) { return false }
+    if !PkgSourceHost(host) { return false }
+    output.host = PkgSourceLower(host)
+    return output.host.count > 0
+}
+
+PkgSourceFinish :: (path: string, output: *PkgSource) -> bool {
+    while path.count > 0 && path[0] == cast(u8)47 { path = path[1:] }
+    while path.count > 0 && path[cast(s64)path.count - 1] == cast(u8)47 {
+        path = path[0:cast(s64)path.count - 1]
+    }
+    if PkgEndsWith(path, ".git") { path = path[0:cast(s64)path.count - 4] }
+    if !PkgSourcePath(path) { return false }
+    output.path = path
+    output.valid = true
+    return true
+}
+
+PkgParseSource :: (url: string) -> PkgSource {
+    result: PkgSource
+    result.url = url
+    if url.count == 0 || url.count > 2048 { return result }
+    if url.count > 8 && url[0:8] == "https://" {
+        rest: string = url[8:]
+        slash: s64 = 0
+        while slash < cast(s64)rest.count && rest[slash] != cast(u8)47 { slash += 1 }
+        // Credentials never belong in a manifest or lock.
+        if slash >= cast(s64)rest.count ||
+            !PkgSourceAuthority(rest[0:slash], *result) { return result }
+        PkgSourceFinish(rest[slash + 1:], *result)
+        return result
+    }
+    if url.count > 6 && url[0:6] == "ssh://" {
+        rest: string = url[6:]
+        slash: s64 = 0
+        while slash < cast(s64)rest.count && rest[slash] != cast(u8)47 { slash += 1 }
+        if slash >= cast(s64)rest.count { return result }
+        authority: string = rest[0:slash]
+        at: s64 = 0
+        while at < cast(s64)authority.count && authority[at] != cast(u8)64 { at += 1 }
+        if at < cast(s64)authority.count {
+            result.user = authority[0:at]
+            if !PkgSourceUser(result.user) { return result }
+            authority = authority[at + 1:]
+        }
+        if !PkgSourceAuthority(authority, *result) { return result }
+        result.ssh = true
+        PkgSourceFinish(rest[slash + 1:], *result)
+        return result
+    }
+    if url.count > 7 && url[0:7] == "file://" {
+        if PkgGetenv("ZIRAN_TEST_ALLOW_LOCAL_GIT") != "1" { return result }
+        result.local = true
+        result.valid = true
+        result.path = url[7:]
+        return result
+    }
+    // The scp-like SSH spelling: USER@HOST:PATH.
+    colon: s64 = 0
+    while colon < cast(s64)url.count && url[colon] != cast(u8)58 &&
+        url[colon] != cast(u8)47 { colon += 1 }
+    if colon >= cast(s64)url.count || url[colon] != cast(u8)58 { return result }
+    authority: string = url[0:colon]
+    at: s64 = 0
+    while at < cast(s64)authority.count && authority[at] != cast(u8)64 { at += 1 }
+    if at >= cast(s64)authority.count { return result }
+    result.user = authority[0:at]
+    host: string = authority[at + 1:]
+    if !PkgSourceUser(result.user) || !PkgSourceHost(host) { return result }
+    result.host = PkgSourceLower(host)
+    result.ssh = true
+    PkgSourceFinish(url[colon + 1:], *result)
+    return result
+}
+
+PkgGitURL :: (value: string) -> bool {
+    return PkgParseSource(value).valid
+}
+
+// The identity of a repository: its HTTPS spelling with a .git suffix.
+PkgSourceKey :: (url: string) -> string {
+    source: PkgSource = PkgParseSource(url)
+    if !source.valid { return "" }
+    if source.local { return url }
+    return PkgJoin3(PkgJoin3("https://", source.host, "/"), source.path, ".git")
+}
+
+PkgSameSource :: (left: string, right: string) -> bool {
+    if left == right { return left.count > 0 }
+    key: string = PkgSourceKey(left)
+    return key.count > 0 && key == PkgSourceKey(right)
+}
+
+// The same repository over the other transport, or "" when there is none.
+PkgAlternateURL :: (url: string) -> string {
+    source: PkgSource = PkgParseSource(url)
+    if !source.valid || source.local { return "" }
+    if source.ssh {
+        return PkgJoin3(PkgJoin3("https://", source.host, "/"), source.path, ".git")
+    }
+    return PkgJoin3(PkgJoin3("git@", source.host, ":"), source.path, ".git")
+}
+
+// The last path segment, such as kryon for git@github.com:kryonlabs/kryon.git.
+PkgRepositoryName :: (url: string) -> string {
+    source: PkgSource = PkgParseSource(url)
+    if !source.valid { return "" }
+    path: string = source.path
+    if source.local {
+        while path.count > 0 && path[cast(s64)path.count - 1] == cast(u8)47 {
+            path = path[0:cast(s64)path.count - 1]
+        }
+        if PkgEndsWith(path, ".git") { path = path[0:cast(s64)path.count - 4] }
+    }
+    start: s64 = cast(s64)path.count
+    while start > 0 && path[start - 1] != cast(u8)47 { start -= 1 }
+    return path[start:]
+}
+
+// Expands what a person types after `ziran add`: a full HTTPS or SSH URL,
+// HOST/OWNER/REPO, or OWNER/REPO on GitHub.
+PkgExpandSource :: (value: string) -> string {
+    if PkgGitURL(value) { return value }
+    slashes: s32 = 0
+    first: s64 = -1
+    index: s64 = 0
+    while index < cast(s64)value.count {
+        if value[index] == cast(u8)47 {
+            if first < 0 { first = index }
+            slashes += 1
+        }
+        index += 1
+    }
+    expanded: string = ""
+    if slashes == 1 {
+        expanded = PkgJoin("https://github.com/", value)
+    } else if slashes >= 2 && first > 0 {
+        host: string = value[0:first]
+        index = 0
+        while index < cast(s64)host.count {
+            if host[index] == cast(u8)46 { expanded = PkgJoin("https://", value) }
+            index += 1
+        }
+    }
+    if expanded.count == 0 { return "" }
+    if !PkgEndsWith(expanded, ".git") { expanded = PkgJoin(expanded, ".git") }
+    if !PkgGitURL(expanded) { return "" }
+    return expanded
+}

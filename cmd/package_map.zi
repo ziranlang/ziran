@@ -125,23 +125,35 @@ PkgFindExport :: (manifest: *PkgManifest, name: string) -> bool {
     return false
 }
 
+PkgShortEdge :: struct {
+    name: string
+    target: string
+    internal: string
+    qualified: string
+    count: s32
+}
+
+// Makes each direct dependency's exports visible to one package. Every
+// export is importable as ALIAS/Module. The short name Module also works
+// unless the package has its own module of that name (which wins) or
+// another direct dependency exports it too (then importing the short name
+// reports both qualified spellings).
 PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
     graph: *PkgModuleGraph, owner: s32, current: *PkgManifest,
     root: string) -> bool {
     owner_manifest: *PkgManifest = current
     owner_id: string = "root"
-    owner_directory: string = root
     edge_count: s32 = locked.root_edge_count
     if owner >= 0 {
         owner_manifest = *locked.packages[owner].manifest
         owner_id = locked.packages[owner].id
-        owner_directory = locked.packages[owner].path
         edge_count = locked.packages[owner].edge_count
     }
     // On the heap: a package can export thousands of modules.
-    visible: *string = cast(*string)PkgAllocZero(4096 * cast(u64)size_of(string))
-    if visible == null { return false }
-    visible_count: s32 = 0
+    shorts: *PkgShortEdge = cast(*PkgShortEdge)PkgAllocZero(4096 *
+        cast(u64)size_of(PkgShortEdge))
+    if shorts == null { return false }
+    short_count: s32 = 0
     index: s32 = 0
     while index < owner_manifest.dependency_count {
         dep: *PkgDependency = *owner_manifest.dependencies[index]
@@ -158,6 +170,8 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
         alias_index: s32 = 0
         while alias_index < dep.alias_count {
             if !PkgFindExport(target_manifest, dep.aliases[alias_index].name) {
+                PkgFail(PkgJoin3("module_aliases names ", dep.aliases[alias_index].name,
+                    ", which the dependency does not export"))
                 return false
             }
             alias_index += 1
@@ -165,38 +179,48 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
         export_index: s32 = 0
         while export_index < target_manifest.export_count {
             exported: PkgNamedValue = target_manifest.exports[export_index]
+            export_index += 1
             source: string = PkgCanonical(PkgJoin3(
                 locked.packages[target].path, "/", exported.value))
             internal: string = PkgModuleByPath(*graph.sets[target + 1], source)
             if internal.count == 0 { return false }
-            name: string = PkgAliasName(dep, exported.name)
-            if PkgHasModule(*graph.sets[owner + 1], name) {
-                PkgFail(PkgJoin3("module ", name,
-                    " conflicts with dependency; set module_aliases"))
-                return false
-            }
-            alias_index = 0
-            while alias_index < visible_count {
-                if visible[alias_index] == name {
-                    PkgFail(PkgJoin3("module ", name,
-                        " is exported by both dependencies; set module_aliases"))
-                    return false
-                }
-                alias_index += 1
-            }
-            if visible_count >= 4096 { return false }
-            visible[visible_count] = name
-            visible_count += 1
+            qualified: string = PkgJoin3(dep.alias, "/", exported.name)
             PkgAppend(builder, PkgJoin3("D\t", owner_id, "\t"))
-            PkgAppend(builder, name)
-            PkgAppend(builder, "\t")
-            PkgAppend(builder, target_id)
-            PkgAppend(builder, "\t")
-            PkgAppend(builder, internal)
-            PkgAppend(builder, "\n")
-            export_index += 1
+            PkgAppend(builder, PkgJoin3(qualified, "\t", target_id))
+            PkgAppend(builder, PkgJoin3("\t", internal, "\n"))
+            name: string = PkgAliasName(dep, exported.name)
+            if PkgHasModule(*graph.sets[owner + 1], name) { continue }
+            found: s32 = 0
+            while found < short_count && shorts[found].name != name { found += 1 }
+            if found < short_count {
+                shorts[found].qualified = PkgJoin3(shorts[found].qualified,
+                    ", ", qualified)
+                shorts[found].count += 1
+                continue
+            }
+            if short_count >= 4096 { return false }
+            shorts[short_count].name = name
+            shorts[short_count].target = target_id
+            shorts[short_count].internal = internal
+            shorts[short_count].qualified = qualified
+            shorts[short_count].count = 1
+            short_count += 1
         }
         index += 1
+    }
+    index = 0
+    while index < short_count {
+        edge: *PkgShortEdge = *shorts[index]
+        index += 1
+        if edge.count > 1 {
+            PkgAppend(builder, PkgJoin3("A\t", owner_id, "\t"))
+            PkgAppend(builder, PkgJoin3(edge.name, "\t", edge.qualified))
+            PkgAppend(builder, "\n")
+            continue
+        }
+        PkgAppend(builder, PkgJoin3("D\t", owner_id, "\t"))
+        PkgAppend(builder, PkgJoin3(edge.name, "\t", edge.target))
+        PkgAppend(builder, PkgJoin3("\t", edge.internal, "\n"))
     }
     return true
 }

@@ -737,24 +737,39 @@ parse_import_line(ZirModule *module, const char *path, int line_no,
                 copy_text(target, sizeof(target), name);
             kind = named ? ZIR_IMPORT_MODULE : ZIR_IMPORT_OPEN;
         }
-    } else if(parse_symbol_before_colons(body, name, sizeof(name)))
-        kind = ZIR_IMPORT_MODULE;
-    else {
-        copy_text(name, sizeof(name), target);
-        kind = ZIR_IMPORT_OPEN;
+    }
+    /* A package-qualified import names the dependency before the module,
+     * such as #import "kryon/Widgets" or #import "std/text". */
+    const char *module_part = signature[0] == '\0' && strchr(target, '/') != NULL ?
+                              strchr(target, '/') + 1 : target;
+    if(signature[0] == '\0') {
+        if(parse_symbol_before_colons(body, name, sizeof(name)))
+            kind = ZIR_IMPORT_MODULE;
+        else {
+            copy_text(name, sizeof(name), module_part);
+            kind = ZIR_IMPORT_OPEN;
+        }
     }
     if(kind == ZIR_IMPORT_MODULE &&
        !isalpha((unsigned char)name[0]) && name[0] != '_')
         die_at(Span(path, line_no, 1),
                "import alias must start with a letter or underscore");
-    if(target[0] == '\0' ||
-       (!isalpha((unsigned char)target[0]) && target[0] != '_'))
-        die_at(Span(path, line_no, 1),
-               "Jai #import requires a module identifier; use #import, file for paths");
-    for(const unsigned char *p = (const unsigned char *)target; *p; p++)
-        if(!source_identifier_byte(*p))
+    for(const char *part = target; part != NULL;
+        part = part == module_part ? NULL : module_part) {
+        if(!isalpha((unsigned char)part[0]) && part[0] != '_')
             die_at(Span(path, line_no, 1),
-                   "Jai #import requires a module identifier; use #import, file for paths");
+                   "Jai #import requires a module identifier or PACKAGE/Module; "
+                   "use #import, file for paths");
+        for(const unsigned char *p = (const unsigned char *)part;
+            *p && *p != '/'; p++)
+            if(!source_identifier_byte(*p))
+                die_at(Span(path, line_no, 1),
+                       "Jai #import requires a module identifier or PACKAGE/Module; "
+                       "use #import, file for paths");
+        if(part == module_part && strchr(part, '/') != NULL)
+            die_at(Span(path, line_no, 1),
+                   "a package import has one '/', as in #import \"PACKAGE/Module\"");
+    }
     /* A private-scope include belongs in the implementation, not the
      * generated header. File imports retain their source path in signature. */
     {

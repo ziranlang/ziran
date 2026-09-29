@@ -177,7 +177,8 @@ bundle and through native C, C++, and Go mocks.
 Native Linux C builds can import `std/file_linux.zi` for positional byte I/O,
 `std/binary_linux.zi` for little-endian numbers, `std/date_time_linux.zi` for
 Unix time, `std/random_linux.zi` for operating-system secure randomness, and
-`std/byte_text_linux.zi` for borrowed byte-to-text views.
+`std/byte_text_linux.zi` for borrowed byte-to-text views. `std/socket_linux.zi`
+opens literal-IPv4 TCP sockets with bounded polling, cancellation, and I/O.
 The file module can create a private file exclusively, sync its contents, and
 publish it through a hard link that fails if the destination already exists.
 `std/byte_text_linux.zi` also borrows caller-owned C strings and byte buffers;

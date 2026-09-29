@@ -1,0 +1,27 @@
+#import "socket_linux"
+
+#program_export
+SelfTest :: (port: u16) -> s32 {
+    address: [4]u8 = .[127, 0, 0, 1]
+    socket: LinuxSocket = OpenTCPv4(address, port, 3000)
+    if !socket.valid || socket.error != 0 { return 1 }
+
+    request: [4]u8 = .[68, 69, 88, 33]
+    sent: s64 = SocketSendAll(socket, request[:], 3000)
+    if sent != 4 { return 2 }
+
+    response: [7]u8
+    received: s64 = SocketReceive(socket, response[:], 3000)
+    if received != 7 || response[0] != cast(u8)73 ||
+        response[1] != cast(u8)90 ||
+        response[2] != cast(u8)73 ||
+        response[3] != cast(u8)82 ||
+        response[4] != cast(u8)65 ||
+        response[5] != cast(u8)78 ||
+        response[6] != cast(u8)33 { return 3 }
+
+    if !SocketCancel(socket) || !SocketClose(*socket) { return 4 }
+    if socket.valid || socket.fd != -1 { return 5 }
+
+    return 42
+}

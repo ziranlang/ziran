@@ -17,8 +17,12 @@ Readers :: struct {
     indirect: ReadIndirect
 }
 
+PublicValue :: 40;
+#scope_file
+PrivateValue :: 2;
+#scope_export
 #program_export
-Answer :: () -> s32 { return 42 }
+Answer :: () -> s32 { return PublicValue + PrivateValue }
 EOF
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/readers.zi"

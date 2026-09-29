@@ -32,6 +32,25 @@ EOF
 
 test -f "$work/generated/main.c"
 test -f "$work/generated/zir_plan9_runtime.h"
+
+# The source includes its generated header. Native 8c rejects repeated
+# macro definitions even when their replacement text is identical.
+cat > "$work/src/constants.zi" <<'EOF'
+PublicValue :: 40;
+#scope_file
+PrivateValue :: 2;
+#scope_export
+#program_export
+ConstantAnswer :: () -> s32 { return PublicValue + PrivateValue }
+EOF
+"$ziran" build --target=plan9-c --root "$work/src" \
+    -o "$work/constants" "$work/src/constants.zi"
+rg -q '^#define PublicValue 40$' "$work/constants/constants.h"
+rg -q '^#define .*PrivateValue 2$' "$work/constants/constants.h"
+if rg -q '^#define .*Value ' "$work/constants/constants.c"; then
+    echo 'plan9-c source repeats constants from its own header' >&2
+    exit 1
+fi
 if rg -n '^#include <(stdint|stddef|stdbool|stdlib)\.h>' \
         "$work/generated"/*.c "$work/generated"/*.h; then
     echo 'plan9-c output retained hosted C headers' >&2

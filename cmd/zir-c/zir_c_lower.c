@@ -1144,15 +1144,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             continue;
         fprintf(c, "#include \"%s.h\"\n", imp->target);
     }
-    /* Module constants lowered to C preprocessor constants. */
-    for(i = 0; i < m->define_count; i++) {
-        const ZirDefine *d = &m->defines[i];
-        char name[LOWER_NAME_MAX];
-        TargetDefineName(m, ZIR_C, d->name, name, sizeof(name));
-        if(!rewrite_body2(m, NULL, 0, d->value, buffers->value, sizeof(buffers->value)))
-            c_rewrite_overflow(m->source_path, d->span.line);
-        fprintf(c, "#define %s %s\n", name, buffers->value);
-    }
+    /* The module header already supplies its public and private constants.
+     * Repeating them here is rejected by native Plan 9's preprocessor. */
     /* #foreign imports: emit C prototypes parsed from the raw signature
      * ('name :: (args) -> Ret #foreign library;'). */
     for(i = 0; i < m->import_count; i++) {

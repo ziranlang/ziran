@@ -761,6 +761,18 @@ classify_extern_target(const char *target, char *symbol, size_t symbol_size,
     }
     dot = strrchr(target, '.');
     slash = strrchr(target, '/');
+    if(strncmp(target, "go:", 3) == 0) {
+        if(dot == NULL || dot == target + 3 || !is_c_ident(dot + 1))
+            die_at(Span(path, line_no, 1),
+                   "Go extern target requires a package path and symbol");
+        for(const unsigned char *p = (const unsigned char *)target + 3;
+            p < (const unsigned char *)dot; p++)
+            if(!(isalnum(*p) || *p == '_' || *p == '/' || *p == '.' ||
+                 *p == '-'))
+                die_at(Span(path, line_no, 1),
+                       "Go extern package path contains an invalid character");
+        return ZIR_EXTERN_GO;
+    }
     if(dot != NULL && slash != NULL && slash < dot)
         return ZIR_EXTERN_GO;
     return ZIR_EXTERN_HOST;

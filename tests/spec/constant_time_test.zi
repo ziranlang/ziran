@@ -19,5 +19,12 @@ SelfTest :: () -> s32 {
     empty: [0]u8
     if !ConstantTimeEqual(empty[:], empty[:]) { return 5 }
 
+    if !ConstantTimeTextEqual("", "") { return 6 }
+    if !ConstantTimeTextEqual("equal", "equal") { return 7 }
+    if ConstantTimeTextEqual("equal", "equam") { return 8 }
+    if ConstantTimeTextEqual("equal", "Equal") { return 9 }
+    if ConstantTimeTextEqual("equal", "equa") { return 10 }
+    if ConstantTimeTextEqual("", "x") { return 11 }
+
     return 42
 }

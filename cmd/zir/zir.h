@@ -228,7 +228,7 @@ typedef struct ZirType {
     char name[ZIR_NAME_MAX];
     char body[ZIR_TEXT_MAX * 2];
     char template_params[ZIR_NAME_MAX]; /* generic record parameters */
-    char template_name[ZIR_NAME_MAX]; /* unresolved explicit specialization */
+    char template_name[ZIR_NAME_MAX]; /* specialization or checked direct origin */
     char template_args[ZIR_TEXT_MAX];
     int is_procedure_type; /* named procedure type; body holds parameters */
     int is_c_call; /* procedure type uses the native C callback ABI */
@@ -305,6 +305,10 @@ typedef struct ZirModule {
     int function_count;
     int function_cap;
 } ZirModule;
+
+/* Direct applications share identity only for the same template and arguments. */
+int same_type_application(const ZirModule *target_owner, const ZirType *target,
+                          const ZirModule *source_owner, const ZirType *source);
 
 typedef struct ZirProgram {
     ZirModule *modules;

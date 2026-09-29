@@ -166,6 +166,7 @@ typedef struct VmTypePath {
 const ZirImport *host_import(const ZirModule *module, const char *name);
 const ZirFunction *bound_provider(const ZirProgram *program, const ZirImport *import, const ZirModule **owner);
 int same_bound_type(const ZirModule *caller, const ZirModule *provider, const char *type);
+int same_record_type(const ZirModule *owner, const ZirType *type, const Record *record);
 ValueKind value_kind(const char *type);
 int scalar_type(const char *type);
 int portable_union(const ZirModule *module, const ZirType *record);

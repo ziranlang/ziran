@@ -12,3 +12,15 @@ ConstantTimeEqual :: (left: []u8, right: []u8) -> bool {
     }
     return difference == cast(u8)0
 }
+
+// Text carries arbitrary bytes without a mutable borrowed view. Compare
+// every byte of equal-length tags just as for caller-owned byte spans.
+ConstantTimeTextEqual :: (left: string, right: string) -> bool {
+    difference: u8 = cast(u8)(left.count != right.count)
+    index: s64 = 0
+    while index < left.count && index < right.count {
+        difference |= left[index] ^ right[index]
+        index += 1
+    }
+    return difference == cast(u8)0
+}

@@ -210,9 +210,12 @@ same_verified_type(const ZirModule *declaration_module,
         return declared_count == checked_count &&
                same_verified_type(declaration_module, declared_element,
                                   use_module, checked_element);
-    const ZirType *source = FindType(declaration_module, declared, NULL);
-    const ZirType *resolved = FindType(use_module, checked, NULL);
-    return source != NULL && source == resolved;
+    const ZirModule *source_owner = NULL, *resolved_owner = NULL;
+    const ZirType *source = FindType(declaration_module, declared, &source_owner);
+    const ZirType *resolved = FindType(use_module, checked, &resolved_owner);
+    return source != NULL &&
+           (source == resolved ||
+            same_type_application(source_owner, source, resolved_owner, resolved));
 }
 /* Buffers verify_expression keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */

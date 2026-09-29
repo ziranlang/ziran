@@ -897,7 +897,8 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         if(strcmp(foreign_name, name) != 0)
             die_at(Span(path, line_no, 1),
                    "host capability cannot rename a #foreign symbol");
-    } else if(strchr(library_target, '/') != NULL) {
+    } else if(strncmp(library_target, "go:", 3) == 0 ||
+              strchr(library_target, '/') != NULL) {
         if(snprintf(buffers->target, sizeof(buffers->target), "%s.%s", library_target,
                     foreign_name) >= (int)sizeof(buffers->target))
             die_at(Span(path, line_no, 1), "#foreign target is too long");

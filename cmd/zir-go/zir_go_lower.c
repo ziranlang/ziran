@@ -427,13 +427,17 @@ extern_direct_go_target(const char *target, char *import_path,
 
     if(target == NULL)
         return 0;
+    int explicit_go = strncmp(target, "go:", 3) == 0;
+    if(explicit_go)
+        target += 3;
     dot = strrchr(target, '.');
     slash = strrchr(target, '/');
-    if(dot == NULL || slash == NULL || slash > dot)
+    if(dot == NULL || (!explicit_go && slash == NULL) ||
+       (slash != NULL && slash > dot))
         return 0;
     snprintf(import_path, import_path_size, "%.*s", (int)(dot - target),
              target);
-    base = slash + 1;
+    base = slash != NULL ? slash + 1 : target;
     while(base < dot && n + 1 < alias_size) {
         char c = *base++;
 
@@ -1381,6 +1385,59 @@ rewrite_global_field(const ZirType *record, const char *source,
     (void)context;
     go_field_ident(source, out, size);
 }
+
+/* Checked modules each instantiate Vec(u8), Option(T), and other direct type
+ * applications locally. They share one Go package and one synthesized name;
+ * emit a matching concrete type once, without hiding conflicting layouts. */
+static int
+synthetic_type_emitted(const ZirProgram *const *programs, int program_index,
+                       int module_index, const ZirType *type,
+                       const char *native)
+{
+    if(!type->is_synthetic_application)
+        return 0;
+    const ZirModule *current = type_scope;
+    for(int p = 0; p <= program_index; p++) {
+        int end = p == program_index ? module_index : programs[p]->module_count;
+        for(int m = 0; m < end; m++) {
+            const ZirModule *previous = &programs[p]->modules[m];
+            for(int t = 0; t < previous->type_count; t++) {
+                const ZirType *candidate = &previous->types[t];
+                char candidate_name[ZIR_GO_NAME_MAX];
+                if(!candidate->is_synthetic_application)
+                    continue;
+                NativeTypeName(previous, candidate, candidate_name,
+                               sizeof(candidate_name));
+                if(strcmp(candidate_name, native) != 0)
+                    continue;
+                size_t left_offset = 0, right_offset = 0;
+                ZirTypeField left, right;
+                int left_status, right_status;
+                while(1) {
+                    left_status = TypeNextField(type, &left_offset, &left);
+                    right_status = TypeNextField(candidate, &right_offset, &right);
+                    if(left_status != 1 || right_status != 1)
+                        break;
+                    char left_type[ZIR_GO_NAME_MAX], right_type[ZIR_GO_NAME_MAX];
+                    type_scope = current;
+                    require_go_type(left.type, left_type, sizeof(left_type), type->span);
+                    type_scope = previous;
+                    require_go_type(right.type, right_type, sizeof(right_type), candidate->span);
+                    type_scope = current;
+                    if(strcmp(left.name, right.name) != 0 ||
+                       strcmp(left_type, right_type) != 0)
+                        break;
+                }
+                if(left_status == 0 && right_status == 0)
+                    return 1;
+                Diagnostic(type->span, "zir_go.type",
+                           "conflicting concrete Go type: %s", native);
+                exit(1);
+            }
+        }
+    }
+    return 0;
+}
 /* Buffers go_lower keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct GoLowerBuffers {
@@ -1561,6 +1618,8 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 const ZirType *t = &m->types[i];
                 char native[ZIR_GO_NAME_MAX];
                 NativeTypeName(m, t, native, sizeof(native));
+                if(synthetic_type_emitted(progs, pi, mi, t, native))
+                    continue;
                 if(t->is_union) {
                     size_t offset = 0;
                     ZirTypeField field;

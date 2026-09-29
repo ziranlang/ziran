@@ -1,0 +1,69 @@
+#import "vec"
+
+sha256 :: #system_library "go:crypto/sha256";
+Sum256 :: (value: []u8) -> [32]u8 #foreign sha256 "Sum256";
+
+DigestResult :: struct {
+    value: string
+    error: string
+}
+
+// HMAC over arbitrary text bytes. SHA-256 itself comes from Go's crypto
+// package; this module owns only RFC 2104's key normalization and pads.
+HMACSHA256 :: (key: []u8, message: string) -> DigestResult {
+    result: DigestResult
+    result.error = "digest allocation failed"
+    normalized: [64]u8
+    index: s64 = 0
+    if key.count > 64 {
+        digest: [32]u8 = Sum256(key)
+        while index < 32 {
+            normalized[index] = digest[index]
+            index += 1
+        }
+    } else {
+        while index < key.count {
+            normalized[index] = key[index]
+            index += 1
+        }
+    }
+    inner: Vec(u8)
+    index = 0
+    while index < 64 {
+        if !VecPush(inner, normalized[index] ^ cast(u8)54) {
+            return result
+        }
+        index += 1
+    }
+    index = 0
+    while index < message.count {
+        if !VecPush(inner, message[index]) {
+            return result
+        }
+        index += 1
+    }
+    innerDigest: [32]u8 = Sum256(VecSlice(inner, 0, inner.count))
+    outer: [96]u8
+    index = 0
+    while index < 64 {
+        outer[index] = normalized[index] ^ cast(u8)92
+        index += 1
+    }
+    index = 0
+    while index < 32 {
+        outer[64 + index] = innerDigest[index]
+        index += 1
+    }
+    digest: [32]u8 = Sum256(outer[:])
+    output: Vec(u8)
+    index = 0
+    while index < 32 {
+        if !VecPush(output, digest[index]) {
+            return result
+        }
+        index += 1
+    }
+    result.value = BuilderFinish(output)
+    result.error = ""
+    return result
+}

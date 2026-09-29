@@ -99,6 +99,17 @@ libc :: #system_library "libc";
 Abs :: (value: s32) -> s32 #foreign libc "abs";
 ```
 
+For a Go package, use an explicit `go:` library path. This also supports
+standard packages whose import paths contain no slash:
+
+```jai
+strings :: #system_library "go:strings";
+TrimSpace :: (value: string) -> string #foreign strings "TrimSpace";
+```
+
+The Go target emits a direct package call. These declarations remain Go
+imports in saved `.zir`; they are not portable host capabilities.
+
 Ziran also resolves `host_api :: #system_library "host_api";` to its host
 capability bridge. `ziran bundle --bind caller:capability=provider:function`
 can satisfy a portable host capability with an exported Ziran function in the

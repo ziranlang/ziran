@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 41 now exists for
+This is the target contract. An experimental binary version 44 now exists for
 the tested C/C++/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -31,7 +31,7 @@ unrelated imported function with the same type shape.
 `.zir` is the compiler interchange and cache format. Portable distribution
 uses a linked `.zib`, not an unlinked `.zir`. See [Bundle format](ZIB.md).
 
-## Experimental version 41
+## Experimental version 44
 
 The current writer emits `ZIR` followed by a zero byte, a little-endian
 version number, and length-prefixed checked module records. Strings and
@@ -68,7 +68,10 @@ Variant fields, generated variant function slots,
 retained-state fields, and unused statement callee/argument text are absent
 from the IR schema.
 Generic record templates retain their parameter and field declarations. Explicit
-specializations are stored as ordinary concrete types.
+specializations are stored as ordinary concrete types. Direct applications
+such as `Vec(u8)` retain their template and argument identities in version 44,
+so checked types have the same identity across importing modules and saved IR.
+Older binary versions are rejected.
 Record bodies retain `using` on contained fields. A checked member expression
 that names a promoted field records its concrete contained-field path; the
 reader verifies each intermediate field is a `using` field. Native backends

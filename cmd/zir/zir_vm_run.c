@@ -283,7 +283,7 @@ host_argument(const ZirModule *module, const char *type, Value value,
     const ZirType *record = FindType(module, type, &owner);
     if(record != NULL && !record->is_enum) {
         if(value.kind != VALUE_RECORD || value.record == NULL ||
-           value.record->type != record ||
+           !same_record_type(owner, record, value.record) ||
            value.record->field_count < 0 ||
            value.record->field_count > VM_MAX_FIELDS)
             return 0;

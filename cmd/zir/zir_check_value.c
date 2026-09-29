@@ -993,9 +993,14 @@ same_declared_type(const ZirModule *module, const char *to,
                    const char *from, int depth)
 {
     if(depth > 16) return 0;
-    const ZirType *target = FindType(module, to, NULL);
-    const ZirType *source = FindType(module, from, NULL);
+    const ZirModule *target_owner = NULL, *source_owner = NULL;
+    const ZirType *target = FindType(module, to, &target_owner);
+    const ZirType *source = FindType(module, from, &source_owner);
     if(target != NULL && target == source) return 1;
+    if(target != NULL && source != NULL &&
+       same_type_application(target_owner ? target_owner : module, target,
+                             source_owner ? source_owner : module, source))
+        return 1;
     char to_element[ZIR_NAME_MAX], from_element[ZIR_NAME_MAX];
     int to_capacity, from_capacity;
     if(ArrayElementType(to, to_element, sizeof(to_element), &to_capacity) &&

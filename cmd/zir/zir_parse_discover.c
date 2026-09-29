@@ -1375,8 +1375,10 @@ InstantiateGenericRecord(ZirType *instance, const ZirType *generic)
             instance->is_owned_vec = 1;
     }
     instance->is_type_instance = 0;
-    instance->template_name[0] = '\0';
-    instance->template_args[0] = '\0';
+    if(!instance->is_synthetic_application) {
+        instance->template_name[0] = '\0';
+        instance->template_args[0] = '\0';
+    }
     return 1;
 }
 /* Buffers read_lowered_source keeps on the heap so deep nesting fits the stack;

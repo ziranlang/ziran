@@ -1459,6 +1459,12 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
             for(int t = 0; t < module->type_count; t++) {
                 if(!keep_types[m][t])
                     continue;
+                if(module->types[t].is_synthetic_application &&
+                   !mark_type(program, module, module->types[t].template_name,
+                              keep_types, &changed))
+                    goto failed;
+                if(module->types[t].is_record_template)
+                    continue;
                 if(module->types[t].is_procedure_type) {
                     memset(&buffers->signature, 0, sizeof(buffers->signature));
                     if(strlen(module->types[t].body) >= sizeof(buffers->signature.args))

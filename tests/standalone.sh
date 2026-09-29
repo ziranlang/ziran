@@ -37,7 +37,7 @@ python3 - "$work/ir/hello.zir" <<'PY'
 from pathlib import Path
 import sys
 data = Path(sys.argv[1]).read_bytes()
-assert data[:8] == b'ZIR\0\x2b\0\0\0', data[:8]
+assert data[:8] == b'ZIR\0\x2c\0\0\0', data[:8]
 PY
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/hello.zi"
 test -s "$work/c/hello.c"

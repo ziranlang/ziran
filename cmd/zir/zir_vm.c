@@ -42,9 +42,19 @@ int
 same_bound_type(const ZirModule *caller, const ZirModule *provider,
                 const char *type)
 {
-    const ZirType *left = FindType(caller, type, NULL);
-    const ZirType *right = FindType(provider, type, NULL);
-    return left == right;
+    const ZirModule *left_owner = NULL, *right_owner = NULL;
+    const ZirType *left = FindType(caller, type, &left_owner);
+    const ZirType *right = FindType(provider, type, &right_owner);
+    return left == right ||
+           same_type_application(left_owner, left, right_owner, right);
+}
+
+int
+same_record_type(const ZirModule *owner, const ZirType *type, const Record *record)
+{
+    return type != NULL && record != NULL &&
+           (type == record->type ||
+            same_type_application(owner, type, record->owner, record->type));
 }
 
 ValueKind
@@ -560,7 +570,8 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
                     value.array->elements[i], element);
             return (Value){.kind = VALUE_ARRAY, .array = copy};
         }
-        const ZirType *record = FindType(module, type, NULL);
+        const ZirModule *owner = NULL;
+        const ZirType *record = FindType(module, type, &owner);
         if(record != NULL && record->is_procedure_type &&
            value.kind == VALUE_SLOT && value.slot_type == record)
             return value;
@@ -572,7 +583,7 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
         }
         if(record != NULL && !record->is_enum && !record->is_procedure_type &&
            !record->is_extern && value.kind == VALUE_RECORD &&
-           value.record != NULL && value.record->type == record)
+           same_record_type(owner, record, value.record))
             return VecElementType(module, type, NULL, 0) ?
                 value : clone_value(vm, value, 0);
         vm->failed = 1;
@@ -668,9 +679,10 @@ coerce_expression(Vm *vm, const ZirModule *module,
                   Value value, const char *type)
 {
     if(value.kind == VALUE_RECORD && value.record != NULL) {
-        const ZirType *record = FindType(module, type, NULL);
+        const ZirModule *owner = NULL;
+        const ZirType *record = FindType(module, type, &owner);
         if(record != NULL && !record->is_enum && !record->is_procedure_type &&
-           !record->is_extern && value.record->type == record)
+           !record->is_extern && same_record_type(owner, record, value.record))
             return value;
     }
     if(value.kind == VALUE_ARRAY && value.array != NULL) {

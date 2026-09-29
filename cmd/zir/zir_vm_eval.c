@@ -882,7 +882,8 @@ eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
                 int second = frame->function->exprs[first].next_sibling;
                 Value *other = assignment_slot(frame, second, depth + 1);
                 if(other == NULL || other->kind != VALUE_RECORD ||
-                   other->record->type != vec->record->type) {
+                   !same_record_type(vec->record->owner, vec->record->type,
+                                     other->record)) {
                     frame->vm->failed = 1;
                     break;
                 }
@@ -899,7 +900,8 @@ eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
                 Value *src_data, *src_count, *src_capacity;
                 Array *copy = NULL;
                 if(source == NULL || source->kind != VALUE_RECORD ||
-                   source->record->type != vec->record->type) {
+                   !same_record_type(vec->record->owner, vec->record->type,
+                                     source->record)) {
                     frame->vm->failed = 1;
                     break;
                 }

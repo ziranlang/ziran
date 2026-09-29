@@ -42,7 +42,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 43u
+#define ZIR_FORMAT_VERSION 44u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -124,6 +124,8 @@ static const Field law_waiver_fields[] = {
 static const Field type_fields[] = {
     STRING_FIELD(ZirType, name), STRING_FIELD(ZirType, body),
     STRING_FIELD(ZirType, template_params),
+    STRING_FIELD(ZirType, template_name), STRING_FIELD(ZirType, template_args),
+    INTEGER_FIELD(ZirType, is_synthetic_application),
     INTEGER_FIELD(ZirType, is_procedure_type),
     INTEGER_FIELD(ZirType, is_c_call),
     STRING_FIELD(ZirType, procedure_return_type),
@@ -606,8 +608,15 @@ validate_program(const ZirProgram *program)
                 (type->is_enum || type->is_procedure_type ||
                  type->is_record_template || type->is_extern ||
                  type->is_owned_vec)) ||
-               type->is_type_instance || type->template_name[0] ||
-               type->template_args[0] ||
+               type->is_type_instance ||
+               (type->is_synthetic_application != 0 &&
+                type->is_synthetic_application != 1) ||
+               (type->is_synthetic_application &&
+                (type->is_record_template || type->is_enum ||
+                 type->is_procedure_type || !type->template_name[0] ||
+                 !type->template_args[0])) ||
+               (!type->is_synthetic_application &&
+                (type->template_name[0] || type->template_args[0])) ||
                (type->is_record_template &&
                 (type->is_enum || type->is_procedure_type || type->is_extern ||
                  !type->template_params[0] || !type->body[0])) ||

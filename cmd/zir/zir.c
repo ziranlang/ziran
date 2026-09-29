@@ -1,5 +1,7 @@
 #include "zir.h"
 #include "zir_parse.h"
+#include "zir_check.h"
+#include "zir_text.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -1563,4 +1565,43 @@ GeneratedOutputPrune(const char *out_dir, const char *marker)
     }
     closedir(directory);
     return failed ? -1 : 0;
+}
+
+int
+same_type_application(const ZirModule *target_owner, const ZirType *target,
+                      const ZirModule *source_owner, const ZirType *source)
+{
+    if(target != NULL && source != NULL && target_owner != NULL &&
+       source_owner != NULL && target->is_synthetic_application &&
+       source->is_synthetic_application &&
+       strcmp(target->body, source->body) == 0) {
+        const ZirType *target_template = FindType(target_owner,
+                                                  target->template_name, NULL);
+        const ZirType *source_template = FindType(source_owner,
+                                                  source->template_name, NULL);
+        /* A direct application has one identity across its consumers. Keep
+         * separate templates and same-spelled local argument types nominal. */
+        if(target_template != NULL && target_template == source_template) {
+            char target_args[8][ZIR_NAME_MAX], source_args[8][ZIR_NAME_MAX];
+            int target_count = split_top_level(target->template_args,
+                                              target_args[0], 8, ZIR_NAME_MAX);
+            int source_count = split_top_level(source->template_args,
+                                              source_args[0], 8, ZIR_NAME_MAX);
+            int same = target_count == source_count;
+            for(int i = 0; i < target_count && same; i++) {
+                const char *target_scalar = ScalarType(target_args[i]);
+                const char *source_scalar = ScalarType(source_args[i]);
+                if(*target_scalar || *source_scalar)
+                    same = strcmp(target_scalar, source_scalar) == 0;
+                else {
+                    const ZirType *a = FindType(target_owner, target_args[i], NULL);
+                    const ZirType *b = FindType(source_owner, source_args[i], NULL);
+                    same = a != NULL && a == b;
+                }
+            }
+            if(same)
+                return 1;
+        }
+    }
+    return 0;
 }

@@ -156,6 +156,8 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                             if(other->is_procedure_type ||
                                other->is_record_template || other->is_extern ||
                                strcmp(type->name, other->name)) continue;
+                            if(same_type_application(module, type, other_module, other))
+                                continue;
                             type->native_name_mangled = 1;
                             other->native_name_mangled = 1;
                         }

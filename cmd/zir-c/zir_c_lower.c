@@ -1010,6 +1010,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             if(!ty->is_public) fputs("#endif\n", h);
             continue;
         }
+        if(ty->is_synthetic_application)
+            fprintf(h, "#ifndef ZIRAN_CONCRETE_%s\n#define ZIRAN_CONCRETE_%s\n",
+                    native, native);
         fprintf(h, "\n%s%s %s {\n",
                 TypeHasZeroArray(m, ty->name) ? "__extension__ " : "",
                 ty->is_union ? "union" : "struct", native);
@@ -1061,6 +1064,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             }
         }
         fprintf(h, "};\n");
+        if(ty->is_synthetic_application) fputs("#endif\n", h);
         if(!ty->is_public) fputs("#endif\n", h);
     }
     /* Public file-scope variables have external linkage: declare extern in the header,

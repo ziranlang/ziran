@@ -843,6 +843,34 @@ void
 slot_native_type(const char *source, ZirTarget target, char *out, size_t size)
 {
     if(*source == '*') {
+        /* Callback parameters are abstract C declarators. A pointer to an
+         * array must keep its parentheses and element stride: T (*)[N],
+         * rather than the invalid [N]T* or an array of pointers. */
+        const char *array = source;
+        int pointers = 0;
+        while(*array == '*') {
+            pointers++;
+            array = skip_ws(array + 1);
+        }
+        if((target == ZIR_C || target == ZIR_CPP) && *array == '[') {
+            char dimensions[ZIR_NAME_MAX], element[ZIR_NAME_MAX];
+            const char *end = array;
+            while(*end == '[') {
+                const char *close = strchr(end, ']');
+                if(close == NULL)
+                    break;
+                end = skip_ws(close + 1);
+            }
+            size_t length = (size_t)(end - array);
+            if(length >= sizeof(dimensions))
+                length = sizeof(dimensions) - 1;
+            memcpy(dimensions, array, length);
+            dimensions[length] = '\0';
+            slot_native_type(end, target, element, sizeof(element));
+            format(out, size, "%s (%.*s)%s", element, pointers,
+                   "****************************************************************", dimensions);
+            return;
+        }
         char pointee[ZIR_NAME_MAX];
         slot_native_type(skip_ws(source + 1), target, pointee, sizeof(pointee));
         format(out, size, "%s*", pointee);

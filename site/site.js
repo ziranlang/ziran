@@ -32,23 +32,46 @@
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closeMenu();
   });
-  var supportNote = document.querySelector('.support-note');
-  document.querySelectorAll('[data-copy]').forEach(function (button) {
-    button.addEventListener('click', function () {
-      var label = button.getAttribute('aria-label').replace('Copy ', '');
-      if (!navigator.clipboard) {
-        if (supportNote) supportNote.textContent = 'Select the address to copy it, or scan its QR code.';
-        return;
-      }
-      navigator.clipboard.writeText(button.dataset.copy).then(function () {
-        button.classList.add('is-copied');
-        if (supportNote) supportNote.textContent = label.charAt(0).toUpperCase() + label.slice(1) + ' copied.';
-        setTimeout(function () { button.classList.remove('is-copied'); }, 1800);
-      }, function () {
-        if (supportNote) supportNote.textContent = 'Select the address to copy it, or scan its QR code.';
+  var dialog = document.querySelector('.support-dialog');
+  if (dialog && dialog.showModal) {
+    var dialogTitle = dialog.querySelector('h3');
+    var dialogQr = dialog.querySelector('.support-qr');
+    var dialogAddress = dialog.querySelector('.support-full');
+    var copyButton = dialog.querySelector('.support-copy');
+    var copyStatus = dialog.querySelector('.support-status');
+    document.querySelectorAll('.support-address').forEach(function (button) {
+      button.addEventListener('click', function () {
+        dialogTitle.textContent = button.dataset.coin;
+        dialogQr.src = button.dataset.qr;
+        dialogQr.alt = 'QR code for the ' + button.dataset.coin + ' address';
+        dialogAddress.textContent = button.dataset.address;
+        copyButton.textContent = 'Copy address';
+        copyStatus.textContent = '';
+        dialog.showModal();
+        dialog.focus();
       });
     });
-  });
+    copyButton.addEventListener('click', function () {
+      var address = dialogAddress.textContent;
+      function fallback() {
+        var range = document.createRange();
+        range.selectNodeContents(dialogAddress);
+        var selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        copyStatus.textContent = 'Address selected. Press Ctrl+C to copy it.';
+      }
+      if (!navigator.clipboard) { fallback(); return; }
+      navigator.clipboard.writeText(address).then(function () {
+        copyButton.textContent = 'Copied';
+        copyStatus.textContent = 'Address copied.';
+      }, fallback);
+    });
+    dialog.querySelector('.support-close').addEventListener('click', function () { dialog.close(); });
+    dialog.addEventListener('click', function (event) {
+      if (event.target === dialog) dialog.close();
+    });
+  }
   document.querySelectorAll('.article-body pre').forEach(function (block) {
     var button = document.createElement('button');
     button.type = 'button';

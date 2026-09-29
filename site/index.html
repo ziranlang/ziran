@@ -75,11 +75,19 @@
     <section class="support-section" id="support" aria-labelledby="support-title">
       <div class="section-heading"><p class="eyebrow">Support Ziran</p><h2 id="support-title">Help keep it <em>growing.</em></h2><p>Ziran is independent, open-source work. If it is useful to you, a contribution funds development, maintenance, and research.</p></div>
       <div class="support-grid">
-        <article><span class="support-label">Monero</span><button class="support-address" type="button" data-copy="48ms5LfFrPJ2LUvqP9Mm5BhDSnZnqu14jB8XpAukw3jDBKxRAxYvq3k4fEwXY7kCY3LrtycMUayJZR1YJuyvJHCDCcyw6pA" aria-label="Copy Monero address"><code>48ms5LfFrPJ2LUvqP9Mm5BhDSnZnqu14jB8XpAukw3jDBKxRAxYvq3k4fEwXY7kCY3LrtycMUayJZR1YJuyvJHCDCcyw6pA</code></button><details><summary>Show QR code</summary><img src="assets/support-monero.png" alt="QR code for the Monero address" width="172" height="172" loading="lazy"></details></article>
-        <article><span class="support-label">Bitcoin</span><button class="support-address" type="button" data-copy="bc1qxzcetg50f6epgddc09n82xqn3zswlmk44235y5" aria-label="Copy Bitcoin address"><code>bc1qxzcetg50f6epgddc09n82xqn3zswlmk44235y5</code></button><details><summary>Show QR code</summary><img src="assets/support-bitcoin.png" alt="QR code for the Bitcoin address" width="172" height="172" loading="lazy"></details></article>
-        <article><span class="support-label">Lightning</span><button class="support-address" type="button" data-copy="waozi@cake.cash" aria-label="Copy Lightning address"><code>waozi@cake.cash</code></button><details><summary>Show QR code</summary><img src="assets/support-lightning.png" alt="QR code for the Lightning address" width="172" height="172" loading="lazy"></details></article>
+        <article><span class="support-label">Monero</span><button class="support-address" type="button" data-coin="Monero" data-address="48ms5LfFrPJ2LUvqP9Mm5BhDSnZnqu14jB8XpAukw3jDBKxRAxYvq3k4fEwXY7kCY3LrtycMUayJZR1YJuyvJHCDCcyw6pA" data-qr="assets/support-monero.png" aria-haspopup="dialog" aria-label="Show Monero QR code and address"><code>48ms5LfFrPJ2LUvqP9Mm5BhDSnZnqu14jB8XpAukw3jDBKxRAxYvq3k4fEwXY7kCY3LrtycMUayJZR1YJuyvJHCDCcyw6pA</code><span class="support-hint">Show QR code →</span></button></article>
+        <article><span class="support-label">Bitcoin</span><button class="support-address" type="button" data-coin="Bitcoin" data-address="bc1qxzcetg50f6epgddc09n82xqn3zswlmk44235y5" data-qr="assets/support-bitcoin.png" aria-haspopup="dialog" aria-label="Show Bitcoin QR code and address"><code>bc1qxzcetg50f6epgddc09n82xqn3zswlmk44235y5</code><span class="support-hint">Show QR code →</span></button></article>
+        <article><span class="support-label">Lightning</span><button class="support-address" type="button" data-coin="Lightning" data-address="waozi@cake.cash" data-qr="assets/support-lightning.png" aria-haspopup="dialog" aria-label="Show Lightning QR code and address"><code>waozi@cake.cash</code><span class="support-hint">Show QR code →</span></button></article>
       </div>
-      <p class="support-note" role="status">Select an address to copy it, or scan its QR code.</p>
+      <dialog class="support-dialog" tabindex="-1" aria-labelledby="support-dialog-title">
+        <button class="support-close" type="button" aria-label="Close">×</button>
+        <p class="eyebrow">Support Ziran</p>
+        <h3 id="support-dialog-title">Monero</h3>
+        <img class="support-qr" src="assets/support-monero.png" alt="" width="220" height="220">
+        <code class="support-full"></code>
+        <button class="btn btn-primary support-copy" type="button">Copy address</button>
+        <p class="support-status" role="status"></p>
+      </dialog>
     </section>
   </main>
   <footer><div class="footer-top"><a class="brand" href="index.html"><img class="brand-icon" src="assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="get-started.html">Get started</a><a href="examples.html">Examples</a><a href="docs.html">Docs</a><a href="status.html">Status</a><a href="index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer>

@@ -139,6 +139,14 @@ field explicitly before reading the associated value.
 `PairNumberText :: Pair(s32, string)` to create a concrete record
 with `first: s32` and `second: string` fields.
 
+A polymorphic procedure binds its type parameter through a direct `$T`, a
+slice `[]$T`, or a pointer `*$T` parameter: `Sum :: (values: []$T) -> T`
+specializes for whatever element type the caller passes.
+
+`std/sort.zi` sorts any slice whose elements support `<` in place with
+`Sort(values[:])`, and searches a sorted slice with `LowerBound` and
+`BinarySearch`. Sorting allocates nothing and is not stable.
+
 `std/queue.zi` is an allocation-free bounded byte FIFO. Queue state is passed
 and returned by value, and every operation receives the caller-owned backing
 storage explicitly. Full pushes and empty pops are rejected without unwinding

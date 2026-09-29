@@ -1,0 +1,76 @@
+// Sorting and searching for slices of any type ordered by the < operator.
+// Sorting is an in-place heapsort: O(n log n) comparisons, no allocation, no
+// recursion, and not stable.
+#scope_export
+
+// Sorts values in ascending order.
+Sort :: (values: []$T) {
+    count: s64 = cast(s64)values.count
+    start: s64 = count / 2
+    while start > 0 {
+        start -= 1
+        SortSiftDown(values, start, count)
+    }
+    end: s64 = count
+    while end > 1 {
+        end -= 1
+        saved: T = values[0]
+        values[0] = values[end]
+        values[end] = saved
+        SortSiftDown(values, 0, end)
+    }
+}
+
+// Reports whether values are in ascending order.
+IsSorted :: (values: []$T) -> bool {
+    index: s64 = 1
+    while index < cast(s64)values.count {
+        if values[index] < values[index - 1] { return false }
+        index += 1
+    }
+    return true
+}
+
+// Returns the first index whose value is not less than target, or
+// values.count when every value is less. values must be sorted.
+LowerBound :: (values: []$T, target: T) -> s64 {
+    low: s64 = 0
+    high: s64 = cast(s64)values.count
+    while low < high {
+        middle: s64 = low + (high - low) / 2
+        if values[middle] < target {
+            low = middle + 1
+        } else {
+            high = middle
+        }
+    }
+    return low
+}
+
+// Returns an index holding target, or -1 when values has none. values must
+// be sorted.
+BinarySearch :: (values: []$T, target: T) -> s64 {
+    index: s64 = LowerBound(values, target)
+    if index < cast(s64)values.count && !(target < values[index]) {
+        return index
+    }
+    return -1
+}
+
+#scope_file
+
+// Moves values[root] down until the max-heap in values[0:end] holds again.
+SortSiftDown :: (values: []$T, root: s64, end: s64) {
+    parent: s64 = root
+    while parent * 2 + 1 < end {
+        child: s64 = parent * 2 + 1
+        if child + 1 < end && values[child] < values[child + 1] {
+            child += 1
+        }
+        if !(values[parent] < values[child]) { return }
+        saved: T = values[parent]
+        values[parent] = values[child]
+        values[child] = saved
+        parent = child
+    }
+}

@@ -756,6 +756,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Package manifests and lockfiles can pin source-only dependencies without a
   Ziran manifest. Resolution, checkout, map generation, drift detection, and
   `ziran add --source` are covered by `tests/packages.py`.
+- Polymorphic procedures bind `$T` through a direct, slice (`[]$T`), or
+  pointer (`*$T`) parameter. `tests/generic_slice_parameter.sh` runs slice
+  binders over scalars, 64-bit values, records, and subslices through source
+  and saved IR on `.zib`, C, C++, Go, Rust, and Python, runs pointer binders
+  natively, and rejects non-slice and non-pointer arguments. `std/sort.zi`
+  builds an allocation-free heapsort, `IsSorted`, `LowerBound`, and
+  `BinarySearch` on them; `tests/sort.sh` checks edge cases on `.zib` and C.
 
 ## Still required
 

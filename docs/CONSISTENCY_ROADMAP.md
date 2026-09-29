@@ -69,8 +69,8 @@ unavailable feature.
 | Area | Next useful step |
 |---|---|
 | Errors | Checked active-case access and exhaustive handling |
-| Generics and procedures | Multiple independent procedure parameters, constraints, then capturing closures if needed |
-| Collections | Map/set, sort/search, more portable I/O and error utilities |
+| Generics and procedures | Multiple independent type parameters, `[N]$T` and generic-record binders, constraints, then capturing closures if needed |
+| Collections | Map/set, a stable sort or comparator-based sort for records, more portable I/O and error utilities |
 | Parallel work | Deterministic reduction or disjoint output ownership with omitted-iteration tests |
 | GPU | A real device backend with transfer and lifetime rules plus differential tests |
 

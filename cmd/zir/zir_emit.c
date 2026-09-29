@@ -1161,7 +1161,7 @@ portable_type_path_with_buffers(const ZirModule *module, const char *type, const
     record = FindType(module, type, &owner);
     if(record == NULL)
         return 0;
-    if(record->foreign_target[0])
+    if(record->foreign_target[0] || record->is_map)
         return 1; /* Go can pass opaque values; other targets reject them. */
     if(record->is_enum)
         return 1;

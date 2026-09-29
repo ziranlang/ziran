@@ -1384,6 +1384,17 @@ InstantiateGenericRecord(ZirType *instance, const ZirType *generic)
     if(status < 0 || members == 0)
         return 0;
     instance->is_union = generic->is_union;
+    if(!strcmp(generic->name, "Map") && members == 2 && parameter_count == 2) {
+        size_t position = 0;
+        ZirTypeField key, value, end;
+        if(TypeNextField(generic, &position, &key) == 1 &&
+           TypeNextField(generic, &position, &value) == 1 &&
+           TypeNextField(generic, &position, &end) == 0 &&
+           !strcmp(key.name, "key") && !strcmp(key.type, params[0]) &&
+           !strcmp(value.name, "value") && !strcmp(value.type, params[1]) &&
+           !key.is_using && !value.is_using && !key.go_tag[0] && !value.go_tag[0])
+            instance->is_map = 1;
+    }
     if(!strcmp(generic->name, "Vec") && members == 3) {
         size_t position = 0;
         ZirTypeField part;

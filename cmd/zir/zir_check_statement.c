@@ -84,7 +84,7 @@ storage_type_error(const ZirModule *module, const char *source,
         return "generic types require a concrete specialization";
     if(record->is_procedure_type)
         return NULL;
-    if(record->is_enum || indirect)
+    if(record->is_enum || record->is_map || indirect)
         return NULL;
     for(const RecordPath *ancestor = path; ancestor != NULL; ancestor = ancestor->parent) {
         if(ancestor->record == record)
@@ -288,6 +288,20 @@ check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuf
         }
         if(record->is_enum)
             continue;
+        if(record->is_map) {
+            char key[ZIR_NAME_MAX], value[ZIR_NAME_MAX];
+            if(!MapTypeParts(module, record->name, key, sizeof(key), value, sizeof(value)) ||
+               !MapKeyComparable(module, key, 0))
+                return record_declaration_error(record, "map key must be comparable", NULL);
+            const char *key_problem = local_storage_error(module, key);
+            if(key_problem != NULL)
+                return record_declaration_error(record, key_problem, "key");
+            const char *problem = local_storage_error(module, value);
+            if(problem != NULL || contains_vec(module, value, 0))
+                return record_declaration_error(record,
+                    problem ? problem : "map values cannot own Vec storage", NULL);
+            continue;
+        }
         if(record->is_procedure_type) {
             const ZirType *result = FindType(module,
                 record->procedure_return_type, NULL);
@@ -346,7 +360,7 @@ check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuf
                 if(*nested_name == '*') nested_name = skip_ws(nested_name + 1);
                 const ZirType *nested = FindType(module, nested_name, NULL);
                 if(nested == NULL || nested->is_enum ||
-                   nested->is_procedure_type || nested->is_record_template)
+                   nested->is_procedure_type || nested->is_record_template || nested->is_map)
                     return record_declaration_error(record,
                         "using field requires a concrete record type", field.name);
             }

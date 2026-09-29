@@ -1,4 +1,101 @@
 #include "zir_emit_internal.h"
+
+typedef struct EmitMapCallBuffers {
+    char map[ZIR_TEXT_MAX];
+    char argument[ZIR_TEXT_MAX];
+    char initializer[ZIR_TEXT_MAX];
+} EmitMapCallBuffers;
+
+static void
+emit_map_call(Emitter *e, const ZirExpr *expr, char *out, size_t size)
+{
+    if(e->target != ZIR_GO)
+        fatal(expr, "map operations require the Go target");
+    EmitMapCallBuffers *buffers = AllocateOrExit(sizeof(*buffers));
+    int first = expr->first_child;
+    int second = e->fn->exprs[first].next_sibling;
+    int third = second >= 0 ? e->fn->exprs[second].next_sibling : -1;
+    const char *map_type = e->fn->exprs[first].type;
+    char key_type[ZIR_NAME_MAX], value_type[ZIR_NAME_MAX];
+    char map_name[ZIR_NAME_MAX], key_name[ZIR_NAME_MAX], value_name[ZIR_NAME_MAX];
+    char result[ZIR_NAME_MAX], mapped[ZIR_NAME_MAX * 2];
+    if(!MapTypePartsAtUse(e->module, map_type, key_type, sizeof(key_type),
+                     value_type, sizeof(value_type)))
+        fatal(expr, "invalid Map operation");
+    int init = !strcmp(expr->name, "MapInit");
+    int set = !strcmp(expr->name, "MapSet");
+    fresh(e, map_name);
+    if(init || set) {
+        emit_destination(e, first, buffers->map, sizeof(buffers->map));
+        char pointer_type[ZIR_NAME_MAX * 2];
+        format(pointer_type, sizeof(pointer_type), "*%s", map_type);
+        format(buffers->initializer, sizeof(buffers->initializer), "&(%s)", buffers->map);
+        declare(e, map_name, pointer_type, buffers->initializer);
+        format(buffers->map, sizeof(buffers->map), "(*%s)", map_name);
+    } else {
+        emit_expr(e, first, map_type, buffers->argument, sizeof(buffers->argument));
+        declare(e, map_name, map_type, buffers->argument);
+        copy_text(buffers->map, sizeof(buffers->map), map_name);
+    }
+    if(second >= 0) {
+        fresh(e, key_name);
+        emit_expr(e, second, key_type, buffers->argument, sizeof(buffers->argument));
+        declare(e, key_name, key_type, buffers->argument);
+    }
+    if(third >= 0) {
+        fresh(e, value_name);
+        emit_expr(e, third, value_type, buffers->argument, sizeof(buffers->argument));
+        declare(e, value_name, value_type, buffers->argument);
+    }
+    if(init || set) {
+        e->resolve(e->context, map_type, mapped, sizeof(mapped));
+        line(e, "if %s == nil {", buffers->map);
+        e->indent++;
+        line(e, "%s = make(%s)", buffers->map, mapped);
+        e->indent--;
+        line(e, "}");
+        if(set)
+            line(e, "%s[%s] = %s", buffers->map, key_name, value_name);
+    } else if(!strcmp(expr->name, "MapDelete"))
+        line(e, "delete(%s, %s)", buffers->map, key_name);
+    else if(!strcmp(expr->name, "MapClear"))
+        line(e, "clear(%s)", buffers->map);
+    else {
+        fresh(e, result);
+        if(!strcmp(expr->name, "MapContains")) {
+            declare(e, result, "bool", "false");
+            line(e, "_, %s = %s[%s]", result, buffers->map, key_name);
+        } else if(!strcmp(expr->name, "MapLookup")) {
+            zero_record(e, expr->type, buffers->initializer, sizeof(buffers->initializer));
+            declare(e, result, expr->type, buffers->initializer);
+            line(e, "%s.Value, %s.HasValue = %s[%s]", result, result, buffers->map, key_name);
+        } else if(!strcmp(expr->name, "MapGet")) {
+            format(buffers->initializer, sizeof(buffers->initializer), "%s[%s]", buffers->map, key_name);
+            declare(e, result, expr->type, buffers->initializer);
+        } else if(!strcmp(expr->name, "MapCount")) {
+            format(buffers->initializer, sizeof(buffers->initializer), "int64(len(%s))", buffers->map);
+            declare(e, result, "s64", buffers->initializer);
+        } else if(!strcmp(expr->name, "MapKeys")) {
+            e->resolve(e->context, key_type, mapped, sizeof(mapped));
+            format(buffers->initializer, sizeof(buffers->initializer), "make([]%s, 0, len(%s))", mapped, buffers->map);
+            declare(e, result, expr->type, buffers->initializer);
+            fresh(e, key_name);
+            line(e, "for %s := range %s {", key_name, buffers->map);
+            e->indent++;
+            line(e, "%s = append(%s, %s)", result, result, key_name);
+            e->indent--;
+            line(e, "}");
+        } else
+            fatal(expr, "unknown Map operation");
+        copy_text(out, size, result);
+        e->pure = 1;
+        free(buffers);
+        return;
+    }
+    out[0] = '\0';
+    e->pure = 0;
+    free(buffers);
+}
 /* Buffers emit_vec_call keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitVecCallBuffers {
@@ -926,6 +1023,10 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         break;
     }
     case ZIR_EXPR_CALL:
+        if(MapPrimitiveName(expr->name)) {
+            emit_map_call(e, expr, out, size);
+            return;
+        }
         if(!strcmp(expr->name, "TextView")) {
             if(expr->first_child < 0 ||
                e->fn->exprs[expr->first_child].next_sibling >= 0)

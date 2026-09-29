@@ -529,7 +529,7 @@ layout_type_with_buffers(const ZirModule *module, const char *source, int depth,
             return layout_type(definition_owner, definition->value,
                                depth + 1, size, alignment);
     }
-    if(record == NULL || record->is_procedure_type || record->is_extern ||
+    if(record == NULL || record->is_procedure_type || record->is_extern || record->is_map ||
        record->is_record_template || record->is_type_instance)
         return 0;
     if(record->is_enum)

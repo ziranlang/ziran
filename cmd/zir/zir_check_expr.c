@@ -231,7 +231,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         int ordinal = 0;
         int mode = -1;
         if(record == NULL || record->is_enum || record->is_procedure_type ||
-           record->is_record_template || record->foreign_target[0]) {
+           record->is_record_template || record->foreign_target[0] || record->is_map) {
             error(c, e->span, "initializer requires a declared record type", e->name);
             break;
         }
@@ -349,6 +349,10 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 type = member_type;
                 break;
             }
+        }
+        if(record != NULL && record->is_map) {
+            error(c, e->span, "Map storage is private; use map operations", e->name);
+            break;
         }
         if(VecElementType(c->module, record_name, NULL, 0) &&
            strcmp(e->name, "count") && strcmp(e->name, "capacity")) {
@@ -623,6 +627,64 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             }
             free(pieces);
             type = "void";
+            break;
+        }
+        if(MapPrimitiveName(e->name)) {
+            int first = e->first_child;
+            int second = first >= 0 ? c->fn->exprs[first].next_sibling : -1;
+            int third = second >= 0 ? c->fn->exprs[second].next_sibling : -1;
+            int set = !strcmp(e->name, "MapSet");
+            int get = !strcmp(e->name, "MapGet");
+            int lookup = !strcmp(e->name, "MapLookup");
+            int contains = !strcmp(e->name, "MapContains");
+            int remove = !strcmp(e->name, "MapDelete");
+            int keys = !strcmp(e->name, "MapKeys");
+            int count = !strcmp(e->name, "MapCount");
+            int keyed = set || get || lookup || contains || remove;
+            for(int child = first; child >= 0; child = c->fn->exprs[child].next_sibling)
+                if(c->fn->exprs[child].argument_name[0])
+                    error(c, e->span, "map operations have no named parameters", e->name);
+            if(first < 0) {
+                error(c, e->span, "map operation requires a Map value", e->name);
+                break;
+            }
+            char map_type[ZIR_NAME_MAX], key[ZIR_NAME_MAX], value[ZIR_NAME_MAX];
+            copy_text(map_type, sizeof(map_type), expression_type(c, first));
+            if(!MapTypePartsAtUse(c->module, map_type, key, sizeof(key), value, sizeof(value))) {
+                error(c, e->span, "map operation requires a Map value", e->name);
+                break;
+            }
+            if((set || !strcmp(e->name, "MapInit")) && !assignable(c, first))
+                error(c, e->span, "map initialization requires mutable storage", e->name);
+            int actual = third >= 0 ? (c->fn->exprs[third].next_sibling >= 0 ? 4 : 3) :
+                         second >= 0 ? 2 : 1;
+            if(actual != (set ? 3 : keyed ? 2 : 1)) {
+                error(c, e->span, "wrong number of map operation arguments", e->name);
+                break;
+            }
+            if(keyed && !compatible_checked(c, key, expression_type(c, second)))
+                error(c, e->span, "map key type mismatch", key);
+            if(set) {
+                char saved[ZIR_NAME_MAX];
+                copy_text(saved, sizeof(saved), c->expected_type);
+                copy_text(c->expected_type, sizeof(c->expected_type), value);
+                const char *given = expression_type(c, third);
+                copy_text(c->expected_type, sizeof(c->expected_type), saved);
+                if(!compatible_checked(c, value, given))
+                    error(c, e->span, "map value type mismatch", value);
+            }
+            if(lookup) {
+                if(vec_option_result_type(c, value, e->span, e->type, sizeof(e->type)))
+                    type = e->type;
+            } else if(get) {
+                copy_text(e->type, sizeof(e->type), value);
+                type = e->type;
+            } else if(keys) {
+                if(snprintf(e->type, sizeof(e->type), "[]%s", key) >= (int)sizeof(e->type))
+                    error(c, e->span, "map key slice type is too long", key);
+                type = e->type;
+            } else
+                type = contains ? "bool" : count ? "s64" : "void";
             break;
         }
         if(!strcmp(e->name, "VecPush") || !strcmp(e->name, "VecClear") ||
@@ -1097,6 +1159,13 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             error(c, e->span, "array values do not support binary operations", e->op);
         const ZirType *left_slot = FindType(c->module, left, NULL);
         const ZirType *right_slot = FindType(c->module, right, NULL);
+        int map_null_compare =
+            (!strcmp(e->op, "==") || !strcmp(e->op, "!=")) &&
+            ((left_slot != NULL && left_slot->is_map && !strcmp(right, "null")) ||
+             (right_slot != NULL && right_slot->is_map && !strcmp(left, "null")));
+        if(((left_slot && left_slot->is_map) || (right_slot && right_slot->is_map)) &&
+           !map_null_compare)
+            error(c, e->span, "maps only support comparison with null", e->op);
         /* Procedure slots compare against null (and identical slot types)
          * the same way pointers do; every other operation stays rejected. */
         int slot_null_compare =
@@ -1139,7 +1208,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             break;
         }
         if(!compatible_checked(c, left, right) &&
-           !compatible_checked(c, right, left) && !slot_null_compare)
+           !compatible_checked(c, right, left) && !slot_null_compare && !map_null_compare)
             error(c, e->span, "operand types differ; use an explicit cast", e->op);
         if(!strcmp(e->op, "==") || !strcmp(e->op, "!=") || !strcmp(e->op, "<") ||
            !strcmp(e->op, "<=") || !strcmp(e->op, ">") || !strcmp(e->op, ">=") ||

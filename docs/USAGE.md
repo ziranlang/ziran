@@ -268,3 +268,30 @@ valid only until `UnmapFile`, and writes to that slice do not change the file.
 These native adapters keep libc calls out of applications and require glibc
 Linux and a `curl` executable. Portable bundles should use the host capabilities
 above instead.
+
+### Native Go maps
+
+Import `map_go` to use `Map(K, V)` with the Go target. Keys must be comparable;
+values cannot own `Vec` storage. A map's zero value is nil. Copies share entries,
+while replacing a map binding changes only that binding. Maps can be compared
+with `null`, and their contents are accessed through these operations:
+
+| Operation | Behavior |
+|---|---|
+| `MapInit(values)` | Allocate an empty map if the binding is nil |
+| `MapSet(values, key, value)` | Insert or replace; allocate nil storage first |
+| `MapGet(values, key)` | Read an entry, or return the value type's zero value |
+| `MapLookup(values, key)` | Return `Option(V)`; import `option` to use this operation |
+| `MapContains(values, key)` | Test key presence, including entries with zero values |
+| `MapDelete(values, key)` | Remove an entry; missing keys are harmless |
+| `MapClear(values)` | Remove every entry while preserving allocated storage |
+| `MapCount(values)` | Return the entry count as `s64` |
+| `MapKeys(values)` | Return an unordered `[]K` snapshot |
+
+`MapInit` and `MapSet` require a mutable binding or field. Nil maps support
+reads, membership checks, deletion and clearing. Map mutation in `#parallel`
+regions is rejected because copies share storage. Other targets and portable
+ABIs reject maps; checked `.zir` preserves their Go behavior.
+
+Import `go_types` for the predeclared Go `Any` and `Error` interfaces. `Any`
+accepts values that do not own `Vec` storage, including nested maps for JSON.

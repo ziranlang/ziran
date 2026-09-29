@@ -42,7 +42,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 45u
+#define ZIR_FORMAT_VERSION 46u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -139,6 +139,7 @@ static const Field type_fields[] = {
     STRING_FIELD(ZirType, enum_backing),
     INTEGER_FIELD(ZirType, is_record_template),
     INTEGER_FIELD(ZirType, is_owned_vec),
+    INTEGER_FIELD(ZirType, is_map),
     INTEGER_FIELD(ZirType, is_extern),
     INTEGER_FIELD(ZirType, is_abi_incomplete), SPAN_FIELD(ZirType, span)
 };
@@ -576,6 +577,11 @@ validate_program(const ZirProgram *program)
                 return 0;
         for(int t = 0; t < module->type_count; t++) {
             const ZirType *type = &module->types[t];
+            if((type->is_map != 0 && type->is_map != 1) ||
+               (type->is_map &&
+                (!MapTypeParts(module, type->name, NULL, 0, NULL, 0) ||
+                 type->is_owned_vec || type->is_abi_incomplete || type->foreign_target[0])))
+                return 0;
             if(type->foreign_target[0] &&
                (!GoForeignTargetValid(type->foreign_target) || !type->is_extern ||
                 type->body[0] || type->is_enum || type->is_union ||

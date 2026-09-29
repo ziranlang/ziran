@@ -1,0 +1,9 @@
+// Go maps share their storage when copied or passed to a function. The private
+// fields describe type arguments; access goes through Map operations.
+// Go target only. Import option to use MapLookup, whose result is Option(V).
+// MapSet initializes nil storage; MapInit preserves an existing map. MapGet
+// returns a zero value for absent keys. MapKeys returns an unordered snapshot.
+Map :: struct($K: Type, $V: Type) {
+    key: K
+    value: V
+}

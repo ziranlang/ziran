@@ -1,0 +1,4 @@
+// Predeclared Go interface types at the foreign-library boundary.
+builtin :: #system_library "go:builtin";
+Any :: #type #foreign builtin "any";
+Error :: #type #foreign builtin "error";

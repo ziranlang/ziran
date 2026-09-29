@@ -445,7 +445,8 @@ order_local_types_with_buffers(ZirModule *module, OrderLocalTypesBuffers *buffer
         int moved = 0;
         for(int t = 0; t < count && !moved; t++) {
             const ZirType *owner = &module->types[t];
-            if(owner->is_enum || owner->is_record_template || owner->is_procedure_type)
+            if(owner->is_enum || owner->is_record_template || owner->is_procedure_type ||
+               owner->is_map)
                 continue;
             size_t offset = 0;
             ZirTypeField field;

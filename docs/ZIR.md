@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 45 now exists for
+This is the target contract. An experimental binary version 46 now exists for
 the tested C/C++/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -31,7 +31,7 @@ unrelated imported function with the same type shape.
 `.zir` is the compiler interchange and cache format. Portable distribution
 uses a linked `.zib`, not an unlinked `.zir`. See [Bundle format](ZIB.md).
 
-## Experimental version 45
+## Experimental version 46
 
 The current writer emits `ZIR` followed by a zero byte, a little-endian
 version number, and length-prefixed checked module records. Strings and
@@ -109,3 +109,8 @@ are checked named types and lower to Go aliases, preserving the imported
 type's methods and JSON behavior. They have no Ziran record fields or known
 layout. Other native targets reject them, and the portable runtime cannot
 store or execute them. Older binary versions are rejected.
+
+Version 46 distinguishes native Go maps from records. Their checked body
+retains key and value types; Go emits a map alias with shared storage and a
+nil zero value. Other targets reject reachable maps. Predeclared `any` and
+`error` interfaces use the `go:builtin` foreign namespace without an import.

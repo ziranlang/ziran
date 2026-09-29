@@ -242,7 +242,7 @@ host_type_at(const ZirModule *module, const char *type, int depth,
         return 1;
     const ZirModule *owner = NULL;
     const ZirType *record = FindType(module, type, &owner);
-    if(record == NULL || record->is_extern || record->is_procedure_type)
+    if(record == NULL || record->is_extern || record->is_procedure_type || record->is_map)
         return 0;
     if(record->is_enum)
         return EnumMemberValue(record, NULL, NULL);
@@ -499,7 +499,7 @@ default_value(Vm *vm, const ZirModule *module, const char *type, int depth)
         return (Value){.kind = VALUE_SLOT, .slot_type = record_type};
     if(kind != VALUE_INVALID || record_type == NULL ||
        record_type->is_procedure_type ||
-       record_type->is_extern || depth >= VM_MAX_DEPTH) {
+       record_type->is_extern || record_type->is_map || depth >= VM_MAX_DEPTH) {
         vm->failed = 1;
         return int_value(0);
     }
@@ -582,7 +582,7 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
             return enum_value(record, value.integer);
         }
         if(record != NULL && !record->is_enum && !record->is_procedure_type &&
-           !record->is_extern && value.kind == VALUE_RECORD &&
+           !record->is_extern && !record->is_map && value.kind == VALUE_RECORD &&
            same_record_type(owner, record, value.record))
             return VecElementType(module, type, NULL, 0) ?
                 value : clone_value(vm, value, 0);
@@ -682,7 +682,7 @@ coerce_expression(Vm *vm, const ZirModule *module,
         const ZirModule *owner = NULL;
         const ZirType *record = FindType(module, type, &owner);
         if(record != NULL && !record->is_enum && !record->is_procedure_type &&
-           !record->is_extern && same_record_type(owner, record, value.record))
+           !record->is_extern && !record->is_map && same_record_type(owner, record, value.record))
             return value;
     }
     if(value.kind == VALUE_ARRAY && value.array != NULL) {

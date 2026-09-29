@@ -1394,7 +1394,7 @@ synthetic_type_emitted(const ZirProgram *const *programs, int program_index,
                        int module_index, const ZirType *type,
                        const char *native)
 {
-    if(!type->is_synthetic_application)
+    if(!type->is_synthetic_application && !type->is_map)
         return 0;
     const ZirModule *current = type_scope;
     for(int p = 0; p <= program_index; p++) {
@@ -1404,12 +1404,18 @@ synthetic_type_emitted(const ZirProgram *const *programs, int program_index,
             for(int t = 0; t < previous->type_count; t++) {
                 const ZirType *candidate = &previous->types[t];
                 char candidate_name[ZIR_GO_NAME_MAX];
-                if(!candidate->is_synthetic_application)
+                if(!candidate->is_synthetic_application && !candidate->is_map)
                     continue;
                 NativeTypeName(previous, candidate, candidate_name,
                                sizeof(candidate_name));
                 if(strcmp(candidate_name, native) != 0)
                     continue;
+                if(candidate->is_map != type->is_map) {
+                    Diagnostic(type->span, "zir_go.type", "conflicting concrete Go type: %s", native);
+                    exit(1);
+                }
+                if(type->is_map && SameMapType(current, type, previous, candidate))
+                    return 1;
                 size_t left_offset = 0, right_offset = 0;
                 ZirTypeField left, right;
                 int left_status, right_status;
@@ -1581,6 +1587,8 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     Diagnostic(type->span, "zir_go.type", "invalid foreign Go type");
                     return 1;
                 }
+                if(!strcmp(path, "builtin"))
+                    continue;
                 snprintf(declaration, sizeof(declaration), "%s \"%s\"", alias, path);
                 int duplicate = 0;
                 for(int j = 0; j < import_count; j++)
@@ -1669,11 +1677,25 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 NativeTypeName(m, t, native, sizeof(native));
                 if(synthetic_type_emitted(progs, pi, mi, t, native))
                     continue;
+                if(t->is_map) {
+                    char key[ZIR_NAME_MAX], value[ZIR_NAME_MAX];
+                    char go_key[ZIR_GO_NAME_MAX], go_value[ZIR_GO_NAME_MAX];
+                    if(!MapTypeParts(m, t->name, key, sizeof(key), value, sizeof(value))) {
+                        Diagnostic(t->span, "zir_go.type", "invalid Map type");
+                        return 1;
+                    }
+                    require_go_type(key, go_key, sizeof(go_key), t->span);
+                    require_go_type(value, go_value, sizeof(go_value), t->span);
+                    fprintf(f, "type %s = map[%s]%s\n\n", native, go_key, go_value);
+                    continue;
+                }
                 if(t->foreign_target[0]) {
                     char path[ZIR_PATH_MAX], alias[ZIR_GO_NAME_MAX];
                     extern_direct_go_target(t->foreign_target, path, sizeof(path),
                                             alias, sizeof(alias));
-                    fprintf(f, "type %s = %s.%s\n\n", native, alias,
+                    fprintf(f, "type %s = %s%s%s\n\n", native,
+                            !strcmp(path, "builtin") ? "" : alias,
+                            !strcmp(path, "builtin") ? "" : ".",
                             strrchr(t->foreign_target, '.') + 1);
                     continue;
                 }

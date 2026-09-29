@@ -245,6 +245,7 @@ typedef struct ZirType {
     int is_type_instance; /* unresolved until imports are linked */
     int is_synthetic_application; /* private name made from a direct type call */
     int is_owned_vec; /* specialized standard Vec storage */
+    int is_map; /* Go map; body records the private key/value types */
     int is_extern; /* host-owned record or opaque foreign type */
     int is_abi_incomplete; /* native ABI treats the complete record as opaque */
     int native_name_mangled; /* in-memory: shared spelling or target keyword */
@@ -395,6 +396,12 @@ ZirExpr *FunctionAddExpr(ZirFunction *fn, ZirExprKind kind,
 void ProgramDump(const ZirProgram *program, FILE *out);
 int GoForeignTargetValid(const char *target);
 int RejectForeignGoTypes(const ZirProgram *program);
+int MapTypeParts(const ZirModule *module, const char *name,
+                 char *key, size_t key_size, char *value, size_t value_size);
+int MapPrimitiveName(const char *name);
+int SameMapType(const ZirModule *a_owner, const ZirType *a,
+                const ZirModule *b_owner, const ZirType *b);
+int MapKeyComparable(const ZirModule *module, const char *type, int depth);
 
 /* Native backends record each file they write. After a successful build,
  * GeneratedOutputPrune removes files in the output directory that start

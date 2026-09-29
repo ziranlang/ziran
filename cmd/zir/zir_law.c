@@ -1098,6 +1098,13 @@ sweep_effect_class(ZirProgram *program)
                 if(expr->kind != ZIR_EXPR_CALL || !expr->name[0] ||
                    expr->slot_type[0])
                     continue;
+                if(MapPrimitiveName(expr->name)) {
+                    int map_rank = !strcmp(expr->name, "MapSet") ||
+                        !strcmp(expr->name, "MapInit") || !strcmp(expr->name, "MapDelete") ||
+                        !strcmp(expr->name, "MapClear") ? 2 : 1;
+                    if(rank < map_rank) rank = map_rank;
+                    continue;
+                }
                 imported = imported_callee_class(module, expr->name);
                 if(imported != NULL || !strcmp(expr->name, "print")) {
                     rank = 3;
@@ -1156,6 +1163,8 @@ gpu_type_holds_pointer(const ZirModule *module, const char *type, int depth)
     if(type[0] == '*')
         return 1;
     record = FindType(module, type, NULL);
+    if(record != NULL && record->is_map)
+        return 1;
     if(record == NULL || record->is_enum || record->is_procedure_type ||
        record->is_record_template)
         return 0;
@@ -1405,6 +1414,13 @@ check_parallel_region(const ZirProgram *program, const ZirModule *module,
                     (void)program;
                     if(expr->kind != ZIR_EXPR_CALL || !expr->name[0])
                         continue;
+                    if(MapPrimitiveName(expr->name) &&
+                       (!strcmp(expr->name, "MapSet") || !strcmp(expr->name, "MapInit") ||
+                        !strcmp(expr->name, "MapDelete") || !strcmp(expr->name, "MapClear"))) {
+                        Diagnostic(st->span, "parallel.memory",
+                                   "#parallel cannot mutate shared map storage: %s", expr->name);
+                        return 0;
+                    }
                     if(vec_operation_name(expr->name)) {
                         int first = expr->first_child;
                         if(!strcmp(expr->name, "VecGet"))

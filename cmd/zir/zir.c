@@ -19,6 +19,9 @@ GoForeignTargetValid(const char *target)
     if(dot == NULL || dot == target + 3 ||
        !(isalpha((unsigned char)dot[1]) || dot[1] == '_'))
         return 0;
+    if(!strncmp(target, "go:builtin.", 11))
+        return dot == target + 10 &&
+            (!strcmp(dot + 1, "any") || !strcmp(dot + 1, "error"));
     for(const unsigned char *p = (const unsigned char *)target + 3;
         p < (const unsigned char *)dot; p++)
         if(!(isalnum(*p) || *p == '_' || *p == '/' || *p == '.' || *p == '-'))
@@ -35,13 +38,120 @@ RejectForeignGoTypes(const ZirProgram *program)
     for(int m = 0; m < program->module_count; m++)
         for(int t = 0; t < program->modules[m].type_count; t++) {
             const ZirType *type = &program->modules[m].types[t];
-            if(type->foreign_target[0]) {
+            if(type->foreign_target[0] || type->is_map) {
                 Diagnostic(type->span, "check.record",
-                           "foreign Go types require the Go target: %s", type->name);
+                           "%s require the Go target: %s",
+                           type->is_map ? "maps" : "foreign Go types", type->name);
                 return 0;
             }
         }
     return 1;
+}
+
+int
+MapPrimitiveName(const char *name)
+{
+    return !strcmp(name, "MapInit") || !strcmp(name, "MapSet") ||
+           !strcmp(name, "MapGet") || !strcmp(name, "MapContains") ||
+           !strcmp(name, "MapDelete") || !strcmp(name, "MapClear") ||
+           !strcmp(name, "MapCount") || !strcmp(name, "MapKeys") ||
+           !strcmp(name, "MapLookup");
+}
+
+int
+MapTypeParts(const ZirModule *module, const char *name,
+              char *key, size_t key_size, char *value, size_t value_size)
+{
+    const ZirType *type = module ? FindType(module, name, NULL) : NULL;
+    if(type == NULL || !type->is_map || type->is_record_template ||
+       type->is_extern || type->is_enum || type->is_procedure_type || type->is_union)
+        return 0;
+    ZirTypeField k, v, end;
+    size_t offset = 0;
+    if(TypeNextField(type, &offset, &k) != 1 || strcmp(k.name, "key") ||
+       TypeNextField(type, &offset, &v) != 1 || strcmp(v.name, "value") ||
+       TypeNextField(type, &offset, &end) != 0 || k.is_using || v.is_using ||
+       k.go_tag[0] || v.go_tag[0] || !k.type[0] || !v.type[0])
+        return 0;
+    if(key != NULL) {
+        if(strlen(k.type) >= key_size) return 0;
+        strcpy(key, k.type);
+    }
+    if(value != NULL) {
+        if(strlen(v.type) >= value_size) return 0;
+        strcpy(value, v.type);
+    }
+    return 1;
+}
+
+int
+MapKeyComparable(const ZirModule *module, const char *type, int depth)
+{
+    if(depth > 32 || !strcmp(type, "void")) return 0;
+    if(type[0] == '*') return 1;
+    if(*ScalarType(type)) return strcmp(type, "void") != 0;
+    char element[ZIR_NAME_MAX];
+    if(ArrayElementType(type, element, sizeof(element), NULL))
+        return MapKeyComparable(module, element, depth + 1);
+    const ZirModule *owner = NULL;
+    const ZirType *record = FindType(module, type, &owner);
+    if(record == NULL || record->is_map || record->is_owned_vec ||
+       record->is_extern || record->is_procedure_type || record->is_record_template ||
+       record->is_union)
+        return 0;
+    if(record->is_enum) return 1;
+    size_t offset = 0;
+    ZirTypeField field;
+    int status;
+    while((status = TypeNextField(record, &offset, &field)) == 1)
+        if(!MapKeyComparable(owner ? owner : module, field.type, depth + 1))
+            return 0;
+    return status == 0;
+}
+
+static int
+same_map_argument(const ZirModule *a_owner, const char *a_name,
+                   const ZirModule *b_owner, const char *b_name, int depth)
+{
+    if(depth > 32) return 0;
+    const char *a_scalar = ScalarType(a_name), *b_scalar = ScalarType(b_name);
+    if(*a_scalar || *b_scalar) return !strcmp(a_scalar, b_scalar);
+    char a_element[ZIR_NAME_MAX], b_element[ZIR_NAME_MAX];
+    int a_count, b_count;
+    if(SliceElementType(a_name, a_element, sizeof(a_element)) &&
+       SliceElementType(b_name, b_element, sizeof(b_element)))
+        return same_map_argument(a_owner, a_element, b_owner, b_element, depth + 1);
+    if(ArrayElementType(a_name, a_element, sizeof(a_element), &a_count) &&
+       ArrayElementType(b_name, b_element, sizeof(b_element), &b_count))
+        return a_count >= 0 && a_count == b_count &&
+            same_map_argument(a_owner, a_element, b_owner, b_element, depth + 1);
+    if(a_name[0] == '*' && b_name[0] == '*')
+        return same_map_argument(a_owner, a_name + 1, b_owner, b_name + 1, depth + 1);
+    const ZirModule *a_scope = NULL, *b_scope = NULL;
+    const ZirType *a = FindType(a_owner, a_name, &a_scope);
+    const ZirType *b = FindType(b_owner, b_name, &b_scope);
+    if(a == NULL || b == NULL) return 0;
+    if(a == b) return 1;
+    if(a->foreign_target[0] && !strcmp(a->foreign_target, b->foreign_target))
+        return 1;
+    if(a->is_map && b->is_map) {
+        char ak[ZIR_NAME_MAX], av[ZIR_NAME_MAX], bk[ZIR_NAME_MAX], bv[ZIR_NAME_MAX];
+        return MapTypeParts(a_owner, a_name, ak, sizeof(ak), av, sizeof(av)) &&
+            MapTypeParts(b_owner, b_name, bk, sizeof(bk), bv, sizeof(bv)) &&
+            same_map_argument(a_scope ? a_scope : a_owner, ak,
+                              b_scope ? b_scope : b_owner, bk, depth + 1) &&
+            same_map_argument(a_scope ? a_scope : a_owner, av,
+                              b_scope ? b_scope : b_owner, bv, depth + 1);
+    }
+    return same_type_application(a_scope, a, b_scope, b);
+}
+
+int
+SameMapType(const ZirModule *a_owner, const ZirType *a,
+              const ZirModule *b_owner, const ZirType *b)
+{
+    return a != NULL && b != NULL && a->is_map && b->is_map &&
+        same_map_argument(a_owner, a->name, b_owner, b->name, 0);
 }
 
 int

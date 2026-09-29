@@ -20,7 +20,7 @@ from pathlib import Path
 import sys
 
 saved = Path(sys.argv[1]).read_bytes()
-assert saved[:8] == b'ZIR\0\x2d\0\0\0'
+assert saved[:8] == b'ZIR\0\x2e\0\0\0'
 for spelling in (b's32', b's64', b'float32', b'float64'):
     assert spelling in saved, spelling
 for spelling in (b'i32', b'i64', b'f32', b'f64', b'double'):

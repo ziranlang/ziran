@@ -302,7 +302,7 @@ numeric(const char *type)
     const char *scalar = ScalarType(type);
     return !strcmp(type, "integer") || !strcmp(type, "real") ||
            (*scalar && strcmp(scalar, "string") &&
-            strchr("suf", scalar[0]) != NULL);
+            (strchr("suf", scalar[0]) != NULL || !strcmp(scalar, "isize")));
 }
 
 int
@@ -311,7 +311,7 @@ integer_type(const char *type)
     const char *scalar = ScalarType(type);
     return !strcmp(type, "integer") ||
            (scalar[0] != '\0' && strcmp(scalar, "string") != 0 &&
-            (scalar[0] == 's' || scalar[0] == 'u'));
+            (scalar[0] == 's' || scalar[0] == 'u' || !strcmp(scalar, "isize")));
 }
 
 static int constant_value(const ZirModule *module, const char *name, int depth,
@@ -604,6 +604,17 @@ record_field_type_at_use(const ZirModule *module,
        strlen(qualified) >= size) return 0;
     copy_text(field_type, size, qualified);
     return 1;
+}
+
+int
+MapTypePartsAtUse(const ZirModule *module, const char *name,
+                   char *key, size_t key_size, char *value, size_t value_size)
+{
+    const ZirModule *owner = NULL;
+    FindType(module, name, &owner);
+    return MapTypeParts(module, name, key, key_size, value, value_size) &&
+        record_field_type_at_use(module, owner, name, key, key_size) &&
+        record_field_type_at_use(module, owner, name, value, value_size);
 }
 
 static int
@@ -1000,6 +1011,9 @@ same_declared_type(const ZirModule *module, const char *to,
     if(target != NULL && source != NULL && target->foreign_target[0] &&
        !strcmp(target->foreign_target, source->foreign_target))
         return 1;
+    if(SameMapType(target_owner ? target_owner : module, target,
+                  source_owner ? source_owner : module, source))
+        return 1;
     if(target != NULL && source != NULL &&
        same_type_application(target_owner ? target_owner : module, target,
                              source_owner ? source_owner : module, source))
@@ -1021,6 +1035,11 @@ same_declared_type(const ZirModule *module, const char *to,
 int
 compatible_checked(Checker *c, const char *to, const char *from)
 {
+    const ZirType *target = FindType(c->module, to, NULL);
+    if(target != NULL && target->is_map && !strcmp(from, "null"))
+        return 1;
+    if(target != NULL && !strcmp(target->foreign_target, "go:builtin.any"))
+        return strcmp(from, "void") != 0 && !contains_vec(c->module, from, 0);
     if(flags_type(c, to) != NULL && integer_type(from)) return 1;
     return compatible(to, from) ||
            same_declared_type(c->module, to, from, 0);

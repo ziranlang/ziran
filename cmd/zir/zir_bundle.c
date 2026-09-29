@@ -688,7 +688,7 @@ law_names_import(const ZirModule *module, const ZirImport *import)
 static int
 builtin_call(const char *name)
 {
-    return !strcmp(name, "TextView") ||
+    return MapPrimitiveName(name) || !strcmp(name, "TextView") ||
            !strcmp(name, "VecPush") || !strcmp(name, "VecClear") ||
            !strcmp(name, "VecFree") || !strcmp(name, "VecSwap") ||
            !strcmp(name, "VecPop") || !strcmp(name, "VecGet") ||
@@ -804,7 +804,7 @@ prune_record_fields_with_buffers(ZirProgram *program, const char *entry_module,
             ZirType *type = &module->types[t];
             FieldUse *use = &uses[next++];
             if(type->is_enum || type->is_union || type->is_procedure_type ||
-               type->is_extern || type->is_record_template)
+               type->is_extern || type->is_record_template || type->is_map)
                 continue;
             use->type = type;
             size_t offset = 0;

@@ -16,7 +16,7 @@
   <meta name="twitter:card" content="summary">
   <script defer src="site.js"></script>
 </head>
-<body>
+<body class="home">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><div class="site-header-inner">
     <a class="brand" href="index.html" aria-label="Ziran home"><img class="brand-icon" src="assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a>
@@ -28,48 +28,97 @@
   <main id="main">
     <section class="hero hero-new">
       <div class="hero-copy">
-        <p class="eyebrow">Open source programming language · Experimental</p>
+        <div class="hero-kicker"><p class="eyebrow">Open source programming language</p><a class="release-badge" href="status.html"><span aria-hidden="true"></span>Experimental</a></div>
         <h1>Build useful software with <em>Ziran.</em></h1>
         <p class="hero-lead">Write clear <code>.zi</code> programs, check them before they run, and choose C, C++, Go, Rust, or Python output, or a portable bundle.</p>
-        <ul class="hero-points"><li>Readable modules and explicit imports</li><li>One checker for every output, with laws proved at build time</li><li>A <a href="std.html">standard library</a> of text, data, and host modules</li></ul>
-        <div class="actions"><a class="btn btn-primary" href="get-started.html">Get started <span aria-hidden="true">→</span></a><a class="btn" href="docs.html">Explore documentation</a></div>
+        <div class="actions"><a class="btn btn-primary" href="get-started.html">Get started <span aria-hidden="true">→</span></a><a class="btn" href="examples.html">See examples <span aria-hidden="true">↗</span></a></div>
+        <ul class="hero-points"><li>Readable source</li><li>Build-time laws</li><li><a href="std.html">Standard library</a></li></ul>
         <p class="hero-note">Latest release: <a href="https://github.com/ziranlang/ziran/releases/tag/v0.2.0">v0.2.0</a>. Build from source today. <a href="status.html">See current support</a>.</p>
       </div>
-      <div class="hero-code" aria-label="A complete Ziran source example and its result">
-        <div class="code-title"><span class="code-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>hello.zi</span><span class="code-tag">Ziran</span></div>
-        <pre><code><span class="c-decl">main</span> :: () {
-    print("Hello, World!\n");
+      <div class="hero-visual">
+        <div class="visual-caption"><span>A small beginning.</span><span>Real possibilities <span aria-hidden="true">↘</span></span></div>
+        <div class="hero-code" aria-label="Complete Ziran source examples and their results">
+          <div class="code-title"><span class="code-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Ziran / source</span><span class="code-tag">.zi</span></div>
+          <div class="example-tabs" role="tablist" aria-label="Source examples" hidden>
+            <button type="button" role="tab" id="tab-hello" aria-controls="example-hello" aria-selected="false" tabindex="-1">Hello, World!</button>
+            <button type="button" role="tab" id="tab-score" aria-controls="example-score" aria-selected="false" tabindex="-1">Records</button>
+            <button type="button" role="tab" id="tab-text" aria-controls="example-text" aria-selected="true">Text</button>
+          </div>
+          <div class="example-panel" id="example-hello" role="tabpanel" aria-labelledby="tab-hello" tabindex="0" hidden>
+            <div class="example-file">hello.zi <span>Start with three lines.</span></div>
+            <pre><code><span class="c-decl">main</span> :: () {
+    <span class="c-call">print</span>(<span class="c-string">"Hello, World!\n"</span>);
 }</code></pre>
-        <div class="code-output"><span>$ ziran run hello.zib</span><strong>Hello, World!</strong></div>
-        <div class="code-foot"><a href="get-started.html">Write your first program <span aria-hidden="true">→</span></a></div>
+            <div class="code-output"><span class="output-label">Example output</span><code><span aria-hidden="true">› </span>Hello, World!</code></div>
+          </div>
+          <div class="example-panel" id="example-score" role="tabpanel" aria-labelledby="tab-score" tabindex="0" hidden>
+            <div class="example-file">score.zi <span>Give your data a shape.</span></div>
+            <pre><code><span class="c-decl">Score</span> :: <span class="c-keyword">struct</span> {
+    value: <span class="c-type">s32</span>;
+    bonus: <span class="c-type">s32</span>;
+}
+<span class="c-decl">Total</span> :: (score: <span class="c-type">Score</span>) -&gt; <span class="c-type">s32</span> {
+    <span class="c-keyword">return</span> score.value + score.bonus;
+}
+<span class="c-decl">Answer</span> :: () -&gt; <span class="c-type">s32</span> {
+    score: <span class="c-type">Score</span> = Score.{value = <span class="c-number">40</span>, bonus = <span class="c-number">2</span>};
+    <span class="c-keyword">return</span> <span class="c-call">Total</span>(score);
+}</code></pre>
+            <div class="code-output"><span class="output-label">Example output</span><code><span aria-hidden="true">› </span>42</code></div>
+          </div>
+          <div class="example-panel" id="example-text" role="tabpanel" aria-labelledby="tab-text" tabindex="0">
+            <div class="example-file">text_demo.zi <span>A library, one import away.</span></div>
+            <pre><code><span class="c-keyword">#import</span> <span class="c-string">"text"</span>
+
+<span class="c-decl">Answer</span> :: () -&gt; <span class="c-type">s32</span> {
+    <span class="c-keyword">if</span> <span class="c-call">StartsWithFoldASCII</span>(<span class="c-string">"Ziran"</span>, <span class="c-string">"zi"</span>) {
+        <span class="c-keyword">return</span> <span class="c-number">1</span>;
+    }
+    <span class="c-keyword">return</span> <span class="c-number">0</span>;
+}</code></pre>
+            <div class="code-output"><span class="output-label">Example output</span><code><span aria-hidden="true">› </span>1</code></div>
+          </div>
+          <div class="code-foot"><span><span class="checked-dot" aria-hidden="true"></span>Examples you can run</span><a href="examples.html#text-demo" class="example-link">View source &amp; commands <span aria-hidden="true">↗</span></a></div>
+        </div>
+        <ol class="source-flow" aria-label="From source to output">
+          <li><span class="flow-symbol" aria-hidden="true">{ }</span><strong>Write</strong><span>.zi source</span></li>
+          <li><span class="flow-symbol" aria-hidden="true">✓</span><strong>Check</strong><span>One checker</span></li>
+          <li><span class="flow-symbol" aria-hidden="true">↗</span><strong>Build</strong><span>Native or portable</span></li>
+        </ol>
       </div>
+    </section>
+
+    <section class="target-strip" aria-label="Supported output choices">
+      <p>One source.<br><strong>Your choice of output.</strong></p>
+      <ul><li>C</li><li>C++</li><li>Go</li><li>Rust</li><li>Python</li><li class="portable-target">.zib <span>portable</span></li></ul>
+      <a href="status.html">See coverage <span aria-hidden="true">↗</span></a>
     </section>
 
     <section class="feature-section" id="why">
       <div class="section-heading"><p class="eyebrow">Why Ziran</p><h2>From source to software.</h2><p>Ziran keeps the language and toolchain together so you can start small and inspect each step.</p></div>
       <div class="feature-grid">
-        <article><span class="feature-number">01</span><h3>Write readable code</h3><p>Use procedures, records, enums, generic records and procedures, imports, fixed arrays, and borrowed slices in the tested subset.</p><a href="language.html">Explore the language →</a></article>
-        <article><span class="feature-number">02</span><h3>Check before building</h3><p>The compiler checks source, reports unsupported forms, and proves <code>#law</code> obligations, with a counterexample when one fails. Save checked <code>.zir</code> modules when you need an intermediate artifact.</p><a href="api.html#toolchain">Explore the tools →</a></article>
-        <article><span class="feature-number">03</span><h3>Choose an output</h3><p>Generate readable C, C++, Go, Rust, or Python from supported programs; a Plan 9 C target is experimental. Package the portable subset as a <code>.zib</code> bundle.</p><a href="status.html">Check target coverage →</a></article>
+        <article><div class="feature-top"><span class="feature-number">01 / Write</span><span class="feature-icon" aria-hidden="true">{ }</span></div><h3>Write readable code</h3><p>Give data a shape with records and enums. Connect procedures, generics, arrays, and borrowed slices with explicit imports.</p><div class="feature-preview" aria-hidden="true"><code><span>main</span> :: () {<br>&nbsp; print(<b>"Hello, World!"</b>);<br>}</code></div><a href="language.html">Explore the language <span aria-hidden="true">↗</span></a></article>
+        <article><div class="feature-top"><span class="feature-number">02 / Check</span><span class="feature-icon" aria-hidden="true">✓</span></div><h3>Check before building</h3><p>Catch unsupported forms and prove <code>#law</code> obligations at build time. Get a counterexample when a law fails.</p><div class="feature-preview law-preview" aria-hidden="true"><span class="law-symbol">✓</span><div><code>#law</code><span>Proved at build time</span></div></div><a href="api.html#toolchain">Explore the tools <span aria-hidden="true">↗</span></a></article>
+        <article><div class="feature-top"><span class="feature-number">03 / Build</span><span class="feature-icon" aria-hidden="true">↗</span></div><h3>Choose an output</h3><p>Generate readable native output or package the portable subset as a <code>.zib</code> bundle. Inspect each step along the way.</p><div class="feature-preview build-preview" aria-hidden="true"><code>.zi</code><span>→</span><div><code>C · C++ · Go</code><code>Rust · Python · .zib</code></div></div><a href="status.html">Check target coverage <span aria-hidden="true">↗</span></a></article>
       </div>
     </section>
 
     <section class="use-section">
       <div class="section-heading"><p class="eyebrow">What you can build</p><h2>Start with real programs.</h2><p>The examples use supported features and include commands you can run locally.</p></div>
       <div class="use-grid">
-        <a href="examples.html#structs"><span>01 / Language</span><strong>Records and procedures</strong><p>Model data and compute a result with a small complete program.</p><b>See example →</b></a>
-        <a href="examples.html#text-demo"><span>02 / Library</span><strong>Text processing</strong><p>Import a standard module and check text with portable operations.</p><b>See example →</b></a>
-        <a href="examples.html#targets"><span>03 / Toolchain</span><strong>Native output</strong><p>Take the same source through the checker and generate native targets.</p><b>See commands →</b></a>
+        <a href="examples.html#score"><div class="use-visual record-visual" aria-hidden="true"><div><small>Score</small><code>value <b>40</b></code><code>bonus <b>2</b></code></div><span>→</span><output>42</output></div><span>01 / Language</span><strong>Records and procedures</strong><p>Model data and compute a result with a small complete program.</p><b>See example <span aria-hidden="true">↗</span></b></a>
+        <a href="examples.html#text-demo"><div class="use-visual text-visual" aria-hidden="true"><code><b>Zi</b>ran</code><span><i>✓</i> Prefix matched</span></div><span>02 / Library</span><strong>Text processing</strong><p>Import a standard module and check text with portable operations.</p><b>See example <span aria-hidden="true">↗</span></b></a>
+        <a href="examples.html#targets"><div class="use-visual native-visual" aria-hidden="true"><code>source.zi</code><span>↓</span><div><code>C</code><code>Go</code><code>Rust</code></div></div><span>03 / Toolchain</span><strong>Native output</strong><p>Take the same source through the checker and generate native targets.</p><b>See commands <span aria-hidden="true">↗</span></b></a>
       </div>
     </section>
 
     <section class="journey-section">
       <div><p class="eyebrow">Your path</p><h2>Go from zero to <em>42.</em></h2><p>Clone the repository, build the tools with a C compiler and <code>make</code>, then check and run your first bundle.</p><a class="btn btn-primary" href="get-started.html">Follow the quick start →</a></div>
-      <ol><li><strong>Install</strong><span>Build the current toolchain from source.</span></li><li><strong>Write</strong><span>Save a small <code>.zi</code> module.</span></li><li><strong>Run</strong><span>Check, bundle, and see the result.</span></li></ol>
+      <ol><li><span class="step-number" aria-hidden="true">01</span><div><strong>Install</strong><span>Build the current toolchain from source.</span></div></li><li><span class="step-number" aria-hidden="true">02</span><div><strong>Write</strong><span>Save a small <code>.zi</code> module.</span></div></li><li><span class="step-number" aria-hidden="true">03</span><div><strong>Run</strong><span>Check, bundle, and see the result.</span></div></li></ol>
     </section>
 
     <section class="status-callout">
-      <div><p class="eyebrow">Project status</p><h2>Working core.<br><em>Experimental edges.</em></h2></div>
+      <div><p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>Project status</p><h2>Working core.<br><em>Experimental edges.</em></h2></div>
       <div><p>Ziran is under active development. Native and portable targets cover tested subsets; language coverage and backend parity are still growing. The status page distinguishes what works today from planned work.</p><a class="btn" href="status.html">Read the current status →</a></div>
     </section>
     <section class="support-section" id="support" aria-labelledby="support-title">

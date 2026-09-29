@@ -32,6 +32,36 @@
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closeMenu();
   });
+  var exampleTabs = document.querySelector('.example-tabs');
+  if (exampleTabs) {
+    var tabs = Array.from(exampleTabs.querySelectorAll('[role="tab"]'));
+    var exampleLink = document.querySelector('.example-link');
+    var exampleAnchors = { 'example-hello': 'hello', 'example-score': 'score', 'example-text': 'text-demo' };
+    function selectExample(tab) {
+      tabs.forEach(function (item) {
+        var selected = item === tab;
+        item.setAttribute('aria-selected', String(selected));
+        item.tabIndex = selected ? 0 : -1;
+        document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
+      });
+      if (exampleLink) exampleLink.href = 'examples.html#' + exampleAnchors[tab.getAttribute('aria-controls')];
+    }
+    tabs.forEach(function (tab, index) {
+      tab.addEventListener('click', function () { selectExample(tab); });
+      tab.addEventListener('keydown', function (event) {
+        var next;
+        if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+        else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+        else if (event.key === 'Home') next = 0;
+        else if (event.key === 'End') next = tabs.length - 1;
+        else return;
+        event.preventDefault();
+        selectExample(tabs[next]);
+        tabs[next].focus();
+      });
+    });
+    exampleTabs.hidden = false;
+  }
   var dialog = document.querySelector('.support-dialog');
   if (dialog && dialog.showModal) {
     var dialogTitle = dialog.querySelector('h3');

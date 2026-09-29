@@ -877,6 +877,11 @@ member_path(const ZirFunction *fn, int index)
     const ZirExpr *expr = &fn->exprs[index];
     if(expr->kind == ZIR_EXPR_IDENT)
         return 1;
+    /* An element of a fixed array is read in place too: without this,
+     * `rows[slot].bytes[i]` copied the whole array to read one byte. */
+    if(expr->kind == ZIR_EXPR_INDEX)
+        return ArrayElementType(fn->exprs[expr->left].type, NULL, 0, NULL) &&
+               member_path(fn, expr->left);
     return (expr->kind == ZIR_EXPR_MEMBER ||
             expr->kind == ZIR_EXPR_POINTER_MEMBER) && member_path(fn, expr->left);
 }

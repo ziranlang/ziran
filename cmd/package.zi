@@ -170,7 +170,9 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         count += 1
     }
     if bundle { child[count] = command; count += 1 }
-    if project && !PkgHasArgument(arguments, "--root") {
+    // `ziran run --project FILE.zib` runs a bundle with the pinned toolchain
+    // that built it; a bundle takes no source root.
+    if project && command != "run" && !PkgHasArgument(arguments, "--root") {
         child[count] = "--root"
         count += 1
         child[count] = PkgJoin3(root, "/", current.roots[0])

@@ -312,6 +312,9 @@ main :: () -> s32 {
         assert (root / "source.zib").read_bytes() == (root / "saved.zib").read_bytes()
         assert call(ziran, "run", str(root / "source.zib"), cwd=app,
                     env=env).strip() == "0"
+        # The project's pinned toolchain runs what it bundled.
+        assert call(ziran, "run", "--project", str(root / "source.zib"),
+                    cwd=app, env=env).strip() == "0"
 
         locked_failure = call(ziran, "check", "--project", "--locked",
                               cwd=app, env=env, succeed=False)

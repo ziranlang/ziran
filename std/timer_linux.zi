@@ -1,0 +1,48 @@
+// Monotonic timing and interruptible sleeps for native glibc Linux programs.
+// Wall-clock time is intentionally unavailable from this module.
+libc :: #system_library "libc";
+
+ClockValue :: struct {
+    seconds: s64
+    nanoseconds: s64
+}
+
+ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
+ClockSleepRaw :: (clock: s32, flags: s32, request: *ClockValue,
+    remaining: *ClockValue) -> s32 #foreign libc "clock_nanosleep";
+
+#program_export
+MonotonicMilliseconds :: () -> s64 {
+    value: [1]ClockValue
+    if ClockGetTimeRaw(1, *value[0]) != 0 { return -1 }
+    if value[0].nanoseconds < 0 || value[0].nanoseconds > 999999999 {
+        return -1
+    }
+    if value[0].seconds > 9223372036854775 || value[0].seconds < 0 {
+        return -1
+    }
+    return value[0].seconds * 1000 + value[0].nanoseconds / 1000000
+}
+
+MakeClockValue :: (milliseconds: s64) -> ClockValue {
+    value: ClockValue
+    if milliseconds < 0 { return value }
+    value.seconds = milliseconds / 1000
+    value.nanoseconds = (milliseconds % 1000) * 1000000
+    return value
+}
+
+#program_export
+SleepMilliseconds :: (milliseconds: s64) -> bool {
+    if milliseconds < 0 || milliseconds > 86400000 { return false }
+    request: [1]ClockValue
+    remaining: [1]ClockValue
+    request[0] = MakeClockValue(milliseconds)
+    while request[0].seconds > 0 || request[0].nanoseconds > 0 {
+        status: s32 = ClockSleepRaw(1, 0, *request[0], *remaining[0])
+        if status == 0 { return true }
+        if status != 4 { return false }
+        request[0] = remaining[0]
+    }
+    return true
+}

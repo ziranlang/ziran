@@ -1,0 +1,45 @@
+#import "queue"
+
+#program_export
+SelfTest :: () -> s32 {
+    storage: [5]u8
+    queue: BoundedQueue = QueueStart(storage[:])
+    if QueueCapacity(queue) != 5 || QueueCount(queue) != 0 { return 1 }
+
+    values: [5]u8 = .[1, 2, 3, 4, 5]
+    queue = QueuePushBytes(queue, storage[:], values[:])
+    if QueueCount(queue) != 5 { return 2 }
+    full: BoundedQueue = QueuePush(queue, storage[:], 6)
+    if QueueCount(full) != 5 { return 3 }
+
+    first: QueueByte = QueuePop(queue, storage[:])
+    second: QueueByte = QueuePop(first.queue, storage[:])
+    if !first.valid || first.value != 1 || !second.valid ||
+        second.value != 2 || QueueCount(second.queue) != 3 { return 4 }
+    queue = QueuePush(second.queue, storage[:], 6)
+    queue = QueuePush(queue, storage[:], 7)
+    if QueueCount(queue) != 5 { return 5 }
+
+    expected: [5]u8 = .[3, 4, 5, 6, 7]
+    output: [5]u8
+    popped: QueueBytes = QueuePopBytes(queue, storage[:], output[:])
+    if popped.count != 5 || QueueCount(popped.queue) != 0 { return 6 }
+    index: s32 = 0
+    while index < 5 {
+        if output[index] != expected[index] { return 7 }
+        index += 1
+    }
+
+    empty: QueueByte = QueuePop(popped.queue, storage[:])
+    if empty.valid { return 8 }
+    too_large: [6]u8
+    rejected: BoundedQueue = QueuePushBytes(empty.queue, storage[:], too_large[:])
+    if QueueCount(rejected) != 0 { return 9 }
+
+    queue = QueueClear(rejected)
+    queue = QueuePush(queue, storage[:], 42)
+    final: QueueByte = QueuePop(queue, storage[:])
+    if !final.valid || final.value != cast(u8)42 { return 10 }
+
+    return 42
+}

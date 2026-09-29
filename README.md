@@ -139,6 +139,11 @@ field explicitly before reading the associated value.
 `PairNumberText :: Pair(s32, string)` to create a concrete record
 with `first: s32` and `second: string` fields.
 
+`std/queue.zi` is an allocation-free bounded byte FIFO. Queue state is passed
+and returned by value, and every operation receives the caller-owned backing
+storage explicitly. Full pushes and empty pops are rejected without unwinding
+the queue; partial byte pops report the number removed.
+
 `std/json_scan.zi` supplies allocation-free JSON value skipping, object member
 and array element lookup, string spans, and decimal number reading. It validates
 the value shape and escapes while scanning; member names match unescaped ASCII
@@ -179,6 +184,8 @@ Native Linux C builds can import `std/file_linux.zi` for positional byte I/O,
 Unix time, `std/random_linux.zi` for operating-system secure randomness, and
 `std/byte_text_linux.zi` for borrowed byte-to-text views. `std/socket_linux.zi`
 opens literal-IPv4 TCP sockets with bounded polling, cancellation, and I/O.
+`std/timer_linux.zi` supplies monotonic millisecond timestamps and bounded,
+interruptible sleeps; it does not expose wall-clock time.
 The file module can create a private file exclusively, sync its contents, and
 publish it through a hard link that fails if the destination already exists.
 `std/byte_text_linux.zi` also borrows caller-owned C strings and byte buffers;

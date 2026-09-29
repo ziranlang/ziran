@@ -1,0 +1,100 @@
+// Allocation-free bounded FIFO queue over caller-owned byte storage. Queue
+// state is passed and returned by value; every operation receives the backing
+// bytes explicitly so their lifetime remains visible to the caller.
+#scope_export
+BoundedQueue :: struct {
+    capacity: s64
+    head: s64
+    count: s64
+}
+
+QueueByte :: struct {
+    queue: BoundedQueue
+    valid: bool
+    value: u8
+}
+
+QueueBytes :: struct {
+    queue: BoundedQueue
+    count: s64
+}
+
+#program_export
+QueueStart :: (storage: []u8) -> BoundedQueue {
+    queue: BoundedQueue
+    if storage.count > 0 {
+        queue.capacity = cast(s64)storage.count
+    }
+    return queue
+}
+
+#program_export
+QueueCapacity :: (queue: BoundedQueue) -> s64 {
+    return queue.capacity
+}
+
+#program_export
+QueueCount :: (queue: BoundedQueue) -> s64 {
+    return queue.count
+}
+
+#program_export
+QueuePush :: (queue: BoundedQueue, storage: []u8, value: u8) -> BoundedQueue {
+    if storage.count <= 0 || cast(s64)storage.count != queue.capacity ||
+        queue.count >= queue.capacity { return queue }
+    tail: s64 = queue.head + queue.count
+    if tail >= queue.capacity { tail -= queue.capacity }
+    storage[tail] = value
+    queue.count += 1
+    return queue
+}
+
+#program_export
+QueuePushBytes :: (queue: BoundedQueue, storage: []u8,
+    input: []u8) -> BoundedQueue {
+    if input.count > queue.capacity - queue.count { return queue }
+    index: s64 = 0
+    while index < input.count {
+        queue = QueuePush(queue, storage, input[index])
+        index += 1
+    }
+    return queue
+}
+
+#program_export
+QueuePop :: (queue: BoundedQueue, storage: []u8) -> QueueByte {
+    result: QueueByte
+    result.queue = queue
+    if storage.count <= 0 || cast(s64)storage.count != queue.capacity ||
+        queue.count <= 0 { return result }
+    result.value = storage[queue.head]
+    result.valid = true
+    queue.head += 1
+    if queue.head >= queue.capacity { queue.head = 0 }
+    queue.count -= 1
+    result.queue = queue
+    return result
+}
+
+#program_export
+QueuePopBytes :: (queue: BoundedQueue, storage: []u8,
+    output: []u8) -> QueueBytes {
+    result: QueueBytes
+    result.queue = queue
+    while result.count < cast(s64)output.count && queue.count > 0 {
+        item: QueueByte = QueuePop(queue, storage)
+        if !item.valid { break }
+        output[result.count] = item.value
+        result.count += 1
+        queue = item.queue
+        result.queue = queue
+    }
+    return result
+}
+
+#program_export
+QueueClear :: (queue: BoundedQueue) -> BoundedQueue {
+    queue.head = 0
+    queue.count = 0
+    return queue
+}

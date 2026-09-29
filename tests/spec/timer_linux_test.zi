@@ -1,0 +1,11 @@
+#import "timer_linux"
+
+#program_export
+SelfTest :: () -> s32 {
+    first: s64 = MonotonicMilliseconds()
+    if first < 0 || !SleepMilliseconds(1) { return 1 }
+    second: s64 = MonotonicMilliseconds()
+    if second < first { return 2 }
+    if SleepMilliseconds(-1) || SleepMilliseconds(86400001) { return 3 }
+    return 42
+}

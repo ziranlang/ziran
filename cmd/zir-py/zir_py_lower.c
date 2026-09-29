@@ -1394,7 +1394,8 @@ static const char *py_pointer_ctype(PyEmitter *emitter, const char *type)
 /* The parameter types of a foreign import, in order. */
 static int foreign_parameters(const ZirImport *import, char types[][ZIR_NAME_MAX], int maximum)
 {
-    char parts[32 * 256];
+    /* On the heap: this frame is inlined into callers that are inlined too. */
+    char *parts = py_allocate(32 * 256);
     int count = *import->args ? split_top_level(import->args, parts, 32, 256) : 0;
     int used = 0;
     for(int index = 0; index < count && used < maximum; index++) {
@@ -1410,6 +1411,7 @@ static int foreign_parameters(const ZirImport *import, char types[][ZIR_NAME_MAX
             break;
         snprintf(types[used++], ZIR_NAME_MAX, "%s", type);
     }
+    free(parts);
     return used;
 }
 
@@ -3239,9 +3241,21 @@ static void emit_classes(PyEmitter *emitter, FILE *output)
     }
 }
 
+/* Buffers emit_foreign_bindings keeps on the heap: py_lower inlines it, and
+ * some compilers add every inlined frame together past FRAMEFLAGS. */
+typedef struct PyForeignBuffers {
+    char symbol[ZIR_NAME_MAX * 2];
+    char parameters[32][ZIR_NAME_MAX];
+    char library[ZIR_PATH_MAX];
+} PyForeignBuffers;
+
 static void emit_foreign_bindings(PyEmitter *emitter, FILE *output)
 {
     int any = 0;
+    PyForeignBuffers *buffers = py_allocate(sizeof(*buffers));
+    char *symbol = buffers->symbol;
+    char (*parameters)[ZIR_NAME_MAX] = buffers->parameters;
+    char *library = buffers->library;
     for(int program_index = 0; program_index < emitter->program_count; program_index++) {
         const ZirProgram *program = emitter->programs[program_index];
         for(int module_index = 0; module_index < program->module_count; module_index++) {
@@ -3249,9 +3263,6 @@ static void emit_foreign_bindings(PyEmitter *emitter, FILE *output)
             emitter->module = module;
             for(int import_index = 0; import_index < module->import_count; import_index++) {
                 const ZirImport *import = &module->imports[import_index];
-                char symbol[ZIR_NAME_MAX * 2];
-                char parameters[32][ZIR_NAME_MAX];
-                char library[ZIR_PATH_MAX];
                 const char *dot, *link, *returned;
                 char *argtypes;
                 int count;
@@ -3266,8 +3277,8 @@ static void emit_foreign_bindings(PyEmitter *emitter, FILE *output)
                     exit(1);
                 }
                 count = foreign_parameters(import, parameters, 32);
-                foreign_symbol(emitter, module, import, symbol, sizeof(symbol));
-                snprintf(library, sizeof(library), "%s", import->target);
+                foreign_symbol(emitter, module, import, symbol, sizeof(buffers->symbol));
+                snprintf(library, sizeof(buffers->library), "%s", import->target);
                 dot = strrchr(library, '.');
                 if(dot != NULL)
                     library[dot - library] = '\0';
@@ -3303,6 +3314,7 @@ static void emit_foreign_bindings(PyEmitter *emitter, FILE *output)
             }
         }
     }
+    free(buffers);
     if(any)
         fputs("\n\n", output);
 }
@@ -3440,16 +3452,19 @@ static char *global_initializer(PyEmitter *emitter, const ZirGlobal *global)
     return py_zero(emitter, emitter->module, global->type);
 }
 
+/* Globals are lowered outside any function. A ZirFunction is 9 KB, too big
+ * for py_lower's frame once emit_globals is inlined into it. */
+static const ZirFunction py_no_function;
+
 static void emit_globals(PyEmitter *emitter, FILE *output)
 {
     int any = 0;
-    ZirFunction empty = {0};
     for(int program_index = 0; program_index < emitter->program_count; program_index++) {
         const ZirProgram *program = emitter->programs[program_index];
         for(int module_index = 0; module_index < program->module_count; module_index++) {
             const ZirModule *module = &program->modules[module_index];
             emitter->module = module;
-            emitter->function = &empty;
+            emitter->function = &py_no_function;
             for(int global_index = 0; global_index < module->global_count; global_index++) {
                 const ZirGlobal *global = &module->globals[global_index];
                 char symbol[ZIR_NAME_MAX * 2];

@@ -37,6 +37,13 @@ Type-only linked modules emit headers without empty C files. Without `--entry`,
 all checked declarations and module C files are emitted as before. Runtime
 branches in reachable functions remain; this pass does not specialize them.
 
+`ziran compile-commands DIR` writes `DIR/compile_commands.json` for the C
+files in `DIR`, so clangd and other editors can read generated code with the
+flags it builds with. `--compiler "cc -O2"` sets the compiler and its extra
+flags (default `$CC`, then `cc`), `--include DIR` names Ziran's headers
+(default: the pinned toolchain's with `--project`, otherwise the checkout
+beside the launcher), and `-o FILE` writes elsewhere.
+
 ## Save and inspect checked modules
 
 `ziran ir --entry module:function` saves that reachable checked graph as

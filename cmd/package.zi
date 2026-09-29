@@ -8,6 +8,7 @@
 #import "package_features"
 #import "package_explain"
 #import "package_options"
+#import "package_compile_commands"
 #import "file_linux"
 
 PkgLauncherDirectory :: (launcher: string) -> string {
@@ -16,6 +17,49 @@ PkgLauncherDirectory :: (launcher: string) -> string {
     end: s64 = cast(s64)path.count - 1
     while end > 0 && path[end] != cast(u8)47 { end -= 1 }
     return PkgJoin("", path[0:end])
+}
+
+// `ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] DIR`
+// describes the generated C in DIR to editors. The include directory
+// defaults to the pinned toolchain's under --project, otherwise to the one
+// beside this launcher.
+PkgCompileCommands :: (arguments: []string, project: bool, locked: *PkgLock,
+    launcher: string) -> s32 {
+    compiler: string = PkgGetenv("CC")
+    if compiler.count == 0 { compiler = "cc" }
+    include: string = ""
+    output: string = ""
+    generated: string = ""
+    index: s32 = 0
+    while index < cast(s32)arguments.count {
+        part: string = arguments[index]
+        if (part == "--compiler" || part == "--include" || part == "-o") &&
+           index + 1 < cast(s32)arguments.count {
+            if part == "--compiler" { compiler = arguments[index + 1] }
+            if part == "--include" { include = arguments[index + 1] }
+            if part == "-o" { output = arguments[index + 1] }
+            index += 2
+        } else if generated.count == 0 && part.count > 0 && part[0] != cast(u8)45 {
+            generated = part
+            index += 1
+        } else {
+            return PkgFail("usage: ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] GENERATED_DIR")
+        }
+    }
+    if generated.count == 0 {
+        return PkgFail("usage: ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] GENERATED_DIR")
+    }
+    if include.count == 0 {
+        if project { include = PkgJoin(locked.tool_path, "/include") }
+        else { include = PkgJoin(PkgLauncherDirectory(launcher), "/../../include") }
+    }
+    if !PathExists(PkgJoin(include, "/zir_string.h")) {
+        return PkgFail("cannot find Ziran's include directory; pass --include DIR")
+    }
+    if output.count == 0 { output = PkgJoin(generated, "/compile_commands.json") }
+    problem: string = WriteCompileCommands(include, compiler, generated, output)
+    if problem.count > 0 { return PkgFail(problem) }
+    return 0
 }
 
 PkgHasArgument :: (arguments: []string, expected: string) -> bool {
@@ -305,7 +349,7 @@ PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
-        PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect ...\n", false)
+        PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         PkgPrint("new to Ziran? run ziran guide\n", false)
         return 0
@@ -367,6 +411,9 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         }
     }
     if command == "fetch" { return 0 }
+    if command == "compile-commands" {
+        return PkgCompileCommands(filtered[0:count], project, locked, launcher)
+    }
     if command == "pkg" && count >= 1 && filtered[0] == "list" {
         if count > 2 { return PkgFail("usage: ziran pkg list [PACKAGE]") }
         selector: string = ""

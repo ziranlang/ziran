@@ -1171,11 +1171,6 @@ footer {
   text-overflow: ellipsis;
   font-size: 0.78rem;
 }
-.support-hint {
-  color: var(--accent);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
 .support-dialog {
   width: min(24rem, calc(100% - 32px));
   max-height: calc(100dvh - 32px);

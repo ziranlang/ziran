@@ -41,7 +41,7 @@ RenameAtRaw :: (old_directory: s32, source: *u8,
         RenameAt2Number :: 316;
     }
 }
-#if !#defined(ANDROID_BUILD) {
+#if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
     RenameAt2Raw :: (old_directory: s32, source: *u8,
         new_directory: s32, destination: *u8, flags: u32) -> s32 #foreign libc "renameat2";
 }
@@ -138,7 +138,13 @@ RenameNoReplace :: (source: string, destination: string) -> bool {
         return RenameSystemCall(cast(isize)RenameAt2Number, cast(isize)-100,
             *old_name[0], cast(isize)-100, *new_name[0], cast(usize)1) == cast(isize)0
     }
-    #if !#defined(ANDROID_BUILD) {
+    #if #defined(PLATFORM_WEB) {
+        // Emscripten's libc has no renameat2. A page runs one thread, so
+        // checking the destination first keeps the no-replace guarantee.
+        if PathExists(destination) { return false }
+        return RenameAtRaw(-100, *old_name[0], -100, *new_name[0]) == 0
+    }
+    #if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
         return RenameAt2Raw(-100, *old_name[0], -100, *new_name[0], 1) == 0
     }
 }

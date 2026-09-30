@@ -62,6 +62,7 @@ type testDriver struct{}
 type testConnection struct{}
 type testTransaction struct{}
 type testRows struct{}
+type testResult struct{ fail bool }
 
 func (testDriver) Open(string) (driver.Conn, error) { return testConnection{}, nil }
 func (testConnection) Prepare(string) (driver.Stmt, error) { return nil, sentinel }
@@ -73,6 +74,11 @@ func (testTransaction) Rollback() error { return nil }
 func (testRows) Columns() []string { return []string{"value"} }
 func (testRows) Close() error { closed = true; return nil }
 func (testRows) Next([]driver.Value) error { return sentinel }
+func (result testResult) LastInsertId() (int64, error) { return 0, nil }
+func (result testResult) RowsAffected() (int64, error) {
+    if result.fail { return 0, sentinel }
+    return 9223372036854775807, nil
+}
 
 func main() {
     sql.Register("fixture", testDriver{})
@@ -94,6 +100,14 @@ func main() {
         panic("nullable string fields")
     }
     if SqlGo_NullStringValid(sql.NullString{}) { panic("nullable zero value") }
+    count := SqlGo_RowsAffected(testResult{})
+    if count.Value != 9223372036854775807 || count.Error != nil {
+        panic("native affected row width or result order")
+    }
+    count = SqlGo_RowsAffected(testResult{fail: true})
+    if count.Value != 0 || count.Error != sentinel {
+        panic("native affected row error identity")
+    }
     if Native_Canonical("2026-01-02T12:00:00.5+02:00") != "2026-01-02T10:00:00.500000000Z" {
         panic("native UTC conversion")
     }

@@ -8,6 +8,10 @@ Row :: #type #foreign go_sql "Row";
 Rows :: #type #foreign go_sql "Rows";
 Result :: #type #foreign go_sql "Result";
 NullString :: #type #foreign go_sql "NullString";
+AffectedRowsResult :: struct {
+    value: s64
+    error: Error
+}
 
 #scope_file
 NextRaw :: (rows: *Rows) -> bool #foreign go_sql "(*Rows).Next";
@@ -19,6 +23,7 @@ NullStringValidRaw :: (value: NullString) -> bool #go_field #foreign go_sql "Nul
 NullStringValueRaw :: (value: NullString) -> string #go_field #foreign go_sql "NullString.String";
 NoRowsRaw :: () -> Error #go_field #foreign go_sql "ErrNoRows";
 TransactionDoneRaw :: () -> Error #go_field #foreign go_sql "ErrTxDone";
+RowsAffectedRaw :: (result: Result) -> AffectedRowsResult #go_results #foreign go_sql "Result.RowsAffected";
 
 #scope_export
 Next :: (rows: *Rows) -> bool {
@@ -47,4 +52,7 @@ NoRows :: () -> Error {
 }
 TransactionDone :: () -> Error {
     return TransactionDoneRaw()
+}
+RowsAffected :: (result: Result) -> AffectedRowsResult {
+    return RowsAffectedRaw(result)
 }

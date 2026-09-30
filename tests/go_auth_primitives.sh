@@ -31,6 +31,9 @@ Sign :: (key: keys.PrivateKey, message: string) -> []u8 {
 Verify :: (key: keys.PublicKey, message: string, signature: []u8) -> bool {
     return keys.Verify(key, text.ToBytes(message), signature)
 }
+Equal :: (key: keys.PublicKey, other: keys.PublicKey) -> bool {
+    return keys.Equal(key, other)
+}
 Copy :: (value: string) -> []u8 {
     return text.ToBytes(value)
 }
@@ -84,6 +87,12 @@ func main() {
         panic("native private key type or derivation")
     }
     public := key.Public().(ed25519.PublicKey)
+    copiedPublic := append(ed25519.PublicKey(nil), public...)
+    if !Auth_Equal(public, copiedPublic) || !Auth_Equal(nil, nil) || Auth_Equal(public, nil) {
+        panic("native public key equality")
+    }
+    copiedPublic[0] ^= 255
+    if Auth_Equal(public, copiedPublic) { panic("modified public key compared equal") }
     generated := Auth_Generate()
     if generated.Error != nil || len(generated.PublicKey) != ed25519.PublicKeySize || len(generated.PrivateKey) != ed25519.PrivateKeySize {
         panic("native generated keys or result order")

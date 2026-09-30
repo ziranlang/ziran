@@ -18,6 +18,7 @@ GenerateRaw :: (source: RandomSource) -> KeyPairResult #go_results #foreign go_e
 FromSeedRaw :: (seed: []u8) -> PrivateKey #foreign go_ed25519 "NewKeyFromSeed";
 SignRaw :: (key: PrivateKey, message: []u8) -> []u8 #foreign go_ed25519 "Sign";
 VerifyRaw :: (key: PublicKey, message: []u8, signature: []u8) -> bool #foreign go_ed25519 "Verify";
+EqualRaw :: (key: PublicKey, other: PublicKey) -> bool #foreign go_ed25519 "PublicKey.Equal";
 
 #scope_export
 GenerateKey :: () -> KeyPairResult {
@@ -31,4 +32,7 @@ Sign :: (key: PrivateKey, message: []u8) -> []u8 {
 }
 Verify :: (key: PublicKey, message: []u8, signature: []u8) -> bool {
     return VerifyRaw(key, message, signature)
+}
+Equal :: (key: PublicKey, other: PublicKey) -> bool {
+    return EqualRaw(key, other)
 }

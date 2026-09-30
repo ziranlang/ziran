@@ -51,7 +51,13 @@ PkgCompileCommands :: (arguments: []string, project: bool, locked: *PkgLock,
     }
     if include.count == 0 {
         if project { include = PkgJoin(locked.tool_path, "/include") }
-        else { include = PkgJoin(PkgLauncherDirectory(launcher), "/../../include") }
+        else {
+            // build/bin/ziran, or a variant build such as build/sanitize/bin.
+            include = PkgJoin(PkgLauncherDirectory(launcher), "/../../include")
+            if !PathExists(PkgJoin(include, "/zir_string.h")) {
+                include = PkgJoin(PkgLauncherDirectory(launcher), "/../../../include")
+            }
+        }
     }
     if !PathExists(PkgJoin(include, "/zir_string.h")) {
         return PkgFail("cannot find Ziran's include directory; pass --include DIR")
@@ -195,7 +201,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
             make_args[2] = locked.tool_path
             make_args[3] = "all"
             empty: [0]string
-            if PkgRun(make_args[:], "", empty[:], empty[:]) != 0 {
+            if PkgRunToStderr(make_args[:], "") != 0 {
                 return PkgFail("cannot build pinned Ziran compiler")
             }
         }
@@ -308,7 +314,7 @@ PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
     make_args[5] = relative
     make_args[6] = PkgJoin("ZIRAN_DIR=", locked.tool_path)
     empty: [0]string
-    if PkgRun(make_args[:], "", empty[:], empty[:]) != 0 {
+    if PkgRunToStderr(make_args[:], "") != 0 {
         return PkgFail("cannot build package tool")
     }
     names: [16]string
@@ -411,9 +417,15 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         }
         // A project runs with its pinned toolchain's own launcher, so an
         // installed ziran of any age writes the import map the lock expects.
+        // A launcher built inside the pinned toolchain's own tree, such as
+        // the sanitizer build under build/sanitize, is that toolchain.
         pinned: string = PkgJoin(locked.tool_path, "/build/bin/ziran")
-        if PkgGetenv("ZIRAN_PINNED_LAUNCHER") != "1" &&
-           PkgCanonical(launcher) != PkgCanonical(pinned) {
+        tool_root: string = PkgJoin(PkgCanonical(locked.tool_path), "/")
+        own: string = PkgCanonical(launcher)
+        inside: bool = tool_root.count > 1 && own.count > tool_root.count &&
+            own[0:tool_root.count] == tool_root
+        if PkgGetenv("ZIRAN_PINNED_LAUNCHER") != "1" && !inside &&
+           own != PkgCanonical(pinned) {
             if !PathExists(pinned) {
                 make_args: [4]string
                 make_args[0] = "make"
@@ -421,7 +433,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
                 make_args[2] = locked.tool_path
                 make_args[3] = "all"
                 none: [0]string
-                if PkgRun(make_args[:], "", none[:], none[:]) != 0 {
+                if PkgRunToStderr(make_args[:], "") != 0 {
                     return PkgFail("cannot build pinned Ziran compiler")
                 }
             }

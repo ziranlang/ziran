@@ -208,6 +208,14 @@ PkgCapture :: (arguments: []string, cwd: string) -> PkgProcessResult {
     return result
 }
 
+// Runs a build step whose log belongs on stderr, so a command's stdout
+// carries only its result; `root=$(ziran pkg path ziran)` stays one line.
+PkgRunToStderr :: (arguments: []string, cwd: string) -> s32 {
+    result: PkgProcessResult = PkgCaptureRaw(arguments, cwd)
+    PkgPrint(result.text, true)
+    return result.code
+}
+
 PkgPrint :: (value: string, error: bool) -> void {
     if value.count == 0 { return }
     fd: s32 = 1

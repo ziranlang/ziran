@@ -1748,7 +1748,7 @@ c_plan9_write_runtime(const char *out_dir)
 "    for(i = 1; i < count; i++) text[used++] = digits[i];\n"
 "    if(count == 1) text[used++] = '0';\n"
 "    snprint(text + used, sizeof(text) - used, \"e%d\", exponent);\n"
-"    return strtod(text, nil);\n"
+"    return strtod(text, 0);\n"
 "}\n"
 "\n"
 "static void\n"

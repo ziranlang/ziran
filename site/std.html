@@ -138,6 +138,10 @@
 <div><code>Digit :: (ch: u8) -&gt; bool</code></div>
 <div><code>Hex :: (ch: u8) -&gt; bool</code></div>
 <div><code>ReadString :: (text: string, at: s32) -&gt; JsonSpan</code></div>
+<div><code>HexValue :: (ch: u8) -&gt; s32</code></div>
+<div><code>ReadHex4 :: (text: string, at: s32, end: s32) -&gt; s32</code><p>The four hex digits at `at` as a number, or -1.</p></div>
+<div><code>AppendUtf8 :: (output: []u8, length: s32, codepoint: s32) -&gt; s32</code><p>Appends codepoint as UTF-8, leaving room for a NUL. Returns the new length, or -1 when it does not fit.</p></div>
+<div><code>ReadStringText :: (text: string, at: s32, output: []u8) -&gt; s32</code><p>Copies the JSON string at `at` into output as UTF-8 with its escapes decoded, including \uXXXX surrogate pairs; a lone surrogate becomes U+FFFD. Returns the byte length, or -1 when the value is not a string or does not fit. Output is always NUL-terminated.</p></div>
 <div><code>SpanEqualsASCII :: (text: string, span: JsonSpan, expected: string) -&gt; bool</code></div>
 <div><code>SpanContainsFoldASCII :: (text: string, span: JsonSpan, needle: string) -&gt; bool</code></div>
 <div><code>ReadNumber :: (text: string, at: s32) -&gt; JsonNumber</code></div>

@@ -11,6 +11,9 @@ import tempfile
 
 
 def call(*args: str, cwd: Path, env: dict, succeed: bool = True) -> str:
+    # Under `make check -jN` the jobserver descriptors do not reach this
+    # process, so a nested make would warn into output the tests compare.
+    env = {k: v for k, v in env.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")}
     result = subprocess.run(args, cwd=cwd, env=env, text=True,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if succeed != (result.returncode == 0):

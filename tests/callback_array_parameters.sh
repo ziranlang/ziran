@@ -3,6 +3,7 @@ set -eu
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/test"
 work=$(mktemp -d "$repo/build/test/callback_array_parameters.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 

@@ -14,6 +14,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+      - name: Install ripgrep for the test scripts
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Build the toolchain
         run: make
       - name: Run the language, backend, and portable runtime checks
@@ -25,6 +27,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+      - name: Install ripgrep for the test scripts
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Run the checks under AddressSanitizer and UBSan
         run: env -u DISPLAY -u WAYLAND_DISPLAY make sanitize CHECK_JOBS=4
   fuzz:

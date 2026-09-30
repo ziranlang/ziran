@@ -61,8 +61,23 @@ typedef struct Value {
     const ZirFunction *slot_function;
 } Value;
 
+/* One record field's name and type. Both strings are interned with
+ * KeepText, so every record of a type shares them. */
+typedef struct VmField {
+    const char *name;
+    const char *type;
+} VmField;
+
+/* A record type's fields, parsed once per VM from the type's text. The
+ * table can move as it grows; `fields` stays at one address. */
+typedef struct VmLayout {
+    const ZirType *type;
+    int count;          /* -1 when the fields are malformed or too many */
+    VmField *fields;
+} VmLayout;
+
 typedef struct RecordField {
-    ZirTypeField field;
+    VmField field;
     Value value;
 } RecordField;
 
@@ -84,6 +99,7 @@ struct Array {
     uint64_t allocation;
     const ZirModule *owner;
     char element_type[ZIR_NAME_MAX];
+    int holds_references; /* elements can reach records or arrays */
     int length;
     Value elements[];
 };
@@ -126,6 +142,9 @@ typedef struct Vm {
     Frame *active_frame;
     VmHostCall host;
     void *host_context;
+    VmLayout *layouts;  /* open-addressed by type pointer */
+    size_t layout_slots;
+    size_t layout_count;
 } Vm;
 
 struct VmInstance {
@@ -207,7 +226,9 @@ Value binary_value(Vm *vm, const char *op, Value left, Value right, const char *
 Value eval(Frame *frame, int index, int depth);
 void pin_value(Vm *vm, Value value, int depth);
 Value run_function(Vm *vm, const ZirModule *module, const ZirFunction *function, const Value *args, int arg_count);
+const VmLayout *record_layout(Vm *vm, const ZirType *type);
 void free_records(Vm *vm);
+void free_layouts(Vm *vm);
 void free_arrays(Vm *vm);
 void free_strings(Vm *vm);
 int fold_global_element(Vm *vm, const ZirModule *module, const ZirFunction *probe, int index, Value *target, const char *type, ZirSourceSpan span);

@@ -365,23 +365,19 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
             vm->failed = 1;
             return result;
         }
-        size_t offset = 0;
-        ZirTypeField field;
-        int count = 0, status;
-        while((status = TypeNextField(declared, &offset, &field)) == 1)
-            count++;
-        if(status < 0 || count != (int)input->field_count) {
+        const VmLayout *layout = record_layout(vm, declared);
+        if(layout == NULL || layout->count != (int)input->field_count) {
             vm->failed = 1;
             return result;
         }
+        int count = layout->count;
+        const VmField *fields = layout->fields;
         Record *record = allocate_record(vm, owner, declared, count);
         if(record == NULL)
             return result;
-        offset = 0;
         for(int i = 0; i < count && !vm->failed; i++) {
-            if(TypeNextField(declared, &offset,
-                             &record->fields[i].field) != 1 ||
-               input->fields[i].name == NULL ||
+            record->fields[i].field = fields[i];
+            if(input->fields[i].name == NULL ||
                strcmp(input->fields[i].name,
                       record->fields[i].field.name) != 0) {
                 vm->failed = 1;
@@ -546,8 +542,9 @@ pin_value(Vm *vm, Value value, int depth)
     } else if(value.kind == VALUE_ARRAY && value.array != NULL &&
               value.array->pinned != vm->pin_generation) {
         value.array->pinned = vm->pin_generation;
-        for(int i = 0; i < value.array->length; i++)
-            pin_value(vm, value.array->elements[i], depth + 1);
+        if(value.array->holds_references)
+            for(int i = 0; i < value.array->length; i++)
+                pin_value(vm, value.array->elements[i], depth + 1);
     } else if(value.kind == VALUE_SLICE && value.array != NULL) {
         pin_value(vm, (Value){.kind = VALUE_ARRAY, .array = value.array},
                   depth + 1);
@@ -783,9 +780,12 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     /* Nested calls are collected at a top-level statement boundary. A call
      * with unusually large live storage still reclaims its own temporaries
      * before the VM's allocation limits are reached. */
-    if(!vm->failed && (vm->depth == 0 ||
-       vm->record_bytes > VM_MAX_RECORD_BYTES / 2 ||
-       vm->array_bytes > VM_MAX_ARRAY_BYTES / 2)) {
+    /* A call that allocated nothing left nothing to reclaim; skipping it
+     * avoids marking every live value after each small helper call. */
+    if(!vm->failed && allocation_before_result > allocation_entry &&
+       (vm->depth == 0 ||
+        vm->record_bytes > VM_MAX_RECORD_BYTES / 2 ||
+        vm->array_bytes > VM_MAX_ARRAY_BYTES / 2)) {
         vm->pin_generation++;
         pin_globals(vm);
         pin_active_frames(vm);
@@ -1112,6 +1112,7 @@ VmInstanceClose(VmInstance *instance)
     free_records(&instance->vm);
     free_arrays(&instance->vm);
     free_strings(&instance->vm);
+    free_layouts(&instance->vm);
     free(instance->vm.globals);
     free(instance);
 }

@@ -997,6 +997,7 @@ verify_global_aggregate_with_buffers(const ZirModule *module, const ZirGlobal *g
     free(buffers->probe.exprs);
     free_records(&scratch);
     free_arrays(&scratch);
+    free_layouts(&scratch);
     free_strings(&scratch);
     return valid;
 }

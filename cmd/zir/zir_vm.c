@@ -359,6 +359,85 @@ truthy(Value value)
            integer_bits(value) != 0;
 }
 
+static const VmLayout *
+parse_layout(VmLayout *layout, const ZirType *type)
+{
+    ZirTypeField field;
+    size_t offset = 0;
+    int count = 0, status;
+    layout->type = type;
+    layout->count = -1;
+    layout->fields = NULL;
+    while((status = TypeNextField(type, &offset, &field)) == 1)
+        count++;
+    if(status < 0 || count > VM_MAX_FIELDS)
+        return layout;
+    layout->fields = calloc(count ? (size_t)count : 1, sizeof(*layout->fields));
+    if(layout->fields == NULL)
+        return layout;
+    offset = 0;
+    for(int i = 0; i < count; i++) {
+        if(TypeNextField(type, &offset, &field) != 1) {
+            free(layout->fields);
+            layout->fields = NULL;
+            return layout;
+        }
+        layout->fields[i].name = KeepText(field.name);
+        layout->fields[i].type = KeepText(field.type);
+    }
+    layout->count = count;
+    return layout;
+}
+
+static size_t
+layout_slot(const VmLayout *layouts, size_t slots, const ZirType *type)
+{
+    size_t slot = ((uintptr_t)type >> 4) * 0x9e3779b97f4a7c15u & (slots - 1);
+    while(layouts[slot].type != NULL && layouts[slot].type != type)
+        slot = (slot + 1) & (slots - 1);
+    return slot;
+}
+
+/* Record allocation happens for every record value the VM builds, so the
+ * field list is parsed from the type text once and reused. */
+const VmLayout *
+record_layout(Vm *vm, const ZirType *type)
+{
+    if(type == NULL)
+        return NULL;
+    if(vm->layout_slots != 0) {
+        size_t slot = layout_slot(vm->layouts, vm->layout_slots, type);
+        if(vm->layouts[slot].type == type)
+            return &vm->layouts[slot];
+    }
+    if((vm->layout_count + 1) * 2 > vm->layout_slots) {
+        size_t slots = vm->layout_slots ? vm->layout_slots * 2 : 64;
+        VmLayout *layouts = calloc(slots, sizeof(*layouts));
+        if(layouts == NULL)
+            return NULL;
+        for(size_t i = 0; i < vm->layout_slots; i++)
+            if(vm->layouts[i].type != NULL)
+                layouts[layout_slot(layouts, slots, vm->layouts[i].type)] =
+                    vm->layouts[i];
+        free(vm->layouts);
+        vm->layouts = layouts;
+        vm->layout_slots = slots;
+    }
+    size_t slot = layout_slot(vm->layouts, vm->layout_slots, type);
+    vm->layout_count++;
+    return parse_layout(&vm->layouts[slot], type);
+}
+
+void
+free_layouts(Vm *vm)
+{
+    for(size_t i = 0; i < vm->layout_slots; i++)
+        free(vm->layouts[i].fields);
+    free(vm->layouts);
+    vm->layouts = NULL;
+    vm->layout_slots = vm->layout_count = 0;
+}
+
 Record *
 allocate_record(Vm *vm, const ZirModule *owner,
                 const ZirType *type, int count)
@@ -385,6 +464,18 @@ allocate_record(Vm *vm, const ZirModule *owner,
     return record;
 }
 
+/* Whether a value of this type can reach VM records or arrays. Scalars,
+ * strings, raw pointers (opaque handles), enums, and procedure values
+ * cannot, so arrays of them need no element walk when marking or copying. */
+static int
+type_holds_references(const ZirModule *module, const char *type)
+{
+    if(value_kind(type) != VALUE_INVALID)
+        return 0;
+    const ZirType *found = module != NULL ? FindType(module, type, NULL) : NULL;
+    return found == NULL || !(found->is_enum || found->is_procedure_type);
+}
+
 Array *
 allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
                    int length, int fail_hard)
@@ -408,6 +499,7 @@ allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
     array->allocation = ++vm->allocation;
     array->owner = owner;
     copy_text(array->element_type, sizeof(array->element_type), element);
+    array->holds_references = type_holds_references(owner, element);
     array->length = length;
     vm->arrays = array;
     vm->array_bytes += bytes;
@@ -442,9 +534,13 @@ clone_value(Vm *vm, Value value, int depth)
                                      value.array->length);
         if(copy == NULL)
             return int_value(0);
-        for(int i = 0; i < copy->length && !vm->failed; i++)
-            copy->elements[i] = clone_value(vm,
-                value.array->elements[i], depth + 1);
+        if(!value.array->holds_references)
+            memcpy(copy->elements, value.array->elements,
+                   (size_t)copy->length * sizeof(Value));
+        else
+            for(int i = 0; i < copy->length && !vm->failed; i++)
+                copy->elements[i] = clone_value(vm,
+                    value.array->elements[i], depth + 1);
         return (Value){.kind = VALUE_ARRAY, .array = copy};
     }
     if(value.record == NULL || depth >= VM_MAX_DEPTH) {
@@ -486,9 +582,15 @@ default_value(Vm *vm, const ZirModule *module, const char *type, int depth)
         Array *array = allocate_array(vm, module, element, capacity);
         if(array == NULL)
             return int_value(0);
-        for(int i = 0; i < capacity && !vm->failed; i++)
-            array->elements[i] = default_value(vm, module, element,
-                                               depth + 1);
+        if(!array->holds_references && capacity > 0) {
+            /* Scalar defaults allocate nothing, so one serves every slot. */
+            Value zero = default_value(vm, module, element, depth + 1);
+            for(int i = 0; i < capacity; i++)
+                array->elements[i] = zero;
+        } else
+            for(int i = 0; i < capacity && !vm->failed; i++)
+                array->elements[i] = default_value(vm, module, element,
+                                                   depth + 1);
         return (Value){.kind = VALUE_ARRAY, .array = array};
     }
     const ZirModule *owner = NULL;
@@ -503,25 +605,19 @@ default_value(Vm *vm, const ZirModule *module, const char *type, int depth)
         vm->failed = 1;
         return int_value(0);
     }
-    size_t offset = 0;
-    ZirTypeField field;
-    int count = 0;
-    int status;
-    while((status = TypeNextField(record_type, &offset, &field)) == 1)
-        count++;
-    if(status < 0 || count > VM_MAX_FIELDS) {
+    const VmLayout *layout = record_layout(vm, record_type);
+    if(layout == NULL || layout->count < 0) {
         vm->failed = 1;
         return int_value(0);
     }
+    /* Nested defaults can grow the layout table; its field arrays stay put. */
+    int count = layout->count;
+    const VmField *fields = layout->fields;
     Record *record = allocate_record(vm, owner, record_type, count);
     if(record == NULL)
         return int_value(0);
-    offset = 0;
     for(int i = 0; i < count && !vm->failed; i++) {
-        if(TypeNextField(record_type, &offset, &record->fields[i].field) != 1) {
-            vm->failed = 1;
-            break;
-        }
+        record->fields[i].field = fields[i];
         if(i == 0 && VecElementType(module, type, NULL, 0))
             record->fields[i].value = (Value){.kind = VALUE_ARRAY};
         else

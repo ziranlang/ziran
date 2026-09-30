@@ -70,7 +70,18 @@ typedef struct ActiveTextBorrow {
     int depth;
 } ActiveTextBorrow;
 
+/* Whether a type holds text, answered once per module and type name: the
+ * answer walks every field, and the check asks for the same types many
+ * times over its passes. Types no longer change once checking is done. */
+typedef struct TextTypeAnswer {
+    const ZirModule *module;
+    char type[ZIR_NAME_MAX];
+    int holds_text;
+} TextTypeAnswer;
+
 typedef struct BorrowCheck {
+    TextTypeAnswer *text_types; /* open addressing, capacity a power of two */
+    size_t text_type_capacity, text_type_count;
     BorrowFunction *functions;
     int count;
     BorrowFunction *current;
@@ -417,10 +428,51 @@ contains_text(const ZirModule *module, const char *type, int depth)
     return 0;
 }
 
+static uint64_t
+text_type_hash(const ZirModule *module, const char *type)
+{
+    uint64_t hash = UINT64_C(14695981039346656037) ^ (uint64_t)(uintptr_t)module;
+    for(const unsigned char *p = (const unsigned char *)type; *p; p++)
+        hash = (hash ^ *p) * UINT64_C(1099511628211);
+    return hash;
+}
+
 static int
 text_view_type(BorrowCheck *check, const char *type)
 {
-    return contains_text(check->current->module, type, 0);
+    const ZirModule *module = check->current->module;
+    if(strlen(type) >= ZIR_NAME_MAX)
+        return contains_text(module, type, 0);
+    if((check->text_type_count + 1) * 4 > check->text_type_capacity * 3) {
+        size_t capacity = check->text_type_capacity ? check->text_type_capacity * 2 : 1024;
+        TextTypeAnswer *grown = calloc(capacity, sizeof(*grown));
+        if(grown == NULL)
+            return contains_text(module, type, 0);
+        for(size_t i = 0; i < check->text_type_capacity; i++) {
+            const TextTypeAnswer *old = &check->text_types[i];
+            if(old->module == NULL) continue;
+            size_t slot = text_type_hash(old->module, old->type) & (capacity - 1);
+            while(grown[slot].module != NULL) slot = (slot + 1) & (capacity - 1);
+            grown[slot] = *old;
+        }
+        free(check->text_types);
+        check->text_types = grown;
+        check->text_type_capacity = capacity;
+    }
+    size_t mask = check->text_type_capacity - 1;
+    size_t slot = text_type_hash(module, type) & mask;
+    while(check->text_types[slot].module != NULL) {
+        TextTypeAnswer *answer = &check->text_types[slot];
+        if(answer->module == module && !strcmp(answer->type, type))
+            return answer->holds_text;
+        slot = (slot + 1) & mask;
+    }
+    TextTypeAnswer *answer = &check->text_types[slot];
+    answer->module = module;
+    copy_text(answer->type, sizeof(answer->type), type);
+    answer->holds_text = contains_text(module, type, 0);
+    check->text_type_count++;
+    return answer->holds_text;
 }
 
 static const ZirExpr *
@@ -1061,5 +1113,6 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
     free(check.functions);
     free(check.globals);
     free(check.global_origins);
+    free(check.text_types);
     return !check.failed;
 }

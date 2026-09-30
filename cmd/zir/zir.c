@@ -212,12 +212,13 @@ SameMapType(const ZirModule *a_owner, const ZirType *a,
 int
 TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field)
 {
-    size_t length = strlen(record->body);
-
-    memset(field, 0, sizeof(*field));
+    /* Records are enumerated often; clearing the whole field or measuring
+     * the whole body on every call made listing their fields quadratic. */
+    field->name[0] = field->type[0] = field->go_tag[0] = '\0';
+    field->is_using = 0;
     if(record->is_enum || record->is_procedure_type)
         return -1;
-    while(*offset < length) {
+    while(record->body[*offset] != '\0') {
         const char *start = record->body + *offset;
         const char *end = start;
         int quote = 0;
@@ -242,7 +243,7 @@ TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field)
         size_t name_length;
         size_t type_length;
 
-        *offset = *end != '\0' ? (size_t)(end - record->body) + 1 : length;
+        *offset = (size_t)(end - record->body) + (*end != '\0');
         while(start < end && isspace((unsigned char)*start))
             start++;
         while(end > start && isspace((unsigned char)end[-1]))
@@ -287,6 +288,7 @@ TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field)
             if(tag_length == 0 || tag_length >= sizeof(field->go_tag))
                 return -1;
             memcpy(field->go_tag, literal, tag_length);
+            field->go_tag[tag_length] = '\0';
             unsigned char decoded[sizeof(field->go_tag)];
             size_t decoded_length;
             if(!DecodeStringLiteral(field->go_tag, decoded, sizeof(decoded),
@@ -308,7 +310,9 @@ TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field)
                 return -1;
         }
         memcpy(field->name, start, name_length);
+        field->name[name_length] = '\0';
         memcpy(field->type, type_start, type_length);
+        field->type[type_length] = '\0';
         return 1;
     }
     return 0;

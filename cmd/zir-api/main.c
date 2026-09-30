@@ -3,6 +3,7 @@
 #include "zir_diagnostic.h"
 #include "zir_load.h"
 #include "zir_serial.h"
+#include "zir_text.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -90,8 +91,15 @@ source_spelling(const ZirModule *module, const char *text, char *out,
 static void
 show_function(const ZirModule *module, const ZirFunction *fn, int json)
 {
-    /* Overloads share the name callers write; fn->name is unique. */
+    /* Overloads share the name callers write; fn->name is unique. An
+     * operator procedure is listed as declared: operator +. */
     const char *name = fn->overload_name[0] ? fn->overload_name : fn->name;
+    char operator_name[16];
+    if(OperatorOfProcedure(name) != NULL) {
+        snprintf(operator_name, sizeof(operator_name), "operator %s",
+                 OperatorOfProcedure(name));
+        name = operator_name;
+    }
     struct { char args[ZIR_TEXT_MAX * 2], result[ZIR_TEXT_MAX], spelled[ZIR_TEXT_MAX]; }
         *text = calloc(1, sizeof(*text));
     if(text == NULL) {

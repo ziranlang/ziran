@@ -86,6 +86,10 @@ Twice :: (a: s32) -> s32 #symmetric { return a * 2; }
 ZI
 
 "$ziran" check --root "$work" "$work/app.zi"
+# API listings show operator procedures as declared.
+"$ziran" api --root "$work" "$work/vectors.zi" > "$work/api.txt"
+grep -Fq '  operator + :: (a: V, b: V) -> V' "$work/api.txt"
+test "$(grep -c '^  operator \* :: ' "$work/api.txt")" = 3
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 for input in source saved; do
     if test "$input" = source; then

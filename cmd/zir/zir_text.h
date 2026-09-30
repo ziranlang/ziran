@@ -29,6 +29,9 @@ int split_top_level(const char *s, char *parts, int max, size_t part_size);
 const char *OperatorProcedureName(const char *op);
 /* Length of the operator token at TEXT that has a procedure name, or 0. */
 size_t OperatorTokenLength(const char *text);
+/* The operator procedure NAME declares, such as "+" for operator_add, or
+ * NULL for any other name. */
+const char *OperatorOfProcedure(const char *name);
 char *top_level_assignment(char *s);
 
 #endif /* ZIRAN_ZIR_TEXT_H */

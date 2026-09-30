@@ -521,3 +521,12 @@ OperatorTokenLength(const char *text)
     }
     return 0;
 }
+
+const char *
+OperatorOfProcedure(const char *name)
+{
+    for(size_t i = 0; i < sizeof(operator_procedures) / sizeof(operator_procedures[0]); i++)
+        if(strcmp(operator_procedures[i].name, name) == 0)
+            return operator_procedures[i].op;
+    return NULL;
+}

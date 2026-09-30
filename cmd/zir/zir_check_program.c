@@ -763,6 +763,53 @@ lint_cast(const ZirFunction *fn, int index, int whole_value)
     return 0;
 }
 
+/* Whether TEXT holds NUMBER as a whole token. */
+static int
+holds_number_token(const char *text, const char *number)
+{
+    size_t length = strlen(number);
+    for(const char *at = strstr(text, number); at != NULL; at = strstr(at + 1, number))
+        if((at == text || !isalnum((unsigned char)at[-1])) &&
+           !isalnum((unsigned char)at[length]) && at[length] != '.')
+            return 1;
+    return 0;
+}
+
+/* A byte compared with a printable character's code written as a number,
+ * as C ports do: text[i] == 65 reads better as text[i] == #char "A". */
+static int
+lint_character(const ZirFunction *fn, int index)
+{
+    const ZirExpr *compare = &fn->exprs[index];
+    static const char *const ops[] = {"==", "!=", "<", "<=", ">", ">=", NULL};
+    int comparison = 0;
+    for(int i = 0; ops[i] != NULL; i++)
+        comparison |= !strcmp(compare->op, ops[i]);
+    if(compare->kind != ZIR_EXPR_BINARY || !comparison || compare->left < 0 ||
+       compare->right < 0 || compare->text == NULL || strstr(compare->text, "#char"))
+        return 0;
+    const ZirExpr *left = &fn->exprs[compare->left], *right = &fn->exprs[compare->right];
+    const ZirExpr *number = left->kind == ZIR_EXPR_INT ? left :
+                            right->kind == ZIR_EXPR_INT ? right : NULL;
+    const ZirExpr *byte = number == left ? right : left;
+    if(number == NULL || byte->kind == ZIR_EXPR_INT || strcmp(byte->type, "u8") ||
+       number->text == NULL)
+        return 0;
+    char *end = NULL;
+    long value = strtol(number->text, &end, 10);
+    if(end == number->text || *end != '\0' || value < 32 || value > 126 ||
+       !holds_number_token(compare->text, number->text))
+        return 0;
+    char spelled[8];
+    if(value == '"' || value == '\\')
+        snprintf(spelled, sizeof(spelled), "\\%c", (int)value);
+    else
+        snprintf(spelled, sizeof(spelled), "%c", (int)value);
+    Warning(compare->span, "lint.char", "compare with #char \"%s\" rather than %ld",
+            spelled, value);
+    return 1;
+}
+
 /* Whether declaration ST names its type, so its initializer can widen. */
 static int
 declared_type_written(const ZirStmt *st)
@@ -819,7 +866,7 @@ LintPrograms(ZirProgram **programs, int count)
                         whole[child] = 1;
                 }
                 for(int e = 0; e < fn->expr_count; e++)
-                    warnings += lint_cast(fn, e, whole[e]);
+                    warnings += lint_cast(fn, e, whole[e]) + lint_character(fn, e);
                 free(whole);
             }
         }

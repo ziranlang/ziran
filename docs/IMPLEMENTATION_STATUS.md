@@ -71,8 +71,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - `ziran check --lint` warns (code `lint.cast`) about casts to a value's own
   type and casts that only widen a whole typed initializer, assignment,
   argument, or result; it leaves casts that set arithmetic width, choose an
-  inferred type, or pick an overload. Inbe's sources have 51 such casts.
-  `tests/lint_casts.sh` pins the rules.
+  inferred type, or pick an overload. It also warns (code `lint.char`) when a
+  `u8` is compared with a printable character's code written as a number,
+  suggesting the `#char` literal. `tests/lint_casts.sh` and
+  `tests/lint_characters.sh` pin the rules. Inbe, Kryon, KSS, and Workbook
+  have had their identity casts and character codes rewritten this way
+  (their widening casts wait for the pinned Ziran to widen implicitly).
 - A generic record from another module may hold types only that module
   imports: the user's `Bag(string)` reads the library's `Vec(K)` field as
   `vec.Vec(string)`, and every copy of one application gets the same name.

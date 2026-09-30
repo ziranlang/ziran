@@ -205,6 +205,78 @@ typedef struct CheckTypeDeclarationsBuffers {
 int check_type_declarations(ZirModule *module);
 
 static int
+check_go_binding(const ZirModule *module, const ZirImport *binding,
+                  char parameters[][ZIR_TEXT_MAX])
+{
+    if(binding->kind != ZIR_IMPORT_EXTERN || binding->extern_kind != ZIR_EXTERN_GO)
+        return 1;
+    char package[ZIR_PATH_MAX], receiver[ZIR_NAME_MAX], symbol[ZIR_NAME_MAX];
+    if(!GoForeignCallParts(binding->target, package, sizeof(package), receiver,
+                           sizeof(receiver), symbol, sizeof(symbol))) {
+        Diagnostic(binding->span, "check.foreign", "invalid Go foreign target");
+        return 0;
+    }
+    int count = *skip_ws(binding->args) ?
+        split_top_level(binding->args, parameters[0], 64, ZIR_TEXT_MAX) : 0;
+    if(binding->go_results) {
+        const ZirType *record = FindType(module, binding->return_type, NULL);
+        size_t offset = 0;
+        ZirTypeField field;
+        int fields = 0, status = -1;
+        if(record && !record->is_extern && !record->is_enum && !record->is_union &&
+           !record->is_owned_vec && !record->is_map && !record->is_record_template &&
+           !record->is_procedure_type && !contains_vec(module, record->name, 0)) {
+            while((status = TypeNextField(record, &offset, &field)) == 1) {
+                if(field.is_using || !strcmp(field.name, "_")) { status = -1; break; }
+                fields++;
+            }
+        }
+        if(!fields || status != 0 || binding->is_varargs || !strcmp(package, "builtin")) {
+            Diagnostic(binding->span, "check.foreign", "#go_results requires a concrete result record without owned storage");
+            return 0;
+        }
+    }
+    if(receiver[0]) {
+        const char *colon = count > 0 ? strchr(parameters[0], ':') : NULL;
+        const char *type = colon ? skip_ws(colon + 1) : "";
+        if((type[0] == '*') != (receiver[0] == '*')) {
+            Diagnostic(binding->span, "check.foreign", "Go method requires its declared receiver as the first parameter");
+            return 0;
+        }
+        const ZirType *declared = FindType(module, type + (type[0] == '*'), NULL);
+        char target[ZIR_PATH_MAX];
+        snprintf(target, sizeof(target), "go:%s.%s", package, receiver + (receiver[0] == '*'));
+        if(!declared || strcmp(declared->foreign_target, target)) {
+            Diagnostic(binding->span, "check.foreign", "Go method receiver does not match its foreign type");
+            return 0;
+        }
+    }
+    if(!strcmp(package, "builtin")) {
+        const char *result = skip_ws(binding->return_type);
+        int allocation = !strcmp(symbol, "new") && count == 0 && result[0] == '*' &&
+            strcmp(skip_ws(result + 1), "void") && local_storage_error(module, result + 1) == NULL;
+        if(!strcmp(symbol, "make")) {
+            allocation = SliceElementType(result, NULL, 0) ? count == 1 || count == 2 :
+                MapTypeParts(module, result, NULL, 0, NULL, 0) && (count == 0 || count == 1);
+            for(int i = 0; i < count && allocation; i++) {
+                const char *colon = strchr(parameters[i], ':');
+                allocation = colon && integer_type(skip_ws(colon + 1));
+            }
+            allocation = allocation && local_storage_error(module, result) == NULL;
+        }
+        if(!strcmp(symbol, "string")) {
+            const char *colon = count == 1 ? strchr(parameters[0], ':') : NULL;
+            allocation = colon && !strcmp(skip_ws(colon + 1), "[]u8") && !strcmp(result, "string");
+        }
+        if(!allocation) {
+            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make or string signature");
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int
 check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuffers *buffers)
 {
     for(int i = 0; i < module->type_count; i++) {
@@ -380,6 +452,11 @@ check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuf
         if(error != NULL)
             return record_declaration_error(record, error,
                                             detail[0] ? detail : NULL);
+    }
+    for(int i = 0; i < module->import_count; i++) {
+        select_lookup_file(module, module->imports[i].span);
+        if(!check_go_binding(module, &module->imports[i], buffers->parameters_2))
+            return 0;
     }
     return 1;
 }

@@ -1,0 +1,9 @@
+Laws :: #import "LAWS";
+#proof Laws.AddZero { unfold Code.Add; ring; }
+#proof Laws.AddCommutes { unfold Code.Add; ring; }
+#proof Laws.AddAssociates { unfold Code.Add; ring; }
+#proof Laws.MultiplyDistributes { ring; }
+#proof Laws.MaximumCommutes { unfold Code.Larger; cases; order; }
+#proof Laws.MaximumIsIdempotent { unfold Code.Larger; cases; order; }
+#proof Laws.MaximumKeepsBoth { unfold Code.Larger; cases; order; }
+#proof Laws.EnumIdentity { refl; }

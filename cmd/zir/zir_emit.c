@@ -574,7 +574,8 @@ NativeTypeAtUse(const ZirModule *module, const char *type,
 {
     const ZirModule *owner = NULL;
     const ZirType *declared = FindType(module, type, &owner);
-    if(declared == NULL || owner == NULL || declared->is_extern ||
+    if(declared == NULL || owner == NULL ||
+       (declared->is_extern && !declared->foreign_target[0]) ||
        (!declared->native_name_mangled && strchr(type, '.') == NULL) ||
        BuiltinType(declared->name) == declared) return 0;
     NativeTypeName(owner, declared, out, size);
@@ -1230,10 +1231,13 @@ supported_expression(const ZirModule *module, const ZirFunction *fn, int index)
     case ZIR_EXPR_INDEX: case ZIR_EXPR_SLICE: break;
     case ZIR_EXPR_BINARY: case ZIR_EXPR_CONDITIONAL: break;
     case ZIR_EXPR_UNARY: break;
-    case ZIR_EXPR_CAST:
+    case ZIR_EXPR_CAST: {
+        const ZirType *declared = FindType(module, e->name, NULL);
         if(e->name[0] != '*' && !TargetType(e->name, ZIR_C) &&
-           !enum_type(module, e->name)) return 0;
+           !enum_type(module, e->name) &&
+           !(declared && declared->foreign_target[0])) return 0;
         break;
+    }
     case ZIR_EXPR_CALL:
         if(!e->name[0] &&
            (e->left < 0 || !portable_type(module, fn->exprs[e->left].type)))

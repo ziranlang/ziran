@@ -39,19 +39,20 @@ span. The contract has four parts.
 
 1. **Declaration.** `#law NAME kind payload;` binds the stable identifier
    `NAME` to one obligation at file scope. `kind` selects the checker:
-   `type`, `effect`, `bounds`, `size`, `abi`, `custom`, or `forall`. `payload` is kind-specific
+   `type`, `effect`, `bounds`, `size`, `abi`, `custom`, `forall`, or `theorem`. `payload` is kind-specific
    checked source — a boolean procedure for `custom`, a shape description
    for the built-in kinds. A law with no checker for its kind is an error,
    never a pass.
 2. **Result schema.** Every check emits one JSON object per obligation:
    `{"law": NAME, "kind": K, "span": {file, line, column},
-   "status": "proved" | "disproved" | "unknown", "detail": string}`.
+   "status": "proved" | "disproved" | "unknown" | "invalid", "detail": string,
+   "evidence": {method, domain, cases_checked, counterexample, waived}}`.
    `unknown` is emitted when the checker lacks the assumption or budget to
    decide; `detail` then names the missing capability. Build gates treat
-   `disproved` as an error and `unknown` as an error unless explicitly
+   `disproved` and `invalid` as errors and `unknown` as an error unless explicitly
    waived for that law name.
 3. **Gate semantics.** `ziran check` evaluates every reachable law and exits
-   nonzero on any `disproved` or unwaived `unknown`. Generated artifacts
+   nonzero on any `disproved`, `invalid`, or unwaived `unknown`. Generated artifacts
    embed the result set: `.zir` stores per-module law tables and `.zib`
    stores the transitive closure of laws its linked modules reached, so a
    consumer can refuse a bundle whose laws were not all `proved` at save
@@ -64,17 +65,21 @@ span. The contract has four parts.
    `.zib` byte equality.
 
 The compiler now implements named `type`, `effect`, `bounds`, `size`, `abi`,
-`custom`, and `forall` laws, writes law tables to checked `.zir` and linked `.zib`, and
-reports results as JSON. This remains narrower than the intended proof
-contract: `custom` evaluates closed compile-time expressions, `forall`
+`custom`, `forall`, and scalar `theorem` laws, writes law tables and proof
+graphs to checked `.zir` and linked `.zib`, and reports results as JSON.
+`custom` evaluates closed compile-time expressions, `forall`
 (`#law N forall x: 0..4, k: SomeEnum => condition;`) checks every combination
 of integer ranges, enum members, and bounded integer sequences
 (`xs: [N]LO..HI`, N up to 16) through the same evaluator (a domain over
 1,000,000 cases or an undecidable condition is `unknown`, a failure reports
 the counterexample), `abi` checks
 the supported signature shape rather than proving foreign behavior, and law
-names must be unique and a waiver must name an unknown law, or the gate fails. The contract above
-describes the intended guarantees where it exceeds this implementation.
+names must be unique within their declaring module and a waiver must name a
+visible unknown law, or the gate fails. `theorem` uses a checked `#proof`
+certificate over the full scalar domain. See [Laws and scalar proofs](LAWS.md)
+for supported rules, deterministic budgets, artifact validation, the Lean rule
+model, and the remaining compiler trust boundary. General induction over
+arbitrary arrays and recursive programs remains future work.
 
 ## Parallel computation
 

@@ -10,6 +10,61 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int
+go_identifier(const char *name)
+{
+    if(!(isalpha((unsigned char)*name) || *name == '_')) return 0;
+    for(name++; *name; name++)
+        if(!(isalnum((unsigned char)*name) || *name == '_')) return 0;
+    return 1;
+}
+
+/* Checked methods use go:path.(Type).Method or go:path.(*Type).Method.
+ * Parentheses make package paths containing dots unambiguous in saved IR. */
+int
+GoForeignCallParts(const char *target, char *package, size_t package_size,
+                   char *receiver, size_t receiver_size,
+                   char *symbol, size_t symbol_size)
+{
+    if(target == NULL) return 0;
+    int explicit_go = !strncmp(target, "go:", 3);
+    const char *start = target + (explicit_go ? 3 : 0);
+    const char *method = strstr(start, ".(");
+    const char *end = method ? method : strrchr(start, '.');
+    if(end == NULL || end == start || (!explicit_go && !strchr(start, '/')))
+        return 0;
+    for(const unsigned char *p = (const unsigned char *)start;
+        p < (const unsigned char *)end; p++)
+        if(!(isalnum(*p) || *p == '_' || *p == '/' || *p == '.' || *p == '-'))
+            return 0;
+    char recv[ZIR_NAME_MAX] = "";
+    const char *name = end + 1;
+    if(method) {
+        const char *close = strchr(method + 2, ')');
+        if(!close || close[1] != '.' || close == method + 2 ||
+           (size_t)(close - method - 2) >= sizeof(recv)) return 0;
+        memcpy(recv, method + 2, (size_t)(close - method - 2));
+        if(!go_identifier(recv + (recv[0] == '*'))) return 0;
+        name = close + 2;
+    }
+    if(!go_identifier(name)) return 0;
+    if(package) {
+        size_t length = (size_t)(end - start);
+        if(length >= package_size) return 0;
+        memcpy(package, start, length);
+        package[length] = '\0';
+    }
+    if(receiver) {
+        if(strlen(recv) >= receiver_size) return 0;
+        strcpy(receiver, recv);
+    }
+    if(symbol) {
+        if(strlen(name) >= symbol_size) return 0;
+        strcpy(symbol, name);
+    }
+    return method ? 2 : 1;
+}
+
 int
 GoForeignTargetValid(const char *target)
 {
@@ -924,6 +979,21 @@ ProgramFree(ZirProgram *program)
         free(m->defines);
         free(m->asserts);
         free(m->usings);
+        for(int l = 0; l < m->law_count; l++) {
+            if(m->laws[l].claim != NULL) {
+                free(m->laws[l].claim->exprs);
+                free(m->laws[l].claim->stmts);
+                free(m->laws[l].claim);
+            }
+        }
+        for(int p = 0; p < m->proof_count; p++) {
+            free(m->proofs[p].steps);
+            free(m->proofs[p].terms.exprs);
+            free(m->proofs[p].terms.stmts);
+        }
+        free(m->proofs);
+        free(m->laws);
+        free(m->law_waivers);
         free(m->types);
     }
     free(program->modules);
@@ -1340,6 +1410,23 @@ ModuleAddLawWaiver(ZirModule *module, const char *name,
     copy_text(waiver->name, sizeof(waiver->name), name);
     copy_text(waiver->reason, sizeof(waiver->reason), reason);
     waiver->span = span;
+    return 1;
+}
+
+int
+ModuleAddProof(ZirModule *module, const char *name, const char *source,
+              ZirSourceSpan span)
+{
+    if(module == NULL) return 0;
+    ZirProof *proofs = realloc_array(module->proofs, &module->proof_cap,
+                                    module->proof_count, sizeof(*proofs));
+    if(proofs == NULL) return 0;
+    module->proofs = proofs;
+    ZirProof *proof = &proofs[module->proof_count++];
+    memset(proof, 0, sizeof(*proof));
+    copy_text(proof->name, sizeof(proof->name), name);
+    copy_text(proof->source, sizeof(proof->source), source);
+    proof->span = span;
     return 1;
 }
 

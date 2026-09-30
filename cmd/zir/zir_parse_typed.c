@@ -40,7 +40,7 @@ typedef struct EvaluateTypedNodeBuffers {
 
 /* Enum members fold to typed integers only while a law is evaluated; other
  * callers rely on member expressions staying symbolic. */
-static _Thread_local int law_enum_members;
+_Thread_local int ZirLawEvaluation;
 
 int evaluate_typed_node(const ZirFunction *probe, int index,
                     const ZirModule *module, const char *path,
@@ -56,18 +56,21 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
     const ZirExpr *expression = &probe->exprs[index];
     CompileValue left = {0}, right = {0};
     char *end;
-    long integer;
+    int64_t integer;
     double real;
     int truth;
     switch(expression->kind) {
     case ZIR_EXPR_INT:
         errno = 0;
-        integer = strtol(expression->text, &end, 0);
+        uint64_t bits = strtoull(expression->text, &end, 0);
         if(errno == ERANGE || end == expression->text || *end) return 0;
+        integer = ScalarSigned(bits, 64);
         result->kind = COMPILE_INTEGER;
         result->integer = integer;
+        if(bits > INT64_MAX) copy_text(result->type, sizeof(result->type), "u64");
         return compile_value_literal(result);
     case ZIR_EXPR_FLOAT:
+        if(ZirLawEvaluation) return 0;
         errno = 0;
         real = strtod(expression->text, &end);
         if(errno == ERANGE || end == expression->text || *end ||
@@ -123,13 +126,16 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         } else if(!strcmp(expression->op, "-")) {
             *result = right;
             if(right.kind == COMPILE_REAL) result->real = -right.real;
-            else if(right.kind == COMPILE_INTEGER && right.integer != LONG_MIN)
-                result->integer = -right.integer;
+            else if(right.kind == COMPILE_INTEGER) {
+                if(!ZirLawEvaluation && right.integer == INT64_MIN) return 0;
+                result->integer = ScalarStored(UINT64_C(0) - (uint64_t)right.integer,
+                                               right.type);
+            }
             else return 0;
         } else if(!strcmp(expression->op, "~") &&
                   right.kind == COMPILE_INTEGER) {
-            result->kind = COMPILE_INTEGER;
-            result->integer = ~right.integer;
+            *result = right;
+            result->integer = ScalarStored(~(uint64_t)right.integer, right.type);
         } else return 0;
         return compile_value_literal(result);
     }
@@ -170,37 +176,67 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                    (double)right.integer;
         if(!strcmp(op, "<") || !strcmp(op, "<=") ||
            !strcmp(op, ">") || !strcmp(op, ">=")) {
+            int cmp = 0;
+            if(left.kind == COMPILE_INTEGER && right.kind == COMPILE_INTEGER) {
+                int unsigned64 = !strcmp(left.type, "u64") || !strcmp(right.type, "u64");
+                cmp = unsigned64 ? ScalarCompare((uint64_t)left.integer,
+                    (uint64_t)right.integer, 64, 1) :
+                    (left.integer < right.integer ? -1 : left.integer > right.integer);
+            }
             result->kind = COMPILE_INTEGER;
-            result->integer = !strcmp(op, "<") ? a < b :
-                              !strcmp(op, "<=") ? a <= b :
-                              !strcmp(op, ">") ? a > b : a >= b;
+            if(left.kind == COMPILE_INTEGER && right.kind == COMPILE_INTEGER)
+                result->integer = !strcmp(op, "<") ? cmp < 0 :
+                                  !strcmp(op, "<=") ? cmp <= 0 :
+                                  !strcmp(op, ">") ? cmp > 0 : cmp >= 0;
+            else
+                result->integer = !strcmp(op, "<") ? a < b :
+                                  !strcmp(op, "<=") ? a <= b :
+                                  !strcmp(op, ">") ? a > b : a >= b;
             return compile_value_literal(result);
         }
         if(left.kind == COMPILE_INTEGER && right.kind == COMPILE_INTEGER) {
-            long x = left.integer, y = right.integer, folded;
+            int64_t x = left.integer, y = right.integer, folded;
+            const char *type = ScalarWidth(left.type) ? left.type :
+                               ScalarWidth(right.type) ? right.type : "s64";
+            uint64_t xb = (uint64_t)x, yb = (uint64_t)y;
+            /* Ordinary #run retains its checked host-width overflow gate.
+             * Laws evaluate declared runtime widths, including 64-bit wrap. */
+            if(!ZirLawEvaluation && strcmp(type, "u64")) {
+                int64_t checked;
+                if((!strcmp(op, "+") && __builtin_add_overflow(x, y, &checked)) ||
+                   (!strcmp(op, "-") && __builtin_sub_overflow(x, y, &checked)) ||
+                   (!strcmp(op, "*") && __builtin_mul_overflow(x, y, &checked))) return 0;
+            }
             if(!strcmp(op, "+")) {
-                if(!checked_add_long(x, y, &folded)) return 0;
+                folded = ScalarStored(xb + yb, type);
             } else if(!strcmp(op, "-")) {
-                if(!checked_sub_long(x, y, &folded)) return 0;
+                folded = ScalarStored(xb - yb, type);
             } else if(!strcmp(op, "*")) {
-                if(!checked_mul_long(x, y, &folded)) return 0;
-            } else if(!strcmp(op, "/") && y != 0)
-                folded = x == LONG_MIN && y == -1 ? x : x / y;
+                folded = ScalarStored(xb * yb, type);
+            } else if((!strcmp(op, "/") || !strcmp(op, "%")) && yb &&
+                      (!strcmp(left.type, "u64") || !strcmp(right.type, "u64")))
+                folded = ScalarStored(!strcmp(op, "/") ? xb / yb : xb % yb, type);
+            else if(!strcmp(op, "/") && y != 0)
+                folded = x == INT64_MIN && y == -1 ? x : x / y;
             else if(!strcmp(op, "%") && y != 0)
-                folded = x == LONG_MIN && y == -1 ? 0 : x % y;
+                folded = x == INT64_MIN && y == -1 ? 0 : x % y;
             else if(!strcmp(op, "&")) folded = x & y;
             else if(!strcmp(op, "|")) folded = x | y;
             else if(!strcmp(op, "^")) folded = x ^ y;
-            else if(!strcmp(op, "<<") && y >= 0 &&
-                    y < (long)(sizeof(long) * CHAR_BIT) && x >= 0 &&
-                    x <= (LONG_MAX >> y)) folded = x << y;
-            else if(!strcmp(op, ">>") && y >= 0 &&
-                    y < (long)(sizeof(long) * CHAR_BIT)) folded = x >> y;
+            else if(!strcmp(op, "<<") && y >= 0 && y < ScalarWidth(type))
+                folded = ScalarStored(xb << y, type);
+            else if(!strcmp(op, ">>") && y >= 0 && y < ScalarWidth(type)) {
+                unsigned width = ScalarWidth(type);
+                uint64_t shifted = (xb & ScalarMask(width)) >> y;
+                if(type[0] != 'u' && x < 0 && y > 0)
+                    shifted |= ScalarMask(width) ^ (ScalarMask(width) >> y);
+                folded = ScalarStored(shifted, type);
+            }
             else return 0;
             result->kind = COMPILE_INTEGER;
             result->integer = folded;
-            if(wrap_compile_integer(left.type, &result->integer))
-                copy_text(result->type, sizeof(result->type), left.type);
+            if(wrap_compile_integer(type, &result->integer))
+                copy_text(result->type, sizeof(result->type), type);
             return compile_value_literal(result);
         }
         result->kind = COMPILE_REAL;
@@ -225,7 +261,7 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
             const ZirType *enumeration = FindType(module,
                 probe->exprs[expression->left].name, NULL);
             int64_t member_value;
-            if(law_enum_members && enumeration != NULL && enumeration->is_enum &&
+            if(ZirLawEvaluation && enumeration != NULL && enumeration->is_enum &&
                EnumMemberValue(enumeration, expression->name,
                                &member_value)) {
                 result->kind = COMPILE_INTEGER;
@@ -271,9 +307,16 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
     case ZIR_EXPR_CAST:
         if(!evaluate_typed_node(probe, expression->right, module, path,
                                 depth + 1, fuel, result)) return 0;
-        if(result->kind == COMPILE_INTEGER &&
-           wrap_compile_integer(expression->name, &result->integer))
-            copy_text(result->type, sizeof(result->type), expression->name);
+        if(result->kind == COMPILE_INTEGER) {
+            const ZirType *type = FindType(module, expression->name, NULL);
+            const char *scalar = type && type->is_enum ? type->enum_backing : expression->name;
+            if(!strcmp(expression->name, "bool")) result->integer = result->integer != 0;
+            else if(wrap_compile_integer(scalar, &result->integer)) {
+                copy_text(result->type, sizeof(result->type), expression->name);
+                if(type && type->is_enum) return compile_value_literal(result);
+            }
+            if(ZirLawEvaluation && (!strcmp(scalar, "float32") || !strcmp(scalar, "float64"))) return 0;
+        }
         if(eval_integer_type(expression->name, 0) &&
            result->kind == COMPILE_REAL) {
             if(result->real < (double)LONG_MIN ||
@@ -371,7 +414,7 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
     if(!buffers->input[0]) return 0;
     if(names == NULL) names = &empty;
     expand_compile_expr(buffers->expanded, sizeof(buffers->expanded), names, buffers->input, path);
-    if(eval_const_condition_with_fuel(buffers->expanded, &integer, module, names,
+    if(!ZirLawEvaluation && eval_const_condition_with_fuel(buffers->expanded, &integer, module, names,
                                      path, span.line, depth, fuel)) {
         result->kind = COMPILE_INTEGER;
         result->integer = integer;
@@ -1135,11 +1178,12 @@ EvaluateCompileConditionBound(const ZirModule *module, const char *source,
                              sizeof(constant->expr));
         copy_text(constant->path, sizeof(constant->path), SpanPath(span));
     }
-    law_enum_members = 1;
+    int prior = ZirLawEvaluation;
+    ZirLawEvaluation = 1;
     ok = evaluate_typed_expression(module, &constants, source, span, 0,
                                    &fuel, &value) &&
          compile_truth(&value, truth);
-    law_enum_members = 0;
+    ZirLawEvaluation = prior;
     free(constants.items);
     return ok;
 }

@@ -242,8 +242,18 @@ Features :: (arguments: []string) -> s32 {
     output_feature.rejection = "print requires a string literal format."
     output_feature.evidence = "tests/print.sh\n"
     output_feature.targets = print_targets
-    features: [6]PkgFeature = .[
-        base_features[0], output_feature, base_features[1],
+    law_feature: PkgFeature
+    law_feature.id = "compile.laws"
+    law_feature.status = "implemented"
+    law_feature.syntax = "#law NAME theorem bindings => condition; #proof NAME { steps; }"
+    law_feature.limits = "The kernel checks booleans, fixed-width modular integers, enum equality, and acyclic pure scalar procedures. Unsupported code and exhausted budgets are unknown. custom checks one example; forall checks a finite domain."
+    law_feature.accepted_example = "#law Zero theorem x: s32 => x + 0 == x;\n#proof Zero { ring; }\n#program_export\nAnswer :: () -> s32 { return 42 }\n"
+    law_feature.rejected_example = "#law False theorem x: s32 => x + 1 == x;\n#proof False { ring; }\n#program_export\nAnswer :: () -> s32 { return 0 }\n"
+    law_feature.rejection = "An invalid certificate fails checking and cannot be waived."
+    law_feature.evidence = "tests/laws.sh\ntests/proofs.sh\ntests/law_integers.sh\nproofs/Scalar.lean\n"
+    law_feature.targets = assert_targets
+    features: [7]PkgFeature = .[
+        base_features[0], law_feature, output_feature, base_features[1],
         base_features[2], base_features[3], base_features[4]
     ]
 

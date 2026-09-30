@@ -3,7 +3,7 @@
 
 #include "zir.h"
 
-/* Experimental portable bundle version 13. The reader owns the returned IR. */
+/* Linked portable program and certificates. The reader owns the returned IR. */
 ZirProgram *BundleLink(const ZirProgram *program, const char *entry_module,
                        const char *entry_function);
 /* Native entry pruning also retains exported implementations of host effects. */
@@ -19,6 +19,7 @@ typedef struct ZibLawRecord {
     char kind[16];
     char status[16];
     char detail[ZIR_TEXT_MAX];
+    ZirLawEvidence evidence;
 } ZibLawRecord;
 
 typedef struct ZibLawWaiverRecord {

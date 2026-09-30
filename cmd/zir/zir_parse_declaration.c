@@ -838,6 +838,26 @@ typedef struct ParseForeignLineBuffers {
     char parameters[8][ZIR_TEXT_MAX];
 } ParseForeignLineBuffers;
 
+static int
+go_method_symbol(const char *source, char *receiver, size_t receiver_size,
+                 char *method, size_t method_size)
+{
+    const char *dot = strchr(source, '.');
+    if(!dot || dot == source) return 0;
+    size_t length = (size_t)(dot - source);
+    const char *start = source;
+    if(source[0] == '(') {
+        if(length < 3 || source[length - 1] != ')') return 0;
+        start++;
+        length -= 2;
+    }
+    if(length >= receiver_size || strlen(dot + 1) >= method_size) return 0;
+    memcpy(receiver, start, length);
+    receiver[length] = '\0';
+    copy_text(method, method_size, dot + 1);
+    return is_c_ident(receiver + (receiver[0] == '*')) && is_c_ident(method);
+}
+
 int parse_foreign_line(ZirModule *module, const char *path, int line_no,
                    const char *line, int scope_public,
                    char names[][ZIR_NAME_MAX],
@@ -866,6 +886,11 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
     if(dir == NULL)
         return 0;
     int foreign_type = starts_word(declaration, "#type");
+    const char *results_attribute = strstr(declaration, "#go_results");
+    int go_results = contains_source_directive(declaration, "#go_results") &&
+        results_attribute && results_attribute < dir;
+    if(go_results && (foreign_type || strstr(results_attribute + strlen("#go_results"), "#go_results")))
+        die_at(Span(path, line_no, 1), "#go_results requires one foreign procedure result record");
     if(foreign_type && skip_ws(declaration + strlen("#type")) != dir)
         die_at(Span(path, line_no, 1),
                "foreign type requires Name :: #type #foreign library;");
@@ -892,7 +917,7 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
               length + 1 < sizeof(foreign_name))
             foreign_name[length++] = *cursor++;
         foreign_name[length] = '\0';
-        if(*cursor != '"' || !is_c_ident(foreign_name))
+        if(*cursor != '"')
             die_at(Span(path, line_no, 1),
                    "#foreign alternate symbol must be an identifier");
         cursor = skip_ws(cursor + 1);
@@ -910,12 +935,22 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
     if(library_target == NULL)
         die_at(Span(path, line_no, 1),
                "#foreign library is not declared: %s", library);
+    char receiver[ZIR_NAME_MAX] = "", method[ZIR_NAME_MAX] = "";
+    int method_binding = !foreign_type && !strncmp(library_target, "go:", 3) &&
+        go_method_symbol(foreign_name, receiver, sizeof(receiver), method, sizeof(method));
+    if(!is_c_ident(foreign_name) && !method_binding)
+        die_at(Span(path, line_no, 1),
+               "#foreign alternate symbol must be an identifier or a Go method expression");
     buffers->target[0] = '\0';
     symbol[0] = '\0';
     if(strcmp(library_target, "host_api") == 0) {
         if(strcmp(foreign_name, name) != 0)
             die_at(Span(path, line_no, 1),
                    "host capability cannot rename a #foreign symbol");
+    } else if(method_binding) {
+        if(snprintf(buffers->target, sizeof(buffers->target), "%s.(%s).%s", library_target,
+                    receiver, method) >= (int)sizeof(buffers->target))
+            die_at(Span(path, line_no, 1), "#foreign target is too long");
     } else if(strncmp(library_target, "go:", 3) == 0 ||
               strchr(library_target, '/') != NULL) {
         if(snprintf(buffers->target, sizeof(buffers->target), "%s.%s", library_target,
@@ -928,6 +963,8 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
     }
     extern_kind = classify_extern_target(buffers->target, symbol, sizeof(symbol),
                                          path, line_no);
+    if(go_results && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
+        die_at(Span(path, line_no, 1), "#go_results requires an explicit Go foreign target");
     if(foreign_type) {
         if(!GoForeignTargetValid(buffers->target))
             die_at(Span(path, line_no, 1),
@@ -952,6 +989,7 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         imp->must_use = function_must_use(line, imp->return_type,
                                            imp->span);
         imp->extern_kind = extern_kind;
+        imp->go_results = go_results;
         snprintf(imp->extern_symbol, sizeof(imp->extern_symbol), "%s",
                  symbol);
         /* A trailing `..any` parameter marks a variadic C ABI: calls may

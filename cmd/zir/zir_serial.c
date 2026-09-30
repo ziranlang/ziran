@@ -42,7 +42,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 46u
+#define ZIR_FORMAT_VERSION 48u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -52,6 +52,7 @@ static const Field import_fields[] = {
     STRING_FIELD(ZirImport, signature), STRING_FIELD(ZirImport, args),
     STRING_FIELD(ZirImport, return_type), INTEGER_FIELD(ZirImport, must_use),
     INTEGER_FIELD(ZirImport, is_varargs),
+    INTEGER_FIELD(ZirImport, go_results),
     INTEGER_FIELD(ZirImport, is_using),
     INTEGER_FIELD(ZirImport, required),
     SPAN_FIELD(ZirImport, span)
@@ -115,7 +116,17 @@ static const Field assert_fields[] = {
 };
 static const Field law_fields[] = {
     STRING_FIELD(ZirLaw, name), STRING_FIELD(ZirLaw, kind),
-    STRING_FIELD(ZirLaw, payload), SPAN_FIELD(ZirLaw, span)
+    STRING_FIELD(ZirLaw, payload), SPAN_FIELD(ZirLaw, span),
+    STRING_FIELD(ZirLaw, evidence.method), STRING_FIELD(ZirLaw, evidence.domain),
+    U64_FIELD(ZirLaw, evidence.cases_checked),
+    STRING_FIELD(ZirLaw, evidence.counterexample), INTEGER_FIELD(ZirLaw, evidence.waived)
+};
+static const Field proof_fields[] = {
+    STRING_FIELD(ZirProof, name), STRING_FIELD(ZirProof, source), SPAN_FIELD(ZirProof, span)
+};
+static const Field proof_step_fields[] = {
+    INTEGER_FIELD(ZirProofStep, kind), STRING_FIELD(ZirProofStep, target),
+    INTEGER_FIELD(ZirProofStep, term_root), SPAN_FIELD(ZirProofStep, span)
 };
 static const Field law_waiver_fields[] = {
     STRING_FIELD(ZirLawWaiver, name), STRING_FIELD(ZirLawWaiver, reason),
@@ -465,6 +476,52 @@ read_function(Reader *reader, ZirFunction *function)
 }
 
 static int
+write_law_graphs(FILE *out, const ZirModule *module)
+{
+    for(int l = 0; l < module->law_count; l++) {
+        const ZirFunction *claim = module->laws[l].claim;
+        if(!write_u32(out, claim != NULL) || (claim && !write_function(out, claim))) return 0;
+    }
+    if(!write_u32(out, (uint32_t)module->proof_count)) return 0;
+    for(int p = 0; p < module->proof_count; p++) {
+        const ZirProof *proof = &module->proofs[p];
+        if(!write_fields(out, proof, proof_fields, FIELD_COUNT(proof_fields)) ||
+           !write_function(out, &proof->terms) ||
+           !WRITE_ARRAY(out, proof, steps, step_count, proof_step_fields)) return 0;
+    }
+    return 1;
+}
+
+static int
+read_law_graphs(Reader *reader, ZirModule *module)
+{
+    for(int l = 0; l < module->law_count; l++) {
+        uint32_t has;
+        if(!read_u32(reader, &has) || has > 1) return 0;
+        if(has) {
+            if(reader->budget < sizeof(ZirFunction)) return 0;
+            reader->budget -= sizeof(ZirFunction);
+            module->laws[l].claim = calloc(1, sizeof(ZirFunction));
+            if(!module->laws[l].claim || !read_function(reader, module->laws[l].claim)) return 0;
+        }
+    }
+    uint32_t count;
+    if(!read_u32(reader, &count) || count > 100000 ||
+       count > reader->budget / sizeof(ZirProof)) return 0;
+    reader->budget -= (size_t)count * sizeof(ZirProof);
+    module->proofs = calloc(count ? count : 1, sizeof(ZirProof));
+    if(!module->proofs) return 0;
+    module->proof_count = module->proof_cap = (int)count;
+    for(uint32_t p = 0; p < count; p++) {
+        ZirProof *proof = &module->proofs[p];
+        if(!read_fields(reader, proof, proof_fields, FIELD_COUNT(proof_fields)) ||
+           !read_function(reader, &proof->terms)) return 0;
+        READ_ARRAY(reader, proof, steps, step_count, proof_step_fields);
+    }
+    return 1;
+}
+
+static int
 write_module(FILE *out, const ZirModule *module)
 {
     if(!write_fields(out, module, module_fields, FIELD_COUNT(module_fields)) ||
@@ -472,6 +529,7 @@ write_module(FILE *out, const ZirModule *module)
        !WRITE_ARRAY(out, module, defines, define_count, define_fields) ||
        !WRITE_ARRAY(out, module, asserts, assert_count, assert_fields) ||
        !WRITE_ARRAY(out, module, laws, law_count, law_fields) ||
+       !write_law_graphs(out, module) ||
        !WRITE_ARRAY(out, module, law_waivers, law_waiver_count,
                     law_waiver_fields) ||
        !WRITE_ARRAY(out, module, types, type_count, type_fields) ||
@@ -494,6 +552,10 @@ read_module(Reader *reader, ZirModule *module)
     READ_ARRAY(reader, module, defines, define_count, define_fields);
     READ_ARRAY(reader, module, asserts, assert_count, assert_fields);
     READ_ARRAY(reader, module, laws, law_count, law_fields);
+    if(!read_law_graphs(reader, module)) {
+        reader->problem = "invalid law or proof graph";
+        return 0;
+    }
     READ_ARRAY(reader, module, law_waivers, law_waiver_count,
                law_waiver_fields);
     READ_ARRAY(reader, module, types, type_count, type_fields);
@@ -552,6 +614,11 @@ validate_program(const ZirProgram *program)
         for(int i = 0; i < module->import_count; i++)
             if(module->imports[i].kind < ZIR_IMPORT_OPEN ||
                module->imports[i].kind > ZIR_IMPORT_EXTERN ||
+               (module->imports[i].go_results != 0 && module->imports[i].go_results != 1) ||
+               (module->imports[i].go_results &&
+                (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
+                 module->imports[i].extern_kind != ZIR_EXTERN_GO ||
+                 strncmp(module->imports[i].target, "go:", 3))) ||
                strncmp(module->imports[i].signature, "c-header:", 9) == 0 ||
                (module->imports[i].must_use != 0 &&
                 module->imports[i].must_use != 1) ||

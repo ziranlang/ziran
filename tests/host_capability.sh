@@ -99,7 +99,7 @@ python3 - "$work/source.zib" "$work/tampered.zib" <<'PY'
 from pathlib import Path
 import sys
 data = bytearray(Path(sys.argv[1]).read_bytes())
-assert data[:8] == b'ZIB\0\x18\0\0\0'
+assert data[:8] == b'ZIB\0\x19\0\0\0'
 assert b'AddTenHost' in data
 data[data.index(b'AddTenHost')] = ord('X')
 Path(sys.argv[2]).write_bytes(data)

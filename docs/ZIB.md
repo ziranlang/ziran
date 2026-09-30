@@ -3,7 +3,7 @@
 This describes the target contract and the experimental subset that ships now.
 See [Implementation status](IMPLEMENTATION_STATUS.md) for the remaining work.
 
-## Experimental version 24
+## Experimental version 25
 
 `zi2zib bundle --root DIR [--module-path DIR] [--bind caller:capability=provider:function] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, then links reachable
@@ -24,7 +24,13 @@ or `-`; other constant expressions remain outside this subset. The bundle is
 `ZIB` plus a zero byte, a little-endian version, length-prefixed entry module
 and function names, a host capability count and its required module/function
 names, and a
-length-prefixed version 41 `.zir` payload. The current linker follows direct
+length-prefixed version 47 `.zir` payload. Named law and waiver tables precede
+that payload; each law includes its method, declared domain, concrete case
+count, counterexample, and waiver state. The loader rechecks embedded theorem
+certificates and compares the outer tables against the checked IR. Verification
+roots retain their imported laws, proof certificates, scalar types, constants,
+and called procedures even when the executable entry does not use them.
+See [Laws and scalar proofs](LAWS.md). The current linker follows direct
 function calls from the entry, keeps record and enum declarations used by
 those functions (including types from imported modules and nested record
 fields), and retains imported startup paths even when no symbol from them is

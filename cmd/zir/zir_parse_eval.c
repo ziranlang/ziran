@@ -105,7 +105,13 @@ expand_compile_expr_depth(char *dst, size_t dst_size, const ZirConsts *consts,
                                               consts, consts->items[i].expr,
                                               consts->items[i].path,
                                               depth + 1, active);
-                    written = snprintf(dst + n, dst_size - n, "(%s)", expanded);
+                    if(ZirLawEvaluation &&
+                       (ScalarWidth(consts->items[i].type) ||
+                        !strcmp(consts->items[i].type, "bool")))
+                        written = snprintf(dst + n, dst_size - n,
+                            "(cast(%s) (%s))", consts->items[i].type, expanded);
+                    else
+                        written = snprintf(dst + n, dst_size - n, "(%s)", expanded);
                     if(written < 0)
                         written = 0;
                     if((size_t)written >= dst_size - n)
@@ -818,9 +824,13 @@ eval_const_condition(const char *src, long *value,
 int
 compile_value_literal(CompileValue *value)
 {
-    if(value->kind == COMPILE_INTEGER)
-        return snprintf(value->literal, sizeof(value->literal), "%ld",
+    if(value->kind == COMPILE_INTEGER) {
+        if(!strcmp(value->type, "u64"))
+            return snprintf(value->literal, sizeof(value->literal), "%" PRIu64,
+                            (uint64_t)value->integer) < (int)sizeof(value->literal);
+        return snprintf(value->literal, sizeof(value->literal), "%" PRId64,
                         value->integer) < (int)sizeof(value->literal);
+    }
     if(value->kind == COMPILE_REAL) {
         int written = snprintf(value->literal, sizeof(value->literal),
                                "%.17g", value->real);
@@ -845,6 +855,12 @@ compile_truth(const CompileValue *value, int *truth)
 int
 compile_type_value(const char *type, CompileValue *value)
 {
+    if(!strcmp(type, "u64")) {
+        if(value->kind != COMPILE_INTEGER ||
+           (value->integer < 0 && strcmp(value->type, "u64"))) return 0;
+        copy_text(value->type, sizeof(value->type), type);
+        return compile_value_literal(value);
+    }
     if(eval_integer_type(type, 0)) {
         if(value->kind != COMPILE_INTEGER ||
            !eval_integer_type(type, value->integer)) return 0;
@@ -863,8 +879,11 @@ compile_type_value(const char *type, CompileValue *value)
         return isfinite(value->real) && compile_value_literal(value);
     }
     if(!strcmp(type, "string")) return value->kind == COMPILE_STRING;
-    if(!strcmp(type, "bool"))
-        return value->kind == COMPILE_INTEGER;
+    if(!strcmp(type, "bool")) {
+        if(value->kind != COMPILE_INTEGER) return 0;
+        copy_text(value->type, sizeof(value->type), "bool");
+        return 1;
+    }
     /* Enum and other named integer types are not checked here, as before. */
     if(value->kind == COMPILE_INTEGER) return 1;
     if(value->kind == COMPILE_COMPOUND &&
@@ -873,15 +892,10 @@ compile_type_value(const char *type, CompileValue *value)
 }
 
 int
-wrap_compile_integer(const char *type, long *value)
+wrap_compile_integer(const char *type, int64_t *value)
 {
-    if(!strcmp(type, "s8")) *value = (int8_t)*value;
-    else if(!strcmp(type, "u8")) *value = (uint8_t)*value;
-    else if(!strcmp(type, "s16")) *value = (int16_t)*value;
-    else if(!strcmp(type, "u16")) *value = (uint16_t)*value;
-    else if(!strcmp(type, "s32")) *value = (int32_t)*value;
-    else if(!strcmp(type, "u32")) *value = (uint32_t)*value;
-    else return !strcmp(type, "s64");
+    if(!ScalarWidth(type)) return 0;
+    *value = ScalarStored((uint64_t)*value, type);
     return 1;
 }
 /* Buffers compile_values_equal keeps on the heap so deep nesting fits the stack;

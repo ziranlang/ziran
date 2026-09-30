@@ -13,9 +13,12 @@
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_token.h"
+#include "zir_scalar.h"
+#include "zir_proof.h"
 
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <math.h>
 #include <stdarg.h>
@@ -131,12 +134,14 @@ typedef enum {
 
 typedef struct {
     CompileKind kind;
-    long integer;
+    int64_t integer;
     double real;
     char type[ZIR_NAME_MAX];
     char literal[ZIR_TEXT_MAX];
     const ZirModule *type_owner;
 } CompileValue;
+
+extern _Thread_local int ZirLawEvaluation;
 
 typedef struct {
     const ZirModule *module;
@@ -242,7 +247,7 @@ int eval_const_condition(const char *src, long *value, const ZirModule *module, 
 int compile_value_literal(CompileValue *value);
 int compile_truth(const CompileValue *value, int *truth);
 int compile_type_value(const char *type, CompileValue *value);
-int wrap_compile_integer(const char *type, long *value);
+int wrap_compile_integer(const char *type, int64_t *value);
 int compile_values_equal(const CompileValue *left, const CompileValue *right, int *equal);
 int compile_compound_value(const ZirFunction *probe, const ZirExpr *expression, const ZirModule *module, const char *path, int depth, int *fuel, CompileValue *result);
 int compile_compound_member(const CompileValue *compound, const char *member, const ZirModule *module, const char *path, int depth, int *fuel, CompileValue *result);

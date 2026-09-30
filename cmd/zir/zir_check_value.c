@@ -1036,6 +1036,8 @@ int
 compatible_checked(Checker *c, const char *to, const char *from)
 {
     const ZirType *target = FindType(c->module, to, NULL);
+    if(target != NULL && !strcmp(target->foreign_target, "go:builtin.error") && !strcmp(from, "null"))
+        return 1;
     if(target != NULL && target->is_map && !strcmp(from, "null"))
         return 1;
     if(target != NULL && !strcmp(target->foreign_target, "go:builtin.any"))

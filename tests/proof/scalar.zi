@@ -1,0 +1,8 @@
+Add :: (a: s32, b: s32) -> s32 { return a + b }
+Larger :: (a: s32, b: s32) -> s32 {
+    if a > b { return a }
+    return b
+}
+Code :: enum s32 { Ok, Failed }
+#program_export
+Answer :: () -> s32 { return Add(20, 22) }

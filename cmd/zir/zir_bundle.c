@@ -1,6 +1,7 @@
 #include "zir_bundle.h"
 #include "zir_check.h"
 #include "zir_law.h"
+#include "zir_proof.h"
 #include "zir_packages.h"
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
@@ -12,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { ZIB_VERSION = 24, ZIB_MAX_IR_BYTES = 256 * 1024 * 1024,
+enum { ZIB_VERSION = 25, ZIB_MAX_IR_BYTES = 256 * 1024 * 1024,
        ZIB_MAX_CAPABILITIES = 4096 };
 
 typedef struct CapabilityName {
@@ -215,6 +216,20 @@ read_name(FILE *in, char *name, size_t capacity)
     name[length] = 0;
     return 1;
 }
+static int write_text(FILE *out, const char *text, size_t capacity)
+{
+    size_t length = strnlen(text, capacity);
+    return length < capacity && write_u32(out, (uint32_t)length) &&
+           fwrite(text, 1, length, out) == length;
+}
+static int read_text(FILE *in, char *text, size_t capacity)
+{
+    uint32_t length;
+    if(!read_u32(in, &length) || length >= capacity ||
+       fread(text, 1, length, in) != length || memchr(text, 0, length)) return 0;
+    text[length] = 0;
+    return 1;
+}
 /* Buffers copy_bytes keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct CopyBytesBuffers {
@@ -276,6 +291,47 @@ copy_function(ZirFunction *target, const ZirFunction *source)
 
 /* The entry linker works on a private checked graph. Its source may also be
  * used for a different entry, so pruning must never change that graph. */
+static int
+copy_laws(ZirModule *to, const ZirModule *from)
+{
+    if(from->law_count) {
+        to->laws = calloc((size_t)from->law_count, sizeof(*to->laws));
+        if(!to->laws) return 0;
+        to->law_count = to->law_cap = from->law_count;
+        for(int l = 0; l < from->law_count; l++) {
+            to->laws[l] = from->laws[l];
+            to->laws[l].claim = NULL; to->laws[l].proof = NULL;
+            if(from->laws[l].claim) {
+                to->laws[l].claim = calloc(1, sizeof(ZirFunction));
+                if(!to->laws[l].claim || !copy_function(to->laws[l].claim, from->laws[l].claim)) return 0;
+            }
+        }
+    }
+    if(from->law_waiver_count) {
+        to->law_waivers = malloc((size_t)from->law_waiver_count * sizeof(*to->law_waivers));
+        if(!to->law_waivers) return 0;
+        memcpy(to->law_waivers, from->law_waivers, (size_t)from->law_waiver_count * sizeof(*to->law_waivers));
+        to->law_waiver_count = to->law_waiver_cap = from->law_waiver_count;
+    }
+    if(from->proof_count) {
+        to->proofs = calloc((size_t)from->proof_count, sizeof(*to->proofs));
+        if(!to->proofs) return 0;
+        to->proof_count = to->proof_cap = from->proof_count;
+        for(int p = 0; p < from->proof_count; p++) {
+            ZirProof *proof = &to->proofs[p];
+            *proof = from->proofs[p]; proof->steps = NULL; proof->owner = NULL;
+            memset(&proof->terms, 0, sizeof(proof->terms));
+            if(!copy_function(&proof->terms, &from->proofs[p].terms)) return 0;
+            if(proof->step_count) {
+                proof->steps = malloc((size_t)proof->step_count * sizeof(*proof->steps));
+                if(!proof->steps) return 0;
+                memcpy(proof->steps, from->proofs[p].steps, (size_t)proof->step_count * sizeof(*proof->steps));
+            }
+        }
+    }
+    return 1;
+}
+
 static ZirProgram *
 copy_program(const ZirProgram *source)
 {
@@ -298,6 +354,10 @@ copy_program(const ZirProgram *source)
         to->types = NULL; to->type_count = to->type_cap = 0;
         to->imports = NULL; to->import_count = to->import_cap = 0;
         to->functions = NULL; to->function_count = to->function_cap = 0;
+        to->laws = NULL; to->law_count = to->law_cap = 0;
+        to->law_waivers = NULL; to->law_waiver_count = to->law_waiver_cap = 0;
+        to->proofs = NULL; to->proof_count = to->proof_cap = 0;
+        if(!copy_laws(to, from)) goto failed;
 #define COPY_DECLARATIONS(member, count, capacity) do { \
         if(from->count > 0) { \
             to->member = malloc((size_t)from->count * sizeof(*to->member)); \
@@ -326,6 +386,7 @@ copy_program(const ZirProgram *source)
     }
     if(!LinkImports(&result, 1))
         goto failed;
+    if(!CheckLawGates(&result, 1)) goto failed;
     return result;
 failed:
     ProgramFree(result);
@@ -990,7 +1051,7 @@ mark_parameters(const ZirProgram *program, const ZirModule *module,
             if(type[length - 1] != ']')
                 return 0;
         }
-        while((isalnum((unsigned char)*cursor) || *cursor == '_') &&
+        while((isalnum((unsigned char)*cursor) || *cursor == '_' || *cursor == '.') &&
               length + 1 < sizeof(type))
             type[length++] = *cursor++;
         type[length] = 0;
@@ -1001,6 +1062,39 @@ mark_parameters(const ZirProgram *program, const ZirModule *module,
         if(cursor == NULL)
             break;
         cursor++;
+    }
+    return 1;
+}
+
+static void mark_proof_function(const ZirProgram *program, const ZirModule *scope,
+                                const char *name, unsigned char **keep)
+{
+    const ZirModule *owner = NULL; const ZirFunction *fn = NULL;
+    if(ResolveFunction(scope, name, &owner, &fn) != 1) return;
+    for(int m = 0; m < program->module_count; m++)
+        if(owner == &program->modules[m]) keep[m][fn - owner->functions] = 1;
+}
+static int mark_proof_graph(const ZirProgram *program, const ZirModule *scope,
+                            const ZirFunction *graph, unsigned char **keep,
+                            unsigned char **keep_types)
+{
+    int changed = 0;
+    if(!mark_parameters(program, scope, graph, keep_types, &changed)) return 0;
+    for(int e = 0; e < graph->expr_count; e++) {
+        const ZirExpr *expr = &graph->exprs[e];
+        if(expr->kind == ZIR_EXPR_CAST &&
+           !mark_type(program, scope, expr->name, keep_types, &changed)) return 0;
+        if(expr->kind != ZIR_EXPR_CALL) continue;
+        char name[ZIR_NAME_MAX];
+        copy_text(name, sizeof(name), expr->name);
+        if(!name[0] && expr->left >= 0 && expr->left < graph->expr_count) {
+            const ZirExpr *member = &graph->exprs[expr->left];
+            if(member->kind != ZIR_EXPR_MEMBER || member->left < 0 || member->left >= graph->expr_count ||
+               graph->exprs[member->left].kind != ZIR_EXPR_IDENT) continue;
+            if(snprintf(name, sizeof(name), "%s.%s", graph->exprs[member->left].name,
+                        member->name) >= (int)sizeof(name)) continue;
+        }
+        mark_proof_function(program, scope, name, keep);
     }
     return 1;
 }
@@ -1297,6 +1391,50 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
         goto failed;
     }
     keep[entry_m][entry_f] = 1;
+    /* Verification roots retain the code and enum domains named by their
+     * obligations even when the executable entry does not call that code. */
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        if(!module->law_count && !module->proof_count) continue;
+        keep_modules[m] = 1;
+        for(int d = 0; d < module->define_count; d++) keep_defines[m][d] = 1;
+        for(int t = 0; t < module->type_count; t++)
+            if(module->types[t].is_enum) keep_types[m][t] = 1;
+        for(int l = 0; l < module->law_count; l++)
+            if(module->laws[l].claim) {
+                if(!mark_proof_graph(program, module, module->laws[l].claim, keep, keep_types)) goto failed;
+            }
+        for(int p = 0; p < module->proof_count; p++) {
+            const ZirProof *proof = &module->proofs[p];
+            const ZirModule *scope = module;
+            const ZirModule *law_owner = NULL;
+            if(FindVisibleLaw(module, proof->name, &law_owner)) scope = law_owner;
+            if(!mark_proof_graph(program, scope, &proof->terms, keep, keep_types)) goto failed;
+            for(int s = 0; s < proof->step_count; s++)
+                if(proof->steps[s].kind == ZIR_PROOF_UNFOLD && proof->steps[s].target[0]) {
+                    mark_proof_function(program, scope, proof->steps[s].target, keep);
+                    mark_proof_function(program, module, proof->steps[s].target, keep);
+                }
+        }
+        for(int n = 0; n < module->law_count + module->proof_count; n++) {
+            if(n >= module->law_count || module->laws[n].claim) continue;
+            const char *text = n < module->law_count ? module->laws[n].payload :
+                               module->proofs[n - module->law_count].source;
+            for(const char *p = text; *p;) {
+                if(!isalpha((unsigned char)*p) && *p != '_') { p++; continue; }
+                const char *start = p;
+                while(isalnum((unsigned char)*p) || *p == '_' || *p == '.') p++;
+                size_t length = (size_t)(p - start);
+                if(length >= ZIR_NAME_MAX) continue;
+                char name[ZIR_NAME_MAX]; memcpy(name, start, length); name[length] = 0;
+                const ZirModule *owner = NULL; const ZirFunction *fn = NULL;
+                if(ResolveFunction(module, name, &owner, &fn) == 1)
+                    for(int target = 0; target < program->module_count; target++)
+                        if(owner == &program->modules[target])
+                            keep[target][fn - owner->functions] = 1;
+            }
+        }
+    }
     for(int changed = 1; changed;) {
         changed = 0;
         for(int m = 0; m < program->module_count; m++) {
@@ -1553,7 +1691,7 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
         }
     }
     for(int m = 0; m < program->module_count; m++)
-        keep_modules[m] =
+        keep_modules[m] = program->modules[m].law_count || program->modules[m].proof_count ||
             startup_path[m] ||
             memchr(keep[m], 1, (size_t)program->modules[m].function_count) != NULL ||
             memchr(keep_types[m], 1, (size_t)program->modules[m].type_count) != NULL ||
@@ -1653,10 +1791,11 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
                 if((module->imports[i].kind != ZIR_IMPORT_OPEN &&
                     module->imports[i].kind != ZIR_IMPORT_MODULE) ||
                    dependency == NULL ||
-                   !uses_imported_constant(module, keep[m], keep_types[m],
+                   (!(module->law_count || module->proof_count) &&
+                    !uses_imported_constant(module, keep[m], keep_types[m],
                                            keep_defines[m],
                                            keep_defines[dependency - program->modules],
-                                           dependency))
+                                           dependency)))
                     continue;
                 for(int d = 0; d < program->module_count; d++)
                     if(dependency == &program->modules[d] && !keep_modules[d]) {
@@ -1737,6 +1876,10 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
         target->imports = NULL; target->import_count = target->import_cap = 0;
         target->functions = NULL;
         target->function_count = target->function_cap = 0;
+        target->laws = NULL; target->law_count = target->law_cap = 0;
+        target->law_waivers = NULL; target->law_waiver_count = target->law_waiver_cap = 0;
+        target->proofs = NULL; target->proof_count = target->proof_cap = 0;
+        if(!copy_laws(target, source)) goto failed;
         /* Statement text is reparsed when a bundle is loaded. Keep constants
          * so symbolic array declarations retain their checked meaning. */
         if(kept_defines > 0) {
@@ -1786,7 +1929,7 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
                     target->types[next++] = source->types[t];
         }
         for(int i = 0; i < source->import_count; i++)
-            kept_imports += source->imports[i].is_using ||
+            kept_imports += source->law_count || source->proof_count || source->imports[i].is_using ||
                            import_has_startup_path(program, startup_path,
                                                    &source->imports[i]) ||
                            import_is_used(program, source, keep[m], keep,
@@ -1801,7 +1944,7 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
             target->import_count = target->import_cap = kept_imports;
             int next_import = 0;
             for(int i = 0; i < source->import_count; i++)
-                if(source->imports[i].is_using ||
+                if(source->law_count || source->proof_count || source->imports[i].is_using ||
                    import_has_startup_path(program, startup_path,
                                            &source->imports[i]) ||
                    import_is_used(program, source, keep[m], keep, keep_types,
@@ -1818,6 +1961,7 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
     if(!LinkImports(&linked, 1) ||
        !prune_record_fields(linked, entry_module, entry_function))
         goto failed;
+    if(!CheckLawGates(&linked, 1)) goto failed;
     for(int m = 0; m < program->module_count; m++)
         free(keep[m]);
     for(int m = 0; m < program->module_count; m++)
@@ -1957,7 +2101,13 @@ BundleWrite(FILE *out, const ZirProgram *program,
                          write_name(out, law->name) &&
                          write_name(out, law->kind) &&
                          write_name(out, LawStatusName(status)) &&
-                         write_name(out, detail);
+                         write_name(out, detail) &&
+                         write_name(out, law->evidence.method) &&
+                         write_text(out, law->evidence.domain, sizeof(law->evidence.domain)) &&
+                         write_u32(out, (uint32_t)law->evidence.cases_checked) &&
+                         write_u32(out, (uint32_t)(law->evidence.cases_checked >> 32)) &&
+                         write_text(out, law->evidence.counterexample, sizeof(law->evidence.counterexample)) &&
+                         write_u32(out, (uint32_t)law->evidence.waived);
                 }
             if(ok)
                 ok = write_u32(out, (uint32_t)waivers);
@@ -2002,6 +2152,9 @@ BundleRead(FILE *in, const char *path,
     FILE *payload = NULL;
     ZirProgram *program = NULL;
     CapabilityName *capabilities = NULL;
+    ZibLawTable discarded = {0};
+    int discard_laws = laws == NULL;
+    if(discard_laws) laws = &discarded;
     const char *problem = "invalid or truncated bundle";
     if(in == NULL || path == NULL || entry_module == NULL ||
        entry_function == NULL)
@@ -2043,12 +2196,20 @@ BundleRead(FILE *in, const char *path,
             goto failed;
         for(uint32_t i = 0; i < law_count; i++) {
             ZibLawRecord *record = &laws->laws[i];
+            uint32_t lo, hi, waived;
             if(!read_name(in, record->module, sizeof(record->module)) ||
                !read_name(in, record->name, sizeof(record->name)) ||
                !read_name(in, record->kind, sizeof(record->kind)) ||
                !read_name(in, record->status, sizeof(record->status)) ||
-               !read_name(in, record->detail, sizeof(record->detail)))
+               !read_name(in, record->detail, sizeof(record->detail)) ||
+               !read_name(in, record->evidence.method, sizeof(record->evidence.method)) ||
+               !read_text(in, record->evidence.domain, sizeof(record->evidence.domain)) ||
+               !read_u32(in, &lo) || !read_u32(in, &hi) ||
+               !read_text(in, record->evidence.counterexample, sizeof(record->evidence.counterexample)) ||
+               !read_u32(in, &waived) || waived > 1)
                 goto failed;
+            record->evidence.cases_checked = (uint64_t)lo | ((uint64_t)hi << 32);
+            record->evidence.waived = (int)waived;
         }
         laws->law_count = (int)law_count;
         if(!read_u32(in, &waiver_count) ||
@@ -2104,8 +2265,42 @@ BundleRead(FILE *in, const char *path,
         problem = "embedded ZIR failed semantic checking";
         goto failed;
     }
+    if(laws) {
+        int next = 0, next_waiver = 0;
+        for(int m = 0; m < program->module_count; m++) {
+            const ZirModule *module = &program->modules[m];
+            for(int l = 0; l < module->law_count; l++) {
+                const ZirLaw *law = &module->laws[l];
+                char detail[ZIR_TEXT_MAX];
+                int status = EvaluateLaw(program, module, law, detail, sizeof(detail));
+                if(next >= laws->law_count) { problem = "bundle law table differs from checked IR"; goto failed; }
+                const ZibLawRecord *record = &laws->laws[next++];
+                if(strcmp(record->module, module->name) || strcmp(record->name, law->name) ||
+                   strcmp(record->kind, law->kind) || strcmp(record->status, LawStatusName(status)) ||
+                   strcmp(record->detail, detail) || strcmp(record->evidence.method, law->evidence.method) ||
+                   strcmp(record->evidence.domain, law->evidence.domain) ||
+                   strcmp(record->evidence.counterexample, law->evidence.counterexample) ||
+                   record->evidence.cases_checked != law->evidence.cases_checked ||
+                   record->evidence.waived != law->evidence.waived) {
+                    problem = "bundle law table differs from checked IR"; goto failed;
+                }
+            }
+            for(int w = 0; w < module->law_waiver_count; w++) {
+                if(next_waiver >= laws->waiver_count) { problem = "bundle waiver table differs from checked IR"; goto failed; }
+                const ZibLawWaiverRecord *record = &laws->waivers[next_waiver++];
+                if(strcmp(record->module, module->name) || strcmp(record->name, module->law_waivers[w].name) ||
+                   strcmp(record->reason, module->law_waivers[w].reason)) {
+                    problem = "bundle waiver table differs from checked IR"; goto failed;
+                }
+            }
+        }
+        if(next != laws->law_count || next_waiver != laws->waiver_count) {
+            problem = "bundle law table differs from checked IR"; goto failed;
+        }
+    }
     fclose(payload);
     free(capabilities);
+    if(discard_laws) ZibLawTableFree(&discarded);
     return program;
 failed:
     Diagnostic(Span(path, 1, 1), "zib.invalid", "%s", problem);
@@ -2113,5 +2308,6 @@ failed:
         fclose(payload);
     free(capabilities);
     ProgramFree(program);
+    if(discard_laws) ZibLawTableFree(&discarded);
     return NULL;
 }

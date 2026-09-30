@@ -296,6 +296,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                           strcmp(w0, "enum") == 0 ||
                           strcmp(w0, "state") == 0));
                 }
+                /* A proof certificate is one declaration, including its
+                 * complete block. Its braces accumulate like an initializer. */
+                if(starts_word(buffers->pending, "#proof")) header_line = 0;
                 /* K&R "} else {" / "} else if (...) {" also covers Jai's
                  * "} else #if COND {" compile-time branch. The leading and
                  * trailing braces balance as one logical header line. */
@@ -319,6 +322,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                             p++;
                         else if(*p == '\'')
                             in_chr = 0;
+                    } else if(*p == '/' && p[1] == '/' &&
+                              starts_word(buffers->pending, "#proof")) {
+                        break;
                     } else if(*p == '"') {
                         in_string = 1;
                     } else if(*p == '\'') {
@@ -516,6 +522,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             die_at(Span(buffers->rel, line_no, 1),
                    "#private is not Jai syntax; use #scope_file");
         if(mode == TOP && looks_like_function_header(t)) {
+            if(contains_source_directive(t, "#go_results") &&
+               !contains_source_directive(t, "#foreign"))
+                die_at(Span(buffers->rel, line_no, 1), "#go_results requires a foreign procedure");
             const char *parameters = strchr(t, '(');
             const char *closing = closing_parenthesis(parameters);
             const char *body_open = closing == NULL ? NULL :
@@ -526,6 +535,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 (body_open == NULL || modifier < body_open);
                 modifier = strchr(modifier + 1, '#'))
                 if(!starts_word(modifier, "#foreign") &&
+                   !starts_word(modifier, "#go_results") &&
                    !starts_word(modifier, "#must"))
                     die_at(Span(buffers->rel, line_no, 1),
                            "unknown function modifier: %s", modifier);
@@ -551,13 +561,19 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             if(export_directive == 1)
                 continue;
         }
+        if(mode == TOP && starts_word(t, "#proof")) {
+            ZirSourceSpan proof_span = Span(buffers->rel, pending_start_line, pending_start_column);
+            if(!ParseProofDeclaration(module, t, proof_span))
+                die_at(proof_span, "invalid #proof declaration");
+            continue;
+        }
         if(mode == TOP &&
            (starts_word(t, "#law") || starts_word(t, "#law_waive"))) {
             if(starts_word(t, "#law_waive")) {
                 const char *body = skip_ws(t + strlen("#law_waive"));
                 char name[ZIR_NAME_MAX];
                 size_t length = 0;
-                while((isalnum((unsigned char)*body) || *body == '_') &&
+                while((isalnum((unsigned char)*body) || *body == '_' || *body == '.') &&
                       length + 1 < sizeof(name))
                     name[length++] = *body++;
                 name[length] = '\0';
@@ -611,12 +627,13 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     strcmp(kind, "abi") != 0 &&
                     strcmp(kind, "custom") != 0 &&
                     strcmp(kind, "forall") != 0 &&
+                    strcmp(kind, "theorem") != 0 &&
                     strcmp(kind, "size") != 0) ||
                    *skip_ws(body) == '\0' || *semi != ';' ||
                    semi == body)
                     die_at(Span(buffers->rel, line_no, 1),
                            "#law requires NAME kind payload; with kind "
-                           "type, effect, bounds, abi, custom, forall, or size");
+                           "type, effect, bounds, abi, custom, forall, size, or theorem");
                 {
                     const char *start = skip_ws(body);
                     size_t payload_length = (size_t)(semi - start);

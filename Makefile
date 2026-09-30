@@ -22,7 +22,8 @@ BUILD_DIR ?= build
 BIN_DIR := $(BUILD_DIR)/bin
 FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_text.c \
     cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
-    cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
+    cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
+    cmd/zir/zir_proof_kernel.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
     cmd/zir/zir_diagnostic.c
@@ -40,8 +41,17 @@ BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
 
 .PHONY: all check curl-http-test clean install-user package-objects package-link
+.PHONY: proof-model
+LEAN ?= lean
 CHECK_JOBS ?= 4
 all: $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BUILD_DIR)/libziran.a
+
+proof-model:
+	mkdir -p $(BUILD_DIR)/proofs
+	$(CC) $(CFLAGS) -o $(BUILD_DIR)/proofs/kernel tests/proof_kernel_test.c cmd/zir/zir_proof_kernel.c
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BUILD_DIR)/proofs/kernel $(BUILD_DIR)/proofs/corpus.txt
+	$(LEAN) -DwarningAsError=true -o $(BUILD_DIR)/proofs/Scalar.olean proofs/Scalar.lean
+	LEAN_PATH=$(abspath $(BUILD_DIR)/proofs) $(LEAN) -DwarningAsError=true --run proofs/Oracle.lean $(BUILD_DIR)/proofs/corpus.txt
 
 USER_BIN ?= $(HOME)/.local/bin
 USER_SHARE ?= $(HOME)/.local/share/ziran/bootstrap

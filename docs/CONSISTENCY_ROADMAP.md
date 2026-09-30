@@ -41,10 +41,11 @@ dangling view.
   lowering, verification, and execution. Add related spans, expected and actual
   types, target-capability context, and reliable machine-readable suggested
   edits. Test every negative fixture as a JSON line.
-- Clarify law evidence. Require unique qualified law IDs, validate waiver
-  targets and scope, and report waived obligations explicitly. A quantified
-  proof system remains a separate project requiring a trusted kernel,
-  termination and effect rules, and explicit unsafe/FFI boundaries.
+- Extend the scalar proof kernel beyond its current pure acyclic fragment.
+  Structured evidence, module-scoped identities, qualified waiver targets,
+  and saved certificate rechecking are implemented. General quantified
+  proofs still require termination/induction rules and a verified projection
+  of source and executable behavior; see [LAWS.md](LAWS.md).
 - Publish exact fixed-size name and source-buffer limits, diagnose excess input
   precisely, then intern type identities and replace spelling-sized buffers
   with structured syntax.

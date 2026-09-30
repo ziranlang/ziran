@@ -1,0 +1,9 @@
+Code :: #import "scalar";
+#law AddZero theorem x: s32 => Code.Add(x, 0) == x;
+#law AddCommutes theorem a: s32, b: s32 => Code.Add(a, b) == Code.Add(b, a);
+#law AddAssociates theorem a: s32, b: s32, c: s32 => Code.Add(a, Code.Add(b, c)) == Code.Add(Code.Add(a, b), c);
+#law MultiplyDistributes theorem a: s32, b: s32, c: s32 => a * (b + c) == a * b + a * c;
+#law MaximumCommutes theorem a: s32, b: s32 => Code.Larger(a, b) == Code.Larger(b, a);
+#law MaximumIsIdempotent theorem a: s32 => Code.Larger(a, a) == a;
+#law MaximumKeepsBoth theorem a: s32, b: s32 => Code.Larger(a, b) >= a && Code.Larger(a, b) >= b;
+#law EnumIdentity theorem value: Code.Code => value == value;

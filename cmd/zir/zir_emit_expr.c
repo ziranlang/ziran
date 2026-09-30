@@ -1279,7 +1279,10 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         }
         else {
             char cast_native[ZIR_NAME_MAX];
-            slot_native_type(type, e->target, cast_native, sizeof(cast_native));
+            if(e->target == ZIR_GO)
+                e->resolve(e->context, type, cast_native, sizeof(cast_native));
+            else
+                slot_native_type(type, e->target, cast_native, sizeof(cast_native));
             if(e->target==ZIR_GO) format(buffers->result,sizeof(buffers->result),"%s(%s)",cast_native,buffers->a);
             else format(buffers->result,sizeof(buffers->result),"(%s)(%s)",cast_native,buffers->a);
         }

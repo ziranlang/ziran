@@ -65,6 +65,11 @@ for file in "$@"; do
                 out = out " :: "
                 i++
                 while(i < n && substr(s, i + 1, 1) ~ /[ \t]/) i++
+            } else if(c == "=" && nextc == ">") {
+                sub(/[ \t]+$/, "", out)
+                out = out " => "
+                i++
+                while(i < n && substr(s, i + 1, 1) ~ /[ \t]/) i++
             } else if(c == "=" && prevc !~ /[!<>=:+\-*\/%&|^]/ && nextc != "=") {
                 sub(/[ \t]+$/, "", out)
                 out = out " = "

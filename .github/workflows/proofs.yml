@@ -1,0 +1,29 @@
+name: Scalar proof model
+on:
+  push:
+    branches: [master]
+    paths: ['proofs/**', 'cmd/zir/**', 'tests/proof*', 'tests/proof/**', 'tests/law*', 'Makefile', '.github/workflows/proofs.yml']
+  pull_request:
+    paths: ['proofs/**', 'cmd/zir/**', 'tests/proof*', 'tests/proof/**', 'tests/law*', 'Makefile', '.github/workflows/proofs.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Lean
+        run: |
+          version=$(sed 's/leanprover\/lean4:v//' proofs/lean-toolchain)
+          mkdir -p build/tools
+          curl -fL --retry 3 "https://github.com/leanprover/lean4/releases/download/v${version}/lean-${version}-linux.tar.zst" |
+            tar --zstd -xf - -C build/tools
+          echo "$PWD/build/tools/lean-${version}-linux/bin" >> "$GITHUB_PATH"
+      - name: Check model and independent interpreter
+        run: env -u DISPLAY -u WAYLAND_DISPLAY make proof-model
+      - name: Check source and artifact certificates
+        run: |
+          env -u DISPLAY -u WAYLAND_DISPLAY make all
+          env -u DISPLAY -u WAYLAND_DISPLAY sh tests/laws.sh build/bin/ziran
+          env -u DISPLAY -u WAYLAND_DISPLAY sh tests/proofs.sh build/bin/ziran

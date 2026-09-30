@@ -6,6 +6,7 @@
 #include "zir_check.h"
 #include "zir_text.h"
 #include "zir_law.h"
+#include "zir_proof.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -15,14 +16,18 @@
 typedef enum {
     LAW_PROVED = 0,
     LAW_DISPROVED,
-    LAW_UNKNOWN
+    LAW_UNKNOWN,
+    LAW_INVALID
 } LawStatus;
+
+static _Thread_local ZirLawEvidence *active_evidence;
 
 static const char *
 law_status_name(LawStatus status)
 {
     return status == LAW_PROVED ? "proved" :
-           status == LAW_DISPROVED ? "disproved" : "unknown";
+           status == LAW_DISPROVED ? "disproved" :
+           status == LAW_INVALID ? "invalid" : "unknown";
 }
 
 /* kind: type ------------------------------------------------------------ */
@@ -535,22 +540,14 @@ static LawStatus
 evaluate_custom_law(const ZirModule *module, const ZirLaw *law,
                     char *detail, size_t size)
 {
-    long value = 0;
-    if(!EvaluateCompileExpression(module, law->payload, law->span, 0,
-                                  &value)) {
-        /* The typed evaluator also resolves enum members and casts. */
-        int truth = 0;
-        if(EvaluateCompileConditionBound(module, law->payload, law->span,
-                                         NULL, NULL, NULL, NULL, 0, &truth)) {
-            snprintf(detail, size, "payload evaluated to %d", truth);
-            return truth ? LAW_PROVED : LAW_DISPROVED;
-        }
-        snprintf(detail, size,
-                 "payload is outside the compile-time evaluator");
-        return LAW_UNKNOWN;
+    int truth = 0;
+    if(EvaluateCompileConditionBound(module, law->payload, law->span,
+                                     NULL, NULL, NULL, NULL, 0, &truth)) {
+        snprintf(detail, size, "payload evaluated to %d", truth);
+        return truth ? LAW_PROVED : LAW_DISPROVED;
     }
-    snprintf(detail, size, "payload evaluated to %ld", value);
-    return value != 0 ? LAW_PROVED : LAW_DISPROVED;
+    snprintf(detail, size, "payload is outside the compile-time evaluator");
+    return LAW_UNKNOWN;
 }
 
 /* kind: forall ---------------------------------------------------------- */
@@ -657,6 +654,21 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
         *colon = '\0';
         trim_in_place(parts[v]);
         snprintf(names[v], ZIR_NAME_MAX, "%s", parts[v]);
+        if(!isalpha((unsigned char)names[v][0]) && names[v][0] != '_') {
+            snprintf(detail, size, "invalid quantified binding"); return LAW_DISPROVED;
+        }
+        for(const char *n = names[v]; *n; n++)
+            if(!isalnum((unsigned char)*n) && *n != '_') {
+                snprintf(detail, size, "invalid quantified binding"); return LAW_DISPROVED;
+            }
+        for(int prior = 0; prior < v; prior++)
+            if(!strcmp(names[prior], names[v])) {
+                snprintf(detail, size, "duplicate quantified binding %s", names[v]); return LAW_DISPROVED;
+            }
+        for(int d = 0; d < module->define_count; d++)
+            if(!strcmp(module->defines[d].name, names[v])) {
+                snprintf(detail, size, "quantified binding %s shadows a constant", names[v]); return LAW_DISPROVED;
+            }
         types[v][0] = '\0';
         is_enum[v] = 0;
         array_length[v] = 0;
@@ -699,7 +711,11 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                          names[v]);
                 return LAW_DISPROVED;
             }
-            element_span[v] = high - low[v] + 1;
+            uint64_t distance = (uint64_t)high - (uint64_t)low[v];
+            if(distance >= FORALL_BUDGET || low[v] < INT32_MIN || high > INT32_MAX) {
+                snprintf(detail, size, "sequence domain exceeds evaluator width or budget"); return LAW_UNKNOWN;
+            }
+            element_span[v] = (long)distance + 1;
             array_length[v] = (int)length;
             for(long e = 0; e < length; e++) {
                 if(cases > FORALL_BUDGET / element_span[v]) {
@@ -755,7 +771,11 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                 snprintf(detail, size, "range of %s is empty", names[v]);
                 return LAW_DISPROVED;
             }
-            span_count[v] = high - low[v] + 1;
+            uint64_t distance = (uint64_t)high - (uint64_t)low[v];
+            if(distance >= FORALL_BUDGET) {
+                snprintf(detail, size, "domain exceeds the budget of %ld cases", FORALL_BUDGET); return LAW_UNKNOWN;
+            }
+            span_count[v] = (long)distance + 1;
         }
         if(span_count[v] > FORALL_BUDGET ||
            total > FORALL_BUDGET / span_count[v]) {
@@ -800,7 +820,21 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                                          v ? ", " : " ", names[v], values[v]);
             return LAW_UNKNOWN;
         }
+        if(active_evidence) active_evidence->cases_checked = (uint64_t)checked + 1;
         if(!truth) {
+            if(active_evidence) {
+                char *out = active_evidence->counterexample;
+                size_t used = (size_t)snprintf(out, ZIR_TEXT_MAX, "{");
+                for(int v = 0; v < count && used < ZIR_TEXT_MAX; v++) {
+                    if(exprs[v][0])
+                        used += (size_t)snprintf(out + used, ZIR_TEXT_MAX - used,
+                            "%s\"%s\":\"%s\"", v ? "," : "", names[v], exprs[v]);
+                    else
+                        used += (size_t)snprintf(out + used, ZIR_TEXT_MAX - used,
+                            "%s\"%s\":%ld", v ? "," : "", names[v], values[v]);
+                }
+                if(used < ZIR_TEXT_MAX) snprintf(out + used, ZIR_TEXT_MAX - used, "}");
+            }
             size_t used = (size_t)snprintf(detail, size, "counterexample");
             for(int v = 0; v < count && used < size; v++) {
                 if(exprs[v][0])
@@ -835,6 +869,22 @@ EvaluateLaw(const ZirProgram *program, const ZirModule *module,
 {
     LawStatus status;
     (void)program;
+    ZirLawEvidence *evidence = &((ZirLaw *)law)->evidence;
+    int waived = evidence->waived;
+    memset(evidence, 0, sizeof(*evidence));
+    evidence->waived = waived;
+    copy_text(evidence->method, sizeof(evidence->method),
+              !strcmp(law->kind, "theorem") ? "kernel" :
+              !strcmp(law->kind, "forall") ? "exhaustive" :
+              !strcmp(law->kind, "custom") ? "evaluation" : "structural");
+    const char *arrow = strstr(law->payload, "=>");
+    if(arrow && (!strcmp(law->kind, "forall") || !strcmp(law->kind, "theorem"))) {
+        snprintf(evidence->domain, sizeof(evidence->domain), "%.*s",
+                 (int)(arrow - law->payload), law->payload);
+        trim_in_place(evidence->domain);
+    } else copy_text(evidence->domain, sizeof(evidence->domain), law->payload);
+    ZirLawEvidence *prior_evidence = active_evidence;
+    active_evidence = evidence;
     detail[0] = '\0';
     if(!strcmp(law->kind, "type"))
         status = evaluate_type_law(module, law, detail, size);
@@ -850,10 +900,15 @@ EvaluateLaw(const ZirProgram *program, const ZirModule *module,
         status = evaluate_forall_law(module, law, detail, size);
     else if(!strcmp(law->kind, "custom"))
         status = evaluate_custom_law(module, law, detail, size);
+    else if(!strcmp(law->kind, "theorem"))
+        status = (LawStatus)EvaluateTheorem(module, law, detail, size);
     else {
         snprintf(detail, size, "no checker for kind %s", law->kind);
         status = LAW_UNKNOWN;
     }
+    if(!strcmp(law->kind, "custom") && status != LAW_UNKNOWN)
+        evidence->cases_checked = 1;
+    active_evidence = prior_evidence;
     return (int)status;
 }
 
@@ -864,20 +919,21 @@ LawStatusName(int status)
 }
 
 static int
-law_waived(const ZirProgram *program, const char *name)
+law_waived(ZirProgram **programs, int count, const ZirLaw *law)
 {
-    for(int p = 0; p < 1; p++)
-        for(int m = 0; m < program->module_count; m++)
-            for(int w = 0; w < program->modules[m].law_waiver_count; w++)
-                if(strcmp(program->modules[m].law_waivers[w].name,
-                          name) == 0)
-                    return 1;
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++) {
+            const ZirModule *module = &programs[p]->modules[m];
+            for(int w = 0; w < module->law_waiver_count; w++) {
+                const ZirModule *owner = NULL;
+                if(FindVisibleLaw(module, module->law_waivers[w].name, &owner) == law) return 1;
+            }
+        }
     return 0;
 }
 
-/* Law identity: names are unique across the program, and a waiver must name
- * an existing law. Waivers on laws that are not unknown are reported by the
- * gate below. */
+/* A law belongs to its declaring module. Imports use the same qualification
+ * rules as proof references; unrelated modules may reuse a short name. */
 static int
 check_law_identity(const ZirProgram *program)
 {
@@ -885,33 +941,23 @@ check_law_identity(const ZirProgram *program)
     for(int m = 0; m < program->module_count; m++) {
         const ZirModule *module = &program->modules[m];
         for(int l = 0; l < module->law_count; l++)
-            for(int n = 0; n < program->module_count; n++) {
-                const ZirModule *other = &program->modules[n];
-                for(int k = 0; k < other->law_count; k++) {
-                    if((n < m || (n == m && k <= l)) ||
-                       strcmp(module->laws[l].name, other->laws[k].name))
-                        continue;
-                    Diagnostic(other->laws[k].span, "law.identity",
-                               "law %s is declared more than once",
-                               other->laws[k].name);
+            for(int k = l + 1; k < module->law_count; k++)
+                if(!strcmp(module->laws[l].name, module->laws[k].name)) {
+                    Diagnostic(module->laws[k].span, "law.identity",
+                               "law %s is declared more than once", module->laws[k].name);
                     failures++;
                 }
-            }
         for(int w = 0; w < module->law_waiver_count; w++) {
-            int found = 0;
-            for(int n = 0; n < program->module_count && !found; n++)
-                for(int k = 0; k < program->modules[n].law_count; k++)
-                    if(!strcmp(program->modules[n].laws[k].name,
-                               module->law_waivers[w].name)) {
-                        found = 1;
-                        break;
-                    }
-            if(!found) {
+            const ZirModule *owner = NULL;
+            if(!FindVisibleLaw(module, module->law_waivers[w].name, &owner)) {
                 Diagnostic(module->law_waivers[w].span, "law.waiver",
-                           "waiver names no law: %s",
-                           module->law_waivers[w].name);
+                           "waiver names no law: %s", module->law_waivers[w].name);
                 failures++;
             }
+            for(int k = w + 1; k < module->law_waiver_count; k++)
+                if(!strcmp(module->law_waivers[w].name, module->law_waivers[k].name)) {
+                    Diagnostic(module->law_waivers[k].span, "law.waiver", "duplicate law waiver"); failures++;
+                }
         }
     }
     return failures;
@@ -921,6 +967,7 @@ int
 CheckLawGates(ZirProgram **programs, int count)
 {
     int failures = 0;
+    if(!PrepareLawProofs(programs, count)) return 0;
     for(int p = 0; p < count; p++)
         failures += check_law_identity(programs[p]);
     for(int p = 0; p < count; p++)
@@ -931,9 +978,10 @@ CheckLawGates(ZirProgram **programs, int count)
                 char detail[ZIR_TEXT_MAX];
                 int status = EvaluateLaw(programs[p], module, law, detail,
                                          sizeof(detail));
-                if(status == 2 && law_waived(programs[p], law->name))
+                ((ZirLaw *)law)->evidence.waived = law_waived(programs, count, law);
+                if(status == 2 && law_waived(programs, count, law))
                     continue;
-                if(status != 2 && law_waived(programs[p], law->name)) {
+                if(status != 2 && law_waived(programs, count, law)) {
                     Diagnostic(law->span, "law.waiver",
                                "law %s is %s; only unknown laws can be waived",
                                law->name, law_status_name((LawStatus)status));
@@ -989,7 +1037,16 @@ PrintLawResults(ZirProgram **programs, int count, FILE *out)
                 fprintf(out, "\"status\":\"%s\",\"detail\":",
                         law_status_name((LawStatus)status));
                 print_json_string(out, detail);
-                fprintf(out, "}\n");
+                fprintf(out, ",\"module\":");
+                print_json_string(out, module->name);
+                fprintf(out, ",\"evidence\":{\"method\":");
+                print_json_string(out, law->evidence.method);
+                fprintf(out, ",\"domain\":");
+                print_json_string(out, law->evidence.domain);
+                fprintf(out, ",\"cases_checked\":%llu,\"counterexample\":%s,\"waived\":%s}}\n",
+                        (unsigned long long)law->evidence.cases_checked,
+                        law->evidence.counterexample[0] ? law->evidence.counterexample : "null",
+                        law->evidence.waived ? "true" : "false");
             }
             for(int w = 0; w < module->law_waiver_count; w++) {
                 const ZirLawWaiver *waiver = &module->law_waivers[w];

@@ -677,6 +677,20 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `route` block words. Source, saved-IR, and portable bundle tests cover
   these names as ordinary declarations and calls.
 
+- Scalar `#law NAME theorem bindings => condition;` and `#proof NAME { ... }`
+  certificates support reflexivity, modular polynomial normalization, exact
+  order, boolean case splits, unfolding pure acyclic scalar procedures,
+  equality rewriting, and checked theorem application. Missing/unsupported
+  proofs and exhausted budgets are unknown; invalid certificates and cycles
+  cannot be waived. Evidence distinguishes structural checks, concrete
+  evaluation, finite exhaustion, and full-domain scalar kernel proofs.
+  `.zir` and `.zib` store and recheck certificates and verification dependencies;
+  forged graph references, steps, and evidence are rejected. Lean 4.34.1
+  validates the mathematical rules and an independent interpreter checks
+  generated C kernel claims. The C port and procedure projection remain
+  trusted, and arbitrary-sequence induction remains future work. See
+  [LAWS.md](LAWS.md) and `tests/proofs.sh`, `tests/law_integers.sh`,
+  `tests/proof_kernel.sh`, and `make proof-model`.
 - Named `#law NAME kind payload;` obligations are implemented for the
   `type`, `bounds`, `effect`, `abi`, `custom`, and `forall` kinds (`forall`
   is exhaustive over integer ranges, enum types, and bounded integer

@@ -659,14 +659,14 @@ prefix_with_buffers(ExprParser *p, PrefixBuffers *buffers)
                        "non-Jai primitive type spelling: char");
             exit(1);
         }
-        if(!type_name(p, p->token.text) && !is(p, "[") && !is(p, "*"))
-            p->failed = 1;
         while(p->token.kind != ZIR_TOKEN_EOF && !is(p, ")")) next(p);
         length = p->begin - ts;
         if(length >= sizeof(type)) { p->failed = 1; length = 0; }
         memcpy(type, p->source + ts, length);
         type[length] = 0;
         trim_in_place(type);
+        if(!type_name(p, type) && type[0] != '[' && type[0] != '*')
+            p->failed = 1;
         expect(p, ")");
         int right = prefix(p);
         result = node(p, ZIR_EXPR_CAST, start, type, "", -1, right);

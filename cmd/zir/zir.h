@@ -91,6 +91,7 @@ typedef struct ZirImport {
     char return_type[ZIR_NAME_MAX];
     int must_use;
     int is_varargs; /* trailing `..any` extern parameter accepts extra call arguments */
+    int go_results; /* direct Go results populate the declared result record in field order */
     int required;
     int is_using; /* `using Alias :: #import` re-exports public names */
     ZirSourceSpan span;
@@ -207,12 +208,45 @@ typedef struct ZirUsing {
     ZirSourceSpan span;
 } ZirUsing;
 
+typedef struct ZirLawEvidence {
+    char method[16]; /* structural | evaluation | exhaustive | kernel */
+    char domain[ZIR_TEXT_MAX];
+    uint64_t cases_checked;
+    char counterexample[ZIR_TEXT_MAX]; /* JSON object, empty when absent */
+    int waived;
+} ZirLawEvidence;
+
+typedef enum ZirProofStepKind {
+    ZIR_PROOF_UNFOLD = 1, ZIR_PROOF_CASES, ZIR_PROOF_REWRITE,
+    ZIR_PROOF_USE, ZIR_PROOF_REFL, ZIR_PROOF_RING, ZIR_PROOF_ORDER
+} ZirProofStepKind;
+
+typedef struct ZirProofStep {
+    ZirProofStepKind kind;
+    char target[ZIR_NAME_MAX];
+    int term_root; /* theorem application in the proof's terms graph */
+    ZirSourceSpan span;
+} ZirProofStep;
+
+typedef struct ZirProof {
+    char name[ZIR_NAME_MAX];
+    char source[ZIR_TEXT_MAX]; /* diagnostic only after parsing */
+    ZirSourceSpan span;
+    ZirProofStep *steps;
+    int step_count;
+    ZirFunction terms; /* checked theorem arguments; never executable code */
+    const struct ZirModule *owner; /* borrowed, never serialized */
+} ZirProof;
+
 /* A `#law NAME kind payload;` obligation (see LANGUAGE_DIRECTION.md). */
 typedef struct ZirLaw {
     char name[ZIR_NAME_MAX];
-    char kind[16];      /* type | effect | bounds | abi | custom */
+    char kind[16];
     char payload[ZIR_TEXT_MAX];
     ZirSourceSpan span;
+    ZirLawEvidence evidence;
+    ZirFunction *claim; /* typed theorem proposition, NULL for other kinds */
+    const ZirProof *proof; /* associated certificate, borrowed, never saved */
 } ZirLaw;
 
 /* A `#law_waive NAME reason;` declaration. */
@@ -298,6 +332,9 @@ typedef struct ZirModule {
     ZirLawWaiver *law_waivers;
     int law_waiver_count;
     int law_waiver_cap;
+    ZirProof *proofs;
+    int proof_count;
+    int proof_cap;
     ZirType *types;
     int type_count;
     int type_cap;
@@ -380,6 +417,8 @@ int ModuleAddLaw(ZirModule *module, const char *name, const char *kind,
                  const char *payload, ZirSourceSpan span);
 int ModuleAddLawWaiver(ZirModule *module, const char *name,
                        const char *reason, ZirSourceSpan span);
+int ModuleAddProof(ZirModule *module, const char *name, const char *source,
+                   ZirSourceSpan span);
 int ModuleAddAssert(ZirModule *module, const char * condition,
                     const char *message, ZirSourceSpan span);
 ZirUsing *ModuleAddUsing(ZirModule *module, const char *path,
@@ -395,6 +434,9 @@ ZirExpr *FunctionAddExpr(ZirFunction *fn, ZirExprKind kind,
                             const char *text, ZirSourceSpan span);
 void ProgramDump(const ZirProgram *program, FILE *out);
 int GoForeignTargetValid(const char *target);
+int GoForeignCallParts(const char *target, char *package, size_t package_size,
+                       char *receiver, size_t receiver_size,
+                       char *symbol, size_t symbol_size);
 int RejectForeignGoTypes(const ZirProgram *program);
 int MapTypeParts(const ZirModule *module, const char *name,
                  char *key, size_t key_size, char *value, size_t value_size);

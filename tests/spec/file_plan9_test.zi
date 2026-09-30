@@ -30,6 +30,9 @@ Run :: (root: string) -> s32 {
     other := Path(root, "other", other_bytes[:])
     if !CreatePrivateDirectory(directory) || !CreatePrivateDirectory(directory) ||
         !PathExists(directory) || !DirectoryExists(directory) { return 1 }
+    if CreatePrivateDirectoryExclusive(directory) ||
+        !CreatePrivateDirectoryExclusive(other) || !DirectoryExists(other) ||
+        CreatePrivateDirectoryExclusive(other) || !RemoveFile(other) { return 23 }
     file := OpenPrivateReplace(first)
     if !file.valid { return 2 }
     bytes: [4]u8 = .[65, 0, 66, 67]

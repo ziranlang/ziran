@@ -148,6 +148,14 @@ CreateDirectory :: (path: string) -> bool { return DirectoryWithMode(path, 493) 
 #program_export
 CreatePrivateDirectory :: (path: string) -> bool { return DirectoryWithMode(path, 448) }
 
+// Create a new directory without accepting or replacing an existing name.
+#program_export
+CreatePrivateDirectoryExclusive :: (path: string) -> bool {
+    file := CreatePath(path, 0 | 32 | 4096, cast(usize)0x80000000 | 448)
+    if !file.valid { return false }
+    return CloseFile(file)
+}
+
 #program_export
 RemoveFile :: (path: string) -> bool {
     name: [4096]u8

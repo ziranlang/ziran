@@ -65,6 +65,8 @@ install-user: all
 	    $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go \
 	    $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib \
 	    $(USER_SHARE)/build/bin/
+	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include
+	cp -r std include $(USER_SHARE)/
 	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add
 	printf '%s\n' '#!/bin/sh' 'set -eu' \
 		'exec "$(USER_SHARE)/build/bin/ziran" "$$@"' > $(USER_BIN)/ziran
@@ -150,6 +152,10 @@ $(BUILD_DIR)/obj/package-c/%.o: $(PACKAGE_C)/%.c
 	$(NICE) $(CC) $(CFLAGS) -I$(PACKAGE_C) $(DEPFLAGS) -c -o $@ $<
 
 $(call obj,cmd/package_main.c cmd/package_host.c): CFLAGS += -I$(PACKAGE_C)
+
+# Standalone commands fall back to this checkout's standard modules when no
+# std directory sits beside the installed compiler.
+$(call obj,cmd/zir/zir_load.c): CFLAGS += -DZIRAN_STD_DIR='"$(abspath std)"'
 
 # The compiler's version comes from VERSION so a release edits one file.
 ZIRAN_VERSION := $(shell cat VERSION)

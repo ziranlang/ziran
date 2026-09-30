@@ -290,9 +290,12 @@ END;
 ## Standard library
 
 Import a standard module as `#import "std/text"`. In a project the pinned
-toolchain supplies it; a standalone command finds `text` on its
-`--module-path`, so pass `--module-path std` from the Ziran checkout. The short
-spelling `#import "text"` also works when no module of your own has that name.
+toolchain supplies it. A standalone command searches its `--module-path`
+directories first and then the standard modules that came with the
+compiler: `std` beside an installed toolchain (`make install-user` copies it),
+otherwise the checkout the compiler was built from. `ZIRAN_STD=DIR` names
+another standard directory. The short spelling `#import "text"` also works
+when no module of your own has that name.
 Dependencies from other Git repositories import the same way, as
 `#import "NAME/Module"`; see [Packages](PACKAGES.md).
 

@@ -15,6 +15,8 @@ typedef struct ProgramSet {
 int ProgramsLoad(ProgramSet *set, const char *root,
                  const char *const *module_paths, int module_path_count,
                  const char *const *inputs, int input_count);
+/* The standard modules that came with this compiler, or NULL. */
+const char *ToolchainStandardDirectory(void);
 int ProgramsLoadWithDefines(ProgramSet *set, const char *root,
                             const char *const *module_paths,
                             int module_path_count,

@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 enum { MAX_MODULES = 1024 };
 
@@ -28,6 +29,57 @@ typedef struct LoadContext {
     int active_count;
     ZirPackageMap *packages;
 } LoadContext;
+
+#ifndef ZIRAN_STD_DIR
+#define ZIRAN_STD_DIR ""
+#endif
+
+static int
+standard_directory_usable(const char *path)
+{
+    char probe[ZIR_PATH_MAX];
+    struct stat info;
+    return snprintf(probe, sizeof(probe), "%s/text.zi", path) < (int)sizeof(probe) &&
+           stat(probe, &info) == 0 && S_ISREG(info.st_mode);
+}
+
+/* ZIRAN_STD if set; else std beside the compiler, as `make install-user`
+ * and a checkout lay it out (bin/../../std); else the source checkout the
+ * compiler was built from. NULL when none holds the standard modules. */
+const char *
+ToolchainStandardDirectory(void)
+{
+    static int resolved;
+    static char directory[ZIR_PATH_MAX];
+    if(resolved)
+        return directory[0] ? directory : NULL;
+    resolved = 1;
+    const char *configured = getenv("ZIRAN_STD");
+    if(configured != NULL && configured[0]) {
+        if(standard_directory_usable(configured))
+            copy_text(directory, sizeof(directory), configured);
+        return directory[0] ? directory : NULL;
+    }
+    char executable[ZIR_PATH_MAX];
+    ssize_t length = readlink("/proc/self/exe", executable, sizeof(executable) - 1);
+    if(length > 0) {
+        executable[length] = '\0';
+        for(int up = 0; up < 2; up++) {
+            char *slash = strrchr(executable, '/');
+            if(slash != NULL) *slash = '\0';
+        }
+        char candidate[ZIR_PATH_MAX];
+        if(snprintf(candidate, sizeof(candidate), "%s/std", executable) <
+               (int)sizeof(candidate) &&
+           standard_directory_usable(candidate)) {
+            copy_text(directory, sizeof(directory), candidate);
+            return directory;
+        }
+    }
+    if(ZIRAN_STD_DIR[0] && standard_directory_usable(ZIRAN_STD_DIR))
+        copy_text(directory, sizeof(directory), ZIRAN_STD_DIR);
+    return directory[0] ? directory : NULL;
+}
 
 static int early_resolve_imports(void *context, ZirProgram *program,
                                  ZirModule *module, const char *source_path,
@@ -516,6 +568,14 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         result = try_module(context, context->module_paths[i],
                             context->module_paths[i],
                             target, prefer_ir);
+        if(result != 0)
+            return result > 0;
+    }
+    /* Without a project, the standard library that came with this compiler
+     * is searched last, so `#import "std/vec"` needs no --module-path. */
+    const char *standard = ToolchainStandardDirectory();
+    if(standard != NULL) {
+        result = try_module(context, standard, standard, target, prefer_ir);
         if(result != 0)
             return result > 0;
     }

@@ -673,8 +673,13 @@ BuiltinTypeName(const char *name)
         "isize", "usize", "float32", "float64", "string", "int", "float",
         "Type", "any", NULL
     };
+    /* Every type lookup asks; most names are records, which no builtin
+     * starts with or is as long as. */
+    size_t length = strnlen(name, 8);
+    if(length < 2 || length > 7 || !strchr("bvsuifTa", name[0]))
+        return 0;
     for(int i = 0; names[i] != NULL; i++)
-        if(strcmp(name, names[i]) == 0)
+        if(names[i][0] == name[0] && strcmp(name, names[i]) == 0)
             return 1;
     return 0;
 }

@@ -4,7 +4,8 @@ set -eu
 # An if-case over an integer or enum is a switch in C and Go, with the same
 # results as the portable VM. An arm that breaks out of a loop keeps the if
 # chain, since break inside a switch would leave only the switch. `case;` is
-# the default arm for an enum subject as for an integer.
+# the default arm for an enum subject as for an integer, and a label such as
+# #char "{" does not open a block.
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -30,6 +31,18 @@ Warmth :: (hue: Hue) -> string {
     }
     return result;
 }
+Bracket :: (byte: u8) -> s32 {
+    result: s32 = 0;
+    if byte == {
+        case #char "{";
+            result = 1;
+        case #char "}";
+            result = 2;
+        case;
+            result = 3;
+    }
+    return result;
+}
 Size :: (n: s32) -> s32 {
     result: s32 = 0;
     if n == {
@@ -47,6 +60,7 @@ main :: () {
     print("% % %\n", Label(.RED), Label(.GREEN), Label(.BLUE));
     print("% % %\n", Size(1), Size(2), Size(9));
     print("% %\n", Warmth(.RED), Warmth(.BLUE));
+    print("% % %\n", Bracket(123), Bracket(125), Bracket(65));
     for step: 0..5 {
         if step == {
             case 3; break;
@@ -60,6 +74,7 @@ cat > "$work/expected" <<'EOF'
 red green blue
 2 20 -1
 warm other
+1 2 3
 step 0
 one
 step 1

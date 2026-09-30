@@ -286,12 +286,30 @@ opens(ZirStmtKind kind)
            kind == ZIR_STMT_IF_CASE;
 }
 
+/* A `case X: {` line opens a block; a brace inside a string or character
+ * literal, as in `case #char "{";`, does not. */
+static int
+case_opens_block(const char *text)
+{
+    for(const char *p = text; *p; p++) {
+        if(*p == '"' || *p == '\'') {
+            char quote = *p;
+            for(p++; *p && *p != quote; p++)
+                if(*p == '\\' && p[1]) p++;
+            if(!*p) return 0;
+        } else if(*p == '{') {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int
 opens_stmt(const ZirStmt *st)
 {
     return opens(st->kind) ||
            defer_block(st) ||
-           (st->kind == ZIR_STMT_CASE && strchr(st->text, '{') != NULL);
+           (st->kind == ZIR_STMT_CASE && case_opens_block(st->text));
 }
 
 static int

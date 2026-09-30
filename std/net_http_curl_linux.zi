@@ -4,9 +4,17 @@
 
 curl :: #system_library "curl";
 c :: #system_library "c";
-curl_global_init :: (flags: s64) -> s32 #foreign curl;
-CurlInitRoutine :: #type () #c_call;
-pthread_once :: (control: *s32, routine: CurlInitRoutine) -> s32 #foreign c;
+#if #defined(_WIN32) {
+    // Windows long is 32 bits. An SRW lock replaces pthread_once there.
+    kernel32 :: #system_library "kernel32";
+    curl_global_init :: (flags: s32) -> s32 #foreign curl;
+    AcquireSRWLockExclusive :: (lock: *usize) #foreign kernel32;
+    ReleaseSRWLockExclusive :: (lock: *usize) #foreign kernel32;
+} else {
+    curl_global_init :: (flags: s64) -> s32 #foreign curl;
+    CurlInitRoutine :: #type () #c_call;
+    pthread_once :: (control: *s32, routine: CurlInitRoutine) -> s32 #foreign c;
+}
 curl_easy_init :: () -> *void #foreign curl;
 curl_easy_cleanup :: (handle: *void) #foreign curl;
 curl_easy_setopt :: (handle: *void, option: s32, args: ..any) -> s32 #foreign curl;
@@ -31,14 +39,29 @@ CurlResponseCode :: 2097154
 curl_once: s32 = 0;
 curl_init_result: s32 = -1;
 
-InitCurl :: () {
-    curl_init_result = curl_global_init(3)
-}
+#if #defined(_WIN32) {
+    curl_lock: usize = 0;
 
-CurlReady :: () -> bool {
-    routine: CurlInitRoutine = InitCurl
-    return pthread_once(*curl_once, routine) == 0 &&
-        curl_init_result == 0
+    CurlReady :: () -> bool {
+        AcquireSRWLockExclusive(*curl_lock)
+        if curl_once == 0 {
+            curl_init_result = curl_global_init(3)
+            curl_once = 1
+        }
+        ready := curl_init_result == 0
+        ReleaseSRWLockExclusive(*curl_lock)
+        return ready
+    }
+} else {
+    InitCurl :: () {
+        curl_init_result = curl_global_init(3)
+    }
+
+    CurlReady :: () -> bool {
+        routine: CurlInitRoutine = InitCurl
+        return pthread_once(*curl_once, routine) == 0 &&
+            curl_init_result == 0
+    }
 }
 
 StartsWith :: (value: string, prefix: string) -> bool {

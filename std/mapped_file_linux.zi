@@ -5,14 +5,52 @@
 // makes the borrowed []u8 view compatible with Ziran's mutable byte slices.
 #scope_file
 libc :: #system_library "libc";
-#if #defined(ANDROID_BUILD) {
+#if #defined(_WIN32) {
+    // FileHandle.fd holds the Win32 file handle. A copy-on-write view gives
+    // MAP_PRIVATE semantics, and it keeps the mapping and file open after
+    // both handles close, as mmap does with its descriptor.
+    kernel32 :: #system_library "kernel32";
+    CreateMappingRaw :: (file: *void, security: *void, protection: u32,
+        size_high: u32, size_low: u32, name: *u16) -> *void #foreign kernel32 "CreateFileMappingW";
+    MapViewRaw :: (mapping: *void, access: u32, offset_high: u32,
+        offset_low: u32, length: usize) -> *u8 #foreign kernel32 "MapViewOfFile";
+    UnmapViewRaw :: (address: *u8) -> s32 #foreign kernel32 "UnmapViewOfFile";
+    CloseHandleRaw :: (handle: *void) -> s32 #foreign kernel32 "CloseHandle";
+    PageWriteCopy :: 8;
+    FileMapCopy :: 1;
+
+    // The one caller maps readable, writable, and private.
     MapRaw :: (address: *void, length: usize, protection: s32, flags: s32,
-        fd: s32, offset: s64) -> *u8 #foreign libc "mmap64";
+        fd: s32, offset: s64) -> *u8 {
+        unused address
+        unused protection
+        unused flags
+        failed := cast(*u8)cast(isize)-1
+        mapping := CreateMappingRaw(cast(*void)cast(isize)fd, null,
+            cast(u32)PageWriteCopy, 0, 0, null)
+        if mapping == null { return failed }
+        view := MapViewRaw(mapping, cast(u32)FileMapCopy,
+            cast(u32)(offset >> 32), cast(u32)(offset & 0xffffffff), length)
+        CloseHandleRaw(mapping)
+        if view == null { return failed }
+        return view
+    }
+
+    UnmapRaw :: (address: *u8, length: usize) -> s32 {
+        unused length
+        if UnmapViewRaw(address) == 0 { return -1 }
+        return 0
+    }
 } else {
-    MapRaw :: (address: *void, length: usize, protection: s32, flags: s32,
-        fd: s32, offset: s64) -> *u8 #foreign libc "mmap";
+    #if #defined(ANDROID_BUILD) {
+        MapRaw :: (address: *void, length: usize, protection: s32, flags: s32,
+            fd: s32, offset: s64) -> *u8 #foreign libc "mmap64";
+    } else {
+        MapRaw :: (address: *void, length: usize, protection: s32, flags: s32,
+            fd: s32, offset: s64) -> *u8 #foreign libc "mmap";
+    }
+    UnmapRaw :: (address: *u8, length: usize) -> s32 #foreign libc "munmap";
 }
-UnmapRaw :: (address: *u8, length: usize) -> s32 #foreign libc "munmap";
 
 #scope_export
 MappedFile :: struct {

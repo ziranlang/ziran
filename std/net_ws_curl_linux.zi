@@ -14,8 +14,47 @@ curl_easy_getinfo :: (handle: *void, option: s32, args: ..any) -> s32 #foreign c
 curl_slist_free_all :: (list: *void) #foreign curl;
 curl_ws_recv :: (handle: *void, data: *u8, capacity: u64,
     received: *u64, frame: **CurlWsFrame) -> s32 #foreign curl;
-poll :: (descriptors: *PollDescriptor, count: u64,
-    timeout_ms: s32) -> s32 #foreign c;
+#if #defined(_WIN32) {
+    // curl_socket_t is SOCKET, a pointer-sized handle, on Windows.
+    ws2_32 :: #system_library "ws2_32";
+    PollDescriptor :: struct {
+        fd: usize
+        events: s16
+        returned: s16
+    }
+    PollRaw :: (descriptors: *PollDescriptor, count: u32,
+        timeout_ms: s32) -> s32 #foreign ws2_32 "WSAPoll";
+    PollRead :: 256;
+
+    NoSocket :: () -> PollDescriptor {
+        descriptor: PollDescriptor
+        descriptor.fd = cast(usize)-1
+        return descriptor
+    }
+
+    ValidSocket :: (descriptor: PollDescriptor) -> bool {
+        return descriptor.fd != cast(usize)-1
+    }
+} else {
+    PollDescriptor :: struct {
+        fd: s32
+        events: s16
+        returned: s16
+    }
+    PollRaw :: (descriptors: *PollDescriptor, count: u64,
+        timeout_ms: s32) -> s32 #foreign c "poll";
+    PollRead :: 1;
+
+    NoSocket :: () -> PollDescriptor {
+        descriptor: PollDescriptor
+        descriptor.fd = -1
+        return descriptor
+    }
+
+    ValidSocket :: (descriptor: PollDescriptor) -> bool {
+        return descriptor.fd >= 0
+    }
+}
 time :: (output: *s64) -> s64 #foreign c;
 
 CurlWsFrame :: struct {
@@ -26,11 +65,6 @@ CurlWsFrame :: struct {
     length: u64
 }
 
-PollDescriptor :: struct {
-    fd: s32
-    events: s16
-    returned: s16
-}
 
 CurlConnectOnly :: 141;
 CurlActiveSocket :: 5242924;
@@ -38,7 +72,6 @@ CurlAgain :: 81;
 CurlWsText :: 1;
 CurlWsContinue :: 4;
 CurlWsClose :: 8;
-PollRead :: 1;
 
 // Output is NUL terminated on success. status is 401 on an unauthorized
 // handshake so a protocol client can refresh its session and retry.
@@ -77,11 +110,9 @@ ReceiveWebSocketCurl :: (context: *void, url: string, token: string,
     }
     ok := false
     if connected {
-        socket: s32 = -1
-        if curl_easy_getinfo(handle, CurlActiveSocket, *socket) == 0 &&
-            socket >= 0 {
-            descriptor: PollDescriptor
-            descriptor.fd = socket
+        descriptor := NoSocket()
+        if curl_easy_getinfo(handle, CurlActiveSocket, *descriptor.fd) == 0 &&
+            ValidSocket(descriptor) {
             descriptor.events = cast(s16)PollRead
             end_time := time(null) + 35
             length: s64 = 0
@@ -93,7 +124,7 @@ ReceiveWebSocketCurl :: (context: *void, url: string, token: string,
                     *received, *frame)
                 if code == CurlAgain {
                     descriptor.returned = 0
-                    if poll(*descriptor, 1, 1000) < 0 { break }
+                    if PollRaw(*descriptor, 1, 1000) < 0 { break }
                     continue
                 }
                 if code != 0 || frame == null { break }

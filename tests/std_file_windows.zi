@@ -1,0 +1,128 @@
+#import "file_linux"
+#import "mapped_file_linux"
+
+Same :: (actual: []u8, expected: []u8) -> bool {
+    if actual.count != expected.count { return false }
+    index: s64 = 0
+    while index < actual.count {
+        if actual[index] != expected[index] { return false }
+        index += 1
+    }
+    return true
+}
+
+SameText :: (actual: []u8, expected: string) -> bool {
+    if actual.count != expected.count { return false }
+    index: s64 = 0
+    while index < actual.count {
+        if actual[index] != expected[index] { return false }
+        index += 1
+    }
+    return true
+}
+
+ListedName :: (directory: string, name: string) -> bool {
+    cursor := OpenDirectory(directory)
+    if !cursor.valid { return false }
+    found := false
+    entry := NextDirectoryEntry(*cursor)
+    while entry.valid {
+        if SameText(entry.name[0:entry.name_count], name) { found = true }
+        entry = NextDirectoryEntry(*cursor)
+    }
+    return CloseDirectory(*cursor) && found
+}
+
+#program_export
+main :: () -> s32 {
+    if !CreateDirectory("files") || !CreateDirectory("files") { return 1 }
+    if !DirectoryExists("files") || PathExists("files/missing") { return 2 }
+
+    // Line ends, ^Z, and NUL bytes must pass through unchanged.
+    bytes: [6]u8 = .[10, 13, 26, 0, 255, 10]
+    replaced := OpenReplace("files/binary")
+    if !replaced.valid || Write(replaced, bytes[:]) != 6 ||
+        !SyncFile(replaced) || !CloseFile(replaced) { return 3 }
+    reader := OpenRead("files/binary")
+    actual: [6]u8
+    if !reader.valid || FileSize(reader) != 6 ||
+        ReadAt(reader, actual[:], 0) != 6 || !Same(actual[:], bytes[:]) { return 4 }
+    tail: [4]u8
+    if ReadAt(reader, tail[:], 4) != 2 || tail[0] != 255 || tail[1] != 10 ||
+        ReadAt(reader, tail[:], 6) != 0 || !CloseFile(reader) { return 5 }
+    if !PathExists("files/binary") || DirectoryExists("files/binary") { return 6 }
+
+    // An offset past 32 bits catches a dropped OffsetHigh.
+    original := OpenUpdate("files/original")
+    marks: [3]u8 = .[17, 128, 255]
+    offset: s64 = 4294967303
+    if !original.valid || WriteAt(original, marks[:], offset) != 3 ||
+        FileSize(original) != offset + 3 { return 7 }
+    back: [3]u8
+    if ReadAt(original, back[:], offset) != 3 || !Same(back[:], marks[:]) ||
+        !CloseFile(original) { return 8 }
+
+    if OpenExclusivePrivate("files/binary").valid { return 9 }
+    fresh := OpenExclusivePrivate("files/fresh")
+    if !fresh.valid || !CloseFile(fresh) { return 10 }
+
+    // No-replace keeps both files; a plain rename replaces the destination.
+    // A file stays movable and removable while it is open, as on POSIX.
+    if RenameNoReplace("files/fresh", "files/binary") ||
+        !PathExists("files/fresh") { return 11 }
+    held := OpenRead("files/fresh")
+    if !held.valid || !RenamePath("files/fresh", "files/binary") ||
+        PathExists("files/fresh") || !CloseFile(held) { return 12 }
+    held = OpenRead("files/binary")
+    if !held.valid || !RemoveFile("files/binary") || !CloseFile(held) ||
+        PathExists("files/binary") { return 13 }
+    if !CreateDirectory("files/old") || !CreateDirectory("files/new") { return 14 }
+    if RenameNoReplace("files/old", "files/new") ||
+        !RenameNoReplace("files/old", "files/moved") ||
+        DirectoryExists("files/old") || !DirectoryExists("files/moved") { return 15 }
+
+    text := OpenReplace("files/text")
+    if !text.valid || WriteTextAt(text, "hello", 0) != 5 || !CloseFile(text) { return 16 }
+    if !LinkFile("files/text", "files/linked") { return 17 }
+    linked := OpenRead("files/linked")
+    word: [5]u8
+    if !linked.valid || Read(linked, word[:]) != 5 || word[0] != 104 ||
+        word[4] != 111 || !CloseFile(linked) { return 18 }
+
+    // Positional I/O leaves the sequential position where it was.
+    mixed := OpenUpdate("files/text")
+    pair: [2]u8
+    last: [1]u8 = .[33]
+    if !mixed.valid || Read(mixed, pair[:]) != 2 || pair[0] != 104 ||
+        ReadAt(mixed, last[:], 4) != 1 || last[0] != 111 ||
+        Read(mixed, pair[:]) != 2 || pair[0] != 108 { return 28 }
+    last[0] = 33
+    if WriteAt(mixed, last[:], 5) != 1 || Read(mixed, last[:]) != 1 ||
+        last[0] != 111 || !CloseFile(mixed) { return 29 }
+    exclaimed := OpenRead("files/text")
+    if !exclaimed.valid || FileSize(exclaimed) != 6 || !CloseFile(exclaimed) { return 30 }
+
+    // UTF-8 names round trip through the wide Win32 names.
+    named := OpenReplace("files/ü.zi")
+    if !named.valid || !CloseFile(named) || !PathExists("files/ü.zi") { return 19 }
+    if !ListedName("files", "ü.zi") { return 20 }
+    if !ListedName("files", ".") || OpenDirectory("files/missing").valid { return 21 }
+
+    // A private mapping never writes through to the file.
+    mapped := MapPrivate("files/text")
+    if !mapped.valid || mapped.length != 6 { return 22 }
+    {
+        view := MappedBytes(mapped)
+        if view[0] != 104 || view[4] != 111 { return 23 }
+        view[0] = 72
+    }
+    if !UnmapFile(mapped) { return 24 }
+    again := OpenRead("files/text")
+    if !again.valid || ReadAt(again, word[:], 0) != 5 || word[0] != 104 ||
+        !CloseFile(again) { return 25 }
+    empty := OpenReplace("files/empty")
+    if !empty.valid || !CloseFile(empty) { return 26 }
+    nothing := MapPrivate("files/empty")
+    if !nothing.valid || nothing.length != 0 || !UnmapFile(nothing) { return 27 }
+    return 0
+}

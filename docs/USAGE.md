@@ -434,6 +434,15 @@ These native adapters keep libc calls out of applications and require glibc
 Linux and a `curl` executable. Portable bundles should use the host capabilities
 above instead.
 
+Windows C builds (`--define _WIN32`) keep the same file and mapping API over
+Win32. Paths pass as UTF-8 and are converted to UTF-16. Positional reads and
+writes leave the file position unchanged, as on POSIX, and a private mapping
+is a copy-on-write view. An open file can itself be renamed or removed, but
+unlike POSIX, a rename cannot replace a destination that is still open. The
+libcurl HTTP and WebSocket adapters also build there; `std/zip_linux.zi` needs
+a MinGW zlib. `tests/std_file_windows.sh` links the file modules with MinGW
+and runs them under Wine when both are installed.
+
 ### Native Go maps
 
 Import `map_go` to use `Map(K, V)` with the Go target. Keys must be comparable;

@@ -1,17 +1,12 @@
 #import "c_string"
 
-// Positional file I/O for native Linux targets. A caller-owned byte slice
-// makes the buffer lifetime and exact archive encoding explicit.
+// Positional file I/O for native Linux, Android, the web, and Windows. A
+// caller-owned byte slice makes the buffer lifetime and exact archive
+// encoding explicit.
 #scope_file
 libc :: #system_library "libc";
-OpenRaw :: (path: *u8, flags: s32, mode: ..any) -> s32 #foreign libc "open";
-CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
-ReadRaw :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
-WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize #foreign libc "write";
-OpenDirectoryRaw :: (path: *u8) -> *void #foreign libc "opendir";
-ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir64";
-CloseDirectoryRaw :: (directory: *void) -> s32 #foreign libc "closedir";
 
+// The readdir64 record. Windows fills only the name and kind.
 DirectoryMetadata :: struct {
     inode: u64
     offset: s64
@@ -19,46 +14,352 @@ DirectoryMetadata :: struct {
     kind: u8
     name: [256]u8
 }
-#if #defined(ANDROID_BUILD) {
-    // Android's 32-bit off_t is narrower than the public file offset. The
-    // explicit large-file entry points are available from API 21 onward.
-    SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 #foreign libc "lseek64";
-    ReadAtRaw :: (fd: s32, output: *u8, count: usize, offset: s64) -> isize #foreign libc "pread64";
-    WriteAtRaw :: (fd: s32, input: *u8, count: usize, offset: s64) -> isize #foreign libc "pwrite64";
-}
-#if !#defined(ANDROID_BUILD) {
-    SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 #foreign libc "lseek";
-    ReadAtRaw :: (fd: s32, output: *u8, count: usize, offset: s64) -> isize #foreign libc "pread";
-    WriteAtRaw :: (fd: s32, input: *u8, count: usize, offset: s64) -> isize #foreign libc "pwrite";
-}
-MakeDirectoryRaw :: (path: *u8, mode: s32) -> s32 #foreign libc "mkdir";
-UnlinkRaw :: (path: *u8) -> s32 #foreign libc "unlink";
-LinkRaw :: (source: *u8, destination: *u8) -> s32 #foreign libc "link";
-RenameAtRaw :: (old_directory: s32, source: *u8,
-    new_directory: s32, destination: *u8) -> s32 #foreign libc "renameat";
-#if #defined(ANDROID_BUILD) {
-    // Bionic exports renameat2 only from API 30. Call the kernel operation
-    // directly on older API levels, retaining atomic no-replace semantics.
-    RenameSystemCall :: (number: isize, old_directory: isize, source: *u8,
-        new_directory: isize, destination: *u8, flags: usize) -> isize #foreign libc "syscall";
-    #if #defined(__aarch64__) {
-        RenameAt2Number :: 276;
+
+#if #defined(_WIN32) {
+    // Win32 stands in for the POSIX calls below, with the same signatures,
+    // so each public operation keeps one body. Paths cross as UTF-16, and
+    // files open with every share mode, so an open file can itself be
+    // renamed or removed as on POSIX. Unlike POSIX, a rename cannot replace
+    // a destination that is still open. A kernel handle is a 32-bit value
+    // on every Windows ABI, so FileHandle.fd holds it and widens by sign
+    // extension.
+    kernel32 :: #system_library "kernel32";
+    WideFromUtf8Raw :: (code_page: u32, flags: u32, input: *u8, input_count: s32,
+        output: *u16, output_count: s32) -> s32 #foreign kernel32 "MultiByteToWideChar";
+    Utf8FromWideRaw :: (code_page: u32, flags: u32, input: *u16, input_count: s32,
+        output: *u8, output_count: s32, fallback: *u8,
+        used_fallback: *s32) -> s32 #foreign kernel32 "WideCharToMultiByte";
+    CreateFileRaw :: (path: *u16, access: u32, share: u32, security: *void,
+        disposition: u32, attributes: u32, template: *void) -> *void #foreign kernel32 "CreateFileW";
+    CloseHandleRaw :: (handle: *void) -> s32 #foreign kernel32 "CloseHandle";
+    ReadFileRaw :: (handle: *void, output: *u8, count: u32, done: *u32,
+        overlapped: *Overlapped) -> s32 #foreign kernel32 "ReadFile";
+    WriteFileRaw :: (handle: *void, input: *u8, count: u32, done: *u32,
+        overlapped: *Overlapped) -> s32 #foreign kernel32 "WriteFile";
+    SetFilePointerRaw :: (handle: *void, distance: s64, position: *s64,
+        method: u32) -> s32 #foreign kernel32 "SetFilePointerEx";
+    FlushFileRaw :: (handle: *void) -> s32 #foreign kernel32 "FlushFileBuffers";
+    LastErrorRaw :: () -> u32 #foreign kernel32 "GetLastError";
+    DeleteFileRaw :: (path: *u16) -> s32 #foreign kernel32 "DeleteFileW";
+    CreateDirectoryRaw :: (path: *u16, security: *void) -> s32 #foreign kernel32 "CreateDirectoryW";
+    MoveFileRaw :: (source: *u16, destination: *u16, flags: u32) -> s32 #foreign kernel32 "MoveFileExW";
+    HardLinkRaw :: (link: *u16, existing: *u16, security: *void) -> s32 #foreign kernel32 "CreateHardLinkW";
+    AttributesRaw :: (path: *u16) -> u32 #foreign kernel32 "GetFileAttributesW";
+    FindFirstRaw :: (pattern: *u16, data: *FindData) -> *void #foreign kernel32 "FindFirstFileW";
+    FindNextRaw :: (search: *void, data: *FindData) -> s32 #foreign kernel32 "FindNextFileW";
+    FindCloseRaw :: (search: *void) -> s32 #foreign kernel32 "FindClose";
+    AllocateRaw :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+    FreeRaw :: (memory: *void) #foreign libc "free";
+
+    Overlapped :: struct {
+        internal: usize
+        internal_high: usize
+        offset: u32
+        offset_high: u32
+        event: *void
     }
-    #if #defined(__arm__) {
-        RenameAt2Number :: 382;
+
+    FindData :: struct {
+        attributes: u32
+        times: [6]u32
+        size_high: u32
+        size_low: u32
+        reserved: [2]u32
+        name: [260]u16
+        short_name: [14]u16
     }
-    #if #defined(__i386__) {
-        RenameAt2Number :: 353;
+
+    DirectorySearch :: struct {
+        handle: *void
+        pending: bool
+        data: FindData
+        entry: DirectoryMetadata
     }
-    #if #defined(__x86_64__) {
-        RenameAt2Number :: 316;
+
+    // The POSIX open flags that this module passes, decoded below.
+    OpenWriteOnly :: 1;
+    OpenReadWrite :: 2;
+    OpenCreate :: 64;
+    OpenExclusive :: 128;
+    OpenTruncate :: 512;
+    OpenDirectoryOnly :: 65536;
+    OpenPathOnly :: 2097152;
+    AttributeDirectory :: 16;
+    MissingAttributes :: 0xffffffff;
+    ErrorHandleEof :: 38;
+    ErrorBrokenPipe :: 109;
+
+    // Invalid UTF-8 fails rather than naming a different file.
+    WidePath :: (path: *u8, output: []u16) -> bool {
+        return WideFromUtf8Raw(65001, 8, path, -1, *output[0],
+            cast(s32)output.count) > 0
     }
-}
-#if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
+
+    HandleOf :: (fd: s32) -> *void {
+        return cast(*void)cast(isize)fd
+    }
+
+    Status :: (succeeded: s32) -> s32 {
+        if succeeded != 0 { return 0 }
+        return -1
+    }
+
+    OpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 {
+        unused mode
+        wide: [4096]u16
+        if !WidePath(path, wide[:]) { return -1 }
+        if (flags & OpenDirectoryOnly) != 0 {
+            found := AttributesRaw(*wide[0])
+            if found == cast(u32)MissingAttributes ||
+                (found & cast(u32)AttributeDirectory) == 0 { return -1 }
+        }
+        access: u32 = 0x80000000
+        if (flags & 3) == OpenWriteOnly { access = 0x40000000 }
+        if (flags & 3) == OpenReadWrite { access = 0xc0000000 }
+        attributes: u32 = 128
+        if (flags & OpenPathOnly) != 0 {
+            // Query access with backup semantics opens directories as well.
+            access = 0
+            attributes = 0x02000000
+        }
+        disposition: u32 = 3
+        if (flags & OpenCreate) != 0 {
+            disposition = 4
+            if (flags & OpenTruncate) != 0 { disposition = 2 }
+            if (flags & OpenExclusive) != 0 { disposition = 1 }
+        } else if (flags & OpenTruncate) != 0 {
+            disposition = 5
+        }
+        handle := CreateFileRaw(*wide[0], access, 7, null, disposition,
+            attributes, null)
+        if cast(isize)handle == cast(isize)-1 { return -1 }
+        return cast(s32)cast(isize)handle
+    }
+
+    CloseRaw :: (fd: s32) -> s32 {
+        return Status(CloseHandleRaw(HandleOf(fd)))
+    }
+
+    ReadRaw :: (fd: s32, output: *u8, count: usize) -> isize {
+        done: u32 = 0
+        if ReadFileRaw(HandleOf(fd), output, cast(u32)count, *done, null) == 0 {
+            if LastErrorRaw() == cast(u32)ErrorBrokenPipe { return 0 }
+            return -1
+        }
+        return cast(isize)done
+    }
+
+    WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize {
+        done: u32 = 0
+        if WriteFileRaw(HandleOf(fd), input, cast(u32)count, *done, null) == 0 {
+            return -1
+        }
+        return cast(isize)done
+    }
+
+    // One call moves at most 2 GiB, a short count as pread allows.
+    Chunk :: (count: usize) -> u32 {
+        if count > cast(usize)0x7fffffff { return cast(u32)0x7fffffff }
+        return cast(u32)count
+    }
+
+    PositionAt :: (offset: s64) -> Overlapped {
+        position: Overlapped
+        position.offset = cast(u32)(offset & 0xffffffff)
+        position.offset_high = cast(u32)(offset >> 32)
+        return position
+    }
+
+    // An offset read or write on a synchronous handle moves the file
+    // pointer; restore it, as pread and pwrite leave the position alone.
+    ReadAtRaw :: (fd: s32, output: *u8, count: usize, offset: s64) -> isize {
+        handle := HandleOf(fd)
+        current: s64 = 0
+        if SetFilePointerRaw(handle, 0, *current, 1) == 0 { return -1 }
+        position := PositionAt(offset)
+        done: u32 = 0
+        result: isize = -1
+        if ReadFileRaw(handle, output, Chunk(count), *done, *position) != 0 {
+            result = cast(isize)done
+        } else if LastErrorRaw() == cast(u32)ErrorHandleEof {
+            result = 0
+        }
+        if SetFilePointerRaw(handle, current, null, 0) == 0 { return -1 }
+        return result
+    }
+
+    WriteAtRaw :: (fd: s32, input: *u8, count: usize, offset: s64) -> isize {
+        handle := HandleOf(fd)
+        current: s64 = 0
+        if SetFilePointerRaw(handle, 0, *current, 1) == 0 { return -1 }
+        position := PositionAt(offset)
+        done: u32 = 0
+        result: isize = -1
+        if WriteFileRaw(handle, input, Chunk(count), *done, *position) != 0 {
+            result = cast(isize)done
+        }
+        if SetFilePointerRaw(handle, current, null, 0) == 0 { return -1 }
+        return result
+    }
+
+    // The SEEK_SET, SEEK_CUR, and SEEK_END origins equal FILE_BEGIN,
+    // FILE_CURRENT, and FILE_END.
+    SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 {
+        position: s64 = 0
+        if SetFilePointerRaw(HandleOf(fd), offset, *position,
+            cast(u32)origin) == 0 { return -1 }
+        return position
+    }
+
+    SyncRaw :: (fd: s32) -> s32 {
+        return Status(FlushFileRaw(HandleOf(fd)))
+    }
+
+    MakeDirectoryRaw :: (path: *u8, mode: s32) -> s32 {
+        unused mode
+        wide: [4096]u16
+        if !WidePath(path, wide[:]) { return -1 }
+        return Status(CreateDirectoryRaw(*wide[0], null))
+    }
+
+    UnlinkRaw :: (path: *u8) -> s32 {
+        wide: [4096]u16
+        if !WidePath(path, wide[:]) { return -1 }
+        return Status(DeleteFileRaw(*wide[0]))
+    }
+
+    LinkRaw :: (source: *u8, destination: *u8) -> s32 {
+        old_wide: [4096]u16
+        new_wide: [4096]u16
+        if !WidePath(source, old_wide[:]) ||
+            !WidePath(destination, new_wide[:]) { return -1 }
+        return Status(HardLinkRaw(*new_wide[0], *old_wide[0], null))
+    }
+
+    // MOVEFILE_WRITE_THROUGH returns once the rename is on disk; without
+    // MOVEFILE_REPLACE_EXISTING an existing destination fails the move.
+    MovePath :: (source: *u8, destination: *u8, replace: bool) -> s32 {
+        old_wide: [4096]u16
+        new_wide: [4096]u16
+        if !WidePath(source, old_wide[:]) ||
+            !WidePath(destination, new_wide[:]) { return -1 }
+        flags: u32 = 8
+        if replace { flags = 9 }
+        return Status(MoveFileRaw(*old_wide[0], *new_wide[0], flags))
+    }
+
+    RenameAtRaw :: (old_directory: s32, source: *u8,
+        new_directory: s32, destination: *u8) -> s32 {
+        unused old_directory
+        unused new_directory
+        return MovePath(source, destination, true)
+    }
+
     RenameAt2Raw :: (old_directory: s32, source: *u8,
-        new_directory: s32, destination: *u8, flags: u32) -> s32 #foreign libc "renameat2";
+        new_directory: s32, destination: *u8, flags: u32) -> s32 {
+        unused old_directory
+        unused new_directory
+        return MovePath(source, destination, (flags & 1) == 0)
+    }
+
+    OpenDirectoryRaw :: (path: *u8) -> *void {
+        wide: [4096]u16
+        if !WidePath(path, wide[:]) { return null }
+        length: s64 = 0
+        while wide[length] != 0 { length += 1 }
+        if length == 0 || length + 3 > 4096 { return null }
+        if wide[length - 1] != 47 && wide[length - 1] != 92 {
+            wide[length] = 92
+            length += 1
+        }
+        // FindFirstFileW takes a pattern; "*" names every entry.
+        wide[length] = 42
+        wide[length + 1] = 0
+        search := cast(*DirectorySearch)AllocateRaw(1, size_of(DirectorySearch))
+        if search == null { return null }
+        search.handle = FindFirstRaw(*wide[0], *search.data)
+        if cast(isize)search.handle == cast(isize)-1 {
+            FreeRaw(cast(*void)search)
+            return null
+        }
+        search.pending = true
+        return cast(*void)search
+    }
+
+    ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata {
+        search := cast(*DirectorySearch)directory
+        if !search.pending && FindNextRaw(search.handle, *search.data) == 0 {
+            return null
+        }
+        search.pending = false
+        entry: DirectoryMetadata
+        // A name longer than 255 UTF-8 bytes fails, as readdir cannot return one.
+        if Utf8FromWideRaw(65001, 0, *search.data.name[0], -1,
+            *entry.name[0], 256, null, null) <= 0 { return null }
+        entry.kind = 8
+        if (search.data.attributes & cast(u32)AttributeDirectory) != 0 {
+            entry.kind = 4
+        }
+        search.entry = entry
+        return *search.entry
+    }
+
+    CloseDirectoryRaw :: (directory: *void) -> s32 {
+        search := cast(*DirectorySearch)directory
+        status := Status(FindCloseRaw(search.handle))
+        FreeRaw(cast(*void)search)
+        return status
+    }
+} else {
+    OpenRaw :: (path: *u8, flags: s32, mode: ..any) -> s32 #foreign libc "open";
+    CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+    ReadRaw :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
+    WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize #foreign libc "write";
+    OpenDirectoryRaw :: (path: *u8) -> *void #foreign libc "opendir";
+    ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir64";
+    CloseDirectoryRaw :: (directory: *void) -> s32 #foreign libc "closedir";
+
+    #if #defined(ANDROID_BUILD) {
+        // Android's 32-bit off_t is narrower than the public file offset. The
+        // explicit large-file entry points are available from API 21 onward.
+        SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 #foreign libc "lseek64";
+        ReadAtRaw :: (fd: s32, output: *u8, count: usize, offset: s64) -> isize #foreign libc "pread64";
+        WriteAtRaw :: (fd: s32, input: *u8, count: usize, offset: s64) -> isize #foreign libc "pwrite64";
+    }
+    #if !#defined(ANDROID_BUILD) {
+        SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 #foreign libc "lseek";
+        ReadAtRaw :: (fd: s32, output: *u8, count: usize, offset: s64) -> isize #foreign libc "pread";
+        WriteAtRaw :: (fd: s32, input: *u8, count: usize, offset: s64) -> isize #foreign libc "pwrite";
+    }
+    MakeDirectoryRaw :: (path: *u8, mode: s32) -> s32 #foreign libc "mkdir";
+    UnlinkRaw :: (path: *u8) -> s32 #foreign libc "unlink";
+    LinkRaw :: (source: *u8, destination: *u8) -> s32 #foreign libc "link";
+    RenameAtRaw :: (old_directory: s32, source: *u8,
+        new_directory: s32, destination: *u8) -> s32 #foreign libc "renameat";
+    #if #defined(ANDROID_BUILD) {
+        // Bionic exports renameat2 only from API 30. Call the kernel operation
+        // directly on older API levels, retaining atomic no-replace semantics.
+        RenameSystemCall :: (number: isize, old_directory: isize, source: *u8,
+            new_directory: isize, destination: *u8, flags: usize) -> isize #foreign libc "syscall";
+        #if #defined(__aarch64__) {
+            RenameAt2Number :: 276;
+        }
+        #if #defined(__arm__) {
+            RenameAt2Number :: 382;
+        }
+        #if #defined(__i386__) {
+            RenameAt2Number :: 353;
+        }
+        #if #defined(__x86_64__) {
+            RenameAt2Number :: 316;
+        }
+    }
+    #if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
+        RenameAt2Raw :: (old_directory: s32, source: *u8,
+            new_directory: s32, destination: *u8, flags: u32) -> s32 #foreign libc "renameat2";
+    }
+    SyncRaw :: (fd: s32) -> s32 #foreign libc "fsync";
 }
-SyncRaw :: (fd: s32) -> s32 #foreign libc "fsync";
 
 #scope_export
 FileHandle :: struct {

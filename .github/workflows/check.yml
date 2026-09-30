@@ -14,8 +14,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-      - name: Install ripgrep for the test scripts
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: Install ripgrep, MinGW, and Wine for the test scripts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep gcc-mingw-w64-x86-64 wine wine64
       - name: Build the toolchain
         run: make
       - name: Run the language, backend, and portable runtime checks

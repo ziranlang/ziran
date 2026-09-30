@@ -728,7 +728,8 @@ CheckPrograms(ZirProgram **programs, int count)
 }
 
 /* A cast the program wrote, as opposed to one the checker inserted when it
- * widened a value: those keep their operand's source text. */
+ * widened a value: those keep their operand's source text, which may itself
+ * be a written cast. */
 static int
 written_cast(const ZirFunction *fn, int index)
 {
@@ -737,6 +738,8 @@ written_cast(const ZirFunction *fn, int index)
     const ZirExpr *cast = &fn->exprs[index];
     return cast->kind == ZIR_EXPR_CAST && cast->right >= 0 && cast->text != NULL &&
            strncmp(skip_ws(cast->text), "cast", 4) == 0 &&
+           (fn->exprs[cast->right].text == NULL ||
+            strcmp(cast->text, fn->exprs[cast->right].text) != 0) &&
            fn->exprs[cast->right].kind != ZIR_EXPR_INT &&
            fn->exprs[cast->right].kind != ZIR_EXPR_FLOAT;
 }
@@ -810,6 +813,31 @@ lint_character(const ZirFunction *fn, int index)
     return 1;
 }
 
+/* Whether a procedure or foreign procedure named like call NAME, in
+ * MODULE or a module it imports, takes variadic arguments (args: ..any):
+ * those are not widened to a parameter type, so their casts matter. */
+static int
+variadic_callee(const ZirModule *module, const char *name)
+{
+    const char *dot = strrchr(name, '.');
+    const char *base = dot != NULL ? dot + 1 : name;
+    for(int m = -1; m < module->import_count; m++) {
+        const ZirModule *scope = m < 0 ? module : module->imports[m].resolved_module;
+        if(scope == NULL) continue;
+        for(int f = 0; f < scope->function_count; f++)
+            if((!strcmp(scope->functions[f].name, base) ||
+                !strcmp(scope->functions[f].overload_name, base)) &&
+               strstr(scope->functions[f].args, "..") != NULL)
+                return 1;
+        for(int i = 0; i < scope->import_count; i++)
+            if(scope->imports[i].kind == ZIR_IMPORT_EXTERN &&
+               !strcmp(scope->imports[i].name, base) &&
+               strstr(scope->imports[i].args, "..") != NULL)
+                return 1;
+    }
+    return 0;
+}
+
 /* Whether declaration ST names its type, so its initializer can widen. */
 static int
 declared_type_written(const ZirStmt *st)
@@ -859,7 +887,7 @@ LintPrograms(ZirProgram **programs, int count)
                        strstr(call->name, "__overload_") || strstr(call->name, "__zi_spec") ||
                        !strncmp(call->name, "zi_", 3) || !strcmp(call->name, "print") ||
                        !strncmp(call->name, "Vec", 3) || !strncmp(call->name, "Builder", 7) ||
-                       MapPrimitiveName(call->name))
+                       MapPrimitiveName(call->name) || variadic_callee(module, call->name))
                         continue;
                     for(int child = call->first_child; child >= 0;
                         child = fn->exprs[child].next_sibling)

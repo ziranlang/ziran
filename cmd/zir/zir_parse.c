@@ -807,6 +807,12 @@ classify_extern_target(const char *target, char *symbol, size_t symbol_size,
                    "Go extern target requires a package path and valid symbol");
         return ZIR_EXTERN_GO;
     }
+    if(strncmp(target, "py:", 3) == 0) {
+        if(!PyForeignCallParts(target, NULL, 0, NULL, 0, NULL, 0))
+            die_at(Span(path, line_no, 1),
+                   "Python extern target requires a module path and valid symbol");
+        return ZIR_EXTERN_PY;
+    }
     if(dot != NULL && slash != NULL && slash < dot)
         return ZIR_EXTERN_GO;
     return ZIR_EXTERN_HOST;

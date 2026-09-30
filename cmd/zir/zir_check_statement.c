@@ -301,6 +301,109 @@ check_go_callback(const ZirModule *module, const ZirImport *binding,
     return valid;
 }
 
+/* Values that cross into Python: scalars, text, bytes, Python objects, and
+ * procedures, which Python calls back with converted arguments. */
+static int
+py_value_type(const ZirModule *module, const char *type, int procedures)
+{
+    const ZirType *declared;
+    type = skip_ws(type);
+    if(!strcmp(type, "bool") || integer_type(type) || !strcmp(type, "float32") ||
+       !strcmp(type, "float64") || !strcmp(type, "string") || !strcmp(type, "[]u8"))
+        return 1;
+    declared = FindType(module, type, NULL);
+    return declared != NULL &&
+        ((declared->is_extern && !strncmp(declared->foreign_target, "py:", 3)) ||
+         (procedures && declared->is_procedure_type));
+}
+
+static int
+py_object_type(const ZirModule *module, const char *type)
+{
+    const ZirType *declared = FindType(module, skip_ws(type), NULL);
+    return declared != NULL && declared->is_extern &&
+        !strncmp(declared->foreign_target, "py:", 3);
+}
+
+static int
+check_py_binding(const ZirModule *module, const ZirImport *binding,
+                 char parameters[][ZIR_TEXT_MAX])
+{
+    if(binding->kind != ZIR_IMPORT_EXTERN || binding->extern_kind != ZIR_EXTERN_PY)
+        return 1;
+    char python_module[ZIR_PATH_MAX], receiver[ZIR_NAME_MAX], symbol[ZIR_NAME_MAX];
+    int parts = PyForeignCallParts(binding->target, python_module, sizeof(python_module),
+                                   receiver, sizeof(receiver), symbol, sizeof(symbol));
+    if(!parts) {
+        Diagnostic(binding->span, "check.foreign", "invalid Python foreign target");
+        return 0;
+    }
+    int count = *skip_ws(binding->args) ?
+        split_top_level(binding->args, parameters[0], 64, ZIR_TEXT_MAX) : 0;
+    if(binding->is_varargs) {
+        Diagnostic(binding->span, "check.foreign",
+                   "Python foreign procedures take declared parameters, not ..any");
+        return 0;
+    }
+    for(int i = 0; i < count; i++) {
+        const char *colon = strchr(parameters[i], ':');
+        if(colon == NULL || !py_value_type(module, colon + 1, 1)) {
+            Diagnostic(binding->span, "check.foreign",
+                       "Python foreign parameters must be bool, integers, floats, string, "
+                       "[]u8, Python foreign types, or procedures");
+            return 0;
+        }
+    }
+    if(parts == 2 && count == 0) {
+        Diagnostic(binding->span, "check.foreign",
+                   "Python method requires its receiver as the first parameter");
+        return 0;
+    }
+    int result_void = !strcmp(skip_ws(binding->return_type), "void") ||
+        !*skip_ws(binding->return_type);
+    if(binding->py_field) {
+        int receivers = parts == 2 ? 1 : 0;
+        if(count != receivers + result_void || (result_void && count == receivers)) {
+            Diagnostic(binding->span, "check.foreign",
+                       "#py_field reads an attribute with a result, or sets it with one value "
+                       "and no result; (Type).name takes the object first");
+            return 0;
+        }
+    }
+    if(binding->py_results) {
+        const ZirType *record = FindType(module, binding->return_type, NULL);
+        ZirTypeField fields[3];
+        size_t offset = 0;
+        int total = 0, status = -1;
+        if(record && !record->is_extern && !record->is_enum && !record->is_union &&
+           !record->is_owned_vec && !record->is_map && !record->is_record_template &&
+           !record->is_procedure_type)
+            while(total < 3 && (status = TypeNextField(record, &offset, &fields[total])) == 1)
+                total++;
+        int valid = status == 0 && (total == 1 || total == 2);
+        for(int i = 0; i < total && valid; i++)
+            valid = !fields[i].is_using && strcmp(fields[i].name, "_");
+        if(valid) {
+            const ZirTypeField *error = &fields[total - 1];
+            valid = !strcmp(error->name, "error") &&
+                (!strcmp(skip_ws(error->type), "string") || py_object_type(module, error->type)) &&
+                (total == 1 || py_value_type(module, fields[0].type, 0));
+        }
+        if(!valid) {
+            Diagnostic(binding->span, "check.foreign",
+                       "#py_results requires a record of an optional value and a last field "
+                       "error: string or a Python foreign type");
+            return 0;
+        }
+    } else if(!result_void && !py_value_type(module, binding->return_type, 0)) {
+        Diagnostic(binding->span, "check.foreign",
+                   "Python foreign results must be bool, integers, floats, string, []u8, "
+                   "or Python foreign types");
+        return 0;
+    }
+    return 1;
+}
+
 static int
 check_go_binding(const ZirModule *module, const ZirImport *binding,
                   char parameters[][ZIR_TEXT_MAX])
@@ -328,11 +431,23 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             return 0;
         }
     }
-    if(binding->go_field && (count != (receiver[0] ? 1 : 0) || binding->is_varargs ||
-                            binding->go_results || !strcmp(binding->return_type, "void") ||
-                            go_getter_contains_owned(module, binding->return_type, 0))) {
-        Diagnostic(binding->span, "check.foreign", "#go_field requires a value result without owned storage and only its optional receiver");
-        return 0;
+    if(binding->go_field) {
+        int setter = !strcmp(binding->return_type, "void");
+        int valid = !binding->is_varargs && !binding->go_results &&
+                    count == (receiver[0] ? 1 : 0) + setter;
+        if(setter) {
+            const char *colon = count > 0 ? strchr(parameters[count - 1], ':') : NULL;
+            const char *value = colon ? skip_ws(colon + 1) : "";
+            valid = valid && colon && *value && strcmp(value, "void") &&
+                    (!receiver[0] || receiver[0] == '*') &&
+                    !go_getter_contains_owned(module, value, 0);
+        } else {
+            valid = valid && !go_getter_contains_owned(module, binding->return_type, 0);
+        }
+        if(!valid) {
+            Diagnostic(binding->span, "check.foreign", "#go_field requires a getter or void setter without owned storage; setters require a pointer receiver or package variable and one value");
+            return 0;
+        }
     }
     if(binding->go_results) {
         const ZirType *record = FindType(module, binding->return_type, NULL);
@@ -601,7 +716,8 @@ check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuf
     }
     for(int i = 0; i < module->import_count; i++) {
         select_lookup_file(module, module->imports[i].span);
-        if(!check_go_binding(module, &module->imports[i], buffers->parameters_2))
+        if(!check_go_binding(module, &module->imports[i], buffers->parameters_2) ||
+           !check_py_binding(module, &module->imports[i], buffers->parameters_2))
             return 0;
     }
     return 1;

@@ -1,0 +1,5 @@
+// A Python value at the py: foreign boundary, for the Python target only.
+// null is None. Every foreign Python type with the same py: target is the
+// same type, so modules may also declare Object themselves.
+builtins :: #system_library "py:builtins";
+Object :: #type #foreign builtins "object";

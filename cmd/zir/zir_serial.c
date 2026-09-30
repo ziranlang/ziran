@@ -48,7 +48,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 52u
+#define ZIR_FORMAT_VERSION 53u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -61,6 +61,8 @@ static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, go_results),
     INTEGER_FIELD(ZirImport, go_field),
     INTEGER_FIELD(ZirImport, go_defer),
+    INTEGER_FIELD(ZirImport, py_results),
+    INTEGER_FIELD(ZirImport, py_field),
     INTEGER_FIELD(ZirImport, is_using),
     INTEGER_FIELD(ZirImport, required),
     SPAN_FIELD(ZirImport, span)
@@ -658,6 +660,12 @@ validate_program(const ZirProgram *program)
                (module->imports[i].go_results != 0 && module->imports[i].go_results != 1) ||
                (module->imports[i].go_field != 0 && module->imports[i].go_field != 1) ||
                (module->imports[i].go_defer != 0 && module->imports[i].go_defer != 1) ||
+               (module->imports[i].py_results != 0 && module->imports[i].py_results != 1) ||
+               (module->imports[i].py_field != 0 && module->imports[i].py_field != 1) ||
+               ((module->imports[i].py_results || module->imports[i].py_field) &&
+                (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
+                 module->imports[i].extern_kind != ZIR_EXTERN_PY ||
+                 (module->imports[i].py_results && module->imports[i].py_field))) ||
                (module->imports[i].go_defer &&
                 (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
                  module->imports[i].extern_kind != ZIR_EXTERN_GO ||
@@ -703,7 +711,8 @@ validate_program(const ZirProgram *program)
                  type->is_owned_vec || type->is_abi_incomplete || type->foreign_target[0])))
                 return 0;
             if(type->foreign_target[0] &&
-               (!GoForeignTargetValid(type->foreign_target) || !type->is_extern ||
+               ((!GoForeignTargetValid(type->foreign_target) &&
+                 !PyForeignTargetValid(type->foreign_target)) || !type->is_extern ||
                 type->body[0] || type->is_enum || type->is_union ||
                 type->is_procedure_type || type->is_record_template ||
                 type->is_synthetic_application || type->is_owned_vec ||

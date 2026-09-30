@@ -29,7 +29,8 @@ typedef enum ZirExternKind {
     ZIR_EXTERN_NONE = 0,
     ZIR_EXTERN_HOST,
     ZIR_EXTERN_GO,
-    ZIR_EXTERN_C
+    ZIR_EXTERN_C,
+    ZIR_EXTERN_PY
 } ZirExternKind;
 
 typedef enum ZirStmtKind {
@@ -97,6 +98,8 @@ typedef struct ZirImport {
     int go_results; /* direct Go results populate the declared result record in field order */
     int go_field; /* one Go receiver argument reads its declared native field */
     int go_defer; /* a standalone call schedules its Go foreign target at function exit */
+    int py_results; /* a raised Python exception fills the result record's last field */
+    int py_field; /* reads, or with a value sets, one Python attribute of the receiver */
     int required;
     int is_using; /* `using Alias :: #import` re-exports public names */
     ZirSourceSpan span;
@@ -488,6 +491,11 @@ int GoForeignCallParts(const char *target, char *package, size_t package_size,
                        char *receiver, size_t receiver_size,
                        char *symbol, size_t symbol_size);
 int RejectForeignGoTypes(const ZirProgram *program);
+int PyForeignCallParts(const char *target, char *module, size_t module_size,
+                       char *receiver, size_t receiver_size,
+                       char *symbol, size_t symbol_size);
+int PyForeignTargetValid(const char *target);
+int RejectForeignTypesExcept(const ZirProgram *program, const char *allowed_prefix);
 int MapTypeParts(const ZirModule *module, const char *name,
                  char *key, size_t key_size, char *value, size_t value_size);
 int MapPrimitiveName(const char *name);

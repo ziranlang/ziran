@@ -2,10 +2,23 @@
 url :: #import "url_go";
 io :: #import "io_go";
 ctx :: #import "context_go";
+clock :: #import "time_go";
+#import "go_types"
 go_http :: #system_library "go:net/http";
+builtin :: #system_library "go:builtin";
 Request :: #type #foreign go_http "Request";
 Header :: #type #foreign go_http "Header";
 ResponseWriter :: #type #foreign go_http "ResponseWriter";
+Client :: #type #foreign go_http "Client";
+Response :: #type #foreign go_http "Response";
+RequestResult :: struct {
+    value: *Request
+    error: Error
+}
+ResponseResult :: struct {
+    value: *Response
+    error: Error
+}
 
 #scope_file
 RemoteAddressRaw :: (request: *Request) -> string #go_field #foreign go_http "(*Request).RemoteAddr";
@@ -19,6 +32,14 @@ WriteHeaderRaw :: (writer: ResponseWriter, status: isize) #foreign go_http "Resp
 HeaderValueRaw :: (header: Header, name: string) -> string #foreign go_http "Header.Get";
 ResponseHeadersRaw :: (writer: ResponseWriter) -> Header #foreign go_http "ResponseWriter.Header";
 HeaderSetRaw :: (header: Header, name: string, value: string) #foreign go_http "Header.Set";
+AllocateClient :: () -> *Client #foreign builtin "new";
+SetTimeoutRaw :: (client: *Client, timeout: clock.Duration) #go_field #foreign go_http "(*Client).Timeout";
+TimeoutRaw :: (client: *Client) -> clock.Duration #go_field #foreign go_http "(*Client).Timeout";
+NewRequestRaw :: (context: ctx.Context, method: string, target: string, body: io.Reader) -> RequestResult #go_results #foreign go_http "NewRequestWithContext";
+DoRaw :: (client: *Client, request: *Request) -> ResponseResult #go_results #foreign go_http "(*Client).Do";
+ResponseBodyRaw :: (response: *Response) -> io.ReadCloser #go_field #foreign go_http "(*Response).Body";
+StatusRaw :: (response: *Response) -> string #go_field #foreign go_http "(*Response).Status";
+StatusCodeRaw :: (response: *Response) -> isize #go_field #foreign go_http "(*Response).StatusCode";
 
 #scope_export
 RemoteAddress :: (request: *Request) -> string {
@@ -53,4 +74,27 @@ ResponseHeaders :: (writer: ResponseWriter) -> Header {
 }
 SetHeader :: (header: Header, name: string, value: string) {
     HeaderSetRaw(header, name, value)
+}
+NewClient :: (timeout: clock.Duration) -> *Client {
+    client := AllocateClient()
+    SetTimeoutRaw(client, timeout)
+    return client
+}
+ClientTimeout :: (client: *Client) -> clock.Duration {
+    return TimeoutRaw(client)
+}
+NewRequest :: (context: ctx.Context, method: string, target: string, body: io.Reader) -> RequestResult {
+    return NewRequestRaw(context, method, target, body)
+}
+Do :: (client: *Client, request: *Request) -> ResponseResult {
+    return DoRaw(client, request)
+}
+ResponseBody :: (response: *Response) -> io.ReadCloser {
+    return ResponseBodyRaw(response)
+}
+Status :: (response: *Response) -> string {
+    return StatusRaw(response)
+}
+StatusCode :: (response: *Response) -> isize {
+    return StatusCodeRaw(response)
 }

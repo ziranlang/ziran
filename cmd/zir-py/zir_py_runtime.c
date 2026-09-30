@@ -347,8 +347,14 @@ const PyRuntimeItem py_runtime_items[] = {
      "    what C wrote back into them.\"\"\"\n"
      "    if pointer is None:\n"
      "        return None, None\n"
+     "    if isinstance(pointer, int):\n"
+     "        return ctypes.cast(ctypes.c_void_p(pointer), ctypes.POINTER(ctype)), None\n"
      "    items = pointer.base\n"
      "    start = pointer.key\n"
+     "    if isinstance(items, ctypes._Pointer):\n"
+     "        address = ctypes.cast(items, ctypes.c_void_p).value\n"
+     "        address += start * ctypes.sizeof(items._type_)\n"
+     "        return ctypes.cast(address, ctypes.POINTER(ctype)), None\n"
      "    buffer = (ctype * max(len(items) - start, 1))(*items[start:])\n"
      "\n"
      "    def write_back():\n"
@@ -358,6 +364,13 @@ const PyRuntimeItem py_runtime_items[] = {
      "            items[start + offset] = buffer[offset]\n"
      "\n"
      "    return buffer, write_back\n"},
+    {"_from_c_pointer", "ctypes ZiranPointer",
+     "def _from_c_pointer(address, ctype):\n"
+     "    if address is None or address == 0:\n"
+     "        return None\n"
+     "    if isinstance(address, ZiranPointer):\n"
+     "        return address\n"
+     "    return ZiranPointer(ctypes.cast(address, ctypes.POINTER(ctype)), 0)\n"},
     {"_c_call", "",
      "def _c_call(function, arguments, pointers):\n"
      "    \"\"\"Call C, passing each pointer argument as a C copy of its items\n"
@@ -400,5 +413,60 @@ const PyRuntimeItem py_runtime_items[] = {
      "    def assign(self, other):\n"
      "        self.fully_pathed_filename = other.fully_pathed_filename\n"
      "        self.line_number = other.line_number\n"},
+    {"_py_module", "importlib",
+     "def _py_module(name):\n"
+     "    \"\"\"The Python module a py: foreign library names.\"\"\"\n"
+     "    return importlib.import_module(name)\n"},
+    {"_py_str", "",
+     "def _py_str(text):\n"
+     "    \"\"\"A Ziran string as Python str; invalid UTF-8 round-trips.\"\"\"\n"
+     "    return bytes(text).decode(\"utf-8\", \"surrogateescape\")\n"},
+    {"_py_bytes", "",
+     "def _py_bytes(view):\n"
+     "    \"\"\"A Ziran []u8 as Python bytes.\"\"\"\n"
+     "    return bytes(view.base[view.low:view.low + view.count])\n"},
+    {"_py_text", "",
+     "def _py_text(value):\n"
+     "    \"\"\"A Python result as a Ziran string: str is encoded as UTF-8,\n"
+     "    bytes-like values are copied, None is empty, others use str().\"\"\"\n"
+     "    if value is None:\n"
+     "        return b\"\"\n"
+     "    if isinstance(value, (bytes, bytearray, memoryview)):\n"
+     "        return bytes(value)\n"
+     "    if not isinstance(value, str):\n"
+     "        value = str(value)\n"
+     "    return value.encode(\"utf-8\", \"surrogateescape\")\n"},
+    {"_py_u8", "",
+     "def _py_u8(value):\n"
+     "    \"\"\"A Python bytes-like or text result as a Ziran []u8.\"\"\"\n"
+     "    data = list(_py_text(value))\n"
+     "    return ZiranSlice(data, 0, len(data))\n"},
+    {"_py_error", "",
+     "def _py_error(error):\n"
+     "    \"\"\"A raised exception as Ziran text: \\\"Type: message\\\".\"\"\"\n"
+     "    message = str(error)\n"
+     "    name = type(error).__name__\n"
+     "    return _py_text(name + \": \" + message if message else name)\n"},
+    {"_py_results", "",
+     "def _py_results(call, record, value, convert, error, text):\n"
+     "    \"\"\"Run a #py_results call: an exception fills the error field,\n"
+     "    as text or as the exception object; a result fills value.\"\"\"\n"
+     "    try:\n"
+     "        returned = call()\n"
+     "    except Exception as raised:\n"
+     "        setattr(record, error, _py_error(raised) if text else raised)\n"
+     "        return record\n"
+     "    if value is not None:\n"
+     "        setattr(record, value, returned if convert is None else convert(returned))\n"
+     "    return record\n"},
+    {"_py_callback", "",
+     "def _py_callback(procedure, arguments, result):\n"
+     "    \"\"\"A Ziran procedure Python calls with Python values.\"\"\"\n"
+     "    def call(*values):\n"
+     "        converted = [value if convert is None else convert(value)\n"
+     "                     for convert, value in zip(arguments, values)]\n"
+     "        returned = procedure(*converted)\n"
+     "        return returned if result is None else result(returned)\n"
+     "    return call\n"},
     {NULL, NULL, NULL}
 };

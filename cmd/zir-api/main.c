@@ -204,6 +204,7 @@ extern_kind(const ZirImport *item)
 {
     return item->extern_kind == ZIR_EXTERN_C ? "c" :
            item->extern_kind == ZIR_EXTERN_GO ? "go" :
+           item->extern_kind == ZIR_EXTERN_PY ? "py" :
            item->extern_kind == ZIR_EXTERN_HOST ? "host" : "";
 }
 

@@ -17,6 +17,7 @@ UTCRaw :: (value: Time) -> Time #foreign go_time "Time.UTC";
 FormatRaw :: (value: Time, layout: string) -> string #foreign go_time "Time.Format";
 UnixRaw :: (value: Time) -> s64 #foreign go_time "Time.Unix";
 FromUnixRaw :: (seconds: s64, nanos: s64) -> Time #foreign go_time "Unix";
+UntilRaw :: (value: Time) -> Duration #foreign go_time "Until";
 
 #scope_export
 Now :: () -> Time {
@@ -42,4 +43,7 @@ Unix :: (value: Time) -> s64 {
 }
 FromUnix :: (seconds: s64, nanos: s64) -> Time {
     return FromUnixRaw(seconds, nanos)
+}
+Until :: (value: Time) -> Duration {
+    return UntilRaw(value)
 }

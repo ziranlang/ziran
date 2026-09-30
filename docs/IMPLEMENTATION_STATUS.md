@@ -17,6 +17,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   go through `ctypes`, with `string` parameters and results passed as C
   text and the shared libraries named in `LDLIBS` loaded first, and host
   capabilities through a `host` object the embedding program sets. A view of mutable bytes is a snapshot.
+  `py:` libraries import Python modules directly: functions, methods on the
+  first argument, dotted attributes (`#py_field`), and exceptions caught into
+  a result record (`#py_results`), with `string`, `[]u8`, integers, Python
+  objects, and procedure callbacks converted at the boundary;
+  `tests/py_native.sh` covers them, and the other targets reject them.
   `tests/py_backend.sh` covers it, and `tests/numeric_semantics.sh`,
   `tests/print.sh`, `tests/examples.sh`, and `tests/named_imports.sh` compare
   it with the other targets.

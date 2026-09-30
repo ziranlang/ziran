@@ -89,20 +89,128 @@ GoForeignTargetValid(const char *target)
     return 1;
 }
 
-int
-RejectForeignGoTypes(const ZirProgram *program)
+static int
+python_identifier(const char *start, const char *end)
 {
-    for(int m = 0; m < program->module_count; m++)
-        for(int t = 0; t < program->modules[m].type_count; t++) {
-            const ZirType *type = &program->modules[m].types[t];
-            if(type->foreign_target[0] || type->is_map) {
+    if(start == end || !(isalpha((unsigned char)*start) || *start == '_'))
+        return 0;
+    for(const char *p = start; p < end; p++)
+        if(!(isalnum((unsigned char)*p) || *p == '_'))
+            return 0;
+    return 1;
+}
+
+static int
+python_dotted(const char *start, const char *end)
+{
+    if(start >= end)
+        return 0;
+    for(const char *part = start; part < end;) {
+        const char *next = memchr(part, '.', (size_t)(end - part));
+        if(next == NULL)
+            next = end;
+        if(!python_identifier(part, next))
+            return 0;
+        part = next == end ? end : next + 1;
+        if(next != end && part == end)
+            return 0;
+    }
+    return 1;
+}
+
+/* Python natives use py:module/path, where module is a dotted import path
+ * such as urllib.request and path names an attribute of it, dotted for a
+ * nested one (bytes.fromhex); or py:module/(Type).name for a method called
+ * on the first argument. Returns 2 for a method, 1 otherwise. */
+int
+PyForeignCallParts(const char *target, char *module, size_t module_size,
+                   char *receiver, size_t receiver_size,
+                   char *symbol, size_t symbol_size)
+{
+    if(target == NULL || strncmp(target, "py:", 3) != 0)
+        return 0;
+    const char *start = target + 3;
+    const char *end = strchr(start, '/');
+    if(end == NULL || !python_dotted(start, end))
+        return 0;
+    const char *recv_start = NULL, *recv_end = NULL, *name = end + 1;
+    if(*name == '(') {
+        recv_start = name + 1;
+        recv_end = strchr(recv_start, ')');
+        if(recv_end == NULL || recv_end[1] != '.' ||
+           !python_identifier(recv_start, recv_end))
+            return 0;
+        name = recv_end + 2;
+        if(!python_identifier(name, name + strlen(name)))
+            return 0;
+    } else if(!python_dotted(name, name + strlen(name)))
+        return 0;
+    const char *method = recv_start;
+    if(module) {
+        if((size_t)(end - start) >= module_size) return 0;
+        memcpy(module, start, (size_t)(end - start));
+        module[end - start] = '\0';
+    }
+    if(receiver) {
+        size_t length = method ? (size_t)(recv_end - recv_start) : 0;
+        if(length >= receiver_size) return 0;
+        memcpy(receiver, recv_start ? recv_start : "", length);
+        receiver[length] = '\0';
+    }
+    if(symbol) {
+        if(strlen(name) >= symbol_size) return 0;
+        strcpy(symbol, name);
+    }
+    return method ? 2 : 1;
+}
+
+/* A foreign Python type names a class: py:module.Type. */
+int
+PyForeignTargetValid(const char *target)
+{
+    return PyForeignCallParts(target, NULL, 0, NULL, 0, NULL, 0) == 1;
+}
+
+/* Foreign types, maps, and Python natives exist only on their own target;
+ * allowed_prefix ("go:" or "py:") keeps the current target's natives. */
+int
+RejectForeignTypesExcept(const ZirProgram *program, const char *allowed_prefix)
+{
+    int python = allowed_prefix != NULL && !strcmp(allowed_prefix, "py:");
+    int go = allowed_prefix != NULL && !strcmp(allowed_prefix, "go:");
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        for(int t = 0; t < module->type_count; t++) {
+            const ZirType *type = &module->types[t];
+            int foreign_python = !strncmp(type->foreign_target, "py:", 3);
+            /* Maps and foreign Go types are Go values. */
+            int allowed = foreign_python ? python : go;
+            if((type->foreign_target[0] || type->is_map) && !allowed) {
                 Diagnostic(type->span, "check.record",
-                           "%s require the Go target: %s",
-                           type->is_map ? "maps" : "foreign Go types", type->name);
+                           "%s require the %s target: %s",
+                           type->is_map ? "maps" :
+                           foreign_python ? "foreign Python types" : "foreign Go types",
+                           foreign_python ? "Python" : "Go", type->name);
                 return 0;
             }
         }
+        for(int i = 0; i < module->import_count && !python; i++) {
+            const ZirImport *import = &module->imports[i];
+            if(import->kind == ZIR_IMPORT_EXTERN && import->extern_kind == ZIR_EXTERN_PY) {
+                Diagnostic(import->span, "check.foreign",
+                           "Python foreign imports require the Python target: %s",
+                           import->name);
+                return 0;
+            }
+        }
+    }
     return 1;
+}
+
+int
+RejectForeignGoTypes(const ZirProgram *program)
+{
+    return RejectForeignTypesExcept(program, NULL);
 }
 
 int
@@ -1754,6 +1862,7 @@ ExternKindName(ZirExternKind kind)
     case ZIR_EXTERN_HOST: return "host";
     case ZIR_EXTERN_GO: return "go";
     case ZIR_EXTERN_C: return "c";
+    case ZIR_EXTERN_PY: return "py";
     default: return "none";
     }
 }

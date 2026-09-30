@@ -515,7 +515,8 @@ static const ZirImport *py_foreign_import(const ZirModule *module, const char *n
     for(int index = 0; index < module->import_count; index++) {
         const ZirImport *import = &module->imports[index];
         if(import->kind == ZIR_IMPORT_EXTERN &&
-           (import->extern_kind == ZIR_EXTERN_C || import->extern_kind == ZIR_EXTERN_HOST) &&
+           (import->extern_kind == ZIR_EXTERN_C || import->extern_kind == ZIR_EXTERN_HOST ||
+            import->extern_kind == ZIR_EXTERN_PY) &&
            strcmp(import->name, name) == 0)
             return import;
     }
@@ -677,6 +678,8 @@ static char *py_round_float32_literal(double value)
 }
 
 /* Convert text of one checked scalar type to another, as a cast does. */
+static const char *py_pointer_ctype(PyEmitter *emitter, const char *type);
+
 static char *py_convert(PyEmitter *emitter, const char *text, const char *from,
                         const char *to)
 {
@@ -685,6 +688,11 @@ static char *py_convert(PyEmitter *emitter, const char *text, const char *from,
        !py_classify(emitter->module, from, &source) ||
        !py_classify(emitter->module, to, &target))
         return py_copy_string(text);
+    if(target.kind == PY_POINTER && strcmp(target.element, "void") &&
+       (source.kind == PY_POINTER || source.kind == PY_INT)) {
+        const char *ctype = py_pointer_ctype(emitter, to);
+        if(ctype != NULL) return py_format("_from_c_pointer(%s, %s)", text, ctype);
+    }
     if(target.kind == PY_INT) {
         if(source.kind == PY_INT) {
             if(integer_range_fits(&source, &target) && strcmp(from, "integer") != 0)
@@ -1386,6 +1394,8 @@ static const char *py_pointer_ctype(PyEmitter *emitter, const char *type)
     if(!py_classify(emitter->module, type, &info) || info.kind != PY_POINTER ||
        !py_classify(emitter->module, info.element, &element))
         return NULL;
+    if(element.kind == PY_POINTER) return "ctypes.c_void_p";
+    if(element.kind == PY_VOID) return "ctypes.c_uint8";
     if(element.kind != PY_INT && element.kind != PY_FLOAT && element.kind != PY_BOOL)
         return NULL;
     return py_ctype(emitter, info.element);
@@ -1451,6 +1461,246 @@ static int bound_provider(PyEmitter *emitter, const ZirImport *import,
     return 0;
 }
 
+/* ----- Python natives: #system_library "py:module" ----- */
+
+/* object.name, or getattr for a name Python reserves as a keyword. */
+static char *py_attribute(const char *object, const char *name)
+{
+    static const char *const reserved[] = {
+        "False", "None", "True", "and", "as", "assert", "async", "await", "break",
+        "class", "continue", "def", "del", "elif", "else", "except", "finally",
+        "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal",
+        "not", "or", "pass", "raise", "return", "try", "while", "with", "yield", NULL
+    };
+    for(int index = 0; reserved[index] != NULL; index++)
+        if(strcmp(reserved[index], name) == 0)
+            return py_format("getattr(%s, \"%s\")", object, name);
+    return py_format("%s.%s", object, name);
+}
+
+/* The one variable holding an imported Python module: dots become "_"
+ * after "_" doubles, so distinct module paths keep distinct names. */
+static void py_module_symbol(const char *path, char *output, size_t size)
+{
+    size_t used = 0;
+    const char *prefix = "_py_";
+    for(const char *p = prefix; *p && used + 1 < size; p++)
+        output[used++] = *p;
+    for(const char *p = path; *p && used + 2 < size; p++) {
+        if(*p == '_')
+            output[used++] = '_';
+        output[used++] = *p == '.' ? '_' : *p;
+    }
+    output[used] = '\0';
+}
+
+/* object.a.b for the dotted attribute path a.b. */
+static char *py_attribute_path(const char *object, const char *path)
+{
+    char *result = py_copy_string(object);
+    char part[ZIR_NAME_MAX];
+    size_t used = 0;
+    for(const char *p = path;; p++) {
+        if(*p == '.' || *p == '\0') {
+            char *next;
+            part[used] = '\0';
+            next = py_attribute(result, part);
+            free(result);
+            result = next;
+            used = 0;
+            if(*p == '\0')
+                return result;
+        } else if(used + 1 < sizeof(part))
+            part[used++] = *p;
+    }
+}
+
+/* How a Python value becomes a Ziran value of type; NULL keeps it. */
+static char *py_from_python(const ZirModule *scope, const char *type)
+{
+    PyType info;
+    if(!py_classify(scope, type, &info))
+        return NULL;
+    switch(info.kind) {
+    case PY_STRING: return py_copy_string("_py_text");
+    case PY_SLICE: return py_copy_string("_py_u8");
+    case PY_BOOL: return py_copy_string("bool");
+    case PY_FLOAT: return py_copy_string("float");
+    case PY_INT:
+        return py_format("(lambda value: _%c%d(int(value)))",
+                         info.is_signed ? 's' : 'u', info.bits);
+    default: return NULL;
+    }
+}
+
+/* expression, a Python value, as a Ziran value of type. */
+static char *py_converted_from_python(const ZirModule *scope, const char *type,
+                                      const char *expression)
+{
+    PyType info;
+    if(py_classify(scope, type, &info) && info.kind == PY_INT)
+        return py_format("_%c%d(int(%s))", info.is_signed ? 's' : 'u', info.bits, expression);
+    {
+        char *convert = py_from_python(scope, type);
+        char *result = convert != NULL ? py_format("%s(%s)", convert, expression) :
+            py_copy_string(expression);
+        free(convert);
+        return result;
+    }
+}
+
+/* How a Ziran value of type becomes a Python value; NULL keeps it. */
+static char *py_to_python(const ZirModule *scope, const char *type)
+{
+    PyType info;
+    if(!py_classify(scope, type, &info))
+        return NULL;
+    if(info.kind == PY_STRING)
+        return py_copy_string("_py_str");
+    if(info.kind == PY_SLICE)
+        return py_copy_string("_py_bytes");
+    return NULL;
+}
+
+/* A Ziran procedure passed to Python converts what Python calls it with. */
+static char *py_callback(const ZirModule *scope, const ZirType *procedure, const char *value)
+{
+    char *converters = py_copy_string("");
+    char *returned, *result;
+    int count = 0;
+    if(*procedure->body) {
+        char *parts = py_allocate(64 * 512);
+        count = split_top_level(procedure->body, parts, 64, 512);
+        for(int part = 0; part < count; part++) {
+            char *colon = strchr(parts + part * 512, ':');
+            char *type = colon != NULL ? colon + 1 : parts + part * 512;
+            char *convert, *joined;
+            size_t length;
+            while(*type == ' ')
+                type++;
+            length = strlen(type);
+            while(length > 0 && isspace((unsigned char)type[length - 1]))
+                type[--length] = '\0';
+            convert = py_from_python(scope, type);
+            joined = py_format("%s%s%s", converters, part ? ", " : "",
+                               convert != NULL ? convert : "None");
+            free(convert);
+            free(converters);
+            converters = joined;
+        }
+        free(parts);
+    }
+    returned = py_to_python(scope, procedure->procedure_return_type);
+    result = py_format("_py_callback(%s, (%s%s), %s)", value, converters,
+                       count == 1 ? "," : "", returned != NULL ? returned : "None");
+    free(returned);
+    free(converters);
+    return result;
+}
+
+/* A call to a Python native: a module function, a method on the first
+ * argument, or with #py_field an attribute read or write. Arguments and the
+ * result convert by their declared Ziran types; #py_results catches the
+ * exception into the result record. */
+static char *emit_python_call(PyEmitter *emitter, const ZirExpr *expression,
+                              const ZirModule *owner, const ZirImport *foreign)
+{
+    char module_symbol[ZIR_PATH_MAX * 2];
+    char python_module[ZIR_PATH_MAX], receiver[ZIR_NAME_MAX], name[ZIR_NAME_MAX];
+    char parameters[32][ZIR_NAME_MAX];
+    int count = foreign_parameters(foreign, parameters, 32);
+    int children[64];
+    int child_total = child_count(emitter, expression, children, 64);
+    char *arguments[64];
+    char *call, *joined, *result;
+    const ZirModule *scope = owner != NULL ? owner : emitter->module;
+    int parts = PyForeignCallParts(foreign->target, python_module, sizeof(python_module),
+                                   receiver, sizeof(receiver), name, sizeof(name));
+    for(int index = 0; index < child_total; index++) {
+        const char *type = index < count ? parameters[index] :
+            emitter->function->exprs[children[index]].type;
+        char *raw = emit_value(emitter, children[index], type);
+        char *value = py_bare(raw);
+        const ZirModule *type_owner = NULL;
+        const ZirType *declared = FindType(scope, type, &type_owner);
+        char *convert = py_to_python(scope, type);
+        free(raw);
+        if(declared != NULL && declared->is_procedure_type) {
+            arguments[index] = py_callback(type_owner != NULL ? type_owner : scope,
+                                           declared, value);
+            free(value);
+        } else if(convert != NULL) {
+            arguments[index] = py_format("%s(%s)", convert, value);
+            free(value);
+        } else
+            arguments[index] = value;
+        free(convert);
+    }
+    py_module_symbol(python_module, module_symbol, sizeof(module_symbol));
+    {
+        const char *object = parts == 2 ? arguments[0] : module_symbol;
+        int first = parts == 2 ? 1 : 0;
+        if(foreign->py_field && child_total > first) {
+            /* Set the last attribute of the path on the object before it. */
+            char *dot = strrchr(name, '.');
+            char *owner_text;
+            if(dot != NULL) {
+                *dot = '\0';
+                owner_text = py_attribute_path(object, name);
+                call = py_format("setattr(%s, \"%s\", %s)", owner_text, dot + 1, arguments[first]);
+                free(owner_text);
+            } else
+                call = py_format("setattr(%s, \"%s\", %s)", object, name, arguments[first]);
+        } else if(foreign->py_field)
+            call = py_attribute_path(object, name);
+        else {
+            char *function = py_attribute_path(object, name);
+            /* join_arguments frees what it joins. */
+            joined = join_arguments(arguments + first, child_total - first);
+            for(int index = first; index < child_total; index++)
+                arguments[index] = NULL;
+            call = py_format("%s(%s)", function, joined);
+            free(function);
+            free(joined);
+        }
+    }
+    for(int index = 0; index < child_total; index++)
+        free(arguments[index]);
+    if(foreign->py_results) {
+        const ZirType *record = FindType(scope, foreign->return_type, NULL);
+        ZirTypeField fields[2];
+        char value_field[ZIR_NAME_MAX] = "", error_field[ZIR_NAME_MAX];
+        char *zero = py_zero(emitter, scope, foreign->return_type);
+        char *convert = NULL;
+        size_t offset = 0;
+        int total = 0, text;
+        PyType error_info;
+        while(record != NULL && total < 2 &&
+              TypeNextField(record, &offset, &fields[total]) == 1)
+            total++;
+        py_field_name(fields[total - 1].name, error_field, sizeof(error_field));
+        text = py_classify(scope, fields[total - 1].type, &error_info) &&
+            error_info.kind == PY_STRING;
+        if(total == 2) {
+            py_field_name(fields[0].name, value_field, sizeof(value_field));
+            convert = py_from_python(scope, fields[0].type);
+        }
+        result = py_format("_py_results(lambda: %s, %s, %s%s%s, %s, \"%s\", %s)", call, zero,
+                           total == 2 ? "\"" : "", total == 2 ? value_field : "None",
+                           total == 2 ? "\"" : "", convert != NULL ? convert : "None",
+                           error_field, text ? "True" : "False");
+        free(zero);
+        free(convert);
+        free(call);
+        return result;
+    }
+    if(!strcmp(foreign->return_type, "void") || !foreign->return_type[0])
+        return call;
+    result = py_converted_from_python(scope, foreign->return_type, call);
+    free(call);
+    return result;
+}
+
 static char *emit_foreign_call(PyEmitter *emitter, const ZirExpr *expression,
                                const ZirModule *owner, const ZirImport *foreign)
 {
@@ -1462,6 +1712,10 @@ static char *emit_foreign_call(PyEmitter *emitter, const ZirExpr *expression,
     char *arguments[64];
     char *pointers = py_copy_string("");
     char *joined, *result;
+    if(foreign->extern_kind == ZIR_EXTERN_PY) {
+        free(pointers);
+        return emit_python_call(emitter, expression, owner, foreign);
+    }
     if(foreign->extern_kind == ZIR_EXTERN_HOST) {
         const ZirModule *provider_owner = NULL;
         const ZirFunction *provider = NULL;
@@ -1545,6 +1799,13 @@ static char *emit_foreign_call(PyEmitter *emitter, const ZirExpr *expression,
             char *text = py_format("_from_c_string(%s)", result);
             free(result);
             result = text;
+        } else if(returned.kind == PY_POINTER && strcmp(returned.element, "void")) {
+            const char *ctype = py_pointer_ctype(emitter, foreign->return_type);
+            if(ctype != NULL) {
+                char *pointer = py_format("_from_c_pointer(%s, %s)", result, ctype);
+                free(result);
+                result = pointer;
+            }
         }
     }
     return result;
@@ -3261,7 +3522,8 @@ typedef struct PyForeignBuffers {
 
 static void emit_foreign_bindings(PyEmitter *emitter, FILE *output)
 {
-    int any = 0;
+    int any = 0, linked = 0;
+    char *python_modules = py_copy_string("");
     PyForeignBuffers *buffers = py_allocate(sizeof(*buffers));
     char *symbol = buffers->symbol;
     char (*parameters)[ZIR_NAME_MAX] = buffers->parameters;
@@ -3280,15 +3542,36 @@ static void emit_foreign_bindings(PyEmitter *emitter, FILE *output)
                     continue;
                 if(import->extern_kind == ZIR_EXTERN_HOST)
                     continue;
+                if(import->extern_kind == ZIR_EXTERN_PY) {
+                    char python_module[ZIR_PATH_MAX], module_symbol[ZIR_PATH_MAX * 2];
+                    char *line;
+                    if(!PyForeignCallParts(import->target, python_module, sizeof(python_module),
+                                           NULL, 0, NULL, 0)) {
+                        Diagnostic(import->span, "zir_py.import",
+                                   "invalid Python foreign target: %s", import->target);
+                        exit(1);
+                    }
+                    py_module_symbol(python_module, module_symbol, sizeof(module_symbol));
+                    line = py_format("%s = _py_module(\"%s\")\n", module_symbol, python_module);
+                    if(strstr(python_modules, line) == NULL) {
+                        char *joined = py_format("%s%s", python_modules, line);
+                        fputs(line, output);
+                        free(python_modules);
+                        python_modules = joined;
+                    }
+                    free(line);
+                    any = 1;
+                    continue;
+                }
                 if(import->extern_kind != ZIR_EXTERN_C) {
                     Diagnostic(import->span, "zir_py.import",
-                            "only the C foreign ABI is supported by the Python target: %s",
+                            "the Python target runs C and py: foreign imports, not Go: %s",
                             import->name);
                     exit(1);
                 }
                 /* C foreign symbols resolve in the process, as a C build links
                  * them; libraries named in LDLIBS join it first. */
-                if(!any)
+                if(!linked)
                     for(int index = 0; index < py_linked_library_count; index++)
                         fprintf(output, "_link_library(\"%s\")\n", py_linked_libraries[index]);
                 count = foreign_parameters(import, parameters, 32);
@@ -3325,11 +3608,12 @@ static void emit_foreign_bindings(PyEmitter *emitter, FILE *output)
                 fprintf(output, "%s = _foreign(_library(\"%s\"), \"%s\", [%s], %s)\n",
                         symbol, library, link, argtypes, returned);
                 free(argtypes);
-                any = 1;
+                any = linked = 1;
             }
         }
     }
     free(buffers);
+    free(python_modules);
     if(any)
         fputs("\n\n", output);
 }
@@ -3643,7 +3927,7 @@ static void write_runtime(FILE *output, const char *body, size_t body_size,
 static void write_imports(FILE *output, const char *body, size_t body_size, const int *kept)
 {
     static const char *const modules[] = {
-        "ctypes", "ctypes.util", "decimal", "math", "struct", "sys", NULL
+        "ctypes", "ctypes.util", "decimal", "importlib", "math", "struct", "sys", NULL
     };
     int any = 0;
     for(int module = 0; modules[module] != NULL; module++) {

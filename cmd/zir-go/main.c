@@ -148,6 +148,8 @@ main(int argc, char **argv)
         if(linked == NULL)
             goto done;
         const ZirProgram *only = linked;
+        if(!RejectForeignTypesExcept(only, "go:"))
+            goto done;
         result = go_lower(&only, 1, root, out_dir, pkg, no_main) != 0;
         if(result == 0 && executable) {
             const ZirModule *module = NULL;
@@ -208,6 +210,9 @@ main(int argc, char **argv)
                 result = 1;
         }
     } else {
+        for(int index = 0; index < file_count; index++)
+            if(!RejectForeignTypesExcept(progs[index], "go:"))
+                goto done;
         result = go_lower((const ZirProgram *const *)progs, file_count,
                           root, out_dir, pkg, no_main) != 0;
     }

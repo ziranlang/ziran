@@ -1,9 +1,11 @@
 // Native Go stream interfaces retain resource ownership and error identity.
 #import "go_types"
 go_io :: #system_library "go:io";
+go_bytes :: #system_library "go:bytes";
 Reader :: #type #foreign go_io "Reader";
 ReadCloser :: #type #foreign go_io "ReadCloser";
 Writer :: #type #foreign go_io "Writer";
+BytesReader :: #type #foreign go_bytes "Reader";
 ReadAllResult :: struct {
     value: []u8
     error: Error
@@ -12,6 +14,8 @@ ReadAllResult :: struct {
 #scope_file
 ReadAllRaw :: (reader: Reader) -> ReadAllResult #go_results #foreign go_io "ReadAll";
 CloseRaw :: (reader: ReadCloser) -> Error #foreign go_io "ReadCloser.Close";
+LimitReaderRaw :: (reader: Reader, count: s64) -> Reader #foreign go_io "LimitReader";
+BytesReaderRaw :: (data: []u8) -> *BytesReader #foreign go_bytes "NewReader";
 
 #scope_export
 ReadAll :: (reader: Reader) -> ReadAllResult {
@@ -19,4 +23,10 @@ ReadAll :: (reader: Reader) -> ReadAllResult {
 }
 Close :: (reader: ReadCloser) -> Error {
     return CloseRaw(reader)
+}
+LimitReader :: (reader: Reader, count: s64) -> Reader {
+    return LimitReaderRaw(reader, count)
+}
+FromBytes :: (data: []u8) -> Reader {
+    return cast(Reader)BytesReaderRaw(data)
 }

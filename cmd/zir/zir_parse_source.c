@@ -608,6 +608,11 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             if(contains_source_directive(t, "#go_defer") &&
                !contains_source_directive(t, "#foreign"))
                 die_at(Span(buffers->rel, line_no, 1), "#go_defer requires a foreign procedure");
+            if((contains_source_directive(t, "#py_results") ||
+                contains_source_directive(t, "#py_field")) &&
+               !contains_source_directive(t, "#foreign"))
+                die_at(Span(buffers->rel, line_no, 1),
+                       "#py_results and #py_field require a foreign procedure");
             const char *parameters = strchr(t, '(');
             const char *closing = closing_parenthesis(parameters);
             const char *body_open = closing == NULL ? NULL :
@@ -621,6 +626,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                    !starts_word(modifier, "#go_results") &&
                    !starts_word(modifier, "#go_field") &&
                    !starts_word(modifier, "#go_defer") &&
+                   !starts_word(modifier, "#py_results") &&
+                   !starts_word(modifier, "#py_field") &&
                    !starts_word(modifier, "#must"))
                     die_at(Span(buffers->rel, line_no, 1),
                            "unknown function modifier: %s", modifier);

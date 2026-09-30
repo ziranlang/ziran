@@ -1541,12 +1541,19 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
             continue;
         }
         if(binding->go_field) {
-            if(binding->pcount == 0) {
-                fprintf(out, "\treturn %s.%s\n}\n\n", binding->go_import_alias, binding->go);
+            int setter = !strcmp(binding->ret, "void");
+            char receiver[ZIR_GO_NAME_MAX];
+            if(!binding->go_receiver[0]) {
+                snprintf(receiver, sizeof(receiver), "%s", binding->go_import_alias);
             } else {
-                char parameter[ZIR_GO_NAME_MAX];
-                camel_ident(binding->pnames[0], parameter, sizeof(parameter));
-                fprintf(out, "\treturn %s.%s\n}\n\n", parameter, binding->go);
+                camel_ident(binding->pnames[0], receiver, sizeof(receiver));
+            }
+            if(setter) {
+                char value[ZIR_GO_NAME_MAX];
+                camel_ident(binding->pnames[binding->pcount - 1], value, sizeof(value));
+                fprintf(out, "\t%s.%s = %s\n}\n\n", receiver, binding->go, value);
+            } else {
+                fprintf(out, "\treturn %s.%s\n}\n\n", receiver, binding->go);
             }
             continue;
         }
@@ -1691,12 +1698,12 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
             for(int i = 0; i < g_extern_count && import_count < 64; i++) {
                 int duplicate = 0;
                 if(!g_externs[i].direct_go ||
-                   (g_externs[i].go_field && g_externs[i].pcount != 0) ||
+                   (g_externs[i].go_field && g_externs[i].go_receiver[0]) ||
                    !strcmp(g_externs[i].go_import_path, "builtin"))
                     continue;
                 for(int j = 0; j < i; j++) {
                     if(g_externs[j].direct_go &&
-                       (!g_externs[j].go_field || g_externs[j].pcount == 0) &&
+                       (!g_externs[j].go_field || !g_externs[j].go_receiver[0]) &&
                        strcmp(g_externs[j].go_import_path,
                               g_externs[i].go_import_path) == 0) {
                         duplicate = 1;

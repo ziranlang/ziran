@@ -192,6 +192,20 @@ NoRows :: () -> Error #go_field #foreign sql "ErrNoRows";
 ```
 
 Getters cannot return owned vectors or records/slices containing them.
+A field accessor with a void return is a setter. It takes a pointer receiver
+and one value, or just one value when assigning a package variable:
+
+```jai
+time :: #system_library "go:time";
+Duration :: #type #foreign time "Duration";
+Client :: #type #foreign http "Client";
+SetTimeout :: (client: *Client, value: Duration) #go_field #foreign http "(*Client).Timeout";
+SetDefault :: (client: *Client) #go_field #foreign http "DefaultClient";
+```
+
+Setters cannot take owned storage or a value receiver. The Go compiler checks
+the field's type and whether the package value can be assigned. Accessors
+cannot use variadic parameters, `#go_results`, or `#go_defer`.
 Methods of predeclared Go interfaces use their native receiver spelling,
 for example `#foreign builtin "error.Error"` with an `Error` parameter.
 
@@ -320,6 +334,62 @@ Response :: struct {
     expiresAt: s64 #go_tag "json:\"expires_at,omitempty\""
 }
 ```
+
+### Python modules
+
+The Python target imports Python modules the way the Go target imports Go
+packages. Name the module with a `py:` library path; the symbol is an
+attribute of that module, dotted for a nested one such as a class method:
+
+```jai
+json :: #system_library "py:json";
+builtins :: #system_library "py:builtins";
+#import "py_types"
+Loads :: (text: string) -> Object #foreign json "loads";
+FromHex :: (text: string) -> []u8 #foreign builtins "bytes.fromhex";
+```
+
+A symbol written `(Type).name` calls the method on the first argument; the
+type names the receiver's class for readers:
+
+```jai
+Upper :: (text: string) -> string #foreign builtins "(str).upper";
+```
+
+Values convert at the boundary by their declared types: `string` becomes
+`str` (UTF-8, with invalid bytes round-tripped), `[]u8` becomes `bytes`,
+integers and floats stay numbers, and results convert back, integers wrapping
+to their declared width. `py_types` declares `Object`, any Python value, with
+`null` for `None`; a module may declare narrower foreign types such as
+`Response :: #type #foreign request "HTTPResponse";`. A procedure argument
+becomes a callable whose arguments and result convert the same way, so Python
+can call back into Ziran (`map`, `sorted` keys, handlers).
+
+`#py_field` reads an attribute with a result and sets it with one value and
+no result. `(Type).name` takes the object first; a plain name is a module
+attribute:
+
+```jai
+sys :: #system_library "py:sys";
+Major :: () -> s32 #py_field #foreign sys "version_info.major";
+SetName :: (item: Object, value: string) #py_field #foreign types "(SimpleNamespace).name";
+```
+
+A Python exception otherwise stops the program with its traceback. With
+`#py_results`, the declared result record catches it: its last field `error`
+receives the exception as `"Type: message"` text, or as the exception object
+when declared with a foreign Python type, and an optional first field receives
+the result on success:
+
+```jai
+Loaded :: struct { value: Object; error: string }
+TryLoads :: (text: string) -> Loaded #py_results #foreign json "loads";
+```
+
+Python imports stay Python imports in saved `.zir`. Modules that use them
+build only for the Python target; the C, C++, Go, and Rust targets reject
+them. A module meant for every target gives each target its own
+implementation behind one Ziran interface.
 
 ### Host capabilities and visibility
 

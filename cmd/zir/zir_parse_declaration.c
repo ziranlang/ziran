@@ -892,6 +892,38 @@ go_method_symbol(const char *source, char *receiver, size_t receiver_size,
     return is_c_ident(receiver + (receiver[0] == '*')) && is_c_ident(method);
 }
 
+/* A dotted Python attribute path such as bytes.fromhex. */
+static int
+py_attribute_path(const char *source)
+{
+    char part[ZIR_NAME_MAX];
+    size_t used = 0;
+    for(const char *p = source;; p++) {
+        if(*p == '.' || *p == '\0') {
+            part[used] = '\0';
+            if(!is_c_ident(part))
+                return 0;
+            if(*p == '\0')
+                return 1;
+            used = 0;
+        } else if(used + 1 < sizeof(part))
+            part[used++] = *p;
+        else
+            return 0;
+    }
+}
+
+/* A Python method is always written (Type).method; the call goes to the
+ * first argument, so Type names the receiver's class for readers. */
+static int
+py_method_symbol(const char *source, char *receiver, size_t receiver_size,
+                 char *method, size_t method_size)
+{
+    return source[0] == '(' &&
+        go_method_symbol(source, receiver, receiver_size, method, method_size) &&
+        receiver[0] != '*';
+}
+
 int parse_foreign_line(ZirModule *module, const char *path, int line_no,
                    const char *line, int scope_public,
                    char names[][ZIR_NAME_MAX],
@@ -930,13 +962,25 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         field_attribute && field_attribute < dir;
     if(go_field && (foreign_type || go_results ||
                    strstr(field_attribute + strlen("#go_field"), "#go_field")))
-        die_at(Span(path, line_no, 1), "#go_field requires one foreign field getter without #go_results");
+        die_at(Span(path, line_no, 1), "#go_field requires one foreign field accessor without #go_results");
     const char *defer_attribute = strstr(declaration, "#go_defer");
     int go_defer = contains_source_directive(declaration, "#go_defer") &&
         defer_attribute && defer_attribute < dir;
     if(go_defer && (foreign_type || go_results || go_field ||
                    strstr(defer_attribute + strlen("#go_defer"), "#go_defer")))
         die_at(Span(path, line_no, 1), "#go_defer requires one foreign procedure without result or field attributes");
+    const char *py_results_attribute = strstr(declaration, "#py_results");
+    int py_results = contains_source_directive(declaration, "#py_results") &&
+        py_results_attribute && py_results_attribute < dir;
+    const char *py_field_attribute = strstr(declaration, "#py_field");
+    int py_field = contains_source_directive(declaration, "#py_field") &&
+        py_field_attribute && py_field_attribute < dir;
+    if((py_results || py_field) &&
+       (foreign_type || go_results || go_field || go_defer || (py_results && py_field) ||
+        (py_results && strstr(py_results_attribute + strlen("#py_results"), "#py_results")) ||
+        (py_field && strstr(py_field_attribute + strlen("#py_field"), "#py_field"))))
+        die_at(Span(path, line_no, 1),
+               "#py_results and #py_field each apply once to a foreign procedure, not together");
     if(foreign_type && skip_ws(declaration + strlen("#type")) != dir)
         die_at(Span(path, line_no, 1),
                "foreign type requires Name :: #type #foreign library;");
@@ -982,10 +1026,15 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         die_at(Span(path, line_no, 1),
                "#foreign library is not declared: %s", library);
     char receiver[ZIR_NAME_MAX] = "", method[ZIR_NAME_MAX] = "";
-    int method_binding = !foreign_type && !strncmp(library_target, "go:", 3) &&
-        go_method_symbol(foreign_name, receiver, sizeof(receiver), method, sizeof(method));
-    if(!is_c_ident(foreign_name) && !method_binding)
+    int python = !strncmp(library_target, "py:", 3);
+    int method_binding = !foreign_type &&
+        ((!strncmp(library_target, "go:", 3) &&
+          go_method_symbol(foreign_name, receiver, sizeof(receiver), method, sizeof(method))) ||
+         (python &&
+          py_method_symbol(foreign_name, receiver, sizeof(receiver), method, sizeof(method))));
+    if(!is_c_ident(foreign_name) && !method_binding && !(python && py_attribute_path(foreign_name)))
         die_at(Span(path, line_no, 1),
+               python ? "#foreign Python symbol must be a name, a dotted attribute path, or a method (Type).name" :
                "#foreign alternate symbol must be an identifier or a Go method expression");
     buffers->target[0] = '\0';
     symbol[0] = '\0';
@@ -994,8 +1043,13 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
             die_at(Span(path, line_no, 1),
                    "host capability cannot rename a #foreign symbol");
     } else if(method_binding) {
-        if(snprintf(buffers->target, sizeof(buffers->target), "%s.(%s).%s", library_target,
+        if(snprintf(buffers->target, sizeof(buffers->target),
+                    python ? "%s/(%s).%s" : "%s.(%s).%s", library_target,
                     receiver, method) >= (int)sizeof(buffers->target))
+            die_at(Span(path, line_no, 1), "#foreign target is too long");
+    } else if(python) {
+        if(snprintf(buffers->target, sizeof(buffers->target), "%s/%s", library_target,
+                    foreign_name) >= (int)sizeof(buffers->target))
             die_at(Span(path, line_no, 1), "#foreign target is too long");
     } else if(strncmp(library_target, "go:", 3) == 0 ||
               strchr(library_target, '/') != NULL) {
@@ -1015,10 +1069,13 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         die_at(Span(path, line_no, 1), "#go_field requires an explicit Go foreign target");
     if(go_defer && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
         die_at(Span(path, line_no, 1), "#go_defer requires an explicit Go foreign target");
+    if((py_results || py_field) && extern_kind != ZIR_EXTERN_PY)
+        die_at(Span(path, line_no, 1), "%s requires a py: foreign target",
+               py_results ? "#py_results" : "#py_field");
     if(foreign_type) {
-        if(!GoForeignTargetValid(buffers->target))
+        if(!GoForeignTargetValid(buffers->target) && !PyForeignTargetValid(buffers->target))
             die_at(Span(path, line_no, 1),
-                   "foreign types require an explicit go: #system_library");
+                   "foreign types require an explicit go: or py: #system_library");
         ZirType *type = ModuleAddType(module, name, Span(path, line_no, 1));
         if(type == NULL)
             die("out of memory declaring foreign type");
@@ -1042,6 +1099,8 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         imp->go_results = go_results;
         imp->go_field = go_field;
         imp->go_defer = go_defer;
+        imp->py_results = py_results;
+        imp->py_field = py_field;
         snprintf(imp->extern_symbol, sizeof(imp->extern_symbol), "%s",
                  symbol);
         /* A trailing `..any` parameter marks a variadic C ABI: calls may

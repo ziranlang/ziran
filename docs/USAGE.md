@@ -404,6 +404,9 @@ Unix time, `std/random_linux.zi` for operating-system secure randomness, and
 opens literal-IPv4 TCP sockets with bounded polling, cancellation, and I/O.
 `std/timer_linux.zi` supplies monotonic millisecond timestamps and bounded,
 interruptible sleeps; it does not expose wall-clock time.
+`std/thread_linux.zi` runs a procedure on a background thread that the
+starting thread can poll for completion without waiting, which suits a frame
+loop with a request in flight; it builds on pthreads, including Android's.
 The file module can create a private file exclusively, sync its contents, and
 publish it through a hard link that fails if the destination already exists.
 `std/byte_text_linux.zi` also borrows caller-owned C strings and byte buffers;

@@ -1,0 +1,41 @@
+#import "thread_linux"
+#import "timer_linux"
+
+first: Thread;
+second: Thread;
+sums: [2]s64;
+
+Sum :: (argument: *void) {
+    slot := cast(*s64)argument
+    total: s64 = 0
+    index: s64 = 1
+    while index <= 100000 {
+        total += index
+        index += 1
+    }
+    slot.* = total
+}
+
+// Two threads run at once; each result is visible once its thread reports
+// finished, and a finished record starts again.
+#program_export
+SelfTest :: () -> s32 {
+    procedure: ThreadProcedure = Sum
+    if !ThreadStart(*first, procedure, cast(*void)*sums[0]) { return 1 }
+    if ThreadStart(*first, procedure, cast(*void)*sums[0]) { return 2 }
+    if !ThreadStart(*second, procedure, cast(*void)*sums[1]) { return 3 }
+    waited: s64 = 0
+    while !ThreadFinished(*first) {
+        if !SleepMilliseconds(1) || waited > 10000 { return 4 }
+        waited += 1
+    }
+    if ThreadRunning(*first) || ThreadFinished(*first) { return 5 }
+    if sums[0] != 5000050000 { return 6 }
+    ThreadWait(*second)
+    if ThreadRunning(*second) || sums[1] != 5000050000 { return 7 }
+    sums[0] = 0
+    if !ThreadStart(*first, procedure, cast(*void)*sums[0]) { return 8 }
+    ThreadWait(*first)
+    if sums[0] != 5000050000 { return 9 }
+    return 42
+}

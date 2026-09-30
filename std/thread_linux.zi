@@ -1,0 +1,96 @@
+// Background work for native Linux and Android programs. A thread runs one
+// procedure while the thread that started it keeps going, and that thread
+// can ask whether the work has finished without waiting, so a frame loop
+// keeps drawing while a request is in flight.
+//
+// A Thread record must stay at one address from ThreadStart until
+// ThreadFinished or ThreadWait reports the end. Once it has, everything the
+// procedure wrote is visible to the thread that asked, and the record can
+// start another procedure.
+libc :: #system_library "libc";
+
+ThreadProcedure :: #type (argument: *void) #c_call;
+
+PosixThreadEntry :: #type (argument: *void) -> *void #c_call;
+PosixThreadCreate :: (thread: *usize, attributes: *void,
+    entry: PosixThreadEntry, argument: *void) -> s32 #foreign libc "pthread_create";
+PosixThreadJoin :: (thread: usize, result: **void) -> s32 #foreign libc "pthread_join";
+PosixMutexInit :: (mutex: *void, attributes: *void) -> s32 #foreign libc "pthread_mutex_init";
+PosixMutexDestroy :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_destroy";
+PosixMutexLock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_lock";
+PosixMutexUnlock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_unlock";
+
+Thread :: struct {
+    handle: usize
+    // Storage for a pthread_mutex_t, which is at most 40 bytes on the
+    // supported C libraries; u64 keeps it aligned.
+    lock: [8]u64
+    procedure: ThreadProcedure
+    argument: *void
+    running: bool
+    finished: bool
+}
+
+ThreadLock :: (thread: *Thread) -> *void {
+    return cast(*void)*thread.lock[0]
+}
+
+ThreadRun :: (argument: *void) -> *void {
+    thread := cast(*Thread)argument
+    thread.procedure(thread.argument)
+    unused PosixMutexLock(ThreadLock(thread))
+    thread.finished = true
+    unused PosixMutexUnlock(ThreadLock(thread))
+    return null
+}
+
+// Starts `procedure(argument)` on a new thread. Returns false when the
+// record is still running something or no thread could be started.
+#program_export
+ThreadStart :: (thread: *Thread, procedure: ThreadProcedure,
+    argument: *void) -> bool {
+    if thread == null || thread.running { return false }
+    if PosixMutexInit(ThreadLock(thread), null) != 0 { return false }
+    thread.procedure = procedure
+    thread.argument = argument
+    thread.finished = false
+    thread.running = true
+    entry: PosixThreadEntry = ThreadRun
+    if PosixThreadCreate(*thread.handle, null, entry, cast(*void)thread) != 0 {
+        thread.running = false
+        unused PosixMutexDestroy(ThreadLock(thread))
+        return false
+    }
+    return true
+}
+
+// Whether the record is running a procedure that has not been reported
+// finished yet.
+#program_export
+ThreadRunning :: (thread: *Thread) -> bool {
+    return thread != null && thread.running
+}
+
+// Whether the procedure started on `thread` has finished. Never waits; the
+// first time it reports true the thread is joined and the record is free.
+#program_export
+ThreadFinished :: (thread: *Thread) -> bool {
+    if thread == null || !thread.running { return false }
+    unused PosixMutexLock(ThreadLock(thread))
+    finished := thread.finished
+    unused PosixMutexUnlock(ThreadLock(thread))
+    if !finished { return false }
+    unused PosixThreadJoin(thread.handle, null)
+    unused PosixMutexDestroy(ThreadLock(thread))
+    thread.running = false
+    return true
+}
+
+// Waits until the procedure started on `thread` has finished.
+#program_export
+ThreadWait :: (thread: *Thread) {
+    if thread == null || !thread.running { return }
+    unused PosixThreadJoin(thread.handle, null)
+    unused PosixMutexDestroy(ThreadLock(thread))
+    thread.running = false
+}

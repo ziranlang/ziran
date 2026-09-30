@@ -1251,10 +1251,16 @@ split_oneline_block(const char *t, char *head, size_t hsz,
     }
     if(close_pos == 0)
         return 0;
+    /* A block ends at its closing brace: an else continues the if, and any
+     * other statement after it is the next logical line. */
     const char *after = skip_ws(t + close_pos + 1);
+    if(*after == ';')
+        after = skip_ws(after + 1);
     if(*after &&
-       ((strcmp(w0, "if") != 0 && strcmp(w0, "else") != 0) ||
-        !starts_word(after, "else")))
+       (strcmp(w0, "do") == 0 || strcmp(w0, "case") == 0 ||
+        strcmp(w0, "guard") == 0 ||
+        (starts_word(after, "else") &&
+         strcmp(w0, "if") != 0 && strcmp(w0, "else") != 0)))
         return 0;
     size_t hlen = brace_pos + 1;
     size_t blen = close_pos - brace_pos - 1;

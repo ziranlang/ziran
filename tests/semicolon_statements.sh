@@ -9,11 +9,21 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/semicolon_statements.zi" <<'ZI'
 Pair :: struct { left: s32; right: s32; }; First :: 20; Second :: 22
 Inline :: () -> s32 { left: s32 = 20; right: s32 = 22; return left + right; }
+// A statement after a one-line block's closing brace is the next statement.
+Blocks :: () -> s32 {
+    x: s32 = 0; i: s32 = 0
+    while i < 4 { if i == 1 { x += 100; } else if i == 2 { x += 10; } else { x += 1; } i += 1; }
+    if x == 112 { x = 0; } else { x = 1; } x += 5
+    for 0..2 { if it == 1 { x += 7 } x += 3 }
+    defer { x += 0 } x += 1
+    return x
+}
 #program_export
 Answer :: () -> s32 {
     a: s32 = #ifx true then First; else 0; b: s32 = Second
     if a == 20 { b += 0; }; pair: Pair = Pair.{left = a, right = b}
     if Inline() != 42 { return 0 }
+    if Blocks() != 22 { return 0 }
     return pair.left + pair.right
 }
 ZI

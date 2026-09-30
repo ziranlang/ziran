@@ -975,6 +975,17 @@ integer_bits(const char *type, int *is_signed, int as_target)
     return 0;
 }
 
+const char *
+mismatch_detail(char *out, size_t size, const char *subject,
+                const char *expected, const char *found)
+{
+    const char *shown = !strcmp(found, "integer") ? "an integer literal" :
+                        !strcmp(found, "real") ? "a float literal" :
+                        !strcmp(found, "null") ? "null" : found;
+    snprintf(out, size, "%s (expected %s, found %s)", subject, expected, shown);
+    return out;
+}
+
 int
 widens_losslessly(const char *to, const char *from)
 {

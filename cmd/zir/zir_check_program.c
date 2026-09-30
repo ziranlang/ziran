@@ -356,9 +356,14 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                             error(&buffers->initializer, global->span,
                                   "cannot infer initializer type", global->name);
                         else if(!compatible_checked(&buffers->initializer,
-                                                    global->type, actual))
+                                                    global->type, actual)) {
+                            char detail[ZIR_TEXT_MAX];
                             error(&buffers->initializer, global->span,
-                                  "initializer type mismatch", global->name);
+                                  "initializer type mismatch",
+                                  mismatch_detail(detail, sizeof(detail),
+                                                  global->name, global->type,
+                                                  actual));
+                        }
                     }
                     int typed_valid = buffers->initializer.errors == 0 &&
                                       !buffers->initializer.failed;

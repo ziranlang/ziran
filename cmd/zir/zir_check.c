@@ -689,8 +689,11 @@ bind_call_arguments(Checker *c, ZirExpr *call,
             for(int i = 0; i < expected; i++)
                 if(!used[i]) { index = i; break; }
             if(index < 0) {
+                char detail[ZIR_TEXT_MAX];
+                snprintf(detail, sizeof(detail), "%s (takes %d argument%s)",
+                         display_name, expected, expected == 1 ? "" : "s");
                 signature_error(c, argument->span,
-                                "argument count mismatch", display_name);
+                                "argument count mismatch", detail);
                 return 0;
             }
         }
@@ -716,7 +719,10 @@ bind_call_arguments(Checker *c, ZirExpr *call,
             free(defaults);
         }
         if(!complete) {
-            signature_error(c, call->span, "argument count mismatch", display_name);
+            char detail[ZIR_TEXT_MAX];
+            snprintf(detail, sizeof(detail), "%s (a required argument is missing)",
+                     display_name);
+            signature_error(c, call->span, "argument count mismatch", detail);
             return 0;
         }
     }

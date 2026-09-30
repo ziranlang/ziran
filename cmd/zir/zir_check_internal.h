@@ -178,6 +178,9 @@ int bound_compound_constant(const ZirModule *module, const char *name, int depth
 int array_capacity(const ZirModule *module, const char *type, int *capacity);
 void normalize_array(const ZirModule *module, char *type, size_t size);
 int compatible(const char *to, const char *from);
+/* "SUBJECT (expected EXPECTED, found FOUND)" for a type mismatch. */
+const char *mismatch_detail(char *out, size_t size, const char *subject,
+                            const char *expected, const char *found);
 /* True when every `from` value is exactly representable as `to`: a wider
  * integer of the same signedness, an unsigned value in a wider signed type,
  * or float32 in float64. Such values convert implicitly. */

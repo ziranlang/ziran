@@ -11,6 +11,71 @@ typedef struct ExpressionTypeBuffers {
 
 const char *expression_type(Checker *c, int index);
 
+/* Edit distance between two names, or LIMIT + 1 once it exceeds LIMIT. */
+static int
+name_distance(const char *a, const char *b, int limit)
+{
+    int la = (int)strlen(a), lb = (int)strlen(b);
+    if(la - lb > limit || lb - la > limit || la >= ZIR_NAME_MAX || lb >= ZIR_NAME_MAX)
+        return limit + 1;
+    int previous[ZIR_NAME_MAX], current[ZIR_NAME_MAX];
+    for(int j = 0; j <= lb; j++) previous[j] = j;
+    for(int i = 1; i <= la; i++) {
+        int best = current[0] = i;
+        for(int j = 1; j <= lb; j++) {
+            int substitute = previous[j - 1] + (a[i - 1] != b[j - 1]);
+            int remove = previous[j] + 1, insert = current[j - 1] + 1;
+            current[j] = substitute < remove ? substitute : remove;
+            if(insert < current[j]) current[j] = insert;
+            if(current[j] < best) best = current[j];
+        }
+        if(best > limit) return limit + 1;
+        memcpy(previous, current, (size_t)(lb + 1) * sizeof(int));
+    }
+    return previous[lb];
+}
+
+static void
+consider_name(const char *name, const char *candidate, int *best,
+              const char **choice)
+{
+    if(!candidate[0] || !strcmp(name, candidate)) return;
+    int distance = name_distance(name, candidate, *best);
+    if(distance < *best) {
+        *best = distance;
+        *choice = candidate;
+    }
+}
+
+/* "NAME (did you mean CLOSE?)" when a visible name is a likely typo. */
+static const char *
+unresolved_detail(Checker *c, const char *name, int procedures,
+                  char *out, size_t size)
+{
+    int length = (int)strlen(name);
+    int best = length <= 3 ? 1 : length <= 8 ? 2 : 3;
+    const char *choice = NULL;
+    best++;
+    if(!procedures)
+        for(int i = 0; i < c->count; i++)
+            consider_name(name, c->bindings[i].name, &best, &choice);
+    const ZirModule *module = c->module;
+    for(int i = 0; !procedures && i < module->global_count; i++)
+        consider_name(name, module->globals[i].name, &best, &choice);
+    for(int i = 0; !procedures && i < module->define_count; i++)
+        consider_name(name, module->defines[i].name, &best, &choice);
+    for(int i = 0; i < module->function_count; i++)
+        if(!module->functions[i].is_specialization &&
+           !module->functions[i].is_global_initializer)
+            consider_name(name, module->functions[i].name, &best, &choice);
+    for(int i = 0; procedures && i < module->type_count; i++)
+        consider_name(name, module->types[i].name, &best, &choice);
+    if(choice == NULL)
+        return name;
+    snprintf(out, size, "%s (did you mean %s?)", name, choice);
+    return out;
+}
+
 static const char *
 expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffers)
 {
@@ -557,7 +622,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             } else if(status < 0) {
                 error(c, e->span, "invalid or ambiguous constant", e->name);
             } else {
-                error(c, e->span, "unresolved name", e->name);
+                char detail[ZIR_TEXT_MAX];
+                error(c, e->span, "unresolved name",
+                      unresolved_detail(c, e->name, 0, detail, sizeof(detail)));
             }
         }
         break;
@@ -592,12 +659,13 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     copy_text(c->fn->exprs[child].type, ZIR_NAME_MAX, "s64");
                 else if(!strcmp(arg_type, "real"))
                     copy_text(c->fn->exprs[child].type, ZIR_NAME_MAX, "float64");
-                else if(scalar == NULL ||
+                else if(*arg_type &&
+                        (scalar == NULL ||
                         (!integer_type(arg_type) &&
                          strcmp(scalar, "bool") &&
                          strcmp(scalar, "float32") &&
                          strcmp(scalar, "float64") &&
-                         strcmp(scalar, "string")))
+                         strcmp(scalar, "string"))))
                     error(c, c->fn->exprs[child].span,
                           "print argument must be an integer, float, bool, or string",
                           arg_type);
@@ -1119,9 +1187,15 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     e = &c->fn->exprs[index];
                     if(converted != NULL)
                         arg_type = converted;
-                    else
+                    else {
+                        char detail[ZIR_TEXT_MAX];
                         signature_error(c, c->fn->exprs[child].span,
-                                        "argument type mismatch", display_name);
+                                        "argument type mismatch",
+                                        mismatch_detail(detail, sizeof(detail),
+                                                        display_name,
+                                                        skip_ws(colon + 1),
+                                                        arg_type));
+                    }
                 }
                 if(colon && (!strcmp(arg_type, "integer") || !strcmp(arg_type, "real"))) {
                     const char *context = ScalarType(skip_ws(colon + 1));
@@ -1153,10 +1227,17 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     copy_text(e->type, sizeof(e->type), saved_checked_type);
                 type = e->type;
             }
-            if(actual < fixed && !c->inference_only)
-                signature_error(c, e->span, "argument count mismatch", display_name);
-        } else
-            error(c, e->span, "unresolved function", e->name);
+            if(actual < fixed && !c->inference_only) {
+                char detail[ZIR_TEXT_MAX];
+                snprintf(detail, sizeof(detail), "%s (takes %d, given %d)",
+                         display_name, fixed, actual);
+                signature_error(c, e->span, "argument count mismatch", detail);
+            }
+        } else {
+            char detail[ZIR_TEXT_MAX];
+            error(c, e->span, "unresolved function",
+                  unresolved_detail(c, e->name, 1, detail, sizeof(detail)));
+        }
         free(parts);
         break;
     }

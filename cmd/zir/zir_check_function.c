@@ -278,8 +278,12 @@ restart:
                                                        st->type, st->span);
                 if(converted != NULL)
                     type = converted;
-                else
-                    error(c, st->span, "initializer type mismatch", st->name);
+                else {
+                    char detail[ZIR_TEXT_MAX];
+                    error(c, st->span, "initializer type mismatch",
+                          mismatch_detail(detail, sizeof(detail), st->name,
+                                          st->type, type));
+                }
             }
             if(!strcmp(st->type, "null"))
                 error(c, st->span, "null requires an explicit pointer type", st->name);
@@ -404,8 +408,12 @@ restart:
                                                        st->span);
                 if(converted != NULL)
                     type = converted;
-                else
-                    error(c, st->span, "assignment type mismatch", st->text);
+                else {
+                    char detail[ZIR_TEXT_MAX];
+                    error(c, st->span, "assignment type mismatch",
+                          mismatch_detail(detail, sizeof(detail), st->text,
+                                          lhs, type));
+                }
             }
         } else if(st->kind == ZIR_STMT_RETURN) {
             if(contains_vec(c->module, c->fn->return_type, 0) &&
@@ -422,8 +430,12 @@ restart:
                                                        st->span);
                 if(converted != NULL)
                     type = converted;
-                else
-                    error(c, st->span, "return type mismatch", c->fn->name);
+                else {
+                    char detail[ZIR_TEXT_MAX];
+                    error(c, st->span, "return type mismatch",
+                          mismatch_detail(detail, sizeof(detail), c->fn->name,
+                                          c->fn->return_type, type));
+                }
             }
             if((st->expr_root < 0) != !strcmp(c->fn->return_type, "void"))
                 error(c, st->span, "return value does not match function signature", c->fn->name);

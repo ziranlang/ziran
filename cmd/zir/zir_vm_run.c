@@ -701,6 +701,8 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     int count = parse_parameters(module, function, buffers->parameters);
     Value result = int_value(0);
     uint64_t allocation_entry = vm->allocation;
+    if(!vm->failed && vm->depth >= VM_MAX_DEPTH)
+        vm->depth_exceeded = 1;
     if(vm->failed || vm->depth >= VM_MAX_DEPTH || count != arg_count) {
         vm->failed = 1;
         return result;
@@ -1120,6 +1122,10 @@ VmInstanceRun(VmInstance *instance, long long *result, int *has_result)
             Diagnostic(instance->entry->span, "zib.runtime",
                        "portable execution failed: stopped after %d statements",
                        vm->max_steps);
+        else if(vm->depth_exceeded)
+            Diagnostic(instance->entry->span, "zib.runtime",
+                       "portable execution failed: calls nested deeper than %d",
+                       VM_MAX_DEPTH);
         else
             Diagnostic(instance->entry->span, "zib.runtime",
                        "portable execution failed");

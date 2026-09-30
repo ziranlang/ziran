@@ -1,11 +1,17 @@
 #include "zir_vm_internal.h"
 
+/* Set when the last parse_parameters or verify_sequence failed on one of
+ * the VM's fixed limits, so the diagnostic can name the limit. */
+static _Thread_local int parameters_exceeded;
+static _Thread_local int locals_exceeded;
+
 int
 parse_parameters(const ZirModule *module, const ZirFunction *function,
                  Parameter *parameters)
 {
     const char *cursor = function->args;
     int count = 0;
+    parameters_exceeded = 0;
     while(*cursor != 0) {
         const char *start;
         size_t length;
@@ -13,8 +19,10 @@ parse_parameters(const ZirModule *module, const ZirFunction *function,
             cursor++;
         if(*cursor == 0)
             break;
-        if(count >= VM_MAX_PARAMS)
+        if(count >= VM_MAX_PARAMS) {
+            parameters_exceeded = 1;
             return -1;
+        }
         start = cursor;
         while((*cursor >= 'a' && *cursor <= 'z') ||
               (*cursor >= 'A' && *cursor <= 'Z') ||
@@ -925,9 +933,13 @@ verify_sequence(const ZirModule *module, const ZirFunction *function,
         int close;
         switch(statement->kind) {
         case ZIR_STMT_DECL:
+            if(binding_count >= VM_MAX_LOCALS) {
+                locals_exceeded = 1;
+                return 0;
+            }
             if(!portable_type(module, statement->type) ||
                strcmp(statement->type, "void") == 0 ||
-               statement->name[0] == 0 || binding_count >= VM_MAX_LOCALS ||
+               statement->name[0] == 0 ||
                (statement->expr_root >= 0 &&
                 !verify_expression(module, function, bindings, binding_count,
                                    statement->expr_root, 0)))
@@ -1250,6 +1262,12 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
         for(int f = 0; f < module->function_count; f++) {
             const ZirFunction *function = &module->functions[f];
             int binding_count = parse_parameters(module, function, buffers->bindings);
+            if(binding_count < 0 && parameters_exceeded) {
+                Diagnostic(function->span, "zib.function",
+                           "portable functions take at most %d parameters: %s",
+                           VM_MAX_PARAMS, function->name);
+                return 0;
+            }
             if(!function->checked || function->is_extern ||
                !portable_type(module, function->return_type) ||
                binding_count < 0) {
@@ -1258,11 +1276,17 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                               function->name);
                 return 0;
             }
+            locals_exceeded = 0;
             if(!verify_sequence(module, function, 0, function->stmt_count,
                                 buffers->bindings, binding_count, 0, 0)) {
-                Diagnostic(function->span, "zib.statement",
-                           "statement is outside the portable subset in %s",
-                           function->name);
+                if(locals_exceeded)
+                    Diagnostic(function->span, "zib.statement",
+                               "portable functions hold at most %d parameters and locals at once: %s",
+                               VM_MAX_LOCALS, function->name);
+                else
+                    Diagnostic(function->span, "zib.statement",
+                               "statement is outside the portable subset in %s",
+                               function->name);
                 return 0;
             }
             if(strcmp(function->return_type, "void") != 0 &&

@@ -139,6 +139,8 @@ typedef struct Vm {
     int steps;
     int max_steps;
     int failed;
+    /* Set when a call would nest deeper than VM_MAX_DEPTH. */
+    int depth_exceeded;
     size_t record_bytes;
     size_t array_bytes;
     size_t allocated_since_collection;

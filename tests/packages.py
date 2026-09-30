@@ -737,6 +737,14 @@ level = "3"
         # `ziran build` a code generator.
         checked = call(ziran, "check", "--project", "src/app.zi", cwd=tooled, env=env)
         assert "project=Tooled" not in checked, checked
+        # --root and --module-path keep a command standalone inside a
+        # project, as a package's own build of a helper program needs.
+        write(tooled / "helper/helper.zi", '#import "helper_util"\nmain :: () -> s32 { return Util() }\n')
+        write(tooled / "helper/helper_util.zi", "Util :: () -> s32 { return 0 }\n")
+        call(ziran, "build", "--target=c", "--root", "helper", "-o",
+             str(root / "helper-c"), "helper/helper.zi", cwd=tooled, env=env)
+        call(ziran, "check", "--root", "helper", "--module-path", str(compiler / "std"),
+             "helper/helper.zi", cwd=tooled, env=env)
         generated = call(ziran, "build", "--target=c", "--entry", "app:Main",
                          "-o", str(root / "tooled-c"), cwd=tooled, env=env)
         assert "project=Tooled" not in generated, generated

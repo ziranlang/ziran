@@ -487,13 +487,17 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "add" { return Add(launcher, arguments[1:]) }
     root: string = ""
     // `ziran run`, `build`, and `check` without a file, inside a project,
-    // work on the project's own program.
+    // work on the project's own program; with a file they resolve its
+    // imports through the project. An explicit --root or --module-path
+    // asks for a standalone command.
     lifecycle: bool = (command == "run" || command == "build" ||
         command == "check" || command == "install") &&
         !PkgHasSource(arguments[1:])
     implied: bool = false
     if (command == "run" || command == "build" || command == "check") &&
-        !PkgHasArgument(arguments, "--project") {
+        !PkgHasArgument(arguments, "--project") &&
+        !PkgHasArgument(arguments, "--root") &&
+        !PkgHasArgument(arguments, "--module-path") {
         root = PkgProjectRoot()
         implied = root.count > 0
     }

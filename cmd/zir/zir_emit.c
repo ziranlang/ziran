@@ -320,65 +320,138 @@ target_top_name(const ZirModule *module, ZirTarget target, const char *name,
     }
 }
 
+/* Native names of every global and constant, bucketed by hash, so each
+ * procedure name is matched once instead of against every value. */
+typedef struct NativeValueName {
+    char *name;
+    int *collision;
+    int next;
+} NativeValueName;
+
+typedef struct NativeValueNames {
+    NativeValueName *items;
+    int count, capacity;
+    int *buckets;
+    int bucket_count;
+} NativeValueNames;
+
+static uint64_t
+native_name_hash(const char *name)
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for(const unsigned char *p = (const unsigned char *)name; *p; p++)
+        hash = (hash ^ *p) * UINT64_C(1099511628211);
+    return hash;
+}
+
 static int
-native_top_name_conflict(const ZirModule *left, const char *left_source,
-                         const ZirModule *right, const char *right_source,
-                         int left_global, int right_global)
+native_names_add(NativeValueNames *names, const char *name, int *collision)
 {
-    for(int target = ZIR_C; target <= ZIR_GO; target++) {
-        char left_name[ZIR_NAME_MAX * 2], right_name[ZIR_NAME_MAX * 2];
-        target_top_name(left, (ZirTarget)target, left_source,
-                        left_global, left_name, sizeof(left_name));
-        target_top_name(right, (ZirTarget)target, right_source,
-                        right_global, right_name, sizeof(right_name));
-        if(!strcmp(left_name, right_name)) return 1;
+    if(names->count == names->capacity) {
+        int capacity = names->capacity ? names->capacity * 2 : 256;
+        NativeValueName *items = realloc(names->items,
+                                         (size_t)capacity * sizeof(*items));
+        if(items == NULL) return 0;
+        names->items = items;
+        names->capacity = capacity;
     }
-    return 0;
+    char *copy = strdup(name);
+    if(copy == NULL) return 0;
+    size_t bucket = native_name_hash(name) % (size_t)names->bucket_count;
+    names->items[names->count] = (NativeValueName){copy, collision,
+                                                   names->buckets[bucket]};
+    names->buckets[bucket] = names->count++;
+    return 1;
+}
+
+static void
+native_names_mark(const NativeValueNames *names, const char *name)
+{
+    size_t bucket = native_name_hash(name) % (size_t)names->bucket_count;
+    for(int i = names->buckets[bucket]; i >= 0; i = names->items[i].next)
+        if(!strcmp(names->items[i].name, name))
+            *names->items[i].collision = 1;
+}
+
+static void
+native_names_free(NativeValueNames *names)
+{
+    for(int i = 0; i < names->count; i++)
+        free(names->items[i].name);
+    free(names->items);
+    free(names->buckets);
+}
+
+/* Two values of one kind or of different kinds collide when some target
+ * gives them the same native name. */
+static void
+native_names_mark_shared(const NativeValueNames *names)
+{
+    for(int bucket = 0; bucket < names->bucket_count; bucket++)
+        for(int i = names->buckets[bucket]; i >= 0; i = names->items[i].next)
+            for(int j = names->items[i].next; j >= 0; j = names->items[j].next)
+                if(names->items[i].collision != names->items[j].collision &&
+                   !strcmp(names->items[i].name, names->items[j].name))
+                    *names->items[i].collision = *names->items[j].collision = 1;
 }
 
 int
-NativeGlobalNameConflict(const ZirModule *left, const ZirGlobal *a,
-                         const ZirModule *right, const ZirGlobal *b)
+MarkNativeNameCollisions(ZirProgram **programs, int count)
 {
-    return native_top_name_conflict(left, a->name, right, b->name, 1, 1);
-}
-
-int
-NativeDefineNameConflict(const ZirModule *left, const ZirDefine *a,
-                         const ZirModule *right, const ZirDefine *b)
-{
-    return native_top_name_conflict(left, a->name, right, b->name, 0, 0);
-}
-
-int
-NativeValueNameConflict(const ZirModule *global_module, const ZirGlobal *global,
-                        const ZirModule *define_module, const ZirDefine *define)
-{
-    return native_top_name_conflict(global_module, global->name,
-                                    define_module, define->name, 1, 0);
-}
-
-int
-NativeFunctionValueNameConflict(const ZirProgram *const *programs, int count,
-                                const ZirModule *function_module,
-                                const ZirFunction *function,
-                                const ZirModule *value_module,
-                                const char *value_name, int is_global)
-{
-    char function_name[ZIR_NAME_MAX * 2];
-    char value_native[ZIR_NAME_MAX * 2];
-    NativeCFunctionName(function_module, function, function_name,
-                        sizeof(function_name));
-    for(int target = ZIR_C; target <= ZIR_CPP; target++) {
-        target_top_name(value_module, (ZirTarget)target, value_name,
-                        is_global, value_native, sizeof(value_native));
-        if(!strcmp(function_name, value_native)) return 1;
+    const ZirProgram *native_programs[count > 0 ? count : 1];
+    NativeValueNames names[3] = {{0}, {0}, {0}}; /* C, C++, Go */
+    int values = 0, ok = 1;
+    for(int p = 0; p < count; p++) {
+        native_programs[p] = programs[p];
+        for(int m = 0; m < programs[p]->module_count; m++)
+            values += programs[p]->modules[m].global_count +
+                      programs[p]->modules[m].define_count;
     }
-    NativeGoFunctionName(programs, count, function_module, function,
-                         function_name, sizeof(function_name));
-    target_top_name(value_module, ZIR_GO, value_name, is_global,
-                    value_native, sizeof(value_native));
-    return !strcmp(function_name, value_native);
+    for(int t = 0; t < 3; t++) {
+        names[t].bucket_count = values * 2 + 1;
+        names[t].buckets = malloc((size_t)names[t].bucket_count * sizeof(int));
+        if(names[t].buckets == NULL) ok = 0;
+        else memset(names[t].buckets, 0xff,
+                    (size_t)names[t].bucket_count * sizeof(int));
+    }
+    for(int p = 0; ok && p < count; p++)
+        for(int m = 0; ok && m < programs[p]->module_count; m++) {
+            ZirModule *module = &programs[p]->modules[m];
+            for(int v = 0; ok && v < module->global_count + module->define_count; v++) {
+                int is_global = v < module->global_count;
+                const char *name = is_global ? module->globals[v].name :
+                    module->defines[v - module->global_count].name;
+                int *collision = is_global ?
+                    &module->globals[v].native_name_collision :
+                    &module->defines[v - module->global_count].native_name_collision;
+                for(int t = 0; ok && t < 3; t++) {
+                    char native[ZIR_NAME_MAX * 2];
+                    target_top_name(module, t == 0 ? ZIR_C : t == 1 ? ZIR_CPP : ZIR_GO,
+                                    name, is_global, native, sizeof(native));
+                    ok = native_names_add(&names[t], native, collision);
+                }
+            }
+        }
+    for(int t = 0; ok && t < 3; t++)
+        native_names_mark_shared(&names[t]);
+    for(int p = 0; ok && p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++) {
+            const ZirModule *module = &programs[p]->modules[m];
+            for(int f = 0; f < module->function_count; f++) {
+                const ZirFunction *function = &module->functions[f];
+                char native[ZIR_NAME_MAX * 2];
+                if(function->is_extern || function->is_template) continue;
+                NativeCFunctionName(module, function, native, sizeof(native));
+                native_names_mark(&names[0], native);
+                native_names_mark(&names[1], native);
+                NativeGoFunctionName(native_programs, count, module, function,
+                                     native, sizeof(native));
+                native_names_mark(&names[2], native);
+            }
+        }
+    for(int t = 0; t < 3; t++)
+        native_names_free(&names[t]);
+    return ok;
 }
 
 static uint64_t

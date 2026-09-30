@@ -58,19 +58,10 @@ void TargetFieldName(const ZirType *record, ZirTarget target,
                      const char *name, char *out, size_t size);
 void TargetGlobalName(const ZirModule *module, ZirTarget target,
                       const char *name, char *out, size_t size);
-int NativeGlobalNameConflict(const ZirModule *left, const ZirGlobal *a,
-                             const ZirModule *right, const ZirGlobal *b);
-int NativeDefineNameConflict(const ZirModule *left, const ZirDefine *a,
-                             const ZirModule *right, const ZirDefine *b);
-int NativeValueNameConflict(const ZirModule *global_module,
-                            const ZirGlobal *global,
-                            const ZirModule *define_module,
-                            const ZirDefine *define);
-int NativeFunctionValueNameConflict(const ZirProgram *const *programs,
-                                    int count, const ZirModule *function_module,
-                                    const ZirFunction *function,
-                                    const ZirModule *value_module,
-                                    const char *value_name, int is_global);
+/* Sets native_name_collision on every global and constant whose native C,
+ * C++, or Go name equals another value's or a procedure's. Returns 0 when
+ * out of memory. */
+int MarkNativeNameCollisions(ZirProgram **programs, int count);
 void TargetDefineName(const ZirModule *module, ZirTarget target,
                       const char *name, char *out, size_t size);
 void ArrayAbiName(const ZirFunction *fn, int parameter, char *out, size_t size);

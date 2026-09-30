@@ -986,7 +986,8 @@ lower_if_case_with_buffers(Checker *c, int index, const char *checked_type, Lowe
                             statement->text);
                 goto done;
             }
-            if(enumeration != NULL) {
+            /* `case;` is the default arm for an enum subject too. */
+            if(enumeration != NULL && buffers->label[0] != '\0') {
                 char member[ZIR_NAME_MAX];
                 if(!enum_case_member(enumeration, buffers->label, member,
                                      sizeof(member))) {
@@ -1091,7 +1092,7 @@ lower_if_case_with_buffers(Checker *c, int index, const char *checked_type, Lowe
         ZirSourceSpan span = fn->stmts[cases[arm]].span;
         if(!scalar_case_label(&fn->stmts[cases[arm]], buffers->label,
                               sizeof(buffers->label))) goto done;
-        if(enumeration != NULL) {
+        if(enumeration != NULL && buffers->label[0] != '\0') {
             char member[ZIR_NAME_MAX];
             if(!enum_case_member(enumeration, buffers->label, member,
                                  sizeof(member))) goto done;

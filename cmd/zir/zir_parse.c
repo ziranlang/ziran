@@ -1131,7 +1131,9 @@ statement_separator(char *line)
         else if(*p == '[') brackets++;
         else if(*p == ']') brackets--;
         else if(*p == '{') braces++;
-        else if(*p == '}') braces--;
+        /* A leading closer belongs to a block opened on an earlier line.
+         * It must not make the following compact branch's depth negative. */
+        else if(*p == '}' && braces > 0) braces--;
         else if(*p == ';' && parens == 0 && brackets == 0 && braces == 0 &&
                 *skip_ws(p + 1)) {
             if(starts_word(line, "for") &&

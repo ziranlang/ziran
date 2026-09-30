@@ -21,8 +21,20 @@ Negated :: (enabled: bool) -> s32 {
     return 3
 }
 
+Pair :: struct { first: s32; second: s32; }
+
+ContinuedStatements :: (enabled: bool) -> s32 {
+    state: Pair
+    if enabled {
+        state.first = 1
+        state.second = 2
+    } else { state.first = 3; state.second = 4 }
+    return state.first * 10 + state.second
+}
+
 main :: () {
     print("% % % %\n", Branch(0), Branch(1), Branch(2), Branch(3))
     print("% % % %\n", Nested(-1), Nested(0), Nested(1), Nested(2))
     print("% %\n", Negated(true), Negated(false))
+    print("% %\n", ContinuedStatements(true), ContinuedStatements(false))
 }

@@ -87,9 +87,18 @@ Sign :: (a: s32) -> s32 {
     else { return 0; }
 }
 
+counted: s32;
+Tally :: (a: s32) {
+    if a > 0 { return; }
+    counted += 1;
+    return
+}
+
 #program_export
 Answer :: () -> s32 {
-    return Count(5) * 100 + Named(4) * 10 + Sign(-3) + 1;
+    Tally(1);
+    Tally(-1);
+    return Count(5) * 100 + Named(4) * 10 + Sign(-3) + counted;
 }
 ZI
 

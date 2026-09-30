@@ -862,7 +862,7 @@ classify_stmt(const char *s)
         return ZIR_STMT_FOR;
     if(starts_word(s, "case") || strcmp(s, "case;") == 0)
         return ZIR_STMT_CASE;
-    if(starts_word(s, "return"))
+    if(starts_word(s, "return") || strcmp(s, "return;") == 0)
         return ZIR_STMT_RETURN;
     if(strcmp(s, "unreachable") == 0 || strcmp(s, "unreachable;") == 0)
         return ZIR_STMT_UNREACHABLE;

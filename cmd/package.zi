@@ -409,6 +409,35 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         if !PkgCheckoutGraph(root, locked, offline, locked_mode, current) {
             return PkgFail("cannot fetch locked packages")
         }
+        // A project runs with its pinned toolchain's own launcher, so an
+        // installed ziran of any age writes the import map the lock expects.
+        pinned: string = PkgJoin(locked.tool_path, "/build/bin/ziran")
+        if PkgGetenv("ZIRAN_PINNED_LAUNCHER") != "1" &&
+           PkgCanonical(launcher) != PkgCanonical(pinned) {
+            if !PathExists(pinned) {
+                make_args: [4]string
+                make_args[0] = "make"
+                make_args[1] = "-C"
+                make_args[2] = locked.tool_path
+                make_args[3] = "all"
+                none: [0]string
+                if PkgRun(make_args[:], "", none[:], none[:]) != 0 {
+                    return PkgFail("cannot build pinned Ziran compiler")
+                }
+            }
+            forwarded: [257]string
+            forwarded[0] = pinned
+            index = 0
+            while index < cast(s32)arguments.count && index < 256 {
+                forwarded[index + 1] = arguments[index]
+                index += 1
+            }
+            names: [1]string
+            values: [1]string
+            names[0] = "ZIRAN_PINNED_LAUNCHER"
+            values[0] = "1"
+            return PkgRun(forwarded[0:index + 1], "", names[:], values[:])
+        }
     }
     if command == "fetch" { return 0 }
     if command == "compile-commands" {

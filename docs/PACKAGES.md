@@ -4,7 +4,9 @@ Ziran packages are Git repositories. There is no central registry: a
 dependency is the URL of the repository that holds it, pinned to a full commit
 in a committed `ziran.lock`. A Ziran application is itself a package with a
 `ziran.toml`. `make install-user` installs the native `ziran` command; project
-commands build and use the compiler pinned by the application lock.
+commands build and use the compiler pinned by the application lock, and hand
+the command to that toolchain's own launcher, so an installed `ziran` that is
+older or newer than the lock behaves exactly like the pinned one.
 
 ## Adding a dependency
 

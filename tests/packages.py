@@ -602,6 +602,7 @@ label = "string"
 cat "$ZIRAN_TOOL_OPTIONS"
 echo "project=$ZIRAN_PROJECT_NAME entry=$ZIRAN_PROJECT_ENTRY args=$*"
 echo "install=${ZIRAN_INSTALL_PREFIX:-} ${ZIRAN_INSTALL_BIN:-}"
+echo "pinned=${ZIRAN_PINNED_LAUNCHER:-}"
 """)
         write(tooling / "Makefile",
               "build/tool: tool.sh\n\tmkdir -p build\n\tcp tool.sh build/tool\n\tchmod 755 build/tool\n")
@@ -638,7 +639,13 @@ level = "3"
             "targets.b.kind=x", "targets.b.level=1",
             "targets.a.kind=y", "targets.a.level=3",
             "project=Tooled entry=src/app.zi args=build --fast", "install= ",
+            "pinned=",
         ], output
+        # Another launcher, such as an older installed ziran, hands the
+        # project command to the pinned toolchain's own launcher.
+        handed = call(str(bootstrap / "ziran"), "tool", "Tooling", "build",
+                      cwd=tooled, env=env).splitlines()
+        assert "pinned=1" in handed, handed
         write(tooled / "ziran.local.toml",
               f'[overrides]\nziran = "{compiler}"\n[tool.Tooling]\nmode = "slow"\n')
         assert "mode=slow" in call(ziran, "tool", "Tooling", "build",

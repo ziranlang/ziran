@@ -14,6 +14,11 @@ Path :: (root: string, name: string, output: []u8) -> string {
 }
 
 Run :: (root: string) -> s32 {
+    cwd: [4096]u8
+    tiny: [1]u8
+    current := CurrentDirectory(cwd[:])
+    if current.count == 0 || current[0] != cast(u8)47 || !DirectoryExists(current) ||
+        CurrentDirectory(tiny[:]) != "" { return 24 }
     // Names equal to their ABI symbol use libc's existing declarations too.
     missing: [1024]u8
     missing_path := Path(root, "missing", missing[:])

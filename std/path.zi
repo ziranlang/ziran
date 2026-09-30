@@ -1,0 +1,48 @@
+#import "c_string"
+
+// Lexical slash-path operations. These do not resolve links or mount points.
+// Returned text borrows output until the caller changes that storage.
+#program_export
+CleanAbsolute :: (value: string, output: []u8) -> string {
+    if output.count < 2 || value.count == 0 || value[0] != cast(u8)47 { return "" }
+    output[0] = cast(u8)47
+    used: s64 = 1
+    index: s64 = 1
+    while index < value.count {
+        if value[index] == cast(u8)0 { return "" }
+        if value[index] == cast(u8)47 { index += 1; continue }
+        start := index
+        while index < value.count && value[index] != cast(u8)47 {
+            if value[index] == cast(u8)0 { return "" }
+            index += 1
+        }
+        length := index - start
+        if length == 1 && value[start] == cast(u8)46 { continue }
+        if length == 2 && value[start] == cast(u8)46 && value[start + 1] == cast(u8)46 {
+            while used > 1 && output[used - 1] != cast(u8)47 { used -= 1 }
+            if used > 1 { used -= 1 }
+            continue
+        }
+        separator: s64 = 0
+        if used > 1 { separator = 1 }
+        if used + separator + length >= output.count { return "" }
+        if separator != 0 { output[used] = cast(u8)47; used += 1 }
+        while start < index { output[used] = value[start]; used += 1; start += 1 }
+    }
+    output[used] = cast(u8)0
+    return TextView(output[0:used])
+}
+
+// Both arguments must be canonical absolute slash paths. A directory prefix
+// matches only itself or a complete component boundary, never a sibling.
+#program_export
+WithinDirectory :: (value: string, directory: string) -> bool {
+    if directory.count == 0 || value.count < directory.count ||
+        directory[0] != cast(u8)47 || value[0] != cast(u8)47 { return false }
+    index: s64 = 0
+    while index < directory.count {
+        if value[index] != directory[index] { return false }
+        index += 1
+    }
+    return directory.count == 1 || value.count == directory.count || value[directory.count] == cast(u8)47
+}

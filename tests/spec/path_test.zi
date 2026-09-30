@@ -1,0 +1,18 @@
+#import "path"
+
+#program_export
+main :: () -> s32 {
+    output: [256]u8
+    tiny: [2]u8
+    if CleanAbsolute("/", tiny[:]) != "/" || CleanAbsolute("/a", tiny[:]) != "" ||
+        CleanAbsolute("relative", output[:]) != "" || CleanAbsolute("", output[:]) != "" ||
+        CleanAbsolute("/bad\u0000path", output[:]) != "" { return 1 }
+    if CleanAbsolute("//home///a/./b/../é.txt/", output[:]) != "/home/a/é.txt" ||
+        CleanAbsolute("/home/a/../../..", output[:]) != "/" ||
+        CleanAbsolute("/a/.../b", output[:]) != "/a/.../b" { return 2 }
+    if !WithinDirectory("/home/a/file", "/home/a") || !WithinDirectory("/home/a", "/home/a") ||
+        !WithinDirectory("/outside", "/") || WithinDirectory("/home/ab/file", "/home/a") ||
+        WithinDirectory("/home", "/home/a") || WithinDirectory("relative", "/") ||
+        WithinDirectory("/home", "") { return 3 }
+    return 0
+}

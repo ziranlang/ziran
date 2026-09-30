@@ -1403,6 +1403,16 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
         call->next_sibling = chain_next;
         call->span = saved.span;
         copy_text(call->type, sizeof(call->type), conversion->return_type);
+        /* An untyped literal argument takes the parameter's scalar type, as
+         * checking the call directly would, so saved IR rechecks unchanged. */
+        {
+            ZirExpr *argument = &c->fn->exprs[copy_index];
+            const char *colon = strchr(conversion->args, ':');
+            const char *context = colon != NULL ? ScalarType(skip_ws(colon + 1)) : "";
+            if(*context && (!strcmp(argument->type, "integer") ||
+                            !strcmp(argument->type, "real")))
+                copy_text(argument->type, sizeof(argument->type), context);
+        }
         return call->type;
     }
 }
@@ -1444,6 +1454,12 @@ rebuild_postorder(ZirFunction *fn, int index, ZirExpr *out, int *count,
     node->third = node->third >= 0 ? remap[node->third] : -1;
     node->first_child = node->first_child >= 0 ? remap[node->first_child] : -1;
     node->next_sibling = -1;
+    /* Relink the children in their original order at their new indices. */
+    for(int child = fn->exprs[index].first_child; child >= 0;
+        child = fn->exprs[child].next_sibling) {
+        int next = fn->exprs[child].next_sibling;
+        out[remap[child]].next_sibling = next >= 0 ? remap[next] : -1;
+    }
     (*count)++;
     return 1;
 }

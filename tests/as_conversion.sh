@@ -24,6 +24,10 @@ FromFloat :: #as (value: float32) -> s32 {
     return cast(s32)value / 2
 }
 
+Meters :: struct { value: s32 }
+ToMeters :: #as (value: s32) -> Meters { return .{value = value} }
+Sum3 :: (a: s32, b: s32, c: s32) -> s32 { return a + b + c }
+
 #program_export
 Answer :: () -> s32 {
     count: s32 = 21
@@ -35,6 +39,9 @@ Answer :: () -> s32 {
     if passed != 84 { return 0 }
     back: s32 = explicit
     if back != 21 { return 0 }
+    // A converted literal keeps later call arguments in the checked graph.
+    distance: Meters = 7
+    if distance.value + Sum3(1, 2, 3) != 13 { return 0 }
     return 1
 }
 ZI

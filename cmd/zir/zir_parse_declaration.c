@@ -1,5 +1,34 @@
 #include "zir_parse_internal.h"
 
+/* `[] s32` and `* Node` spell the types []s32 and *Node; drop the space
+ * so every reader of the signature text sees one spelling. */
+static void
+tighten_type_spacing(char *text)
+{
+    char *out = text;
+    int quote = 0;
+    for(const char *p = text; *p; p++) {
+        *out++ = *p;
+        if(quote) {
+            if(*p == '\\' && p[1]) *out++ = *++p;
+            else if(*p == '"') quote = 0;
+            continue;
+        }
+        if(*p == '"') {
+            quote = 1;
+            continue;
+        }
+        if(*p == ']' || *p == '*') {
+            const char *next = p + 1;
+            while(*next == ' ' || *next == '\t') next++;
+            if(next != p + 1 && (isalpha((unsigned char)*next) || *next == '_' ||
+                                 *next == '[' || *next == '$'))
+                p = next - 1;
+        }
+    }
+    *out = '\0';
+}
+
 void
 parse_function_header(char *name, size_t name_size, char *args,
                       size_t args_size, char *ret, size_t ret_size,
@@ -49,6 +78,8 @@ parse_function_header(char *name, size_t name_size, char *args,
             ret[n] = '\0';
         }
     }
+    tighten_type_spacing(args);
+    tighten_type_spacing(ret);
 }
 
 int

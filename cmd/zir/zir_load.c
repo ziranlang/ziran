@@ -33,32 +33,35 @@ typedef struct LoadContext {
 #ifndef ZIRAN_STD_DIR
 #define ZIRAN_STD_DIR ""
 #endif
+#ifndef ZIRAN_INCLUDE_DIR
+#define ZIRAN_INCLUDE_DIR ""
+#endif
 
 static int
-standard_directory_usable(const char *path)
+toolchain_directory_usable(const char *path, const char *probe_file)
 {
     char probe[ZIR_PATH_MAX];
     struct stat info;
-    return snprintf(probe, sizeof(probe), "%s/text.zi", path) < (int)sizeof(probe) &&
+    return snprintf(probe, sizeof(probe), "%s/%s", path, probe_file) <
+               (int)sizeof(probe) &&
            stat(probe, &info) == 0 && S_ISREG(info.st_mode);
 }
 
-/* ZIRAN_STD if set; else std beside the compiler, as `make install-user`
- * and a checkout lay it out (bin/../../std); else the source checkout the
- * compiler was built from. NULL when none holds the standard modules. */
-const char *
-ToolchainStandardDirectory(void)
+/* The environment variable if set; else NAME beside the compiler, as
+ * `make install-user` and a checkout lay it out (bin/../../NAME); else the
+ * source checkout the compiler was built from. Empty when none has
+ * PROBE_FILE. */
+static void
+toolchain_directory(const char *name, const char *probe_file,
+                    const char *variable, const char *built,
+                    char *directory, size_t size)
 {
-    static int resolved;
-    static char directory[ZIR_PATH_MAX];
-    if(resolved)
-        return directory[0] ? directory : NULL;
-    resolved = 1;
-    const char *configured = getenv("ZIRAN_STD");
+    directory[0] = '\0';
+    const char *configured = getenv(variable);
     if(configured != NULL && configured[0]) {
-        if(standard_directory_usable(configured))
-            copy_text(directory, sizeof(directory), configured);
-        return directory[0] ? directory : NULL;
+        if(toolchain_directory_usable(configured, probe_file))
+            copy_text(directory, size, configured);
+        return;
     }
     char executable[ZIR_PATH_MAX];
     ssize_t length = readlink("/proc/self/exe", executable, sizeof(executable) - 1);
@@ -69,15 +72,38 @@ ToolchainStandardDirectory(void)
             if(slash != NULL) *slash = '\0';
         }
         char candidate[ZIR_PATH_MAX];
-        if(snprintf(candidate, sizeof(candidate), "%s/std", executable) <
+        if(snprintf(candidate, sizeof(candidate), "%s/%s", executable, name) <
                (int)sizeof(candidate) &&
-           standard_directory_usable(candidate)) {
-            copy_text(directory, sizeof(directory), candidate);
-            return directory;
+           toolchain_directory_usable(candidate, probe_file)) {
+            copy_text(directory, size, candidate);
+            return;
         }
     }
-    if(ZIRAN_STD_DIR[0] && standard_directory_usable(ZIRAN_STD_DIR))
-        copy_text(directory, sizeof(directory), ZIRAN_STD_DIR);
+    if(built[0] && toolchain_directory_usable(built, probe_file))
+        copy_text(directory, size, built);
+}
+
+const char *
+ToolchainStandardDirectory(void)
+{
+    static int resolved;
+    static char directory[ZIR_PATH_MAX];
+    if(!resolved)
+        toolchain_directory("std", "text.zi", "ZIRAN_STD", ZIRAN_STD_DIR,
+                            directory, sizeof(directory));
+    resolved = 1;
+    return directory[0] ? directory : NULL;
+}
+
+const char *
+ToolchainIncludeDirectory(void)
+{
+    static int resolved;
+    static char directory[ZIR_PATH_MAX];
+    if(!resolved)
+        toolchain_directory("include", "zir_string.h", "ZIRAN_INCLUDE",
+                            ZIRAN_INCLUDE_DIR, directory, sizeof(directory));
+    resolved = 1;
     return directory[0] ? directory : NULL;
 }
 

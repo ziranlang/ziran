@@ -15,8 +15,10 @@ typedef struct ProgramSet {
 int ProgramsLoad(ProgramSet *set, const char *root,
                  const char *const *module_paths, int module_path_count,
                  const char *const *inputs, int input_count);
-/* The standard modules that came with this compiler, or NULL. */
+/* The standard modules and C headers that came with this compiler, or
+ * NULL. ZIRAN_STD and ZIRAN_INCLUDE override them. */
 const char *ToolchainStandardDirectory(void);
+const char *ToolchainIncludeDirectory(void);
 int ProgramsLoadWithDefines(ProgramSet *set, const char *root,
                             const char *const *module_paths,
                             int module_path_count,

@@ -153,9 +153,10 @@ $(BUILD_DIR)/obj/package-c/%.o: $(PACKAGE_C)/%.c
 
 $(call obj,cmd/package_main.c cmd/package_host.c): CFLAGS += -I$(PACKAGE_C)
 
-# Standalone commands fall back to this checkout's standard modules when no
-# std directory sits beside the installed compiler.
-$(call obj,cmd/zir/zir_load.c): CFLAGS += -DZIRAN_STD_DIR='"$(abspath std)"'
+# Standalone commands fall back to this checkout's standard modules and C
+# headers when none sit beside the installed compiler.
+$(call obj,cmd/zir/zir_load.c): CFLAGS += -DZIRAN_STD_DIR='"$(abspath std)"' \
+    -DZIRAN_INCLUDE_DIR='"$(abspath include)"'
 
 # The compiler's version comes from VERSION so a release edits one file.
 ZIRAN_VERSION := $(shell cat VERSION)

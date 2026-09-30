@@ -26,7 +26,11 @@ compiler, downstream toolchains, and validated runtime cases separately.
 
 ## Generate native code
 
-Use `ziran build --target=c` for C99 output. Use
+Use `ziran build --target=c` for C99 output. Add `--exe --entry
+module:function` to also compile it into `DIR/module`, a program that runs
+that procedure and exits with its integer result; the entry takes nothing or
+`(argc: s32, argv: **u8)`, and an exported `main` is used as it is. `CC`,
+`CFLAGS` (default `-O2`), `LDFLAGS`, and `LDLIBS` apply as in make. Use
 `ziran build --target=py --exe --entry module:function -o DIR` for Python 3.10
 source that `python3 DIR` runs; it needs only the standard library. Use
 `ziran build --target=plan9-c` for the experimental Plan 9 C output path.

@@ -2279,7 +2279,7 @@ c_plan9_runtime_symbol(const char *name)
     static const char * const symbols[] = {
         "snprint", "getenv", "create", "write", "close",
         "malloc", "calloc", "realloc", "free", "open", "pread", "pwrite",
-        "seek", "remove", "dirstat", "nulldir", "dirwstat", "dirreadall",
+        "seek", "remove", "dirstat", "dirfstat", "nulldir", "dirwstat", "dirfwstat", "dirreadall",
         "read", "pipe", "rfork", "exec", "exits", "getpid", "putenv", "sleep",
         "nsec", "localtime", "gmtime", "getwd", "chdir", NULL
     };

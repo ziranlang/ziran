@@ -17,8 +17,10 @@ RemoveRaw :: (path: *s8) -> s32 #foreign libc "remove";
 // Native libc owns Dir's type identity. Borrow its layout through void*,
 // rather than redeclaring its named record as a different native type.
 StatRaw :: (path: *s8) -> *void #foreign libc "dirstat";
+DescriptorStatRaw :: (fd: s32) -> *void #foreign libc "dirfstat";
 NullDirRaw :: (metadata: *void) #foreign libc "nulldir";
 WriteStatRaw :: (path: *s8, metadata: *void) -> s32 #foreign libc "dirwstat";
+DescriptorWriteStatRaw :: (fd: s32, metadata: *void) -> s32 #foreign libc "dirfwstat";
 FreeRaw :: (memory: *void) #foreign libc "free";
 WorkingDirectoryRaw :: (output: *s8, capacity: s32) -> *s8 #foreign libc "getwd";
 
@@ -46,6 +48,64 @@ DirectoryMetadata :: struct {
 FileHandle :: struct {
     fd: s32
     valid: bool
+}
+
+// A value snapshot owns no libc allocation. The device and Qid fields
+// identify a file; its version/length/timestamp can detect changed content.
+FileInfo :: struct {
+    valid: bool
+    type: u16
+    device: u32
+    identity: u64
+    version: u32
+    identity_type: u8
+    mode: u32
+    modified: u32
+    length: s64
+}
+
+#scope_file
+Information :: (memory: *void) -> FileInfo {
+    result: FileInfo
+    if memory == null { return result }
+    metadata := cast(*DirectoryMetadata)memory
+    result.valid = true
+    result.type = metadata.type
+    result.device = metadata.device
+    result.identity = metadata.identity.path
+    result.version = cast(u32)metadata.identity.version
+    result.identity_type = metadata.identity.type
+    result.mode = cast(u32)metadata.mode
+    result.modified = cast(u32)metadata.modified
+    result.length = metadata.length
+    FreeRaw(memory)
+    return result
+}
+
+#scope_export
+#program_export
+PathInfo :: (path: string) -> FileInfo {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return .{} }
+    return Information(StatRaw(cast(*s8)(*name[0])))
+}
+
+#program_export
+HandleInfo :: (file: FileHandle) -> FileInfo {
+    if !file.valid { return .{} }
+    return Information(DescriptorStatRaw(file.fd))
+}
+
+// Apply ordinary permissions and a timestamp to an already-open file.
+// Special mode flags cannot be introduced through this operation.
+#program_export
+SetFileAttributes :: (file: FileHandle, permissions: u32, modified: u32) -> bool {
+    if !file.valid || permissions > 511 { return false }
+    change: DirectoryMetadata
+    NullDirRaw(cast(*void)(*change))
+    change.mode = cast(usize)permissions
+    change.modified = cast(usize)modified
+    return DescriptorWriteStatRaw(file.fd, cast(*void)(*change)) >= 0
 }
 
 #program_export

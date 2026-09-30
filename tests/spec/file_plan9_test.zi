@@ -44,6 +44,19 @@ Run :: (root: string) -> s32 {
     if WriteAt(file, bytes[:], 0) != 4 || WriteAt(file, bytes[0:0], 4) != 0 ||
         FileSize(file) != 4 || !CloseFile(file) { return 3 }
     if !PathExists(first) || DirectoryExists(first) || CreateDirectory(first) { return 4 }
+    original := PathInfo(first)
+    if !original.valid || original.length != 4 || (original.mode & cast(u32)0x80000000) != 0 ||
+        !PathInfo(directory).valid || (PathInfo(directory).mode & cast(u32)0x80000000) == 0 ||
+        PathInfo("bad\u0000path").valid || PathInfo(missing_path).valid { return 25 }
+    file = OpenRead(first)
+    snapshot := HandleInfo(file)
+    if !snapshot.valid || snapshot.identity != original.identity || snapshot.device != original.device ||
+        snapshot.type != original.type || snapshot.length != 4 || !CloseFile(file) { return 26 }
+    file = OpenUpdate(first)
+    if !file.valid || !SetFileAttributes(file, cast(u32)416, cast(u32)1700000000) ||
+        SetFileAttributes(file, cast(u32)512, cast(u32)1700000000) || !CloseFile(file) { return 27 }
+    attributes := PathInfo(first)
+    if (attributes.mode & cast(u32)511) != cast(u32)416 || attributes.modified != cast(u32)1700000000 { return 28 }
     if RenameNoReplace(first, other) || !PathExists(first) || PathExists(other) { return 5 }
     if !RenameNoReplace(first, second) || PathExists(first) || !PathExists(second) { return 6 }
     file = OpenReplace(first)
@@ -58,6 +71,7 @@ Run :: (root: string) -> s32 {
         ReadAt(file, received[:], 4) != 0 || ReadAt(file, received[:], -1) != -1 ||
         !CloseFile(file) { return 9 }
     invalid: FileHandle
+    if HandleInfo(invalid).valid || SetFileAttributes(invalid, cast(u32)384, cast(u32)1700000000) { return 29 }
     if FileSize(invalid) != -1 || ReadAt(invalid, received[:], 0) != -1 ||
         WriteAt(invalid, bytes[:], 0) != -1 || CloseFile(invalid) { return 10 }
     cursor := OpenDirectory(directory)

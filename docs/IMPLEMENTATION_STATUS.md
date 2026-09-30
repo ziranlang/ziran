@@ -61,6 +61,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- A local declaration may use `type_of(expression)` as its type, and a for
+  range counts in its bounds' type (`0..count` with `count: s32` is `s32`;
+  constant ranges stay `s64`). Indexing with `value[a..b]` reports that
+  slices are written `value[start:end]`. `tests/range_types.sh` checks
+  source and saved IR on C, C++, Go, and `.zib`.
 - `std/hash_map` provides `HashMap(K, V)` with `HashMapSet`, `HashMapGet`,
   `HashMapHas`, `HashMapRemove`, and `HashMapFree` over string and integer
   keys, written in portable Ziran. Polymorphic procedures bind type

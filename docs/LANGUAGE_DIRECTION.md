@@ -232,7 +232,10 @@ uses the same cleanup lowering.
 Inclusive integer ranges use `for i: first..last { ... }`, with `for
 first..last { ... }` binding the value as `it`. Each iteration also binds
 `it_index`, starting at zero. `for < i: first..last { ... }` visits the same
-range in reverse. Bounds are evaluated once; `continue` advances the range,
+range in reverse. The value has the bounds' type, so `for i: 0..count` with
+`count: s32` counts in `s32` and mixed widths count in the wider one; ranges
+with two constant bounds count in `s64`, and `it_index` is always `s64`.
+Bounds are evaluated once; `continue` advances the range,
 and the endpoints do not overflow when the last iteration completes. The
 compiler rejects C-style three-clause `for` headers. Fixed arrays and
 borrowed slices use `for values { ... }` or `for value, index: values { ... }`;

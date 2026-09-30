@@ -507,6 +507,10 @@ JaiTypeSpelling(ZirSourceSpan span, const char *type)
 {
     const char *start = skip_ws(type);
     int brackets = 0, parens = 0;
+    char operand[ZIR_TEXT_MAX];
+    /* type_of holds an expression, which the checker types in place. */
+    if(TypeOfOperand(start, operand, sizeof(operand)))
+        return 1;
     for(const char *p = start; *p;) {
         if(*p == '"' || *p == '\'') {
             char quote = *p++;

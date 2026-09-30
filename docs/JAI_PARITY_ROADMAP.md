@@ -214,8 +214,11 @@ and aggregate forms.
 Forward and imported `size_of(type_of(...))` operands now resolve in tested
 file-scope constants, global initializers, `#run`, and `#ifx`; imported
 operands also work in `#if`. `tests/file_type_of.sh` checks source and saved
-IR on C, C++, Go, and `.zib`. Standalone `type_of`, broader forward `#if`
-queries, and foreign-record `size_of` remain open.
+IR on C, C++, Go, and `.zib`. A local declaration may name its type with
+`type_of(expression)`, as in `b: type_of(a + 1) = 5`; the checker replaces it
+with the concrete type (`tests/range_types.sh`). `type_of` in parameters,
+fields, and globals, broader forward `#if` queries, and foreign-record
+`size_of` remain open.
 Put each accepted expression through source, saved IR, and all applicable
 targets. Rejection for an unavailable construct must occur in checking, not
 as a later C/Go compiler error.

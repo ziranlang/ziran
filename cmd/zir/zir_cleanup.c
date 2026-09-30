@@ -1127,6 +1127,7 @@ typedef struct LowerOneRangeBuffers {
     char start[ZIR_TEXT_MAX];
     char end[ZIR_TEXT_MAX];
     char line[ZIR_TEXT_MAX];
+    char type[ZIR_TEXT_MAX];
     ZirFunction out;
 } LowerOneRangeBuffers;
 
@@ -1176,6 +1177,15 @@ lower_one_range_with_buffers(ZirFunction *fn, const ZirModule *module, int index
     }
     if(own_cursor)
         snprintf(cursor, sizeof(cursor), "%s", binder);
+    /* As in Jai, the index has the bounds' type: 0..count with count: s32
+     * counts in s32. Constant ranges and parallel regions count in s64. */
+    const char *type = "s64";
+    if(!constant && !header->is_parallel) {
+        if(snprintf(buffers->type, sizeof(buffers->type), "type_of((%s) + (%s))",
+                    buffers->start, buffers->end) >= (int)sizeof(buffers->type))
+            return fail(header, "for range bounds exceed the statement limit");
+        type = buffers->type;
+    }
     memset(&buffers->out, 0, sizeof(buffers->out));
     ZirSourceSpan span = header->span;
     int ok = 0;
@@ -1183,12 +1193,14 @@ lower_one_range_with_buffers(ZirFunction *fn, const ZirModule *module, int index
         if(!append(&buffers->out, &fn->stmts[i])) goto done;
     if(!range_line(&buffers->out, ZIR_STMT_BLOCK_OPEN, "{", span)) goto done;
     if(!constant &&
-       (snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", first, buffers->start) >=
+       (snprintf(buffers->line, sizeof(buffers->line), "%s: %s = %s", first, type,
+                 buffers->start) >=
         (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span) ||
-        snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", last, buffers->end) >=
+        snprintf(buffers->line, sizeof(buffers->line), "%s: %s = %s", last, type,
+                 buffers->end) >=
         (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)))
         goto done;
-    if(snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", cursor,
+    if(snprintf(buffers->line, sizeof(buffers->line), "%s: %s = %s", cursor, type,
                 reverse ? last : first) >= (int)sizeof(buffers->line) ||
        !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)) goto done;
     if(snprintf(buffers->line, sizeof(buffers->line), "while %s %s %s {", cursor,
@@ -1200,13 +1212,17 @@ lower_one_range_with_buffers(ZirFunction *fn, const ZirModule *module, int index
     buffers->out.stmts[while_at].is_parallel = header->is_parallel;
     buffers->out.stmts[while_at].is_gpu = header->is_gpu;
     if(!own_cursor &&
-       (snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", binder, cursor) >=
+       (snprintf(buffers->line, sizeof(buffers->line), "%s: %s = %s", binder, type,
+                 cursor) >=
         (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)))
         goto done;
     if(wants_index) {
+        /* it_index stays s64 whatever the bounds' type. */
         if(constant && !reverse && low == 0)
             snprintf(buffers->line, sizeof(buffers->line), "it_index: s64 = %s", cursor);
-        else if(snprintf(buffers->line, sizeof(buffers->line), "it_index: s64 = %s - %s",
+        else if(snprintf(buffers->line, sizeof(buffers->line),
+                         type == buffers->type ? "it_index: s64 = cast(s64) (%s - %s)" :
+                         "it_index: s64 = %s - %s",
                          reverse ? last : cursor, reverse ? cursor : first) >=
                 (int)sizeof(buffers->line))
             goto done;

@@ -202,6 +202,12 @@ restart:
             promote_using_tree(c, st->lhs_root);
             promote_using_tree(c, st->expr_root);
         }
+        /* An unresolvable type_of is reported; the initializer's type
+         * stands in so later uses of the name do not fail too. */
+        if(st->kind == ZIR_STMT_DECL &&
+           !resolve_declared_type_of(c, st->type, sizeof(st->type), st->span))
+            st->type[0] = '\0';
+        st = &c->fn->stmts[i];
         if(st->kind == ZIR_STMT_DECL)
             normalize_array(c->module, st->type, sizeof(st->type));
         if(st->kind == ZIR_STMT_DECL)

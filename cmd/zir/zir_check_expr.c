@@ -64,6 +64,48 @@ bind_from_application(Checker *c, const char *parameters, const char *wanted,
     free(types);
 }
 
+/* x: type_of(a + b) declares x with the checked type of that expression.
+ * The concrete type replaces TYPE, so saved IR and emitters never see
+ * type_of. Returns 0 after reporting an operand that has no type. */
+int
+resolve_declared_type_of(Checker *c, char *type, size_t capacity, ZirSourceSpan span)
+{
+    char operand[ZIR_TEXT_MAX];
+    if(!TypeOfOperand(type, operand, sizeof(operand)))
+        return 1;
+    ZirFunction *probe = calloc(1, sizeof(*probe));
+    if(probe == NULL) {
+        c->failed = 1;
+        return 0;
+    }
+    ZirFunction *saved_fn = c->fn;
+    ZirStmt *saved_stmt = c->current_stmt;
+    char saved_expected[ZIR_NAME_MAX];
+    copy_text(saved_expected, sizeof(saved_expected), c->expected_type);
+    c->expected_type[0] = '\0';
+    int errors = c->errors;
+    int root = ParseExpr(probe, c->module, operand, span);
+    c->fn = probe;
+    c->current_stmt = NULL;
+    const char *inferred = root >= 0 ? expression_type(c, root) : "";
+    char resolved[ZIR_NAME_MAX];
+    copy_text(resolved, sizeof(resolved),
+              !strcmp(inferred, "integer") ? "s64" :
+              !strcmp(inferred, "real") ? "float64" : inferred);
+    c->fn = saved_fn;
+    c->current_stmt = saved_stmt;
+    copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
+    free(probe->exprs);
+    free(probe);
+    if(!resolved[0] || !strcmp(resolved, "void") || !strcmp(resolved, "null")) {
+        if(c->errors == errors)
+            error(c, span, "type_of operand has no type", operand);
+        return 0;
+    }
+    copy_text(type, capacity, resolved);
+    return 1;
+}
+
 /* How well an argument of type FOUND fits parameter type WANTED, lower is
  * better: 0 exact, 100 an untyped literal's usual type, 200 another literal
  * type, 200 plus the added bits for a widening, 400 another checked
@@ -871,6 +913,12 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
     }
     case ZIR_EXPR_INDEX: {
         char element[ZIR_NAME_MAX];
+        const char *open = e->text != NULL ? strchr(e->text, '[') : NULL;
+        /* Jai writes ranges only in for loops. */
+        if(open != NULL && strstr(open, "..") != NULL) {
+            error(c, e->span, "slices are written value[start:end]", e->text);
+            right = "s64";
+        }
         /* Native pointer indexing follows the same element type as a
          * borrowed array. Portable bundles reject reachable raw pointers. */
         if(!strcmp(left, "string")) {

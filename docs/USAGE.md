@@ -318,6 +318,16 @@ when no module of your own has that name.
 Dependencies from other Git repositories import the same way, as
 `#import "NAME/Module"`; see [Packages](PACKAGES.md).
 
+### Building text
+
+`std/format.zi` builds text on an owned `Vec(u8)` builder. `Append(*builder,
+value)` adds a string, integer, bool, or float, and
+`BuilderPrint(*builder, "% of %\n", done, total)` appends a formatted piece:
+each `%` takes the next argument and `%%` writes one percent. A file that uses
+`BuilderPrint` imports `std/format` automatically, and `std/format` makes
+`Vec` visible. `BuilderFinish(builder)` returns the text. Floats keep up to six
+digits after the point, with trailing zeros dropped.
+
 ### Text and UTF-8
 
 `std/text.zi` supplies ASCII case folding, prefix matching, and substring

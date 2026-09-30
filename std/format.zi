@@ -1,0 +1,59 @@
+using Vectors :: #import "vec"
+#import "number_text"
+
+// Text built on an owned Vec(u8) builder. Append adds one value's text, and
+// BuilderPrint(*builder, "x=%\n", x) appends a whole formatted piece: each %
+// takes the next argument's text and %% writes one percent. BuilderFinish
+// turns the builder into a string.
+//
+//     line: Vec(u8)
+//     BuilderPrint(*line, "% of % done\n", finished, total)
+//     text := BuilderFinish(line)
+//
+// Integers are written in base ten, bools as true or false, and floats with
+// up to six digits after the point, trailing zeros dropped.
+
+Append :: (builder: *Vec(u8), text: string) {
+    BuilderAppend(<<builder, text)
+}
+
+Append :: (builder: *Vec(u8), value: s64) {
+    digits: [24]u8
+    BuilderAppend(<<builder, FormatInteger(value, digits[:]))
+}
+
+// Unsigned values up to 32 bits; also the closest match for u8 and u16.
+Append :: (builder: *Vec(u8), value: u32) {
+    digits: [24]u8
+    BuilderAppend(<<builder, FormatInteger(value, digits[:]))
+}
+
+Append :: (builder: *Vec(u8), value: u64) {
+    digits: [24]u8
+    end: s64 = 23
+    remaining: u64 = value
+    if remaining == 0 {
+        end -= 1
+        digits[end] = cast(u8)48
+    }
+    while remaining > 0 {
+        end -= 1
+        digits[end] = cast(u8)(48 + cast(s32)(remaining % 10))
+        remaining = remaining / 10
+    }
+    text := TextView(digits[end:23])
+    BuilderAppend(<<builder, text)
+}
+
+Append :: (builder: *Vec(u8), value: bool) {
+    if value {
+        BuilderAppend(<<builder, "true")
+    } else {
+        BuilderAppend(<<builder, "false")
+    }
+}
+
+Append :: (builder: *Vec(u8), value: float64) {
+    digits: [32]u8
+    BuilderAppend(<<builder, FormatDecimal(value, 6, digits[:]))
+}

@@ -55,6 +55,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/numeric_conformance.json`, and kept synchronized with markers in the
   differential test. Mixed-width narrowing/widening after addition and u8
   bitwise AND/OR/XOR are included.
+- `std/format` builds text on a `Vec(u8)`: overloaded `Append(*builder,
+  value)` for strings, integers, bools, and floats, and
+  `BuilderPrint(*builder, "format", args...)`, which expands to those calls
+  and imports `std/format` for its file. `tests/format_builder.sh` checks
+  source and saved IR on C, C++, Go, and `.zib`.
 - `print` shows an enum value by its member name, and a value outside the
   enum as `(invalid Enum)`. The checker routes the argument through a
   generated name procedure in the enum's module, created only for enums a

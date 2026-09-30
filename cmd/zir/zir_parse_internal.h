@@ -216,6 +216,8 @@ int lower_multiple_return(char *text, size_t size, const char *record, int count
                           ZirSourceSpan span);
 int split_multiple_binding(const char *text, char targets[][ZIR_NAME_MAX], int max,
                            char *operator, char *value, size_t value_size);
+int expand_builder_print(const char *text, char (*lines)[ZIR_TEXT_MAX], int max,
+                         ZirSourceSpan span);
 int parse_using_modifiers(const char **cursor, char *filter, size_t filter_size, const char *path, int line_no);
 int is_member_path_text(const char *text);
 void parse_file_global(ZirModule *module, const char *declaration, ZirSourceSpan span, int scope_public, int scope_file, char *name_out, size_t name_size);

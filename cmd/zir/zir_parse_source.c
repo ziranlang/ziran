@@ -84,6 +84,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int import_count_before = 0;
     int results_count = 0;
     int results_serial = 0;
+    int uses_formatting = 0; /* BuilderPrint expands to std/format's Append */
     ZirConsts consts;
     ZirConsts future_constants = {0};
     ZirUsings future_usings = {0};
@@ -1637,6 +1638,21 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         lower_multiple_return(t, SOURCE_LINE_MAX * 4,
                                               buffers->results_record,
                                               results_count, span);
+                    if(kind == ZIR_STMT_EXPR && !using_binding && !parallel_for) {
+                        char (*pieces)[ZIR_TEXT_MAX] = AllocateOrExit(64 * sizeof(*pieces));
+                        int piece_count = expand_builder_print(t, pieces, 64, span);
+                        for(int piece = 0; piece < piece_count; piece++)
+                            if(FunctionAddStmt(fn, ZIR_STMT_EXPR, pieces[piece], span) == NULL)
+                                die("out of memory expanding BuilderPrint");
+                        free(pieces);
+                        if(piece_count > 0) {
+                            uses_formatting = 1;
+                            depth += brace_delta;
+                            if(depth < 0)
+                                depth = 0;
+                            continue;
+                        }
+                    }
                     char binding_operator[3] = "";
                     int bound = (kind == ZIR_STMT_DECL || kind == ZIR_STMT_ASSIGN ||
                                  kind == ZIR_STMT_EXPR) && !using_binding && !parallel_for ?
@@ -1799,6 +1815,16 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             StructureFunction(fn, module);
         }
         module->lookup_path[0] = '\0';
+    }
+    if(uses_formatting) {
+        int present = 0;
+        module = &program->modules[0];
+        for(int i = 0; i < module->import_count; i++)
+            present |= !strcmp(module->imports[i].target, "std/format") ||
+                       !strcmp(module->imports[i].target, "format");
+        char import_line[] = "#import \"std/format\";";
+        if(!present)
+            parse_import_line(module, buffers->rel, 1, import_line, 0);
     }
     if(ZirSourceUsesResizableArrays) {
         /* [..]T and array_add are std/vec's Vec; import it for the file. */

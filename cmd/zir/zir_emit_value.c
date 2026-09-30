@@ -885,7 +885,9 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
     if(expr->kind == ZIR_EXPR_UNARY && !strcmp(expr->op, "*")) {
         emit_expr(e, expr->right, e->fn->exprs[expr->right].type,
                   buffers->pointer, sizeof(buffers->pointer));
-        format(out, size, "*(%s)", buffers->pointer);
+        /* Parenthesized whole, so a field access after it applies to the
+         * pointed-to value, not to the pointer. */
+        format(out, size, "(*(%s))", buffers->pointer);
         return;
     }
     if(expr->kind == ZIR_EXPR_IDENT) {

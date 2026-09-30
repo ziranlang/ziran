@@ -1529,3 +1529,81 @@ split_multiple_binding(const char *text, char targets[][ZIR_NAME_MAX], int max,
         value[--length] = '\0';
     return *value ? count : 0;
 }
+
+/* BuilderPrint(*builder, "x=%\n", x) appends formatted text the way print
+ * writes it: each literal piece and each argument becomes an Append call from
+ * std/format. Writes those statements to LINES and returns their count, or 0
+ * when TEXT is not a BuilderPrint statement. */
+int
+expand_builder_print(const char *text, char (*lines)[ZIR_TEXT_MAX], int max,
+                     ZirSourceSpan span)
+{
+    const char *cursor = skip_ws(text);
+    if(strncmp(cursor, "BuilderPrint", 12) != 0)
+        return 0;
+    const char *open = skip_ws(cursor + 12);
+    if(*open != '(')
+        return 0;
+    const char *close = closing_parenthesis(open);
+    if(close == NULL)
+        return 0;
+    const char *rest = skip_ws(close + 1);
+    if(*rest == ';') rest = skip_ws(rest + 1);
+    if(*rest != '\0')
+        return 0;
+    char inner[ZIR_TEXT_MAX];
+    size_t inner_length = (size_t)(close - open - 1);
+    if(inner_length >= sizeof(inner))
+        die_at(span, "BuilderPrint statement exceeds the size limit");
+    memcpy(inner, open + 1, inner_length);
+    inner[inner_length] = '\0';
+    char (*parts)[ZIR_TEXT_MAX] = AllocateOrExit(64 * sizeof(*parts));
+    int count = split_top_level(inner, parts[0], 64, sizeof(parts[0]));
+    size_t format_length = count >= 2 ? strlen(parts[1]) : 0;
+    if(count < 2 || format_length < 2 || parts[1][0] != '"' ||
+       parts[1][format_length - 1] != '"')
+        die_at(span, "BuilderPrint needs a builder and a literal format");
+    int written = 0, argument = 2;
+    char piece[ZIR_TEXT_MAX];
+    size_t used = 0;
+    for(size_t i = 1; i + 1 < format_length; i++) {
+        char c = parts[1][i];
+        if(c == '\\' && i + 2 < format_length) {
+            if(used + 2 >= sizeof(piece)) die_at(span, "BuilderPrint format exceeds the size limit");
+            piece[used++] = c;
+            piece[used++] = parts[1][++i];
+            continue;
+        }
+        if(c == '%' && parts[1][i + 1] == '%' && i + 2 < format_length) {
+            if(used + 1 >= sizeof(piece)) die_at(span, "BuilderPrint format exceeds the size limit");
+            piece[used++] = '%';
+            i++;
+            continue;
+        }
+        if(c != '%') {
+            if(used + 1 >= sizeof(piece)) die_at(span, "BuilderPrint format exceeds the size limit");
+            piece[used++] = c;
+            continue;
+        }
+        if(argument >= count)
+            die_at(span, "BuilderPrint format has more %% than arguments");
+        if(written + 2 > max)
+            die_at(span, "BuilderPrint has too many pieces");
+        if(used > 0) {
+            piece[used] = '\0';
+            snprintf(lines[written++], ZIR_TEXT_MAX, "Append(%s, \"%s\");", parts[0], piece);
+            used = 0;
+        }
+        snprintf(lines[written++], ZIR_TEXT_MAX, "Append(%s, %s);", parts[0], parts[argument++]);
+    }
+    if(argument != count)
+        die_at(span, "BuilderPrint has more arguments than %% in its format");
+    if(used > 0) {
+        if(written + 1 > max)
+            die_at(span, "BuilderPrint has too many pieces");
+        piece[used] = '\0';
+        snprintf(lines[written++], ZIR_TEXT_MAX, "Append(%s, \"%s\");", parts[0], piece);
+    }
+    free(parts);
+    return written;
+}

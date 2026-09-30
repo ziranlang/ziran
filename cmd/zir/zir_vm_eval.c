@@ -1355,7 +1355,7 @@ eval(Frame *frame, int index, int depth)
             break;
         }
         int count = 0;
-        unsigned used = 0;
+        uint64_t used = 0;
         const ZirModule *owner = NULL;
         const ZirFunction *callee = NULL;
         const ZirImport *external = NULL;
@@ -1395,12 +1395,12 @@ eval(Frame *frame, int index, int depth)
             child = frame->function->exprs[child].next_sibling) {
             int position = frame->function->exprs[child].argument_index;
             if(count >= VM_MAX_PARAMS || position < 0 ||
-               position >= slots || (used & (1u << position))) {
+               position >= slots || (used & ((uint64_t)1 << position))) {
                 frame->vm->failed = 1;
                 break;
             }
             args[position] = eval(frame, child, depth + 1);
-            used |= 1u << position;
+            used |= (uint64_t)1 << position;
             count++;
         }
         if(!frame->vm->failed) {

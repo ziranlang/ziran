@@ -3,6 +3,13 @@
 /* Set when the last parse_parameters or verify_sequence failed on one of
  * the VM's fixed limits, so the diagnostic can name the limit. */
 static _Thread_local int parameters_exceeded;
+/* The argument positions 0..COUNT-1 as a mask (COUNT is at most 64). */
+static uint64_t
+all_positions(int count)
+{
+    return count >= 64 ? UINT64_MAX : ((uint64_t)1 << count) - 1;
+}
+
 /* How many bindings the function being verified has room for. */
 static _Thread_local int binding_capacity;
 
@@ -830,20 +837,20 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
             int expected = parse_parameters(module, &buffers->signature, buffers->parameters);
             if(expected < 0)
                 return 0;
-            unsigned used = 0;
+            uint64_t used = 0;
             for(int child = expression->first_child; child >= 0;
                 child = function->exprs[child].next_sibling) {
                 int position = function->exprs[child].argument_index;
                 if(position < 0 || position >= expected ||
-                   (used & (1u << position)) ||
+                   (used & ((uint64_t)1 << position)) ||
                    !verify_expression(module, function, bindings,
                                       binding_count, child, depth + 1))
                     return 0;
-                used |= 1u << position;
+                used |= (uint64_t)1 << position;
                 children++;
             }
             return children == expected &&
-                   used == ((1u << expected) - 1u);
+                   used == all_positions(expected);
         }
         int resolved = ResolveFunction(module, expression->name,
                                        &owner, &callee);
@@ -852,22 +859,22 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
         if((resolved != 1 || callee == NULL) &&
            (external == NULL || external->extern_kind != ZIR_EXTERN_HOST))
             return 0;
-        unsigned used = 0;
+        uint64_t used = 0;
         for(int child = expression->first_child; child >= 0;
             child = function->exprs[child].next_sibling) {
             int position = function->exprs[child].argument_index;
             if(position < 0 || position >= VM_MAX_PARAMS ||
-               (used & (1u << position)) || ++children > VM_MAX_PARAMS ||
+               (used & ((uint64_t)1 << position)) || ++children > VM_MAX_PARAMS ||
                !verify_expression(module, function, bindings, binding_count,
                                   child, depth + 1))
                 return 0;
-            used |= 1u << position;
+            used |= (uint64_t)1 << position;
         }
         int expected = external != NULL ?
             parse_import_parameters(module, external, buffers->parameters) :
             parse_parameters(owner, callee, buffers->parameters);
         return expected >= 0 && expected == children &&
-               used == ((1u << expected) - 1u);
+               used == all_positions(expected);
     default:
         return 0;
     }

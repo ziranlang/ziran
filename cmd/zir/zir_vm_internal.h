@@ -16,7 +16,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { VM_MAX_PARAMS = 16, VM_MAX_GLOBALS = 4096,
+/* VM_MAX_PARAMS is at most 64: named arguments are tracked in a uint64_t. */
+enum { VM_MAX_PARAMS = 64, VM_MAX_GLOBALS = 4096,
        VM_MAX_DEPTH = 128,
        VM_MAX_FIELDS = 1024,
        VM_MAX_RECORD_BYTES = 256 * 1024 * 1024,

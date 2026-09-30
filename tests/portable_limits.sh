@@ -1,8 +1,8 @@
 #!/bin/sh
-# The portable runner holds as many locals as a function declares, lets
-# calls nest as deep as the stack allows, and says so when a runaway
-# recursion fills it. Its one fixed limit, 16 parameters per function,
-# names itself. (Statements are unbounded; see portable_long_runs.sh.)
+# The portable runner holds as many locals as a function declares, takes
+# the language's full 64 parameters (more than 16 once failed), lets calls
+# nest as deep as the stack allows, and says so when a runaway recursion
+# fills it. (Statements are unbounded; see portable_long_runs.sh.)
 set -eu
 
 ziran=$1
@@ -33,20 +33,23 @@ expect_failure() {
     grep -Fq "$message" "$work/$name.out" || { cat "$work/$name.out" >&2; exit 1; }
 }
 
-python3 - "$work/params.zi" "$work/locals.zi" <<'PY'
+python3 - "$work/locals.zi" "$work/many.zi" <<'PY'
 import sys
-params = ', '.join('p%d: s32' % i for i in range(17))
-args = ', '.join(str(i) for i in range(17))
-open(sys.argv[1], 'w').write(
-    'Sum :: (%s) -> s32 {\n    return p0 + p16\n}\n'
-    'main :: () {\n    print("%%\\n", Sum(%s))\n}\n' % (params, args))
+def sum_program(path, count):
+    params = ', '.join('p%d: s32' % i for i in range(count))
+    args = ', '.join(str(i) for i in range(count))
+    open(path, 'w').write(
+        'Sum :: (%s) -> s32 {\n    return p1 + p%d\n}\n'
+        'main :: () {\n    print("%%\\n", Sum(%s))\n}\n' % (params, count - 1, args))
+sum_program(sys.argv[2], 64)
 locals_ = '\n'.join('    v%d: s32 = %d' % (i, i) for i in range(200))
-open(sys.argv[2], 'w').write(
+open(sys.argv[1], 'w').write(
     'Pick :: (a: s32) -> s32 {\n%s\n    return a + v0 + v199\n}\n'
     'main :: () {\n    print("%%\\n", Pick(1))\n}\n' % locals_)
 PY
 
 expect_output locals 200 < "$work/locals.zi"
+expect_output many 64 < "$work/many.zi"
 expect_output deep 5000 <<'ZI'
 Depth :: (n: s32) -> s32 {
     if n == 0 { return 0 }
@@ -64,4 +67,3 @@ main :: () {
     print("%\n", Forever(0))
 }
 ZI
-expect_failure params 'portable functions take at most 16 parameters: Sum' < "$work/params.zi"

@@ -547,7 +547,7 @@ go_uses_caller_location(const ZirProgram *const *programs, int count)
                     return 1;
             for(int f = 0; f < module->function_count; f++) {
                 const ZirFunction *fn = &module->functions[f];
-                if(strstr(fn->args, "Source_Code_Location") ||
+                if(strstr(FunctionArgs(fn), "Source_Code_Location") ||
                    strstr(fn->return_type, "Source_Code_Location"))
                     return 1;
                 for(int e = 0; e < fn->expr_count; e++)
@@ -742,10 +742,10 @@ go_set_module(const ZirModule *m, const char *guard)
         if(!fn->is_extern)
             continue;
         if(fn->extern_target[0] != '\0')
-            add_extern(fn->name, fn->args, fn->return_type,
+            add_extern(fn->name, FunctionArgs(fn), fn->return_type,
                        fn->extern_target, "", 0, 0, 0, fn->span);
         else
-            add_extern(fn->name, fn->args, fn->return_type, "", "", 0, 0, 0, fn->span);
+            add_extern(fn->name, FunctionArgs(fn), fn->return_type, "", "", 0, 0, 0, fn->span);
     }
     for(int i = 0; i < m->type_count; i++) {
         if(m->types[i].is_enum)
@@ -1332,8 +1332,8 @@ lower_function_with_buffers(FILE *f, const ZirModule *m, const ZirFunction *fn,
         int emitted = 0;
         fputs("func ", f);
         fprintf(f, "%s_%s(", guard, buffers->fname);
-        if(fn->args[0] != '\0') {
-            n = split_top(fn->args, buffers->parts, 32);
+        if(FunctionArgs(fn)[0] != '\0') {
+            n = split_top(FunctionArgs(fn), buffers->parts, 32);
             for(i = 0; i < n; i++) {
                 char *colon = strchr(buffers->parts[i], ':');
                 char aname[ZIR_GO_NAME_MAX], atype[ZIR_GO_NAME_MAX];

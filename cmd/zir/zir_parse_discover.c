@@ -548,7 +548,7 @@ discover_function_header_with_buffers(const char *source, const char *path,
     ZirFunction *function = &future->items[future->count++];
     memset(function, 0, sizeof(*function));
     copy_text(function->name, sizeof(function->name), name);
-    copy_text(function->args, sizeof(function->args), buffers->args);
+    function->args_text = KeepParameters(buffers->args);
     copy_text(function->return_type, sizeof(function->return_type), result);
     function->span = Span(rel, line_no, 1);
     function->is_public = scope_public;

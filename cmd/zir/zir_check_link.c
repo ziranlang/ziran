@@ -336,10 +336,10 @@ static int rewrite_function_type_applications(ZirModule *module, ZirFunction *fn
 static int
 rewrite_function_type_applications_with_buffers(ZirModule *module, ZirFunction *fn, RewriteFunctionTypeApplicationsBuffers *buffers)
 {
-    if(!rewrite_type_applications(module, fn->args, buffers->expanded,
+    if(!rewrite_type_applications(module, FunctionArgs(fn), buffers->expanded,
             sizeof(buffers->expanded), fn->span, 0)) return 0;
-    if(strlen(buffers->expanded) >= sizeof(fn->args)) return 0;
-    copy_text(fn->args, sizeof(fn->args), buffers->expanded);
+    if(strlen(buffers->expanded) >= ZIR_TEXT_MAX) return 0;
+    fn->args_text = KeepParameters(buffers->expanded);
     if(!rewrite_type_applications(module, fn->return_type, buffers->expanded,
             sizeof(buffers->expanded), fn->span, 0)) return 0;
     if(strlen(buffers->expanded) >= sizeof(fn->return_type)) return 0;
@@ -660,7 +660,7 @@ jai_module_types(const ZirModule *module)
     }
     for(int i = 0; i < module->function_count; i++) {
         const ZirFunction *fn = &module->functions[i];
-        if(!jai_parameter_types(fn->span, fn->args) ||
+        if(!jai_parameter_types(fn->span, FunctionArgs(fn)) ||
            !JaiTypeSpelling(fn->span, fn->return_type)) return 0;
         for(int s = 0; s < fn->stmt_count; s++)
             if(fn->stmts[s].kind == ZIR_STMT_DECL &&
@@ -838,6 +838,19 @@ too_long:
                "file-private reference exceeds text limit: %s", original);
     free(output);
     return 0;
+}
+
+static int
+rewrite_private_parameters(const char **field, ZirSourceSpan span,
+                           const char *original, const char *internal)
+{
+    char *text = AllocateOrExit(ZIR_TEXT_MAX);
+    copy_text(text, ZIR_TEXT_MAX, *field);
+    int ok = rewrite_private_reference(text, ZIR_TEXT_MAX, span, original,
+                                       internal);
+    *field = KeepParameters(text);
+    free(text);
+    return ok;
 }
 
 static int
@@ -1129,9 +1142,8 @@ name_private_types(ZirModule *module)
         for(int f = 0; f < module->function_count; f++) {
             ZirFunction *function = &module->functions[f];
             if(strcmp(SpanPath(function->span), path)) continue;
-            if(!rewrite_private_reference(function->args,
-                                          sizeof(function->args), function->span,
-                                          rename->original, rename->internal) ||
+            if(!rewrite_private_parameters(&function->args_text, function->span,
+                                           rename->original, rename->internal) ||
                !rewrite_private_reference(function->return_type,
                                           sizeof(function->return_type),
                                           function->span, rename->original,
@@ -1263,6 +1275,31 @@ substitute_field(char *field, size_t capacity, const char *parameter,
     free(copy);
     return ok;
 }
+
+/* Kept parameter text edited as the in-place helpers edit a buffer: on a
+ * heap copy, since parameters fill ZIR_TEXT_MAX bytes, and kept after. */
+static int
+substitute_parameters(const char **field, const char *parameter,
+                      const char *concrete)
+{
+    char *text = AllocateOrExit(ZIR_TEXT_MAX);
+    copy_text(text, ZIR_TEXT_MAX, *field);
+    int ok = substitute_field(text, ZIR_TEXT_MAX, parameter, concrete);
+    *field = KeepParameters(text);
+    free(text);
+    return ok;
+}
+
+static int
+canonical_parameters(ZirModule *module, const char **field, ZirSourceSpan span)
+{
+    char *text = AllocateOrExit(ZIR_TEXT_MAX);
+    copy_text(text, ZIR_TEXT_MAX, *field);
+    int ok = canonical_field(module, text, ZIR_TEXT_MAX, span);
+    *field = KeepParameters(text);
+    free(text);
+    return ok;
+}
 /* Buffers instantiate_specializations keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct InstantiateSpecializationsBuffers {
@@ -1282,7 +1319,7 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
         ZirModule *owner = request->instance_owner;
         buffers->original = template_owner->functions[request->template_index];
         ZirFunction *instance = ModuleAddFunction(owner, request->name,
-            buffers->original.args, buffers->original.return_type, 0, buffers->original.span);
+            FunctionArgs(&buffers->original), buffers->original.return_type, 0, buffers->original.span);
         if(instance == NULL) return 0;
         *instance = buffers->original;
         copy_text(instance->name, sizeof(instance->name), request->name);
@@ -1319,16 +1356,14 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
         const char *parameter = buffers->original.template_param;
         const char *concrete = request->type;
         /* A second check of saved IR must see the same array signature. */
-        if(!substitute_field(instance->args, sizeof(instance->args),
-                             parameter, concrete) ||
-           !substitute_field(instance->default_args,
-                             sizeof(instance->default_args),
-                             parameter, concrete) ||
+        if(!substitute_parameters(&instance->args_text, parameter, concrete) ||
+           !substitute_parameters(&instance->default_args_text,
+                                  parameter, concrete) ||
            !substitute_field(instance->return_type,
                              sizeof(instance->return_type),
                              parameter, concrete) ||
            !normalize_function_arrays(owner, instance)) return 0;
-        if(!canonical_field(owner, instance->args, sizeof(instance->args), instance->span) ||
+        if(!canonical_parameters(owner, &instance->args_text, instance->span) ||
            !canonical_field(owner, instance->return_type, sizeof(instance->return_type),
                             instance->span)) return 0;
         for(int s = 0; s < instance->stmt_count; s++) {

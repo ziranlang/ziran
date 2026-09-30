@@ -486,7 +486,7 @@ LowerCleanup_with_buffers(ZirFunction *fn, LowerCleanupBuffers *buffers)
                 /* Reserve a fresh local without reserving user identifiers. */
                 do {
                     snprintf(name, sizeof(name), "cleanup_return_%d", serial++);
-                    collision = strstr(fn->args, name) != NULL;
+                    collision = strstr(FunctionArgs(fn), name) != NULL;
                     for(int k = 0; k < fn->stmt_count; k++)
                         collision |= strstr(fn->stmts[k].text, name) != NULL;
                 } while(collision);
@@ -970,7 +970,7 @@ static int
 range_name_used(const ZirFunction *fn, const ZirModule *module,
                 const char *name)
 {
-    if(mentions(fn->args, name)) return 1;
+    if(mentions(FunctionArgs(fn), name)) return 1;
     for(int i = 0; i < fn->stmt_count; i++)
         if(mentions(fn->stmts[i].text, name)) return 1;
     for(int i = 0; i < module->define_count; i++)
@@ -1124,7 +1124,7 @@ literal_bound(const ZirFunction *fn, const ZirModule *module, const char *text,
         return 0;
     memcpy(name, text, length);
     name[length] = '\0';
-    if(mentions(fn->args, name))
+    if(mentions(FunctionArgs(fn), name))
         return 0;
     for(int i = 0; i < fn->stmt_count; i++)
         if(fn->stmts[i].kind == ZIR_STMT_DECL && !strcmp(fn->stmts[i].name, name))

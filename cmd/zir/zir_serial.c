@@ -13,7 +13,8 @@
 typedef enum FieldKind {
     FIELD_STRING,
     FIELD_TEXT, /* const char * kept with KeepText; same encoding as a string */
-    FIELD_NAME, /* const char * kept with KeepName; a string under ZIR_NAME_MAX */
+    FIELD_NAME, /* const char * kept with KeepName, or KeepParameters when the
+                 * limit is ZIR_TEXT_MAX; a string under that limit */
     FIELD_INTEGER,
     FIELD_U64,
     FIELD_SPAN
@@ -38,6 +39,8 @@ typedef struct Reader {
     {offsetof(type, name), ZIR_TEXT_MAX, FIELD_TEXT}
 #define NAME_FIELD(type, name) \
     {offsetof(type, name), ZIR_NAME_MAX, FIELD_NAME}
+#define PARAMETERS_FIELD(type, name) \
+    {offsetof(type, name), ZIR_TEXT_MAX, FIELD_NAME}
 #define INTEGER_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_INTEGER}
 #define U64_FIELD(type, name) \
@@ -85,8 +88,8 @@ static const Field expression_fields[] = {
     SPAN_FIELD(ZirExpr, span)
 };
 static const Field function_fields[] = {
-    STRING_FIELD(ZirFunction, name), STRING_FIELD(ZirFunction, args),
-    STRING_FIELD(ZirFunction, default_args),
+    STRING_FIELD(ZirFunction, name), PARAMETERS_FIELD(ZirFunction, args_text),
+    PARAMETERS_FIELD(ZirFunction, default_args_text),
     U64_FIELD(ZirFunction, using_parameters),
     STRING_FIELD(ZirFunction, return_type), INTEGER_FIELD(ZirFunction, must_use),
     INTEGER_FIELD(ZirFunction, is_conversion),
@@ -208,10 +211,10 @@ specified_enum_body_valid(const char *body)
 static int
 default_signature_valid(const ZirFunction *function)
 {
-    if(!function->default_args[0]) return 1;
+    if(!FunctionDefaultArgs(function)[0]) return 1;
     char (*parts)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parts));
     if(parts == NULL) return 0;
-    int count = split_top_level(function->default_args, parts[0], 64,
+    int count = split_top_level(FunctionDefaultArgs(function), parts[0], 64,
                                 sizeof(parts[0]));
     char normalized[ZIR_TEXT_MAX] = "";
     size_t used = 0;
@@ -234,7 +237,7 @@ default_signature_valid(const ZirFunction *function)
         used += (size_t)written;
     }
     valid = valid && defaults > 0 &&
-            strcmp(normalized, function->args) == 0;
+            strcmp(normalized, FunctionArgs(function)) == 0;
     free(parts);
     return valid;
 }
@@ -400,10 +403,10 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
             if(!read_string(reader, value, fields[i].size))
                 return 0;
         } else if(fields[i].kind == FIELD_NAME) {
-            char name[ZIR_NAME_MAX];
-            if(!read_string(reader, name, sizeof(name)))
+            char name[ZIR_TEXT_MAX];
+            if(!read_string(reader, name, fields[i].size))
                 return 0;
-            *(const char **)value = KeepName(name);
+            *(const char **)value = KeepText(name);
         } else if(fields[i].kind == FIELD_TEXT) {
             char small[ZIR_TEXT_MAX];
             uint32_t length;
@@ -777,7 +780,7 @@ validate_program(const ZirProgram *program)
                 (function->exported || function->is_public ||
                  function->is_extern || function->is_template ||
                  function->is_specialization ||
-                 !function->is_file_private || function->args[0] ||
+                 !function->is_file_private || FunctionArgs(function)[0] ||
                  strcmp(function->return_type, "void") != 0 ||
                  function->stmt_count == 0)) ||
                (function->is_template &&

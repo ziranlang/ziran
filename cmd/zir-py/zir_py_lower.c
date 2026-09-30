@@ -1556,7 +1556,7 @@ static int function_parameter_names(const ZirFunction *function,
                                     char types[][ZIR_NAME_MAX], int maximum)
 {
     char *parts = py_allocate(64 * 512);
-    int count = *function->args ? split_top_level(function->args, parts, 64, 512) : 0;
+    int count = *FunctionArgs(function) ? split_top_level(FunctionArgs(function), parts, 64, 512) : 0;
     int used = 0;
     for(int index = 0; index < count && used < maximum; index++) {
         char *part = parts + index * 512;
@@ -3766,7 +3766,7 @@ int py_lower(const ZirProgram *const *programs, int program_count,
                        "executable entry is missing: %s:%s", entry_module, entry_function);
             return 1;
         }
-        if(entry->args[0] || (strcmp(entry->return_type, "void") != 0 &&
+        if(FunctionArgs(entry)[0] || (strcmp(entry->return_type, "void") != 0 &&
                               !integer_type(entry->return_type) &&
                               strcmp(entry->return_type, "bool") != 0)) {
             Diagnostic(entry->span, "zir_py.entry",

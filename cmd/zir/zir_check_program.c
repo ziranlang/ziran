@@ -827,7 +827,7 @@ variadic_callee(const ZirModule *module, const char *name)
         for(int f = 0; f < scope->function_count; f++)
             if((!strcmp(scope->functions[f].name, base) ||
                 !strcmp(scope->functions[f].overload_name, base)) &&
-               strstr(scope->functions[f].args, "..") != NULL)
+               strstr(FunctionArgs(&scope->functions[f]), "..") != NULL)
                 return 1;
         for(int i = 0; i < scope->import_count; i++)
             if(scope->imports[i].kind == ZIR_IMPORT_EXTERN &&
@@ -904,7 +904,7 @@ lint_flags(const ZirFunction *fn)
                 ok = 0;
         char needle[ZIR_NAME_MAX + 2];
         snprintf(needle, sizeof(needle), "%s:", decl->name);
-        if(strstr(fn->args, needle) != NULL)
+        if(strstr(FunctionArgs(fn), needle) != NULL)
             ok = 0;
         for(int s = 0; s < fn->stmt_count && ok; s++) {
             const ZirStmt *st = &fn->stmts[s];

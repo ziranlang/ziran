@@ -109,7 +109,7 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
         return 0;
     }
     char parameters[ZIR_TEXT_MAX];
-    copy_text(parameters, sizeof(parameters), fn->args);
+    copy_text(parameters, sizeof(parameters), FunctionArgs(fn));
     int arguments = parameters[0] != '\0';
     if(arguments && (strstr(parameters, "**") == NULL || strchr(parameters, ',') == NULL)) {
         fprintf(stderr, "zi2c: --exe entry %s takes nothing or (argc: s32, argv: **u8)\n",

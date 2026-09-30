@@ -842,8 +842,8 @@ check_function_with_buffers(BorrowCheck *check, BorrowFunction *function, CheckF
         return;
     }
     check->active_capacity = fn->stmt_count + 1;
-    int count = *skip_ws(fn->args) ?
-        split_top_level(fn->args, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
+    int count = *skip_ws(FunctionArgs(fn)) ?
+        split_top_level(FunctionArgs(fn), buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
     for(int i = 0; i < count; i++) {
         char *colon = strchr(buffers->parameters[i], ':');
         if(colon == NULL)

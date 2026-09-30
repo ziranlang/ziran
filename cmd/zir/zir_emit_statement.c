@@ -1154,7 +1154,7 @@ EmitBody_with_buffers(FILE *out,const ZirModule *module,const ZirFunction *fn,Zi
                    "out of memory during scalar emission");
         exit(1);
     }
-    count=*skip_ws(fn->args)?split_top_level(fn->args,buffers->params[0],64,sizeof(buffers->params[0])):0;
+    count=*skip_ws(FunctionArgs(fn))?split_top_level(FunctionArgs(fn),buffers->params[0],64,sizeof(buffers->params[0])):0;
     for(int i=0;i<count;i++) {
         char *colon=strchr(buffers->params[i],':');*colon++=0;trim_in_place(buffers->params[i]);
         const char *type=canonical(skip_ws(colon));

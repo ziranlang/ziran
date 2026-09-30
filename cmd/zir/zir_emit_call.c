@@ -459,7 +459,7 @@ call_parameter_type(Emitter *e, const ZirExpr *call, int ordinal,
         const ZirFunction *function = NULL;
         if(ResolveFunction(e->module, call->name, &owner, &function) == 1 &&
            function != NULL)
-            signature = function->args;
+            signature = FunctionArgs(function);
         else
             for(int i = 0; i < e->module->import_count; i++)
                 if(e->module->imports[i].kind == ZIR_IMPORT_EXTERN &&

@@ -448,8 +448,8 @@ evaluate_abi_law_with_buffers(const ZirModule *module, const ZirLaw *law,
                  law->payload);
         return LAW_UNKNOWN;
     }
-    count = *skip_ws(fn->args) ?
-        split_top_level(fn->args, buffers->parameters[0], 64,
+    count = *skip_ws(FunctionArgs(fn)) ?
+        split_top_level(FunctionArgs(fn), buffers->parameters[0], 64,
                         sizeof(buffers->parameters[0])) : 0;
     for(int p = 0; p < count; p++) {
         char *colon = strchr(buffers->parameters[p], ':');

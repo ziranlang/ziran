@@ -3139,7 +3139,7 @@ lower_function_with_buffers(RustEmitter *emitter, const ZirModule *module,
         fputs("fn ", emitter->output);
     fputs(buffers->symbol, emitter->output);
     fputc('(', emitter->output);
-    count = *function->args ? split_arguments(function->args, buffers->parts, 32) : 0;
+    count = *FunctionArgs(function) ? split_arguments(FunctionArgs(function), buffers->parts, 32) : 0;
     if(count < 0) {
         Diagnostic(function->span, "zir_rust.parameter",
                    "too many parameters in the Rust target: %s",
@@ -4113,7 +4113,7 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
                        entry_function);
             return 1;
         }
-        if(entry->args[0] || (strcmp(entry->return_type, "void") != 0 &&
+        if(FunctionArgs(entry)[0] || (strcmp(entry->return_type, "void") != 0 &&
            !integer_type(entry->return_type) &&
            strcmp(entry->return_type, "bool") != 0)) {
             Diagnostic(entry->span, "zir_rust.entry",

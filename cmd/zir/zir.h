@@ -145,8 +145,8 @@ typedef struct ZirExpr {
 
 typedef struct ZirFunction {
     char name[ZIR_NAME_MAX];
-    char args[ZIR_TEXT_MAX];
-    char default_args[ZIR_TEXT_MAX]; /* declaration parameters with defaults */
+    const char *args_text; /* parameters; read with FunctionArgs, set with KeepParameters */
+    const char *default_args_text; /* declaration parameters with defaults; FunctionDefaultArgs */
     uint64_t using_parameters; /* template parameter namespace flags */
     char return_type[ZIR_NAME_MAX];
     int must_use; /* #must requires callers to keep the result */
@@ -178,6 +178,21 @@ typedef struct ZirFunction {
     int expr_count;
     int expr_cap;
 } ZirFunction;
+
+/* A function's parameters and defaulted parameters as written. They are
+ * kept text (KeepParameters); a zeroed function has none, so read them
+ * through these. */
+static inline const char *
+FunctionArgs(const ZirFunction *fn)
+{
+    return fn->args_text ? fn->args_text : "";
+}
+
+static inline const char *
+FunctionDefaultArgs(const ZirFunction *fn)
+{
+    return fn->default_args_text ? fn->default_args_text : "";
+}
 
 typedef struct ZirGlobal {
     char name[ZIR_NAME_MAX];
@@ -408,6 +423,9 @@ const char *KeepText(const char *text);
  * fixed name buffers it replaces were. Kept names are never NULL once a
  * node is made: "" means none. */
 const char *KeepName(const char *text);
+/* A parameter list kept like KeepText and cut to ZIR_TEXT_MAX - 1 bytes,
+ * as ZirFunction's parameter buffers were. */
+const char *KeepParameters(const char *text);
 /* KeepName of the text snprintf would write into a name buffer. */
 const char *KeepNameFormat(const char *format, ...)
     __attribute__((format(printf, 1, 2)));

@@ -926,7 +926,7 @@ prune_record_fields_with_buffers(ZirProgram *program, const char *entry_module,
             ZirFunction *fn = &module->functions[f];
             if(strcmp(module->name, entry_module) == 0 &&
                strcmp(fn->name, entry_function) == 0)
-                mark_signature_fields(module, fn->args, fn->return_type,
+                mark_signature_fields(module, FunctionArgs(fn), fn->return_type,
                                       uses, use_count);
             for(int e = 0; e < fn->expr_count; e++) {
                 ZirExpr *expr = &fn->exprs[e];
@@ -1048,7 +1048,7 @@ mark_parameters(const ZirProgram *program, const ZirModule *module,
                 const ZirFunction *function, unsigned char **keep_types,
                 int *changed)
 {
-    const char *cursor = function->args;
+    const char *cursor = FunctionArgs(function);
     while(*cursor) {
         const char *colon = strchr(cursor, ':');
         if(colon == NULL)
@@ -1654,9 +1654,9 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
                     continue;
                 if(module->types[t].is_procedure_type) {
                     memset(&buffers->signature, 0, sizeof(buffers->signature));
-                    if(strlen(module->types[t].body) >= sizeof(buffers->signature.args))
+                    if(strlen(module->types[t].body) >= ZIR_TEXT_MAX)
                         goto failed;
-                    strcpy(buffers->signature.args, module->types[t].body);
+                    buffers->signature.args_text = KeepParameters(module->types[t].body);
                     if(!mark_parameters(program, module, &buffers->signature,
                                         keep_types, &changed))
                         goto failed;

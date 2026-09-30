@@ -1170,18 +1170,33 @@ kept_text_failed(void)
     exit(1);
 }
 
-const char *
-KeepName(const char *text)
+/* TEXT kept, cut to fit a CAPACITY-byte buffer as copy_text would. */
+static const char *
+keep_cut(const char *text, size_t capacity)
 {
     if(text == NULL)
         return "";
-    size_t length = strnlen(text, ZIR_NAME_MAX);
-    if(length < ZIR_NAME_MAX)
+    size_t length = strnlen(text, capacity);
+    if(length < capacity)
         return KeepText(text);
-    char cut[ZIR_NAME_MAX];
-    memcpy(cut, text, ZIR_NAME_MAX - 1);
-    cut[ZIR_NAME_MAX - 1] = '\0';
-    return KeepText(cut);
+    char *cut = AllocateOrExit(capacity);
+    memcpy(cut, text, capacity - 1);
+    cut[capacity - 1] = '\0';
+    const char *kept = KeepText(cut);
+    free(cut);
+    return kept;
+}
+
+const char *
+KeepName(const char *text)
+{
+    return keep_cut(text, ZIR_NAME_MAX);
+}
+
+const char *
+KeepParameters(const char *text)
+{
+    return keep_cut(text, ZIR_TEXT_MAX);
 }
 
 const char *
@@ -1319,7 +1334,7 @@ ModuleAddFunction(ZirModule *module, const char *name, const char *args,
     fn = &module->functions[module->function_count++];
     memset(fn, 0, sizeof(*fn));
     copy_text(fn->name, sizeof(fn->name), name);
-    copy_text(fn->args, sizeof(fn->args), args);
+    fn->args_text = KeepParameters(args);
     copy_text(fn->return_type, sizeof(fn->return_type), return_type);
     fn->exported = exported;
     fn->span = span;
@@ -1767,7 +1782,7 @@ ProgramDump(const ZirProgram *program, FILE *out)
             int k;
 
             fprintf(out, "  function %s args %s return %s exported %d span ",
-                    fn->name, fn->args, fn->return_type, fn->exported);
+                    fn->name, FunctionArgs(fn), fn->return_type, fn->exported);
             dump_span(out, fn->span);
             fprintf(out, "\n");
             for(k = 0; k < fn->stmt_count; k++) {

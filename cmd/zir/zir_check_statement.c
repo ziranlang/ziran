@@ -1052,7 +1052,7 @@ lower_if_case_with_buffers(Checker *c, int index, const char *checked_type, Lowe
     int serial = index, collision;
     do {
         snprintf(temporary, sizeof(temporary), "case_value_%d", serial++);
-        collision = strstr(fn->args, temporary) != NULL;
+        collision = strstr(FunctionArgs(fn), temporary) != NULL;
         for(int i = 0; i < fn->stmt_count; i++)
             collision |= strstr(fn->stmts[i].text, temporary) != NULL ||
                          strcmp(fn->stmts[i].name, temporary) == 0;
@@ -1329,8 +1329,8 @@ conversion_matches_with_buffers(Checker *c, const ZirFunction *conversion,
     if(conversion->is_template || conversion->is_extern ||
        strcmp(conversion->return_type, to) != 0)
         return 0;
-    count = *skip_ws(conversion->args) ?
-        split_top_level(conversion->args, buffers->parameters[0], 64,
+    count = *skip_ws(FunctionArgs(conversion)) ?
+        split_top_level(FunctionArgs(conversion), buffers->parameters[0], 64,
                         sizeof(buffers->parameters[0])) : 0;
     if(count != 1)
         return 0;
@@ -1714,7 +1714,7 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
          * checking the call directly would, so saved IR rechecks unchanged. */
         {
             ZirExpr *argument = &c->fn->exprs[copy_index];
-            const char *colon = strchr(conversion->args, ':');
+            const char *colon = strchr(FunctionArgs(conversion), ':');
             const char *context = colon != NULL ? ScalarType(skip_ws(colon + 1)) : "";
             if(*context && (!strcmp(argument->type, "integer") ||
                             !strcmp(argument->type, "real")))

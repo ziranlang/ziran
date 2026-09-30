@@ -488,15 +488,15 @@ add_default_helpers_with_buffers(ZirProgram *program, ZirModule *module,
     int imports_resolved = 0;
     for(int fi = 0; fi < declarations; fi++) {
         const ZirFunction *function = &module->functions[fi];
-        if(!function->default_args[0] || function->default_helpers_created)
+        if(!FunctionDefaultArgs(function)[0] || function->default_helpers_created)
             continue;
         char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
         char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
         if(parameters == NULL || defaults == NULL)
             die("out of memory creating default argument helpers");
-        int count = split_top_level(function->args, parameters[0], 64,
+        int count = split_top_level(FunctionArgs(function), parameters[0], 64,
                                     sizeof(parameters[0]));
-        if(split_top_level(function->default_args, defaults[0], 64,
+        if(split_top_level(FunctionDefaultArgs(function), defaults[0], 64,
                            sizeof(defaults[0])) != count)
             die_at(function->span, "invalid default parameter signature");
         int inferred = 0;
@@ -583,10 +583,8 @@ add_default_helpers_with_buffers(ZirProgram *program, ZirModule *module,
                            "default parameters exceed size limit");
                 full_used += (size_t)written;
             }
-            copy_text(module->functions[fi].args,
-                      sizeof(module->functions[fi].args), buffers->args);
-            copy_text(module->functions[fi].default_args,
-                      sizeof(module->functions[fi].default_args), buffers->full);
+            module->functions[fi].args_text = KeepParameters(buffers->args);
+            module->functions[fi].default_args_text = KeepParameters(buffers->full);
         }
         for(int i = 0; i < count; i++) {
             function = &module->functions[fi];

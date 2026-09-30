@@ -164,7 +164,7 @@ main(int argc, char **argv)
                 result = 1;
                 goto done;
             }
-            if(function->args[0] != '\0' ||
+            if(FunctionArgs(function)[0] != '\0' ||
                (strcmp(function->return_type, "void") != 0 &&
                 strcmp(function->return_type, "s32") != 0 &&
                 strcmp(function->return_type, "s64") != 0 &&

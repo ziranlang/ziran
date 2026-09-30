@@ -1194,8 +1194,8 @@ contextual_slot_with_buffers(Checker *c, int index, const char *expected, Contex
                 !strcmp(declaration->return_type, slot->procedure_return_type);
         }
     }
-    int actual_count = matches && *skip_ws(declaration->args) ?
-        split_top_level(declaration->args, buffers->actual[0], 64, sizeof(buffers->actual[0])) : 0;
+    int actual_count = matches && *skip_ws(FunctionArgs(declaration)) ?
+        split_top_level(FunctionArgs(declaration), buffers->actual[0], 64, sizeof(buffers->actual[0])) : 0;
     int wanted_count = *skip_ws(slot->body) ?
         split_top_level(slot->body, buffers->wanted[0], 64, sizeof(buffers->wanted[0])) : 0;
     matches &= actual_count == wanted_count;

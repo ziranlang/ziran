@@ -1093,7 +1093,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         if((other->is_file_private || scope_file) &&
                            strcmp(SpanPath(other->span), buffers->rel))
                             continue;
-                        if(!strcmp(other->args, buffers->args))
+                        if(!strcmp(FunctionArgs(other), buffers->args))
                             die_at(Span(buffers->rel, line_no, 1),
                                    "%s is already declared with these parameters", name);
                         if(!other->overload_name[0]) {
@@ -1127,7 +1127,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 }
                 fn->using_parameters = using_parameters;
                 fn->must_use = function_must_use(t, ret, fn->span);
-                copy_text(fn->default_args, sizeof(fn->default_args), buffers->defaults);
+                fn->default_args_text = KeepParameters(buffers->defaults);
                 if(strchr(buffers->args, '$') != NULL) {
                     int count = split_top_level(buffers->args, buffers->parameters[0], 64,
                                                 sizeof(buffers->parameters[0]));

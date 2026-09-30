@@ -111,7 +111,7 @@ restart:
     has_slots = 0;
     has_arrays = fn->return_type[0] == '[';
     fn->uses_host = fn->is_extern && fn->extern_kind == ZIR_EXTERN_HOST;
-    n = *skip_ws(c->fn->args) ? split_top_level(c->fn->args, buffers->params[0], 64, sizeof(buffers->params[0])) : 0;
+    n = *skip_ws(FunctionArgs(c->fn)) ? split_top_level(FunctionArgs(c->fn), buffers->params[0], 64, sizeof(buffers->params[0])) : 0;
     for(int a = 0; a < n; a++) {
         char *colon = strchr(buffers->params[a], ':');
         if(colon) {
@@ -545,8 +545,8 @@ restart:
            callee == NULL || callee->is_extern)
             continue;
         has_arrays |= ArrayValueType(callee->return_type);
-        int count = *skip_ws(callee->args) ?
-            split_top_level(callee->args, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
+        int count = *skip_ws(FunctionArgs(callee)) ?
+            split_top_level(FunctionArgs(callee), buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
         for(int parameter = 0; parameter < count; parameter++) {
             const char *colon = strchr(buffers->parameters[parameter], ':');
             if(colon != NULL)
@@ -618,8 +618,8 @@ check_template_declaration(Checker *c, ZirFunction *fn)
     }
     char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
     if(parameters == NULL) return 0;
-    int count = *skip_ws(fn->args) ?
-        split_top_level(fn->args, parameters[0], 64,
+    int count = *skip_ws(FunctionArgs(fn)) ?
+        split_top_level(FunctionArgs(fn), parameters[0], 64,
                         sizeof(parameters[0])) : 0;
     int binders = 0, valid = count > 0;
     uint64_t allowed_using = count >= 64 ? UINT64_MAX :
@@ -668,9 +668,9 @@ check_template_declaration(Checker *c, ZirFunction *fn)
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct NormalizeFunctionArraysBuffers {
     char parts[64][ZIR_TEXT_MAX];
-    char arguments[sizeof(((ZirFunction *)0)->args)];
+    char arguments[ZIR_TEXT_MAX];
     char original_type[ZIR_TEXT_MAX];
-    char normalized[sizeof(((ZirFunction *)0)->default_args)];
+    char normalized[ZIR_TEXT_MAX];
 } NormalizeFunctionArraysBuffers;
 
 int normalize_function_arrays(const ZirModule *module, ZirFunction *fn);
@@ -679,10 +679,10 @@ static int
 normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn, NormalizeFunctionArraysBuffers *buffers)
 {
     size_t used = 0;
-    int array_arguments = strchr(fn->args, '[') != NULL;
+    int array_arguments = strchr(FunctionArgs(fn), '[') != NULL;
     int argument_alias_changed = 0;
-    int count = *skip_ws(fn->args) ?
-        split_top_level(fn->args, buffers->parts[0], 64, sizeof(buffers->parts[0])) : 0;
+    int count = *skip_ws(FunctionArgs(fn)) ?
+        split_top_level(FunctionArgs(fn), buffers->parts[0], 64, sizeof(buffers->parts[0])) : 0;
     buffers->arguments[0] = '\0';
     for(int i = -1; i < count; i++) {
         char *type = fn->return_type;
@@ -729,11 +729,11 @@ normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn,
         }
     }
     if(array_arguments || argument_alias_changed)
-        copy_text(fn->args, sizeof(fn->args), buffers->arguments);
-    if(argument_alias_changed && fn->default_args[0]) {
+        fn->args_text = KeepParameters(buffers->arguments);
+    if(argument_alias_changed && FunctionDefaultArgs(fn)[0]) {
         char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
         if(defaults == NULL) return 0;
-        int default_count = split_top_level(fn->default_args, defaults[0],
+        int default_count = split_top_level(FunctionDefaultArgs(fn), defaults[0],
                                             64, sizeof(defaults[0]));
         size_t written = 0;
         buffers->normalized[0] = '\0';
@@ -761,7 +761,7 @@ normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn,
             }
             written += (size_t)length;
         }
-        copy_text(fn->default_args, sizeof(fn->default_args), buffers->normalized);
+        fn->default_args_text = KeepParameters(buffers->normalized);
         free(defaults);
     }
     return 1;

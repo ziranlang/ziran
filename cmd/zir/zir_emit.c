@@ -164,7 +164,7 @@ ModuleUsesSlices(const ZirModule *module)
     }
     for(int i = 0; i < module->function_count; i++) {
         const ZirFunction *fn = &module->functions[i];
-        if(SliceElementType(fn->return_type, NULL, 0) || strstr(fn->args, "[]") != NULL)
+        if(SliceElementType(fn->return_type, NULL, 0) || strstr(FunctionArgs(fn), "[]") != NULL)
             return 1;
         for(int j = 0; j < fn->stmt_count; j++)
             if(SliceElementType(fn->stmts[j].type, NULL, 0))
@@ -208,7 +208,7 @@ ModuleUsesVecOperations(const ZirModule *module)
 int
 function_mentions(const ZirFunction *fn, const char *name)
 {
-    if(strstr(fn->args, name) != NULL)
+    if(strstr(FunctionArgs(fn), name) != NULL)
         return 1;
     for(int i = 0; i < fn->stmt_count; i++)
         if(strcmp(fn->stmts[i].name, name) == 0)
@@ -533,12 +533,12 @@ void ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size);
 static void
 ArrayAbiArgs_with_buffers(const ZirFunction *fn, char *out, size_t size, ArrayAbiArgsBuffers *buffers)
 {
-    if(fn->return_type[0] != '[' && strchr(fn->args, '[') == NULL) {
-        copy_text(out, size, fn->args);
+    if(fn->return_type[0] != '[' && strchr(FunctionArgs(fn), '[') == NULL) {
+        copy_text(out, size, FunctionArgs(fn));
         return;
     }
-    int count = *skip_ws(fn->args) ?
-        split_top_level(fn->args, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
+    int count = *skip_ws(FunctionArgs(fn)) ?
+        split_top_level(FunctionArgs(fn), buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
     size_t used = 0;
     out[0] = '\0';
     if(ArrayElementType(fn->return_type, NULL, 0, NULL)) {
@@ -1340,7 +1340,7 @@ CanEmitBody_with_buffers(const ZirModule *module, const ZirFunction *fn, CanEmit
     /* Eligibility follows the typed function body and its operations.
      * Host calls and unsupported composition fail the same checks. */
     if(!fn->checked || fn->is_extern || !portable_type(module, fn->return_type)) return 0;
-    count = *skip_ws(fn->args) ? split_top_level(fn->args, buffers->params[0], 64, sizeof(buffers->params[0])) : 0;
+    count = *skip_ws(FunctionArgs(fn)) ? split_top_level(FunctionArgs(fn), buffers->params[0], 64, sizeof(buffers->params[0])) : 0;
     for(int i = 0; i < count; i++) {
         char *colon = strchr(buffers->params[i], ':');
         if(!colon || !portable_type(module, skip_ws(colon + 1))) return 0;

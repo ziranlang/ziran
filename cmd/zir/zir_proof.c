@@ -142,7 +142,7 @@ static int function_value(ProofContext *c, const ZirModule *m, const ZirFunction
         return unsupported(c, "recursive procedures are outside the scalar proof fragment");
     if(c->active_count == PROOF_DEPTH) { c->kernel.exhausted = 1; return -1; }
     Parameters p;
-    if(!parameters(fn->args, &p) || count != p.count)
+    if(!parameters(FunctionArgs(fn), &p) || count != p.count)
         return unsupported(c, "proof calls require explicit scalar parameters");
     Environment *env = calloc(1, sizeof(*env));
     if(!env) { c->kernel.exhausted = 1; return -1; }
@@ -303,7 +303,7 @@ static int expression(ProofContext *c, const ZirModule *m, const ZirFunction *fn
         if(!allowed) return unsupported(c, "procedure calls need an unfold step");
         Parameters *p = malloc(sizeof(*p));
         if(p == NULL) return unsupported(c, "cannot allocate proof call parameters");
-        if(!parameters(callee->args, p)) {
+        if(!parameters(FunctionArgs(callee), p)) {
             free(p);
             return unsupported(c, "unsupported procedure signature in proof");
         }
@@ -596,7 +596,7 @@ int PrepareLawProofs(ZirProgram **programs, int count)
             if(!law->claim && ok) {
                 law->claim = calloc(1, sizeof(*law->claim));
                 if(!law->claim) { free(args); return 0; }
-                copy_text(law->claim->args, sizeof(law->claim->args), args);
+                law->claim->args_text = KeepParameters(args);
                 copy_text(law->claim->return_type, sizeof(law->claim->return_type), "bool");
                 law->claim->span = law->span;
                 int root = ParseExprNoDefaults(law->claim, module, skip_ws(arrow + 2), law->span);
@@ -604,7 +604,7 @@ int PrepareLawProofs(ZirProgram **programs, int count)
                 if(s) s->expr_root = root;
                 ok = root >= 0 && s != NULL;
             }
-            if(ok) ok = law->claim && !strcmp(args, law->claim->args) &&
+            if(ok) ok = law->claim && !strcmp(args, FunctionArgs(law->claim)) &&
                 !strcmp(law->claim->return_type, "bool") && law->claim->stmt_count == 1 &&
                 law->claim->stmts[0].kind == ZIR_STMT_RETURN &&
                 law->claim->stmts[0].expr_root >= 0 && law->claim->stmts[0].expr_root < law->claim->expr_count &&
@@ -660,7 +660,7 @@ static int application(ProofContext *c, const ZirModule *m, const ZirProof *proo
     if(call->kind != ZIR_EXPR_CALL || !call_name(&proof->terms, call, name, sizeof(name)) ||
        strcmp(name, step->target)) return 0;
     Parameters p;
-    if(!parameters(law->claim->args, &p)) return 0;
+    if(!parameters(FunctionArgs(law->claim), &p)) return 0;
     int args[PARAMETERS], count = 0;
     for(int at = call->first_child; at >= 0; at = proof->terms.exprs[at].next_sibling) {
         if(!tick(c, depth) || at >= proof->terms.expr_count || count >= p.count || proof->terms.exprs[at].argument_name[0]) return 0;
@@ -699,7 +699,7 @@ static int theorem(ProofContext *c, const ZirModule *m, const ZirLaw *law,
     const ZirProof *proof = law->proof;
     Parameters params;
     Environment *env = calloc(1, sizeof(*env));
-    int goal = -1, original = -1, ok = env && parameters(law->claim->args, &params) && count == params.count;
+    int goal = -1, original = -1, ok = env && parameters(FunctionArgs(law->claim), &params) && count == params.count;
     int cases = 0, closed = 0;
     c->unfold_count = 0; c->unfold_all = 0;
     for(int i = 0; ok && i < count; i++) {
@@ -762,7 +762,7 @@ int EvaluateTheorem(const ZirModule *module, const ZirLaw *law, char *detail, si
     if(!c) { snprintf(detail, size, "out of memory checking theorem"); return 2; }
     ProofKernelInit(&c->kernel);
     Parameters p;
-    int args[PARAMETERS], ok = parameters(law->claim->args, &p);
+    int args[PARAMETERS], ok = parameters(FunctionArgs(law->claim), &p);
     for(int i = 0; ok && i < p.count; i++) {
         int type = scalar_type(c, module, p.types[i]);
         args[i] = node(c, P_VAR, type, -1, -1, -1, (uint64_t)i);

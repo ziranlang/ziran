@@ -1411,8 +1411,7 @@ eval(Frame *frame, int index, int depth)
                 memset(signature, 0, sizeof(*signature));
                 copy_text(signature->name, sizeof(signature->name),
                           external->name);
-                copy_text(signature->args, sizeof(signature->args),
-                          external->args);
+                signature->args_text = KeepParameters(external->args);
                 copy_text(signature->return_type,
                           sizeof(signature->return_type),
                           external->return_type);

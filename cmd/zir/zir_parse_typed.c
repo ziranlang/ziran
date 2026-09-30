@@ -1376,12 +1376,12 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
        ResolveFunctionAt(module, name, SpanPath(call_span), &owner, &fn) != 1 ||
        fn == NULL || fn->is_extern || fn->is_template ||
        fn->stmt_count == 0) return 0;
-    expected = *skip_ws(fn->args) ?
-        split_top_level(fn->args, buffers->parameters[0], 16,
+    expected = *skip_ws(FunctionArgs(fn)) ?
+        split_top_level(FunctionArgs(fn), buffers->parameters[0], 16,
                         sizeof(buffers->parameters[0])) : 0;
     if(expected < 0 || argument_count > expected) return 0;
-    if(fn->default_args[0] &&
-       split_top_level(fn->default_args, buffers->defaults[0], 16,
+    if(FunctionDefaultArgs(fn)[0] &&
+       split_top_level(FunctionDefaultArgs(fn), buffers->defaults[0], 16,
                        sizeof(buffers->defaults[0])) != expected) return 0;
     for(int argument = 0; argument < argument_count; argument++) {
         int position = -1;

@@ -181,8 +181,8 @@ call_name_shadowed(const ExprParser *p, const char *name)
         return 0;
     char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
     if(parameters == NULL) return 1;
-    int count = *skip_ws(p->fn->args) ?
-        split_top_level(p->fn->args, parameters[0], 64,
+    int count = *skip_ws(FunctionArgs(p->fn)) ?
+        split_top_level(FunctionArgs(p->fn), parameters[0], 64,
                         sizeof(parameters[0])) : 0;
     for(int i = 0; i < count; i++) {
         char *colon = strchr(parameters[i], ':');
@@ -250,7 +250,7 @@ append_default_arguments_with_buffers(ExprParser *p, int callee,
     const ZirFunction *function = NULL;
     if(ResolveFunctionAt(p->module, target, SpanPath(p->span),
                          &owner, &function) != 1 ||
-       function == NULL || !function->default_args[0])
+       function == NULL || !FunctionDefaultArgs(function)[0])
         return;
     char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
     char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
@@ -259,9 +259,9 @@ append_default_arguments_with_buffers(ExprParser *p, int callee,
         p->failed = 1;
         return;
     }
-    int count = split_top_level(function->args, parameters[0], 64,
+    int count = split_top_level(FunctionArgs(function), parameters[0], 64,
                                 sizeof(parameters[0]));
-    int default_count = split_top_level(function->default_args, defaults[0],
+    int default_count = split_top_level(FunctionDefaultArgs(function), defaults[0],
                                         64, sizeof(defaults[0]));
     unsigned char used[64] = {0};
     if(count != default_count) goto done;

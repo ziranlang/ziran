@@ -29,7 +29,7 @@ int
 parse_parameters(const ZirModule *module, const ZirFunction *function,
                  Parameter *parameters)
 {
-    const char *cursor = function->args;
+    const char *cursor = FunctionArgs(function);
     int count = 0;
     parameters_exceeded = 0;
     while(*cursor != 0) {
@@ -110,7 +110,7 @@ parse_import_parameters_with_buffers(const ZirModule *module, const ZirImport *i
                         Parameter *parameters, ParseImportParametersBuffers *buffers)
 {
     memset(&buffers->signature, 0, sizeof(buffers->signature));
-    copy_text(buffers->signature.args, sizeof(buffers->signature.args), import->args);
+    buffers->signature.args_text = KeepParameters(import->args);
     return parse_parameters(module, &buffers->signature, parameters);
 }
 
@@ -363,10 +363,10 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                ResolveFunction(module, expression->name,
                                &owner, &callee) != 1 ||
                callee == NULL || callee->is_extern ||
-               strlen(slot->body) >= sizeof(buffers->signature.args) ||
+               strlen(slot->body) >= ZIR_TEXT_MAX ||
                strcmp(callee->return_type, slot->procedure_return_type) != 0)
                 return 0;
-            copy_text(buffers->signature.args, sizeof(buffers->signature.args), slot->body);
+            buffers->signature.args_text = KeepParameters(slot->body);
             actual_count = parse_parameters(owner, callee, buffers->actual);
             expected_count = parse_parameters(module, &buffers->signature, buffers->expected);
             if(actual_count < 0 || actual_count != expected_count)
@@ -830,10 +830,10 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
             memset(&buffers->signature, 0, sizeof(buffers->signature));
             if(index < 0 || slot == NULL || !slot->is_procedure_type ||
                strcmp(bindings[index].type, expression->slot_type) != 0 ||
-               strlen(slot->body) >= sizeof(buffers->signature.args) ||
+               strlen(slot->body) >= ZIR_TEXT_MAX ||
                strcmp(expression->type, slot->procedure_return_type) != 0)
                 return 0;
-            copy_text(buffers->signature.args, sizeof(buffers->signature.args), slot->body);
+            buffers->signature.args_text = KeepParameters(slot->body);
             int expected = parse_parameters(module, &buffers->signature, buffers->parameters);
             if(expected < 0)
                 return 0;

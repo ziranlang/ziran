@@ -775,7 +775,7 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
     strip_alias_type(m, ret, return_type, sizeof(return_type));
     copy_text(ret, sizeof(ret), return_type);
     memset(&buffers->abi, 0, sizeof(buffers->abi));
-    copy_text(buffers->abi.args, sizeof(buffers->abi.args), buffers->cargs);
+    buffers->abi.args_text = KeepParameters(buffers->cargs);
     copy_text(buffers->abi.return_type, sizeof(buffers->abi.return_type), ret);
     ArrayAbiArgs(&buffers->abi, buffers->abi_args, sizeof(buffers->abi_args));
     convert_args(m, NULL, buffers->abi_args, buffers->conv, sizeof(buffers->conv));

@@ -156,10 +156,10 @@ overload_score(Checker *c, const ZirModule *owner, const ZirFunction *fn,
     int filled[64] = {0}, score = 0, total = -1, next = 0;
     if(parameters == NULL || defaults == NULL)
         goto done;
-    total = *skip_ws(fn->args) ?
-        split_top_level(fn->args, parameters[0], 64, sizeof(parameters[0])) : 0;
-    if(fn->default_args[0])
-        split_top_level(fn->default_args, defaults[0], 64, sizeof(defaults[0]));
+    total = *skip_ws(FunctionArgs(fn)) ?
+        split_top_level(FunctionArgs(fn), parameters[0], 64, sizeof(parameters[0])) : 0;
+    if(FunctionDefaultArgs(fn)[0])
+        split_top_level(FunctionDefaultArgs(fn), defaults[0], 64, sizeof(defaults[0]));
     if(count > total) { score = -1; goto done; }
     for(int argument = 0; argument < count && score >= 0; argument++) {
         int position = -1;
@@ -205,7 +205,7 @@ static void
 append_overload_defaults(Checker *c, int index, const ZirFunction *fn,
                          const char *alias)
 {
-    if(!fn->default_args[0])
+    if(!FunctionDefaultArgs(fn)[0])
         return;
     char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
     char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
@@ -216,8 +216,8 @@ append_overload_defaults(Checker *c, int index, const ZirFunction *fn,
         c->failed = 1;
         return;
     }
-    int count = split_top_level(fn->args, parameters[0], 64, sizeof(parameters[0]));
-    if(split_top_level(fn->default_args, defaults[0], 64, sizeof(defaults[0])) != count)
+    int count = split_top_level(FunctionArgs(fn), parameters[0], 64, sizeof(parameters[0]));
+    if(split_top_level(FunctionDefaultArgs(fn), defaults[0], 64, sizeof(defaults[0])) != count)
         count = 0;
     int last = -1;
     for(int child = c->fn->exprs[index].first_child; child >= 0;
@@ -2017,11 +2017,11 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             }
             char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
             if(parameters == NULL) { c->failed = 1; break; }
-            int parameter_count = *skip_ws(callee->args) ?
-                split_top_level(callee->args, parameters[0], 64,
+            int parameter_count = *skip_ws(FunctionArgs(callee)) ?
+                split_top_level(FunctionArgs(callee), parameters[0], 64,
                                 sizeof(parameters[0])) : 0;
             if(!bind_call_arguments(c, e, parameters, parameter_count,
-                                    display_name, callee->default_args)) {
+                                    display_name, FunctionDefaultArgs(callee))) {
                 free(parameters);
                 break;
             }
@@ -2114,7 +2114,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 break;
             }
             if(!replace_template_type(buffers->specialized_args, sizeof(buffers->specialized_args),
-                                      callee->args, callee->template_param, concrete) ||
+                                      FunctionArgs(callee), callee->template_param, concrete) ||
                !replace_template_type(specialized_return,
                                       sizeof(specialized_return),
                                       callee->return_type,
@@ -2172,7 +2172,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             c->fn->uses_host = 1;
         const char *args = slot ? slot->body :
                            buffers->specialized_args[0] ? buffers->specialized_args :
-                           callee ? callee->args : NULL;
+                           callee ? FunctionArgs(callee) : NULL;
         const char *return_type = slot ? slot->procedure_return_type :
                                   specialized_return[0] ? specialized_return :
                                   callee ? callee->return_type : "";
@@ -2277,7 +2277,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 break;
             }
         } else if(args && !bind_call_arguments(c, e, parts, expected, display_name,
-                                       callee ? callee->default_args : NULL)) {
+                                       callee ? FunctionDefaultArgs(callee) : NULL)) {
             free(parts);
             break;
         }

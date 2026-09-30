@@ -108,7 +108,7 @@ show_function(const ZirModule *module, const ZirFunction *fn, int json)
     }
     char *args = text->args, *result = text->result;
     const size_t result_size = sizeof(text->result);
-    source_spelling(module, fn->default_args[0] && !json ? fn->default_args : fn->args,
+    source_spelling(module, FunctionDefaultArgs(fn)[0] && !json ? FunctionDefaultArgs(fn) : FunctionArgs(fn),
                     args, sizeof(text->args), 0);
     source_spelling(module, fn->return_type[0] ? fn->return_type : "void",
                     result, result_size, 0);
@@ -136,7 +136,7 @@ show_function(const ZirModule *module, const ZirFunction *fn, int json)
         putchar(',');
         json_member("return_type", result);
         putchar(',');
-        json_member("defaults", fn->default_args);
+        json_member("defaults", FunctionDefaultArgs(fn));
         putchar(',');
         json_member("effect", fn->effect_class);
         printf(",\"must_use\":%s,\"template\":%s,\"uses_host\":%s,",

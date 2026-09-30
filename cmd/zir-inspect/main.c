@@ -81,7 +81,7 @@ show_module(const ZirModule *module)
     }
     for(int i = 0; i < module->function_count; i++) {
         const ZirFunction *function = &module->functions[i];
-        printf("  function %s(%s) -> %s", function->name, function->args,
+        printf("  function %s(%s) -> %s", function->name, FunctionArgs(function),
                function->return_type[0] ? function->return_type : "void");
         if(function->exported) fputs(" export", stdout);
         if(function->is_extern) fputs(" foreign", stdout);

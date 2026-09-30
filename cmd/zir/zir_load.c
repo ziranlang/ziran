@@ -18,6 +18,9 @@ typedef struct LoadContext {
     ProgramSet *set;
     const char *root;
     const char *const *module_paths;
+    /* NAME for a --module-path NAME=DIR entry, which serves only NAME/Module
+     * imports; NULL for an ordinary search path. */
+    const char *const *module_path_names;
     int module_path_count;
     const char *const *defines;
     int define_count;
@@ -386,16 +389,44 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
                                  strcmp(slash + 1, "module.zi") == 0 ?
                                  mapped_name : NULL);
     }
-    /* Without a project there are no dependencies to qualify; std/NAME is
-     * the standard module NAME found on the module path. */
+    /* Without a project, PACKAGE/Module resolves through a named module
+     * path, --module-path PACKAGE=DIR, and std/NAME is the standard module
+     * NAME found on the module path. */
     if(!prefer_ir && strchr(target, '/') != NULL) {
-        if(strncmp(target, "std/", 4) != 0) {
+        size_t prefix = (size_t)(strchr(target, '/') - target);
+        int named = 0;
+        for(int i = 0; i < context->module_path_count; i++)
+            if(context->module_path_names[i] != NULL &&
+               strlen(context->module_path_names[i]) == prefix &&
+               strncmp(context->module_path_names[i], target, prefix) == 0)
+                named = 1;
+        if(!named && strncmp(target, "std/", 4) != 0) {
             Diagnostic(import->span, "package.project",
-                       "package import %s needs a project: run with --project "
-                       "next to a ziran.toml that depends on it", target);
+                       "package import %s needs a project (run with --project "
+                       "next to a ziran.toml that depends on it) or "
+                       "--module-path %.*s=DIR", target, (int)prefix, target);
             return 0;
         }
-        memmove(import->target, target + 4, strlen(target + 4) + 1);
+        char package[ZIR_NAME_MAX];
+        snprintf(package, sizeof(package), "%.*s", (int)prefix, target);
+        memmove(import->target, target + prefix + 1,
+                strlen(target + prefix + 1) + 1);
+        if(named) {
+            if(module_loaded(set, target)) return 1;
+            for(int i = 0; i < context->module_path_count; i++) {
+                if(context->module_path_names[i] == NULL ||
+                   strcmp(context->module_path_names[i], package) != 0) continue;
+                int result = try_module(context, context->module_paths[i],
+                                        context->module_paths[i], target,
+                                        prefer_ir);
+                if(result != 0)
+                    return result > 0;
+            }
+            Diagnostic(import->span, "module.not_found",
+                       "cannot find %s/%s in --module-path %s=DIR", package,
+                       target, package);
+            return 0;
+        }
     }
     if(!prefer_ir && SpanPath(import->span)[0] != '\0') {
         if(SpanPath(import->span)[0] == '/')
@@ -481,6 +512,7 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
             return result > 0;
     }
     for(int i = 0; i < context->module_path_count; i++) {
+        if(context->module_path_names[i] != NULL) continue;
         result = try_module(context, context->module_paths[i],
                             context->module_paths[i],
                             target, prefer_ir);
@@ -681,6 +713,7 @@ ProgramsLoadWithDefines(ProgramSet *set, const char *root,
 {
     char *canonical_root = realpath(root, NULL);
     char **canonical_paths = NULL;
+    char **path_names = NULL;
     LoadContext context = {.set = set};
     int ok = 0;
     *set = (ProgramSet){0};
@@ -691,10 +724,21 @@ ProgramsLoadWithDefines(ProgramSet *set, const char *root,
         goto done;
     }
     canonical_paths = calloc((size_t)module_path_count, sizeof(*canonical_paths));
-    if(module_path_count > 0 && canonical_paths == NULL)
+    path_names = calloc((size_t)module_path_count, sizeof(*path_names));
+    if(module_path_count > 0 && (canonical_paths == NULL || path_names == NULL))
         goto done;
     for(int i = 0; i < module_path_count; i++) {
-        canonical_paths[i] = realpath(module_paths[i], NULL);
+        /* NAME=DIR names a package's module directory. */
+        const char *directory = module_paths[i];
+        const char *equals = strchr(directory, '=');
+        if(equals != NULL && equals > directory &&
+           memchr(directory, '/', (size_t)(equals - directory)) == NULL &&
+           module_target_part(directory, (size_t)(equals - directory))) {
+            path_names[i] = strndup(directory, (size_t)(equals - directory));
+            if(path_names[i] == NULL) goto done;
+            directory = equals + 1;
+        }
+        canonical_paths[i] = realpath(directory, NULL);
         if(canonical_paths[i] == NULL) {
             Diagnostic(Span(module_paths[i], 1, 1), "module.path",
                        "module search path is unavailable");
@@ -703,6 +747,7 @@ ProgramsLoadWithDefines(ProgramSet *set, const char *root,
     }
     context.root = canonical_root;
     context.module_paths = (const char *const *)canonical_paths;
+    context.module_path_names = (const char *const *)path_names;
     context.module_path_count = module_path_count;
     context.defines = defines;
     context.define_count = define_count;
@@ -732,10 +777,14 @@ ProgramsLoadWithDefines(ProgramSet *set, const char *root,
         }
     ok = 1;
 done:
-    for(int i = 0; i < module_path_count; i++)
+    for(int i = 0; i < module_path_count; i++) {
         if(canonical_paths != NULL)
             free(canonical_paths[i]);
+        if(path_names != NULL)
+            free(path_names[i]);
+    }
     free(canonical_paths);
+    free(path_names);
     free(canonical_root);
     PackageMapFree(context.packages);
     if(!ok)

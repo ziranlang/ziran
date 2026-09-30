@@ -64,6 +64,13 @@ transitively from `.zi` or saved `.zir`. For example:
 build/bin/zi2zir --check-only --root app --module-path ../kryon/src/ui app/main.zi
 ```
 
+A package-qualified import such as `#import "kryon/Widgets"` resolves
+through the package's dependencies in a `--project` build. Outside a
+project, name the package's module directory instead:
+`--module-path kryon=../kryon/src/ui` serves `kryon/NAME` imports from that
+directory (and only those; repeat it for more directories). A package
+builds the same way in both modes when each export has its module's name.
+
 `#import, file "../lib/helper.zi";` loads an explicit source file relative to
 the importing file. Saved `.zir` builds resolve its module by name from the
 saved IR directory or a module path.

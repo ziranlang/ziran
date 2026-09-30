@@ -17,6 +17,8 @@ CommitRaw :: (transaction: *Transaction) -> Error #foreign go_sql "(*Tx).Commit"
 RollbackRaw :: (transaction: *Transaction) -> Error #foreign go_sql "(*Tx).Rollback";
 NullStringValidRaw :: (value: NullString) -> bool #go_field #foreign go_sql "NullString.Valid";
 NullStringValueRaw :: (value: NullString) -> string #go_field #foreign go_sql "NullString.String";
+NoRowsRaw :: () -> Error #go_field #foreign go_sql "ErrNoRows";
+TransactionDoneRaw :: () -> Error #go_field #foreign go_sql "ErrTxDone";
 
 #scope_export
 Next :: (rows: *Rows) -> bool {
@@ -39,4 +41,10 @@ NullStringValid :: (value: NullString) -> bool {
 }
 NullStringValue :: (value: NullString) -> string {
     return NullStringValueRaw(value)
+}
+NoRows :: () -> Error {
+    return NoRowsRaw()
+}
+TransactionDone :: () -> Error {
+    return TransactionDoneRaw()
 }

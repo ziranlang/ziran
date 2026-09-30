@@ -1,0 +1,24 @@
+// Native Go error creation, identity, wrapping and exact error messages.
+#import "go_types"
+go_errors :: #system_library "go:errors";
+builtin :: #system_library "go:builtin";
+
+#scope_file
+NewRaw :: (message: string) -> Error #foreign go_errors "New";
+IsRaw :: (error: Error, target: Error) -> bool #foreign go_errors "Is";
+UnwrapRaw :: (error: Error) -> Error #foreign go_errors "Unwrap";
+MessageRaw :: (error: Error) -> string #foreign builtin "error.Error";
+
+#scope_export
+New :: (message: string) -> Error {
+    return NewRaw(message)
+}
+Is :: (error: Error, target: Error) -> bool {
+    return IsRaw(error, target)
+}
+Unwrap :: (error: Error) -> Error {
+    return UnwrapRaw(error)
+}
+Message :: (error: Error) -> string {
+    return MessageRaw(error)
+}

@@ -171,6 +171,19 @@ Request :: #type #foreign http "Request";
 Remote :: (request: *Request) -> string #go_field #foreign http "(*Request).RemoteAddr";
 ```
 
+A getter without a receiver or parameters reads a native package variable or
+constant each time it is called. It preserves native interface identity:
+
+```jai
+#import "go_types"
+sql :: #system_library "go:database/sql";
+NoRows :: () -> Error #go_field #foreign sql "ErrNoRows";
+```
+
+Getters cannot return owned vectors or records/slices containing them.
+Methods of predeclared Go interfaces use their native receiver spelling,
+for example `#foreign builtin "error.Error"` with an `Error` parameter.
+
 Use `#go_results` to pack a Go function's multiple results into a concrete
 record. Record fields correspond to Go results in declaration order, including
 native error interfaces. It also works with method expressions:
@@ -200,6 +213,8 @@ contexts and provides `Background`. `sql_go` exposes native database,
 transaction, row and result handles, nullable strings, row iteration and
 transaction cleanup. Declare query, execution and scan bindings with the
 argument types required by the application; Go checks those native signatures.
+`errors_go` provides native error creation, `Is`, `Unwrap` and exact messages.
+SQL and context modules expose their native error sentinels through getters.
 
 ### Go deferred foreign calls
 

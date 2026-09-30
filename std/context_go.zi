@@ -1,11 +1,20 @@
 // Native Go contexts retain cancellation, deadlines and interface identity.
+#import "go_types"
 go_context :: #system_library "go:context";
 Context :: #type #foreign go_context "Context";
 
 #scope_file
 BackgroundRaw :: () -> Context #foreign go_context "Background";
+CanceledRaw :: () -> Error #go_field #foreign go_context "Canceled";
+DeadlineExceededRaw :: () -> Error #go_field #foreign go_context "DeadlineExceeded";
 
 #scope_export
 Background :: () -> Context {
     return BackgroundRaw()
+}
+Canceled :: () -> Error {
+    return CanceledRaw()
+}
+DeadlineExceeded :: () -> Error {
+    return DeadlineExceededRaw()
 }

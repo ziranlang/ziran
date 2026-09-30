@@ -218,6 +218,32 @@ typedef struct CheckTypeDeclarationsBuffers {
 int check_type_declarations(ZirModule *module);
 
 static int
+go_getter_contains_owned(const ZirModule *module, const char *type, int depth)
+{
+    if(depth > 128)
+        return 1;
+    if(type[0] == '*')
+        return 0;
+    if(VecElementType(module, type, NULL, 0))
+        return 1;
+    char element[ZIR_NAME_MAX];
+    if(SliceElementType(type, element, sizeof(element)) ||
+       ArrayElementType(type, element, sizeof(element), NULL))
+        return go_getter_contains_owned(module, element, depth + 1);
+    const ZirModule *owner = NULL;
+    const ZirType *record = FindType(module, type, &owner);
+    if(record == NULL || record->is_extern || record->is_enum ||
+       record->is_procedure_type || record->is_record_template)
+        return 0;
+    size_t offset = 0;
+    ZirTypeField field;
+    while(TypeNextField(record, &offset, &field) == 1)
+        if(go_getter_contains_owned(owner ? owner : module, field.type, depth + 1))
+            return 1;
+    return 0;
+}
+
+static int
 check_go_binding(const ZirModule *module, const ZirImport *binding,
                   char parameters[][ZIR_TEXT_MAX])
 {
@@ -243,9 +269,10 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             return 0;
         }
     }
-    if(binding->go_field && (!receiver[0] || count != 1 || binding->is_varargs ||
-                            binding->go_results || !strcmp(binding->return_type, "void"))) {
-        Diagnostic(binding->span, "check.foreign", "#go_field requires one receiver and a field value result");
+    if(binding->go_field && (count != (receiver[0] ? 1 : 0) || binding->is_varargs ||
+                            binding->go_results || !strcmp(binding->return_type, "void") ||
+                            go_getter_contains_owned(module, binding->return_type, 0))) {
+        Diagnostic(binding->span, "check.foreign", "#go_field requires a value result without owned storage and only its optional receiver");
         return 0;
     }
     if(binding->go_results) {
@@ -281,7 +308,7 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             return 0;
         }
     }
-    if(!strcmp(package, "builtin")) {
+    if(!strcmp(package, "builtin") && !receiver[0]) {
         const char *result = skip_ws(binding->return_type);
         int allocation = !strcmp(symbol, "new") && count == 0 && result[0] == '*' &&
             strcmp(skip_ws(result + 1), "void") && local_storage_error(module, result + 1) == NULL;

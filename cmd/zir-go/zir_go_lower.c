@@ -348,6 +348,13 @@ go_extern_index(const char *name, size_t len)
     }
     return -1;
 }
+
+static int
+go_builtin_method(const ZirGoExtern *binding)
+{
+    return binding->direct_go && !binding->go_field && binding->go_receiver[0] &&
+           !strcmp(binding->go_import_path, "builtin");
+}
 /* Buffers split_params keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct SplitParamsBuffers {
@@ -1064,7 +1071,8 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
                     p = ae;
                     if(g_externs[xi].go_defer)
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "defer ");
-                    if(g_externs[xi].go_results || g_externs[xi].go_field) {
+                    if(g_externs[xi].go_results || g_externs[xi].go_field ||
+                       go_builtin_method(&g_externs[xi])) {
                         char name[ZIR_GO_NAME_MAX];
                         camel_ident(g_externs[xi].source, name, sizeof(name));
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "%s_%s(", g_guard, name);
@@ -1080,7 +1088,8 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
                         require_go_type(allocation_type, allocated, sizeof(allocated), m->span);
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "%s(%s%s",
                             g_externs[xi].go, allocated, all_ws ? "" : ", ");
-                    } else if(g_externs[xi].direct_go && !strcmp(g_externs[xi].go_import_path, "builtin")) {
+                    } else if(g_externs[xi].direct_go && !g_externs[xi].go_receiver[0] &&
+                              !strcmp(g_externs[xi].go_import_path, "builtin")) {
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "%s(", g_externs[xi].go);
                     } else if(g_externs[xi].direct_go && g_externs[xi].go_receiver[0]) {
                         const char *receiver = g_externs[xi].go_receiver;
@@ -1478,10 +1487,11 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
 {
     for(int i = 0; i < g_extern_count; i++) {
         const ZirGoExtern *binding = &g_externs[i];
-        if(!binding->go_results && !binding->go_field) continue;
-        char result_type[ZIR_GO_NAME_MAX], name[ZIR_GO_NAME_MAX];
+        if(!binding->go_results && !binding->go_field && !go_builtin_method(binding)) continue;
+        char result_type[ZIR_GO_NAME_MAX] = "", name[ZIR_GO_NAME_MAX];
         const ZirType *record = FindType(module, binding->ret, NULL);
-        require_go_type(binding->ret, result_type, sizeof(result_type), module->span);
+        if(strcmp(binding->ret, "void"))
+            require_go_type(binding->ret, result_type, sizeof(result_type), module->span);
         camel_ident(binding->source, name, sizeof(name));
         fprintf(out, "func %s_%s(", g_guard, name);
         for(int p = 0; p < binding->pcount; p++) {
@@ -1491,10 +1501,26 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
             fprintf(out, "%s%s %s", p ? ", " : "", parameter, type);
         }
         fprintf(out, ") %s {\n", result_type);
-        if(binding->go_field) {
+        if(go_builtin_method(binding)) {
             char parameter[ZIR_GO_NAME_MAX];
             camel_ident(binding->pnames[0], parameter, sizeof(parameter));
-            fprintf(out, "\treturn %s.%s\n}\n\n", parameter, binding->go);
+            fprintf(out, "\t%s%s.%s(", result_type[0] ? "return " : "",
+                    parameter, binding->go);
+            for(int p = 1; p < binding->pcount; p++) {
+                camel_ident(binding->pnames[p], parameter, sizeof(parameter));
+                fprintf(out, "%s%s", p > 1 ? ", " : "", parameter);
+            }
+            fputs(")\n}\n\n", out);
+            continue;
+        }
+        if(binding->go_field) {
+            if(binding->pcount == 0) {
+                fprintf(out, "\treturn %s.%s\n}\n\n", binding->go_import_alias, binding->go);
+            } else {
+                char parameter[ZIR_GO_NAME_MAX];
+                camel_ident(binding->pnames[0], parameter, sizeof(parameter));
+                fprintf(out, "\treturn %s.%s\n}\n\n", parameter, binding->go);
+            }
             continue;
         }
         fprintf(out, "\tvar result %s\n\t", result_type);
@@ -1637,11 +1663,13 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"unsafe\"");
             for(int i = 0; i < g_extern_count && import_count < 64; i++) {
                 int duplicate = 0;
-                if(!g_externs[i].direct_go || g_externs[i].go_field ||
+                if(!g_externs[i].direct_go ||
+                   (g_externs[i].go_field && g_externs[i].pcount != 0) ||
                    !strcmp(g_externs[i].go_import_path, "builtin"))
                     continue;
                 for(int j = 0; j < i; j++) {
-                    if(g_externs[j].direct_go && !g_externs[j].go_field &&
+                    if(g_externs[j].direct_go &&
+                       (!g_externs[j].go_field || g_externs[j].pcount == 0) &&
                        strcmp(g_externs[j].go_import_path,
                               g_externs[i].go_import_path) == 0) {
                         duplicate = 1;

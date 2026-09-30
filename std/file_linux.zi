@@ -6,6 +6,19 @@
 libc :: #system_library "libc";
 OpenRaw :: (path: *u8, flags: s32, mode: ..any) -> s32 #foreign libc "open";
 CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+ReadRaw :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
+WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize #foreign libc "write";
+OpenDirectoryRaw :: (path: *u8) -> *void #foreign libc "opendir";
+ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir64";
+CloseDirectoryRaw :: (directory: *void) -> s32 #foreign libc "closedir";
+
+DirectoryMetadata :: struct {
+    inode: u64
+    offset: s64
+    record_length: u16
+    kind: u8
+    name: [256]u8
+}
 #if #defined(ANDROID_BUILD) {
     // Android's 32-bit off_t is narrower than the public file offset. The
     // explicit large-file entry points are available from API 21 onward.
@@ -53,6 +66,17 @@ FileHandle :: struct {
     valid: bool
 }
 
+DirectoryCursor :: struct {
+    storage: *void
+    valid: bool
+}
+
+DirectoryEntry :: struct {
+    name: [256]u8
+    name_count: s32
+    valid: bool
+}
+
 #scope_file
 OpenPath :: (path: *u8, flags: s32, mode: s32) -> s32 {
     return OpenRaw(path, flags, mode)
@@ -77,6 +101,9 @@ OpenRead :: (path: string) -> FileHandle {
 OpenUpdate :: (path: string) -> FileHandle {
     return OpenWithFlags(path, 66)
 }
+
+#program_export
+OpenWrite :: (path: string) -> FileHandle { return OpenWithFlags(path, 1) }
 
 #program_export
 OpenReplace :: (path: string) -> FileHandle {
@@ -228,4 +255,54 @@ CloseFile :: (file: FileHandle) -> bool {
 SyncFile :: (file: FileHandle) -> bool {
     if !file.valid { return false }
     return SyncRaw(file.fd) == 0
+}
+
+#program_export
+Read :: (file: FileHandle, output: []u8) -> s64 {
+    if !file.valid || output.count > 2147483647 { return -1 }
+    if output.count == 0 { return 0 }
+    return cast(s64)ReadRaw(file.fd, *output[0], cast(usize)output.count)
+}
+
+#program_export
+Write :: (file: FileHandle, input: []u8) -> s64 {
+    if !file.valid || input.count > 2147483647 { return -1 }
+    if input.count == 0 { return 0 }
+    return cast(s64)WriteRaw(file.fd, *input[0], cast(usize)input.count)
+}
+
+#program_export
+OpenDirectory :: (path: string) -> DirectoryCursor {
+    result: DirectoryCursor
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return result }
+    result.storage = OpenDirectoryRaw(*name[0])
+    result.valid = result.storage != null
+    return result
+}
+
+#program_export
+NextDirectoryEntry :: (cursor: *DirectoryCursor) -> DirectoryEntry {
+    result: DirectoryEntry
+    if cursor == null || !cursor.valid { return result }
+    entry := ReadDirectoryRaw(cursor.storage)
+    if entry == null { return result }
+    index: s32 = 0
+    while entry.name[index] != 0 {
+        if index >= 255 { return result }
+        result.name[index] = entry.name[index]
+        index += 1
+    }
+    result.name_count = index
+    result.valid = true
+    return result
+}
+
+#program_export
+CloseDirectory :: (cursor: *DirectoryCursor) -> bool {
+    if cursor == null || !cursor.valid { return false }
+    status := CloseDirectoryRaw(cursor.storage)
+    cursor.storage = null
+    cursor.valid = false
+    return status == 0
 }

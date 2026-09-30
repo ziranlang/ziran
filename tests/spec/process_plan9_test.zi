@@ -1,0 +1,28 @@
+#import "process_plan9"
+
+#scope_file
+Run :: () -> s32 {
+    empty: [0]string
+    if StartDetached(empty[:]).valid { return 1 }
+    invalid: [1]string = .["bad\u0000path"]
+    if StartDetached(invalid[:]).valid { return 2 }
+    missing: [1]string = .["/does-not-exist/ziran-child"]
+    if StartDetached(missing[:]).valid { return 3 }
+    args: [3]string = .["/bin/rc", "-c", "sleep 5"]
+    group := StartDetached(args[:])
+    if !group.valid || group.pid <= 0 || group.note_id <= 0 { return 4 }
+    if !ProcessInGroup(group, group.pid) || ProcessInGroup(group, CurrentProcessId()) ||
+        ProcessInGroup(group, 0) || ProcessInGroup(group, -1) { return 5 }
+    unused_group: ProcessGroup
+    if ProcessInGroup(unused_group, CurrentProcessId()) { return 6 }
+    return 0
+}
+
+#scope_export
+#program_export
+main :: () -> s32 {
+    result := Run()
+    if result != 0 { print("process-plan9-test-failed: %\n", result) }
+    else { print("process-plan9-test-ok\n") }
+    return result
+}

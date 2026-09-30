@@ -2053,6 +2053,12 @@ rewrite_integer_suffixes(char *line)
             state = CHARACTER;
             continue;
         }
+        /* Empty arrays are native 8c declarations, without GNU's marker. */
+        if(strncmp(read, "__extension__ ", 14) == 0 &&
+           (read == line || (!isalnum((unsigned char)read[-1]) && read[-1] != '_'))) {
+            read += 13;
+            continue;
+        }
         {
             const char *token_start = read;
             while(token_start > line &&
@@ -2210,7 +2216,8 @@ c_plan9_runtime_symbol(const char *name)
     static const char * const symbols[] = {
         "snprint", "getenv", "create", "write", "close",
         "malloc", "calloc", "realloc", "free", "open", "pread", "pwrite",
-        "seek", "remove", "dirstat", "nulldir", "dirwstat", NULL
+        "seek", "remove", "dirstat", "nulldir", "dirwstat", "dirreadall",
+        "read", "pipe", "rfork", "exec", "exits", "getpid", NULL
     };
     int index;
     for(index = 0; symbols[index] != NULL; index++)
@@ -2351,6 +2358,30 @@ c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *bu
             (int)sizeof(buffers->current))
             goto fail;
         rewrite_integer_suffixes(buffers->current);
+        {
+            char *empty = strstr(buffers->current, " = {};");
+            if(empty != NULL && empty[6] == '\n' && empty[7] == '\0') {
+                /* A zero-sized array needs no initializer. Records which
+                 * contain an empty array still need their other fields zero. */
+                if(memchr(buffers->current, '[', (size_t)(empty - buffers->current)) != NULL) {
+                    char *bound = buffers->current;
+                    /* 8c requires positive storage, even when the language
+                     * array's logical count and size are zero. This byte is
+                     * never exposed by its slice or checked indexing. */
+                    while((bound = strstr(bound, "[0]")) != NULL && bound < empty) {
+                        bound[1] = '1';
+                        bound += 3;
+                    }
+                    strcpy(empty, ";\n");
+                } else {
+                    size_t used = strlen(buffers->current);
+                    if(used + 1 >= sizeof(buffers->current))
+                        goto fail;
+                    memmove(empty + 5, empty + 4, strlen(empty + 4) + 1);
+                    empty[4] = '0';
+                }
+            }
+        }
         rewrite_plan9_print(buffers->current, sizeof(buffers->current));
         while(ilen + 1 < sizeof(indent) &&
               (buffers->current[ilen] == ' ' || buffers->current[ilen] == '\t')) {

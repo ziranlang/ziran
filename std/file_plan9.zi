@@ -7,6 +7,9 @@ libc :: #system_library "libc";
 OpenRaw :: (path: *s8, flags: s32) -> s32 #foreign libc "open";
 CreateRaw :: (path: *s8, flags: s32, mode: usize) -> s32 #foreign libc "create";
 CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+ReadRaw :: (fd: s32, output: *void, count: isize) -> isize #foreign libc "read";
+WriteRaw :: (fd: s32, input: *void, count: isize) -> isize #foreign libc "write";
+DirectoryRaw :: (fd: s32, entries: *void) -> isize #foreign libc "dirreadall";
 ReadAtRaw :: (fd: s32, output: *void, count: isize, offset: s64) -> isize #foreign libc "pread";
 WriteAtRaw :: (fd: s32, input: *void, count: isize, offset: s64) -> isize #foreign libc "pwrite";
 SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 #foreign libc "seek";
@@ -41,6 +44,20 @@ DirectoryMetadata :: struct {
 #scope_export
 FileHandle :: struct {
     fd: s32
+    valid: bool
+}
+
+// A cursor owns the native directory snapshot. Close it exactly once.
+DirectoryCursor :: struct {
+    storage: *void
+    count: s64
+    next: s64
+    valid: bool
+}
+
+DirectoryEntry :: struct {
+    name: [256]u8
+    name_count: s32
     valid: bool
 }
 
@@ -83,6 +100,10 @@ OpenRead :: (path: string) -> FileHandle { return OpenPath(path, 0) }
 
 #program_export
 OpenUpdate :: (path: string) -> FileHandle { return OpenPath(path, 2) }
+
+// Open an existing file or device for writing without creating/truncating it.
+#program_export
+OpenWrite :: (path: string) -> FileHandle { return OpenPath(path, 1) }
 
 #program_export
 OpenReplace :: (path: string) -> FileHandle { return CreatePath(path, 1, 420) }
@@ -186,4 +207,67 @@ WriteAt :: (file: FileHandle, input: []u8, offset: s64) -> s64 {
 CloseFile :: (file: FileHandle) -> bool {
     if !file.valid { return false }
     return CloseRaw(file.fd) == 0
+}
+
+// Stream operations read/write at the descriptor's current position. This
+// supports devices whose first read is a snapshot and whose next read blocks.
+#program_export
+Read :: (file: FileHandle, output: []u8) -> s64 {
+    if !file.valid || output.count > 2147483647 { return -1 }
+    if output.count == 0 { return 0 }
+    return cast(s64)ReadRaw(file.fd, cast(*void)(*output[0]), cast(isize)output.count)
+}
+
+#program_export
+Write :: (file: FileHandle, input: []u8) -> s64 {
+    if !file.valid || input.count > 2147483647 { return -1 }
+    if input.count == 0 { return 0 }
+    return cast(s64)WriteRaw(file.fd, cast(*void)(*input[0]), cast(isize)input.count)
+}
+
+#program_export
+OpenDirectory :: (path: string) -> DirectoryCursor {
+    result: DirectoryCursor
+    if !DirectoryExists(path) { return result }
+    file := OpenRead(path)
+    if !file.valid { return result }
+    count := DirectoryRaw(file.fd, cast(*void)(*result.storage))
+    closed := CloseFile(file)
+    if count < 0 || !closed {
+        if result.storage != null { FreeRaw(result.storage); result.storage = null }
+        return result
+    }
+    result.count = cast(s64)count
+    result.valid = true
+    return result
+}
+
+#program_export
+NextDirectoryEntry :: (cursor: *DirectoryCursor) -> DirectoryEntry {
+    result: DirectoryEntry
+    if cursor == null || !cursor.valid || cursor.next >= cursor.count { return result }
+    entries := cast(*DirectoryMetadata)cursor.storage
+    entry := *entries[cursor.next]
+    cursor.next += 1
+    if entry.name == null { return result }
+    index: s32 = 0
+    while entry.name[index] != 0 {
+        if index >= 255 { return result }
+        result.name[index] = entry.name[index]
+        index += 1
+    }
+    result.name_count = index
+    result.valid = true
+    return result
+}
+
+#program_export
+CloseDirectory :: (cursor: *DirectoryCursor) -> bool {
+    if cursor == null || !cursor.valid { return false }
+    if cursor.storage != null { FreeRaw(cursor.storage) }
+    cursor.storage = null
+    cursor.count = 0
+    cursor.next = 0
+    cursor.valid = false
+    return true
 }

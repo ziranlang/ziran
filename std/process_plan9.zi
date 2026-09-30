@@ -1,0 +1,166 @@
+#import "c_string"
+
+#scope_file
+Number :: #import "number_text";
+libc :: #system_library "libc";
+PipeRaw :: (descriptors: *s32) -> s32 #foreign libc "pipe";
+ForkRaw :: (flags: s32) -> s32 #foreign libc "rfork";
+ExecuteRaw :: (path: *s8, arguments: *void) -> s32 #foreign libc "exec";
+ExitRaw :: (status: *s8) #foreign libc "exits";
+PidRaw :: () -> s32 #foreign libc "getpid";
+OpenRaw :: (path: *s8, mode: s32) -> s32 #foreign libc "open";
+CloseRaw :: (descriptor: s32) -> s32 #foreign libc "close";
+ReadRaw :: (descriptor: s32, output: *void, count: isize) -> isize #foreign libc "read";
+WriteRaw :: (descriptor: s32, input: *void, count: isize) -> isize #foreign libc "write";
+
+Argument :: struct { bytes: [4096]u8; }
+ArgumentPointer :: struct { value: *s8; }
+
+#scope_export
+// A detached child has its own descriptor, environment, and note groups.
+// The note ID identifies the child and descendants that inherit its group.
+ProcessGroup :: struct {
+    pid: s32
+    note_id: s32
+    valid: bool
+}
+
+#program_export
+CurrentProcessId :: () -> s32 { return PidRaw() }
+
+#scope_file
+NumberedPath :: (prefix: string, number: s32, suffix: string,
+    output: []u8) -> string {
+    digits: [32]u8
+    text := Number.FormatInteger(cast(s64)number, digits[:])
+    used: s64 = 0
+    index: s64 = 0
+    while index < prefix.count { output[used] = prefix[index]; used += 1; index += 1 }
+    index = 0
+    while index < text.count { output[used] = text[index]; used += 1; index += 1 }
+    index = 0
+    while index < suffix.count { output[used] = suffix[index]; used += 1; index += 1 }
+    output[used] = 0
+    return TextView(output[0:used])
+}
+
+ReadNoteId :: (pid: s32) -> s32 {
+    if pid <= 0 { return 0 }
+    name: [64]u8
+    path := NumberedPath("/proc/", pid, "/noteid", name[:])
+    if !CopyCString(path, name[:]) { return 0 }
+    descriptor := OpenRaw(cast(*s8)(*name[0]), 0)
+    if descriptor < 0 { return 0 }
+    bytes: [32]u8
+    count := cast(s64)ReadRaw(descriptor, cast(*void)(*bytes[0]), 32)
+    CloseRaw(descriptor)
+    index: s64 = 0
+    while index < count && (bytes[index] == 32 || bytes[index] == 9 || bytes[index] == 10) {
+        index += 1
+    }
+    value: s64 = 0
+    while index < count && bytes[index] >= 48 && bytes[index] <= 57 {
+        value = value * 10 + cast(s64)(bytes[index] - 48)
+        if value > 2147483647 { return 0 }
+        index += 1
+    }
+    return cast(s32)value
+}
+
+Transfer :: (descriptor: s32, bytes: []u8, writing: bool) -> bool {
+    used: s64 = 0
+    while used < bytes.count {
+        count: s64
+        if writing {
+            count = cast(s64)WriteRaw(descriptor, cast(*void)(*bytes[used]), cast(isize)(bytes.count - used))
+        } else {
+            count = cast(s64)ReadRaw(descriptor, cast(*void)(*bytes[used]), cast(isize)(bytes.count - used))
+        }
+        if count <= 0 { return false }
+        used += count
+    }
+    return true
+}
+
+// Report the private group before exec; OCEXEC closes the success pipe only
+// after exec succeeds. Failed exec writes an extra byte instead.
+ExecuteChild :: (descriptor: s32, path: *s8, arguments: *void) {
+    pipe := descriptor
+    note_id := ReadNoteId(PidRaw())
+    bytes: [4]u8
+    shift: s32 = 0
+    while shift < 4 {
+        bytes[shift] = cast(u8)((cast(u32)note_id >> cast(u32)(shift * 8)) & 255)
+        shift += 1
+    }
+    if note_id <= 0 || !Transfer(pipe, bytes[:], true) {
+        CloseRaw(pipe)
+        ExitRaw(null)
+        return
+    }
+    name: [64]u8
+    duplicate := NumberedPath("#d/", descriptor, "", name[:])
+    if !CopyCString(duplicate, name[:]) { ExitRaw(null); return }
+    // OWRITE | OCEXEC: do not leave the handshake pipe in the new program.
+    inherited := OpenRaw(cast(*s8)(*name[0]), 1 | 32)
+    if inherited >= 0 {
+        CloseRaw(pipe)
+        pipe = inherited
+        ExecuteRaw(path, arguments)
+    }
+    bytes[0] = 1
+    WriteRaw(pipe, cast(*void)(*bytes[0]), 1)
+    CloseRaw(pipe)
+    ExitRaw(null)
+}
+
+#scope_export
+#program_export
+StartDetached :: (arguments: []string) -> ProcessGroup {
+    result: ProcessGroup
+    if arguments.count <= 0 || arguments.count > 16 { return result }
+    bytes: [16]Argument
+    pointers: [17]ArgumentPointer
+    index: s32 = 0
+    while index < cast(s32)arguments.count {
+        if !CopyCString(arguments[index], bytes[index].bytes[:]) { return result }
+        pointers[index].value = cast(*s8)(*bytes[index].bytes[0])
+        index += 1
+    }
+    pointers[index].value = null
+    descriptors: [2]s32
+    if PipeRaw(*descriptors[0]) < 0 { return result }
+    // RFPROC | RFFDG | RFENVG | RFNOTEG | RFNOWAIT.
+    pid := ForkRaw(16 | 4 | 2 | 8 | 64)
+    if pid == 0 {
+        CloseRaw(descriptors[0])
+        ExecuteChild(descriptors[1], pointers[0].value, cast(*void)(*pointers[0]))
+        return result
+    }
+    CloseRaw(descriptors[1])
+    pipe := descriptors[0]
+    if pid > 0 {
+        payload: [4]u8
+        if Transfer(pipe, payload[:], false) {
+            value: u32 = 0
+            shift: s32 = 0
+            while shift < 4 {
+                value |= cast(u32)payload[shift] << cast(u32)(shift * 8)
+                shift += 1
+            }
+            extra: [1]u8
+            if value > 0 && value <= 2147483647 && ReadRaw(pipe, cast(*void)(*extra[0]), 1) == 0 {
+                result.pid = pid
+                result.note_id = cast(s32)value
+                result.valid = true
+            }
+        }
+    }
+    CloseRaw(pipe)
+    return result
+}
+
+#program_export
+ProcessInGroup :: (group: ProcessGroup, pid: s32) -> bool {
+    return group.valid && group.note_id > 0 && pid > 0 && ReadNoteId(pid) == group.note_id
+}

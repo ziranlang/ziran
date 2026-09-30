@@ -255,7 +255,9 @@ check: all $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR
 	python3 tests/run_check.py --bin-dir $(BIN_DIR) --jobs $(CHECK_JOBS)
 
 # Address and undefined-behavior sanitizers over the whole toolchain and
-# test suite. Instrumentation grows stack frames past the frame limit, so
+# test suite. It also checks every kept type lookup against a fresh one
+# (ZIRAN_VERIFY_TYPE_LOOKUPS), so a change that forgets TypeLookupsChanged
+# fails here. Instrumentation grows stack frames past the frame limit, so
 # the limit is off for this build. The compiler frees little on exit by
 # design, so leak reports are off. Tests that link libziran.a add
 # VM_CFLAGS to their compile.
@@ -263,7 +265,7 @@ SANITIZE_DIR ?= build/sanitize
 SANITIZE_OPTIONS = -g -fsanitize=address,undefined \
     -fno-sanitize-recover=undefined -fno-omit-frame-pointer
 SANITIZE_ENV = ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
-    VM_CFLAGS="$(SANITIZE_OPTIONS)"
+    ZIRAN_VERIFY_TYPE_LOOKUPS=1 VM_CFLAGS="$(SANITIZE_OPTIONS)"
 SANITIZE_MAKE = $(MAKE) --no-print-directory BUILD_DIR=$(SANITIZE_DIR) \
     FRAMEFLAGS= CFLAGS=-O1 SANITIZE_FLAGS="$(SANITIZE_OPTIONS)"
 sanitize:

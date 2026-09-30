@@ -747,6 +747,7 @@ early_resolve_imports(void *opaque, ZirProgram *program,
             return 0;
         }
         import->resolved_module = target;
+        TypeLookupsChanged();
     }
     return 1;
 }

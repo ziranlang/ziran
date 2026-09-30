@@ -947,6 +947,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 module->types[module->type_count - 1].is_file_private = scope_file;
             else if(module->import_count > import_count_before)
                 module->imports[module->import_count - 1].is_file_private = scope_file;
+            TypeLookupsChanged();
             continue;
         } else if(mode == TOP && starts_word(t, "state") &&
                   *skip_ws(t + 5) == '{') {

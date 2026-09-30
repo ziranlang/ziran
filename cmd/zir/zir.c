@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -830,6 +831,47 @@ find_type_depth(const ZirModule *module, const char *name,
     return found;
 }
 
+static void kept_text_failed(void);
+
+/* FindType's answers by module, name and lookup file. Names and paths are
+ * kept text, so their pointers identify them. An answer holds until the
+ * generation changes (TypeLookupsChanged). */
+typedef struct TypeLookup {
+    const ZirModule *module;
+    const char *name;
+    const char *path;
+    unsigned long generation;
+    const ZirType *type;
+    const ZirModule *owner;
+} TypeLookup;
+
+static struct {
+    TypeLookup *items;
+    size_t count, slots;
+    unsigned long generation;
+    int verify;
+} type_lookups = {NULL, 0, 0, 1, -1};
+
+void
+TypeLookupsChanged(void)
+{
+    type_lookups.generation++;
+}
+
+static size_t
+type_lookup_slot(const TypeLookup *items, size_t slots, const ZirModule *module,
+                 const char *name, const char *path)
+{
+    size_t slot = (((uintptr_t)module >> 4) * 31 + ((uintptr_t)name >> 3) * 17 +
+                   ((uintptr_t)path >> 3)) * 11400714819323198485ull;
+    slot &= slots - 1;
+    while(items[slot].name != NULL &&
+          (items[slot].module != module || items[slot].name != name ||
+           items[slot].path != path))
+        slot = (slot + 1) & (slots - 1);
+    return slot;
+}
+
 const ZirType *
 FindType(const ZirModule *module, const char *name, const ZirModule **owner)
 {
@@ -840,7 +882,65 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
             *owner = NULL;
         return NULL;
     }
-    return find_type_depth(module, name, owner, 0);
+    if(type_lookups.verify < 0) {
+        const char *verify = getenv("ZIRAN_VERIFY_TYPE_LOOKUPS");
+        type_lookups.verify = verify != NULL && !strcmp(verify, "1");
+    }
+    if(type_lookups.count * 2 >= type_lookups.slots) {
+        /* Grow, keeping only answers from the current generation. */
+        size_t old_slots = type_lookups.slots;
+        TypeLookup *old = type_lookups.items;
+        size_t live = 0;
+        for(size_t i = 0; i < old_slots; i++)
+            live += old[i].name != NULL && old[i].generation == type_lookups.generation;
+        size_t slots = 4096;
+        while(slots < live * 4)
+            slots *= 2;
+        type_lookups.items = calloc(slots, sizeof(*type_lookups.items));
+        if(type_lookups.items == NULL)
+            kept_text_failed();
+        type_lookups.slots = slots;
+        type_lookups.count = 0;
+        for(size_t i = 0; i < old_slots; i++)
+            if(old[i].name != NULL && old[i].generation == type_lookups.generation) {
+                type_lookups.items[type_lookup_slot(type_lookups.items, slots,
+                    old[i].module, old[i].name, old[i].path)] = old[i];
+                type_lookups.count++;
+            }
+        free(old);
+    }
+    const char *kept_name = KeepText(name);
+    const char *kept_path = KeepText(module->lookup_path);
+    size_t slot = type_lookup_slot(type_lookups.items, type_lookups.slots,
+                                   module, kept_name, kept_path);
+    TypeLookup *lookup = &type_lookups.items[slot];
+    if(lookup->name != NULL && lookup->generation == type_lookups.generation) {
+        if(type_lookups.verify) {
+            const ZirModule *fresh_owner = NULL;
+            const ZirType *fresh = find_type_depth(module, name, &fresh_owner, 0);
+            if(fresh != lookup->type || fresh_owner != lookup->owner) {
+                fprintf(stderr, "ziran: kept type lookup of %s in %s is stale\n",
+                        name, module->name);
+                abort();
+            }
+        }
+        if(owner)
+            *owner = lookup->owner;
+        return lookup->type;
+    }
+    const ZirModule *found_owner = NULL;
+    const ZirType *found = find_type_depth(module, name, &found_owner, 0);
+    if(lookup->name == NULL)
+        type_lookups.count++;
+    lookup->module = module;
+    lookup->name = kept_name;
+    lookup->path = kept_path;
+    lookup->generation = type_lookups.generation;
+    lookup->type = found;
+    lookup->owner = found_owner;
+    if(owner)
+        *owner = found_owner;
+    return found;
 }
 
 static int
@@ -1001,6 +1101,7 @@ ProgramFree(ZirProgram *program)
 
     if(program == NULL)
         return;
+    TypeLookupsChanged();
     for(i = 0; i < program->module_count; i++) {
         ZirModule *m = &program->modules[i];
         int j;
@@ -1278,6 +1379,7 @@ ProgramAddModule(ZirProgram *program, const char *name,
 
     if(program == NULL)
         return NULL;
+    TypeLookupsChanged();
     modules = realloc_array(program->modules, &program->module_cap,
                                 program->module_count, sizeof(ZirModule));
     if(modules == NULL)
@@ -1301,6 +1403,7 @@ ModuleAddImport(ZirModule *module, ZirImportKind kind, const char *name,
 
     if(module == NULL)
         return NULL;
+    TypeLookupsChanged();
     imports = realloc_array(module->imports, &module->import_cap,
                                 module->import_count, sizeof(ZirImport));
     if(imports == NULL)
@@ -1549,6 +1652,7 @@ ModuleAddType(ZirModule *module, const char *name, ZirSourceSpan span)
 
     if(module == NULL)
         return NULL;
+    TypeLookupsChanged();
     types = realloc_array(module->types, &module->type_cap,
                               module->type_count, sizeof(ZirType));
     if(types == NULL)

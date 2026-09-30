@@ -525,6 +525,7 @@ add_default_helpers_with_buffers(ZirProgram *program, ZirModule *module,
                     if(&program->modules[m] != module &&
                        !strcmp(import->target, program->modules[m].name)) {
                         import->resolved_module = &program->modules[m];
+                        TypeLookupsChanged();
                         break;
                     }
             }

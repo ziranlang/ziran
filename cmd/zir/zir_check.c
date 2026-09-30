@@ -6,6 +6,7 @@ void
 select_lookup_file(ZirModule *module, ZirSourceSpan span)
 {
     copy_text(module->lookup_path, sizeof(module->lookup_path), SpanPath(span));
+    TypeLookupsChanged();
 }
 
 int
@@ -244,6 +245,7 @@ LowerFileScopeUsing_with_buffers(ZirModule *module, char *source, size_t capacit
         if(opened < 0) {
             copy_text(module->lookup_path, sizeof(module->lookup_path),
                       buffers->saved_path);
+            TypeLookupsChanged();
             return 0;
         }
         if(opened > 0) {
@@ -267,9 +269,11 @@ LowerFileScopeUsing_with_buffers(ZirModule *module, char *source, size_t capacit
     copy_text(buffers->output + used, sizeof(buffers->output) - used, source + copied);
     copy_text(source, capacity, buffers->output);
     copy_text(module->lookup_path, sizeof(module->lookup_path), buffers->saved_path);
+    TypeLookupsChanged();
     return 1;
 failed:
     copy_text(module->lookup_path, sizeof(module->lookup_path), buffers->saved_path);
+    TypeLookupsChanged();
     Diagnostic(span, "check.enum_scope",
                "cannot lower file-scope using expression");
     return 0;
@@ -1180,10 +1184,12 @@ lower_file_record_using_with_buffers(ZirModule *module, char *source, size_t cap
     copy_text(source, capacity, buffers->output);
     free(buffers->scope.bindings);
     copy_text(module->lookup_path, sizeof(module->lookup_path), buffers->saved_path);
+    TypeLookupsChanged();
     return 1;
 failed:
     free(buffers->scope.bindings);
     copy_text(module->lookup_path, sizeof(module->lookup_path), buffers->saved_path);
+    TypeLookupsChanged();
     return 0;
 }
 

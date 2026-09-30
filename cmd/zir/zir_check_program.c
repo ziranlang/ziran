@@ -104,6 +104,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             }
             copy_text(module->lookup_path, sizeof(module->lookup_path),
                       buffers->saved_path);
+            TypeLookupsChanged();
             for(int g = 0; g < module->global_count; g++)
                 if(!lower_file_record_using(module, module->globals[g].init,
                          sizeof(module->globals[g].init),
@@ -121,6 +122,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                                                    definition->span, &value);
                     copy_text(module->lookup_path,
                               sizeof(module->lookup_path), buffers->saved_path);
+                    TypeLookupsChanged();
                     if(opened <= 0) {
                         if(opened == 0)
                             Diagnostic(definition->span, "check.enum_scope",
@@ -580,6 +582,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                     module, &module->functions[f]);
                 copy_text(module->lookup_path, sizeof(module->lookup_path),
                           buffers->saved_path);
+                TypeLookupsChanged();
                 if(!normalized)
                     return 0;
             }
@@ -601,6 +604,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             }
             copy_text(module->lookup_path, sizeof(module->lookup_path),
                       buffers->saved_path);
+            TypeLookupsChanged();
         }
     for(int p = 0; p < count; p++) for(int m = 0; m < programs[p]->module_count; m++) {
         buffers->c.module = &programs[p]->modules[m];

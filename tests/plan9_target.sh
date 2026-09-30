@@ -17,6 +17,12 @@ foreign_libc :: #system_library "libc";
 ForeignClose :: (descriptor: s32) -> s32 #foreign foreign_libc "close";
 #program_export
 main :: () -> s32 {
+    wide: u64 = cast(u64)18446744073709551615
+    signed_max: s64 = 9223372036854775807
+    signed_min: s64 = -9223372036854775808
+    if (wide >> cast(u64)32) != cast(u64)4294967295 ||
+        signed_max / 2147483647 != 4294967298 ||
+        signed_min + signed_max != -1 { return 2 }
     local := Make()
     partial: Props = .{scale = 2, inner = .{value = 40}}
     bytes: [3]u8 = .[97, 98, 99]
@@ -34,6 +40,9 @@ EOF
 
 test -f "$work/generated/main.c"
 test -f "$work/generated/zir_plan9_runtime.h"
+rg -q -F '18446744073709551615ULL' "$work/generated/main.c"
+rg -q -F '9223372036854775807LL' "$work/generated/main.c"
+rg -q -F '4294967298LL' "$work/generated/main.c"
 
 # The source includes its generated header. Native 8c rejects repeated
 # macro definitions even when their replacement text is identical.
@@ -69,7 +78,7 @@ if [ "$runtime_include_count" -ne 1 ]; then
     echo 'plan9-c emitted duplicate runtime includes' >&2
     exit 1
 fi
-if rg -n 'static inline|__auto_type|\{\s*\.|for\s*\(\s*(int|s32|u32)|[0-9]U?LL' \
+if rg -n 'static inline|__auto_type|\{\s*\.|for\s*\(\s*(int|s32|u32)' \
         "$work/generated"/*.c "$work/generated"/*.h; then
     echo 'plan9-c output retained unsupported C constructs' >&2
     exit 1

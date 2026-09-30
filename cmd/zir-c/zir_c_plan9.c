@@ -22,6 +22,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1601,6 +1602,7 @@ c_plan9_write_runtime(const char *out_dir)
 "#define true 1\n"
 "#ifndef _U_H_\n"
 "#define UINT64_C(value) ((uint64_t)(value))\n"
+"#define INT64_C(value) ((int64_t)(value))\n"
 "#define UINT64_MAX ((uint64_t)-1)\n"
 "#define INT64_MAX ((int64_t)((((uint64_t)1 << 63) - 1)))\n"
 "#define INT64_MIN (-INT64_MAX - 1)\n"
@@ -2004,8 +2006,13 @@ rewrite_integer_suffixes(char *line)
     enum { CODE, STRING, CHARACTER, LINE_COMMENT, BLOCK_COMMENT } state = CODE;
     char *write = line;
     const char *read;
+    char *source = strdup(line);
+    if(source == NULL) {
+        fprintf(stderr, "zi2c: no memory for Plan 9 integer lowering\n");
+        exit(1);
+    }
 
-    for(read = line; *read != '\0'; read++) {
+    for(read = source; *read != '\0'; read++) {
         if(state == LINE_COMMENT) {
             *write++ = *read;
             if(*read == '\n')
@@ -2053,29 +2060,54 @@ rewrite_integer_suffixes(char *line)
         }
         /* Empty arrays are native 8c declarations, without GNU's marker. */
         if(strncmp(read, "__extension__ ", 14) == 0 &&
-           (read == line || (!isalnum((unsigned char)read[-1]) && read[-1] != '_'))) {
+           (read == source || (!isalnum((unsigned char)read[-1]) && read[-1] != '_'))) {
             read += 13;
             continue;
         }
-        {
-            const char *token_start = read;
-            while(token_start > line &&
-                  (isalnum((unsigned char)token_start[-1]) ||
-                   token_start[-1] == '_'))
-                token_start--;
-            if(token_start > line &&
-               isdigit((unsigned char)read[-1]) &&
-               isdigit((unsigned char)*token_start) &&
-               ((read[0] == 'L' && read[1] == 'L') ||
-                (read[0] == 'U' && read[1] == 'L' && read[2] == 'L')) &&
-               !isalnum((unsigned char)read[(read[0] == 'U' ? 3 : 2)])) {
-                read += read[0] == 'U' ? 2 : 1;
+        /* Native 8c accepts LL/ULL, but an unsuffixed wide integer is
+         * truncated to a 32-bit int before a cast or UINT64_C sees it.
+         * Preserve typed suffixes and widen large generated literals,
+         * including macro arguments and comparison sentinels. */
+        if(isdigit((unsigned char)*read) &&
+           (read == source || (!isalnum((unsigned char)read[-1]) &&
+                               read[-1] != '_' && read[-1] != '.'))) {
+            char *digits_end;
+            const char *token_end;
+            unsigned long long value;
+            int unsigned_suffix = 0;
+            errno = 0;
+            value = strtoull(read, &digits_end, 0);
+            token_end = digits_end;
+            while(*token_end == 'u' || *token_end == 'U' ||
+                  *token_end == 'l' || *token_end == 'L') {
+                if(*token_end == 'u' || *token_end == 'U')
+                    unsigned_suffix = 1;
+                token_end++;
+            }
+            if(errno == 0 && digits_end > read && value > 0xffffffffULL &&
+               *token_end != '.' && !isalnum((unsigned char)*token_end) &&
+               *token_end != '_') {
+                size_t digits = (size_t)(digits_end - read);
+                size_t suffix = unsigned_suffix ? 3 : 2;
+                if((size_t)(write - line) + digits + suffix +
+                   strlen(token_end) >= PLAN9_LINE_MAX) {
+                    fprintf(stderr, "zi2c: Plan 9 integer line too long\n");
+                    free(source);
+                    exit(1);
+                }
+                memcpy(write, read, digits);
+                write += digits;
+                if(unsigned_suffix) *write++ = 'U';
+                *write++ = 'L';
+                *write++ = 'L';
+                read = token_end - 1;
                 continue;
             }
         }
         *write++ = *read;
     }
     *write = '\0';
+    free(source);
 }
 
 typedef struct {

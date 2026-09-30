@@ -184,12 +184,10 @@ CPP
         fi
     done
 done
-if "$ziran" bundle --root "$work" --entry pointer_for:Answer \
-   -o "$work/pointer.zib" "$work/pointer_for.zi" 2> "$work/pointer.err"; then
-    echo 'native pointers entered a portable bundle' >&2
-    exit 1
-fi
-grep -Fq 'outside the portable subset' "$work/pointer.err"
+# The portable runner points at its own array elements the same way.
+"$ziran" bundle --root "$work" --entry pointer_for:Answer \
+   -o "$work/pointer.zib" "$work/pointer_for.zi"
+test "$("$ziran" run "$work/pointer.zib")" = 15
 
 cat > "$work/non_collection.zi" <<'ZI'
 Answer :: () -> s32 {

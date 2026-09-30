@@ -631,6 +631,9 @@ Value
 coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
 {
     ValueKind target = value_kind(type);
+    /* A VM pointer stays a pointer in any pointer-typed storage. */
+    if(value.kind == VALUE_POINTER && type[0] == '*')
+        return value;
     if(target == VALUE_VOID) {
         Value empty = {.kind = VALUE_VOID};
         return empty;
@@ -801,7 +804,7 @@ retire_value(Vm *vm, Value value, int depth)
     if(depth >= VM_MAX_DEPTH)
         return;
     if(value.kind == VALUE_RECORD && value.record != NULL &&
-       !value.record->retired) {
+       !value.record->retired && !value.record->address_taken) {
         value.record->retired = 1;
         if(vm->retire_floor == 0 ||
            value.record->allocation < vm->retire_floor)
@@ -809,7 +812,7 @@ retire_value(Vm *vm, Value value, int depth)
         for(int i = 0; i < value.record->field_count; i++)
             retire_value(vm, value.record->fields[i].value, depth + 1);
     } else if(value.kind == VALUE_ARRAY && value.array != NULL &&
-              !value.array->retired) {
+              !value.array->retired && !value.array->address_taken) {
         value.array->retired = 1;
         if(vm->retire_floor == 0 ||
            value.array->allocation < vm->retire_floor)

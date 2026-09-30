@@ -224,9 +224,7 @@ if "$ziran" check --root "$work" "$work/invalid.zi" \
 fi
 grep -Fq 'address-of requires an assignable expression' "$work/invalid.err"
 
-if "$ziran" bundle --root "$work" --entry pointers:Answer \
-    -o "$work/pointers.zib" "$work/pointers.zi" \
-    2> "$work/bundle.err"; then
-    echo 'raw pointers entered portable bundle' >&2
-    exit 1
-fi
+# The portable runner reads and writes through pointers at its own storage.
+"$ziran" bundle --root "$work" --entry pointers:Answer \
+    -o "$work/pointers.zib" "$work/pointers.zi"
+test "$("$ziran" run "$work/pointers.zib")" = 42

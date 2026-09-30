@@ -130,12 +130,49 @@ assignment_root(const ZirFunction *function, int index)
         const ZirExpr *expression = &function->exprs[index];
         if(expression->kind == ZIR_EXPR_IDENT)
             return expression->name;
+        /* A write through a pointer is rooted at the pointer binding. */
+        if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*")) {
+            index = expression->right;
+            continue;
+        }
         if(expression->kind != ZIR_EXPR_MEMBER &&
+           expression->kind != ZIR_EXPR_POINTER_MEMBER &&
            expression->kind != ZIR_EXPR_INDEX)
             return NULL;
         index = expression->left;
     }
     return NULL;
+}
+
+/* Whether expression INDEX is a host call's result, directly or through a
+ * binding some statement sets from one. Host pointers are opaque handles:
+ * the portable runner cannot read through them. */
+static int
+host_pointer(const ZirModule *module, const ZirFunction *function, int index)
+{
+    if(index < 0 || index >= function->expr_count)
+        return 0;
+    const ZirExpr *expression = &function->exprs[index];
+    const ZirModule *owner = NULL;
+    const ZirFunction *callee = NULL;
+    if(expression->kind == ZIR_EXPR_CALL)
+        return host_import(module, expression->name) != NULL ||
+               (ResolveFunction(module, expression->name, &owner, &callee) == 1 &&
+                callee != NULL && callee->is_extern);
+    if(expression->kind != ZIR_EXPR_IDENT)
+        return 0;
+    for(int s = 0; s < function->stmt_count; s++) {
+        const ZirStmt *statement = &function->stmts[s];
+        const char *bound = statement->kind == ZIR_STMT_DECL ? statement->name :
+            statement->kind == ZIR_STMT_ASSIGN ?
+            assignment_root(function, statement->lhs_root) : NULL;
+        if(bound != NULL && !strcmp(bound, expression->name) &&
+           statement->expr_root >= 0 &&
+           function->exprs[statement->expr_root].kind == ZIR_EXPR_CALL &&
+           host_pointer(module, function, statement->expr_root))
+            return 1;
+    }
+    return 0;
 }
 
 static int
@@ -327,6 +364,26 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
         return 0;
     }
     case ZIR_EXPR_UNARY:
+        if(strcmp(expression->op, "&") == 0) {
+            /* *place points at storage the portable runner owns. */
+            const ZirExpr *place = expression->right >= 0 &&
+                expression->right < function->expr_count ?
+                &function->exprs[expression->right] : NULL;
+            return place != NULL &&
+                   (place->kind == ZIR_EXPR_IDENT || place->kind == ZIR_EXPR_MEMBER ||
+                    place->kind == ZIR_EXPR_POINTER_MEMBER ||
+                    place->kind == ZIR_EXPR_INDEX ||
+                    (place->kind == ZIR_EXPR_UNARY && !strcmp(place->op, "*"))) &&
+                   verify_expression(module, function, bindings, binding_count,
+                                     expression->right, depth + 1);
+        }
+        if(strcmp(expression->op, "*") == 0)
+            return expression->right >= 0 &&
+                   expression->right < function->expr_count &&
+                   function->exprs[expression->right].type[0] == '*' &&
+                   !host_pointer(module, function, expression->right) &&
+                   verify_expression(module, function, bindings, binding_count,
+                                     expression->right, depth + 1);
         return (strcmp(expression->op, "+") == 0 ||
                 strcmp(expression->op, "-") == 0 ||
                 strcmp(expression->op, "!") == 0 ||
@@ -383,6 +440,12 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
         return scalar_type(left_type) && scalar_type(right_type);
     }
     case ZIR_EXPR_CAST: {
+        /* A pointer cast would reinterpret storage; the portable runner only
+         * follows pointers at the type they were taken as. */
+        if(expression->name[0] == '*' ||
+           (expression->right >= 0 && expression->right < function->expr_count &&
+            function->exprs[expression->right].type[0] == '*'))
+            return 0;
         const ZirType *destination = FindType(module, expression->name, NULL);
         if(!scalar_type(expression->name) &&
            (destination == NULL || !destination->is_enum))
@@ -459,6 +522,12 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
         }
         return 1;
     }
+    case ZIR_EXPR_POINTER_MEMBER:
+        return expression->left >= 0 && expression->left < function->expr_count &&
+               function->exprs[expression->left].type[0] == '*' &&
+               !host_pointer(module, function, expression->left) &&
+               verify_expression(module, function, bindings, binding_count,
+                                 expression->left, depth + 1);
     case ZIR_EXPR_MEMBER: {
         if(expression->left < 0 || expression->left >= function->expr_count)
             return 0;

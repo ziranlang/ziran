@@ -824,14 +824,10 @@ Answer :: () -> s32 {
     return value.*
 }
 EOF
-if "$ziran" bundle --root "$work" --entry unsupported_bundle:Answer \
-    -o "$work/unsupported-bundle.zib" "$work/unsupported_bundle.zi" \
-    2> "$work/unsupported-bundle.err"; then
-    echo 'unsupported portable data type unexpectedly bundled' >&2
-    exit 1
-fi
-grep -Fq 'outside the portable subset' "$work/unsupported-bundle.err"
-test ! -e "$work/unsupported-bundle.zib"
+# Pointers at portable storage, null included, run in bundles.
+"$ziran" bundle --root "$work" --entry unsupported_bundle:Answer \
+    -o "$work/unsupported-bundle.zib" "$work/unsupported_bundle.zi"
+test "$("$ziran" run "$work/unsupported-bundle.zib")" = 42
 
 cat > "$work/blocklib.zi" <<'EOF'
 Props :: struct {

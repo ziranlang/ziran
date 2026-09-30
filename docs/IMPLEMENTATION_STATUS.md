@@ -110,7 +110,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   contained fields through nested records and concrete generic applications.
   Reads and writes retain their nested storage layout in checked IR; source
   and saved IR agree in C, C++, Go, and `.zib`. Pointer-backed `using` fields
-  work in native targets, while portable bundles retain their pointer limit.
+  work in native targets.
   Polymorphic procedures preserve parameter, local, and imperative `using`
   declarations in saved templates and lower them for each concrete call.
   File-scope `using value;`, nested paths, and `using value: Record;` promote
@@ -250,8 +250,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `continue`, nested ranges, and `defer` work across source and saved IR,
   C, C++, Go, and `.zib`. Fixed arrays and borrowed slices also support
   value and index bindings, reverse iteration, and nested loop control across
-  those targets. Native C, C++, and Go support `for *` pointer iteration for
-  in-place element changes; portable bundles reject pointers. Collection
+  those targets. C, C++, Go, and `.zib` support `for *` pointer iteration for
+  in-place element changes. Collection
   expressions run once and value bindings copy elements. C-style three-clause
   headers are rejected. Jai `for_expansion` iterables remain unsupported.
 - Fixed arrays, borrowed slices, and strings now expose read-only Jai
@@ -652,11 +652,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   record and array storage is reclaimed after a value copy; the portable VM
   currently allows up to 256 MiB each of tracked record and array allocations
   so large checked parsers such as Kryon's KSS parser can execute.
-- Records with raw pointer fields are portable as opaque host handles. A
-  bundle can store, compare, and pass them to and from host capabilities, and
-  the portable host ABI carries them as `VM_HOST_POINTER` values. Dereference,
-  address-of, indexing, and arithmetic on pointers remain outside the
-  portable subset; native targets keep direct pointer access.
+- The portable runner has pointers to its own storage: `*place` takes the
+  address of a local, global, record field, or array element; `<<p` and
+  `p.*` read and write through it; `p.field` reaches a pointed-to record; and
+  pointers compare by target and with `null`. A record or array whose
+  address was taken stays alive while a pointer can reach it, and a pointer
+  at a local fails cleanly once its call has returned. Pointers returned by
+  host capabilities stay opaque handles: a bundle can store, compare, and
+  pass them back, but not read through them. Pointer casts and arithmetic
+  remain outside the portable subset. `tests/portable_pointers.sh` checks
+  source and saved IR on C, C++, Go, and `.zib`.
 - Compiler functions use short names without `Zir` or `zir_` prefixes,
   including the IR serializer's `ProgramWrite`, `ProgramRead`, and `PathIsIR`.
   IR data types retain `Zir` names for now.

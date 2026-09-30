@@ -50,7 +50,7 @@ the checker, IR, or emitters, with `DISPLAY` and `WAYLAND_DISPLAY` unset.
 | Procedures | Named values, defaults, named arguments, direct polymorphism | Overload/variadic/operator and broader procedure-form audit |
 | Compile time | Bounded pure scalars, strings, floats, and record/array results used at compile time, in checked runtime expressions, and in selected file-scope initializers, including public imports | Full file-scope initialization semantics, verified effect rules |
 | Native output | C/C++/Go checked body graphs; C/C++ unions and scalar Go unions; imported and keyword record, union, enum, global, and constant names, including global/constant and function/value collisions; C/C++ keyword exports and header guards; Go module filenames and prefixes; valid C/C++ private names for punctuation in root filenames | Declaration lowering, remaining whole-program names, non-scalar Go union layout |
-| Portable output | Verified `.zib` scalar/record/array subset, scalar unions, and host calls | Remaining globals, aggregates, pointers/handles, non-scalar unions, host shapes |
+| Portable output | Verified `.zib` scalar/record/array subset, scalar unions, and host calls | Remaining globals, aggregates, pointer casts, non-scalar unions, host shapes |
 | Ownership | Scoped `Vec(T)` operations | Move, drop, pop, lookup, builder, borrowing across calls |
 
 This matrix records known implementation work, not an exhaustive catalog of

@@ -236,6 +236,9 @@ host_argument(const ZirModule *module, const char *type, Value value,
 {
     if(depth >= VM_MAX_DEPTH)
         return 0;
+    /* A pointer into VM storage has no host address to pass. */
+    if(value.kind == VALUE_POINTER)
+        return 0;
     out->type = type;
     char element[ZIR_NAME_MAX];
     int capacity;
@@ -488,7 +491,12 @@ assignment_root_name(const ZirFunction *function, int index)
         const ZirExpr *expression = &function->exprs[index];
         if(expression->kind == ZIR_EXPR_IDENT)
             return expression->name;
+        if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*")) {
+            index = expression->right;
+            continue;
+        }
         if(expression->kind != ZIR_EXPR_MEMBER &&
+           expression->kind != ZIR_EXPR_POINTER_MEMBER &&
            expression->kind != ZIR_EXPR_INDEX)
             return NULL;
         index = expression->left;
@@ -515,6 +523,15 @@ parameter_read_only(const ZirFunction *function, const char *name)
 {
     if(function_uses_slots(function))
         return 0;
+    /* A pointer taken into the parameter could write through it later. */
+    for(int i = 0; i < function->expr_count; i++) {
+        const ZirExpr *expression = &function->exprs[i];
+        if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "&")) {
+            const char *root = assignment_root_name(function, expression->right);
+            if(root == NULL || strcmp(root, name) == 0)
+                return 0;
+        }
+    }
     for(int i = 0; i < function->stmt_count; i++) {
         const ZirStmt *statement = &function->stmts[i];
         if(statement->kind == ZIR_STMT_ASSIGN) {
@@ -548,6 +565,14 @@ pin_value(Vm *vm, Value value, int depth)
     } else if(value.kind == VALUE_SLICE && value.array != NULL) {
         pin_value(vm, (Value){.kind = VALUE_ARRAY, .array = value.array},
                   depth + 1);
+    } else if(value.kind == VALUE_POINTER) {
+        /* A pointer keeps its target's container alive. */
+        if(value.record != NULL)
+            pin_value(vm, (Value){.kind = VALUE_RECORD, .record = value.record},
+                      depth + 1);
+        if(value.array != NULL)
+            pin_value(vm, (Value){.kind = VALUE_ARRAY, .array = value.array},
+                      depth + 1);
     }
 }
 
@@ -749,6 +774,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     buffers->frame.module = module;
     buffers->frame.function = function;
     buffers->frame.caller = vm->active_frame;
+    buffers->frame.serial = ++vm->call_serial;
     vm->active_frame = &buffers->frame;
     for(int i = 0; i < count; i++) {
         copy_text(buffers->frame.locals[i].name, sizeof(buffers->frame.locals[i].name),

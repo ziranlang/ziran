@@ -37,7 +37,8 @@ typedef enum ValueKind {
     VALUE_RECORD,
     VALUE_ARRAY,
     VALUE_SLICE,
-    VALUE_SLOT
+    VALUE_SLOT,
+    VALUE_POINTER /* pointee: storage in a frame, global, record, or array */
 } ValueKind;
 
 typedef struct Record Record;
@@ -59,6 +60,9 @@ typedef struct Value {
     const ZirType *slot_type;
     const ZirModule *slot_module;
     const ZirFunction *slot_function;
+    /* A pointer's target. `record` or `array` keeps its container alive,
+     * and `bits` names the call whose local it is, 0 otherwise. */
+    struct Value *pointee;
 } Value;
 
 /* One record field's name and type. Both strings are interned with
@@ -84,6 +88,7 @@ typedef struct RecordField {
 struct Record {
     Record *next;
     int retired;
+    int address_taken; /* a pointer may reach a field; never retired early */
     uint64_t pinned;
     uint64_t allocation;
     const ZirModule *owner;
@@ -95,6 +100,7 @@ struct Record {
 struct Array {
     Array *next;
     int retired;
+    int address_taken; /* a pointer may reach an element; never retired early */
     uint64_t pinned;
     uint64_t allocation;
     const ZirModule *owner;
@@ -142,6 +148,7 @@ typedef struct Vm {
     Frame *active_frame;
     VmHostCall host;
     void *host_context;
+    uint64_t call_serial;
     VmLayout *layouts;  /* open-addressed by type pointer */
     size_t layout_slots;
     size_t layout_count;
@@ -158,6 +165,7 @@ struct Frame {
     const ZirModule *module;
     const ZirFunction *function;
     Frame *caller;
+    uint64_t serial; /* identifies this call to pointers at its locals */
     Local locals[VM_MAX_LOCALS];
     int local_count;
     int control_target;
@@ -222,6 +230,9 @@ Value *record_field(Record *record, const char *name);
 Value union_member_read(Vm *vm, Record *record, const char *field_type);
 int union_member_write(Vm *vm, Record *record, const char *field_type, Value value);
 Value *assignment_slot(Frame *frame, int index, int depth);
+/* A pointer's target, or NULL (and a failed VM) when it is null or its
+ * call has returned. */
+Value *pointer_target(Vm *vm, Value pointer);
 Value binary_value(Vm *vm, const char *op, Value left, Value right, const char *left_type, const char *right_type);
 Value eval(Frame *frame, int index, int depth);
 void pin_value(Vm *vm, Value value, int depth);

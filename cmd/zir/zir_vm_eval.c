@@ -241,7 +241,28 @@ indexed_element(Value base, uint64_t index)
 }
 
 Value *
-assignment_slot(Frame *frame, int index, int depth)
+pointer_target(Vm *vm, Value pointer)
+{
+    if(pointer.kind != VALUE_POINTER || pointer.pointee == NULL) {
+        vm->failed = 1;
+        return NULL;
+    }
+    if(pointer.bits != 0) {
+        /* A pointer at a local is valid only while its call runs. */
+        for(Frame *frame = vm->active_frame; frame != NULL; frame = frame->caller)
+            if(frame->serial == pointer.bits)
+                return pointer.pointee;
+        vm->failed = 1;
+        return NULL;
+    }
+    return pointer.pointee;
+}
+
+/* The storage an assignable expression names, and the record or array that
+ * holds it, if any, so a pointer at it can keep that container alive. */
+static Value *
+owned_slot(Frame *frame, int index, int depth, Record **record, Array **array,
+           uint64_t *call)
 {
     if(index < 0 || index >= frame->function->expr_count ||
        depth >= VM_MAX_DEPTH)
@@ -249,11 +270,36 @@ assignment_slot(Frame *frame, int index, int depth)
     const ZirExpr *expression = &frame->function->exprs[index];
     if(expression->kind == ZIR_EXPR_IDENT) {
         Local *local = find_local(frame, expression->name);
-        return local != NULL ? &local->value :
-               find_global_value(frame, expression->name);
+        if(local != NULL) {
+            *call = frame->serial;
+            return &local->value;
+        }
+        return find_global_value(frame, expression->name);
+    }
+    if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*")) {
+        Value pointer = eval(frame, expression->right, depth + 1);
+        Value *target = pointer_target(frame->vm, pointer);
+        if(target != NULL) {
+            *record = pointer.record;
+            *array = pointer.array;
+            *call = pointer.bits;
+        }
+        return target;
+    }
+    if(expression->kind == ZIR_EXPR_POINTER_MEMBER) {
+        Value pointer = eval(frame, expression->left, depth + 1);
+        Value *target = pointer_target(frame->vm, pointer);
+        if(target == NULL || target->kind != VALUE_RECORD || target->record == NULL) {
+            frame->vm->failed = 1;
+            return NULL;
+        }
+        *record = target->record;
+        *array = NULL;
+        *call = 0;
+        return record_field_path(target->record, expression->name);
     }
     if(expression->kind == ZIR_EXPR_INDEX) {
-        Value *base = assignment_slot(frame, expression->left, depth + 1);
+        Value *base = owned_slot(frame, expression->left, depth + 1, record, array, call);
         Value index_value = eval(frame, expression->right, depth + 1);
         if(base == NULL || index_value.kind != VALUE_INT ||
            (!index_value.unsigned64 && index_value.integer < 0)) {
@@ -263,13 +309,21 @@ assignment_slot(Frame *frame, int index, int depth)
         Value *element = indexed_element(*base, integer_bits(index_value));
         if(element == NULL)
             frame->vm->failed = 1;
+        else if(base->kind == VALUE_ARRAY || base->kind == VALUE_SLICE) {
+            *record = NULL;
+            *array = base->array;
+            *call = 0;
+        }
         return element;
     }
     if(expression->kind != ZIR_EXPR_MEMBER)
         return NULL;
-    Value *base = assignment_slot(frame, expression->left, depth + 1);
+    Value *base = owned_slot(frame, expression->left, depth + 1, record, array, call);
     if(base == NULL || base->kind != VALUE_RECORD)
         return NULL;
+    *record = base->record;
+    *array = NULL;
+    *call = 0;
     if(base->record->type != NULL && base->record->type->is_union) {
         /* Union writes land in the shared bit slot; the assignment layer
          * reinterprets through the declared field type. */
@@ -278,6 +332,15 @@ assignment_slot(Frame *frame, int index, int depth)
         return &base->record->fields[0].value;
     }
     return record_field_path(base->record, expression->name);
+}
+
+Value *
+assignment_slot(Frame *frame, int index, int depth)
+{
+    Record *record = NULL;
+    Array *array = NULL;
+    uint64_t call = 0;
+    return owned_slot(frame, index, depth, &record, &array, &call);
 }
 
 Value
@@ -300,6 +363,18 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
     double a = as_real(left), b = as_real(right);
     if(vm->failed || left.kind == VALUE_VOID || right.kind == VALUE_VOID)
         goto failed;
+    if(left.kind == VALUE_POINTER || right.kind == VALUE_POINTER) {
+        /* Pointers compare by target; null is the handle 0. */
+        const Value *a_target = left.kind == VALUE_POINTER ? left.pointee :
+            integer_bits(left) == 0 ? NULL : (const Value *)&left;
+        const Value *b_target = right.kind == VALUE_POINTER ? right.pointee :
+            integer_bits(right) == 0 ? NULL : (const Value *)&right;
+        if(strcmp(op, "==") == 0)
+            return int_value(a_target == b_target);
+        if(strcmp(op, "!=") == 0)
+            return int_value(a_target != b_target);
+        goto failed;
+    }
     if(left.kind == VALUE_STRING || right.kind == VALUE_STRING) {
         if(left.kind != VALUE_STRING || right.kind != VALUE_STRING)
             goto failed;
@@ -578,9 +653,32 @@ eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
         break;
     }
     case ZIR_EXPR_UNARY:
+        if(strcmp(expression->op, "&") == 0) {
+            /* *place: a pointer at the storage the place names. */
+            Record *record = NULL;
+            Array *array = NULL;
+            uint64_t call = 0;
+            Value *target = owned_slot(frame, expression->right, depth + 1,
+                                       &record, &array, &call);
+            if(target == NULL) {
+                frame->vm->failed = 1;
+                break;
+            }
+            if(record != NULL) record->address_taken = 1;
+            if(array != NULL) array->address_taken = 1;
+            value = (Value){.kind = VALUE_POINTER, .pointee = target,
+                            .record = record, .array = array, .bits = call};
+            break;
+        }
         right = eval(frame, expression->right, depth + 1);
         if(frame->vm->failed)
             break;
+        if(strcmp(expression->op, "*") == 0) {
+            Value *target = pointer_target(frame->vm, right);
+            if(target != NULL)
+                value = *target;
+            break;
+        }
         if(strcmp(expression->op, "-") == 0)
             value = right.kind == VALUE_REAL ? real_value(-right.real) :
                     right.unsigned64 ? uint_value(UINT64_C(0) - right.bits) :
@@ -674,6 +772,21 @@ eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
             field->value = coerce(frame->vm, value.record->owner,
                                   initialized, field->field.type);
         }
+        break;
+    }
+    case ZIR_EXPR_POINTER_MEMBER: {
+        /* p.field reads a field of the record p points at. */
+        left = eval(frame, expression->left, depth + 1);
+        Value *target = frame->vm->failed ? NULL : pointer_target(frame->vm, left);
+        Value *field = target != NULL && target->kind == VALUE_RECORD &&
+                       target->record != NULL ?
+                       record_field_path(target->record, expression->name) : NULL;
+        if(field == NULL)
+            frame->vm->failed = 1;
+        else if(target->record->type != NULL && target->record->type->is_union)
+            value = union_member_read(frame->vm, target->record, expression->type);
+        else
+            value = *field;
         break;
     }
     case ZIR_EXPR_MEMBER: {

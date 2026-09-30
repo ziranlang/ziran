@@ -1,0 +1,3 @@
+Time :: #type #forei :: (value: Time, other: Tgn go_time "Time";
+After :: (value: Time, other: T#import "a"ime) -> bool {
+    return )AddRaw(value, duration)

@@ -187,6 +187,7 @@ Allocate :: () -> *HostPort #foreign builtin "new";
 Bytes :: (count: isize, capacity: isize) -> []u8 #foreign builtin "make";
 Text :: (value: []u8) -> string #foreign builtin "string";
 Length :: (value: []u8) -> isize #foreign builtin "len";
+Append :: (values: []u8, value: u8) -> []u8 #foreign builtin "append";
 ```
 
 `new` takes no arguments and derives the allocated type from its pointer
@@ -196,6 +197,9 @@ returns `isize` and accepts strings, arrays, slices, maps and declared foreign
 Go types whose underlying type supports native `len`. Go compilation checks
 the underlying operation for opaque types. These calls need no package import
 and retain Go's allocation, zero-value and byte-copy behavior.
+`append` takes a slice and one element, returns the same slice type, and keeps
+Go's length, capacity and shared backing-storage behavior. Owned vector
+elements are rejected; variadic slice expansion is not supported by this binding.
 
 ### Go record metadata
 

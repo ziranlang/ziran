@@ -3,6 +3,9 @@ AR ?= ar
 OBJCOPY ?= objcopy
 CFLAGS ?= -O2
 override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
+# `make sanitize` sets this; it reaches every compile and link.
+SANITIZE_FLAGS ?=
+override CFLAGS += $(SANITIZE_FLAGS)
 DEPFLAGS = -MMD -MP
 # Compiler code keeps large buffers on the heap so the deepest nesting the
 # language allows fits the default stack; a bigger frame is a build error.
@@ -41,6 +44,7 @@ BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
 
 .PHONY: all check curl-http-test clean install-user package-objects package-link
+.PHONY: sanitize fuzz
 .PHONY: proof-model
 LEAN ?= lean
 CHECK_JOBS ?= 4
@@ -209,31 +213,54 @@ $(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJ
 	$(CC) $(CFLAGS) -o $@ $^
 
 $(BIN_DIR)/host-capability-test: tests/host_capability_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_capability_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_capability_test.c $(BUILD_DIR)/libziran.a
 
 $(BIN_DIR)/record-host-test: tests/record_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_host_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_host_test.c $(BUILD_DIR)/libziran.a
 
 $(BIN_DIR)/array-host-test: tests/host_array_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_array_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_array_test.c $(BUILD_DIR)/libziran.a
 
 $(BIN_DIR)/startup-graph-test: tests/startup_graph_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
 		tests/startup_graph_test.c $(BUILD_DIR)/libziran.a
 
 $(BIN_DIR)/vm-vec-scope-test: tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
 		tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a
 
 $(BIN_DIR)/process-host-test: tests/process_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/process_host_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/process_host_test.c $(BUILD_DIR)/libziran.a
 
 $(BIN_DIR)/slice-host-test: tests/host_slice_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_slice_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_slice_test.c $(BUILD_DIR)/libziran.a
 
 check: all $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/vm-vec-scope-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/startup-graph-test
 	python3 tests/run_check.py --bin-dir $(BIN_DIR) --jobs $(CHECK_JOBS)
+
+# Address and undefined-behavior sanitizers over the whole toolchain and
+# test suite. Instrumentation grows stack frames past the frame limit, so
+# the limit is off for this build. The compiler frees little on exit by
+# design, so leak reports are off. Tests that link libziran.a add
+# VM_CFLAGS to their compile.
+SANITIZE_DIR ?= build/sanitize
+SANITIZE_OPTIONS = -g -fsanitize=address,undefined \
+    -fno-sanitize-recover=undefined -fno-omit-frame-pointer
+SANITIZE_ENV = ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
+    VM_CFLAGS="$(SANITIZE_OPTIONS)"
+SANITIZE_MAKE = $(MAKE) --no-print-directory BUILD_DIR=$(SANITIZE_DIR) \
+    FRAMEFLAGS= CFLAGS=-O1 SANITIZE_FLAGS="$(SANITIZE_OPTIONS)"
+sanitize:
+	+$(SANITIZE_ENV) $(SANITIZE_MAKE) check
+
+# Mutates example and standard-library sources and feeds them to the
+# sanitized compiler; new crashes land in $(SANITIZE_DIR)/fuzz.
+FUZZ_SECONDS ?= 60
+fuzz:
+	+$(SANITIZE_MAKE) $(SANITIZE_DIR)/bin/zi2zir
+	$(SANITIZE_ENV) python3 scripts/fuzz.py --compiler $(SANITIZE_DIR)/bin/zi2zir \
+	    --seconds $(FUZZ_SECONDS) --out $(SANITIZE_DIR)/fuzz
 
 curl-http-test: $(BIN_DIR)/zi2c
 	python3 tests/net_http_curl_linux_test.py $(BIN_DIR)/zi2c

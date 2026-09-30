@@ -1,0 +1,41 @@
+name: Check
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Build the toolchain
+        run: make
+      - name: Run the language, backend, and portable runtime checks
+        run: env -u DISPLAY -u WAYLAND_DISPLAY make check CHECK_JOBS=4
+  sanitize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Run the checks under AddressSanitizer and UBSan
+        run: env -u DISPLAY -u WAYLAND_DISPLAY make sanitize CHECK_JOBS=4
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fuzz the frontend
+        run: env -u DISPLAY -u WAYLAND_DISPLAY make fuzz FUZZ_SECONDS=180
+      - name: Keep crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes
+          path: build/sanitize/fuzz/crash-*

@@ -109,4 +109,14 @@ for declaration in \
         exit 1
     fi
 done
+cat > "$work/owned.zi" <<'ZI'
+#import "vec"
+builtin :: #system_library "go:builtin";
+Box :: struct { values: Vec(u8) }
+Append :: (values: []Box, value: Box) -> []Box #foreign builtin "append";
+ZI
+if "$ziran" check --root "$work" --module-path std "$work/owned.zi" > "$work/bad.out" 2>&1; then
+    echo 'owned vector element accepted by Go append' >&2
+    exit 1
+fi
 echo 'Go method receivers, mutexes, monotonic time, allocation and saved IR: passed'

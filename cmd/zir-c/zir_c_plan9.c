@@ -2217,7 +2217,7 @@ c_plan9_runtime_symbol(const char *name)
         "snprint", "getenv", "create", "write", "close",
         "malloc", "calloc", "realloc", "free", "open", "pread", "pwrite",
         "seek", "remove", "dirstat", "nulldir", "dirwstat", "dirreadall",
-        "read", "pipe", "rfork", "exec", "exits", "getpid", NULL
+        "read", "pipe", "rfork", "exec", "exits", "getpid", "putenv", "sleep", NULL
     };
     int index;
     for(index = 0; symbols[index] != NULL; index++)

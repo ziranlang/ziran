@@ -1010,8 +1010,45 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                        Span(buffers->rel, line_no, 1)) != using_parameters)
                     die_at(Span(buffers->rel, line_no, 1),
                            "inconsistent using parameter defaults");
+                /* A second procedure with this name makes an overload set:
+                 * each member gets a unique name and keeps the source name. */
+                char overload_name[ZIR_NAME_MAX] = "";
+                if(strchr(buffers->args, '$') == NULL) {
+                    int members = 0;
+                    for(int f = 0; f < module->function_count; f++) {
+                        ZirFunction *other = &module->functions[f];
+                        const char *source_name = other->overload_name[0] ?
+                            other->overload_name : other->name;
+                        if(strcmp(source_name, name) || other->is_template ||
+                           other->is_extern)
+                            continue;
+                        /* A file-private procedure in another loaded file is
+                         * a separate declaration, not an overload. */
+                        if((other->is_file_private || scope_file) &&
+                           strcmp(SpanPath(other->span), buffers->rel))
+                            continue;
+                        if(!strcmp(other->args, buffers->args))
+                            die_at(Span(buffers->rel, line_no, 1),
+                                   "%s is already declared with these parameters", name);
+                        if(!other->overload_name[0]) {
+                            if(other->exported)
+                                die_at(other->span, "an exported procedure cannot be overloaded: %s", name);
+                            copy_text(other->overload_name, sizeof(other->overload_name), name);
+                            snprintf(other->name, sizeof(other->name), "%s__overload_1", name);
+                        }
+                        members++;
+                    }
+                    if(members > 0) {
+                        if(program_export)
+                            die_at(Span(buffers->rel, line_no, 1),
+                                   "an exported procedure cannot be overloaded: %s", name);
+                        copy_text(overload_name, sizeof(overload_name), name);
+                        snprintf(name, sizeof(name), "%s__overload_%d", overload_name, members + 1);
+                    }
+                }
                 fn = ModuleAddFunction(module, name, buffers->args, ret, 0,
                                           Span(buffers->rel, line_no, 1));
+                copy_text(fn->overload_name, sizeof(fn->overload_name), overload_name);
                 if(conversion) {
                     int count = *skip_ws(buffers->args) ?
                         split_top_level(buffers->args, buffers->parameters[0], 1,

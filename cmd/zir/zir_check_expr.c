@@ -11,6 +11,269 @@ typedef struct ExpressionTypeBuffers {
 
 const char *expression_type(Checker *c, int index);
 
+static int
+fit_bits(const char *type)
+{
+    const char *digits = type;
+    while(*digits && !isdigit((unsigned char)*digits)) digits++;
+    return *digits ? atoi(digits) : 64;
+}
+
+/* How well an argument of type FOUND fits parameter type WANTED, lower is
+ * better: 0 exact, 100 an untyped literal's usual type, 200 another literal
+ * type, 200 plus the added bits for a widening, 400 another checked
+ * conversion, -1 not at all. */
+static int
+overload_fit(Checker *c, const char *wanted, const char *found)
+{
+    const char *scalar = ScalarType(wanted);
+    if(*scalar) wanted = scalar;
+    if(!strcmp(wanted, found)) return 0;
+    if(!strcmp(found, "integer") && integer_type(wanted))
+        return !strcmp(wanted, "s64") ? 100 : 200;
+    if((!strcmp(found, "integer") || !strcmp(found, "real")) && wanted[0] == 'f')
+        return !strcmp(wanted, "float64") && !strcmp(found, "real") ? 100 : 200;
+    if(widens_losslessly(wanted, found))
+        return 200 + fit_bits(wanted) - fit_bits(found);
+    if(compatible_checked(c, wanted, found)) return 400;
+    return -1;
+}
+
+typedef struct OverloadCandidate {
+    const ZirFunction *fn;
+    int score;
+} OverloadCandidate;
+
+/* Score FN for the call's arguments, or -1 when it cannot take them. */
+static int
+overload_score(Checker *c, const ZirFunction *fn, char (*types)[ZIR_NAME_MAX],
+               char (*names)[ZIR_NAME_MAX], int count)
+{
+    char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
+    char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
+    int filled[64] = {0}, score = 0, total = -1, next = 0;
+    if(parameters == NULL || defaults == NULL)
+        goto done;
+    total = *skip_ws(fn->args) ?
+        split_top_level(fn->args, parameters[0], 64, sizeof(parameters[0])) : 0;
+    if(fn->default_args[0])
+        split_top_level(fn->default_args, defaults[0], 64, sizeof(defaults[0]));
+    if(count > total) { score = -1; goto done; }
+    for(int argument = 0; argument < count && score >= 0; argument++) {
+        int position = -1;
+        if(names[argument][0]) {
+            for(int p = 0; p < total && position < 0; p++) {
+                const char *colon = strchr(parameters[p], ':');
+                size_t length = colon ? (size_t)(colon - parameters[p]) : 0;
+                while(length > 0 && isspace((unsigned char)parameters[p][length - 1])) length--;
+                if(colon && strlen(names[argument]) == length &&
+                   !strncmp(parameters[p], names[argument], length))
+                    position = p;
+            }
+        } else {
+            while(next < total && filled[next]) next++;
+            position = next < total ? next : -1;
+        }
+        if(position < 0 || filled[position]) { score = -1; break; }
+        filled[position] = 1;
+        const char *colon = strchr(parameters[position], ':');
+        char wanted[ZIR_NAME_MAX];
+        copy_text(wanted, sizeof(wanted), colon ? skip_ws(colon + 1) : "");
+        char *assignment = top_level_assignment(wanted);
+        if(assignment) *assignment = '\0';
+        trim_in_place(wanted);
+        int fit = overload_fit(c, wanted, types[argument]);
+        if(fit < 0) score = -1;
+        else score += fit;
+    }
+    for(int p = 0; p < total && score >= 0; p++)
+        if(!filled[p] && top_level_assignment(defaults[p]) == NULL &&
+           top_level_assignment(parameters[p]) == NULL)
+            score = -1;
+done:
+    free(parameters);
+    free(defaults);
+    return score;
+}
+
+/* Defaults are expanded while parsing a call, by name, which cannot choose
+ * an overload. Once one is chosen, append its defaults for the parameters
+ * the call leaves out, as that expansion would. */
+static void
+append_overload_defaults(Checker *c, int index, const ZirFunction *fn,
+                         const char *alias)
+{
+    if(!fn->default_args[0])
+        return;
+    char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
+    char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
+    unsigned char used[64] = {0};
+    if(parameters == NULL || defaults == NULL) {
+        free(parameters);
+        free(defaults);
+        c->failed = 1;
+        return;
+    }
+    int count = split_top_level(fn->args, parameters[0], 64, sizeof(parameters[0]));
+    if(split_top_level(fn->default_args, defaults[0], 64, sizeof(defaults[0])) != count)
+        count = 0;
+    int last = -1;
+    for(int child = c->fn->exprs[index].first_child; child >= 0;
+        child = c->fn->exprs[child].next_sibling) {
+        last = child;
+        const char *named = c->fn->exprs[child].argument_name;
+        int position = -1;
+        for(int i = 0; i < count && position < 0; i++) {
+            if(*named) {
+                const char *colon = strchr(parameters[i], ':');
+                size_t length = colon ? (size_t)(colon - parameters[i]) : 0;
+                while(length > 0 && isspace((unsigned char)parameters[i][length - 1])) length--;
+                if(colon && strlen(named) == length && !strncmp(parameters[i], named, length))
+                    position = i;
+            } else if(!used[i])
+                position = i;
+        }
+        if(position >= 0) used[position] = 1;
+    }
+    for(int i = 0; i < count; i++) {
+        char *assignment = top_level_assignment(defaults[i]);
+        char *colon = strchr(parameters[i], ':');
+        if(used[i] || assignment == NULL || colon == NULL)
+            continue;
+        *colon = '\0';
+        char name[ZIR_NAME_MAX], value[ZIR_TEXT_MAX];
+        copy_text(name, sizeof(name), trim(parameters[i]));
+        copy_text(value, sizeof(value), skip_ws(assignment + 1));
+        if(!strcmp(value, "#caller_location")) {
+            if(!CallerLocationLiteral(c->module, c->fn->exprs[index].span,
+                                      value, sizeof(value))) {
+                c->failed = 1;
+                break;
+            }
+        } else if(!DefaultIsLiteral(value)) {
+            char helper[ZIR_NAME_MAX];
+            FunctionDefaultHelperName(fn, i, helper, sizeof(helper));
+            if(alias[0])
+                snprintf(value, sizeof(value), "%s.%s()", alias, helper);
+            else
+                snprintf(value, sizeof(value), "%s()", helper);
+        }
+        int root = ParseExpr(c->fn, c->module, value, c->fn->exprs[index].span);
+        if(root < 0) {
+            c->failed = 1;
+            break;
+        }
+        copy_text(c->fn->exprs[root].argument_name,
+                  sizeof(c->fn->exprs[root].argument_name), name);
+        c->fn->exprs[root].next_sibling = -1;
+        if(last < 0)
+            c->fn->exprs[index].first_child = root;
+        else
+            c->fn->exprs[last].next_sibling = root;
+        last = root;
+        c->conversions_applied = 1;
+    }
+    free(parameters);
+    free(defaults);
+}
+
+/* A call to an overloaded procedure names the member whose parameters take
+ * its arguments best; rewrite the call to that member's unique name. */
+static void
+select_overload(Checker *c, int index)
+{
+    ZirExpr *e = &c->fn->exprs[index];
+    if(e->is_this || !e->name[0] || *lookup(c, e->name))
+        return;
+    char alias[ZIR_NAME_MAX] = "", base[ZIR_NAME_MAX];
+    const char *dot = strchr(e->name, '.');
+    if(dot != NULL) {
+        snprintf(alias, sizeof(alias), "%.*s", (int)(dot - e->name), e->name);
+        copy_text(base, sizeof(base), dot + 1);
+    } else
+        copy_text(base, sizeof(base), e->name);
+    const ZirModule *modules[65];
+    int module_count = 0;
+    if(!alias[0])
+        modules[module_count++] = c->module;
+    for(int i = 0; i < c->module->import_count && module_count < 65; i++) {
+        const ZirImport *import = &c->module->imports[i];
+        if(import->resolved_module == NULL) continue;
+        if(alias[0] ? import->kind == ZIR_IMPORT_MODULE && !strcmp(import->name, alias) :
+                      import->kind == ZIR_IMPORT_OPEN ||
+                      (import->kind == ZIR_IMPORT_MODULE && import->is_using))
+            modules[module_count++] = import->resolved_module;
+    }
+    OverloadCandidate candidates[64];
+    int candidate_count = 0;
+    for(int m = 0; m < module_count; m++)
+        for(int f = 0; f < modules[m]->function_count && candidate_count < 64; f++) {
+            const ZirFunction *fn = &modules[m]->functions[f];
+            if(strcmp(fn->overload_name, base) ||
+               (modules[m] != c->module && !fn->is_public))
+                continue;
+            candidates[candidate_count++] = (OverloadCandidate){fn, 0};
+        }
+    if(candidate_count == 0)
+        return;
+    char (*types)[ZIR_NAME_MAX] = calloc(64, sizeof(*types));
+    char (*names)[ZIR_NAME_MAX] = calloc(64, sizeof(*names));
+    int count = 0;
+    if(types == NULL || names == NULL) {
+        free(types);
+        free(names);
+        c->failed = 1;
+        return;
+    }
+    int saved_inference = c->inference_only;
+    c->inference_only = 1;
+    for(int child = c->fn->exprs[index].first_child; child >= 0 && count < 64;
+        child = c->fn->exprs[child].next_sibling, count++) {
+        copy_text(types[count], sizeof(types[count]), expression_type(c, child));
+        copy_text(names[count], sizeof(names[count]), c->fn->exprs[child].argument_name);
+    }
+    c->inference_only = saved_inference;
+    e = &c->fn->exprs[index];
+    const ZirFunction *best = NULL;
+    int best_score = -1, tied = 0;
+    for(int i = 0; i < candidate_count; i++) {
+        int score = overload_score(c, candidates[i].fn, types, names, count);
+        if(score < 0) continue;
+        if(best == NULL || score < best_score) {
+            best = candidates[i].fn;
+            best_score = score;
+            tied = 0;
+        } else if(score == best_score)
+            tied = 1;
+    }
+    char shown[ZIR_TEXT_MAX];
+    size_t used = (size_t)snprintf(shown, sizeof(shown), "%s(", base);
+    for(int i = 0; i < count && used < sizeof(shown); i++)
+        used += (size_t)snprintf(shown + used, sizeof(shown) - used, "%s%s",
+                                 i ? ", " : "", !strcmp(types[i], "integer") ?
+                                 "integer literal" : !strcmp(types[i], "real") ?
+                                 "float literal" : types[i]);
+    if(used < sizeof(shown))
+        snprintf(shown + used, sizeof(shown) - used, ")");
+    free(types);
+    free(names);
+    if(best == NULL) {
+        if(!c->inference_only)
+            error(c, e->span, "no overload accepts these arguments", shown);
+        return;
+    }
+    if(tied) {
+        if(!c->inference_only)
+            error(c, e->span, "overloads match these arguments equally well", shown);
+        return;
+    }
+    if(alias[0])
+        snprintf(e->name, sizeof(e->name), "%s.%s", alias, best->name);
+    else
+        copy_text(e->name, sizeof(e->name), best->name);
+    append_overload_defaults(c, index, best, alias);
+}
+
 /* Edit distance between two names, or LIMIT + 1 once it exceeds LIMIT. */
 static int
 name_distance(const char *a, const char *b, int limit)
@@ -932,6 +1195,8 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 type = "void";
             break;
         }
+        select_overload(c, index);
+        e = &c->fn->exprs[index];
         const char *binding = e->is_this ? "" : lookup(c, e->name);
         e->is_global_value = !e->is_this && !*lookup_lexical(c, e->name) &&
                               global_binding(c, e->name) != NULL;

@@ -55,6 +55,15 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/numeric_conformance.json`, and kept synchronized with markers in the
   differential test. Mixed-width narrowing/widening after addition and u8
   bitwise AND/OR/XOR are included.
+- Procedures may be overloaded: several declarations may share a name when
+  their parameters differ. A call chooses the overload whose parameters take
+  its arguments best (exact types, then an untyped literal's usual type,
+  then the closest widening) and gets that overload's defaults; no match or
+  an equal match is an error. Overloads work through open and named imports.
+  The choice is made in checking, so saved IR and every target call the
+  chosen procedure directly. Exported and polymorphic procedures cannot be
+  overloaded. `tests/overloads.sh` checks source and saved IR on C, C++, Go,
+  and `.zib`.
 - Jai resizable arrays: `[..]T` is `std/vec`'s `Vec(T)`, imported for the
   file automatically, and `array_add(*a, x)`, `array_reset(*a)`,
   `array_free(a)`, and `array_reset_keeping_memory(*a)` are the matching Vec

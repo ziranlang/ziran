@@ -160,6 +160,7 @@ typedef struct ZirFunction {
     int is_global_initializer; /* private startup body generated from a global */
     char template_param[ZIR_NAME_MAX];
     char specialization_type[ZIR_NAME_MAX];
+    char overload_name[ZIR_NAME_MAX]; /* source name shared by overloads; name is unique */
     int checked;    /* shared checker resolved the function without errors */
     int from_ir;    /* in-memory only: expression graph came from saved IR */
     int default_helpers_created; /* in-memory only: source helper pass ran */

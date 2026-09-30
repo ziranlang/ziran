@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 51 now exists for
+This is the target contract. An experimental binary version 52 now exists for
 the tested C/C++/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -31,7 +31,7 @@ unrelated imported function with the same type shape.
 `.zir` is the compiler interchange and cache format. Portable distribution
 uses a linked `.zib`, not an unlinked `.zir`. See [Bundle format](ZIB.md).
 
-## Experimental version 51
+## Experimental version 52
 
 Foreign imports retain typed parameters, return types and a checked
 `go_results` flag for packing native Go results into record fields in order.
@@ -43,6 +43,9 @@ no owned arguments or variadic parameters. Go
 method/field targets retain their receiver type, for example
 `go:net/http.(*Request).RemoteAddr`. Native emission uses these checked fields;
 the original foreign declaration string is diagnostic metadata.
+
+Overloaded procedures each carry a unique `name` and share their source
+name in `overload_name`; checked calls already name the chosen overload.
 
 A record type flagged `is_results` holds the results of a procedure with
 several results, in fields `value_0`, `value_1`, and so on; the source's

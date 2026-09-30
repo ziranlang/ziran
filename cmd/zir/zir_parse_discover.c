@@ -1467,8 +1467,64 @@ SubstituteGenericType(const char *source, char *output, size_t capacity,
     return 1;
 }
 
+/* Spell the names a generic record's field type uses so they resolve in
+ * USER, the module holding the instance, as they do in OWNER, the module
+ * declaring the record: Vec becomes vec.Vec when only the record's module
+ * imports vec. Type parameters and names USER already sees stay as they
+ * are. */
+static int
+qualify_generic_field_type(const char *type, char *out, size_t size,
+                           char params[][ZIR_NAME_MAX], int parameter_count,
+                           const ZirModule *owner, const ZirModule *user)
+{
+    size_t used = 0;
+    for(const char *p = type; *p;) {
+        if(!isalpha((unsigned char)*p) && *p != '_') {
+            if(used + 1 >= size) return 0;
+            out[used++] = *p++;
+            continue;
+        }
+        const char *start = p;
+        while(isalnum((unsigned char)*p) || *p == '_' ||
+              (*p == '.' && (isalpha((unsigned char)p[1]) || p[1] == '_')))
+            p++;
+        char name[ZIR_NAME_MAX], qualified[ZIR_NAME_MAX];
+        size_t length = (size_t)(p - start);
+        if(length >= sizeof(name)) return 0;
+        memcpy(name, start, length);
+        name[length] = '\0';
+        const char *spelled = name;
+        int parameter = 0;
+        for(int i = 0; i < parameter_count; i++)
+            parameter |= strcmp(params[i], name) == 0;
+        if(!parameter && strchr(name, '.') == NULL) {
+            const ZirModule *declared_in = NULL;
+            const ZirType *declared = FindType(owner, name, &declared_in);
+            if(declared != NULL && declared_in != NULL &&
+               FindType(user, name, NULL) != declared &&
+               snprintf(qualified, sizeof(qualified), "%s.%s", declared_in->name,
+                        name) < (int)sizeof(qualified) &&
+               FindType(user, qualified, NULL) == declared)
+                spelled = qualified;
+        }
+        size_t spelled_length = strlen(spelled);
+        if(used + spelled_length >= size) return 0;
+        memcpy(out + used, spelled, spelled_length);
+        used += spelled_length;
+    }
+    out[used] = '\0';
+    return 1;
+}
+
 int
 InstantiateGenericRecord(ZirType *instance, const ZirType *generic)
+{
+    return InstantiateGenericRecordAt(instance, generic, NULL, NULL);
+}
+
+int
+InstantiateGenericRecordAt(ZirType *instance, const ZirType *generic,
+                           const ZirModule *owner, const ZirModule *user)
 {
     char params[16][ZIR_NAME_MAX], actual[16][ZIR_NAME_MAX];
     int parameter_count, argument_count;
@@ -1492,6 +1548,13 @@ InstantiateGenericRecord(ZirType *instance, const ZirType *generic)
     ZirTypeField field;
     while((status = TypeNextField(generic, &offset, &field)) == 1) {
         char type[ZIR_NAME_MAX];
+        if(owner != NULL && user != NULL && owner != user) {
+            char qualified[ZIR_NAME_MAX];
+            if(!qualify_generic_field_type(field.type, qualified, sizeof(qualified),
+                                           params, parameter_count, owner, user))
+                return 0;
+            copy_text(field.type, sizeof(field.type), qualified);
+        }
         if(!SubstituteGenericType(field.type, type, sizeof(type),
                                    params, actual, parameter_count))
             return 0;

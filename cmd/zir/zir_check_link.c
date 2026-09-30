@@ -212,7 +212,10 @@ rewrite_type_applications_with_buffers(ZirModule *module, const char *source,
         }
         if(isalpha((unsigned char)*cursor) || *cursor == '_') {
             const char *start = cursor;
-            while(isalnum((unsigned char)*cursor) || *cursor == '_') cursor++;
+            /* module.Record(...) names a record reached through a module. */
+            while(isalnum((unsigned char)*cursor) || *cursor == '_' ||
+                  (*cursor == '.' && (isalpha((unsigned char)cursor[1]) || cursor[1] == '_')))
+                cursor++;
             size_t length = (size_t)(cursor - start);
             const char *opening = skip_ws(cursor);
             char base[ZIR_NAME_MAX];
@@ -247,8 +250,10 @@ rewrite_type_applications_with_buffers(ZirModule *module, const char *source,
                                "type application arguments are too long: %s", base);
                     return 0;
                 }
+                /* Name the instance by the record, not by how this module
+                 * spells it (Vec or vec.Vec), so every copy gets one name. */
                 uint64_t hash = UINT64_C(14695981039346656037);
-                for(const unsigned char *p = (const unsigned char *)base; *p; p++)
+                for(const unsigned char *p = (const unsigned char *)generic->name; *p; p++)
                     hash = (hash ^ *p) * UINT64_C(1099511628211);
                 hash = (hash ^ '(') * UINT64_C(1099511628211);
                 for(const unsigned char *p = (const unsigned char *)buffers->canonical; *p; p++)
@@ -265,7 +270,7 @@ rewrite_type_applications_with_buffers(ZirModule *module, const char *source,
                 if(instance != NULL &&
                    (!instance->is_synthetic_application ||
                     (instance->is_type_instance &&
-                     (strcmp(instance->template_name, base) != 0 ||
+                     (FindType(module, instance->template_name, NULL) != generic ||
                       strcmp(instance->template_args, buffers->canonical) != 0)))) {
                     Diagnostic(span, "check.type_application",
                                "type application name collision: %s", base);
@@ -1175,9 +1180,11 @@ fill_late_type_instances(ZirModule *module, ZirSourceSpan span)
     char *body = NULL, *expanded = NULL;
     for(int t = 0; t < module->type_count; t++) {
         if(!module->types[t].is_type_instance) continue;
-        const ZirType *generic = FindType(module, module->types[t].template_name, NULL);
+        const ZirModule *generic_owner = NULL;
+        const ZirType *generic = FindType(module, module->types[t].template_name,
+                                          &generic_owner);
         if(generic == NULL || !generic->is_record_template ||
-           !InstantiateGenericRecord(&module->types[t], generic)) {
+           !InstantiateGenericRecordAt(&module->types[t], generic, generic_owner, module)) {
             Diagnostic(span, "check.specialize",
                        "invalid generic type specialization: %s",
                        module->types[t].name);

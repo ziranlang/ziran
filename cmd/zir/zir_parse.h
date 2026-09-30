@@ -61,6 +61,10 @@ int EvaluateCompileLiteral(const ZirModule *module, const char *source,
 int LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred);
 
 int InstantiateGenericRecord(ZirType *instance, const ZirType *generic);
+/* As InstantiateGenericRecord, for an instance held by USER of a record
+ * declared in OWNER: field types name what OWNER sees in a way USER can. */
+int InstantiateGenericRecordAt(ZirType *instance, const ZirType *generic,
+                               const ZirModule *owner, const ZirModule *user);
 int SubstituteGenericType(const char *source, char *output, size_t capacity,
                           char params[][ZIR_NAME_MAX],
                           char actual[][ZIR_NAME_MAX], int count);

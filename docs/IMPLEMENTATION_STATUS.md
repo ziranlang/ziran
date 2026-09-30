@@ -61,6 +61,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- A generic record from another module may hold types only that module
+  imports: the user's `Bag(string)` reads the library's `Vec(K)` field as
+  `vec.Vec(string)`, and every copy of one application gets the same name.
+  Records applied through a named import, `Pairs.Pair(s32, string)`, work
+  too. `tests/generic_record_imports.sh` checks source and saved IR on C,
+  C++, Go, and `.zib`.
 - `std/file` imports the file operations for the native C target: file_linux
   on Linux, Android, the web, and Windows, file_plan9 on Plan 9, where
   `--target=plan9-c` now defines `PLAN9`. It adds `ReadEntireFile` and

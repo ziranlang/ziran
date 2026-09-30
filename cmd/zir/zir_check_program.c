@@ -512,10 +512,11 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                 ZirType *type = &module->types[t];
                 select_lookup_file(module, type->span);
                 if(type->is_type_instance) {
+                    const ZirModule *generic_owner = NULL;
                     const ZirType *generic = FindType(module,
-                        type->template_name, NULL);
+                        type->template_name, &generic_owner);
                     if(generic == NULL || !generic->is_record_template ||
-                       !InstantiateGenericRecord(type, generic)) {
+                       !InstantiateGenericRecordAt(type, generic, generic_owner, module)) {
                         Diagnostic(type->span, "check.specialize",
                                    "invalid generic type specialization: %s",
                                    type->name);

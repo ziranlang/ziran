@@ -1075,17 +1075,22 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         int prefix = TemplateBinderPrefix(type);
                         if(prefix < 0) {
                             die_at(fn->span,
-                                   "polymorphic procedure requires one $Type parameter");
+                                   "polymorphic parameters are written $Type, []$Type, or *$Type");
                             continue;
                         }
                         type += prefix;
-                        if(!is_identifier_text(type + 1) ||
-                           (fn->template_param[0] &&
-                            strcmp(fn->template_param, type + 1)))
-                            die_at(fn->span,
-                                   "polymorphic procedure requires one $Type parameter");
-                        copy_text(fn->template_param,
-                                  sizeof(fn->template_param), type + 1);
+                        if(!is_identifier_text(type + 1))
+                            die_at(fn->span, "invalid polymorphic type parameter");
+                        /* Each $Name binds one type parameter; the list
+                         * keeps them in order of first appearance. */
+                        if(TemplateParameterIndex(fn->template_param, type + 1,
+                                                  strlen(type + 1)) >= 0)
+                            die_at(fn->span, "$%s binds its type more than once", type + 1);
+                        size_t used = strlen(fn->template_param);
+                        if(used + strlen(type + 1) + 2 >= sizeof(fn->template_param))
+                            die_at(fn->span, "too many polymorphic type parameters");
+                        snprintf(fn->template_param + used, sizeof(fn->template_param) - used,
+                                 "%s%s", used ? "," : "", type + 1);
                     }
                     if(fn->template_param[0] == '\0')
                         die_at(fn->span, "invalid polymorphic procedure parameter");

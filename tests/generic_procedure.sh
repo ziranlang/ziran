@@ -146,15 +146,17 @@ if "$ziran" check --root "$work" "$work/mismatch.zi" \
 fi
 rg -q 'argument type mismatch: Same' "$work/mismatch.err"
 
+# Several type parameters are allowed; each $Name binds once
+# (tests/generic_parameters.sh runs them).
 cat > "$work/multiple.zi" <<'ZI'
-Bad :: (left: $T, right: $U) -> T { return left }
+Bad :: (left: $T, right: $T) -> T { return left }
 ZI
 if "$ziran" check --root "$work" "$work/multiple.zi" \
     2> "$work/multiple.err"; then
-    echo 'multiple polymorphic type parameters were accepted' >&2
+    echo 'a type parameter bound twice was accepted' >&2
     exit 1
 fi
-rg -q 'requires one \$Type parameter' "$work/multiple.err"
+rg -q 'binds its type more than once' "$work/multiple.err"
 
 cat > "$work/scalar_using.zi" <<'ZI'
 Field :: (using item: $T) -> s32 { return value }

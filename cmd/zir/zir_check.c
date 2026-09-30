@@ -1494,26 +1494,37 @@ int
 replace_template_type(char *target, size_t capacity, const char *source,
                       const char *parameter, const char *concrete)
 {
-    size_t used = 0, parameter_length = strlen(parameter);
-    for(const char *p = source; *p;) {
+    /* PARAMETER lists the procedure's type parameters, "T" or "A,B", and
+     * CONCRETE the matching types, split at top-level commas. */
+    char (*types)[ZIR_NAME_MAX] = calloc(16, sizeof(*types));
+    if(types == NULL) return 0;
+    int type_count = split_top_level(concrete, types[0], 16, sizeof(types[0]));
+    size_t used = 0;
+    int ok = 1;
+    for(const char *p = source; *p && ok;) {
         const char *start = p;
         if(*p == '$' || isalpha((unsigned char)*p) || *p == '_') {
             if(*p == '$') p++;
             while(isalnum((unsigned char)*p) || *p == '_') p++;
         } else p++;
         size_t length = (size_t)(p - start);
-        int match = (length == parameter_length &&
-                     !strncmp(start, parameter, length)) ||
-                    (length == parameter_length + 1 && *start == '$' &&
-                     !strncmp(start + 1, parameter, parameter_length));
-        const char *piece = match ? concrete : start;
-        size_t piece_length = match ? strlen(concrete) : length;
-        if(used + piece_length >= capacity) return 0;
-        memcpy(target + used, piece, piece_length);
-        used += piece_length;
+        const char *name = *start == '$' ? start + 1 : start;
+        size_t name_length = length - (size_t)(name - start);
+        int index = name_length > 0 &&
+            (isalpha((unsigned char)*name) || *name == '_') ?
+            TemplateParameterIndex(parameter, name, name_length) : -1;
+        int match = index >= 0 && index < type_count;
+        const char *piece = match ? types[index] : start;
+        size_t piece_length = match ? strlen(types[index]) : length;
+        if(used + piece_length >= capacity) ok = 0;
+        else {
+            memcpy(target + used, piece, piece_length);
+            used += piece_length;
+        }
     }
-    target[used] = '\0';
-    return 1;
+    if(ok) target[used] = '\0';
+    free(types);
+    return ok;
 }
 
 static uint64_t

@@ -1232,7 +1232,15 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 free(parameters);
                 break;
             }
-            char concrete[ZIR_NAME_MAX] = "";
+            /* One concrete type per $Name, in the procedure's list order. */
+            char (*bound)[ZIR_NAME_MAX] = calloc(16, sizeof(*bound));
+            if(bound == NULL) { free(parameters); c->failed = 1; break; }
+            int bound_count = 0;
+            for(const char *list = callee->template_param; *list; bound_count++) {
+                const char *comma = strchr(list, ',');
+                if(comma == NULL) { bound_count++; break; }
+                list = comma + 1;
+            }
             for(int child = e->first_child; child >= 0;
                 child = c->fn->exprs[child].next_sibling) {
                 int argument = c->fn->exprs[child].argument_index;
@@ -1240,9 +1248,13 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 if(colon == NULL) continue;
                 const char *parameter_type = skip_ws(colon + 1);
                 int prefix = TemplateBinderPrefix(parameter_type);
-                if(prefix < 0 ||
-                   strcmp(parameter_type + prefix + 1, callee->template_param))
+                int which = prefix < 0 ? -1 :
+                    TemplateParameterIndex(callee->template_param,
+                                           parameter_type + prefix + 1,
+                                           strlen(parameter_type + prefix + 1));
+                if(which < 0 || which >= 16)
                     continue;
+                char *concrete = bound[which];
                 char saved_expected[ZIR_NAME_MAX];
                 copy_text(saved_expected, sizeof(saved_expected), c->expected_type);
                 if(concrete[0] && prefix == 0)
@@ -1262,7 +1274,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 }
                 if(!strcmp(actual_type, "integer") || !strcmp(actual_type, "real")) {
                     if(concrete[0]) actual_type = concrete;
-                    else if(!strcmp(callee->return_type, callee->template_param) &&
+                    else if(!strcmp(callee->return_type, parameter_type + prefix + 1) &&
                             ScalarType(saved_expected)[0])
                         actual_type = saved_expected;
                     else {
@@ -1277,13 +1289,23 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     continue;
                 }
                 if(!concrete[0])
-                    copy_text(concrete, sizeof(concrete), actual_type);
+                    copy_text(concrete, ZIR_NAME_MAX, actual_type);
                 else if(strcmp(concrete, actual_type))
                     signature_error(c, c->fn->exprs[child].span,
                                     "polymorphic type mismatch", e->name);
             }
             free(parameters);
-            if(!concrete[0]) {
+            char concrete[ZIR_NAME_MAX] = "";
+            int inferred = bound_count > 0;
+            for(int i = 0; i < bound_count && inferred; i++) {
+                size_t used = strlen(concrete);
+                if(!bound[i][0] ||
+                   snprintf(concrete + used, sizeof(concrete) - used, "%s%s",
+                            i ? "," : "", bound[i]) >= (int)(sizeof(concrete) - used))
+                    inferred = 0;
+            }
+            free(bound);
+            if(!inferred) {
                 error(c, e->span, "cannot infer polymorphic type", e->name);
                 break;
             }
@@ -1297,11 +1319,19 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 break;
             }
             char name[ZIR_NAME_MAX];
+            /* An instance lives with the caller when one of its types is
+             * visible there but not in the template's module. */
             const ZirModule *instance_owner = owner;
-            if(owner != c->module &&
-               FindType(owner, concrete, NULL) == NULL &&
-               FindType(c->module, concrete, NULL) != NULL)
-                instance_owner = c->module;
+            if(owner != c->module) {
+                char (*types)[ZIR_NAME_MAX] = calloc(16, sizeof(*types));
+                if(types == NULL) { c->failed = 1; break; }
+                int type_count = split_top_level(concrete, types[0], 16, sizeof(types[0]));
+                for(int i = 0; i < type_count; i++)
+                    if(FindType(owner, types[i], NULL) == NULL &&
+                       FindType(c->module, types[i], NULL) != NULL)
+                        instance_owner = c->module;
+                free(types);
+            }
             if(!queue_specialization(c, owner, instance_owner,
                                      callee, concrete,
                                      name, sizeof(name), e->span)) break;

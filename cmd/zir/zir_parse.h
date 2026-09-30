@@ -34,6 +34,9 @@ ZirProgram *parse_source_text(const char *path, const char *source);
 /* Length of the `[]` or `*` in front of `$T` in a polymorphic parameter type,
  * 0 for a bare `$T`, or -1 when the type binds no type parameter. */
 int TemplateBinderPrefix(const char *type);
+/* Index of NAME (LENGTH bytes) in a polymorphic procedure's comma-separated
+ * type parameter list, such as "A,B", or -1. */
+int TemplateParameterIndex(const char *list, const char *name, size_t length);
 int ParseExprNoDefaults(ZirFunction *fn, const ZirModule *module,
                 const char *text, ZirSourceSpan span);
 int ParseExprTyped(ZirFunction *fn, const ZirModule *module,

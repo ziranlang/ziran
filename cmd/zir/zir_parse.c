@@ -246,6 +246,23 @@ is_identifier_text(const char *text)
 }
 
 int
+TemplateParameterIndex(const char *list, const char *name, size_t length)
+{
+    int index = 0;
+    for(const char *p = list; *p;) {
+        const char *end = strchr(p, ',');
+        size_t part = end ? (size_t)(end - p) : strlen(p);
+        if(part == length && !strncmp(p, name, length))
+            return index;
+        if(end == NULL)
+            break;
+        p = end + 1;
+        index++;
+    }
+    return -1;
+}
+
+int
 TemplateBinderPrefix(const char *type)
 {
     int prefix = !strncmp(type, "[]", 2) ? 2 : *type == '*' ? 1 : 0;

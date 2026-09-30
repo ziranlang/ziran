@@ -181,7 +181,7 @@ Bad :: () { value: s32 = 1; Clear(value) }
 ZI
 reject not_pointer "polymorphic pointer parameter needs a pointer"
 
-cat > "$work/two_names.zi" <<'ZI'
-Bad :: (left: []$T, right: []$U) { }
+cat > "$work/two_binders.zi" <<'ZI'
+Bad :: (left: []$T, right: $T) { }
 ZI
-reject two_names "polymorphic procedure requires one \$Type parameter"
+reject two_binders "\$T binds its type more than once"

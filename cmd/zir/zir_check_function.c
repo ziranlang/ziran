@@ -619,7 +619,8 @@ check_template_declaration(Checker *c, ZirFunction *fn)
         trim_in_place(type);
         int prefix = TemplateBinderPrefix(type);
         if(prefix >= 0) {
-            if(strcmp(type + prefix + 1, fn->template_param)) valid = 0;
+            if(TemplateParameterIndex(fn->template_param, type + prefix + 1,
+                                      strlen(type + prefix + 1)) < 0) valid = 0;
             else binders++;
         } else if(strchr(type, '$') != NULL)
             valid = 0;

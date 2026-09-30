@@ -55,6 +55,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/numeric_conformance.json`, and kept synchronized with markers in the
   differential test. Mixed-width narrowing/widening after addition and u8
   bitwise AND/OR/XOR are included.
+- Polymorphic procedures may bind several type parameters, each with its
+  own `$Name`, as in `Pick :: (a: $A, b: $B) -> A`. Every call infers each
+  parameter and gets its own specialization, placed with the caller when one
+  of its types is only visible there. A name bound twice is an error, and
+  polymorphic procedures cannot yet have several results.
+  `tests/generic_parameters.sh` checks source and saved IR on C, C++, Go,
+  and `.zib`.
 - Procedures may be overloaded: several declarations may share a name when
   their parameters differ. A call chooses the overload whose parameters take
   its arguments best (exact types, then an untyped literal's usual type,

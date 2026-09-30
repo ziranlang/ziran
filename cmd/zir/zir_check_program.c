@@ -842,6 +842,10 @@ variadic_callee(const ZirModule *module, const char *name)
 static int
 declared_type_written(const ZirStmt *st)
 {
+    /* A range's bounds set its index type, so their casts are not whole
+     * values even though the lowering declares them. */
+    if(!strncmp(st->name, "range_", 6))
+        return 0;
     const char *text = st->text != NULL ? skip_ws(st->text) : "";
     size_t length = strlen(st->name);
     if(strncmp(text, st->name, length) != 0)

@@ -2,8 +2,9 @@
 # `ziran check --lint` warns about casts a program no longer needs: a cast
 # to the value's own type, and a cast that only widens a whole typed
 # initializer, assignment, argument, or result. Casts that set the width of
-# arithmetic, choose an inferred type, pick an overload, or pass a variadic
-# argument (whose width the callee's format decides) stay. Warnings
+# arithmetic, choose an inferred type or a range's index type, pick an
+# overload, or pass a variadic argument (whose width the callee's format
+# decides) stay. Warnings
 # do not fail the check, and JSON diagnostics mark them as warnings.
 set -eu
 
@@ -30,6 +31,7 @@ Widen :: (x: s32) -> s64 {
     Format(*buffer[0], 16, null, cast(s64) x)
     byte: s8 = -1
     widened: s32 = cast(u8) byte
+    for i: 0..cast(s64) (x - 1) { d += i }
     return cast(s64) x
 }
 main :: () { print("%\n", Widen(3)); }
@@ -41,7 +43,7 @@ app.zi:7 cast(s64) is not needed: s32 widens to s64 implicitly
 app.zi:9 cast(s32) is not needed: the value is already s32
 app.zi:12 cast(s64) is not needed: s32 widens to s64 implicitly
 app.zi:13 cast(s64) is not needed: s32 widens to s64 implicitly
-app.zi:19 cast(s64) is not needed: s32 widens to s64 implicitly
+app.zi:20 cast(s64) is not needed: s32 widens to s64 implicitly
 OUT
 sed -n 's/^\([^:]*:[0-9]*\):[0-9]*: warning: /\1 /p' "$work/text.err" > "$work/actual"
 cmp "$work/expected" "$work/actual" || { cat "$work/text.err" >&2; exit 1; }

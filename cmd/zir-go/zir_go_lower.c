@@ -314,6 +314,7 @@ typedef struct {
     char go_receiver[ZIR_GO_NAME_MAX];
     int go_results;
     int go_field;
+    int go_defer;
     int direct_ziran;
     char provider_go[ZIR_GO_NAME_MAX * 2];
 } ZirGoExtern;
@@ -454,7 +455,7 @@ extern_direct_go_target(const char *target, char *import_path,
 static void
 add_extern(const char *source, const char *args, const char *ret,
            const char *target, const char *provider_symbol,
-           int go_results, int go_field, ZirSourceSpan span)
+           int go_results, int go_field, int go_defer, ZirSourceSpan span)
 {
     ZirGoExtern *ex;
     if(target && !strncmp(target, "c.", 2)) {
@@ -472,6 +473,7 @@ add_extern(const char *source, const char *args, const char *ret,
     snprintf(ex->ret, sizeof(ex->ret), "%s", ret);
     ex->go_results = go_results;
     ex->go_field = go_field;
+    ex->go_defer = go_defer;
     split_params(args, ex);
     if(target != NULL && strncmp(target, "ziran:", 6) == 0) {
         const char *bound = go_bound_provider(target + 6, provider_symbol);
@@ -565,7 +567,7 @@ parse_extern_import_with_buffers(const ZirImport *imp, ParseExternImportBuffers 
 {
     if(imp->args[0] || imp->return_type[0]) {
         add_extern(imp->name, imp->args, imp->return_type[0] ? imp->return_type : "void",
-                   imp->target, imp->extern_symbol, imp->go_results, imp->go_field, imp->span);
+                   imp->target, imp->extern_symbol, imp->go_results, imp->go_field, imp->go_defer, imp->span);
         return;
     }
     char ret[ZIR_GO_NAME_MAX];
@@ -603,7 +605,7 @@ parse_extern_import_with_buffers(const ZirImport *imp, ParseExternImportBuffers 
             buffers->target[n] = '\0';
         }
     }
-    add_extern(imp->name, buffers->args, ret, buffers->target, imp->extern_symbol, imp->go_results, imp->go_field, imp->span);
+    add_extern(imp->name, buffers->args, ret, buffers->target, imp->extern_symbol, imp->go_results, imp->go_field, imp->go_defer, imp->span);
 }
 
 /* Parse "name :: (args) -> ret #foreign library;" from a raw foreign import
@@ -734,9 +736,9 @@ go_set_module(const ZirModule *m, const char *guard)
             continue;
         if(fn->extern_target[0] != '\0')
             add_extern(fn->name, fn->args, fn->return_type,
-                       fn->extern_target, "", 0, 0, fn->span);
+                       fn->extern_target, "", 0, 0, 0, fn->span);
         else
-            add_extern(fn->name, fn->args, fn->return_type, "", "", 0, 0, fn->span);
+            add_extern(fn->name, fn->args, fn->return_type, "", "", 0, 0, 0, fn->span);
     }
     for(int i = 0; i < m->type_count; i++) {
         if(m->types[i].is_enum)
@@ -1060,6 +1062,8 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
                     if(*ae == ')')
                         ae++;
                     p = ae;
+                    if(g_externs[xi].go_defer)
+                        dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "defer ");
                     if(g_externs[xi].go_results || g_externs[xi].go_field) {
                         char name[ZIR_GO_NAME_MAX];
                         camel_ident(g_externs[xi].source, name, sizeof(name));

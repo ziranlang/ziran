@@ -406,6 +406,18 @@ normalize_type_applications_with_buffers(ZirModule *module, NormalizeTypeApplica
         if(strlen(buffers->expanded) >= sizeof(global->type)) return 0;
         copy_text(global->type, sizeof(global->type), buffers->expanded);
     }
+    for(int i = 0; i < module->import_count; i++) {
+        ZirImport *binding = &module->imports[i];
+        if(binding->kind != ZIR_IMPORT_EXTERN) continue;
+        if(!rewrite_type_applications(module, binding->args, buffers->expanded,
+                sizeof(buffers->expanded), binding->span, 0)) return 0;
+        if(strlen(buffers->expanded) >= sizeof(binding->args)) return 0;
+        copy_text(binding->args, sizeof(binding->args), buffers->expanded);
+        if(!rewrite_type_applications(module, binding->return_type, buffers->expanded,
+                sizeof(buffers->expanded), binding->span, 0)) return 0;
+        if(strlen(buffers->expanded) >= sizeof(binding->return_type)) return 0;
+        copy_text(binding->return_type, sizeof(binding->return_type), buffers->expanded);
+    }
     for(int f = 0; f < module->function_count; f++) {
         ZirFunction *fn = &module->functions[f];
         if(fn->from_ir || fn->is_template) continue;

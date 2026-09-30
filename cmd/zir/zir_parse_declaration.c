@@ -897,6 +897,12 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
     if(go_field && (foreign_type || go_results ||
                    strstr(field_attribute + strlen("#go_field"), "#go_field")))
         die_at(Span(path, line_no, 1), "#go_field requires one foreign field getter without #go_results");
+    const char *defer_attribute = strstr(declaration, "#go_defer");
+    int go_defer = contains_source_directive(declaration, "#go_defer") &&
+        defer_attribute && defer_attribute < dir;
+    if(go_defer && (foreign_type || go_results || go_field ||
+                   strstr(defer_attribute + strlen("#go_defer"), "#go_defer")))
+        die_at(Span(path, line_no, 1), "#go_defer requires one foreign procedure without result or field attributes");
     if(foreign_type && skip_ws(declaration + strlen("#type")) != dir)
         die_at(Span(path, line_no, 1),
                "foreign type requires Name :: #type #foreign library;");
@@ -973,6 +979,8 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         die_at(Span(path, line_no, 1), "#go_results requires an explicit Go foreign target");
     if(go_field && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
         die_at(Span(path, line_no, 1), "#go_field requires an explicit Go foreign target");
+    if(go_defer && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
+        die_at(Span(path, line_no, 1), "#go_defer requires an explicit Go foreign target");
     if(foreign_type) {
         if(!GoForeignTargetValid(buffers->target))
             die_at(Span(path, line_no, 1),
@@ -999,6 +1007,7 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         imp->extern_kind = extern_kind;
         imp->go_results = go_results;
         imp->go_field = go_field;
+        imp->go_defer = go_defer;
         snprintf(imp->extern_symbol, sizeof(imp->extern_symbol), "%s",
                  symbol);
         /* A trailing `..any` parameter marks a variadic C ABI: calls may

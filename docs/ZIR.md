@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 49 now exists for
+This is the target contract. An experimental binary version 50 now exists for
 the tested C/C++/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -31,12 +31,15 @@ unrelated imported function with the same type shape.
 `.zir` is the compiler interchange and cache format. Portable distribution
 uses a linked `.zib`, not an unlinked `.zir`. See [Bundle format](ZIB.md).
 
-## Experimental version 49
+## Experimental version 50
 
 Foreign imports retain typed parameters, return types and a checked
 `go_results` flag for packing native Go results into record fields in order.
-Version 49 adds a checked `go_field` flag for typed foreign Go field getters.
-Both flags require explicit Go foreign targets and cannot be combined. Go
+The checked `go_field` flag describes typed foreign Go field getters;
+`go_defer` schedules a native void call at the calling Go function's exit,
+including panic unwinding. These flags require explicit Go foreign targets
+and cannot be combined. Deferred calls must be standalone statements with
+no owned arguments or variadic parameters. Go
 method/field targets retain their receiver type, for example
 `go:net/http.(*Request).RemoteAddr`. Native emission uses these checked fields;
 the original foreign declaration string is diagnostic metadata.

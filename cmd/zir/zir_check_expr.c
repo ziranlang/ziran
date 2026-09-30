@@ -992,6 +992,10 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     c->fn->uses_host = 1;
                 args = imp->args; return_type = imp->return_type;
                 varargs = imp->is_varargs;
+                if(imp->go_defer && (!c->current_stmt ||
+                   c->current_stmt->kind != ZIR_STMT_EXPR ||
+                   c->current_stmt->expr_root != index))
+                    error(c, e->span, "#go_defer requires a standalone call statement", e->name);
                 break;
             }
         }

@@ -175,6 +175,38 @@ not infer them from diagnostic source text.
 The standard modules `sync_go`, `time_go`, `random_go`, `text_go`, `net_go`
 and `http_go` expose mutexes, native monotonic timestamps, cryptographic random
 bytes, copied byte strings, IP primitives, HTTP request fields and headers.
+`atomic_go` provides native `Uint64` counters with atomic `Add` and `Load`.
+`http_go` also preserves the native `ResponseWriter` interface and exposes
+response headers and `SetHeader`.
+
+### Go deferred foreign calls
+
+Declare a void foreign procedure with `#go_defer` to schedule its native Go
+call at the end of the calling function, including panic unwinding:
+
+```jai
+#import "sync_go"
+sync :: #system_library "go:sync";
+UnlockAtReturn :: (value: *Mutex) #go_defer #foreign sync "(*Mutex).Unlock";
+Work :: (mutex: *Mutex) {
+    Lock(mutex)
+    UnlockAtReturn(mutex)
+    // Work while the mutex is locked.
+}
+```
+
+Arguments are evaluated and captured at the call statement. Scheduled calls
+run in reverse order when that function returns or panics; a nested block
+does not end the schedule. Declare and call the foreign binding in the
+function that needs cleanup. A Ziran wrapper would schedule cleanup at the
+wrapper's own return.
+
+The binding requires an explicit Go package target, a void result and no
+owned vector arguments or variadic parameters. `#go_results`, `#go_field`
+and Go predeclared builtins cannot be combined with this attribute. Calls
+must be standalone statements. Checked IR preserves the attribute, and
+other targets reject reachable Go bindings. Ordinary Ziran `defer` keeps
+its lexical scope cleanup semantics across targets.
 
 ### Go predeclared primitives
 

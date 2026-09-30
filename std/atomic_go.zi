@@ -1,0 +1,15 @@
+// Go unsigned 64-bit atomic counters. Keep counters in shared storage and pass their addresses.
+go_atomic :: #system_library "go:sync/atomic";
+Uint64 :: #type #foreign go_atomic "Uint64";
+
+#scope_file
+AddRaw :: (value: *Uint64, delta: u64) -> u64 #foreign go_atomic "(*Uint64).Add";
+LoadRaw :: (value: *Uint64) -> u64 #foreign go_atomic "(*Uint64).Load";
+
+#scope_export
+Add :: (value: *Uint64, delta: u64) -> u64 {
+    return AddRaw(value, delta)
+}
+Load :: (value: *Uint64) -> u64 {
+    return LoadRaw(value)
+}

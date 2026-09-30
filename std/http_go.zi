@@ -1,12 +1,15 @@
-// Go HTTP request fields and header lookup retain their native types and behavior.
+// Go HTTP requests, response writers and headers retain their native types and behavior.
 go_http :: #system_library "go:net/http";
 Request :: #type #foreign go_http "Request";
 Header :: #type #foreign go_http "Header";
+ResponseWriter :: #type #foreign go_http "ResponseWriter";
 
 #scope_file
 RemoteAddressRaw :: (request: *Request) -> string #go_field #foreign go_http "(*Request).RemoteAddr";
 HeadersRaw :: (request: *Request) -> Header #go_field #foreign go_http "(*Request).Header";
 HeaderValueRaw :: (header: Header, name: string) -> string #foreign go_http "Header.Get";
+ResponseHeadersRaw :: (writer: ResponseWriter) -> Header #foreign go_http "ResponseWriter.Header";
+HeaderSetRaw :: (header: Header, name: string, value: string) #foreign go_http "Header.Set";
 
 #scope_export
 RemoteAddress :: (request: *Request) -> string {
@@ -17,4 +20,10 @@ Headers :: (request: *Request) -> Header {
 }
 HeaderValue :: (header: Header, name: string) -> string {
     return HeaderValueRaw(header, name)
+}
+ResponseHeaders :: (writer: ResponseWriter) -> Header {
+    return ResponseHeadersRaw(writer)
+}
+SetHeader :: (header: Header, name: string, value: string) {
+    HeaderSetRaw(header, name, value)
 }

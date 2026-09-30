@@ -218,6 +218,18 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
     }
     int count = *skip_ws(binding->args) ?
         split_top_level(binding->args, parameters[0], 64, ZIR_TEXT_MAX) : 0;
+    if(binding->go_defer) {
+        int valid = !binding->go_results && !binding->go_field && !binding->is_varargs &&
+                    !strcmp(binding->return_type, "void") && strcmp(package, "builtin");
+        for(int parameter = 0; parameter < count && valid; parameter++) {
+            const char *colon = strchr(parameters[parameter], ':');
+            valid = colon && !contains_vec(module, skip_ws(colon + 1), 0);
+        }
+        if(!valid) {
+            Diagnostic(binding->span, "check.foreign", "#go_defer requires a void Go procedure without owned arguments");
+            return 0;
+        }
+    }
     if(binding->go_field && (!receiver[0] || count != 1 || binding->is_varargs ||
                             binding->go_results || !strcmp(binding->return_type, "void"))) {
         Diagnostic(binding->span, "check.foreign", "#go_field requires one receiver and a field value result");

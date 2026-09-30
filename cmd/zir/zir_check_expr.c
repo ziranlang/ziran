@@ -274,6 +274,79 @@ select_overload(Checker *c, int index)
     append_overload_defaults(c, index, best, alias);
 }
 
+/* print shows an enum value by its member name: rewrite argument INDEX into
+ * a call of the enum's generated name procedure, queued for creation.
+ * Returns "string", or NULL when the argument is not a plain enum. */
+static const char *
+print_enum_by_name(Checker *c, int index)
+{
+    ZirModule *owner = NULL;
+    const ZirType *enumeration = FindType(c->module, c->fn->exprs[index].type,
+                                          (const ZirModule **)&owner);
+    if(enumeration == NULL || !enumeration->is_enum || enumeration->is_enum_flags ||
+       owner == NULL)
+        return NULL;
+    char function[ZIR_NAME_MAX], call_name[ZIR_NAME_MAX];
+    if(snprintf(function, sizeof(function), "zi_enum_name_%s", enumeration->name) >=
+       (int)sizeof(function))
+        return NULL;
+    const char *dot = strrchr(c->fn->exprs[index].type, '.');
+    if(owner != c->module && dot != NULL)
+        snprintf(call_name, sizeof(call_name), "%.*s.%s",
+                 (int)(dot - c->fn->exprs[index].type), c->fn->exprs[index].type,
+                 function);
+    else
+        copy_text(call_name, sizeof(call_name), function);
+    if(c->inference_only)
+        return "string";
+    int known = 0;
+    for(int f = 0; f < owner->function_count && !known; f++)
+        known = !strcmp(owner->functions[f].name, function);
+    for(int r = 0; r < c->enum_name_count && !known; r++)
+        known = c->enum_names[r].owner == owner &&
+                !strcmp(c->enum_names[r].function, function);
+    if(!known) {
+        if(c->enum_name_count == c->enum_name_capacity) {
+            int capacity = c->enum_name_capacity ? c->enum_name_capacity * 2 : 8;
+            EnumNameRequest *next = realloc(c->enum_names,
+                                            (size_t)capacity * sizeof(*next));
+            if(next == NULL) { c->failed = 1; return NULL; }
+            c->enum_names = next;
+            c->enum_name_capacity = capacity;
+        }
+        EnumNameRequest *request = &c->enum_names[c->enum_name_count++];
+        request->owner = owner;
+        copy_text(request->type, sizeof(request->type), enumeration->name);
+        copy_text(request->function, sizeof(request->function), function);
+        request->span = enumeration->span;
+    }
+    ZirFunction *fn = c->fn;
+    char name[ZIR_NAME_MAX];
+    copy_text(name, sizeof(name), fn->exprs[index].name);
+    ZirExpr *copy_slot = FunctionAddExpr(fn, fn->exprs[index].kind, name,
+                                         fn->exprs[index].span);
+    if(copy_slot == NULL) { c->failed = 1; return NULL; }
+    ZirExpr saved = fn->exprs[index];
+    int copy_index = (int)(copy_slot - fn->exprs);
+    *copy_slot = saved;
+    copy_slot->next_sibling = -1;
+    copy_slot->argument_index = 0; /* the name procedure's one parameter */
+    copy_slot->argument_name[0] = '\0';
+    ZirExpr *call = &fn->exprs[index];
+    memset(call, 0, sizeof(*call));
+    call->kind = ZIR_EXPR_CALL;
+    call->text = saved.text;
+    copy_text(call->name, sizeof(call->name), call_name);
+    copy_text(call->type, sizeof(call->type), "string");
+    call->first_child = copy_index;
+    call->left = call->right = call->third = -1;
+    call->next_sibling = saved.next_sibling;
+    call->argument_index = saved.argument_index;
+    call->span = saved.span;
+    c->conversions_applied = 1;
+    return call->type;
+}
+
 /* Edit distance between two names, or LIMIT + 1 once it exceeds LIMIT. */
 static int
 name_distance(const char *a, const char *b, int limit)
@@ -917,6 +990,12 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                         arg_type = selected;
                         e = &c->fn->exprs[index];
                     }
+                    const char *named = child == first ? NULL :
+                        print_enum_by_name(c, child);
+                    if(named != NULL) {
+                        arg_type = named;
+                        e = &c->fn->exprs[index];
+                    }
                 }
                 const char *scalar = ScalarType(arg_type);
                 if(c->fn->exprs[child].argument_name[0])
@@ -938,7 +1017,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                          strcmp(scalar, "float64") &&
                          strcmp(scalar, "string"))))
                     error(c, c->fn->exprs[child].span,
-                          "print argument must be an integer, float, bool, or string",
+                          "print argument must be an integer, float, bool, string, or enum",
                           arg_type);
             }
             if(pieces == NULL) {

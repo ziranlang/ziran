@@ -302,7 +302,7 @@ EOF
 reject named 'print has no named parameters' <<'EOF'
 main :: () { print("%\n", value = 1); }
 EOF
-reject record 'print argument must be an integer, float, bool, or string' <<'EOF'
+reject record 'print argument must be an integer, float, bool, string, or enum' <<'EOF'
 Point :: struct { x: s32; }
 main :: () { point: Point; print("%\n", point); }
 EOF

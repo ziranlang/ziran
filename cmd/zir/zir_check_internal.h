@@ -44,6 +44,15 @@ typedef struct SpecializationRequest {
     ZirSourceSpan call_span;
 } SpecializationRequest;
 
+/* print of an enum value calls a generated procedure returning the member
+ * name; it is created in the enum's module after checking, like an instance. */
+typedef struct EnumNameRequest {
+    ZirModule *owner;
+    char type[ZIR_NAME_MAX];     /* enum name within its module */
+    char function[ZIR_NAME_MAX];
+    ZirSourceSpan span;
+} EnumNameRequest;
+
 typedef struct MoveState {
     int moved;
     int moved_path_count;
@@ -74,6 +83,8 @@ typedef struct Checker {
     int restore_count;
     SpecializationRequest *specializations;
     int specialization_count, specialization_capacity;
+    EnumNameRequest *enum_names;
+    int enum_name_count, enum_name_capacity;
 } Checker;
 
 typedef struct ExprOrder {
@@ -192,6 +203,8 @@ const char *widen_expression(Checker *c, int index, const char *to);
  * result; see select_first_result. */
 const char *results_first_type(Checker *c, const char *type, char *out, size_t size);
 const char *select_first_result(Checker *c, int index);
+/* Create the enum name procedures print needs; see EnumNameRequest. */
+int instantiate_enum_names(Checker *c);
 const ZirType *flags_type(Checker *c, const char *name);
 int same_declared_type(const ZirModule *module, const char *to, const char *from, int depth);
 int compatible_checked(Checker *c, const char *to, const char *from);

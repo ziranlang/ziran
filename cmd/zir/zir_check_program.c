@@ -623,6 +623,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                         &buffers->c.module->functions[f])) {
                     free(buffers->c.bindings);
                     free(buffers->c.specializations);
+                        free(buffers->c.enum_names);
                     return 0;
                 }
                 continue;
@@ -630,17 +631,20 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             if(!check_function(&buffers->c, &buffers->c.module->functions[f])) {
                 free(buffers->c.bindings);
                 free(buffers->c.specializations);
+                        free(buffers->c.enum_names);
                 return 0;
             }
         }
         buffers->c.module->lookup_path[0] = '\0';
     }
     for(;;) {
-        int pending = buffers->c.specialization_count;
+        int pending = buffers->c.specialization_count + buffers->c.enum_name_count;
         if(pending == 0) break;
-        if(!instantiate_specializations(&buffers->c)) {
+        if(!instantiate_enum_names(&buffers->c) ||
+           !instantiate_specializations(&buffers->c)) {
             free(buffers->c.bindings);
             free(buffers->c.specializations);
+                        free(buffers->c.enum_names);
             return 0;
         }
         for(int p = 0; p < count; p++)
@@ -653,6 +657,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                     if(!check_function(&buffers->c, instance)) {
                         free(buffers->c.bindings);
                         free(buffers->c.specializations);
+                        free(buffers->c.enum_names);
                         return 0;
                     }
                 }
@@ -688,6 +693,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
     } while(changed);
     free(buffers->c.bindings);
     free(buffers->c.specializations);
+                        free(buffers->c.enum_names);
     if(buffers->c.failed || buffers->c.errors != 0 || !CheckSliceLifetimes(programs, count))
         return 0;
     for(int p = 0; p < count; p++)

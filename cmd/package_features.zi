@@ -236,11 +236,11 @@ Features :: (arguments: []string) -> s32 {
     output_feature.id = "io.print"
     output_feature.status = "implemented"
     output_feature.syntax = "print(LITERAL_FORMAT, arguments...)"
-    output_feature.limits = "The format must be a string literal. Each % consumes one integer, float, bool, or string argument; %% prints one percent. Arguments are evaluated left to right before output, and floats use the shortest decimal that round-trips to the same value."
+    output_feature.limits = "The format must be a string literal. Each % consumes one integer, float, bool, string, or enum argument, an enum printing as its member name; %% prints one percent. Arguments are evaluated left to right before output, and floats use the shortest decimal that round-trips to the same value."
     output_feature.accepted_example = print_accepted
     output_feature.rejected_example = print_rejected
     output_feature.rejection = "print requires a string literal format."
-    output_feature.evidence = "tests/print.sh\n"
+    output_feature.evidence = "tests/print.sh\ntests/print_enums.sh\n"
     output_feature.targets = print_targets
     law_feature: PkgFeature
     law_feature.id = "compile.laws"

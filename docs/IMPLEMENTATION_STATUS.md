@@ -55,6 +55,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/numeric_conformance.json`, and kept synchronized with markers in the
   differential test. Mixed-width narrowing/widening after addition and u8
   bitwise AND/OR/XOR are included.
+- `print` shows an enum value by its member name, and a value outside the
+  enum as `(invalid Enum)`. The checker routes the argument through a
+  generated name procedure in the enum's module, created only for enums a
+  program prints, so every target and `.zib` agree. Flag enums still need
+  a cast. `tests/print_enums.sh` checks source and saved IR on C, C++, Go,
+  and `.zib`.
 - Polymorphic procedures may bind several type parameters, each with its
   own `$Name`, as in `Pick :: (a: $A, b: $B) -> A`. Every call infers each
   parameter and gets its own specialization, placed with the caller when one

@@ -1330,6 +1330,63 @@ conversion_matches(Checker *c, const ZirFunction *conversion,
     return returned;
 }
 
+int
+instantiate_enum_names(Checker *c)
+{
+    for(int r = 0; r < c->enum_name_count; r++) {
+        EnumNameRequest *request = &c->enum_names[r];
+        ZirModule *owner = request->owner;
+        const ZirType *enumeration = NULL;
+        for(int t = 0; t < owner->type_count && enumeration == NULL; t++)
+            if(!strcmp(owner->types[t].name, request->type))
+                enumeration = &owner->types[t];
+        if(enumeration == NULL)
+            return 0;
+        char *body = AllocateOrExit(ZIR_TEXT_MAX * 2);
+        copy_text(body, ZIR_TEXT_MAX * 2, enumeration->body);
+        char args[ZIR_TEXT_MAX];
+        snprintf(args, sizeof(args), "value: %s", request->type);
+        ZirFunction *fn = ModuleAddFunction(owner, request->function, args,
+                                            "string", 0, request->span);
+        if(fn == NULL) {
+            free(body);
+            return 0;
+        }
+        /* An instance of the built-in name procedure for T = this enum. */
+        fn->is_public = 1;
+        fn->is_specialization = 1;
+        copy_text(fn->template_param, sizeof(fn->template_param), "T");
+        copy_text(fn->specialization_type, sizeof(fn->specialization_type),
+                  request->type);
+        char line[ZIR_TEXT_MAX];
+        for(const char *cursor = body; *cursor;) {
+            while(*cursor == ',' || isspace((unsigned char)*cursor)) cursor++;
+            const char *member = cursor;
+            while(isalnum((unsigned char)*cursor) || *cursor == '_') cursor++;
+            size_t length = (size_t)(cursor - member);
+            while(*cursor && *cursor != ',' && *cursor != '\n') cursor++;
+            if(length == 0) continue;
+            snprintf(line, sizeof(line), "if value == %s.%.*s {", request->type,
+                     (int)length, member);
+            int added = FunctionAddStmt(fn, ZIR_STMT_IF, line, request->span) != NULL;
+            snprintf(line, sizeof(line), "return \"%.*s\";", (int)length, member);
+            added = added &&
+                FunctionAddStmt(fn, ZIR_STMT_RETURN, line, request->span) != NULL &&
+                FunctionAddStmt(fn, ZIR_STMT_BLOCK_CLOSE, "}", request->span) != NULL;
+            if(!added) {
+                free(body);
+                return 0;
+            }
+        }
+        free(body);
+        snprintf(line, sizeof(line), "return \"(invalid %s)\";", request->type);
+        if(FunctionAddStmt(fn, ZIR_STMT_RETURN, line, request->span) == NULL)
+            return 0;
+    }
+    c->enum_name_count = 0;
+    return 1;
+}
+
 /* The first field's type when TYPE is a procedure's results record. */
 const char *
 results_first_type(Checker *c, const char *type, char *out, size_t size)

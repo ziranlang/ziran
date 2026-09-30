@@ -1074,9 +1074,32 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         if(type == NULL || strchr(type, '$') == NULL)
                             continue;
                         int prefix = TemplateBinderPrefix(type);
+                        if(prefix < 0 && strchr(type, '(') != NULL &&
+                           strchr(type, '$') > strchr(type, '(')) {
+                            /* *Table($K, $V): each $Name inside a generic
+                             * record application binds from the argument. */
+                            for(const char *mark = strchr(type, '$'); mark != NULL;
+                                mark = strchr(mark + 1, '$')) {
+                                size_t length = 0;
+                                while(isalnum((unsigned char)mark[1 + length]) ||
+                                      mark[1 + length] == '_') length++;
+                                if(length == 0)
+                                    die_at(fn->span, "invalid polymorphic type parameter");
+                                if(TemplateParameterIndex(fn->template_param, mark + 1, length) >= 0)
+                                    die_at(fn->span, "$%.*s binds its type more than once",
+                                           (int)length, mark + 1);
+                                size_t used = strlen(fn->template_param);
+                                if(used + length + 2 >= sizeof(fn->template_param))
+                                    die_at(fn->span, "too many polymorphic type parameters");
+                                snprintf(fn->template_param + used,
+                                         sizeof(fn->template_param) - used, "%s%.*s",
+                                         used ? "," : "", (int)length, mark + 1);
+                            }
+                            continue;
+                        }
                         if(prefix < 0) {
                             die_at(fn->span,
-                                   "polymorphic parameters are written $Type, []$Type, or *$Type");
+                                   "polymorphic parameters are written $Type, []$Type, *$Type, or Record($Type)");
                             continue;
                         }
                         type += prefix;

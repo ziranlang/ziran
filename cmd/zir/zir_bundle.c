@@ -697,6 +697,7 @@ typedef struct FieldUse {
     ZirType *type;
     unsigned char *fields;
     int count;
+    int shared; /* fields belong to an earlier copy of the same application */
 } FieldUse;
 
 static FieldUse *
@@ -858,12 +859,19 @@ prune_record_fields_with_buffers(ZirProgram *program, const char *entry_module,
     FieldUse *uses = calloc((size_t)(use_count ? use_count : 1), sizeof(*uses));
     if(uses == NULL)
         return 0;
+    const ZirModule **owners = calloc((size_t)(use_count ? use_count : 1),
+                                      sizeof(*owners));
+    if(owners == NULL) {
+        free(uses);
+        return 0;
+    }
     int next = 0;
     for(int m = 0; m < program->module_count; m++) {
         ZirModule *module = &program->modules[m];
         for(int t = 0; t < module->type_count; t++) {
             ZirType *type = &module->types[t];
-            FieldUse *use = &uses[next++];
+            FieldUse *use = &uses[next];
+            owners[next++] = module;
             if(type->is_enum || type->is_union || type->is_procedure_type ||
                type->is_extern || type->is_record_template || type->is_map)
                 continue;
@@ -872,7 +880,18 @@ prune_record_fields_with_buffers(ZirProgram *program, const char *entry_module,
             ZirTypeField field;
             while(TypeNextField(type, &offset, &field) == 1)
                 use->count++;
-            if(use->count > 0) {
+            /* Each module that spells Table(string, s32) holds its own copy
+             * of that one type; every copy keeps the fields any of them use. */
+            for(int earlier = 0; earlier < next - 1 && type->is_synthetic_application;
+                earlier++)
+                if(uses[earlier].type != NULL && !uses[earlier].shared &&
+                   same_type_application(owners[earlier], uses[earlier].type,
+                                         module, type)) {
+                    use->fields = uses[earlier].fields;
+                    use->shared = 1;
+                    break;
+                }
+            if(use->count > 0 && !use->shared) {
                 use->fields = calloc((size_t)use->count, 1);
                 if(use->fields == NULL)
                     goto failed;
@@ -958,12 +977,16 @@ prune_record_fields_with_buffers(ZirProgram *program, const char *entry_module,
         strcpy(use->type->body, buffers->body);
     }
     for(int i = 0; i < use_count; i++)
-        free(uses[i].fields);
+        if(!uses[i].shared)
+            free(uses[i].fields);
+    free(owners);
     free(uses);
     return 1;
 failed:
     for(int i = 0; i < use_count; i++)
-        free(uses[i].fields);
+        if(!uses[i].shared)
+            free(uses[i].fields);
+    free(owners);
     free(uses);
     return 0;
 }

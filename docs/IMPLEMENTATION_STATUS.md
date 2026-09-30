@@ -61,6 +61,15 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- `std/hash_map` provides `HashMap(K, V)` with `HashMapSet`, `HashMapGet`,
+  `HashMapHas`, `HashMapRemove`, and `HashMapFree` over string and integer
+  keys, written in portable Ziran. Polymorphic procedures bind type
+  parameters from generic record parameters such as `*HashMap($K, $V)`;
+  record instances a specialization names after the program pass get their
+  fields then. A bundle keeps a record field every module's copy of one
+  type application uses, and Go compares copies of `Vec(string)` by their
+  slice type. `tests/hash_map.sh` checks source and saved IR on C, C++, Go,
+  and `.zib`.
 - `print` shows an enum value by its member name, and a value outside the
   enum as `(invalid Enum)`. The checker routes the argument through a
   generated name procedure in the enum's module, created only for enums a

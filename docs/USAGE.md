@@ -331,6 +331,28 @@ each `%` takes the next argument and `%%` writes one percent. A file that uses
 `Vec` visible. `BuilderFinish(builder)` returns the text. Floats keep up to six
 digits after the point, with trailing zeros dropped.
 
+### Hash maps
+
+`std/hash_map.zi` maps string or integer keys to values on every target and
+the portable runner:
+
+```jai
+#import "std/hash_map"
+
+ages: HashMap(string, s32)
+HashMapSet(*ages, "ada", 36)       // insert or replace
+age: s32
+if HashMapGet(*ages, "ada", *age) { print("%\n", age) }
+HashMapRemove(*ages, "ada")        // returns whether the key was present
+HashMapFree(*ages)
+```
+
+`HashMapHas` tests a key and `ages.count` is the number of entries. The table
+doubles when half its slots are in use. Values may be records; keys are
+`string`, `s64`, `u64`, or `u32` (and narrower unsigned integers). The Go
+target's native `Map(K, V)` from `std/map_go` is separate and keeps its
+`MapSet`/`MapGet` operations.
+
 ### Text and UTF-8
 
 `std/text.zi` supplies ASCII case folding, prefix matching, and substring
@@ -359,7 +381,9 @@ with `first: s32` and `second: string` fields.
 
 A polymorphic procedure binds its type parameter through a direct `$T`, a
 slice `[]$T`, or a pointer `*$T` parameter: `Sum :: (values: []$T) -> T`
-specializes for whatever element type the caller passes.
+specializes for whatever element type the caller passes. A generic record
+parameter binds its arguments too: `Add :: (bag: *Bag($K), item: K)` called
+with a `*Bag(string)` binds `K` to `string`.
 
 ### Sorting and queues
 

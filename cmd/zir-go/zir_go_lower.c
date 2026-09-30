@@ -1422,6 +1422,22 @@ rewrite_global_field(const ZirType *record, const char *source,
     go_field_ident(source, out, size);
 }
 
+/* The Go type of one record field in type_scope: a Vec's data is a slice of
+ * its elements, since Go has no pointer arithmetic (and no *string). */
+static void
+require_go_field_type(const ZirType *type, const ZirTypeField *field,
+                      char *out, size_t size)
+{
+    char item[ZIR_NAME_MAX];
+    if(!strcmp(field->name, "data") &&
+       VecElementType(type_scope, type->name, item, sizeof(item))) {
+        char mapped[ZIR_GO_NAME_MAX];
+        require_go_type(item, mapped, sizeof(mapped), type->span);
+        snprintf(out, size, "[]%s", mapped);
+    } else
+        require_go_type(field->type, out, size, type->span);
+}
+
 /* Checked modules each instantiate Vec(u8), Option(T), and other direct type
  * applications locally. They share one Go package and one synthesized name;
  * emit a matching concrete type once, without hiding conflicting layouts. */
@@ -1462,9 +1478,10 @@ synthetic_type_emitted(const ZirProgram *const *programs, int program_index,
                         break;
                     char left_type[ZIR_GO_NAME_MAX], right_type[ZIR_GO_NAME_MAX];
                     type_scope = current;
-                    require_go_type(left.type, left_type, sizeof(left_type), type->span);
+                    require_go_field_type(type, &left, left_type, sizeof(left_type));
                     type_scope = previous;
-                    require_go_type(right.type, right_type, sizeof(right_type), candidate->span);
+                    require_go_field_type(candidate, &right, right_type,
+                                          sizeof(right_type));
                     type_scope = current;
                     if(strcmp(left.name, right.name) != 0 ||
                        strcmp(left.go_tag, right.go_tag) != 0 ||
@@ -1885,17 +1902,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                         while((status = TypeNextField(t, &offset, &field)) == 1) {
                             char fname[ZIR_GO_NAME_MAX], gt[ZIR_GO_NAME_MAX];
                             go_field_ident(field.name, fname, sizeof(fname));
-                            if(!strcmp(field.name, "data") &&
-                               VecElementType(m, t->name, NULL, 0)) {
-                                char item[ZIR_NAME_MAX];
-                                VecElementType(m, t->name, item, sizeof(item));
-                                char mapped[ZIR_GO_NAME_MAX];
-                                require_go_type(item, mapped, sizeof(mapped),
-                                                t->span);
-                                snprintf(gt, sizeof(gt), "[]%s", mapped);
-                            } else
-                                require_go_type(field.type, gt, sizeof(gt),
-                                                t->span);
+                            require_go_field_type(t, &field, gt, sizeof(gt));
                             fprintf(f, "\t%s %s", fname, gt);
                             emit_field_tag(f, &field, t->span);
                             fputc('\n', f);

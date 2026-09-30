@@ -21,6 +21,49 @@ fit_bits(const char *type)
     return *digits ? atoi(digits) : 64;
 }
 
+/* Bind type parameters named in a generic record application such as
+ * *Table(K, V) from ARGUMENT, an instance of that record like
+ * *Table(string, s32). Bindings already made are left as they are. */
+static void
+bind_from_application(Checker *c, const char *parameters, const char *wanted,
+                      const char *argument, char (*bound)[ZIR_NAME_MAX])
+{
+    while(*wanted == '*' && *argument == '*') {
+        wanted = skip_ws(wanted + 1);
+        argument = skip_ws(argument + 1);
+    }
+    const char *open = strchr(wanted, '(');
+    const ZirType *instance = FindType(c->module, argument, NULL);
+    if(open == NULL || instance == NULL || !instance->is_synthetic_application)
+        return;
+    size_t base_length = (size_t)(open - wanted);
+    while(base_length > 0 && isspace((unsigned char)wanted[base_length - 1])) base_length--;
+    if(strlen(instance->template_name) != base_length ||
+       strncmp(instance->template_name, wanted, base_length))
+        return;
+    char inner[ZIR_TEXT_MAX];
+    const char *close = strrchr(open, ')');
+    if(close == NULL || (size_t)(close - open - 1) >= sizeof(inner))
+        return;
+    memcpy(inner, open + 1, (size_t)(close - open - 1));
+    inner[close - open - 1] = '\0';
+    char (*names)[ZIR_TEXT_MAX] = calloc(16, sizeof(*names));
+    char (*types)[ZIR_TEXT_MAX] = calloc(16, sizeof(*types));
+    if(names != NULL && types != NULL) {
+        int name_count = split_top_level(inner, names[0], 16, sizeof(names[0]));
+        int type_count = split_top_level(instance->template_args, types[0], 16,
+                                         sizeof(types[0]));
+        for(int i = 0; i < name_count && i < type_count; i++) {
+            const char *name = names[i][0] == '$' ? names[i] + 1 : names[i];
+            int which = TemplateParameterIndex(parameters, name, strlen(name));
+            if(which >= 0 && which < 16 && !bound[which][0])
+                copy_text(bound[which], ZIR_NAME_MAX, types[i]);
+        }
+    }
+    free(names);
+    free(types);
+}
+
 /* How well an argument of type FOUND fits parameter type WANTED, lower is
  * better: 0 exact, 100 an untyped literal's usual type, 200 another literal
  * type, 200 plus the added bits for a widening, 400 another checked
@@ -1342,6 +1385,15 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     TemplateParameterIndex(callee->template_param,
                                            parameter_type + prefix + 1,
                                            strlen(parameter_type + prefix + 1));
+                if(prefix < 0 && strchr(parameter_type, '(') != NULL) {
+                    /* *Table(K, V) takes K and V from the argument's own
+                     * instance of Table. */
+                    bind_from_application(c, callee->template_param,
+                                          parameter_type,
+                                          expression_type(c, child), bound);
+                    e = &c->fn->exprs[index];
+                    continue;
+                }
                 if(which < 0 || which >= 16)
                     continue;
                 char *concrete = bound[which];
@@ -1350,6 +1402,8 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 if(concrete[0] && prefix == 0)
                     copy_text(c->expected_type, sizeof(c->expected_type), concrete);
                 const char *actual_type = expression_type(c, child);
+                /* Checking the argument can move the expression array. */
+                e = &c->fn->exprs[index];
                 copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
                 if(prefix > 0) {
                     /* `[]$T` binds a slice's element type and `*$T` a pointer's
@@ -1407,6 +1461,22 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                                       callee->template_param, concrete)) {
                 error(c, e->span, "specialized signature is too long", e->name);
                 break;
+            }
+            /* Table(string, s32) in the signature names the same instance
+             * type the arguments have. */
+            if(strchr(buffers->specialized_args, '(') != NULL ||
+               strchr(specialized_return, '(') != NULL) {
+                char canonical[ZIR_TEXT_MAX];
+                if(!rewrite_type_applications(c->module, buffers->specialized_args,
+                                              canonical, sizeof(canonical), e->span, 0))
+                    break;
+                copy_text(buffers->specialized_args, sizeof(buffers->specialized_args), canonical);
+                if(!rewrite_type_applications(c->module, specialized_return, canonical,
+                                              sizeof(canonical), e->span, 0) ||
+                   !fill_late_type_instances(c->module, e->span))
+                    break;
+                copy_text(specialized_return, sizeof(specialized_return), canonical);
+                e = &c->fn->exprs[index];
             }
             char name[ZIR_NAME_MAX];
             /* An instance lives with the caller when one of its types is

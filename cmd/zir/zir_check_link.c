@@ -1161,6 +1161,65 @@ failed:
     return 0;
 }
 
+/* Instance types added after the program pass filled the others, as when a
+ * specialized signature names Table(string, s32): give each its fields, then
+ * put every record before the records that hold it by value. */
+int
+fill_late_type_instances(ZirModule *module, ZirSourceSpan span)
+{
+    int filled = 0;
+    char *body = NULL, *expanded = NULL;
+    for(int t = 0; t < module->type_count; t++) {
+        if(!module->types[t].is_type_instance) continue;
+        const ZirType *generic = FindType(module, module->types[t].template_name, NULL);
+        if(generic == NULL || !generic->is_record_template ||
+           !InstantiateGenericRecord(&module->types[t], generic)) {
+            Diagnostic(span, "check.specialize",
+                       "invalid generic type specialization: %s",
+                       module->types[t].name);
+            goto failed;
+        }
+        filled = 1;
+        if(!module->types[t].body[0]) continue;
+        if(body == NULL) {
+            body = malloc(sizeof(module->types[t].body));
+            expanded = malloc(sizeof(module->types[t].body));
+            if(body == NULL || expanded == NULL) goto failed;
+        }
+        copy_text(body, sizeof(module->types[t].body), module->types[t].body);
+        /* Nested applications, such as Vec(string), append more instances
+         * that this loop reaches in turn. */
+        if(!rewrite_type_applications(module, body, expanded,
+                                      sizeof(module->types[t].body),
+                                      module->types[t].span, 0))
+            goto failed;
+        copy_text(module->types[t].body, sizeof(module->types[t].body), expanded);
+    }
+    free(body);
+    free(expanded);
+    return !filled || order_local_types(module);
+failed:
+    free(body);
+    free(expanded);
+    return 0;
+}
+
+/* A substituted instance may spell a generic record application, such as
+ * *Table(string, s32); name it by the module's instance type instead. */
+static int
+canonical_field(ZirModule *module, char *field, size_t capacity, ZirSourceSpan span)
+{
+    if(strchr(field, '(') == NULL)
+        return 1;
+    char *expanded = malloc(ZIR_TEXT_MAX);
+    if(expanded == NULL) return 0;
+    int ok = rewrite_type_applications(module, field, expanded, ZIR_TEXT_MAX, span, 0) &&
+             strlen(expanded) < capacity && fill_late_type_instances(module, span);
+    if(ok) copy_text(field, capacity, expanded);
+    free(expanded);
+    return ok;
+}
+
 static int
 substitute_field(char *field, size_t capacity, const char *parameter,
                  const char *concrete)
@@ -1238,10 +1297,16 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
                              sizeof(instance->return_type),
                              parameter, concrete) ||
            !normalize_function_arrays(owner, instance)) return 0;
+        if(!canonical_field(owner, instance->args, sizeof(instance->args), instance->span) ||
+           !canonical_field(owner, instance->return_type, sizeof(instance->return_type),
+                            instance->span)) return 0;
         for(int s = 0; s < instance->stmt_count; s++)
             if(!substitute_field(instance->stmts[s].type,
                                  sizeof(instance->stmts[s].type),
-                                 parameter, concrete)) return 0;
+                                 parameter, concrete) ||
+               !canonical_field(owner, instance->stmts[s].type,
+                                sizeof(instance->stmts[s].type),
+                                instance->stmts[s].span)) return 0;
         for(int x = 0; x < instance->expr_count; x++) {
             ZirExpr *expression = &instance->exprs[x];
             if(!substitute_field(expression->type,
@@ -1249,14 +1314,19 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
                                  parameter, concrete) ||
                !substitute_field(expression->slot_type,
                                  sizeof(expression->slot_type),
-                                 parameter, concrete)) return 0;
+                                 parameter, concrete) ||
+               !canonical_field(owner, expression->type, sizeof(expression->type),
+                                expression->span)) return 0;
             if(expression->kind == ZIR_EXPR_CAST ||
                expression->kind == ZIR_EXPR_COMPOUND ||
                expression->kind == ZIR_EXPR_SIZE_OF ||
                expression->kind == ZIR_EXPR_CALL)
                 if(!substitute_field(expression->name,
                                      sizeof(expression->name),
-                                     parameter, concrete)) return 0;
+                                     parameter, concrete) ||
+                   (expression->kind != ZIR_EXPR_CALL &&
+                    !canonical_field(owner, expression->name, sizeof(expression->name),
+                                     expression->span))) return 0;
             if(owner != template_owner &&
                expression->kind == ZIR_EXPR_CALL &&
                strchr(expression->name, '.') == NULL) {

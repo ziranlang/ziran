@@ -622,8 +622,13 @@ check_template_declaration(Checker *c, ZirFunction *fn)
             if(TemplateParameterIndex(fn->template_param, type + prefix + 1,
                                       strlen(type + prefix + 1)) < 0) valid = 0;
             else binders++;
-        } else if(strchr(type, '$') != NULL)
-            valid = 0;
+        } else if(strchr(type, '$') != NULL) {
+            /* Binders inside a generic record application, Table($K, $V). */
+            if(strchr(type, '(') == NULL || strchr(type, '$') < strchr(type, '('))
+                valid = 0;
+            else
+                binders++;
+        }
     }
     free(parameters);
     if(!valid || binders == 0) {

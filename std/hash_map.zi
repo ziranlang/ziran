@@ -1,0 +1,127 @@
+// A hash map from keys to values that runs the same on every target and the
+// portable runner. Keys are strings or integers. The table doubles when half
+// its slots are in use, and HashMapFree releases it.
+//
+//     ages: HashMap(string, s32)
+//     HashMapSet(*ages, "ada", 36)
+//     age: s32
+//     if HashMapGet(*ages, "ada", *age) { print("%\n", age) }
+//     HashMapFree(*ages)
+
+using Vectors :: #import "vec"
+
+HashMap :: struct($K: Type, $V: Type) {
+    keys: Vec(K)
+    values: Vec(V)
+    states: Vec(u8) // 0 empty, 1 in use, 2 removed
+    count: s64
+}
+
+// FNV-1a over the key's bytes.
+HashKey :: (key: string) -> u64 {
+    hash: u64 = 14695981039346656037
+    for key { hash = (hash ^ it) * 1099511628211 }
+    return hash
+}
+
+// SplitMix64's finalizer spreads nearby integers across the table.
+HashKey :: (key: u64) -> u64 {
+    x: u64 = key
+    x = (x ^ (x >> 30)) * 13787848793156543929
+    x = (x ^ (x >> 27)) * 10723151780598845931
+    return x ^ (x >> 31)
+}
+
+HashKey :: (key: s64) -> u64 { return HashKey(cast(u64) key) }
+
+// Unsigned keys up to 32 bits; also the closest match for u8 and u16.
+HashKey :: (key: u32) -> u64 { return HashKey(cast(u64) key) }
+
+// The slot holding KEY, or -1.
+HashMapFind :: (map: *HashMap($K, $V), key: K) -> s64 {
+    if map.states.count == 0 { return -1 }
+    mask: s64 = map.states.count - 1
+    slot: s64 = cast(s64)(HashKey(key) & cast(u64) mask)
+    probes: s64 = 0
+    while map.states[slot] != 0 && probes < map.states.count {
+        if map.states[slot] == 1 && map.keys[slot] == key { return slot }
+        slot = (slot + 1) & mask
+        probes += 1
+    }
+    return -1
+}
+
+HashMapHas :: (map: *HashMap($K, $V), key: K) -> bool {
+    return HashMapFind(map, key) >= 0
+}
+
+// Copies KEY's value into VALUE and returns true, or returns false.
+HashMapGet :: (map: *HashMap($K, $V), key: K, value: *V) -> bool {
+    slot := HashMapFind(map, key)
+    if slot < 0 { return false }
+    <<value = map.values[slot]
+    return true
+}
+
+HashMapSet :: (map: *HashMap($K, $V), key: K, value: V) {
+    if (map.count + 1) * 2 > map.states.count { HashMapGrow(map) }
+    mask: s64 = map.states.count - 1
+    slot: s64 = cast(s64)(HashKey(key) & cast(u64) mask)
+    free_slot: s64 = -1
+    while map.states[slot] != 0 {
+        if map.states[slot] == 1 && map.keys[slot] == key {
+            map.values[slot] = value
+            return
+        }
+        if map.states[slot] == 2 && free_slot < 0 { free_slot = slot }
+        slot = (slot + 1) & mask
+    }
+    if free_slot >= 0 { slot = free_slot }
+    map.keys[slot] = key
+    map.values[slot] = value
+    map.states[slot] = 1
+    map.count += 1
+}
+
+// Removes KEY and returns whether it was present.
+HashMapRemove :: (map: *HashMap($K, $V), key: K) -> bool {
+    slot := HashMapFind(map, key)
+    if slot < 0 { return false }
+    map.states[slot] = 2
+    map.count -= 1
+    return true
+}
+
+HashMapFree :: (map: *HashMap($K, $V)) {
+    VecFree(map.keys)
+    VecFree(map.values)
+    VecFree(map.states)
+    map.count = 0
+}
+
+// Doubles the table, to at least 8 slots, and reinserts every entry.
+HashMapGrow :: (map: *HashMap($K, $V)) {
+    old_keys: Vec(K)
+    old_values: Vec(V)
+    old_states: Vec(u8)
+    VecSwap(old_keys, map.keys)
+    VecSwap(old_values, map.values)
+    VecSwap(old_states, map.states)
+    capacity: s64 = old_states.count * 2
+    if capacity < 8 { capacity = 8 }
+    empty_key: K
+    empty_value: V
+    i: s64 = 0
+    while i < capacity {
+        VecPush(map.keys, empty_key)
+        VecPush(map.values, empty_value)
+        VecPush(map.states, 0)
+        i += 1
+    }
+    map.count = 0
+    i = 0
+    while i < old_states.count {
+        if old_states[i] == 1 { HashMapSet(map, old_keys[i], old_values[i]) }
+        i += 1
+    }
+}

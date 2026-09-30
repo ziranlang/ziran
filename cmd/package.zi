@@ -195,11 +195,14 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     values[0] = ""
     if project {
         if !PathExists(binary) {
-            make_args: [4]string
+            make_args: [5]string
             make_args[0] = "make"
             make_args[1] = "-C"
             make_args[2] = locked.tool_path
             make_args[3] = "all"
+            // The pinned launcher is build/bin/ziran whatever BUILD_DIR the
+            // calling make passed down, such as the sanitizer build's.
+            make_args[4] = "BUILD_DIR=build"
             empty: [0]string
             if PkgRunToStderr(make_args[:], "") != 0 {
                 return PkgFail("cannot build pinned Ziran compiler")
@@ -427,11 +430,14 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         if PkgGetenv("ZIRAN_PINNED_LAUNCHER") != "1" && !inside &&
            own != PkgCanonical(pinned) {
             if !PathExists(pinned) {
-                make_args: [4]string
+                make_args: [5]string
                 make_args[0] = "make"
                 make_args[1] = "-C"
                 make_args[2] = locked.tool_path
                 make_args[3] = "all"
+                // The pinned launcher is build/bin/ziran whatever BUILD_DIR the
+                // calling make passed down, such as the sanitizer build's.
+                make_args[4] = "BUILD_DIR=build"
                 none: [0]string
                 if PkgRunToStderr(make_args[:], "") != 0 {
                     return PkgFail("cannot build pinned Ziran compiler")

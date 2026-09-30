@@ -3,6 +3,8 @@ set -eu
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+# The library built beside this ziran, including a sanitizer build.
+ziran_lib=${ZIRAN_LIB:-"$(CDPATH= cd -- "$(dirname -- "$ziran")/.." && pwd)/libziran.a"}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -133,7 +135,7 @@ int main(int argc, char **argv) {
     return 0;
 }
 C
-"${CC:-cc}" -std=c11 -I"$repo/include" "$work/instance.c" \
-    "$repo/build/libziran.a" -o "$work/instance"
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" "$work/instance.c" \
+    "$ziran_lib" ${VM_LDFLAGS:-} -o "$work/instance"
 "$work/instance" "$work/source.zib"
 "$work/instance" "$work/saved.zib"

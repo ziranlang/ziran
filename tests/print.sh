@@ -153,9 +153,12 @@ extern void *memcpy(void *, const void *, unsigned long);
 extern void *memset(void *, int, unsigned long);
 extern int memcmp(const void *, const void *, unsigned long);
 extern int fprint(int, const char *, ...);
+extern int print(const char *, ...);
 extern int snprint(char *, int, const char *, ...);
 extern long write(int, const void *, long);
 extern double strtod(const char *, char **);
+extern double frexp(double, int *);
+extern double ldexp(double, int);
 extern int atoi(const char *);
 extern int isNaN(double);
 extern int isInf(double, int);
@@ -168,20 +171,54 @@ EOF
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+/* Plan 9 marks unsigned with a u flag before the verb (%llud, %ud); C
+ * spells the verb u, so drop the d after it. */
+static const char *plan9_format(const char *format, char *out, size_t size) {
+    size_t used = 0;
+    int spec = 0;
+    for(const char *p = format; *p && used + 1 < size; p++) {
+        if(!spec) {
+            spec = *p == '%';
+        } else if(p[0] == 'u' && p[1] == 'd') {
+            out[used++] = 'u';
+            p++;
+            spec = 0;
+            continue;
+        } else if((*p >= 'a' && *p <= 'z' && *p != 'l' && *p != 'h' && *p != 'u') ||
+                  (*p >= 'A' && *p <= 'Z') || *p == '%') {
+            spec = 0;
+        }
+        out[used++] = *p;
+    }
+    out[used] = 0;
+    return out;
+}
 int fprint(int fd, const char *format, ...) {
     char buffer[512];
     va_list arguments;
     int length;
+    char translated[512];
     va_start(arguments, format);
-    length = vsnprintf(buffer, sizeof(buffer), format, arguments);
+    length = vsnprintf(buffer, sizeof(buffer), plan9_format(format, translated, sizeof(translated)), arguments);
     va_end(arguments);
     return (int)write(fd, buffer, (size_t)length);
+}
+int print(const char *format, ...) {
+    char buffer[512];
+    va_list arguments;
+    int length;
+    char translated[512];
+    va_start(arguments, format);
+    length = vsnprintf(buffer, sizeof(buffer), plan9_format(format, translated, sizeof(translated)), arguments);
+    va_end(arguments);
+    return (int)write(1, buffer, (size_t)length);
 }
 int snprint(char *buffer, int size, const char *format, ...) {
     va_list arguments;
     int length;
+    char translated[512];
     va_start(arguments, format);
-    length = vsnprintf(buffer, (size_t)size, format, arguments);
+    length = vsnprintf(buffer, (size_t)size, plan9_format(format, translated, sizeof(translated)), arguments);
     va_end(arguments);
     return length;
 }

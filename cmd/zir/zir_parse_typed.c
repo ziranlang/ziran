@@ -399,6 +399,104 @@ evaluate_typed_node(const ZirFunction *probe, int index,
         free(buffers);
     return returned;
 }
+typedef struct ParseCacheEntry {
+    const ZirModule *module;
+    uint64_t hash;
+    char *text;
+    ZirFunction probe;
+    int root;
+} ParseCacheEntry;
+
+enum { PARSE_CACHE_SLOTS = 8192, PARSE_CACHE_BYTES = 32 * 1024 * 1024 };
+
+static _Thread_local ParseCacheEntry *parse_cache;
+static _Thread_local size_t parse_cache_count, parse_cache_bytes;
+static _Thread_local int parse_cache_users;
+
+static uint64_t
+parse_cache_hash(const ZirModule *module, const char *text)
+{
+    uint64_t hash = UINT64_C(1469598103934665603) ^ (uintptr_t)module;
+    for(const unsigned char *p = (const unsigned char *)text; *p; p++)
+        hash = (hash ^ *p) * UINT64_C(1099511628211);
+    return hash;
+}
+
+static void
+parse_cache_clear(void)
+{
+    for(size_t i = 0; parse_cache != NULL && i < PARSE_CACHE_SLOTS; i++) {
+        free(parse_cache[i].text);
+        free(parse_cache[i].probe.exprs);
+    }
+    free(parse_cache);
+    parse_cache = NULL;
+    parse_cache_count = parse_cache_bytes = 0;
+}
+
+int
+CachedParse(const ZirModule *module, const char *text, ZirSourceSpan span,
+            ZirFunction *scratch, const ZirFunction **probe)
+{
+    uint64_t hash = parse_cache_hash(module, text);
+    size_t slot = (size_t)hash & (PARSE_CACHE_SLOTS - 1);
+    if(parse_cache != NULL)
+        for(size_t step = 0; step < PARSE_CACHE_SLOTS; step++) {
+            ParseCacheEntry *entry = &parse_cache[(slot + step) & (PARSE_CACHE_SLOTS - 1)];
+            if(entry->text == NULL)
+                break;
+            if(entry->hash == hash && entry->module == module &&
+               !strcmp(entry->text, text)) {
+                parse_cache_users++;
+                *probe = &entry->probe;
+                return entry->root;
+            }
+        }
+    /* Entries in use by an enclosing evaluation cannot be freed, so a full
+     * cache only clears when nothing holds one. */
+    if(parse_cache_users == 0 &&
+       (parse_cache_count * 2 >= PARSE_CACHE_SLOTS ||
+        parse_cache_bytes >= PARSE_CACHE_BYTES))
+        parse_cache_clear();
+    memset(scratch, 0, sizeof(*scratch));
+    int root = ParseExpr(scratch, module, text, span);
+    *probe = scratch;
+    if(root < 0 || parse_cache_count * 2 >= PARSE_CACHE_SLOTS ||
+       parse_cache_bytes >= PARSE_CACHE_BYTES)
+        return root;
+    if(parse_cache == NULL &&
+       (parse_cache = calloc(PARSE_CACHE_SLOTS, sizeof(*parse_cache))) == NULL)
+        return root;
+    char *copy = strdup(text);
+    if(copy == NULL)
+        return root;
+    while(parse_cache[slot].text != NULL)
+        slot = (slot + 1) & (PARSE_CACHE_SLOTS - 1);
+    ParseCacheEntry *entry = &parse_cache[slot];
+    entry->module = module;
+    entry->hash = hash;
+    entry->text = copy;
+    entry->probe = *scratch;
+    entry->root = root;
+    memset(scratch, 0, sizeof(*scratch));
+    parse_cache_count++;
+    parse_cache_bytes += strlen(text) + 1 +
+        (size_t)entry->probe.expr_cap * sizeof(ZirExpr);
+    parse_cache_users++;
+    *probe = &entry->probe;
+    return root;
+}
+
+void
+CachedParseDone(const ZirFunction *probe, ZirFunction *scratch)
+{
+    if(probe == scratch) {
+        free(scratch->exprs);
+        scratch->exprs = NULL;
+    } else
+        parse_cache_users--;
+}
+
 /* Buffers evaluate_typed_expression keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EvaluateTypedExpressionBuffers {
@@ -438,16 +536,17 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
         result->integer = integer;
         return compile_value_literal(result);
     }
-    root = ParseExpr(&buffers->probe, module, buffers->expanded, span);
+    const ZirFunction *probe;
+    root = CachedParse(module, buffers->expanded, span, &buffers->probe, &probe);
     ok = root >= 0;
     if(depth == 0)
-        for(int i = 0; i < buffers->probe.expr_count; i++)
-            if(buffers->probe.exprs[i].kind == ZIR_EXPR_COMPILE_TIME)
+        for(int i = 0; i < probe->expr_count; i++)
+            if(probe->exprs[i].kind == ZIR_EXPR_COMPILE_TIME)
                 ok = 0;
     if(ok)
-        ok = evaluate_typed_node(&buffers->probe, root, module, path,
+        ok = evaluate_typed_node(probe, root, module, path,
                                  depth + 1, fuel, result);
-    free(buffers->probe.exprs);
+    CachedParseDone(probe, &buffers->probe);
     return ok;
 }
 

@@ -248,6 +248,11 @@ typedef struct ZirLaw {
     ZirLawEvidence evidence;
     ZirFunction *claim; /* typed theorem proposition, NULL for other kinds */
     const ZirProof *proof; /* associated certificate, borrowed, never saved */
+    /* In-memory EvaluateLaw result, reused while module and proof match. */
+    const struct ZirModule *evaluated_in;
+    const ZirProof *evaluated_proof;
+    int evaluated_status;
+    const char *evaluated_detail; /* KeepText */
 } ZirLaw;
 
 /* A `#law_waive NAME reason;` declaration. */

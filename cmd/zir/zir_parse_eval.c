@@ -1138,21 +1138,21 @@ compile_compound_index_with_buffers(const CompileValue *compound, long index,
     if(!ArrayElementType(compound->type, element, sizeof(element),
                          &capacity) || index < 0 || index >= capacity)
         return 0;
-    memset(&buffers->probe, 0, sizeof(buffers->probe));
-    int root = ParseExpr(&buffers->probe, module, compound->literal,
-                         Span(path, 1, 1));
+    const ZirFunction *probe;
+    int root = CachedParse(module, compound->literal, Span(path, 1, 1),
+                           &buffers->probe, &probe);
     int found = 0, ordinal = 0;
-    if(root >= 0 && buffers->probe.exprs[root].kind == ZIR_EXPR_COMPOUND)
-        for(int child = buffers->probe.exprs[root].first_child; child >= 0;
-            child = buffers->probe.exprs[child].next_sibling, ordinal++)
+    if(root >= 0 && probe->exprs[root].kind == ZIR_EXPR_COMPOUND)
+        for(int child = probe->exprs[root].first_child; child >= 0;
+            child = probe->exprs[child].next_sibling, ordinal++)
             if(ordinal == index) {
-                found = evaluate_typed_node(&buffers->probe, buffers->probe.exprs[child].right,
+                found = evaluate_typed_node(probe, probe->exprs[child].right,
                                             module, path, depth + 1, fuel,
                                             result) &&
                         compile_type_value(element, result);
                 break;
             }
-    free(buffers->probe.exprs);
+    CachedParseDone(probe, &buffers->probe);
     return found;
 }
 

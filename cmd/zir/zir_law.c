@@ -863,12 +863,36 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
     return LAW_PROVED;
 }
 
+static int evaluate_law_uncached(const ZirModule *module, const ZirLaw *law,
+                                 char *detail, size_t size);
+
+/* Checking, law reports, and bundling all ask for the same results. A
+ * result depends only on the law, its module, and its certificate, so it
+ * is computed once and kept on the law with its evidence. */
 int
 EvaluateLaw(const ZirProgram *program, const ZirModule *module,
             const ZirLaw *law, char *detail, size_t size)
 {
-    LawStatus status;
+    ZirLaw *cached = (ZirLaw *)law;
     (void)program;
+    if(cached->evaluated_in == module && cached->evaluated_proof == law->proof &&
+       cached->evaluated_detail != NULL) {
+        copy_text(detail, size, cached->evaluated_detail);
+        return cached->evaluated_status;
+    }
+    int status = evaluate_law_uncached(module, law, detail, size);
+    cached->evaluated_in = module;
+    cached->evaluated_proof = law->proof;
+    cached->evaluated_status = status;
+    cached->evaluated_detail = KeepText(detail);
+    return status;
+}
+
+static int
+evaluate_law_uncached(const ZirModule *module, const ZirLaw *law,
+                      char *detail, size_t size)
+{
+    LawStatus status;
     ZirLawEvidence *evidence = &((ZirLaw *)law)->evidence;
     int waived = evidence->waived;
     memset(evidence, 0, sizeof(*evidence));

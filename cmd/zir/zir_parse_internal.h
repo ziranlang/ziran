@@ -255,6 +255,13 @@ int compile_compound_member(const CompileValue *compound, const char *member, co
 int compile_compound_index(const CompileValue *compound, long index, const ZirModule *module, const char *path, int depth, int *fuel, CompileValue *result);
 int evaluate_imported_typed_define(const ZirModule *module, const char *path, const char *name, int depth, int *fuel, CompileValue *result);
 int evaluate_typed_node(const ZirFunction *probe, int index, const ZirModule *module, const char *path, int depth, int *fuel, CompileValue *result);
+/* Compile-time evaluation parses the same expression text many times, once
+ * per law case or loop iteration. CachedParse returns a parsed expression
+ * shared by every caller, or parses into `scratch` when the cache is full.
+ * Release it with CachedParseDone. Returns the root, or -1. */
+int CachedParse(const ZirModule *module, const char *text, ZirSourceSpan span,
+                ZirFunction *scratch, const ZirFunction **probe);
+void CachedParseDone(const ZirFunction *probe, ZirFunction *scratch);
 int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names, const char *source, ZirSourceSpan span, int depth, int *fuel, CompileValue *result);
 int evaluate_typed_integer_function(ZirEval *ev, const char *name, const long *values, const char argument_names[][ZIR_NAME_MAX], int argument_count, long *result);
 int eval_typed_condition(const char *source, const ZirModule *module, const ZirConsts *names, ZirSourceSpan span, long *result);

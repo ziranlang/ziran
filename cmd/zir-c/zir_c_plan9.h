@@ -18,6 +18,8 @@ void c_plan9_add_include_dir(const char *dir);
  * output is unchanged). */
 void c_plan9_set_enabled(int enabled);
 int c_plan9_enabled(void);
+/* Symbols already declared by the native libc runtime header. */
+int c_plan9_runtime_symbol(const char *name);
 
 /* Rewrite one generated C source for 8c. Returns a malloc'd buffer; the
  * caller frees. Returns NULL on out-of-memory (caller keeps original). */

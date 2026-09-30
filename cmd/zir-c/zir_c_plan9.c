@@ -2191,22 +2191,30 @@ rewrite_plan9_foreign_aliases(const char *line,
     if((size_t)(asm_at - output) + 3 >= size)
         return -1;
     {
-        static const char * const runtime_symbols[] = {
-            "snprint", "getenv", "create", "write", "close",
-            "malloc", "calloc", "realloc", "free", NULL
-        };
         size_t symbol_length = (size_t)(close - quote);
-        int index;
-
-        for(index = 0; runtime_symbols[index] != NULL; index++) {
-            if(strlen(runtime_symbols[index]) == symbol_length &&
-               strncmp(quote, runtime_symbols[index], symbol_length) == 0)
-                return 1;
-        }
+        char symbol[PLAN9_NAME_MAX];
+        if(symbol_length >= sizeof(symbol)) return -1;
+        memcpy(symbol, quote, symbol_length);
+        symbol[symbol_length] = '\0';
+        if(c_plan9_runtime_symbol(symbol)) return 1;
     }
     asm_at[0] = ';';
     asm_at[1] = '\n';
     asm_at[2] = '\0';
+    return 0;
+}
+
+int
+c_plan9_runtime_symbol(const char *name)
+{
+    static const char * const symbols[] = {
+        "snprint", "getenv", "create", "write", "close",
+        "malloc", "calloc", "realloc", "free", "open", "pread", "pwrite",
+        "seek", "remove", "dirstat", "nulldir", "dirwstat", NULL
+    };
+    int index;
+    for(index = 0; symbols[index] != NULL; index++)
+        if(strcmp(symbols[index], name) == 0) return 1;
     return 0;
 }
 /* Buffers rewrite_plan9_print keeps on the heap so deep nesting fits the stack;

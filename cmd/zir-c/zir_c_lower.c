@@ -784,6 +784,8 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
     if(c_extern_symbol(imp, symbol, sizeof(symbol))) {
         cname = symbol;
         if(strcmp(symbol, imp->name) == 0) {
+            if(c_plan9_enabled() && c_plan9_runtime_symbol(symbol))
+                return;
             fprintf(c, "%s %s(%s);\n", ret[0] ? ret : "void", cname, buffers->conv);
             return;
         }
@@ -1140,7 +1142,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     /* Private-scope imports include here (implementation-only). */
     for(i = 0; i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];
-        if(imp->required || imp->kind != ZIR_IMPORT_OPEN)
+        if(imp->required || (imp->kind != ZIR_IMPORT_OPEN &&
+                             imp->kind != ZIR_IMPORT_MODULE))
             continue;
         fprintf(c, "#include \"%s.h\"\n", imp->target);
     }

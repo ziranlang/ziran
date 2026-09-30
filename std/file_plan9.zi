@@ -1,0 +1,189 @@
+#import "c_string"
+
+// Native Plan 9 file operations. Paths cross libc only through bounded,
+// caller-owned NUL-terminated buffers; file contents use byte slices.
+#scope_file
+libc :: #system_library "libc";
+OpenRaw :: (path: *s8, flags: s32) -> s32 #foreign libc "open";
+CreateRaw :: (path: *s8, flags: s32, mode: usize) -> s32 #foreign libc "create";
+CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+ReadAtRaw :: (fd: s32, output: *void, count: isize, offset: s64) -> isize #foreign libc "pread";
+WriteAtRaw :: (fd: s32, input: *void, count: isize, offset: s64) -> isize #foreign libc "pwrite";
+SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 #foreign libc "seek";
+RemoveRaw :: (path: *s8) -> s32 #foreign libc "remove";
+// Native libc owns Dir's type identity. Borrow its layout through void*,
+// rather than redeclaring its named record as a different native type.
+StatRaw :: (path: *s8) -> *void #foreign libc "dirstat";
+NullDirRaw :: (metadata: *void) #foreign libc "nulldir";
+WriteStatRaw :: (path: *s8, metadata: *void) -> s32 #foreign libc "dirwstat";
+FreeRaw :: (memory: *void) #foreign libc "free";
+
+FileIdentity :: struct {
+    path: u64
+    version: usize
+    type: u8
+}
+
+DirectoryMetadata :: struct {
+    type: u16
+    device: u32
+    identity: FileIdentity
+    mode: usize
+    accessed: usize
+    modified: usize
+    length: s64
+    name: *u8
+    owner: *u8
+    group: *u8
+    modifier: *u8
+}
+
+#scope_export
+FileHandle :: struct {
+    fd: s32
+    valid: bool
+}
+
+#scope_file
+OpenPath :: (path: string, flags: s32) -> FileHandle {
+    result: FileHandle
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return result }
+    result.fd = OpenRaw(cast(*s8)(*name[0]), flags)
+    result.valid = result.fd >= 0
+    return result
+}
+
+CreatePath :: (path: string, flags: s32, mode: usize) -> FileHandle {
+    result: FileHandle
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return result }
+    result.fd = CreateRaw(cast(*s8)(*name[0]), flags, mode)
+    result.valid = result.fd >= 0
+    return result
+}
+
+DirectoryWithMode :: (path: string, mode: usize) -> bool {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return false }
+    metadata := cast(*DirectoryMetadata)StatRaw(cast(*s8)(*name[0]))
+    if metadata != null {
+        directory := (metadata.mode & cast(usize)0x80000000) != 0
+        FreeRaw(cast(*void)metadata)
+        return directory
+    }
+    created := CreatePath(path, 0, cast(usize)0x80000000 | mode)
+    if !created.valid { return false }
+    return CloseRaw(created.fd) == 0
+}
+
+#scope_export
+#program_export
+OpenRead :: (path: string) -> FileHandle { return OpenPath(path, 0) }
+
+#program_export
+OpenUpdate :: (path: string) -> FileHandle { return OpenPath(path, 2) }
+
+#program_export
+OpenReplace :: (path: string) -> FileHandle { return CreatePath(path, 1, 420) }
+
+#program_export
+OpenPrivateReplace :: (path: string) -> FileHandle { return CreatePath(path, 1, 384) }
+
+#program_export
+PathExists :: (path: string) -> bool {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return false }
+    metadata := StatRaw(cast(*s8)(*name[0]))
+    if metadata == null { return false }
+    FreeRaw(cast(*void)metadata)
+    return true
+}
+
+#program_export
+DirectoryExists :: (path: string) -> bool {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return false }
+    metadata := cast(*DirectoryMetadata)StatRaw(cast(*s8)(*name[0]))
+    if metadata == null { return false }
+    directory := (metadata.mode & cast(usize)0x80000000) != 0
+    FreeRaw(cast(*void)metadata)
+    return directory
+}
+
+#program_export
+CreateDirectory :: (path: string) -> bool { return DirectoryWithMode(path, 493) }
+
+#program_export
+CreatePrivateDirectory :: (path: string) -> bool { return DirectoryWithMode(path, 448) }
+
+#program_export
+RemoveFile :: (path: string) -> bool {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return false }
+    return RemoveRaw(cast(*s8)(*name[0])) == 0
+}
+
+// Plan 9 wstat changes the basename within its current directory. Refuse
+// cross-directory requests instead of silently moving to the wrong path.
+#program_export
+RenameNoReplace :: (source: string, destination: string) -> bool {
+    old_name: [4096]u8
+    new_name: [4096]u8
+    if !CopyCString(source, old_name[:]) ||
+       !CopyCString(destination, new_name[:]) { return false }
+    // Unix-backed 9P servers may implement wstat through an overwriting
+    // host rename. Check the destination before requesting the change.
+    if PathExists(destination) { return false }
+    old_base: s32 = 0
+    new_base: s32 = 0
+    index: s32 = 0
+    while index < cast(s32)source.count {
+        if source[index] == cast(u8)47 { old_base = index + 1 }
+        index += 1
+    }
+    index = 0
+    while index < cast(s32)destination.count {
+        if destination[index] == cast(u8)47 { new_base = index + 1 }
+        index += 1
+    }
+    if old_base != new_base || old_base == cast(s32)source.count ||
+       new_base == cast(s32)destination.count { return false }
+    index = 0
+    while index < old_base {
+        if source[index] != destination[index] { return false }
+        index += 1
+    }
+    change: DirectoryMetadata
+    NullDirRaw(cast(*void)(*change))
+    change.name = *new_name[new_base]
+    return WriteStatRaw(cast(*s8)(*old_name[0]), cast(*void)(*change)) >= 0
+}
+
+#program_export
+FileSize :: (file: FileHandle) -> s64 {
+    if !file.valid { return -1 }
+    return SeekRaw(file.fd, 0, 2)
+}
+
+#program_export
+ReadAt :: (file: FileHandle, output: []u8, offset: s64) -> s64 {
+    if !file.valid || offset < 0 || output.count > 2147483647 { return -1 }
+    if output.count == 0 { return 0 }
+    return cast(s64)ReadAtRaw(file.fd, cast(*void)(*output[0]),
+        cast(isize)output.count, offset)
+}
+
+#program_export
+WriteAt :: (file: FileHandle, input: []u8, offset: s64) -> s64 {
+    if !file.valid || offset < 0 || input.count > 2147483647 { return -1 }
+    if input.count == 0 { return 0 }
+    return cast(s64)WriteAtRaw(file.fd, cast(*void)(*input[0]),
+        cast(isize)input.count, offset)
+}
+
+#program_export
+CloseFile :: (file: FileHandle) -> bool {
+    if !file.valid { return false }
+    return CloseRaw(file.fd) == 0
+}

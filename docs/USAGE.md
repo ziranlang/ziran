@@ -255,6 +255,18 @@ isolation request. The host starts the child, yields output lines, and returns
 its exit result. Its contract runs from source and saved `.zir` as a portable
 bundle and through native C, C++, and Go mocks.
 
+### Native Plan 9 files
+
+Native `plan9-c` builds can import `std/file_plan9.zi` for positional byte
+reads and writes, file size, read/update/replace handles, private files,
+directory checks and creation, removal, and renaming without replacement.
+`RenameNoReplace` changes only a basename within the same directory; it
+rejects cross-directory moves. Paths reject embedded NUL bytes and must fit
+the adapter's 4096-byte C buffer. These operations use native Plan 9 libc
+and are not portable host capabilities. `tests/file_plan9.sh` checks source
+and saved IR generation; TaijiOS's `rill-ziran-plan9-smoke` gate compiles
+and runs the fixture with native `8c`/`8l`.
+
 ### Native Linux adapters
 
 Native Linux C builds can import `std/file_linux.zi` for positional byte I/O,

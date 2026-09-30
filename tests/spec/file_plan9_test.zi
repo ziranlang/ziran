@@ -1,0 +1,85 @@
+#import "file_plan9"
+#import "c_string"
+
+#scope_file
+Path :: (root: string, name: string, output: []u8) -> string {
+    used: s32 = 0
+    index: s32 = 0
+    while cast(s64)index < root.count { output[used] = root[index]; used += 1; index += 1 }
+    output[used] = 47
+    used += 1
+    index = 0
+    while cast(s64)index < name.count { output[used] = name[index]; used += 1; index += 1 }
+    return TextView(output[0:used])
+}
+
+Run :: (root: string) -> s32 {
+    // Names equal to their ABI symbol use libc's existing declarations too.
+    missing: [1024]u8
+    missing_path := Path(root, "missing", missing[:])
+    if !CopyCString(missing_path, missing[:]) ||
+        open(cast(*s8)(*missing[0]), 0) >= 0 ||
+        dirstat(cast(*s8)(*missing[0])) != null { return 12 }
+    directory_bytes: [1024]u8
+    first_bytes: [1024]u8
+    second_bytes: [1024]u8
+    other_bytes: [1024]u8
+    directory := Path(root, "file-test", directory_bytes[:])
+    first := Path(directory, "first", first_bytes[:])
+    second := Path(directory, "second", second_bytes[:])
+    other := Path(root, "other", other_bytes[:])
+    if !CreatePrivateDirectory(directory) || !CreatePrivateDirectory(directory) ||
+        !PathExists(directory) || !DirectoryExists(directory) { return 1 }
+    file := OpenPrivateReplace(first)
+    if !file.valid { return 2 }
+    bytes: [4]u8 = .[65, 0, 66, 67]
+    if WriteAt(file, bytes[:], 0) != 4 || WriteAt(file, bytes[0:0], 4) != 0 ||
+        FileSize(file) != 4 || !CloseFile(file) { return 3 }
+    if !PathExists(first) || DirectoryExists(first) || CreateDirectory(first) { return 4 }
+    if RenameNoReplace(first, other) || !PathExists(first) || PathExists(other) { return 5 }
+    if !RenameNoReplace(first, second) || PathExists(first) || !PathExists(second) { return 6 }
+    file = OpenReplace(first)
+    if !file.valid || !CloseFile(file) || RenameNoReplace(second, first) { return 7 }
+    file = OpenUpdate(second)
+    if !file.valid || FileSize(file) != 4 || WriteAt(file, bytes[2:3], 0) != 1 ||
+        !CloseFile(file) { return 8 }
+    file = OpenRead(second)
+    received: [8]u8
+    if !file.valid || ReadAt(file, received[:], 0) != 4 || received[0] != 66 ||
+        received[1] != 0 || received[2] != 66 || received[3] != 67 ||
+        ReadAt(file, received[:], 4) != 0 || ReadAt(file, received[:], -1) != -1 ||
+        !CloseFile(file) { return 9 }
+    invalid: FileHandle
+    if FileSize(invalid) != -1 || ReadAt(invalid, received[:], 0) != -1 ||
+        WriteAt(invalid, bytes[:], 0) != -1 || CloseFile(invalid) { return 10 }
+    if OpenRead("bad\u0000path").valid || RenameNoReplace(second, directory) ||
+        !RemoveFile(first) || !RemoveFile(second) || !RemoveFile(directory) { return 11 }
+    return 0
+}
+
+libc :: #system_library "libc";
+open :: (path: *s8, flags: s32) -> s32 #foreign libc "open";
+dirstat :: (path: *s8) -> *void #foreign libc "dirstat";
+Getenv :: (name: *s8) -> *s8 #foreign libc "getenv";
+Free :: (memory: *void) #foreign libc "free";
+Descriptor :: struct { data: *u8; length: usize; }
+
+#scope_export
+#program_export
+main :: () -> s32 {
+    name: [32]u8
+    CopyCString("ZIRAN_TEST_ROOT", name[:])
+    value := Getenv(cast(*s8)(*name[0]))
+    if value == null { print("file-plan9-test-failed: missing test root\n"); return 99 }
+    length: s32 = 0
+    while value[length] != 0 { length += 1 }
+    view: string = ""
+    descriptor := cast(*Descriptor)(*view)
+    descriptor.data = cast(*u8)value
+    descriptor.length = cast(usize)length
+    result := Run(view)
+    Free(cast(*void)value)
+    if result != 0 { print("file-plan9-test-failed: %\n", result) }
+    else { print("file-plan9-test-ok\n") }
+    return result
+}

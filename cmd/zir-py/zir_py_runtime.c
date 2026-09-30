@@ -329,6 +329,11 @@ const PyRuntimeItem py_runtime_items[] = {
      "    if name in (\"c\", \"libc\", \"m\", \"libm\"):\n"
      "        return ctypes.CDLL(None)\n"
      "    return ctypes.CDLL(ctypes.util.find_library(name) or \"lib%s.so\" % name)\n"},
+    {"_link_library", "ctypes ctypes.util",
+     "def _link_library(name):\n"
+     "    \"\"\"Load a library named in LDLIBS so C foreign symbols resolve in it.\"\"\"\n"
+     "    path = ctypes.util.find_library(name) or \"lib%s.so\" % name\n"
+     "    ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)\n"},
     {"_foreign", "ctypes",
      "def _foreign(library, symbol, argtypes, restype):\n"
      "    function = getattr(library, symbol)\n"
@@ -370,6 +375,17 @@ const PyRuntimeItem py_runtime_items[] = {
     {"_c_text", "ctypes",
      "def _c_text(text):\n"
      "    return ctypes.c_char_p(bytes(text))\n"},
+    {"ZiranCString", "ctypes",
+     "class ZiranCString(ctypes.c_char_p):\n"
+     "    \"\"\"A C string parameter or result of a foreign function.\"\"\"\n"},
+    {"_c_string", "ctypes",
+     "def _c_string(text):\n"
+     "    \"\"\"A NUL-terminated copy of a Ziran string for C.\"\"\"\n"
+     "    return ZiranCString(bytes(text))\n"},
+    {"_from_c_string", "",
+     "def _from_c_string(value):\n"
+     "    \"\"\"The bytes of a C string result; NULL is the empty string.\"\"\"\n"
+     "    return value.value or b\"\"\n"},
     {"Source_Code_Location", "",
      "class Source_Code_Location:\n"
      "    __slots__ = (\"fully_pathed_filename\", \"line_number\")\n"

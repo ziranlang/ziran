@@ -14,8 +14,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   truncates toward zero, and shifts check their count. Records and fixed
   arrays copy by value; pointers are objects that reach a list item, a
   field, or a boxed local; unions share a byte buffer; C foreign functions
-  go through `ctypes`, and host capabilities through a `host` object the
-  embedding program sets. A view of mutable bytes is a snapshot.
+  go through `ctypes`, with `string` parameters and results passed as C
+  text and the shared libraries named in `LDLIBS` loaded first, and host
+  capabilities through a `host` object the embedding program sets. A view of mutable bytes is a snapshot.
   `tests/py_backend.sh` covers it, and `tests/numeric_semantics.sh`,
   `tests/print.sh`, `tests/examples.sh`, and `tests/named_imports.sh` compare
   it with the other targets.

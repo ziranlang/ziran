@@ -54,6 +54,8 @@ main(int argc, char **argv)
     int module_path_count = 0;
     const char *bindings[64];
     int binding_count = 0;
+    const char *libraries[64];
+    int library_count = 0;
     ZirProgram **programs;
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
@@ -97,6 +99,18 @@ main(int argc, char **argv)
        (executable && entry == NULL)) {
         usage();
         return 1;
+    }
+    /* As for a C build, LDLIBS names the shared libraries (-lNAME) whose C
+     * foreign functions the program calls. */
+    if(getenv("LDLIBS") != NULL) {
+        char *words = strdup(getenv("LDLIBS"));
+        if(words == NULL)
+            return 1;
+        for(char *word = strtok(words, " \t"); word != NULL && library_count < 64;
+            word = strtok(NULL, " \t"))
+            if(strncmp(word, "-l", 2) == 0 && word[2] != '\0')
+                libraries[library_count++] = word + 2;
+        py_set_linked_libraries(libraries, library_count);
     }
 
     if(!ProgramsLoad(&set, root, module_paths, module_path_count,

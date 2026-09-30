@@ -32,7 +32,10 @@ that procedure and exits with its integer result; the entry takes nothing or
 `(argc: s32, argv: **u8)`, and an exported `main` is used as it is. `CC`,
 `CFLAGS` (default `-O2`), `LDFLAGS`, and `LDLIBS` apply as in make. Use
 `ziran build --target=py --exe --entry module:function -o DIR` for Python 3.10
-source that `python3 DIR` runs; it needs only the standard library. Use
+source that `python3 DIR` runs; it needs only the standard library. Its C
+foreign functions resolve in the running Python process, and `LDLIBS` names
+the shared libraries to load for them, as it does for a C build: for example
+`LDLIBS=-lcairo ziran build --target=py ...`. Use
 `ziran build --target=plan9-c` for the experimental Plan 9 C output path.
 Pass `--entry module:function` to a C99 build to retain functions, types,
 globals, and constants reachable from that entry. A native host implementation

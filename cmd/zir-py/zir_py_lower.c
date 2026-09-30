@@ -3241,6 +3241,16 @@ static void emit_classes(PyEmitter *emitter, FILE *output)
     }
 }
 
+/* Shared libraries named in LDLIBS (-lNAME) when the program was built. */
+static const char *const *py_linked_libraries;
+static int py_linked_library_count;
+
+void py_set_linked_libraries(const char *const *names, int count)
+{
+    py_linked_libraries = names;
+    py_linked_library_count = count;
+}
+
 /* Buffers emit_foreign_bindings keeps on the heap: py_lower inlines it, and
  * some compilers add every inlined frame together past FRAMEFLAGS. */
 typedef struct PyForeignBuffers {
@@ -3276,6 +3286,11 @@ static void emit_foreign_bindings(PyEmitter *emitter, FILE *output)
                             import->name);
                     exit(1);
                 }
+                /* C foreign symbols resolve in the process, as a C build links
+                 * them; libraries named in LDLIBS join it first. */
+                if(!any)
+                    for(int index = 0; index < py_linked_library_count; index++)
+                        fprintf(output, "_link_library(\"%s\")\n", py_linked_libraries[index]);
                 count = foreign_parameters(import, parameters, 32);
                 foreign_symbol(emitter, module, import, symbol, sizeof(buffers->symbol));
                 snprintf(library, sizeof(buffers->library), "%s", import->target);

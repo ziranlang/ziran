@@ -55,6 +55,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/numeric_conformance.json`, and kept synchronized with markers in the
   differential test. Mixed-width narrowing/widening after addition and u8
   bitwise AND/OR/XOR are included.
+- Lossless numeric conversions are implicit: a narrower integer into a wider
+  one of the same signedness, an unsigned integer into a wider signed type,
+  and `float32` into `float64`, at initializers, assignments, returns,
+  arguments, and binary operators. The checker inserts an explicit cast into
+  the checked graph, so C, C++, Go, Rust, Python, and `.zib` see the same
+  conversion. Narrowing, sign changes, and integer-to-float conversions still
+  need `cast`. `tests/implicit_widening.sh` checks source and saved IR on
+  C, C++, Go, and `.zib`.
 - Jai `using record: Type` parameters and local declarations, plus `using
   record;` and nested paths such as `using entity.position;` in a procedure
   body, promote record fields into lexical lookup. Explicit local bindings

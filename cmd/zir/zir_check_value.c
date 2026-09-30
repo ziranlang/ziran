@@ -953,6 +953,45 @@ pointer_type(const char *type)
     return type[0] != '[' && strchr(type, '*') != NULL;
 }
 
+/* Bits of a fixed-width integer type; isize and usize count as at least 32
+ * bits when widened into and at most 64 bits when widened from. */
+static int
+integer_bits(const char *type, int *is_signed, int as_target)
+{
+    static const struct { const char *name; int bits, is_signed; } widths[] = {
+        {"s8", 8, 1}, {"s16", 16, 1}, {"s32", 32, 1}, {"s64", 64, 1},
+        {"u8", 8, 0}, {"u16", 16, 0}, {"u32", 32, 0}, {"u64", 64, 0},
+        {NULL, 0, 0}
+    };
+    for(int i = 0; widths[i].name != NULL; i++)
+        if(!strcmp(type, widths[i].name)) {
+            *is_signed = widths[i].is_signed;
+            return widths[i].bits;
+        }
+    if(!strcmp(type, "isize") || !strcmp(type, "usize")) {
+        *is_signed = type[0] == 'i';
+        return as_target ? 32 : 64;
+    }
+    return 0;
+}
+
+int
+widens_losslessly(const char *to, const char *from)
+{
+    const char *scalar = ScalarType(to);
+    if(*scalar) to = scalar;
+    scalar = ScalarType(from);
+    if(*scalar) from = scalar;
+    if(!strcmp(to, "float64") && !strcmp(from, "float32"))
+        return 1;
+    int to_signed, from_signed;
+    int to_bits = integer_bits(to, &to_signed, 1);
+    int from_bits = integer_bits(from, &from_signed, 0);
+    if(to_bits == 0 || from_bits == 0 || from_bits >= to_bits)
+        return 0;
+    return to_signed || !from_signed;
+}
+
 int
 compatible(const char *to, const char *from)
 {

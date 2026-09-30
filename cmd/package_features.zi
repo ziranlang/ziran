@@ -252,9 +252,19 @@ Features :: (arguments: []string) -> s32 {
     law_feature.rejection = "An invalid certificate fails checking and cannot be waived."
     law_feature.evidence = "tests/laws.sh\ntests/proofs.sh\ntests/law_integers.sh\nproofs/Scalar.lean\n"
     law_feature.targets = assert_targets
-    features: [7]PkgFeature = .[
+    widening_feature: PkgFeature
+    widening_feature.id = "numeric.implicit-widening"
+    widening_feature.status = "implemented"
+    widening_feature.syntax = "a narrower value where a wider type is expected, or mixed in a binary operator"
+    widening_feature.limits = "Only lossless conversions are implicit: a wider integer of the same signedness, an unsigned integer in a wider signed type, and float32 in float64. The checker inserts an explicit cast, so every target sees the same conversion."
+    widening_feature.accepted_example = "#program_export\nAnswer :: () -> s64 {\n    small: s32 = 40\n    big: s64 = small\n    return big + small\n}\n"
+    widening_feature.rejected_example = "Narrow :: (x: s64) -> s32 { return x }\n"
+    widening_feature.rejection = "Narrowing, sign changes, and integer-to-float conversions need an explicit cast."
+    widening_feature.evidence = "tests/implicit_widening.sh\n"
+    widening_feature.targets = numeric_targets
+    features: [8]PkgFeature = .[
         base_features[0], law_feature, output_feature, base_features[1],
-        base_features[2], base_features[3], base_features[4]
+        widening_feature, base_features[2], base_features[3], base_features[4]
     ]
 
     json: bool = false

@@ -1317,6 +1317,43 @@ conversion_matches(Checker *c, const ZirFunction *conversion,
     return returned;
 }
 
+const char *
+widen_expression(Checker *c, int index, const char *to)
+{
+    ZirFunction *fn = c->fn;
+    char target[ZIR_NAME_MAX];
+    copy_text(target, sizeof(target), to);
+    ZirExpr *copy_slot = FunctionAddExpr(fn, fn->exprs[index].kind,
+                                         fn->exprs[index].name,
+                                         fn->exprs[index].span);
+    if(copy_slot == NULL) {
+        c->failed = 1;
+        return NULL;
+    }
+    ZirExpr saved = fn->exprs[index];
+    int copy_index = (int)(copy_slot - fn->exprs);
+    *copy_slot = saved;
+    copy_slot->next_sibling = -1;
+    copy_slot->argument_index = -1;
+    copy_slot->argument_name[0] = '\0';
+    ZirExpr *cast = &fn->exprs[index];
+    memset(cast, 0, sizeof(*cast));
+    cast->kind = ZIR_EXPR_CAST;
+    cast->text = saved.text;
+    copy_text(cast->name, sizeof(cast->name), target);
+    copy_text(cast->type, sizeof(cast->type), target);
+    copy_text(cast->argument_name, sizeof(cast->argument_name),
+              saved.argument_name);
+    cast->argument_index = saved.argument_index;
+    cast->left = cast->first_child = cast->third = -1;
+    cast->right = copy_index;
+    cast->next_sibling = saved.next_sibling;
+    cast->span = saved.span;
+    /* The moved operand now follows its cast; restore postorder layout. */
+    c->conversions_applied = 1;
+    return cast->type;
+}
+
 /* Rewrite an incompatible expression into a call on a visible `#as`
  * conversion from its own type to `to`. The original expression moves into
  * the call's first argument; parent references keep their index. Returns
@@ -1327,6 +1364,8 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
     const char *from = c->fn->exprs[index].type;
     const ZirFunction *conversion = NULL;
     const ZirModule *owner = NULL;
+    if(*from && widens_losslessly(to, from))
+        return c->inference_only ? to : widen_expression(c, index, to);
     if(!*from || !strcmp(from, to) || c->inference_only)
         return NULL;
     for(int pass = 0; pass < 2; pass++) {

@@ -1212,8 +1212,20 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             break;
         }
         if(!compatible_checked(c, left, right) &&
-           !compatible_checked(c, right, left) && !slot_null_compare && !map_null_compare)
-            error(c, e->span, "operand types differ; use an explicit cast", e->op);
+           !compatible_checked(c, right, left) && !slot_null_compare &&
+           !map_null_compare) {
+            /* A narrower operand widens to the other operand's type. */
+            int widen_left = widens_losslessly(right, left);
+            if(widen_left || widens_losslessly(left, right)) {
+                const char *wider = ScalarType(widen_left ? right : left);
+                if(!c->inference_only &&
+                   widen_expression(c, widen_left ? e->left : e->right, wider) == NULL)
+                    return "";
+                e = &c->fn->exprs[index];
+                left = right = wider;
+            } else
+                error(c, e->span, "operand types differ; use an explicit cast", e->op);
+        }
         if(!strcmp(e->op, "==") || !strcmp(e->op, "!=") || !strcmp(e->op, "<") ||
            !strcmp(e->op, "<=") || !strcmp(e->op, ">") || !strcmp(e->op, ">=") ||
            !strcmp(e->op, "&&") || !strcmp(e->op, "||")) type = "bool";

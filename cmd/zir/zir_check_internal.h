@@ -178,6 +178,13 @@ int bound_compound_constant(const ZirModule *module, const char *name, int depth
 int array_capacity(const ZirModule *module, const char *type, int *capacity);
 void normalize_array(const ZirModule *module, char *type, size_t size);
 int compatible(const char *to, const char *from);
+/* True when every `from` value is exactly representable as `to`: a wider
+ * integer of the same signedness, an unsigned value in a wider signed type,
+ * or float32 in float64. Such values convert implicitly. */
+int widens_losslessly(const char *to, const char *from);
+/* Rewrite expression `index` into an explicit cast to `to` in the checked
+ * graph. Returns the new type, or NULL on allocation failure. */
+const char *widen_expression(Checker *c, int index, const char *to);
 const ZirType *flags_type(Checker *c, const char *name);
 int same_declared_type(const ZirModule *module, const char *to, const char *from, int depth);
 int compatible_checked(Checker *c, const char *to, const char *from);

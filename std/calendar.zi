@@ -1,0 +1,164 @@
+#import "date_time_types"
+
+#program_export
+LeapYear :: (year: s32) -> bool {
+    return year > 0 && year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+}
+
+#program_export
+DaysInMonth :: (year: s32, month: s32) -> s32 {
+    if year < 1 || year > 9999 || month < 1 || month > 12 { return 0 }
+    if month == 2 { if LeapYear(year) { return 29 }; return 28 }
+    if month == 4 || month == 6 || month == 9 || month == 11 { return 30 }
+    return 31
+}
+
+// Sunday is zero. Gregorian arithmetic avoids mktime's timezone changes
+// when asking for the weekday of a calendar date.
+#program_export
+DayOfWeek :: (year: s32, month: s32, day: s32) -> s32 {
+    days := DaysInMonth(year, month)
+    if day < 1 || day > days { return -1 }
+    offsets: [12]s32 = .[0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4]
+    adjusted := year
+    if month < 3 { adjusted -= 1 }
+    return (adjusted + adjusted / 4 - adjusted / 100 + adjusted / 400 +
+        offsets[month - 1] + day) % 7
+}
+
+#program_export
+DayOfYear :: (year: s32, month: s32, day: s32) -> s32 {
+    days := DaysInMonth(year, month)
+    if day < 1 || day > days { return -1 }
+    result := day - 1
+    current: s32 = 1
+    while current < month { result += DaysInMonth(year, current); current += 1 }
+    return result
+}
+
+#program_export
+DateTimeValid :: (value: LocalDateTime) -> bool {
+    return value.valid && DayOfWeek(value.year, value.month, value.day) >= 0 &&
+        value.hour >= 0 && value.hour <= 23 && value.minute >= 0 && value.minute <= 59 &&
+        value.second >= 0 && value.second <= 60
+}
+
+#scope_file
+FormatBuffer :: struct { bytes: []u8; used: s64; failed: bool; }
+
+Append :: (buffer: *FormatBuffer, text: string) {
+    if buffer.failed { return }
+    if text.count >= buffer.bytes.count - buffer.used { buffer.failed = true; return }
+    index: s64 = 0
+    while index < text.count {
+        buffer.bytes[buffer.used] = text[index]
+        buffer.used += 1
+        index += 1
+    }
+}
+
+Number :: (buffer: *FormatBuffer, value: s32, width: s32, fill: u8) {
+    digits: [16]u8
+    count: s32 = 0
+    remaining := value
+    while true {
+        digits[count] = cast(u8)(48 + remaining % 10)
+        count += 1
+        remaining /= 10
+        if remaining == 0 { break }
+    }
+    padding := width - count
+    while padding > 0 {
+        if buffer.used + 1 >= buffer.bytes.count { buffer.failed = true; return }
+        buffer.bytes[buffer.used] = fill
+        buffer.used += 1
+        padding -= 1
+    }
+    while count > 0 {
+        if buffer.used + 1 >= buffer.bytes.count { buffer.failed = true; return }
+        count -= 1
+        buffer.bytes[buffer.used] = digits[count]
+        buffer.used += 1
+    }
+}
+
+Clock :: (buffer: *FormatBuffer, value: LocalDateTime, seconds: bool, twelve: bool) {
+    hour := value.hour
+    if twelve { hour %= 12; if hour == 0 { hour = 12 } }
+    Number(buffer, hour, 2, 48)
+    Append(buffer, ":")
+    Number(buffer, value.minute, 2, 48)
+    if seconds { Append(buffer, ":"); Number(buffer, value.second, 2, 48) }
+}
+
+#scope_export
+// Locale-independent English names and common strftime-style civil tokens.
+// Unsupported tokens, invalid readings, or insufficient space return an
+// empty view and clear output[0]. A successful result is NUL-terminated.
+#program_export
+FormatDateTime :: (value: LocalDateTime, pattern: string, output: []u8) -> string {
+    if output.count == 0 { return "" }
+    output[0] = 0
+    if !DateTimeValid(value) { return "" }
+    buffer: FormatBuffer
+    buffer.bytes = output
+    weekdays: [7]string = .["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    months: [12]string = .["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    weekday := DayOfWeek(value.year, value.month, value.day)
+    index: s64 = 0
+    while index < pattern.count && !buffer.failed {
+        byte := pattern[index]
+        if byte != 37 { Append(*buffer, pattern[index:index + 1]); index += 1; continue }
+        index += 1
+        if index >= pattern.count { buffer.failed = true; break }
+        byte = pattern[index]
+        if byte == {
+            case #char "%"; Append(*buffer, "%")
+            case #char "a"; Append(*buffer, weekdays[weekday][0:3])
+            case #char "A"; Append(*buffer, weekdays[weekday])
+            case #char "b"; Append(*buffer, months[value.month - 1][0:3])
+            case #char "h"; Append(*buffer, months[value.month - 1][0:3])
+            case #char "B"; Append(*buffer, months[value.month - 1])
+            case #char "C"; Number(*buffer, value.year / 100, 2, 48)
+            case #char "d"; Number(*buffer, value.day, 2, 48)
+            case #char "e"; Number(*buffer, value.day, 2, 32)
+            case #char "H"; Number(*buffer, value.hour, 2, 48)
+            case #char "k"; Number(*buffer, value.hour, 2, 32)
+            case #char "I";
+                hour := value.hour % 12
+                if hour == 0 { hour = 12 }
+                Number(*buffer, hour, 2, 48)
+            case #char "j"; Number(*buffer, DayOfYear(value.year, value.month, value.day) + 1, 3, 48)
+            case #char "m"; Number(*buffer, value.month, 2, 48)
+            case #char "M"; Number(*buffer, value.minute, 2, 48)
+            case #char "n"; Append(*buffer, "\n")
+            case #char "p"; if value.hour < 12 { Append(*buffer, "AM") } else { Append(*buffer, "PM") }
+            case #char "P"; if value.hour < 12 { Append(*buffer, "am") } else { Append(*buffer, "pm") }
+            case #char "R"; Clock(*buffer, value, false, false)
+            case #char "T"; Clock(*buffer, value, true, false)
+            case #char "X"; Clock(*buffer, value, true, false)
+            case #char "r";
+                Clock(*buffer, value, true, true)
+                if value.hour < 12 { Append(*buffer, " AM") } else { Append(*buffer, " PM") }
+            case #char "S"; Number(*buffer, value.second, 2, 48)
+            case #char "t"; Append(*buffer, "\t")
+            case #char "u"; if weekday == 0 { Number(*buffer, 7, 1, 48) } else { Number(*buffer, weekday, 1, 48) }
+            case #char "w"; Number(*buffer, weekday, 1, 48)
+            case #char "y"; Number(*buffer, value.year % 100, 2, 48)
+            case #char "Y"; Number(*buffer, value.year, 4, 48)
+            case #char "F";
+                Number(*buffer, value.year, 4, 48); Append(*buffer, "-")
+                Number(*buffer, value.month, 2, 48); Append(*buffer, "-")
+                Number(*buffer, value.day, 2, 48)
+            case #char "D";
+                Number(*buffer, value.month, 2, 48); Append(*buffer, "/")
+                Number(*buffer, value.day, 2, 48); Append(*buffer, "/")
+                Number(*buffer, value.year % 100, 2, 48)
+            case; buffer.failed = true
+        }
+        index += 1
+    }
+    if buffer.failed { output[0] = 0; return "" }
+    output[buffer.used] = 0
+    return TextView(output[0:buffer.used])
+}

@@ -536,3 +536,27 @@ ABIs reject maps; checked `.zir` preserves their Go behavior.
 
 Import `go_types` for the predeclared Go `Any` and `Error` interfaces. `Any`
 accepts values that do not own `Vec` storage, including nested maps for JSON.
+
+### Native civil clocks and calendars
+
+Import `date_time_linux` or `date_time_plan9` for `UnixNow()`, `LocalNow()`,
+`LocalAt(seconds)`, and `UtcAt(seconds)`. `LocalAt` uses the operating system's
+timezone and daylight-saving rules. The shared `LocalDateTime` record lives
+in `date_time_types`; the hosted `date_time` module re-exports that same type.
+Months and days are one-based, `day_of_year` is zero-based, and `valid` reports
+whether the provider could obtain a reading. Native Plan 9 libc accepts
+unsigned 32-bit epoch seconds, covering 1970 through early 2106; values outside
+that range return an invalid reading. Dates after 2038 retain their full value.
+
+Import `calendar` for Gregorian `LeapYear`, `DaysInMonth`, `DayOfWeek`,
+`DayOfYear`, `DateTimeValid`, and `FormatDateTime`. `DayOfWeek` returns zero for
+Sunday and minus one for an invalid date. Calendar dates range from year 1 to
+9999. `FormatDateTime(reading, pattern, output)` writes into a caller-owned
+byte slice, leaves a NUL terminator, and returns a view of the complete result.
+Invalid readings, unsupported tokens, and insufficient space return an empty
+view and clear the first output byte. Names are English and independent of
+locale. Supported civil tokens are `%a`, `%A`, `%b`, `%B`, `%h`, `%C`, `%d`,
+`%e`, `%F`, `%D`, `%H`, `%I`, `%j`, `%k`, `%m`, `%M`, `%p`, `%P`, `%r`, `%R`,
+`%S`, `%T`, `%u`, `%w`, `%X`, `%y`, `%Y`, `%n`, `%t`, and `%%`. The calendar
+calculations and formatting also run from portable bundles without a clock
+host.

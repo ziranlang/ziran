@@ -1,17 +1,6 @@
-host_api :: #system_library "host_api";
+using Types :: #import "date_time_types";
 
-// The host supplies local civil time, including timezone and daylight-saving
-// decisions. day_of_year is zero-based, matching the platform tm convention.
-LocalDateTime :: struct {
-    year: s32
-    month: s32
-    day: s32
-    day_of_year: s32
-    hour: s32
-    minute: s32
-    second: s32
-    valid: bool
-}
+host_api :: #system_library "host_api";
 
 LocalNowHost :: () -> LocalDateTime #foreign host_api;
 UnixNowHost :: () -> s64 #foreign host_api;

@@ -1,0 +1,57 @@
+#import "date_time_types"
+
+#scope_file
+libc :: #system_library "libc";
+NanosecondsRaw :: () -> s64 #foreign libc "nsec";
+LocalTimeRaw :: (seconds: s32) -> *void #foreign libc "localtime";
+UtcTimeRaw :: (seconds: s32) -> *void #foreign libc "gmtime";
+
+// Native Plan 9 Tm begins with these eight ints. Its zone and offset stay
+// private to libc; copy the civil fields before another clock call.
+TimeFields :: struct {
+    second: s32
+    minute: s32
+    hour: s32
+    day: s32
+    month: s32
+    year: s32
+    weekday: s32
+    day_of_year: s32
+}
+
+Reading :: (memory: *void) -> LocalDateTime {
+    result: LocalDateTime
+    if memory == null { return result }
+    fields := cast(*TimeFields)memory
+    result.year = fields.year + 1900
+    result.month = fields.month + 1
+    result.day = fields.day
+    result.day_of_year = fields.day_of_year
+    result.hour = fields.hour
+    result.minute = fields.minute
+    result.second = fields.second
+    result.valid = true
+    return result
+}
+
+#scope_export
+#program_export
+UnixNow :: () -> s64 { return NanosecondsRaw() / 1000000000 }
+
+// Plan 9 libc interprets the signed long argument as an unsigned 32-bit
+// epoch count. Preserve its full 1970..2106 range, including after 2038,
+// and reject seconds outside that range instead of silently wrapping.
+#program_export
+LocalAt :: (seconds: s64) -> LocalDateTime {
+    if seconds < 0 || seconds > 4294967295 { result: LocalDateTime; return result }
+    return Reading(LocalTimeRaw(cast(s32)cast(u32)seconds))
+}
+
+#program_export
+UtcAt :: (seconds: s64) -> LocalDateTime {
+    if seconds < 0 || seconds > 4294967295 { result: LocalDateTime; return result }
+    return Reading(UtcTimeRaw(cast(s32)cast(u32)seconds))
+}
+
+#program_export
+LocalNow :: () -> LocalDateTime { return LocalAt(UnixNow()) }

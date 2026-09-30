@@ -1,0 +1,51 @@
+#import "calendar"
+#import "date_time_types"
+
+#program_export
+Check :: () -> s32 {
+    if LeapYear(1900) || !LeapYear(2000) || LeapYear(2100) || !LeapYear(2024) ||
+        DaysInMonth(1900, 2) != 28 || DaysInMonth(2000, 2) != 29 ||
+        DaysInMonth(2100, 2) != 28 || DaysInMonth(2026, 9) != 30 ||
+        DaysInMonth(2026, 0) != 0 || DaysInMonth(0, 1) != 0 { return 1 }
+    if DayOfWeek(1970, 1, 1) != 4 || DayOfWeek(2000, 2, 29) != 2 ||
+        DayOfWeek(2100, 3, 1) != 1 || DayOfWeek(2026, 2, 29) != -1 ||
+        DayOfYear(2000, 12, 31) != 365 || DayOfYear(2026, 12, 31) != 364 { return 2 }
+    value: LocalDateTime = .{year = 2000, month = 2, day = 29, hour = 0,
+        minute = 5, second = 9, valid = true}
+    output: [128]u8
+    if FormatDateTime(value, "%a %d %b %H:%M", output[:]) != "Tue 29 Feb 00:05" ||
+        FormatDateTime(value, "%B %Y", output[:]) != "February 2000" ||
+        FormatDateTime(value, "%F %T %j %u %w", output[:]) != "2000-02-29 00:05:09 060 2 2" ||
+        FormatDateTime(value, "%r %p %P %%", output[:]) != "12:05:09 AM AM am %" { return 3 }
+    value.hour = 13
+    value.day = 1
+    if FormatDateTime(value, "%D %I %e %C %y", output[:]) != "02/01/00 01  1 20 00" ||
+        FormatDateTime(value, "%R %p %P", output[:]) != "13:05 PM pm" { return 4 }
+    small: [6]u8
+    if FormatDateTime(value, "%H:%M", small[:]) != "13:05" || small[5] != 0 ||
+        FormatDateTime(value, "%H:%M:%S", small[:]) != "" || small[0] != 0 { return 5 }
+    if FormatDateTime(value, "%q", output[:]) != "" || output[0] != 0 ||
+        FormatDateTime(value, "trailing%", output[:]) != "" || output[0] != 0 ||
+        FormatDateTime(value, "%F", output[0:0]) != "" { return 6 }
+    value.valid = false
+    if FormatDateTime(value, "%F", output[:]) != "" || output[0] != 0 { return 7 }
+    value.valid = true
+    value.month = 2
+    value.day = 30
+    if DateTimeValid(value) || FormatDateTime(value, "%F", output[:]) != "" { return 8 }
+    return 0
+}
+
+Report :: () -> s32 {
+    result := Check()
+    if result != 0 { print("calendar-test-failed: %\n", result) }
+    else { print("calendar-test-ok\n") }
+    return result
+}
+
+#if #defined(NATIVE_PLAN9) {
+    #program_export
+    main :: () -> s32 { return Report() }
+} else {
+    main :: () -> s32 { return Report() }
+}

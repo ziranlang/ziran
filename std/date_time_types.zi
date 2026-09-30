@@ -1,0 +1,12 @@
+// A local or UTC civil clock reading. Months and days are one-based;
+// day_of_year is zero-based. Timezone rules belong to the clock provider.
+LocalDateTime :: struct {
+    year: s32
+    month: s32
+    day: s32
+    day_of_year: s32
+    hour: s32
+    minute: s32
+    second: s32
+    valid: bool
+}

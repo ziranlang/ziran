@@ -1,8 +1,51 @@
-// Unix clock for native Linux programs.
+#import "date_time_types"
+
+// Linux time_t is 64-bit on the supported native Linux target. Read the
+// common struct tm prefix without exposing its platform-specific tail.
+#scope_file
 libc :: #system_library "libc";
 TimeRaw :: (result: *s64) -> s64 #foreign libc "time";
+LocalTimeRaw :: (seconds: *s64) -> *void #foreign libc "localtime";
+UtcTimeRaw :: (seconds: *s64) -> *void #foreign libc "gmtime";
 
+TimeFields :: struct {
+    second: s32
+    minute: s32
+    hour: s32
+    day: s32
+    month: s32
+    year: s32
+    weekday: s32
+    day_of_year: s32
+    daylight_saving: s32
+}
+
+Reading :: (memory: *void) -> LocalDateTime {
+    result: LocalDateTime
+    if memory == null { return result }
+    fields := cast(*TimeFields)memory
+    result.year = fields.year + 1900
+    result.month = fields.month + 1
+    result.day = fields.day
+    result.day_of_year = fields.day_of_year
+    result.hour = fields.hour
+    result.minute = fields.minute
+    result.second = fields.second
+    result.valid = true
+    return result
+}
+
+#scope_export
 #program_export
 UnixNow :: () -> s64 {
     return TimeRaw(null)
 }
+
+#program_export
+LocalAt :: (seconds: s64) -> LocalDateTime { return Reading(LocalTimeRaw(*seconds)) }
+
+#program_export
+UtcAt :: (seconds: s64) -> LocalDateTime { return Reading(UtcTimeRaw(*seconds)) }
+
+#program_export
+LocalNow :: () -> LocalDateTime { return LocalAt(UnixNow()) }

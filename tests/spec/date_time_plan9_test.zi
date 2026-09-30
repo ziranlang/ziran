@@ -1,0 +1,25 @@
+#import "date_time_plan9"
+#import "calendar"
+
+#program_export
+main :: () -> s32 {
+    output: [64]u8
+    value := UtcAt(0)
+    result: s32 = 0
+    if FormatDateTime(value, "%F %T", output[:]) != "1970-01-01 00:00:00" ||
+        value.day_of_year != 0 { result = 1 }
+    value = UtcAt(951782400)
+    if FormatDateTime(value, "%F %a %j", output[:]) != "2000-02-29 Tue 060" ||
+        value.day_of_year != 59 { result = 2 }
+    value = UtcAt(2147483648)
+    if FormatDateTime(value, "%F %T", output[:]) != "2038-01-19 03:14:08" { result = 3 }
+    value = UtcAt(4294967295)
+    if FormatDateTime(value, "%F %T", output[:]) != "2106-02-07 06:28:15" { result = 4 }
+    if UtcAt(-1).valid || UtcAt(4294967296).valid ||
+        LocalAt(-1).valid || LocalAt(4294967296).valid { result = 5 }
+    now := UnixNow()
+    if now < 1700000000 || !DateTimeValid(LocalAt(now)) || !DateTimeValid(LocalNow()) { result = 6 }
+    if result != 0 { print("date-time-plan9-test-failed: %\n", result) }
+    else { print("date-time-plan9-test-ok\n") }
+    return result
+}

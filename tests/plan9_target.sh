@@ -314,4 +314,5 @@ cmp "$work/generated/zir_plan9_runtime.h" \
 # standard Plan 9 output gate. Native execution runs in the Taiji guest.
 sh "$repo/tests/file_plan9.sh" "$ziran"
 sh "$repo/tests/process_plan9.sh" "$ziran"
+sh "$repo/tests/date_time_plan9.sh" "$ziran"
 sh "$repo/tests/private_module_imports.sh" "$ziran"

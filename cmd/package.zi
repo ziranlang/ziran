@@ -292,6 +292,17 @@ PkgHasSource :: (arguments: []string) -> bool {
     return false
 }
 
+PkgHasBundle :: (arguments: []string) -> bool {
+    index: s32 = 0
+    while index < cast(s32)arguments.count {
+        part: string = arguments[index]
+        if part == "--" { return false }
+        if PkgEndsWith(part, ".zib") { return true }
+        index += 1
+    }
+    return false
+}
+
 PkgHasTarget :: (arguments: []string) -> bool {
     index: s32 = 0
     while index < cast(s32)arguments.count {
@@ -497,7 +508,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if (command == "run" || command == "build" || command == "check") &&
         !PkgHasArgument(arguments, "--project") &&
         !PkgHasArgument(arguments, "--root") &&
-        !PkgHasArgument(arguments, "--module-path") {
+        !PkgHasArgument(arguments, "--module-path") &&
+        !PkgHasBundle(arguments[1:]) {
         root = PkgProjectRoot()
         implied = root.count > 0
     }

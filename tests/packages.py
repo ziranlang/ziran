@@ -856,6 +856,18 @@ def templates(ziran: str, root: Path, compiler: Path, env: dict) -> None:
                      cwd=greeter, env=env)
     assert f"installed {work / 'prefix/bin/greeter'}" in installed, installed
     assert call(str(work / "prefix/bin/greeter"), cwd=work, env=env) == "Hello, world!\n"
+    write(greeter / "src/bundle_main.zi",
+          '#program_export\nmain :: () -> s32 { print("Hello, bundle!\\n"); return 0 }\n')
+    linked_bundle = work / "greeter.zib"
+    call(ziran, "bundle", "--root", "src", "--entry", "bundle_main:main",
+         "-o", str(linked_bundle), str(greeter / "src/bundle_main.zi"),
+         cwd=greeter, env=env)
+    saved_lock = (greeter / "ziran.lock").read_text()
+    write(greeter / "ziran.lock", "{ broken")
+    bundle_output = call(ziran, "run", str(linked_bundle), cwd=greeter,
+                         env=env)
+    assert bundle_output == "Hello, bundle!\n0\n", bundle_output
+    write(greeter / "ziran.lock", saved_lock)
     # A failing program's status is the command's status.
     write(greeter / "src/main.zi", "main :: () -> s32 { return 3 }\n")
     status = subprocess.run([ziran, "run"], cwd=greeter, env=env).returncode

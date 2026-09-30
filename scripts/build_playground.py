@@ -31,13 +31,17 @@ environment.pop('EM_FROZEN_CACHE', None)
 def run(command):
     subprocess.run(command, cwd=repo, env=environment, check=True)
 
+C_KEYWORDS = {'char', 'const', 'double', 'float', 'int', 'long', 'short',
+              'signed', 'sizeof', 'struct', 'union', 'unsigned', 'void'}
 private = build / 'private'
 private.mkdir(parents=True, exist_ok=True)
 for group in ('parse', 'check', 'emit', 'vm'):
     header = (repo / 'cmd' / 'zir' / f'zir_{group}_internal.h').read_text()
     block = header.split('#pragma GCC visibility push(hidden)', 1)[1].split('#pragma GCC visibility pop', 1)[0]
     block = re.sub(r'/\*.*?\*/|//[^\n]*', '', block, flags=re.S)
-    names = sorted(set(re.findall(r'\b([A-Za-z_]\w*)\s*\(', block)))
+    # Declared names only: `char (*lines)[N]` declares a parameter, and C
+    # type keywords must never become macros.
+    names = sorted(set(re.findall(r'\b([A-Za-z_]\w*)\s*\((?!\s*\*)', block)) - C_KEYWORDS)
     content = ''.join(f'#define {name} private_{group}_{name}\n' for name in names)
     path = private / f'{group}.h'
     if not path.exists() or path.read_text() != content:

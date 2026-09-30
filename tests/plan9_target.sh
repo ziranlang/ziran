@@ -292,3 +292,8 @@ cmp "$work/generated/main.c" "$work/direct/main.c"
 cmp "$work/generated/main.h" "$work/direct/main.h"
 cmp "$work/generated/zir_plan9_runtime.h" \
     "$work/direct/zir_plan9_runtime.h"
+
+# File bindings and implementation-only module aliases are part of the
+# standard Plan 9 output gate. Native execution runs in the Taiji guest.
+sh "$repo/tests/file_plan9.sh" "$ziran"
+sh "$repo/tests/private_module_imports.sh" "$ziran"

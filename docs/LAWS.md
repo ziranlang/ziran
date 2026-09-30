@@ -121,7 +121,7 @@ proof. Finite `forall` has its separate 1,000,000-case budget.
 
 ## Saved artifacts and trust
 
-Version 47 `.zir` stores theorem proposition graphs, certificate steps and
+Version 48 `.zir` stores theorem proposition graphs, certificate steps and
 their typed expression graphs, and evidence. Version 25 `.zib` carries the
 linked verification dependencies and an evidence table. Loaders retype and
 recheck certificates; saved status, type annotations, and evidence cannot

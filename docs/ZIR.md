@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 47 now exists for
+This is the target contract. An experimental binary version 48 now exists for
 the tested C/C++/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -31,7 +31,7 @@ unrelated imported function with the same type shape.
 `.zir` is the compiler interchange and cache format. Portable distribution
 uses a linked `.zib`, not an unlinked `.zir`. See [Bundle format](ZIB.md).
 
-## Experimental version 47
+## Experimental version 48
 
 Law records include structured evidence. Scalar theorem propositions and
 `#proof` certificates have separate expression graphs and ordered proof steps;

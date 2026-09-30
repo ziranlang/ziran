@@ -24,7 +24,7 @@ or `-`; other constant expressions remain outside this subset. The bundle is
 `ZIB` plus a zero byte, a little-endian version, length-prefixed entry module
 and function names, a host capability count and its required module/function
 names, and a
-length-prefixed version 47 `.zir` payload. Named law and waiver tables precede
+length-prefixed version 48 `.zir` payload. Named law and waiver tables precede
 that payload; each law includes its method, declared domain, concrete case
 count, counterexample, and waiver state. The loader rechecks embedded theorem
 certificates and compares the outer tables against the checked IR. Verification

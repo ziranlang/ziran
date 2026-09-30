@@ -1317,6 +1317,66 @@ conversion_matches(Checker *c, const ZirFunction *conversion,
     return returned;
 }
 
+/* The first field's type when TYPE is a procedure's results record. */
+const char *
+results_first_type(Checker *c, const char *type, char *out, size_t size)
+{
+    const ZirType *record = *type ? FindType(c->module, type, NULL) : NULL;
+    if(record == NULL || !record->is_results)
+        return NULL;
+    ZirTypeField field;
+    size_t offset = 0;
+    if(TypeNextField(record, &offset, &field) != 1)
+        return NULL;
+    copy_text(out, size, field.type);
+    return out;
+}
+
+/* A procedure's several results used as one value give the first result:
+ * rewrite expression `index` into a read of its value_0 field. Returns the
+ * field's type, or NULL when the expression is not a results record. */
+const char *
+select_first_result(Checker *c, int index)
+{
+    ZirFunction *fn = c->fn;
+    char first[ZIR_NAME_MAX];
+    if(index < 0 || results_first_type(c, fn->exprs[index].type, first,
+                                       sizeof(first)) == NULL)
+        return NULL;
+    if(c->inference_only)
+        return KeepText(first);
+    char name[ZIR_NAME_MAX];
+    copy_text(name, sizeof(name), fn->exprs[index].name);
+    ZirExpr *copy_slot = FunctionAddExpr(fn, fn->exprs[index].kind, name,
+                                         fn->exprs[index].span);
+    if(copy_slot == NULL) {
+        c->failed = 1;
+        return NULL;
+    }
+    ZirExpr saved = fn->exprs[index];
+    int copy_index = (int)(copy_slot - fn->exprs);
+    *copy_slot = saved;
+    copy_slot->next_sibling = -1;
+    copy_slot->argument_index = -1;
+    copy_slot->argument_name[0] = '\0';
+    ZirExpr *member = &fn->exprs[index];
+    memset(member, 0, sizeof(*member));
+    member->kind = ZIR_EXPR_MEMBER;
+    member->text = saved.text;
+    copy_text(member->name, sizeof(member->name), "value_0");
+    copy_text(member->op, sizeof(member->op), ".");
+    copy_text(member->type, sizeof(member->type), first);
+    copy_text(member->argument_name, sizeof(member->argument_name),
+              saved.argument_name);
+    member->argument_index = saved.argument_index;
+    member->left = copy_index;
+    member->right = member->first_child = member->third = -1;
+    member->next_sibling = saved.next_sibling;
+    member->span = saved.span;
+    c->conversions_applied = 1;
+    return member->type;
+}
+
 const char *
 widen_expression(Checker *c, int index, const char *to)
 {
@@ -1366,6 +1426,18 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
     const char *from = c->fn->exprs[index].type;
     const ZirFunction *conversion = NULL;
     const ZirModule *owner = NULL;
+    {
+        char first[ZIR_NAME_MAX];
+        if(strcmp(from, to) && results_first_type(c, from, first, sizeof(first)) != NULL &&
+           (compatible_checked(c, to, first) || widens_losslessly(to, first))) {
+            char target[ZIR_NAME_MAX];
+            copy_text(target, sizeof(target), to);
+            const char *selected = select_first_result(c, index);
+            if(selected == NULL || compatible_checked(c, target, selected))
+                return selected;
+            return c->inference_only ? KeepText(target) : widen_expression(c, index, target);
+        }
+    }
     if(*from && widens_losslessly(to, from))
         return c->inference_only ? to : widen_expression(c, index, to);
     if(!*from || !strcmp(from, to) || c->inference_only)

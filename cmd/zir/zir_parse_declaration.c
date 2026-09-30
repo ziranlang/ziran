@@ -1344,3 +1344,157 @@ line_starts_compile_condition(const char *line)
            starts_word(line, "else #if") ||
            starts_word(line, "} else #if");
 }
+
+/* A procedure with several results, `-> s32, s32` or
+ * `-> (quotient: s32, remainder: s32)`, returns a generated record whose
+ * fields value_0, value_1, ... hold the results in order. Replaces RET
+ * with the record's name and returns the result count, or 0 for one result. */
+int
+declare_multiple_results(ZirModule *module, const char *name, char *ret,
+                         size_t ret_size, int is_public, int is_file_private,
+                         ZirSourceSpan span)
+{
+    char list[ZIR_TEXT_MAX];
+    char (*parts)[ZIR_TEXT_MAX] = AllocateOrExit(16 * sizeof(*parts));
+    char *body = AllocateOrExit(ZIR_TEXT_MAX * 2);
+    copy_text(list, sizeof(list), ret);
+    trim_in_place(list);
+    size_t length = strlen(list);
+    int named = list[0] == '(' && length > 1 && list[length - 1] == ')' &&
+                closing_parenthesis(list) == list + length - 1 &&
+                strchr(list, ':') != NULL;
+    if(named) {
+        memmove(list, list + 1, length - 2);
+        list[length - 2] = '\0';
+    }
+    int count = split_top_level(list, parts[0], 16, sizeof(parts[0]));
+    if(count < 2) {
+        free(parts);
+        free(body);
+        return 0;
+    }
+    size_t used = 0;
+    body[0] = '\0';
+    for(int i = 0; i < count; i++) {
+        const char *type = parts[i];
+        const char *colon = strchr(parts[i], ':');
+        if(named) {
+            if(colon == NULL)
+                die_at(span, "named results need name: Type for every result");
+            type = skip_ws(colon + 1);
+        }
+        if(!*type || strchr(type, '$') != NULL)
+            die_at(span, "a result of a procedure with several results needs a concrete type");
+        int written = snprintf(body + used, ZIR_TEXT_MAX * 2 - used, "value_%d: %s\n", i, type);
+        if(written < 0 || (size_t)written >= ZIR_TEXT_MAX * 2 - used)
+            die_at(span, "multiple results exceed the size limit");
+        used += (size_t)written;
+    }
+    /* Procedures with the same result types share one record, so one can
+     * return another's results: s32, s32 gives Results__s32__s32. */
+    char record[ZIR_NAME_MAX];
+    size_t written_name = (size_t)snprintf(record, sizeof(record), "Results");
+    for(int i = 0; i < count && written_name + 3 < sizeof(record); i++) {
+        const char *type = named ? skip_ws(strchr(parts[i], ':') + 1) : parts[i];
+        record[written_name++] = '_';
+        record[written_name++] = '_';
+        for(const char *p = type; *p && written_name + 1 < sizeof(record); p++)
+            if(!isspace((unsigned char)*p))
+                record[written_name++] = isalnum((unsigned char)*p) || *p == '_' ? *p :
+                                         *p == '*' ? 'p' : *p == '[' ? 'a' : '_';
+        record[written_name] = '\0';
+    }
+    if(written_name + 2 >= sizeof(record))
+        die_at(span, "the result types of %s are too long to combine", name);
+    (void)is_public;
+    (void)is_file_private;
+    for(int i = 0; i < module->type_count; i++)
+        if(!strcmp(module->types[i].name, record)) {
+            if(!module->types[i].is_results)
+                die_at(span, "several results need the type name %s, which is already declared", record);
+            copy_text(ret, ret_size, record);
+            free(parts);
+            free(body);
+            return count;
+        }
+    ZirType *type = ModuleAddType(module, record, span);
+    if(type == NULL)
+        die("out of memory declaring multiple results");
+    type->is_public = 1;
+    type->is_file_private = 0;
+    type->is_results = 1;
+    if(used >= sizeof(type->body))
+        die_at(span, "multiple results exceed the size limit");
+    copy_text(type->body, sizeof(type->body), body);
+    copy_text(ret, ret_size, record);
+    free(parts);
+    free(body);
+    return count;
+}
+
+/* `return a, b` in a procedure with several results returns its results
+ * record. Returns 0 when TEXT is not such a return. */
+int
+lower_multiple_return(char *text, size_t size, const char *record, int count,
+                      ZirSourceSpan span)
+{
+    const char *value = skip_ws(text + strlen("return"));
+    char list[ZIR_TEXT_MAX];
+    char (*parts)[ZIR_TEXT_MAX] = AllocateOrExit(16 * sizeof(*parts));
+    copy_text(list, sizeof(list), value);
+    size_t length = strlen(list);
+    while(length > 0 && (list[length - 1] == ';' || isspace((unsigned char)list[length - 1])))
+        list[--length] = '\0';
+    int values = split_top_level(list, parts[0], 16, sizeof(parts[0]));
+    free(parts);
+    if(values < 2)
+        return 0;
+    if(values != count)
+        die_at(span, "return gives %d values but the procedure has %d results", values, count);
+    char lowered[ZIR_TEXT_MAX];
+    if(snprintf(lowered, sizeof(lowered), "return %s.{%s};", record, list) >= (int)sizeof(lowered))
+        die_at(span, "return statement exceeds the size limit");
+    copy_text(text, size, lowered);
+    return 1;
+}
+
+/* `a, b := F()` and `a, b = F()` bind the results of a procedure with
+ * several results in order; `_` skips one. Fills TARGETS, OPERATOR, and
+ * VALUE and returns the target count, or 0 when TEXT has another form. */
+int
+split_multiple_binding(const char *text, char targets[][ZIR_NAME_MAX], int max,
+                       char *operator, char *value, size_t value_size)
+{
+    const char *cursor = skip_ws(text);
+    int count = 0;
+    for(;;) {
+        const char *start = cursor;
+        while(isalnum((unsigned char)*cursor) || *cursor == '_') cursor++;
+        size_t length = (size_t)(cursor - start);
+        if(length == 0 || length >= ZIR_NAME_MAX || count >= max ||
+           isdigit((unsigned char)*start))
+            return 0;
+        memcpy(targets[count], start, length);
+        targets[count][length] = '\0';
+        count++;
+        cursor = skip_ws(cursor);
+        if(*cursor != ',')
+            break;
+        cursor = skip_ws(cursor + 1);
+    }
+    if(count < 2)
+        return 0;
+    if(cursor[0] == ':' && cursor[1] == '=') {
+        strcpy(operator, ":=");
+        cursor += 2;
+    } else if(cursor[0] == '=' && cursor[1] != '=') {
+        strcpy(operator, "=");
+        cursor += 1;
+    } else
+        return 0;
+    copy_text(value, value_size, skip_ws(cursor));
+    size_t length = strlen(value);
+    while(length > 0 && (value[length - 1] == ';' || isspace((unsigned char)value[length - 1])))
+        value[--length] = '\0';
+    return *value ? count : 0;
+}

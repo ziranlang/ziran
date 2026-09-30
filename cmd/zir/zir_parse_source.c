@@ -6,6 +6,10 @@ typedef struct ParseSourceBuffers {
     char rel[SOURCE_PATH_MAX];
     char pending[SOURCE_LINE_MAX * 4];
     char logical[SOURCE_LINE_MAX * 4];
+    char results_record[ZIR_NAME_MAX]; /* current procedure's several results */
+    char binding_targets[16][ZIR_NAME_MAX];
+    char binding_value[ZIR_TEXT_MAX];
+    char binding_line[ZIR_TEXT_MAX];
     char lookahead[SOURCE_LINE_MAX];
     char onelineq[16][SOURCE_LINE_MAX * 2];
     ZirCondFrame tframes[8];
@@ -75,6 +79,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int type_frame_count = 0;
     int type_count_before = 0;
     int import_count_before = 0;
+    int results_count = 0;
+    int results_serial = 0;
     ZirConsts consts;
     ZirConsts future_constants = {0};
     ZirUsings future_usings = {0};
@@ -983,6 +989,14 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 die_at(Span(buffers->rel, line_no, 1),
                        "procedure types require Jai #type syntax");
             if(name[0] != '\0') {
+                results_count = declare_multiple_results(module, name, ret, sizeof(ret),
+                                                         scope_public, scope_file,
+                                                         Span(buffers->rel, line_no, 1));
+                copy_text(buffers->results_record, sizeof(buffers->results_record),
+                          results_count ? ret : "");
+                if(results_count && strchr(buffers->args, '$') != NULL)
+                    die_at(Span(buffers->rel, line_no, 1),
+                           "a polymorphic procedure cannot have several results yet");
                 separate_parameter_defaults(buffers->args, sizeof(buffers->args), buffers->defaults,
                                             sizeof(buffers->defaults),
                                             Span(buffers->rel, line_no, 1));
@@ -1573,6 +1587,41 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         if(equals != NULL && *skip_ws(equals + 2) == '{' &&
                            *skip_ws(skip_ws(equals + 2) + 1) == '\0')
                             kind = ZIR_STMT_IF_CASE;
+                    }
+                    if(kind == ZIR_STMT_RETURN && results_count > 0)
+                        lower_multiple_return(t, SOURCE_LINE_MAX * 4,
+                                              buffers->results_record,
+                                              results_count, span);
+                    char binding_operator[3] = "";
+                    int bound = (kind == ZIR_STMT_DECL || kind == ZIR_STMT_ASSIGN ||
+                                 kind == ZIR_STMT_EXPR) && !using_binding && !parallel_for ?
+                        split_multiple_binding(t, buffers->binding_targets, 16,
+                                               binding_operator, buffers->binding_value,
+                                               sizeof(buffers->binding_value)) : 0;
+                    if(bound) {
+                        /* a, b := F() reads F's results record field by field. */
+                        char temporary[ZIR_NAME_MAX];
+                        snprintf(temporary, sizeof(temporary), "results_%d_",
+                                 ++results_serial);
+                        snprintf(buffers->binding_line, sizeof(buffers->binding_line),
+                                 "%s := %s;", temporary, buffers->binding_value);
+                        if(FunctionAddStmt(fn, ZIR_STMT_DECL, buffers->binding_line, span) == NULL)
+                            die("out of memory binding several results");
+                        for(int target = 0; target < bound; target++) {
+                            if(!strcmp(buffers->binding_targets[target], "_"))
+                                continue;
+                            snprintf(buffers->binding_line, sizeof(buffers->binding_line),
+                                     "%s %s %s.value_%d;", buffers->binding_targets[target],
+                                     binding_operator, temporary, target);
+                            if(FunctionAddStmt(fn, binding_operator[0] == ':' ?
+                                               ZIR_STMT_DECL : ZIR_STMT_ASSIGN,
+                                               buffers->binding_line, span) == NULL)
+                                die("out of memory binding several results");
+                        }
+                        depth += brace_delta;
+                        if(depth < 0)
+                            depth = 0;
+                        continue;
                     }
                     ZirStmt *statement = FunctionAddStmt(fn, kind, t, span);
                     if(statement != NULL && parallel_for) {

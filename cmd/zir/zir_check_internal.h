@@ -188,6 +188,10 @@ int widens_losslessly(const char *to, const char *from);
 /* Rewrite expression `index` into an explicit cast to `to` in the checked
  * graph. Returns the new type, or NULL on allocation failure. */
 const char *widen_expression(Checker *c, int index, const char *to);
+/* A procedure's results record used as one value selects its first
+ * result; see select_first_result. */
+const char *results_first_type(Checker *c, const char *type, char *out, size_t size);
+const char *select_first_result(Checker *c, int index);
 const ZirType *flags_type(Checker *c, const char *name);
 int same_declared_type(const ZirModule *module, const char *to, const char *from, int depth);
 int compatible_checked(Checker *c, const char *to, const char *from);

@@ -289,6 +289,7 @@ typedef struct ZirType {
     int is_map; /* Go map; body records the private key/value types */
     int is_extern; /* host-owned record or opaque foreign type */
     int is_abi_incomplete; /* native ABI treats the complete record as opaque */
+    int is_results; /* holds the results of a procedure with several, value_0... */
     int native_name_mangled; /* in-memory: shared spelling or target keyword */
     ZirSourceSpan span;
 } ZirType;

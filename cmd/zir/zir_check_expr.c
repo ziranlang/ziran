@@ -647,6 +647,14 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             for(int child = first; child >= 0;
                 child = c->fn->exprs[child].next_sibling) {
                 const char *arg_type = expression_type(c, child);
+                {
+                    const char *selected = child == first ? NULL :
+                        select_first_result(c, child);
+                    if(selected != NULL) {
+                        arg_type = selected;
+                        e = &c->fn->exprs[index];
+                    }
+                }
                 const char *scalar = ScalarType(arg_type);
                 if(c->fn->exprs[child].argument_name[0])
                     error(c, c->fn->exprs[child].span,
@@ -1242,6 +1250,18 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         break;
     }
     case ZIR_EXPR_BINARY: {
+        {
+            const char *selected = select_first_result(c, e->left);
+            if(selected != NULL) {
+                e = &c->fn->exprs[index];
+                left = selected;
+            }
+            selected = select_first_result(c, e->right);
+            if(selected != NULL) {
+                e = &c->fn->exprs[index];
+                right = selected;
+            }
+        }
         if(left[0] == '[' || right[0] == '[')
             error(c, e->span, "array values do not support binary operations", e->op);
         const ZirType *left_slot = FindType(c->module, left, NULL);

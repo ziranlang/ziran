@@ -208,6 +208,13 @@ char *lower_jai_multiline_strings(const char *source, const char *path);
 int starts_word(const char *s, const char *word);
 int looks_like_non_jai_control(const char *text, const char *word);
 int is_identifier_text(const char *text);
+int declare_multiple_results(ZirModule *module, const char *name, char *ret,
+                             size_t ret_size, int is_public, int is_file_private,
+                             ZirSourceSpan span);
+int lower_multiple_return(char *text, size_t size, const char *record, int count,
+                          ZirSourceSpan span);
+int split_multiple_binding(const char *text, char targets[][ZIR_NAME_MAX], int max,
+                           char *operator, char *value, size_t value_size);
 int parse_using_modifiers(const char **cursor, char *filter, size_t filter_size, const char *path, int line_no);
 int is_member_path_text(const char *text);
 void parse_file_global(ZirModule *module, const char *declaration, ZirSourceSpan span, int scope_public, int scope_file, char *name_out, size_t name_size);

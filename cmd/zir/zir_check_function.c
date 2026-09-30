@@ -271,6 +271,16 @@ restart:
             }
         }
         if(st->kind == ZIR_STMT_DECL) {
+            /* x := F() binds F's first result; the bindings generated for
+             * a, b := F() (named results_N_) keep the whole record. */
+            size_t name_length = strlen(st->name);
+            int results_binding = !strncmp(st->name, "results_", 8) &&
+                                  name_length > 9 && st->name[name_length - 1] == '_';
+            if(!*st->type && !results_binding) {
+                const char *first = select_first_result(c, st->expr_root);
+                if(first != NULL)
+                    type = first;
+            }
             if(!*st->type) copy_text(st->type, sizeof(st->type),
                 !strcmp(type, "integer") ? "s64" : !strcmp(type, "real") ? "float64" : type);
             else if(!compatible_checked(c, st->type, type)) {
@@ -432,9 +442,18 @@ restart:
                     type = converted;
                 else {
                     char detail[ZIR_TEXT_MAX];
-                    error(c, st->span, "return type mismatch",
-                          mismatch_detail(detail, sizeof(detail), c->fn->name,
-                                          c->fn->return_type, type));
+                    char first[ZIR_NAME_MAX];
+                    const char *dot = strrchr(type, '.');
+                    if(results_first_type(c, c->fn->return_type, first, sizeof(first)) &&
+                       dot != NULL && !strcmp(dot + 1, c->fn->return_type))
+                        error(c, st->span,
+                              "results from another module must be bound before "
+                              "they are returned; write a, b := F(); return a, b",
+                              c->fn->name);
+                    else
+                        error(c, st->span, "return type mismatch",
+                              mismatch_detail(detail, sizeof(detail), c->fn->name,
+                                              c->fn->return_type, type));
                 }
             }
             if((st->expr_root < 0) != !strcmp(c->fn->return_type, "void"))

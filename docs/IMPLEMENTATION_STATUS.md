@@ -55,6 +55,15 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/numeric_conformance.json`, and kept synchronized with markers in the
   differential test. Mixed-width narrowing/widening after addition and u8
   bitwise AND/OR/XOR are included.
+- Procedures return several results as in Jai: `-> s32, s32` or named
+  `-> (low: s32, high: s32)`, `return a, b`, `q, r := F()`, `q, r = F()`, and
+  `_` to skip one. A call used as one value gives its first result. The results
+  travel in a generated record shared by procedures with the same result types
+  (`Results__s32__s32`, fields `value_0`...), so every target and `.zib` run
+  them unchanged. Returning another module's results directly needs binding
+  them first; polymorphic procedures cannot yet have several results.
+  `tests/multiple_results.sh` checks source and saved IR on C, C++, Go, and
+  `.zib`.
 - Lossless numeric conversions are implicit: a narrower integer into a wider
   one of the same signedness, an unsigned integer into a wider signed type,
   and `float32` into `float64`, at initializers, assignments, returns,

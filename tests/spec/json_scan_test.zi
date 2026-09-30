@@ -21,5 +21,24 @@ SelfTest :: () -> s32 {
     if ReadNumber("01", 0).valid { return 6 }
     tiny: JsonNumber = ReadNumber("1.25e-1", 0)
     if !tiny.valid || tiny.value != 0.125 { return 7 }
+    // a " b newline e-acute (C3 A9) grinning face (F0 9F 98 80).
+    decoded: [16]u8
+    escaped: string = "\"a\\\"b\\n\\u00e9\\ud83d\\ude00\""
+    if ReadStringText(escaped, 0, decoded[:]) != 10 { return 9 }
+    if decoded[0] != cast(u8)97 || decoded[1] != cast(u8)34 || decoded[2] != cast(u8)98 ||
+       decoded[3] != cast(u8)10 || decoded[4] != cast(u8)195 || decoded[5] != cast(u8)169 ||
+       decoded[6] != cast(u8)240 || decoded[7] != cast(u8)159 || decoded[8] != cast(u8)152 ||
+       decoded[9] != cast(u8)128 || decoded[10] != cast(u8)0 {
+        return 10
+    }
+    // A lone surrogate becomes U+FFFD (EF BF BD).
+    if ReadStringText("\"\\ud800x\"", 0, decoded[:]) != 4 || decoded[0] != cast(u8)239 ||
+       decoded[3] != cast(u8)120 {
+        return 11
+    }
+    tight: [4]u8
+    if ReadStringText("\"abcd\"", 0, tight[:]) != -1 || tight[0] != cast(u8)0 { return 12 }
+    if ReadStringText("\"abc\"", 0, tight[:]) != 3 { return 13 }
+    if ReadStringText("12", 0, decoded[:]) != -1 { return 14 }
     return 42
 }

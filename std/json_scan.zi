@@ -77,6 +77,111 @@ ReadString :: (text: string, at: s32) -> JsonSpan {
     return result
 }
 
+HexValue :: (ch: u8) -> s32 {
+    if ch >= cast(u8)48 && ch <= cast(u8)57 { return cast(s32)ch - 48 }
+    if ch >= cast(u8)97 && ch <= cast(u8)102 { return cast(s32)ch - 87 }
+    if ch >= cast(u8)65 && ch <= cast(u8)70 { return cast(s32)ch - 55 }
+    return -1
+}
+
+// The four hex digits at `at` as a number, or -1.
+ReadHex4 :: (text: string, at: s32, end: s32) -> s32 {
+    if at + 4 > end { return -1 }
+    value: s32 = 0
+    index: s32 = 0
+    while index < 4 {
+        digit: s32 = HexValue(text[at + index])
+        if digit < 0 { return -1 }
+        value = value * 16 + digit
+        index = index + 1
+    }
+    return value
+}
+
+// Appends codepoint as UTF-8, leaving room for a NUL. Returns the new length,
+// or -1 when it does not fit.
+AppendUtf8 :: (output: []u8, length: s32, codepoint: s32) -> s32 {
+    size: s32 = 1
+    if codepoint >= 128 { size = 2 }
+    if codepoint >= 2048 { size = 3 }
+    if codepoint >= 65536 { size = 4 }
+    if length < 0 || length + size + 1 > (cast(s32)output.count) { return -1 }
+    if size == 1 {
+        output[length] = cast(u8)codepoint
+    } else if size == 2 {
+        output[length] = cast(u8)(192 + codepoint / 64)
+        output[length + 1] = cast(u8)(128 + codepoint % 64)
+    } else if size == 3 {
+        output[length] = cast(u8)(224 + codepoint / 4096)
+        output[length + 1] = cast(u8)(128 + (codepoint / 64) % 64)
+        output[length + 2] = cast(u8)(128 + codepoint % 64)
+    } else {
+        output[length] = cast(u8)(240 + codepoint / 262144)
+        output[length + 1] = cast(u8)(128 + (codepoint / 4096) % 64)
+        output[length + 2] = cast(u8)(128 + (codepoint / 64) % 64)
+        output[length + 3] = cast(u8)(128 + codepoint % 64)
+    }
+    return length + size
+}
+
+// Copies the JSON string at `at` into output as UTF-8 with its escapes
+// decoded, including \uXXXX surrogate pairs; a lone surrogate becomes
+// U+FFFD. Returns the byte length, or -1 when the value is not a string or
+// does not fit. Output is always NUL-terminated.
+#program_export
+ReadStringText :: (text: string, at: s32, output: []u8) -> s32 {
+    if output.count == 0 { return -1 }
+    output[0] = cast(u8)0
+    span: JsonSpan = ReadString(text, at)
+    if !span.valid { return -1 }
+    length: s32 = 0
+    cursor: s32 = span.start
+    while cursor < span.end && length >= 0 {
+        ch: u8 = text[cursor]
+        codepoint: s32 = cast(s32)ch
+        if ch == cast(u8)92 {
+            escaped: u8 = text[cursor + 1]
+            cursor = cursor + 2
+            codepoint = cast(s32)escaped
+            if escaped == cast(u8)98 { codepoint = 8 }
+            if escaped == cast(u8)102 { codepoint = 12 }
+            if escaped == cast(u8)110 { codepoint = 10 }
+            if escaped == cast(u8)114 { codepoint = 13 }
+            if escaped == cast(u8)116 { codepoint = 9 }
+            if escaped == cast(u8)117 {
+                codepoint = ReadHex4(text, cursor, span.end)
+                cursor = cursor + 4
+                if codepoint >= 55296 && codepoint <= 56319 &&
+                   cursor + 6 <= span.end && text[cursor] == cast(u8)92 &&
+                   text[cursor + 1] == cast(u8)117 {
+                    low: s32 = ReadHex4(text, cursor + 2, span.end)
+                    if low >= 56320 && low <= 57343 {
+                        codepoint = 65536 + (codepoint - 55296) * 1024 + (low - 56320)
+                        cursor = cursor + 6
+                    }
+                }
+                if codepoint >= 55296 && codepoint <= 57343 { codepoint = 65533 }
+            }
+            length = AppendUtf8(output, length, codepoint)
+        } else {
+            // Raw bytes, including UTF-8 sequences, copy through unchanged.
+            if length + 2 > (cast(s32)output.count) {
+                length = -1
+            } else {
+                output[length] = ch
+                length = length + 1
+            }
+            cursor = cursor + 1
+        }
+    }
+    if length < 0 {
+        output[0] = cast(u8)0
+        return -1
+    }
+    output[length] = cast(u8)0
+    return length
+}
+
 #program_export
 SpanEqualsASCII :: (text: string, span: JsonSpan, expected: string) -> bool {
     if !span.valid || span.end - span.start != (cast(s32)expected.count) { return false }

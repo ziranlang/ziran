@@ -1170,6 +1170,20 @@ kept_text_failed(void)
 }
 
 const char *
+KeepName(const char *text)
+{
+    if(text == NULL)
+        return "";
+    size_t length = strnlen(text, ZIR_NAME_MAX);
+    if(length < ZIR_NAME_MAX)
+        return KeepText(text);
+    char cut[ZIR_NAME_MAX];
+    memcpy(cut, text, ZIR_NAME_MAX - 1);
+    cut[ZIR_NAME_MAX - 1] = '\0';
+    return KeepText(cut);
+}
+
+const char *
 KeepText(const char *text)
 {
     if(text == NULL || *text == '\0')
@@ -1545,6 +1559,14 @@ FunctionAddStmt(ZirFunction *fn, ZirStmtKind kind, const char *text,
     return st;
 }
 
+void
+ExprReset(ZirExpr *expr)
+{
+    memset(expr, 0, sizeof(*expr));
+    expr->slot_type = "";
+    expr->argument_name = "";
+}
+
 ZirExpr *
 FunctionAddExpr(ZirFunction *fn, ZirExprKind kind, const char *text,
                    ZirSourceSpan span)
@@ -1560,7 +1582,7 @@ FunctionAddExpr(ZirFunction *fn, ZirExprKind kind, const char *text,
         return NULL;
     fn->exprs = exprs;
     expr = &fn->exprs[fn->expr_count++];
-    memset(expr, 0, sizeof(*expr));
+    ExprReset(expr);
     expr->kind = kind;
     expr->left = -1;
     expr->right = -1;

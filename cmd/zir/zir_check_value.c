@@ -1551,8 +1551,7 @@ inline_compound_constant(Checker *c, int index,
     ZirExpr *replacement = &c->fn->exprs[index];
     replacement->next_sibling = previous.next_sibling;
     replacement->argument_index = previous.argument_index;
-    copy_text(replacement->argument_name,
-              sizeof(replacement->argument_name), previous.argument_name);
+    replacement->argument_name = previous.argument_name;
     replacement->span = previous.span;
     c->aggregate_rewritten = 1;
     free(map);

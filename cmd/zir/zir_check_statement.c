@@ -1480,16 +1480,15 @@ select_first_result(Checker *c, int index)
     *copy_slot = saved;
     copy_slot->next_sibling = -1;
     copy_slot->argument_index = -1;
-    copy_slot->argument_name[0] = '\0';
+    copy_slot->argument_name = "";
     ZirExpr *member = &fn->exprs[index];
-    memset(member, 0, sizeof(*member));
+    ExprReset(member);
     member->kind = ZIR_EXPR_MEMBER;
     member->text = saved.text;
     copy_text(member->name, sizeof(member->name), "value_0");
     copy_text(member->op, sizeof(member->op), ".");
     copy_text(member->type, sizeof(member->type), first);
-    copy_text(member->argument_name, sizeof(member->argument_name),
-              saved.argument_name);
+    member->argument_name = saved.argument_name;
     member->argument_index = saved.argument_index;
     member->left = copy_index;
     member->right = member->first_child = member->third = -1;
@@ -1532,7 +1531,7 @@ lend_vec_as_slice(Checker *c, int index, const char *to)
     fn->exprs[nodes[0]] = saved;
     fn->exprs[nodes[0]].next_sibling = nodes[1];
     fn->exprs[nodes[0]].argument_index = -1;
-    fn->exprs[nodes[0]].argument_name[0] = '\0';
+    fn->exprs[nodes[0]].argument_name = "";
     ZirExpr *zero = &fn->exprs[nodes[1]];
     zero->kind = ZIR_EXPR_INT;
     zero->name[0] = '\0';
@@ -1542,7 +1541,7 @@ lend_vec_as_slice(Checker *c, int index, const char *to)
     fn->exprs[nodes[2]] = saved;
     fn->exprs[nodes[2]].next_sibling = -1;
     fn->exprs[nodes[2]].argument_index = -1;
-    fn->exprs[nodes[2]].argument_name[0] = '\0';
+    fn->exprs[nodes[2]].argument_name = "";
     ZirExpr *count = &fn->exprs[nodes[3]];
     count->kind = ZIR_EXPR_MEMBER;
     copy_text(count->name, sizeof(count->name), "count");
@@ -1551,11 +1550,11 @@ lend_vec_as_slice(Checker *c, int index, const char *to)
     count->left = nodes[2];
     count->next_sibling = -1;
     ZirExpr *call = &fn->exprs[index];
-    memset(call, 0, sizeof(*call));
+    ExprReset(call);
     call->kind = ZIR_EXPR_CALL;
     call->text = saved.text;
     copy_text(call->name, sizeof(call->name), "VecSlice");
-    copy_text(call->argument_name, sizeof(call->argument_name), saved.argument_name);
+    call->argument_name = saved.argument_name;
     call->argument_index = saved.argument_index;
     call->first_child = nodes[0];
     call->left = call->right = call->third = -1;
@@ -1585,15 +1584,14 @@ widen_expression(Checker *c, int index, const char *to)
     *copy_slot = saved;
     copy_slot->next_sibling = -1;
     copy_slot->argument_index = -1;
-    copy_slot->argument_name[0] = '\0';
+    copy_slot->argument_name = "";
     ZirExpr *cast = &fn->exprs[index];
-    memset(cast, 0, sizeof(*cast));
+    ExprReset(cast);
     cast->kind = ZIR_EXPR_CAST;
     cast->text = saved.text;
     copy_text(cast->name, sizeof(cast->name), target);
     copy_text(cast->type, sizeof(cast->type), target);
-    copy_text(cast->argument_name, sizeof(cast->argument_name),
-              saved.argument_name);
+    cast->argument_name = saved.argument_name;
     cast->argument_index = saved.argument_index;
     cast->left = cast->first_child = cast->third = -1;
     cast->right = copy_index;
@@ -1701,7 +1699,7 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
         copy_slot->argument_index = 0;
         copy_index = (int)(copy_slot - c->fn->exprs);
         call = &c->fn->exprs[index];
-        memset(call, 0, sizeof(*call));
+        ExprReset(call);
         call->kind = ZIR_EXPR_CALL;
         copy_text(call->name, sizeof(call->name), conversion->name);
         call->argument_index = saved_argument;

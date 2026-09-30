@@ -3,6 +3,14 @@ AR ?= ar
 OBJCOPY ?= objcopy
 CFLAGS ?= -O2
 override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
+# Kept names and texts (KeepName, KeepText) are shared and immutable, so
+# writing through one, as copy_text(e->argument_name, ...) would, must not
+# compile. GCC and Clang name the check differently.
+QUALIFIER_CHECK := $(shell for f in -Werror=discarded-qualifiers \
+    -Werror=incompatible-pointer-types-discards-qualifiers; do \
+    echo 'int x;' | $(CC) -Werror $$f -x c -c -o /dev/null - 2>/dev/null && \
+    { echo $$f; break; }; done)
+override CFLAGS += $(QUALIFIER_CHECK)
 # `make sanitize` sets this; it reaches every compile and link.
 SANITIZE_FLAGS ?=
 override CFLAGS += $(SANITIZE_FLAGS)

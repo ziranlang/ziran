@@ -342,8 +342,7 @@ append_default_arguments_with_buffers(ExprParser *p, int callee,
                                NULL, p->stmt_index, p->expand_defaults);
         default_expansion_depth--;
         if(child < 0) { p->failed = 1; break; }
-        copy_text(p->fn->exprs[child].argument_name,
-                  sizeof(p->fn->exprs[child].argument_name), parameter_name);
+        p->fn->exprs[child].argument_name = KeepName(parameter_name);
         if(*last >= 0) p->fn->exprs[*last].next_sibling = child;
         else *first = child;
         *last = child;
@@ -841,9 +840,7 @@ prefix_with_buffers(ExprParser *p, PrefixBuffers *buffers)
                 }
                 int child = expression(p, 1);
                 if(child < 0) { p->failed = 1; break; }
-                copy_text(p->fn->exprs[child].argument_name,
-                          sizeof(p->fn->exprs[child].argument_name),
-                          argument_name);
+                p->fn->exprs[child].argument_name = KeepName(argument_name);
                 if(last >= 0) p->fn->exprs[last].next_sibling = child;
                 else first = child;
                 last = child;

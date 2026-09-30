@@ -13,6 +13,7 @@
 typedef enum FieldKind {
     FIELD_STRING,
     FIELD_TEXT, /* const char * kept with KeepText; same encoding as a string */
+    FIELD_NAME, /* const char * kept with KeepName; a string under ZIR_NAME_MAX */
     FIELD_INTEGER,
     FIELD_U64,
     FIELD_SPAN
@@ -35,6 +36,8 @@ typedef struct Reader {
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_STRING}
 #define TEXT_FIELD(type, name) \
     {offsetof(type, name), ZIR_TEXT_MAX, FIELD_TEXT}
+#define NAME_FIELD(type, name) \
+    {offsetof(type, name), ZIR_NAME_MAX, FIELD_NAME}
 #define INTEGER_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_INTEGER}
 #define U64_FIELD(type, name) \
@@ -73,8 +76,8 @@ static const Field statement_fields[] = {
 static const Field expression_fields[] = {
     INTEGER_FIELD(ZirExpr, kind), INTEGER_FIELD(ZirExpr, is_function_value),
     INTEGER_FIELD(ZirExpr, is_this),
-    STRING_FIELD(ZirExpr, slot_type), TEXT_FIELD(ZirExpr, text),
-    STRING_FIELD(ZirExpr, name), STRING_FIELD(ZirExpr, argument_name),
+    NAME_FIELD(ZirExpr, slot_type), TEXT_FIELD(ZirExpr, text),
+    STRING_FIELD(ZirExpr, name), NAME_FIELD(ZirExpr, argument_name),
     INTEGER_FIELD(ZirExpr, argument_index), STRING_FIELD(ZirExpr, op),
     INTEGER_FIELD(ZirExpr, left), INTEGER_FIELD(ZirExpr, right),
     INTEGER_FIELD(ZirExpr, first_child), INTEGER_FIELD(ZirExpr, next_sibling),
@@ -366,6 +369,10 @@ write_fields(FILE *out, const void *record, const Field *fields, size_t count)
         if(fields[i].kind == FIELD_STRING) {
             if(!write_string(out, value, fields[i].size))
                 return 0;
+        } else if(fields[i].kind == FIELD_NAME) {
+            const char *name = *(const char *const *)value;
+            if(!write_string(out, name ? name : "", fields[i].size))
+                return 0;
         } else if(fields[i].kind == FIELD_TEXT) {
             /* Source text has no field limit: a long literal keeps it all. */
             const char *text = *(const char *const *)value;
@@ -392,6 +399,11 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
         if(fields[i].kind == FIELD_STRING) {
             if(!read_string(reader, value, fields[i].size))
                 return 0;
+        } else if(fields[i].kind == FIELD_NAME) {
+            char name[ZIR_NAME_MAX];
+            if(!read_string(reader, name, sizeof(name)))
+                return 0;
+            *(const char **)value = KeepName(name);
         } else if(fields[i].kind == FIELD_TEXT) {
             char small[ZIR_TEXT_MAX];
             uint32_t length;

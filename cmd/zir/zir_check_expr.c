@@ -265,8 +265,7 @@ append_overload_defaults(Checker *c, int index, const ZirFunction *fn,
             c->failed = 1;
             break;
         }
-        copy_text(c->fn->exprs[root].argument_name,
-                  sizeof(c->fn->exprs[root].argument_name), name);
+        c->fn->exprs[root].argument_name = KeepName(name);
         c->fn->exprs[root].next_sibling = -1;
         if(last < 0)
             c->fn->exprs[index].first_child = root;
@@ -435,9 +434,9 @@ print_enum_by_name(Checker *c, int index)
     *copy_slot = saved;
     copy_slot->next_sibling = -1;
     copy_slot->argument_index = 0; /* the name procedure's one parameter */
-    copy_slot->argument_name[0] = '\0';
+    copy_slot->argument_name = "";
     ZirExpr *call = &fn->exprs[index];
-    memset(call, 0, sizeof(*call));
+    ExprReset(call);
     call->kind = ZIR_EXPR_CALL;
     call->text = saved.text;
     copy_text(call->name, sizeof(call->name), call_name);
@@ -724,7 +723,7 @@ print_through_procedure(Checker *c, int index)
             copy_slot->next_sibling = -1;
             copy_slot->argument_index = -1;
             ZirExpr *address = &fn->exprs[argument];
-            memset(address, 0, sizeof(*address));
+            ExprReset(address);
             address->kind = ZIR_EXPR_UNARY;
             address->text = saved.text;
             copy_text(address->op, sizeof(address->op), "&");
@@ -863,10 +862,10 @@ operator_call(Checker *c, int index, const char *left, const char *right)
     call->argument_index = -1;
     c->fn->exprs[l].next_sibling = r;
     c->fn->exprs[l].argument_index = 0;
-    c->fn->exprs[l].argument_name[0] = '\0';
+    c->fn->exprs[l].argument_name = "";
     c->fn->exprs[r].next_sibling = -1;
     c->fn->exprs[r].argument_index = 1;
-    c->fn->exprs[r].argument_name[0] = '\0';
+    c->fn->exprs[r].argument_name = "";
     if(negate) {
         e = &c->fn->exprs[index];
         e->kind = ZIR_EXPR_UNARY;
@@ -1978,7 +1977,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         const ZirType *slot = FindType(c->module, binding, NULL);
         if(slot != NULL && !slot->is_procedure_type)
             slot = NULL;
-        copy_text(e->slot_type, sizeof(e->slot_type), slot ? binding : "");
+        e->slot_type = KeepName(slot ? binding : "");
         const ZirFunction *callee = *binding ? NULL : function(c, e->name, e->span);
         const ZirModule *callee_owner = NULL;
         if(callee != NULL) {
@@ -2188,7 +2187,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             if(e->name[0] == '\0' && e->left >= 0) {
                 const ZirType *indirect = FindType(c->module, left, NULL);
                 if(indirect != NULL && indirect->is_procedure_type) {
-                    copy_text(e->slot_type, sizeof(e->slot_type), left);
+                    e->slot_type = KeepName(left);
                     slot = indirect;
                     args = indirect->body;
                     return_type = indirect->procedure_return_type;
@@ -2217,7 +2216,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                         FindType(c->module, member_type, NULL) : NULL;
                     if(found > 0 && field_slot != NULL &&
                        field_slot->is_procedure_type) {
-                        copy_text(e->slot_type, sizeof(e->slot_type), member_type);
+                        e->slot_type = KeepName(member_type);
                         slot = field_slot;
                         args = field_slot->body;
                         return_type = field_slot->procedure_return_type;

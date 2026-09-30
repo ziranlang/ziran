@@ -555,9 +555,7 @@ copy_live_expression(const ZirFunction *from, ZirFunction *to,
                  * The selected arm inherits that call-site binding when the
                  * enclosing expression disappears during pruning. */
                 to->exprs[result].argument_index = expr->argument_index;
-                copy_text(to->exprs[result].argument_name,
-                          sizeof(to->exprs[result].argument_name),
-                          expr->argument_name);
+                to->exprs[result].argument_name = expr->argument_name;
                 if(expr->argument_index >= 0 &&
                    (!strcmp(to->exprs[result].type, "integer") ||
                     !strcmp(to->exprs[result].type, "real")) &&
@@ -580,9 +578,7 @@ copy_live_expression(const ZirFunction *from, ZirFunction *to,
                                                   expr->right, depth + 1);
                 if(result >= 0) {
                     to->exprs[result].argument_index = expr->argument_index;
-                    copy_text(to->exprs[result].argument_name,
-                              sizeof(to->exprs[result].argument_name),
-                              expr->argument_name);
+                    to->exprs[result].argument_name = expr->argument_name;
                 }
                 mapping[source] = result;
                 return result;

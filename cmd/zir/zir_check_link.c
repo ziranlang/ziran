@@ -1147,16 +1147,18 @@ name_private_types(ZirModule *module)
             }
             for(int x = 0; x < function->expr_count; x++) {
                 ZirExpr *expression = &function->exprs[x];
+                char slot_type[ZIR_NAME_MAX];
+                copy_text(slot_type, sizeof(slot_type), expression->slot_type);
                 if(!rewrite_private_reference(expression->type,
                                               sizeof(expression->type),
                                               expression->span,
                                               rename->original,
                                               rename->internal) ||
-                   !rewrite_private_reference(expression->slot_type,
-                                              sizeof(expression->slot_type),
+                   !rewrite_private_reference(slot_type, sizeof(slot_type),
                                               expression->span,
                                               rename->original,
                                               rename->internal)) goto failed;
+                expression->slot_type = KeepName(slot_type);
                 if(expression->kind == ZIR_EXPR_CAST ||
                    expression->kind == ZIR_EXPR_COMPOUND ||
                    expression->kind == ZIR_EXPR_SIZE_OF ||
@@ -1333,14 +1335,16 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
                                 instance->stmts[s].span)) return 0;
         for(int x = 0; x < instance->expr_count; x++) {
             ZirExpr *expression = &instance->exprs[x];
+            char slot_type[ZIR_NAME_MAX];
+            copy_text(slot_type, sizeof(slot_type), expression->slot_type);
             if(!substitute_field(expression->type,
                                  sizeof(expression->type),
                                  parameter, concrete) ||
-               !substitute_field(expression->slot_type,
-                                 sizeof(expression->slot_type),
+               !substitute_field(slot_type, sizeof(slot_type),
                                  parameter, concrete) ||
                !canonical_field(owner, expression->type, sizeof(expression->type),
                                 expression->span)) return 0;
+            expression->slot_type = KeepName(slot_type);
             if(expression->kind == ZIR_EXPR_CAST ||
                expression->kind == ZIR_EXPR_COMPOUND ||
                expression->kind == ZIR_EXPR_SIZE_OF ||

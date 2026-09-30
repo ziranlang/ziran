@@ -128,10 +128,10 @@ typedef struct ZirExpr {
     int is_this; /* #this resolves to the enclosing procedure despite shadowing */
     int is_global_value; /* in-memory only: identifier/call bound to a global */
     int is_move; /* in-memory only: a checked owned binding is consumed here */
-    char slot_type[ZIR_NAME_MAX]; /* lexical callable signature, empty for ordinary calls */
+    const char *slot_type; /* lexical callable signature, empty for ordinary calls; KeepName */
     const char *text; /* shared and immutable: assign KeepText(...) */
     char name[ZIR_NAME_MAX];
-    char argument_name[ZIR_NAME_MAX]; /* name on a call argument, if supplied */
+    const char *argument_name; /* name on a call argument, if supplied; KeepName */
     int argument_index; /* checked callee parameter position, or -1 */
     char op[8];
     int left;
@@ -404,6 +404,12 @@ void copy_text(char *dst, size_t dst_size, const char *src);
 ZirSourceSpan Span(const char *path, int line, int column);
 int SourceFile(const char *path);
 const char *KeepText(const char *text);
+/* A name kept like KeepText and cut to ZIR_NAME_MAX - 1 bytes, as the
+ * fixed name buffers it replaces were. Kept names are never NULL once a
+ * node is made: "" means none. */
+const char *KeepName(const char *text);
+/* Empties EXPR in place: zero fields and "" kept names. */
+void ExprReset(ZirExpr *expr);
 void *AllocateOrExit(size_t size);
 const char *SpanPath(ZirSourceSpan span);
 ZirSourceSpan SpanEnd(const char *path, int line, int column,

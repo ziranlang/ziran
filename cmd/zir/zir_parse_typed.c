@@ -43,6 +43,46 @@ typedef struct EvaluateTypedNodeBuffers {
  * callers rely on member expressions staying symbolic. */
 _Thread_local int ZirLawEvaluation;
 
+/* While a law is evaluated, names bound by the enclosing expression's scope
+ * (parameters, locals, and module constants) are read from this table when
+ * an identifier is evaluated, instead of being spliced into the source text
+ * first. Each expression then parses once, whatever values it sees. */
+static _Thread_local const ZirConsts *evaluation_names;
+
+int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
+                          const char *source, ZirSourceSpan span, int depth,
+                          int *fuel, CompileValue *result);
+
+/* Evaluate `name` the way splicing `(cast(TYPE) (value))`, or `(value)` for
+ * constants and non-scalar locals, into the expression would. Returns -1
+ * when no binding in scope has that name. */
+static int
+evaluate_bound_name(const ZirModule *module, const char *path,
+                    const char *name, int depth, int *fuel,
+                    CompileValue *result)
+{
+    const ZirConsts *names = evaluation_names;
+    if(names == NULL)
+        return -1;
+    for(int i = 0; i < names->count; i++) {
+        const ZirConst *binding = &names->items[i];
+        if(strcmp(binding->name, name) ||
+           (binding->is_file_private && strcmp(binding->path, path)))
+            continue;
+        char text[ZIR_TEXT_MAX];
+        int written = ScalarWidth(binding->type) || !strcmp(binding->type, "bool") ?
+            snprintf(text, sizeof(text), "cast(%s) (%s)", binding->type,
+                     binding->expr) :
+            snprintf(text, sizeof(text), "(%s)", binding->expr);
+        if(written < 0 || (size_t)written >= sizeof(text))
+            return 0;
+        return evaluate_typed_expression(module, names, text,
+                                         Span(binding->path[0] ? binding->path : path, 1, 1),
+                                         depth + 1, fuel, result);
+    }
+    return -1;
+}
+
 int evaluate_typed_node(const ZirFunction *probe, int index,
                     const ZirModule *module, const char *path,
                     int depth, int *fuel, CompileValue *result);
@@ -101,6 +141,12 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
             result->kind = COMPILE_INTEGER;
             result->integer = !strcmp(expression->name, "true");
             return compile_value_literal(result);
+        }
+        {
+            int bound = evaluate_bound_name(module, path, expression->name,
+                                            depth, fuel, result);
+            if(bound >= 0)
+                return bound;
         }
         return evaluate_imported_typed_define(module, path,
                     expression->name, depth + 1, fuel, result);
@@ -532,15 +578,24 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
     }
     if(!buffers->input[0]) return 0;
     if(names == NULL) names = &empty;
-    expand_compile_expr(buffers->expanded, sizeof(buffers->expanded), names, buffers->input, path);
-    if(!ZirLawEvaluation && eval_const_condition_with_fuel(buffers->expanded, &integer, module, names,
-                                     path, span.line, depth, fuel)) {
-        result->kind = COMPILE_INTEGER;
-        result->integer = integer;
-        return compile_value_literal(result);
+    const ZirConsts *outer_names = evaluation_names;
+    const char *text = buffers->input;
+    if(ZirLawEvaluation)
+        evaluation_names = names;
+    else {
+        evaluation_names = NULL;
+        expand_compile_expr(buffers->expanded, sizeof(buffers->expanded), names, buffers->input, path);
+        text = buffers->expanded;
+        if(eval_const_condition_with_fuel(buffers->expanded, &integer, module, names,
+                                          path, span.line, depth, fuel)) {
+            evaluation_names = outer_names;
+            result->kind = COMPILE_INTEGER;
+            result->integer = integer;
+            return compile_value_literal(result);
+        }
     }
     const ZirFunction *probe;
-    root = CachedParse(module, buffers->expanded, span, &buffers->probe, &probe);
+    root = CachedParse(module, text, span, &buffers->probe, &probe);
     ok = root >= 0;
     if(depth == 0)
         for(int i = 0; i < probe->expr_count; i++)
@@ -550,6 +605,7 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
         ok = evaluate_typed_node(probe, root, module, path,
                                  depth + 1, fuel, result);
     CachedParseDone(probe, &buffers->probe);
+    evaluation_names = outer_names;
     return ok;
 }
 

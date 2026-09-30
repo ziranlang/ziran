@@ -188,7 +188,8 @@ normalize_control_body(BodyNormalizer *n, int depth)
         return fail(source, "control header requires a body");
     if(!normalize_one(n, depth + 1))
         return 0;
-    ZirStmt close = {0};
+    ZirStmt close;
+    StmtReset(&close);
     close.kind = ZIR_STMT_BLOCK_CLOSE;
     close.text = KeepText("}");
     close.expr_root = close.lhs_root = -1;

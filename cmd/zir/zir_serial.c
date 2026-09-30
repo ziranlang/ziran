@@ -68,8 +68,8 @@ static const Field statement_fields[] = {
     INTEGER_FIELD(ZirStmt, loop_id), INTEGER_FIELD(ZirStmt, target_id),
     INTEGER_FIELD(ZirStmt, for_form), INTEGER_FIELD(ZirStmt, for_step),
     INTEGER_FIELD(ZirStmt, expr_root),
-    INTEGER_FIELD(ZirStmt, lhs_root), STRING_FIELD(ZirStmt, name),
-    STRING_FIELD(ZirStmt, type), STRING_FIELD(ZirStmt, assignment_op),
+    INTEGER_FIELD(ZirStmt, lhs_root), NAME_FIELD(ZirStmt, name),
+    NAME_FIELD(ZirStmt, type), STRING_FIELD(ZirStmt, assignment_op),
     INTEGER_FIELD(ZirStmt, is_parallel), INTEGER_FIELD(ZirStmt, is_gpu),
     SPAN_FIELD(ZirStmt, span)
 };

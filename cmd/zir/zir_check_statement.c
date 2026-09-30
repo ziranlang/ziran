@@ -784,7 +784,7 @@ static void
 if_case_generated(ZirStmt *statement, ZirStmtKind kind,
                 const char *text, ZirSourceSpan span)
 {
-    memset(statement, 0, sizeof(*statement));
+    StmtReset(statement);
     statement->kind = kind;
     statement->text = KeepText(text);
     statement->expr_root = statement->lhs_root = -1;

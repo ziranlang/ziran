@@ -1138,10 +1138,12 @@ name_private_types(ZirModule *module)
                                           rename->internal)) goto failed;
             for(int s = 0; s < function->stmt_count; s++) {
                 ZirStmt *statement = &function->stmts[s];
-                if(!rewrite_private_reference(statement->type,
-                                              sizeof(statement->type),
+                char type[ZIR_NAME_MAX];
+                copy_text(type, sizeof(type), statement->type);
+                if(!rewrite_private_reference(type, sizeof(type),
                                               statement->span, rename->original,
                                               rename->internal)) goto failed;
+                statement->type = KeepName(type);
             }
             for(int x = 0; x < function->expr_count; x++) {
                 ZirExpr *expression = &function->exprs[x];
@@ -1329,13 +1331,14 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
         if(!canonical_field(owner, instance->args, sizeof(instance->args), instance->span) ||
            !canonical_field(owner, instance->return_type, sizeof(instance->return_type),
                             instance->span)) return 0;
-        for(int s = 0; s < instance->stmt_count; s++)
-            if(!substitute_field(instance->stmts[s].type,
-                                 sizeof(instance->stmts[s].type),
-                                 parameter, concrete) ||
-               !canonical_field(owner, instance->stmts[s].type,
-                                sizeof(instance->stmts[s].type),
+        for(int s = 0; s < instance->stmt_count; s++) {
+            char type[ZIR_NAME_MAX];
+            copy_text(type, sizeof(type), instance->stmts[s].type);
+            if(!substitute_field(type, sizeof(type), parameter, concrete) ||
+               !canonical_field(owner, type, sizeof(type),
                                 instance->stmts[s].span)) return 0;
+            instance->stmts[s].type = KeepName(type);
+        }
         for(int x = 0; x < instance->expr_count; x++) {
             ZirExpr *expression = &instance->exprs[x];
             char type[ZIR_NAME_MAX], slot_type[ZIR_NAME_MAX];

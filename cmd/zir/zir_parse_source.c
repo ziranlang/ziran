@@ -1794,10 +1794,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                             if(!is_member_path_text(name))
                                 die_at(span,
                                        "using needs a record binding or field path");
-                            copy_text(statement->name,
-                                      sizeof(statement->name), name);
-                            copy_text(statement->type,
-                                      sizeof(statement->type), using_filter);
+                            statement->name = KeepName(name);
+                            statement->type = KeepName(using_filter);
                         }
                     }
                 }

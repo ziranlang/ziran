@@ -204,15 +204,20 @@ restart:
         }
         /* An unresolvable type_of is reported; the initializer's type
          * stands in so later uses of the name do not fail too. */
-        if(st->kind == ZIR_STMT_DECL &&
-           !resolve_declared_type_of(c, st->type, sizeof(st->type), st->span))
-            st->type[0] = '\0';
+        if(st->kind == ZIR_STMT_DECL) {
+            char declared[ZIR_NAME_MAX];
+            copy_text(declared, sizeof(declared), st->type);
+            int resolved = resolve_declared_type_of(c, declared, sizeof(declared),
+                                                    st->span);
+            st = &c->fn->stmts[i];
+            st->type = resolved ? KeepName(declared) : "";
+        }
         st = &c->fn->stmts[i];
         if(st->kind == ZIR_STMT_ASSIGN && strcmp(st->assignment_op, "=") &&
            (!fn->from_ir || fn->is_specialization))
             compound_operator_assignment(c, st);
         if(st->kind == ZIR_STMT_DECL)
-            normalize_array(c->module, st->type, sizeof(st->type));
+            st->type = normalized_array(c->module, st->type);
         if(st->kind == ZIR_STMT_DECL)
             contextual_slot(c, st->expr_root, st->type);
         if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 &&
@@ -335,8 +340,7 @@ restart:
                 if(first != NULL)
                     type = first;
             }
-            if(!*st->type) copy_text(st->type, sizeof(st->type),
-                !strcmp(type, "integer") ? "s64" : !strcmp(type, "real") ? "float64" : type);
+            if(!*st->type) st->type = KeepName(!strcmp(type, "integer") ? "s64" : !strcmp(type, "real") ? "float64" : type);
             else if(!compatible_checked(c, st->type, type)) {
                 const char *converted = try_conversion(c, st->expr_root,
                                                        st->type, st->span);

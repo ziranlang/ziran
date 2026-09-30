@@ -1004,7 +1004,7 @@ StructureFunction_with_buffers(ZirFunction *fn, const ZirModule *module, Structu
             char *colon = strchr(text, ':');
             if(colon) {
                 *colon++ = 0; trim_in_place(text);
-                copy_text(st->name, sizeof(st->name), text);
+                st->name = KeepName(text);
                 value = strchr(colon, '=');
                 if(value) *value++ = 0;
                 trim_in_place(colon);
@@ -1018,7 +1018,7 @@ StructureFunction_with_buffers(ZirFunction *fn, const ZirModule *module, Structu
                         "unknown declaration modifier: %s", strchr(colon, '#'));
                     exit(1);
                 }
-                copy_text(st->type, sizeof(st->type), colon);
+                st->type = KeepName(colon);
             }
         } else if(st->kind == ZIR_STMT_ASSIGN) {
             ZirLexer lexer; 

@@ -1562,13 +1562,21 @@ FunctionAddStmt(ZirFunction *fn, ZirStmtKind kind, const char *text,
         return NULL;
     fn->stmts = stmts;
     st = &fn->stmts[fn->stmt_count++];
-    memset(st, 0, sizeof(*st));
+    StmtReset(st);
     st->kind = kind;
     st->text = KeepText(text);
     st->expr_root = -1;
     st->lhs_root = -1;
     st->span = span;
     return st;
+}
+
+void
+StmtReset(ZirStmt *stmt)
+{
+    memset(stmt, 0, sizeof(*stmt));
+    stmt->name = "";
+    stmt->type = "";
 }
 
 void

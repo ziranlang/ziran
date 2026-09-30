@@ -116,8 +116,8 @@ typedef struct ZirStmt {
     int for_step;       /* on a counting loop's step: that loop's loop_id */
     int expr_root;      /* index into enclosing function exprs, or -1 */
     int lhs_root;       /* structured assignment destination, or -1 */
-    char name[ZIR_NAME_MAX]; /* declaration binding */
-    char type[ZIR_NAME_MAX]; /* declared or inferred type */
+    const char *name; /* declaration binding; KeepName */
+    const char *type; /* declared or inferred type; KeepName */
     char assignment_op[4];
     ZirSourceSpan span;
 } ZirStmt;
@@ -411,8 +411,9 @@ const char *KeepName(const char *text);
 /* KeepName of the text snprintf would write into a name buffer. */
 const char *KeepNameFormat(const char *format, ...)
     __attribute__((format(printf, 1, 2)));
-/* Empties EXPR in place: zero fields and "" kept names. */
+/* Empty EXPR or STMT in place: zero fields and "" kept names. */
 void ExprReset(ZirExpr *expr);
+void StmtReset(ZirStmt *stmt);
 void *AllocateOrExit(size_t size);
 const char *SpanPath(ZirSourceSpan span);
 ZirSourceSpan SpanEnd(const char *path, int line, int column,

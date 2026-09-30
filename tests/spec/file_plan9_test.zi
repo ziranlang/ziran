@@ -69,6 +69,21 @@ Run :: (root: string) -> s32 {
     file = OpenRead(second)
     if !file.valid || Read(file, received[:]) != 4 || received[0] != 65 ||
         Read(file, received[:]) != 0 || !CloseFile(file) { return 16 }
+    // An exclusive create must leave an existing file's contents intact.
+    file = CreatePrivateExclusive(second, false)
+    if file.valid { CloseFile(file); return 17 }
+    file = OpenRead(second)
+    if !file.valid || Read(file, received[:]) != 4 || received[0] != 65 ||
+        !CloseFile(file) { return 18 }
+    // A close/exit lease excludes competing clients and can be acquired again.
+    file = CreatePrivateExclusive(other, true)
+    if !file.valid || !PathExists(other) { return 19 }
+    competing := CreatePrivateExclusive(other, true)
+    if competing.valid { CloseFile(competing); CloseFile(file); return 20 }
+    if !CloseFile(file) || PathExists(other) { return 21 }
+    file = CreatePrivateExclusive(other, false)
+    if !file.valid || !CloseFile(file) || !PathExists(other) ||
+        !RemoveFile(other) || CreatePrivateExclusive("bad\u0000path", true).valid { return 22 }
     if OpenRead("bad\u0000path").valid || RenameNoReplace(second, directory) ||
         !RemoveFile(first) || !RemoveFile(second) || !RemoveFile(directory) { return 11 }
     return 0

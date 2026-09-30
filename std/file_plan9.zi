@@ -111,6 +111,16 @@ OpenReplace :: (path: string) -> FileHandle { return CreatePath(path, 1, 420) }
 #program_export
 OpenPrivateReplace :: (path: string) -> FileHandle { return CreatePath(path, 1, 384) }
 
+// Atomically create an owner-only file, refusing an existing name. A
+// temporary lease is removed when its last descriptor closes, including
+// process exit. OCEXEC prevents a lease from leaking into an executed child.
+#program_export
+CreatePrivateExclusive :: (path: string, remove_on_close: bool) -> FileHandle {
+    flags: s32 = 2 | 32 | 4096 // ORDWR | OCEXEC | OEXCL
+    if remove_on_close { flags |= 64 } // ORCLOSE
+    return CreatePath(path, flags, 384)
+}
+
 #program_export
 PathExists :: (path: string) -> bool {
     name: [4096]u8

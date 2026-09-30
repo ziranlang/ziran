@@ -217,7 +217,7 @@ int assignable(Checker *c, int index);
 int readonly_text_destination(Checker *c, int index);
 void contextual_slot(Checker *c, int index, const char *expected);
 int rewrite_checked_text(Checker *c, const ZirExpr *expr, const char *replacement);
-int lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration, const char *member);
+int lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration, const char *member, int opened);
 int vec_option_result_type(Checker *c, const char *element, ZirSourceSpan span, char *out, size_t size);
 int reserve_compound_constants(const ZirModule *module, ZirFunction *fn);
 int inline_compound_constant(Checker *c, int index, const CompoundConstant *compound);

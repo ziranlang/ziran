@@ -1064,7 +1064,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 const ZirType *enumeration = FindType(c->module, qualified,
                                                       NULL);
                 if(enumeration != NULL && enumeration->is_enum) {
-                    if(lower_enum_reference(c, e, enumeration, e->name)) {
+                    if(lower_enum_reference(c, e, enumeration, e->name, 0)) {
                         copy_text(e->type, sizeof(e->type), qualified);
                         return e->type;
                     }
@@ -1101,7 +1101,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         const ZirType *enumeration = FindType(c->module,
             c->fn->exprs[e->left].name, NULL);
         if(enumeration != NULL && enumeration->is_enum) {
-            if(lower_enum_reference(c, e, enumeration, e->name))
+            if(lower_enum_reference(c, e, enumeration, e->name, 0))
                 return e->type;
             return "";
         }
@@ -1112,7 +1112,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             error(c, e->span, "inferred enum member needs an enum type", e->name);
             return "";
         }
-        if(lower_enum_reference(c, e, enumeration, e->name + 1))
+        if(lower_enum_reference(c, e, enumeration, e->name + 1, 0))
             return e->type;
         return "";
     }
@@ -1501,7 +1501,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 break;
             }
             if(enum_member == 1) {
-                if(!lower_enum_reference(c, e, enumeration, source_member))
+                if(!lower_enum_reference(c, e, enumeration, source_member, 1))
                     break;
                 type = "integer";
                 break;

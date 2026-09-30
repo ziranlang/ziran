@@ -1341,7 +1341,7 @@ rewrite_checked_text(Checker *c, const ZirExpr *expr, const char *replacement)
 
 int
 lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration,
-                     const char *member)
+                     const char *member, int opened)
 {
     int64_t value;
     char replacement[64];
@@ -1350,11 +1350,14 @@ lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration,
         return 0;
     }
     snprintf(replacement, sizeof(replacement), "%lld", (long long)value);
-    /* The statement text names the member with its type, so a checker
-     * restart that parses the text again reads the same enum value. */
+    /* A checker restart, such as after lowering an if-case, parses the
+     * statement text again and must read the same value with the same
+     * type: a qualified member keeps its enum type, so the text names it
+     * with its type, while an opened member (using Enum) is a plain integer,
+     * so the text holds its value. */
     char qualified[ZIR_NAME_MAX * 2 + 2];
     snprintf(qualified, sizeof(qualified), "%s.%s", enumeration->name, member);
-    if(!rewrite_checked_text(c, expr, qualified)) {
+    if(!rewrite_checked_text(c, expr, opened ? replacement : qualified)) {
         error(c, expr->span, "cannot lower enum member", expr->text);
         return 0;
     }

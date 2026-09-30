@@ -1,0 +1,29 @@
+// Checking the right operand widens a, appending a cast that can move the
+// expression array while the == above it still points into it. Each padding
+// line adds two expressions, so one of these lands on a capacity boundary.
+Widen1 :: (a: s32, b: s64, x: s64) -> bool {
+    p: s64 = 0
+    p = 1
+    return x == a + b
+}
+Widen2 :: (a: s32, b: s64, x: s64) -> bool {
+    p: s64 = 0
+    p = 1
+    p = 1
+    return x == a + b
+}
+Widen3 :: (a: s32, b: s64, x: s64) -> bool {
+    p: s64 = 0
+    p = 1
+    p = 1
+    p = 1
+    return x == a + b
+}
+Widen4 :: (a: s32, b: s64, x: s64) -> bool {
+    p: s64 = 0
+    p = 1
+    p = 1
+    p = 1
+    p = 1
+    return x == a + b
+}

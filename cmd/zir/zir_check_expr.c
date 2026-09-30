@@ -2,6 +2,8 @@
 /* Buffers expression_type keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct ExpressionTypeBuffers {
+    char left[ZIR_NAME_MAX];
+    char right[ZIR_NAME_MAX];
     char operand[ZIR_TEXT_MAX];
     ZirFunction probe;
     char replacement[ZIR_TEXT_MAX];
@@ -568,8 +570,14 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             }
         }
     }
-    if(e->left >= 0 && !(e->kind == ZIR_EXPR_CALL && e->name[0]))
-        left = expression_type(c, e->left);
+    /* Checking an operand can append expressions, such as a widening cast,
+     * and move the array: the returned type points into it, and so does e. */
+    if(e->left >= 0 && !(e->kind == ZIR_EXPR_CALL && e->name[0])) {
+        copy_text(buffers->left, sizeof(buffers->left),
+                  expression_type(c, e->left));
+        left = buffers->left;
+        e = &c->fn->exprs[index];
+    }
     if(e->right >= 0) {
         char saved_expected[ZIR_NAME_MAX];
         copy_text(saved_expected, sizeof(saved_expected), c->expected_type);
@@ -578,7 +586,10 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             if(enumeration != NULL && enumeration->is_enum)
                 copy_text(c->expected_type, sizeof(c->expected_type), left);
         }
-        right = expression_type(c, e->right);
+        copy_text(buffers->right, sizeof(buffers->right),
+                  expression_type(c, e->right));
+        right = buffers->right;
+        e = &c->fn->exprs[index];
         copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
     }
     switch(e->kind) {

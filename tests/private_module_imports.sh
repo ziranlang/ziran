@@ -18,7 +18,9 @@ Value :: #import "value";
 Answer :: () -> s32 {
     cell: Value.Cell
     cell.value = 42
-    return Value.Read(cell)
+    opaque := cast(*void)*cell
+    restored := cast(*Value.Cell)opaque
+    return Value.Read(restored.*)
 }
 ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/main.zi"

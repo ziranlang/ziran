@@ -10,7 +10,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 mkdir "$work/src"
 cat > "$work/src/main.zi" <<'EOF'
 Inner :: struct { value: s32 }
-Props :: struct { inner: Inner; scale: s32 }
+Props :: struct { inner: Inner; omitted: s32; scale: s32 }
 Make :: () -> Props { return .{inner = .{value = 40}, scale = 2} }
 Read :: (props: Props) -> s32 { return props.inner.value + props.scale }
 foreign_libc :: #system_library "libc";
@@ -18,10 +18,12 @@ ForeignClose :: (descriptor: s32) -> s32 #foreign foreign_libc "close";
 #program_export
 main :: () -> s32 {
     local := Make()
+    partial: Props = .{scale = 2, inner = .{value = 40}}
     bytes: [3]u8 = .[97, 98, 99]
     text: string = "abc"
     part: string = text[0:2]
-    if Read(local) != 42 || ForeignClose(-1) != -1 || text.count != 3 ||
+    if Read(local) != 42 || local.omitted != 0 || Read(partial) != 42 ||
+        partial.omitted != 0 || ForeignClose(-1) != -1 || text.count != 3 ||
         text[0] != bytes[0] || part != "ab" { return 1 }
     return 0
 }

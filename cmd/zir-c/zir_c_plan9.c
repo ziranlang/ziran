@@ -717,17 +717,6 @@ copy_trimmed(const char *text, int start, int end, char *out, size_t out_size)
 /* Compound literal flattening                                       */
 /* ------------------------------------------------------------------ */
 
-/* Types the lowering nests as braced values inside designated fields. */
-static const char *
-nested_field_type(const char *field)
-{
-    if(strcmp(field, "bounds") == 0 || strcmp(field, "rect") == 0)
-        return "Rectangle";
-    if(strcmp(field, "color") == 0 || strcmp(field, "tint") == 0)
-        return "Color";
-    return NULL;
-}
-
 static int
 body_all_designated(const char *body, int len)
 {
@@ -783,7 +772,7 @@ emit_compound_temp_with_buffers(Buf *out, const char *indent, const char *type,
 {
     char field[PLAN9_NAME_MAX];
     int pos = 0;
-    const char *bracket = strchr(type, '[');
+    const char *bracket = type != NULL ? strchr(type, '[') : NULL;
     if(bracket != NULL) {
         /* array literal: declare the temporary with its size */
         char base[PLAN9_TYPE_MAX];
@@ -798,25 +787,30 @@ emit_compound_temp_with_buffers(Buf *out, const char *indent, const char *type,
                           indent, temp, temp);
     }
     if(body_is_zero(body, body_len)) {
+        if(type == NULL)
+            return 0; /* The enclosing aggregate has already been zeroed. */
         if(buf_printf(out, "%s%s %s;\n", indent, type, temp) < 0)
             return -1;
         return buf_printf(out, "%smemset(&%s, 0, sizeof(%s));\n",
                           indent, temp, temp);
     }
     if(!body_all_designated(body, body_len)) {
+        if(type == NULL)
+            return -1;
         /* full positional initializer in a declaration is 8c-safe */
         if(copy_trimmed(body, 0, body_len, buffers->value, sizeof(buffers->value)) < 0)
             return -1;
         return buf_printf(out, "%s%s %s = {%s};\n", indent, type, temp, buffers->value);
     }
-    if(buf_printf(out, "%s%s %s;\n", indent, type, temp) < 0)
-        return -1;
-    if(buf_printf(out, "%smemset(&%s, 0, sizeof(%s));\n", indent, temp, temp) < 0)
-        return -1;
+    if(type != NULL) {
+        if(buf_printf(out, "%s%s %s;\n", indent, type, temp) < 0)
+            return -1;
+        if(buf_printf(out, "%smemset(&%s, 0, sizeof(%s));\n", indent, temp, temp) < 0)
+            return -1;
+    }
     while(pos < body_len) {
         int comma = find_top_level_comma(body, pos, body_len);
         int stop = comma < 0 ? body_len : comma;
-        const char *nested;
         int i = pos;
         int fstart;
         int fend;
@@ -884,16 +878,16 @@ emit_compound_temp_with_buffers(Buf *out, const char *indent, const char *type,
                 continue;
             }
         }
-        nested = nested_field_type(field);
-        if(nested != NULL && buffers->value[0] == '{' && buffers->value[strlen(buffers->value) - 1] == '}') {
+        if(buffers->value[0] == '{' && buffers->value[strlen(buffers->value) - 1] == '}') {
             size_t n = strlen(buffers->value) - 2;
+            char path[PLAN9_NAME_MAX];
             if(n >= sizeof(buffers->inner))
                 return -1;
             memcpy(buffers->inner, buffers->value + 1, n);
             buffers->inner[n] = '\0';
-            if(buf_printf(out, "%s%s %s_%s = {%s};\n%s%s.%s = %s_%s;\n",
-                          indent, nested, temp, field, buffers->inner,
-                          indent, temp, field, temp, field) < 0)
+            if(snprintf(path, sizeof(path), "%s.%s", temp, field) >= (int)sizeof(path))
+                return -1;
+            if(emit_compound_temp(out, indent, NULL, buffers->inner, (int)n, path) < 0)
                 return -1;
         } else {
             if(buf_printf(out, "%s%s.%s = %s;\n",
@@ -2483,6 +2477,37 @@ c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *bu
         /* 3. compound literals in the statement */
         if(!emitted) {
             int rewrote = 0;
+            /* 8c does not zero omitted local aggregate fields. Build direct
+             * designated initializers through the same zeroed temporary path
+             * as cast-shaped literals, including reordered fields. */
+            if(depth > 0) {
+                const char *initializer = strstr(buffers->current, " = {");
+                if(initializer != NULL) {
+                    const char *name_end = initializer;
+                    const char *name_start = name_end;
+                    char type[PLAN9_TYPE_MAX], name[PLAN9_NAME_MAX];
+                    int open = (int)(initializer - buffers->current) + 3;
+                    int close = find_matching_brace(buffers->current, open);
+                    while(name_start > buffers->current + ilen &&
+                          (isalnum((unsigned char)name_start[-1]) || name_start[-1] == '_'))
+                        name_start--;
+                    if(name_start > buffers->current + ilen && close > open &&
+                       buffers->current[close + 1] == ';' &&
+                       body_all_designated(buffers->current + open + 1, close - open - 1) &&
+                       copy_trimmed(buffers->current, (int)ilen,
+                                    (int)(name_start - buffers->current), type, sizeof(type)) == 0 &&
+                       copy_trimmed(buffers->current, (int)(name_start - buffers->current),
+                                    (int)(name_end - buffers->current), name, sizeof(name)) == 0 &&
+                       strchr(type, '[') == NULL && strchr(type, '(') == NULL &&
+                       strchr(type, '.') == NULL && strchr(type, '=') == NULL) {
+                        if(emit_compound_temp(&out, indent, type,
+                                              buffers->current + open + 1,
+                                              close - open - 1, name) < 0)
+                            goto fail;
+                        emitted = 2;
+                    }
+                }
+            }
             /* "Type name[N] = (Type[N]){0};" is an array declaration:
              * zero the named array instead of assigning through a temp */
             {

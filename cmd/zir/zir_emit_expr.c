@@ -1281,8 +1281,23 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             char cast_native[ZIR_NAME_MAX];
             if(e->target == ZIR_GO)
                 e->resolve(e->context, type, cast_native, sizeof(cast_native));
-            else
-                slot_native_type(type, e->target, cast_native, sizeof(cast_native));
+            else {
+                const char *leaf = type;
+                char native_leaf[ZIR_NAME_MAX], source[ZIR_NAME_MAX * 2];
+                while(*leaf == '*' || *leaf == '[') {
+                    if(*leaf == '*') leaf = skip_ws(leaf + 1);
+                    else {
+                        const char *close = strchr(leaf, ']');
+                        if(close == NULL) break;
+                        leaf = skip_ws(close + 1);
+                    }
+                }
+                if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+                   NativeTypeAtUse(e->module, leaf, native_leaf, sizeof(native_leaf))) {
+                    format(source, sizeof(source), "%.*s%s", (int)(leaf - type), type, native_leaf);
+                    slot_native_type(source, e->target, cast_native, sizeof(cast_native));
+                } else slot_native_type(type, e->target, cast_native, sizeof(cast_native));
+            }
             if(e->target==ZIR_GO) format(buffers->result,sizeof(buffers->result),"%s(%s)",cast_native,buffers->a);
             else format(buffers->result,sizeof(buffers->result),"(%s)(%s)",cast_native,buffers->a);
         }

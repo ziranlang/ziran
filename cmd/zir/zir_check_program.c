@@ -854,6 +854,99 @@ declared_type_written(const ZirStmt *st)
     return text[0] == ':' && text[1] != '=';
 }
 
+/* Whether expression INDEX is the literal 0 or 1 (a flag's value), or a
+ * cast of a bool to an integer (whose value is also 0 or 1). */
+static int
+flag_value(const ZirFunction *fn, int index)
+{
+    if(index < 0 || index >= fn->expr_count)
+        return 0;
+    const ZirExpr *e = &fn->exprs[index];
+    if(e->kind == ZIR_EXPR_INT && e->text != NULL)
+        return !strcmp(e->text, "0") || !strcmp(e->text, "1");
+    return e->kind == ZIR_EXPR_CAST && e->right >= 0 &&
+           !strcmp(fn->exprs[e->right].type, "bool");
+}
+
+/* An integer local used only as a flag: declared with an integer type,
+ * given only 0, 1, or a bool cast to an integer, and read only in
+ * comparisons with 0 or 1. Such a local reads better as a bool. */
+static int
+lint_flags(const ZirFunction *fn)
+{
+    int warnings = 0;
+    int *parent = malloc((size_t)(fn->expr_count ? fn->expr_count : 1) * sizeof(int));
+    if(parent == NULL)
+        return 0;
+    for(int e = 0; e < fn->expr_count; e++)
+        parent[e] = -1;
+    for(int e = 0; e < fn->expr_count; e++) {
+        const ZirExpr *x = &fn->exprs[e];
+        if(x->left >= 0 && x->left < fn->expr_count) parent[x->left] = e;
+        if(x->right >= 0 && x->right < fn->expr_count) parent[x->right] = e;
+        if(x->third >= 0 && x->third < fn->expr_count) parent[x->third] = e;
+        for(int child = x->first_child; child >= 0 && child < fn->expr_count;
+            child = fn->exprs[child].next_sibling)
+            parent[child] = e;
+    }
+    for(int d = 0; d < fn->stmt_count; d++) {
+        const ZirStmt *decl = &fn->stmts[d];
+        if(decl->kind != ZIR_STMT_DECL || !integer_type(decl->type) ||
+           !strcmp(decl->type, "bool") || !strncmp(decl->name, "range_", 6) ||
+           !strncmp(decl->name, "case_value_", 11) || !declared_type_written(decl) ||
+           (decl->expr_root >= 0 && !flag_value(fn, decl->expr_root)))
+            continue;
+        int ok = 1, reads = 0;
+        /* One declaration of the name in the procedure, and not a parameter. */
+        for(int other = 0; other < fn->stmt_count && ok; other++)
+            if(other != d && fn->stmts[other].kind == ZIR_STMT_DECL &&
+               !strcmp(fn->stmts[other].name, decl->name))
+                ok = 0;
+        char needle[ZIR_NAME_MAX + 2];
+        snprintf(needle, sizeof(needle), "%s:", decl->name);
+        if(strstr(fn->args, needle) != NULL)
+            ok = 0;
+        for(int s = 0; s < fn->stmt_count && ok; s++) {
+            const ZirStmt *st = &fn->stmts[s];
+            if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 &&
+               fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT &&
+               !strcmp(fn->exprs[st->lhs_root].name, decl->name) &&
+               (strcmp(st->assignment_op, "=") || !flag_value(fn, st->expr_root)))
+                ok = 0;
+        }
+        for(int e = 0; e < fn->expr_count && ok; e++) {
+            const ZirExpr *x = &fn->exprs[e];
+            if(x->kind != ZIR_EXPR_IDENT || strcmp(x->name, decl->name))
+                continue;
+            int assigned = 0;
+            for(int s = 0; s < fn->stmt_count; s++)
+                if(fn->stmts[s].kind == ZIR_STMT_ASSIGN && fn->stmts[s].lhs_root == e)
+                    assigned = 1;
+            if(assigned)
+                continue;
+            int p = parent[e];
+            if(p < 0) { ok = 0; break; }
+            const ZirExpr *compare = &fn->exprs[p];
+            int other = compare->left == e ? compare->right : compare->left;
+            if(compare->kind != ZIR_EXPR_BINARY ||
+               (strcmp(compare->op, "==") && strcmp(compare->op, "!=")) ||
+               other < 0 || fn->exprs[other].kind != ZIR_EXPR_INT ||
+               fn->exprs[other].text == NULL ||
+               (strcmp(fn->exprs[other].text, "0") && strcmp(fn->exprs[other].text, "1")))
+                ok = 0;
+            reads++;
+        }
+        if(ok && reads > 0) {
+            Warning(decl->span, "lint.bool",
+                    "%s holds only 0 or 1 and is only compared with them; declare it bool",
+                    decl->name);
+            warnings++;
+        }
+    }
+    free(parent);
+    return warnings;
+}
+
 int
 LintPrograms(ZirProgram **programs, int count)
 {
@@ -899,6 +992,7 @@ LintPrograms(ZirProgram **programs, int count)
                 }
                 for(int e = 0; e < fn->expr_count; e++)
                     warnings += lint_cast(fn, e, whole[e]) + lint_character(fn, e);
+                warnings += lint_flags(fn);
                 free(whole);
             }
         }

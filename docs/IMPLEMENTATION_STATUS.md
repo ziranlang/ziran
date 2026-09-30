@@ -73,10 +73,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   argument, or result; it leaves casts that set arithmetic width, choose an
   inferred type, or pick an overload. It also warns (code `lint.char`) when a
   `u8` is compared with a printable character's code written as a number,
-  suggesting the `#char` literal. `tests/lint_casts.sh` and
-  `tests/lint_characters.sh` pin the rules. Inbe, Kryon, KSS, and Workbook
-  have had their identity casts and character codes rewritten this way
-  (their widening casts wait for the pinned Ziran to widen implicitly).
+  suggesting the `#char` literal, and (code `lint.bool`) when an integer
+  local only ever holds 0, 1, or a bool cast to an integer and is only
+  compared with 0 or 1, suggesting a `bool`. `tests/lint_casts.sh`,
+  `tests/lint_characters.sh`, and `tests/lint_flags.sh` pin the rules.
+  Inbe, Kryon, KSS, and Workbook have had their unneeded casts, character
+  codes, and integer flags rewritten this way.
 - A generic record from another module may hold types only that module
   imports: the user's `Bag(string)` reads the library's `Vec(K)` field as
   `vec.Vec(string)`, and every copy of one application gets the same name.

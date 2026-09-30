@@ -25,7 +25,8 @@ to the value's own type, and one that only widens a whole typed initializer,
 assignment, argument, or result, which the compiler now widens itself.
 It also warns when a byte is compared with a printable character's code
 written as a number, as C ports do: `text[i] == 65` reads better as
-`text[i] == #char "A"`.
+`text[i] == #char "A"`. And it warns about an integer local that only ever
+holds 0 or 1 and is only compared with them, which reads better as a `bool`.
 Warnings do not fail the check (`"severity":"warning"` in JSON).
 `ziran check|ir|api|inspect|build|bundle|run|fmt` remains a convenience dispatcher
 for the same tools. [Cross-target benchmarks](../bench/README.md) measure the

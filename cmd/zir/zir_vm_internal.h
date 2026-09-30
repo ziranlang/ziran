@@ -132,8 +132,21 @@ typedef struct GlobalSlot {
     Value value;
 } GlobalSlot;
 
+/* A function's parameters as parse_parameters reads them, or count -1
+ * when they are outside the portable subset. */
+typedef struct VmSignature {
+    const ZirModule *module;
+    const char *args; /* kept parameter text: one pointer per spelling */
+    int count;
+    Parameter parameters[];
+} VmSignature;
+
 typedef struct Vm {
     const ZirProgram *program;
+    /* Signatures by module and parameter text, so a call does not parse
+     * and look up its parameter types again. */
+    const VmSignature **signatures;
+    size_t signature_count, signature_slots;
     int depth;
     /* Statements run so far, counted only when max_steps bounds the run
      * (the web playground); zero means unbounded, as on native targets. */
@@ -235,6 +248,9 @@ void release_retired(Vm *vm);
 int vm_type_contains_vec(const ZirModule *module, const char *type, int depth);
 void drop_owned_locals(Frame *frame, int first);
 int parse_parameters(const ZirModule *module, const ZirFunction *function, Parameter *parameters);
+const VmSignature *vm_signature(Vm *vm, const ZirModule *module,
+                                const ZirFunction *function);
+void free_signatures(Vm *vm);
 int function_local_bound(const ZirFunction *function, int parameters);
 int bitwise_operator(const char *op);
 const char *assignment_binary_operator(const char *op);

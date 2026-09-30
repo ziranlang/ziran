@@ -522,23 +522,14 @@ ArrayAbiName(const ZirFunction *fn, int parameter, char *out, size_t size)
         collision = function_mentions(fn, out);
     } while(collision);
 }
-/* Buffers ArrayAbiArgs keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct ArrayAbiArgsBuffers {
-    char parameters[64][ZIR_TEXT_MAX];
-} ArrayAbiArgsBuffers;
-
-void ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size);
-
-static void
-ArrayAbiArgs_with_buffers(const ZirFunction *fn, char *out, size_t size, ArrayAbiArgsBuffers *buffers)
+void
+ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size)
 {
     if(fn->return_type[0] != '[' && strchr(FunctionArgs(fn), '[') == NULL) {
         copy_text(out, size, FunctionArgs(fn));
         return;
     }
-    int count = *skip_ws(FunctionArgs(fn)) ?
-        split_top_level(FunctionArgs(fn), buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
     size_t used = 0;
     out[0] = '\0';
     if(ArrayElementType(fn->return_type, NULL, 0, NULL)) {
@@ -546,32 +537,18 @@ ArrayAbiArgs_with_buffers(const ZirFunction *fn, char *out, size_t size, ArrayAb
         ArrayAbiName(fn, -1, name, sizeof(name));
         used += (size_t)format(out, size, "%s: %s", name, fn->return_type);
     }
-    for(int i = 0; i < count; i++) {
-        char *colon = strchr(buffers->parameters[i], ':');
-        if(colon != NULL && ArrayValueType(skip_ws(colon + 1))) {
+    for(int i = 0; i < parameters->count; i++) {
+        const ZirParameter *parameter = &parameters->items[i];
+        if(parameter->type != NULL && ArrayValueType(parameter->type)) {
             char name[ZIR_NAME_MAX];
             ArrayAbiName(fn, i, name, sizeof(name));
             used += (size_t)format(out + used, size - used, "%s%s: %s",
-                                   used ? ", " : "", name, skip_ws(colon + 1));
+                                   used ? ", " : "", name, parameter->type);
         } else {
             used += (size_t)format(out + used, size - used, "%s%s",
-                                   used ? ", " : "", buffers->parameters[i]);
+                                   used ? ", " : "", parameter->text);
         }
     }
-}
-
-void
-ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size)
-{
-    static _Thread_local ArrayAbiArgsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ArrayAbiArgsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    ArrayAbiArgs_with_buffers(fn, out, size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
 }
 
 const char *

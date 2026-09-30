@@ -179,21 +179,11 @@ call_name_shadowed(const ExprParser *p, const char *name)
 {
     if(p->stmt_index < 0 || strchr(name, '.') != NULL)
         return 0;
-    char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
-    if(parameters == NULL) return 1;
-    int count = *skip_ws(FunctionArgs(p->fn)) ?
-        split_top_level(FunctionArgs(p->fn), parameters[0], 64,
-                        sizeof(parameters[0])) : 0;
-    for(int i = 0; i < count; i++) {
-        char *colon = strchr(parameters[i], ':');
-        if(colon == NULL) continue;
-        *colon = '\0';
-        if(!strcmp(trim(parameters[i]), name)) {
-            free(parameters);
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(p->fn));
+    for(int i = 0; i < parameters->count; i++)
+        if(parameters->items[i].name != NULL &&
+           !strcmp(parameters->items[i].name, name))
             return 1;
-        }
-    }
-    free(parameters);
     int depth = 0;
     int binding_depths[128];
     int bindings = 0;

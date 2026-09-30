@@ -813,16 +813,11 @@ add_binding(BorrowCheck *check, const char *name, const char *type,
     item->global_index = -1;
     return item;
 }
-/* Buffers check_function keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct CheckFunctionBuffers {
-    char parameters[64][ZIR_TEXT_MAX];
-} CheckFunctionBuffers;
 
 static void check_function(BorrowCheck *check, BorrowFunction *function);
 
 static void
-check_function_with_buffers(BorrowCheck *check, BorrowFunction *function, CheckFunctionBuffers *buffers)
+check_function(BorrowCheck *check, BorrowFunction *function)
 {
     const ZirFunction *fn = function->fn;
     check->current = function;
@@ -842,15 +837,12 @@ check_function_with_buffers(BorrowCheck *check, BorrowFunction *function, CheckF
         return;
     }
     check->active_capacity = fn->stmt_count + 1;
-    int count = *skip_ws(FunctionArgs(fn)) ?
-        split_top_level(FunctionArgs(fn), buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
-    for(int i = 0; i < count; i++) {
-        char *colon = strchr(buffers->parameters[i], ':');
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    for(int i = 0; i < parameters->count; i++) {
+        const char *name = parameters->items[i].name;
+        const char *colon = parameters->items[i].type;
         if(colon == NULL)
             continue;
-        *colon++ = '\0';
-        trim_in_place(buffers->parameters[i]);
-        trim_in_place(colon);
         Origin origin = {0};
         int local = -1;
         if(view_type(check, colon)) {
@@ -860,7 +852,7 @@ check_function_with_buffers(BorrowCheck *check, BorrowFunction *function, CheckF
         } else if(colon[0] == '*') {
             origin.depth = 1;
         }
-        add_binding(check, buffers->parameters[i], colon, origin, local, 1, 0);
+        add_binding(check, name, colon, origin, local, 1, 0);
     }
     for(int i = 0; i < fn->stmt_count && !check->failed; i++) {
         const ZirStmt *statement = &fn->stmts[i];
@@ -1017,19 +1009,6 @@ check_function_with_buffers(BorrowCheck *check, BorrowFunction *function, CheckF
     check->active_capacity = 0;
 }
 
-static void
-check_function(BorrowCheck *check, BorrowFunction *function)
-{
-    static _Thread_local CheckFunctionBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CheckFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    check_function_with_buffers(check, function, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-}
 
 int
 CheckSliceLifetimes(ZirProgram **programs, int count)

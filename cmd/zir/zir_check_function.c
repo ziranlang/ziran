@@ -616,20 +616,15 @@ check_template_declaration(Checker *c, ZirFunction *fn)
                    "invalid polymorphic procedure declaration");
         return 0;
     }
-    char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
-    if(parameters == NULL) return 0;
-    int count = *skip_ws(FunctionArgs(fn)) ?
-        split_top_level(FunctionArgs(fn), parameters[0], 64,
-                        sizeof(parameters[0])) : 0;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    int count = parameters->count;
     int binders = 0, valid = count > 0;
     uint64_t allowed_using = count >= 64 ? UINT64_MAX :
                              (UINT64_C(1) << count) - 1;
     valid = valid && (fn->using_parameters & ~allowed_using) == 0;
     for(int i = 0; i < count && valid; i++) {
-        char *colon = strchr(parameters[i], ':');
-        if(colon == NULL) { valid = 0; break; }
-        char *type = colon + 1;
-        trim_in_place(type);
+        const char *type = parameters->items[i].type;
+        if(type == NULL) { valid = 0; break; }
         int prefix = TemplateBinderPrefix(type);
         if(prefix >= 0) {
             if(TemplateParameterIndex(fn->template_param, type + prefix + 1,
@@ -643,7 +638,6 @@ check_template_declaration(Checker *c, ZirFunction *fn)
                 binders++;
         }
     }
-    free(parameters);
     if(!valid || binders == 0) {
         Diagnostic(fn->span, "check.template",
                    "polymorphic procedure requires a direct $Type parameter");

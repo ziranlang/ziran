@@ -1311,51 +1311,19 @@ discarded_must_call(Checker *c, int index)
     }
     return -1;
 }
-/* Buffers conversion_matches keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct ConversionMatchesBuffers {
-    char parameters[64][ZIR_TEXT_MAX];
-} ConversionMatchesBuffers;
-
-static int conversion_matches(Checker *c, const ZirFunction *conversion,
-                   const char *from, const char *to);
-
-static int
-conversion_matches_with_buffers(Checker *c, const ZirFunction *conversion,
-                   const char *from, const char *to, ConversionMatchesBuffers *buffers)
-{
-    int count;
-    char *colon;
-    if(conversion->is_template || conversion->is_extern ||
-       strcmp(conversion->return_type, to) != 0)
-        return 0;
-    count = *skip_ws(FunctionArgs(conversion)) ?
-        split_top_level(FunctionArgs(conversion), buffers->parameters[0], 64,
-                        sizeof(buffers->parameters[0])) : 0;
-    if(count != 1)
-        return 0;
-    colon = strchr(buffers->parameters[0], ':');
-    if(colon == NULL)
-        return 0;
-    return compatible(skip_ws(colon + 1), from);
-}
-
 /* A conversion applies when its single parameter accepts `from` and its
  * result is exactly `to`. */
 static int
 conversion_matches(Checker *c, const ZirFunction *conversion,
                    const char *from, const char *to)
 {
-    static _Thread_local ConversionMatchesBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ConversionMatchesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    int returned = conversion_matches_with_buffers(c, conversion, from, to, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-    return returned;
+    if(conversion->is_template || conversion->is_extern ||
+       strcmp(conversion->return_type, to) != 0)
+        return 0;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(conversion));
+    if(parameters->count != 1 || parameters->items[0].type == NULL)
+        return 0;
+    return compatible(parameters->items[0].type, from);
 }
 
 int

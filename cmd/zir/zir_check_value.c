@@ -1153,17 +1153,11 @@ readonly_text_destination(Checker *c, int index)
     }
     return 0;
 }
-/* Buffers contextual_slot keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct ContextualSlotBuffers {
-    char actual[64][ZIR_TEXT_MAX];
-    char wanted[64][ZIR_TEXT_MAX];
-} ContextualSlotBuffers;
-
-void contextual_slot(Checker *c, int index, const char *expected);
-
-static void
-contextual_slot_with_buffers(Checker *c, int index, const char *expected, ContextualSlotBuffers *buffers)
+/* Function values require a slot context; ordinary names retain lexical lookup.
+ * Annotate before recursively checking expressions so a declaration identifier
+ * is not mistaken for an unresolved variable. */
+void
+contextual_slot(Checker *c, int index, const char *expected)
 {
     const ZirModule *slot_owner = NULL;
     const ZirType *slot = FindType(c->module, expected, &slot_owner);
@@ -1194,20 +1188,16 @@ contextual_slot_with_buffers(Checker *c, int index, const char *expected, Contex
                 !strcmp(declaration->return_type, slot->procedure_return_type);
         }
     }
-    int actual_count = matches && *skip_ws(FunctionArgs(declaration)) ?
-        split_top_level(FunctionArgs(declaration), buffers->actual[0], 64, sizeof(buffers->actual[0])) : 0;
-    int wanted_count = *skip_ws(slot->body) ?
-        split_top_level(slot->body, buffers->wanted[0], 64, sizeof(buffers->wanted[0])) : 0;
-    matches &= actual_count == wanted_count;
-    for(int i = 0; matches && i < wanted_count; i++) {
-        const char *actual_type = strchr(buffers->actual[i], ':');
-        const char *wanted_type = strchr(buffers->wanted[i], ':');
+    const ZirParameters *actual = ParametersOf(matches ? FunctionArgs(declaration) : "");
+    const ZirParameters *wanted = ParametersOf(slot->body);
+    matches &= actual->count == wanted->count;
+    for(int i = 0; matches && i < wanted->count; i++) {
+        const char *actual_type = actual->items[i].type;
+        const char *wanted_type = wanted->items[i].type;
         if(actual_type == NULL || wanted_type == NULL) {
             matches = 0;
             break;
         }
-        actual_type = skip_ws(actual_type + 1);
-        wanted_type = skip_ws(wanted_type + 1);
         const char *actual_scalar = ScalarType(actual_type);
         const char *wanted_scalar = ScalarType(wanted_type);
         if(*actual_scalar || *wanted_scalar) {
@@ -1230,22 +1220,6 @@ contextual_slot_with_buffers(Checker *c, int index, const char *expected, Contex
     value->type = KeepName(expected);
 }
 
-/* Function values require a slot context; ordinary names retain lexical lookup.
- * Annotate before recursively checking expressions so a declaration identifier
- * is not mistaken for an unresolved variable. */
-void
-contextual_slot(Checker *c, int index, const char *expected)
-{
-    static _Thread_local ContextualSlotBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ContextualSlotBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    contextual_slot_with_buffers(c, index, expected, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-}
 
 int
 TypeOfOperand(const char *source, char *operand, size_t capacity)

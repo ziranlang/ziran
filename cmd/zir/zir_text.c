@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 int
@@ -207,6 +208,85 @@ split_top_level(const char *s, char *parts, int max, size_t part_size)
         }
     }
     return n;
+}
+
+/* Parameter lists by their kept text; a kept text is one pointer for one
+ * spelling, so the pointer identifies the list. */
+static struct {
+    const char **texts;
+    const ZirParameters **lists;
+    size_t count, slots;
+} parameter_lists;
+
+static size_t
+parameter_slot(const char *kept)
+{
+    size_t slot = ((uintptr_t)kept >> 4) * 11400714819323198485ull;
+    slot &= parameter_lists.slots - 1;
+    while(parameter_lists.texts[slot] != NULL && parameter_lists.texts[slot] != kept)
+        slot = (slot + 1) & (parameter_lists.slots - 1);
+    return slot;
+}
+
+static const ZirParameters *
+split_parameters(const char *text)
+{
+    enum { MAX = 64 };
+    char (*parts)[ZIR_TEXT_MAX] = NULL;
+    int count = 0;
+    if(*skip_ws(text)) {
+        parts = AllocateOrExit(MAX * sizeof(*parts));
+        count = split_top_level(text, parts[0], MAX, sizeof(parts[0]));
+    }
+    ZirParameters *list = AllocateOrExit(sizeof(*list) +
+                                         (size_t)count * sizeof(list->items[0]));
+    list->count = count;
+    for(int i = 0; i < count; i++) {
+        ZirParameter *parameter = &list->items[i];
+        parameter->text = KeepText(parts[i]);
+        parameter->name = parameter->type = NULL;
+        char *colon = strchr(parts[i], ':');
+        if(colon != NULL) {
+            parameter->type = KeepText(skip_ws(colon + 1));
+            *colon = '\0';
+            parameter->name = KeepText(trim(parts[i]));
+        }
+    }
+    free(parts);
+    return list;
+}
+
+const ZirParameters *
+ParametersOf(const char *text)
+{
+    const char *kept = KeepText(text);
+    if(parameter_lists.count * 2 >= parameter_lists.slots) {
+        size_t old_slots = parameter_lists.slots;
+        const char **old_texts = parameter_lists.texts;
+        const ZirParameters **old_lists = parameter_lists.lists;
+        parameter_lists.slots = old_slots ? old_slots * 2 : 1024;
+        parameter_lists.texts = calloc(parameter_lists.slots, sizeof(*parameter_lists.texts));
+        parameter_lists.lists = calloc(parameter_lists.slots, sizeof(*parameter_lists.lists));
+        if(parameter_lists.texts == NULL || parameter_lists.lists == NULL) {
+            fprintf(stderr, "ziran: out of memory keeping parameter lists\n");
+            exit(1);
+        }
+        for(size_t i = 0; i < old_slots; i++)
+            if(old_texts[i] != NULL) {
+                size_t slot = parameter_slot(old_texts[i]);
+                parameter_lists.texts[slot] = old_texts[i];
+                parameter_lists.lists[slot] = old_lists[i];
+            }
+        free(old_texts);
+        free(old_lists);
+    }
+    size_t slot = parameter_slot(kept);
+    if(parameter_lists.texts[slot] == NULL) {
+        parameter_lists.texts[slot] = kept;
+        parameter_lists.lists[slot] = split_parameters(kept);
+        parameter_lists.count++;
+    }
+    return parameter_lists.lists[slot];
 }
 
 char *

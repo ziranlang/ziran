@@ -24,6 +24,23 @@ enum { PRINT_PIECES_MAX = 64 };
 int PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity);
 void FormatPrintFloat(double value, int single, char *out, size_t capacity);
 int split_top_level(const char *s, char *parts, int max, size_t part_size);
+/* A parameter list split once. Each parameter is trimmed text as
+ * split_top_level gives it, with the name before its first ':' (trimmed)
+ * and the type after it; both are NULL without a ':'. */
+typedef struct ZirParameter {
+    const char *text;
+    const char *name;
+    const char *type;
+} ZirParameter;
+typedef struct ZirParameters {
+    int count;
+    ZirParameter items[];
+} ZirParameters;
+/* TEXT split at top-level commas into at most 64 parameters, as
+ * split_top_level(TEXT, parts, 64, ZIR_TEXT_MAX) would; blank TEXT has
+ * none. Lists are kept for the whole run and shared by equal texts, so
+ * callers never free or change one. */
+const ZirParameters *ParametersOf(const char *text);
 /* Jai's operator procedures, `operator + :: (a: V, b: V) -> V`, are named
  * operator_add and so on. The name for binary operator OP, or NULL. */
 const char *OperatorProcedureName(const char *op);

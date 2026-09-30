@@ -694,6 +694,65 @@ release_call_arrays(Vm *vm, uint64_t entry, uint64_t before_result)
 }
 /* Buffers run_function keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
+static size_t
+signature_slot(const Vm *vm, const ZirModule *module, const char *args)
+{
+    size_t slot = (((uintptr_t)module >> 4) ^ ((uintptr_t)args >> 3)) *
+                  11400714819323198485ull;
+    slot &= vm->signature_slots - 1;
+    while(vm->signatures[slot] != NULL &&
+          (vm->signatures[slot]->module != module ||
+           vm->signatures[slot]->args != args))
+        slot = (slot + 1) & (vm->signature_slots - 1);
+    return slot;
+}
+
+const VmSignature *
+vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
+{
+    const char *args = KeepText(FunctionArgs(function));
+    if(vm->signature_count * 2 >= vm->signature_slots) {
+        size_t old_slots = vm->signature_slots;
+        const VmSignature **old = vm->signatures;
+        vm->signature_slots = old_slots ? old_slots * 2 : 256;
+        vm->signatures = calloc(vm->signature_slots, sizeof(*vm->signatures));
+        if(vm->signatures == NULL) {
+            fprintf(stderr, "ziran: out of memory keeping signatures\n");
+            exit(1);
+        }
+        for(size_t i = 0; i < old_slots; i++)
+            if(old[i] != NULL)
+                vm->signatures[signature_slot(vm, old[i]->module, old[i]->args)] = old[i];
+        free(old);
+    }
+    size_t slot = signature_slot(vm, module, args);
+    if(vm->signatures[slot] == NULL) {
+        Parameter *parsed = AllocateOrExit(VM_MAX_PARAMS * sizeof(*parsed));
+        int count = parse_parameters(module, function, parsed);
+        VmSignature *signature = AllocateOrExit(sizeof(*signature) +
+            (size_t)(count > 0 ? count : 0) * sizeof(signature->parameters[0]));
+        signature->module = module;
+        signature->args = args;
+        signature->count = count;
+        if(count > 0)
+            memcpy(signature->parameters, parsed, (size_t)count * sizeof(*parsed));
+        free(parsed);
+        vm->signatures[slot] = signature;
+        vm->signature_count++;
+    }
+    return vm->signatures[slot];
+}
+
+void
+free_signatures(Vm *vm)
+{
+    for(size_t i = 0; i < vm->signature_slots; i++)
+        free((void *)vm->signatures[i]);
+    free(vm->signatures);
+    vm->signatures = NULL;
+    vm->signature_count = vm->signature_slots = 0;
+}
+
 typedef struct RunFunctionBuffers {
     Frame frame;
     /* The frame's locals; kept with the buffers for the next call. */
@@ -701,11 +760,10 @@ typedef struct RunFunctionBuffers {
     int local_capacity;
 } RunFunctionBuffers;
 
-/* What a call needs only while it binds its arguments or calls the host.
- * Taken from a pool and returned before the body runs, so nested calls
- * reuse one instead of each holding kilobytes for their whole run. */
+/* What a call needs only while it calls the host. Taken from a pool and
+ * returned before a body runs, so nested calls reuse one instead of each
+ * holding kilobytes for their whole run. */
 typedef struct CallSetup {
-    Parameter parameters[VM_MAX_PARAMS];
     VmHostValue host_args[VM_MAX_PARAMS];
 } CallSetup;
 
@@ -740,7 +798,9 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
              CallSetup **setup)
 {
     memset(&buffers->frame, 0, sizeof(buffers->frame));
-    int count = parse_parameters(module, function, (*setup)->parameters);
+    const VmSignature *signature = vm_signature(vm, module, function);
+    const Parameter *parameters = signature->parameters;
+    int count = signature->count;
     Value result = int_value(0);
     uint64_t allocation_entry = vm->allocation;
     int too_deep = vm->stack_floor != NULL ?
@@ -793,9 +853,9 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
             if(vm->failed)
                 break;
             Value argument = coerce_expression(vm, module, args[i],
-                                               (*setup)->parameters[i].type);
+                                               parameters[i].type);
             if(vm->failed || !host_argument(module,
-                                            (*setup)->parameters[i].type, argument,
+                                            parameters[i].type, argument,
                                             &(*setup)->host_args[i], 0)) {
                 vm->failed = 1;
                 break;
@@ -807,7 +867,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
                                     &host_result))
             vm->failed = 1;
         for(int i = 0; i < count && !vm->failed; i++)
-            host_copy_back(vm, module, (*setup)->parameters[i].type,
+            host_copy_back(vm, module, parameters[i].type,
                            args[i], &(*setup)->host_args[i]);
         for(int i = 0; i < count; i++)
             release_host_argument(&(*setup)->host_args[i], 0);
@@ -837,15 +897,15 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     vm->active_frame = &buffers->frame;
     for(int i = 0; i < count; i++) {
         copy_text(buffers->frame.locals[i].name, sizeof(buffers->frame.locals[i].name),
-                  (*setup)->parameters[i].name);
+                  parameters[i].name);
         copy_text(buffers->frame.locals[i].type, sizeof(buffers->frame.locals[i].type),
-                  (*setup)->parameters[i].type);
-        buffers->frame.locals[i].value = !VecElementType(module, (*setup)->parameters[i].type,
+                  parameters[i].type);
+        buffers->frame.locals[i].value = !VecElementType(module, parameters[i].type,
                                                 NULL, 0) &&
                                 parameter_read_only(function,
-                                                    (*setup)->parameters[i].name) ?
-            coerce_expression(vm, module, args[i], (*setup)->parameters[i].type) :
-            coerce(vm, module, args[i], (*setup)->parameters[i].type);
+                                                    parameters[i].name) ?
+            coerce_expression(vm, module, args[i], parameters[i].type) :
+            coerce(vm, module, args[i], parameters[i].type);
     }
     buffers->frame.local_count = count;
     give_setup(setup);
@@ -1243,6 +1303,7 @@ VmInstanceClose(VmInstance *instance)
     free_arrays(&instance->vm);
     free_strings(&instance->vm);
     free_layouts(&instance->vm);
+    free_signatures(&instance->vm);
     free(instance->vm.globals);
     free(instance);
 }

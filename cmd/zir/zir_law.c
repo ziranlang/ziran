@@ -414,18 +414,9 @@ portable_signature_type(const ZirModule *module, const char *type, int depth)
         return status == 0;
     }
 }
-/* Buffers evaluate_abi_law keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct EvaluateAbiLawBuffers {
-    char parameters[64][ZIR_TEXT_MAX];
-} EvaluateAbiLawBuffers;
-
-static LawStatus evaluate_abi_law(const ZirModule *module, const ZirLaw *law,
-                 char *detail, size_t size);
-
 static LawStatus
-evaluate_abi_law_with_buffers(const ZirModule *module, const ZirLaw *law,
-                 char *detail, size_t size, EvaluateAbiLawBuffers *buffers)
+evaluate_abi_law(const ZirModule *module, const ZirLaw *law,
+                 char *detail, size_t size)
 {
     const ZirModule *owner = NULL;
     const ZirFunction *fn = NULL;
@@ -448,13 +439,11 @@ evaluate_abi_law_with_buffers(const ZirModule *module, const ZirLaw *law,
                  law->payload);
         return LAW_UNKNOWN;
     }
-    count = *skip_ws(FunctionArgs(fn)) ?
-        split_top_level(FunctionArgs(fn), buffers->parameters[0], 64,
-                        sizeof(buffers->parameters[0])) : 0;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    count = parameters->count;
     for(int p = 0; p < count; p++) {
-        char *colon = strchr(buffers->parameters[p], ':');
-        if(colon == NULL ||
-           !portable_signature_type(module, skip_ws(colon + 1), 0)) {
+        const char *type = parameters->items[p].type;
+        if(type == NULL || !portable_signature_type(module, type, 0)) {
             snprintf(detail, size,
                      "%s parameter %d is outside the portable ABI",
                      law->payload, p);
@@ -470,21 +459,6 @@ evaluate_abi_law_with_buffers(const ZirModule *module, const ZirLaw *law,
     return LAW_PROVED;
 }
 
-static LawStatus
-evaluate_abi_law(const ZirModule *module, const ZirLaw *law,
-                 char *detail, size_t size)
-{
-    static _Thread_local EvaluateAbiLawBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EvaluateAbiLawBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    LawStatus returned = evaluate_abi_law_with_buffers(module, law, detail, size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-    return returned;
-}
 
 /* kind: size ------------------------------------------------------------ */
 

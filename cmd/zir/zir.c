@@ -661,6 +661,20 @@ BuiltinType(const char *name)
     return strcmp(name, location.name) == 0 ? &location : NULL;
 }
 
+int
+BuiltinTypeName(const char *name)
+{
+    static const char *const names[] = {
+        "bool", "void", "s8", "u8", "s16", "u16", "s32", "u32", "s64", "u64",
+        "isize", "usize", "float32", "float64", "string", "int", "float",
+        "Type", "any", NULL
+    };
+    for(int i = 0; names[i] != NULL; i++)
+        if(strcmp(name, names[i]) == 0)
+            return 1;
+    return 0;
+}
+
 /* Finds the module named `name` among those `module` reaches through its
  * imports. A type written as `module_name.Type` names a type that is visible
  * to its user only through another module, such as the type of a field of an
@@ -809,6 +823,13 @@ find_type_depth(const ZirModule *module, const char *name,
 const ZirType *
 FindType(const ZirModule *module, const char *name, const ZirModule **owner)
 {
+    /* Scalars, pointers, arrays, and slices are never declared types, and
+     * they are most lookups; skip searching every imported module. */
+    if(*name == '*' || *name == '[' || BuiltinTypeName(name)) {
+        if(owner)
+            *owner = NULL;
+        return NULL;
+    }
     return find_type_depth(module, name, owner, 0);
 }
 

@@ -379,6 +379,9 @@ int ResolveGlobal(const ZirModule *module, const char *name,
 const ZirType *FindType(const ZirModule *module, const char *name,
                         const ZirModule **owner);
 const ZirType *BuiltinType(const char *name);
+/* True for a name the language defines as a type (s32, string, int, ...);
+ * no module may declare a type with such a name. */
+int BuiltinTypeName(const char *name);
 /* Resolve a record member, including fields promoted by `using`.
  * Returns 1 for a unique member, 0 if absent, -1 if ambiguous or too deep. */
 int ResolveRecordField(const ZirModule *owner, const ZirType *record,

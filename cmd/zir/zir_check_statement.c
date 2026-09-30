@@ -314,7 +314,7 @@ check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuf
         if(record->name[0] == '#')
             return record_declaration_error(record,
                 "retired compiler-generated type", NULL);
-        if(BuiltinType(record->name) != NULL)
+        if(BuiltinType(record->name) != NULL || BuiltinTypeName(record->name))
             return record_declaration_error(record,
                 "built-in type cannot be redeclared", NULL);
         for(int previous = 0; previous < i; previous++) {

@@ -708,19 +708,21 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             int text_append = !strcmp(e->name, "BuilderAppend");
             int text_finish = !strcmp(e->name, "BuilderFinish");
             int byte_builder = text_append || text_finish;
-            char element[ZIR_NAME_MAX];
+            char element[ZIR_NAME_MAX] = "";
             Binding *first_binding = lexical_vec_binding(c, first);
             int first_touched = first_binding != NULL &&
                                 first_binding->touched;
             const char *vector_type = expression_type(c, first);
             int clone = !strcmp(e->name, "VecClone");
             int view = !strcmp(e->name, "VecSlice");
-            if(first < 0 || !VecElementType(c->module, vector_type,
-                                           element, sizeof(element)) ||
-               !(get || assignable(c, first)))
+            int vector_known = first >= 0 &&
+                VecElementType(c->module, vector_type, element, sizeof(element));
+            if(!vector_known || !(get || assignable(c, first)))
                 error(c, e->span, "Vec operation requires mutable Vec storage",
+                      first >= 0 && c->fn->exprs[first].kind == ZIR_EXPR_UNARY ?
+                      "pass the Vec variable itself, as in VecPush(values, 1)" :
                       e->name);
-            if(byte_builder && strcmp(element, "u8"))
+            if(vector_known && byte_builder && strcmp(element, "u8"))
                 error(c, e->span,
                       "string builder requires a Vec(u8) place", element);
             if(first_binding != NULL && first_binding->borrow_count > 0 &&
@@ -733,7 +735,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     error(c, e->span, "nested Vec elements are not supported", element);
                 if(second < 0 || c->fn->exprs[second].next_sibling >= 0)
                     error(c, e->span, "VecPush requires a value", e->name);
-                else {
+                else if(vector_known) {
                     const char *item_type = expression_type(c, second);
                     if(!compatible_checked(c, element, item_type))
                         error(c, e->span, "VecPush element type mismatch", element);

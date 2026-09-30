@@ -3347,7 +3347,7 @@ static void fill_literal_types(PyEmitter *emitter, ZirFunction *literal, int ind
     ZirExpr *node = &literal->exprs[index];
     if(node->type[0] == '\0' || !strcmp(node->type, "integer") ||
        !strcmp(node->type, "real") || node->kind == ZIR_EXPR_COMPOUND)
-        snprintf(node->type, sizeof(node->type), "%s", type);
+        node->type = KeepNameFormat("%s", type);
     if(node->kind != ZIR_EXPR_COMPOUND)
         return;
     int array = ArrayElementType(type, element, sizeof(element), NULL);
@@ -3367,7 +3367,7 @@ static void fill_literal_types(PyEmitter *emitter, ZirFunction *literal, int ind
                 if(entry->name[0] ? !strcmp(field.name, entry->name) : ordinal == position) {
                     snprintf(field_type, sizeof(field_type), "%s", field.type);
                     if(!entry->name[0])
-                        snprintf(entry->name, sizeof(entry->name), "%s", field.name);
+                        entry->name = KeepNameFormat("%s", field.name);
                     break;
                 }
                 ordinal++;
@@ -3387,7 +3387,7 @@ static void fill_literal_types(PyEmitter *emitter, ZirFunction *literal, int ind
         if(!field_type[0])
             continue;
         if(entry->kind == ZIR_EXPR_FIELD_INIT) {
-            snprintf(entry->type, sizeof(entry->type), "%s", field_type);
+            entry->type = KeepNameFormat("%s", field_type);
             fill_literal_types(emitter, literal, entry->right, field_type, depth + 1);
         } else
             fill_literal_types(emitter, literal, child, field_type, depth + 1);

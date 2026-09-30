@@ -192,6 +192,7 @@ int visible_define(const ZirModule *module, const char *name, const ZirDefine **
 int bound_compound_constant(const ZirModule *module, const char *name, int depth, CompoundConstant *result);
 int array_capacity(const ZirModule *module, const char *type, int *capacity);
 void normalize_array(const ZirModule *module, char *type, size_t size);
+const char *normalized_array(const ZirModule *module, const char *type);
 int compatible(const char *to, const char *from);
 /* "SUBJECT (expected EXPECTED, found FOUND)" for a type mismatch. */
 const char *mismatch_detail(char *out, size_t size, const char *subject,

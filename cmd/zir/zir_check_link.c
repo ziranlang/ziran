@@ -766,8 +766,7 @@ name_private_functions(ZirModule *module)
                 continue;
             for(int i = 0; i < count; i++)
                 if(target == renames[i].function) {
-                    copy_text(expression->name, sizeof(expression->name),
-                              renames[i].internal);
+                    expression->name = KeepName(renames[i].internal);
                     break;
                 }
         }
@@ -998,8 +997,7 @@ name_private_globals(ZirModule *module)
                 ZirExpr *expression = &caller->exprs[x];
                 if(expression->is_global_value &&
                    !strcmp(expression->name, rename->original))
-                    copy_text(expression->name, sizeof(expression->name),
-                              rename->internal);
+                    expression->name = KeepName(rename->internal);
             }
         }
     }
@@ -1147,10 +1145,10 @@ name_private_types(ZirModule *module)
             }
             for(int x = 0; x < function->expr_count; x++) {
                 ZirExpr *expression = &function->exprs[x];
-                char slot_type[ZIR_NAME_MAX];
+                char type[ZIR_NAME_MAX], slot_type[ZIR_NAME_MAX];
+                copy_text(type, sizeof(type), expression->type);
                 copy_text(slot_type, sizeof(slot_type), expression->slot_type);
-                if(!rewrite_private_reference(expression->type,
-                                              sizeof(expression->type),
+                if(!rewrite_private_reference(type, sizeof(type),
                                               expression->span,
                                               rename->original,
                                               rename->internal) ||
@@ -1158,17 +1156,22 @@ name_private_types(ZirModule *module)
                                               expression->span,
                                               rename->original,
                                               rename->internal)) goto failed;
+                expression->type = KeepName(type);
                 expression->slot_type = KeepName(slot_type);
                 if(expression->kind == ZIR_EXPR_CAST ||
                    expression->kind == ZIR_EXPR_COMPOUND ||
                    expression->kind == ZIR_EXPR_SIZE_OF ||
                    (expression->kind == ZIR_EXPR_CALL &&
                     rename->type->is_record_template))
-                    if(!rewrite_private_reference(expression->name,
-                                                  sizeof(expression->name),
+                {
+                    char name[ZIR_NAME_MAX];
+                    copy_text(name, sizeof(name), expression->name);
+                    if(!rewrite_private_reference(name, sizeof(name),
                                                   expression->span,
                                                   rename->original,
                                                   rename->internal)) goto failed;
+                    expression->name = KeepName(name);
+                }
             }
         }
     }
@@ -1335,26 +1338,28 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
                                 instance->stmts[s].span)) return 0;
         for(int x = 0; x < instance->expr_count; x++) {
             ZirExpr *expression = &instance->exprs[x];
-            char slot_type[ZIR_NAME_MAX];
+            char type[ZIR_NAME_MAX], slot_type[ZIR_NAME_MAX];
+            copy_text(type, sizeof(type), expression->type);
             copy_text(slot_type, sizeof(slot_type), expression->slot_type);
-            if(!substitute_field(expression->type,
-                                 sizeof(expression->type),
-                                 parameter, concrete) ||
+            if(!substitute_field(type, sizeof(type), parameter, concrete) ||
                !substitute_field(slot_type, sizeof(slot_type),
                                  parameter, concrete) ||
-               !canonical_field(owner, expression->type, sizeof(expression->type),
+               !canonical_field(owner, type, sizeof(type),
                                 expression->span)) return 0;
+            expression->type = KeepName(type);
             expression->slot_type = KeepName(slot_type);
             if(expression->kind == ZIR_EXPR_CAST ||
                expression->kind == ZIR_EXPR_COMPOUND ||
                expression->kind == ZIR_EXPR_SIZE_OF ||
-               expression->kind == ZIR_EXPR_CALL)
-                if(!substitute_field(expression->name,
-                                     sizeof(expression->name),
-                                     parameter, concrete) ||
+               expression->kind == ZIR_EXPR_CALL) {
+                char name[ZIR_NAME_MAX];
+                copy_text(name, sizeof(name), expression->name);
+                if(!substitute_field(name, sizeof(name), parameter, concrete) ||
                    (expression->kind != ZIR_EXPR_CALL &&
-                    !canonical_field(owner, expression->name, sizeof(expression->name),
+                    !canonical_field(owner, name, sizeof(name),
                                      expression->span))) return 0;
+                expression->name = KeepName(name);
+            }
             if(owner != template_owner &&
                expression->kind == ZIR_EXPR_CALL &&
                strchr(expression->name, '.') == NULL) {
@@ -1376,8 +1381,7 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
                             "%s.%s", import->name, expression->name);
                         if(written < 0 ||
                            (size_t)written >= sizeof(qualified)) return 0;
-                        copy_text(expression->name,
-                                  sizeof(expression->name), qualified);
+                        expression->name = KeepName(qualified);
                         break;
                     }
                 }

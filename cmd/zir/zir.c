@@ -6,6 +6,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1184,6 +1185,17 @@ KeepName(const char *text)
 }
 
 const char *
+KeepNameFormat(const char *format, ...)
+{
+    char name[ZIR_NAME_MAX];
+    va_list arguments;
+    va_start(arguments, format);
+    vsnprintf(name, sizeof(name), format, arguments);
+    va_end(arguments);
+    return KeepText(name);
+}
+
+const char *
 KeepText(const char *text)
 {
     if(text == NULL || *text == '\0')
@@ -1565,6 +1577,8 @@ ExprReset(ZirExpr *expr)
     memset(expr, 0, sizeof(*expr));
     expr->slot_type = "";
     expr->argument_name = "";
+    expr->name = "";
+    expr->type = "";
 }
 
 ZirExpr *

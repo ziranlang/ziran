@@ -561,8 +561,7 @@ copy_live_expression(const ZirFunction *from, ZirFunction *to,
                     !strcmp(to->exprs[result].type, "real")) &&
                    strcmp(expr->type, "integer") != 0 &&
                    strcmp(expr->type, "real") != 0)
-                    copy_text(to->exprs[result].type,
-                              sizeof(to->exprs[result].type), expr->type);
+                    to->exprs[result].type = KeepName(expr->type);
             }
             mapping[source] = result;
             return result;
@@ -588,8 +587,7 @@ copy_live_expression(const ZirFunction *from, ZirFunction *to,
             if(result >= to->expr_cap) return -2;
             to->exprs[result] = *expr;
             to->exprs[result].kind = ZIR_EXPR_IDENT;
-            copy_text(to->exprs[result].name,
-                      sizeof(to->exprs[result].name), left ? "true" : "false");
+            to->exprs[result].name = KeepName(left ? "true" : "false");
             to->exprs[result].left = to->exprs[result].right =
                 to->exprs[result].third = to->exprs[result].first_child =
                 to->exprs[result].next_sibling = -1;

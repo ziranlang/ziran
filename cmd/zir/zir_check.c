@@ -1351,7 +1351,7 @@ promote_using_member(Checker *c, int index)
         c->failed = 1;
         return;
     }
-    copy_text(base->name, sizeof(base->name), base_name);
+    base->name = KeepName(base_name);
     for(const char *segment = using_path; *segment != '\0'; ) {
         const char *dot = strchr(segment, '.');
         size_t length = dot == NULL ? strlen(segment) :
@@ -1364,7 +1364,7 @@ promote_using_member(Checker *c, int index)
                                         field_name, span);
         if(next == NULL) { c->failed = 1; return; }
         next->left = base_index;
-        copy_text(next->name, sizeof(next->name), field_name);
+        next->name = KeepName(field_name);
         copy_text(next->op, sizeof(next->op), ".");
         base_index = next_index;
         if(dot == NULL) break;
@@ -1379,7 +1379,7 @@ promote_using_member(Checker *c, int index)
             c->bindings[selected].using_filter, member->name, source_name,
             sizeof(source_name));
         if(promoted != NULL && promoted != member->name)
-            copy_text(member->name, sizeof(member->name), promoted);
+            member->name = KeepName(promoted);
     }
     copy_text(member->op, sizeof(member->op), ".");
     c->using_rewritten = 1;

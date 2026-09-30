@@ -370,9 +370,9 @@ select_overload(Checker *c, int index)
         return;
     }
     if(alias[0])
-        snprintf(e->name, sizeof(e->name), "%s.%s", alias, best->name);
+        e->name = KeepNameFormat("%s.%s", alias, best->name);
     else
-        copy_text(e->name, sizeof(e->name), best->name);
+        e->name = KeepName(best->name);
     append_overload_defaults(c, index, best, alias);
 }
 
@@ -439,8 +439,8 @@ print_enum_by_name(Checker *c, int index)
     ExprReset(call);
     call->kind = ZIR_EXPR_CALL;
     call->text = saved.text;
-    copy_text(call->name, sizeof(call->name), call_name);
-    copy_text(call->type, sizeof(call->type), "string");
+    call->name = KeepName(call_name);
+    call->type = KeepName("string");
     call->first_child = copy_index;
     call->left = call->right = call->third = -1;
     call->next_sibling = saved.next_sibling;
@@ -727,7 +727,7 @@ print_through_procedure(Checker *c, int index)
             address->kind = ZIR_EXPR_UNARY;
             address->text = saved.text;
             copy_text(address->op, sizeof(address->op), "&");
-            snprintf(address->type, sizeof(address->type), "*%s", saved.type);
+            address->type = KeepNameFormat("*%s", saved.type);
             address->left = address->third = address->first_child = -1;
             address->right = copy_index;
             address->next_sibling = next;
@@ -738,8 +738,8 @@ print_through_procedure(Checker *c, int index)
     }
     ZirExpr *call = &fn->exprs[index];
     call->first_child = fn->exprs[format].next_sibling;
-    copy_text(call->name, sizeof(call->name), function);
-    copy_text(call->type, sizeof(call->type), "void");
+    call->name = KeepName(function);
+    call->type = KeepName("void");
     c->conversions_applied = 1;
     free(args);
     free(identity);
@@ -851,9 +851,9 @@ operator_call(Checker *c, int index, const char *left, const char *right)
     int l = e->left, r = e->right;
     ZirExpr *call = &c->fn->exprs[call_index];
     call->kind = ZIR_EXPR_CALL;
-    copy_text(call->name, sizeof(call->name), callee);
+    call->name = KeepName(callee);
     call->op[0] = '\0';
-    call->type[0] = '\0';
+    call->type = "";
     call->text = e->text;
     call->span = e->span;
     call->first_child = l;
@@ -872,7 +872,7 @@ operator_call(Checker *c, int index, const char *left, const char *right)
         copy_text(e->op, sizeof(e->op), "!");
         e->left = -1;
         e->right = call_index;
-        e->type[0] = '\0';
+        e->type = "";
     }
     c->conversions_applied = 1;
     return 1;
@@ -1064,7 +1064,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                                                       NULL);
                 if(enumeration != NULL && enumeration->is_enum) {
                     if(lower_enum_reference(c, e, enumeration, e->name, 0)) {
-                        copy_text(e->type, sizeof(e->type), qualified);
+                        e->type = KeepName(qualified);
                         return e->type;
                     }
                     return "";
@@ -1091,7 +1091,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             }
             e->kind = ZIR_EXPR_IDENT;
             e->left = -1;
-            copy_text(e->name, sizeof(e->name), qualified);
+            e->name = KeepName(qualified);
             break;
         }
     }
@@ -1156,9 +1156,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         if(!c->fn->from_ir)
             e->text = KeepText(buffers->replacement);
         if(sized_type != e->name)
-            copy_text(e->name, sizeof(e->name), sized_type);
+            e->name = KeepName(sized_type);
         e->left = e->right = e->third = -1;
-        copy_text(e->type, sizeof(e->type), "integer");
+        e->type = KeepName("integer");
         return e->type;
     }
     if(e->is_function_value)
@@ -1176,9 +1176,11 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                                    import->span) ||
                    strcmp(import->name, alias) != 0)
                     continue;
-                int length = snprintf(e->name, sizeof(e->name),
+                char qualified[ZIR_NAME_MAX];
+                int length = snprintf(qualified, sizeof(qualified),
                                       "%s.%s", alias, member->name);
-                if(length < 0 || (size_t)length >= sizeof(e->name))
+                e->name = KeepName(qualified);
+                if(length < 0 || (size_t)length >= sizeof(qualified))
                     error(c, e->span, "qualified call name is too long", alias);
                 else
                     e->left = -1;
@@ -1216,7 +1218,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                       "inferred record literal needs a record type", e->text);
                 break;
             }
-            copy_text(e->name, sizeof(e->name), c->expected_type);
+            e->name = KeepName(c->expected_type);
         }
         if(SliceElementType(e->name, NULL, 0)) {
             error(c, e->span, "slice literals require a backing range", e->name);
@@ -1230,7 +1232,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 error(c, e->span, problem, e->name);
                 break;
             }
-            normalize_array(c->module, e->name, sizeof(e->name));
+            e->name = normalized_array(c->module, e->name);
             ArrayElementType(e->name, element, sizeof(element), &capacity);
             if(capacity < 0)
                 error(c, e->span, "array literals require a resolved capacity", e->name);
@@ -1246,7 +1248,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
                 if(!compatible_checked(c, element, value_type))
                     error(c, entry->span, "array initializer element type mismatch", element);
-                copy_text(entry->type, sizeof(entry->type), element);
+                entry->type = KeepName(element);
                 count++;
             }
             if(capacity >= 0 && count > capacity)
@@ -1290,7 +1292,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                           field.name);
                 ZirExpr *initializer = &c->fn->exprs[entry->right];
                 if(initializer->kind == ZIR_EXPR_COMPOUND)
-                    normalize_array(record_owner, initializer->name, sizeof(initializer->name));
+                    initializer->name = normalized_array(record_owner, initializer->name);
             }
             char saved_expected[ZIR_NAME_MAX];
             copy_text(saved_expected, sizeof(saved_expected), c->expected_type);
@@ -1307,8 +1309,8 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 if(!strcmp(c->fn->exprs[previous].name, field.name))
                     error(c, entry->span, "duplicate initializer field", field.name);
             }
-            copy_text(entry->name, sizeof(entry->name), field.name);
-            copy_text(entry->type, sizeof(entry->type), field.type);
+            entry->name = KeepName(field.name);
+            entry->type = KeepName(field.type);
             if(!compatible_checked(c, field.type, value_type))
                 error(c, entry->span, "initializer field type mismatch", field.name);
             if(contains_vec(c->module, field.type, 0) &&
@@ -1401,7 +1403,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 if(found < 0)
                     error(c, e->span, "ambiguous using record field", e->name);
                 else if(found > 0)
-                    copy_text(e->name, sizeof(e->name), path);
+                    e->name = KeepName(path);
             }
             if(*member_type) {
                 normalize_array(record_owner, member_type, sizeof(member_type));
@@ -1513,9 +1515,12 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 const ZirGlobal *global = NULL;
                 if(ResolveGlobal(c->module, e->name,
                                  &owner, &global) == 1) {
+                    char qualified_type[ZIR_NAME_MAX];
+                    copy_text(qualified_type, sizeof(qualified_type), e->type);
                     int qualified = qualified_global_type(c->module,
                         e->name, owner, global->type,
-                        e->type, sizeof(e->type));
+                        qualified_type, sizeof(qualified_type));
+                    e->type = KeepName(qualified_type);
                     if(qualified < 0)
                         error(c, e->span, "qualified global type is too long",
                               e->name);
@@ -1632,9 +1637,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     break;
                 }
                 snprintf(member_type, sizeof(member_type), "*%s", named->name);
-                copy_text(e->name, sizeof(e->name), "zi_new");
+                e->name = KeepName("zi_new");
                 e->first_child = -1;
-                copy_text(e->type, sizeof(e->type), member_type);
+                e->type = KeepName(member_type);
                 type = e->type;
                 break;
             }
@@ -1649,7 +1654,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     break;
                 }
                 c->fn->exprs[argument].argument_index = 0;
-                copy_text(e->name, sizeof(e->name), "zi_free");
+                e->name = KeepName("zi_free");
                 type = "void";
                 break;
             }
@@ -1693,9 +1698,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     continue;
                 arguments++;
                 if(!strcmp(arg_type, "integer"))
-                    copy_text(c->fn->exprs[child].type, ZIR_NAME_MAX, "s64");
+                    c->fn->exprs[child].type = "s64";
                 else if(!strcmp(arg_type, "real"))
-                    copy_text(c->fn->exprs[child].type, ZIR_NAME_MAX, "float64");
+                    c->fn->exprs[child].type = "float64";
                 else if(*arg_type && print_expands(c, arg_type))
                     expanded++;
                 else if(*arg_type &&
@@ -1787,13 +1792,20 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     error(c, e->span, "map value type mismatch", value);
             }
             if(lookup) {
-                if(vec_option_result_type(c, value, e->span, e->type, sizeof(e->type)))
+                char result[ZIR_NAME_MAX];
+                copy_text(result, sizeof(result), e->type);
+                int found = vec_option_result_type(c, value, e->span, result, sizeof(result));
+                e->type = KeepName(result);
+                if(found)
                     type = e->type;
             } else if(get) {
-                copy_text(e->type, sizeof(e->type), value);
+                e->type = KeepName(value);
                 type = e->type;
             } else if(keys) {
-                if(snprintf(e->type, sizeof(e->type), "[]%s", key) >= (int)sizeof(e->type))
+                char slice_type[ZIR_NAME_MAX];
+                int length = snprintf(slice_type, sizeof(slice_type), "[]%s", key);
+                e->type = KeepName(slice_type);
+                if(length >= (int)sizeof(slice_type))
                     error(c, e->span, "map key slice type is too long", key);
                 type = e->type;
             } else
@@ -1862,8 +1874,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                             !strcmp(item_type, "real")) {
                         const char *scalar = ScalarType(element);
                         if(*scalar)
-                            copy_text(c->fn->exprs[second].type,
-                                      ZIR_NAME_MAX, scalar);
+                            c->fn->exprs[second].type = KeepName(scalar);
                     }
                 }
             } else if(swap) {
@@ -1943,15 +1954,23 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 error(c, e->span, "Vec operation takes one argument", e->name);
             if(pop) {
                 /* The result outlives this block, so it goes in e->type. */
-                if(vec_option_result_type(c, element, e->span, e->type,
-                                           sizeof(e->type)))
+                char result[ZIR_NAME_MAX];
+                copy_text(result, sizeof(result), e->type);
+                int found = vec_option_result_type(c, element, e->span, result,
+                                                   sizeof(result));
+                e->type = KeepName(result);
+                if(found)
                     type = e->type;
                 else
                     type = "";
             } else if(get) {
                 /* The result outlives this block, so it goes in e->type. */
-                if(vec_option_result_type(c, element, e->span, e->type,
-                                           sizeof(e->type)))
+                char result[ZIR_NAME_MAX];
+                copy_text(result, sizeof(result), e->type);
+                int found = vec_option_result_type(c, element, e->span, result,
+                                                   sizeof(result));
+                e->type = KeepName(result);
+                if(found)
                     type = e->type;
                 else
                     type = "";
@@ -2146,8 +2165,8 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     error(c, e->span, "specialized name is too long", e->name);
                     break;
                 }
-                copy_text(e->name, sizeof(e->name), qualified);
-            } else copy_text(e->name, sizeof(e->name), name);
+                e->name = KeepName(qualified);
+            } else e->name = KeepName(name);
         }
         if(callee != NULL && callee->is_extern && callee->extern_kind == ZIR_EXTERN_HOST)
             c->fn->uses_host = 1;
@@ -2309,7 +2328,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 }
                 if(colon && (!strcmp(arg_type, "integer") || !strcmp(arg_type, "real"))) {
                     const char *context = ScalarType(skip_ws(colon + 1));
-                    if(*context) copy_text(c->fn->exprs[child].type, ZIR_NAME_MAX, context);
+                    if(*context) c->fn->exprs[child].type = KeepName(context);
                 }
             }
             actual++;
@@ -2319,22 +2338,26 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             copy_text(saved_checked_type, sizeof(saved_checked_type), e->type);
             type = return_type;
             if(specialized_return[0]) {
-                copy_text(e->type, sizeof(e->type), specialized_return);
+                e->type = KeepName(specialized_return);
                 type = e->type;
             }
             if(callee_owner != NULL && callee_owner != c->module) {
                 if(type != e->type)
-                    copy_text(e->type, sizeof(e->type), type);
-                if(!record_field_type_at_use(c->module, callee_owner,
-                                             e->name, e->type,
-                                             sizeof(e->type)))
+                    e->type = KeepName(type);
+                char field_type[ZIR_NAME_MAX];
+                copy_text(field_type, sizeof(field_type), e->type);
+                int visible = record_field_type_at_use(c->module, callee_owner,
+                                                       e->name, field_type,
+                                                       sizeof(field_type));
+                e->type = KeepName(field_type);
+                if(!visible)
                     error(c, e->span,
                           "imported procedure result type is shadowed",
                           e->name);
                 if(saved_checked_type[0] &&
                    same_declared_type(c->module, e->type,
                                       saved_checked_type, 0))
-                    copy_text(e->type, sizeof(e->type), saved_checked_type);
+                    e->type = KeepName(saved_checked_type);
                 type = e->type;
             }
             if(actual < fixed && !c->inference_only) {
@@ -2465,9 +2488,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         if(!strcmp(e->op, "&")) {
             if(!assignable(c, e->right))
                 error(c, e->span, "address-of requires an assignable expression", e->text);
-            if(!*right || !strcmp(right, "null") || strlen(right) + 1 >= sizeof(e->type))
+            if(!*right || !strcmp(right, "null") || strlen(right) + 1 >= ZIR_NAME_MAX)
                 error(c, e->span, "address-of requires a known type", e->text);
-            snprintf(e->type, sizeof(e->type), "*%s", right);
+            e->type = KeepNameFormat("*%s", right);
             type = e->type;
         } else if(!strcmp(e->op, "*")) {
             if(right[0] != '*' || !*skip_ws(right + 1))
@@ -2517,8 +2540,8 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
     }
     if(*ScalarType(type)) type = ScalarType(type);
     if(type != e->type)
-        copy_text(e->type, sizeof(e->type), type);
-    normalize_array(c->module, e->type, sizeof(e->type));
+        e->type = KeepName(type);
+    e->type = normalized_array(c->module, e->type);
     return e->type;
 }
 

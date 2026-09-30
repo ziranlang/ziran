@@ -170,11 +170,10 @@ static int tag(ProofContext *c, const ZirFunction *fn, int index, int result)
     if(result >= 0 && !fn->checked) {
         ZirExpr *e = &((ZirFunction *)fn)->exprs[index];
         int type = c->kernel.terms[result].type;
-        if(!type) copy_text(e->type, sizeof(e->type), "bool");
+        if(!type) e->type = KeepName("bool");
         else if(c->kernel.types[type].identity)
-            copy_text(e->type, sizeof(e->type), ((const ZirType *)c->kernel.types[type].identity)->name);
-        else snprintf(e->type, sizeof(e->type), "%c%u",
-                      c->kernel.types[type].is_unsigned ? 'u' : 's', c->kernel.types[type].width);
+            e->type = KeepName(((const ZirType *)c->kernel.types[type].identity)->name);
+        else e->type = KeepNameFormat("%c%u", c->kernel.types[type].is_unsigned ? 'u' : 's', c->kernel.types[type].width);
     }
     return result;
 }

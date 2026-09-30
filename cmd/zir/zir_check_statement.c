@@ -1485,9 +1485,9 @@ select_first_result(Checker *c, int index)
     ExprReset(member);
     member->kind = ZIR_EXPR_MEMBER;
     member->text = saved.text;
-    copy_text(member->name, sizeof(member->name), "value_0");
+    member->name = KeepName("value_0");
     copy_text(member->op, sizeof(member->op), ".");
-    copy_text(member->type, sizeof(member->type), first);
+    member->type = KeepName(first);
     member->argument_name = saved.argument_name;
     member->argument_index = saved.argument_index;
     member->left = copy_index;
@@ -1534,9 +1534,9 @@ lend_vec_as_slice(Checker *c, int index, const char *to)
     fn->exprs[nodes[0]].argument_name = "";
     ZirExpr *zero = &fn->exprs[nodes[1]];
     zero->kind = ZIR_EXPR_INT;
-    zero->name[0] = '\0';
+    zero->name = "";
     zero->text = KeepText("0");
-    copy_text(zero->type, sizeof(zero->type), "s64");
+    zero->type = KeepName("s64");
     zero->next_sibling = nodes[3];
     fn->exprs[nodes[2]] = saved;
     fn->exprs[nodes[2]].next_sibling = -1;
@@ -1544,16 +1544,16 @@ lend_vec_as_slice(Checker *c, int index, const char *to)
     fn->exprs[nodes[2]].argument_name = "";
     ZirExpr *count = &fn->exprs[nodes[3]];
     count->kind = ZIR_EXPR_MEMBER;
-    copy_text(count->name, sizeof(count->name), "count");
+    count->name = KeepName("count");
     copy_text(count->op, sizeof(count->op), ".");
-    copy_text(count->type, sizeof(count->type), "s64");
+    count->type = KeepName("s64");
     count->left = nodes[2];
     count->next_sibling = -1;
     ZirExpr *call = &fn->exprs[index];
     ExprReset(call);
     call->kind = ZIR_EXPR_CALL;
     call->text = saved.text;
-    copy_text(call->name, sizeof(call->name), "VecSlice");
+    call->name = KeepName("VecSlice");
     call->argument_name = saved.argument_name;
     call->argument_index = saved.argument_index;
     call->first_child = nodes[0];
@@ -1589,8 +1589,8 @@ widen_expression(Checker *c, int index, const char *to)
     ExprReset(cast);
     cast->kind = ZIR_EXPR_CAST;
     cast->text = saved.text;
-    copy_text(cast->name, sizeof(cast->name), target);
-    copy_text(cast->type, sizeof(cast->type), target);
+    cast->name = KeepName(target);
+    cast->type = KeepName(target);
     cast->argument_name = saved.argument_name;
     cast->argument_index = saved.argument_index;
     cast->left = cast->first_child = cast->third = -1;
@@ -1701,7 +1701,7 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
         call = &c->fn->exprs[index];
         ExprReset(call);
         call->kind = ZIR_EXPR_CALL;
-        copy_text(call->name, sizeof(call->name), conversion->name);
+        call->name = KeepName(conversion->name);
         call->argument_index = saved_argument;
         call->first_child = copy_index;
         call->left = -1;
@@ -1709,7 +1709,7 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
         call->third = -1;
         call->next_sibling = chain_next;
         call->span = saved.span;
-        copy_text(call->type, sizeof(call->type), conversion->return_type);
+        call->type = KeepName(conversion->return_type);
         /* An untyped literal argument takes the parameter's scalar type, as
          * checking the call directly would, so saved IR rechecks unchanged. */
         {
@@ -1718,7 +1718,7 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
             const char *context = colon != NULL ? ScalarType(skip_ws(colon + 1)) : "";
             if(*context && (!strcmp(argument->type, "integer") ||
                             !strcmp(argument->type, "real")))
-                copy_text(argument->type, sizeof(argument->type), context);
+                argument->type = KeepName(context);
         }
         return call->type;
     }

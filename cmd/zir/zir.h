@@ -130,7 +130,7 @@ typedef struct ZirExpr {
     int is_move; /* in-memory only: a checked owned binding is consumed here */
     const char *slot_type; /* lexical callable signature, empty for ordinary calls; KeepName */
     const char *text; /* shared and immutable: assign KeepText(...) */
-    char name[ZIR_NAME_MAX];
+    const char *name; /* KeepName */
     const char *argument_name; /* name on a call argument, if supplied; KeepName */
     int argument_index; /* checked callee parameter position, or -1 */
     char op[8];
@@ -139,7 +139,7 @@ typedef struct ZirExpr {
     int first_child;
     int next_sibling;
     int third;         /* false conditional arm or slice upper bound, or -1 */
-    char type[ZIR_NAME_MAX]; /* resolved type; empty means unresolved */
+    const char *type; /* resolved type, empty means unresolved; KeepName */
     ZirSourceSpan span;
 } ZirExpr;
 
@@ -408,6 +408,9 @@ const char *KeepText(const char *text);
  * fixed name buffers it replaces were. Kept names are never NULL once a
  * node is made: "" means none. */
 const char *KeepName(const char *text);
+/* KeepName of the text snprintf would write into a name buffer. */
+const char *KeepNameFormat(const char *format, ...)
+    __attribute__((format(printf, 1, 2)));
 /* Empties EXPR in place: zero fields and "" kept names. */
 void ExprReset(ZirExpr *expr);
 void *AllocateOrExit(size_t size);

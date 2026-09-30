@@ -76,7 +76,7 @@ node(ExprParser *p, ZirExprKind kind, size_t start, const char *name,
     e = FunctionAddExpr(p->fn, kind, text, span);
     if(text != buffer) free(text);
     if(!e) { p->failed = 1; return -1; }
-    copy_text(e->name, sizeof(e->name), name);
+    e->name = KeepName(name);
     copy_text(e->op, sizeof(e->op), op);
     e->left = left;
     e->right = right;
@@ -539,11 +539,10 @@ typed_array_initializer(ExprParser *p, size_t start,
     for(int child = p->fn->exprs[result].first_child; child >= 0;
         child = p->fn->exprs[child].next_sibling)
         count++;
-    written = snprintf(p->fn->exprs[result].name,
-                       sizeof(p->fn->exprs[result].name),
-                       "[%d]%s", count, element_type);
-    if(written < 0 ||
-       (size_t)written >= sizeof(p->fn->exprs[result].name))
+    char array_type[ZIR_NAME_MAX];
+    written = snprintf(array_type, sizeof(array_type), "[%d]%s", count, element_type);
+    p->fn->exprs[result].name = KeepName(array_type);
+    if(written < 0 || (size_t)written >= sizeof(array_type))
         p->failed = 1;
     return result;
 }

@@ -77,11 +77,11 @@ static const Field expression_fields[] = {
     INTEGER_FIELD(ZirExpr, kind), INTEGER_FIELD(ZirExpr, is_function_value),
     INTEGER_FIELD(ZirExpr, is_this),
     NAME_FIELD(ZirExpr, slot_type), TEXT_FIELD(ZirExpr, text),
-    STRING_FIELD(ZirExpr, name), NAME_FIELD(ZirExpr, argument_name),
+    NAME_FIELD(ZirExpr, name), NAME_FIELD(ZirExpr, argument_name),
     INTEGER_FIELD(ZirExpr, argument_index), STRING_FIELD(ZirExpr, op),
     INTEGER_FIELD(ZirExpr, left), INTEGER_FIELD(ZirExpr, right),
     INTEGER_FIELD(ZirExpr, first_child), INTEGER_FIELD(ZirExpr, next_sibling),
-    INTEGER_FIELD(ZirExpr, third), STRING_FIELD(ZirExpr, type),
+    INTEGER_FIELD(ZirExpr, third), NAME_FIELD(ZirExpr, type),
     SPAN_FIELD(ZirExpr, span)
 };
 static const Field function_fields[] = {

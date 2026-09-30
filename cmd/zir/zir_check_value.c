@@ -947,6 +947,16 @@ normalize_array(const ZirModule *module, char *type, size_t size)
     normalize_array_at(module, type, size, 0);
 }
 
+/* TYPE normalized as normalize_array would, kept like a node's type. */
+const char *
+normalized_array(const ZirModule *module, const char *type)
+{
+    char normal[ZIR_NAME_MAX];
+    copy_text(normal, sizeof(normal), type);
+    normalize_array(module, normal, sizeof(normal));
+    return KeepName(normal);
+}
+
 static int
 pointer_type(const char *type)
 {
@@ -1217,7 +1227,7 @@ contextual_slot_with_buffers(Checker *c, int index, const char *expected, Contex
         return;
     }
     value->is_function_value = 1;
-    copy_text(value->type, sizeof(value->type), expected);
+    value->type = KeepName(expected);
 }
 
 /* Function values require a slot context; ordinary names retain lexical lookup.
@@ -1362,10 +1372,10 @@ lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration,
         return 0;
     }
     expr->text = KeepText(replacement);
-    expr->name[0] = '\0';
+    expr->name = "";
     expr->kind = ZIR_EXPR_INT;
     expr->left = expr->right = expr->third = -1;
-    copy_text(expr->type, sizeof(expr->type), enumeration->name);
+    expr->type = KeepName(enumeration->name);
     return 1;
 }
 
@@ -1526,7 +1536,7 @@ inline_compound_constant(Checker *c, int index,
             free(probe.exprs);
             return 0;
         }
-        copy_text(node->name, sizeof(node->name), qualified);
+        node->name = KeepName(qualified);
     }
     int *map = malloc((size_t)probe.expr_count * sizeof(*map));
     if(map == NULL) {

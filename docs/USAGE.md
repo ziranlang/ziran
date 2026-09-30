@@ -133,6 +133,18 @@ record literals and `size_of` are unavailable. These declarations require an
 explicit `go:` package and are preserved in checked IR. Other targets reject
 foreign Go types; an entry build can discard them when they are unused.
 
+A slice can be explicitly converted to or from a foreign Go type whose
+underlying storage supports the conversion. The Go compiler checks that
+underlying type. Conversions preserve native length, capacity, nil values
+and shared backing storage; returned native slices keep that storage alive:
+
+```jai
+Wrap :: (value: []u8) -> RawMessage { return cast(RawMessage)value }
+Unwrap :: (value: RawMessage) -> []u8 { return cast([]u8)value }
+```
+
+Fixed-array casts, slice-to-slice casts and owned vector elements are rejected.
+
 ### Go receivers, fields and multiple results
 
 A quoted method expression supplies its receiver as the first parameter.
@@ -220,6 +232,7 @@ Bytes :: (count: isize, capacity: isize) -> []u8 #foreign builtin "make";
 Text :: (value: []u8) -> string #foreign builtin "string";
 Length :: (value: []u8) -> isize #foreign builtin "len";
 Append :: (values: []u8, value: u8) -> []u8 #foreign builtin "append";
+Panic :: (value: Error) #foreign builtin "panic";
 ```
 
 `new` takes no arguments and derives the allocated type from its pointer
@@ -232,6 +245,8 @@ and retain Go's allocation, zero-value and byte-copy behavior.
 `append` takes a slice and one element, returns the same slice type, and keeps
 Go's length, capacity and shared backing-storage behavior. Owned vector
 elements are rejected; variadic slice expansion is not supported by this binding.
+`panic` takes one non-owned value and returns void. It preserves the supplied
+native Go value, including error identity, during panic unwinding.
 
 ### Go record metadata
 

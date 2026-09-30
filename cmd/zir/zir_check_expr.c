@@ -1252,10 +1252,17 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             c->errors++;
             return "";
         }
-        if(right[0] == '[' || e->name[0] == '[')
-            error(c, e->span, "array casts are not supported", e->name);
         const ZirType *destination = FindType(c->module, e->name, NULL);
         const ZirType *source = FindType(c->module, right, NULL);
+        if(right[0] == '[' || e->name[0] == '[') {
+            const ZirType *foreign = right[0] == '[' ? destination : source;
+            const char *slice = right[0] == '[' ? right : e->name;
+            char element[ZIR_NAME_MAX];
+            if(!SliceElementType(slice, element, sizeof(element)) ||
+               !foreign || strncmp(foreign->foreign_target, "go:", 3) ||
+               contains_vec(c->module, element, 0))
+                error(c, e->span, "slice casts require a foreign Go type without owned elements", e->name);
+        }
         if(destination != NULL && destination->is_enum &&
            !numeric(right) && strcmp(right, "bool") &&
            (source == NULL || !source->is_enum))

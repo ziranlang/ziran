@@ -682,6 +682,14 @@ expression_origin(BorrowCheck *check, int index)
                      expression_origin(check, expression->third));
     case ZIR_EXPR_FIELD_INIT:
         return expression_origin(check, expression->right);
+    case ZIR_EXPR_CAST: {
+        const ZirType *source = expression->right >= 0 ?
+            FindType(check->current->module, fn->exprs[expression->right].type, NULL) : NULL;
+        if(SliceElementType(expression->type, NULL, 0) && source &&
+           !strncmp(source->foreign_target, "go:", 3))
+            return (Origin){0}; /* Native Go slices keep their backing storage live. */
+        return expression_origin(check, expression->right);
+    }
     case ZIR_EXPR_COMPOUND: {
         Origin result = {0};
         for(int child = expression->first_child; child >= 0;

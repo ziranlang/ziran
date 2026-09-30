@@ -306,8 +306,15 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
                 !strcmp(skip_ws(value_colon + 1), element) &&
                 !contains_vec(module, element, 0);
         }
+        if(!strcmp(symbol, "panic")) {
+            const char *colon = count == 1 ? strchr(parameters[0], ':') : NULL;
+            const char *value = colon ? skip_ws(colon + 1) : "";
+            allocation = colon && !strcmp(result, "void") && strcmp(value, "void") &&
+                local_storage_error(module, value) == NULL &&
+                !contains_vec(module, value, 0);
+        }
         if(!allocation) {
-            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len or append signature");
+            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append or panic signature");
             return 0;
         }
     }

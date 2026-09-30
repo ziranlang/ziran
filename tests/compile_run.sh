@@ -239,19 +239,18 @@ if "$ziran" check --root "$work" "$work/foreign_local.zi" \
 fi
 rg -q '#run expression is not a constant' "$work/foreign_local.err"
 
-cat > "$work/uninitialized_local.zi" <<'ZI'
+# A local without an initializer holds its type's zero, at compile time as
+# in every target's generated code.
+cat > "$work/zero_local.zi" <<'ZI'
 Read :: () -> s64 {
     value: s64;
     return value
 }
 VALUE :: #run Read();
+#law ZeroLocal custom VALUE == 0;
 ZI
-if "$ziran" check --root "$work" "$work/uninitialized_local.zi" \
-    2> "$work/uninitialized_local.err"; then
-    echo 'compile-time procedure read an uninitialized local' >&2
-    exit 1
-fi
-rg -q '#run expression is not a constant' "$work/uninitialized_local.err"
+"$ziran" check --root "$work" "$work/zero_local.zi" > "$work/zero_local.json"
+rg -q '"status":"proved"' "$work/zero_local.json"
 
 cat > "$work/unbounded_loop.zi" <<'ZI'
 Loop :: () -> s64 {

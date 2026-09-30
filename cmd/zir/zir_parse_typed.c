@@ -30,6 +30,7 @@ enum_member_text(const ZirModule *module, const char *type, long value,
 }
 
 static int evaluate_typed_function(const ZirModule *module, const char *name, ZirSourceSpan call_span, CompileValue *arguments, char argument_names[][ZIR_NAME_MAX], int argument_count, int depth, int *fuel, CompileValue *result);
+static int canonical_compound(const ZirModule *module, CompileValue *value);
 /* Buffers evaluate_typed_node keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EvaluateTypedNodeBuffers {
@@ -85,7 +86,8 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         return 1;
     case ZIR_EXPR_COMPOUND:
         return compile_compound_value(probe, expression, module, path,
-                                      depth, fuel, result);
+                                      depth, fuel, result) &&
+               canonical_compound(module, result);
     case ZIR_EXPR_COMPILE_TIME:
         result->kind = COMPILE_INTEGER;
         result->integer = 1;
@@ -632,6 +634,230 @@ store_array_element(const char *literal, long index, const char *replacement,
     }
 }
 
+/* Records the evaluator can hold as a literal: plain named records. */
+static const ZirType *
+literal_record(const ZirModule *module, const char *type,
+               const ZirModule **owner)
+{
+    const ZirModule *found = NULL;
+    const ZirType *record = FindType(module, type, &found);
+    if(record == NULL || record->is_enum || record->is_procedure_type ||
+       record->is_record_template || record->is_extern ||
+       record->is_owned_vec || record->is_map) return NULL;
+    if(owner != NULL) *owner = found != NULL ? found : module;
+    return record;
+}
+
+/* Value text of field `name` in a record literal `T.{.a = x, .b = y}` as the
+ * evaluator writes it. Returns 1 when present, 0 when absent, -1 when the
+ * text is not such a literal. */
+static int
+record_field_text(const char *literal, const char *name, char *out,
+                  size_t size)
+{
+    const char *cursor = literal != NULL ? strstr(literal, ".{") : NULL;
+    size_t name_length = strlen(name);
+    if(cursor == NULL) return -1;
+    cursor += 2;
+    for(;;) {
+        cursor = skip_ws(cursor);
+        if(*cursor == '}') return 0;
+        if(*cursor != '.') return -1;
+        const char *field = ++cursor;
+        while(isalnum((unsigned char)*cursor) || *cursor == '_') cursor++;
+        size_t field_length = (size_t)(cursor - field);
+        cursor = skip_ws(cursor);
+        if(*cursor != '=') return -1;
+        cursor = skip_ws(cursor + 1);
+        const char *value = cursor;
+        int depth = 0, quoted = 0;
+        while(*cursor && (quoted || depth > 0 ||
+                          (*cursor != ',' && *cursor != '}'))) {
+            if(quoted) {
+                if(*cursor == '\\' && cursor[1]) cursor++;
+                else if(*cursor == '"') quoted = 0;
+            } else if(*cursor == '"') quoted = 1;
+            else if(strchr("([{", *cursor)) depth++;
+            else if(strchr(")]}", *cursor)) depth--;
+            cursor++;
+        }
+        if(*cursor == '\0') return -1;
+        if(field_length == name_length &&
+           !strncmp(field, name, name_length)) {
+            size_t length = (size_t)(cursor - value);
+            while(length && isspace((unsigned char)value[length - 1]))
+                length--;
+            if(length >= size) return -1;
+            memcpy(out, value, length);
+            out[length] = '\0';
+            return 1;
+        }
+        if(*cursor == ',') cursor++;
+    }
+}
+
+static int record_literal(const ZirModule *module, const ZirType *record,
+                          const char *type, const char *literal,
+                          const char *path, const char *replacement,
+                          char *out, size_t size, int depth);
+
+/* Zero text for a value of `type`, as a zero-initialized local holds it:
+ * 0 for integers, bools and enums, 0.0 for floats, "" for strings, and
+ * arrays and records of zeros. */
+static int
+zero_value_literal(const ZirModule *module, const char *type, char *out,
+                   size_t size, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(depth > 16 || size < 3) return 0;
+    if(!strcmp(type, "float32") || !strcmp(type, "float64"))
+        return snprintf(out, size, "0.0") < (int)size;
+    if(ScalarWidth(type) || !strcmp(type, "bool"))
+        return snprintf(out, size, "0") < (int)size;
+    if(!strcmp(type, "string"))
+        return snprintf(out, size, "\"\"") < (int)size;
+    if(ArrayElementType(type, element, sizeof(element), &capacity)) {
+        char *zero = AllocateOrExit(ZIR_TEXT_MAX);
+        int ok = capacity >= 1 && capacity <= 256 &&
+                 zero_value_literal(module, element, zero, ZIR_TEXT_MAX,
+                                    depth + 1);
+        size_t used = ok ? (size_t)snprintf(out, size, "%s.[", element) : 0;
+        for(int i = 0; ok && i < capacity; i++) {
+            int written = snprintf(out + used, size - used, "%s%s",
+                                   i ? ", " : "", zero);
+            if(written < 0 || (size_t)written >= size - used) ok = 0;
+            else used += (size_t)written;
+        }
+        free(zero);
+        if(!ok || used + 2 > size) return 0;
+        out[used] = ']';
+        out[used + 1] = '\0';
+        return 1;
+    }
+    const ZirModule *owner = NULL;
+    const ZirType *found = FindType(module, type, NULL);
+    if(found != NULL && found->is_enum)
+        return snprintf(out, size, "0") < (int)size;
+    const ZirType *record = literal_record(module, type, &owner);
+    return record != NULL &&
+           record_literal(owner, record, type, NULL, NULL, NULL, out, size,
+                          depth + 1);
+}
+
+/* A record literal in canonical form: every field in declaration order,
+ * taken from `literal` or zero when it is absent there, so equal records
+ * have equal text. A `path` of field names replaces that field's value with
+ * `replacement`, descending into nested records for `a.b`. */
+static int
+record_literal(const ZirModule *module, const ZirType *record,
+               const char *type, const char *literal, const char *path,
+               const char *replacement, char *out, size_t size, int depth)
+{
+    char head[ZIR_NAME_MAX] = "";
+    const char *rest = NULL;
+    ZirTypeField field;
+    size_t offset = 0;
+    int ok = 1, replaced = path == NULL;
+    if(depth > 16) return 0;
+    if(path != NULL) {
+        const char *dot = strchr(path, '.');
+        size_t length = dot != NULL ? (size_t)(dot - path) : strlen(path);
+        if(length == 0 || length >= sizeof(head)) return 0;
+        memcpy(head, path, length);
+        head[length] = '\0';
+        rest = dot != NULL ? dot + 1 : NULL;
+    }
+    char *value = AllocateOrExit(ZIR_TEXT_MAX);
+    char *current = AllocateOrExit(ZIR_TEXT_MAX);
+    int written = snprintf(out, size, "%s.{", type);
+    size_t used = written < 0 ? size : (size_t)written;
+    int ordinal = 0;
+    while(ok && used < size && TypeNextField(record, &offset, &field) == 1) {
+        int present = literal != NULL ?
+            record_field_text(literal, field.name, current, ZIR_TEXT_MAX) : 0;
+        if(present < 0) { ok = 0; break; }
+        if(!present && !zero_value_literal(module, field.type, current,
+                                           ZIR_TEXT_MAX, depth + 1)) {
+            ok = 0;
+            break;
+        }
+        if(path != NULL && !strcmp(field.name, head)) {
+            replaced = 1;
+            if(rest == NULL) copy_text(value, ZIR_TEXT_MAX, replacement);
+            else {
+                const ZirModule *owner = NULL;
+                const ZirType *inner = literal_record(module, field.type,
+                                                      &owner);
+                ok = inner != NULL &&
+                     record_literal(owner, inner, field.type, current, rest,
+                                    replacement, value, ZIR_TEXT_MAX,
+                                    depth + 1);
+            }
+        } else copy_text(value, ZIR_TEXT_MAX, current);
+        written = snprintf(out + used, size - used, "%s.%s = %s",
+                           ordinal ? ", " : "", field.name, value);
+        if(written < 0 || (size_t)written >= size - used) ok = 0;
+        else used += (size_t)written;
+        ordinal++;
+    }
+    free(value);
+    free(current);
+    if(!ok || !replaced || used + 2 > size) return 0;
+    out[used] = '}';
+    out[used + 1] = '\0';
+    return 1;
+}
+
+/* Record literals written with fields missing or out of order still get one
+ * text per value, since the evaluator compares records by their text. A
+ * record whose zero cannot be written keeps the text it was given. */
+static int
+canonical_compound(const ZirModule *module, CompileValue *value)
+{
+    const ZirModule *owner = NULL;
+    const ZirType *record;
+    int capacity = 0;
+    if(value->kind != COMPILE_COMPOUND ||
+       ArrayElementType(value->type, NULL, 0, &capacity)) return 1;
+    record = literal_record(value->type_owner != NULL ? value->type_owner :
+                            module, value->type, &owner);
+    if(record == NULL) return 1;
+    char *text = AllocateOrExit(ZIR_TEXT_MAX);
+    if(record_literal(owner, record, value->type, value->literal, NULL, NULL,
+                      text, ZIR_TEXT_MAX, 0))
+        copy_text(value->literal, sizeof(value->literal), text);
+    free(text);
+    return 1;
+}
+
+/* The declared type of field path `a.b` inside `record`. */
+static int
+record_path_type(const ZirModule *module, const ZirType *record,
+                 const char *path, char *out, size_t size)
+{
+    char head[ZIR_NAME_MAX];
+    const char *dot = strchr(path, '.');
+    size_t length = dot != NULL ? (size_t)(dot - path) : strlen(path);
+    ZirTypeField field;
+    size_t offset = 0;
+    if(length == 0 || length >= sizeof(head)) return 0;
+    memcpy(head, path, length);
+    head[length] = '\0';
+    while(TypeNextField(record, &offset, &field) == 1) {
+        if(strcmp(field.name, head)) continue;
+        if(dot == NULL) {
+            copy_text(out, size, field.type);
+            return 1;
+        }
+        const ZirModule *owner = NULL;
+        const ZirType *inner = literal_record(module, field.type, &owner);
+        return inner != NULL &&
+               record_path_type(owner, inner, dot + 1, out, size);
+    }
+    return 0;
+}
+
 /* Buffers typed_body_statements keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct TypedBodyStatementsBuffers {
@@ -750,6 +976,14 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
                 copy_text(value.literal, sizeof(value.literal),
                           buffers->combined);
                 equals = (char *)"";
+            } else if(equals == NULL &&
+                      zero_value_literal(body->module, type,
+                                         buffers->combined,
+                                         sizeof(buffers->combined), 0)) {
+                /* A local without an initializer holds its type's zero. */
+                if(!typed_body_expression(body, buffers->combined, &value) ||
+                   !compile_type_value(type, &value)) goto failed;
+                equals = (char *)"";
             }
             if(!typed_add_local(body, buffers->text, type,
                                 equals != NULL ? &value : NULL)) goto failed;
@@ -790,6 +1024,50 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
                                             at.integer, element.literal,
                                             buffers->combined,
                                             sizeof(buffers->combined)))
+                        goto failed;
+                    copy_text(body->names.items[target].expr,
+                              sizeof(body->names.items[target].expr),
+                              buffers->combined);
+                    continue;
+                }
+            }
+            {
+                char *dot = strchr(buffers->text, '.');
+                if(dot != NULL) {
+                    /* `name.field = value`, or `name.a.b op= value`, on a
+                     * record local: rebuild the record with that field. */
+                    const ZirModule *owner = NULL;
+                    const ZirType *record;
+                    char field_type[ZIR_NAME_MAX];
+                    CompileValue value = {0};
+                    int target;
+                    if(op) {
+                        int written = snprintf(buffers->combined,
+                            sizeof(buffers->combined), "(%s) %c (%s)",
+                            buffers->text, op, equals);
+                        if(written < 0 ||
+                           (size_t)written >= sizeof(buffers->combined) ||
+                           !typed_body_expression(body, buffers->combined,
+                                                  &value)) goto failed;
+                    } else if(!typed_body_expression(body, equals, &value))
+                        goto failed;
+                    *dot++ = '\0';
+                    trim_in_place(buffers->text);
+                    target = typed_local_index(body, buffers->text);
+                    if(target < 0 || !body->names.items[target].expr[0])
+                        goto failed;
+                    record = literal_record(body->module,
+                                            body->names.items[target].type,
+                                            &owner);
+                    if(record == NULL ||
+                       !record_path_type(owner, record, dot, field_type,
+                                         sizeof(field_type)) ||
+                       !compile_type_value(field_type, &value) ||
+                       !record_literal(owner, record,
+                                       body->names.items[target].type,
+                                       body->names.items[target].expr, dot,
+                                       value.literal, buffers->combined,
+                                       sizeof(buffers->combined), 0))
                         goto failed;
                     copy_text(body->names.items[target].expr,
                               sizeof(body->names.items[target].expr),

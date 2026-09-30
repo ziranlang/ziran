@@ -7,6 +7,8 @@ libc :: #system_library "libc";
 TimeRaw :: (result: *s64) -> s64 #foreign libc "time";
 LocalTimeRaw :: (seconds: *s64) -> *void #foreign libc "localtime";
 UtcTimeRaw :: (seconds: *s64) -> *void #foreign libc "gmtime";
+ClockValue :: struct { seconds: s64; nanoseconds: s64; }
+ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
 
 TimeFields :: struct {
     second: s32
@@ -39,6 +41,14 @@ Reading :: (memory: *void) -> LocalDateTime {
 #program_export
 UnixNow :: () -> s64 {
     return TimeRaw(null)
+}
+
+#program_export
+UnixMilliseconds :: () -> s64 {
+    value: ClockValue
+    if ClockGetTimeRaw(0, *value) != 0 || value.seconds < 0 ||
+        value.seconds > 9223372036854775 || value.nanoseconds < 0 || value.nanoseconds > 999999999 { return -1 }
+    return value.seconds * 1000 + value.nanoseconds / 1000000
 }
 
 #program_export

@@ -19,6 +19,10 @@ main :: () -> s32 {
         LocalAt(-1).valid || LocalAt(4294967296).valid { result = 5 }
     now := UnixNow()
     if now < 1700000000 || !DateTimeValid(LocalAt(now)) || !DateTimeValid(LocalNow()) { result = 6 }
+    before := UnixNow()
+    milliseconds := UnixMilliseconds()
+    after := UnixNow()
+    if milliseconds < before * 1000 || milliseconds >= (after + 1) * 1000 { result = 7 }
     if result != 0 { print("date-time-plan9-test-failed: %\n", result) }
     else { print("date-time-plan9-test-ok\n") }
     return result

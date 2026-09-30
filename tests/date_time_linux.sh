@@ -18,6 +18,11 @@ main :: () -> s32 {
     if FormatDateTime(LocalAt(0), "%F %T", output[:]) != "1969-12-31 19:00:00" ||
         FormatDateTime(LocalAt(1593604800), "%F %T", output[:]) != "2020-07-01 08:00:00" { return 2 }
     if UnixNow() < 1700000000 || !DateTimeValid(LocalNow()) { return 3 }
+    before := UnixNow()
+    milliseconds := UnixMilliseconds()
+    after := UnixNow()
+    // The libc seconds clock can lag the precise clock at a second boundary.
+    if milliseconds < (before - 1) * 1000 || milliseconds >= (after + 2) * 1000 { return 4 }
     return 0
 }
 ZI

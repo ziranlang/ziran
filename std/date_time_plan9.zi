@@ -38,6 +38,9 @@ Reading :: (memory: *void) -> LocalDateTime {
 #program_export
 UnixNow :: () -> s64 { return NanosecondsRaw() / 1000000000 }
 
+#program_export
+UnixMilliseconds :: () -> s64 { return NanosecondsRaw() / 1000000 }
+
 // Plan 9 libc interprets the signed long argument as an unsigned 32-bit
 // epoch count. Preserve its full 1970..2106 range, including after 2038,
 // and reject seconds outside that range instead of silently wrapping.

@@ -11,6 +11,7 @@ ParseURLResult :: struct {
 ParseRaw :: (value: string) -> ParseURLResult #go_results #foreign go_url "Parse";
 HostRaw :: (value: *URL) -> string #go_field #foreign go_url "(*URL).Host";
 SchemeRaw :: (value: *URL) -> string #go_field #foreign go_url "(*URL).Scheme";
+PathRaw :: (value: *URL) -> string #go_field #foreign go_url "(*URL).Path";
 EscapedPathRaw :: (value: *URL) -> string #foreign go_url "(*URL).EscapedPath";
 
 #scope_export
@@ -22,6 +23,9 @@ Host :: (value: *URL) -> string {
 }
 Scheme :: (value: *URL) -> string {
     return SchemeRaw(value)
+}
+Path :: (value: *URL) -> string {
+    return PathRaw(value)
 }
 EscapedPath :: (value: *URL) -> string {
     return EscapedPathRaw(value)

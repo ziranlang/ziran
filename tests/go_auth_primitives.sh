@@ -46,6 +46,12 @@ URL :: (request: *http.Request) -> *url.URL {
 Path :: (request: *http.Request) -> string {
     return url.EscapedPath(http.RequestURL(request))
 }
+DecodedPath :: (request: *http.Request) -> string {
+    return url.Path(http.RequestURL(request))
+}
+FromUnix :: (seconds: s64, nanos: s64) -> clock.Time {
+    return clock.FromUnix(seconds, nanos)
+}
 Unix :: (value: clock.Time) -> s64 {
     return clock.Unix(value)
 }
@@ -129,7 +135,7 @@ func main() {
         }
     }
     request := &http.Request{Method: "patch", URL: &url.URL{Path: "/a/b", RawPath: "/a%2Fb"}}
-    if Auth_Method(request) != "patch" || Auth_URL(request) != request.URL || Auth_Path(request) != "/a%2Fb" {
+    if Auth_Method(request) != "patch" || Auth_URL(request) != request.URL || Auth_Path(request) != "/a%2Fb" || Auth_DecodedPath(request) != "/a/b" {
         panic("native request method, pointer or escaped path")
     }
     request.Method = "POST"
@@ -154,6 +160,11 @@ func main() {
     for _, instant := range []time.Time{time.Time{}, time.Unix(-1, 999999999), time.Now()} {
         if Auth_Unix(instant) != instant.Unix() {
             panic("native timestamp conversion")
+        }
+    }
+    for _, pair := range [][2]int64{{0, 0}, {-1, 999999999}, {1, -1}, {0, 2000000000}, {-9223372036854775808, 0}, {9223372036854775807, 0}} {
+        if Auth_FromUnix(pair[0], pair[1]) != time.Unix(pair[0], pair[1]) {
+            panic("native Unix timestamp width or nanosecond normalization")
         }
     }
 }

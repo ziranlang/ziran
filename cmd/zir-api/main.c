@@ -42,16 +42,67 @@ json_member(const char *key, const char *value)
     json_string(value);
 }
 
+/* The checker names each type application, such as Vec(u8), by a generated
+ * __type_ name; write it back the way the source spells it. */
 static void
-show_function(const ZirFunction *fn, int json)
+source_spelling(const ZirModule *module, const char *text, char *out,
+                size_t size, int depth)
 {
+    size_t used = 0;
+    for(const char *cursor = text; *cursor && used + 1 < size; ) {
+        size_t length = 0;
+        if(strncmp(cursor, "__type_", 7) == 0 &&
+           (cursor == text || (!isalnum((unsigned char)cursor[-1]) &&
+                               cursor[-1] != '_' && cursor[-1] != '.'))) {
+            length = 7;
+            while(isxdigit((unsigned char)cursor[length])) length++;
+        }
+        char name[ZIR_NAME_MAX];
+        const ZirType *type = NULL;
+        if(length > 7 && length < sizeof(name) && depth < 16) {
+            memcpy(name, cursor, length);
+            name[length] = '\0';
+            type = FindType(module, name, NULL);
+        }
+        if(type == NULL || !type->is_synthetic_application) {
+            out[used++] = *cursor++;
+            continue;
+        }
+        char arguments[ZIR_TEXT_MAX], spaced[ZIR_TEXT_MAX];
+        source_spelling(module, type->template_args, arguments,
+                        sizeof(arguments), depth + 1);
+        size_t written = 0;
+        for(const char *a = arguments; *a && written + 3 < sizeof(spaced); a++) {
+            spaced[written++] = *a;
+            if(*a == ',' && a[1] != ' ') spaced[written++] = ' ';
+        }
+        spaced[written] = '\0';
+        int count = snprintf(out + used, size - used, "%s(%s)",
+                             type->template_name, spaced);
+        if(count < 0 || (size_t)count >= size - used) break;
+        used += (size_t)count;
+        cursor += length;
+    }
+    out[used] = '\0';
+}
+
+static void
+show_function(const ZirModule *module, const ZirFunction *fn, int json)
+{
+    /* Overloads share the name callers write; fn->name is unique. */
+    const char *name = fn->overload_name[0] ? fn->overload_name : fn->name;
+    char args[ZIR_TEXT_MAX * 2], result[ZIR_TEXT_MAX];
+    source_spelling(module, fn->default_args[0] && !json ? fn->default_args : fn->args,
+                    args, sizeof(args), 0);
+    source_spelling(module, fn->return_type[0] ? fn->return_type : "void",
+                    result, sizeof(result), 0);
     if(json) {
         putchar('{');
-        json_member("name", fn->name);
+        json_member("name", name);
         putchar(',');
-        json_member("parameters", fn->args);
+        json_member("parameters", args);
         putchar(',');
-        json_member("return_type", fn->return_type[0] ? fn->return_type : "void");
+        json_member("return_type", result);
         putchar(',');
         json_member("defaults", fn->default_args);
         putchar(',');
@@ -63,9 +114,7 @@ show_function(const ZirFunction *fn, int json)
         json_member("path", SpanPath(fn->span));
         printf(",\"line\":%d}", fn->span.line);
     } else {
-        printf("  %s :: (%s) -> %s", fn->name,
-               fn->default_args[0] ? fn->default_args : fn->args,
-               fn->return_type[0] ? fn->return_type : "void");
+        printf("  %s :: (%s) -> %s", name, args, result);
         if(fn->is_template) fputs(" [template]", stdout);
         if(fn->must_use) fputs(" [must use]", stdout);
         if(fn->effect_class[0]) printf(" [effect: %s]", fn->effect_class);
@@ -189,7 +238,9 @@ show_module(const ZirModule *module, int json)
             putchar('{');
             json_member("name", item->name);
             putchar(',');
-            json_member("type", item->type);
+            char spelled[ZIR_TEXT_MAX];
+            source_spelling(module, item->type, spelled, sizeof(spelled), 0);
+            json_member("type", spelled);
             putchar(',');
             json_member("initializer", item->init);
             putchar(',');
@@ -208,7 +259,9 @@ show_module(const ZirModule *module, int json)
             putchar('{');
             json_member("name", type->name);
             putchar(',');
-            json_member("body", type->body);
+            char body[sizeof(type->body)];
+            source_spelling(module, type->body, body, sizeof(body), 0);
+            json_member("body", body);
             putchar(',');
             json_member("type_parameters", type->template_params);
             printf(",\"record_template\":%s,\"enum\":%s,\"procedure\":%s,",
@@ -227,7 +280,7 @@ show_module(const ZirModule *module, int json)
             if(!visible_function(fn)) continue;
             if(!first) putchar(',');
             first = 0;
-            show_function(fn, 1);
+            show_function(module, fn, 1);
         }
         fputs("]}", stdout);
     } else {
@@ -249,8 +302,10 @@ show_module(const ZirModule *module, int json)
         for(int i = 0; i < module->global_count; i++) {
             const ZirGlobal *item = &module->globals[i];
             if(item->is_static || item->is_file_private) continue;
+            char spelled[ZIR_TEXT_MAX];
+            source_spelling(module, item->type, spelled, sizeof(spelled), 0);
             printf("  global %s: %s @ %s:%d\n", item->name,
-                   item->type, SpanPath(item->span), item->span.line);
+                   spelled, SpanPath(item->span), item->span.line);
         }
         for(int i = 0; i < module->type_count; i++) {
             const ZirType *type = &module->types[i];
@@ -264,7 +319,7 @@ show_module(const ZirModule *module, int json)
         }
         for(int i = 0; i < module->function_count; i++)
             if(visible_function(&module->functions[i]))
-                show_function(&module->functions[i], 0);
+                show_function(module, &module->functions[i], 0);
     }
 }
 

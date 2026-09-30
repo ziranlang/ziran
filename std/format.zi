@@ -1,6 +1,3 @@
-using Vectors :: #import "vec"
-#import "number_text"
-
 // Text built on an owned Vec(u8) builder. Append adds one value's text, and
 // BuilderPrint(*builder, "x=%\n", x) appends a whole formatted piece: each %
 // takes the next argument's text and %% writes one percent. BuilderFinish
@@ -12,6 +9,9 @@ using Vectors :: #import "vec"
 //
 // Integers are written in base ten, bools as true or false, and floats with
 // up to six digits after the point, trailing zeros dropped.
+
+using Vectors :: #import "vec"
+#import "number_text"
 
 Append :: (builder: *Vec(u8), text: string) {
     BuilderAppend(<<builder, text)

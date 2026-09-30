@@ -67,6 +67,10 @@ F :: (x: s32) -> s32 { return 2; }
 ZI
 
 "$ziran" check --root "$work" "$work/app.zi"
+# API listings name each overload as callers write it.
+"$ziran" api --root "$work" "$work/shapes.zi" > "$work/api.txt"
+test "$(grep -c '^  Area :: ' "$work/api.txt")" = 2
+if grep -q overload "$work/api.txt"; then cat "$work/api.txt" >&2; exit 1; fi
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 for input in source saved; do
     if test "$input" = source; then

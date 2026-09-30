@@ -137,13 +137,13 @@
 <div><code>NextDirectoryEntry :: (cursor: *DirectoryCursor) -&gt; DirectoryEntry</code></div>
 <div><code>CloseDirectory :: (cursor: *DirectoryCursor) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/file_plan9.zi">Source ↗</a></p></section>
-<section id="format"><p class="eyebrow">15 / std/format.zi</p><h2>format</h2><p>Import with <code>#import "format"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
-<div><code>Append__overload_1 :: (builder: *__type_838711075b90279a, text: string)</code></div>
-<div><code>Append__overload_2 :: (builder: *__type_838711075b90279a, value: s64)</code></div>
-<div><code>Append__overload_3 :: (builder: *__type_838711075b90279a, value: u32)</code><p>Unsigned values up to 32 bits; also the closest match for u8 and u16.</p></div>
-<div><code>Append__overload_4 :: (builder: *__type_838711075b90279a, value: u64)</code></div>
-<div><code>Append__overload_5 :: (builder: *__type_838711075b90279a, value: bool)</code></div>
-<div><code>Append__overload_6 :: (builder: *__type_838711075b90279a, value: float64)</code></div>
+<section id="format"><p class="eyebrow">15 / std/format.zi</p><h2>format</h2><p>Text built on an owned Vec(u8) builder. Append adds one value's text, and BuilderPrint(*builder, "x=%\n", x) appends a whole formatted piece: each % takes the next argument's text and %% writes one percent. BuilderFinish turns the builder into a string.  line: Vec(u8) BuilderPrint(*line, "% of % done\n", finished, total) text := BuilderFinish(line)  Integers are written in base ten, bools as true or false, and floats with up to six digits after the point, trailing zeros dropped.</p><p>Import with <code>#import "format"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<div><code>Append :: (builder: *Vec(u8), text: string)</code></div>
+<div><code>Append :: (builder: *Vec(u8), value: s64)</code></div>
+<div><code>Append :: (builder: *Vec(u8), value: u32)</code><p>Unsigned values up to 32 bits; also the closest match for u8 and u16.</p></div>
+<div><code>Append :: (builder: *Vec(u8), value: u64)</code></div>
+<div><code>Append :: (builder: *Vec(u8), value: bool)</code></div>
+<div><code>Append :: (builder: *Vec(u8), value: float64)</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/format.zi">Source ↗</a></p></section>
 <section id="go_types"><p class="eyebrow">16 / std/go_types.zi</p><h2>go_types</h2><p>Predeclared Go interface types at the foreign-library boundary.</p><p>Import with <code>#import "go_types"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Any :: struct</code></div>

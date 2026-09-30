@@ -15,6 +15,9 @@ import sys
 item = json.loads(Path(sys.argv[1]).read_text())
 assert item['schema_version'] == 1
 assert item['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zib', 'plan9-c']
+assert item['tier'] == {'c': 'primary', 'cpp': 'secondary', 'go': 'secondary',
+                        'rust': 'secondary', 'py': 'secondary', 'zib': 'primary',
+                        'plan9-c': 'experimental'}
 assert item['parallel_execution']['rust'] == 'serial'
 assert item['text_view_mutable_bytes']['rust'] == 'borrowed'
 assert item['parallel_execution']['py'] == 'serial'
@@ -51,6 +54,8 @@ assert item['parallel_execution'] == ('threads' if threads else 'serial')
 if target in ('rust', 'py'):
     assert 'target_contract' not in item
 borrowed = target in ('c', 'cpp', 'rust', 'plan9-c')
+assert item['tier'] == ('primary' if target in ('c', 'zib') else
+                        'experimental' if target == 'plan9-c' else 'secondary')
 assert item['text_view_mutable_bytes'] == ('borrowed' if borrowed else 'snapshot')
 assert item['source_and_saved_ir'] is True
 assert item['automatic_vec_drop'] is True

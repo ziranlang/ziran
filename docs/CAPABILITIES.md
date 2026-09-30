@@ -10,6 +10,14 @@ for C, C++, Go, and `.zib`; they are described by [numeric_conformance.json](../
 `schema_version` starts at 1; consumers should reject schema
 versions they do not understand and ignore unknown fields within a version.
 
+`tier` says how complete a target is. `primary` targets, C and the portable
+`.zib` runner, carry every language feature and gate every change. The
+downstream applications build through them. `secondary` targets, C++, Go,
+Rust, and Python, may lag behind a new feature, but must reject a program they
+cannot run faithfully during checking or lowering, never emit code with a
+different meaning. `experimental` is Plan 9 C, described below. New language
+work lands on the primary targets first.
+
 `plan9-c` is the canonical interface for Plan 9 C output. Its current
 implementation is explicitly reported as `experimental-post-pass`: Ziran still
 generates the shared C form and applies a Plan 9-safe rewrite before writing

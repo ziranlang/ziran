@@ -70,9 +70,18 @@ Capabilities :: (arguments: []string) -> s32 {
         PkgPrint("\"targets\":[\"c\",\"cpp\",\"go\",\"rust\",\"py\",\"zib\",\"plan9-c\"],", false)
         PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"cpp\":\"threads\",\"go\":\"serial\",\"rust\":\"serial\",\"py\":\"serial\",\"zib\":\"serial\",\"plan9-c\":\"serial\"},", false)
         PkgPrint("\"text_view_mutable_bytes\":{\"c\":\"borrowed\",\"cpp\":\"borrowed\",\"go\":\"snapshot\",\"rust\":\"borrowed\",\"py\":\"snapshot\",\"zib\":\"snapshot\",\"plan9-c\":\"borrowed\"},", false)
+        PkgPrint("\"tier\":{\"c\":\"primary\",\"cpp\":\"secondary\",\"go\":\"secondary\",\"rust\":\"secondary\",\"py\":\"secondary\",\"zib\":\"primary\",\"plan9-c\":\"experimental\"},", false)
     } else {
         PkgPrint("\"target\":\"", false)
         PkgPrint(target, false)
+        PkgPrint("\",", false)
+        /* Primary targets carry every language feature; secondary targets
+         * may lag but reject what they lack before emitting code. */
+        tier: string = "secondary"
+        if target == "c" || target == "zib" { tier = "primary" }
+        else if target == "plan9-c" { tier = "experimental" }
+        PkgPrint("\"tier\":\"", false)
+        PkgPrint(tier, false)
         PkgPrint("\",", false)
         if target == "plan9-c" {
             PkgPrint("\"parallel_execution\":\"serial\",", false)

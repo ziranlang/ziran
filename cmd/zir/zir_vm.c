@@ -445,6 +445,10 @@ allocate_record(Vm *vm, const ZirModule *owner,
     size_t bytes = sizeof(Record) + (size_t)count * sizeof(RecordField);
     if(count < 0 || count > VM_MAX_FIELDS ||
        bytes > VM_MAX_RECORD_BYTES - vm->record_bytes) {
+        if(!vm->failed && count >= 0 && count <= VM_MAX_FIELDS)
+            Diagnostic(Span("<bundle>", 1, 1), "zib.memory",
+                       "records exceed the portable runner's %d MB budget",
+                       VM_MAX_RECORD_BYTES / (1024 * 1024));
         vm->failed = 1;
         return NULL;
     }
@@ -487,6 +491,10 @@ allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
     }
     size_t bytes = sizeof(Array) + (size_t)length * sizeof(Value);
     if(bytes > VM_MAX_ARRAY_BYTES - vm->array_bytes) {
+        if(fail_hard && !vm->failed)
+            Diagnostic(Span("<bundle>", 1, 1), "zib.memory",
+                       "arrays exceed the portable runner's %d MB budget",
+                       VM_MAX_ARRAY_BYTES / (1024 * 1024));
         if(fail_hard) vm->failed = 1;
         return NULL;
     }

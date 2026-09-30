@@ -795,7 +795,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                 line(e, "%s := %s", view, buffers->source);
                 if(!buffers->low[0]) copy_text(buffers->low, sizeof(buffers->low), "0");
                 if(!buffers->high[0]) format(buffers->high, sizeof(buffers->high), "int64(len(%s))", view);
-                line(e, "if %s < 0 || %s < %s || %s > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
+                line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
                 e->indent++;
                 line(e, "panic(\"string range out of bounds\")");
                 e->indent--;
@@ -859,7 +859,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                (low_constant && high_constant && low_bits > high_bits)) {
                 fresh(e, view);
                 line(e, "%s := %s[:]", view, buffers->source);
-                line(e, "if %s < 0 || %s < %s || %s > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
+                line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
                 e->indent++;
                 line(e, "panic(\"slice range out of bounds\")");
                 e->indent--;
@@ -913,7 +913,9 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             format(buffers->high, sizeof(buffers->high), e->target == ZIR_GO ? "int64(len(%s))" : "%s.length", view);
         pure = base_pure && low_pure && high_pure;
         if(e->target == ZIR_GO) {
-            line(e, "if %s < 0 || %s < %s || %s > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
+            /* A bound keeps its own integer type, such as s32, and Go
+             * compares only equal types, so the check widens each. */
+            line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) {", buffers->low, buffers->high, buffers->low, buffers->high, view);
             e->indent++;
             line(e, "panic(\"slice range out of bounds\")");
             e->indent--;

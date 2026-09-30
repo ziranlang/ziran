@@ -20,7 +20,7 @@ usage(void)
 {
     fprintf(stderr,
             "usage: zi2go [--no-main] [--prune-stale] [--exe] [--minify] [--pkg NAME] [--entry module:function] "
-            "[--bind module:function=module:function] "
+            "[--bind module:function=module:function] [--bind-host module] "
             "[--diagnostics=text|json] [--module-path DIR] --root DIR -o DIR file.zi|file.zir ...\n");
 }
 
@@ -58,6 +58,8 @@ main(int argc, char **argv)
     int module_path_count = 0;
     const char *bindings[64];
     int binding_count = 0;
+    const char *host_modules[16];
+    int host_module_count = 0;
     ZirProgram **progs;
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
@@ -85,6 +87,9 @@ main(int argc, char **argv)
         } else if(strcmp(argv[i], "--bind") == 0 && i + 1 < argc &&
                   binding_count < 64) {
             bindings[binding_count++] = argv[++i];
+        } else if(strcmp(argv[i], "--bind-host") == 0 && i + 1 < argc &&
+                  host_module_count < 16) {
+            host_modules[host_module_count++] = argv[++i];
         } else if(strcmp(argv[i], "--prune-stale") == 0) {
             prune_stale = 1;
         } else if(strcmp(argv[i], "--no-main") == 0) {
@@ -103,7 +108,7 @@ main(int argc, char **argv)
     }
     if(root == NULL || out_dir == NULL || first_file == 0 ||
        (entry != NULL && !split_entry(entry, entry_module, entry_function)) ||
-       (binding_count > 0 && entry == NULL) ||
+       ((binding_count > 0 || host_module_count > 0) && entry == NULL) ||
        (executable && (entry == NULL || strcmp(pkg, "main") != 0 || no_main))) {
         usage();
         return 1;
@@ -135,6 +140,9 @@ main(int argc, char **argv)
             goto done;
         for(i = 0; i < binding_count; i++)
             if(!BindHostProvider(&merged, bindings[i]))
+                goto done;
+        for(i = 0; i < host_module_count; i++)
+            if(!BindHostModule(&merged, host_modules[i]))
                 goto done;
         linked = NativeLink(&merged, entry_module, entry_function);
         if(linked == NULL)

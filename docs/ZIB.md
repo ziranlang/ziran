@@ -5,7 +5,7 @@ See [Implementation status](IMPLEMENTATION_STATUS.md) for the remaining work.
 
 ## Experimental version 25
 
-`zi2zib bundle --root DIR [--module-path DIR] [--bind caller:capability=provider:function] --entry module:function -o FILE file.zi|file.zir ...`
+`zi2zib bundle --root DIR [--module-path DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, then links reachable
 modules. `zi2zib run FILE` validates and executes
 zero-argument integer, bool, or void entry functions on a portable interpreter.

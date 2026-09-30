@@ -326,7 +326,10 @@ Response :: struct {
 Ziran also resolves `host_api :: #system_library "host_api";` to its host
 capability bridge. `ziran bundle --bind caller:capability=provider:function`
 can satisfy a portable host capability with an exported Ziran function in the
-bundle; the provider must have the same signature.
+bundle; the provider must have the same signature. `--bind-host MODULE`
+binds every remaining capability to MODULE's exported function of the same
+name, as a C program links a host's symbols by name, so one Ziran host module
+serves `ziran bundle` and the Go, Rust, and Python targets alike.
 Use `#scope_file`, `#scope_module`, and `#scope_export` to change the
 visibility of following declarations.
 

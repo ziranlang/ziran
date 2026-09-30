@@ -132,6 +132,55 @@ BindHostProvider(ZirProgram *program, const char *spec)
     return 1;
 }
 
+/* Binds every host capability no --bind has claimed to the exported Ziran
+ * function of the same name in provider_module, as a C program links a
+ * host's exported symbols by name. One Ziran host module, such as Kryon's
+ * pixmap backend, then serves every target. */
+int
+BindHostModule(ZirProgram *program, const char *spec)
+{
+    char provider_module[ZIR_NAME_MAX];
+    const ZirModule *provider = NULL;
+    if(strlen(spec) >= sizeof(provider_module) || spec[0] == '\0') {
+        Diagnostic(Span("<command>", 1, 1), "host.bind",
+                   "invalid host provider module: %s", spec);
+        return 0;
+    }
+    strcpy(provider_module, spec);
+    if(!resolve_binding_module(provider_module))
+        return 0;
+    for(int m = 0; m < program->module_count; m++)
+        if(strcmp(program->modules[m].name, provider_module) == 0)
+            provider = &program->modules[m];
+    if(provider == NULL) {
+        Diagnostic(Span("<command>", 1, 1), "host.bind",
+                   "host provider module %s is not in the program", spec);
+        return 0;
+    }
+    for(int m = 0; m < program->module_count; m++) {
+        ZirModule *module = &program->modules[m];
+        for(int i = 0; i < module->import_count; i++) {
+            ZirImport *import = &module->imports[i];
+            if(import->kind != ZIR_IMPORT_EXTERN ||
+               import->extern_kind != ZIR_EXTERN_HOST ||
+               strncmp(import->target, "ziran:", 6) == 0)
+                continue;
+            for(int f = 0; f < provider->function_count; f++) {
+                const ZirFunction *function = &provider->functions[f];
+                if(function->exported && !function->is_extern &&
+                   strcmp(function->name, import->name) == 0) {
+                    snprintf(import->target, sizeof(import->target), "ziran:%s",
+                             provider_module);
+                    snprintf(import->extern_symbol, sizeof(import->extern_symbol),
+                             "%s", function->name);
+                    break;
+                }
+            }
+        }
+    }
+    return 1;
+}
+
 static int
 module_name_order(const void *left, const void *right)
 {

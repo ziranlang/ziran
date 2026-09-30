@@ -1,3 +1,4 @@
+#include "zir_emit.h"
 #include "zir_vm_internal.h"
 
 #if defined(__linux__) && !defined(__EMSCRIPTEN__)
@@ -1089,9 +1090,12 @@ initialize_module_startup(Vm *vm, const ZirProgram *program, int index,
         return 0;
     }
     state[index] = 1;
+    /* As in native output, only dependencies with something to set up take
+     * part: an import cycle through modules without startup, such as widget
+     * modules that import each other, orders nothing. */
     for(int i = 0; i < module->import_count; i++) {
         const ZirModule *dependency = module->imports[i].resolved_module;
-        if(dependency == NULL) continue;
+        if(dependency == NULL || !ModuleNeedsStartup(dependency)) continue;
         for(int m = 0; m < program->module_count; m++)
             if(dependency == &program->modules[m] &&
                !initialize_module_startup(vm, program, m, state))
@@ -1192,7 +1196,8 @@ initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlo
     if(state == NULL) return 0;
     int initialized = 1;
     for(int m = 0; m < program->module_count && initialized; m++)
-        initialized = initialize_module_startup(vm, program, m, state);
+        if(ModuleNeedsStartup(&program->modules[m]))
+            initialized = initialize_module_startup(vm, program, m, state);
     free(state);
     return initialized;
 }

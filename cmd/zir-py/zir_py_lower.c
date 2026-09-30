@@ -3542,8 +3542,11 @@ static void visit_startup_module(PyModuleVisits *visits, PyModuleVisits *ordered
     if(visit->state == 2)
         return;
     visit->state = 1;
+    /* As in C and Go, only dependencies with something to set up take part:
+     * an import cycle through modules without globals orders nothing. */
     for(int index = 0; index < module->import_count; index++)
-        if(module->imports[index].resolved_module != NULL)
+        if(module->imports[index].resolved_module != NULL &&
+           ModuleNeedsStartup(module->imports[index].resolved_module))
             visit_startup_module(visits, ordered, module->imports[index].resolved_module);
     visit = module_visit(visits, module);
     visit->state = 2;
@@ -3564,7 +3567,8 @@ static void emit_startup(PyEmitter *emitter, FILE *output)
     for(int program_index = 0; program_index < emitter->program_count; program_index++) {
         const ZirProgram *program = emitter->programs[program_index];
         for(int module_index = 0; module_index < program->module_count; module_index++)
-            visit_startup_module(&visits, &ordered, &program->modules[module_index]);
+            if(ModuleNeedsStartup(&program->modules[module_index]))
+                visit_startup_module(&visits, &ordered, &program->modules[module_index]);
     }
     for(size_t index = 0; index < ordered.count; index++) {
         const ZirModule *module = ordered.items[index].module;

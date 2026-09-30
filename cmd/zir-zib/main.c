@@ -18,7 +18,7 @@ static void
 usage(void)
 {
     fprintf(stderr,
-            "usage: zi2zib bundle [--module-path DIR] [--bind module:function=module:function] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
+            "usage: zi2zib bundle [--module-path DIR] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
             "       zi2zib run file.zib\n");
 }
 
@@ -52,6 +52,8 @@ bundle_command(int argc, char **argv)
     int module_path_count = 0;
     const char *bindings[64];
     int binding_count = 0;
+    const char *host_modules[16];
+    int host_module_count = 0;
     ZirProgram **programs = NULL;
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
@@ -63,6 +65,8 @@ bundle_command(int argc, char **argv)
             module_paths[module_path_count++] = argv[++i];
         else if(strcmp(argv[i], "--bind") == 0 && i + 1 < argc && binding_count < 64)
             bindings[binding_count++] = argv[++i];
+        else if(strcmp(argv[i], "--bind-host") == 0 && i + 1 < argc && host_module_count < 16)
+            host_modules[host_module_count++] = argv[++i];
         else if(strcmp(argv[i], "--entry") == 0 && i + 1 < argc)
             entry = argv[++i];
         else if(strcmp(argv[i], "-o") == 0 && i + 1 < argc)
@@ -106,6 +110,9 @@ bundle_command(int argc, char **argv)
         goto done;
     for(int binding = 0; binding < binding_count; binding++)
         if(!BindHostProvider(&merged, bindings[binding]))
+            goto done;
+    for(int host = 0; host < host_module_count; host++)
+        if(!BindHostModule(&merged, host_modules[host]))
             goto done;
     linked = BundleLink(&merged, entry_module, entry_function);
     if(linked == NULL || !VmVerify(linked, entry_module, entry_function))

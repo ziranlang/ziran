@@ -5,6 +5,7 @@
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
 #include "zir_text.h"
+#include "zir_scalar.h"
 #include "zir_check.h"
 #include "zir_parse.h"
 
@@ -512,6 +513,27 @@ static int integer_type(const char *type)
            !strcmp(type, "u16") || !strcmp(type, "u32") ||
            !strcmp(type, "u64") || !strcmp(type, "usize") ||
            !strcmp(type, "isize");
+}
+
+/* Where two differently typed integer operands meet: the wider type, as
+ * Ziran widens implicitly; equal widths of opposite sign meet at s64. An
+ * untyped constant, such as a folded Width * Height, counts as s64. */
+static const char *rust_common_integer(const char *left, const char *right)
+{
+    if(!integer_type(left) || !integer_type(right) || !strcmp(left, right))
+        return NULL;
+    if(!strcmp(left, "integer"))
+        left = !strcmp(right, "u64") || !strcmp(right, "usize") ? right : "s64";
+    if(!strcmp(right, "integer"))
+        right = !strcmp(left, "u64") || !strcmp(left, "usize") ? left : "s64";
+    if(!strcmp(left, right))
+        return left;
+    unsigned left_width = ScalarWidth(left), right_width = ScalarWidth(right);
+    if(left_width == 0) left_width = 64;
+    if(right_width == 0) right_width = 64;
+    if(left_width > right_width) return left;
+    if(right_width > left_width) return right;
+    return left_width < 64 ? "s64" : NULL;
 }
 
 static int float_type(const char *type)
@@ -2126,9 +2148,20 @@ emit_expression_with_buffers(RustEmitter *emitter, int index, char *output,
                 !strcmp(emitter->function->exprs[expression->right].type, "integer");
             const char *operand_type = integer_type(expression->type) &&
                 strcmp(expression->type, "integer") != 0 ? expression->type : "s64";
+            /* s32 < s64, as in `index < Width * Height`: Rust compares
+             * only equal types, so both operands take the common one. */
+            const char *common = expression->left >= 0 && expression->right >= 0 ?
+                rust_common_integer(emitter->function->exprs[expression->left].type,
+                                    emitter->function->exprs[expression->right].type) : NULL;
+            if(common != NULL && integer_type(expression->type) &&
+               strcmp(expression->type, "integer") != 0)
+                common = expression->type;
             if(untyped) {
                 emit_typed_expression(emitter, expression->left, operand_type, buffers->left, sizeof(buffers->left));
                 emit_typed_expression(emitter, expression->right, operand_type, buffers->right, sizeof(buffers->right));
+            } else if(common != NULL) {
+                emit_typed_expression(emitter, expression->left, common, buffers->left, sizeof(buffers->left));
+                emit_typed_expression(emitter, expression->right, common, buffers->right, sizeof(buffers->right));
             } else {
                 emit_expression(emitter, expression->left, buffers->left, sizeof(buffers->left));
                 emit_expression(emitter, expression->right, buffers->right, sizeof(buffers->right));
@@ -3274,6 +3307,13 @@ static void rust_fill_literal_types(RustEmitter *emitter, ZirFunction *literal,
     if(node->type[0] == '\0' || !strcmp(node->type, "integer") ||
        !strcmp(node->type, "real") || node->kind == ZIR_EXPR_COMPOUND)
         node->type = KeepNameFormat("%s", type);
+    /* A negative number, -0.5 in a [4]float32 literal, is a sign applied
+     * to a literal; the literal takes the element's type too. */
+    if(node->kind == ZIR_EXPR_UNARY && !strcmp(node->op, "-") &&
+       !strcmp(node->type, type)) {
+        rust_fill_literal_types(emitter, literal, node->right, type, depth + 1);
+        return;
+    }
     if(node->kind != ZIR_EXPR_COMPOUND)
         return;
     int array = ArrayElementType(type, element, sizeof(element), NULL);
@@ -3485,8 +3525,12 @@ static void visit_startup_module(RustModuleVisits *visits,
     if(visit->state == 2)
         return;
     visit->state = 1;
+    /* As in C and Go, only dependencies with something to set up take part:
+     * an import cycle through modules without globals, such as widgets that
+     * import each other, orders nothing. */
     for(int index = 0; index < module->import_count; index++)
-        if(module->imports[index].resolved_module != NULL)
+        if(module->imports[index].resolved_module != NULL &&
+           ModuleNeedsStartup(module->imports[index].resolved_module))
             visit_startup_module(visits, ordered,
                                  module->imports[index].resolved_module);
     visit->state = 2;
@@ -3506,8 +3550,9 @@ static int emit_startup(RustEmitter *emitter, FILE *output)
         const ZirProgram *program = emitter->programs[program_index];
         for(int module_index = 0; module_index < program->module_count;
              module_index++)
-            visit_startup_module(&visits, &ordered,
-                                 &program->modules[module_index]);
+            if(ModuleNeedsStartup(&program->modules[module_index]))
+                visit_startup_module(&visits, &ordered,
+                                     &program->modules[module_index]);
     }
     free(visits.items);
     if(ordered.count == 0) {

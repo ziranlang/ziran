@@ -18,7 +18,7 @@ static void usage(void)
 {
     fprintf(stderr,
             "usage: zi2rust [--exe] [--no-main] [--entry module:function] "
-            "[--bind module:function=module:function] "
+            "[--bind module:function=module:function] [--bind-host module] "
             "[--diagnostics=text|json] [--module-path DIR] --root DIR -o DIR "
             "file.zi|file.zir ...\n");
 }
@@ -54,6 +54,8 @@ main(int argc, char **argv)
     int module_path_count = 0;
     const char *bindings[64];
     int binding_count = 0;
+    const char *host_modules[16];
+    int host_module_count = 0;
     ZirProgram **programs;
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
@@ -79,6 +81,9 @@ main(int argc, char **argv)
         } else if(strcmp(argv[index], "--bind") == 0 && index + 1 < argc &&
                   binding_count < 64) {
             bindings[binding_count++] = argv[++index];
+        } else if(strcmp(argv[index], "--bind-host") == 0 && index + 1 < argc &&
+                  host_module_count < 16) {
+            host_modules[host_module_count++] = argv[++index];
         } else if(strcmp(argv[index], "--exe") == 0) {
             executable = 1;
         } else if(strcmp(argv[index], "--no-main") == 0) {
@@ -93,7 +98,7 @@ main(int argc, char **argv)
     }
     if(root == NULL || output_directory == NULL || first_file == 0 ||
        (entry != NULL && !split_entry(entry, entry_module, entry_function)) ||
-       (binding_count > 0 && entry == NULL) ||
+       ((binding_count > 0 || host_module_count > 0) && entry == NULL) ||
        (executable && (entry == NULL || no_main))) {
         usage();
         return 1;
@@ -127,6 +132,9 @@ main(int argc, char **argv)
             goto done;
         for(int index = 0; index < binding_count; index++)
             if(!BindHostProvider(&merged, bindings[index]))
+                goto done;
+        for(int host = 0; host < host_module_count; host++)
+            if(!BindHostModule(&merged, host_modules[host]))
                 goto done;
         linked = NativeLink(&merged, entry_module, entry_function);
         if(linked == NULL)

@@ -142,6 +142,7 @@ typedef struct {
 } CompileValue;
 
 extern _Thread_local int ZirLawEvaluation;
+int compile_law_exact_double(const CompileValue *value);
 
 typedef struct {
     const ZirModule *module;

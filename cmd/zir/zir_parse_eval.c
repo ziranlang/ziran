@@ -898,6 +898,19 @@ wrap_compile_integer(const char *type, int64_t *value)
     *value = ScalarStored((uint64_t)*value, type);
     return 1;
 }
+/* Laws decide a comparison between an integer and a real only when the
+ * integer converts to a double exactly, so the answer matches every target. */
+int
+compile_law_exact_double(const CompileValue *value)
+{
+    if(value->kind == COMPILE_REAL) return 1;
+    if(value->kind != COMPILE_INTEGER) return 0;
+    if(!strcmp(value->type, "u64"))
+        return (uint64_t)value->integer <= (UINT64_C(1) << 53);
+    return value->integer >= -(INT64_C(1) << 53) &&
+           value->integer <= (INT64_C(1) << 53);
+}
+
 /* Buffers compile_values_equal keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct CompileValuesEqualBuffers {
@@ -932,6 +945,8 @@ compile_values_equal_with_buffers(const CompileValue *left, const CompileValue *
     }
     if((left->kind == COMPILE_REAL || left->kind == COMPILE_INTEGER) &&
        (right->kind == COMPILE_REAL || right->kind == COMPILE_INTEGER)) {
+        if(ZirLawEvaluation && (!compile_law_exact_double(left) ||
+                                !compile_law_exact_double(right))) return 0;
         double a = left->kind == COMPILE_REAL ? left->real :
                    (double)left->integer;
         double b = right->kind == COMPILE_REAL ? right->real :

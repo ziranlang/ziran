@@ -85,8 +85,11 @@ between different types, loops, recursion, pointers, arrays, floats, runtime
 globals, and foreign calls are outside this proof fragment. Constant casts
 and casts to the identical type are supported. Arrays and bounded loops can
 still be checked with existing finite `forall` laws. Integer evaluation uses
-exact bits rather than floating-point comparison; floating-point law
-evaluation currently returns `unknown`.
+exact bits rather than floating-point comparison. Floating-point values are
+decided only where the answer is exact on every target: an integer cast to
+`float64` within 2^53 (`float32` within 2^24), and comparisons of such values,
+including with integers in that range. Float arithmetic, float literals, and
+wider casts round, so a law that uses them returns `unknown`.
 
 ## Results, budgets, and waivers
 

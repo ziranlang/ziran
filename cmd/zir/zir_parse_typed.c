@@ -174,6 +174,10 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                    (double)left.integer;
         double b = right.kind == COMPILE_REAL ? right.real :
                    (double)right.integer;
+        if(ZirLawEvaluation &&
+           (left.kind == COMPILE_REAL || right.kind == COMPILE_REAL) &&
+           (!compile_law_exact_double(&left) ||
+            !compile_law_exact_double(&right))) return 0;
         if(!strcmp(op, "<") || !strcmp(op, "<=") ||
            !strcmp(op, ">") || !strcmp(op, ">=")) {
             int cmp = 0;
@@ -239,6 +243,9 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                 copy_text(result->type, sizeof(result->type), type);
             return compile_value_literal(result);
         }
+        /* Floating-point arithmetic rounds, and targets may fuse or widen
+         * it, so a law that computes with floats stays unproved. */
+        if(ZirLawEvaluation) return 0;
         result->kind = COMPILE_REAL;
         if(!strcmp(op, "+")) result->real = a + b;
         else if(!strcmp(op, "-")) result->real = a - b;
@@ -315,7 +322,16 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                 copy_text(result->type, sizeof(result->type), expression->name);
                 if(type && type->is_enum) return compile_value_literal(result);
             }
-            if(ZirLawEvaluation && (!strcmp(scalar, "float32") || !strcmp(scalar, "float64"))) return 0;
+            if(ZirLawEvaluation && (!strcmp(scalar, "float32") || !strcmp(scalar, "float64"))) {
+                /* An integer converts to a float exactly within the
+                 * significand; outside it the rounding is left unproved. */
+                int64_t limit = !strcmp(scalar, "float32") ? INT64_C(1) << 24 : INT64_C(1) << 53;
+                if(!strcmp(result->type, "u64") ?
+                   (uint64_t)result->integer > (uint64_t)limit :
+                   (result->integer < -limit || result->integer > limit)) return 0;
+                result->real = (double)result->integer;
+                result->kind = COMPILE_REAL;
+            }
         }
         if(eval_integer_type(expression->name, 0) &&
            result->kind == COMPILE_REAL) {

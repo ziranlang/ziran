@@ -70,21 +70,6 @@ LinkImports(ZirProgram **programs, int count)
                                        "duplicate import alias: %s", import->name);
                             return 0;
                         }
-                if(import->kind == ZIR_IMPORT_EXTERN &&
-                   SliceElementType(import->return_type, NULL, 0)) {
-                    char element[ZIR_NAME_MAX];
-                    if(!SliceElementType(import->return_type, element,
-                                         sizeof(element)) ||
-                       !*element || strchr(element, '[') ||
-                       !strcmp(element, "char") ||
-                       !strcmp(element, "const char") ||
-                       (!*ScalarType(element) &&
-                        FindType(module, element, NULL) == NULL)) {
-                        Diagnostic(import->span, "check.slice_signature",
-                                      "host slice returns need a supported element type");
-                        return 0;
-                    }
-                }
                 if(import->kind != ZIR_IMPORT_OPEN &&
                    import->kind != ZIR_IMPORT_MODULE)
                     continue;
@@ -128,6 +113,32 @@ LinkImports(ZirProgram **programs, int count)
                     Diagnostic(import->span, "check.import",
                                "unresolved Jai module: %s", import->target);
                     return 0;
+                }
+            }
+        }
+    }
+    /* A slice element may be exported through several modules. Resolve the
+     * entire import graph before checking foreign return types so declaration
+     * and module order cannot hide the element's owning module. */
+    for(int p = 0; p < count; p++) {
+        for(int m = 0; m < programs[p]->module_count; m++) {
+            ZirModule *module = &programs[p]->modules[m];
+            for(int i = 0; i < module->import_count; i++) {
+                ZirImport *import = &module->imports[i];
+                if(import->kind == ZIR_IMPORT_EXTERN &&
+                   SliceElementType(import->return_type, NULL, 0)) {
+                    char element[ZIR_NAME_MAX];
+                    if(!SliceElementType(import->return_type, element,
+                                         sizeof(element)) ||
+                       !*element || strchr(element, '[') ||
+                       !strcmp(element, "char") ||
+                       !strcmp(element, "const char") ||
+                       (!*ScalarType(element) &&
+                        FindType(module, element, NULL) == NULL)) {
+                        Diagnostic(import->span, "check.slice_signature",
+                                      "host slice returns need a supported element type");
+                        return 0;
+                    }
                 }
             }
         }

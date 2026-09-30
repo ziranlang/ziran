@@ -1,0 +1,31 @@
+// Native Go channels with runtime element types. Keep the reflective channel
+// value as the handle; Interface supplies its native value to select_go.
+#import "go_types"
+go_reflect :: #system_library "go:reflect";
+Channel :: #type #foreign go_reflect "Value";
+ElementType :: #type #foreign go_reflect "Type";
+Direction :: #type #foreign go_reflect "ChanDir";
+
+#scope_file
+TypeOf :: (value: Any) -> ElementType #foreign go_reflect;
+ValueOf :: (value: Any) -> Channel #foreign go_reflect;
+BothDirections :: () -> Direction #go_field #foreign go_reflect "BothDir";
+ChannelType :: (direction: Direction, element: ElementType) -> ElementType #foreign go_reflect "ChanOf";
+MakeChannel :: (type: ElementType, capacity: isize) -> Channel #foreign go_reflect "MakeChan";
+InterfaceRaw :: (value: Channel) -> Any #foreign go_reflect "Value.Interface";
+TrySendRaw :: (channel: Channel, value: Channel) -> bool #foreign go_reflect "Value.TrySend";
+CloseRaw :: (channel: Channel) #foreign go_reflect "Value.Close";
+
+#scope_export
+New :: (element: Any, capacity: isize) -> Channel {
+    return MakeChannel(ChannelType(BothDirections(), TypeOf(element)), capacity)
+}
+Interface :: (channel: Channel) -> Any {
+    return InterfaceRaw(channel)
+}
+TrySend :: (channel: Channel, value: Any) -> bool {
+    return TrySendRaw(channel, ValueOf(value))
+}
+Close :: (channel: Channel) {
+    CloseRaw(channel)
+}

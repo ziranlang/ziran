@@ -309,6 +309,37 @@ when cleanup needs to observe a value changed later in the calling function.
 Checked IR retains the typed callback and the schedule independently of the
 declaration's diagnostic source text.
 
+Typed `go:builtin` `spawn` declarations start the first procedure argument in
+a native Go goroutine with the remaining arguments. The callback and binding
+must return `void`; their parameter types must match and cannot contain owned
+vectors. Arguments are captured before starting the goroutine. Native Go
+pointer, slice, map and channel storage stays alive under Go's collector;
+shared mutation still requires synchronization. `spawn` cannot use `#go_defer`.
+
+Typed `go:builtin` `assert` declarations use `#go_results` and one `Any`
+argument. Their result record has exactly two fields: the target value type
+and a `bool` indicating whether the native Go type assertion succeeded. A
+failed assertion returns the target type's zero value and `false`; a typed
+nil can succeed and stays distinct from a nil interface. Asserted slices,
+pointers and interfaces retain native storage and identity.
+
+```jai
+#import "std/go_types"
+builtin :: #system_library "go:builtin";
+Worker :: #type (value: s64) -> void;
+Start :: (callback: Worker, value: s64) #foreign builtin "spawn";
+IntegerAssertion :: struct { value: s64; present: bool }
+AsInteger :: (value: Any) -> IntegerAssertion #go_results #foreign builtin "assert";
+```
+
+These operations and the `std/channel_go` native channel handles are specific
+to Go. `std/context_go.WithCancel` and `WithTimeout` return a native context
+and its cancellation function; call `Cancel` to release that context. Schedule
+cancellation in the owning function with a typed deferred callback when it
+must also run during native panic unwinding. Other targets reject reachable
+Go bindings; unused Go-only functions can still be excluded from a portable
+bundle.
+
 `io_go` exposes native readers, closable readers, writers and `ReadAll`.
 `http_go` supplies request bodies and contexts, bounded body readers and
 response status writes. `json_go` supplies JSON validation and streaming

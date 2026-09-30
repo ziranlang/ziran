@@ -462,7 +462,10 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
                 fields++;
             }
         }
-        if(!fields || status != 0 || binding->is_varargs || !strcmp(package, "builtin")) {
+        int assertion = !strcmp(package, "builtin") && !receiver[0] &&
+                        !strcmp(symbol, "assert");
+        if(!fields || status != 0 || binding->is_varargs ||
+           (!strcmp(package, "builtin") && !assertion)) {
             Diagnostic(binding->span, "check.foreign", "#go_results requires a concrete result record without owned storage");
             return 0;
         }
@@ -529,8 +532,24 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
         }
         if(!strcmp(symbol, "call"))
             allocation = check_go_callback(module, binding, parameters, count);
+        if(!strcmp(symbol, "spawn"))
+            allocation = !strcmp(result, "void") &&
+                         check_go_callback(module, binding, parameters, count);
+        if(!strcmp(symbol, "assert")) {
+            const char *colon = count == 1 ? strchr(parameters[0], ':') : NULL;
+            const ZirType *input = colon ? FindType(module, skip_ws(colon + 1), NULL) : NULL;
+            const ZirType *record = FindType(module, result, NULL);
+            size_t offset = 0;
+            ZirTypeField value, present, extra;
+            allocation = binding->go_results && input &&
+                !strcmp(input->foreign_target, "go:builtin.any") && record &&
+                TypeNextField(record, &offset, &value) == 1 &&
+                TypeNextField(record, &offset, &present) == 1 &&
+                TypeNextField(record, &offset, &extra) == 0 &&
+                !strcmp(present.type, "bool");
+        }
         if(!allocation) {
-            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append, panic or call signature");
+            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append, panic, call, spawn or assert signature");
             return 0;
         }
     }

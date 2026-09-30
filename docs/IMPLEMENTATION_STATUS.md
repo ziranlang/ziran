@@ -5,6 +5,15 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Typed Go `assert` bindings retain native interface checks, zero values on
+  failure, typed nils and shared pointer/slice storage. Typed `spawn` bindings
+  start capture-free Ziran callbacks in native Go goroutines, capture arguments
+  before starting, and reject result-bearing callbacks, mismatched signatures
+  and owned vectors. `std/channel_go` supplies native typed channel handles,
+  nonblocking sends and closure; `std/context_go` adds child cancellation and
+  deadlines. `tests/go_assert_spawn.sh` checks source and saved IR, asynchronous
+  startup, native identities, cancellation, panic cleanup and rejected bindings.
+
 - Foreign slice returns resolve generic element types after linking and type
   normalization. Native Go `make` and `append` can return `[]Map(string, Any)`
   and slices of imported generic records without declaration-order failures.

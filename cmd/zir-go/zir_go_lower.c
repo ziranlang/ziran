@@ -363,7 +363,7 @@ go_builtin_callback(const ZirGoExtern *binding)
 {
     return binding->direct_go && !binding->go_receiver[0] &&
            !strcmp(binding->go_import_path, "builtin") &&
-           !strcmp(binding->go, "call");
+           (!strcmp(binding->go, "call") || !strcmp(binding->go, "spawn"));
 }
 /* Extract the Go method name from a resolved #foreign package target: the segment
  * after the last dot. */
@@ -1560,7 +1560,8 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
         if(go_builtin_method(binding) || go_builtin_callback(binding)) {
             char parameter[ZIR_GO_NAME_MAX];
             camel_ident(binding->parameters->items[0].name, parameter, sizeof(parameter));
-            fprintf(out, "\t%s%s%s%s(", result_type[0] ? "return " : "",
+            fprintf(out, "\t%s%s%s%s(", !strcmp(binding->go, "spawn") ? "go " :
+                    result_type[0] ? "return " : "",
                     parameter, go_builtin_callback(binding) ? "" : ".",
                     go_builtin_callback(binding) ? "" : binding->go);
             for(int p = 1; p < binding->pcount; p++) {
@@ -1595,6 +1596,16 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
             char member[ZIR_GO_NAME_MAX];
             go_field_ident(field.name, member, sizeof(member));
             fprintf(out, "%sresult.%s", fields++ ? ", " : "", member);
+        }
+        if(binding->direct_go && !strcmp(binding->go_import_path, "builtin") &&
+           !strcmp(binding->go, "assert")) {
+            char parameter[ZIR_GO_NAME_MAX], asserted[ZIR_GO_NAME_MAX];
+            offset = 0;
+            TypeNextField(record, &offset, &field);
+            require_go_type(field.type, asserted, sizeof(asserted), module->span);
+            camel_ident(binding->parameters->items[0].name, parameter, sizeof(parameter));
+            fprintf(out, " = %s.(%s)\n\treturn result\n}\n\n", parameter, asserted);
+            continue;
         }
         const char *receiver = binding->go_receiver;
         if(receiver[0])

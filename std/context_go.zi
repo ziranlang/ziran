@@ -1,13 +1,25 @@
 // Native Go contexts retain cancellation, deadlines and interface identity.
 #import "go_types"
 go_context :: #system_library "go:context";
+go_reflect :: #system_library "go:reflect";
+clock :: #import "time_go";
 Context :: #type #foreign go_context "Context";
+CancelFunc :: #type #foreign go_context "CancelFunc";
+Cancellation :: struct {
+    value: Context
+    cancel: CancelFunc
+}
 
 #scope_file
 BackgroundRaw :: () -> Context #foreign go_context "Background";
 CanceledRaw :: () -> Error #go_field #foreign go_context "Canceled";
 DeadlineExceededRaw :: () -> Error #go_field #foreign go_context "DeadlineExceeded";
 DoneRaw :: (value: Context) -> Any #foreign go_context "Context.Done";
+WithCancelRaw :: (value: Context) -> Cancellation #go_results #foreign go_context "WithCancel";
+WithTimeoutRaw :: (value: Context, duration: clock.Duration) -> Cancellation #go_results #foreign go_context "WithTimeout";
+FunctionValue :: #type #foreign go_reflect "Value";
+ValueOf :: (value: Any) -> FunctionValue #foreign go_reflect;
+CallRaw :: (callback: FunctionValue, arguments: []FunctionValue) -> []FunctionValue #foreign go_reflect "Value.Call";
 
 #scope_export
 Background :: () -> Context {
@@ -21,4 +33,14 @@ DeadlineExceeded :: () -> Error {
 }
 Done :: (value: Context) -> Any {
     return DoneRaw(value)
+}
+WithCancel :: (value: Context) -> Cancellation {
+    return WithCancelRaw(value)
+}
+WithTimeout :: (value: Context, duration: clock.Duration) -> Cancellation {
+    return WithTimeoutRaw(value, duration)
+}
+Cancel :: (callback: CancelFunc) {
+    arguments: []FunctionValue
+    CallRaw(ValueOf(callback), arguments)
 }

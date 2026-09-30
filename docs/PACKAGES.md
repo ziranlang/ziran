@@ -41,8 +41,8 @@ current directory. It never overwrites a file. When the project already has a
 keys are added, string arrays such as `module_roots` gain the template's
 entries, and every other value the project already sets is kept and reported.
 That is how an existing command-line program becomes, for example, a Kryon
-application: the template adds the dependency, `tool = "Kryon"`, and the
-`[tool.Kryon]` settings, and keeps the program's own entry.
+application: the template adds the dependency, `tool = "kryon"`, and the
+`[tool.kryon]` settings, and keeps the program's own entry.
 
 ## Building and running a program
 
@@ -271,14 +271,14 @@ The application sets those options under the dependency's alias, and its
 ignored `ziran.local.toml` may replace any of them on one machine:
 
 ```toml
-[tool.Kryon]
+[tool.kryon]
 default_profile = "desktop"
 
-[tool.Kryon.profiles.desktop]
+[tool.kryon.profiles.desktop]
 backend = "desktop"
 ```
 
-`ziran tool Kryon COMMAND` rebuilds the tool if its sources changed, checks
+`ziran tool kryon COMMAND` rebuilds the tool if its sources changed, checks
 every setting against the declaration, and reports an unknown or missing key
 with its file and line. It then runs the tool from the project root. The tool
 reads the merged settings as `KEY=VALUE` lines from the file named by
@@ -298,15 +298,15 @@ installs as:
 [package]
 name = "example"
 entry = "src/app.zi"
-tool = "Kryon"
+tool = "kryon"
 
 [install]
 bin = "example"
 ```
 
 `ziran run`, `ziran build`, and `ziran check` without a file then run
-`ziran tool Kryon run`, `build`, or `check` with the remaining arguments, so
-`ziran run desktop` is `ziran tool Kryon run desktop`. `ziran install` runs
+`ziran tool kryon run`, `build`, or `check` with the remaining arguments, so
+`ziran run desktop` is `ziran tool kryon run desktop`. `ziran install` runs
 the tool's `install` command with `ZIRAN_INSTALL_PREFIX` (`~/.local` unless
 `--prefix DIR` is given) and `ZIRAN_INSTALL_BIN`; other arguments are passed
 on. The tool decides what else an install includes, such as a desktop entry,

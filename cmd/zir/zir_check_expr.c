@@ -812,7 +812,13 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 if(second < 0 || c->fn->exprs[second].next_sibling >= 0)
                     error(c, e->span, "VecPush requires a value", e->name);
                 else if(vector_known) {
+                    /* The element type gives an inferred .{...} its record. */
+                    char saved_expected[ZIR_NAME_MAX];
+                    copy_text(saved_expected, sizeof(saved_expected), c->expected_type);
+                    copy_text(c->expected_type, sizeof(c->expected_type), element);
                     const char *item_type = expression_type(c, second);
+                    copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
+                    e = &c->fn->exprs[index];
                     if(!compatible_checked(c, element, item_type))
                         error(c, e->span, "VecPush element type mismatch", element);
                     else if(!strcmp(item_type, "integer") ||

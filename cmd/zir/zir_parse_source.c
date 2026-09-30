@@ -54,6 +54,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     ZirModule *module;
     ZirFunction *fn = NULL;
     char module_name[ZIR_NAME_MAX];
+    /* Imports parse other files mid-way; each file tracks its own [..]. */
+    int outer_resizable_arrays = ZirSourceUsesResizableArrays;
+    ZirSourceUsesResizableArrays = 0;
     int line_no = 0;
     int physical_line_no = 0;
     enum { TOP, TYPE, FUNCTION } mode = TOP;
@@ -1755,6 +1758,18 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
         }
         module->lookup_path[0] = '\0';
     }
+    if(ZirSourceUsesResizableArrays) {
+        /* [..]T and array_add are std/vec's Vec; import it for the file. */
+        int present = 0;
+        module = &program->modules[0];
+        for(int i = 0; i < module->import_count; i++)
+            present |= !strcmp(module->imports[i].target, "std/vec") ||
+                       !strcmp(module->imports[i].target, "vec");
+        char import_line[] = "#import \"std/vec\";";
+        if(!present)
+            parse_import_line(module, buffers->rel, 1, import_line, 0);
+    }
+    ZirSourceUsesResizableArrays = outer_resizable_arrays;
     free(consts.items);
     free(future_constants.items);
     free(future_usings.items);

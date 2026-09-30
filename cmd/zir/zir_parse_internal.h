@@ -208,6 +208,7 @@ char *lower_jai_multiline_strings(const char *source, const char *path);
 int starts_word(const char *s, const char *word);
 int looks_like_non_jai_control(const char *text, const char *word);
 int is_identifier_text(const char *text);
+extern _Thread_local int ZirSourceUsesResizableArrays;
 int declare_multiple_results(ZirModule *module, const char *name, char *ret,
                              size_t ret_size, int is_public, int is_file_private,
                              ZirSourceSpan span);

@@ -6,8 +6,15 @@ static int
 record_declaration_error(const ZirType *record, const char *message,
                          const char *field)
 {
+    /* A generic instance shows as written, Vec([2]s32), not its internal name. */
+    char shown[ZIR_TEXT_MAX];
+    if(record->template_name[0] && record->template_args[0])
+        snprintf(shown, sizeof(shown), "%s(%s)", record->template_name,
+                 record->template_args);
+    else
+        copy_text(shown, sizeof(shown), record->name);
     Diagnostic(record->span, "check.record", "%s: %s%s%s",
-            message, record->name, field && *field ? "." : "",
+            message, shown, field && *field ? "." : "",
             field ? field : "");
     return 0;
 }
@@ -45,6 +52,12 @@ storage_type_error(const ZirModule *module, const char *source,
         const char *pointee = skip_ws(type + 1);
         if(!*pointee)
             return "pointer requires an element type";
+        /* Native record fields have no declarator for a pointer to a fixed
+         * array, which a Vec of fixed arrays would also need for its storage.
+         * C callback types spell that parameter themselves. */
+        if(path != NULL && pointee[0] == '[' && pointee[1] != ']')
+            return "pointers to fixed arrays, and Vecs of them, are not supported; "
+                   "wrap the array in a record";
         return storage_type_error(module, pointee, path, 1, checked,
                                   detail, detail_capacity);
     }
@@ -1377,6 +1390,72 @@ select_first_result(Checker *c, int index)
     return member->type;
 }
 
+/* A local Vec passed where a slice of its elements is expected lends a
+ * view, as Jai passes [..]T to []T: rewrite `v` into VecSlice(v, 0, v.count)
+ * and check that call. Returns the slice type, or NULL when not a local
+ * Vec of that element type. */
+static const char *
+lend_vec_as_slice(Checker *c, int index, const char *to)
+{
+    ZirFunction *fn = c->fn;
+    char element[ZIR_NAME_MAX], wanted[ZIR_NAME_MAX], name[ZIR_NAME_MAX];
+    if(fn->exprs[index].kind != ZIR_EXPR_IDENT ||
+       !VecElementType(c->module, fn->exprs[index].type, element, sizeof(element)) ||
+       !SliceElementType(to, wanted, sizeof(wanted)) ||
+       !compatible_checked(c, wanted, element) || !compatible_checked(c, element, wanted) ||
+       lexical_vec_binding(c, index) == NULL)
+        return NULL;
+    if(c->inference_only)
+        return to;
+    copy_text(name, sizeof(name), fn->exprs[index].name);
+    ZirSourceSpan span = fn->exprs[index].span;
+    ZirExpr saved = fn->exprs[index];
+    int nodes[4];
+    for(int i = 0; i < 4; i++) {
+        ZirExpr *added = FunctionAddExpr(fn, ZIR_EXPR_IDENT, name, span);
+        if(added == NULL) {
+            c->failed = 1;
+            return NULL;
+        }
+        nodes[i] = (int)(added - fn->exprs);
+    }
+    /* nodes: the Vec, the zero low bound, the Vec again, its count. */
+    fn->exprs[nodes[0]] = saved;
+    fn->exprs[nodes[0]].next_sibling = nodes[1];
+    fn->exprs[nodes[0]].argument_index = -1;
+    fn->exprs[nodes[0]].argument_name[0] = '\0';
+    ZirExpr *zero = &fn->exprs[nodes[1]];
+    zero->kind = ZIR_EXPR_INT;
+    zero->name[0] = '\0';
+    zero->text = KeepText("0");
+    copy_text(zero->type, sizeof(zero->type), "s64");
+    zero->next_sibling = nodes[3];
+    fn->exprs[nodes[2]] = saved;
+    fn->exprs[nodes[2]].next_sibling = -1;
+    fn->exprs[nodes[2]].argument_index = -1;
+    fn->exprs[nodes[2]].argument_name[0] = '\0';
+    ZirExpr *count = &fn->exprs[nodes[3]];
+    count->kind = ZIR_EXPR_MEMBER;
+    copy_text(count->name, sizeof(count->name), "count");
+    copy_text(count->op, sizeof(count->op), ".");
+    copy_text(count->type, sizeof(count->type), "s64");
+    count->left = nodes[2];
+    count->next_sibling = -1;
+    ZirExpr *call = &fn->exprs[index];
+    memset(call, 0, sizeof(*call));
+    call->kind = ZIR_EXPR_CALL;
+    call->text = saved.text;
+    copy_text(call->name, sizeof(call->name), "VecSlice");
+    copy_text(call->argument_name, sizeof(call->argument_name), saved.argument_name);
+    call->argument_index = saved.argument_index;
+    call->first_child = nodes[0];
+    call->left = call->right = call->third = -1;
+    call->next_sibling = saved.next_sibling;
+    call->span = span;
+    c->conversions_applied = 1;
+    return expression_type(c, index);
+}
+
 const char *
 widen_expression(Checker *c, int index, const char *to)
 {
@@ -1440,6 +1519,11 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
     }
     if(*from && widens_losslessly(to, from))
         return c->inference_only ? to : widen_expression(c, index, to);
+    {
+        const char *lent = lend_vec_as_slice(c, index, to);
+        if(lent != NULL)
+            return lent;
+    }
     if(!*from || !strcmp(from, to) || c->inference_only)
         return NULL;
     for(int pass = 0; pass < 2; pass++) {

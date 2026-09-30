@@ -12,6 +12,50 @@ typedef struct NormalizeJaiSourceTokensBuffers {
 void normalize_jai_source_tokens(char *line, const char *path,
                             const char *physical_path, int line_no);
 
+/* Set when a line used [..]T, so the module imports std/vec for Vec. */
+_Thread_local int ZirSourceUsesResizableArrays;
+
+/* Length of the type written at TEXT, such as `*Node`, `[4]u8`, or
+ * `Pair(s32, s64)`, including leading spaces; 0 when there is none. */
+static size_t
+type_text_length(const char *text)
+{
+    const char *p = text;
+    while(*p == ' ' || *p == '\t') p++;
+    for(;;) {
+        if(*p == '*') {
+            p++;
+            while(*p == ' ' || *p == '\t') p++;
+        } else if(*p == '[') {
+            int depth = 0;
+            do {
+                if(*p == '[') depth++;
+                else if(*p == ']') depth--;
+                else if(*p == '\0') return 0;
+                p++;
+            } while(depth > 0);
+            while(*p == ' ' || *p == '\t') p++;
+        } else
+            break;
+    }
+    const char *name = p;
+    while(isalnum((unsigned char)*p) || *p == '_' || *p == '.' || *p == '$') p++;
+    if(p == name) return 0;
+    const char *after = p;
+    while(*after == ' ' || *after == '\t') after++;
+    if(*after == '(') {
+        int depth = 0;
+        p = after;
+        do {
+            if(*p == '(') depth++;
+            else if(*p == ')') depth--;
+            else if(*p == '\0') return 0;
+            p++;
+        } while(depth > 0);
+    }
+    return (size_t)(p - text);
+}
+
 static void
 normalize_jai_source_tokens_with_buffers(char *line, const char *path,
                             const char *physical_path, int line_no, NormalizeJaiSourceTokensBuffers *buffers)
@@ -104,11 +148,67 @@ normalize_jai_source_tokens_with_buffers(char *line, const char *path,
             p += directive_length;
             continue;
         }
+        if(*p == '[') {
+            /* Jai's resizable array [..]T is the owned Vec(T). */
+            const char *q = p + 1;
+            while(*q == ' ' || *q == '\t') q++;
+            if(q[0] == '.' && q[1] == '.' && q[2] != '.') {
+                q += 2;
+                while(*q == ' ' || *q == '\t') q++;
+                if(*q == ']') {
+                    size_t element_length = type_text_length(q + 1);
+                    char element[SOURCE_LINE_MAX];
+                    if(element_length == 0 || element_length >= sizeof(element))
+                        die_at(Span(path, line_no, (int)(p - line) + 1),
+                               "[..] needs an element type");
+                    memcpy(element, q + 1, element_length);
+                    element[element_length] = '\0';
+                    normalize_jai_source_tokens(element, path, physical_path, line_no);
+                    int written = snprintf(buffers->normalized + used,
+                                           sizeof(buffers->normalized) - used,
+                                           "Vec(%s)", skip_ws(element));
+                    if(written < 0 || (size_t)written >= sizeof(buffers->normalized) - used)
+                        die_at(Span(path, line_no, 1), "source line exceeds size limit");
+                    used += (size_t)written;
+                    p = q + 1 + element_length;
+                    ZirSourceUsesResizableArrays = 1;
+                    continue;
+                }
+            }
+        }
         if(isalpha((unsigned char)*p) || *p == '_') {
             const char *start = p;
             while(isalnum((unsigned char)*p) || *p == '_') p++;
             size_t length = (size_t)(p - start);
             const char *replacement = NULL;
+            /* Jai's array procedures on a resizable array take its address:
+             * array_add(*values, x) is VecPush(values, x). */
+            static const struct { const char *jai, *vec; } array_calls[] = {
+                {"array_add", "VecPush"}, {"array_reset", "VecFree"},
+                {"array_free", "VecFree"},
+                {"array_reset_keeping_memory", "VecClear"}
+            };
+            const char *after = p;
+            while(*after == ' ' || *after == '\t') after++;
+            for(size_t i = 0; *after == '(' &&
+                i < sizeof(array_calls) / sizeof(array_calls[0]); i++)
+                if(strlen(array_calls[i].jai) == length &&
+                   strncmp(start, array_calls[i].jai, length) == 0) {
+                    size_t vec_length = strlen(array_calls[i].vec);
+                    if(used + vec_length + 1 >= sizeof(buffers->normalized))
+                        die_at(Span(path, line_no, 1), "source line exceeds size limit");
+                    memcpy(buffers->normalized + used, array_calls[i].vec, vec_length);
+                    used += vec_length;
+                    buffers->normalized[used++] = '(';
+                    p = skip_ws(after + 1);
+                    if(*p == '*')
+                        p++;
+                    ZirSourceUsesResizableArrays = 1;
+                    replacement = "";
+                    break;
+                }
+            if(replacement != NULL)
+                continue;
             if(length == 3 && strncmp(start, "nil", 3) == 0)
                 die_at(Span(path, line_no, (int)(start - line) + 1),
                        "nil is not Jai syntax; use null");

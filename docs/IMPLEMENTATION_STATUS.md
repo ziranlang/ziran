@@ -55,6 +55,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/numeric_conformance.json`, and kept synchronized with markers in the
   differential test. Mixed-width narrowing/widening after addition and u8
   bitwise AND/OR/XOR are included.
+- Jai resizable arrays: `[..]T` is `std/vec`'s `Vec(T)`, imported for the
+  file automatically, and `array_add(*a, x)`, `array_reset(*a)`,
+  `array_free(a)`, and `array_reset_keeping_memory(*a)` are the matching Vec
+  operations. Indexing, `.count`, and `for` work as on Vec. A local `[..]T`
+  passed where `[]T` is expected lends a view (`VecSlice`) instead of moving.
+  Vecs of fixed arrays and nested Vecs are rejected; wrap the element in a
+  record. `tests/resizable_arrays.sh` checks source and saved IR on C, C++,
+  Go, and `.zib`.
 - Procedures return several results as in Jai: `-> s32, s32` or named
   `-> (low: s32, high: s32)`, `return a, b`, `q, r := F()`, `q, r = F()`, and
   `_` to skip one. A call used as one value gives its first result. The results

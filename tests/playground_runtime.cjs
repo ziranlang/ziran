@@ -42,7 +42,7 @@ async function main() {
   assert.match(noEntry.diagnostics, /entry procedure/);
   const bounded = run('main :: () { while true { } }');
   assert.notEqual(bounded.status, 0);
-  assert.match(bounded.diagnostics, /portable execution failed/);
+  assert.match(bounded.diagnostics, /portable execution failed: stopped after 1000000 statements/);
   assert.equal(run('Answer :: () -> s32 { return 17; }').output, '17', 'A failed run must not poison the next run');
   console.log('Playground runtime: examples, imports, 64-bit integers, compile-time values, UTF-8, floats, diagnostics, execution limits, and recovery passed');
 }

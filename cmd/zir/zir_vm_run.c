@@ -21,7 +21,7 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
         int close;
         int saved_locals;
         Flow flow;
-        if(++vm->steps > VM_MAX_STEPS)
+        if(vm->max_steps > 0 && ++vm->steps > vm->max_steps)
             return FLOW_ERROR;
         switch(statement->kind) {
         case ZIR_STMT_DECL: {
@@ -158,7 +158,7 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
                 return FLOW_ERROR;
             saved_locals = frame->local_count;
             while(1) {
-                if(++vm->steps > VM_MAX_STEPS)
+                if(vm->max_steps > 0 && ++vm->steps > vm->max_steps)
                     return FLOW_ERROR;
                 Value condition = eval(frame, statement->expr_root, 0);
                 if(vm->failed)
@@ -1116,11 +1116,23 @@ VmInstanceRun(VmInstance *instance, long long *result, int *has_result)
     *result = value.integer;
     *has_result = strcmp(instance->entry->return_type, "void") != 0;
     if(vm->failed) {
-        Diagnostic(instance->entry->span, "zib.runtime",
-                      "portable execution failed");
+        if(vm->max_steps > 0 && vm->steps > vm->max_steps)
+            Diagnostic(instance->entry->span, "zib.runtime",
+                       "portable execution failed: stopped after %d statements",
+                       vm->max_steps);
+        else
+            Diagnostic(instance->entry->span, "zib.runtime",
+                       "portable execution failed");
         return 0;
     }
     return 1;
+}
+
+void
+VmInstanceLimitSteps(VmInstance *instance, int max_steps)
+{
+    if(instance != NULL)
+        instance->vm.max_steps = max_steps > 0 ? max_steps : 0;
 }
 
 size_t
@@ -1148,10 +1160,20 @@ VmRunWithHost(const ZirProgram *program, const char *entry_module,
               const char *entry_function, VmHostCall host, void *context,
               long long *result, int *has_result)
 {
+    return VmRunBounded(program, entry_module, entry_function, host, context,
+                        0, result, has_result);
+}
+
+int
+VmRunBounded(const ZirProgram *program, const char *entry_module,
+             const char *entry_function, VmHostCall host, void *context,
+             int max_steps, long long *result, int *has_result)
+{
     VmInstance *instance = VmInstanceOpen(program, entry_module,
         entry_function, host, context);
     if(instance == NULL)
         return 0;
+    VmInstanceLimitSteps(instance, max_steps);
     int ok = VmInstanceRun(instance, result, has_result);
     VmInstanceClose(instance);
     return ok;

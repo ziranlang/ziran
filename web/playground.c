@@ -76,7 +76,10 @@ int RunSource(void)
         goto done;
     report_stage("run");
     status = 2;
-    if(!VmRun(linked, "playground", entry, &value, &has_result))
+    /* The page runs in the reader's browser tab: a bound keeps a runaway
+     * loop from hanging it. */
+    if(!VmRunBounded(linked, "playground", entry, NULL, NULL, 1000000,
+                     &value, &has_result))
         goto done;
     if(has_result)
         printf("%lld\n", value);

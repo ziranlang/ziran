@@ -53,7 +53,10 @@ module/function names with `BundleCapabilityCount`, `BundleCapabilityModule`,
 and `BundleCapabilityFunction`. It passes `HostBinding` entries to `BundleRun`.
 The runner checks that every required binding is present before executing the
 entry function. The standalone `zi2zib run` command has no host bindings and
-rejects a call that needs one. The loader compares the capability list with
+rejects a call that needs one. A run is not bounded: like the program's native
+builds, it continues until the entry returns. Only the web playground stops a
+run after 1,000,000 statements (`VmRunBounded`), so a runaway loop cannot hang
+the page, and it says so in the diagnostic. The loader compares the capability list with
 the linked IR; the VM checks signatures before execution and verifies returned
 record field names and types. Record fields may themselves contain records,
 strings, or enums.

@@ -18,7 +18,7 @@
 
 enum { VM_MAX_PARAMS = 16, VM_MAX_LOCALS = 64, VM_MAX_GLOBALS = 4096,
        VM_MAX_DEPTH = 128,
-       VM_MAX_STEPS = 1000000, VM_MAX_FIELDS = 1024,
+       VM_MAX_FIELDS = 1024,
        VM_MAX_RECORD_BYTES = 256 * 1024 * 1024,
        VM_MAX_ARRAY_BYTES = 256 * 1024 * 1024 };
 
@@ -134,7 +134,10 @@ typedef struct GlobalSlot {
 typedef struct Vm {
     const ZirProgram *program;
     int depth;
+    /* Statements run so far, counted only when max_steps bounds the run
+     * (the web playground); zero means unbounded, as on native targets. */
     int steps;
+    int max_steps;
     int failed;
     size_t record_bytes;
     size_t array_bytes;

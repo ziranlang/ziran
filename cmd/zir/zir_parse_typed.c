@@ -71,14 +71,17 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         if(bits > INT64_MAX) copy_text(result->type, sizeof(result->type), "u64");
         return compile_value_literal(result);
     case ZIR_EXPR_FLOAT:
-        if(ZirLawEvaluation) return 0;
         errno = 0;
         real = strtod(expression->text, &end);
         if(errno == ERANGE || end == expression->text || *end ||
            !isfinite(real)) return 0;
         result->kind = COMPILE_REAL;
         result->real = real;
-        return compile_value_literal(result);
+        if(!compile_value_literal(result)) return 0;
+        /* A law accepts only a literal that spells its double exactly, the
+         * way the evaluator writes a real passed through a call or local;
+         * other decimal text would round. */
+        return !ZirLawEvaluation || !strcmp(result->literal, expression->text);
     case ZIR_EXPR_STRING:
         result->kind = COMPILE_STRING;
         copy_text(result->literal, sizeof(result->literal),

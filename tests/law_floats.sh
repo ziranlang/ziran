@@ -25,6 +25,11 @@ Small :: (attempt: s32) -> float32 {
 #law SmallMatches forall attempt: -2..6 => Small(attempt) == cast(float32) Seconds(attempt);
 #law MixedCompare forall attempt: -2..6 => Delay(attempt) <= 60;
 #law SignificandEdge custom cast(float64) cast(s64) 9007199254740992 == cast(float64) cast(s64) 9007199254740992;
+Id32 :: (a: float32) -> float32 { return a }
+Cmp64 :: (a: float64, b: float64) -> bool { return a <= b }
+#law ThroughParameter custom Id32(cast(float32)1) == cast(float32)1;
+#law ComparedInCall custom Cmp64(cast(float64)1, cast(float64)2);
+#law ExactLiteral custom Cmp64(2.5, 3.0);
 #program_export
 Answer :: () -> s32 { return 0 }
 ZI
@@ -35,6 +40,7 @@ Delay :: (attempt: s32) -> float64 {
 }
 #law WideCast custom cast(float64) cast(s64) 9007199254740993 == cast(float64) cast(s64) 9007199254740993;
 #law Arithmetic forall attempt: 0..3 => Delay(attempt) + Delay(attempt) == Delay(attempt) * cast(float64) 2;
+#law RoundedLiteral custom 0.1 == 0.1;
 #program_export
 Answer :: () -> s32 { return 0 }
 ZI
@@ -65,9 +71,11 @@ def statuses(name):
 proved = statuses('floats.json')
 assert proved == {'DelayMatches': 'proved', 'DelayOrdered': 'proved',
                   'SmallMatches': 'proved', 'MixedCompare': 'proved',
-                  'SignificandEdge': 'proved'}, proved
+                  'SignificandEdge': 'proved', 'ThroughParameter': 'proved',
+                  'ComparedInCall': 'proved', 'ExactLiteral': 'proved'}, proved
 unknown = statuses('unknown.json')
-assert unknown == {'WideCast': 'unknown', 'Arithmetic': 'unknown'}, unknown
+assert unknown == {'WideCast': 'unknown', 'Arithmetic': 'unknown',
+                   'RoundedLiteral': 'unknown'}, unknown
 false = statuses('false.json')
 assert false == {'AlwaysFive': 'disproved'}, false
 PY

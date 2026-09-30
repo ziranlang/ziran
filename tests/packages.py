@@ -873,6 +873,7 @@ def templates(ziran: str, root: Path, compiler: Path, env: dict) -> None:
     unknown = call(ziran, "new", "x", "--template", "nosuch", cwd=work, env=env,
                    succeed=False)
     assert "no built-in template nosuch" in unknown, unknown
+    assert not (work / "x").exists(), "a failed ziran new left its directory"
 
     # A Git package lists templates under [templates]; the first is the
     # default and SOURCE:NAME picks another.

@@ -605,14 +605,15 @@ Template :: (launcher: string, command: string, arguments: []string) -> s32 {
         return PkgFail(PkgJoin3("cannot name a package ", name,
             "; pass --name NAME (letters, digits, _ and -)"))
     }
-    if command == "new" {
-        if PathExists(target) && !PkgDirectoryEmpty(target) {
-            return PkgFail(PkgJoin3("", target, " is not empty; use ziran init inside it"))
-        }
-        if !PkgMkdirs(target) { return PkgFail(PkgJoin("cannot create ", target)) }
+    if command == "new" && PathExists(target) && !PkgDirectoryEmpty(target) {
+        return PkgFail(PkgJoin3("", target, " is not empty; use ziran init inside it"))
     }
+    // Resolve the template first, so a wrong name leaves no directory behind.
     template: PkgTemplateSource = PkgResolveTemplate(launcher, spec, reference)
     if !template.valid { return 2 }
+    if command == "new" && !PkgMkdirs(target) {
+        return PkgFail(PkgJoin("cannot create ", target))
+    }
     if !PkgApplyTemplate(template.directory, target, name) { return 2 }
     lock: [2]string
     lock[0] = launcher

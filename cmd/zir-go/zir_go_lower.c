@@ -171,6 +171,10 @@ go_type(const char *type, char *dst, size_t dst_size)
     if(t[0] == '*' && t[1] != '\0') {
         char gt[ZIR_GO_NAME_MAX];
 
+        if(!strcmp(t + 1, "void")) {
+            snprintf(dst, dst_size, "*byte");
+            return 1;
+        }
         if(go_type(t + 1, gt, sizeof(gt)) && strcmp(gt, "string") != 0) {
             snprintf(dst, dst_size, "*%s", gt);
             return 1;
@@ -316,6 +320,8 @@ typedef struct {
     int go_field;
     int go_defer;
     int direct_ziran;
+    int direct_c;
+    char c_symbol[ZIR_GO_NAME_MAX];
     char provider_go[ZIR_GO_NAME_MAX * 2];
 } ZirGoExtern;
 
@@ -473,13 +479,6 @@ add_extern(const char *source, const char *args, const char *ret,
            int go_results, int go_field, int go_defer, ZirSourceSpan span)
 {
     ZirGoExtern *ex;
-    if(target && !strncmp(target, "c.", 2)) {
-        Diagnostic(span, "zir_go.import",
-                   "native Go cannot import a C ABI symbol: %s; use a Go package or host interface",
-                   target);
-        exit(1);
-    }
-
     if(go_extern_index(source, strlen(source)) >= 0 || g_extern_count >= 64)
         return;
     ex = &g_externs[g_extern_count++];
@@ -490,7 +489,11 @@ add_extern(const char *source, const char *args, const char *ret,
     ex->go_field = go_field;
     ex->go_defer = go_defer;
     split_params(args, ex);
-    if(target != NULL && strncmp(target, "ziran:", 6) == 0) {
+    if(target != NULL && !strncmp(target, "c.", 2)) {
+        ex->direct_c = 1;
+        snprintf(ex->c_symbol, sizeof(ex->c_symbol), "%s",
+                 provider_symbol && *provider_symbol ? provider_symbol : target + 2);
+    } else if(target != NULL && strncmp(target, "ziran:", 6) == 0) {
         const char *bound = go_bound_provider(target + 6, provider_symbol);
         if(bound == NULL) {
             Diagnostic(span, "zir_go.bind",
@@ -1079,7 +1082,7 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
                     p = ae;
                     if(g_externs[xi].go_defer)
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "defer ");
-                    if(g_externs[xi].go_results || g_externs[xi].go_field ||
+                    if(g_externs[xi].direct_c || g_externs[xi].go_results || g_externs[xi].go_field ||
                        go_builtin_method(&g_externs[xi]) || go_builtin_callback(&g_externs[xi])) {
                         char name[ZIR_GO_NAME_MAX];
                         camel_ident(g_externs[xi].source, name, sizeof(name));
@@ -1508,6 +1511,123 @@ synthetic_type_emitted(const ZirProgram *const *programs, int program_index,
 }
 
 static void
+go_c_type(const char *source, int cgo, char *out, size_t size,
+          ZirSourceSpan span)
+{
+    static const struct { const char *source, *c; } scalars[] = {
+        {"s8", "int8_t"}, {"u8", "uint8_t"},
+        {"s16", "int16_t"}, {"u16", "uint16_t"},
+        {"s32", "int32_t"}, {"u32", "uint32_t"},
+        {"s64", "int64_t"}, {"u64", "uint64_t"},
+        {"integer", "int64_t"}, {"usize", "size_t"},
+        {"isize", "ptrdiff_t"}, {"float32", "float"},
+        {"float64", "double"}, {"bool", "bool"},
+        {"char", "char"}, {"void", "void"}, {NULL, NULL}
+    };
+    int depth = 0;
+    while(*source == '*') { depth++; source++; }
+    const char *base = NULL;
+    for(int i = 0; scalars[i].source; i++)
+        if(!strcmp(source, scalars[i].source)) base = scalars[i].c;
+    if(base == NULL) {
+        Diagnostic(span, "zir_go.import",
+                   "unsupported C ABI symbol parameter or result type: %s", source);
+        exit(1);
+    }
+    if(cgo && depth && !strcmp(base, "void")) {
+        depth--;
+        snprintf(out, size, "%.*sunsafe.Pointer", depth,
+                 "****************************************************************");
+    } else if(cgo) {
+        snprintf(out, size, "%.*sC.%s", depth,
+                 "****************************************************************", base);
+    } else {
+        snprintf(out, size, "%s%.*s", base, depth,
+                 "****************************************************************");
+    }
+}
+
+static int
+go_has_c_foreigns(void)
+{
+    for(int i = 0; i < g_extern_count; i++)
+        if(g_externs[i].direct_c) return 1;
+    return 0;
+}
+
+static void
+emit_go_c_preamble(FILE *out, const ZirModule *module)
+{
+    if(!go_has_c_foreigns()) return;
+    fputs("/*\n#include <stdint.h>\n#include <stddef.h>\n#include <stdbool.h>\n", out);
+    for(int i = 0; i < g_extern_count; i++) {
+        const ZirGoExtern *binding = &g_externs[i];
+        if(!binding->direct_c) continue;
+        for(const char *p = binding->c_symbol; *p; p++)
+            if(!(isalnum((unsigned char)*p) || *p == '_') ||
+               (p == binding->c_symbol && isdigit((unsigned char)*p))) {
+                Diagnostic(module->span, "zir_go.import", "invalid C ABI symbol: %s",
+                           binding->c_symbol);
+                exit(1);
+            }
+        char type[ZIR_GO_NAME_MAX];
+        go_c_type(binding->ret, 0, type, sizeof(type), module->span);
+        fprintf(out, "extern %s %s(", type, binding->c_symbol);
+        for(int p = 0; p < binding->pcount; p++) {
+            go_c_type(binding->ptypes[p], 0, type, sizeof(type), module->span);
+            fprintf(out, "%s%s", p ? ", " : "", type);
+        }
+        fprintf(out, "%s);\n", binding->pcount ? "" : "void");
+    }
+    /* Native linker flags travel with generated output, as for C builds.
+     * cgo checks these flags when Go compiles the package. */
+    const char *flags[] = {getenv("LDFLAGS"), getenv("LDLIBS")};
+    for(int i = 0; i < 2; i++) {
+        if(!flags[i] || !*flags[i]) continue;
+        if(strpbrk(flags[i], "\r\n") || strstr(flags[i], "*/")) {
+            Diagnostic(module->span, "zir_go.import", "invalid cgo linker flags");
+            exit(1);
+        }
+        fprintf(out, "#cgo LDFLAGS: %s\n", flags[i]);
+    }
+    fputs("*/\nimport \"C\"\n\n", out);
+}
+
+static void
+emit_go_c_adapters(FILE *out, const ZirModule *module)
+{
+    for(int i = 0; i < g_extern_count; i++) {
+        const ZirGoExtern *binding = &g_externs[i];
+        if(!binding->direct_c) continue;
+        char type[ZIR_GO_NAME_MAX], name[ZIR_GO_NAME_MAX];
+        camel_ident(binding->source, name, sizeof(name));
+        fprintf(out, "func %s_%s(", g_guard, name);
+        for(int p = 0; p < binding->pcount; p++) {
+            require_go_type(binding->ptypes[p], type, sizeof(type), module->span);
+            fprintf(out, "%sa%d %s", p ? ", " : "", p, type);
+        }
+        require_go_type(binding->ret, type, sizeof(type), module->span);
+        fprintf(out, ") %s {\n\t", type);
+        if(strcmp(binding->ret, "void")) fputs("result := ", out);
+        fprintf(out, "C.%s(", binding->c_symbol);
+        for(int p = 0; p < binding->pcount; p++) {
+            go_c_type(binding->ptypes[p], 1, type, sizeof(type), module->span);
+            fprintf(out, "%s(%s)(%sa%d%s)", p ? ", " : "", type,
+                    binding->ptypes[p][0] == '*' ? "unsafe.Pointer(" : "",
+                    p, binding->ptypes[p][0] == '*' ? ")" : "");
+        }
+        fputs(")\n", out);
+        if(strcmp(binding->ret, "void")) {
+            require_go_type(binding->ret, type, sizeof(type), module->span);
+            fprintf(out, "\treturn (%s)(%sresult%s)\n", type,
+                    binding->ret[0] == '*' ? "unsafe.Pointer(" : "",
+                    binding->ret[0] == '*' ? ")" : "");
+        }
+        fputs("}\n\n", out);
+    }
+}
+
+static void
 emit_go_foreign_adapters(FILE *out, const ZirModule *module)
 {
     for(int i = 0; i < g_extern_count; i++) {
@@ -1644,7 +1764,9 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                                "Go global startup cannot call a host before binding");
                     return 1;
                 }
-            snprintf(buffers->path, sizeof(buffers->path), "%s/%s.go", out_dir, buffers->stem);
+            size_t stem_length = strlen(buffers->stem);
+            snprintf(buffers->path, sizeof(buffers->path), "%s/%s%s.go", out_dir, buffers->stem,
+                     stem_length >= 5 && !strcmp(buffers->stem + stem_length - 5, "_test") ? "_ziran" : "");
             mkdir_parent(buffers->path);
             f = tmpfile();
             if(f == NULL) {
@@ -1661,12 +1783,14 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
             fprintf(f, "// Code generated by zi2go from %s. DO NOT EDIT.\n",
                     m->source_path);
             fprintf(f, "package %s\n\n", pkg);
+            emit_go_c_preamble(f, m);
             int pointer_index = 0;
             for(int fi = 0; fi < m->function_count && !pointer_index; fi++) {
                 const ZirFunction *fn = &m->functions[fi];
                 for(int ei = 0; ei < fn->expr_count; ei++) {
                     const ZirExpr *expr = &fn->exprs[ei];
                     if(expr->kind == ZIR_EXPR_SIZE_OF ||
+                       (expr->kind == ZIR_EXPR_CAST && expr->type[0] == '*') ||
                        (expr->kind == ZIR_EXPR_INDEX && expr->left >= 0 &&
                         fn->exprs[expr->left].type[0] == '*')) {
                         pointer_index = 1;
@@ -1693,7 +1817,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"math\"");
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"strconv\"");
             }
-            if(pointer_index || g_union_unsafe)
+            if(pointer_index || g_union_unsafe || go_has_c_foreigns())
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"unsafe\"");
             for(int i = 0; i < g_extern_count && import_count < 64; i++) {
                 int duplicate = 0;
@@ -1748,6 +1872,8 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     fprintf(f, "\t%s\n", buffers->imports[i]);
                 fputs(")\n\n", f);
             }
+            if(go_has_c_foreigns())
+                fputs("var _ unsafe.Pointer\n\n", f);
             if(pi == 0 && mi == 0 && go_uses_caller_location(progs, prog_count))
                 fputs("type Source_Code_Location struct {\n"
                       "\tFullyPathedFilename string\n"
@@ -1767,7 +1893,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 int first_host = -1;
                 int host_count = 0;
                 for(int i = 0; i < g_extern_count; i++) {
-                    if(g_externs[i].direct_go || g_externs[i].direct_ziran)
+                    if(g_externs[i].direct_go || g_externs[i].direct_ziran || g_externs[i].direct_c)
                         continue;
                     if(first_host < 0)
                         first_host = i;
@@ -1781,7 +1907,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 for(int i = 0; i < g_extern_count; i++) {
                     const ZirGoExtern *ex = &g_externs[i];
                     char gt[ZIR_GO_NAME_MAX];
-                    if(ex->direct_go || ex->direct_ziran)
+                    if(ex->direct_go || ex->direct_ziran || ex->direct_c)
                         continue;
                     fprintf(f, "\t%s(", ex->go);
                     for(int a = 0; a < ex->pcount; a++) {
@@ -1934,6 +2060,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 }
             }
             emit_go_foreign_adapters(f, m);
+            emit_go_c_adapters(f, m);
             /* defines -> consts; array type aliases become Go types */
             for(int i = 0; i < m->define_count; i++) {
                 char cname[ZIR_GO_NAME_MAX];

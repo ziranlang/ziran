@@ -10,6 +10,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 plan9=${PLAN9:-}
+if test -n "$plan9" && ! test -x "$plan9/bin/9c"; then plan9=; fi
 if test -z "$plan9"; then
     for candidate in "$HOME/Projects/plan9port" /usr/local/plan9 /usr/lib/plan9; do
         if test -x "$candidate/bin/9c"; then plan9=$candidate; break; fi

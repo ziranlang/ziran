@@ -329,10 +329,9 @@ emit_extern_definitions_with_buffers(RustEmitter *emitter, FILE *output, EmitExt
                                    sizeof(buffers->symbol));
                 if(import->extern_kind == ZIR_EXTERN_HOST)
                     fprintf(output, "    #[link_name = \"%s\"]\n", import->name);
-                else if(import->extern_symbol[0] &&
-                   strcmp(import->extern_symbol, import->name) != 0)
+                else
                     fprintf(output, "    #[link_name = \"%s\"]\n",
-                            import->extern_symbol);
+                            import->extern_symbol[0] ? import->extern_symbol : import->name);
                 fprintf(output, "    fn %s(", buffers->symbol);
                 for(int index = 0; index < count; index++) {
                     char *colon = strchr(buffers->parts[index], ':');
@@ -4179,6 +4178,28 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
             "[profile.dev]\npanic = \"abort\"\n\n"
             "[profile.release]\npanic = \"abort\"\n");
     fclose(cargo);
+    /* Keep native link flags with the generated Cargo project. */
+    FILE *build_script = open_output(programs[0]->modules[0].span,
+                                    output_directory, "build.rs");
+    fputs("fn main() {\n", build_script);
+    const char *link_flags[] = {getenv("LDFLAGS"), getenv("LDLIBS")};
+    for(int i = 0; i < 2; i++) {
+        if(link_flags[i] == NULL) continue;
+        char *words = strdup(link_flags[i]), *save = NULL;
+        if(words == NULL) exit(1);
+        for(char *word = strtok_r(words, " \t\r\n", &save); word;
+            word = strtok_r(NULL, " \t\r\n", &save)) {
+            fputs("    println!(\"cargo:rustc-link-arg={}\", \"", build_script);
+            for(const char *p = word; *p; p++) {
+                if(*p == '"' || *p == '\\') fputc('\\', build_script);
+                fputc(*p, build_script);
+            }
+            fputs("\");\n", build_script);
+        }
+        free(words);
+    }
+    fputs("}\n", build_script);
+    fclose(build_script);
     char *runtime_text = NULL, *body_text = NULL;
     size_t runtime_size = 0, body_size = 0;
     FILE *runtime = open_memstream(&runtime_text, &runtime_size);

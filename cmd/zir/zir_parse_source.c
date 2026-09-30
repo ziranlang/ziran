@@ -89,6 +89,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
      * hoisted local procedures, each with the place it came from. */
     DeferredLines deferred = {0};
     int deferred_next = 0;
+    int deferred_batch_end = 0;
     /* Local procedures of the procedure being parsed: source name and the
      * private file-scope name it was hoisted to, and the brace depth of the
      * one being captured. */
@@ -186,7 +187,15 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                in_string || expr_brace != 0)
                 die_at(Span(buffers->rel, pending_start_line, pending_start_column),
                        "unterminated source declaration or expression");
+            /* Hoisted local procedures can only be replayed after their
+             * enclosing declaration closes. Otherwise replay defers them
+             * again forever while growing the deferred-line array. */
+            if(load_depth == 0 && mode != TOP && deferred_next >= deferred_batch_end)
+                die_at(Span(buffers->rel, line_no, 1),
+                       "unterminated declaration at end of file");
             if(load_depth == 0 && deferred_next < deferred.count) {
+                if(deferred_next == deferred_batch_end)
+                    deferred_batch_end = deferred.count;
                 DeferredLine *next = &deferred.items[deferred_next++];
                 scope_public = next->scope_public;
                 scope_file = next->scope_file;

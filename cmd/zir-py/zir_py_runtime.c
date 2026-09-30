@@ -150,7 +150,7 @@ const PyRuntimeItem py_runtime_items[] = {
      "    @property\n"
      "    def data(self):\n"
      "        return ZiranPointer(self.base, self.low) if self.count else None\n"},
-    {"ZiranPointer", "",
+    {"ZiranPointer", "ctypes",
      "class ZiranPointer:\n"
      "    \"\"\"A *T: item key of a list, attribute key of an object, or the\n"
      "    object base itself when key is None.\"\"\"\n"
@@ -189,10 +189,17 @@ const PyRuntimeItem py_runtime_items[] = {
      "        ZiranPointer(self.base, self.key + offset if offset else self.key).value = value\n"
      "\n"
      "    def __eq__(self, other):\n"
+     "        if (isinstance(other, ZiranPointer) and isinstance(self.base, ctypes._Pointer) and\n"
+     "                isinstance(other.base, ctypes._Pointer)):\n"
+     "            left = ctypes.cast(self.base, ctypes.c_void_p).value + self.key * ctypes.sizeof(self.base._type_)\n"
+     "            right = ctypes.cast(other.base, ctypes.c_void_p).value + other.key * ctypes.sizeof(other.base._type_)\n"
+     "            return left == right\n"
      "        return (isinstance(other, ZiranPointer) and other.base is self.base and\n"
      "                other.key == self.key)\n"
      "\n"
      "    def __hash__(self):\n"
+     "        if isinstance(self.base, ctypes._Pointer):\n"
+     "            return hash(ctypes.cast(self.base, ctypes.c_void_p).value + self.key * ctypes.sizeof(self.base._type_))\n"
      "        return hash((id(self.base), self.key))\n"},
     {"ZiranUnionArray", "struct",
      "class ZiranUnionArray:\n"
@@ -342,7 +349,7 @@ const PyRuntimeItem py_runtime_items[] = {
      "    function.restype = restype\n"
      "    return function\n"},
     {"_c_buffer", "ctypes",
-     "def _c_buffer(pointer, ctype):\n"
+     "def _c_buffer(pointer, ctype, buffers):\n"
      "    \"\"\"C storage holding the items a pointer reaches, and a way to copy\n"
      "    what C wrote back into them.\"\"\"\n"
      "    if pointer is None:\n"
@@ -355,15 +362,18 @@ const PyRuntimeItem py_runtime_items[] = {
      "        address = ctypes.cast(items, ctypes.c_void_p).value\n"
      "        address += start * ctypes.sizeof(items._type_)\n"
      "        return ctypes.cast(address, ctypes.POINTER(ctype)), None\n"
-     "    buffer = (ctype * max(len(items) - start, 1))(*items[start:])\n"
+     "    key = (id(items), ctype)\n"
+     "    if key not in buffers:\n"
+     "        buffers[key] = (ctype * max(len(items), 1))(*items)\n"
+     "    buffer = buffers[key]\n"
      "\n"
      "    def write_back():\n"
      "        if isinstance(items, (bytes, str)):\n"
      "            return\n"
-     "        for offset in range(len(items) - start):\n"
-     "            items[start + offset] = buffer[offset]\n"
+     "        for offset in range(len(items)):\n"
+     "            items[offset] = buffer[offset]\n"
      "\n"
-     "    return buffer, write_back\n"},
+     "    return ctypes.cast(ctypes.byref(buffer, start * ctypes.sizeof(ctype)), ctypes.POINTER(ctype)), write_back\n"},
     {"_from_c_pointer", "ctypes ZiranPointer",
      "def _from_c_pointer(address, ctype):\n"
      "    if address is None or address == 0:\n"
@@ -377,8 +387,9 @@ const PyRuntimeItem py_runtime_items[] = {
      "    and copying back what the call changed.\"\"\"\n"
      "    arguments = list(arguments)\n"
      "    write_backs = []\n"
+     "    buffers = {}\n"
      "    for index, ctype in pointers:\n"
-     "        arguments[index], write_back = _c_buffer(arguments[index], ctype)\n"
+     "        arguments[index], write_back = _c_buffer(arguments[index], ctype, buffers)\n"
      "        if write_back is not None:\n"
      "            write_backs.append(write_back)\n"
      "    result = function(*arguments)\n"

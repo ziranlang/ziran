@@ -1,0 +1,5 @@
+// EOF must reject the unclosed outer procedure before replaying Local.
+Outer :: () {
+    Local :: () {
+        return;
+    }

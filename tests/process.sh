@@ -52,7 +52,7 @@ func main() {
     if ProcessTest_SelfTest() != 42 || host.calls != 3 { panic("process failed") }
 }
 GO
-        cp "$output/process_test.go" "$output/process_check.go"
+        cp "$output/process_test_ziran.go" "$output/process_check.go"
         GO111MODULE=off go run "$output/process.go" \
             "$output/process_check.go" "$output/main.go"
     elif test "$target" = c; then

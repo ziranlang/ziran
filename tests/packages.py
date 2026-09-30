@@ -291,7 +291,7 @@ main :: () -> s32 {
 
         bootstrap = root / "bootstrap/build/bin"
         bootstrap.mkdir(parents=True)
-        shutil.copy2(compiler / "build/bin/ziran", bootstrap / "ziran")
+        shutil.copy2(ziran, bootstrap / "ziran")
         call(str(bootstrap / "ziran"), "check", "--project", cwd=app,
              env=env)
         module_map = (app / "build/.ziran/module-map.tsv").read_text()

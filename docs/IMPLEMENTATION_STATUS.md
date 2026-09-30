@@ -5,6 +5,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Native C library modules route through C/C++, cgo on Go, Rust's C ABI,
+  and Python's ctypes. Go supports scalar and pointer C signatures; Go
+  and Rust retain native link flags in generated output. Python handles
+  pointer outputs, C-owned scalar buffers and aliases during a C call.
+  `tests/native_c_ffi.sh` checks source and saved IR; the OQS and SQLite
+  packages additionally exercise their real engines on all five backends.
+
 - The Python backend (`zi2py`, `ziran build --target=py`) writes one Python
   3.10 file that uses only the standard library: `__main__.py` for
   `--exe --entry`, otherwise `__init__.py`. Every program the test suite

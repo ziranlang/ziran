@@ -1330,7 +1330,23 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                     slot_native_type(source, e->target, cast_native, sizeof(cast_native));
                 } else slot_native_type(type, e->target, cast_native, sizeof(cast_native));
             }
-            if(e->target==ZIR_GO) format(buffers->result,sizeof(buffers->result),"%s(%s)",cast_native,buffers->a);
+            if(e->target == ZIR_GO && type[0] == '*') {
+                if(canonical(operand_type)[0] == '*')
+                    format(buffers->result, sizeof(buffers->result),
+                           "(%s)(unsafe.Pointer(%s))", cast_native, buffers->a);
+                else {
+                    char operand_native[ZIR_NAME_MAX];
+                    const char *scalar = TargetType(operand_type, ZIR_GO);
+                    if(scalar == NULL) {
+                        e->resolve(e->context, operand_type, operand_native, sizeof(operand_native));
+                        scalar = operand_native;
+                    }
+                    format(buffers->result, sizeof(buffers->result),
+                           "(%s)(unsafe.Pointer(func(value %s) uintptr { return uintptr(value) }(%s)))",
+                           cast_native, scalar, buffers->a);
+                }
+            }
+            else if(e->target==ZIR_GO) format(buffers->result,sizeof(buffers->result),"%s(%s)",cast_native,buffers->a);
             else format(buffers->result,sizeof(buffers->result),"(%s)(%s)",cast_native,buffers->a);
         }
         type = declared_type;

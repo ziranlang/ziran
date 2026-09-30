@@ -51,7 +51,7 @@ FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(BUILD_DIR)/obj/check.o \
 BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
 
-.PHONY: all check curl-http-test clean install-user package-objects package-link
+.PHONY: all check curl-http-test clean install-user package-objects package-link force-compiler-flags
 .PHONY: sanitize fuzz
 .PHONY: proof-model
 LEAN ?= lean
@@ -80,11 +80,22 @@ install-user: all
 		'exec "$(USER_SHARE)/build/bin/ziran" "$$@"' > $(USER_BIN)/ziran
 	chmod 755 $(USER_BIN)/ziran
 
-$(BUILD_DIR)/obj/%.o: %.c
+# A reused build directory must not mix sanitized and ordinary objects.
+# Preserve the stamp's mtime unless the actual compiler configuration changes.
+quote = '$(subst ','"'"',$(1))'
+$(BUILD_DIR)/.compiler-flags: force-compiler-flags
+	@mkdir -p $(BUILD_DIR)
+	@printf '%s\n' $(call quote,$(CC)) $(call quote,$(CFLAGS)) \
+		$(call quote,$(FRAMEFLAGS)) $(call quote,$(OBJCOPY)) > $@.tmp
+	@if cmp -s $@.tmp $@; then rm $@.tmp; else mv $@.tmp $@; fi
+
+force-compiler-flags:
+
+$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
-$(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c
+$(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
@@ -155,7 +166,7 @@ $(PACKAGE_C)/.generated: $(PACKAGE_SOURCES) $(BIN_DIR)/zi2c
 	rm -rf $(PACKAGE_C).next
 	touch $@
 
-$(BUILD_DIR)/obj/package-c/%.o: $(PACKAGE_C)/%.c
+$(BUILD_DIR)/obj/package-c/%.o: $(PACKAGE_C)/%.c $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) -I$(PACKAGE_C) $(DEPFLAGS) -c -o $@ $<
 

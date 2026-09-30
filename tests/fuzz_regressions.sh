@@ -14,7 +14,7 @@ for input in "$repo"/tests/fuzz/*.zi; do
     mkdir -p "$work/$name.d"
     cp "$input" "$work/$name.d/$name"
     status=0
-    "$ziran" check --root "$work/$name.d" "$work/$name.d/$name" \
+    timeout 10 "$ziran" check --root "$work/$name.d" "$work/$name.d/$name" \
         > "$work/$name.out" 2>&1 || status=$?
     if test "$status" -gt 1 || grep -q 'Sanitizer\|runtime error:' "$work/$name.out"; then
         echo "$name: compiler crashed (status $status)" >&2

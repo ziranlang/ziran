@@ -53,12 +53,12 @@ assert set(listing["codes"]) == emitted, (
 PY
 cat > "$work/go-import.zi" <<'ZI'
 libc :: #system_library "libc";
-Read :: (value: s32) -> s32 #foreign libc "read";
+Read :: (value: []u8) -> s32 #foreign libc "read";
 ZI
 if "$ziran" build --target=go --diagnostics=json --root "$work" \
     -o "$work/go-import" "$work/go-import.zi" \
     > "$work/go-import.out" 2> "$work/go-import.jsonl"; then
-    echo 'Go accepted a C ABI import' >&2
+    echo 'Go accepted an unsupported C ABI slice parameter' >&2
     exit 1
 fi
 python3 - "$work/go-import.jsonl" <<'PY'

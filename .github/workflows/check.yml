@@ -6,9 +6,13 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -24,6 +28,7 @@ jobs:
         run: env -u DISPLAY -u WAYLAND_DISPLAY make check CHECK_JOBS=4
   sanitize:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -35,6 +40,7 @@ jobs:
         run: env -u DISPLAY -u WAYLAND_DISPLAY make sanitize CHECK_JOBS=4
   fuzz:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Fuzz the frontend

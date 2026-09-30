@@ -44,6 +44,21 @@ source that `python3 DIR` runs; it needs only the standard library. Its C
 foreign functions resolve in the running Python process, and `LDLIBS` names
 the shared libraries to load for them, as it does for a C build: for example
 `LDLIBS=-lcairo ziran build --target=py ...`. Use
+`ziran build --target=go --pkg main --exe --entry module:function -o DIR`
+for Go output. C foreign procedures with scalar or pointer parameters and
+results route through generated cgo adapters; native Go package imports
+continue to call those packages directly. C ABI calls need `CGO_ENABLED=1`
+and a C compiler. `LDFLAGS` and `LDLIBS` are preserved in the cgo preamble.
+Slice, record and variadic C ABI parameters are rejected on Go; modules
+can wrap those APIs with scalar and pointer declarations.
+The Rust backend also preserves `LDFLAGS` and `LDLIBS` in its generated
+Cargo project. Python copies scalar pointer buffers into C storage for a
+call, preserves aliases within that call, and copies mutations back. Native
+pointer outputs and C-owned scalar buffers remain accessible through the
+same pointer API. C libraries that retain Ziran-owned memory after a call
+need a copying API or C-owned storage on Python.
+
+Use
 `ziran build --target=plan9-c` for the experimental Plan 9 C output path.
 Pass `--entry module:function` to a C99 build to retain functions, types,
 globals, and constants reachable from that entry. A native host implementation

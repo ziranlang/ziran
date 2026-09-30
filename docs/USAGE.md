@@ -20,6 +20,10 @@ target summary; see the [capability schema](CAPABILITIES.md).
 `ziran api --json --root src src/main.zi` checks an entry and its imports,
 then reports their public types and procedure signatures; see the
 [API query schema](API_DISCOVERY.md).
+`ziran check --lint` also warns about casts a program no longer needs: a cast
+to the value's own type, and one that only widens a whole typed initializer,
+assignment, argument, or result, which the compiler now widens itself.
+Warnings do not fail the check (`"severity":"warning"` in JSON).
 `ziran check|ir|api|inspect|build|bundle|run|fmt` remains a convenience dispatcher
 for the same tools. [Cross-target benchmarks](../bench/README.md) measure the
 compiler, downstream toolchains, and validated runtime cases separately.

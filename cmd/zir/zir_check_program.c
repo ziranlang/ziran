@@ -726,3 +726,102 @@ CheckPrograms(ZirProgram **programs, int count)
         free(buffers);
     return returned;
 }
+
+/* A cast the program wrote, as opposed to one the checker inserted when it
+ * widened a value: those keep their operand's source text. */
+static int
+written_cast(const ZirFunction *fn, int index)
+{
+    if(index < 0 || index >= fn->expr_count)
+        return 0;
+    const ZirExpr *cast = &fn->exprs[index];
+    return cast->kind == ZIR_EXPR_CAST && cast->right >= 0 && cast->text != NULL &&
+           strncmp(skip_ws(cast->text), "cast", 4) == 0 &&
+           fn->exprs[cast->right].kind != ZIR_EXPR_INT &&
+           fn->exprs[cast->right].kind != ZIR_EXPR_FLOAT;
+}
+
+static int
+lint_cast(const ZirFunction *fn, int index, int whole_value)
+{
+    if(!written_cast(fn, index))
+        return 0;
+    const ZirExpr *cast = &fn->exprs[index];
+    const char *from = fn->exprs[cast->right].type;
+    if(!*from || !*cast->name)
+        return 0;
+    if(!strcmp(cast->name, from)) {
+        Warning(cast->span, "lint.cast", "cast(%s) is not needed: the value is already %s",
+                cast->name, from);
+        return 1;
+    }
+    if(whole_value && widens_losslessly(cast->name, from)) {
+        Warning(cast->span, "lint.cast", "cast(%s) is not needed: %s widens to %s implicitly",
+                cast->name, from, cast->name);
+        return 1;
+    }
+    return 0;
+}
+
+/* Whether declaration ST names its type, so its initializer can widen. */
+static int
+declared_type_written(const ZirStmt *st)
+{
+    const char *text = st->text != NULL ? skip_ws(st->text) : "";
+    size_t length = strlen(st->name);
+    if(strncmp(text, st->name, length) != 0)
+        return 0;
+    text = skip_ws(text + length);
+    return text[0] == ':' && text[1] != '=';
+}
+
+int
+LintPrograms(ZirProgram **programs, int count)
+{
+    int warnings = 0;
+    const char *root = count > 0 && programs[0]->module_count > 0 ?
+        programs[0]->modules[0].source_root : "";
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++) {
+            const ZirModule *module = &programs[p]->modules[m];
+            if(strcmp(module->source_root, root) != 0)
+                continue;
+            for(int f = 0; f < module->function_count; f++) {
+                const ZirFunction *fn = &module->functions[f];
+                if(!fn->checked || fn->from_ir || fn->is_template ||
+                   fn->is_specialization || !strncmp(fn->name, "zi_", 3))
+                    continue;
+                /* Whole values: roots of typed declarations, assignments,
+                 * and returns, and arguments of calls that no overload or
+                 * type parameter chooses by argument type. */
+                char *whole = calloc((size_t)fn->expr_count + 1, 1);
+                if(whole == NULL)
+                    return warnings;
+                for(int s = 0; s < fn->stmt_count; s++) {
+                    const ZirStmt *st = &fn->stmts[s];
+                    if(st->expr_root < 0 || st->expr_root >= fn->expr_count)
+                        continue;
+                    if((st->kind == ZIR_STMT_DECL && declared_type_written(st)) ||
+                       (st->kind == ZIR_STMT_ASSIGN && !strcmp(st->assignment_op, "=")) ||
+                       st->kind == ZIR_STMT_RETURN)
+                        whole[st->expr_root] = 1;
+                }
+                for(int e = 0; e < fn->expr_count; e++) {
+                    const ZirExpr *call = &fn->exprs[e];
+                    if(call->kind != ZIR_EXPR_CALL || !call->name[0] ||
+                       strstr(call->name, "__overload_") || strstr(call->name, "__zi_spec") ||
+                       !strncmp(call->name, "zi_", 3) || !strcmp(call->name, "print") ||
+                       !strncmp(call->name, "Vec", 3) || !strncmp(call->name, "Builder", 7) ||
+                       MapPrimitiveName(call->name))
+                        continue;
+                    for(int child = call->first_child; child >= 0;
+                        child = fn->exprs[child].next_sibling)
+                        whole[child] = 1;
+                }
+                for(int e = 0; e < fn->expr_count; e++)
+                    warnings += lint_cast(fn, e, whole[e]);
+                free(whole);
+            }
+        }
+    return warnings;
+}

@@ -16,7 +16,7 @@
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: zi2zir [--diagnostics=text|json] [--entry module:function] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
+    fprintf(stderr, "usage: zi2zir [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
 }
 
 static int
@@ -100,6 +100,7 @@ main(int argc, char **argv)
     const char *entry = NULL;
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
     int check_only = 0;
+    int lint = 0;
     int first_file = 0;
     int result = 1;
     ProgramSet set = {0};
@@ -130,6 +131,8 @@ main(int argc, char **argv)
             entry = argv[++i];
         } else if(strcmp(argv[i], "--check-only") == 0) {
             check_only = 1;
+        } else if(strcmp(argv[i], "--lint") == 0) {
+            lint = 1;
         } else if(argv[i][0] == '-') {
             usage();
             return 1;
@@ -156,6 +159,8 @@ main(int argc, char **argv)
             PrintLawResults(set.programs, count, stdout);
         goto done;
     }
+    if(lint)
+        LintPrograms(set.programs, count);
     if(check_only)
         PrintLawResults(set.programs, count, stdout);
     if(!check_only) {

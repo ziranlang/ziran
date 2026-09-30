@@ -18,4 +18,9 @@ int TypeLayout(const ZirModule *module, const char *type,
                size_t *size, size_t *alignment);
 int MapTypePartsAtUse(const ZirModule *module, const char *name,
                       char *key, size_t key_size, char *value, size_t value_size);
+/* Warn about casts the checked programs no longer need, in the modules
+ * under the entry file's root: a cast to the value's own type, and a cast
+ * that only widens a whole initializer, assignment, argument, or result
+ * the compiler now widens itself. Returns the number of warnings. */
+int LintPrograms(ZirProgram **programs, int count);
 #endif

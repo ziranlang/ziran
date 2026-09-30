@@ -61,6 +61,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- `ziran check --lint` warns (code `lint.cast`) about casts to a value's own
+  type and casts that only widen a whole typed initializer, assignment,
+  argument, or result; it leaves casts that set arithmetic width, choose an
+  inferred type, or pick an overload. Inbe's sources have 51 such casts.
+  `tests/lint_casts.sh` pins the rules.
 - A generic record from another module may hold types only that module
   imports: the user's `Bag(string)` reads the library's `Vec(K)` field as
   `vec.Vec(string)`, and every copy of one application gets the same name.

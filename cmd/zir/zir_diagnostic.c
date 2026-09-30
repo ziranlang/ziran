@@ -44,15 +44,17 @@ typedef struct DiagnosticVBuffers {
 void DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args);
 
 static void
-DiagnosticV_with_buffers(ZirSourceSpan span, const char *code, const char *format, va_list args, DiagnosticVBuffers *buffers)
+report(ZirSourceSpan span, const char *severity, const char *code,
+       const char *format, va_list args, DiagnosticVBuffers *buffers)
 {
     vsnprintf(buffers->message, sizeof(buffers->message), format, args);
     if(diagnostic_json < 0) {
         const char *environment = getenv("ZIRAN_DIAGNOSTICS");
         diagnostic_json = environment != NULL && strcmp(environment, "json") == 0;
     }
+    int warning = strcmp(severity, "warning") == 0;
     if(diagnostic_json) {
-        fputs("{\"severity\":\"error\",\"code\":", stderr);
+        fprintf(stderr, "{\"severity\":\"%s\",\"code\":", severity);
         json_string(stderr, code);
         fputs(",\"message\":", stderr);
         json_string(stderr, buffers->message);
@@ -64,10 +66,17 @@ DiagnosticV_with_buffers(ZirSourceSpan span, const char *code, const char *forma
                 span.end_line > 0 ? span.end_line : span.line,
                 span.end_column > 0 ? span.end_column : span.column);
     } else if(SpanPath(span)[0] != '\0') {
-        fprintf(stderr, "%s:%d:%d: %s\n", SpanPath(span), span.line, span.column, buffers->message);
+        fprintf(stderr, "%s:%d:%d: %s%s\n", SpanPath(span), span.line, span.column,
+                warning ? "warning: " : "", buffers->message);
     } else {
-        fprintf(stderr, "ziran: %s\n", buffers->message);
+        fprintf(stderr, "ziran: %s%s\n", warning ? "warning: " : "", buffers->message);
     }
+}
+
+static void
+DiagnosticV_with_buffers(ZirSourceSpan span, const char *code, const char *format, va_list args, DiagnosticVBuffers *buffers)
+{
+    report(span, "error", code, format, args, buffers);
 }
 
 void
@@ -92,4 +101,15 @@ Diagnostic(ZirSourceSpan span, const char *code, const char *format, ...)
     va_start(args, format);
     DiagnosticV(span, code, format, args);
     va_end(args);
+}
+
+void
+Warning(ZirSourceSpan span, const char *code, const char *format, ...)
+{
+    va_list args;
+    DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
+    va_start(args, format);
+    report(span, "warning", code, format, args, buffers);
+    va_end(args);
+    free(buffers);
 }

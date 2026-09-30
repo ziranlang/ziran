@@ -40,7 +40,7 @@ assert listing["codes"] == sorted(listing["codes"])
 emitted = set()
 for path in (repo / "cmd").rglob("*.c"):
     text = path.read_text()
-    for match in re.finditer(r"Diagnostic(?:V)?\s*\(", text):
+    for match in re.finditer(r"(?:Diagnostic(?:V)?|Warning)\s*\(", text):
         end = match.end()
         tail = text[end:text.find(");", end)]
         literal = re.search(r'"([A-Za-z0-9_.-]+)"', tail)

@@ -294,15 +294,20 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                 copy_text(result->type, sizeof(result->type), type);
             return compile_value_literal(result);
         }
-        /* Floating-point arithmetic rounds, and targets may fuse or widen
-         * it, so a law that computes with floats stays unproved. */
-        if(ZirLawEvaluation) return 0;
+        /* Each operation rounds once to its declared width, as unfused
+         * IEEE arithmetic does on every target: float32 when either
+         * operand is float32 and neither is float64, otherwise float64. */
+        int single = (!strcmp(left.type, "float32") || !strcmp(right.type, "float32")) &&
+                     strcmp(left.type, "float64") && strcmp(right.type, "float64");
         result->kind = COMPILE_REAL;
         if(!strcmp(op, "+")) result->real = a + b;
         else if(!strcmp(op, "-")) result->real = a - b;
         else if(!strcmp(op, "*")) result->real = a * b;
         else if(!strcmp(op, "/") && b != 0.0) result->real = a / b;
         else return 0;
+        if(single)
+            result->real = (float)result->real;
+        copy_text(result->type, sizeof(result->type), single ? "float32" : "float64");
         return isfinite(result->real) && compile_value_literal(result);
     }
     case ZIR_EXPR_MEMBER:

@@ -2,9 +2,9 @@
 set -eu
 unset DISPLAY WAYLAND_DISPLAY
 
-# Laws decide floats only where the answer is exact on every target: an
-# integer cast to a float within its significand, and comparisons of such
-# values. Float arithmetic, which rounds, and wider casts stay unknown.
+# Laws decide floats as unfused IEEE arithmetic at the declared width.
+# Conversions and literals that would round, and infinite or NaN results,
+# stay unknown.
 ziran=${1:?pass ziran}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -30,6 +30,11 @@ Cmp64 :: (a: float64, b: float64) -> bool { return a <= b }
 #law ThroughParameter custom Id32(cast(float32)1) == cast(float32)1;
 #law ComparedInCall custom Cmp64(cast(float64)1, cast(float64)2);
 #law ExactLiteral custom Cmp64(2.5, 3.0);
+Arith :: (attempt: s32) -> float64 { return cast(float64) attempt }
+#law Arithmetic forall attempt: 0..3 => Arith(attempt) + Arith(attempt) == Arith(attempt) * cast(float64) 2;
+#law ThirdSingle custom cast(float32)1 / cast(float32)3 == 0.3333333432674408;
+#law ThirdDouble custom cast(float64)1 / cast(float64)3 == 0.33333333333333331;
+#law SingleRounds custom cast(float32)1 / cast(float32)3 != 0.33333333333333331;
 #program_export
 Answer :: () -> s32 { return 0 }
 ZI
@@ -39,7 +44,7 @@ Delay :: (attempt: s32) -> float64 {
     return cast(float64) attempt
 }
 #law WideCast custom cast(float64) cast(s64) 9007199254740993 == cast(float64) cast(s64) 9007199254740993;
-#law Arithmetic forall attempt: 0..3 => Delay(attempt) + Delay(attempt) == Delay(attempt) * cast(float64) 2;
+#law Overflow custom cast(float64)1 / cast(float64)0 == cast(float64)1;
 #law RoundedLiteral custom 0.1 == 0.1;
 #program_export
 Answer :: () -> s32 { return 0 }
@@ -72,9 +77,11 @@ proved = statuses('floats.json')
 assert proved == {'DelayMatches': 'proved', 'DelayOrdered': 'proved',
                   'SmallMatches': 'proved', 'MixedCompare': 'proved',
                   'SignificandEdge': 'proved', 'ThroughParameter': 'proved',
-                  'ComparedInCall': 'proved', 'ExactLiteral': 'proved'}, proved
+                  'ComparedInCall': 'proved', 'ExactLiteral': 'proved',
+                  'Arithmetic': 'proved', 'ThirdSingle': 'proved',
+                  'ThirdDouble': 'proved', 'SingleRounds': 'proved'}, proved
 unknown = statuses('unknown.json')
-assert unknown == {'WideCast': 'unknown', 'Arithmetic': 'unknown',
+assert unknown == {'WideCast': 'unknown', 'Overflow': 'unknown',
                    'RoundedLiteral': 'unknown'}, unknown
 false = statuses('false.json')
 assert false == {'AlwaysFive': 'disproved'}, false

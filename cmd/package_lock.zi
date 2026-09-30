@@ -278,13 +278,53 @@ PkgCacheRoot :: () -> string {
     return PkgJoin(cache, "/ziran")
 }
 
+// Checks out commit in a cached clone; true when HEAD is then that commit.
+PkgCheckoutAt :: (destination: string, commit: string) -> bool {
+    args: [6]string
+    args[0] = "git"
+    args[1] = "-C"
+    args[2] = destination
+    args[3] = "checkout"
+    args[4] = "--detach"
+    args[5] = commit
+    names: [0]string
+    values: [0]string
+    return PkgRun(args[:], "", names[:], values[:]) == 0 &&
+        PkgGitHead(destination) == commit
+}
+
+// Removes a cache entry that does not hold its commit, so a later fetch
+// clones it again instead of failing on it forever.
+PkgDropCheckout :: (destination: string) {
+    sources: string = PkgJoin(PkgCacheRoot(), "/sources/")
+    if destination.count <= sources.count ||
+        destination[0:sources.count] != sources { return }
+    args: [3]string
+    args[0] = "rm"
+    args[1] = "-rf"
+    args[2] = destination
+    names: [0]string
+    values: [0]string
+    unused PkgRun(args[:], "", names[:], values[:])
+}
+
 PkgCheckout :: (url: string, commit: string, offline: bool) -> string {
     if !PkgGitURL(url) || !PkgValidCommit(commit) { return "" }
     destination: string = PkgJoin3(PkgCacheRoot(), "/sources/",
         PkgSourceId(PkgSourceKey(url), commit))
     if PathExists(destination) {
         if PkgGitHead(destination) == commit { return destination }
-        return ""
+        if offline { return "" }
+        // An earlier fetch may have stopped before the commit was pushed.
+        fetch: [5]string
+        fetch[0] = "git"
+        fetch[1] = "-C"
+        fetch[2] = destination
+        fetch[3] = "fetch"
+        fetch[4] = url
+        if PkgRemoteCapture(fetch[:], 4).code == 0 &&
+            PkgCheckoutAt(destination, commit) { return destination }
+        PkgDropCheckout(destination)
     }
     if offline || !PkgMkdirs(PkgJoin(PkgCacheRoot(), "/sources")) { return "" }
     args: [6]string
@@ -294,17 +334,14 @@ PkgCheckout :: (url: string, commit: string, offline: bool) -> string {
     args[3] = "--no-checkout"
     args[4] = url
     args[5] = destination
-    names: [0]string
-    values: [0]string
-    if PkgRemoteCapture(args[:], 4).code != 0 { return "" }
-    args[0] = "git"
-    args[1] = "-C"
-    args[2] = destination
-    args[3] = "checkout"
-    args[4] = "--detach"
-    args[5] = commit
-    if PkgRun(args[:], "", names[:], values[:]) != 0 ||
-        PkgGitHead(destination) != commit { return "" }
+    if PkgRemoteCapture(args[:], 4).code != 0 {
+        PkgDropCheckout(destination)
+        return ""
+    }
+    if !PkgCheckoutAt(destination, commit) {
+        PkgDropCheckout(destination)
+        return ""
+    }
     return destination
 }
 

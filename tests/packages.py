@@ -275,6 +275,20 @@ main :: () -> s32 {
         call(ziran, "fetch", "--offline", cwd=app, env=env)
         call(ziran, "check", "--project", cwd=app, env=env)
 
+        # A cache entry left at another commit, as an interrupted fetch
+        # leaves it, is repaired by the next online fetch.
+        entry = Path(call(ziran, "pkg", "path", "A", "--offline",
+                          cwd=app, env=env).strip())
+        head = call("git", "-C", str(entry), "rev-parse", "HEAD",
+                    cwd=app, env=env).strip()
+        call("git", "-C", str(entry), "-c", "user.name=t", "-c", "user.email=t@t",
+             "commit", "--allow-empty", "-qm", "stale", cwd=app, env=env)
+        call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
+        call(ziran, "fetch", cwd=app, env=env)
+        assert call("git", "-C", str(entry), "rev-parse", "HEAD",
+                    cwd=app, env=env).strip() == head
+        call(ziran, "check", "--project", cwd=app, env=env)
+
         bootstrap = root / "bootstrap/build/bin"
         bootstrap.mkdir(parents=True)
         shutil.copy2(compiler / "build/bin/ziran", bootstrap / "ziran")

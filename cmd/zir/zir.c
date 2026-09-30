@@ -970,7 +970,12 @@ copy_text(char *dst, size_t dst_size, const char *src)
         return;
     if(src == NULL)
         src = "";
-    snprintf(dst, dst_size, "%s", src);
+    /* Called for nearly every name the compiler handles; a bounded move is
+     * much cheaper than formatting, and stays correct if a caller copies a
+     * string onto part of itself. */
+    size_t length = strnlen(src, dst_size - 1);
+    memmove(dst, src, length);
+    dst[length] = '\0';
 }
 
 ZirProgram *

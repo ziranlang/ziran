@@ -825,11 +825,22 @@ int
 compile_value_literal(CompileValue *value)
 {
     if(value->kind == COMPILE_INTEGER) {
-        if(!strcmp(value->type, "u64"))
-            return snprintf(value->literal, sizeof(value->literal), "%" PRIu64,
-                            (uint64_t)value->integer) < (int)sizeof(value->literal);
-        return snprintf(value->literal, sizeof(value->literal), "%" PRId64,
-                        value->integer) < (int)sizeof(value->literal);
+        /* Every evaluated integer gets its text; format it directly, since
+         * snprintf dominated law evaluation. */
+        int negative = strcmp(value->type, "u64") && value->integer < 0;
+        uint64_t magnitude = negative ? UINT64_C(0) - (uint64_t)value->integer :
+                                        (uint64_t)value->integer;
+        char digits[24];
+        int count = 0;
+        do {
+            digits[count++] = (char)('0' + magnitude % 10);
+            magnitude /= 10;
+        } while(magnitude != 0);
+        char *out = value->literal;
+        if(negative) *out++ = '-';
+        while(count > 0) *out++ = digits[--count];
+        *out = '\0';
+        return 1;
     }
     if(value->kind == COMPILE_REAL) {
         int written = snprintf(value->literal, sizeof(value->literal),

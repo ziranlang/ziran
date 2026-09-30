@@ -70,12 +70,23 @@ evaluate_bound_name(const ZirModule *module, const char *path,
            (binding->is_file_private && strcmp(binding->path, path)))
             continue;
         char text[ZIR_TEXT_MAX];
-        int written = ScalarWidth(binding->type) || !strcmp(binding->type, "bool") ?
-            snprintf(text, sizeof(text), "cast(%s) (%s)", binding->type,
-                     binding->expr) :
-            snprintf(text, sizeof(text), "(%s)", binding->expr);
-        if(written < 0 || (size_t)written >= sizeof(text))
+        size_t type_length = strlen(binding->type);
+        size_t expr_length = strlen(binding->expr);
+        size_t used = 0;
+        if(type_length + expr_length + 9 >= sizeof(text))
             return 0;
+        if(ScalarWidth(binding->type) || !strcmp(binding->type, "bool")) {
+            memcpy(text, "cast(", 5);
+            memcpy(text + 5, binding->type, type_length);
+            used = 5 + type_length;
+            memcpy(text + used, ") ", 2);
+            used += 2;
+        }
+        text[used++] = '(';
+        memcpy(text + used, binding->expr, expr_length);
+        used += expr_length;
+        text[used++] = ')';
+        text[used] = '\0';
         return evaluate_typed_expression(module, names, text,
                                          Span(binding->path[0] ? binding->path : path, 1, 1),
                                          depth + 1, fuel, result);

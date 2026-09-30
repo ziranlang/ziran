@@ -226,8 +226,8 @@ working directories:
 
 ```toml
 [overrides]
-Kryon = "../kryon"
-ziran = "../ziran"
+kryon = "../../kryonlabs/kryon"
+ziran = "../../ziranlang/ziran"
 ```
 
 Production builds omit overrides and use the locked Git commits. A host module

@@ -1,0 +1,39 @@
+// Arm assignments may introduce compiler temporaries before the statement.
+// Native 8c requires a block after each switch label, including default.
+number: s32 = 42;
+saved: *s32;
+Store :: (pointer: *s32) { saved = pointer }
+Read :: () -> s32 {
+    pointer := saved
+    if pointer == null { return 0 }
+    return pointer.*
+}
+
+Shifted :: (arm: s32, value: s32) -> s32 {
+    result: s32 = 0
+    if arm == {
+        case 1;
+            result = value
+            adjusted := value + 1
+            result = adjusted
+        case 2;
+            result = cast(u8)(0xC0 | (value >> 6))
+        case 3;
+            result = cast(u8)(0xE0 | (value >> 12))
+        case;
+            result = cast(u8)(0xF0 | (value >> 18))
+    }
+    return result
+}
+
+#program_export
+main :: () -> s32 {
+    Store(*number)
+    if Shifted(1, 1061) != 1062 || Shifted(2, 1061) != 208 ||
+       Shifted(3, 1061) != 224 || Shifted(9, 1061) != 240 || Read() != 42 {
+        print("plan9-switch-test-failed\n")
+        return 1
+    }
+    print("plan9-switch-test-ok\n")
+    return 0
+}

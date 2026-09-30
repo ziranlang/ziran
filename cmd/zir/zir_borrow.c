@@ -539,8 +539,13 @@ address_backing(BorrowCheck *check, int index, int *known)
     if(source == NULL || source->type[0] != '*')
         return (BorrowPlace){0};
     *known = source->address_known;
-    return source->address_backing.root != NULL ?
-        source->address_backing : root_place(source);
+    if(source->address_known)
+        return source->address_backing;
+    /* An opaque pointer parameter has no known storage place. Its binding
+     * belongs to this function's temporary analysis and cannot be retained
+     * by a global alias after the function check frees that storage. Global
+     * bindings themselves remain alive for the entire analysis. */
+    return source->global_index >= 0 ? root_place(source) : (BorrowPlace){0};
 }
 
 static BorrowSource *

@@ -70,12 +70,29 @@ Size :: (n: s32) -> s32 {
     }
     return result;
 }
+Shifted :: (n: s32, value: s32) -> s32 {
+    result: s32 = 0;
+    if n == {
+        case 1;
+            result = value;
+            adjusted := value + 1;
+            result = adjusted;
+        case 2;
+            result = cast(u8)(0xC0 | (value >> 6));
+        case 3;
+            result = cast(u8)(0xE0 | (value >> 12));
+        case;
+            result = cast(u8)(0xF0 | (value >> 18));
+    }
+    return result;
+}
 main :: () {
     print("% % %\n", Label(.RED), Label(.GREEN), Label(.BLUE));
     print("% % %\n", Size(1), Size(2), Size(9));
     print("% %\n", Warmth(.RED), Warmth(.BLUE));
     print("% % %\n", Bracket(123), Bracket(125), Bracket(65));
     print("% %\n", Opened(1), Opened(2));
+    print("% % % %\n", Shifted(1, 1061), Shifted(2, 1061), Shifted(3, 1061), Shifted(9, 1061));
     for step: 0..5 {
         if step == {
             case 3; break;
@@ -91,6 +108,7 @@ red green blue
 warm other
 1 2 3
 11 101
+1062 208 224 240
 step 0
 one
 step 1

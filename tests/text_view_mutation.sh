@@ -5,6 +5,19 @@ ziran=${1:?pass the ziran command}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
+cat > "$work/pointer_global.zi" <<'ZI'
+saved: *u8;
+Store :: (pointer: *u8) { saved = pointer }
+Read :: () -> *u8 {
+    pointer := saved
+    return pointer
+}
+Good :: () -> *u8 {
+    Store(null)
+    return Read()
+}
+ZI
+
 cat > "$work/direct.zi" <<'ZI'
 Bad :: () -> s32 {
     bytes: [1]u8
@@ -205,5 +218,8 @@ done
 "$ziran" check --root "$work" "$work/sibling_field.zi"
 "$ziran" check --root "$work" "$work/pointer_sibling_field.zi"
 "$ziran" check --root "$work" "$work/view_reassignment.zi"
+"$ziran" check --root "$work" "$work/pointer_global.zi"
+"$ziran" ir --root "$work" -o "$work/pointer-ir" "$work/pointer_global.zi"
+"$ziran" check --root "$work/pointer-ir" "$work/pointer-ir/pointer_global.zir"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/scope.zi"
 "$ziran" check --root "$work/ir" "$work/ir/scope.zir"

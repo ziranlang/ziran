@@ -802,9 +802,10 @@ emit_switch_with_buffers(Emitter *e, int declaration, int end, EmitSwitchBuffers
         } else
             line(e, "default:");
         e->indent++;
-        /* C allows no declaration straight after a label. */
-        int block = e->target != ZIR_GO && body_end > at + 1 &&
-                    fn->stmts[at + 1].kind == ZIR_STMT_DECL;
+        /* Every arm is a lexical scope in Ziran. Even an assignment can
+         * emit a temporary declaration before its C statement, and C
+         * allows no declaration straight after a label. */
+        int block = e->target != ZIR_GO;
         if(block) {
             line(e, "{");
             e->indent++;

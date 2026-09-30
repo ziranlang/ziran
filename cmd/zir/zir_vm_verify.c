@@ -3,7 +3,20 @@
 /* Set when the last parse_parameters or verify_sequence failed on one of
  * the VM's fixed limits, so the diagnostic can name the limit. */
 static _Thread_local int parameters_exceeded;
-static _Thread_local int locals_exceeded;
+/* How many bindings the function being verified has room for. */
+static _Thread_local int binding_capacity;
+
+/* The most locals FUNCTION can hold at once with PARAMETERS parameters:
+ * every declaration may be live together. */
+int
+function_local_bound(const ZirFunction *function, int parameters)
+{
+    int bound = parameters;
+    for(int s = 0; s < function->stmt_count; s++)
+        if(function->stmts[s].kind == ZIR_STMT_DECL)
+            bound++;
+    return bound;
+}
 
 int
 parse_parameters(const ZirModule *module, const ZirFunction *function,
@@ -933,10 +946,8 @@ verify_sequence(const ZirModule *module, const ZirFunction *function,
         int close;
         switch(statement->kind) {
         case ZIR_STMT_DECL:
-            if(binding_count >= VM_MAX_LOCALS) {
-                locals_exceeded = 1;
+            if(binding_count >= binding_capacity)
                 return 0;
-            }
             if(!portable_type(module, statement->type) ||
                strcmp(statement->type, "void") == 0 ||
                statement->name[0] == 0 ||
@@ -1118,7 +1129,7 @@ verify_global_aggregate(const ZirModule *module, const ZirGlobal *global)
 /* Buffers VmVerify keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct VmVerifyBuffers {
-    Parameter bindings[VM_MAX_LOCALS];
+    Parameter bindings[VM_MAX_PARAMS];
     Parameter expected[VM_MAX_PARAMS];
     Parameter actual[VM_MAX_PARAMS];
     Parameter parameters[VM_MAX_PARAMS];
@@ -1261,8 +1272,11 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
         }
         for(int f = 0; f < module->function_count; f++) {
             const ZirFunction *function = &module->functions[f];
-            int binding_count = parse_parameters(module, function, buffers->bindings);
+            binding_capacity = function_local_bound(function, VM_MAX_PARAMS);
+            Parameter *bindings = AllocateOrExit((size_t)binding_capacity * sizeof(*bindings));
+            int binding_count = parse_parameters(module, function, bindings);
             if(binding_count < 0 && parameters_exceeded) {
+                free(bindings);
                 Diagnostic(function->span, "zib.function",
                            "portable functions take at most %d parameters: %s",
                            VM_MAX_PARAMS, function->name);
@@ -1271,22 +1285,19 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
             if(!function->checked || function->is_extern ||
                !portable_type(module, function->return_type) ||
                binding_count < 0) {
+                free(bindings);
                 Diagnostic(function->span, "zib.function",
                               "function is outside the portable subset: %s",
                               function->name);
                 return 0;
             }
-            locals_exceeded = 0;
-            if(!verify_sequence(module, function, 0, function->stmt_count,
-                                buffers->bindings, binding_count, 0, 0)) {
-                if(locals_exceeded)
-                    Diagnostic(function->span, "zib.statement",
-                               "portable functions hold at most %d parameters and locals at once: %s",
-                               VM_MAX_LOCALS, function->name);
-                else
-                    Diagnostic(function->span, "zib.statement",
-                               "statement is outside the portable subset in %s",
-                               function->name);
+            int verified = verify_sequence(module, function, 0, function->stmt_count,
+                                           bindings, binding_count, 0, 0);
+            free(bindings);
+            if(!verified) {
+                Diagnostic(function->span, "zib.statement",
+                           "statement is outside the portable subset in %s",
+                           function->name);
                 return 0;
             }
             if(strcmp(function->return_type, "void") != 0 &&

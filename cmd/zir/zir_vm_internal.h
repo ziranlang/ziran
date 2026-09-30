@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { VM_MAX_PARAMS = 16, VM_MAX_LOCALS = 64, VM_MAX_GLOBALS = 4096,
+enum { VM_MAX_PARAMS = 16, VM_MAX_GLOBALS = 4096,
        VM_MAX_DEPTH = 128,
        VM_MAX_FIELDS = 1024,
        VM_MAX_RECORD_BYTES = 256 * 1024 * 1024,
@@ -139,7 +139,10 @@ typedef struct Vm {
     int steps;
     int max_steps;
     int failed;
-    /* Set when a call would nest deeper than VM_MAX_DEPTH. */
+    /* Calls may nest until the C stack reaches stack_floor, where the
+     * thread's stack bounds are known; elsewhere VM_MAX_DEPTH calls.
+     * depth_exceeded holds the depth where a run stopped for that. */
+    const char *stack_floor;
     int depth_exceeded;
     size_t record_bytes;
     size_t array_bytes;
@@ -173,7 +176,10 @@ struct Frame {
     const ZirFunction *function;
     Frame *caller;
     uint64_t serial; /* identifies this call to pointers at its locals */
-    Local locals[VM_MAX_LOCALS];
+    /* Sized for the whole call before it starts (function_local_bound):
+     * pointers at locals hold their address, so the array never moves. */
+    Local *locals;
+    int local_capacity;
     int local_count;
     int control_target;
     /* Set while a union member is the assignment destination. */
@@ -228,6 +234,7 @@ void release_retired(Vm *vm);
 int vm_type_contains_vec(const ZirModule *module, const char *type, int depth);
 void drop_owned_locals(Frame *frame, int first);
 int parse_parameters(const ZirModule *module, const ZirFunction *function, Parameter *parameters);
+int function_local_bound(const ZirFunction *function, int parameters);
 int bitwise_operator(const char *op);
 const char *assignment_binary_operator(const char *op);
 const ZirFunction *find_entry(const ZirProgram *program, const char *module_name, const char *function_name, const ZirModule **module_out);

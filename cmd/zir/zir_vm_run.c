@@ -1,5 +1,15 @@
 #include "zir_vm_internal.h"
 
+#if defined(__linux__) && !defined(__EMSCRIPTEN__)
+#include <pthread.h>
+#define VM_KNOWS_STACK 1
+#endif
+
+/* C stack kept free below the deepest call: one call's statements and
+ * expressions nest at most VM_MAX_DEPTH levels each before the next
+ * call checks again. */
+enum { VM_STACK_MARGIN = 1024 * 1024 };
+
 static void collect_unreachable(Vm *vm);
 
 static Flow
@@ -28,7 +38,7 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
             Value value = statement->expr_root >= 0 ?
                 eval(frame, statement->expr_root, 0) :
                 default_value(vm, frame->module, statement->type, 0);
-            if(vm->failed || frame->local_count >= VM_MAX_LOCALS)
+            if(vm->failed || frame->local_count >= frame->local_capacity)
                 return FLOW_ERROR;
             Local *local = &frame->locals[frame->local_count++];
             copy_text(local->name, sizeof(local->name), statement->name);
@@ -686,24 +696,59 @@ release_call_arrays(Vm *vm, uint64_t entry, uint64_t before_result)
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct RunFunctionBuffers {
     Frame frame;
+    /* The frame's locals; kept with the buffers for the next call. */
+    Local *locals;
+    int local_capacity;
+} RunFunctionBuffers;
+
+/* What a call needs only while it binds its arguments or calls the host.
+ * Taken from a pool and returned before the body runs, so nested calls
+ * reuse one instead of each holding kilobytes for their whole run. */
+typedef struct CallSetup {
     Parameter parameters[VM_MAX_PARAMS];
     VmHostValue host_args[VM_MAX_PARAMS];
-} RunFunctionBuffers;
+} CallSetup;
+
+static _Thread_local CallSetup *setup_spares[16];
+static _Thread_local int setup_spare_count;
+
+static CallSetup *
+take_setup(void)
+{
+    return setup_spare_count > 0 ? setup_spares[--setup_spare_count] :
+        AllocateOrExit(sizeof(CallSetup));
+}
+
+static void
+give_setup(CallSetup **setup)
+{
+    if(*setup == NULL)
+        return;
+    if(setup_spare_count < 16)
+        setup_spares[setup_spare_count++] = *setup;
+    else
+        free(*setup);
+    *setup = NULL;
+}
 
 Value run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
              const Value *args, int arg_count);
 
 static Value
 run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *function,
-             const Value *args, int arg_count, RunFunctionBuffers *buffers)
+             const Value *args, int arg_count, RunFunctionBuffers *buffers,
+             CallSetup **setup)
 {
     memset(&buffers->frame, 0, sizeof(buffers->frame));
-    int count = parse_parameters(module, function, buffers->parameters);
+    int count = parse_parameters(module, function, (*setup)->parameters);
     Value result = int_value(0);
     uint64_t allocation_entry = vm->allocation;
-    if(!vm->failed && vm->depth >= VM_MAX_DEPTH)
-        vm->depth_exceeded = 1;
-    if(vm->failed || vm->depth >= VM_MAX_DEPTH || count != arg_count) {
+    int too_deep = vm->stack_floor != NULL ?
+        (const char *)__builtin_frame_address(0) < vm->stack_floor :
+        vm->depth >= VM_MAX_DEPTH;
+    if(!vm->failed && too_deep)
+        vm->depth_exceeded = vm->depth > 0 ? vm->depth : 1;
+    if(vm->failed || too_deep || count != arg_count) {
         vm->failed = 1;
         return result;
     }
@@ -719,7 +764,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
             }
             return run_function(vm, provider_module, provider, args, arg_count);
         }
-        memset(buffers->host_args, 0, sizeof(buffers->host_args));
+        memset((*setup)->host_args, 0, sizeof((*setup)->host_args));
         VmHostValue host_result = {0};
         if(vm->host == NULL) {
             Diagnostic(function->span, "zib.capability",
@@ -748,29 +793,41 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
             if(vm->failed)
                 break;
             Value argument = coerce_expression(vm, module, args[i],
-                                               buffers->parameters[i].type);
+                                               (*setup)->parameters[i].type);
             if(vm->failed || !host_argument(module,
-                                            buffers->parameters[i].type, argument,
-                                            &buffers->host_args[i], 0)) {
+                                            (*setup)->parameters[i].type, argument,
+                                            &(*setup)->host_args[i], 0)) {
                 vm->failed = 1;
                 break;
             }
         }
         host_result.type = function->return_type;
         if(!vm->failed && !vm->host(vm->host_context, module->name,
-                                    function->name, buffers->host_args, count,
+                                    function->name, (*setup)->host_args, count,
                                     &host_result))
             vm->failed = 1;
         for(int i = 0; i < count && !vm->failed; i++)
-            host_copy_back(vm, module, buffers->parameters[i].type,
-                           args[i], &buffers->host_args[i]);
+            host_copy_back(vm, module, (*setup)->parameters[i].type,
+                           args[i], &(*setup)->host_args[i]);
         for(int i = 0; i < count; i++)
-            release_host_argument(&buffers->host_args[i], 0);
+            release_host_argument(&(*setup)->host_args[i], 0);
         if(vm->failed)
             return result;
         return host_return(vm, module, function->return_type,
                            &host_result, 0);
     }
+    int bound = function_local_bound(function, count);
+    if(buffers->local_capacity < bound) {
+        Local *locals = realloc(buffers->locals, (size_t)bound * sizeof(*locals));
+        if(locals == NULL) {
+            vm->failed = 1;
+            return result;
+        }
+        buffers->locals = locals;
+        buffers->local_capacity = bound;
+    }
+    buffers->frame.locals = buffers->locals;
+    buffers->frame.local_capacity = buffers->local_capacity;
     vm->depth++;
     buffers->frame.vm = vm;
     buffers->frame.module = module;
@@ -780,17 +837,18 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     vm->active_frame = &buffers->frame;
     for(int i = 0; i < count; i++) {
         copy_text(buffers->frame.locals[i].name, sizeof(buffers->frame.locals[i].name),
-                  buffers->parameters[i].name);
+                  (*setup)->parameters[i].name);
         copy_text(buffers->frame.locals[i].type, sizeof(buffers->frame.locals[i].type),
-                  buffers->parameters[i].type);
-        buffers->frame.locals[i].value = !VecElementType(module, buffers->parameters[i].type,
+                  (*setup)->parameters[i].type);
+        buffers->frame.locals[i].value = !VecElementType(module, (*setup)->parameters[i].type,
                                                 NULL, 0) &&
                                 parameter_read_only(function,
-                                                    buffers->parameters[i].name) ?
-            coerce_expression(vm, module, args[i], buffers->parameters[i].type) :
-            coerce(vm, module, args[i], buffers->parameters[i].type);
+                                                    (*setup)->parameters[i].name) ?
+            coerce_expression(vm, module, args[i], (*setup)->parameters[i].type) :
+            coerce(vm, module, args[i], (*setup)->parameters[i].type);
     }
     buffers->frame.local_count = count;
+    give_setup(setup);
     Flow flow = execute_sequence(&buffers->frame, 0, function->stmt_count, 0, &result);
     if(flow == FLOW_ERROR || flow == FLOW_BREAK || flow == FLOW_CONTINUE ||
        (flow != FLOW_RETURN && strcmp(function->return_type, "void") != 0))
@@ -830,13 +888,24 @@ run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
 {
     static _Thread_local RunFunctionBuffers *spares[16];
     static _Thread_local int spare_count;
-    RunFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    Value returned = run_function_with_buffers(vm, module, function, args, arg_count, buffers);
+    RunFunctionBuffers *buffers;
+    if(spare_count > 0)
+        buffers = spares[--spare_count];
+    else {
+        buffers = AllocateOrExit(sizeof(*buffers));
+        buffers->locals = NULL;
+        buffers->local_capacity = 0;
+    }
+    CallSetup *setup = take_setup();
+    Value returned = run_function_with_buffers(vm, module, function, args, arg_count,
+                                               buffers, &setup);
+    give_setup(&setup);
     if(spare_count < 16)
         spares[spare_count++] = buffers;
-    else
+    else {
+        free(buffers->locals);
         free(buffers);
+    }
     return returned;
 }
 
@@ -1113,6 +1182,19 @@ VmInstanceRun(VmInstance *instance, long long *result, int *has_result)
         return 0;
     Vm *vm = &instance->vm;
     vm->steps = 0;
+    vm->stack_floor = NULL;
+#ifdef VM_KNOWS_STACK
+    pthread_attr_t attributes;
+    if(pthread_getattr_np(pthread_self(), &attributes) == 0) {
+        void *low = NULL;
+        size_t size = 0;
+        const char *here = __builtin_frame_address(0);
+        if(pthread_attr_getstack(&attributes, &low, &size) == 0 &&
+           here > (const char *)low + 2 * VM_STACK_MARGIN)
+            vm->stack_floor = (const char *)low + VM_STACK_MARGIN;
+        pthread_attr_destroy(&attributes);
+    }
+#endif
     Value value = run_function(vm, instance->module, instance->entry,
                                NULL, 0);
     *result = value.integer;
@@ -1122,6 +1204,10 @@ VmInstanceRun(VmInstance *instance, long long *result, int *has_result)
             Diagnostic(instance->entry->span, "zib.runtime",
                        "portable execution failed: stopped after %d statements",
                        vm->max_steps);
+        else if(vm->depth_exceeded && vm->stack_floor != NULL)
+            Diagnostic(instance->entry->span, "zib.runtime",
+                       "portable execution failed: %d nested calls filled the stack",
+                       vm->depth_exceeded);
         else if(vm->depth_exceeded)
             Diagnostic(instance->entry->span, "zib.runtime",
                        "portable execution failed: calls nested deeper than %d",

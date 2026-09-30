@@ -536,15 +536,11 @@ failed:
 }
 /* Buffers eval keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
-typedef struct EvalBuffers {
-    Value args[VM_MAX_PARAMS];
-    ZirFunction signature;
-} EvalBuffers;
 
 Value eval(Frame *frame, int index, int depth);
 
-static Value
-eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
+Value
+eval(Frame *frame, int index, int depth)
 {
     const ZirExpr *expression;
     Value value = int_value(0), left, right;
@@ -1358,7 +1354,6 @@ eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
             }
             break;
         }
-        memset(buffers->args, 0, sizeof(buffers->args));
         int count = 0;
         unsigned used = 0;
         const ZirModule *owner = NULL;
@@ -1382,36 +1377,56 @@ eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
             frame->vm->failed = 1;
             break;
         }
+        /* Arguments are sized by this call, not the most any call takes:
+         * a nested call keeps its arguments until it returns. */
+        int slots = 0;
+        for(int child = expression->first_child; child >= 0;
+            child = frame->function->exprs[child].next_sibling)
+            if(frame->function->exprs[child].argument_index >= slots)
+                slots = frame->function->exprs[child].argument_index + 1;
+        if(slots > VM_MAX_PARAMS) {
+            frame->vm->failed = 1;
+            break;
+        }
+        Value few[4];
+        Value *args = slots <= 4 ? few : AllocateOrExit((size_t)slots * sizeof(*args));
+        memset(args, 0, (size_t)(slots <= 4 ? 4 : slots) * sizeof(*args));
         for(int child = expression->first_child; child >= 0;
             child = frame->function->exprs[child].next_sibling) {
             int position = frame->function->exprs[child].argument_index;
             if(count >= VM_MAX_PARAMS || position < 0 ||
-               position >= VM_MAX_PARAMS || (used & (1u << position))) {
+               position >= slots || (used & (1u << position))) {
                 frame->vm->failed = 1;
                 break;
             }
-            buffers->args[position] = eval(frame, child, depth + 1);
+            args[position] = eval(frame, child, depth + 1);
             used |= 1u << position;
             count++;
         }
         if(!frame->vm->failed) {
             if(external != NULL) {
-                memset(&buffers->signature, 0, sizeof(buffers->signature));
-                copy_text(buffers->signature.name, sizeof(buffers->signature.name),
+                /* Allocated only here: a whole ZirFunction per expression
+                 * level made every nested call cost kilobytes. */
+                ZirFunction *signature = AllocateOrExit(sizeof(*signature));
+                memset(signature, 0, sizeof(*signature));
+                copy_text(signature->name, sizeof(signature->name),
                           external->name);
-                copy_text(buffers->signature.args, sizeof(buffers->signature.args),
+                copy_text(signature->args, sizeof(signature->args),
                           external->args);
-                copy_text(buffers->signature.return_type,
-                          sizeof(buffers->signature.return_type),
+                copy_text(signature->return_type,
+                          sizeof(signature->return_type),
                           external->return_type);
-                buffers->signature.is_extern = 1;
-                buffers->signature.span = external->span;
+                signature->is_extern = 1;
+                signature->span = external->span;
                 value = run_function(frame->vm, frame->module,
-                                     &buffers->signature, buffers->args, count);
+                                     signature, args, count);
+                free(signature);
             } else {
-                value = run_function(frame->vm, owner, callee, buffers->args, count);
+                value = run_function(frame->vm, owner, callee, args, count);
             }
         }
+        if(args != few)
+            free(args);
         break;
     }
     default:
@@ -1422,17 +1437,3 @@ eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
                              expression->type);
 }
 
-Value
-eval(Frame *frame, int index, int depth)
-{
-    static _Thread_local EvalBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EvalBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    Value returned = eval_with_buffers(frame, index, depth, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-    return returned;
-}

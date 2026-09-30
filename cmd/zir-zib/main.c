@@ -10,6 +10,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__unix__) || defined(__APPLE__)
+#include <pthread.h>
+#endif
 
 static void
 usage(void)
@@ -130,23 +133,57 @@ done:
     return result;
 }
 
+typedef struct RunJob {
+    Bundle *bundle;
+    long long result;
+    int has_result;
+    int ok;
+} RunJob;
+
+static void *
+run_job(void *argument)
+{
+    RunJob *job = argument;
+    job->ok = BundleRun(job->bundle, NULL, 0, &job->result, &job->has_result);
+    return NULL;
+}
+
+/* The portable runner nests about 4 KB of C stack for each Ziran call,
+ * and recursion may go as deep as the stack allows, so the program runs
+ * on a thread with room for some 60,000 nested calls. Pages are only used
+ * as calls reach them. */
+enum { RUN_STACK_BYTES = 256 * 1024 * 1024 };
+
 static int
 run_command(int argc, char **argv)
 {
-    long long result;
-    int has_result;
     if(argc != 1) {
         usage();
         return 1;
     }
-    Bundle *bundle = BundleOpen(argv[0]);
-    if(bundle == NULL)
+    RunJob job = {0};
+    job.bundle = BundleOpen(argv[0]);
+    if(job.bundle == NULL)
         return 1;
-    int ok = BundleRun(bundle, NULL, 0, &result, &has_result);
-    if(ok && has_result)
-        printf("%lld\n", result);
-    BundleClose(bundle);
-    return ok ? 0 : 1;
+    int ran_on_thread = 0;
+#if defined(__unix__) || defined(__APPLE__)
+    pthread_attr_t attributes;
+    pthread_t thread;
+    if(pthread_attr_init(&attributes) == 0) {
+        if(pthread_attr_setstacksize(&attributes, RUN_STACK_BYTES) == 0 &&
+           pthread_create(&thread, &attributes, run_job, &job) == 0) {
+            pthread_join(thread, NULL);
+            ran_on_thread = 1;
+        }
+        pthread_attr_destroy(&attributes);
+    }
+#endif
+    if(!ran_on_thread)
+        run_job(&job);
+    if(job.ok && job.has_result)
+        printf("%lld\n", job.result);
+    BundleClose(job.bundle);
+    return job.ok ? 0 : 1;
 }
 
 int

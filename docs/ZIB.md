@@ -56,7 +56,12 @@ entry function. The standalone `zi2zib run` command has no host bindings and
 rejects a call that needs one. A run is not bounded: like the program's native
 builds, it continues until the entry returns. Only the web playground stops a
 run after 1,000,000 statements (`VmRunBounded`), so a runaway loop cannot hang
-the page, and it says so in the diagnostic. The loader compares the capability list with
+the page, and it says so in the diagnostic. A function holds as many locals as
+it declares. Calls nest until the C stack is nearly full, where the thread's
+stack bounds are known (Linux); `zi2zib run` runs the program on a 256 MiB
+stack, room for about 60,000 nested calls, and a runaway recursion stops with
+"N nested calls filled the stack". Elsewhere, such as in the playground, calls
+nest 128 deep. A function takes at most 16 parameters. The loader compares the capability list with
 the linked IR; the VM checks signatures before execution and verifies returned
 record field names and types. Record fields may themselves contain records,
 strings, or enums.

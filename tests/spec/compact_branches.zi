@@ -1,0 +1,28 @@
+Branch :: (value: s32) -> s32 {
+    if value == 0 {
+        return 10
+    } else if value == 1 { return 11 }
+    else if value == 2 { return 12 } else { return 13 }
+}
+
+Nested :: (value: s32) -> s32 {
+    result: s32 = 0
+    if value < 0 {
+        result = 1
+    } else { if value == 0 { result = 2 } else if value == 1 { result = 3 } else { result = 4 } }
+    result += 10
+    return result
+}
+
+Negated :: (enabled: bool) -> s32 {
+    if enabled {
+        return 1
+    } else if !enabled { return 2 }
+    return 3
+}
+
+main :: () {
+    print("% % % %\n", Branch(0), Branch(1), Branch(2), Branch(3))
+    print("% % % %\n", Nested(-1), Nested(0), Nested(1), Nested(2))
+    print("% %\n", Negated(true), Negated(false))
+}

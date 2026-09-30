@@ -1169,7 +1169,13 @@ split_oneline_block(const char *t, char *head, size_t hsz,
 
     if(n < 4)
         return 0;
-    for(i = 0; t[i] != '\0' && (isalnum((unsigned char)t[i]) || t[i] == '_') &&
+    /* A continued branch can follow the previous body's closer on the same
+     * line. Keep that closer in the header, but recognize the control word
+     * after it so compact else bodies are queued like other compact blocks. */
+    const char *control = t;
+    if(*control == '}' && starts_word(skip_ws(control + 1), "else"))
+        control = skip_ws(control + 1);
+    for(i = (size_t)(control - t); t[i] != '\0' && (isalnum((unsigned char)t[i]) || t[i] == '_') &&
         wl + 1 < sizeof(w0); i++)
         w0[wl++] = t[i];
     w0[wl] = '\0';

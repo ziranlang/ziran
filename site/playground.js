@@ -1,6 +1,13 @@
 (function () {
   var root = document.querySelector('.hero-code');
   if (!root) return;
+  if (document.documentElement.hasAttribute('data-mini')) {
+    var fullPlayground = root.querySelector('.example-link');
+    fullPlayground.href = '/';
+    fullPlayground.target = '_blank';
+    fullPlayground.rel = 'noopener';
+    fullPlayground.textContent = 'Open full playground ↗';
+  }
   var toolbar = root.querySelector('.playground-toolbar');
   var runButton = root.querySelector('.playground-run');
   var stopButton = root.querySelector('.playground-stop');

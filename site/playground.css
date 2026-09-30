@@ -1,3 +1,20 @@
+/* The portfolio embeds the same compiler and editor as the full homepage. */
+:root[data-mini] .site-header,
+:root[data-mini] .skip-link,
+:root[data-mini] .hero-copy,
+:root[data-mini] .visual-caption,
+:root[data-mini] .source-flow,
+:root[data-mini] main > section:not(.hero),
+:root[data-mini] footer { display: none; }
+:root[data-mini] main { width: 100%; }
+:root[data-mini] .hero { display: block; min-height: 0; padding: 0; }
+:root[data-mini] .hero-code { width: 100%; max-width: none; margin: 0; border: 0; border-radius: 0; transform: none; box-shadow: none; }
+:root[data-mini] .hero-visual { min-width: 0; }
+:root[data-mini] .example-tabs { flex-wrap: wrap; }
+:root[data-mini] .playground-toolbar { align-items: start; }
+:root[data-mini] .playground-status { width: 100%; }
+:root[data-mini] .code-foot { text-transform: none; letter-spacing: 0; }
+:root[data-mini] .code-foot > span { display: none; }
 .code-editor-wrap {
   position: relative;
   height: 264px;

@@ -9,15 +9,8 @@
 #import "package_explain"
 #import "package_options"
 #import "package_compile_commands"
+#import "package_template"
 #import "file_linux"
-
-PkgLauncherDirectory :: (launcher: string) -> string {
-    path: string = PkgCanonical(launcher)
-    if path.count == 0 { return "" }
-    end: s64 = cast(s64)path.count - 1
-    while end > 0 && path[end] != cast(u8)47 { end -= 1 }
-    return PkgJoin("", path[0:end])
-}
 
 // `ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] DIR`
 // describes the generated C in DIR to editors. The include directory
@@ -152,7 +145,7 @@ PkgList :: (locked: *PkgLock, current: *PkgManifest, selector: string) -> s32 {
 
 PkgDispatch :: (command: string, arguments: []string, project: bool,
     root: string, locked: *PkgLock, current: *PkgManifest,
-    launcher: string) -> s32 {
+    launcher: string, extra_names: []string, extra_values: []string) -> s32 {
     executable: string = ""
     check: bool = command == "check"
     bundle: bool = command == "bundle" || command == "run"
@@ -189,10 +182,16 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     if project { tool_directory = PkgJoin(locked.tool_path, "/build/bin") }
     if tool_directory.count == 0 { return PkgFail("cannot find Ziran binaries") }
     binary: string = PkgJoin3(tool_directory, "/", executable)
-    names: [1]string
-    values: [1]string
+    names: [8]string
+    values: [8]string
     names[0] = "ZIRAN_PACKAGE_MAP"
     values[0] = ""
+    environment: s32 = 1
+    while environment - 1 < cast(s32)extra_names.count && environment < 8 {
+        names[environment] = extra_names[environment - 1]
+        values[environment] = extra_values[environment - 1]
+        environment += 1
+    }
     if project {
         if !PathExists(binary) {
             make_args: [5]string
@@ -276,7 +275,120 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
             count += 1
         }
     }
-    return PkgRun(child[0:count], "", names[:], values[:])
+    return PkgRun(child[0:count], "", names[0:environment], values[0:environment])
+}
+
+// True when an argument before `--` names a source, saved IR, or bundle
+// file: the command then works on that file, not on the project's program.
+PkgHasSource :: (arguments: []string) -> bool {
+    index: s32 = 0
+    while index < cast(s32)arguments.count {
+        part: string = arguments[index]
+        if part == "--" { return false }
+        if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") ||
+           PkgEndsWith(part, ".zib") { return true }
+        index += 1
+    }
+    return false
+}
+
+PkgHasTarget :: (arguments: []string) -> bool {
+    index: s32 = 0
+    while index < cast(s32)arguments.count {
+        part: string = arguments[index]
+        if part == "--" { return false }
+        if part.count >= 8 && part[0:8] == "--target" { return true }
+        index += 1
+    }
+    return false
+}
+
+// The module a source path defines: src/main.zi is main.
+PkgModuleName :: (path: string) -> string {
+    start: s64 = cast(s64)path.count
+    while start > 0 && path[start - 1] != cast(u8)47 { start -= 1 }
+    name: string = path[start:]
+    if PkgEndsWith(name, ".zi") { name = name[0:cast(s64)name.count - 3] }
+    return name
+}
+
+// `ziran build` in a project without a tool: the entry module's main
+// becomes build/NAME through C. [package] links adds -l libraries.
+PkgNativeBuild :: (root: string, locked: *PkgLock, current: *PkgManifest,
+    launcher: string) -> string {
+    module: string = PkgModuleName(current.entry)
+    if !PathExists(PkgJoin3(root, "/", current.entry)) {
+        PkgFail(PkgJoin3("the package entry ", current.entry, " does not exist"))
+        return ""
+    }
+    generated: string = PkgJoin(root, "/build/generated/c")
+    if !PkgMkdirs(generated) {
+        PkgFail("cannot create build/generated/c")
+        return ""
+    }
+    libraries: string = PkgGetenv("LDLIBS")
+    index: s32 = 0
+    while index < current.link_count {
+        if libraries.count > 0 { libraries = PkgJoin(libraries, " ") }
+        libraries = PkgJoin3(libraries, "-l", current.links[index])
+        index += 1
+    }
+    arguments: [6]string
+    arguments[0] = "--target=c"
+    arguments[1] = "--exe"
+    arguments[2] = "--entry"
+    arguments[3] = PkgJoin(module, ":main")
+    arguments[4] = "-o"
+    arguments[5] = generated
+    names: [1]string
+    values: [1]string
+    names[0] = "LDLIBS"
+    values[0] = libraries
+    if PkgDispatch("build", arguments[:], true, root, locked, current,
+        launcher, names[:], values[:]) != 0 { return "" }
+    program: string = PkgJoin3(root, "/build/", current.name)
+    // A rename replaces the program in one step, so a running copy keeps
+    // its own file.
+    if !RenamePath(PkgJoin3(generated, "/", module), program) {
+        PkgFail("cannot move the built program to build/")
+        return ""
+    }
+    return program
+}
+
+// `ziran install` for a project without a tool copies its program to
+// PREFIX/bin/BIN. The copy replaces the old file in one step.
+PkgNativeInstall :: (root: string, locked: *PkgLock, current: *PkgManifest,
+    launcher: string, prefix: string, bin: string) -> s32 {
+    program: string = PkgNativeBuild(root, locked, current, launcher)
+    if program.count == 0 { return 2 }
+    directory: string = PkgJoin(prefix, "/bin")
+    if !PkgMkdirs(directory) { return PkgFail(PkgJoin("cannot create ", directory)) }
+    target: string = PkgJoin3(directory, "/", bin)
+    staged: string = PkgJoin(target, ".ziran-new")
+    copy: [5]string
+    copy[0] = "cp"
+    copy[1] = "-f"
+    copy[2] = "--"
+    copy[3] = program
+    copy[4] = staged
+    empty: [0]string
+    if PkgRun(copy[:], "", empty[:], empty[:]) != 0 || !RenamePath(staged, target) {
+        return PkgFail(PkgJoin("cannot install ", target))
+    }
+    PkgPrint(PkgJoin3("installed ", target, "\n"), false)
+    return 0
+}
+
+// Arguments after the first `--` go to the program as they are; the others
+// are the command's own.
+PkgAfterSeparator :: (arguments: []string) -> s32 {
+    index: s32 = 0
+    while index < cast(s32)arguments.count {
+        if arguments[index] == "--" { return index + 1 }
+        index += 1
+    }
+    return cast(s32)arguments.count
 }
 
 // Runs a dependency's project tool from the project root with the resolved
@@ -358,18 +470,32 @@ PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
-        PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
+        PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
+        PkgPrint("in a project, run, build, check, and install without a file work on its program\n", false)
         PkgPrint("new to Ziran? run ziran guide\n", false)
         return 0
     }
     command: string = arguments[0]
+    if command == "new" || command == "init" {
+        return Template(launcher, command, arguments[1:])
+    }
     if command == "guide" { return Guide(arguments[1:]) }
     if command == "features" { return Features(arguments[1:]) }
     if command == "capabilities" { return Capabilities(arguments[1:]) }
     if command == "explain" { return Explain(arguments[1:]) }
     if command == "add" { return Add(launcher, arguments[1:]) }
     root: string = ""
+    // `ziran run`, `build`, and `check` without a file, inside a project,
+    // work on the project's own program.
+    lifecycle: bool = (command == "run" || command == "build" ||
+        command == "check" || command == "install") &&
+        !PkgHasSource(arguments[1:])
+    implied: bool = false
+    if lifecycle && command != "install" && !PkgHasArgument(arguments, "--project") {
+        root = PkgProjectRoot()
+        implied = root.count > 0
+    }
     if command == "lock" || command == "update" || command == "fetch" ||
        command == "tool" || command == "install" || command == "pkg" ||
        PkgHasArgument(arguments, "--project") {
@@ -387,15 +513,18 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         if PkgResolveLock(root, refresh) { return 0 }
         return PkgFail("cannot update project lock")
     }
-    project: bool = PkgHasArgument(arguments, "--project")
-    locked_mode: bool = PkgHasArgument(arguments, "--locked")
-    offline: bool = PkgHasArgument(arguments, "--offline")
+    separator: s32 = PkgAfterSeparator(arguments)
+    flags: []string = arguments[0:separator]
+    project: bool = PkgHasArgument(flags, "--project") || implied
+    locked_mode: bool = PkgHasArgument(flags, "--locked")
+    offline: bool = PkgHasArgument(flags, "--offline")
     filtered: [256]string
     count: s32 = 0
     index: s32 = 1
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
-        if part != "--project" && part != "--locked" && part != "--offline" {
+        if index >= separator ||
+           (part != "--project" && part != "--locked" && part != "--offline") {
             if count >= 256 { return PkgFail("too many arguments") }
             filtered[count] = part
             count += 1
@@ -492,10 +621,46 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         return PkgRunTool(root, locked, current, filtered[0], filtered[1:count],
             empty[:], empty[:])
     }
-    if command == "install" {
-        if current.install_tool.count == 0 {
-            return PkgFail("ziran.toml needs [install] tool = \"PACKAGE\"")
+    if current != null && current.problem.count > 0 {
+        return PkgFail(current.problem)
+    }
+    // A project whose [package] tool is set, such as a Kryon application,
+    // hands its program's run, build, check, and install to that tool.
+    whole: bool = lifecycle && current != null && !PkgHasTarget(arguments[1:])
+    if whole && current.tool.count > 0 && command != "install" {
+        passed: [257]string
+        passed[0] = command
+        index = 0
+        while index < count {
+            passed[index + 1] = filtered[index]
+            index += 1
         }
+        empty: [0]string
+        return PkgRunTool(root, locked, current, current.tool,
+            passed[0:count + 1], empty[:], empty[:])
+    }
+    if whole && (command == "build" || command == "run") {
+        if command == "build" && count > 0 { return PkgFail("usage: ziran build") }
+        program: string = PkgNativeBuild(root, locked, current, launcher)
+        if program.count == 0 { return 2 }
+        if command == "build" { return 0 }
+        run: [257]string
+        run[0] = program
+        run_count: s32 = 1
+        skipped: bool = false
+        index = 0
+        while index < count && run_count < 256 {
+            if filtered[index] == "--" && !skipped { skipped = true }
+            else {
+                run[run_count] = filtered[index]
+                run_count += 1
+            }
+            index += 1
+        }
+        empty: [0]string
+        return PkgRun(run[0:run_count], "", empty[:], empty[:])
+    }
+    if command == "install" {
         prefix: string = PkgJoin(PkgGetenv("HOME"), "/.local")
         passed: [257]string
         passed[0] = "install"
@@ -521,15 +686,20 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         if prefix[0] != cast(u8)47 { prefix = PkgJoin3(PkgCwd(), "/", prefix) }
         bin: string = current.install_bin
         if bin.count == 0 { bin = current.name }
+        if current.tool.count == 0 {
+            if passed_count > 1 { return PkgFail("usage: ziran install [--prefix DIR]") }
+            return PkgNativeInstall(root, locked, current, launcher, prefix, bin)
+        }
         names: [2]string
         values: [2]string
         names[0] = "ZIRAN_INSTALL_PREFIX"
         names[1] = "ZIRAN_INSTALL_BIN"
         values[0] = prefix
         values[1] = bin
-        return PkgRunTool(root, locked, current, current.install_tool,
+        return PkgRunTool(root, locked, current, current.tool,
             passed[0:passed_count], names[:], values[:])
     }
+    empty: [0]string
     return PkgDispatch(command, filtered[0:count], project, root, locked,
-        current, launcher)
+        current, launcher, empty[:], empty[:])
 }

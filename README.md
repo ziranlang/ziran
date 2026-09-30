@@ -31,7 +31,17 @@ build/bin/ziran run build/hello.zib
 ```
 
 This prints `Hello, World!`. To install the `ziran` command for your user, run
-`make install-user` and add `~/.local/bin` to your `PATH`.
+`make install-user` and add `~/.local/bin` to your `PATH`. Then start a
+project from a template and run it:
+
+```sh
+ziran new hello          # or --template lib, or a package's template
+cd hello
+ziran run -- Ada         # Hello, Ada!
+```
+
+See [packages and projects](docs/PACKAGES.md) for templates, dependencies,
+and `ziran build`/`install`.
 
 ## Tools and formats
 

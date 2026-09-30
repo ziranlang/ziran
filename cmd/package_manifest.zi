@@ -27,8 +27,19 @@ PkgManifest :: struct {
     tool_git: string
     tool_ref: string
     project_tool: string
-    install_tool: string
+    // [package] tool: the dependency whose project tool runs, builds, checks,
+    // and installs this package, such as Kryon for a windowed application.
+    tool: string
     install_bin: string
+    // [package] links: system libraries a native build links with -l.
+    links: [16]string
+    link_count: s32
+    // [templates] NAME = "DIRECTORY": project templates for ziran new and init.
+    templates: [32]PkgNamedValue
+    template_count: s32
+    // A setting that parses but is no longer accepted, reported by commands
+    // that use this manifest as the project.
+    problem: string
     dependencies: [24]PkgDependency
     dependency_count: s32
     exports: [4096]PkgNamedValue
@@ -75,6 +86,22 @@ PkgPackageName :: (value: string) -> bool {
              (ch >= cast(u8)97 && ch <= cast(u8)122) ||
              (ch >= cast(u8)48 && ch <= cast(u8)57) ||
              ch == cast(u8)95 || ch == cast(u8)45) { return false }
+        index += 1
+    }
+    return true
+}
+
+// A path inside the package: relative, without empty, '.', or '..' parts.
+PkgRelativePath :: (value: string) -> bool {
+    if value.count == 0 || value[0] == cast(u8)47 { return false }
+    start: s64 = 0
+    index: s64 = 0
+    while index <= cast(s64)value.count {
+        if index == cast(s64)value.count || value[index] == cast(u8)47 {
+            part: string = value[start:index]
+            if part.count == 0 || part == "." || part == ".." { return false }
+            start = index + 1
+        }
         index += 1
     }
     return true
@@ -221,14 +248,31 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
                 output.bridge_count = PkgTomlArray(raw, output.bridges[:])
                 if output.bridge_count < 0 { return false }
             }
+            if key == "tool" {
+                if !PkgIdentifier(value) { return false }
+                output.tool = value
+            }
+            if key == "links" {
+                output.link_count = PkgTomlArray(raw, output.links[:])
+                if output.link_count < 0 { return false }
+            }
         } else if section == "toolchain" {
             if key == "git" { output.tool_git = value }
             if key == "ref" { output.tool_ref = value }
         } else if section == "tool" {
             if key == "project" { output.project_tool = value }
         } else if section == "install" {
-            if key == "tool" { output.install_tool = value }
+            if key == "tool" {
+                output.problem = PkgJoin3("[install] tool moved: write tool = \"",
+                    value, "\" under [package]")
+            }
             if key == "bin" { output.install_bin = value }
+        } else if section == "templates" {
+            if output.template_count >= 32 || !PkgPackageName(key) ||
+                !PkgRelativePath(value) { return false }
+            output.templates[output.template_count].name = key
+            output.templates[output.template_count].value = value
+            output.template_count += 1
         } else if section == "exports" {
             if output.export_count >= 4096 || !PkgIdentifier(key) || value.count == 0 {
                 return false
@@ -258,6 +302,11 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
         return false
     }
     index: s32 = 0
+    while index < output.link_count {
+        if !PkgPackageName(output.links[index]) { return false }
+        index += 1
+    }
+    index = 0
     while index < output.dependency_count {
         if !PkgGitURL(output.dependencies[index].git) ||
             output.dependencies[index].ref.count == 0 ||

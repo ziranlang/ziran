@@ -593,9 +593,64 @@ main :: () -> s32 { return HostedValue() }
                        cwd=host_app, env=env, succeed=False)
         assert "no direct dependency has" in unbound, unbound
 
+        # Templates can come from a local package, substitute names in paths
+        # and contents, and produce a project whose plain `ziran run` builds
+        # and executes the declared program.
+        template_package = root / "template-package"
+        template_package.mkdir()
+        write(template_package / "ziran.toml", """[package]
+name = "Templates"
+[templates]
+app = "templates/app"
+""")
+        write(template_package / "templates/app/ziran.toml", f'''[package]
+name = "{{{{name}}}}"
+entry = "src/{{{{module}}}}.zi"
+module_roots = ["src"]
+links = ["m"]
+[toolchain]
+git = "{compiler.as_uri()}"
+ref = "master"
+''')
+        write(template_package / "templates/app/src/{{module}}.zi",
+              '#program_export\nmain :: () -> s32 { print("7\\n"); return 0 }\n')
+        templated = root / "templated-app"
+        created = call(ziran, "new", str(templated), "--template",
+                       str(template_package), "--name", "demo-app",
+                       cwd=root, env=env)
+        assert "created demo-app from Templates:app" in created, created
+        assert (templated / "src/demo_app.zi").is_file()
+        write(templated / "ziran.local.toml",
+              f'[overrides]\nziran = "{compiler}"\n')
+        assert call(ziran, "run", cwd=templated, env=env).strip() == "7"
+
+        # `ziran init` merges a template manifest and never overwrites an
+        # existing source file.
+        initialized = root / "initialized-app"
+        initialized.mkdir()
+        write(initialized / "ziran.toml", """[package]
+name = "Existing"
+module_roots = ["src"]
+""")
+        write(initialized / "src/Existing.zi", "Value :: 11\n")
+        applied = call(ziran, "init", "--template", str(template_package),
+                       "--name", "Existing", cwd=initialized, env=env)
+        assert "applied Templates:app" in applied, applied
+        assert (initialized / "src/Existing.zi").read_text() == "Value :: 11\n"
+        assert 'entry = "src/Existing.zi"' in (initialized / "ziran.toml").read_text()
+
+        # A declared link reaches the native linker. The invalid name makes
+        # this a negative test without depending on a platform library list.
+        write(templated / "ziran.toml",
+              (templated / "ziran.toml").read_text().replace(
+                  'links = ["m"]', 'links = ["ziran-missing-link"]'))
+        missing_link = call(ziran, "build", cwd=templated, env=env, succeed=False)
+        assert "ziran-missing-link" in missing_link, missing_link
+
         # A package declares its tool's options; ziran merges the app's
         # [tool.ALIAS] tables with ziran.local.toml and hands the tool one
-        # KEY=VALUE file. `ziran install` runs the [install] tool.
+        # KEY=VALUE file. With [package] tool, `ziran run`, `build`, `check`,
+        # and `install` without a file hand the project to that tool.
         tooling = root / "tooling"
         init(tooling, env)
         write(tooling / "ziran.toml", """[package]
@@ -629,6 +684,7 @@ echo "pinned=${ZIRAN_PINNED_LAUNCHER:-}"
         tooled_manifest = f'''[package]
 name = "Tooled"
 entry = "src/app.zi"
+tool = "Tooling"
 [toolchain]
 git = "{compiler.as_uri()}"
 ref = "master"
@@ -636,7 +692,6 @@ ref = "master"
 git = "{tooling.as_uri()}"
 ref = "master"
 [install]
-tool = "Tooling"
 bin = "tooled"
 [tool.Tooling]
 mode = "fast"
@@ -672,6 +727,26 @@ level = "3"
                          cwd=tooled, env=env).splitlines()
         assert f"install={tooled.resolve()}/local tooled" in installed, installed
         assert "project=Tooled entry=src/app.zi args=install --quick" in installed
+        for verb in ("run", "build", "check"):
+            handed = call(ziran, verb, "desktop", cwd=tooled, env=env).splitlines()
+            assert f"project=Tooled entry=src/app.zi args={verb} desktop" in handed, handed
+        # Arguments after `--` reach the tool as they are.
+        handed = call(ziran, "run", "--", "--locked", cwd=tooled, env=env).splitlines()
+        assert "project=Tooled entry=src/app.zi args=run -- --locked" in handed, handed
+        # A named file keeps the command on that file; --target keeps
+        # `ziran build` a code generator.
+        checked = call(ziran, "check", "--project", "src/app.zi", cwd=tooled, env=env)
+        assert "project=Tooled" not in checked, checked
+        generated = call(ziran, "build", "--target=c", "--entry", "app:Main",
+                         "-o", str(root / "tooled-c"), cwd=tooled, env=env)
+        assert "project=Tooled" not in generated, generated
+        assert (root / "tooled-c/app.c").exists()
+        # The old [install] tool spelling is reported, not ignored.
+        write(tooled / "ziran.toml", tooled_manifest.replace(
+            'tool = "Tooling"\n', '', 1).replace('[install]\n', '[install]\ntool = "Tooling"\n'))
+        moved = call(ziran, "install", cwd=tooled, env=env, succeed=False)
+        assert '[install] tool moved: write tool = "Tooling" under [package]' in moved, moved
+        write(tooled / "ziran.toml", tooled_manifest)
         for broken, message in (
             (tooled_manifest.replace('mode = "fast"', 'mode = "fast"\nspeed = "x"'),
              "ziran.toml:15: unknown Tooling option speed"),
@@ -743,6 +818,121 @@ ref = "{pinned_commit}"
         assert pinned_commit in (pinned / "ziran.lock").read_text()
         compile_app(ziran, pinned, root / "pinned-c", compiler, env,
                     pinned / "src/app.zi", True)
+
+        templates(ziran, root, compiler, env)
+
+
+def templates(ziran: str, root: Path, compiler: Path, env: dict) -> None:
+    """Built-in and Git templates, and the program lifecycle of a project
+    without a tool: `ziran run`, `build`, `check`, and `install`."""
+    # Templates name the public toolchain; the fixture serves it locally.
+    env = git_env(env, [("https://github.com/ziranlang/ziran.git", compiler.as_uri())])
+    work = root / "templates"
+    work.mkdir()
+    created = call(ziran, "new", "greeter", cwd=work, env=env)
+    assert "created greeter from cli" in created, created
+    assert "next: cd greeter && ziran run" in created, created
+    greeter = work / "greeter"
+    manifest = (greeter / "ziran.toml").read_text()
+    assert 'name = "greeter"' in manifest and "{{" not in manifest, manifest
+    assert (greeter / ".gitignore").exists() and (greeter / "ziran.lock").exists()
+    write(greeter / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+    assert call(ziran, "run", cwd=greeter, env=env) == "Hello, world!\n"
+    assert call(ziran, "run", "--", "Ada", "--locked", cwd=greeter,
+                env=env) == "Hello, Ada!\n"
+    call(ziran, "build", cwd=greeter, env=env)
+    assert call(str(greeter / "build/greeter"), "Grace", cwd=greeter,
+                env=env) == "Hello, Grace!\n"
+    call(ziran, "check", cwd=greeter, env=env)
+    installed = call(ziran, "install", "--prefix", str(work / "prefix"),
+                     cwd=greeter, env=env)
+    assert f"installed {work / 'prefix/bin/greeter'}" in installed, installed
+    assert call(str(work / "prefix/bin/greeter"), cwd=work, env=env) == "Hello, world!\n"
+    # A failing program's status is the command's status.
+    write(greeter / "src/main.zi", "main :: () -> s32 { return 3 }\n")
+    status = subprocess.run([ziran, "run"], cwd=greeter, env=env).returncode
+    assert status == 3, status
+    # An occupied directory is not overwritten.
+    refused = call(ziran, "new", "greeter", cwd=work, env=env, succeed=False)
+    assert "is not empty; use ziran init inside it" in refused, refused
+
+    library = call(ziran, "new", "tiny-lib", "--template", "lib", cwd=work, env=env)
+    assert "next: cd tiny-lib && ziran check" in library, library
+    assert 'tiny_lib = "src/tiny_lib.zi"' in (work / "tiny-lib/ziran.toml").read_text()
+    assert (work / "tiny-lib/src/tiny_lib.zi").exists()
+    write(work / "tiny-lib/ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+    call(ziran, "check", cwd=work / "tiny-lib", env=env)
+    unknown = call(ziran, "new", "x", "--template", "nosuch", cwd=work, env=env,
+                   succeed=False)
+    assert "no built-in template nosuch" in unknown, unknown
+
+    # A Git package lists templates under [templates]; the first is the
+    # default and SOURCE:NAME picks another.
+    kit = root / "kit"
+    init(kit, env)
+    write(kit / "ziran.toml", """[package]
+name = "Kit"
+module_roots = ["src"]
+[templates]
+window = "templates/window"
+panel = "templates/panel"
+""")
+    write(kit / "templates/window/ziran.toml", """[package]
+name = "{{name}}"
+entry = "src/app.zi"
+module_roots = ["src", "tests"]
+bridge_modules = ["app"]
+
+[toolchain]
+git = "https://github.com/ziranlang/ziran.git"
+ref = "master"
+
+# Window settings.
+[window]
+title = "{{name}}"
+""")
+    write(kit / "templates/window/src/app.zi",
+          '// {{name}} as {{module}}\nmain :: () -> s32 { return 0 }\n')
+    write(kit / "templates/window/tests/app_test.zi",
+          'AppTest :: () -> s32 { return 42 }\n')
+    write(kit / "templates/panel/ziran.toml", """[package]
+name = "{{name}}"
+[toolchain]
+git = "https://github.com/ziranlang/ziran.git"
+ref = "master"
+""")
+    write(kit / "templates/panel/panel.txt", "panel for {{name}}\n")
+    commit(kit, env)
+    kit_env = git_env(env, [("https://github.com/ziranlang/ziran.git", compiler.as_uri()),
+                            ("https://example.invalid/owner/kit.git", kit.as_uri())])
+    windowed = call(ziran, "new", "my-app", "--template", "example.invalid/owner/kit",
+                    cwd=work, env=kit_env)
+    assert "created my-app from Kit:window" in windowed, windowed
+    assert (work / "my-app/src/app.zi").read_text().startswith("// my-app as my_app")
+    call(ziran, "new", "paneled", "--template",
+         "https://example.invalid/owner/kit.git:panel", cwd=work, env=kit_env)
+    assert (work / "paneled/panel.txt").read_text() == "panel for paneled\n"
+    missing = call(ziran, "new", "other", "--template", "../kit:nosuch",
+                   cwd=work, env=kit_env, succeed=False)
+    assert "package Kit has no template nosuch; it has window, panel" in missing, missing
+
+    # `ziran init` merges a template into an existing project: missing
+    # tables and keys are added, arrays grow, and the project's values stay.
+    write(greeter / "src/main.zi", "main :: () -> s32 { return 0 }\n")
+    merged = call(ziran, "init", "--template", str(kit), cwd=greeter, env=kit_env)
+    after = (greeter / "ziran.toml").read_text()
+    assert 'kept entry = "src/main.zi" in [package]; the template has "src/app.zi"' in merged, merged
+    assert "extended module_roots in [package]" in merged, merged
+    assert "added bridge_modules to [package]" in merged, merged
+    assert "added [window]" in merged, merged
+    assert 'entry = "src/main.zi"' in after, after
+    assert 'module_roots = ["src", "tests"]' in after, after
+    assert '# Window settings.\n[window]\ntitle = "greeter"' in after, after
+    assert (greeter / "src/app.zi").exists()
+    again = call(ziran, "init", "--template", str(kit), cwd=greeter, env=kit_env)
+    assert (greeter / "ziran.toml").read_text() == after, again
+    assert "kept src/app.zi (already present)" in again, again
+    call(ziran, "run", cwd=greeter, env=kit_env)
 
 
 if __name__ == "__main__":

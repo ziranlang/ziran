@@ -1,0 +1,641 @@
+#import "package_common"
+#import "package_manifest"
+#import "package_source"
+#import "package_lock"
+#import "file_linux"
+#import "byte_text_linux"
+
+// `ziran new DIR` and `ziran init` start a project from a template:
+//
+//   ziran new tool                          the built-in cli template
+//   ziran new calc --template lib           another built-in template
+//   ziran new hello --template kryonlabs/kryon       a package's first template
+//   ziran new hello --template kryonlabs/kryon:tui   a package's named template
+//   ziran init --template kryonlabs/kryon   add a template to this project
+//
+// A package lists its templates in ziran.toml:
+//
+//   [templates]
+//   app = "templates/app"
+//
+// A template is a directory holding a ziran.toml and whatever files a new
+// project starts with; {{name}} in any file or path becomes the package
+// name and {{module}} the name as an identifier.
+// `ziran init` in a project that already has a ziran.toml merges the
+// template's manifest into it: missing tables and keys are added, string
+// arrays gain the template's entries, and the project's own values are kept.
+// Existing files are never overwritten.
+
+PkgTemplateSource :: struct {
+    directory: string
+    label: string
+    valid: bool
+}
+
+PkgTemplateSection :: struct {
+    found: bool
+    // Just past the header or the table's last key, where keys go.
+    insert_at: s64
+}
+
+PkgTemplateKey :: struct {
+    found: bool
+    raw: string
+    start: s64
+    // The end of the value, before any comment and the newline.
+    end: s64
+}
+
+PkgTemplateUsage :: (command: string) -> s32 {
+    if command == "new" {
+        return PkgFail("usage: ziran new DIR [--template SOURCE[:NAME]] [--ref REF] [--name NAME]")
+    }
+    return PkgFail("usage: ziran init [--template SOURCE[:NAME]] [--ref REF] [--name NAME]")
+}
+
+PkgTemplateLocal :: (source: string) -> bool {
+    return (source.count > 0 && source[0] == cast(u8)47) ||
+        (source.count > 1 && source[0:2] == "./") ||
+        (source.count > 2 && source[0:3] == "../") ||
+        source == "." || source == ".."
+}
+
+PkgTemplateLastSlash :: (value: string) -> s64 {
+    index: s64 = cast(s64)value.count - 1
+    while index >= 0 && value[index] != cast(u8)47 { index -= 1 }
+    return index
+}
+
+// The directory Ziran's own templates live in, beside the launcher's
+// toolchain: build/bin/ziran and variant builds such as build/sanitize/bin.
+PkgBuiltinTemplates :: (launcher: string) -> string {
+    directory: string = PkgLauncherDirectory(launcher)
+    if directory.count == 0 { return "" }
+    candidate: string = PkgJoin(directory, "/../../templates")
+    if DirectoryExists(candidate) { return PkgCanonical(candidate) }
+    candidate = PkgJoin(directory, "/../../../templates")
+    if DirectoryExists(candidate) { return PkgCanonical(candidate) }
+    return ""
+}
+
+PkgTemplateNames :: (manifest: *PkgManifest) -> string {
+    names: string = ""
+    index: s32 = 0
+    while index < manifest.template_count {
+        if index > 0 { names = PkgJoin(names, ", ") }
+        names = PkgJoin(names, manifest.templates[index].name)
+        index += 1
+    }
+    return names
+}
+
+// Finds the template directory SPEC names. SPEC is a built-in template name,
+// or SOURCE[:NAME] where SOURCE is anything `ziran add` accepts or a local
+// package directory starting with /, ./, or ../.
+PkgResolveTemplate :: (launcher: string, spec: string, reference: string) -> PkgTemplateSource {
+    result: PkgTemplateSource
+    if spec.count == 0 { spec = "cli" }
+    slash: s64 = PkgTemplateLastSlash(spec)
+    if slash < 0 && !PkgTemplateLocal(spec) {
+        builtin: string = PkgBuiltinTemplates(launcher)
+        if builtin.count == 0 {
+            PkgFail("cannot find Ziran's templates directory")
+            return result
+        }
+        if !PkgPackageName(spec) ||
+           !PathExists(PkgJoin3(builtin, "/", PkgJoin(spec, "/ziran.toml"))) {
+            PkgFail(PkgJoin3("no built-in template ", spec,
+                "; built-in templates are cli and lib"))
+            return result
+        }
+        result.directory = PkgJoin3(builtin, "/", spec)
+        result.label = spec
+        result.valid = true
+        return result
+    }
+    source: string = spec
+    name: string = ""
+    colon: s64 = cast(s64)spec.count - 1
+    while colon > slash && spec[colon] != cast(u8)58 { colon -= 1 }
+    if colon > slash {
+        source = spec[0:colon]
+        name = spec[colon + 1:]
+        if !PkgPackageName(name) {
+            PkgFail(PkgJoin("invalid template name in ", spec))
+            return result
+        }
+    }
+    package_root: string = ""
+    if PkgTemplateLocal(source) {
+        package_root = PkgCanonical(source)
+        if package_root.count == 0 || !DirectoryExists(package_root) {
+            PkgFail(PkgJoin("no such template package directory: ", source))
+            return result
+        }
+    } else {
+        url: string = PkgExpandSource(source)
+        if url.count == 0 {
+            PkgFail(PkgJoin3("not a Git repository URL: ", source,
+                "\nuse https://HOST/OWNER/REPO.git, git@HOST:OWNER/REPO.git, OWNER/REPO, or a ./directory"))
+            return result
+        }
+        commit: string = PkgRemoteCommit(url, reference)
+        if commit.count == 0 {
+            PkgFail(PkgJoin3(PkgJoin3("cannot find ", reference, " in "), url, ""))
+            return result
+        }
+        package_root = PkgCheckout(url, commit, false)
+        if package_root.count == 0 {
+            PkgFail(PkgJoin("cannot fetch ", url))
+            return result
+        }
+    }
+    manifest: *PkgManifest = PkgNewManifest()
+    if manifest == null ||
+       !PkgParseManifest(PkgJoin(package_root, "/ziran.toml"), manifest) {
+        PkgFail(PkgJoin3("cannot read ", source, "/ziran.toml"))
+        return result
+    }
+    if manifest.template_count == 0 {
+        PkgFail(PkgJoin3("package ", manifest.name, " has no [templates]"))
+        return result
+    }
+    chosen: s32 = 0
+    if name.count > 0 {
+        chosen = -1
+        index: s32 = 0
+        while index < manifest.template_count {
+            if PkgFoldEqual(manifest.templates[index].name, name) { chosen = index }
+            index += 1
+        }
+        if chosen < 0 {
+            PkgFail(PkgJoin3(PkgJoin3("package ", manifest.name, " has no template "),
+                name, PkgJoin("; it has ", PkgTemplateNames(manifest))))
+            return result
+        }
+    }
+    directory: string = PkgJoin3(package_root, "/", manifest.templates[chosen].value)
+    if !PathExists(PkgJoin(directory, "/ziran.toml")) {
+        PkgFail(PkgJoin3("template ", manifest.templates[chosen].name,
+            " has no ziran.toml"))
+        return result
+    }
+    result.directory = directory
+    result.label = PkgJoin3(manifest.name, ":", manifest.templates[chosen].name)
+    result.valid = true
+    return result
+}
+
+PkgTemplateReplaceMarker :: (text: string, marker: string, value: string) -> string {
+    result: string = ""
+    start: s64 = 0
+    index: s64 = 0
+    while index + cast(s64)marker.count <= cast(s64)text.count {
+        if text[index:index + cast(s64)marker.count] == marker {
+            result = PkgJoin3(result, text[start:index], value)
+            index += cast(s64)marker.count
+            start = index
+        } else {
+            index += 1
+        }
+    }
+    if start == 0 { return text }
+    return PkgJoin(result, text[start:])
+}
+
+// The package name as a module identifier: my-tool is my_tool.
+PkgTemplateModule :: (name: string) -> string {
+    memory: *u8 = PkgAlloc(cast(u64)name.count + 2)
+    if memory == null { return "" }
+    bytes: []u8 = BytesFromPointer(memory, cast(u64)name.count + 2)
+    at: s64 = 0
+    if name.count > 0 && name[0] >= cast(u8)48 && name[0] <= cast(u8)57 {
+        bytes[0] = cast(u8)95
+        at = 1
+    }
+    index: s64 = 0
+    while index < cast(s64)name.count {
+        ch: u8 = name[index]
+        if ch == cast(u8)45 { ch = cast(u8)95 }
+        bytes[at] = ch
+        at += 1
+        index += 1
+    }
+    return TextFromBytes(bytes[0:at])
+}
+
+// {{name}} is the package name and {{module}} the same name as an
+// identifier, in file contents and paths alike.
+PkgTemplateReplace :: (text: string, name: string) -> string {
+    text = PkgTemplateReplaceMarker(text, "{{name}}", name)
+    return PkgTemplateReplaceMarker(text, "{{module}}", PkgTemplateModule(name))
+}
+
+// Files a template copies, relative to its directory, in a stable order.
+PkgTemplateFiles :: (directory: string, output: []string) -> s32 {
+    args: [5]string
+    args[0] = "find"
+    args[1] = directory
+    args[2] = "-type"
+    args[3] = "f"
+    args[4] = "-print"
+    listed: PkgProcessResult = PkgCapture(args[:], "")
+    if listed.code != 0 { return -1 }
+    count: s32 = 0
+    at: s64 = 0
+    while at < cast(s64)listed.text.count {
+        end: s64 = at
+        while end < cast(s64)listed.text.count &&
+            listed.text[end] != cast(u8)10 { end += 1 }
+        path: string = listed.text[at:end]
+        at = end + 1
+        if path.count <= directory.count + 1 ||
+           path[0:cast(s64)directory.count] != directory { continue }
+        relative: string = path[cast(s64)directory.count + 1:]
+        if relative == "ziran.lock" || relative == "ziran.local.toml" ||
+           (relative.count > 6 && relative[0:6] == "build/") ||
+           (relative.count > 5 && relative[0:5] == ".git/") { continue }
+        if count >= cast(s32)output.count { return -1 }
+        // Insertion keeps the listing sorted.
+        place: s32 = count
+        while place > 0 && PkgLexLess(relative, output[place - 1]) {
+            output[place] = output[place - 1]
+            place -= 1
+        }
+        output[place] = relative
+        count += 1
+    }
+    return count
+}
+
+PkgTemplateHeader :: (line: string) -> string {
+    if line.count < 3 || line[0] != cast(u8)91 ||
+       line[cast(s64)line.count - 1] != cast(u8)93 { return "" }
+    return PkgTrim(line[1:cast(s64)line.count - 1])
+}
+
+PkgTemplateLineKey :: (line: string) -> string {
+    equal: s64 = 0
+    while equal < cast(s64)line.count && line[equal] != cast(u8)61 { equal += 1 }
+    if equal >= cast(s64)line.count { return "" }
+    return PkgTrim(line[0:equal])
+}
+
+PkgTemplateLineValue :: (line: string) -> string {
+    equal: s64 = 0
+    while equal < cast(s64)line.count && line[equal] != cast(u8)61 { equal += 1 }
+    if equal >= cast(s64)line.count { return "" }
+    return PkgTrim(line[equal + 1:])
+}
+
+PkgTemplateFindSection :: (text: string, header: string) -> PkgTemplateSection {
+    result: PkgTemplateSection
+    current: string = ""
+    inside: bool = false
+    at: s64 = 0
+    while at < cast(s64)text.count {
+        end: s64 = at
+        while end < cast(s64)text.count && text[end] != cast(u8)10 { end += 1 }
+        line: string = PkgStripComment(text[at:end])
+        next: s64 = end + 1
+        if next > cast(s64)text.count { next = cast(s64)text.count }
+        if line.count > 0 && line[0] == cast(u8)91 {
+            current = PkgTemplateHeader(line)
+            inside = PkgFoldEqual(current, header)
+            if inside {
+                result.found = true
+                result.insert_at = next
+            }
+        } else if inside && line.count > 0 {
+            result.insert_at = next
+        }
+        at = end + 1
+    }
+    return result
+}
+
+PkgTemplateFindKey :: (text: string, header: string, key: string) -> PkgTemplateKey {
+    result: PkgTemplateKey
+    inside: bool = false
+    at: s64 = 0
+    while at < cast(s64)text.count {
+        end: s64 = at
+        while end < cast(s64)text.count && text[end] != cast(u8)10 { end += 1 }
+        line: string = PkgStripComment(text[at:end])
+        if line.count > 0 && line[0] == cast(u8)91 {
+            inside = PkgFoldEqual(PkgTemplateHeader(line), header)
+        } else if inside && PkgTemplateLineKey(line) == key {
+            result.found = true
+            result.raw = PkgTemplateLineValue(line)
+            result.start = at
+            // The stripped line starts where its first non-blank byte is.
+            while result.start < end && (text[result.start] == cast(u8)32 ||
+                text[result.start] == cast(u8)9) { result.start += 1 }
+            result.end = result.start + cast(s64)line.count
+            return result
+        }
+        at = end + 1
+    }
+    return result
+}
+
+PkgTemplateArray :: (values: []string, count: s32) -> string {
+    text: string = "["
+    index: s32 = 0
+    while index < count {
+        if index > 0 { text = PkgJoin(text, ", ") }
+        text = PkgJoin3(text, "\"", PkgJoin(values[index], "\""))
+        index += 1
+    }
+    return PkgJoin(text, "]")
+}
+
+PkgTemplateNote :: (message: string) -> void {
+    PkgPrint(PkgJoin3("  ", message, "\n"), false)
+}
+
+// Merges a template's manifest into a project's. Returns the merged text,
+// or "" when the manifests cannot be merged.
+PkgMergeManifest :: (existing: string, template: string) -> string {
+    // Replacements of existing[at:until], applied in position order; edits
+    // at one position keep the order they were made in.
+    edit_at: [128]s64
+    edit_until: [128]s64
+    edit_text: [128]string
+    edit_count: s32 = 0
+    ending: s64 = cast(s64)existing.count
+    lead: string = ""
+    if ending > 0 && existing[ending - 1] != cast(u8)10 { lead = "\n" }
+    header: string = ""
+    appending: bool = false
+    block: string = ""
+    // Comment lines wait for what follows: a table header takes them along.
+    pending: string = ""
+    at: s64 = 0
+    while true {
+        whole: bool = at >= cast(s64)template.count
+        end: s64 = at
+        while end < cast(s64)template.count && template[end] != cast(u8)10 { end += 1 }
+        raw_line: string = ""
+        if !whole { raw_line = PkgTrim(template[at:end]) }
+        line: string = PkgStripComment(raw_line)
+        starts: bool = line.count > 0 && line[0] == cast(u8)91
+        if (starts || whole) && appending {
+            if edit_count >= 128 { return "" }
+            edit_at[edit_count] = ending
+            edit_until[edit_count] = ending
+            edit_text[edit_count] = PkgJoin3(lead, "\n", block)
+            edit_count += 1
+            lead = ""
+            appending = false
+            block = ""
+        }
+        if whole { break }
+        at = end + 1
+        if line.count == 0 {
+            if raw_line.count > 0 { pending = PkgJoin3(pending, raw_line, "\n") }
+            continue
+        }
+        if starts {
+            header = PkgTemplateHeader(line)
+            if header.count == 0 { return "" }
+            if !PkgTemplateFindSection(existing, header).found {
+                appending = true
+                block = PkgJoin3(pending, raw_line, "\n")
+                PkgTemplateNote(PkgJoin3("added [", header, "]"))
+            }
+            pending = ""
+            continue
+        }
+        if appending {
+            block = PkgJoin3(block, pending, PkgJoin(raw_line, "\n"))
+            pending = ""
+            continue
+        }
+        pending = ""
+        if header.count == 0 { continue }
+        key: string = PkgTemplateLineKey(line)
+        value: string = PkgTemplateLineValue(line)
+        if key.count == 0 { return "" }
+        found: PkgTemplateKey = PkgTemplateFindKey(existing, header, key)
+        if !found.found {
+            section: PkgTemplateSection = PkgTemplateFindSection(existing, header)
+            insert: string = PkgJoin3(key, " = ", PkgJoin(value, "\n"))
+            if section.insert_at >= cast(s64)existing.count && lead.count > 0 {
+                insert = PkgJoin(lead, insert)
+                lead = ""
+            }
+            if edit_count >= 128 { return "" }
+            edit_at[edit_count] = section.insert_at
+            edit_until[edit_count] = section.insert_at
+            edit_text[edit_count] = insert
+            edit_count += 1
+            PkgTemplateNote(PkgJoin3(PkgJoin3("added ", key, " to ["), header, "]"))
+        } else if found.raw != value {
+            ours: [64]string
+            theirs: [64]string
+            our_count: s32 = PkgTomlArray(found.raw, ours[:])
+            their_count: s32 = PkgTomlArray(value, theirs[:])
+            if our_count >= 0 && their_count >= 0 {
+                grown: s32 = our_count
+                index: s32 = 0
+                while index < their_count {
+                    present: bool = false
+                    other: s32 = 0
+                    while other < grown {
+                        if ours[other] == theirs[index] { present = true }
+                        other += 1
+                    }
+                    if !present && grown < 64 {
+                        ours[grown] = theirs[index]
+                        grown += 1
+                    }
+                    index += 1
+                }
+                if grown > our_count {
+                    if edit_count >= 128 { return "" }
+                    edit_at[edit_count] = found.start
+                    edit_until[edit_count] = found.end
+                    edit_text[edit_count] = PkgJoin3(key, " = ",
+                        PkgTemplateArray(ours[:], grown))
+                    edit_count += 1
+                    PkgTemplateNote(PkgJoin3(PkgJoin3("extended ", key, " in ["),
+                        header, "]"))
+                }
+            } else {
+                PkgTemplateNote(PkgJoin3(PkgJoin3(PkgJoin3("kept ", key, " = "),
+                    found.raw, PkgJoin3(" in [", header, "]; the template has ")),
+                    value, ""))
+            }
+        }
+    }
+    used: [128]bool
+    result: string = ""
+    cursor: s64 = 0
+    applied: s32 = 0
+    while applied < edit_count {
+        next: s32 = -1
+        index: s32 = 0
+        while index < edit_count {
+            if !used[index] && (next < 0 || edit_at[index] < edit_at[next]) {
+                next = index
+            }
+            index += 1
+        }
+        if edit_at[next] < cursor { return "" }
+        result = PkgJoin3(result, existing[cursor:edit_at[next]], edit_text[next])
+        cursor = edit_until[next]
+        used[next] = true
+        applied += 1
+    }
+    return PkgJoin(result, existing[cursor:])
+}
+
+PkgTemplateBaseName :: (path: string) -> string {
+    while path.count > 1 && path[cast(s64)path.count - 1] == cast(u8)47 {
+        path = path[0:cast(s64)path.count - 1]
+    }
+    return path[PkgTemplateLastSlash(path) + 1:]
+}
+
+// Copies the template into target. A ziran.toml already in target is
+// merged with the template's instead of replaced.
+PkgApplyTemplate :: (directory: string, target: string, name: string) -> bool {
+    files: [1024]string
+    count: s32 = PkgTemplateFiles(directory, files[:])
+    if count < 0 {
+        PkgFail("cannot list the template's files")
+        return false
+    }
+    index: s32 = 0
+    while index < count {
+        relative: string = files[index]
+        index += 1
+        source: PkgReadResult = PkgRead(PkgJoin3(directory, "/", relative))
+        if !source.valid {
+            PkgFail(PkgJoin("cannot read template file ", relative))
+            return false
+        }
+        text: string = PkgTemplateReplace(source.text, name)
+        relative = PkgTemplateReplace(relative, name)
+        destination: string = PkgJoin3(target, "/", relative)
+        if relative == "ziran.toml" && PathExists(destination) {
+            existing: PkgReadResult = PkgRead(destination)
+            if !existing.valid {
+                PkgFail("cannot read ziran.toml")
+                return false
+            }
+            PkgPrint("merging the template into ziran.toml:\n", false)
+            merged: string = PkgMergeManifest(existing.text, text)
+            if merged.count == 0 {
+                PkgFail("cannot merge the template's ziran.toml")
+                return false
+            }
+            if merged != existing.text && !PkgWrite(destination, merged) {
+                PkgFail("cannot write ziran.toml")
+                return false
+            }
+            continue
+        }
+        if PathExists(destination) {
+            PkgTemplateNote(PkgJoin3("kept ", relative, " (already present)"))
+            continue
+        }
+        slash: s64 = PkgTemplateLastSlash(destination)
+        if slash > 0 && !PkgMkdirs(destination[0:slash]) {
+            PkgFail(PkgJoin("cannot create the directory for ", relative))
+            return false
+        }
+        if !PkgWrite(destination, text) {
+            PkgFail(PkgJoin("cannot write ", relative))
+            return false
+        }
+    }
+    return true
+}
+
+PkgDirectoryEmpty :: (path: string) -> bool {
+    cursor: DirectoryCursor = OpenDirectory(path)
+    if !cursor.valid { return false }
+    empty: bool = true
+    while true {
+        entry: DirectoryEntry = NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+        name: string = TextFromBytes(entry.name[0:entry.name_count])
+        if name != "." && name != ".." { empty = false }
+    }
+    unused CloseDirectory(*cursor)
+    return empty
+}
+
+Template :: (launcher: string, command: string, arguments: []string) -> s32 {
+    target: string = ""
+    spec: string = ""
+    name: string = ""
+    reference: string = "master"
+    index: s32 = 0
+    while index < cast(s32)arguments.count {
+        part: string = arguments[index]
+        if (part == "--template" || part == "--name" || part == "--ref") {
+            if index + 1 >= cast(s32)arguments.count { return PkgTemplateUsage(command) }
+            if part == "--template" { spec = arguments[index + 1] }
+            if part == "--name" { name = arguments[index + 1] }
+            if part == "--ref" { reference = arguments[index + 1] }
+            index += 2
+        } else if command == "new" && target.count == 0 && part.count > 0 &&
+                  part[0] != cast(u8)45 {
+            target = part
+            index += 1
+        } else {
+            return PkgTemplateUsage(command)
+        }
+    }
+    if command == "new" && target.count == 0 { return PkgTemplateUsage(command) }
+    if command == "init" { target = PkgCwd() }
+    else if target[0] != cast(u8)47 { target = PkgJoin3(PkgCwd(), "/", target) }
+    if name.count == 0 && PathExists(PkgJoin(target, "/ziran.toml")) {
+        existing: *PkgManifest = PkgNewManifest()
+        if existing != null &&
+           PkgParseManifest(PkgJoin(target, "/ziran.toml"), existing) {
+            name = existing.name
+        }
+    }
+    if name.count == 0 { name = PkgTemplateBaseName(target) }
+    if !PkgPackageName(name) {
+        return PkgFail(PkgJoin3("cannot name a package ", name,
+            "; pass --name NAME (letters, digits, _ and -)"))
+    }
+    if command == "new" {
+        if PathExists(target) && !PkgDirectoryEmpty(target) {
+            return PkgFail(PkgJoin3("", target, " is not empty; use ziran init inside it"))
+        }
+        if !PkgMkdirs(target) { return PkgFail(PkgJoin("cannot create ", target)) }
+    }
+    template: PkgTemplateSource = PkgResolveTemplate(launcher, spec, reference)
+    if !template.valid { return 2 }
+    if !PkgApplyTemplate(template.directory, target, name) { return 2 }
+    lock: [2]string
+    lock[0] = launcher
+    lock[1] = "lock"
+    locked: PkgProcessResult = PkgCapture(lock[:], target)
+    if locked.code != 0 {
+        PkgPrint(locked.text, true)
+        PkgPrint("\n", true)
+        return PkgFail("the project was written but ziran lock failed; fix ziran.toml and run ziran lock")
+    }
+    // A package with a program runs; a library checks its exports.
+    next: string = "ziran check"
+    made: *PkgManifest = PkgNewManifest()
+    if made != null && PkgParseManifest(PkgJoin(target, "/ziran.toml"), made) &&
+       PathExists(PkgJoin3(target, "/", made.entry)) {
+        next = "ziran run"
+    }
+    if command == "new" {
+        PkgPrint(PkgJoin3(PkgJoin3("created ", name, " from "), template.label, "\n"), false)
+        PkgPrint(PkgJoin3(PkgJoin3("next: cd ", PkgTemplateBaseName(target), " && "),
+            next, "\n"), false)
+    } else {
+        PkgPrint(PkgJoin3(PkgJoin3("applied ", template.label, "; next: "), next, "\n"), false)
+    }
+    return 0
+}

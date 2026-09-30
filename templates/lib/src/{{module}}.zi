@@ -1,0 +1,10 @@
+// {{name}}: a Ziran library. Another package adds it with `ziran add URL`
+// and imports it as #import "{{module}}/{{module}}".
+
+#scope_export
+// Clamp keeps value within low and high.
+Clamp :: (value: s32, low: s32, high: s32) -> s32 {
+    if value < low { return low }
+    if value > high { return high }
+    return value
+}

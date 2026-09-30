@@ -1,0 +1,13 @@
+#import "std/byte_text_linux"
+
+// {{name}}: a command-line program.
+//
+//   ziran run            prints a greeting
+//   ziran run -- Ada     greets Ada
+//   ziran build          writes build/{{name}}
+main :: (argc: s32, argv: **u8) -> s32 {
+    who: string = "world"
+    if argc > 1 { who = TextFromCString(argv[1]) }
+    print("Hello, %!\n", who)
+    return 0
+}

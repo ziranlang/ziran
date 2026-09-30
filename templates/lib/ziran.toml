@@ -1,0 +1,10 @@
+[package]
+name = "{{name}}"
+module_roots = ["src"]
+
+[toolchain]
+git = "https://github.com/ziranlang/ziran.git"
+ref = "master"
+
+[exports]
+{{module}} = "src/{{module}}.zi"

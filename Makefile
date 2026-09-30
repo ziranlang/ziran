@@ -73,8 +73,8 @@ install-user: all
 	    $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go \
 	    $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib \
 	    $(USER_SHARE)/build/bin/
-	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include
-	cp -r std include $(USER_SHARE)/
+	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include $(USER_SHARE)/templates
+	cp -r std include templates $(USER_SHARE)/
 	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add
 	printf '%s\n' '#!/bin/sh' 'set -eu' \
 		'exec "$(USER_SHARE)/build/bin/ziran" "$$@"' > $(USER_BIN)/ziran
@@ -135,7 +135,7 @@ $(BIN_DIR):
 PACKAGE_C := $(BUILD_DIR)/package-c
 PACKAGE_SOURCES := cmd/package.zi cmd/package_add.zi cmd/package_guide.zi \
     cmd/package_capabilities.zi cmd/package_features.zi cmd/package_explain.zi cmd/package_common.zi \
-    cmd/package_manifest.zi cmd/package_source.zi cmd/package_lock.zi cmd/package_map.zi cmd/package_options.zi cmd/package_compile_commands.zi \
+    cmd/package_manifest.zi cmd/package_source.zi cmd/package_lock.zi cmd/package_map.zi cmd/package_options.zi cmd/package_compile_commands.zi cmd/package_template.zi \
     std/byte_text_linux.zi std/file_linux.zi std/process_capture_linux.zi \
     std/json_scan.zi std/text.zi
 # Generated files are listed when the ziran recipe expands, after generation.

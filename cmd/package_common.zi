@@ -76,6 +76,14 @@ PkgCwd :: () -> string {
     return TextFromCString(memory)
 }
 
+PkgLauncherDirectory :: (launcher: string) -> string {
+    path: string = PkgCanonical(launcher)
+    if path.count == 0 { return "" }
+    end: s64 = cast(s64)path.count - 1
+    while end > 0 && path[end] != cast(u8)47 { end -= 1 }
+    return PkgJoin("", path[0:end])
+}
+
 PkgProjectRoot :: () -> string {
     current: string = PkgCwd()
     while current.count > 0 {

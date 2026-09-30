@@ -8,6 +8,75 @@ commands build and use the compiler pinned by the application lock, and hand
 the command to that toolchain's own launcher, so an installed `ziran` that is
 older or newer than the lock behaves exactly like the pinned one.
 
+## Starting a project
+
+`ziran new DIR` writes a project from a template and locks it:
+
+```sh
+ziran new hello                        # a command-line program (template cli)
+ziran new geometry --template lib      # a library with one exported module
+ziran new calc --template kryonlabs/kryon          # a package's first template
+ziran new calc --template kryonlabs/kryon:tui      # one of its named templates
+ziran new calc --template ../my-templates:service  # a local package directory
+```
+
+`cli` and `lib` ship with Ziran. Any package can offer templates by listing
+directories in its `ziran.toml`; the first one is the default:
+
+```toml
+[templates]
+app = "templates/app"
+tui = "templates/tui"
+```
+
+A template directory holds a `ziran.toml` and whatever files a project starts
+with. In file contents and paths, `{{name}}` becomes the package name and
+`{{module}}` the same name as an identifier (`my-tool` becomes `my_tool`).
+`--name NAME` sets the name when the directory's name is not one, and
+`--ref REF` fetches the template from another branch, tag, or commit.
+
+`ziran init --template SOURCE` applies a template to the project in the
+current directory. It never overwrites a file. When the project already has a
+`ziran.toml`, the template's manifest is merged into it: missing tables and
+keys are added, string arrays such as `module_roots` gain the template's
+entries, and every other value the project already sets is kept and reported.
+That is how an existing command-line program becomes, for example, a Kryon
+application: the template adds the dependency, `tool = "Kryon"`, and the
+`[tool.Kryon]` settings, and keeps the program's own entry.
+
+## Building and running a program
+
+In a project directory, `run`, `build`, `check`, and `install` without a file
+work on the project's program:
+
+```sh
+ziran run                 # build, then run the entry module's main
+ziran run -- one two      # arguments after -- go to the program
+ziran build               # build/NAME
+ziran check               # check the entry, or a library's exports
+ziran install             # copy the program to ~/.local/bin/NAME
+```
+
+The program is the `main` procedure of `[package] entry`, which takes nothing
+or `(argc: s32, argv: **u8)` and returns nothing or its exit status. Ziran
+writes C and compiles it with `CC` (default `cc`), honoring `CFLAGS`,
+`LDFLAGS`, and `LDLIBS`. `[package] links` names system libraries to link:
+
+```toml
+[package]
+name = "fetcher"
+entry = "src/main.zi"
+links = ["curl"]
+```
+
+`ziran install --prefix DIR` installs under `DIR/bin`; `[install] bin` changes
+the command name. The copy replaces an installed program in one step.
+
+A project whose `[package] tool` names a dependency hands these four commands
+to that dependency's project tool instead (see below). Naming a file, as in
+`ziran check --project src/cell.zi`, or passing `--target`, keeps the command
+on that file or target.
+
 ## Adding a dependency
 
 Pass any spelling of the repository to `ziran add`:
@@ -219,18 +288,27 @@ TOML itself. `ZIRAN_PROJECT_ROOT`, `ZIRAN_PROJECT_NAME`,
 `ZIRAN_PROJECT_ENTRY`, `ZIRAN_PACKAGE_ROOT`, `ZIRAN_PACKAGE_ID` and
 `ZIRAN_TOOLCHAIN_ROOT` describe the project and the tool's checkout.
 
-## Installing an application
+## Handing a project to its tool
 
-`[install]` names the dependency whose tool installs the application and the
-command name it installs as:
+`[package] tool` names the dependency whose project tool runs, builds, checks,
+and installs the application, and `[install] bin` the command name it
+installs as:
 
 ```toml
-[install]
+[package]
+name = "example"
+entry = "src/app.zi"
 tool = "Kryon"
+
+[install]
 bin = "example"
 ```
 
-`ziran install` runs that tool's `install` command with `ZIRAN_INSTALL_PREFIX`
-(`~/.local` unless `--prefix DIR` is given) and `ZIRAN_INSTALL_BIN`. Other
-arguments are passed on to the tool. The tool decides what else an install
-includes, such as a desktop entry, from its own options.
+`ziran run`, `ziran build`, and `ziran check` without a file then run
+`ziran tool Kryon run`, `build`, or `check` with the remaining arguments, so
+`ziran run desktop` is `ziran tool Kryon run desktop`. `ziran install` runs
+the tool's `install` command with `ZIRAN_INSTALL_PREFIX` (`~/.local` unless
+`--prefix DIR` is given) and `ZIRAN_INSTALL_BIN`; other arguments are passed
+on. The tool decides what else an install includes, such as a desktop entry,
+from its own options. The older `[install] tool` key is rejected with a
+message naming its replacement.

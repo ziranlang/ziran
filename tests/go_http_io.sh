@@ -35,6 +35,15 @@ Write :: (writer: http.ResponseWriter, status: isize, value: Any) -> Error {
     return json.Encode(json.NewEncoder(cast(io.Writer)writer), value)
 }
 Valid :: (body: []u8) -> bool { return json.Valid(body) }
+ReadJSON :: (reader: io.Reader, value: Any) -> Error {
+    return json.Decode(json.NewDecoder(reader), value)
+}
+NextJSON :: (decoder: *json.Decoder, value: Any) -> Error {
+    return json.Decode(decoder, value)
+}
+Decoder :: (reader: io.Reader) -> *json.Decoder {
+    return json.NewDecoder(reader)
+}
 Context :: (request: *http.Request) -> ctx.Context { return http.Context(request) }
 Query :: (request: *http.Request, name: string) -> string {
     return url.Value(url.Query(http.RequestURL(request)), name)
@@ -120,6 +129,20 @@ func main() {
     for _, data := range []string{"null", "{}", "", "{}[]", "\xff"} {
         if Streams_Valid([]byte(data)) != json.Valid([]byte(data)) { panic("JSON validity changed") }
     }
+    for _, data := range []string{"null", "{}", "", "{}[]", "{", "[]", "{\"name\":\"first\"}{\"name\":\"second\"}"} {
+        var got, want payload
+        failure := Streams_ReadJSON(strings.NewReader(data), &got)
+        expectedFailure := json.NewDecoder(strings.NewReader(data)).Decode(&want)
+        if !reflect.DeepEqual(got, want) || (failure == nil) != (expectedFailure == nil) || (expectedFailure != nil && failure.Error() != expectedFailure.Error()) { panic("JSON stream decoding or errors changed") }
+        if errors.Is(failure, io.EOF) != errors.Is(expectedFailure, io.EOF) { panic("JSON EOF identity changed") }
+    }
+    var decoded payload
+    if Streams_ReadJSON(failingReader{failure: sentinel}, &decoded) != sentinel { panic("JSON read error identity changed") }
+    stream := Streams_Decoder(strings.NewReader("{\"name\":\"first\"} {\"name\":\"second\"}"))
+    for _, name := range []string{"first", "second"} {
+        if Streams_NextJSON(stream, &decoded) != nil || decoded.Name != name { panic("JSON decoder streaming state changed") }
+    }
+    if Streams_NextJSON(stream, &decoded) != io.EOF { panic("JSON decoder EOF identity changed") }
     ctx, cancel := context.WithCancel(context.Background())
     cancel()
     request := httptest.NewRequest("GET", "/?name=first&name=second&plus=a+b&encoded=%2B", nil).WithContext(ctx)

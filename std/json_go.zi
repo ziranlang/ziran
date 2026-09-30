@@ -3,6 +3,7 @@
 io :: #import "io_go";
 go_json :: #system_library "go:encoding/json";
 Encoder :: #type #foreign go_json "Encoder";
+Decoder :: #type #foreign go_json "Decoder";
 JSONResult :: struct {
     value: []u8
     error: Error
@@ -14,6 +15,8 @@ UnmarshalRaw :: (data: []u8, value: Any) -> Error #foreign go_json "Unmarshal";
 ValidRaw :: (data: []u8) -> bool #foreign go_json "Valid";
 NewEncoderRaw :: (writer: io.Writer) -> *Encoder #foreign go_json "NewEncoder";
 EncodeRaw :: (encoder: *Encoder, value: Any) -> Error #foreign go_json "(*Encoder).Encode";
+NewDecoderRaw :: (reader: io.Reader) -> *Decoder #foreign go_json "NewDecoder";
+DecodeRaw :: (decoder: *Decoder, value: Any) -> Error #foreign go_json "(*Decoder).Decode";
 
 #scope_export
 Marshal :: (value: Any) -> JSONResult {
@@ -30,4 +33,10 @@ NewEncoder :: (writer: io.Writer) -> *Encoder {
 }
 Encode :: (encoder: *Encoder, value: Any) -> Error {
     return EncodeRaw(encoder, value)
+}
+NewDecoder :: (reader: io.Reader) -> *Decoder {
+    return NewDecoderRaw(reader)
+}
+Decode :: (decoder: *Decoder, value: Any) -> Error {
+    return DecodeRaw(decoder, value)
 }

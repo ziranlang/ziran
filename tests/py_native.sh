@@ -18,6 +18,7 @@ command -v python3 >/dev/null 2>&1 || {
 
 cat > "$work/native.zi" <<'ZI'
 #import "py_types"
+#import "text_py"
 builtins :: #system_library "py:builtins";
 json :: #system_library "py:json";
 math :: #system_library "py:math";
@@ -51,6 +52,8 @@ TryRoot :: (value: float64) -> Raised #py_results #foreign math "sqrt";
 ErrorArguments :: (error: Object) -> Object #py_field #foreign builtins "(BaseException).args";
 
 Shout :: (text: string) -> string { return Upper(text) }
+zlib :: #system_library "py:zlib";
+Crc :: (data: []u8) -> u32 #foreign zlib "crc32";
 
 #program_export
 main :: () -> s32 {
@@ -75,6 +78,11 @@ main :: () -> s32 {
     back := FromHex("01abff")
     if back.count != 3 || back[1] != cast(u8)171 { return 12 }
     if Dumps(Loads("[true, null]")) != "[true, null]" || Major() != 3 { return 13 }
+    raw: [4]u8 = .[255, 0, 195, 65]
+    binary := TextView(raw[:])
+    copied := ToBytes(binary)
+    if copied.count != 4 || copied[0] != cast(u8)255 || copied[2] != cast(u8)195 { return 14 }
+    if FromBytes(copied) != binary || Crc(ToBytes("abc")) != cast(u32)891568578 { return 15 }
     return 0
 }
 ZI

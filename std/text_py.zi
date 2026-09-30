@@ -1,0 +1,16 @@
+// Copy between Python bytes and Ziran strings, preserving every byte, on the
+// Python target. A string crosses into Python as str decoded with
+// surrogateescape, so encoding it the same way returns its exact bytes.
+builtins :: #system_library "py:builtins";
+
+#scope_file
+Encode :: (text: string, encoding: string, errors: string) -> []u8 #foreign builtins "(str).encode";
+Copy :: (value: []u8) -> string #foreign builtins "bytes";
+
+#scope_export
+FromBytes :: (value: []u8) -> string {
+    return Copy(value)
+}
+ToBytes :: (value: string) -> []u8 {
+    return Encode(value, "utf-8", "surrogateescape")
+}

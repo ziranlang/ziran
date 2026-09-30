@@ -12,6 +12,7 @@ builtin :: #system_library "go:builtin";
 Counter :: struct { mutex: Mutex; value: s64 }
 Allocate :: () -> *Counter #foreign builtin "new";
 Bytes :: (count: isize, capacity: isize) -> []u8 #foreign builtin "make";
+AppendByte :: (values: []u8, value: u8) -> []u8 #foreign builtin "append";
 New :: () -> *Counter {
     return Allocate()
 }
@@ -30,6 +31,9 @@ MakeBytes :: (count: isize, capacity: isize) -> []u8 {
 }
 Text :: (value: []u8) -> string {
     return FromBytes(value)
+}
+Append :: (values: []u8, value: u8) -> []u8 {
+    return AppendByte(values, value)
 }
 Shift :: (value: clock.Time, nanoseconds: s64) -> clock.Time {
     return clock.Add(value, cast(clock.Duration)nanoseconds)
@@ -72,6 +76,10 @@ func main() {
     text := Bindings_Text(data)
     data[0] = 99
     if text != "\x00\xffé" || Bindings_Text(nil) != "" { panic("byte-preserving string copy") }
+    grown := Bindings_Append(nil, 255)
+    if len(grown) != 1 || grown[0] != 255 { panic("nil slice append") }
+    grown = Bindings_Append(bytes, 42)
+    if len(grown) != 3 || cap(grown) != 8 || grown[2] != 42 || &grown[0] != &bytes[0] { panic("append length, capacity or backing storage") }
     now := Bindings_Now()
     shifted := Bindings_Shift(now, 123)
     if shifted != now.Add(123) || !Bindings_Later(shifted, now) || Bindings_Later(now, now) || Bindings_Later(time.Time{}, now) { panic("native monotonic timestamp") }
@@ -90,7 +98,11 @@ for declaration in \
     'Alloc :: () -> *void #foreign builtin "new";' \
     'Bytes :: (count: string) -> []u8 #foreign builtin "make";' \
     'Bytes :: () -> []u8 #foreign builtin "make";' \
-    'Bytes :: (count: s64) -> s64 #foreign builtin "make";'; do
+    'Bytes :: (count: s64) -> s64 #foreign builtin "make";' \
+    'Append :: (values: []u8, value: s64) -> []u8 #foreign builtin "append";' \
+    'Append :: (values: []u8, value: u8) -> []s64 #foreign builtin "append";' \
+    'Append :: (values: []u8) -> []u8 #foreign builtin "append";' \
+    'Append :: (values: s64, value: s64) -> s64 #foreign builtin "append";'; do
     printf 'go_sync :: #system_library "go:sync";\nbuiltin :: #system_library "go:builtin";\nMutex :: #type #foreign go_sync "Mutex";\n%s\n' "$declaration" > "$work/bad.zi"
     if "$ziran" check --root "$work" "$work/bad.zi" > "$work/bad.out" 2>&1; then
         echo "invalid Go binding accepted: $declaration" >&2

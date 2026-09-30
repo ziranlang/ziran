@@ -4,6 +4,8 @@
 
 /* Resolve scalar expression types and lexical bindings. */
 int CheckPrograms(ZirProgram **programs, int count);
+/* True when a checked body cannot reach its end without returning. */
+int FunctionReturnsOnEveryPath(const ZirFunction *fn);
 int LinkImports(ZirProgram **programs, int count);
 int LowerFileScopeUsing(ZirModule *module, char *source, size_t capacity,
                         ZirSourceSpan span);

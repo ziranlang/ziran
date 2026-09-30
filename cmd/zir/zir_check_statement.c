@@ -284,8 +284,18 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
                  (foreign && foreign->is_extern && foreign->foreign_target[0] &&
                   strncmp(foreign->foreign_target, "go:builtin.", 11)));
         }
+        if(!strcmp(symbol, "append")) {
+            const char *slice_colon = count == 2 ? strchr(parameters[0], ':') : NULL;
+            const char *value_colon = count == 2 ? strchr(parameters[1], ':') : NULL;
+            char element[ZIR_NAME_MAX];
+            allocation = slice_colon && value_colon &&
+                !strcmp(skip_ws(slice_colon + 1), result) &&
+                SliceElementType(result, element, sizeof(element)) &&
+                !strcmp(skip_ws(value_colon + 1), element) &&
+                !contains_vec(module, element, 0);
+        }
         if(!allocation) {
-            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string or len signature");
+            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len or append signature");
             return 0;
         }
     }
@@ -610,6 +620,59 @@ all_arms_return(const ZirFunction *fn, int begin, int *last)
     return arms > 0;
 }
 
+/* True when the `while true` loop at `begin`, closed at `close`, never
+ * finishes normally: no break leaves it, and no named break or continue
+ * reaches a loop outside it. Control then only leaves by returning. */
+static int
+while_diverges(const ZirFunction *fn, int begin, int close)
+{
+    const ZirStmt *header = &fn->stmts[begin];
+    if(header->expr_root < 0 || header->expr_root >= fn->expr_count)
+        return 0;
+    const ZirExpr *condition = &fn->exprs[header->expr_root];
+    if(condition->kind != ZIR_EXPR_IDENT || strcmp(condition->name, "true"))
+        return 0;
+    int *loops = calloc((size_t)(close - begin + 1), sizeof(*loops));
+    int *opened = calloc((size_t)(close - begin + 1), sizeof(*opened));
+    if(loops == NULL || opened == NULL) {
+        free(loops);
+        free(opened);
+        return 0;
+    }
+    int depth = 0, nested = 0, diverges = 1;
+    for(int i = begin + 1; i < close && diverges; i++) {
+        const ZirStmt *statement = &fn->stmts[i];
+        if(statement->kind == ZIR_STMT_BLOCK_CLOSE && depth > 0) {
+            depth--;
+            if(opened[depth]) nested--;
+            continue;
+        }
+        if(statement->kind == ZIR_STMT_BREAK ||
+           statement->kind == ZIR_STMT_CONTINUE) {
+            int inner = 0;
+            for(int loop = 0; loop < nested; loop++)
+                inner |= statement->target_id != 0 &&
+                         loops[loop] == statement->target_id;
+            if(statement->target_id == 0)
+                inner = nested > 0;
+            else if(header->loop_id != 0 && statement->target_id == header->loop_id)
+                inner = statement->kind == ZIR_STMT_CONTINUE;
+            if(!inner && (statement->kind == ZIR_STMT_BREAK ||
+                          statement->target_id != 0))
+                diverges = 0;
+        }
+        if(statement->kind == ZIR_STMT_IF || statement->kind == ZIR_STMT_WHILE ||
+           statement->kind == ZIR_STMT_BLOCK_OPEN) {
+            opened[depth] = statement->kind == ZIR_STMT_WHILE;
+            if(opened[depth]) loops[nested++] = statement->loop_id;
+            depth++;
+        }
+    }
+    free(loops);
+    free(opened);
+    return diverges;
+}
+
 int
 sequence_returns(const ZirFunction *fn, int begin, int end)
 {
@@ -628,10 +691,18 @@ sequence_returns(const ZirFunction *fn, int begin, int end)
             int last = return_block_end(fn, i, end);
             if(kind == ZIR_STMT_BLOCK_OPEN && sequence_returns(fn, i + 1, last))
                 return 1;
+            if(kind == ZIR_STMT_WHILE && while_diverges(fn, i, last))
+                return 1;
             i = last;
         }
     }
     return 0;
+}
+
+int
+FunctionReturnsOnEveryPath(const ZirFunction *fn)
+{
+    return sequence_returns(fn, 0, fn->stmt_count);
 }
 
 int

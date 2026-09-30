@@ -73,6 +73,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int expr_brace = 0;
     int tframe_count = 0;
     int type_frame_count = 0;
+    int type_count_before = 0;
+    int import_count_before = 0;
     ZirConsts consts;
     ZirConsts future_constants = {0};
     ZirUsings future_usings = {0};
@@ -850,7 +852,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 scope_file;
             continue;
         } else if(mode == TOP &&
-                  (parse_import_line(module, buffers->rel, line_no, t,
+                  (type_count_before = module->type_count,
+                   import_count_before = module->import_count,
+                   parse_import_line(module, buffers->rel, line_no, t,
                                      scope_public) ||
                    parse_foreign_line(module, buffers->rel, line_no, t,
                        scope_public, buffers->foreign_library_names,
@@ -858,10 +862,11 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                        foreign_library_file_private,
                        foreign_library_count))) {
             program_export = 0;
-            const char *declaration = strstr(t, "::");
-            if(declaration != NULL && starts_word(skip_ws(declaration + 2), "#type"))
+            /* Mark whichever declaration the line added: a foreign
+             * `#type` adds a type, anything else an import. */
+            if(module->type_count > type_count_before)
                 module->types[module->type_count - 1].is_file_private = scope_file;
-            else if(module->import_count > 0)
+            else if(module->import_count > import_count_before)
                 module->imports[module->import_count - 1].is_file_private = scope_file;
             continue;
         } else if(mode == TOP && starts_word(t, "state") &&

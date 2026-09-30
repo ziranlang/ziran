@@ -464,9 +464,9 @@ restart:
                 has_arrays |= ArrayValueType(skip_ws(colon + 1));
         }
     }
-    if(!fn->is_extern && fn->return_type[0] == '[' &&
+    if(!fn->is_extern && strcmp(fn->return_type, "void") &&
        !sequence_returns(fn, 0, fn->stmt_count))
-        error(c, fn->span, "array or slice result requires a return on every path", fn->name);
+        error(c, fn->span, "missing return: every path must return a value", fn->name);
     if(c->conversions_applied &&
        !rebuild_conversion_layout(fn)) {
         error(c, fn->span, "cannot reorder #as conversion graph", fn->name);

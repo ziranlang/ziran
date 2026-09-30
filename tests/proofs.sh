@@ -59,7 +59,7 @@ Answer :: () -> s32 { return 42 }
 ZI
 "$ziran" check --root "$work" "$work/good.zi" > "$work/good.json"
 "$ziran" ir --root "$work" -o "$work/gir" "$work/good.zi"
-${CC:-cc} -D_GNU_SOURCE -std=c11 -I"$repo/cmd/zir" -I"$repo/include" \
+${CC:-cc} ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/cmd/zir" -I"$repo/include" \
     "$repo/tests/proof_tamper.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -o "$work/tamper"
 for kind in goal step cycle index evidence; do
     "$work/tamper" "$work/gir/good.zir" "$work/bad.zir" "$kind"

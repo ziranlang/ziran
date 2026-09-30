@@ -975,56 +975,6 @@ verify_sequence(const ZirModule *module, const ZirFunction *function,
     return 1;
 }
 
-static int
-sequence_guarantees_return(const ZirFunction *function, int begin, int end,
-                           int depth)
-{
-    if(depth >= VM_MAX_DEPTH)
-        return 0;
-    for(int i = begin; i < end; i++) {
-        const ZirStmt *statement = &function->stmts[i];
-        int close;
-        if(statement->kind == ZIR_STMT_RETURN)
-            return 1;
-        if(statement->kind == ZIR_STMT_UNREACHABLE)
-            return 1;
-        if(statement->kind == ZIR_STMT_IF &&
-           !is_else_branch(statement)) {
-            int branch = i;
-            int all_return = 1;
-            int has_else = 0;
-            do {
-                close = statement_close(function, branch, end);
-                if(close < 0)
-                    return 0;
-                all_return &= sequence_guarantees_return(function,
-                              branch + 1, close, depth + 1);
-                has_else |= function->stmts[branch].expr_root < 0;
-                branch = close + 1;
-            } while(branch < end &&
-                    is_else_branch(&function->stmts[branch]));
-            if(all_return && has_else)
-                return 1;
-            i = branch - 1;
-        } else if(statement->kind == ZIR_STMT_BLOCK_OPEN) {
-            close = statement_close(function, i, end);
-            if(close < 0)
-                return 0;
-            if(sequence_guarantees_return(function, i + 1, close, depth + 1))
-                return 1;
-            i = close;
-        } else if(statement->kind == ZIR_STMT_WHILE) {
-            close = statement_close(function, i, end);
-            if(close < 0)
-                return 0;
-            i = close;
-        } else if(statement->kind == ZIR_STMT_BREAK ||
-                  statement->kind == ZIR_STMT_CONTINUE) {
-            return 0;
-        }
-    }
-    return 0;
-}
 /* Buffers verify_global_aggregate keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct VerifyGlobalAggregateBuffers {
@@ -1230,8 +1180,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                 return 0;
             }
             if(strcmp(function->return_type, "void") != 0 &&
-               !sequence_guarantees_return(function, 0,
-                                           function->stmt_count, 0)) {
+               !FunctionReturnsOnEveryPath(function)) {
                 Diagnostic(function->span, "zib.return",
                            "portable functions must return on every path: %s",
                            function->name);

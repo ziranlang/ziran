@@ -1,4 +1,5 @@
 #import "c_string"
+File :: #import "file_plan9";
 
 #scope_file
 Number :: #import "number_text";
@@ -27,6 +28,56 @@ ProcessGroup :: struct {
 
 #program_export
 CurrentProcessId :: () -> s32 { return PidRaw() }
+
+// Plan 9's path environment is a NUL-separated list, including directory
+// names with spaces. Resolve an executable before passing its argv to exec.
+#program_export
+ExecutablePath :: (name: string, output: []u8) -> string {
+    if name.count == 0 || name.count >= output.count { return "" }
+    index: s64 = 0
+    explicit: bool = false
+    while index < name.count {
+        if name[index] == cast(u8)0 { return "" }
+        if name[index] == cast(u8)47 { explicit = true }
+        index += 1
+    }
+    if explicit {
+        if !CopyCString(name, output) || !File.PathExists(name) || File.DirectoryExists(name) { return "" }
+        return TextView(output[0:name.count])
+    }
+    file := File.OpenRead("/env/path")
+    if !file.valid { return "" }
+    bytes: [4096]u8
+    used: s64 = 0
+    while used < bytes.count {
+        count := File.Read(file, bytes[used:])
+        if count <= 0 { break }
+        used += count
+    }
+    File.CloseFile(file)
+    if used == bytes.count { return "" }
+    start: s64 = 0
+    index = 0
+    while index <= used {
+        if index == used || bytes[index] == cast(u8)0 {
+            length := index - start
+            if length > 0 && length + 1 + name.count < output.count {
+                at: s64 = 0
+                while at < length { output[at] = bytes[start + at]; at += 1 }
+                output[at] = cast(u8)47
+                at += 1
+                part: s64 = 0
+                while part < name.count { output[at] = name[part]; at += 1; part += 1 }
+                output[at] = cast(u8)0
+                path := TextView(output[0:at])
+                if File.PathExists(path) && !File.DirectoryExists(path) { return path }
+            }
+            start = index + 1
+        }
+        index += 1
+    }
+    return ""
+}
 
 #scope_file
 NumberedPath :: (prefix: string, number: s32, suffix: string,

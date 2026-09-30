@@ -2,6 +2,11 @@
 
 #scope_file
 Run :: () -> s32 {
+    path: [4096]u8
+    tiny: [1]u8
+    if ExecutablePath("/bin/rc", path[:]) != "/bin/rc" || ExecutablePath("rc", path[:]) == "" ||
+        ExecutablePath("/does-not-exist/exec", path[:]) != "" || ExecutablePath("/bin", path[:]) != "" ||
+        ExecutablePath("bad\u0000path", path[:]) != "" || ExecutablePath("rc", tiny[:]) != "" { return 7 }
     empty: [0]string
     if StartDetached(empty[:]).valid { return 1 }
     invalid: [1]string = .["bad\u0000path"]

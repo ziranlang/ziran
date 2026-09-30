@@ -1323,8 +1323,10 @@ widen_expression(Checker *c, int index, const char *to)
     ZirFunction *fn = c->fn;
     char target[ZIR_NAME_MAX];
     copy_text(target, sizeof(target), to);
-    ZirExpr *copy_slot = FunctionAddExpr(fn, fn->exprs[index].kind,
-                                         fn->exprs[index].name,
+    /* FunctionAddExpr may move fn->exprs, so its name must not point in. */
+    char name[ZIR_NAME_MAX];
+    copy_text(name, sizeof(name), fn->exprs[index].name);
+    ZirExpr *copy_slot = FunctionAddExpr(fn, fn->exprs[index].kind, name,
                                          fn->exprs[index].span);
     if(copy_slot == NULL) {
         c->failed = 1;
@@ -1415,8 +1417,11 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
     {
         int chain_next = c->fn->exprs[index].next_sibling;
         int saved_argument = c->fn->exprs[index].argument_index;
+        /* FunctionAddExpr may move c->fn->exprs; keep the name apart. */
+        char moved_name[ZIR_NAME_MAX];
+        copy_text(moved_name, sizeof(moved_name), c->fn->exprs[index].name);
         ZirExpr *copy_slot = FunctionAddExpr(c->fn, c->fn->exprs[index].kind,
-                                             c->fn->exprs[index].name,
+                                             moved_name,
                                              c->fn->exprs[index].span);
         ZirExpr *call;
         ZirExpr saved;

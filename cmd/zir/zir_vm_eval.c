@@ -243,7 +243,8 @@ indexed_element(Value base, uint64_t index)
 Value *
 pointer_target(Vm *vm, Value pointer)
 {
-    if(pointer.kind != VALUE_POINTER || pointer.pointee == NULL) {
+    if(pointer.kind != VALUE_POINTER || pointer.pointee == NULL ||
+       (pointer.array != NULL && pointer.array->freed)) {
         vm->failed = 1;
         return NULL;
     }
@@ -967,6 +968,37 @@ eval_with_buffers(Frame *frame, int index, int depth, EvalBuffers *buffers)
         }
         if(!strcmp(expression->name, "print")) {
             vm_print(frame, expression, depth);
+            value.kind = VALUE_VOID;
+            break;
+        }
+        if(!strcmp(expression->name, "zi_new")) {
+            /* New(T): one zeroed T in heap storage the pointer keeps alive. */
+            const char *target = skip_ws(expression->type + 1);
+            Array *storage = allocate_array_try(frame->vm, frame->module, target, 1, 1);
+            if(storage == NULL)
+                break;
+            storage->elements[0] = default_value(frame->vm, frame->module, target, 0);
+            storage->address_taken = 1;
+            storage->heap = 1;
+            value = (Value){.kind = VALUE_POINTER, .pointee = &storage->elements[0],
+                            .array = storage};
+            break;
+        }
+        if(!strcmp(expression->name, "zi_free")) {
+            Value pointer = eval(frame, expression->first_child, depth + 1);
+            if(frame->vm->failed)
+                break;
+            /* Only New storage is freed, once; a null pointer is ignored. */
+            if(pointer.kind != VALUE_POINTER && integer_bits(pointer) == 0) {
+                value.kind = VALUE_VOID;
+                break;
+            }
+            if(pointer.kind != VALUE_POINTER || pointer.array == NULL ||
+               !pointer.array->heap || pointer.array->freed) {
+                frame->vm->failed = 1;
+                break;
+            }
+            pointer.array->freed = 1;
             value.kind = VALUE_VOID;
             break;
         }

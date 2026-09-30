@@ -756,7 +756,8 @@ builtin_call(const char *name)
            !strcmp(name, "VecPop") || !strcmp(name, "VecGet") ||
            !strcmp(name, "VecClone") || !strcmp(name, "VecSlice") ||
            !strcmp(name, "BuilderAppend") || !strcmp(name, "BuilderFinish") ||
-           !strcmp(name, "print");
+           !strcmp(name, "print") || !strcmp(name, "zi_new") ||
+           !strcmp(name, "zi_free");
 }
 
 static const char *

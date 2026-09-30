@@ -61,6 +61,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- `New(T)` allocates a zeroed `T` and returns `*T`; `free(p)` releases it and
+  ignores null. C and C++ use `calloc`/`free`, Go uses `new` and its
+  collector, and the portable runner keeps the storage alive while a pointer
+  reaches it and stops cleanly on a read after free or a second free. A
+  procedure or foreign procedure the program declares as `New` or `free`
+  (such as C's `free`) is called instead. Rust and Python report the
+  expression as unsupported. `tests/heap_new.sh` checks source and saved IR
+  on C, C++, Go, and `.zib`.
 - A procedure may declare procedures inside it. The parser hoists each to
   file scope under a private name (`zi_local_Outer_Name`, kept out of API
   listings) and renames its uses in the rest of the enclosing procedure; as

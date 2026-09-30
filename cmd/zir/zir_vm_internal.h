@@ -101,6 +101,8 @@ struct Array {
     Array *next;
     int retired;
     int address_taken; /* a pointer may reach an element; never retired early */
+    int heap;  /* New(T) storage, which free releases */
+    int freed; /* released by free; reading through a pointer fails */
     uint64_t pinned;
     uint64_t allocation;
     const ZirModule *owner;

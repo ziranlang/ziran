@@ -797,6 +797,31 @@ visible_operator(Checker *c, const char *name, char *callee, size_t size)
     return 0;
 }
 
+/* Whether NAME is a binding, procedure, or foreign procedure the program
+ * declares and can call here, which a built-in of that name yields to. */
+static int
+program_callable(Checker *c, const char *name)
+{
+    char unused[ZIR_NAME_MAX];
+    if(*lookup(c, name) || visible_operator(c, name, unused, sizeof(unused)))
+        return 1;
+    for(int i = 0; i < c->module->import_count; i++) {
+        const ZirImport *import = &c->module->imports[i];
+        if(import->kind == ZIR_IMPORT_EXTERN && !strcmp(import->name, name) &&
+           in_lookup_file(c->module, import->is_file_private, import->span))
+            return 1;
+        const ZirModule *other = import->resolved_module;
+        if(other == NULL || import->kind != ZIR_IMPORT_OPEN)
+            continue;
+        for(int j = 0; j < other->import_count; j++)
+            if(other->imports[j].kind == ZIR_IMPORT_EXTERN &&
+               other->imports[j].is_public && !other->imports[j].is_file_private &&
+               !strcmp(other->imports[j].name, name))
+                return 1;
+    }
+    return 0;
+}
+
 /* Jai's `operator + :: (a: V, b: V) -> V` gives records their operators:
  * binary expression INDEX with a record operand becomes a call of the
  * visible operator procedure. `a != b` falls back to `!(a == b)` when only
@@ -1576,6 +1601,60 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
     case ZIR_EXPR_CALL: {
         char display_name[ZIR_NAME_MAX];
         copy_text(display_name, sizeof(display_name), e->name);
+        /* Jai's New(T) allocates a zeroed T and returns *T; free(p) releases
+         * it. The checked call is zi_new (its type names T) or zi_free, so a
+         * procedure of the program's own named New or free still wins. */
+        {
+            int allocate = !strcmp(e->name, "zi_new") ||
+                (!strcmp(e->name, "New") && !program_callable(c, "New"));
+            int release = !strcmp(e->name, "zi_free") ||
+                (!strcmp(e->name, "free") && !program_callable(c, "free"));
+            if(allocate) {
+                int argument = e->first_child;
+                if(!strcmp(e->name, "zi_new")) {
+                    type = e->type;
+                    break;
+                }
+                const ZirExpr *named = argument >= 0 ? &c->fn->exprs[argument] : NULL;
+                const ZirType *record = named != NULL ?
+                    FindType(c->module, named->name, NULL) : NULL;
+                if(named == NULL || named->next_sibling >= 0 ||
+                   named->kind != ZIR_EXPR_IDENT || named->argument_name[0] ||
+                   (!*ScalarType(named->name) && record == NULL) ||
+                   !strcmp(named->name, "void") ||
+                   (record != NULL && (record->is_record_template ||
+                                       record->is_procedure_type || record->is_map))) {
+                    error(c, e->span, "New takes one type: New(T)", e->text);
+                    break;
+                }
+                if(contains_vec(c->module, named->name, 0)) {
+                    error(c, e->span, "New cannot allocate a value holding a Vec",
+                          named->name);
+                    break;
+                }
+                snprintf(member_type, sizeof(member_type), "*%s", named->name);
+                copy_text(e->name, sizeof(e->name), "zi_new");
+                e->first_child = -1;
+                copy_text(e->type, sizeof(e->type), member_type);
+                type = e->type;
+                break;
+            }
+            if(release) {
+                int argument = e->first_child;
+                const char *pointer = argument >= 0 ? expression_type(c, argument) : "";
+                e = &c->fn->exprs[index];
+                if(argument < 0 || c->fn->exprs[argument].next_sibling >= 0 ||
+                   c->fn->exprs[argument].argument_name[0] || pointer[0] != '*' ||
+                   !strcmp(skip_ws(pointer + 1), "void")) {
+                    error(c, e->span, "free takes one pointer from New", e->text);
+                    break;
+                }
+                c->fn->exprs[argument].argument_index = 0;
+                copy_text(e->name, sizeof(e->name), "zi_free");
+                type = "void";
+                break;
+            }
+        }
         if(!strcmp(e->name, "TextView")) {
             int first = e->first_child;
             if(first < 0 || c->fn->exprs[first].next_sibling >= 0 ||

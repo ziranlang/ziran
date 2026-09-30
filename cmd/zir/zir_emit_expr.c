@@ -1027,6 +1027,31 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             emit_map_call(e, expr, out, size);
             return;
         }
+        if(!strcmp(expr->name, "zi_new") && expr->type[0] == '*') {
+            /* New(T): zeroed storage for one T. Go's collector frees it. */
+            const char *target = skip_ws(expr->type + 1);
+            char mapped[ZIR_NAME_MAX * 2];
+            const char *native = TargetType(target, e->target);
+            if(native != NULL) copy_text(mapped, sizeof(mapped), native);
+            else e->resolve(e->context, target, mapped, sizeof(mapped));
+            if(e->target == ZIR_GO)
+                format(out, size, "new(%s)", mapped);
+            else
+                format(out, size, "((%s *)calloc(1, sizeof(%s)))", mapped, mapped);
+            e->pure = 0;
+            return;
+        }
+        if(!strcmp(expr->name, "zi_free") && expr->first_child >= 0) {
+            emit_expr(e, expr->first_child, e->fn->exprs[expr->first_child].type,
+                      buffers->a, sizeof(buffers->a));
+            if(e->target == ZIR_GO)
+                line(e, "_ = %s", buffers->a);
+            else
+                line(e, "free(%s);", buffers->a);
+            out[0] = '\0';
+            e->pure = 0;
+            return;
+        }
         if(!strcmp(expr->name, "TextView")) {
             if(expr->first_child < 0 ||
                e->fn->exprs[expr->first_child].next_sibling >= 0)

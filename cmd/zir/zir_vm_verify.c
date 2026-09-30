@@ -639,6 +639,21 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                    verify_expression(module, function, bindings,
                                      binding_count, first, depth + 1);
         }
+        if(!strcmp(expression->name, "zi_new")) {
+            /* New(T) of a type the runner can hold. */
+            const char *target = expression->type[0] == '*' ?
+                skip_ws(expression->type + 1) : "";
+            return expression->first_child < 0 && target[0] &&
+                   (*ScalarType(target) || FindType(module, target, NULL) != NULL ||
+                    ArrayElementType(target, NULL, 0, NULL));
+        }
+        if(!strcmp(expression->name, "zi_free")) {
+            int first = expression->first_child;
+            return first >= 0 && function->exprs[first].next_sibling < 0 &&
+                   function->exprs[first].type[0] == '*' &&
+                   verify_expression(module, function, bindings,
+                                     binding_count, first, depth + 1);
+        }
         if(!strcmp(expression->name, "print")) {
             PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
             int first = expression->first_child, count, placeholders = 0;

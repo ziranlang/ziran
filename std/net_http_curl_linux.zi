@@ -20,6 +20,7 @@ CurlMethod :: 10036
 CurlWriteData :: 10001
 CurlWriteFunction :: 20011
 CurlHeaders :: 10023
+CurlAcceptEncoding :: 10102
 CurlPostFields :: 10015
 CurlPostSize :: 30120
 CurlTimeoutMs :: 155
@@ -235,8 +236,13 @@ SendCurl :: (request: HttpRequest, output: []u8) -> CurlResult {
     context.length = 0
     context.truncated = false
     headers: *void = null
+    // Negotiate encodings supported by this libcurl and decode them before
+    // the bounded write callback. Capacity limits apply to decoded bytes.
+    encoding: [1]u8
+    encoding[0] = cast(u8)0
     configured := curl_easy_setopt(handle, CurlUrl, *url[0]) == 0 &&
     curl_easy_setopt(handle, CurlMethod, *method[0]) == 0 &&
+    curl_easy_setopt(handle, CurlAcceptEncoding, *encoding[0]) == 0 &&
     curl_easy_setopt(handle, CurlWriteData, *context) == 0 &&
     SetCurlLong(handle, CurlTimeoutMs, 20000) &&
     SetCurlLong(handle, CurlConnectTimeoutMs, 10000) &&

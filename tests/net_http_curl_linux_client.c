@@ -26,6 +26,11 @@ main(int argc, char **argv)
     assert(result.code == 0 && result.status == 200);
     assert(result.length == 5 && strcmp(output, "ready") == 0);
 
+    request.url = url(address, sizeof address, argv[1], "/gzip");
+    result = SendCurl(request, buffer);
+    assert(result.code == 0 && result.status == 200);
+    assert(result.length == 5 && strcmp(output, "ready") == 0);
+
     request.method = StringLiteral("POST");
     request.url = url(address, sizeof address, argv[1], "/echo");
     request.token = StringLiteral("secret");
@@ -63,6 +68,11 @@ main(int argc, char **argv)
 
     request.url = url(address, sizeof address, argv[1], "/large");
     buffer.length = 8;
+    result = SendCurl(request, buffer);
+    assert(result.code != 0 && result.truncated);
+    assert(result.length == 0 && output[0] == 0);
+
+    request.url = url(address, sizeof address, argv[1], "/gzip-large");
     result = SendCurl(request, buffer);
     assert(result.code != 0 && result.truncated);
     assert(result.length == 0 && output[0] == 0);

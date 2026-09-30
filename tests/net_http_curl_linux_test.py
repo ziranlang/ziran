@@ -4,6 +4,7 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import os
+import gzip
 import subprocess
 import sys
 import tempfile
@@ -18,8 +19,12 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
         pass
 
-    def respond(self, status, body):
+    def respond(self, status, body, compressed=False):
+        if compressed:
+            body = gzip.compress(body)
         self.send_response(status)
+        if compressed:
+            self.send_header("Content-Encoding", "gzip")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -31,6 +36,9 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(401, b"denied")
         elif self.path == "/large":
             self.respond(200, b"x" * 256)
+        elif self.path in ("/gzip", "/gzip-large"):
+            assert 'gzip' in self.headers.get('Accept-Encoding', ''), 'Missing encoding negotiation'
+            self.respond(200, b"ready" if self.path == "/gzip" else b"x" * 256, compressed=True)
         else:
             self.respond(404, b"missing")
 

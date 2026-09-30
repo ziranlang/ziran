@@ -79,6 +79,21 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/lint_characters.sh`, and `tests/lint_flags.sh` pin the rules.
   Inbe, Kryon, KSS, and Workbook have had their unneeded casts, character
   codes, and integer flags rewritten this way.
+- IR nodes refer to interned names instead of holding them. Expression and
+  statement names and types and function parameter lists are kept text:
+  an expression node is 120 bytes (was 600), a statement 96 (336), and a
+  function 1,168 (9,344). Parameter lists are split once and shared
+  (`ParametersOf`), the portable runner keeps each signature it parses, and
+  `FindType` keeps its answers until types, imports, modules, or lookup files
+  change. Checking Inbe went from 3.9 s and 466 MB to 2.9 s and 222 MB with
+  byte-identical IR and generated C for Inbe, Workbook, Kryon, and KSS.
+  `make sanitize` also compares every kept type lookup with a fresh one.
+- The portable runner has no statement budget (only the web playground
+  bounds a run), holds as many locals as a function declares, takes the
+  language's 64 parameters, and nests calls until the C stack is nearly full
+  where the stack's bounds are known; `zi2zib run` gives programs a 256 MiB
+  stack. `tests/portable_long_runs.sh` and `tests/portable_limits.sh` cover
+  these.
 - A generic record from another module may hold types only that module
   imports: the user's `Bag(string)` reads the library's `Vec(K)` field as
   `vec.Vec(string)`, and every copy of one application gets the same name.

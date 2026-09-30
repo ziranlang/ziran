@@ -49,6 +49,14 @@ for law-driven development, LLM tooling, parallel execution, and evolution.
 .zir modules ──link/verify──> .zib ──portable runtime + host capabilities──> process
 ```
 
+Inside the compiler, names in that model are interned: an expression's or
+statement's name and type, and a function's parameter list, are shared
+immutable strings (`KeepName`, `KeepParameters`), so equal spellings are one
+pointer. Parameter lists are split once into names and types
+(`ParametersOf`), and `FindType` keeps its answers until something it reads
+changes (`TypeLookupsChanged`; `make sanitize` checks each kept answer
+against a fresh lookup).
+
 Every backend consumes the same checked `.zir` model. Native output may bind
 declared platform libraries. `.zib` contains portable executable content and
 cannot depend on arbitrary target-specific C, C++, or Go source fragments.

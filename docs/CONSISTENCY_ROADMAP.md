@@ -46,9 +46,13 @@ dangling view.
   and saved certificate rechecking are implemented. General quantified
   proofs still require termination/induction rules and a verified projection
   of source and executable behavior; see [LAWS.md](LAWS.md).
-- Publish exact fixed-size name and source-buffer limits, diagnose excess input
-  precisely, then intern type identities and replace spelling-sized buffers
-  with structured syntax.
+- Publish exact fixed-size name and source-buffer limits and diagnose excess
+  input precisely. Expression and statement names and types, and function
+  parameter lists, are interned kept text; parameter lists are split once
+  (`ParametersOf`); type lookups are kept until what they read changes.
+  Record fields, type bodies, and the other ZirFunction and ZirType names are
+  still spelling-sized buffers, and record fields are parsed from text on each
+  walk.
 
 ## Priority 3: a fast agent and editor loop
 

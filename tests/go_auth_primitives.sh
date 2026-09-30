@@ -13,6 +13,18 @@ clock :: #import "time_go";
 Key :: (seed: []u8) -> keys.PrivateKey {
     return keys.NewKeyFromSeed(seed)
 }
+Generate :: () -> keys.KeyPairResult {
+    return keys.GenerateKey()
+}
+ParseURL :: (value: string) -> url.ParseURLResult {
+    return url.Parse(value)
+}
+Host :: (value: *url.URL) -> string {
+    return url.Host(value)
+}
+Scheme :: (value: *url.URL) -> string {
+    return url.Scheme(value)
+}
 Sign :: (key: keys.PrivateKey, message: string) -> []u8 {
     return keys.Sign(key, text.ToBytes(message))
 }
@@ -52,11 +64,18 @@ package main
 import (
     "bytes"
     "crypto/ed25519"
+    "crypto/rand"
+    "errors"
     "net/http"
     "net/url"
     "runtime"
     "time"
 )
+
+type failingReader struct { err error }
+func (reader failingReader) Read(data []byte) (int, error) {
+    return 0, reader.err
+}
 
 func main() {
     seed := bytes.Repeat([]byte{0x42}, ed25519.SeedSize)
@@ -65,6 +84,21 @@ func main() {
         panic("native private key type or derivation")
     }
     public := key.Public().(ed25519.PublicKey)
+    generated := Auth_Generate()
+    if generated.Error != nil || len(generated.PublicKey) != ed25519.PublicKeySize || len(generated.PrivateKey) != ed25519.PrivateKeySize {
+        panic("native generated keys or result order")
+    }
+    if !bytes.Equal(generated.PublicKey, generated.PrivateKey.Public().(ed25519.PublicKey)) {
+        panic("generated public/private key mismatch")
+    }
+    sentinel := errors.New("entropy unavailable")
+    original := rand.Reader
+    rand.Reader = failingReader{sentinel}
+    failed := Auth_Generate()
+    rand.Reader = original
+    if failed.Error != sentinel || failed.PrivateKey != nil || failed.PublicKey != nil {
+        panic("native entropy failure identity")
+    }
     for _, message := range []string{"", "text", "日本語", "\x00\xff\x80\xc3\xa9"} {
         signature := Auth_Sign(key, message)
         if !bytes.Equal(signature, ed25519.Sign(key, []byte(message))) || !Auth_Verify(public, message, signature) {
@@ -97,6 +131,16 @@ func main() {
     request.URL = nil
     if Auth_URL(request) != nil {
         panic("nil URL identity")
+    }
+    for _, address := range []string{"", "https://home.example/a%2Fb", "HTTP://HOME", "https://%"} {
+        parsed := Auth_ParseURL(address)
+        expected, err := url.Parse(address)
+        if (parsed.Error == nil) != (err == nil) {
+            panic("native URL parse result or error")
+        }
+        if err == nil && (Auth_Host(parsed.Value) != expected.Host || Auth_Scheme(parsed.Value) != expected.Scheme) {
+            panic("native URL host or scheme")
+        }
     }
     for _, instant := range []time.Time{time.Time{}, time.Unix(-1, 999999999), time.Now()} {
         if Auth_Unix(instant) != instant.Unix() {

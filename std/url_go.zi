@@ -1,11 +1,28 @@
 // Native Go URLs preserve escaped-path selection and their original encoding.
+#import "go_types"
 go_url :: #system_library "go:net/url";
 URL :: #type #foreign go_url "URL";
+ParseURLResult :: struct {
+    value: *URL
+    error: Error
+}
 
 #scope_file
+ParseRaw :: (value: string) -> ParseURLResult #go_results #foreign go_url "Parse";
+HostRaw :: (value: *URL) -> string #go_field #foreign go_url "(*URL).Host";
+SchemeRaw :: (value: *URL) -> string #go_field #foreign go_url "(*URL).Scheme";
 EscapedPathRaw :: (value: *URL) -> string #foreign go_url "(*URL).EscapedPath";
 
 #scope_export
+Parse :: (value: string) -> ParseURLResult {
+    return ParseRaw(value)
+}
+Host :: (value: *URL) -> string {
+    return HostRaw(value)
+}
+Scheme :: (value: *URL) -> string {
+    return SchemeRaw(value)
+}
 EscapedPath :: (value: *URL) -> string {
     return EscapedPathRaw(value)
 }

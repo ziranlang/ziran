@@ -1,0 +1,19 @@
+// Go JSON serialization keeps native error values, field tags and byte storage.
+#import "go_types"
+go_json :: #system_library "go:encoding/json";
+JSONResult :: struct {
+    value: []u8
+    error: Error
+}
+
+#scope_file
+MarshalRaw :: (value: Any) -> JSONResult #go_results #foreign go_json "Marshal";
+UnmarshalRaw :: (data: []u8, value: Any) -> Error #foreign go_json "Unmarshal";
+
+#scope_export
+Marshal :: (value: Any) -> JSONResult {
+    return MarshalRaw(value)
+}
+Unmarshal :: (data: []u8, value: Any) -> Error {
+    return UnmarshalRaw(data, value)
+}

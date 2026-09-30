@@ -1,0 +1,41 @@
+// Native Go file operations preserve filesystem permissions and error identity.
+#import "go_types"
+go_os :: #system_library "go:os";
+go_path :: #system_library "go:path/filepath";
+FileMode :: #type #foreign go_os "FileMode";
+FileReadResult :: struct {
+    value: []u8
+    error: Error
+}
+
+#scope_file
+ReadRaw :: (path: string) -> FileReadResult #go_results #foreign go_os "ReadFile";
+WriteRaw :: (path: string, data: []u8, mode: FileMode) -> Error #foreign go_os "WriteFile";
+MkdirAllRaw :: (path: string, mode: FileMode) -> Error #foreign go_os "MkdirAll";
+RenameRaw :: (oldPath: string, newPath: string) -> Error #foreign go_os "Rename";
+RemoveRaw :: (path: string) -> Error #foreign go_os "Remove";
+DirRaw :: (path: string) -> string #foreign go_path "Dir";
+NotExistRaw :: () -> Error #go_field #foreign go_os "ErrNotExist";
+
+#scope_export
+ReadFile :: (path: string) -> FileReadResult {
+    return ReadRaw(path)
+}
+WriteFile :: (path: string, data: []u8, mode: FileMode) -> Error {
+    return WriteRaw(path, data, mode)
+}
+MkdirAll :: (path: string, mode: FileMode) -> Error {
+    return MkdirAllRaw(path, mode)
+}
+Rename :: (oldPath: string, newPath: string) -> Error {
+    return RenameRaw(oldPath, newPath)
+}
+Remove :: (path: string) -> Error {
+    return RemoveRaw(path)
+}
+Dir :: (path: string) -> string {
+    return DirRaw(path)
+}
+NotExist :: () -> Error {
+    return NotExistRaw()
+}

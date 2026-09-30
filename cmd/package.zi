@@ -492,7 +492,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         command == "check" || command == "install") &&
         !PkgHasSource(arguments[1:])
     implied: bool = false
-    if lifecycle && command != "install" && !PkgHasArgument(arguments, "--project") {
+    if (command == "run" || command == "build" || command == "check") &&
+        !PkgHasArgument(arguments, "--project") {
         root = PkgProjectRoot()
         implied = root.count > 0
     }

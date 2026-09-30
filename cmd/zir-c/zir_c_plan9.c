@@ -1932,14 +1932,43 @@ c_plan9_rewrite_file(const char *path)
     return 0;
 }
 
-static char *
-append_plan9_main_wrapper(const char *text)
+static int
+plan9_main_arguments(const char *line, char *parameters, size_t capacity,
+                     int *prototype)
 {
-    static const char wrapper[] =
-"\nvoid\nmain(void)\n{\n"
+    const char *name = line;
+    const char *end;
+    char count[128], arguments[128];
+    int consumed = 0;
+    size_t length;
+
+    *prototype = strncmp(name, "int32_t ", 8) == 0;
+    if(*prototype) name += 8;
+    if(strncmp(name, "main(", 5) != 0) return 0;
+    end = strchr(name + 5, ')');
+    if(end == NULL || strcmp(end + 1, *prototype ? ";\n" : "\n")) return 0;
+    length = (size_t)(end - name - 5);
+    if(length >= capacity) return 0;
+    memcpy(parameters, name + 5, length);
+    parameters[length] = '\0';
+    return sscanf(parameters, "int32_t %127[a-zA-Z0-9_], int8_t** %127[a-zA-Z0-9_]%n",
+                  count, arguments, &consumed) == 2 &&
+           parameters[consumed] == '\0';
+}
+
+static char *
+append_plan9_main_wrapper(const char *text, int arguments)
+{
+    const char *header = arguments ?
+        "\nvoid\nmain(int argc, char** argv)\n{\n" :
+        "\nvoid\nmain(void)\n{\n";
+    const char *call = arguments ?
+        "    status = ziran_plan9_main((int32_t)argc, (int8_t**)argv);\n" :
+        "    status = ziran_plan9_main();\n";
+    static const char locals[] =
 "    int32_t status;\n"
-"    char status_text[32];\n"
-"    status = ziran_plan9_main();\n"
+"    char status_text[32];\n";
+    static const char finish[] =
 "    if(status == 0)\n"
 "        exits(0);\n"
 "    if(snprint(status_text, sizeof(status_text), \"%d\",\n"
@@ -1952,14 +1981,17 @@ append_plan9_main_wrapper(const char *text)
 
     if(length > 0 && text[length - 1] != '\n')
         length++;
-    result = malloc(length + sizeof(wrapper));
+    result = malloc(length + strlen(header) + strlen(call) + sizeof(locals) + sizeof(finish));
     if(result == NULL)
         return NULL;
     memcpy(result, text, strlen(text));
     result[strlen(text)] = '\0';
     if(strlen(text) == 0 || text[strlen(text) - 1] != '\n')
         strcat(result, "\n");
-    strcat(result, wrapper);
+    strcat(result, header);
+    strcat(result, locals);
+    strcat(result, call);
+    strcat(result, finish);
     return result;
 }
 
@@ -1987,8 +2019,9 @@ c_plan9_rewrite(const char *text)
             char *with_main;
 
             free(next);
-            if(strstr(current, "ziran_plan9_main(void)\n{") != NULL) {
-                with_main = append_plan9_main_wrapper(current);
+            int arguments = strstr(current, "\nziran_plan9_main(int32_t ") != NULL;
+            if(strstr(current, "ziran_plan9_main(void)\n{") != NULL || arguments) {
+                with_main = append_plan9_main_wrapper(current, arguments);
                 free(current);
                 return with_main;
             }
@@ -2248,7 +2281,7 @@ c_plan9_runtime_symbol(const char *name)
         "malloc", "calloc", "realloc", "free", "open", "pread", "pwrite",
         "seek", "remove", "dirstat", "nulldir", "dirwstat", "dirreadall",
         "read", "pipe", "rfork", "exec", "exits", "getpid", "putenv", "sleep",
-        "nsec", "localtime", "gmtime", NULL
+        "nsec", "localtime", "gmtime", "getwd", "chdir", NULL
     };
     int index;
     for(index = 0; symbols[index] != NULL; index++)
@@ -2437,6 +2470,18 @@ c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *bu
             if(buf_puts(&out, "ziran_plan9_main(void)\n") < 0)
                 goto fail;
             continue;
+        }
+        {
+            char parameters[512];
+            int prototype;
+
+            if(plan9_main_arguments(buffers->current, parameters, sizeof(parameters), &prototype)) {
+                if(buf_printf(&out, prototype ?
+                              "int32_t ziran_plan9_main(%s);\nvoid main(int argc, char** argv);\n" :
+                              "ziran_plan9_main(%s)\n", parameters) < 0)
+                    goto fail;
+                continue;
+            }
         }
         if(strcmp(buffers->current, "#include \"zir_plan9_runtime.h\"\n") == 0) {
             if(runtime_include == 0) {

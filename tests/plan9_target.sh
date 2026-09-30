@@ -132,6 +132,66 @@ extern void abort(void);
 #endif
 EOF
 
+# Argument-bearing entries need the same native status conversion as main().
+# Parameter names are arbitrary; the wrapper passes the actual argc/argv.
+cat > "$work/src/arguments.zi" <<'EOF'
+#program_export
+main :: (count: s32, words: **s8) -> s32 {
+    if count == 2 && words[1][0] == 102 { return 7 }
+    if count != 3 { return 8 }
+    expected := "space's $value; document"
+    index: s64 = 0
+    while index < expected.count {
+        if words[2][index] != cast(s8)expected[index] { return 9 }
+        index += 1
+    }
+    if words[2][index] != 0 { return 10 }
+    return 0
+}
+EOF
+"$ziran" ir --root "$work/src" -o "$work/arguments-ir" "$work/src/arguments.zi"
+cat > "$work/arguments-host.c" <<'EOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include "arguments.h"
+void exits(const char *status) { exit(status ? atoi(status) : 0); }
+int fprint(int descriptor, const char *format, ...) {
+    va_list args;
+    int result;
+    va_start(args, format);
+    result = vfprintf(descriptor == 2 ? stderr : stdout, format, args);
+    va_end(args);
+    return result;
+}
+int snprint(char *text, int size, const char *format, ...) {
+    va_list args;
+    int result;
+    va_start(args, format);
+    result = vsnprintf(text, size, format, args);
+    va_end(args);
+    return result;
+}
+#undef main
+int main(int argc, char **argv) { NativeEntry(argc, argv); return 99; }
+EOF
+for input in source saved; do
+    root=$work/src
+    entry=$work/src/arguments.zi
+    if test "$input" = saved; then root=$work/arguments-ir; entry=$root/arguments.zir; fi
+    output=$work/arguments-$input
+    "$ziran" build --target=plan9-c --root "$root" -o "$output" "$entry"
+    rg -q '^void main\(int argc, char\*\* argv\);$' "$output/arguments.h"
+    rg -q -F 'status = ziran_plan9_main((int32_t)argc, (int8_t**)argv);' "$output/arguments.c"
+    "${CC:-cc}" -std=c99 -Dmain=NativeEntry -I"$work/plan9-include" -I"$output" \
+        "$output"/arguments.c "$work/arguments-host.c" -o "$output/run"
+    "$output/run" good 'space'"'"'s $value; document'
+    status=0
+    "$output/run" fail || status=$?
+    test "$status" = 7
+done
+cmp "$work/arguments-source/arguments.h" "$work/arguments-saved/arguments.h"
+
 cat > "$work/src/helper_first.zi" <<'EOF'
 #program_export
 HelperFirst :: (value: float) -> s32 { return cast(s32)(value + 0.5) }

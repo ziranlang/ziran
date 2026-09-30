@@ -1,4 +1,5 @@
 // Go HTTP requests, response writers and headers retain their native types and behavior.
+url :: #import "url_go";
 go_http :: #system_library "go:net/http";
 Request :: #type #foreign go_http "Request";
 Header :: #type #foreign go_http "Header";
@@ -7,6 +8,8 @@ ResponseWriter :: #type #foreign go_http "ResponseWriter";
 #scope_file
 RemoteAddressRaw :: (request: *Request) -> string #go_field #foreign go_http "(*Request).RemoteAddr";
 HeadersRaw :: (request: *Request) -> Header #go_field #foreign go_http "(*Request).Header";
+MethodRaw :: (request: *Request) -> string #go_field #foreign go_http "(*Request).Method";
+URLRaw :: (request: *Request) -> *url.URL #go_field #foreign go_http "(*Request).URL";
 HeaderValueRaw :: (header: Header, name: string) -> string #foreign go_http "Header.Get";
 ResponseHeadersRaw :: (writer: ResponseWriter) -> Header #foreign go_http "ResponseWriter.Header";
 HeaderSetRaw :: (header: Header, name: string, value: string) #foreign go_http "Header.Set";
@@ -17,6 +20,12 @@ RemoteAddress :: (request: *Request) -> string {
 }
 Headers :: (request: *Request) -> Header {
     return HeadersRaw(request)
+}
+Method :: (request: *Request) -> string {
+    return MethodRaw(request)
+}
+RequestURL :: (request: *Request) -> *url.URL {
+    return URLRaw(request)
 }
 HeaderValue :: (header: Header, name: string) -> string {
     return HeaderValueRaw(header, name)

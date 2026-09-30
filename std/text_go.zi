@@ -1,10 +1,20 @@
-// Convert Go-owned bytes to an independent string, preserving every byte.
+// Copy between Go-owned byte slices and strings, preserving every byte.
 builtin :: #system_library "go:builtin";
 
 #scope_file
 StringRaw :: (value: []u8) -> string #foreign builtin "string";
+AllocateBytes :: (count: isize) -> []u8 #foreign builtin "make";
 
 #scope_export
 FromBytes :: (value: []u8) -> string {
     return StringRaw(value)
+}
+ToBytes :: (value: string) -> []u8 {
+    output := AllocateBytes(cast(isize)value.count)
+    index: s64 = 0
+    while index < value.count {
+        output[index] = value[index]
+        index += 1
+    }
+    return output
 }

@@ -1,0 +1,20 @@
+// Ed25519 keys and signatures retain Go's native types and validation behavior.
+go_ed25519 :: #system_library "go:crypto/ed25519";
+PublicKey :: #type #foreign go_ed25519 "PublicKey";
+PrivateKey :: #type #foreign go_ed25519 "PrivateKey";
+
+#scope_file
+FromSeedRaw :: (seed: []u8) -> PrivateKey #foreign go_ed25519 "NewKeyFromSeed";
+SignRaw :: (key: PrivateKey, message: []u8) -> []u8 #foreign go_ed25519 "Sign";
+VerifyRaw :: (key: PublicKey, message: []u8, signature: []u8) -> bool #foreign go_ed25519 "Verify";
+
+#scope_export
+NewKeyFromSeed :: (seed: []u8) -> PrivateKey {
+    return FromSeedRaw(seed)
+}
+Sign :: (key: PrivateKey, message: []u8) -> []u8 {
+    return SignRaw(key, message)
+}
+Verify :: (key: PublicKey, message: []u8, signature: []u8) -> bool {
+    return VerifyRaw(key, message, signature)
+}

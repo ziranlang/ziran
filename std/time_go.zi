@@ -15,6 +15,7 @@ AddRaw :: (value: Time, duration: Duration) -> Time #foreign go_time "Time.Add";
 ParseRaw :: (layout: string, value: string) -> ParseResult #go_results #foreign go_time "Parse";
 UTCRaw :: (value: Time) -> Time #foreign go_time "Time.UTC";
 FormatRaw :: (value: Time, layout: string) -> string #foreign go_time "Time.Format";
+UnixRaw :: (value: Time) -> s64 #foreign go_time "Time.Unix";
 
 #scope_export
 Now :: () -> Time {
@@ -34,4 +35,7 @@ UTC :: (value: Time) -> Time {
 }
 Format :: (value: Time, layout: string) -> string {
     return FormatRaw(value, layout)
+}
+Unix :: (value: Time) -> s64 {
+    return UnixRaw(value)
 }

@@ -251,10 +251,34 @@ wrapper's own return.
 
 The binding requires an explicit Go package target, a void result and no
 owned vector arguments or variadic parameters. `#go_results`, `#go_field`
-and Go predeclared builtins cannot be combined with this attribute. Calls
-must be standalone statements. Checked IR preserves the attribute, and
+and Go predeclared builtins other than typed `call` cannot be combined with this
+attribute. Calls must be standalone statements. Checked IR preserves the attribute, and
 other targets reject reachable Go bindings. Ordinary Ziran `defer` keeps
 its lexical scope cleanup semantics across targets.
+
+Typed `go:builtin` `call` declarations invoke their first procedure argument
+with the remaining arguments. The declaration must match that procedure's
+parameter and result types and cannot carry owned vector values. A void call
+can use `#go_defer` to run application cleanup during native Go panic unwinding:
+
+```jai
+builtin :: #system_library "go:builtin";
+Cleanup :: #type (completed: *bool) -> void;
+CleanupAtReturn :: (callback: Cleanup, completed: *bool) #go_defer #foreign builtin "call";
+```
+
+The callback and its arguments are captured when scheduled. Pass a pointer
+when cleanup needs to observe a value changed later in the calling function.
+Checked IR retains the typed callback and the schedule independently of the
+declaration's diagnostic source text.
+
+`io_go` exposes native readers, closable readers, writers and `ReadAll`.
+`http_go` supplies request bodies and contexts, bounded body readers and
+response status writes. `json_go` supplies JSON validation and streaming
+encoders; `url_go` supplies decoded query values. Native interface conversions
+keep the original stream and context objects, and these operations preserve
+Go error identity. Schedule `ReadCloser.Close` with `#go_defer` in the function
+that owns the stream when cleanup must also run after a panic.
 
 ### Go predeclared primitives
 

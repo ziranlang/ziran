@@ -1,5 +1,7 @@
 // Go HTTP requests, response writers and headers retain their native types and behavior.
 url :: #import "url_go";
+io :: #import "io_go";
+ctx :: #import "context_go";
 go_http :: #system_library "go:net/http";
 Request :: #type #foreign go_http "Request";
 Header :: #type #foreign go_http "Header";
@@ -10,6 +12,10 @@ RemoteAddressRaw :: (request: *Request) -> string #go_field #foreign go_http "(*
 HeadersRaw :: (request: *Request) -> Header #go_field #foreign go_http "(*Request).Header";
 MethodRaw :: (request: *Request) -> string #go_field #foreign go_http "(*Request).Method";
 URLRaw :: (request: *Request) -> *url.URL #go_field #foreign go_http "(*Request).URL";
+BodyRaw :: (request: *Request) -> io.ReadCloser #go_field #foreign go_http "(*Request).Body";
+ContextRaw :: (request: *Request) -> ctx.Context #foreign go_http "(*Request).Context";
+MaxBytesReaderRaw :: (writer: ResponseWriter, reader: io.ReadCloser, limit: s64) -> io.ReadCloser #foreign go_http "MaxBytesReader";
+WriteHeaderRaw :: (writer: ResponseWriter, status: isize) #foreign go_http "ResponseWriter.WriteHeader";
 HeaderValueRaw :: (header: Header, name: string) -> string #foreign go_http "Header.Get";
 ResponseHeadersRaw :: (writer: ResponseWriter) -> Header #foreign go_http "ResponseWriter.Header";
 HeaderSetRaw :: (header: Header, name: string, value: string) #foreign go_http "Header.Set";
@@ -26,6 +32,18 @@ Method :: (request: *Request) -> string {
 }
 RequestURL :: (request: *Request) -> *url.URL {
     return URLRaw(request)
+}
+Body :: (request: *Request) -> io.ReadCloser {
+    return BodyRaw(request)
+}
+Context :: (request: *Request) -> ctx.Context {
+    return ContextRaw(request)
+}
+MaxBytesReader :: (writer: ResponseWriter, reader: io.ReadCloser, limit: s64) -> io.ReadCloser {
+    return MaxBytesReaderRaw(writer, reader, limit)
+}
+WriteHeader :: (writer: ResponseWriter, status: isize) {
+    WriteHeaderRaw(writer, status)
 }
 HeaderValue :: (header: Header, name: string) -> string {
     return HeaderValueRaw(header, name)

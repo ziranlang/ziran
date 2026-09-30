@@ -2,6 +2,7 @@
 #import "go_types"
 go_url :: #system_library "go:net/url";
 URL :: #type #foreign go_url "URL";
+Values :: #type #foreign go_url "Values";
 ParseURLResult :: struct {
     value: *URL
     error: Error
@@ -13,6 +14,8 @@ HostRaw :: (value: *URL) -> string #go_field #foreign go_url "(*URL).Host";
 SchemeRaw :: (value: *URL) -> string #go_field #foreign go_url "(*URL).Scheme";
 PathRaw :: (value: *URL) -> string #go_field #foreign go_url "(*URL).Path";
 EscapedPathRaw :: (value: *URL) -> string #foreign go_url "(*URL).EscapedPath";
+QueryRaw :: (value: *URL) -> Values #foreign go_url "(*URL).Query";
+ValueRaw :: (values: Values, name: string) -> string #foreign go_url "Values.Get";
 
 #scope_export
 Parse :: (value: string) -> ParseURLResult {
@@ -29,4 +32,10 @@ Path :: (value: *URL) -> string {
 }
 EscapedPath :: (value: *URL) -> string {
     return EscapedPathRaw(value)
+}
+Query :: (value: *URL) -> Values {
+    return QueryRaw(value)
+}
+Value :: (values: Values, name: string) -> string {
+    return ValueRaw(values, name)
 }

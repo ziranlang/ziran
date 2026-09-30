@@ -1,6 +1,8 @@
 // Go JSON serialization keeps native error values, field tags and byte storage.
 #import "go_types"
+io :: #import "io_go";
 go_json :: #system_library "go:encoding/json";
+Encoder :: #type #foreign go_json "Encoder";
 JSONResult :: struct {
     value: []u8
     error: Error
@@ -9,6 +11,9 @@ JSONResult :: struct {
 #scope_file
 MarshalRaw :: (value: Any) -> JSONResult #go_results #foreign go_json "Marshal";
 UnmarshalRaw :: (data: []u8, value: Any) -> Error #foreign go_json "Unmarshal";
+ValidRaw :: (data: []u8) -> bool #foreign go_json "Valid";
+NewEncoderRaw :: (writer: io.Writer) -> *Encoder #foreign go_json "NewEncoder";
+EncodeRaw :: (encoder: *Encoder, value: Any) -> Error #foreign go_json "(*Encoder).Encode";
 
 #scope_export
 Marshal :: (value: Any) -> JSONResult {
@@ -16,4 +21,13 @@ Marshal :: (value: Any) -> JSONResult {
 }
 Unmarshal :: (data: []u8, value: Any) -> Error {
     return UnmarshalRaw(data, value)
+}
+Valid :: (data: []u8) -> bool {
+    return ValidRaw(data)
+}
+NewEncoder :: (writer: io.Writer) -> *Encoder {
+    return NewEncoderRaw(writer)
+}
+Encode :: (encoder: *Encoder, value: Any) -> Error {
+    return EncodeRaw(encoder, value)
 }

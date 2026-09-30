@@ -355,6 +355,14 @@ go_builtin_method(const ZirGoExtern *binding)
     return binding->direct_go && !binding->go_field && binding->go_receiver[0] &&
            !strcmp(binding->go_import_path, "builtin");
 }
+
+static int
+go_builtin_callback(const ZirGoExtern *binding)
+{
+    return binding->direct_go && !binding->go_receiver[0] &&
+           !strcmp(binding->go_import_path, "builtin") &&
+           !strcmp(binding->go, "call");
+}
 /* Buffers split_params keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct SplitParamsBuffers {
@@ -1072,7 +1080,7 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
                     if(g_externs[xi].go_defer)
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "defer ");
                     if(g_externs[xi].go_results || g_externs[xi].go_field ||
-                       go_builtin_method(&g_externs[xi])) {
+                       go_builtin_method(&g_externs[xi]) || go_builtin_callback(&g_externs[xi])) {
                         char name[ZIR_GO_NAME_MAX];
                         camel_ident(g_externs[xi].source, name, sizeof(name));
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "%s_%s(", g_guard, name);
@@ -1504,7 +1512,8 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
 {
     for(int i = 0; i < g_extern_count; i++) {
         const ZirGoExtern *binding = &g_externs[i];
-        if(!binding->go_results && !binding->go_field && !go_builtin_method(binding)) continue;
+        if(!binding->go_results && !binding->go_field && !go_builtin_method(binding) &&
+           !go_builtin_callback(binding)) continue;
         char result_type[ZIR_GO_NAME_MAX] = "", name[ZIR_GO_NAME_MAX];
         const ZirType *record = FindType(module, binding->ret, NULL);
         if(strcmp(binding->ret, "void"))
@@ -1518,11 +1527,12 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
             fprintf(out, "%s%s %s", p ? ", " : "", parameter, type);
         }
         fprintf(out, ") %s {\n", result_type);
-        if(go_builtin_method(binding)) {
+        if(go_builtin_method(binding) || go_builtin_callback(binding)) {
             char parameter[ZIR_GO_NAME_MAX];
             camel_ident(binding->pnames[0], parameter, sizeof(parameter));
-            fprintf(out, "\t%s%s.%s(", result_type[0] ? "return " : "",
-                    parameter, binding->go);
+            fprintf(out, "\t%s%s%s%s(", result_type[0] ? "return " : "",
+                    parameter, go_builtin_callback(binding) ? "" : ".",
+                    go_builtin_callback(binding) ? "" : binding->go);
             for(int p = 1; p < binding->pcount; p++) {
                 camel_ident(binding->pnames[p], parameter, sizeof(parameter));
                 fprintf(out, "%s%s", p > 1 ? ", " : "", parameter);

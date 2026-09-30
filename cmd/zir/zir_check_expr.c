@@ -989,10 +989,17 @@ unresolved_detail(Checker *c, const char *name, int procedures,
         consider_name(name, module->defines[i].name, &best, &choice);
     for(int i = 0; i < module->function_count; i++)
         if(!module->functions[i].is_specialization &&
-           !module->functions[i].is_global_initializer)
+           !module->functions[i].is_global_initializer &&
+           strncmp(module->functions[i].name, "zi_local_", 9) != 0)
             consider_name(name, module->functions[i].name, &best, &choice);
     for(int i = 0; procedures && i < module->type_count; i++)
         consider_name(name, module->types[i].name, &best, &choice);
+    /* A hoisted local procedure (zi_local_Outer_Name) sees file scope only. */
+    if(choice == NULL && c->fn != NULL && !strncmp(c->fn->name, "zi_local_", 9)) {
+        snprintf(out, size, "%s (a local procedure cannot use the locals of the "
+                 "procedure around it)", name);
+        return out;
+    }
     if(choice == NULL)
         return name;
     snprintf(out, size, "%s (did you mean %s?)", name, choice);

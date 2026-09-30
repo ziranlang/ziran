@@ -1266,6 +1266,79 @@ symmetric_operator_wrapper(char *header, char *wrapper, size_t size, ZirSourceSp
     return needed;
 }
 
+void
+defer_line(DeferredLines *lines, const char *line, const char *rel, int line_no,
+           int scope_public, int scope_file)
+{
+    DeferredLine *grown = realloc(lines->items,
+                                  (size_t)(lines->count + 1) * sizeof(*grown));
+    if(grown == NULL)
+        die("out of memory");
+    lines->items = grown;
+    DeferredLine *added = &lines->items[lines->count++];
+    added->line = strdup(line);
+    if(added->line == NULL)
+        die("out of memory");
+    copy_text(added->rel, sizeof(added->rel), rel);
+    added->line_no = line_no;
+    added->scope_public = scope_public;
+    added->scope_file = scope_file;
+}
+
+/* Rename each use of a local procedure in LINE (NAMES holds source and
+ * hoisted names) outside strings, characters, and member accesses. */
+void
+rename_local_procedures(char *line, size_t capacity, char (*names)[2][ZIR_NAME_MAX],
+                        int count, ZirSourceSpan span)
+{
+    char *out = AllocateOrExit(capacity);
+    size_t used = 0;
+    for(const char *p = line; *p;) {
+        if(*p == '"' || *p == '\'') {
+            char quote = *p;
+            const char *start = p++;
+            while(*p && *p != quote) {
+                if(*p == '\\' && p[1]) p++;
+                p++;
+            }
+            if(*p) p++;
+            size_t length = (size_t)(p - start);
+            if(used + length >= capacity) die_at(span, "source line exceeds size limit");
+            memcpy(out + used, start, length);
+            used += length;
+            continue;
+        }
+        if(p[0] == '/' && p[1] == '/') {
+            size_t length = strlen(p);
+            if(used + length >= capacity) die_at(span, "source line exceeds size limit");
+            memcpy(out + used, p, length);
+            used += length;
+            break;
+        }
+        if(isalpha((unsigned char)*p) || *p == '_') {
+            const char *start = p;
+            while(isalnum((unsigned char)*p) || *p == '_') p++;
+            size_t length = (size_t)(p - start);
+            const char *replacement = NULL;
+            int member = start > line && start[-1] == '.';
+            for(int i = count - 1; i >= 0 && replacement == NULL && !member; i--)
+                if(strlen(names[i][0]) == length && !strncmp(names[i][0], start, length))
+                    replacement = names[i][1];
+            const char *text = replacement != NULL ? replacement : start;
+            size_t text_length = replacement != NULL ? strlen(replacement) : length;
+            if(used + text_length >= capacity) die_at(span, "source line exceeds size limit");
+            memcpy(out + used, text, text_length);
+            used += text_length;
+            continue;
+        }
+        if(used + 1 >= capacity) die_at(span, "source line exceeds size limit");
+        out[used++] = *p++;
+    }
+    out[used] = '\0';
+    memcpy(line, out, used + 1);
+    free(out);
+}
+
 /* Locate Jai's optional `then` on an if header. A `then` inside a string,
  * grouped expression, or an unparenthesized ifx condition is not the header
  * separator. The latter remains an expression parse error until that form

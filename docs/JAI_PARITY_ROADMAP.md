@@ -47,7 +47,7 @@ the checker, IR, or emitters, with `DISPLAY` and `WAYLAND_DISPLAY` unset.
 | --- | --- | --- |
 | Names and scopes | Local/field record `using`; local/data enum `using`; imported record globals in procedures; named imports | File-scope record lookup, full imported type ownership, order independence |
 | Values and expressions | Record literals, typed arrays including zero capacity, direct generic calls, `ifx` in typed expressions and call arguments | Jai ABI verification and full `.data` contract, broader lazy-expression audit, fuller type queries |
-| Procedures | Named values, defaults, named arguments, direct polymorphism, overloads, binary `operator` procedures with `#symmetric` | Variadic, `operator []`, unary operators, and broader procedure-form audit |
+| Procedures | Named values, defaults, named arguments, direct polymorphism, overloads, binary `operator` procedures with `#symmetric`, local procedures | Variadic, `operator []`, unary operators, anonymous procedures, and broader procedure-form audit |
 | Compile time | Bounded pure scalars, strings, floats, and record/array results used at compile time, in checked runtime expressions, and in selected file-scope initializers, including public imports | Full file-scope initialization semantics, verified effect rules |
 | Native output | C/C++/Go checked body graphs; C/C++ unions and scalar Go unions; imported and keyword record, union, enum, global, and constant names, including global/constant and function/value collisions; C/C++ keyword exports and header guards; Go module filenames and prefixes; valid C/C++ private names for punctuation in root filenames | Declaration lowering, remaining whole-program names, non-scalar Go union layout |
 | Portable output | Verified `.zib` scalar/record/array subset, scalar unions, and host calls | Remaining globals, aggregates, pointer casts, non-scalar unions, host shapes |
@@ -197,8 +197,9 @@ give candidate syntax, to be checked against Jai.
 
 Audit Jai examples against the parser instead of inferring coverage from a
 handful of demos. Overload resolution and binary operator declarations and
-calls are in (`tests/overloads.sh`, `tests/operators.sh`); `operator []`,
-unary operators, variadic arguments, local and anonymous procedures,
+calls are in (`tests/overloads.sh`, `tests/operators.sh`), and so are local
+procedures (`tests/local_procedures.sh`); `operator []`, unary operators,
+variadic arguments, anonymous procedures,
 more general procedure values, polymorphic procedures as values, and more
 forms of type application. These have not been certified by Ziran's present
 conformance tests. Implement one family at a time with a typed IR shape and

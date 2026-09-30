@@ -61,6 +61,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- A procedure may declare procedures inside it. The parser hoists each to
+  file scope under a private name (`zi_local_Outer_Name`, kept out of API
+  listings) and renames its uses in the rest of the enclosing procedure; as
+  in Jai, it may recurse and nest but cannot use the enclosing procedure's
+  locals, which the unresolved-name error says. `tests/local_procedures.sh`
+  checks source and saved IR on C, C++, Go, and `.zib`.
 - Records take Jai operator procedures: `operator + :: (a: V, b: V) -> V`
   for the binary operators `+ - * / % == != < <= > >= & | ^ << >>`. Several
   declarations of one operator are overloads; `a += b` uses operator +,

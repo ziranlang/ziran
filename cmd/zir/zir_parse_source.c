@@ -85,13 +85,15 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int results_count = 0;
     int results_serial = 0;
     int uses_formatting = 0; /* BuilderPrint expands to std/format's Append */
-    /* #symmetric operators add a swapped wrapper, parsed after the file. */
-    typedef struct SymmetricWrapper {
-        char line[SOURCE_LINE_MAX];
-        int scope_public, scope_file;
-    } SymmetricWrapper;
-    SymmetricWrapper *symmetric = NULL;
-    int symmetric_count = 0, symmetric_next = 0;
+    /* Logical lines parsed after the file: #symmetric operator wrappers and
+     * hoisted local procedures, each with the place it came from. */
+    DeferredLines deferred = {0};
+    int deferred_next = 0;
+    /* Local procedures of the procedure being parsed: source name and the
+     * private file-scope name it was hoisted to, and the brace depth of the
+     * one being captured. */
+    char (*local_names)[2][ZIR_NAME_MAX] = NULL;
+    int local_count = 0, local_depth = 0;
     ZirConsts consts;
     ZirConsts future_constants = {0};
     ZirUsings future_usings = {0};
@@ -184,10 +186,12 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                in_string || expr_brace != 0)
                 die_at(Span(buffers->rel, pending_start_line, pending_start_column),
                        "unterminated source declaration or expression");
-            if(load_depth == 0 && symmetric_next < symmetric_count) {
-                SymmetricWrapper *next = &symmetric[symmetric_next++];
+            if(load_depth == 0 && deferred_next < deferred.count) {
+                DeferredLine *next = &deferred.items[deferred_next++];
                 scope_public = next->scope_public;
                 scope_file = next->scope_file;
+                line_no = next->line_no;
+                copy_text(buffers->rel, sizeof(buffers->rel), next->rel);
                 prepend_logical_line(buffers->onelineq, &onelineq_count, next->line,
                                      Span(buffers->rel, line_no, 1));
                 continue;
@@ -531,6 +535,44 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
         buffers->pending[0] = '\0';
         pending_len = 0;
         if(*t == '\0') continue;
+        /* A procedure declared inside a procedure is hoisted to file scope
+         * under a private name and parsed after the file; later uses in the
+         * enclosing procedure call it by that name. As in Jai, it sees no
+         * locals of the enclosing procedure. */
+        if(mode == FUNCTION && local_depth > 0) {
+            rename_local_procedures(t, SOURCE_LINE_MAX * 4, local_names, local_count,
+                                    Span(buffers->rel, line_no, 1));
+            defer_line(&deferred, t, buffers->rel, line_no, 0, 1);
+            local_depth += net_block_braces(t);
+            if(local_depth < 0) local_depth = 0;
+            continue;
+        }
+        const char *local_end = t;
+        while(isalnum((unsigned char)*local_end) || *local_end == '_') local_end++;
+        if(mode == FUNCTION && fn != NULL && local_end > t &&
+           strncmp(skip_ws(local_end), "::", 2) == 0 && looks_like_function_header(t)) {
+            const char *end = local_end;
+            if(local_count % 16 == 0) {
+                local_names = realloc(local_names,
+                                      (size_t)(local_count + 16) * sizeof(*local_names));
+                if(local_names == NULL) die("out of memory");
+            }
+            snprintf(local_names[local_count][0], ZIR_NAME_MAX, "%.*s",
+                     (int)(end - t), t);
+            if(snprintf(local_names[local_count][1], ZIR_NAME_MAX, "zi_local_%s_%.*s",
+                        fn->name, (int)(end - t), t) >= ZIR_NAME_MAX)
+                die_at(Span(buffers->rel, line_no, 1), "local procedure name is too long");
+            local_count++;
+            rename_local_procedures(t, SOURCE_LINE_MAX * 4, local_names, local_count,
+                                    Span(buffers->rel, line_no, 1));
+            defer_line(&deferred, t, buffers->rel, line_no, 0, 1);
+            local_depth = net_block_braces(t);
+            if(local_depth < 0) local_depth = 0;
+            continue;
+        }
+        if(mode == FUNCTION && local_count > 0)
+            rename_local_procedures(t, SOURCE_LINE_MAX * 4, local_names, local_count,
+                                    Span(buffers->rel, line_no, 1));
         char *string_source = NULL;
         if(mode != FUNCTION &&
            contains_source_directive(t, "#procedure_name") &&
@@ -550,18 +592,12 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                    "#private is not Jai syntax; use #scope_file");
         if(mode == TOP && looks_like_function_header(t)) {
             if(contains_source_directive(t, "#symmetric")) {
-                SymmetricWrapper *grown = realloc(symmetric,
-                    (size_t)(symmetric_count + 1) * sizeof(*symmetric));
-                if(grown == NULL)
-                    die("out of memory");
-                symmetric = grown;
-                if(symmetric_operator_wrapper(t, symmetric[symmetric_count].line,
-                                              sizeof(symmetric[symmetric_count].line),
-                                              Span(buffers->rel, line_no, 1))) {
-                    symmetric[symmetric_count].scope_public = scope_public;
-                    symmetric[symmetric_count].scope_file = scope_file;
-                    symmetric_count++;
-                }
+                char *wrapper = AllocateOrExit(SOURCE_LINE_MAX);
+                if(symmetric_operator_wrapper(t, wrapper, SOURCE_LINE_MAX,
+                                              Span(buffers->rel, line_no, 1)))
+                    defer_line(&deferred, wrapper, buffers->rel, line_no,
+                               scope_public, scope_file);
+                free(wrapper);
             }
             if(contains_source_directive(t, "#go_results") &&
                !contains_source_directive(t, "#foreign"))
@@ -1597,6 +1633,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         mode = TOP;
                         cond_frame_settle(buffers->tframes, tframe_count);
                         fn = NULL;
+                        local_count = 0;
                     } else {
                         FunctionAddStmt(fn, ZIR_STMT_BLOCK_CLOSE, t,
                                            Span(buffers->rel, line_no, 1));
@@ -1890,7 +1927,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             parse_import_line(module, buffers->rel, 1, import_line, 0);
     }
     ZirSourceUsesResizableArrays = outer_resizable_arrays;
-    free(symmetric);
+    for(int i = 0; i < deferred.count; i++)
+        free(deferred.items[i].line);
+    free(deferred.items);
+    free(local_names);
     free(consts.items);
     free(future_constants.items);
     free(future_usings.items);

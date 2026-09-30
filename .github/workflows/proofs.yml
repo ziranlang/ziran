@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install ripgrep for the test scripts
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Install pinned Lean
         run: |
           version=$(sed 's/leanprover\/lean4:v//' proofs/lean-toolchain)

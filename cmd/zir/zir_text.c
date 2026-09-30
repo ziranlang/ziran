@@ -490,3 +490,34 @@ FormatPrintFloat(double value, int single, char *out, size_t capacity)
     if(capacity > 0)
         out[used] = '\0';
 }
+
+static const struct { const char *op, *name; } operator_procedures[] = {
+    {"==", "operator_equal"}, {"!=", "operator_not_equal"},
+    {"<=", "operator_less_equal"}, {">=", "operator_greater_equal"},
+    {"<<", "operator_shift_left"}, {">>", "operator_shift_right"},
+    {"+", "operator_add"}, {"-", "operator_subtract"},
+    {"*", "operator_multiply"}, {"/", "operator_divide"},
+    {"%", "operator_modulo"}, {"<", "operator_less"}, {">", "operator_greater"},
+    {"&", "operator_bit_and"}, {"|", "operator_bit_or"}, {"^", "operator_bit_xor"},
+};
+
+const char *
+OperatorProcedureName(const char *op)
+{
+    for(size_t i = 0; i < sizeof(operator_procedures) / sizeof(operator_procedures[0]); i++)
+        if(strcmp(operator_procedures[i].op, op) == 0)
+            return operator_procedures[i].name;
+    return NULL;
+}
+
+size_t
+OperatorTokenLength(const char *text)
+{
+    /* Two-character operators come first in the table. */
+    for(size_t i = 0; i < sizeof(operator_procedures) / sizeof(operator_procedures[0]); i++) {
+        size_t length = strlen(operator_procedures[i].op);
+        if(strncmp(text, operator_procedures[i].op, length) == 0)
+            return length;
+    }
+    return 0;
+}

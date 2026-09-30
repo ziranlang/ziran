@@ -223,6 +223,7 @@ int reserve_compound_constants(const ZirModule *module, ZirFunction *fn);
 int inline_compound_constant(Checker *c, int index, const CompoundConstant *compound);
 const char *expression_type(Checker *c, int index);
 int resolve_declared_type_of(Checker *c, char *type, size_t capacity, ZirSourceSpan span);
+int compound_operator_assignment(Checker *c, ZirStmt *st);
 const char *storage_type_error(const ZirModule *module, const char *source, const RecordPath *path, int indirect, ValidatedRecords *checked, char *detail, size_t detail_capacity);
 const char *local_storage_error(const ZirModule *module, const char *type);
 int check_type_declarations(ZirModule *module);

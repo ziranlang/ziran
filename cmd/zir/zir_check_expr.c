@@ -111,11 +111,23 @@ resolve_declared_type_of(Checker *c, char *type, size_t capacity, ZirSourceSpan 
  * type, 200 plus the added bits for a widening, 400 another checked
  * conversion, -1 not at all. */
 static int
-overload_fit(Checker *c, const char *wanted, const char *found)
+overload_fit(Checker *c, const ZirModule *owner, const char *wanted, const char *found)
 {
     const char *scalar = ScalarType(wanted);
     if(*scalar) wanted = scalar;
     if(!strcmp(wanted, found)) return 0;
+    /* A procedure from another module names its records in its own scope:
+     * V there is M.V here. */
+    if(owner != NULL && owner != c->module) {
+        const char *w = wanted, *f = found;
+        while(*w == '*' && *f == '*') {
+            w = skip_ws(w + 1);
+            f = skip_ws(f + 1);
+        }
+        const ZirType *declared = FindType(owner, w, NULL);
+        if(declared != NULL && declared == FindType(c->module, f, NULL))
+            return 0;
+    }
     if(!strcmp(found, "integer") && integer_type(wanted))
         return !strcmp(wanted, "s64") ? 100 : 200;
     if((!strcmp(found, "integer") || !strcmp(found, "real")) && wanted[0] == 'f')
@@ -129,11 +141,14 @@ overload_fit(Checker *c, const char *wanted, const char *found)
 typedef struct OverloadCandidate {
     const ZirFunction *fn;
     int score;
+    const ZirModule *owner;
 } OverloadCandidate;
 
-/* Score FN for the call's arguments, or -1 when it cannot take them. */
+/* Score FN, declared in OWNER, for the call's arguments, or -1 when it
+ * cannot take them. */
 static int
-overload_score(Checker *c, const ZirFunction *fn, char (*types)[ZIR_NAME_MAX],
+overload_score(Checker *c, const ZirModule *owner, const ZirFunction *fn,
+               char (*types)[ZIR_NAME_MAX],
                char (*names)[ZIR_NAME_MAX], int count)
 {
     char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
@@ -169,7 +184,7 @@ overload_score(Checker *c, const ZirFunction *fn, char (*types)[ZIR_NAME_MAX],
         char *assignment = top_level_assignment(wanted);
         if(assignment) *assignment = '\0';
         trim_in_place(wanted);
-        int fit = overload_fit(c, wanted, types[argument]);
+        int fit = overload_fit(c, owner, wanted, types[argument]);
         if(fit < 0) score = -1;
         else score += fit;
     }
@@ -299,7 +314,7 @@ select_overload(Checker *c, int index)
             if(strcmp(fn->overload_name, base) ||
                (modules[m] != c->module && !fn->is_public))
                 continue;
-            candidates[candidate_count++] = (OverloadCandidate){fn, 0};
+            candidates[candidate_count++] = (OverloadCandidate){fn, 0, modules[m]};
         }
     if(candidate_count == 0)
         return;
@@ -324,7 +339,8 @@ select_overload(Checker *c, int index)
     const ZirFunction *best = NULL;
     int best_score = -1, tied = 0;
     for(int i = 0; i < candidate_count; i++) {
-        int score = overload_score(c, candidates[i].fn, types, names, count);
+        int score = overload_score(c, candidates[i].owner, candidates[i].fn, types,
+                                   names, count);
         if(score < 0) continue;
         if(best == NULL || score < best_score) {
             best = candidates[i].fn;
@@ -737,6 +753,185 @@ failed:
     if(out != NULL) free(out->statements);
     free(out);
     return 0;
+}
+
+/* Whether TYPE is a record an operator procedure may take. */
+static int
+operator_operand(Checker *c, const char *type)
+{
+    const ZirType *record = *type ? FindType(c->module, type, NULL) : NULL;
+    return record != NULL && !record->is_enum && !record->is_map &&
+           !record->is_procedure_type && !record->is_record_template &&
+           !record->is_results;
+}
+
+/* The call name for operator procedure NAME as visible here: NAME itself,
+ * or ALIAS.NAME through a named import. Returns 0 when none is visible. */
+static int
+visible_operator(Checker *c, const char *name, char *callee, size_t size)
+{
+    for(int f = 0; f < c->module->function_count; f++) {
+        const ZirFunction *fn = &c->module->functions[f];
+        if(!strcmp(fn->name, name) || !strcmp(fn->overload_name, name)) {
+            copy_text(callee, size, name);
+            return 1;
+        }
+    }
+    for(int i = 0; i < c->module->import_count; i++) {
+        const ZirImport *import = &c->module->imports[i];
+        const ZirModule *other = import->resolved_module;
+        if(other == NULL || !in_lookup_file(c->module, import->is_file_private, import->span) ||
+           (import->kind != ZIR_IMPORT_OPEN && import->kind != ZIR_IMPORT_MODULE))
+            continue;
+        for(int f = 0; f < other->function_count; f++) {
+            const ZirFunction *fn = &other->functions[f];
+            if(!fn->is_public || (strcmp(fn->name, name) && strcmp(fn->overload_name, name)))
+                continue;
+            if(import->kind == ZIR_IMPORT_MODULE && !import->is_using)
+                snprintf(callee, size, "%s.%s", import->name, name);
+            else
+                copy_text(callee, size, name);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Jai's `operator + :: (a: V, b: V) -> V` gives records their operators:
+ * binary expression INDEX with a record operand becomes a call of the
+ * visible operator procedure. `a != b` falls back to `!(a == b)` when only
+ * operator == is declared. Returns 1 after rewriting. */
+static int
+operator_call(Checker *c, int index, const char *left, const char *right)
+{
+    ZirExpr *e = &c->fn->exprs[index];
+    const char *name = OperatorProcedureName(e->op);
+    char callee[ZIR_NAME_MAX];
+    int negate = 0;
+    if(name == NULL || (!operator_operand(c, left) && !operator_operand(c, right)))
+        return 0;
+    if(!visible_operator(c, name, callee, sizeof(callee))) {
+        if(strcmp(e->op, "!=") ||
+           !visible_operator(c, OperatorProcedureName("=="), callee, sizeof(callee)))
+            return 0;
+        negate = 1;
+    }
+    int call_index = index;
+    if(negate) {
+        /* Keep INDEX as the ! and move the comparison into a new call. */
+        ZirExpr *added = FunctionAddExpr(c->fn, ZIR_EXPR_CALL, callee, e->span);
+        if(added == NULL) { c->failed = 1; return 0; }
+        call_index = (int)(added - c->fn->exprs);
+        e = &c->fn->exprs[index];
+    }
+    int l = e->left, r = e->right;
+    ZirExpr *call = &c->fn->exprs[call_index];
+    call->kind = ZIR_EXPR_CALL;
+    copy_text(call->name, sizeof(call->name), callee);
+    call->op[0] = '\0';
+    call->type[0] = '\0';
+    call->text = e->text;
+    call->span = e->span;
+    call->first_child = l;
+    call->left = call->right = call->third = -1;
+    call->next_sibling = -1;
+    call->argument_index = -1;
+    c->fn->exprs[l].next_sibling = r;
+    c->fn->exprs[l].argument_index = 0;
+    c->fn->exprs[l].argument_name[0] = '\0';
+    c->fn->exprs[r].next_sibling = -1;
+    c->fn->exprs[r].argument_index = 1;
+    c->fn->exprs[r].argument_name[0] = '\0';
+    if(negate) {
+        e = &c->fn->exprs[index];
+        e->kind = ZIR_EXPR_UNARY;
+        copy_text(e->op, sizeof(e->op), "!");
+        e->left = -1;
+        e->right = call_index;
+        e->type[0] = '\0';
+    }
+    c->conversions_applied = 1;
+    return 1;
+}
+
+/* A copy of expression tree INDEX appended to FN, or -1 for none; sets
+ * c->failed when memory runs out. */
+static int
+copy_expression_tree(Checker *c, int index)
+{
+    if(index < 0 || c->failed)
+        return -1;
+    ZirExpr *added = FunctionAddExpr(c->fn, c->fn->exprs[index].kind,
+                                     c->fn->exprs[index].name,
+                                     c->fn->exprs[index].span);
+    if(added == NULL) {
+        c->failed = 1;
+        return -1;
+    }
+    int copy = (int)(added - c->fn->exprs);
+    c->fn->exprs[copy] = c->fn->exprs[index];
+    int left = copy_expression_tree(c, c->fn->exprs[index].left);
+    int right = copy_expression_tree(c, c->fn->exprs[index].right);
+    int third = copy_expression_tree(c, c->fn->exprs[index].third);
+    int first = -1, last = -1;
+    for(int child = c->fn->exprs[index].first_child; child >= 0;
+        child = c->fn->exprs[child].next_sibling) {
+        int copied = copy_expression_tree(c, child);
+        if(copied < 0) break;
+        if(last < 0) first = copied;
+        else c->fn->exprs[last].next_sibling = copied;
+        last = copied;
+    }
+    ZirExpr *node = &c->fn->exprs[copy];
+    node->left = left;
+    node->right = right;
+    node->third = third;
+    node->first_child = first;
+    node->next_sibling = -1;
+    return copy;
+}
+
+/* `a += b` on a record becomes `a = a + b` through its operator procedure;
+ * without one it is an error. Returns 0 after reporting. */
+int
+compound_operator_assignment(Checker *c, ZirStmt *st)
+{
+    char op[4];
+    size_t length = strlen(st->assignment_op);
+    if(st->lhs_root < 0 || length < 2 || st->assignment_op[length - 1] != '=')
+        return 1;
+    memcpy(op, st->assignment_op, length - 1);
+    op[length - 1] = '\0';
+    int saved_inference = c->inference_only;
+    c->inference_only = 1;
+    char lhs[ZIR_NAME_MAX];
+    copy_text(lhs, sizeof(lhs), expression_type(c, st->lhs_root));
+    c->inference_only = saved_inference;
+    if(!operator_operand(c, lhs))
+        return 1;
+    const char *name = OperatorProcedureName(op);
+    char callee[ZIR_NAME_MAX];
+    if(name == NULL || !visible_operator(c, name, callee, sizeof(callee))) {
+        error(c, st->span, "record compound assignment needs an operator procedure",
+              st->assignment_op);
+        return 0;
+    }
+    int destination = copy_expression_tree(c, st->lhs_root);
+    ZirExpr *binary = destination < 0 ? NULL :
+        FunctionAddExpr(c->fn, ZIR_EXPR_BINARY, "", st->span);
+    if(binary == NULL) {
+        c->failed = 1;
+        return 0;
+    }
+    copy_text(binary->op, sizeof(binary->op), op);
+    binary->text = st->text;
+    binary->left = destination;
+    binary->right = st->expr_root;
+    binary->third = binary->first_child = binary->next_sibling = -1;
+    binary->argument_index = -1;
+    st->expr_root = (int)(binary - c->fn->exprs);
+    copy_text(st->assignment_op, sizeof(st->assignment_op), "=");
+    return 1;
 }
 
 /* Edit distance between two names, or LIMIT + 1 once it exceeds LIMIT. */
@@ -2083,6 +2278,20 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 e = &c->fn->exprs[index];
                 right = selected;
             }
+        }
+        if(operator_call(c, index, left, right)) {
+            /* Check the call (or its negation) this node now is. */
+            type = expression_type(c, index);
+            e = &c->fn->exprs[index];
+            break;
+        }
+        if((operator_operand(c, left) || operator_operand(c, right)) &&
+           OperatorProcedureName(e->op) != NULL &&
+           strcmp(e->op, "==") && strcmp(e->op, "!=")) {
+            error(c, e->span, "record operation needs an operator procedure, "
+                  "such as operator + :: (a: T, b: T) -> T", e->op);
+            type = operator_operand(c, left) ? left : right;
+            break;
         }
         if(left[0] == '[' || right[0] == '[')
             error(c, e->span, "array values do not support binary operations", e->op);

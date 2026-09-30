@@ -208,6 +208,9 @@ restart:
            !resolve_declared_type_of(c, st->type, sizeof(st->type), st->span))
             st->type[0] = '\0';
         st = &c->fn->stmts[i];
+        if(st->kind == ZIR_STMT_ASSIGN && strcmp(st->assignment_op, "=") &&
+           (!fn->from_ir || fn->is_specialization))
+            compound_operator_assignment(c, st);
         if(st->kind == ZIR_STMT_DECL)
             normalize_array(c->module, st->type, sizeof(st->type));
         if(st->kind == ZIR_STMT_DECL)

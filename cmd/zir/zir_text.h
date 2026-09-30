@@ -24,6 +24,11 @@ enum { PRINT_PIECES_MAX = 64 };
 int PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity);
 void FormatPrintFloat(double value, int single, char *out, size_t capacity);
 int split_top_level(const char *s, char *parts, int max, size_t part_size);
+/* Jai's operator procedures, `operator + :: (a: V, b: V) -> V`, are named
+ * operator_add and so on. The name for binary operator OP, or NULL. */
+const char *OperatorProcedureName(const char *op);
+/* Length of the operator token at TEXT that has a procedure name, or 0. */
+size_t OperatorTokenLength(const char *text);
 char *top_level_assignment(char *s);
 
 #endif /* ZIRAN_ZIR_TEXT_H */

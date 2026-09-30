@@ -250,6 +250,29 @@ void
 normalize_jai_source_tokens(char *line, const char *path,
                             const char *physical_path, int line_no)
 {
+    /* `operator + :: (a: V, b: V) -> V` declares the procedure operator_add;
+     * several such declarations are overloads of it. */
+    char *start = (char *)skip_inline_ws(line);
+    if(strncmp(start, "operator", 8) == 0 && !is_ident_char((unsigned char)start[8])) {
+        const char *op = skip_inline_ws(start + 8);
+        size_t length = OperatorTokenLength(op);
+        const char *after = skip_inline_ws(op + length);
+        if(length > 0 && strncmp(after, "::", 2) == 0) {
+            char token[4], rewritten[SOURCE_LINE_MAX * 2];
+            memcpy(token, op, length);
+            token[length] = '\0';
+            int written = snprintf(rewritten, sizeof(rewritten), "%.*s%s %s",
+                                   (int)(start - line), line,
+                                   OperatorProcedureName(token), after);
+            if(written < 0 || (size_t)written >= SOURCE_LINE_MAX)
+                die_at(Span(path, line_no, 1), "source line exceeds size limit");
+            strcpy(line, rewritten);
+        } else if(length == 0 && *op != ':' && strstr(start, "::") != NULL) {
+            die_at(Span(path, line_no, 1),
+                   "operator procedures are written operator + :: (a: T, b: T) -> T, "
+                   "for + - * / %% == != < <= > >= & | ^ << >>");
+        }
+    }
     static _Thread_local NormalizeJaiSourceTokensBuffers *spares[16];
     static _Thread_local int spare_count;
     NormalizeJaiSourceTokensBuffers *buffers = spare_count > 0 ? spares[--spare_count] :

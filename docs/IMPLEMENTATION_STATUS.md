@@ -61,6 +61,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- Records take Jai operator procedures: `operator + :: (a: V, b: V) -> V`
+  for the binary operators `+ - * / % == != < <= > >= & | ^ << >>`. Several
+  declarations of one operator are overloads; `a += b` uses operator +,
+  `a != b` falls back to operator ==, and `#symmetric` also accepts the two
+  arguments swapped. Operators reach callers through open and named imports,
+  and a record operation without one reports that an operator procedure is
+  needed. `tests/operators.sh` checks source and saved IR on C, C++, Go,
+  and `.zib`.
 - `print` shows a record as `{x = 1, y = 2}`: nested records in braces,
   strings quoted, enums by name, fixed arrays by element (up to 16), and
   Vecs and slices by count. The call becomes a call of a generated

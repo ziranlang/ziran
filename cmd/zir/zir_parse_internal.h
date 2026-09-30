@@ -243,6 +243,7 @@ void prepend_logical_line(char queue[16][SOURCE_LINE_MAX * 2], int *count, const
 int split_oneline_block(const char *t, char *head, size_t hsz, char *body, size_t bsz, char *tail, size_t tsz);
 const char *closing_parenthesis(const char *open);
 void parse_function_header(char *name, size_t name_size, char *args, size_t args_size, char *ret, size_t ret_size, const char *line);
+int symmetric_operator_wrapper(char *header, char *wrapper, size_t size, ZirSourceSpan span);
 int function_must_use(const char *line, const char *return_type, ZirSourceSpan span);
 int strip_program_export(char *line, char *symbol, size_t symbol_size, ZirSourceSpan span);
 void separate_parameter_defaults(char *args, size_t capacity, char *defaults, size_t defaults_capacity, ZirSourceSpan span);

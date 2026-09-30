@@ -1218,6 +1218,54 @@ split_oneline_function(const char *line, char *head, size_t head_size,
     return 1;
 }
 
+/* Jai's `operator * :: (v: V, k: s32) -> V #symmetric` also takes its two
+ * arguments in the other order. Remove the directive from HEADER and write
+ * the one-line wrapper that takes them swapped into WRAPPER. Returns 0 when
+ * both parameters have one type, so no wrapper is needed. */
+int
+symmetric_operator_wrapper(char *header, char *wrapper, size_t size, ZirSourceSpan span)
+{
+    char *directive = strstr(header, "#symmetric");
+    if(directive != NULL)
+        memmove(directive, directive + 10, strlen(directive + 10) + 1);
+    char name[ZIR_NAME_MAX], result[ZIR_NAME_MAX];
+    char *args = AllocateOrExit(ZIR_TEXT_MAX);
+    char (*parts)[ZIR_TEXT_MAX] = AllocateOrExit(3 * sizeof(*parts));
+    char *open = strchr(header, '{');
+    char saved = 0;
+    if(open != NULL) { saved = *open; *open = '\0'; }
+    parse_function_header(name, sizeof(name), args, ZIR_TEXT_MAX,
+                          result, sizeof(result), header);
+    if(open != NULL) *open = saved;
+    if(strncmp(name, "operator_", 9) != 0 ||
+       split_top_level(args, parts[0], 3, sizeof(parts[0])) != 2)
+        die_at(span, "#symmetric requires an operator procedure with two parameters");
+    char first[ZIR_NAME_MAX], second[ZIR_NAME_MAX];
+    const char *types[2];
+    char *names[2] = { first, second };
+    for(int i = 0; i < 2; i++) {
+        char *colon = strchr(parts[i], ':');
+        if(colon == NULL)
+            die_at(span, "#symmetric requires an operator procedure with two parameters");
+        snprintf(names[i], ZIR_NAME_MAX, "%.*s", (int)(colon - parts[i]), parts[i]);
+        trim_in_place(names[i]);
+        types[i] = skip_ws(colon + 1);
+    }
+    int needed = strcmp(types[0], types[1]) != 0;
+    if(needed) {
+        int written = snprintf(wrapper, size,
+            "%s :: (%s: %s, %s: %s)%s%s { return %s(%s, %s); }",
+            name, second, types[1], first, types[0],
+            strcmp(result, "void") ? " -> " : "", strcmp(result, "void") ? result : "",
+            name, first, second);
+        if(written < 0 || (size_t)written >= size)
+            die_at(span, "#symmetric operator header exceeds source limit");
+    }
+    free(args);
+    free(parts);
+    return needed;
+}
+
 /* Locate Jai's optional `then` on an if header. A `then` inside a string,
  * grouped expression, or an unparenthesized ifx condition is not the header
  * separator. The latter remains an expression parse error until that form

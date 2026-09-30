@@ -85,6 +85,13 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int results_count = 0;
     int results_serial = 0;
     int uses_formatting = 0; /* BuilderPrint expands to std/format's Append */
+    /* #symmetric operators add a swapped wrapper, parsed after the file. */
+    typedef struct SymmetricWrapper {
+        char line[SOURCE_LINE_MAX];
+        int scope_public, scope_file;
+    } SymmetricWrapper;
+    SymmetricWrapper *symmetric = NULL;
+    int symmetric_count = 0, symmetric_next = 0;
     ZirConsts consts;
     ZirConsts future_constants = {0};
     ZirUsings future_usings = {0};
@@ -177,6 +184,14 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                in_string || expr_brace != 0)
                 die_at(Span(buffers->rel, pending_start_line, pending_start_column),
                        "unterminated source declaration or expression");
+            if(load_depth == 0 && symmetric_next < symmetric_count) {
+                SymmetricWrapper *next = &symmetric[symmetric_next++];
+                scope_public = next->scope_public;
+                scope_file = next->scope_file;
+                prepend_logical_line(buffers->onelineq, &onelineq_count, next->line,
+                                     Span(buffers->rel, line_no, 1));
+                continue;
+            }
             if(load_depth == 0)
                 break;
             LoadFrame *frame = &buffers->load_frames[--load_depth];
@@ -534,6 +549,20 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             die_at(Span(buffers->rel, line_no, 1),
                    "#private is not Jai syntax; use #scope_file");
         if(mode == TOP && looks_like_function_header(t)) {
+            if(contains_source_directive(t, "#symmetric")) {
+                SymmetricWrapper *grown = realloc(symmetric,
+                    (size_t)(symmetric_count + 1) * sizeof(*symmetric));
+                if(grown == NULL)
+                    die("out of memory");
+                symmetric = grown;
+                if(symmetric_operator_wrapper(t, symmetric[symmetric_count].line,
+                                              sizeof(symmetric[symmetric_count].line),
+                                              Span(buffers->rel, line_no, 1))) {
+                    symmetric[symmetric_count].scope_public = scope_public;
+                    symmetric[symmetric_count].scope_file = scope_file;
+                    symmetric_count++;
+                }
+            }
             if(contains_source_directive(t, "#go_results") &&
                !contains_source_directive(t, "#foreign"))
                 die_at(Span(buffers->rel, line_no, 1), "#go_results requires a foreign procedure");
@@ -1861,6 +1890,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             parse_import_line(module, buffers->rel, 1, import_line, 0);
     }
     ZirSourceUsesResizableArrays = outer_resizable_arrays;
+    free(symmetric);
     free(consts.items);
     free(future_constants.items);
     free(future_usings.items);

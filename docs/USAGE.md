@@ -248,8 +248,16 @@ bytes, copied byte strings, IP primitives, HTTP request fields and headers.
 `http_go` also preserves the native `ResponseWriter` interface and exposes
 response headers and `SetHeader`.
 `time_go` provides parsing, UTC conversion and formatting while preserving
-native `time.Time` values and parse errors. `context_go` preserves native
-contexts and provides `Background`. `sql_go` exposes native database,
+native `time.Time` values and parse errors. It also provides native ticker
+creation, stopping and boxed channel access. `context_go` preserves native
+contexts and provides `Background` and the boxed cancellation channel `Done`.
+`select_go` builds receive, send and default cases over boxed native channels.
+`Select` blocks until a case is ready and returns its index, native reflected
+value and receive-success flag. It uses Go's `reflect.Select`; channel direction
+and send-value compatibility are checked at runtime. Nil channels disable their
+case, closed channels retain their zero-value/false receive result, and multiple
+ready cases use Go's selection behavior. These operations require the Go target.
+`sql_go` exposes native database,
 transaction, row and result handles, nullable strings, row iteration and
 transaction cleanup. Declare query, execution and scan bindings with the
 argument types required by the application; Go checks those native signatures.
@@ -304,8 +312,8 @@ declaration's diagnostic source text.
 `io_go` exposes native readers, closable readers, writers and `ReadAll`.
 `http_go` supplies request bodies and contexts, bounded body readers and
 response status writes. `json_go` supplies JSON validation and streaming
-encoders; `url_go` supplies decoded query values. Native interface conversions
-keep the original stream and context objects, and these operations preserve
+encoders and decoders; `url_go` supplies decoded query values. Native interface
+conversions keep the original stream and context objects, and these operations preserve
 Go error identity. Schedule `ReadCloser.Close` with `#go_defer` in the function
 that owns the stream when cleanup must also run after a panic.
 

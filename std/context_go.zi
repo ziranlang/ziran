@@ -7,6 +7,7 @@ Context :: #type #foreign go_context "Context";
 BackgroundRaw :: () -> Context #foreign go_context "Background";
 CanceledRaw :: () -> Error #go_field #foreign go_context "Canceled";
 DeadlineExceededRaw :: () -> Error #go_field #foreign go_context "DeadlineExceeded";
+DoneRaw :: (value: Context) -> Any #foreign go_context "Context.Done";
 
 #scope_export
 Background :: () -> Context {
@@ -17,4 +18,7 @@ Canceled :: () -> Error {
 }
 DeadlineExceeded :: () -> Error {
     return DeadlineExceededRaw()
+}
+Done :: (value: Context) -> Any {
+    return DoneRaw(value)
 }

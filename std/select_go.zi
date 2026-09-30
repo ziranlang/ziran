@@ -1,0 +1,46 @@
+// Select native Go channels through their boxed interface values. Channels
+// retain native storage and direction; reflect.Select validates the channel
+// and send-value types at runtime and preserves Go's ready-case selection.
+#import "go_types"
+go_reflect :: #system_library "go:reflect";
+Case :: #type #foreign go_reflect "SelectCase";
+Direction :: #type #foreign go_reflect "SelectDir";
+Value :: #type #foreign go_reflect "Value";
+SelectResult :: struct {
+    chosen: isize
+    value: Value
+    receiveOK: bool
+}
+
+#scope_file
+ValueOf :: (value: Any) -> Value #foreign go_reflect;
+ReceiveDirection :: () -> Direction #go_field #foreign go_reflect "SelectRecv";
+SendDirection :: () -> Direction #go_field #foreign go_reflect "SelectSend";
+DefaultDirection :: () -> Direction #go_field #foreign go_reflect "SelectDefault";
+SetDirection :: (value: *Case, direction: Direction) #go_field #foreign go_reflect "(*SelectCase).Dir";
+SetChannel :: (value: *Case, channel: Value) #go_field #foreign go_reflect "(*SelectCase).Chan";
+SetSend :: (value: *Case, send: Value) #go_field #foreign go_reflect "(*SelectCase).Send";
+SelectRaw :: (cases: []Case) -> SelectResult #go_results #foreign go_reflect "Select";
+
+#scope_export
+Receive :: (channel: Any) -> Case {
+    value: Case
+    SetDirection(*value, ReceiveDirection())
+    SetChannel(*value, ValueOf(channel))
+    return value
+}
+Send :: (channel: Any, send: Any) -> Case {
+    value: Case
+    SetDirection(*value, SendDirection())
+    SetChannel(*value, ValueOf(channel))
+    SetSend(*value, ValueOf(send))
+    return value
+}
+Default :: () -> Case {
+    value: Case
+    SetDirection(*value, DefaultDirection())
+    return value
+}
+Select :: (cases: []Case) -> SelectResult {
+    return SelectRaw(cases)
+}

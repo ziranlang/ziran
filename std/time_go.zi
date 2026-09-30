@@ -3,6 +3,7 @@
 go_time :: #system_library "go:time";
 Time :: #type #foreign go_time "Time";
 Duration :: #type #foreign go_time "Duration";
+Ticker :: #type #foreign go_time "Ticker";
 ParseResult :: struct {
     value: Time
     error: Error
@@ -18,6 +19,9 @@ FormatRaw :: (value: Time, layout: string) -> string #foreign go_time "Time.Form
 UnixRaw :: (value: Time) -> s64 #foreign go_time "Time.Unix";
 FromUnixRaw :: (seconds: s64, nanos: s64) -> Time #foreign go_time "Unix";
 UntilRaw :: (value: Time) -> Duration #foreign go_time "Until";
+NewTickerRaw :: (duration: Duration) -> *Ticker #foreign go_time "NewTicker";
+StopTickerRaw :: (ticker: *Ticker) #foreign go_time "(*Ticker).Stop";
+TickerChannelRaw :: (ticker: *Ticker) -> Any #go_field #foreign go_time "(*Ticker).C";
 
 #scope_export
 Now :: () -> Time {
@@ -46,4 +50,13 @@ FromUnix :: (seconds: s64, nanos: s64) -> Time {
 }
 Until :: (value: Time) -> Duration {
     return UntilRaw(value)
+}
+NewTicker :: (duration: Duration) -> *Ticker {
+    return NewTickerRaw(duration)
+}
+StopTicker :: (ticker: *Ticker) {
+    StopTickerRaw(ticker)
+}
+TickerChannel :: (ticker: *Ticker) -> Any {
+    return TickerChannelRaw(ticker)
 }

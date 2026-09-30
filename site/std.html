@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Ziran standard library reference: every public type, constant, and procedure in std/, generated from the checked source."><title>Ziran standard library</title><link rel="canonical" href="https://ziran-lang.org/std"><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"><script defer src="site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="index.html"><img class="brand-icon" src="assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="get-started.html">Get started</a><a href="examples.html">Examples</a><a href="docs.html" aria-current="page">Docs</a><a href="status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow">Reference / Standard library</p><h1>The standard <em>library.</em></h1><p>Every public declaration in <code>std/</code>, listed from the checked source by <code>ziran api</code> with the comment written above it. Modules ending in <code>_linux</code> call the operating system and build for native Linux targets; declarations marked as needing a host capability run in portable bundles only when the host binds them.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>Modules</strong><!-- generated:std_toc --><a href="#binary_linux">binary_linux</a><a href="#bundle_host">bundle_host</a><a href="#byte_text_linux">byte_text_linux</a><a href="#c_string">c_string</a><a href="#constant_time">constant_time</a><a href="#date_parse">date_parse</a><a href="#date_time">date_time</a><a href="#date_time_linux">date_time_linux</a><a href="#file_linux">file_linux</a><a href="#file_plan9">file_plan9</a><a href="#go_types">go_types</a><a href="#hmac_sha256_go">hmac_sha256_go</a><a href="#http_get_linux">http_get_linux</a><a href="#json_scan">json_scan</a><a href="#map_go">map_go</a><a href="#mapped_file_linux">mapped_file_linux</a><a href="#math">math</a><a href="#net_http">net_http</a><a href="#net_http_curl_linux">net_http_curl_linux</a><a href="#net_http_linux">net_http_linux</a><a href="#net_ws_curl_linux">net_ws_curl_linux</a><a href="#number_text">number_text</a><a href="#option">option</a><a href="#pair">pair</a><a href="#process">process</a><a href="#process_capture_linux">process_capture_linux</a><a href="#queue">queue</a><a href="#random_go">random_go</a><a href="#random_linux">random_linux</a><a href="#result">result</a><a href="#rss_scan">rss_scan</a><a href="#socket_linux">socket_linux</a><a href="#sort">sort</a><a href="#string_range">string_range</a><a href="#sync_go">sync_go</a><a href="#text">text</a><a href="#text_buffer">text_buffer</a><a href="#text_go">text_go</a><a href="#time_go">time_go</a><a href="#timer_linux">timer_linux</a><a href="#update">update</a><a href="#utf8">utf8</a><a href="#vec">vec</a><a href="#web">web</a><a href="#zip">zip</a><a href="#zip_file_linux">zip_file_linux</a><a href="#zip_linux">zip_linux</a><!-- /generated:std_toc --></aside><div class="article-body api-body">
+<div class="article-grid"><aside class="page-toc"><strong>Modules</strong><!-- generated:std_toc --><a href="#binary_linux">binary_linux</a><a href="#bundle_host">bundle_host</a><a href="#byte_text_linux">byte_text_linux</a><a href="#c_string">c_string</a><a href="#constant_time">constant_time</a><a href="#date_parse">date_parse</a><a href="#date_time">date_time</a><a href="#date_time_linux">date_time_linux</a><a href="#file_linux">file_linux</a><a href="#file_plan9">file_plan9</a><a href="#go_types">go_types</a><a href="#hmac_sha256_go">hmac_sha256_go</a><a href="#http_get_linux">http_get_linux</a><a href="#http_go">http_go</a><a href="#json_scan">json_scan</a><a href="#map_go">map_go</a><a href="#mapped_file_linux">mapped_file_linux</a><a href="#math">math</a><a href="#net_go">net_go</a><a href="#net_http">net_http</a><a href="#net_http_curl_linux">net_http_curl_linux</a><a href="#net_http_linux">net_http_linux</a><a href="#net_ws_curl_linux">net_ws_curl_linux</a><a href="#number_text">number_text</a><a href="#option">option</a><a href="#pair">pair</a><a href="#process">process</a><a href="#process_capture_linux">process_capture_linux</a><a href="#queue">queue</a><a href="#random_go">random_go</a><a href="#random_linux">random_linux</a><a href="#result">result</a><a href="#rss_scan">rss_scan</a><a href="#socket_linux">socket_linux</a><a href="#sort">sort</a><a href="#string_range">string_range</a><a href="#sync_go">sync_go</a><a href="#text">text</a><a href="#text_buffer">text_buffer</a><a href="#text_go">text_go</a><a href="#time_go">time_go</a><a href="#timer_linux">timer_linux</a><a href="#update">update</a><a href="#utf8">utf8</a><a href="#vec">vec</a><a href="#web">web</a><a href="#zip">zip</a><a href="#zip_file_linux">zip_file_linux</a><a href="#zip_linux">zip_linux</a><!-- /generated:std_toc --></aside><div class="article-body api-body">
 <!-- generated:std --><section id="binary_linux"><p class="eyebrow">01 / std/binary_linux.zi</p><h2>binary_linux</h2><p>Little-endian binary fields for native Linux programs. No file format or application record layout is imposed by this module.</p><p>Import with <code>#import "binary_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>ReadU64LE :: (bytes: []u8, at: s32) -&gt; u64</code></div>
 <div><code>WriteU64LE :: (bytes: []u8, at: s32, value: u64) -&gt; bool</code></div>
@@ -108,7 +108,14 @@
 <section id="http_get_linux"><p class="eyebrow">13 / std/http_get_linux.zi</p><h2>http_get_linux</h2><p>Import with <code>#import "http_get_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>GetHttps :: (url: string, output: []u8) -&gt; CaptureResult</code><p>Native HTTPS GET. curl owns TLS and redirects; the caller owns storage.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/http_get_linux.zi">Source ↗</a></p></section>
-<section id="json_scan"><p class="eyebrow">14 / std/json_scan.zi</p><h2>json_scan</h2><p>Import with <code>#import "json_scan"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="http_go"><p class="eyebrow">14 / std/http_go.zi</p><h2>http_go</h2><p>Go HTTP request fields and header lookup retain their native types and behavior.</p><p>Import with <code>#import "http_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<div><code>Request :: struct</code></div>
+<div><code>Header :: struct</code></div>
+<div><code>RemoteAddress :: (request: *Request) -&gt; string</code></div>
+<div><code>Headers :: (request: *Request) -&gt; Header</code></div>
+<div><code>HeaderValue :: (header: Header, name: string) -&gt; string</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/http_go.zi">Source ↗</a></p></section>
+<section id="json_scan"><p class="eyebrow">15 / std/json_scan.zi</p><h2>json_scan</h2><p>Import with <code>#import "json_scan"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>JsonSpan :: struct { start: s32; end: s32; after: s32; valid: bool; }</code><p>A small allocation-free JSON scanner. Positions are UTF-8 byte offsets. String spans retain escapes; member lookup matches unescaped ASCII names.</p></div>
 <div><code>JsonNumber :: struct { value: float64; after: s32; valid: bool; }</code></div>
 <div><code>Space :: (text: string, at: s32) -&gt; s32</code></div>
@@ -124,29 +131,38 @@
 <div><code>ElementAt :: (text: string, array_at: s32, index: s32) -&gt; s32</code></div>
 <div><code>ArrayCount :: (text: string, array_at: s32) -&gt; s32</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/json_scan.zi">Source ↗</a></p></section>
-<section id="map_go"><p class="eyebrow">15 / std/map_go.zi</p><h2>map_go</h2><p>Go maps share their storage when copied or passed to a function. The private fields describe type arguments; access goes through Map operations. Go target only. Import option to use MapLookup, whose result is Option(V). MapSet initializes nil storage; MapInit preserves an existing map. MapGet returns a zero value for absent keys. MapKeys returns an unordered snapshot.</p><p>Import with <code>#import "map_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="map_go"><p class="eyebrow">16 / std/map_go.zi</p><h2>map_go</h2><p>Go maps share their storage when copied or passed to a function. The private fields describe type arguments; access goes through Map operations. Go target only. Import option to use MapLookup, whose result is Option(V). MapSet initializes nil storage; MapInit preserves an existing map. MapGet returns a zero value for absent keys. MapKeys returns an unordered snapshot.</p><p>Import with <code>#import "map_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Map :: struct($K: Type, $V: Type) { key: K; value: V; }</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/map_go.zi">Source ↗</a></p></section>
-<section id="mapped_file_linux"><p class="eyebrow">16 / std/mapped_file_linux.zi</p><h2>mapped_file_linux</h2><p>Import with <code>#import "mapped_file_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="mapped_file_linux"><p class="eyebrow">17 / std/mapped_file_linux.zi</p><h2>mapped_file_linux</h2><p>Import with <code>#import "mapped_file_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>MappedFile :: struct { data: *u8; length: u64; valid: bool; }</code></div>
 <div><code>MapPrivate :: (path: string) -&gt; MappedFile</code></div>
 <div><code>MappedBytes :: (file: MappedFile) -&gt; []u8</code></div>
 <div><code>UnmapFile :: (file: MappedFile) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/mapped_file_linux.zi">Source ↗</a></p></section>
-<section id="math"><p class="eyebrow">17 / std/math.zi</p><h2>math</h2><p>Portable float32 helpers for native and bundled Ziran programs.</p><p>Import with <code>#import "math"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="math"><p class="eyebrow">18 / std/math.zi</p><h2>math</h2><p>Portable float32 helpers for native and bundled Ziran programs.</p><p>Import with <code>#import "math"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Finite32 :: (value: float32) -&gt; bool</code></div>
 <div><code>FloorInteger :: (value: float32) -&gt; s32</code></div>
 <div><code>CeilInteger :: (value: float32) -&gt; s32</code></div>
 <div><code>SineDegrees :: (degrees: float32) -&gt; float32</code><p>Reduce to [-pi/2, pi/2] before the Taylor polynomial.</p></div>
 <div><code>CosineDegrees :: (degrees: float32) -&gt; float32</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/math.zi">Source ↗</a></p></section>
-<section id="net_http"><p class="eyebrow">18 / std/net_http.zi</p><h2>net_http</h2><p>Import with <code>#import "net_http"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="net_go"><p class="eyebrow">19 / std/net_go.zi</p><h2>net_go</h2><p>Go IP parsing, canonical formatting, loopback classification and host/port splitting.</p><p>Import with <code>#import "net_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<div><code>IP :: struct</code></div>
+<div><code>HostPort :: struct { host: string; port: string; error: Error; }</code></div>
+<div><code>SplitHostPort :: (address: string) -&gt; HostPort</code></div>
+<div><code>ParseIP :: (address: string) -&gt; IP</code></div>
+<div><code>ValidIP :: (value: IP) -&gt; bool</code></div>
+<div><code>FormatIP :: (value: IP) -&gt; string</code></div>
+<div><code>IsLoopback :: (value: IP) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/net_go.zi">Source ↗</a></p></section>
+<section id="net_http"><p class="eyebrow">20 / std/net_http.zi</p><h2>net_http</h2><p>Import with <code>#import "net_http"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>HttpHeader :: struct { name: string; value: string; }</code><p>Network transport is an explicit host capability. The host adds a Bearer Authorization header when token is nonempty. It must not log that token. The request and response records have the same meaning in native targets and portable bundles.</p></div>
 <div><code>HttpRequest :: struct { method: string; url: string; token: string; accept: string; content_type: string; body: string; headers: []HttpHeader; }</code></div>
 <div><code>HttpResponse :: struct { status: s32; body: string; error: string; }</code></div>
 <div><code>Send :: (request: HttpRequest) -&gt; HttpResponse</code><p class="api-note">Needs a host capability.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/net_http.zi">Source ↗</a></p></section>
-<section id="net_http_curl_linux"><p class="eyebrow">19 / std/net_http_curl_linux.zi</p><h2>net_http_curl_linux</h2><p>Import with <code>#import "net_http_curl_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="net_http_curl_linux"><p class="eyebrow">21 / std/net_http_curl_linux.zi</p><h2>net_http_curl_linux</h2><p>Import with <code>#import "net_http_curl_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>CurlInitRoutine :: #type ()</code></div>
 <div><code>CurlUrl :: 10002</code></div>
 <div><code>CurlMethod :: 10036</code></div>
@@ -180,10 +196,10 @@
 <div><code>AddNamedHeader :: (headers: **void, name: string, value: string, buffer: []u8) -&gt; bool</code></div>
 <div><code>SendCurl :: (request: HttpRequest, output: []u8) -&gt; CurlResult</code><p>The caller owns output. It remains NUL terminated, including on failure. HTTP errors retain their status and body for protocol-level decisions.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/net_http_curl_linux.zi">Source ↗</a></p></section>
-<section id="net_http_linux"><p class="eyebrow">20 / std/net_http_linux.zi</p><h2>net_http_linux</h2><p>Import with <code>#import "net_http_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="net_http_linux"><p class="eyebrow">22 / std/net_http_linux.zi</p><h2>net_http_linux</h2><p>Import with <code>#import "net_http_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>PostJson :: (url: string, body: string, output: []u8) -&gt; CaptureResult</code><p>Native HTTPS JSON transport. curl owns TLS and HTTP framing; Ziran owns the request arguments and caller-provided response buffer.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/net_http_linux.zi">Source ↗</a></p></section>
-<section id="net_ws_curl_linux"><p class="eyebrow">21 / std/net_ws_curl_linux.zi</p><h2>net_ws_curl_linux</h2><p>Blocking, bounded WebSocket text receive for native libcurl hosts. The protocol consumer owns URL construction and JSON validation.</p><p>Import with <code>#import "net_ws_curl_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="net_ws_curl_linux"><p class="eyebrow">23 / std/net_ws_curl_linux.zi</p><h2>net_ws_curl_linux</h2><p>Blocking, bounded WebSocket text receive for native libcurl hosts. The protocol consumer owns URL construction and JSON validation.</p><p>Import with <code>#import "net_ws_curl_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>CurlWsFrame :: struct { age: s32; flags: s32; offset: s64; bytes_left: s64; length: u64; }</code></div>
 <div><code>PollDescriptor :: struct { fd: s32; events: s16; returned: s16; }</code></div>
 <div><code>CurlConnectOnly :: 141</code></div>
@@ -195,17 +211,17 @@
 <div><code>PollRead :: 1</code><p>Output is NUL terminated on success. status is 401 on an unauthorized</p></div>
 <div><code>ReceiveWebSocketCurl :: (context: *void, url: string, token: string, output: []u8, status: *s32) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/net_ws_curl_linux.zi">Source ↗</a></p></section>
-<section id="number_text"><p class="eyebrow">22 / std/number_text.zi</p><h2>number_text</h2><p>Import with <code>#import "number_text"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="number_text"><p class="eyebrow">24 / std/number_text.zi</p><h2>number_text</h2><p>Import with <code>#import "number_text"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>FormatInteger :: (value: s64, output: []u8) -&gt; string</code><p>A whole number in base ten. The buffer needs 21 bytes for any s64.</p></div>
 <div><code>FormatDecimal :: (value: float64, places: s32, output: []u8) -&gt; string</code><p>A number rounded to `places` digits after the point (at most 9), with trailing zeros dropped: 0.5, 12, -3.25. The buffer needs 32 bytes.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/number_text.zi">Source ↗</a></p></section>
-<section id="option"><p class="eyebrow">23 / std/option.zi</p><h2>option</h2><p>Import with <code>#import "option"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="option"><p class="eyebrow">25 / std/option.zi</p><h2>option</h2><p>Import with <code>#import "option"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Option :: struct($T: Type) { has_value: bool; value: T; }</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/option.zi">Source ↗</a></p></section>
-<section id="pair"><p class="eyebrow">24 / std/pair.zi</p><h2>pair</h2><p>Import with <code>#import "pair"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="pair"><p class="eyebrow">26 / std/pair.zi</p><h2>pair</h2><p>Import with <code>#import "pair"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Pair :: struct($A: Type, $B: Type) { first: A; second: B; }</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/pair.zi">Source ↗</a></p></section>
-<section id="process"><p class="eyebrow">25 / std/process.zi</p><h2>process</h2><p>Import with <code>#import "process"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="process"><p class="eyebrow">27 / std/process.zi</p><h2>process</h2><p>Import with <code>#import "process"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>ProcessRequest :: struct { executable: string; cwd: string; stdin: string; credential_name: string; credential_value: string; isolate_desktop: bool; timeout_ms: s64; }</code><p>A line-oriented child-process capability. The host receives explicit arguments, stdin, and one optional secret environment binding. Hosts must honor isolate_desktop before starting any child. Handles are host-owned; callers consume lines and then wait exactly once.</p></div>
 <div><code>ProcessStart :: struct { handle: s32; error: string; }</code></div>
 <div><code>ProcessLine :: struct { text: string; eof: bool; error: string; }</code></div>
@@ -214,13 +230,13 @@
 <div><code>NextLine :: (handle: s32) -&gt; ProcessLine</code><p class="api-note">Needs a host capability.</p></div>
 <div><code>Wait :: (handle: s32) -&gt; ProcessExit</code><p class="api-note">Needs a host capability.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/process.zi">Source ↗</a></p></section>
-<section id="process_capture_linux"><p class="eyebrow">26 / std/process_capture_linux.zi</p><h2>process_capture_linux</h2><p>Import with <code>#import "process_capture_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="process_capture_linux"><p class="eyebrow">28 / std/process_capture_linux.zi</p><h2>process_capture_linux</h2><p>Import with <code>#import "process_capture_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>CapturePointer :: struct { value: *u8; }</code></div>
 <div><code>CaptureArgument :: struct { bytes: [4096]u8; }</code></div>
 <div><code>CaptureResult :: struct { code: s32; length: s32; error: bool; truncated: bool; }</code></div>
 <div><code>CaptureOutput :: (arguments: []string, output: []u8) -&gt; CaptureResult</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/process_capture_linux.zi">Source ↗</a></p></section>
-<section id="queue"><p class="eyebrow">27 / std/queue.zi</p><h2>queue</h2><p>Allocation-free bounded FIFO queue over caller-owned byte storage. Queue state is passed and returned by value; every operation receives the backing bytes explicitly so their lifetime remains visible to the caller.</p><p>Import with <code>#import "queue"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="queue"><p class="eyebrow">29 / std/queue.zi</p><h2>queue</h2><p>Allocation-free bounded FIFO queue over caller-owned byte storage. Queue state is passed and returned by value; every operation receives the backing bytes explicitly so their lifetime remains visible to the caller.</p><p>Import with <code>#import "queue"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>BoundedQueue :: struct { capacity: s64; head: s64; count: s64; }</code></div>
 <div><code>QueueByte :: struct { queue: BoundedQueue; valid: bool; value: u8; }</code></div>
 <div><code>QueueBytes :: struct { queue: BoundedQueue; count: s64; }</code></div>
@@ -233,17 +249,17 @@
 <div><code>QueuePopBytes :: (queue: BoundedQueue, storage: []u8, output: []u8) -&gt; QueueBytes</code></div>
 <div><code>QueueClear :: (queue: BoundedQueue) -&gt; BoundedQueue</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/queue.zi">Source ↗</a></p></section>
-<section id="random_go"><p class="eyebrow">28 / std/random_go.zi</p><h2>random_go</h2><p>Cryptographic random bytes from Go, preserving its count and error results.</p><p>Import with <code>#import "random_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="random_go"><p class="eyebrow">30 / std/random_go.zi</p><h2>random_go</h2><p>Cryptographic random bytes from Go, preserving its count and error results.</p><p>Import with <code>#import "random_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>ReadResult :: struct { count: isize; error: Error; }</code></div>
 <div><code>Fill :: (output: []u8) -&gt; ReadResult</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/random_go.zi">Source ↗</a></p></section>
-<section id="random_linux"><p class="eyebrow">29 / std/random_linux.zi</p><h2>random_linux</h2><p>Secure operating-system randomness for native Linux programs. The caller owns the destination bytes and no fallback generator is permitted.</p><p>Import with <code>#import "random_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="random_linux"><p class="eyebrow">31 / std/random_linux.zi</p><h2>random_linux</h2><p>Secure operating-system randomness for native Linux programs. The caller owns the destination bytes and no fallback generator is permitted.</p><p>Import with <code>#import "random_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>FillSecure :: (output: []u8) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/random_linux.zi">Source ↗</a></p></section>
-<section id="result"><p class="eyebrow">30 / std/result.zi</p><h2>result</h2><p>Import with <code>#import "result"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="result"><p class="eyebrow">32 / std/result.zi</p><h2>result</h2><p>Import with <code>#import "result"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Result :: struct($T: Type, $E: Type) { is_ok: bool; value: T; error: E; }</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/result.zi">Source ↗</a></p></section>
-<section id="rss_scan"><p class="eyebrow">31 / std/rss_scan.zi</p><h2>rss_scan</h2><p>Import with <code>#import "rss_scan"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="rss_scan"><p class="eyebrow">33 / std/rss_scan.zi</p><h2>rss_scan</h2><p>Import with <code>#import "rss_scan"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>FeedSpan :: struct { start: s32; end: s32; after: s32; valid: bool; }</code></div>
 <div><code>FeedMatch :: (document: string, at: s32, needle: string) -&gt; bool</code></div>
 <div><code>FeedFind :: (document: string, from: s32, needle: string) -&gt; s32</code></div>
@@ -252,7 +268,7 @@
 <div><code>FeedEntity :: (document: string, at: s32, end: s32, output: *u8) -&gt; s32</code></div>
 <div><code>FeedCopyText :: (document: string, span: FeedSpan, output: []u8) -&gt; s32</code><p>Copies a text or CDATA field into caller-owned storage. Tags in summaries become spaces, and a malformed/truncated field is rejected.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/rss_scan.zi">Source ↗</a></p></section>
-<section id="socket_linux"><p class="eyebrow">32 / std/socket_linux.zi</p><h2>socket_linux</h2><p>Bounded, cancellation-aware TCP client sockets for native Linux programs. The caller supplies a literal IPv4 address; this module performs no DNS, HTTP, TLS, or plaintext-protocol fallback.</p><p>Import with <code>#import "socket_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="socket_linux"><p class="eyebrow">34 / std/socket_linux.zi</p><h2>socket_linux</h2><p>Bounded, cancellation-aware TCP client sockets for native Linux programs. The caller supplies a literal IPv4 address; this module performs no DNS, HTTP, TLS, or plaintext-protocol fallback.</p><p>Import with <code>#import "socket_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>LinuxSocket :: struct { fd: s32; valid: bool; error: s32; }</code></div>
 <div><code>LinuxSocketEvent :: struct { ready: s32; error: s32; }</code></div>
 <div><code>LinuxSocketAddress :: struct { family: u16; port: u16; address: u32; zero: [8]u8; }</code></div>
@@ -266,61 +282,61 @@
 <div><code>SocketReceive :: (socket: LinuxSocket, output: []u8, timeout_ms: s32) -&gt; s64</code></div>
 <div><code>SocketClose :: (socket: *LinuxSocket) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/socket_linux.zi">Source ↗</a></p></section>
-<section id="sort"><p class="eyebrow">33 / std/sort.zi</p><h2>sort</h2><p>Sorting and searching for slices of any type ordered by the &lt; operator. Sorting is an in-place heapsort: O(n log n) comparisons, no allocation, no recursion, and not stable.</p><p>Import with <code>#import "sort"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="sort"><p class="eyebrow">35 / std/sort.zi</p><h2>sort</h2><p>Sorting and searching for slices of any type ordered by the &lt; operator. Sorting is an in-place heapsort: O(n log n) comparisons, no allocation, no recursion, and not stable.</p><p>Import with <code>#import "sort"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Sort :: (values: []$T)</code><p>Sorts values in ascending order.</p></div>
 <div><code>IsSorted :: (values: []$T) -&gt; bool</code><p>Reports whether values are in ascending order.</p></div>
 <div><code>LowerBound :: (values: []$T, target: T) -&gt; s64</code><p>Returns the first index whose value is not less than target, or values.count when every value is less. values must be sorted.</p></div>
 <div><code>BinarySearch :: (values: []$T, target: T) -&gt; s64</code><p>Returns an index holding target, or -1 when values has none. values must be sorted.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/sort.zi">Source ↗</a></p></section>
-<section id="string_range"><p class="eyebrow">34 / std/string_range.zi</p><h2>string_range</h2><p>A byte range of an immutable borrowed string. Bounds are checked by Ziran. Callers working with UTF-8 text should choose codepoint boundaries.</p><p>Import with <code>#import "string_range"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="string_range"><p class="eyebrow">36 / std/string_range.zi</p><h2>string_range</h2><p>A byte range of an immutable borrowed string. Bounds are checked by Ziran. Callers working with UTF-8 text should choose codepoint boundaries.</p><p>Import with <code>#import "string_range"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Substring :: (source: string, start: s32, length: s32) -&gt; string</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/string_range.zi">Source ↗</a></p></section>
-<section id="sync_go"><p class="eyebrow">35 / std/sync_go.zi</p><h2>sync_go</h2><p>Go mutexes. Keep one mutex in shared storage and pass its address.</p><p>Import with <code>#import "sync_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="sync_go"><p class="eyebrow">37 / std/sync_go.zi</p><h2>sync_go</h2><p>Go mutexes. Keep one mutex in shared storage and pass its address.</p><p>Import with <code>#import "sync_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Mutex :: struct</code></div>
 <div><code>Lock :: (mutex: *Mutex)</code></div>
 <div><code>Unlock :: (mutex: *Mutex)</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/sync_go.zi">Source ↗</a></p></section>
-<section id="text"><p class="eyebrow">36 / std/text.zi</p><h2>text</h2><p>ASCII-only case folding keeps the result identical across native targets and the portable runner. UTF-8 bytes outside ASCII compare unchanged.</p><p>Import with <code>#import "text"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="text"><p class="eyebrow">38 / std/text.zi</p><h2>text</h2><p>ASCII-only case folding keeps the result identical across native targets and the portable runner. UTF-8 bytes outside ASCII compare unchanged.</p><p>Import with <code>#import "text"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>LowerASCII :: (value: u8) -&gt; u8</code></div>
 <div><code>StartsWithFoldASCII :: (value: string, prefix: string) -&gt; bool</code></div>
 <div><code>ContainsFoldASCII :: (value: string, needle: string) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/text.zi">Source ↗</a></p></section>
-<section id="text_buffer"><p class="eyebrow">37 / std/text_buffer.zi</p><h2>text_buffer</h2><p>Bounded NUL-terminated byte buffer to borrowed text. The caller keeps the buffer alive until the returned view is no longer used.</p><p>Import with <code>#import "text_buffer"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="text_buffer"><p class="eyebrow">39 / std/text_buffer.zi</p><h2>text_buffer</h2><p>Bounded NUL-terminated byte buffer to borrowed text. The caller keeps the buffer alive until the returned view is no longer used.</p><p>Import with <code>#import "text_buffer"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>TextUntilNul :: (buffer: []u8) -&gt; string</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/text_buffer.zi">Source ↗</a></p></section>
-<section id="text_go"><p class="eyebrow">38 / std/text_go.zi</p><h2>text_go</h2><p>Convert Go-owned bytes to an independent string, preserving every byte.</p><p>Import with <code>#import "text_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="text_go"><p class="eyebrow">40 / std/text_go.zi</p><h2>text_go</h2><p>Convert Go-owned bytes to an independent string, preserving every byte.</p><p>Import with <code>#import "text_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>FromBytes :: (value: []u8) -&gt; string</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/text_go.zi">Source ↗</a></p></section>
-<section id="time_go"><p class="eyebrow">39 / std/time_go.zi</p><h2>time_go</h2><p>Go wall-clock and monotonic timestamps retain their native time.Time behavior.</p><p>Import with <code>#import "time_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="time_go"><p class="eyebrow">41 / std/time_go.zi</p><h2>time_go</h2><p>Go wall-clock and monotonic timestamps retain their native time.Time behavior.</p><p>Import with <code>#import "time_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Time :: struct</code></div>
 <div><code>Duration :: struct</code></div>
 <div><code>Now :: () -&gt; Time</code></div>
 <div><code>After :: (value: Time, other: Time) -&gt; bool</code></div>
 <div><code>Add :: (value: Time, duration: Duration) -&gt; Time</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/time_go.zi">Source ↗</a></p></section>
-<section id="timer_linux"><p class="eyebrow">40 / std/timer_linux.zi</p><h2>timer_linux</h2><p>Monotonic timing and interruptible sleeps for native glibc Linux programs. Wall-clock time is intentionally unavailable from this module.</p><p>Import with <code>#import "timer_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="timer_linux"><p class="eyebrow">42 / std/timer_linux.zi</p><h2>timer_linux</h2><p>Monotonic timing and interruptible sleeps for native glibc Linux programs. Wall-clock time is intentionally unavailable from this module.</p><p>Import with <code>#import "timer_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>ClockValue :: struct { seconds: s64; nanoseconds: s64; }</code></div>
 <div><code>MonotonicMilliseconds :: () -&gt; s64</code></div>
 <div><code>MakeClockValue :: (milliseconds: s64) -&gt; ClockValue</code></div>
 <div><code>SleepMilliseconds :: (milliseconds: s64) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/timer_linux.zi">Source ↗</a></p></section>
-<section id="update"><p class="eyebrow">41 / std/update.zi</p><h2>update</h2><p>Import with <code>#import "update"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="update"><p class="eyebrow">43 / std/update.zi</p><h2>update</h2><p>Import with <code>#import "update"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Artifact :: struct { url: [512]u8; sha256: [65]u8; size: s64; available: bool; }</code><p>Release metadata and version decisions are portable. Downloading and installing an artifact remain explicit host operations.</p></div>
 <div><code>Appcast :: struct { version: [32]u8; notes_url: [512]u8; artifact: Artifact; valid: bool; }</code></div>
 <div><code>CompareVersions :: (left: string, right: string) -&gt; s32</code></div>
 <div><code>ParseAppcast :: (json: string, channel: string) -&gt; Appcast</code><p>Select one channel from the release manifest. A missing channel still yields a valid appcast: package-managed installs show the release page.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/update.zi">Source ↗</a></p></section>
-<section id="utf8"><p class="eyebrow">42 / std/utf8.zi</p><h2>utf8</h2><p>Advance one Unicode scalar in an immutable UTF-8 string. An invalid byte advances by one so callers always make progress and never split a valid multibyte sequence.</p><p>Import with <code>#import "utf8"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="utf8"><p class="eyebrow">44 / std/utf8.zi</p><h2>utf8</h2><p>Advance one Unicode scalar in an immutable UTF-8 string. An invalid byte advances by one so callers always make progress and never split a valid multibyte sequence.</p><p>Import with <code>#import "utf8"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Continuation :: (byte: u8) -&gt; bool</code></div>
 <div><code>Decoded :: struct { value: u32; after: s32; valid: bool; }</code></div>
 <div><code>Decode :: (text: string, at: s32) -&gt; Decoded</code><p>Decode one scalar. A malformed sequence consumes its lead byte and yields U+FFFD so callers can continue scanning without splitting valid text.</p></div>
 <div><code>Next :: (value: string, at: s32) -&gt; s32</code></div>
 <div><code>Count :: (value: string) -&gt; s32</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/utf8.zi">Source ↗</a></p></section>
-<section id="vec"><p class="eyebrow">43 / std/vec.zi</p><h2>vec</h2><p>Owned growable storage. Operations on Vec values are compiler primitives; the data pointer is private to those operations.</p><p>Import with <code>#import "vec"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="vec"><p class="eyebrow">45 / std/vec.zi</p><h2>vec</h2><p>Owned growable storage. Operations on Vec values are compiler primitives; the data pointer is private to those operations.</p><p>Import with <code>#import "vec"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Vec :: struct($T: Type) { data: *T; count: s64; capacity: s64; }</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/vec.zi">Source ↗</a></p></section>
-<section id="web"><p class="eyebrow">44 / std/web.zi</p><h2>web</h2><p>Browser access for Ziran code compiled to WebAssembly. Any Web API is reachable through objects held in the page's handle table: read and write properties, call methods, construct objects, pass Ziran functions as callbacks, and wait on promises. The page side is web/ziran_web.js.  A handle is an s32; 0 means null or undefined, 1 is the global object, and 2 is Emscripten's Module. Names are interned once with WebName and reused, which keeps each call cheap.  Handles the bridge returns are temporary: they all die when the current scope ends. A callback is its own scope; a long-running loop should wrap each pass in WebScope and WebEnd. WebKeep turns a temporary handle into one that lasts until WebRelease, for objects a program holds on to.</p><p>Import with <code>#import "web"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="web"><p class="eyebrow">46 / std/web.zi</p><h2>web</h2><p>Browser access for Ziran code compiled to WebAssembly. Any Web API is reachable through objects held in the page's handle table: read and write properties, call methods, construct objects, pass Ziran functions as callbacks, and wait on promises. The page side is web/ziran_web.js.  A handle is an s32; 0 means null or undefined, 1 is the global object, and 2 is Emscripten's Module. Names are interned once with WebName and reused, which keeps each call cheap.  Handles the bridge returns are temporary: they all die when the current scope ends. A callback is its own scope; a long-running loop should wrap each pass in WebScope and WebEnd. WebKeep turns a temporary handle into one that lasts until WebRelease, for objects a program holds on to.</p><p>Import with <code>#import "web"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>WebValue :: struct { tag: s32; aux: s32; number: float64; }</code><p>A value crossing the boundary: a tag, a length or handle, and a number.</p></div>
 <div><code>WebUndefinedTag :: 0</code></div>
 <div><code>WebNullTag :: 1</code></div>
@@ -398,7 +414,7 @@
 <div><code>WebSleep :: (milliseconds: s32)</code></div>
 <div><code>WebNextFrame :: (minimum_delay: float64)</code><p>Suspends until the browser draws its next frame, and at least `minimum_delay` milliseconds have passed.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/web.zi">Source ↗</a></p></section>
-<section id="zip"><p class="eyebrow">45 / std/zip.zi</p><h2>zip</h2><p>Classic ZIP directory reader for byte buffers. The caller owns the archive bytes and decides which named entries are allowed in its application. ZIP64, encrypted entries, split archives, and ambiguous names are rejected.</p><p>Import with <code>#import "zip"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="zip"><p class="eyebrow">47 / std/zip.zi</p><h2>zip</h2><p>Classic ZIP directory reader for byte buffers. The caller owns the archive bytes and decides which named entries are allowed in its application. ZIP64, encrypted entries, split archives, and ambiguous names are rejected.</p><p>Import with <code>#import "zip"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>ZipEntry :: struct { data_start: u64; compressed_size: u64; size: u64; crc32: u32; method: u32; found: bool; }</code></div>
 <div><code>ZipDirectory :: struct { start: u64; end: u64; cursor: u64; count: u64; index: u64; valid: bool; }</code></div>
 <div><code>ZipNamedEntry :: struct { directory: ZipDirectory; entry: ZipEntry; name_start: u64; name_size: u64; valid: bool; }</code></div>
@@ -420,7 +436,7 @@
 <div><code>ZipCRC32Range :: (bytes: []u8, at: u64, size: u64) -&gt; u32</code></div>
 <div><code>WriteStoredZip :: (output: []u8, input: []u8, items: []ZipWriteItem) -&gt; u64</code><p>Writes uncompressed ZIP entries into caller-owned memory. An app can choose compression separately; this keeps the archive format portable and usable even where no native compression library is installed.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/zip.zi">Source ↗</a></p></section>
-<section id="zip_file_linux"><p class="eyebrow">46 / std/zip_file_linux.zi</p><h2>zip_file_linux</h2><p>Import with <code>#import "zip_file_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="zip_file_linux"><p class="eyebrow">48 / std/zip_file_linux.zi</p><h2>zip_file_linux</h2><p>Import with <code>#import "zip_file_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>ZipFileRecord :: struct { local_offset: u64; size: u64; name_size: u32; crc32: u32; valid: bool; }</code></div>
 <div><code>ZipFilePut16 :: (bytes: []u8, at: s32, value: u32)</code></div>
 <div><code>ZipFilePut32 :: (bytes: []u8, at: s32, value: u32)</code></div>
@@ -431,7 +447,7 @@
 <div><code>WriteStoredZipFileDirectoryEntry :: (file: FileHandle, at: u64, name: string, record: ZipFileRecord) -&gt; u64</code></div>
 <div><code>FinishStoredZipFile :: (file: FileHandle, directory_start: u64, directory_end: u64, count: u32) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/zip_file_linux.zi">Source ↗</a></p></section>
-<section id="zip_linux"><p class="eyebrow">47 / std/zip_linux.zi</p><h2>zip_linux</h2><p>Import with <code>#import "zip_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="zip_linux"><p class="eyebrow">49 / std/zip_linux.zi</p><h2>zip_linux</h2><p>Import with <code>#import "zip_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>ZStream :: struct { next_in: *u8; avail_in: u32; total_in: usize; next_out: *u8; avail_out: u32; total_out: usize; msg: *u8; state: *void; zalloc: *void; zfree: *void; opaque: *void; data_type: s32; adler: usize; reserved: usize; }</code></div>
 <div><code>ExtractZipEntry :: (archive: []u8, entry: ZipEntry, output: []u8) -&gt; bool</code></div>
 <div><code>ZipExtractWriteAll :: (file: FileHandle, bytes: []u8, offset: u64) -&gt; bool</code></div>

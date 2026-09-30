@@ -891,6 +891,12 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         results_attribute && results_attribute < dir;
     if(go_results && (foreign_type || strstr(results_attribute + strlen("#go_results"), "#go_results")))
         die_at(Span(path, line_no, 1), "#go_results requires one foreign procedure result record");
+    const char *field_attribute = strstr(declaration, "#go_field");
+    int go_field = contains_source_directive(declaration, "#go_field") &&
+        field_attribute && field_attribute < dir;
+    if(go_field && (foreign_type || go_results ||
+                   strstr(field_attribute + strlen("#go_field"), "#go_field")))
+        die_at(Span(path, line_no, 1), "#go_field requires one foreign field getter without #go_results");
     if(foreign_type && skip_ws(declaration + strlen("#type")) != dir)
         die_at(Span(path, line_no, 1),
                "foreign type requires Name :: #type #foreign library;");
@@ -965,6 +971,8 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
                                          path, line_no);
     if(go_results && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
         die_at(Span(path, line_no, 1), "#go_results requires an explicit Go foreign target");
+    if(go_field && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
+        die_at(Span(path, line_no, 1), "#go_field requires an explicit Go foreign target");
     if(foreign_type) {
         if(!GoForeignTargetValid(buffers->target))
             die_at(Span(path, line_no, 1),
@@ -990,6 +998,7 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
                                            imp->span);
         imp->extern_kind = extern_kind;
         imp->go_results = go_results;
+        imp->go_field = go_field;
         snprintf(imp->extern_symbol, sizeof(imp->extern_symbol), "%s",
                  symbol);
         /* A trailing `..any` parameter marks a variadic C ABI: calls may

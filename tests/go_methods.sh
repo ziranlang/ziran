@@ -6,6 +6,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/bindings.zi" <<'ZI'
 #import "sync_go"
+#import "text_go"
 clock :: #import "time_go";
 builtin :: #system_library "go:builtin";
 Counter :: struct { mutex: Mutex; value: s64 }
@@ -26,6 +27,9 @@ Value :: (counter: *Counter) -> s64 {
 }
 MakeBytes :: (count: isize, capacity: isize) -> []u8 {
     return Bytes(count, capacity)
+}
+Text :: (value: []u8) -> string {
+    return FromBytes(value)
 }
 Shift :: (value: clock.Time, nanoseconds: s64) -> clock.Time {
     return clock.Add(value, cast(clock.Duration)nanoseconds)
@@ -64,6 +68,10 @@ func main() {
     if counter == nil || Bindings_Value(counter) != 1600 { panic("mutex/heap allocation") }
     bytes := Bindings_MakeBytes(2, 8)
     if len(bytes) != 2 || cap(bytes) != 8 || bytes[0] != 0 || Bindings_MakeBytes(0, 0) == nil { panic("make semantics") }
+    data := []byte{0, 255, 195, 169}
+    text := Bindings_Text(data)
+    data[0] = 99
+    if text != "\x00\xffé" || Bindings_Text(nil) != "" { panic("byte-preserving string copy") }
     now := Bindings_Now()
     shifted := Bindings_Shift(now, 123)
     if shifted != now.Add(123) || !Bindings_Later(shifted, now) || Bindings_Later(now, now) || Bindings_Later(time.Time{}, now) { panic("native monotonic timestamp") }

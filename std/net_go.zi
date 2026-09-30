@@ -1,0 +1,35 @@
+// Go IP parsing, canonical formatting, loopback classification and host/port splitting.
+#import "go_types"
+go_net :: #system_library "go:net";
+builtin :: #system_library "go:builtin";
+IP :: #type #foreign go_net "IP";
+
+HostPort :: struct {
+    host: string
+    port: string
+    error: Error
+}
+
+#scope_file
+SplitRaw :: (address: string) -> HostPort #go_results #foreign go_net "SplitHostPort";
+ParseRaw :: (address: string) -> IP #foreign go_net "ParseIP";
+CountRaw :: (value: IP) -> isize #foreign builtin "len";
+StringRaw :: (value: IP) -> string #foreign go_net "IP.String";
+LoopbackRaw :: (value: IP) -> bool #foreign go_net "IP.IsLoopback";
+
+#scope_export
+SplitHostPort :: (address: string) -> HostPort {
+    return SplitRaw(address)
+}
+ParseIP :: (address: string) -> IP {
+    return ParseRaw(address)
+}
+ValidIP :: (value: IP) -> bool {
+    return CountRaw(value) != 0
+}
+FormatIP :: (value: IP) -> string {
+    return StringRaw(value)
+}
+IsLoopback :: (value: IP) -> bool {
+    return LoopbackRaw(value)
+}

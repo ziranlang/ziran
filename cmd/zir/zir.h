@@ -92,6 +92,7 @@ typedef struct ZirImport {
     int must_use;
     int is_varargs; /* trailing `..any` extern parameter accepts extra call arguments */
     int go_results; /* direct Go results populate the declared result record in field order */
+    int go_field; /* one Go receiver argument reads its declared native field */
     int required;
     int is_using; /* `using Alias :: #import` re-exports public names */
     ZirSourceSpan span;

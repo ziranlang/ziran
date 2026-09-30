@@ -42,7 +42,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 48u
+#define ZIR_FORMAT_VERSION 49u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -53,6 +53,7 @@ static const Field import_fields[] = {
     STRING_FIELD(ZirImport, return_type), INTEGER_FIELD(ZirImport, must_use),
     INTEGER_FIELD(ZirImport, is_varargs),
     INTEGER_FIELD(ZirImport, go_results),
+    INTEGER_FIELD(ZirImport, go_field),
     INTEGER_FIELD(ZirImport, is_using),
     INTEGER_FIELD(ZirImport, required),
     SPAN_FIELD(ZirImport, span)
@@ -615,6 +616,12 @@ validate_program(const ZirProgram *program)
             if(module->imports[i].kind < ZIR_IMPORT_OPEN ||
                module->imports[i].kind > ZIR_IMPORT_EXTERN ||
                (module->imports[i].go_results != 0 && module->imports[i].go_results != 1) ||
+               (module->imports[i].go_field != 0 && module->imports[i].go_field != 1) ||
+               (module->imports[i].go_field &&
+                (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
+                 module->imports[i].extern_kind != ZIR_EXTERN_GO ||
+                 module->imports[i].go_results ||
+                 strncmp(module->imports[i].target, "go:", 3))) ||
                (module->imports[i].go_results &&
                 (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
                  module->imports[i].extern_kind != ZIR_EXTERN_GO ||

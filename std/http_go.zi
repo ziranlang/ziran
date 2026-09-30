@@ -1,0 +1,20 @@
+// Go HTTP request fields and header lookup retain their native types and behavior.
+go_http :: #system_library "go:net/http";
+Request :: #type #foreign go_http "Request";
+Header :: #type #foreign go_http "Header";
+
+#scope_file
+RemoteAddressRaw :: (request: *Request) -> string #go_field #foreign go_http "(*Request).RemoteAddr";
+HeadersRaw :: (request: *Request) -> Header #go_field #foreign go_http "(*Request).Header";
+HeaderValueRaw :: (header: Header, name: string) -> string #foreign go_http "Header.Get";
+
+#scope_export
+RemoteAddress :: (request: *Request) -> string {
+    return RemoteAddressRaw(request)
+}
+Headers :: (request: *Request) -> Header {
+    return HeadersRaw(request)
+}
+HeaderValue :: (header: Header, name: string) -> string {
+    return HeaderValueRaw(header, name)
+}

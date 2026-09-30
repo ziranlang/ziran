@@ -218,6 +218,11 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
     }
     int count = *skip_ws(binding->args) ?
         split_top_level(binding->args, parameters[0], 64, ZIR_TEXT_MAX) : 0;
+    if(binding->go_field && (!receiver[0] || count != 1 || binding->is_varargs ||
+                            binding->go_results || !strcmp(binding->return_type, "void"))) {
+        Diagnostic(binding->span, "check.foreign", "#go_field requires one receiver and a field value result");
+        return 0;
+    }
     if(binding->go_results) {
         const ZirType *record = FindType(module, binding->return_type, NULL);
         size_t offset = 0;
@@ -268,8 +273,19 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             const char *colon = count == 1 ? strchr(parameters[0], ':') : NULL;
             allocation = colon && !strcmp(skip_ws(colon + 1), "[]u8") && !strcmp(result, "string");
         }
+        if(!strcmp(symbol, "len")) {
+            const char *colon = count == 1 ? strchr(parameters[0], ':') : NULL;
+            const char *value_type = colon ? skip_ws(colon + 1) : "";
+            const ZirType *foreign = FindType(module, value_type, NULL);
+            allocation = colon && !strcmp(result, "isize") &&
+                (!strcmp(value_type, "string") || SliceElementType(value_type, NULL, 0) ||
+                 ArrayElementType(value_type, NULL, 0, NULL) ||
+                 MapTypeParts(module, value_type, NULL, 0, NULL, 0) ||
+                 (foreign && foreign->is_extern && foreign->foreign_target[0] &&
+                  strncmp(foreign->foreign_target, "go:builtin.", 11)));
+        }
         if(!allocation) {
-            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make or string signature");
+            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string or len signature");
             return 0;
         }
     }

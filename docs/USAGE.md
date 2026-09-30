@@ -133,6 +133,70 @@ record literals and `size_of` are unavailable. These declarations require an
 explicit `go:` package and are preserved in checked IR. Other targets reject
 foreign Go types; an entry build can discard them when they are unused.
 
+### Go receivers, fields and multiple results
+
+A quoted method expression supplies its receiver as the first parameter.
+The receiver must match an opaque type declared from the same Go package:
+
+```jai
+sync :: #system_library "go:sync";
+Mutex :: #type #foreign sync "Mutex";
+Lock :: (value: *Mutex) #foreign sync "(*Mutex).Lock";
+Unlock :: (value: *Mutex) #foreign sync "(*Mutex).Unlock";
+```
+
+Use `#go_field` before `#foreign` to read a native field through a typed
+getter. It takes exactly one receiver and returns the field value. The Go
+compiler verifies that the field exists and has the declared storage type:
+
+```jai
+http :: #system_library "go:net/http";
+Request :: #type #foreign http "Request";
+Remote :: (request: *Request) -> string #go_field #foreign http "(*Request).RemoteAddr";
+```
+
+Use `#go_results` to pack a Go function's multiple results into a concrete
+record. Record fields correspond to Go results in declaration order, including
+native error interfaces. It also works with method expressions:
+
+```jai
+#import "go_types"
+net :: #system_library "go:net";
+HostPort :: struct { host: string; port: string; error: Error }
+Split :: (address: string) -> HostPort #go_results #foreign net "SplitHostPort";
+```
+
+The result record must be nonempty, without owned vectors, `using` fields or
+discard fields. Variadic declarations and combinations with `#go_field` are
+rejected. Both attributes require explicit Go package targets. Checked IR
+stores their typed signatures and attributes; generation from saved IR does
+not infer them from diagnostic source text.
+
+The standard modules `sync_go`, `time_go`, `random_go`, `text_go`, `net_go`
+and `http_go` expose mutexes, native monotonic timestamps, cryptographic random
+bytes, copied byte strings, IP primitives, HTTP request fields and headers.
+
+### Go predeclared primitives
+
+Typed foreign declarations in `go:builtin` can allocate Go heap objects and
+slices/maps, copy bytes into a string, or read a native length:
+
+```jai
+builtin :: #system_library "go:builtin";
+Allocate :: () -> *HostPort #foreign builtin "new";
+Bytes :: (count: isize, capacity: isize) -> []u8 #foreign builtin "make";
+Text :: (value: []u8) -> string #foreign builtin "string";
+Length :: (value: []u8) -> isize #foreign builtin "len";
+```
+
+`new` takes no arguments and derives the allocated type from its pointer
+result. `make` derives its slice or map type from the result; slices take a
+length and optional capacity, and maps take an optional size hint. `len`
+returns `isize` and accepts strings, arrays, slices, maps and declared foreign
+Go types whose underlying type supports native `len`. Go compilation checks
+the underlying operation for opaque types. These calls need no package import
+and retain Go's allocation, zero-value and byte-copy behavior.
+
 ### Go record metadata
 
 Go record fields can carry reflection tags. The checked string is preserved

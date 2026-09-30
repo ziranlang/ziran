@@ -51,6 +51,11 @@ Source files use `.zi`, checked modules use [`.zir`](docs/ZIR.md), and portable
 programs use [`.zib`](docs/ZIB.md). Native targets and the portable runner have
 different limits; the Plan 9 C target is experimental.
 
+When an existing native C file includes a generated Plan 9 header after
+`<u.h>` and `<libc.h>`, define `ZIR_PLAN9_NATIVE_HEADERS_INCLUDED` first.
+Plan 9's native headers have no include guards; this avoids including them
+again through the generated runtime header.
+
 ## Standard library
 
 The library includes text and UTF-8 helpers, generic values, sorting, queues,

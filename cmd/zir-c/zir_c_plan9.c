@@ -1547,8 +1547,12 @@ c_plan9_write_runtime(const char *out_dir)
     fputs(
 "#ifndef ZIR_PLAN9_RUNTIME_H\n"
 "#define ZIR_PLAN9_RUNTIME_H\n\n"
+"/* Native C callers which already included u.h/libc.h set this guard. */\n"
+"#ifndef ZIR_PLAN9_NATIVE_HEADERS_INCLUDED\n"
 "#include <u.h>\n"
-"#include <libc.h>\n\n"
+"#include <libc.h>\n"
+"#define ZIR_PLAN9_NATIVE_HEADERS_INCLUDED 1\n"
+"#endif\n\n"
 "/* plan9port's u.h (_U_H_) already brings the POSIX integer types. */\n"
 "#ifndef _U_H_\n"
 "typedef char int8_t;\n"

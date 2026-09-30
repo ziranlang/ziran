@@ -92,6 +92,9 @@ fi
 
 mkdir -p "$work/plan9-include"
 cat > "$work/plan9-include/u.h" <<'EOF'
+#ifdef FAKE_U_H
+#error native u.h was included twice
+#endif
 #ifndef FAKE_U_H
 #define FAKE_U_H
 typedef signed char schar;
@@ -151,7 +154,10 @@ cat > "$work/helper-runner.c" <<'EOF'
 #include <stdarg.h>
 #include <stdio.h>
 #include <unistd.h>
-int HelperMain(void);
+#include <u.h>
+#include <libc.h>
+#define ZIR_PLAN9_NATIVE_HEADERS_INCLUDED 1
+#include "helper_main.h"
 int fprint(int fd, const char *format, ...) {
     (void)format;
     return write(fd, "plan9 helper failed\n", 20);

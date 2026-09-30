@@ -466,7 +466,7 @@ c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
     used += (size_t)format(text + used, sizeof(text) - used, "{");
     for(int child = expr->first_child; child >= 0; child = e->fn->exprs[child].next_sibling) {
         const ZirExpr *entry = &e->fn->exprs[child];
-        char field[ZIR_NAME_MAX], plain[ZIR_TEXT_MAX];
+        char field[ZIR_NAME_MAX] = "", plain[ZIR_TEXT_MAX];
         /* Inside a declaration's brace list a nested value is braces too;
          * inside a compound literal it is its own compound literal. */
         e->braced_initializer = braced &&
@@ -475,12 +475,17 @@ c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
         e->braced_initializer = 0;
         if(!is_array)
             TargetFieldName(record, e->target, entry->name, field, sizeof(field));
+        const char *shown = bare(value, plain, sizeof(plain));
+        /* A list too long for one expression, such as a big table, is
+         * stored element by element instead. */
+        if(used + strlen(shown) + strlen(field) + 16 >= sizeof(text))
+            return 0;
         used += (size_t)format(text + used, used < sizeof(text) ? sizeof(text) - used : 0,
                                "%s%s%s%s", child == expr->first_child ? "" : ", ",
                                is_array ? "" : ".", is_array ? "" : field,
                                is_array ? "" : " = ");
         used += (size_t)format(text + used, used < sizeof(text) ? sizeof(text) - used : 0,
-                               "%s", bare(value, plain, sizeof(plain)));
+                               "%s", shown);
     }
     /* An empty value zeroes every field; C99 has no empty braces. */
     if(expr->first_child < 0)

@@ -293,6 +293,8 @@ write_string(FILE *out, const char *value, size_t capacity)
            fwrite(value, 1, length, out) == length;
 }
 
+static int read_string_body(Reader *reader, char *value, uint32_t length);
+
 static int
 read_string(Reader *reader, char *value, size_t capacity)
 {
@@ -303,6 +305,13 @@ read_string(Reader *reader, char *value, size_t capacity)
         reader->problem = "string exceeds field limit";
         return 0;
     }
+    return read_string_body(reader, value, length);
+}
+
+/* The LENGTH bytes of a string whose length was just read. */
+static int
+read_string_body(Reader *reader, char *value, uint32_t length)
+{
     if(fread(value, 1, length, reader->in) != length) {
         reader->problem = "truncated string";
         return 0;
@@ -358,8 +367,9 @@ write_fields(FILE *out, const void *record, const Field *fields, size_t count)
             if(!write_string(out, value, fields[i].size))
                 return 0;
         } else if(fields[i].kind == FIELD_TEXT) {
+            /* Source text has no field limit: a long literal keeps it all. */
             const char *text = *(const char *const *)value;
-            if(!write_string(out, text ? text : "", fields[i].size))
+            if(!write_string(out, text ? text : "", ZIR_KEPT_TEXT_MAX))
                 return 0;
         } else if(fields[i].kind == FIELD_INTEGER) {
             if(!write_u32(out, (uint32_t)*(const int *)value))
@@ -383,10 +393,22 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
             if(!read_string(reader, value, fields[i].size))
                 return 0;
         } else if(fields[i].kind == FIELD_TEXT) {
-            char text[ZIR_TEXT_MAX];
-            if(!read_string(reader, text, sizeof(text)))
+            char small[ZIR_TEXT_MAX];
+            uint32_t length;
+            if(!read_u32(reader, &length))
                 return 0;
+            if(length >= ZIR_KEPT_TEXT_MAX) {
+                reader->problem = "string exceeds field limit";
+                return 0;
+            }
+            char *text = length < sizeof(small) ? small : malloc((size_t)length + 1);
+            if(text == NULL || !read_string_body(reader, text, length)) {
+                if(text != small) free(text);
+                if(reader->problem == NULL) reader->problem = "out of memory reading text";
+                return 0;
+            }
             *(const char **)value = KeepText(text);
+            if(text != small) free(text);
         } else if(fields[i].kind == FIELD_INTEGER) {
             uint32_t number;
             if(!read_u32(reader, &number))

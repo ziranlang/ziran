@@ -346,10 +346,23 @@ rewrite_function_type_applications_with_buffers(ZirModule *module, ZirFunction *
     copy_text(fn->return_type, sizeof(fn->return_type), buffers->expanded);
     for(int s = 0; s < fn->stmt_count; s++) {
         ZirStmt *statement = &fn->stmts[s];
-        if(!rewrite_type_applications(module, statement->text, buffers->expanded,
-                sizeof(buffers->expanded), statement->span, 0)) return 0;
-        if(strlen(buffers->expanded) >= ZIR_TEXT_MAX) return 0;
-        statement->text = KeepText(buffers->expanded);
+        if(strchr(statement->text, '(') == NULL)
+            continue; /* no type application to rewrite */
+        /* A long statement, such as a table literal, gets a buffer of its
+         * own; each application's generated name is shorter than it. */
+        size_t length = strlen(statement->text);
+        size_t capacity = sizeof(buffers->expanded);
+        char *expanded = buffers->expanded;
+        if(length * 2 + 256 > capacity) {
+            capacity = length * 2 + 256;
+            expanded = malloc(capacity);
+            if(expanded == NULL) return 0;
+        }
+        int ok = rewrite_type_applications(module, statement->text, expanded,
+                                           capacity, statement->span, 0);
+        if(ok) statement->text = KeepText(expanded);
+        if(expanded != buffers->expanded) free(expanded);
+        if(!ok) return 0;
     }
     StructureFunction(fn, module);
     return 1;

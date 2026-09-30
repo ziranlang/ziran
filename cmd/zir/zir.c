@@ -1169,7 +1169,7 @@ KeepText(const char *text)
 {
     if(text == NULL || *text == '\0')
         return "";
-    size_t length = strnlen(text, ZIR_TEXT_MAX - 1);
+    size_t length = strlen(text);
     if(kept_texts.count * 2 >= kept_texts.slot_count) {
         size_t old_count = kept_texts.slot_count;
         const char **old_texts = kept_texts.texts;

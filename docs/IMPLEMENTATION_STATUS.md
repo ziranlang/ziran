@@ -61,6 +61,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- Statements may be longer than 4 KB, such as a table of records written as
+  one array literal: source text is kept whole through parsing, checking,
+  and saved IR (up to 1 MB per text), and C and C++ store an array literal
+  too long for one initializer element by element. Before, such a
+  statement failed with "expression is not supported by language checking"
+  or silently. `tests/long_literals.sh` checks source and saved IR on C,
+  C++, Go, and `.zib`.
 - `ziran check --lint` warns (code `lint.cast`) about casts to a value's own
   type and casts that only widen a whole typed initializer, assignment,
   argument, or result; it leaves casts that set arithmetic width, choose an

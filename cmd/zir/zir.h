@@ -13,7 +13,10 @@
 enum {
     ZIR_PATH_MAX = 1024,
     ZIR_NAME_MAX = 128,
-    ZIR_TEXT_MAX = 4096
+    ZIR_TEXT_MAX = 4096,
+    /* Longest source text a statement or expression keeps, such as a large
+     * table literal; fixed buffers still use ZIR_TEXT_MAX. */
+    ZIR_KEPT_TEXT_MAX = 1 << 20
 };
 
 typedef enum ZirImportKind {

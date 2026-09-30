@@ -55,11 +55,13 @@ static int
 node(ExprParser *p, ZirExprKind kind, size_t start, const char *name,
      const char *op, int left, int right)
 {
-    char text[ZIR_TEXT_MAX];
+    char buffer[ZIR_TEXT_MAX];
     size_t n = p->begin > start ? p->begin - start : 0;
     ZirSourceSpan span = p->span;
     ZirExpr *e;
-    if(n >= sizeof(text)) { p->failed = 1; return -1; }
+    /* A long literal, such as a table of records, keeps all its text. */
+    char *text = n < sizeof(buffer) ? buffer : malloc(n + 1);
+    if(text == NULL) { p->failed = 1; return -1; }
     memcpy(text, p->source + start, n);
     text[n] = 0;
     trim_in_place(text);
@@ -72,6 +74,7 @@ node(ExprParser *p, ZirExprKind kind, size_t start, const char *name,
         }
     }
     e = FunctionAddExpr(p->fn, kind, text, span);
+    if(text != buffer) free(text);
     if(!e) { p->failed = 1; return -1; }
     copy_text(e->name, sizeof(e->name), name);
     copy_text(e->op, sizeof(e->op), op);
@@ -980,23 +983,32 @@ static void
 StructureFunction_with_buffers(ZirFunction *fn, const ZirModule *module, StructureFunctionBuffers *buffers)
 {
     free(fn->exprs); fn->exprs = NULL; fn->expr_count = fn->expr_cap = 0;
+    /* A statement longer than the buffer is parsed from its own copy. */
+    char *owned = NULL;
     for(int i = 0; i < fn->stmt_count; i++) {
         ZirStmt *st = &fn->stmts[i];
         char *value = NULL;
-        copy_text(buffers->text, sizeof(buffers->text), st->text);
+        char *text = buffers->text;
+        if(strlen(st->text) >= sizeof(buffers->text)) {
+            free(owned);
+            owned = AllocateOrExit(strlen(st->text) + 1);
+            strcpy(owned, st->text);
+            text = owned;
+        } else
+            copy_text(buffers->text, sizeof(buffers->text), st->text);
         st->expr_root = st->lhs_root = -1;
         if(st->is_using && st->kind == ZIR_STMT_EXPR) {
             st->expr_root = ParseExprNoDefaults(fn, module, "0", st->span);
             continue;
         }
         st->is_else = st->kind == ZIR_STMT_IF &&
-                      strncmp(buffers->text, "else", 4) == 0 &&
-                      (buffers->text[4] == 0 || isspace((unsigned char)buffers->text[4]));
+                      strncmp(text, "else", 4) == 0 &&
+                      (text[4] == 0 || isspace((unsigned char)text[4]));
         if(st->kind == ZIR_STMT_DECL) {
-            char *colon = strchr(buffers->text, ':');
+            char *colon = strchr(text, ':');
             if(colon) {
-                *colon++ = 0; trim_in_place(buffers->text);
-                copy_text(st->name, sizeof(st->name), buffers->text);
+                *colon++ = 0; trim_in_place(text);
+                copy_text(st->name, sizeof(st->name), text);
                 value = strchr(colon, '=');
                 if(value) *value++ = 0;
                 trim_in_place(colon);
@@ -1014,7 +1026,7 @@ StructureFunction_with_buffers(ZirFunction *fn, const ZirModule *module, Structu
             }
         } else if(st->kind == ZIR_STMT_ASSIGN) {
             ZirLexer lexer; 
-            LexerInit(&lexer, buffers->text, SpanPath(st->span));
+            LexerInit(&lexer, text, SpanPath(st->span));
             do {
                 buffers->tok = LexerNext(&lexer);
                 if(!strcmp(buffers->tok.text, "=") || !strcmp(buffers->tok.text, "+=") ||
@@ -1022,19 +1034,19 @@ StructureFunction_with_buffers(ZirFunction *fn, const ZirModule *module, Structu
                    !strcmp(buffers->tok.text, "/=") || !strcmp(buffers->tok.text, "%=") ||
                    !strcmp(buffers->tok.text, "&=") || !strcmp(buffers->tok.text, "|=") ||
                    !strcmp(buffers->tok.text, "^=") || !strcmp(buffers->tok.text, "<<=") || !strcmp(buffers->tok.text, ">>=")) {
-                    value = buffers->text + lexer.pos;
+                    value = text + lexer.pos;
                     copy_text(st->assignment_op, sizeof(st->assignment_op), buffers->tok.text);
-                    buffers->text[lexer.pos - strlen(buffers->tok.text)] = 0;
-                    st->lhs_root = parse_expr(fn, module, buffers->text, st->span,
+                    text[lexer.pos - strlen(buffers->tok.text)] = 0;
+                    st->lhs_root = parse_expr(fn, module, text, st->span,
                                               NULL, i, 1);
                     break;
                 }
             } while(buffers->tok.kind != ZIR_TOKEN_EOF);
-        } else if(st->kind == ZIR_STMT_RETURN) value = buffers->text + 6;
-        else if(st->kind == ZIR_STMT_UNUSED) value = buffers->text + 6;
-        else if(st->kind == ZIR_STMT_EXPR) value = buffers->text;
+        } else if(st->kind == ZIR_STMT_RETURN) value = text + 6;
+        else if(st->kind == ZIR_STMT_UNUSED) value = text + 6;
+        else if(st->kind == ZIR_STMT_EXPR) value = text;
         else if(st->kind == ZIR_STMT_IF_CASE) {
-            char *condition = (char *)skip_ws(buffers->text + 2);
+            char *condition = (char *)skip_ws(text + 2);
             if(strncmp(condition, "#complete", 9) == 0 &&
                isspace((unsigned char)condition[9]))
                 condition = (char *)skip_ws(condition + 9);
@@ -1046,8 +1058,8 @@ StructureFunction_with_buffers(ZirFunction *fn, const ZirModule *module, Structu
             value = condition;
         }
         else if(st->kind == ZIR_STMT_WHILE || st->kind == ZIR_STMT_IF) {
-            strip_block_brace(buffers->text);
-            value = buffers->text;
+            strip_block_brace(text);
+            value = text;
             if(!strncmp(value, "else", 4)) value = (char *)skip_ws(value + 4);
             while(*value && !isspace((unsigned char)*value) && *value != '(') value++;
         }
@@ -1062,6 +1074,7 @@ StructureFunction_with_buffers(ZirFunction *fn, const ZirModule *module, Structu
                 st->kind == ZIR_STMT_DECL ? st->type : NULL, i, 1);
         }
     }
+    free(owned);
 }
 
 void

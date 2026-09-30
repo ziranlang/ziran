@@ -141,6 +141,19 @@ typedef struct {
     const ZirModule *type_owner;
 } CompileValue;
 
+/* An empty value. Evaluation creates millions of these, so only the fields
+ * a reader inspects are cleared instead of the whole literal buffer. */
+static inline void
+compile_value_clear(CompileValue *value)
+{
+    value->kind = COMPILE_INVALID;
+    value->integer = 0;
+    value->real = 0;
+    value->type[0] = '\0';
+    value->literal[0] = '\0';
+    value->type_owner = NULL;
+}
+
 extern _Thread_local int ZirLawEvaluation;
 int compile_law_exact_double(const CompileValue *value);
 

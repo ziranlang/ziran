@@ -998,7 +998,8 @@ compile_compound_value(const ZirFunction *probe, const ZirExpr *expression,
     for(int child = expression->first_child; child >= 0;
         child = probe->exprs[child].next_sibling) {
         const ZirExpr *entry = &probe->exprs[child];
-        CompileValue value = {0};
+        CompileValue value;
+        compile_value_clear(&value);
         char field_type[ZIR_NAME_MAX];
         char field_name[ZIR_NAME_MAX] = "";
         int named = !strcmp(entry->op, "=");
@@ -1234,6 +1235,12 @@ evaluate_imported_typed_define(const ZirModule *module, const char *path,
     ZirConsts names = {0};
     int ok;
     if(definition == NULL || depth >= 32) return 0;
+    /* Law evaluation reads the owner's other constants through the owner
+     * module when the value names them. */
+    if(ZirLawEvaluation)
+        return evaluate_typed_expression(owner, &names, definition->value,
+                                         definition->span, depth + 1, fuel,
+                                         result);
     names.count = owner->define_count;
     names.items = calloc((size_t)names.count + 1, sizeof(*names.items));
     if(names.items == NULL)

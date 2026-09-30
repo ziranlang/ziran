@@ -243,6 +243,10 @@ lower_procedure_name_expression_with_buffers(char *part, size_t capacity,
     ZirLexer lexer;
     size_t copied = 0, used = 0;
     int changed = 0;
+    /* Compile-time evaluation lowers every statement it runs; nearly none
+     * mention the directive, so skip lexing those. */
+    if(strstr(part, "#procedure_name") == NULL)
+        return 0;
     LexerInit(&lexer, part, SpanPath(function->span));
     for(;;) {
         buffers->token = LexerNext(&lexer);

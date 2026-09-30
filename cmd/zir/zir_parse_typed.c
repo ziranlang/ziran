@@ -83,6 +83,28 @@ evaluate_bound_name(const ZirModule *module, const char *path,
     return -1;
 }
 
+/* A constant declared in `module` itself, visible from `path`. While a law is
+ * evaluated, its value reads further names through the module in turn.
+ * Returns -1 when the module declares no such constant. */
+static int
+evaluate_module_define(const ZirModule *module, const char *path,
+                       const char *name, int depth, int *fuel,
+                       CompileValue *result)
+{
+    for(int i = 0; i < module->define_count; i++) {
+        const ZirDefine *definition = &module->defines[i];
+        if(strcmp(definition->name, name) ||
+           (definition->is_file_private &&
+            strcmp(SpanPath(definition->span), path)))
+            continue;
+        ZirConsts none = {0};
+        return evaluate_typed_expression(module, &none, definition->value,
+                                         definition->span, depth + 1, fuel,
+                                         result);
+    }
+    return -1;
+}
+
 int evaluate_typed_node(const ZirFunction *probe, int index,
                     const ZirModule *module, const char *path,
                     int depth, int *fuel, CompileValue *result);
@@ -95,7 +117,9 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
     if(index < 0 || index >= probe->expr_count || depth > 64 ||
        --*fuel < 0) return 0;
     const ZirExpr *expression = &probe->exprs[index];
-    CompileValue left = {0}, right = {0};
+    CompileValue left, right;
+    compile_value_clear(&left);
+    compile_value_clear(&right);
     char *end;
     int64_t integer;
     double real;
@@ -145,6 +169,9 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         {
             int bound = evaluate_bound_name(module, path, expression->name,
                                             depth, fuel, result);
+            if(bound < 0 && evaluation_names != NULL)
+                bound = evaluate_module_define(module, path, expression->name,
+                                               depth, fuel, result);
             if(bound >= 0)
                 return bound;
         }
@@ -406,8 +433,6 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                                    depth + 1, fuel, result);
     case ZIR_EXPR_CALL: {
         char name[ZIR_NAME_MAX];
-        memset(buffers->args, 0, sizeof(buffers->args));
-        memset(buffers->names, 0, sizeof(buffers->names));
         int count = 0;
         copy_text(name, sizeof(name), expression->name);
         if(!name[0] && expression->left >= 0) {
@@ -420,6 +445,10 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         }
         for(int child = expression->first_child; child >= 0;
             child = probe->exprs[child].next_sibling) {
+            if(count < 16) {
+                compile_value_clear(&buffers->args[count]);
+                buffers->names[count][0] = '\0';
+            }
             if(count == 16 ||
                !evaluate_typed_node(probe, child, module, path,
                                     depth + 1, fuel, &buffers->args[count])) return 0;
@@ -668,7 +697,8 @@ typed_body_condition_with_buffers(TypedBody *body, const char *header,
         buffers->condition[length - 4] = '\0';
         trim_in_place(buffers->condition);
     }
-    CompileValue value = {0};
+    CompileValue value;
+    compile_value_clear(&value);
     return typed_body_expression(body, buffers->condition, &value) &&
            compile_truth(&value, truth);
 }
@@ -1121,7 +1151,8 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
                 colon[length - 1] = '\0';
                 trim_in_place(colon);
             }
-            CompileValue value = {0};
+            CompileValue value;
+            compile_value_clear(&value);
             if(equals != NULL) {
                 if(!typed_body_expression(body, equals, &value)) goto failed;
             }
@@ -1166,7 +1197,9 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
                 if(bracket != NULL && !op) {
                     /* `name[index] = value` on an array local. */
                     char *close = strrchr(bracket, ']');
-                    CompileValue at = {0}, element = {0};
+                    CompileValue at, element;
+                    compile_value_clear(&at);
+                    compile_value_clear(&element);
                     char element_type[ZIR_NAME_MAX];
                     int capacity = 0, target;
                     if(close == NULL || close[1] != '\0') goto failed;
@@ -1202,7 +1235,8 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
                     const ZirModule *owner = NULL;
                     const ZirType *record;
                     char field_type[ZIR_NAME_MAX];
-                    CompileValue value = {0};
+                    CompileValue value;
+                    compile_value_clear(&value);
                     int target;
                     if(op) {
                         int written = snprintf(buffers->combined,
@@ -1240,7 +1274,8 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
             }
             int local = typed_local_index(body, buffers->text);
             if(local < 0) goto failed;
-            CompileValue value = {0};
+            CompileValue value;
+            compile_value_clear(&value);
             if(op) {
                 int written = snprintf(buffers->combined, sizeof(buffers->combined),
                     "(%s) %c (%s)", body->names.items[local].expr, op,
@@ -1255,7 +1290,8 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
             continue;
         }
         if(statement->kind == ZIR_STMT_EXPR) {
-            CompileValue ignored = {0};
+            CompileValue ignored;
+            compile_value_clear(&ignored);
             if(!typed_body_expression(body, source, &ignored)) goto failed;
             continue;
         }
@@ -1318,8 +1354,10 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
 {
     const ZirModule *owner = NULL;
     const ZirFunction *fn = NULL;
-    memset(buffers->defaults, 0, sizeof(buffers->defaults));
-    memset(buffers->ordered, 0, sizeof(buffers->ordered));
+    for(int i = 0; i < 16; i++) {
+        buffers->defaults[i][0] = '\0';
+        compile_value_clear(&buffers->ordered[i]);
+    }
     unsigned used = 0;
     TypedBody body = {0};
     int expected, flow = 0, ok = 0;
@@ -1358,8 +1396,12 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
         used |= 1u << position;
         buffers->ordered[position] = arguments[argument];
     }
-    body.capacity = expected + owner->define_count + fn->stmt_count + 1;
-    body.names.items = calloc((size_t)body.capacity,
+    /* Law evaluation reads module constants through the module itself, so
+     * only non-law evaluation, which splices names into text, copies them. */
+    int copy_defines = !ZirLawEvaluation;
+    body.capacity = expected + (copy_defines ? owner->define_count : 0) +
+                    fn->stmt_count + 1;
+    body.names.items = malloc((size_t)body.capacity *
                               sizeof(*body.names.items));
     if(body.names.items == NULL) die("out of memory evaluating #run procedure");
     body.module = owner;
@@ -1401,6 +1443,7 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
         if(!is_identifier_text(part) ||
            !compile_type_value(type, &buffers->ordered[i])) goto done;
         ZirConst *binding = &body.names.items[i];
+        memset(binding, 0, sizeof(*binding));
         copy_text(binding->name, sizeof(binding->name), part);
         copy_text(binding->type, sizeof(binding->type), type);
         copy_text(binding->expr, sizeof(binding->expr),
@@ -1412,9 +1455,10 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
         body.names.count++;
     }
     body.local_count = expected;
-    for(int i = 0; i < owner->define_count; i++) {
+    for(int i = 0; copy_defines && i < owner->define_count; i++) {
         const ZirDefine *definition = &owner->defines[i];
         ZirConst *constant = &body.names.items[body.names.count++];
+        memset(constant, 0, sizeof(*constant));
         copy_text(constant->name, sizeof(constant->name),
                   definition->name);
         copy_text(constant->expr, sizeof(constant->expr),
@@ -1467,7 +1511,9 @@ evaluate_typed_integer_function_with_buffers(ZirEval *ev, const char *name,
                                 const char argument_names[][ZIR_NAME_MAX],
                                 int argument_count, long *result, EvaluateTypedIntegerFunctionBuffers *buffers)
 {
-    CompileValue value = {0}; memset(buffers->arguments, 0, sizeof(buffers->arguments));
+    CompileValue value;
+    compile_value_clear(&value);
+    for(int i = 0; i < 16; i++) compile_value_clear(&buffers->arguments[i]);
     memset(buffers->names, 0, sizeof(buffers->names));
     int local_fuel = 10000;
     int *fuel = ev->fuel != NULL ? ev->fuel : &local_fuel;
@@ -1512,7 +1558,8 @@ eval_typed_condition(const char *source, const ZirModule *module,
                      long *result)
 {
     int fuel = 10000, truth;
-    CompileValue value = {0};
+    CompileValue value;
+    compile_value_clear(&value);
     if(!evaluate_typed_expression(module, names, source, span, 0,
                                   &fuel, &value) ||
        !compile_truth(&value, &truth)) return 0;
@@ -1561,7 +1608,8 @@ EvaluateCompileLiteral(const ZirModule *module, const char *source,
                        const ZirModule **type_owner)
 {
     ZirConsts constants = {0};
-    CompileValue value = {0};
+    CompileValue value;
+    compile_value_clear(&value);
     int fuel = 10000;
     if(module == NULL || source == NULL || literal == NULL ||
        literal_size == 0) return 0;
@@ -1603,7 +1651,8 @@ EvaluateCompileConditionBound(const ZirModule *module, const char *source,
                               const long *values, int count, int *truth)
 {
     ZirConsts constants = {0};
-    CompileValue value = {0};
+    CompileValue value;
+    compile_value_clear(&value);
     int fuel = 100000, ok;
     if(module == NULL || source == NULL || truth == NULL || count < 0 ||
        (count > 0 && (names == NULL || types == NULL || exprs == NULL ||

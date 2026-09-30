@@ -1,0 +1,15 @@
+// Go mutexes. Keep one mutex in shared storage and pass its address.
+go_sync :: #system_library "go:sync";
+Mutex :: #type #foreign go_sync "Mutex";
+
+#scope_file
+LockRaw :: (mutex: *Mutex) #foreign go_sync "(*Mutex).Lock";
+UnlockRaw :: (mutex: *Mutex) #foreign go_sync "(*Mutex).Unlock";
+
+#scope_export
+Lock :: (mutex: *Mutex) {
+    LockRaw(mutex)
+}
+Unlock :: (mutex: *Mutex) {
+    UnlockRaw(mutex)
+}

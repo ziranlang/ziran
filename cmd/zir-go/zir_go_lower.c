@@ -311,6 +311,8 @@ typedef struct {
     char ret[ZIR_GO_NAME_MAX];
     char host_var[ZIR_GO_NAME_MAX + 8];   /* guard-prefixed host var */
     int direct_go;
+    char go_receiver[ZIR_GO_NAME_MAX];
+    int go_results;
     int direct_ziran;
     char provider_go[ZIR_GO_NAME_MAX * 2];
 } ZirGoExtern;
@@ -420,25 +422,15 @@ extern_direct_go_target(const char *target, char *import_path,
                         size_t import_path_size, char *alias,
                         size_t alias_size)
 {
-    const char *dot;
     const char *slash;
     const char *base;
     size_t n = 0;
 
-    if(target == NULL)
+    if(!GoForeignCallParts(target, import_path, import_path_size, NULL, 0, NULL, 0))
         return 0;
-    int explicit_go = strncmp(target, "go:", 3) == 0;
-    if(explicit_go)
-        target += 3;
-    dot = strrchr(target, '.');
-    slash = strrchr(target, '/');
-    if(dot == NULL || (!explicit_go && slash == NULL) ||
-       (slash != NULL && slash > dot))
-        return 0;
-    snprintf(import_path, import_path_size, "%.*s", (int)(dot - target),
-             target);
-    base = slash != NULL ? slash + 1 : target;
-    while(base < dot && n + 1 < alias_size) {
+    slash = strrchr(import_path, '/');
+    base = slash != NULL ? slash + 1 : import_path;
+    while(*base && n + 1 < alias_size) {
         char c = *base++;
 
         if(isalnum((unsigned char)c) || c == '_')
@@ -461,7 +453,7 @@ extern_direct_go_target(const char *target, char *import_path,
 static void
 add_extern(const char *source, const char *args, const char *ret,
            const char *target, const char *provider_symbol,
-           ZirSourceSpan span)
+           int go_results, ZirSourceSpan span)
 {
     ZirGoExtern *ex;
     if(target && !strncmp(target, "c.", 2)) {
@@ -477,6 +469,7 @@ add_extern(const char *source, const char *args, const char *ret,
     memset(ex, 0, sizeof(*ex));
     snprintf(ex->source, sizeof(ex->source), "%s", source);
     snprintf(ex->ret, sizeof(ex->ret), "%s", ret);
+    ex->go_results = go_results;
     split_params(args, ex);
     if(target != NULL && strncmp(target, "ziran:", 6) == 0) {
         const char *bound = go_bound_provider(target + 6, provider_symbol);
@@ -494,6 +487,9 @@ add_extern(const char *source, const char *args, const char *ret,
                                                 sizeof(ex->go_import_path),
                                                 ex->go_import_alias,
                                                 sizeof(ex->go_import_alias));
+        if(ex->direct_go)
+            GoForeignCallParts(target, NULL, 0, ex->go_receiver,
+                               sizeof(ex->go_receiver), NULL, 0);
     }
     /* Derive the host variable name from the module guard. */
     snprintf(ex->host_var, sizeof(ex->host_var), "%c%sHost",
@@ -565,6 +561,11 @@ static void parse_extern_import(const ZirImport *imp);
 static void
 parse_extern_import_with_buffers(const ZirImport *imp, ParseExternImportBuffers *buffers)
 {
+    if(imp->args[0] || imp->return_type[0]) {
+        add_extern(imp->name, imp->args, imp->return_type[0] ? imp->return_type : "void",
+                   imp->target, imp->extern_symbol, imp->go_results, imp->span);
+        return;
+    }
     char ret[ZIR_GO_NAME_MAX];
     const char *lp = strchr(imp->signature, '(');
     const char *rp = lp != NULL ? strchr(lp, ')') : NULL;
@@ -600,7 +601,7 @@ parse_extern_import_with_buffers(const ZirImport *imp, ParseExternImportBuffers 
             buffers->target[n] = '\0';
         }
     }
-    add_extern(imp->name, buffers->args, ret, buffers->target, imp->extern_symbol, imp->span);
+    add_extern(imp->name, buffers->args, ret, buffers->target, imp->extern_symbol, imp->go_results, imp->span);
 }
 
 /* Parse "name :: (args) -> ret #foreign library;" from a raw foreign import
@@ -731,9 +732,9 @@ go_set_module(const ZirModule *m, const char *guard)
             continue;
         if(fn->extern_target[0] != '\0')
             add_extern(fn->name, fn->args, fn->return_type,
-                       fn->extern_target, "", fn->span);
+                       fn->extern_target, "", 0, fn->span);
         else
-            add_extern(fn->name, fn->args, fn->return_type, "", "", fn->span);
+            add_extern(fn->name, fn->args, fn->return_type, "", "", 0, fn->span);
     }
     for(int i = 0; i < m->type_count; i++) {
         if(m->types[i].is_enum)
@@ -1057,11 +1058,31 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
                     if(*ae == ')')
                         ae++;
                     p = ae;
-                    if(g_externs[xi].direct_ziran)
+                    if(g_externs[xi].go_results) {
+                        char name[ZIR_GO_NAME_MAX];
+                        camel_ident(g_externs[xi].source, name, sizeof(name));
+                        dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "%s_%s(", g_guard, name);
+                    } else if(g_externs[xi].direct_ziran)
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn,
                                                "%s(",
                                                g_externs[xi].provider_go);
-                    else if(g_externs[xi].direct_go)
+                    else if(g_externs[xi].direct_go && !strcmp(g_externs[xi].go_import_path, "builtin") &&
+                            (!strcmp(g_externs[xi].go, "new") || !strcmp(g_externs[xi].go, "make"))) {
+                        char allocated[ZIR_GO_NAME_MAX];
+                        const char *allocation_type = g_externs[xi].ret;
+                        if(!strcmp(g_externs[xi].go, "new")) allocation_type++;
+                        require_go_type(allocation_type, allocated, sizeof(allocated), m->span);
+                        dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "%s(%s%s",
+                            g_externs[xi].go, allocated, all_ws ? "" : ", ");
+                    } else if(g_externs[xi].direct_go && !strcmp(g_externs[xi].go_import_path, "builtin")) {
+                        dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "%s(", g_externs[xi].go);
+                    } else if(g_externs[xi].direct_go && g_externs[xi].go_receiver[0]) {
+                        const char *receiver = g_externs[xi].go_receiver;
+                        dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn,
+                            "(%s%s.%s).%s(", receiver[0] == '*' ? "*" : "",
+                            g_externs[xi].go_import_alias, receiver + (receiver[0] == '*'),
+                            g_externs[xi].go);
+                    } else if(g_externs[xi].direct_go)
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn,
                                                "%s.%s(",
                                                g_externs[xi].go_import_alias,
@@ -1256,7 +1277,7 @@ resolve_body_symbol(void *context, const char *text, char *out, size_t size)
     const ZirModule *module = symbols->module;
     const ZirModule *owner = NULL;
     const ZirGlobal *global = NULL;
-    if((SliceElementType(text, NULL, 0) || strchr(text, '*') != NULL ||
+    if((*ScalarType(text) || SliceElementType(text, NULL, 0) || strchr(text, '*') != NULL ||
         FindType(module, text, NULL) != NULL) &&
        go_type(text, out, size))
         return;
@@ -1447,6 +1468,47 @@ synthetic_type_emitted(const ZirProgram *const *programs, int program_index,
 }
 
 static void
+emit_go_result_adapters(FILE *out, const ZirModule *module)
+{
+    for(int i = 0; i < g_extern_count; i++) {
+        const ZirGoExtern *binding = &g_externs[i];
+        if(!binding->go_results) continue;
+        char result_type[ZIR_GO_NAME_MAX], name[ZIR_GO_NAME_MAX];
+        const ZirType *record = FindType(module, binding->ret, NULL);
+        require_go_type(binding->ret, result_type, sizeof(result_type), module->span);
+        camel_ident(binding->source, name, sizeof(name));
+        fprintf(out, "func %s_%s(", g_guard, name);
+        for(int p = 0; p < binding->pcount; p++) {
+            char parameter[ZIR_GO_NAME_MAX], type[ZIR_GO_NAME_MAX];
+            camel_ident(binding->pnames[p], parameter, sizeof(parameter));
+            require_go_type(binding->ptypes[p], type, sizeof(type), module->span);
+            fprintf(out, "%s%s %s", p ? ", " : "", parameter, type);
+        }
+        fprintf(out, ") %s {\n\tvar result %s\n\t", result_type, result_type);
+        size_t offset = 0;
+        ZirTypeField field;
+        int fields = 0;
+        while(TypeNextField(record, &offset, &field) == 1) {
+            char member[ZIR_GO_NAME_MAX];
+            go_field_ident(field.name, member, sizeof(member));
+            fprintf(out, "%sresult.%s", fields++ ? ", " : "", member);
+        }
+        const char *receiver = binding->go_receiver;
+        if(receiver[0])
+            fprintf(out, " = (%s%s.%s).%s(", receiver[0] == '*' ? "*" : "",
+                binding->go_import_alias, receiver + (receiver[0] == '*'), binding->go);
+        else
+            fprintf(out, " = %s.%s(", binding->go_import_alias, binding->go);
+        for(int p = 0; p < binding->pcount; p++) {
+            char parameter[ZIR_GO_NAME_MAX];
+            camel_ident(binding->pnames[p], parameter, sizeof(parameter));
+            fprintf(out, "%s%s", p ? ", " : "", parameter);
+        }
+        fputs(")\n\treturn result\n}\n\n", out);
+    }
+}
+
+static void
 emit_field_tag(FILE *out, const ZirTypeField *field, ZirSourceSpan span)
 {
     if(!field->go_tag[0])
@@ -1562,7 +1624,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"unsafe\"");
             for(int i = 0; i < g_extern_count && import_count < 64; i++) {
                 int duplicate = 0;
-                if(!g_externs[i].direct_go)
+                if(!g_externs[i].direct_go || !strcmp(g_externs[i].go_import_path, "builtin"))
                     continue;
                 for(int j = 0; j < i; j++) {
                     if(g_externs[j].direct_go &&
@@ -1805,6 +1867,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     fprintf(f, "}\n\n");
                 }
             }
+            emit_go_result_adapters(f, m);
             /* defines -> consts; array type aliases become Go types */
             for(int i = 0; i < m->define_count; i++) {
                 char cname[ZIR_GO_NAME_MAX];

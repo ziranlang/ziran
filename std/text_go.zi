@@ -1,0 +1,10 @@
+// Convert Go-owned bytes to an independent string, preserving every byte.
+builtin :: #system_library "go:builtin";
+
+#scope_file
+StringRaw :: (value: []u8) -> string #foreign builtin "string";
+
+#scope_export
+FromBytes :: (value: []u8) -> string {
+    return StringRaw(value)
+}

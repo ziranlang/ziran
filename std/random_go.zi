@@ -1,0 +1,16 @@
+// Cryptographic random bytes from Go, preserving its count and error results.
+#import "go_types"
+go_rand :: #system_library "go:crypto/rand";
+
+ReadResult :: struct {
+    count: isize
+    error: Error
+}
+
+#scope_file
+ReadRaw :: (output: []u8) -> ReadResult #go_results #foreign go_rand "Read";
+
+#scope_export
+Fill :: (output: []u8) -> ReadResult {
+    return ReadRaw(output)
+}

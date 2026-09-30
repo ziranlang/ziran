@@ -190,6 +190,12 @@ bytes, copied byte strings, IP primitives, HTTP request fields and headers.
 `atomic_go` provides native `Uint64` counters with atomic `Add` and `Load`.
 `http_go` also preserves the native `ResponseWriter` interface and exposes
 response headers and `SetHeader`.
+`time_go` provides parsing, UTC conversion and formatting while preserving
+native `time.Time` values and parse errors. `context_go` preserves native
+contexts and provides `Background`. `sql_go` exposes native database,
+transaction, row and result handles, nullable strings, row iteration and
+transaction cleanup. Declare query, execution and scan bindings with the
+argument types required by the application; Go checks those native signatures.
 
 ### Go deferred foreign calls
 

@@ -45,7 +45,8 @@ parse_parameters(const ZirModule *module, const ZirFunction *function,
             cursor++;
         while((*cursor >= 'a' && *cursor <= 'z') ||
               (*cursor >= 'A' && *cursor <= 'Z') ||
-              (*cursor >= '0' && *cursor <= '9') || *cursor == '_')
+              (*cursor >= '0' && *cursor <= '9') ||
+              *cursor == '_' || *cursor == '.')
             cursor++;
         length = (size_t)(cursor - start);
         if(length == 0 || length >= ZIR_NAME_MAX)

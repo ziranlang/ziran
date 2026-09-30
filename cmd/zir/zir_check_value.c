@@ -568,7 +568,7 @@ compound_type_at_use(const ZirModule *module,
     if(visible == NULL && declaring != NULL && declared->is_public &&
        !declared->is_file_private) {
         int written = snprintf(target, size, "%s.%s", declaring->name,
-                               source);
+                               declared->name);
         if(written >= 0 && (size_t)written < size &&
            FindType(module, target, NULL) == declared)
             return 1;

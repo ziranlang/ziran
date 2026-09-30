@@ -1,0 +1,42 @@
+// Native Go SQL handles, nullable strings and transaction cleanup primitives.
+#import "go_types"
+go_sql :: #system_library "go:database/sql";
+Database :: #type #foreign go_sql "DB";
+Transaction :: #type #foreign go_sql "Tx";
+TransactionOptions :: #type #foreign go_sql "TxOptions";
+Row :: #type #foreign go_sql "Row";
+Rows :: #type #foreign go_sql "Rows";
+Result :: #type #foreign go_sql "Result";
+NullString :: #type #foreign go_sql "NullString";
+
+#scope_file
+NextRaw :: (rows: *Rows) -> bool #foreign go_sql "(*Rows).Next";
+RowsErrorRaw :: (rows: *Rows) -> Error #foreign go_sql "(*Rows).Err";
+CloseRowsRaw :: (rows: *Rows) -> Error #foreign go_sql "(*Rows).Close";
+CommitRaw :: (transaction: *Transaction) -> Error #foreign go_sql "(*Tx).Commit";
+RollbackRaw :: (transaction: *Transaction) -> Error #foreign go_sql "(*Tx).Rollback";
+NullStringValidRaw :: (value: NullString) -> bool #go_field #foreign go_sql "NullString.Valid";
+NullStringValueRaw :: (value: NullString) -> string #go_field #foreign go_sql "NullString.String";
+
+#scope_export
+Next :: (rows: *Rows) -> bool {
+    return NextRaw(rows)
+}
+RowsError :: (rows: *Rows) -> Error {
+    return RowsErrorRaw(rows)
+}
+CloseRows :: (rows: *Rows) -> Error {
+    return CloseRowsRaw(rows)
+}
+Commit :: (transaction: *Transaction) -> Error {
+    return CommitRaw(transaction)
+}
+Rollback :: (transaction: *Transaction) -> Error {
+    return RollbackRaw(transaction)
+}
+NullStringValid :: (value: NullString) -> bool {
+    return NullStringValidRaw(value)
+}
+NullStringValue :: (value: NullString) -> string {
+    return NullStringValueRaw(value)
+}

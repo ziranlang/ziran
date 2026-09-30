@@ -1,0 +1,11 @@
+// Native Go contexts retain cancellation, deadlines and interface identity.
+go_context :: #system_library "go:context";
+Context :: #type #foreign go_context "Context";
+
+#scope_file
+BackgroundRaw :: () -> Context #foreign go_context "Background";
+
+#scope_export
+Background :: () -> Context {
+    return BackgroundRaw()
+}

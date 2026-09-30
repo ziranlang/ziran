@@ -1,12 +1,20 @@
 // Go wall-clock and monotonic timestamps retain their native time.Time behavior.
+#import "go_types"
 go_time :: #system_library "go:time";
 Time :: #type #foreign go_time "Time";
 Duration :: #type #foreign go_time "Duration";
+ParseResult :: struct {
+    value: Time
+    error: Error
+}
 
 #scope_file
 NowRaw :: () -> Time #foreign go_time "Now";
 AfterRaw :: (value: Time, other: Time) -> bool #foreign go_time "Time.After";
 AddRaw :: (value: Time, duration: Duration) -> Time #foreign go_time "Time.Add";
+ParseRaw :: (layout: string, value: string) -> ParseResult #go_results #foreign go_time "Parse";
+UTCRaw :: (value: Time) -> Time #foreign go_time "Time.UTC";
+FormatRaw :: (value: Time, layout: string) -> string #foreign go_time "Time.Format";
 
 #scope_export
 Now :: () -> Time {
@@ -17,4 +25,13 @@ After :: (value: Time, other: Time) -> bool {
 }
 Add :: (value: Time, duration: Duration) -> Time {
     return AddRaw(value, duration)
+}
+Parse :: (layout: string, value: string) -> ParseResult {
+    return ParseRaw(layout, value)
+}
+UTC :: (value: Time) -> Time {
+    return UTCRaw(value)
+}
+Format :: (value: Time, layout: string) -> string {
+    return FormatRaw(value, layout)
 }

@@ -117,9 +117,15 @@ LinkImports(ZirProgram **programs, int count)
             }
         }
     }
-    /* A slice element may be exported through several modules. Resolve the
-     * entire import graph before checking foreign return types so declaration
-     * and module order cannot hide the element's owning module. */
+    return 1;
+}
+
+int
+check_foreign_slice_returns(ZirProgram **programs, int count)
+{
+    /* A foreign slice can contain an imported generic application. Check it
+     * after linking and specialization have given the element a concrete
+     * type; the source spelling Map(string, Any) is not a record name. */
     for(int p = 0; p < count; p++) {
         for(int m = 0; m < programs[p]->module_count; m++) {
             ZirModule *module = &programs[p]->modules[m];

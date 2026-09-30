@@ -5,6 +5,18 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Foreign slice returns resolve generic element types after linking and type
+  normalization. Native Go `make` and `append` can return `[]Map(string, Any)`
+  and slices of imported generic records without declaration-order failures.
+  `tests/imported_host_slices.sh` checks source and saved IR in both module
+  orders, native map/record types, allocated empty slices and malformed types.
+- Go constants retain escaped quotes, backslashes and punctuation inside
+  string literals. Previously an escaped quote could end string translation
+  early, removing semicolons or rewriting text inside a native constant even
+  though checked uses retained the original string.
+  `tests/go_constant_strings.sh` compares native constants and checked values
+  from source and saved IR, including raw multiline strings.
+
 - Native C library modules route through C/C++, cgo on Go, Rust's C ABI,
   and Python's ctypes. Go supports scalar and pointer C signatures; Go
   and Rust retain native link flags in generated output. Python handles

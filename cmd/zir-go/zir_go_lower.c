@@ -869,8 +869,11 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
         }
         if(*p == '"') { /* string literal, verbatim */
             dst[dn++] = *p++;
-            while(*p != '\0' && *p != '"' && dn + 2 < dst_size)
+            while(*p != '\0' && *p != '"' && dn + 2 < dst_size) {
+                if(*p == '\\' && p[1] != '\0')
+                    dst[dn++] = *p++;
                 dst[dn++] = *p++;
+            }
             if(*p == '"')
                 dst[dn++] = *p++;
             continue;

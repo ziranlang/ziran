@@ -61,6 +61,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- `std/file` imports the file operations for the native C target: file_linux
+  on Linux, Android, the web, and Windows, file_plan9 on Plan 9, where
+  `--target=plan9-c` now defines `PLAN9`. It adds `ReadEntireFile` and
+  `WriteEntireFile`. `tests/file_portable.sh` runs it on C from source and
+  saved IR and checks the Plan 9 build selects file_plan9.
 - `New(T)` allocates a zeroed `T` and returns `*T`; `free(p)` releases it and
   ignores null. C and C++ use `calloc`/`free`, Go uses `new` and its
   collector, and the portable runner keeps the storage alive while a pointer

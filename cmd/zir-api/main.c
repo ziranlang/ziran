@@ -6,6 +6,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static void
@@ -91,11 +92,34 @@ show_function(const ZirModule *module, const ZirFunction *fn, int json)
 {
     /* Overloads share the name callers write; fn->name is unique. */
     const char *name = fn->overload_name[0] ? fn->overload_name : fn->name;
-    char args[ZIR_TEXT_MAX * 2], result[ZIR_TEXT_MAX];
+    struct { char args[ZIR_TEXT_MAX * 2], result[ZIR_TEXT_MAX], spelled[ZIR_TEXT_MAX]; }
+        *text = calloc(1, sizeof(*text));
+    if(text == NULL) {
+        fputs("out of memory\n", stderr);
+        exit(1);
+    }
+    char *args = text->args, *result = text->result;
+    const size_t result_size = sizeof(text->result);
     source_spelling(module, fn->default_args[0] && !json ? fn->default_args : fn->args,
-                    args, sizeof(args), 0);
+                    args, sizeof(text->args), 0);
     source_spelling(module, fn->return_type[0] ? fn->return_type : "void",
-                    result, sizeof(result), 0);
+                    result, result_size, 0);
+    /* Several results are checked as a generated record; list its types. */
+    const ZirType *results = fn->return_type[0] ?
+        FindType(module, fn->return_type, NULL) : NULL;
+    if(results != NULL && results->is_results) {
+        size_t offset = 0, used = 0;
+        ZirTypeField field;
+        result[used++] = '(';
+        while(TypeNextField(results, &offset, &field) == 1 && used + 4 < result_size) {
+            source_spelling(module, field.type, text->spelled, sizeof(text->spelled), 0);
+            int written = snprintf(result + used, result_size - used, "%s%s",
+                                   used > 1 ? ", " : "", text->spelled);
+            if(written < 0 || (size_t)written >= result_size - used) break;
+            used += (size_t)written;
+        }
+        snprintf(result + used, result_size - used, ")");
+    }
     if(json) {
         putchar('{');
         json_member("name", name);
@@ -121,6 +145,7 @@ show_function(const ZirModule *module, const ZirFunction *fn, int json)
         if(fn->uses_host) fputs(" [host]", stdout);
         printf(" @ %s:%d\n", SpanPath(fn->span), fn->span.line);
     }
+    free(text);
 }
 
 static int
@@ -251,7 +276,7 @@ show_module(const ZirModule *module, int json)
         first = 1;
         for(int i = 0; i < module->type_count; i++) {
             const ZirType *type = &module->types[i];
-            if(!type->is_public || type->is_file_private ||
+            if(!type->is_public || type->is_file_private || type->is_results ||
                type->is_synthetic_application || type->is_type_instance)
                 continue;
             if(!first) putchar(',');
@@ -309,7 +334,7 @@ show_module(const ZirModule *module, int json)
         }
         for(int i = 0; i < module->type_count; i++) {
             const ZirType *type = &module->types[i];
-            if(!type->is_public || type->is_file_private ||
+            if(!type->is_public || type->is_file_private || type->is_results ||
                type->is_synthetic_application || type->is_type_instance)
                 continue;
             printf("  type %s", type->name);

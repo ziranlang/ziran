@@ -271,6 +271,14 @@ main(int argc, char **argv)
         usage();
         return 1;
     }
+    /* Source can tell Plan 9 apart, as std/file does: #if #defined(PLAN9). */
+    if(plan9 && define_count < 64) {
+        int present = 0;
+        for(int i = 0; i < define_count; i++)
+            present |= strcmp(defines[i], "PLAN9") == 0;
+        if(!present)
+            defines[define_count++] = "PLAN9";
+    }
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file),

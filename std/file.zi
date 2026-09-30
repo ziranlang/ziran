@@ -1,0 +1,61 @@
+// Files on every native C target under one import: Linux, Android, the web,
+// and Windows use file_linux, and Plan 9 (--target=plan9-c defines PLAN9)
+// uses file_plan9. Both provide OpenRead, OpenWrite, OpenUpdate,
+// OpenReplace, Read, Write, ReadAt, WriteAt, FileSize, CloseFile,
+// RemoveFile, RenameNoReplace, PathExists, DirectoryExists,
+// CreateDirectory, CreatePrivateDirectory, OpenDirectory,
+// NextDirectoryEntry, and CloseDirectory, plus the whole-file helpers here.
+//
+//     ok := WriteEntireFile("notes.txt", "hello\n")
+//     text, found := ReadEntireFile("notes.txt")
+
+#if #defined(PLAN9) {
+    using Platform :: #import "file_plan9"
+} else {
+    using Platform :: #import "file_linux"
+}
+using Vectors :: #import "vec"
+
+// The whole file's bytes as text, and whether it could be read.
+ReadEntireFile :: (path: string) -> (text: string, ok: bool) {
+    file := OpenRead(path)
+    if !file.valid { return "", false }
+    bytes: Vec(u8)
+    chunk: [4096]u8
+    offset: s64 = 0
+    while true {
+        count := ReadAt(file, chunk[:], offset)
+        if count < 0 {
+            CloseFile(file)
+            VecFree(bytes)
+            return "", false
+        }
+        if count == 0 { break }
+        i: s64 = 0
+        while i < count { VecPush(bytes, chunk[i]); i += 1; }
+        offset += count
+    }
+    CloseFile(file)
+    return BuilderFinish(bytes), true
+}
+
+// Replace the file at PATH with TEXT; false when it cannot be written whole.
+WriteEntireFile :: (path: string, text: string) -> bool {
+    file := OpenReplace(path)
+    if !file.valid { return false }
+    chunk: [4096]u8
+    offset: s64 = 0
+    while offset < text.count {
+        count: s64 = 0
+        while count < 4096 && offset + count < text.count {
+            chunk[count] = text[offset + count]
+            count += 1
+        }
+        if WriteAt(file, chunk[0:count], offset) != count {
+            CloseFile(file)
+            return false
+        }
+        offset += count
+    }
+    return CloseFile(file)
+}

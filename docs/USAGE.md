@@ -435,6 +435,28 @@ isolation request. The host starts the child, yields output lines, and returns
 its exit result. Its contract runs from source and saved `.zir` as a portable
 bundle and through native C, C++, and Go mocks.
 
+### Files
+
+`#import "std/file"` gives one set of file operations on every native C
+target: it uses `std/file_linux.zi` on Linux, Android, the web, and Windows,
+and `std/file_plan9.zi` for `--target=plan9-c`, which defines `PLAN9` for
+`#if #defined(PLAN9)`. The shared operations are `OpenRead`, `OpenWrite`,
+`OpenUpdate`, `OpenReplace`, `Read`, `Write`, `ReadAt`, `WriteAt`,
+`FileSize`, `CloseFile`, `RemoveFile`, `RenameNoReplace`, `PathExists`,
+`DirectoryExists`, `CreateDirectory`, `CreatePrivateDirectory`, and the
+directory cursor. Two helpers read and replace whole files:
+
+```jai
+#import "std/file"
+
+if WriteEntireFile("notes.txt", "hello\n") {
+    text, ok := ReadEntireFile("notes.txt")
+}
+```
+
+The Go target and portable bundles do not have these operations; Go
+programs use `std/file_go`.
+
 ### Native Plan 9 files
 
 Native `plan9-c` builds can import `std/file_plan9.zi` for positional byte

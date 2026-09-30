@@ -478,3 +478,21 @@ if "$ziran" check --root "$work" --module-path "$repo/std" \
     exit 1
 fi
 rg -q -F 'Vec(u8)' "$work/badbuilder.err"
+
+# Reading a Vec and moving it in one statement would give different values
+# on native targets, which empty it before the statement, and the portable
+# runner; the checker rejects the read.
+cat > "$work/moved_read.zi" <<'ZI'
+#import "vec"
+Take :: (values: Vec(s32)) -> s64 { return values.count }
+Check :: () -> s64 {
+    values: Vec(s32)
+    VecPush(values, 1)
+    return values.count + Take(values)
+}
+ZI
+if "$ziran" check --root "$work" "$work/moved_read.zi" 2> "$work/moved_read.err"; then
+    echo 'a Vec read and moved in one statement was accepted' >&2
+    exit 1
+fi
+grep -q 'cannot also be read in it' "$work/moved_read.err"

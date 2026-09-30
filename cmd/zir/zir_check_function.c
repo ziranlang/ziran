@@ -3,6 +3,49 @@
 /* A pointer to a fixed array, such as *[16]float64. Native backends have no
  * declarator for it yet, so the checker rejects it instead of emitting C
  * that points at the wrong type. */
+
+/* Whether expression tree ROOT reads NAME anywhere but at MOVE. */
+static int
+tree_reads_name(const ZirFunction *fn, int root, const char *name, int move)
+{
+    if(root < 0 || root >= fn->expr_count)
+        return 0;
+    const ZirExpr *e = &fn->exprs[root];
+    if(root != move && e->kind == ZIR_EXPR_IDENT && !strcmp(e->name, name))
+        return 1;
+    if(tree_reads_name(fn, e->left, name, move) ||
+       tree_reads_name(fn, e->right, name, move) ||
+       tree_reads_name(fn, e->third, name, move))
+        return 1;
+    for(int child = e->first_child; child >= 0; child = fn->exprs[child].next_sibling)
+        if(tree_reads_name(fn, child, name, move))
+            return 1;
+    return 0;
+}
+
+/* A Vec moved into a call is emptied before the statement runs on native
+ * targets, so reading it elsewhere in the same statement would see a
+ * different value than the portable runner. Reject that read. */
+static void
+reject_read_of_moved(Checker *c, int root, int node)
+{
+    const ZirFunction *fn = c->fn;
+    if(node < 0 || node >= fn->expr_count)
+        return;
+    const ZirExpr *e = &fn->exprs[node];
+    if(e->is_move && e->kind == ZIR_EXPR_IDENT &&
+       tree_reads_name(fn, root, e->name, node)) {
+        error(c, e->span, "a Vec moved in a statement cannot also be read in it; "
+              "read it into a local first", e->name);
+        return;
+    }
+    reject_read_of_moved(c, root, e->left);
+    reject_read_of_moved(c, root, e->right);
+    reject_read_of_moved(c, root, e->third);
+    for(int child = e->first_child; child >= 0; child = fn->exprs[child].next_sibling)
+        reject_read_of_moved(c, root, child);
+}
+
 static int
 pointer_to_array(const char *type)
 {
@@ -240,8 +283,10 @@ restart:
                (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
                 st->kind == ZIR_STMT_RETURN))
                 consumed_root = mark_moved_member_path(c, st->expr_root);
-            if(!consumed_root)
+            if(!consumed_root) {
                 mark_expr_moves(c, st->expr_root);
+                reject_read_of_moved(c, st->expr_root, st->expr_root);
+            }
             int root_transfer =
                 (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
                  st->kind == ZIR_STMT_RETURN) &&

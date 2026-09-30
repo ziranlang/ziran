@@ -61,6 +61,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
   source and saved IR on C, C++, Go, and `.zib`.
+- `print` shows a record as `{x = 1, y = 2}`: nested records in braces,
+  strings quoted, enums by name, fixed arrays by element (up to 16), and
+  Vecs and slices by count. The call becomes a call of a generated
+  procedure taking the same arguments, so each is evaluated once; a value
+  holding a Vec is passed by address instead of moved. `tests/print_records.sh`
+  checks source and saved IR on C, C++, Go, and `.zib`.
 - A local declaration may use `type_of(expression)` as its type, and a for
   range counts in its bounds' type (`0..count` with `count: s32` is `s32`;
   constant ranges stay `s64`). Indexing with `value[a..b]` reports that

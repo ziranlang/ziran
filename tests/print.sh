@@ -302,9 +302,15 @@ EOF
 reject named 'print has no named parameters' <<'EOF'
 main :: () { print("%\n", value = 1); }
 EOF
-reject record 'print argument must be an integer, float, bool, string, or enum' <<'EOF'
+reject pointer 'print argument must be an integer, float, bool, string, enum, record, or array' <<'EOF'
 Point :: struct { x: s32; }
-main :: () { point: Point; print("%\n", point); }
+main :: () { point: Point; print("%\n", *point); }
+EOF
+reject vec_holder 'print a value holding a Vec through a variable' <<'EOF'
+#import "std/vec"
+Holder :: struct { items: Vec(s32); }
+Make :: () -> Holder { holder: Holder; return holder; }
+main :: () { print("%\n", Make()); }
 EOF
 reject compile_time '#run expression is not a constant' <<'EOF'
 Noisy :: () -> s32 { print("side effect\n"); return 1; }

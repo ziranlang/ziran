@@ -403,6 +403,7 @@ print_enum_by_name(Checker *c, int index)
         }
         EnumNameRequest *request = &c->enum_names[c->enum_name_count++];
         request->owner = owner;
+        request->args = request->statements = NULL;
         copy_text(request->type, sizeof(request->type), enumeration->name);
         copy_text(request->function, sizeof(request->function), function);
         request->span = enumeration->span;
@@ -432,6 +433,310 @@ print_enum_by_name(Checker *c, int index)
     call->span = saved.span;
     c->conversions_applied = 1;
     return call->type;
+}
+
+/* print shows a record as {x = 1, y = 2}, nesting records and showing up
+ * to 16 elements of a fixed array. print_expands says whether TYPE takes
+ * that form. */
+static int
+print_expands(Checker *c, const char *type)
+{
+    if(ArrayElementType(type, NULL, 0, NULL))
+        return 1;
+    const ZirType *record = FindType(c->module, type, NULL);
+    return record != NULL && !record->is_enum && !record->is_procedure_type &&
+           !record->is_map && !record->is_extern && !record->is_record_template &&
+           !record->is_results;
+}
+
+enum { PRINT_EXPANSION_MAX = ZIR_TEXT_MAX * 8, PRINT_STATEMENT_PLACEHOLDERS = 24 };
+
+/* The statements of a generated print procedure, one per line. Each print
+ * keeps under PRINT_PIECES_MAX pieces; a long expansion continues in the
+ * next statement. */
+typedef struct PrintExpansion {
+    char format[ZIR_TEXT_MAX];
+    char args[ZIR_TEXT_MAX];
+    int placeholders;
+    char *statements;
+    size_t used;
+    int failed;
+} PrintExpansion;
+
+static void
+print_append(char *buffer, size_t capacity, const char *text, int *failed)
+{
+    size_t used = strlen(buffer), length = strlen(text);
+    if(used + length >= capacity) {
+        *failed = 1;
+        return;
+    }
+    memcpy(buffer + used, text, length + 1);
+}
+
+static void
+print_flush(PrintExpansion *out)
+{
+    if(!out->format[0] && !out->args[0])
+        return;
+    char statement[ZIR_TEXT_MAX * 2 + 16];
+    int length = snprintf(statement, sizeof(statement), "print(\"%s\"%s);\n",
+                          out->format, out->args);
+    if(length < 0 || (size_t)length >= sizeof(statement) ||
+       out->used + (size_t)length >= PRINT_EXPANSION_MAX) {
+        out->failed = 1;
+        return;
+    }
+    memcpy(out->statements + out->used, statement, (size_t)length + 1);
+    out->used += (size_t)length;
+    out->format[0] = out->args[0] = '\0';
+    out->placeholders = 0;
+}
+
+static void
+print_literal(PrintExpansion *out, const char *text)
+{
+    print_append(out->format, sizeof(out->format), text, &out->failed);
+}
+
+static void
+print_placeholder(PrintExpansion *out, const char *before, const char *access,
+                  const char *after)
+{
+    if(out->placeholders >= PRINT_STATEMENT_PLACEHOLDERS)
+        print_flush(out);
+    print_literal(out, before);
+    print_literal(out, "%");
+    print_literal(out, after);
+    print_append(out->args, sizeof(out->args), ", ", &out->failed);
+    print_append(out->args, sizeof(out->args), access, &out->failed);
+    out->placeholders++;
+}
+
+/* Append VALUE (read through ACCESS) of TYPE, named in MODULE's scope. */
+static void
+print_expand(Checker *c, const ZirModule *module, const char *type,
+             const char *access, PrintExpansion *out, int depth)
+{
+    char element[ZIR_NAME_MAX], nested[ZIR_TEXT_MAX];
+    int capacity = 0;
+    const ZirModule *owner = NULL;
+    if(out->failed)
+        return;
+    if(depth > 8) {
+        print_literal(out, "{...}");
+        return;
+    }
+    if(!strcmp(type, "string")) {
+        print_placeholder(out, "\\\"", access, "\\\"");
+        return;
+    }
+    if(*ScalarType(type)) {
+        print_placeholder(out, "", access, "");
+        return;
+    }
+    if(ArrayElementType(type, element, sizeof(element), &capacity)) {
+        print_literal(out, "[");
+        for(int i = 0; i < capacity && i < 16; i++) {
+            if(i) print_literal(out, ", ");
+            snprintf(nested, sizeof(nested), "%s[%d]", access, i);
+            print_expand(c, module, element, nested, out, depth + 1);
+        }
+        print_literal(out, capacity > 16 ? ", ...]" : "]");
+        return;
+    }
+    if(SliceElementType(type, NULL, 0) || VecElementType(module, type, NULL, 0)) {
+        snprintf(nested, sizeof(nested), "%s.count", access);
+        print_placeholder(out, "[count = ", nested, "]");
+        return;
+    }
+    if(*type == '*') {
+        print_literal(out, "(pointer)");
+        return;
+    }
+    const ZirType *record = FindType(module, type, &owner);
+    if(record == NULL) {
+        print_literal(out, "(?)");
+        return;
+    }
+    if(record->is_enum && record->is_enum_flags) {
+        snprintf(nested, sizeof(nested), "cast(%s) %s",
+                 record->enum_backing[0] ? record->enum_backing : "u64", access);
+        print_placeholder(out, "", nested, "");
+        return;
+    }
+    if(record->is_enum) {
+        print_placeholder(out, "", access, "");
+        return;
+    }
+    if(record->is_procedure_type || record->is_extern || record->is_map) {
+        print_literal(out, "(opaque)");
+        return;
+    }
+    if(record->is_union) {
+        print_literal(out, "(union)");
+        return;
+    }
+    print_literal(out, "{");
+    size_t offset = 0;
+    ZirTypeField field;
+    int first = 1;
+    while(TypeNextField(record, &offset, &field) == 1) {
+        char label[ZIR_NAME_MAX + 8];
+        snprintf(label, sizeof(label), "%s%s = ", first ? "" : ", ", field.name);
+        print_literal(out, label);
+        snprintf(nested, sizeof(nested), "%s.%s", access, field.name);
+        print_expand(c, owner != NULL ? owner : module, field.type, nested, out,
+                     depth + 1);
+        first = 0;
+    }
+    print_literal(out, "}");
+}
+
+/* A print call with a record argument becomes a call of a generated
+ * procedure taking the same arguments, so each is evaluated once, in order.
+ * Its body prints the format with every record expanded into its fields.
+ * A value holding a Vec is passed by pointer rather than moved. Returns 1
+ * after rewriting call INDEX. */
+static int
+print_through_procedure(Checker *c, int index)
+{
+    ZirFunction *fn = c->fn;
+    int format = fn->exprs[index].first_child;
+    const char *literal = fn->exprs[format].text;
+    if(c->inference_only || literal == NULL || literal[0] != '"')
+        return 0;
+    PrintExpansion *out = calloc(1, sizeof(*out));
+    char *args = calloc(1, ZIR_TEXT_MAX * 2);
+    char *identity = calloc(1, ZIR_TEXT_MAX * 4);
+    if(out != NULL) out->statements = calloc(1, PRINT_EXPANSION_MAX);
+    if(out == NULL || args == NULL || identity == NULL || out->statements == NULL) {
+        c->failed = 1;
+        goto failed;
+    }
+    /* Walk the raw literal so escapes and %% stay as written. */
+    int argument = fn->exprs[format].next_sibling, number = 0;
+    const char *cursor = literal + 1;
+    while(*cursor && !(*cursor == '"' && cursor[1] == '\0')) {
+        if(*cursor == '\\' && cursor[1]) {
+            char escape[3] = { cursor[0], cursor[1], '\0' };
+            print_literal(out, escape);
+            cursor += 2;
+            continue;
+        }
+        if(*cursor == '%' && cursor[1] == '%') {
+            print_literal(out, "%%");
+            cursor += 2;
+            continue;
+        }
+        if(*cursor != '%') {
+            char one[2] = { *cursor, '\0' };
+            print_literal(out, one);
+            cursor++;
+            continue;
+        }
+        cursor++;
+        if(argument < 0) goto failed;
+        const char *type = fn->exprs[argument].type;
+        char name[32], parameter[ZIR_TEXT_MAX];
+        snprintf(name, sizeof(name), "value_%d", ++number);
+        int by_pointer = print_expands(c, type) && contains_vec(c->module, type, 0);
+        if(by_pointer && !assignable(c, argument)) {
+            error(c, fn->exprs[argument].span,
+                  "print a value holding a Vec through a variable", type);
+            goto failed;
+        }
+        snprintf(parameter, sizeof(parameter), "%s%s: %s%s", number > 1 ? ", " : "",
+                 name, by_pointer ? "*" : "", type);
+        print_append(args, ZIR_TEXT_MAX * 2, parameter, &out->failed);
+        print_append(identity, ZIR_TEXT_MAX * 4, parameter, &out->failed);
+        if(print_expands(c, type))
+            print_expand(c, c->module, type, name, out, 0);
+        else
+            print_placeholder(out, "", name, "");
+        argument = fn->exprs[argument].next_sibling;
+    }
+    print_flush(out);
+    if(out->failed || argument >= 0)
+        goto failed;
+    print_append(identity, ZIR_TEXT_MAX * 4, literal, &out->failed);
+    print_append(identity, ZIR_TEXT_MAX * 4, c->module->name, &out->failed);
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for(const unsigned char *p = (const unsigned char *)identity; *p; p++)
+        hash = (hash ^ *p) * UINT64_C(1099511628211);
+    char function[ZIR_NAME_MAX];
+    snprintf(function, sizeof(function), "zi_print_%016llx", (unsigned long long)hash);
+    int known = 0;
+    for(int f = 0; f < c->module->function_count && !known; f++)
+        known = !strcmp(c->module->functions[f].name, function);
+    for(int r = 0; r < c->enum_name_count && !known; r++)
+        known = c->enum_names[r].owner == c->module &&
+                !strcmp(c->enum_names[r].function, function);
+    if(!known) {
+        if(c->enum_name_count == c->enum_name_capacity) {
+            int capacity = c->enum_name_capacity ? c->enum_name_capacity * 2 : 8;
+            EnumNameRequest *next = realloc(c->enum_names,
+                                            (size_t)capacity * sizeof(*next));
+            if(next == NULL) { c->failed = 1; goto failed; }
+            c->enum_names = next;
+            c->enum_name_capacity = capacity;
+        }
+        EnumNameRequest *request = &c->enum_names[c->enum_name_count++];
+        request->owner = c->module;
+        copy_text(request->type, sizeof(request->type), "print");
+        copy_text(request->function, sizeof(request->function), function);
+        request->span = fn->exprs[index].span;
+        request->args = args;
+        request->statements = out->statements;
+        args = NULL;
+        out->statements = NULL;
+    }
+    /* Pass Vec holders by address, then drop the format argument. */
+    argument = fn->exprs[format].next_sibling;
+    for(int position = 0; argument >= 0; position++) {
+        int next = fn->exprs[argument].next_sibling;
+        const char *type = fn->exprs[argument].type;
+        if(print_expands(c, type) && contains_vec(c->module, type, 0)) {
+            ZirExpr *copy_slot = FunctionAddExpr(fn, fn->exprs[argument].kind,
+                                                 fn->exprs[argument].name,
+                                                 fn->exprs[argument].span);
+            if(copy_slot == NULL) { c->failed = 1; goto failed; }
+            fn = c->fn;
+            int copy_index = (int)(copy_slot - fn->exprs);
+            ZirExpr saved = fn->exprs[argument];
+            *copy_slot = saved;
+            copy_slot->next_sibling = -1;
+            copy_slot->argument_index = -1;
+            ZirExpr *address = &fn->exprs[argument];
+            memset(address, 0, sizeof(*address));
+            address->kind = ZIR_EXPR_UNARY;
+            address->text = saved.text;
+            copy_text(address->op, sizeof(address->op), "&");
+            snprintf(address->type, sizeof(address->type), "*%s", saved.type);
+            address->left = address->third = address->first_child = -1;
+            address->right = copy_index;
+            address->next_sibling = next;
+            address->span = saved.span;
+        }
+        fn->exprs[argument].argument_index = position;
+        argument = next;
+    }
+    ZirExpr *call = &fn->exprs[index];
+    call->first_child = fn->exprs[format].next_sibling;
+    copy_text(call->name, sizeof(call->name), function);
+    copy_text(call->type, sizeof(call->type), "void");
+    c->conversions_applied = 1;
+    free(args);
+    free(identity);
+    free(out->statements);
+    free(out);
+    return 1;
+failed:
+    free(args);
+    free(identity);
+    if(out != NULL) free(out->statements);
+    free(out);
+    return 0;
 }
 
 /* Edit distance between two names, or LIMIT + 1 once it exceeds LIMIT. */
@@ -1081,7 +1386,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         if(!strcmp(e->name, "print")) {
             PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
             int first = e->first_child, placeholders = 0, arguments = 0;
-            int count;
+            int count, expanded = 0, errors_before = c->errors;
             for(int child = first; child >= 0;
                 child = c->fn->exprs[child].next_sibling) {
                 const char *arg_type = expression_type(c, child);
@@ -1111,6 +1416,8 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     copy_text(c->fn->exprs[child].type, ZIR_NAME_MAX, "s64");
                 else if(!strcmp(arg_type, "real"))
                     copy_text(c->fn->exprs[child].type, ZIR_NAME_MAX, "float64");
+                else if(*arg_type && print_expands(c, arg_type))
+                    expanded++;
                 else if(*arg_type &&
                         (scalar == NULL ||
                         (!integer_type(arg_type) &&
@@ -1119,7 +1426,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                          strcmp(scalar, "float64") &&
                          strcmp(scalar, "string"))))
                     error(c, c->fn->exprs[child].span,
-                          "print argument must be an integer, float, bool, string, or enum",
+                          "print argument must be an integer, float, bool, string, enum, record, or array",
                           arg_type);
             }
             if(pieces == NULL) {
@@ -1146,6 +1453,12 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 }
             }
             free(pieces);
+            if(expanded && c->errors == errors_before &&
+               !print_through_procedure(c, index) && !c->inference_only &&
+               c->errors == errors_before)
+                error(c, e->span, "print format is too long to show these values",
+                      e->name);
+            e = &c->fn->exprs[index];
             type = "void";
             break;
         }

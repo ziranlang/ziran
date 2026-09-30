@@ -1363,6 +1363,30 @@ instantiate_enum_names(Checker *c)
     for(int r = 0; r < c->enum_name_count; r++) {
         EnumNameRequest *request = &c->enum_names[r];
         ZirModule *owner = request->owner;
+        if(request->statements != NULL) {
+            /* A print procedure: ARGS, then one statement per line. */
+            ZirFunction *fn = ModuleAddFunction(owner, request->function,
+                                                request->args, "void", 0,
+                                                request->span);
+            if(fn == NULL || !normalize_function_arrays(owner, fn)) return 0;
+            fn->is_public = 1;
+            fn->is_specialization = 1;
+            copy_text(fn->template_param, sizeof(fn->template_param), "T");
+            copy_text(fn->specialization_type, sizeof(fn->specialization_type),
+                      request->type);
+            for(char *line = request->statements; *line;) {
+                char *end = strchr(line, '\n');
+                if(end != NULL) *end = '\0';
+                if(FunctionAddStmt(fn, ZIR_STMT_EXPR, line, request->span) == NULL)
+                    return 0;
+                if(end == NULL) break;
+                line = end + 1;
+            }
+            free(request->args);
+            free(request->statements);
+            request->args = request->statements = NULL;
+            continue;
+        }
         const ZirType *enumeration = NULL;
         for(int t = 0; t < owner->type_count && enumeration == NULL; t++)
             if(!strcmp(owner->types[t].name, request->type))

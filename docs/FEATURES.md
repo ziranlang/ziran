@@ -13,7 +13,7 @@ the command output, and [tests/features.sh](../tests/features.sh) validates:
 - rejection of every negative example.
 
 The registry is intentionally incremental. It currently covers compile-time
-assertions, checked scalar `print`, named module imports, integer width
+assertions, checked `print` of scalars, enums, and records, named module imports, integer width
 conformance, local `TextView` mutation checking, and plain record-field `Vec`
 moves. It does not
 yet replace the language reference

@@ -45,12 +45,16 @@ typedef struct SpecializationRequest {
 } SpecializationRequest;
 
 /* print of an enum value calls a generated procedure returning the member
- * name; it is created in the enum's module after checking, like an instance. */
+ * name; it is created in the enum's module after checking, like an instance.
+ * A print of a record calls a generated procedure too: ARGS and STATEMENTS
+ * (heap text, one statement per line) are set for those and NULL otherwise. */
 typedef struct EnumNameRequest {
     ZirModule *owner;
     char type[ZIR_NAME_MAX];     /* enum name within its module */
     char function[ZIR_NAME_MAX];
     ZirSourceSpan span;
+    char *args;
+    char *statements;
 } EnumNameRequest;
 
 typedef struct MoveState {

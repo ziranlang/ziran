@@ -1,0 +1,159 @@
+#import "compiler_declaration"
+
+SameParameters :: (source: string, expected: string, defaults: bool, using_values: bool,
+    flags: u64, has_defaults: bool) -> bool {
+    output: [256]u8
+    for capacity: 0..expected.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        result := RewriteParameters(source, output[0:capacity], defaults, using_values, 128)
+        if result.error != .None || result.count != expected.count || output[capacity] != 0xa5 ||
+        TextView(output[0:capacity]) != expected[0:capacity] || result.using_parameters != flags ||
+        result.has_defaults != has_defaults { return false }
+    }
+    return true
+}
+
+Parameters :: () -> bool {
+    if !SameParameters("", "", true, true, 0, false) ||
+    !SameParameters(" \t", "", true, true, 0, false) ||
+    !SameParameters(" a:s32,b:s32 ", "a:s32, b:s32", true, false, 0, false) ||
+    !SameParameters("a:s32 = Call(1,2), text:string = \"a=b,c\", z := .{x=1,y=2}",
+        "a:s32, text:string, z :", true, false, 0, true) ||
+    !SameParameters("using a: *Node, using b: Pair(s32, s64), c:s32",
+        "a: *Node, b: Pair(s32, s64), c:s32", false, true, 3, false) ||
+    !SameParameters("using a: s32 = 2, b: string = \"using b: s32, =\"",
+        "a: s32, b: string", true, true, 1, true) ||
+    !SameParameters("a:s32 = Call(x == 2, y != 3), b:s32 = 4 >= 3",
+        "a:s32, b:s32", true, false, 0, true) { return false }
+    output: [1024]u8
+    if RewriteParameters("a:s32 = ", output[:], true, false, 128).error != .DefaultValue ||
+    RewriteParameters("using(a: s32)", output[:], false, true, 128).error != .UsingModifier ||
+    RewriteParameters("using a", output[:], false, true, 128).error != .UsingType ||
+    RewriteParameters("using a.b: Node", output[:], false, true, 128).error != .UsingName ||
+    RewriteParameters("using name: Node", output[:], false, true, 4).error != .UsingType { return false }
+    input: [1024]u8
+    count: s64 = 0
+    for parameter: 0..64 {
+        if parameter > 0 { input[count] = #char ","; count += 1 }
+        for byte: "using a:s32" { input[count] = byte; count += 1 }
+        result := RewriteParameters(TextView(input[0:count]), output[:], false, true, 128)
+        if parameter == 64 {
+            if result.error != .Parameters { return false }
+        } else {
+            if result.error != .None || result.parameters != parameter + 1 { return false }
+            if parameter == 63 && result.using_parameters != 0xffffffffffffffff { return false }
+        }
+    }
+    return true
+}
+
+Declarations :: () -> bool {
+    exported := ProgramExport("#program_export \"native_answer\" Answer :: () -> s32 { return 42 }", 128)
+    if exported.error != .None || exported.kind != 2 || exported.symbol != "native_answer" ||
+    exported.body != "Answer :: () -> s32 { return 42 }" { return false }
+    if ProgramExport("#program_export", 128).kind != 1 ||
+    ProgramExport("#program_export \"a\"", 2).kind != 1 ||
+    ProgramExport("#program_exported", 128).kind != 0 ||
+    ProgramExport("#program_export \"unterminated", 128).error != .ExportQuote ||
+    ProgramExport("#program_export \"aa\"", 2).error != .ExportQuote ||
+    ProgramExport("#program_export \"bad-name\"", 128).error != .ExportName ||
+    ProgramExport("#program_export \"\"", 128).error != .ExportName { return false }
+    imported := ImportDeclaration("#import \"std/text\";", 128, 1024)
+    if !imported.present || imported.error != .None || imported.named || imported.name != "text" ||
+    imported.target != "std/text" || imported.mode != .Module { return false }
+    imported = ImportDeclaration("using Library :: #import \"std/text\";", 128, 1024)
+    if imported.error != .None || !imported.named || !imported.using_import || imported.name != "Library" { return false }
+    imported = ImportDeclaration("Lib :: #import, file \"../lib/helper.zi\";", 128, 1024)
+    if imported.error != .None || !imported.named || imported.name != "Lib" || imported.target != "helper" ||
+    imported.path != "../lib/helper.zi" || imported.mode != .File { return false }
+    imported = ImportDeclaration("#import, dir \"../lib/helper\";", 128, 1024)
+    if imported.error != .None || imported.named || imported.name != "helper" || imported.target != "helper" ||
+    imported.path != "../lib/helper" || imported.mode != .Directory { return false }
+    if ImportDeclaration("Answer :: () { return 42 }", 128, 1024).present ||
+    ImportDeclaration("using #import \"lib\";", 128, 1024).present ||
+    ImportDeclaration("#import lib;", 128, 1024).error != .ImportQuote ||
+    ImportDeclaration("#import \"a>\";", 128, 1024).error != .ImportCharacter ||
+    ImportDeclaration("#import, bad \"lib\";", 128, 1024).error != .ImportMode ||
+    ImportDeclaration("#import, dir \"lib\"", 128, 1024).error != .ImportDirSyntax ||
+    ImportDeclaration("#import, file \"lib.zi\" extra;", 128, 1024).error != .ImportFileSyntax ||
+    ImportDeclaration("#import, dir \"/lib\";", 128, 1024).error != .ImportDirPath ||
+    ImportDeclaration("#import, dir \"lib/\";", 128, 1024).error != .ImportDirPath ||
+    ImportDeclaration("#import, dir \"bad-name\";", 128, 1024).error != .ImportDirName ||
+    ImportDeclaration("#import, file \"lib.c\";", 128, 1024).error != .ImportFilePath ||
+    ImportDeclaration("#import, file \"bad-name.zi\";", 128, 1024).error != .ImportFileName ||
+    ImportDeclaration("1Alias :: #import \"lib\";", 128, 1024).error != .ImportAlias ||
+    ImportDeclaration("#import \"bad-name\";", 128, 1024).error != .ImportTarget ||
+    ImportDeclaration("#import \"std/text/more\";", 128, 1024).error != .ImportPackage ||
+    ImportDeclaration("#import \"\";", 128, 1024).error != .ImportTarget ||
+    ImportDeclaration("#import \"lib\";", 128, 3).error != .ImportQuote { return false }
+    library := SystemLibrary("lib :: #system_library \"go:net/http\";", 128, 1024)
+    if !library.present || library.error != .None || library.name != "lib" || library.target != "go:net/http" { return false }
+    if SystemLibrary("lib :: 42;", 128, 1024).present ||
+    SystemLibrary("lib :: #system_library \"\";", 128, 1024).error != .LibraryQuote ||
+    SystemLibrary("lib :: #system_library lib;", 128, 1024).error != .LibraryQuote ||
+    SystemLibrary("lib :: #system_library \"lib\"", 128, 1024).error != .LibraryEnd ||
+    SystemLibrary("lib :: #system_library \"bad\\name\";", 128, 1024).error != .LibraryCharacter ||
+    SystemLibrary("lib :: #system_library \"lib\";", 128, 3).error != .LibraryQuote { return false }
+    method := ForeignMethod("(*Client).Read", 128, 128, false)
+    if !method.valid || method.receiver != "*Client" || method.method != "Read" { return false }
+    if !ForeignMethod("(bytes).decode", 128, 128, true).valid ||
+    ForeignMethod("(*Client).Read", 128, 128, true).valid ||
+    ForeignMethod("bytes.decode", 128, 128, true).valid ||
+    ForeignMethod("(Client).", 128, 128, false).valid ||
+    ForeignMethod("(Client).Read", 3, 128, false).valid ||
+    ForeignMethod("Client).Read", 128, 128, false).valid ||
+    !PythonAttribute("bytes.fromhex", 128) || PythonAttribute("bytes..fromhex", 128) ||
+    PythonAttribute("bytes.", 128) || PythonAttribute("", 128) ||
+    PythonAttribute("bytes.fromhex", 5) { return false }
+    for error: 1..23 { if ErrorText(cast(DeclarationError)error).count == 0 { return false } }
+    return ErrorText(.None) == ""
+}
+
+#program_export
+Answer :: () -> s32 {
+    if !Parameters() { return 1 }
+    if !Declarations() { return 2 }
+    return 42
+}
+
+#program_export
+Fingerprint :: () -> s64 {
+    seed: u32 = 0x87654321
+    hash: u32 = 2166136261
+    alphabet := "using a:s32=1,(\"x=y,z\"){}[];<>\\\t#'./_\n"
+    input: [64]u8
+    output: [128]u8
+    for sample: 0..255 {
+        seed = seed * cast(u32)1664525 + cast(u32)1013904223
+        count := cast(s64)(seed % cast(u32)64)
+        for index: 0..count - 1 {
+            seed = seed * cast(u32)1664525 + cast(u32)1013904223
+            input[index] = alphabet[cast(s64)(seed % cast(u32)alphabet.count)]
+        }
+        source := TextView(input[0:count])
+        for capacity: 0..8 {
+            rewritten := RewriteParameters(source, output[0:capacity], sample % 2 == 0, sample % 3 == 0, 8)
+            hash = hash * cast(u32)16777619 ^ cast(u32)rewritten.error
+            hash = hash * cast(u32)16777619 ^ cast(u32)rewritten.count
+            hash = hash * cast(u32)16777619 ^ cast(u32)rewritten.using_parameters
+            written := rewritten.count
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+        }
+        imported := ImportDeclaration(source, 8, 32)
+        hash = hash * cast(u32)16777619 ^ cast(u32)imported.error
+        for byte: imported.name { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+        for byte: imported.target { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+        exported := ProgramExport(source, 8)
+        hash = hash * cast(u32)16777619 ^ cast(u32)exported.error
+        hash = hash * cast(u32)16777619 ^ cast(u32)exported.kind
+        library := SystemLibrary(source, 8, 32)
+        hash = hash * cast(u32)16777619 ^ cast(u32)library.error
+        method := ForeignMethod(source, 8, 8, sample % 2 == 0)
+        hash = hash * cast(u32)16777619 ^ cast(u32)method.valid
+        hash = hash * cast(u32)16777619 ^ cast(u32)PythonAttribute(source, 8)
+    }
+    return cast(s64)hash
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

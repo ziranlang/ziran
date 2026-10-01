@@ -1,0 +1,304 @@
+// Declaration syntax. Returned text borrows source and output storage belongs
+// to the caller; IR construction and source diagnostics stay at the boundary.
+Text :: #import "compiler_text";
+Source :: #import "compiler_source";
+
+DeclarationError :: enum s32 {
+    None; ExportQuote; ExportName; Parameters; DefaultValue;
+    UsingModifier; UsingType; UsingName; ImportQuote; ImportCharacter;
+    ImportMode; ImportDirSyntax; ImportDirPath; ImportDirName;
+    ImportFileSyntax; ImportFilePath; ImportFileName; ImportAlias;
+    ImportTarget; ImportPackage; ImportUsing;
+    LibraryQuote; LibraryEnd; LibraryCharacter;
+}
+ExportDirective :: struct { error: DeclarationError; kind: s32; symbol: string; body: string }
+ParameterRewrite :: struct {
+    error: DeclarationError
+    count: s64
+    parameters: s32
+    has_defaults: bool
+    using_parameters: u64
+}
+ImportMode :: enum s32 { Module; File; Directory }
+ModuleImport :: struct {
+    error: DeclarationError
+    present: bool
+    named: bool
+    using_import: bool
+    mode: ImportMode
+    name: string
+    target: string
+    path: string
+    detail: string
+}
+LibraryDeclaration :: struct { error: DeclarationError; present: bool; name: string; target: string }
+MethodSymbol :: struct { valid: bool; receiver: string; method: string }
+
+#scope_file
+Find :: (source: string, needle: string) -> s64 {
+    for at: 0..source.count {
+        if needle.count <= source.count - at && source[at:at + needle.count] == needle { return at }
+    }
+    return -1
+}
+Trim :: (source: string) -> string {
+    range := Text.TrimRange(source)
+    return source[range.begin:range.end]
+}
+Put :: (output: []u8, used: *s64, source: string) {
+    for byte: source {
+        if <<used < output.count { output[<<used] = byte }
+        <<used += 1
+    }
+}
+QuotedText :: struct { valid: bool; value: string; end: s64 }
+Quoted :: (source: string, limit: s64) -> QuotedText {
+    begin := Find(source, "\"")
+    if begin < 0 { return .{} }
+    end := Find(source[begin + 1:], "\"")
+    if end < 0 || end >= limit { return .{} }
+    end += begin + 1
+    return .{true, source[begin + 1:end], end + 1}
+}
+SymbolBeforeColons :: (source: string, limit: s64) -> string {
+    colons := Find(source, "::")
+    if colons < 0 { return "" }
+    begin := Text.SkipSpace(source, 0, true)
+    end := begin
+    while end < colons && Text.IdentifierByte(source[end]) { end += 1 }
+    if end == begin || end - begin >= limit || Text.SkipSpace(source, end, true) != colons { return "" }
+    return source[begin:end]
+}
+Basename :: (source: string) -> string {
+    begin: s64 = 0
+    for at: 0..source.count - 1 { if source[at] == #char "/" { begin = at + 1 } }
+    return source[begin:]
+}
+
+#scope_export
+ErrorText :: (error: DeclarationError) -> string {
+    if error == .ExportQuote { return "#program_export requires a valid quoted symbol" }
+    if error == .ExportName { return "#program_export symbol must be an identifier" }
+    if error == .Parameters { return "too many procedure parameters" }
+    if error == .DefaultValue { return "default parameter needs a value" }
+    if error == .UsingModifier { return "using parameter modifiers are not supported" }
+    if error == .UsingType { return "using parameter needs name: Type" }
+    if error == .UsingName { return "using parameter needs a plain name" }
+    if error == .ImportQuote { return "Jai #import requires a quoted module or file name" }
+    if error == .ImportCharacter { return "#import target contains a character that cannot appear in an include path" }
+    if error == .ImportMode { return "unsupported #import mode" }
+    if error == .ImportDirSyntax { return "#import, dir requires a quoted path and ';'" }
+    if error == .ImportDirPath { return "#import, dir requires a relative directory path" }
+    if error == .ImportDirName { return "#import, dir path needs an identifier directory name" }
+    if error == .ImportFileSyntax { return "#import, file requires a quoted path and ';'" }
+    if error == .ImportFilePath { return "#import, file requires a relative .zi path" }
+    if error == .ImportFileName { return "#import, file path needs an identifier filename" }
+    if error == .ImportAlias { return "import alias must start with a letter or underscore" }
+    if error == .ImportTarget { return "Jai #import requires a module identifier or PACKAGE/Module; use #import, file for paths" }
+    if error == .ImportPackage { return "a package import has one '/', as in #import \"PACKAGE/Module\"" }
+    if error == .ImportUsing { return "using #import requires a named module alias" }
+    if error == .LibraryQuote { return "#system_library requires a quoted library name" }
+    if error == .LibraryEnd { return "#system_library declaration must end with ';'" }
+    if error == .LibraryCharacter { return "#system_library name contains an invalid character" }
+    return ""
+}
+
+ProgramExport :: (source: string, symbol_limit: s64) -> ExportDirective {
+    result: ExportDirective
+    if !Source.StartsWord(source, "#program_export") { return result }
+    at := Text.SkipSpace(source, 15, true)
+    if at < source.count && source[at] == #char "\"" {
+        quoted := Quoted(source[at:], symbol_limit)
+        if !quoted.valid { result.error = .ExportQuote; return result }
+        result.symbol = quoted.value
+        if !Source.IdentifierText(result.symbol, false) { result.error = .ExportName; return result }
+        at = Text.SkipSpace(source, at + quoted.end, true)
+    }
+    result.kind = 1
+    if at < source.count { result.kind = 2 }
+    result.body = source[at:]
+    return result
+}
+
+// A short output receives its prefix, while count measures the complete
+// normalized text. Source and output must not overlap: comma spacing can grow.
+RewriteParameters :: (source: string, output: []u8, strip_defaults: bool,
+    strip_using: bool, name_limit: s64) -> ParameterRewrite {
+    result: ParameterRewrite
+    if Text.SkipSpace(source, 0, true) == source.count { return result }
+    at: s64 = 0
+    while at >= 0 {
+        if result.parameters == 64 { result.error = .Parameters; return result }
+        range := Text.NextSourcePart(source, at)
+        part := Trim(source[range.begin:range.end])
+        if strip_defaults {
+            assignment := Text.TopLevelAssignment(part)
+            if assignment >= 0 {
+                if Text.SkipSpace(part, assignment + 1, true) == part.count {
+                    result.error = .DefaultValue
+                    return result
+                }
+                part = Trim(part[0:assignment])
+                result.has_defaults = true
+            }
+        }
+        if strip_using && Source.StartsWord(part, "using") {
+            if part.count <= 5 || !Text.SpaceByte(part[5]) { result.error = .UsingModifier; return result }
+            part = Trim(part[5:])
+            colon := Find(part, ":")
+            if colon <= 0 || colon >= name_limit { result.error = .UsingType; return result }
+            if !Source.IdentifierText(Trim(part[0:colon]), false) { result.error = .UsingName; return result }
+            result.using_parameters |= cast(u64)1 << cast(u64)result.parameters
+        }
+        if result.parameters > 0 { Put(output, *result.count, ", ") }
+        Put(output, *result.count, part)
+        result.parameters += 1
+        at = range.next
+    }
+    return result
+}
+
+ImportDeclaration :: (source: string, name_limit: s64, path_limit: s64) -> ModuleImport {
+    result: ModuleImport
+    directive := Find(source, "#import")
+    if directive < 0 { return result }
+    body := source
+    result.using_import = Source.StartsWord(source, "using")
+    if result.using_import {
+        body = source[Text.SkipSpace(source, 5, true):]
+        if body.count == 0 || !Source.IdentifierText(body[0:1], false) { return result }
+    }
+    result.present = true
+    quoted := Quoted(source[directive:], path_limit)
+    if !quoted.valid { result.error = .ImportQuote; return result }
+    result.target = quoted.value
+    for byte: result.target {
+        if byte == #char "\"" || byte == #char ">" || byte < 0x20 {
+            result.error = .ImportCharacter
+            return result
+        }
+    }
+    mode := source[Text.SkipSpace(source, directive + 7, true):]
+    if mode.count > 0 && mode[0] == #char "," {
+        mode = mode[Text.SkipSpace(mode, 1, true):]
+        keyword: s64 = 0
+        if mode.count > 3 && mode[0:3] == "dir" && Text.SpaceByte(mode[3]) {
+            result.mode = .Directory
+            keyword = 3
+        } else if mode.count > 4 && mode[0:4] == "file" && Text.SpaceByte(mode[4]) {
+            result.mode = .File
+            keyword = 4
+        } else { result.error = .ImportMode; result.detail = mode; return result }
+        argument := mode[Text.SkipSpace(mode, keyword, true):]
+        path := Quoted(argument, path_limit)
+        if argument.count == 0 || argument[0] != #char "\"" || !path.valid ||
+        argument[Text.SkipSpace(argument, path.end, true):] != ";" {
+            result.error = .ImportFileSyntax
+            if result.mode == .Directory { result.error = .ImportDirSyntax }
+            return result
+        }
+        result.name = SymbolBeforeColons(source, name_limit)
+        result.named = result.name.count > 0
+        result.path = result.target
+        valid := result.path.count > 0 && result.path[0] != #char "/"
+        if result.mode == .Directory {
+            valid = valid && Find(result.path, "\\") < 0 && result.path[result.path.count - 1] != #char "/"
+        } else { valid = valid && result.path.count >= 4 && result.path[result.path.count - 3:] == ".zi" }
+        if !valid {
+            result.error = .ImportFilePath
+            if result.mode == .Directory { result.error = .ImportDirPath }
+            return result
+        }
+        stem := Basename(result.path)
+        if result.mode == .File { stem = stem[0:stem.count - 3] }
+        if stem.count >= name_limit || !Source.IdentifierText(stem, false) {
+            result.error = .ImportFileName
+            if result.mode == .Directory { result.error = .ImportDirName }
+            return result
+        }
+        if !result.named { result.name = stem }
+        result.target = stem
+    } else {
+        result.name = SymbolBeforeColons(body, name_limit)
+        result.named = result.name.count > 0
+        if !result.named {
+            slash := Find(result.target, "/")
+            if slash < 0 { result.name = result.target }
+            else { result.name = result.target[slash + 1:] }
+            if result.name.count >= name_limit { result.name = result.name[0:name_limit - 1] }
+        }
+    }
+    if result.named && !Source.IdentifierText(result.name[0:1], false) { result.error = .ImportAlias; return result }
+    slash := Find(result.target, "/")
+    if slash < 0 {
+        if !Source.IdentifierText(result.target, false) { result.error = .ImportTarget; return result }
+    } else {
+        package := result.target[0:slash]
+        module := result.target[slash + 1:]
+        next := Find(module, "/")
+        first := module
+        if next >= 0 { first = module[0:next] }
+        if !Source.IdentifierText(package, false) || !Source.IdentifierText(first, false) {
+            result.error = .ImportTarget
+            return result
+        }
+        if next >= 0 { result.error = .ImportPackage; return result }
+    }
+    if result.using_import && !result.named { result.error = .ImportUsing }
+    return result
+}
+
+SystemLibrary :: (source: string, name_limit: s64, path_limit: s64) -> LibraryDeclaration {
+    result: LibraryDeclaration
+    result.name = SymbolBeforeColons(source, name_limit)
+    if result.name.count == 0 { return result }
+    declaration := source[Text.SkipSpace(source, Find(source, "::") + 2, true):]
+    if !Source.StartsWord(declaration, "#system_library") { return result }
+    result.present = true
+    argument := declaration[Text.SkipSpace(declaration, 15, true):]
+    quoted := Quoted(argument, path_limit)
+    if argument.count == 0 || argument[0] != #char "\"" || !quoted.valid || quoted.value.count == 0 {
+        result.error = .LibraryQuote
+        return result
+    }
+    result.target = quoted.value
+    if argument[Text.SkipSpace(argument, quoted.end, true):] != ";" { result.error = .LibraryEnd; return result }
+    for byte: result.target {
+        if byte < 0x20 || byte == #char "\"" || byte == #char "\\" { result.error = .LibraryCharacter; return result }
+    }
+    return result
+}
+
+ForeignMethod :: (source: string, receiver_limit: s64, method_limit: s64, python: bool) -> MethodSymbol {
+    result: MethodSymbol
+    dot := Find(source, ".")
+    if dot <= 0 { return result }
+    result.receiver = source[0:dot]
+    result.method = source[dot + 1:]
+    if source[0] == #char "(" {
+        if result.receiver.count < 3 || result.receiver[result.receiver.count - 1] != #char ")" { return result }
+        result.receiver = result.receiver[1:result.receiver.count - 1]
+    } else if python { return result }
+    if result.receiver.count >= receiver_limit || result.method.count >= method_limit { return result }
+    name := result.receiver
+    if name.count > 0 && name[0] == #char "*" {
+        if python { return result }
+        name = name[1:]
+    }
+    result.valid = Source.IdentifierText(name, false) && Source.IdentifierText(result.method, false)
+    return result
+}
+
+PythonAttribute :: (source: string, name_limit: s64) -> bool {
+    at: s64 = 0
+    while at <= source.count {
+        end := Find(source[at:], ".")
+        if end < 0 { end = source.count - at }
+        part := source[at:at + end]
+        if part.count >= name_limit || !Source.IdentifierText(part, false) { return false }
+        at += end
+        if at == source.count { return true }
+        at += 1
+    }
+    return false
+}

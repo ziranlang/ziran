@@ -69,6 +69,19 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   native lowering, and the portable runtime still contain C and require
   further migration.
 
+- Declaration syntax is implemented in `cmd/compiler_declaration.zi`: default
+  and `using` parameter normalization, `#program_export`, named and open
+  module/package/file/directory imports, `#system_library`, Go/Python method
+  symbols, and Python attribute paths. It reuses the Ziran text and source
+  scanners and keeps borrowed source ranges and bounded output buffers.
+  The C boundary still constructs IR and stores library identities and source
+  diagnostics. Ordinary tools and the portable library link the compiled
+  Ziran implementation; fresh builds use a generated declaration seed checked
+  by `make check-bootstrap`. `tests/compiler_declaration.sh` checks source and
+  saved IR on C, C++, Go, Rust, Python, and `.zib`, including nested defaults,
+  the 64-parameter limit, `using` flags, rejected declarations, bounded output,
+  a reproducible byte corpus, seed agreement, and the C boundary.
+
 - Rust empty text views compare, print, and slice without constructing a
   native slice from a null pointer. Empty vector and slice views retain their
   original pointer when no offset is needed. `tests/rust_empty_text.sh` checks
@@ -1062,7 +1075,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Finish compiler self-hosting: declaration parsing, semantic checking, IR
   persistence, proof validation, native lowering, portable linking, and the
   runtime still need to move from C to Ziran. The generated bootstrap modules
-  currently cover token, text, and source scanning only.
+  currently cover token, text, source scanning, and declaration syntax;
+  declaration IR construction and semantic checking still require migration.
 - Finish Jai parity and specialization: cover remaining expression forms,
   exact foreign array ABI behavior (including nonempty `.data`), generic fields
   whose types depend on specialization parameters, and broader procedure-value

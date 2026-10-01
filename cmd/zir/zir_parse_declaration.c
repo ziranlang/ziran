@@ -1,6 +1,7 @@
 #include "zir_parse_internal.h"
 
 #include "compiler_source.h"
+#include "compiler_declaration.h"
 
 /* Ziran owns declaration text rules. This boundary retains the C parser's
  * output buffers and diagnostics until the declaration IR is migrated. */
@@ -43,32 +44,41 @@ function_must_use(const char *line, const char *return_type,
     return modifier == MustUseModifier_Required;
 }
 
+static void
+check_declaration_error(DeclarationError error, ZirSourceSpan span)
+{
+    if(error != DeclarationError_None) {
+        String message = compiler_declaration_ErrorText(error);
+        die_at(span, "%.*s", (int)message.length, message.data);
+    }
+}
+
 /* Return 1 for a standalone directive and 2 for an inline declaration. */
 int
 strip_program_export(char *line, char *symbol, size_t symbol_size,
                      ZirSourceSpan span)
 {
-    const char *cursor;
-    const char *end;
+    ExportDirective directive = compiler_declaration_ProgramExport(
+        declaration_text(line), (int64_t)symbol_size);
+    check_declaration_error(directive.error, span);
+    copy_declaration_part(symbol, symbol_size, directive.symbol, 0);
+    if(directive.kind == 2)
+        memmove(line, directive.body.data, (size_t)directive.body.length + 1);
+    return directive.kind;
+}
 
-    symbol[0] = '\0';
-    if(!starts_word(line, "#program_export"))
-        return 0;
-    cursor = skip_ws(line + strlen("#program_export"));
-    if(*cursor == '"') {
-        end = strchr(cursor + 1, '"');
-        if(end == NULL || (size_t)(end - cursor - 1) >= symbol_size)
-            die_at(span, "#program_export requires a valid quoted symbol");
-        memcpy(symbol, cursor + 1, (size_t)(end - cursor - 1));
-        symbol[end - cursor - 1] = '\0';
-        if(!is_c_ident(symbol))
-            die_at(span, "#program_export symbol must be an identifier");
-        cursor = skip_ws(end + 1);
-    }
-    if(*cursor == '\0')
-        return 1;
-    memmove(line, cursor, strlen(cursor) + 1);
-    return 2;
+static ParameterRewrite
+rewrite_parameters(const char *args, char *cleaned, int strip_defaults,
+                   int strip_using, ZirSourceSpan span)
+{
+    ParameterRewrite result = compiler_declaration_RewriteParameters(
+        declaration_text(args), (Slice){cleaned, ZIR_TEXT_MAX - 1},
+        strip_defaults, strip_using, ZIR_NAME_MAX);
+    check_declaration_error(result.error, span);
+    if(result.count >= ZIR_TEXT_MAX)
+        die_at(span, "procedure parameters exceed size limit");
+    cleaned[result.count] = '\0';
+    return result;
 }
 
 void
@@ -76,78 +86,21 @@ separate_parameter_defaults(char *args, size_t capacity,
                             char *defaults, size_t defaults_capacity,
                             ZirSourceSpan span)
 {
-    char (*parts)[ZIR_TEXT_MAX] = calloc(65, sizeof(*parts));
-    char cleaned[ZIR_TEXT_MAX] = "";
-    size_t used = 0;
-    int has_default = 0;
-    if(parts == NULL)
-        die("out of memory reading procedure parameters");
-    int count = *skip_ws(args) ?
-        split_top_level(args, parts[0], 65, sizeof(parts[0])) : 0;
-    if(count > 64)
-        die_at(span, "too many procedure parameters");
-    for(int i = 0; i < count; i++) {
-        char *assignment = top_level_assignment(parts[i]);
-        if(assignment != NULL) {
-            if(!*skip_ws(assignment + 1))
-                die_at(span, "default parameter needs a value");
-            *assignment = '\0';
-            trim_in_place(parts[i]);
-            has_default = 1;
-        }
-        int written = snprintf(cleaned + used, sizeof(cleaned) - used,
-                               "%s%s", i ? ", " : "", parts[i]);
-        if(written < 0 || (size_t)written >= sizeof(cleaned) - used)
-            die_at(span, "procedure parameters exceed size limit");
-        used += (size_t)written;
-    }
-    if(has_default) {
+    char cleaned[ZIR_TEXT_MAX];
+    ParameterRewrite result = rewrite_parameters(args, cleaned, 1, 0, span);
+    if(result.has_defaults) {
         copy_text(defaults, defaults_capacity, args);
         copy_text(args, capacity, cleaned);
     }
-    free(parts);
 }
 
 uint64_t
 strip_using_parameters(char *args, size_t capacity, ZirSourceSpan span)
 {
-    char (*parts)[ZIR_TEXT_MAX] = calloc(65, sizeof(*parts));
-    char cleaned[ZIR_TEXT_MAX] = "";
-    size_t used = 0;
-    uint64_t flags = 0;
-    if(parts == NULL)
-        die("out of memory reading using parameters");
-    int count = *skip_ws(args) ?
-        split_top_level(args, parts[0], 65, sizeof(parts[0])) : 0;
-    if(count > 64)
-        die_at(span, "too many procedure parameters");
-    for(int i = 0; i < count; i++) {
-        char *part = trim(parts[i]);
-        if(starts_word(part, "using")) {
-            if(!isspace((unsigned char)part[5]))
-                die_at(span, "using parameter modifiers are not supported");
-            part = trim(part + 5);
-            char *colon = strchr(part, ':');
-            if(colon == NULL || colon == part ||
-               (size_t)(colon - part) >= ZIR_NAME_MAX)
-                die_at(span, "using parameter needs name: Type");
-            char name[ZIR_NAME_MAX];
-            memcpy(name, part, (size_t)(colon - part));
-            name[colon - part] = '\0';
-            trim_in_place(name);
-            if(!is_identifier_text(name))
-                die_at(span, "using parameter needs a plain name");
-            flags |= UINT64_C(1) << i;
-        }
-        int written = snprintf(cleaned + used, sizeof(cleaned) - used,
-                               "%s%s", i ? ", " : "", part);
-        if(written < 0 || (size_t)written >= sizeof(cleaned) - used)
-            die_at(span, "procedure parameters exceed size limit");
-        used += (size_t)written;
-    }
+    char cleaned[ZIR_TEXT_MAX];
+    ParameterRewrite result = rewrite_parameters(args, cleaned, 0, 1, span);
     copy_text(args, capacity, cleaned);
-    free(parts);
-    return flags;
+    return result.using_parameters;
 }
 
 static int
@@ -584,159 +537,30 @@ int
 parse_import_line(ZirModule *module, const char *path, int line_no,
                   const char *line, int scope_public)
 {
-    const char *directive;
-    char target[SOURCE_PATH_MAX];
-    char name[ZIR_NAME_MAX];
-    char signature[ZIR_TEXT_MAX];
-    ZirImportKind kind;
-    int quoted;
-
-    directive = strstr(line, "#import");
-    if(directive == NULL)
+    ModuleImport declaration = compiler_declaration_ImportDeclaration(
+        declaration_text(line), ZIR_NAME_MAX, SOURCE_PATH_MAX);
+    if(!declaration.present)
         return 0;
-    /* `using Alias :: #import "Module";` re-exports the module's public
-     * names into unqualified scope beside the alias. */
-    int using_import = starts_word(line, "using");
-    const char *body = line;
-    if(using_import) {
-        body = skip_ws(line + 5);
-        if(!isalpha((unsigned char)*body) && *body != '_')
-            return 0;
+    ZirSourceSpan span = Span(path, line_no, 1);
+    if(declaration.error == DeclarationError_ImportMode) {
+        String message = compiler_declaration_ErrorText(declaration.error);
+        die_at(span, "%.*s: %.*s", (int)message.length, message.data,
+               (int)declaration.detail.length, declaration.detail.data);
     }
-    target[0] = '\0';
-    name[0] = '\0';
-    signature[0] = '\0';
-    quoted = parse_quoted(directive, target, sizeof(target));
-    if(!quoted)
-        die_at(Span(path, line_no, 1),
-               "Jai #import requires a quoted module or file name");
-    /* Import targets are emitted verbatim inside #include "..." lines;
-     * quotes and control bytes would let a crafted path escape the literal. */
-    for(const char *p = target; *p != '\0'; p++)
-        if(*p == '"' || *p == '>' || (unsigned char)*p < 0x20)
-            die_at(Span(path, line_no, 1), "#import target contains a character that cannot "
-                "appear in an include path");
-    const char *mode = skip_ws(directive + strlen("#import"));
-    if(*mode == ',') {
-        mode = skip_ws(mode + 1);
-        if(strncmp(mode, "dir", 3) == 0 &&
-           isspace((unsigned char)mode[3])) {
-            const char *path_arg = skip_ws(mode + 3);
-            const char *end = *path_arg == '"' ? strchr(path_arg + 1, '"') : NULL;
-            if(end == NULL || strcmp(skip_ws(end + 1), ";") != 0)
-                die_at(Span(path, line_no, 1),
-                       "#import, dir requires a quoted path and ';'");
-            int named = parse_symbol_before_colons(line, name, sizeof(name));
-            if(target[0] == '/' || target[0] == '\0' ||
-               strchr(target, '\\') != NULL ||
-               target[strlen(target) - 1] == '/')
-                die_at(Span(path, line_no, 1),
-                       "#import, dir requires a relative directory path");
-            const char *basename = strrchr(target, '/');
-            basename = basename == NULL ? target : basename + 1;
-            size_t length = strlen(basename);
-            if(length == 0 || length >= sizeof(name) ||
-               (!isalpha((unsigned char)basename[0]) && basename[0] != '_'))
-                die_at(Span(path, line_no, 1),
-                       "#import, dir path needs an identifier directory name");
-            for(size_t i = 1; i < length; i++)
-                if(!source_identifier_byte((unsigned char)basename[i]))
-                    die_at(Span(path, line_no, 1),
-                           "#import, dir path needs an identifier directory name");
-            if(!named) {
-                memcpy(name, basename, length);
-                name[length] = '\0';
-            }
-            snprintf(signature, sizeof(signature), "dir:%s", target);
-            memmove(target, basename, length);
-            target[length] = '\0';
-            kind = named ? ZIR_IMPORT_MODULE : ZIR_IMPORT_OPEN;
-        } else {
-            if(strncmp(mode, "file", 4) != 0 ||
-               !isspace((unsigned char)mode[4]))
-                die_at(Span(path, line_no, 1),
-                       "unsupported #import mode: %s", mode);
-            const char *file_arg = skip_ws(mode + 4);
-            const char *end = *file_arg == '"' ? strchr(file_arg + 1, '"') : NULL;
-            if(end == NULL || strcmp(skip_ws(end + 1), ";") != 0)
-                die_at(Span(path, line_no, 1),
-                       "#import, file requires a quoted path and ';'");
-            int named = parse_symbol_before_colons(line, name, sizeof(name));
-            if(target[0] == '/' || target[0] == '\0' ||
-               strlen(target) < 4 ||
-               strcmp(target + strlen(target) - 3, ".zi") != 0)
-                die_at(Span(path, line_no, 1),
-                       "#import, file requires a relative .zi path");
-            const char *basename = strrchr(target, '/');
-            basename = basename == NULL ? target : basename + 1;
-            size_t stem_length = strlen(basename) - 3;
-            if(stem_length == 0 || stem_length >= sizeof(name) ||
-               (!isalpha((unsigned char)basename[0]) && basename[0] != '_'))
-                die_at(Span(path, line_no, 1),
-                       "#import, file path needs an identifier filename");
-            for(size_t i = 1; i < stem_length; i++)
-                if(!source_identifier_byte((unsigned char)basename[i]))
-                    die_at(Span(path, line_no, 1),
-                           "#import, file path needs an identifier filename");
-            if(!named) {
-                memcpy(name, basename, stem_length);
-                name[stem_length] = '\0';
-            }
-            snprintf(signature, sizeof(signature), "file:%s", target);
-            if(named) {
-                memmove(target, basename, stem_length);
-                target[stem_length] = '\0';
-            } else
-                copy_text(target, sizeof(target), name);
-            kind = named ? ZIR_IMPORT_MODULE : ZIR_IMPORT_OPEN;
-        }
-    }
-    /* A package-qualified import names the dependency before the module,
-     * such as #import "kryon/Widgets" or #import "std/text". */
-    const char *module_part = signature[0] == '\0' && strchr(target, '/') != NULL ?
-                              strchr(target, '/') + 1 : target;
-    if(signature[0] == '\0') {
-        if(parse_symbol_before_colons(body, name, sizeof(name)))
-            kind = ZIR_IMPORT_MODULE;
-        else {
-            copy_text(name, sizeof(name), module_part);
-            kind = ZIR_IMPORT_OPEN;
-        }
-    }
-    if(kind == ZIR_IMPORT_MODULE &&
-       !isalpha((unsigned char)name[0]) && name[0] != '_')
-        die_at(Span(path, line_no, 1),
-               "import alias must start with a letter or underscore");
-    for(const char *part = target; part != NULL;
-        part = part == module_part ? NULL : module_part) {
-        if(!isalpha((unsigned char)part[0]) && part[0] != '_')
-            die_at(Span(path, line_no, 1),
-                   "Jai #import requires a module identifier or PACKAGE/Module; "
-                   "use #import, file for paths");
-        for(const unsigned char *p = (const unsigned char *)part;
-            *p && *p != '/'; p++)
-            if(!source_identifier_byte(*p))
-                die_at(Span(path, line_no, 1),
-                       "Jai #import requires a module identifier or PACKAGE/Module; "
-                       "use #import, file for paths");
-        if(part == module_part && strchr(part, '/') != NULL)
-            die_at(Span(path, line_no, 1),
-                   "a package import has one '/', as in #import \"PACKAGE/Module\"");
-    }
-    /* A private-scope include belongs in the implementation, not the
-     * generated header. File imports retain their source path in signature. */
-    {
-        ZirImport *imported = ModuleAddImport(module, kind, name, target,
-                                             signature, scope_public,
-                                             Span(path, line_no, 1));
-        if(imported != NULL)
-            imported->is_public = scope_public;
-        if(imported != NULL && using_import) {
-            if(kind != ZIR_IMPORT_MODULE)
-                die_at(Span(path, line_no, 1),
-                       "using #import requires a named module alias");
-            imported->is_using = 1;
-        }
+    check_declaration_error(declaration.error, span);
+    char name[ZIR_NAME_MAX], target[SOURCE_PATH_MAX], signature[ZIR_TEXT_MAX] = "";
+    copy_declaration_part(name, sizeof(name), declaration.name, 0);
+    copy_declaration_part(target, sizeof(target), declaration.target, 0);
+    if(declaration.mode != ImportMode_Module)
+        snprintf(signature, sizeof(signature), "%s:%.*s",
+                 declaration.mode == ImportMode_Directory ? "dir" : "file",
+                 (int)declaration.path.length, declaration.path.data);
+    ZirImportKind kind = declaration.named ? ZIR_IMPORT_MODULE : ZIR_IMPORT_OPEN;
+    ZirImport *imported = ModuleAddImport(module, kind, name, target,
+                                         signature, scope_public, span);
+    if(imported != NULL) {
+        imported->is_public = scope_public;
+        imported->is_using = declaration.using_import;
     }
     return 1;
 }
@@ -746,41 +570,21 @@ parse_foreign_library_line(const char *path, int line_no, const char *line,
                            char names[][ZIR_NAME_MAX],
                            char targets[][ZIR_PATH_MAX], int *count)
 {
+    LibraryDeclaration declaration = compiler_declaration_SystemLibrary(
+        declaration_text(line), ZIR_NAME_MAX, ZIR_PATH_MAX);
+    if(!declaration.present)
+        return 0;
+    ZirSourceSpan span = Span(path, line_no, 1);
+    check_declaration_error(declaration.error, span);
     char name[ZIR_NAME_MAX];
-    char target[ZIR_PATH_MAX];
-    const char *colons = strstr(line, "::");
-    const char *declaration;
-    const char *quote;
-    const char *end;
-
-    if(colons == NULL ||
-       !parse_symbol_before_colons(line, name, sizeof(name)))
-        return 0;
-    declaration = skip_ws(colons + 2);
-    if(!starts_word(declaration, "#system_library"))
-        return 0;
-    quote = skip_ws(declaration + strlen("#system_library"));
-    if(*quote != '"' || !parse_quoted(quote, target, sizeof(target)) ||
-       target[0] == '\0')
-        die_at(Span(path, line_no, 1),
-               "#system_library requires a quoted library name");
-    end = strchr(quote + 1, '"');
-    if(end == NULL || strcmp(skip_ws(end + 1), ";") != 0)
-        die_at(Span(path, line_no, 1),
-               "#system_library declaration must end with ';'");
-    for(const unsigned char *byte = (const unsigned char *)target;
-        *byte != '\0'; byte++)
-        if(*byte < 0x20 || *byte == '"' || *byte == '\\')
-            die_at(Span(path, line_no, 1),
-                   "#system_library name contains an invalid character");
+    copy_declaration_part(name, sizeof(name), declaration.name, 0);
     for(int i = 0; i < *count; i++)
         if(strcmp(names[i], name) == 0)
-            die_at(Span(path, line_no, 1),
-                   "duplicate #system_library name: %s", name);
+            die_at(span, "duplicate #system_library name: %s", name);
     if(*count >= 32)
-        die_at(Span(path, line_no, 1), "too many #system_library declarations");
+        die_at(span, "too many #system_library declarations");
     copy_text(names[*count], ZIR_NAME_MAX, name);
-    copy_text(targets[*count], ZIR_PATH_MAX, target);
+    copy_declaration_part(targets[*count], ZIR_PATH_MAX, declaration.target, 0);
     (*count)++;
     return 1;
 }
@@ -792,55 +596,38 @@ typedef struct ParseForeignLineBuffers {
 } ParseForeignLineBuffers;
 
 static int
+foreign_method_symbol(const char *source, char *receiver, size_t receiver_size,
+                      char *method, size_t method_size, int python)
+{
+    MethodSymbol symbol = compiler_declaration_ForeignMethod(
+        declaration_text(source), (int64_t)receiver_size, (int64_t)method_size, python);
+    if(!symbol.valid)
+        return 0;
+    copy_declaration_part(receiver, receiver_size, symbol.receiver, 0);
+    copy_declaration_part(method, method_size, symbol.method, 0);
+    return 1;
+}
+
+static int
 go_method_symbol(const char *source, char *receiver, size_t receiver_size,
                  char *method, size_t method_size)
 {
-    const char *dot = strchr(source, '.');
-    if(!dot || dot == source) return 0;
-    size_t length = (size_t)(dot - source);
-    const char *start = source;
-    if(source[0] == '(') {
-        if(length < 3 || source[length - 1] != ')') return 0;
-        start++;
-        length -= 2;
-    }
-    if(length >= receiver_size || strlen(dot + 1) >= method_size) return 0;
-    memcpy(receiver, start, length);
-    receiver[length] = '\0';
-    copy_text(method, method_size, dot + 1);
-    return is_c_ident(receiver + (receiver[0] == '*')) && is_c_ident(method);
+    return foreign_method_symbol(source, receiver, receiver_size,
+                                 method, method_size, 0);
 }
 
-/* A dotted Python attribute path such as bytes.fromhex. */
 static int
 py_attribute_path(const char *source)
 {
-    char part[ZIR_NAME_MAX];
-    size_t used = 0;
-    for(const char *p = source;; p++) {
-        if(*p == '.' || *p == '\0') {
-            part[used] = '\0';
-            if(!is_c_ident(part))
-                return 0;
-            if(*p == '\0')
-                return 1;
-            used = 0;
-        } else if(used + 1 < sizeof(part))
-            part[used++] = *p;
-        else
-            return 0;
-    }
+    return compiler_declaration_PythonAttribute(declaration_text(source), ZIR_NAME_MAX);
 }
 
-/* A Python method is always written (Type).method; the call goes to the
- * first argument, so Type names the receiver's class for readers. */
 static int
 py_method_symbol(const char *source, char *receiver, size_t receiver_size,
                  char *method, size_t method_size)
 {
-    return source[0] == '(' &&
-        go_method_symbol(source, receiver, receiver_size, method, method_size) &&
-        receiver[0] != '*';
+    return foreign_method_symbol(source, receiver, receiver_size,
+                                 method, method_size, 1);
 }
 
 int parse_foreign_line(ZirModule *module, const char *path, int line_no,

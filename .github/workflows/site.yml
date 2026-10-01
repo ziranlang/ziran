@@ -9,7 +9,7 @@ name: Publish website
 on:
   push:
     branches: [master]
-    paths: ['site/**', 'web/playground.c', 'scripts/build_playground.py', 'cmd/zir/**', 'cmd/compiler_scan.zi', 'bootstrap/**', 'std/**', 'Makefile', '.github/workflows/site.yml']
+    paths: ['site/**', 'web/playground.c', 'scripts/build_playground.py', 'cmd/zir/**', 'cmd/compiler_*.zi', 'bootstrap/**', 'std/**', 'Makefile', '.github/workflows/site.yml']
   workflow_dispatch:
 
 concurrency:

@@ -2,6 +2,7 @@
 set -eu
 
 ziran=$1
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/hello.zi" <<'EOF'
@@ -33,11 +34,14 @@ EOF
 "$ziran" ir --root "$work" -o "$work/ir-again" "$work/hello.zi"
 cmp "$work/ir/hello.zir" "$work/ir-again/hello.zir"
 test -s "$work/ir/hello.zir"
-python3 - "$work/ir/hello.zir" <<'PY'
+python3 - "$work/ir/hello.zir" "$repo/cmd/zir/zir_serial.c" <<'PY'
 from pathlib import Path
+import re
 import sys
 data = Path(sys.argv[1]).read_bytes()
-assert data[:8] == b'ZIR\0\x35\0\0\0', data[:8]
+version = int(re.search(r'^#define ZIR_FORMAT_VERSION (\d+)u$',
+                        Path(sys.argv[2]).read_text(), re.M).group(1))
+assert data[:8] == b'ZIR\0' + version.to_bytes(4, 'little'), data[:8]
 PY
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/hello.zi"
 test -s "$work/c/hello.c"

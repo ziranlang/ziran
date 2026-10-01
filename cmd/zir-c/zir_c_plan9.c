@@ -2559,10 +2559,38 @@ c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *bu
         /* 3. compound literals in the statement */
         if(!emitted) {
             int rewrote = 0;
+            /* Native 8c's partial local byte-array initializer can overwrite
+             * adjacent locals at odd sizes. Zero exactly the array's bytes. */
+            if(depth > 0) {
+                const char *zero = strstr(buffers->current, " = {0};");
+                const char *bracket = zero ? memchr(buffers->current, '[',
+                    (size_t)(zero - buffers->current)) : NULL;
+                if(bracket && memchr(bracket, ']', (size_t)(zero - bracket))) {
+                    const char *name_end = bracket, *name_start;
+                    char name[PLAN9_NAME_MAX];
+                    size_t length;
+                    while(name_end > buffers->current && isspace((unsigned char)name_end[-1])) name_end--;
+                    name_start = name_end;
+                    while(name_start > buffers->current &&
+                          (isalnum((unsigned char)name_start[-1]) || name_start[-1] == '_')) name_start--;
+                    length = (size_t)(name_end - name_start);
+                    if(length > 0 && length < sizeof(name) && name_start > buffers->current + ilen &&
+                       memchr(buffers->current, '.', (size_t)(name_start - buffers->current)) == NULL &&
+                       memchr(buffers->current, '(', (size_t)(name_start - buffers->current)) == NULL &&
+                       memmem(buffers->current, (size_t)(name_start - buffers->current), "->", 2) == NULL) {
+                        memcpy(name, name_start, length); name[length] = '\0';
+                        if(buf_append(&out, buffers->current, (size_t)(zero - buffers->current)) < 0 ||
+                           buf_puts(&out, ";\n") < 0 ||
+                           buf_printf(&out, "%smemset(%s, 0, sizeof(%s));\n", indent, name, name) < 0)
+                            goto fail;
+                        emitted = 2;
+                    }
+                }
+            }
             /* 8c does not zero omitted local aggregate fields. Build direct
              * designated initializers through the same zeroed temporary path
              * as cast-shaped literals, including reordered fields. */
-            if(depth > 0) {
+            if(depth > 0 && !emitted) {
                 const char *initializer = strstr(buffers->current, " = {");
                 if(initializer != NULL) {
                     const char *name_end = initializer;

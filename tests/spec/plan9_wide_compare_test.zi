@@ -5,6 +5,21 @@ next: s32;
 Pick :: () -> s32 { result := next; next += 1; return result }
 Change :: () -> u64 { entries[0].unsigned = cast(u64)0; return cast(u64)1 }
 
+BytesMatch :: () -> bool {
+    bytes := u8.[104, 101, 108, 108, 111, 32, 104, 101, 108, 108, 111, 32, 104, 101, 108, 108, 111]
+    expected := "hello hello hello"
+    for index: 0..16 { if bytes[index] != expected[index] { return false } }
+    return true
+}
+
+ZeroArrayPreservesRecord :: () -> bool {
+    expected := "hello hello hello"
+    bytes: [19]u8
+    for index: 0..18 { if bytes[index] != cast(u8)0 { return false } }
+    bytes[0] = cast(u8)77; bytes[18] = cast(u8)88
+    return expected == "hello hello hello" && expected[0] == cast(u8)104
+}
+
 #program_export
 main :: () -> s32 {
     entries[0].unsigned = cast(u64)4294967296
@@ -25,6 +40,8 @@ main :: () -> s32 {
     if !(entries[Pick()].unsigned < entries[Pick()].unsigned) || next != 2 { return 3 }
     // The left field is read before the right call changes it.
     if entries[left].unsigned < Change() || entries[left].unsigned != cast(u64)0 { return 4 }
+    if !BytesMatch() { return 5 }
+    if !ZeroArrayPreservesRecord() { return 6 }
     print("plan9-wide-compare-test-ok\n")
     return 0
 }

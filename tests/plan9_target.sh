@@ -376,3 +376,22 @@ sh "$repo/tests/file_plan9.sh" "$ziran"
 sh "$repo/tests/process_plan9.sh" "$ziran"
 sh "$repo/tests/date_time_plan9.sh" "$ziran"
 sh "$repo/tests/private_module_imports.sh" "$ziran"
+
+# Odd-sized local byte arrays must be zeroed without touching live records.
+"$ziran" ir --root "$repo/tests/spec" -o "$work/zero-ir" \
+    "$repo/tests/spec/plan9_wide_compare_test.zi"
+for form in source saved; do
+    root=$repo/tests/spec
+    input=$root/plan9_wide_compare_test.zi
+    if test "$form" = saved; then root=$work/zero-ir; input=$root/plan9_wide_compare_test.zir; fi
+    output=$work/zero-$form
+    "$ziran" build --target=plan9-c --root "$root" -o "$output" "$input"
+    rg -q -F 'memset(bytes, 0, sizeof(bytes));' "$output/plan9_wide_compare_test.c"
+    if rg -q 'bytes\[19\] = \{0\}' "$output/plan9_wide_compare_test.c"; then
+        echo 'plan9-c retained the unsafe partial local array initializer' >&2
+        exit 1
+    fi
+    "${CC:-cc}" -std=c11 -Dprint=printf -include stdio.h -I"$work/plan9-include" -I"$output" \
+        "$output"/*.c "$work/fake-plan9-exits.c" -o "$output/run"
+    "$output/run"
+done

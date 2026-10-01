@@ -13,12 +13,23 @@ python3 - "$work/app.zi" <<'PY'
 import sys
 count = 80
 lines = ["Entry :: struct { code: s32; name: string; note: string; }", "",
+         "Ordered :: struct { first: s32; second: s32; third: s32; }",
+         "sequence: s32;",
+         "Next :: () -> s32 { sequence += 1; return sequence }", "",
          "#program_export", "Answer :: () -> s32 {",
          f"    table: [{count}]Entry = .["]
 for i in range(count):
     lines.append(f'        .{{code = {i}, name = "entry{i}", note = "a long explanatory note for entry {i}, '
                  'padding the literal well past one statement buffer"},')
 lines += ["    ]",
+          "    bytes := u8.[\n" + ",\n".join("        " + ", ".join(str(i % 256) for i in range(start, start + 64)) for start in range(0, 2048, 64)) + "\n    ]",
+          "    for index: 0..2047 { if bytes[index] != cast(u8)(index % 256) { return 2 } }",
+          "    sequence = 0",
+          "    ordered := s32.[sequence, Next(), sequence, Next(), sequence]",
+          "    if ordered[0] != 0 || ordered[1] != 1 || ordered[2] != 1 || ordered[3] != 2 || ordered[4] != 2 { return 3 }",
+          "    sequence = 0",
+          "    record := Ordered.{first = sequence, second = Next(), third = sequence}",
+          "    if record.first != 0 || record.second != 1 || record.third != 1 { return 4 }",
           "    total: s32 = 0",
           "    for table { total += it.code }",
           f"    if total != {count * (count - 1) // 2} || table[{count - 1}].name != \"entry{count - 1}\" {{ return 1 }}",

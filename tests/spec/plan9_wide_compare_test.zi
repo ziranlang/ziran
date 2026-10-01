@@ -1,0 +1,30 @@
+Entry :: struct { padding: [64]u8; unsigned: u64; signed: s64; }
+entries: [2]Entry;
+next: s32;
+
+Pick :: () -> s32 { result := next; next += 1; return result }
+Change :: () -> u64 { entries[0].unsigned = cast(u64)0; return cast(u64)1 }
+
+#program_export
+main :: () -> s32 {
+    entries[0].unsigned = cast(u64)4294967296
+    entries[1].unsigned = cast(u64)18446744073709551615
+    entries[0].signed = -9223372036854775808
+    entries[1].signed = 9223372036854775807
+    left: s32 = 0; right: s32 = 1
+    if !(entries[left].unsigned < entries[right].unsigned) ||
+        !(entries[right].unsigned > entries[left].unsigned) ||
+        !(entries[left].unsigned <= entries[right].unsigned) ||
+        !(entries[right].unsigned >= entries[left].unsigned) ||
+        entries[left].unsigned == entries[right].unsigned ||
+        !(entries[left].unsigned != entries[right].unsigned) { return 1 }
+    if !(entries[left].signed < entries[right].signed) ||
+        !(entries[right].signed > entries[left].signed) ||
+        entries[left].signed == entries[right].signed { return 2 }
+    next = 0
+    if !(entries[Pick()].unsigned < entries[Pick()].unsigned) || next != 2 { return 3 }
+    // The left field is read before the right call changes it.
+    if entries[left].unsigned < Change() || entries[left].unsigned != cast(u64)0 { return 4 }
+    print("plan9-wide-compare-test-ok\n")
+    return 0
+}

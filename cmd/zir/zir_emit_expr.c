@@ -441,8 +441,8 @@ native_size_expression(Emitter *e, const char *type, char *out, size_t size)
  * initializing a declaration, a brace list: {.x = 3, .y = 4} or, for an
  * array, {1, 2, 3}. Unnamed fields are zero either way. C++17 has no
  * designated initializers, so its records keep field assignments; C arrays
- * are not values, so array elements and fields keep them too. Calls in the
- * values run first, in order, as separate statements. */
+ * are not values, so array elements and fields keep them too. Values with
+ * calls use ordered stores so earlier reads happen before later calls. */
 static int
 c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
              char *out, size_t size)
@@ -456,7 +456,8 @@ c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
        TypeHasZeroArray(e->module, type))
         return 0;
     for(int child = expr->first_child; child >= 0; child = e->fn->exprs[child].next_sibling)
-        if(ArrayElementType(e->fn->exprs[child].type, NULL, 0, NULL) ||
+        if(expression_calls(e->fn, e->fn->exprs[child].right) ||
+           ArrayElementType(e->fn->exprs[child].type, NULL, 0, NULL) ||
            VecElementType(e->module, e->fn->exprs[child].type, NULL, 0))
             return 0;
     if(!is_array && !braced) {
@@ -620,30 +621,42 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         pure = 1;
         break;
     case ZIR_EXPR_COMPOUND: {
-        /* Go spells a record or array value as one literal, Point{X: 3, Y: 4}:
+        /* Array literals may exceed the expression scratch buffer. Emit
+         * their ordered element stores, as the C/C++ path already does,
+         * instead of constructing one unbounded Go expression. */
+        if(e->target == ZIR_GO && ArrayElementType(type, NULL, 0, NULL)) {
+            fresh(e, temp);
+            declare(e, temp, type, NULL);
+            int ordinal = 0;
+            for(int child = expr->first_child; child >= 0;
+                child = e->fn->exprs[child].next_sibling) {
+                const ZirExpr *entry = &e->fn->exprs[child];
+                emit_expr(e, entry->right, entry->type,
+                          buffers->a, sizeof(buffers->a));
+                format(buffers->b, sizeof(buffers->b), "%s[%d]",
+                       temp, ordinal++);
+                assign_value(e, buffers->b, entry->type, buffers->a);
+            }
+            copy_text(out, size, temp);
+            e->pure = 1;
+            return;
+        }
+        /* Go spells a record value as one literal, Point{X: 3, Y: 4}:
          * its zero value is T{}, so unnamed fields keep their zero. */
-        if(e->target == ZIR_GO) {
-            int is_array = ArrayElementType(type, NULL, 0, NULL) != 0;
+        if(e->target == ZIR_GO && !expression_calls(e->fn, index)) {
             size_t used;
             pure = 1;
-            if(is_array) {
-                char element[ZIR_NAME_MAX * 2], bounds[ZIR_NAME_MAX * 2];
-                array_target_type(e, type, element, sizeof(element), bounds, sizeof(bounds));
-                used = (size_t)format(buffers->result, sizeof(buffers->result), "%s%s{", bounds, element);
-            } else {
-                e->resolve(e->context, type, buffers->b, sizeof(buffers->b));
-                used = (size_t)format(buffers->result, sizeof(buffers->result), "%s{", buffers->b);
-            }
+            e->resolve(e->context, type, buffers->b, sizeof(buffers->b));
+            used = (size_t)format(buffers->result, sizeof(buffers->result), "%s{", buffers->b);
             for(int child = expr->first_child; child >= 0; child = e->fn->exprs[child].next_sibling) {
                 const ZirExpr *entry = &e->fn->exprs[child];
                 char field_name[ZIR_NAME_MAX];
                 emit_expr(e, entry->right, entry->type, buffers->a, sizeof(buffers->a));
                 pure &= e->pure;
-                if(!is_array)
-                    go_field_ident(entry->name, field_name, sizeof(field_name));
+                go_field_ident(entry->name, field_name, sizeof(field_name));
                 used += (size_t)format(buffers->result + used, used < sizeof(buffers->result) ? sizeof(buffers->result) - used : 0,
                                        "%s%s%s%s", child == expr->first_child ? "" : ", ",
-                                       is_array ? "" : field_name, is_array ? "" : ": ", buffers->a);
+                                       field_name, ": ", buffers->a);
             }
             if(used + 2 >= sizeof(buffers->result))
                 fatal(expr, "record value is too long");
@@ -1170,13 +1183,21 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         /* A call on the left stays in place when the right reads nothing it
          * could change and, in C, which orders no calls, makes no call. */
         int logical = !strcmp(expr->op, "&&") || !strcmp(expr->op, "||");
+        /* 32-bit C compilers lower wide comparisons through register pairs.
+         * Load checked addresses separately before comparing those pairs:
+         * native 8c aborts on two indexed wide fields in one comparison. */
+        int wide_compare = !strcmp(type, "bool") && width(operand_type) == 64 &&
+                           (e->target == ZIR_C || e->target == ZIR_CPP);
+        uint64_t literal_bits;
         e->call_in_place = !logical && !call_can_change(e, expr->right) &&
                            (e->target == ZIR_GO || !expression_calls(e->fn, expr->right));
         emit_expr(e,expr->left,operand_type,buffers->a,sizeof(buffers->a));
         left_pure = e->pure;
         /* The left side reads first: a call on the right that could change
          * it runs only after the left value is taken. */
-        if(expression_calls(e->fn, expr->right) && call_can_change(e, expr->left)) {
+        if((wide_compare && !plain_identifier(buffers->a) &&
+            !integer_literal_bits(buffers->a, &literal_bits)) ||
+           (expression_calls(e->fn, expr->right) && call_can_change(e, expr->left))) {
             fresh(e, temp);
             declare(e, temp, operand_type, buffers->a);
             copy_text(buffers->a, sizeof(buffers->a), temp);
@@ -1216,6 +1237,13 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
          * runs last and stays in place. */
         e->call_in_place = 1;
         emit_expr(e,expr->right,(!strcmp(expr->op,"<<")||!strcmp(expr->op,">>"))?"s32":operand_type,buffers->b,sizeof(buffers->b));
+        if(wide_compare && !plain_identifier(buffers->b) &&
+           !integer_literal_bits(buffers->b, &literal_bits)) {
+            fresh(e, temp);
+            declare(e, temp, operand_type, buffers->b);
+            copy_text(buffers->b, sizeof(buffers->b), temp);
+            e->pure = 1;
+        }
         pure = left_pure && e->pure;
         if(slot_compare && !operand_slot->is_c_call &&
            (e->target == ZIR_C || e->target == ZIR_CPP)) {

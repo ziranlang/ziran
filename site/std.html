@@ -26,6 +26,7 @@
 <div><code>InstantiateBundle :: (bundle: *void, bindings: *HostBinding, count: u64) -&gt; *void</code></div>
 <div><code>RunBundleInstance :: (instance: *void, result: *s64, has_result: *s32) -&gt; s32</code></div>
 <div><code>CloseBundleInstance :: (instance: *void)</code></div>
+<div><code>LimitBundleSteps :: (instance: *void, max_steps: s32)</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/bundle_host.zi">Source ↗</a></p></section>
 <section id="byte_text_linux"><p class="eyebrow">04 / std/byte_text_linux.zi</p><h2>byte_text_linux</h2><p>Borrow UTF-8 bytes as a Ziran string at native foreign-function boundaries. The caller must keep the byte storage alive while the string is in use.</p><p>Import with <code>#import "byte_text_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>TextDescriptor :: struct { data: *u8; length: usize; }</code></div>

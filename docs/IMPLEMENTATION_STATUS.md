@@ -108,6 +108,19 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   shared mutation, empty views, array value copies, generic record elements,
   and rejection of distinct same-named records from source and saved IR.
 
+- Type spelling and record-field parsing are implemented in
+  `cmd/compiler_type.zi`: `using` fields, quoted `#go_tag` metadata, slice
+  elements, fixed and constant-expression array capacities, builtin and map
+  primitive names, and Go/Python foreign type and call symbols. Field scans
+  borrow bounded source ranges and stop at the IR buffer's terminator, so
+  listing a record does not repeatedly measure its entire body. The C
+  boundary retains IR access and checked copies into its fixed buffers.
+  `tests/compiler_type.sh` checks source and saved IR on C, C++, Go, Rust,
+  Python, and `.zib`, including malformed input, numeric and output limits,
+  quoted separators, UTF-8 tag decoding, a deterministic byte corpus, seed
+  agreement, and the C boundary. Fresh builds compile the maintained Ziran
+  source using a generated seed verified by `make check-bootstrap`.
+
 - Imported polymorphic procedures specialized for caller-owned records retain
   calls to their defining module's private helpers, including recursive
   generic helpers and helpers from loaded files. Nested specializations keep

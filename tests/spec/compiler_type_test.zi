@@ -1,0 +1,172 @@
+Types :: #import "compiler_type";
+
+Fields :: () -> bool {
+    workspace: [512]u8
+    body := " ;\n using base : Other; name: string #go_tag \"json:\\\"name;line\\\"\\n\";\nlast: [2]*Other\n"
+    first := Types.NextField(body, 0, false, 128, 128, workspace[:])
+    if first.status != 1 || first.name != "base" || first.type != "Other" ||
+    !first.is_using || first.tag != "" { return false }
+    second := Types.NextField(body, first.next, false, 128, 128, workspace[:])
+    if second.status != 1 || second.name != "name" || second.type != "string" ||
+    second.is_using || second.tag != "\"json:\\\"name;line\\\"\\n\"" { return false }
+    third := Types.NextField(body, second.next, false, 128, 128, workspace[:])
+    if third.status != 1 || third.name != "last" || third.type != "[2]*Other" ||
+    third.next != body.count { return false }
+    if Types.NextField(body, third.next, false, 128, 128, workspace[:]).status != 0 { return false }
+    if Types.NextField("x: s64\0bad field", 0, false, 128, 128, workspace[:]).type != "s64" ||
+    Types.NextField("\0bad field", 0, false, 128, 128, workspace[:]).status != 0 ||
+    Types.NextField("", 0, false, 128, 128, workspace[:]).status != 0 { return false }
+    invalid: [16]string = .{"field", ": s64", "field:", "1field: s64", "bad name: s64",
+        "field: s64 #other \"x\"", "field: s64 #go_tagX \"x\"", "field: s64 #go_tag",
+        "field: s64 #go_tag\"x\"", "field: s64 #go_tag \"x", "field: s64 #go_tag \"\\0\"",
+        "field: s64 #go_tag \"\\x00\"", "field: s64 #go_tag \"\\q\"",
+        "field: s64 #go_tag \"x\" trailing", "field: s64 #go_tag 12", "using : s64"}
+    for text: invalid {
+        if Types.NextField(text, 0, false, 128, 128, workspace[:]).status != -1 { return false }
+    }
+    if Types.NextField("x: s64 #go_tag \"tag\"", 0, true, 128, 128, workspace[:]).status != -1 ||
+    Types.NextField("x: s64", -1, false, 128, 128, workspace[:]).status != -1 ||
+    Types.NextField("x: s64", 7, false, 128, 128, workspace[:]).status != -1 { return false }
+    if Types.NextField("ab: s64", 0, false, 2, 128, workspace[:]).status != -1 ||
+    Types.NextField("ab: s64", 0, false, 3, 4, workspace[:]).status != 1 ||
+    Types.NextField("ab: s64", 0, false, 3, 3, workspace[:]).status != -1 ||
+    Types.NextField("x: s64 #go_tag \"a\"", 0, false, 128, 128, workspace[0:3]).status != -1 ||
+    Types.NextField("x: s64 #go_tag \"a\"", 0, false, 128, 128, workspace[0:4]).status != 1 ||
+    Types.NextField("x: s64", 0, false, 128, 128, workspace[0:0]).status != 1 { return false }
+    workspace[511] = 123
+    field := Types.NextField("_x2: string #go_tag \"\\u20ac\"", 0, false, 128, 128, workspace[0:511])
+    return field.status == 1 && workspace[0] == 0xe2 && workspace[1] == 0x82 &&
+    workspace[2] == 0xac && workspace[511] == 123
+}
+
+Containers :: () -> bool {
+    slice := Types.SliceElement("[] \t*pkg.Item \n")
+    if !slice.valid || slice.element != "*pkg.Item" || Types.SliceElement("[]").valid ||
+    Types.SliceElement("[ ]Item").valid || Types.SliceElement(" []Item").valid { return false }
+    array := Types.ArrayElement("[1048576] []pkg.Item \t")
+    if !array.valid || array.capacity != 1048576 || array.element != "[]pkg.Item" { return false }
+    array = Types.ArrayElement("[00042]Item")
+    if !array.valid || array.capacity != 42 { return false }
+    array = Types.ArrayElement("[0]*Item")
+    if !array.valid || array.capacity != 0 { return false }
+    array = Types.ArrayElement("[Count + 1]Item")
+    if !array.valid || array.capacity != -1 || array.element != "Item" { return false }
+    array = Types.ArrayElement("[ 2 ]Item")
+    if !array.valid || array.capacity != -1 { return false }
+    invalid: [8]string = .{"[]Item", "[1]", "[1] \n", "[1Item", "Item", " [1]Item",
+        "[1048577]Item", "[999999999999999999999999999999]Item"}
+    for type: invalid { if Types.ArrayElement(type).valid { return false } }
+    return true
+}
+
+GoSymbols :: () -> bool {
+    call := Types.GoCall("go:fmt.Printf", 128)
+    if call.kind != 1 || call.module != "fmt" || call.receiver != "" || call.symbol != "Printf" { return false }
+    call = Types.GoCall("example.org/lib/v2.(*Writer).Write", 128)
+    if call.kind != 2 || call.module != "example.org/lib/v2" ||
+    call.receiver != "*Writer" || call.symbol != "Write" { return false }
+    call = Types.GoCall("go:sync.(Mutex).Lock", 128)
+    if call.kind != 2 || call.receiver != "Mutex" { return false }
+    if Types.GoCall("go:sync.(Mutex).Lock", 5).kind != 0 ||
+    Types.GoCall("go:sync.(Mutex).Lock", 6).kind != 2 { return false }
+    invalid: [12]string = .{"", "fmt.Printf", "go:.X", "go:fmt.", "go:fmt.1X",
+        "go:fmt.(X)Write", "go:fmt.().Write", "go:fmt.(*).Write", "go:fmt.(bad name).Write",
+        "go:fmt.(X).bad.name", "go:bad package.X", "go:fmt.(X.Write"}
+    for target: invalid { if Types.GoCall(target, 128).kind != 0 { return false } }
+    if !Types.GoTypeTarget("go:time.Time") || !Types.GoTypeTarget("go:builtin.any") ||
+    !Types.GoTypeTarget("go:builtin.error") || Types.GoTypeTarget("go:builtin.int") ||
+    Types.GoTypeTarget("go:builtin.any.more") || Types.GoTypeTarget("go:time.(Time).Method") ||
+    Types.GoTypeTarget("time.Time") { return false }
+    return true
+}
+
+PythonSymbols :: () -> bool {
+    call := Types.PythonCall("py:urllib.request/urlopen")
+    if call.kind != 1 || call.module != "urllib.request" || call.receiver != "" || call.symbol != "urlopen" { return false }
+    call = Types.PythonCall("py:builtins/bytes.fromhex")
+    if call.kind != 1 || call.symbol != "bytes.fromhex" { return false }
+    call = Types.PythonCall("py:io/(BytesIO).read")
+    if call.kind != 2 || call.module != "io" || call.receiver != "BytesIO" || call.symbol != "read" { return false }
+    invalid: [14]string = .{"", "builtins/bytes", "py:builtins", "py:/x", "py:a./x", "py:a..b/x",
+        "py:a/", "py:a/x.", "py:a/1x", "py:a/().x", "py:a/(*X).x", "py:a/(X)x",
+        "py:a/(X).x.y", "py:a/x/y"}
+    for target: invalid { if Types.PythonCall(target).kind != 0 { return false } }
+    return true
+}
+
+Names :: () -> bool {
+    builtin: [19]string = .{"bool", "void", "s8", "u8", "s16", "u16", "s32", "u32", "s64", "u64",
+        "isize", "usize", "float32", "float64", "string", "int", "float", "Type", "any"}
+    for name: builtin { if !Types.BuiltinName(name) { return false } }
+    invalid: [6]string = .{"", "integer", "s64junk", "type", "String", "float128"}
+    for name: invalid { if Types.BuiltinName(name) { return false } }
+    primitives: [9]string = .{"MapInit", "MapSet", "MapGet", "MapContains", "MapDelete", "MapClear", "MapCount", "MapKeys", "MapLookup"}
+    for name: primitives { if !Types.MapPrimitive(name) { return false } }
+    return !Types.MapPrimitive("Map") && !Types.MapPrimitive("MapSetX")
+}
+
+#program_export
+Answer :: () -> s32 {
+    if !Fields() { return 1 }
+    if !Containers() { return 2 }
+    if !GoSymbols() { return 3 }
+    if !PythonSymbols() { return 4 }
+    if !Names() { return 5 }
+    return 42
+}
+
+HashText :: (hash: u32, text: string) -> u32 {
+    result := hash
+    for byte: text { result = result * cast(u32)16777619 ^ cast(u32)byte }
+    return result
+}
+
+#program_export
+Fingerprint :: () -> s64 {
+    seed: u32 = 0x31415926
+    hash: u32 = 2166136261
+    alphabet := "ab_012go:py./()*[]#;\"\\ \t\n\r\v\f\0"
+    input: [64]u8
+    workspace: [32]u8
+    for sample: 0..255 {
+        seed = seed * cast(u32)1664525 + cast(u32)1013904223
+        count := cast(s64)(seed % cast(u32)64)
+        for index: 0..count - 1 {
+            seed = seed * cast(u32)1664525 + cast(u32)1013904223
+            input[index] = alphabet[cast(s64)(seed % cast(u32)alphabet.count)]
+        }
+        text := TextView(input[0:count])
+        for limit: 0..8 {
+            field := Types.NextField(text, 0, false, limit, limit, workspace[:])
+            hash = hash * cast(u32)16777619 ^ cast(u32)field.status
+            hash = hash * cast(u32)16777619 ^ cast(u32)field.next
+            hash = HashText(hash, field.name)
+            hash = HashText(hash, field.type)
+            hash = HashText(hash, field.tag)
+            hash = hash * cast(u32)16777619 ^ cast(u32)field.is_using
+        }
+        slice := Types.SliceElement(text)
+        array := Types.ArrayElement(text)
+        hash = hash * cast(u32)16777619 ^ cast(u32)slice.valid
+        hash = HashText(hash, slice.element)
+        hash = hash * cast(u32)16777619 ^ cast(u32)array.valid
+        hash = hash * cast(u32)16777619 ^ cast(u32)array.capacity
+        hash = HashText(hash, array.element)
+        go := Types.GoCall(text, 8)
+        py := Types.PythonCall(text)
+        hash = hash * cast(u32)16777619 ^ cast(u32)go.kind
+        hash = HashText(hash, go.module)
+        hash = HashText(hash, go.receiver)
+        hash = HashText(hash, go.symbol)
+        hash = hash * cast(u32)16777619 ^ cast(u32)py.kind
+        hash = HashText(hash, py.module)
+        hash = HashText(hash, py.receiver)
+        hash = HashText(hash, py.symbol)
+        hash = hash * cast(u32)16777619 ^ cast(u32)Types.GoTypeTarget(text)
+        hash = hash * cast(u32)16777619 ^ cast(u32)Types.BuiltinName(text)
+        hash = hash * cast(u32)16777619 ^ cast(u32)Types.MapPrimitive(text)
+    }
+    return cast(s64)hash
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

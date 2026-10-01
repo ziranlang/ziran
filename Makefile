@@ -40,6 +40,7 @@ TEXT_OBJECT := $(BUILD_DIR)/obj/compiler-text.o
 SOURCE_OBJECT := $(BUILD_DIR)/obj/compiler-source.o
 DECLARATION_OBJECT := $(BUILD_DIR)/obj/compiler-declaration.o
 ENUM_OBJECT := $(BUILD_DIR)/obj/compiler-enum.o
+TYPE_OBJECT := $(BUILD_DIR)/obj/compiler-type.o
 ifeq ($(BOOTSTRAP),1)
 SCANNER_C := bootstrap/compiler_scan
 SCANNER_READY := $(SCANNER_C)/compiler_scan.c $(SCANNER_C)/compiler_scan.h
@@ -51,6 +52,8 @@ DECLARATION_C := bootstrap/compiler_declaration
 DECLARATION_READY := $(DECLARATION_C)/compiler_declaration.c $(DECLARATION_C)/compiler_declaration.h
 ENUM_C := bootstrap/compiler_enum
 ENUM_READY := $(ENUM_C)/compiler_enum.c $(ENUM_C)/compiler_enum.h
+TYPE_C := bootstrap/compiler_type
+TYPE_READY := $(TYPE_C)/compiler_type.c $(TYPE_C)/compiler_type.h
 else
 SCANNER_C := $(BUILD_DIR)/compiler-scan
 SCANNER_READY := $(SCANNER_C)/.generated
@@ -62,9 +65,11 @@ DECLARATION_C := $(BUILD_DIR)/compiler-declaration
 DECLARATION_READY := $(DECLARATION_C)/.generated
 ENUM_C := $(BUILD_DIR)/compiler-enum
 ENUM_READY := $(ENUM_C)/.generated
+TYPE_C := $(BUILD_DIR)/compiler-type
+TYPE_READY := $(TYPE_C)/.generated
 endif
-override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C)
-FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_text.c \
+override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C)
+FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
     cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
     cmd/zir/zir_proof_kernel.c \
@@ -77,9 +82,9 @@ LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(BUILD_DIR)/obj/check.o \
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o
-FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(BUILD_DIR)/obj/check.o \
+FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o
 BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
@@ -152,6 +157,11 @@ $(call obj,cmd/zir/zir_enum.c): $(ENUM_READY)
 $(ENUM_OBJECT): $(ENUM_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(ENUM_C)/compiler_enum.c
+
+$(call obj,cmd/zir/zir_type.c): $(TYPE_READY)
+$(TYPE_OBJECT): $(TYPE_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TYPE_C)/compiler_type.c
 
 $(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
@@ -304,7 +314,8 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_text/compiler_text.c bootstrap/compiler_text/compiler_text.h \
     bootstrap/compiler_source/compiler_source.c bootstrap/compiler_source/compiler_source.h \
     bootstrap/compiler_declaration/compiler_declaration.c bootstrap/compiler_declaration/compiler_declaration.h \
-    bootstrap/compiler_enum/compiler_enum.c bootstrap/compiler_enum/compiler_enum.h Makefile
+    bootstrap/compiler_enum/compiler_enum.c bootstrap/compiler_enum/compiler_enum.h \
+    bootstrap/compiler_type/compiler_type.c bootstrap/compiler_type/compiler_type.h Makefile
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=objcopy CFLAGS=-O2 \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -334,6 +345,11 @@ $(ENUM_C)/.generated: cmd/compiler_enum.zi cmd/compiler_text.zi $(BOOTSTRAP_BIN)
 	    -o $(ENUM_C) cmd/compiler_enum.zi
 	touch $@
 
+$(TYPE_C)/.generated: cmd/compiler_type.zi cmd/compiler_text.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
+	    -o $(TYPE_C) cmd/compiler_type.zi
+	touch $@
+
 .PHONY: check-bootstrap update-bootstrap
 check-bootstrap: $(BIN_DIR)/zi2c
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
@@ -356,6 +372,10 @@ check-bootstrap: $(BIN_DIR)/zi2c
 	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_enum.zi
 	cmp bootstrap/compiler_enum/compiler_enum.c $(BUILD_DIR)/bootstrap-check/compiler_enum.c
 	cmp bootstrap/compiler_enum/compiler_enum.h $(BUILD_DIR)/bootstrap-check/compiler_enum.h
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
+	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_type.zi
+	cmp bootstrap/compiler_type/compiler_type.c $(BUILD_DIR)/bootstrap-check/compiler_type.c
+	cmp bootstrap/compiler_type/compiler_type.h $(BUILD_DIR)/bootstrap-check/compiler_type.h
 
 update-bootstrap: $(BIN_DIR)/zi2c
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
@@ -378,6 +398,10 @@ update-bootstrap: $(BIN_DIR)/zi2c
 	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_enum.zi
 	cp $(BUILD_DIR)/bootstrap-check/compiler_enum.c bootstrap/compiler_enum/
 	cp $(BUILD_DIR)/bootstrap-check/compiler_enum.h bootstrap/compiler_enum/
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
+	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_type.zi
+	cp $(BUILD_DIR)/bootstrap-check/compiler_type.c bootstrap/compiler_type/
+	cp $(BUILD_DIR)/bootstrap-check/compiler_type.h bootstrap/compiler_type/
 endif
 
 $(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJECTS) $(call obj,$(PORTABLE)) \

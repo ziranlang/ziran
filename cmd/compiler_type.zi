@@ -1,0 +1,222 @@
+// Type spelling and record-field rules. Returned text borrows the input.
+// Field scans accept bounded, zero-terminated IR buffers without measuring
+// the whole record again for each field.
+Text :: #import "compiler_text";
+
+RecordField :: struct {
+    status: s32
+    next: s64
+    name: string
+    type: string
+    tag: string
+    is_using: bool
+}
+ElementType :: struct { valid: bool; element: string; capacity: s64 }
+ForeignCall :: struct { kind: s32; module: string; receiver: string; symbol: string }
+
+NextField :: (body: string, at: s64, union_record: bool, name_limit: s64,
+    type_limit: s64, tag_workspace: []u8) -> RecordField {
+    result: RecordField
+    result.status = -1
+    result.next = at
+    if at < 0 || at > body.count { return result }
+    while Byte(body, at) != 0 {
+        end := at
+        quote := false
+        while Byte(body, end) != 0 {
+            byte := body[end]
+            if quote {
+                if byte == #char "\\" && Byte(body, end + 1) != 0 { end += 1 }
+                else if byte == #char "\"" { quote = false }
+            } else if byte == #char "\"" { quote = true }
+            else if byte == #char ";" || byte == #char "\n" { break }
+            end += 1
+        }
+        if quote { return result }
+        result.next = end
+        if Byte(body, end) != 0 { result.next += 1 }
+        line := Trim(body[at:end])
+        at = result.next
+        if line.count == 0 { continue }
+        if line.count >= 6 && line[0:5] == "using" && Text.SpaceByte(line[5]) {
+            result.is_using = true
+            line = Trim(line[5:])
+        }
+        colon := Find(line, #char ":", 0)
+        if colon < 0 { return result }
+        name := Trim(line[0:colon])
+        type := Trim(line[colon + 1:])
+        tag := Find(type, #char "#", 0)
+        if tag >= 0 {
+            directive := type[tag:]
+            if union_record || directive.count < 8 || directive[0:7] != "#go_tag" ||
+            !Text.SpaceByte(directive[7]) { return result }
+            literal := Trim(directive[7:])
+            if literal.count == 0 || literal.count >= tag_workspace.count { return result }
+            decoded := Text.DecodeString(literal, tag_workspace)
+            if !decoded.valid { return result }
+            for byte: tag_workspace[0:decoded.count] { if byte == 0 { return result } }
+            result.tag = literal
+            type = Trim(type[0:tag])
+        }
+        if !Identifier(name) || name.count >= name_limit ||
+        type.count == 0 || type.count >= type_limit { return result }
+        result.status = 1
+        result.name = name
+        result.type = type
+        return result
+    }
+    result.status = 0
+    return result
+}
+
+SliceElement :: (type: string) -> ElementType {
+    if type.count < 2 || type[0:2] != "[]" { return .{} }
+    element := Trim(type[2:])
+    return .{element.count > 0, element, 0}
+}
+
+ArrayElement :: (type: string) -> ElementType {
+    if type.count < 4 || type[0] != #char "[" { return .{} }
+    close := Find(type, #char "]", 1)
+    if close <= 1 { return .{} }
+    element := Trim(type[close + 1:])
+    if element.count == 0 { return .{} }
+    digits := true
+    for byte: type[1:close] {
+        if byte < #char "0" || byte > #char "9" { digits = false; break }
+    }
+    capacity: s64 = -1 // The checker resolves constant expressions.
+    if digits {
+        capacity = 0
+        for byte: type[1:close] {
+            capacity = capacity * 10 + cast(s64)(byte - #char "0")
+            if capacity > 1048576 { return .{} }
+        }
+    }
+    return .{true, element, capacity}
+}
+
+BuiltinName :: (name: string) -> bool {
+    if name.count < 2 || name.count > 7 { return false }
+    return name == "bool" || name == "void" || name == "s8" || name == "u8" ||
+    name == "s16" || name == "u16" || name == "s32" || name == "u32" ||
+    name == "s64" || name == "u64" || name == "isize" || name == "usize" ||
+    name == "float32" || name == "float64" || name == "string" || name == "int" ||
+    name == "float" || name == "Type" || name == "any"
+}
+
+MapPrimitive :: (name: string) -> bool {
+    return name == "MapInit" || name == "MapSet" || name == "MapGet" ||
+    name == "MapContains" || name == "MapDelete" || name == "MapClear" ||
+    name == "MapCount" || name == "MapKeys" || name == "MapLookup"
+}
+
+// Go methods use package.(Type).Method or package.(*Type).Method. The
+// explicit go: prefix also permits package paths without a slash.
+GoCall :: (target: string, receiver_limit: s64) -> ForeignCall {
+    explicit_go := target.count >= 3 && target[0:3] == "go:"
+    start: s64 = 0
+    if explicit_go { start = 3 }
+    method: s64 = -1
+    end: s64 = -1
+    slash := false
+    for at: start..target.count - 1 {
+        if target[at] == #char "/" { slash = true }
+        if target[at] == #char "." {
+            end = at
+            if Byte(target, at + 1) == #char "(" { method = at; break }
+        }
+    }
+    if end <= start || (!explicit_go && !slash) { return .{} }
+    module := target[start:end]
+    for byte: module {
+        if !Text.IdentifierByte(byte) && byte != #char "/" &&
+        byte != #char "." && byte != #char "-" { return .{} }
+    }
+    receiver := ""
+    name := end + 1
+    if method >= 0 {
+        close := Find(target, #char ")", method + 2)
+        if close < 0 || Byte(target, close + 1) != #char "." { return .{} }
+        receiver = target[method + 2:close]
+        if receiver.count == 0 || receiver.count >= receiver_limit { return .{} }
+        receiver_name := receiver
+        if receiver[0] == #char "*" { receiver_name = receiver[1:] }
+        if !Identifier(receiver_name) { return .{} }
+        name = close + 2
+    }
+    symbol := target[name:]
+    if !Identifier(symbol) { return .{} }
+    kind: s32 = 1
+    if method >= 0 { kind = 2 }
+    return .{kind, module, receiver, symbol}
+}
+
+GoTypeTarget :: (target: string) -> bool {
+    if target.count < 3 || target[0:3] != "go:" { return false }
+    call := GoCall(target, 0)
+    if call.kind != 1 { return false }
+    if target.count >= 11 && target[0:11] == "go:builtin." {
+        return call.module == "builtin" && (call.symbol == "any" || call.symbol == "error")
+    }
+    return true
+}
+
+// Python natives use py:dotted.module/dotted.attribute or
+// py:dotted.module/(Type).Method.
+PythonCall :: (target: string) -> ForeignCall {
+    if target.count < 3 || target[0:3] != "py:" { return .{} }
+    slash := Find(target, #char "/", 3)
+    if slash < 0 { return .{} }
+    module := target[3:slash]
+    if !DottedIdentifier(module) { return .{} }
+    name := slash + 1
+    receiver := ""
+    kind: s32 = 1
+    if Byte(target, name) == #char "(" {
+        close := Find(target, #char ")", name + 1)
+        if close < 0 || Byte(target, close + 1) != #char "." { return .{} }
+        receiver = target[name + 1:close]
+        name = close + 2
+        if !Identifier(receiver) || !Identifier(target[name:]) { return .{} }
+        kind = 2
+    } else if !DottedIdentifier(target[name:]) { return .{} }
+    return .{kind, module, receiver, target[name:]}
+}
+
+#scope_file
+Byte :: (source: string, at: s64) -> u8 {
+    if at < 0 || at >= source.count { return 0 }
+    return source[at]
+}
+Find :: (source: string, wanted: u8, at: s64) -> s64 {
+    while at < source.count {
+        if source[at] == wanted { return at }
+        at += 1
+    }
+    return -1
+}
+Trim :: (source: string) -> string {
+    range := Text.TrimRange(source)
+    return source[range.begin:range.end]
+}
+Identifier :: (source: string) -> bool {
+    if source.count == 0 { return false }
+    first := source[0]
+    if first != #char "_" && !(first >= #char "a" && first <= #char "z") &&
+    !(first >= #char "A" && first <= #char "Z") { return false }
+    for byte: source { if !Text.IdentifierByte(byte) { return false } }
+    return true
+}
+DottedIdentifier :: (source: string) -> bool {
+    if source.count == 0 { return false }
+    at: s64 = 0
+    while at < source.count {
+        dot := Find(source, #char ".", at)
+        if dot < 0 { return Identifier(source[at:]) }
+        if !Identifier(source[at:dot]) { return false }
+        at = dot + 1
+    }
+    return false
+}

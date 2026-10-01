@@ -92,6 +92,27 @@ static int identifier_character(int character)
 {
     return isalnum((unsigned char)character) || character == '_';
 }
+
+/* Direct type applications are stored beside each checked module that uses
+ * them, but equivalent instances share one identity in the Rust program. */
+static int
+synthetic_type_emitted(const RustEmitter *emitter, int program_index,
+                       int module_index, const ZirType *type)
+{
+    if(!type->is_synthetic_application) return 0;
+    for(int p = 0; p <= program_index; p++) {
+        const ZirProgram *program = emitter->programs[p];
+        int end = p == program_index ? module_index : program->module_count;
+        for(int m = 0; m < end; m++) {
+            const ZirModule *previous = &program->modules[m];
+            for(int t = 0; t < previous->type_count; t++)
+                if(same_type_application(emitter->module, type,
+                                         previous, &previous->types[t]))
+                    return 1;
+        }
+    }
+    return 0;
+}
 /* Buffers emit_type_definitions keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitTypeDefinitionsBuffers {
@@ -113,6 +134,9 @@ emit_type_definitions_with_buffers(RustEmitter *emitter, FILE *output, EmitTypeD
             for(int type_index = 0; type_index < module->type_count;
                 type_index++) {
                 const ZirType *record = &module->types[type_index];
+                if(synthetic_type_emitted(emitter, program_index,
+                                          module_index, record))
+                    continue;
                 char type_name[ZIR_NAME_MAX];
                 const ZirModule *enum_owner = NULL;
                 const ZirType *enumeration = NULL;

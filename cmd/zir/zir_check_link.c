@@ -1431,6 +1431,8 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
            !substitute_field(instance->return_type,
                              sizeof(instance->return_type),
                              parameter, concrete) ||
+           !results_type_at_use(owner, template_owner, "",
+                                instance->return_type, sizeof(instance->return_type)) ||
            !normalize_function_arrays(owner, instance)) return 0;
         if(!canonical_parameters(owner, &instance->args_text, instance->span) ||
            !canonical_field(owner, instance->return_type, sizeof(instance->return_type),

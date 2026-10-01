@@ -187,6 +187,7 @@ int integer_constant(const ZirModule *module, const char *name, int64_t *value);
 int bound_string_constant(const ZirModule *module, const char *name, int depth, char *literal, size_t size);
 int bound_real_constant(const ZirModule *module, const char *name, int depth, char *literal, size_t size);
 int record_field_type_at_use(const ZirModule *module, const ZirModule *record_owner, const char *record_name, char *field_type, size_t size);
+int results_type_at_use(const ZirModule *module, const ZirModule *owner, const char *callee, char *type, size_t size);
 int lower_compound_global(const ZirModule *module, const ZirGlobal *global, const CompoundConstant *compound, char *result, size_t size);
 void compound_qualifier_for_global(CompoundConstant *compound, const char *expected_type);
 int visible_define(const ZirModule *module, const char *name, const ZirDefine **definition, const ZirModule **owner, const ZirImport **selected_import);

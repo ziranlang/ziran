@@ -1570,6 +1570,7 @@ InstantiateGenericRecordAt(ZirType *instance, const ZirType *generic,
     if(status < 0 || members == 0)
         return 0;
     instance->is_union = generic->is_union;
+    instance->is_results = generic->is_results;
     if(!strcmp(generic->name, "Map") && members == 2 && parameter_count == 2) {
         size_t position = 0;
         ZirTypeField key, value, end;

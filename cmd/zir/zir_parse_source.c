@@ -1075,14 +1075,6 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 die_at(Span(buffers->rel, line_no, 1),
                        "procedure types require Jai #type syntax");
             if(name[0] != '\0') {
-                results_count = declare_multiple_results(module, name, ret, sizeof(ret),
-                                                         scope_public, scope_file,
-                                                         Span(buffers->rel, line_no, 1));
-                copy_text(buffers->results_record, sizeof(buffers->results_record),
-                          results_count ? ret : "");
-                if(results_count && strchr(buffers->args, '$') != NULL)
-                    die_at(Span(buffers->rel, line_no, 1),
-                           "a polymorphic procedure cannot have several results yet");
                 separate_parameter_defaults(buffers->args, sizeof(buffers->args), buffers->defaults,
                                             sizeof(buffers->defaults),
                                             Span(buffers->rel, line_no, 1));
@@ -1205,6 +1197,14 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                                "#program_export requires a concrete procedure");
                     fn->is_template = 1;
                 }
+                results_count = declare_multiple_results(module, name, ret, sizeof(ret),
+                                                         scope_public, scope_file,
+                                                         fn->template_param, fn->span);
+                copy_text(fn->return_type, sizeof(fn->return_type), ret);
+                /* A generic result record is instantiated with the signature.
+                 * Its return literal gets that concrete type during checking. */
+                copy_text(buffers->results_record, sizeof(buffers->results_record),
+                          results_count && !fn->is_template ? ret : "");
                 /* Preserve the Jai source name and optional linker symbol. */
                 fn->exported = program_export;
                 copy_text(fn->export_symbol,

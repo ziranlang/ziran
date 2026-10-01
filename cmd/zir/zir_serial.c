@@ -977,6 +977,55 @@ typedef struct CheckCanonicalProgramsBuffers {
     unsigned char right[8192];
 } CheckCanonicalProgramsBuffers;
 
+typedef struct SavedModuleShape {
+    int function_count;
+    int type_count;
+    char (*type_names)[ZIR_NAME_MAX];
+} SavedModuleShape;
+
+/* Checking a source consumer can append specializations and concrete result
+ * types to a saved library. Compare every original declaration in its saved
+ * order, including its newly checked fields, while excluding those additions.
+ * Type ordering may move new dependencies before existing records. */
+static int
+write_original_checked_program(const ZirProgram *program,
+                               const SavedModuleShape *shapes, FILE *out)
+{
+    ZirProgram original = *program;
+    original.modules = calloc((size_t)program->module_count, sizeof(*original.modules));
+    if(original.modules == NULL) return 0;
+    int written = 0;
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *checked = &program->modules[m];
+        ZirModule *module = &original.modules[m];
+        *module = *checked;
+        module->function_count = shapes[m].function_count;
+        module->type_count = shapes[m].type_count;
+        module->types = NULL;
+        if(module->type_count > 0) {
+            module->types = malloc((size_t)module->type_count * sizeof(*module->types));
+            if(module->types == NULL) goto done;
+        }
+        for(int t = 0; t < module->type_count; t++) {
+            const ZirType *type = NULL;
+            for(int c = 0; c < checked->type_count; c++)
+                if(!strcmp(checked->types[c].name, shapes[m].type_names[t])) {
+                    type = &checked->types[c];
+                    break;
+                }
+            if(type == NULL) goto done;
+            module->types[t] = *type;
+        }
+    }
+    TypeLookupsChanged();
+    written = ProgramWrite(&original, out);
+done:
+    for(int m = 0; m < program->module_count; m++) free(original.modules[m].types);
+    free(original.modules);
+    TypeLookupsChanged();
+    return written;
+}
+
 int CheckCanonicalPrograms(ZirProgram **programs, int count,
                        const char *const *input_paths);
 
@@ -989,7 +1038,7 @@ CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
     int saved_count = 0;
     int first_saved = -1;
     int valid = 0;
-    int **original_counts = NULL;
+    SavedModuleShape **original_counts = NULL;
     for(int i = 0; i < count; i++) {
         if(input_paths == NULL || PathIsIR(input_paths[i])) {
             if(first_saved < 0)
@@ -1004,10 +1053,19 @@ CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
     for(int i = 0; i < count; i++) {
         if(input_paths != NULL && !PathIsIR(input_paths[i])) continue;
         int modules = programs[i]->module_count;
-        original_counts[i] = malloc((size_t)modules * sizeof(int));
+        original_counts[i] = calloc((size_t)modules, sizeof(*original_counts[i]));
         if(original_counts[i] == NULL) goto failed;
-        for(int m = 0; m < modules; m++)
-            original_counts[i][m] = programs[i]->modules[m].function_count;
+        for(int m = 0; m < modules; m++) {
+            const ZirModule *module = &programs[i]->modules[m];
+            SavedModuleShape *shape = &original_counts[i][m];
+            shape->function_count = module->function_count;
+            shape->type_count = module->type_count;
+            if(shape->type_count == 0) continue;
+            shape->type_names = malloc((size_t)shape->type_count * sizeof(*shape->type_names));
+            if(shape->type_names == NULL) goto failed;
+            for(int t = 0; t < shape->type_count; t++)
+                copy_text(shape->type_names[t], sizeof(shape->type_names[t]), module->types[t].name);
+        }
     }
     /* Saved IR is an executable typed artifact. Require checked statement
      * and expression graphs before target emission. */
@@ -1023,18 +1081,8 @@ CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
         goto done;
     for(int i = 0; i < count; i++) {
         if(original_counts[i] == NULL) continue;
-        int modules = programs[i]->module_count;
-        int *checked_counts = malloc((size_t)modules * sizeof(int));
-        if(checked_counts == NULL) goto failed;
-        for(int m = 0; m < modules; m++) {
-            checked_counts[m] = programs[i]->modules[m].function_count;
-            programs[i]->modules[m].function_count = original_counts[i][m];
-        }
-        int written = ProgramWrite(programs[i], after);
-        for(int m = 0; m < modules; m++)
-            programs[i]->modules[m].function_count = checked_counts[m];
-        free(checked_counts);
-        if(!written) goto failed;
+        if(!write_original_checked_program(programs[i], original_counts[i], after))
+            goto failed;
     }
     if(fseek(before, 0, SEEK_SET) || fseek(after, 0, SEEK_SET))
         goto failed;
@@ -1062,7 +1110,12 @@ failed:
                "zir.validation", "cannot validate saved IR");
 done:
     if(original_counts != NULL) {
-        for(int i = 0; i < count; i++) free(original_counts[i]);
+        for(int i = 0; i < count; i++) {
+            if(original_counts[i] != NULL)
+                for(int m = 0; m < programs[i]->module_count; m++)
+                    free(original_counts[i][m].type_names);
+            free(original_counts[i]);
+        }
         free(original_counts);
     }
     if(before != NULL)

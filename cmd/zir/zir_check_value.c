@@ -607,6 +607,33 @@ record_field_type_at_use(const ZirModule *module,
 }
 
 int
+results_type_at_use(const ZirModule *module, const ZirModule *owner,
+                    const char *callee, char *type, size_t size)
+{
+    if(module == owner) return 1;
+    const char *arguments = strchr(type, '(');
+    size_t length = arguments ? (size_t)(arguments - type) : strlen(type);
+    char base[ZIR_NAME_MAX];
+    if(length >= sizeof(base)) return 0;
+    memcpy(base, type, length);
+    base[length] = '\0';
+    trim_in_place(base);
+    const ZirType *record = FindType(owner, base, NULL);
+    if(record == NULL || !record->is_results) return 1;
+    /* Qualify the declaring template, keeping its concrete arguments in the
+     * caller's scope. A caller-owned record may have no name in OWNER. */
+    if(!record_field_type_at_use(module, owner, callee, base, sizeof(base)))
+        return 0;
+    char qualified[ZIR_NAME_MAX];
+    int written = snprintf(qualified, sizeof(qualified), "%s%s",
+                           base, arguments ? arguments : "");
+    if(written < 0 || (size_t)written >= sizeof(qualified) ||
+       (size_t)written >= size) return 0;
+    copy_text(type, size, qualified);
+    return 1;
+}
+
+int
 MapTypePartsAtUse(const ZirModule *module, const char *name,
                    char *key, size_t key_size, char *value, size_t value_size)
 {

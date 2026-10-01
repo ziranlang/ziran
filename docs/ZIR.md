@@ -53,6 +53,12 @@ name in `overload_name`; checked calls already name the chosen overload.
 A record type flagged `is_results` holds the results of a procedure with
 several results, in fields `value_0`, `value_1`, and so on; the source's
 multiple returns and bindings are already lowered to that record.
+When a polymorphic procedure's results depend on its type parameters, this
+record is an ordinary generic record template flagged `is_results`. Concrete
+applications retain the flag and use the same checked field access as other
+multiple results. A saved library can gain concrete types and procedure
+specializations while checking a source consumer; validation still compares
+every original declaration and its checked metadata in the original order.
 
 Law records include structured evidence. Scalar theorem propositions and
 `#proof` certificates have separate expression graphs and ordered proof steps;

@@ -147,8 +147,11 @@ source. Jai enum cases use `if value == { case ... }`. Native builds run the
 language checker unconditionally; `--strict` and `--no-strict` are rejected. Other syntax
 differences remain under audit.
 Direct polymorphic procedure calls use `Identity :: (value: $T) -> T {
-return value }`. A procedure may bind one type name, use it in later parameter
-types and its result, and call another polymorphic procedure. Calls specialize
+return value }`. A procedure may bind several type names, use them in later
+parameter types and its results, and call another polymorphic procedure.
+Several results such as `Pair :: (value: $T) -> T, T { return value, value }`
+specialize together and use the ordinary multiple-result binding rules.
+Calls specialize
 for concrete argument types, including records from an importing module.
 Untyped numeric literals need a concrete context to infer `T`. Polymorphic
 procedures cannot be used as procedure values or exported with

@@ -211,7 +211,7 @@ int is_identifier_text(const char *text);
 extern _Thread_local int ZirSourceUsesResizableArrays;
 int declare_multiple_results(ZirModule *module, const char *name, char *ret,
                              size_t ret_size, int is_public, int is_file_private,
-                             ZirSourceSpan span);
+                             const char *template_parameters, ZirSourceSpan span);
 int lower_multiple_return(char *text, size_t size, const char *record, int count,
                           ZirSourceSpan span);
 int split_multiple_binding(const char *text, char targets[][ZIR_NAME_MAX], int max,

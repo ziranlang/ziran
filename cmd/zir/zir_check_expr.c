@@ -2118,7 +2118,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                !replace_template_type(specialized_return,
                                       sizeof(specialized_return),
                                       callee->return_type,
-                                      callee->template_param, concrete)) {
+                                      callee->template_param, concrete) ||
+               !results_type_at_use(c->module, owner, e->name,
+                                    specialized_return, sizeof(specialized_return))) {
                 error(c, e->span, "specialized signature is too long", e->name);
                 break;
             }

@@ -207,6 +207,13 @@ clear evaluation-order rules. Extend the existing direct polymorphic call
 support to field expressions in specialized record defaults and defaults on
 procedure-type values.
 
+Polymorphic procedures now support several results, including independently
+bound types, records, arrays, and slices. `tests/generic_multiple_results.sh`
+checks named/open imports, default arguments, nested calls, first-result use,
+single evaluation, and separately saved libraries on C, C++, Go, Rust, Python,
+and `.zib`. Generated result records use ordinary generic type applications;
+original saved-library declarations are still checked for canonical metadata.
+
 `ifx` and `#ifx` now work as positional and named call arguments in the
 tested scalar subset, including source/saved-IR builds and entry pruning.
 `#ifx` also selects record and fixed-array results in file constants, global

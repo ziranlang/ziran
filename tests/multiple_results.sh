@@ -70,8 +70,8 @@ reject() {
 reject count 'return gives 3 values but the procedure has 2 results' <<'ZI'
 F :: () -> s32, s32 { return 1, 2, 3; }
 ZI
-reject generic 'a polymorphic procedure cannot have several results yet' <<'ZI'
-F :: (x: $T) -> T, T { return x, x; }
+reject result_binder 'a result of a procedure with several results needs a concrete type' <<'ZI'
+F :: (x: $T) -> $T, T { return x, x; }
 ZI
 reject imported 'results from another module must be bound before they are returned' <<'ZI'
 #import "lib";

@@ -202,8 +202,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Polymorphic procedures may bind several type parameters, each with its
   own `$Name`, as in `Pick :: (a: $A, b: $B) -> A`. Every call infers each
   parameter and gets its own specialization, placed with the caller when one
-  of its types is only visible there. A name bound twice is an error, and
-  polymorphic procedures cannot yet have several results.
+  of its types is only visible there. A name bound twice is an error.
   `tests/generic_parameters.sh` checks source and saved IR on C, C++, Go,
   and `.zib`.
 - Procedures may be overloaded: several declarations may share a name when
@@ -229,7 +228,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   travel in a generated record shared by procedures with the same result types
   (`Results__s32__s32`, fields `value_0`...), so every target and `.zib` run
   them unchanged. Returning another module's results directly needs binding
-  them first; polymorphic procedures cannot yet have several results.
+  them first. Polymorphic procedures also return several results: result
+  records specialize their fields using the procedure's bound types, including
+  mixed types, records, arrays, and slices. Named and open imports, defaults,
+  nested calls, direct generic forwarding, and a separately saved library work
+  on C, C++, Go, Rust, Python, and `.zib`.
+  `tests/generic_multiple_results.sh` checks source/saved-IR equivalence,
+  single evaluation, rejected result types/counts, and saved-library validation.
   `tests/multiple_results.sh` checks source and saved IR on C, C++, Go, and
   `.zib`.
 - Lossless numeric conversions are implicit: a narrower integer into a wider

@@ -1562,7 +1562,7 @@ line_starts_compile_condition(const char *line)
 int
 declare_multiple_results(ZirModule *module, const char *name, char *ret,
                          size_t ret_size, int is_public, int is_file_private,
-                         ZirSourceSpan span)
+                         const char *template_parameters, ZirSourceSpan span)
 {
     char list[ZIR_TEXT_MAX];
     char (*parts)[ZIR_TEXT_MAX] = AllocateOrExit(16 * sizeof(*parts));
@@ -1584,6 +1584,7 @@ declare_multiple_results(ZirModule *module, const char *name, char *ret,
         return 0;
     }
     size_t used = 0;
+    char parameters[ZIR_NAME_MAX] = "";
     body[0] = '\0';
     for(int i = 0; i < count; i++) {
         const char *type = parts[i];
@@ -1595,6 +1596,23 @@ declare_multiple_results(ZirModule *module, const char *name, char *ret,
         }
         if(!*type || strchr(type, '$') != NULL)
             die_at(span, "a result of a procedure with several results needs a concrete type");
+        /* Only parameters used by the results belong to the record template.
+         * Keep their order of appearance so equal result shapes share it even
+         * when procedures bind their type parameters in a different order. */
+        for(const char *p = type; *p;) {
+            if(!isalpha((unsigned char)*p) && *p != '_') { p++; continue; }
+            const char *start = p++;
+            while(isalnum((unsigned char)*p) || *p == '_') p++;
+            size_t length = (size_t)(p - start);
+            if(TemplateParameterIndex(template_parameters, start, length) < 0 ||
+               TemplateParameterIndex(parameters, start, length) >= 0)
+                continue;
+            size_t offset = strlen(parameters);
+            int added = snprintf(parameters + offset, sizeof(parameters) - offset,
+                                 "%s%.*s", offset ? "," : "", (int)length, start);
+            if(added < 0 || (size_t)added >= sizeof(parameters) - offset)
+                die_at(span, "multiple result type parameters exceed the size limit");
+        }
         int written = snprintf(body + used, ZIR_TEXT_MAX * 2 - used, "value_%d: %s\n", i, type);
         if(written < 0 || (size_t)written >= ZIR_TEXT_MAX * 2 - used)
             die_at(span, "multiple results exceed the size limit");
@@ -1618,25 +1636,32 @@ declare_multiple_results(ZirModule *module, const char *name, char *ret,
         die_at(span, "the result types of %s are too long to combine", name);
     (void)is_public;
     (void)is_file_private;
+    ZirType *type = NULL;
     for(int i = 0; i < module->type_count; i++)
         if(!strcmp(module->types[i].name, record)) {
-            if(!module->types[i].is_results)
+            type = &module->types[i];
+            if(!type->is_results || strcmp(type->template_params, parameters))
                 die_at(span, "several results need the type name %s, which is already declared", record);
-            copy_text(ret, ret_size, record);
-            free(parts);
-            free(body);
-            return count;
+            break;
         }
-    ZirType *type = ModuleAddType(module, record, span);
-    if(type == NULL)
-        die("out of memory declaring multiple results");
-    type->is_public = 1;
-    type->is_file_private = 0;
-    type->is_results = 1;
-    if(used >= sizeof(type->body))
-        die_at(span, "multiple results exceed the size limit");
-    copy_text(type->body, sizeof(type->body), body);
-    copy_text(ret, ret_size, record);
+    if(type == NULL) {
+        type = ModuleAddType(module, record, span);
+        if(type == NULL)
+            die("out of memory declaring multiple results");
+        type->is_public = 1;
+        type->is_file_private = 0;
+        type->is_results = 1;
+        type->is_record_template = parameters[0] != '\0';
+        copy_text(type->template_params, sizeof(type->template_params), parameters);
+        if(used >= sizeof(type->body))
+            die_at(span, "multiple results exceed the size limit");
+        copy_text(type->body, sizeof(type->body), body);
+    }
+    int result_length = parameters[0] ?
+        snprintf(ret, ret_size, "%s(%s)", record, parameters) :
+        snprintf(ret, ret_size, "%s", record);
+    if(result_length < 0 || (size_t)result_length >= ret_size)
+        die_at(span, "the result types of %s are too long to combine", name);
     free(parts);
     free(body);
     return count;

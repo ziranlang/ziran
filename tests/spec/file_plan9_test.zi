@@ -92,16 +92,22 @@ Run :: (root: string) -> s32 {
     malformed: DirectoryCursor = .{count = 1, valid = true}
     if NextDirectoryEntry(*malformed).valid || !malformed.failed || !CloseDirectory(*malformed) { return 31 }
     found: s32 = 0
+    listed: FileInfo
     if !cursor.valid { return 13 }
     while true {
         entry := NextDirectoryEntry(*cursor)
         if !entry.valid { break }
         name := TextView(entry.name[0:entry.name_count])
+        if !entry.info.valid { return 34 }
+        if name == "first" { listed = entry.info }
         if name == "first" { found |= 1 }
         if name == "second" { found |= 2 }
     }
     if found != 3 || cursor.failed || !CloseDirectory(*cursor) || cursor.valid ||
         CloseDirectory(*cursor) || OpenDirectory(first).valid { return 14 }
+    file_info := PathInfo(first)
+    if !listed.valid || listed.identity != file_info.identity || listed.device != file_info.device ||
+        listed.type != file_info.type || listed.mode != file_info.mode || listed.length != file_info.length { return 35 }
     file = OpenWrite(second)
     if !file.valid || Write(file, bytes[0:1]) != 1 || !CloseFile(file) { return 15 }
     file = OpenRead(second)

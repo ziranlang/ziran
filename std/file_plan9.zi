@@ -65,7 +65,7 @@ FileInfo :: struct {
 }
 
 #scope_file
-Information :: (memory: *void) -> FileInfo {
+Snapshot :: (memory: *void) -> FileInfo {
     result: FileInfo
     if memory == null { return result }
     metadata := cast(*DirectoryMetadata)memory
@@ -78,7 +78,12 @@ Information :: (memory: *void) -> FileInfo {
     result.mode = cast(u32)metadata.mode
     result.modified = cast(u32)metadata.modified
     result.length = metadata.length
-    FreeRaw(memory)
+    return result
+}
+
+Information :: (memory: *void) -> FileInfo {
+    result := Snapshot(memory)
+    if memory != null { FreeRaw(memory) }
     return result
 }
 
@@ -143,6 +148,7 @@ DirectoryEntry :: struct {
     name: [256]u8
     name_count: s32
     valid: bool
+    info: FileInfo
 }
 
 #scope_file
@@ -374,6 +380,9 @@ NextDirectoryEntry :: (cursor: *DirectoryCursor) -> DirectoryEntry {
         return .{}
     }
     result.valid = true
+    // Own a value snapshot of the metadata returned by the directory read.
+    // No native allocation is retained after the cursor closes.
+    result.info = Snapshot(cast(*void)entry)
     return result
 }
 

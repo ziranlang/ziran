@@ -23,6 +23,7 @@ WriteStatRaw :: (path: *s8, metadata: *void) -> s32 #foreign libc "dirwstat";
 DescriptorWriteStatRaw :: (fd: s32, metadata: *void) -> s32 #foreign libc "dirfwstat";
 FreeRaw :: (memory: *void) #foreign libc "free";
 WorkingDirectoryRaw :: (output: *s8, capacity: s32) -> *s8 #foreign libc "getwd";
+ErrorRaw :: (output: *s8, capacity: s32) #foreign libc "rerrstr";
 
 FileIdentity :: struct {
     path: u64
@@ -84,6 +85,16 @@ Information :: (memory: *void) -> FileInfo {
 
 #scope_export
 #program_export
+LastError :: (output: []u8) -> string {
+    if output.count < 2 || output.count > 2147483647 { return "" }
+    ErrorRaw(cast(*s8)(*output[0]), cast(s32)output.count)
+    length: s64 = 0
+    while length < output.count && output[length] != cast(u8)0 { length += 1 }
+    if length == output.count { return "" }
+    return TextView(output[0:length])
+}
+
+#program_export
 PathInfo :: (path: string) -> FileInfo {
     name: [4096]u8
     if !CopyCString(path, name[:]) { return .{} }
@@ -101,9 +112,11 @@ HandleInfo :: (file: FileHandle) -> FileInfo {
 #program_export
 SetFileAttributes :: (file: FileHandle, permissions: u32, modified: u32) -> bool {
     if !file.valid || permissions > 511 { return false }
+    current := HandleInfo(file)
+    if !current.valid { return false }
     change: DirectoryMetadata
     NullDirRaw(cast(*void)(*change))
-    change.mode = cast(usize)permissions
+    change.mode = cast(usize)((current.mode & cast(u32)0xfffffe00) | permissions)
     change.modified = cast(usize)modified
     return DescriptorWriteStatRaw(file.fd, cast(*void)(*change)) >= 0
 }
@@ -124,6 +137,7 @@ DirectoryCursor :: struct {
     count: s64
     next: s64
     valid: bool
+    failed: bool
 }
 
 DirectoryEntry :: struct {
@@ -222,9 +236,16 @@ CreatePrivateDirectory :: (path: string) -> bool { return DirectoryWithMode(path
 // Create a new directory without accepting or replacing an existing name.
 #program_export
 CreatePrivateDirectoryExclusive :: (path: string) -> bool {
-    file := CreatePath(path, 0 | 32 | 4096, cast(usize)0x80000000 | 448)
+    file := CreatePrivateDirectoryHandle(path)
     if !file.valid { return false }
     return CloseFile(file)
+}
+
+// Keep the descriptor from an exclusive directory create. Its identity and
+// attributes remain accessible even after restrictive permissions are set.
+#program_export
+CreatePrivateDirectoryHandle :: (path: string) -> FileHandle {
+    return CreatePath(path, 0 | 32 | 4096, cast(usize)0x80000000 | 448)
 }
 
 #program_export
@@ -334,18 +355,24 @@ OpenDirectory :: (path: string) -> DirectoryCursor {
 #program_export
 NextDirectoryEntry :: (cursor: *DirectoryCursor) -> DirectoryEntry {
     result: DirectoryEntry
-    if cursor == null || !cursor.valid || cursor.next >= cursor.count { return result }
+    if cursor == null || !cursor.valid || cursor.failed || cursor.next >= cursor.count { return result }
+    if cursor.storage == null { cursor.failed = true; return result }
     entries := cast(*DirectoryMetadata)cursor.storage
     entry := *entries[cursor.next]
     cursor.next += 1
-    if entry.name == null { return result }
+    if entry.name == null { cursor.failed = true; return result }
     index: s32 = 0
     while entry.name[index] != 0 {
-        if index >= 255 { return result }
+        if index >= 255 || entry.name[index] == cast(u8)47 { cursor.failed = true; return result }
         result.name[index] = entry.name[index]
         index += 1
     }
     result.name_count = index
+    if index == 0 || (index == 1 && result.name[0] == cast(u8)46) ||
+        (index == 2 && result.name[0] == cast(u8)46 && result.name[1] == cast(u8)46) {
+        cursor.failed = true
+        return .{}
+    }
     result.valid = true
     return result
 }

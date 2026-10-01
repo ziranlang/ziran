@@ -22,6 +22,8 @@ Run :: (root: string) -> s32 {
     // Names equal to their ABI symbol use libc's existing declarations too.
     missing: [1024]u8
     missing_path := Path(root, "missing", missing[:])
+    error: [256]u8
+    if PathInfo(missing_path).valid || LastError(error[:]) == "" || LastError(tiny[:]) != "" { return 32 }
     if !CopyCString(missing_path, missing[:]) ||
         open(cast(*s8)(*missing[0]), 0) >= 0 ||
         dirstat(cast(*s8)(*missing[0])) != null { return 12 }
@@ -38,6 +40,13 @@ Run :: (root: string) -> s32 {
     if CreatePrivateDirectoryExclusive(directory) ||
         !CreatePrivateDirectoryExclusive(other) || !DirectoryExists(other) ||
         CreatePrivateDirectoryExclusive(other) || !RemoveFile(other) { return 23 }
+    opened_directory := CreatePrivateDirectoryHandle(other)
+    if !opened_directory.valid || CreatePrivateDirectoryHandle(other).valid ||
+        !SetFileAttributes(opened_directory, cast(u32)320, cast(u32)1700000000) ||
+        (HandleInfo(opened_directory).mode & cast(u32)0x80000000) == 0 ||
+        (HandleInfo(opened_directory).mode & cast(u32)511) != cast(u32)320 ||
+        !SetFileAttributes(opened_directory, cast(u32)448, cast(u32)1700000000) ||
+        !CloseFile(opened_directory) || !RemoveFile(other) { return 30 }
     file := OpenPrivateReplace(first)
     if !file.valid { return 2 }
     bytes: [4]u8 = .[65, 0, 66, 67]
@@ -75,6 +84,8 @@ Run :: (root: string) -> s32 {
     if FileSize(invalid) != -1 || ReadAt(invalid, received[:], 0) != -1 ||
         WriteAt(invalid, bytes[:], 0) != -1 || CloseFile(invalid) { return 10 }
     cursor := OpenDirectory(directory)
+    malformed: DirectoryCursor = .{count = 1, valid = true}
+    if NextDirectoryEntry(*malformed).valid || !malformed.failed || !CloseDirectory(*malformed) { return 31 }
     found: s32 = 0
     if !cursor.valid { return 13 }
     while true {
@@ -84,7 +95,7 @@ Run :: (root: string) -> s32 {
         if name == "first" { found |= 1 }
         if name == "second" { found |= 2 }
     }
-    if found != 3 || !CloseDirectory(*cursor) || cursor.valid ||
+    if found != 3 || cursor.failed || !CloseDirectory(*cursor) || cursor.valid ||
         CloseDirectory(*cursor) || OpenDirectory(first).valid { return 14 }
     file = OpenWrite(second)
     if !file.valid || Write(file, bytes[0:1]) != 1 || !CloseFile(file) { return 15 }

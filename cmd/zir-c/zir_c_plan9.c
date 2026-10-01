@@ -2281,7 +2281,7 @@ c_plan9_runtime_symbol(const char *name)
         "malloc", "calloc", "realloc", "free", "open", "pread", "pwrite",
         "seek", "remove", "dirstat", "dirfstat", "nulldir", "dirwstat", "dirfwstat", "dirreadall",
         "read", "pipe", "rfork", "exec", "exits", "getpid", "putenv", "sleep",
-        "nsec", "localtime", "gmtime", "getwd", "chdir", NULL
+        "nsec", "localtime", "gmtime", "getwd", "chdir", "bind", "unmount", "rerrstr", NULL
     };
     int index;
     for(index = 0; symbols[index] != NULL; index++)

@@ -1,32 +1,20 @@
 #include "zir_parse_internal.h"
 
-/* `[] s32` and `* Node` spell the types []s32 and *Node; drop the space
- * so every reader of the signature text sees one spelling. */
-static void
-tighten_type_spacing(char *text)
+#include "compiler_source.h"
+
+/* Ziran owns declaration text rules. This boundary retains the C parser's
+ * output buffers and diagnostics until the declaration IR is migrated. */
+static String
+declaration_text(const char *source)
 {
-    char *out = text;
-    int quote = 0;
-    for(const char *p = text; *p; p++) {
-        *out++ = *p;
-        if(quote) {
-            if(*p == '\\' && p[1]) *out++ = *++p;
-            else if(*p == '"') quote = 0;
-            continue;
-        }
-        if(*p == '"') {
-            quote = 1;
-            continue;
-        }
-        if(*p == ']' || *p == '*') {
-            const char *next = p + 1;
-            while(*next == ' ' || *next == '\t') next++;
-            if(next != p + 1 && (isalpha((unsigned char)*next) || *next == '_' ||
-                                 *next == '[' || *next == '$'))
-                p = next - 1;
-        }
-    }
-    *out = '\0';
+    return StringView(source != NULL ? source : "", source != NULL ? strlen(source) : 0);
+}
+
+static void
+copy_declaration_part(char *output, size_t capacity, String part,
+                      int normalize_type)
+{
+    compiler_source_CopyProcedureText(part, (Slice){output, (int64_t)capacity}, normalize_type);
 }
 
 void
@@ -34,94 +22,25 @@ parse_function_header(char *name, size_t name_size, char *args,
                       size_t args_size, char *ret, size_t ret_size,
                       const char *line)
 {
-    const char *p;
-    const char *q;
-    size_t n = 0;
-
-    name[0] = '\0';
-    args[0] = '\0';
-    snprintf(ret, ret_size, "void");
-    p = strstr(line, "::");
-    if(p != NULL) {
-        q = line;
-        while(q < p && (*q == ' ' || *q == '\t'))
-            q++;
-        while(q < p && (isalnum((unsigned char)*q) || *q == '_') &&
-              n + 1 < name_size)
-            name[n++] = *q++;
-        name[n] = '\0';
-    }
-    p = strchr(line, '(');
-    q = closing_parenthesis(p);
-    if(p != NULL && q != NULL && q > p) {
-        n = (size_t)(q - p - 1);
-        if(n >= args_size)
-            n = args_size - 1;
-        memcpy(args, p + 1, n);
-        args[n] = '\0';
-        while(n > 0 && isspace((unsigned char)args[n - 1]))
-            args[--n] = '\0';
-        /* Return type: after the closing ')', an optional '-> T' before any
-         * trailing directive such as #foreign. */
-        q++;
-        while(*q == ' ' || *q == '\t')
-            q++;
-        if(q[0] == '-' && q[1] == '>') {
-            q += 2;
-            while(*q == ' ' || *q == '\t')
-                q++;
-            n = 0;
-            while(*q != '\0' && *q != '#' && *q != '{' && n + 1 < ret_size)
-                ret[n++] = *q++;
-            while(n > 0 && isspace((unsigned char)ret[n - 1]))
-                n--;
-            ret[n] = '\0';
-        }
-    }
-    tighten_type_spacing(args);
-    tighten_type_spacing(ret);
+    ProcedureHeader header = compiler_source_ProcedureHeaderParts(declaration_text(line));
+    copy_declaration_part(name, name_size, header.name, 0);
+    copy_declaration_part(args, args_size, header.parameters, 1);
+    copy_declaration_part(ret, ret_size, header.result, 1);
 }
 
 int
 function_must_use(const char *line, const char *return_type,
                   ZirSourceSpan span)
 {
-    const char *parameters = strchr(line, '(');
-    const char *closing = closing_parenthesis(parameters);
-    const char *end;
-    int count = 0;
-
-    if(closing == NULL)
-        return 0;
-    end = strchr(closing + 1, '{');
-    if(end == NULL)
-        end = strchr(closing + 1, ';');
-    if(end == NULL)
-        end = line + strlen(line);
-    for(const char *cursor = closing + 1; cursor < end; cursor++) {
-        if(*cursor == '"') {
-            for(cursor++; cursor < end && *cursor != '"'; cursor++)
-                if(*cursor == '\\' && cursor + 1 < end)
-                    cursor++;
-            if(cursor == end)
-                break;
-        } else if((size_t)(end - cursor) >= 5 &&
-                  strncmp(cursor, "#must", 5) == 0 &&
-                  (cursor + 5 == end ||
-                   (!isalnum((unsigned char)cursor[5]) &&
-                    cursor[5] != '_'))) {
-            const char *after = skip_ws(cursor + 5);
-            if(after < end && *after != '#')
-                die_at(span, "#must does not take arguments");
-            count++;
-            cursor += 4;
-        }
-    }
-    if(count > 1)
+    MustUseModifier modifier = compiler_source_ProcedureMustUse(
+        declaration_text(line), declaration_text(return_type));
+    if(modifier == MustUseModifier_Arguments)
+        die_at(span, "#must does not take arguments");
+    if(modifier == MustUseModifier_Duplicate)
         die_at(span, "duplicate #must procedure modifier");
-    if(count && !strcmp(return_type, "void"))
+    if(modifier == MustUseModifier_NoResult)
         die_at(span, "#must requires a return value");
-    return count;
+    return modifier == MustUseModifier_Required;
 }
 
 /* Return 1 for a standalone directive and 2 for an inline declaration. */
@@ -1141,138 +1060,29 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
     return returned;
 }
 
-static int
-paren_params_are_typed(const char *body)
-{
-    const char *inner = NULL;
-    const char *end = NULL;
-    const char *p;
-    size_t depth = 0;
-
-    /* Find the top-level parameter list and its matching close. */
-    for(p = body; *p != '\0'; p++) {
-        if(*p == '(') {
-            if(depth == 0)
-                inner = p + 1;
-            depth++;
-        } else if(*p == ')') {
-            depth--;
-            if(depth == 0) {
-                end = p;
-                break;
-            }
-        }
-    }
-    if(inner == NULL || end == NULL)
-        return 0;
-    while(inner < end && (*inner == ' ' || *inner == '\t'))
-        inner++;
-    if(inner >= end)
-        return 1; /* () — empty parameter list */
-    /* Jai-style rule: a binding like 'X :: (expr)' stays a constant unless
-     * the parenthesized text is a typed parameter list. Parameter lists
-     * name their arguments ('name: Type'); bare expressions — numbers,
-     * arithmetic, ternaries, literals — do not. */
-    if(*inner == '"' || *inner == '\'' || isdigit((unsigned char)*inner))
-        return 0;
-    if(strchr(inner, '?') != NULL)
-        return 0;
-    return strchr(inner, ':') != NULL;
-}
-
-/* Does a brace appear outside string/char literals? String values may
- * carry JSON or SQL text with braces. */
 int
 brace_outside_literals(const char *text)
 {
-    int in_string = 0, in_char = 0, escaped = 0;
-    for(const char *p = text; *p; p++) {
-        if(escaped) { escaped = 0; continue; }
-        if(*p == '\\') { escaped = 1; continue; }
-        if(in_string) {
-            if(*p == '"') in_string = 0;
-            continue;
-        }
-        if(in_char) {
-            if(*p == '\'') in_char = 0;
-            continue;
-        }
-        if(*p == '"') { in_string = 1; continue; }
-        if(*p == '\'') { in_char = 1; continue; }
-        if(*p == '{') return 1;
-    }
-    return 0;
+    return compiler_source_BraceOutsideLiterals(declaration_text(text));
 }
 
 int
 looks_like_function_header(const char *line)
 {
-    char tmp[SOURCE_LINE_MAX];
-    char *p;
-    const char *body;
-
-    if(starts_word(line, "#import") || strncmp(line, "#import,", 8) == 0)
-        return 0;
-    p = strstr(line, "::");
-    if(p == NULL)
-        return 0;
-    snprintf(tmp, sizeof(tmp), "%s", p + 2);
-    body = trim(tmp);
-    if(starts_word(body, "#as"))
-        body = skip_ws(body + 3);
-    if(starts_word(body, "#import") || strncmp(body, "#import,", 8) == 0 ||
-       starts_word(body, "#defined") ||
-       starts_word(body, "#define") || starts_word(body, "struct") ||
-       starts_word(body, "enum") || starts_word(body, "union"))
-        return 0;
-    if(strstr(body, "#type") != NULL)
-        return 0;
-    if(body[0] != '(')
-        return 0;
-    /* A body or return type makes it a procedure regardless of params. */
-    if(strchr(body, '{') != NULL || strstr(body, "->") != NULL)
-        return 1;
-    return paren_params_are_typed(body);
+    return compiler_source_LooksLikeProcedureHeader(declaration_text(line));
 }
 
 int
 split_oneline_function(const char *line, char *head, size_t head_size,
                        char *body, size_t body_size)
 {
-    const char *open = strchr(line, '{');
-    size_t length = strlen(line);
-    int depth = 0, in_string = 0, in_char = 0;
-
-    if(open == NULL || length == 0 || line[length - 1] != '}' ||
-       !looks_like_function_header(line))
-        return 0;
-    for(const char *p = open; *p; p++) {
-        if(in_string || in_char) {
-            if(*p == '\\' && p[1] != '\0') {
-                p++;
-            } else if(*p == (in_string ? '"' : '\'')) {
-                in_string = in_char = 0;
-            }
-        } else if(*p == '"') {
-            in_string = 1;
-        } else if(*p == '\'') {
-            in_char = 1;
-        } else if(*p == '{') {
-            depth++;
-        } else if(*p == '}') {
-            depth--;
-            if(depth == 0 && p != line + length - 1)
-                return 0;
-        }
-        if(depth < 0)
-            return 0;
-    }
-    if(depth != 0 ||
-       snprintf(head, head_size, "%.*s", (int)(open - line + 1), line) < 0 ||
-       snprintf(body, body_size, "%.*s", (int)(line + length - open - 2),
-                open + 1) < 0)
-        return 0;
-    trim_in_place(body);
+    String source = declaration_text(line);
+    ControlBlock block = compiler_source_SplitProcedureBody(source);
+    if(!block.valid) return 0;
+    copy_declaration_part(head, head_size, StringView(line, block.head_end), 0);
+    copy_declaration_part(body, body_size,
+        StringView(line + block.body_begin, block.body_end - block.body_begin), 0);
+    if(body_size != 0) trim_in_place(body);
     return 1;
 }
 

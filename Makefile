@@ -128,7 +128,7 @@ $(TEXT_OBJECT): $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TEXT_C)/compiler_text.c
 
-$(call obj,cmd/zir/zir_parse.c cmd/zir/zir_parse_condition.c): $(SOURCE_READY)
+$(call obj,cmd/zir/zir_parse.c cmd/zir/zir_parse_condition.c cmd/zir/zir_parse_declaration.c): $(SOURCE_READY)
 $(SOURCE_OBJECT): $(SOURCE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SOURCE_C)/compiler_source.c

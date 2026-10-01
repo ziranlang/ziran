@@ -54,7 +54,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `cmd/compiler_source.zi`: raw multiline strings, nested and line comments,
   identifier and directive recognition, block-brace accounting, statement
   classification and separators, record field separators, compact control
-  blocks, and matching parentheses. The C parser
+  blocks, matching parentheses, procedure-header recognition and text,
+  type spacing, bounded procedure text buffers, compact procedure bodies,
+  and `#must` modifier scanning.
+  The C parser
   keeps storage and diagnostics behind a small boundary. Ordinary tools and
   the portable library compile the maintained Ziran source; fresh builds use
   a generated seed verified by `make check-bootstrap`.
@@ -62,8 +65,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   Python, and `.zib`, including bounded outputs, in-place comment removal,
   malformed delimiters, nested literals, and a reproducible input corpus.
   Raw-string diagnostics now count escaped physical newlines in preceding
-  ordinary strings correctly. Declaration parsing, checking, native lowering,
-  and the portable runtime still contain C and require further migration.
+  ordinary strings correctly. Declaration IR construction, checking,
+  native lowering, and the portable runtime still contain C and require
+  further migration.
 
 - Rust empty text views compare, print, and slice without constructing a
   native slice from a null pointer. Empty vector and slice views retain their

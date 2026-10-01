@@ -17,6 +17,8 @@ typedef int32_t StatementKind;
 typedef struct SourceRewrite SourceRewrite;
 typedef struct CommentScan CommentScan;
 typedef struct ControlBlock ControlBlock;
+typedef struct ProcedureHeader ProcedureHeader;
+typedef int32_t MustUseModifier;
 
 enum {
     SourceError_None = 0,
@@ -66,6 +68,20 @@ struct ControlBlock {
     int64_t body_end;
     int64_t tail_begin;
 };
+
+struct ProcedureHeader {
+    String name;
+    String parameters;
+    String result;
+};
+
+enum {
+    MustUseModifier_None = 0,
+    MustUseModifier_Required = 1,
+    MustUseModifier_Arguments = 2,
+    MustUseModifier_Duplicate = 3,
+    MustUseModifier_NoResult = 4,
+};
 bool compiler_source_SourceIdentifier(uint8_t byte);
 bool compiler_source_StartsWord(String source, String word);
 bool compiler_source_IdentifierText(String source, bool member_path);
@@ -80,6 +96,13 @@ int32_t compiler_source_NetBlockBraces(String source);
 int64_t compiler_source_StatementSeparator(String source);
 ControlBlock compiler_source_SplitControlBlock(String source);
 int64_t compiler_source_ClosingParenthesis(String source);
+ProcedureHeader compiler_source_ProcedureHeaderParts(String source);
+int64_t compiler_source_NormalizeTypeSpacing(String source, Slice output);
+int64_t compiler_source_CopyProcedureText(String source, Slice output, bool normalize_type);
+bool compiler_source_BraceOutsideLiterals(String source);
+bool compiler_source_LooksLikeProcedureHeader(String source);
+ControlBlock compiler_source_SplitProcedureBody(String source);
+MustUseModifier compiler_source_ProcedureMustUse(String source, String result_type);
 
 #ifdef __cplusplus
 }

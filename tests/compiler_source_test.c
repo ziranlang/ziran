@@ -76,5 +76,44 @@ int main(void)
     char fields[] = "x: Pair(s32, s64); text: \"a;b,c\", y: s32";
     compiler_source_NormalizeRecordSeparators((Slice){fields, sizeof(fields) - 1}, true);
     assert(!strcmp(fields, "x: Pair(s32, s64)\n text: \"a;b,c\"\n y: s32"));
+    ProcedureHeader header = compiler_source_ProcedureHeaderParts(text(
+        "  Read :: (value: * Node, text: string = Call(\")\")) -> [] Node #must {"));
+    assert(StringEqual(header.name, text("Read")));
+    assert(StringEqual(header.parameters, text("value: * Node, text: string = Call(\")\")")));
+    assert(StringEqual(header.result, text("[] Node")));
+    char types[] = "[] \tNode, * Node, text: string = \"* Node\"";
+    int64_t used = compiler_source_NormalizeTypeSpacing(text(types), (Slice){types, sizeof(types) - 1});
+    types[used] = 0;
+    assert(!strcmp(types, "[]Node, *Node, text: string = \"* Node\""));
+    const char *expected = "[]Node, *Node";
+    for(int64_t capacity = 0; capacity <= (int64_t)strlen(expected); capacity++) {
+        memset(output, 0xa5, sizeof(output));
+        used = compiler_source_NormalizeTypeSpacing(text("[] Node, * Node"), (Slice){output, capacity});
+        assert(used == (int64_t)strlen(expected) && output[capacity] == 0xa5);
+        assert(!memcmp(output, expected, (size_t)capacity));
+    }
+    assert(compiler_source_NormalizeTypeSpacing((String){0}, (Slice){0}) == 0);
+    const char *prefixes[] = {"", "", "[", "[]", "[]", "[]N", "[]No", "[]Nod", "[]Node"};
+    for(int64_t capacity = 0; capacity <= 8; capacity++) {
+        memset(output, 0xa5, sizeof(output));
+        used = compiler_source_CopyProcedureText(text("[] Node"), (Slice){output, capacity}, true);
+        assert(used == (int64_t)strlen(prefixes[capacity]) && output[capacity] == 0xa5);
+        if(capacity) assert(!strcmp((const char *)output, prefixes[capacity]));
+    }
+    char clipped[] = "[] Node";
+    used = compiler_source_CopyProcedureText(text(clipped), (Slice){clipped, 4}, true);
+    assert(used == 2 && !strcmp(clipped, "[]"));
+    assert(compiler_source_CopyProcedureText((String){0}, (Slice){0}, true) == 0);
+    header = compiler_source_ProcedureHeaderParts((String){0});
+    assert(header.name.length == 0 && header.parameters.length == 0 && StringEqual(header.result, text("void")));
+    assert(compiler_source_LooksLikeProcedureHeader(text("Read :: (x: s32)")));
+    assert(!compiler_source_LooksLikeProcedureHeader(text("Value :: (42)")));
+    assert(!compiler_source_BraceOutsideLiterals(text("\"unfinished\\")));
+    ControlBlock block = compiler_source_SplitProcedureBody(text("Read :: () { Call(\"}\"); }"));
+    assert(block.valid && block.head_end == 12 && block.body_end == 24);
+    assert(compiler_source_ProcedureMustUse(text("Read :: () -> s32 #must {"), text("s32")) == MustUseModifier_Required);
+    assert(compiler_source_ProcedureMustUse(text("Read :: () -> s32 #must #must {"), text("s32")) == MustUseModifier_Duplicate);
+    assert(compiler_source_ProcedureMustUse(text("Read :: () #must() {"), text("void")) == MustUseModifier_Arguments);
+    assert(compiler_source_ProcedureMustUse((String){0}, (String){0}) == MustUseModifier_None);
     return 0;
 }

@@ -21,6 +21,8 @@ ControlBlock :: struct {
     body_end: s64
     tail_begin: s64
 }
+ProcedureHeader :: struct { name: string; parameters: string; result: string }
+MustUseModifier :: enum s32 { None; Required; Arguments; Duplicate; NoResult }
 
 #scope_file
 Byte :: (source: string, at: s64) -> u8 {
@@ -434,4 +436,171 @@ ClosingParenthesis :: (source: string) -> s64 {
         at += 1
     }
     return -1
+}
+
+// Returned text borrows the input. Type spacing is normalized separately in
+// caller-owned storage, so the scanner needs neither allocation nor native ABI.
+ProcedureHeaderParts :: (source: string) -> ProcedureHeader {
+    header: ProcedureHeader = .{"", "", "void"}
+    colons := Find(source, "::")
+    if colons >= 0 {
+        begin: s64 = 0
+        while begin < colons && (source[begin] == #char " " || source[begin] == #char "\t") { begin += 1 }
+        end := begin
+        while end < colons && SourceIdentifier(source[end]) { end += 1 }
+        header.name = source[begin:end]
+    }
+    opening := Find(source, "(")
+    if opening < 0 { return header }
+    closing := ClosingParenthesis(source[opening:])
+    if closing < 0 { return header }
+    closing += opening
+    end := closing
+    while end > opening + 1 && Space(source[end - 1]) { end -= 1 }
+    header.parameters = source[opening + 1:end]
+    at := closing + 1
+    while at < source.count && (source[at] == #char " " || source[at] == #char "\t") { at += 1 }
+    if !Matches(source, at, "->") { return header }
+    at += 2
+    while at < source.count && (source[at] == #char " " || source[at] == #char "\t") { at += 1 }
+    end = at
+    while end < source.count && source[end] != #char "#" && source[end] != #char "{" { end += 1 }
+    while end > at && Space(source[end - 1]) { end -= 1 }
+    header.result = source[at:end]
+    return header
+}
+
+// Safe for in-place output: normalization only removes bytes. A short output
+// receives its bounded prefix; the returned count measures the complete text.
+NormalizeTypeSpacing :: (source: string, output: []u8) -> s64 {
+    used: s64 = 0
+    at: s64 = 0
+    quoted := false
+    while at < source.count {
+        byte := source[at]
+        Put(output, *used, byte)
+        at += 1
+        if quoted {
+            if byte == #char "\\" && at < source.count { Put(output, *used, source[at]); at += 1 }
+            else if byte == #char "\"" { quoted = false }
+        } else if byte == #char "\"" { quoted = true }
+        else if byte == #char "]" || byte == #char "*" {
+            next := at
+            while next < source.count && (source[next] == #char " " || source[next] == #char "\t") { next += 1 }
+            following := Byte(source, next)
+            if next > at && (Letter(following) || following == #char "[" || following == #char "$") { at = next }
+        }
+    }
+    return used
+}
+
+// The frontend's fixed buffers reserve one byte for a terminating null.
+// Trim a truncated type before normalizing, as for a complete header part.
+CopyProcedureText :: (source: string, output: []u8, normalize_type: bool) -> s64 {
+    if output.count == 0 { return 0 }
+    count := source.count
+    if count >= output.count { count = output.count - 1 }
+    used: s64 = 0
+    if normalize_type {
+        while count > 0 && Space(source[count - 1]) { count -= 1 }
+        used = NormalizeTypeSpacing(source[0:count], output[0:count])
+    } else {
+        for index: 0..count - 1 { output[index] = source[index] }
+        used = count
+    }
+    output[used] = 0
+    return used
+}
+
+BraceOutsideLiterals :: (source: string) -> bool {
+    at: s64 = 0
+    while at < source.count {
+        byte := source[at]
+        if byte == #char "\\" { at += 1; if at < source.count { at += 1 } }
+        else if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at) }
+        else if byte == #char "{" { return true }
+        else { at += 1 }
+    }
+    return false
+}
+
+LooksLikeProcedureHeader :: (source: string) -> bool {
+    if StartsWord(source, "#import") || Matches(source, 0, "#import,") { return false }
+    colons := Find(source, "::")
+    if colons < 0 { return false }
+    at := SkipSpace(source, colons + 2)
+    end := source.count
+    while end > at && Space(source[end - 1]) { end -= 1 }
+    body := source[at:end]
+    if StartsWord(body, "#as") { body = body[SkipSpace(body, 3):] }
+    if StartsWord(body, "#import") || Matches(body, 0, "#import,") ||
+    StartsWord(body, "#defined") || StartsWord(body, "#define") ||
+    StartsWord(body, "struct") || StartsWord(body, "enum") || StartsWord(body, "union") ||
+    Find(body, "#type") >= 0 || Byte(body, 0) != #char "(" { return false }
+    if Find(body, "{") >= 0 || Find(body, "->") >= 0 { return true }
+    // A parenthesized constant is a procedure only when it has a typed
+    // parameter list. Keep the declaration classifier's source rules here.
+    depth: s32 = 0
+    begin: s64 = -1
+    end = -1
+    at = 0
+    while at < body.count {
+        if body[at] == #char "(" { if depth == 0 { begin = at + 1 }; depth += 1 }
+        else if body[at] == #char ")" { depth -= 1; if depth == 0 { end = at; break } }
+        at += 1
+    }
+    if begin < 0 || end < 0 { return false }
+    while begin < end && (body[begin] == #char " " || body[begin] == #char "\t") { begin += 1 }
+    if begin >= end { return true }
+    byte := body[begin]
+    if byte == #char "\"" || byte == #char "'" || (byte >= #char "0" && byte <= #char "9") { return false }
+    return Find(body[begin:], "?") < 0 && Find(body[begin:], ":") >= 0
+}
+
+SplitProcedureBody :: (source: string) -> ControlBlock {
+    block: ControlBlock
+    opening := Find(source, "{")
+    if opening < 0 || Byte(source, source.count - 1) != #char "}" ||
+    !LooksLikeProcedureHeader(source) { return block }
+    depth: s32 = 0
+    at := opening
+    while at < source.count {
+        byte := source[at]
+        if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at); continue }
+        if byte == #char "{" { depth += 1 }
+        else if byte == #char "}" {
+            depth -= 1
+            if depth < 0 || (depth == 0 && at != source.count - 1) { return block }
+        }
+        at += 1
+    }
+    if depth != 0 { return block }
+    return .{true, opening + 1, opening + 1, source.count - 1, source.count}
+}
+
+ProcedureMustUse :: (source: string, result_type: string) -> MustUseModifier {
+    opening := Find(source, "(")
+    if opening < 0 { return .None }
+    closing := ClosingParenthesis(source[opening:])
+    if closing < 0 { return .None }
+    closing += opening
+    tail := source[closing + 1:]
+    end := Find(tail, "{")
+    if end < 0 { end = Find(tail, ";") }
+    if end < 0 { end = tail.count }
+    count: s32 = 0
+    at: s64 = 0
+    while at < end {
+        if tail[at] == #char "\"" { at = AfterQuote(tail[0:end], at) }
+        else if Matches(tail[0:end], at, "#must") && !SourceIdentifier(Byte(tail, at + 5)) {
+            after := SkipSpace(tail, at + 5)
+            if after < end && tail[after] != #char "#" { return .Arguments }
+            count += 1
+            at += 5
+        } else { at += 1 }
+    }
+    if count > 1 { return .Duplicate }
+    if count == 0 { return .None }
+    if result_type == "void" { return .NoResult }
+    return .Required
 }

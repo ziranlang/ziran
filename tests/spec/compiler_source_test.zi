@@ -46,6 +46,81 @@ StatementChecks :: () -> bool {
     return TextView(output[0:original.count]) == expected
 }
 
+SameTypeSpacing :: (source: string, expected: string) -> bool {
+    output: [256]u8
+    if NormalizeTypeSpacing(source, output[0:0]) != expected.count { return false }
+    for capacity: 0..expected.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        used := NormalizeTypeSpacing(source, output[0:capacity])
+        if used != expected.count || output[capacity] != 0xa5 ||
+        TextView(output[0:capacity]) != expected[0:capacity] { return false }
+    }
+    return true
+}
+
+ProcedureChecks :: () -> bool {
+    header := ProcedureHeaderParts("  Read_2 :: (value: * Node, text: string = Call(\")\", 1)  ) -> [] Node #must {")
+    if header.name != "Read_2" || header.parameters != "value: * Node, text: string = Call(\")\", 1)" ||
+    header.result != "[] Node" { return false }
+    header = ProcedureHeaderParts("Empty :: () {")
+    if header.name != "Empty" || header.parameters != "" || header.result != "void" { return false }
+    header = ProcedureHeaderParts("Broken :: (value: s32")
+    if header.name != "Broken" || header.parameters != "" || header.result != "void" { return false }
+    header = ProcedureHeaderParts("")
+    if header.name != "" || header.parameters != "" || header.result != "void" { return false }
+    if !SameTypeSpacing("", "") || !SameTypeSpacing("[] \tNode, * Node, [3] $T, * [] u8",
+        "[]Node, *Node, [3]$T, *[]u8") ||
+    !SameTypeSpacing("text: string = \"* Node [3] $T \\\" [] Node\", x: * \tNode",
+        "text: string = \"* Node [3] $T \\\" [] Node\", x: *Node") ||
+    !SameTypeSpacing("* \nNode, [] 9, *", "* \nNode, [] 9, *") { return false }
+    output: [32]u8
+    prefixes: [9]string = .{"", "", "[", "[]", "[]", "[]N", "[]No", "[]Nod", "[]Node"}
+    for capacity: 0..8 {
+        for index: 0..31 { output[index] = 0xa5 }
+        used := CopyProcedureText("[] Node", output[0:capacity], true)
+        if used != prefixes[capacity].count || output[capacity] != 0xa5 ||
+        TextView(output[0:used]) != prefixes[capacity] { return false }
+        if capacity > 0 && output[used] != 0 { return false }
+    }
+    if CopyProcedureText("Name", output[0:3], false) != 2 ||
+    TextView(output[0:2]) != "Na" || output[2] != 0 { return false }
+    if !LooksLikeProcedureHeader("Read :: ()") || !LooksLikeProcedureHeader("Read :: (x: Node)") ||
+    !LooksLikeProcedureHeader("Read :: (using x: * Node) -> Node") ||
+    !LooksLikeProcedureHeader("Read :: #as (x: s32) -> s32") ||
+    !LooksLikeProcedureHeader("Read :: (x: $T) { return x }") { return false }
+    rejected: [11]string = .{"", "NoColons()", "Alias :: #import \"module\"", "#import \"module::()\"",
+        "Alias :: #import, only(\"x\") \"module\"", "Record :: struct { x: s32 }", "Choice :: enum { A }",
+        "Value :: union { x: s32 }", "Constant :: (42)", "Constant :: (x ? y : z)", "Callable :: (x: s32) #type"}
+    for source: rejected { if LooksLikeProcedureHeader(source) { return false } }
+    if BraceOutsideLiterals("\"{\\\"}\" '{' \\{") ||
+    !BraceOutsideLiterals("\"quoted {\" { ") || BraceOutsideLiterals("\"unfinished\\") { return false }
+    source := "Read :: () -> s32 { if true { Call(\"}\", '}'); } return 42 }"
+    block := SplitProcedureBody(source)
+    if !block.valid || source[0:block.head_end] != "Read :: () -> s32 {" ||
+    source[block.body_begin:block.body_end] != " if true { Call(\"}\", '}'); } return 42 " ||
+    block.tail_begin != source.count { return false }
+    if SplitProcedureBody("Read :: () { } Other :: () { }").valid ||
+    SplitProcedureBody("Record :: struct { x: s32 }").valid ||
+    SplitProcedureBody("Read :: () { \"unfinished\\").valid ||
+    !SplitProcedureBody("Read :: () { }").valid ||
+    SplitProcedureBody("Read :: () { } ").valid { return false }
+    if ProcedureMustUse("Read :: () -> s32 #must {", "s32") != .Required ||
+    ProcedureMustUse("Read :: (text: string = \"#must\") -> s32 {", "s32") != .None ||
+    ProcedureMustUse("Read :: () -> s32 #foreign \"host:#must\";", "s32") != .None ||
+    ProcedureMustUse("Read :: () -> s32 #must_use {", "s32") != .None ||
+    ProcedureMustUse("Read :: () -> s32 #must9 {", "s32") != .None ||
+    ProcedureMustUse("Read :: () -> s32 #must #foreign host;", "s32") != .Required ||
+    ProcedureMustUse("Read :: () -> s32 { #must }", "s32") != .None { return false }
+    if ProcedureMustUse("Read :: () #must {", "void") != .NoResult ||
+    ProcedureMustUse("Read :: () -> s32 #must #must {", "s32") != .Duplicate ||
+    ProcedureMustUse("Read :: () -> s32 #must() {", "s32") != .Arguments ||
+    ProcedureMustUse("Read :: () -> s32 #must value {", "s32") != .Arguments ||
+    ProcedureMustUse("Read :: () -> s32 \"unfinished\\", "s32") != .None ||
+    ProcedureMustUse("Read :: (", "s32") != .None ||
+    ProcedureMustUse("", "void") != .None { return false }
+    return true
+}
+
 #program_export
 Answer :: () -> s32 {
     if !SameRewrite("", "") || !SameRewrite("a\n\"x\\\"y\"\n'x' /* nested /* #string X */ */",
@@ -106,6 +181,7 @@ Answer :: () -> s32 {
     if ClosingParenthesis("(Call(\")\"), ['(']) tail") != 17 ||
     ClosingParenthesis("(\"unfinished\\") != -1 || ClosingParenthesis("not a call") != -1 { return 27 }
     if !StatementChecks() { return 28 }
+    if !ProcedureChecks() { return 29 }
     return 42
 }
 
@@ -158,6 +234,27 @@ Fingerprint :: () -> s64 {
         result = result * cast(u32)16777619 ^ cast(u32)block.head_end
         result = result * cast(u32)16777619 ^ cast(u32)block.body_end
         result = result * cast(u32)16777619 ^ cast(u32)block.tail_begin
+        header := ProcedureHeaderParts(source)
+        for byte: header.name { result = result * cast(u32)16777619 ^ cast(u32)byte }
+        for byte: header.parameters { result = result * cast(u32)16777619 ^ cast(u32)byte }
+        for byte: header.result { result = result * cast(u32)16777619 ^ cast(u32)byte }
+        result = result * cast(u32)16777619 ^ cast(u32)LooksLikeProcedureHeader(source)
+        result = result * cast(u32)16777619 ^ cast(u32)BraceOutsideLiterals(source)
+        result = result * cast(u32)16777619 ^ cast(u32)ProcedureMustUse(source, "s32")
+        block = SplitProcedureBody(source)
+        result = result * cast(u32)16777619 ^ cast(u32)block.valid
+        result = result * cast(u32)16777619 ^ cast(u32)block.head_end
+        result = result * cast(u32)16777619 ^ cast(u32)block.body_end
+        for capacity: 0..8 {
+            used := NormalizeTypeSpacing(source, output[0:capacity])
+            result = result * cast(u32)16777619 ^ cast(u32)used
+            count := used
+            if count > capacity { count = capacity }
+            for byte: output[0:count] { result = result * cast(u32)16777619 ^ cast(u32)byte }
+            used = CopyProcedureText(source, output[0:capacity], sample % 2 == 0)
+            result = result * cast(u32)16777619 ^ cast(u32)used
+            for byte: output[0:used] { result = result * cast(u32)16777619 ^ cast(u32)byte }
+        }
         VecFree(bytes)
     }
     return cast(s64)result

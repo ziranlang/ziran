@@ -539,10 +539,18 @@ field explicitly before reading the associated value.
 with `first: s32` and `second: string` fields.
 
 A polymorphic procedure binds its type parameter through a direct `$T`, a
-slice `[]$T`, or a pointer `*$T` parameter: `Sum :: (values: []$T) -> T`
+slice `[]$T`, a fixed array `[N]$T`, or a pointer `*$T` parameter: `Sum :: (values: []$T) -> T`
 specializes for whatever element type the caller passes. A generic record
 parameter binds its arguments too: `Add :: (bag: *Bag($K), item: K)` called
 with a `*Bag(string)` binds `K` to `string`.
+
+`Copy :: (values: [3]$T) -> [3]T { return values; }` infers `T` while
+requiring exactly three elements. The capacity may be a compile-time constant
+or expression from the procedure's module; it is not inferred from the caller.
+Zero-capacity arrays retain their declared element type. Array parameters keep
+ordinary value semantics, so changing a parameter does not change the caller's
+array. Nested-array element types work natively; the portable linker rejects
+nested-array returns that its runtime cannot represent yet.
 
 ### Sorting and queues
 

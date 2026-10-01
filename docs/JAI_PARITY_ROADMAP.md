@@ -214,6 +214,15 @@ single evaluation, and separately saved libraries on C, C++, Go, Rust, Python,
 and `.zib`. Generated result records use ordinary generic type applications;
 original saved-library declarations are still checked for canonical metadata.
 
+Fixed-array binders `[N]$T` now infer the element type while enforcing a
+compile-time capacity from the defining module. Dependent array parameters
+and returns specialize normally, including through a separately saved library.
+`tests/generic_array_parameter.sh` covers scalar and record elements,
+zero-capacity arrays, value semantics, named/open imports, independent binders,
+multiple results, and source/saved IR on C, C++, Go, Rust, Python, and `.zib`.
+Nested-array returns are tested on the native targets and explicitly rejected
+by the portable linker. Capacity inference and generic constraints remain open.
+
 `ifx` and `#ifx` now work as positional and named call arguments in the
 tested scalar subset, including source/saved-IR builds and entry pruning.
 `#ifx` also selects record and fixed-array results in file constants, global

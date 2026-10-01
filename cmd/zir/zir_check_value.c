@@ -915,11 +915,13 @@ array_capacity(const ZirModule *module, const char *type, int *capacity)
 }
 
 static void
-normalize_array_at(const ZirModule *module, char *type, size_t size, int depth)
+normalize_array_at(const ZirModule *module, char *type, size_t size, int depth,
+                   const char *parameters)
 {
     char element[ZIR_NAME_MAX];
     int capacity;
-    if(depth >= 64) return;
+    if(depth >= 64 || (parameters != NULL &&
+       TemplateParameterIndex(parameters, type, strlen(type)) >= 0)) return;
     if(!ArrayElementType(type, element, sizeof(element), NULL)) {
         for(int t = 0; t < module->type_count; t++)
             if(!strcmp(module->types[t].name, type) &&
@@ -947,13 +949,13 @@ normalize_array_at(const ZirModule *module, char *type, size_t size, int depth)
         }
         if(resolved[0] != '[' || strlen(resolved) >= size)
             return;
-        normalize_array_at(owner, resolved, sizeof(resolved), depth + 1);
+        normalize_array_at(owner, resolved, sizeof(resolved), depth + 1, parameters);
         copy_text(type, size, resolved);
         if(!ArrayElementType(type, element, sizeof(element), NULL))
             return;
         module = owner;
     }
-    normalize_array_at(module, element, sizeof(element), depth + 1);
+    normalize_array_at(module, element, sizeof(element), depth + 1, parameters);
     char normalized[ZIR_NAME_MAX];
     int length;
     if(array_capacity(module, type, &capacity) == 1)
@@ -971,7 +973,14 @@ normalize_array_at(const ZirModule *module, char *type, size_t size, int depth)
 void
 normalize_array(const ZirModule *module, char *type, size_t size)
 {
-    normalize_array_at(module, type, size, 0);
+    normalize_array_at(module, type, size, 0, NULL);
+}
+
+void
+normalize_template_array(const ZirModule *module, char *type, size_t size,
+                         const char *parameters)
+{
+    normalize_array_at(module, type, size, 0, parameters);
 }
 
 /* TYPE normalized as normalize_array would, kept like a node's type. */

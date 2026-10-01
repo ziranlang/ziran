@@ -2065,7 +2065,27 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 /* Checking the argument can move the expression array. */
                 e = &c->fn->exprs[index];
                 copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
-                if(prefix > 0) {
+                char array_element[ZIR_NAME_MAX];
+                if(prefix > 0 && parameter_type[0] == '[' && parameter_type[1] != ']') {
+                    int expected_count, actual_count;
+                    if(array_capacity(owner, parameter_type, &expected_count) != 1) {
+                        error(c, callee->span,
+                              "polymorphic array parameter needs a resolved capacity", e->name);
+                        continue;
+                    }
+                    if(!ArrayElementType(actual_type, array_element,
+                                         sizeof(array_element), &actual_count)) {
+                        error(c, c->fn->exprs[child].span,
+                              "polymorphic array parameter needs a fixed array", e->name);
+                        continue;
+                    }
+                    if(actual_count != expected_count) {
+                        error(c, c->fn->exprs[child].span,
+                              "polymorphic array capacity mismatch", e->name);
+                        continue;
+                    }
+                    actual_type = array_element;
+                } else if(prefix > 0) {
                     /* `[]$T` binds a slice's element type and `*$T` a pointer's
                      * target type. */
                     if(strncmp(actual_type, parameter_type, (size_t)prefix)) {

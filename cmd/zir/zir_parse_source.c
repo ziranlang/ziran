@@ -1173,7 +1173,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         }
                         if(prefix < 0) {
                             die_at(fn->span,
-                                   "polymorphic parameters are written $Type, []$Type, *$Type, or Record($Type)");
+                                   "polymorphic parameters are written $Type, []$Type, [N]$Type, *$Type, or Record($Type)");
                             continue;
                         }
                         type += prefix;

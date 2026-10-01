@@ -266,6 +266,13 @@ int
 TemplateBinderPrefix(const char *type)
 {
     int prefix = !strncmp(type, "[]", 2) ? 2 : *type == '*' ? 1 : 0;
+    if(type[0] == '[' && type[1] != ']') {
+        const char *close = strchr(type, ']');
+        if(close == NULL || !ArrayElementType(type, NULL, 0, NULL) ||
+           memchr(type, '$', (size_t)(close - type)) != NULL)
+            return -1;
+        prefix = (int)(skip_ws(close + 1) - type);
+    }
     return type[prefix] == '$' ? prefix : -1;
 }
 

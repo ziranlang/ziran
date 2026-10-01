@@ -630,6 +630,14 @@ check_template_declaration(Checker *c, ZirFunction *fn)
             if(TemplateParameterIndex(fn->template_param, type + prefix + 1,
                                       strlen(type + prefix + 1)) < 0) valid = 0;
             else binders++;
+            if(type[0] == '[' && type[1] != ']') {
+                int capacity;
+                if(array_capacity(c->module, type, &capacity) != 1) {
+                    Diagnostic(fn->span, "check.template",
+                               "polymorphic array parameter needs a resolved capacity");
+                    return 0;
+                }
+            }
         } else if(strchr(type, '$') != NULL) {
             /* Binders inside a generic record application, Table($K, $V). */
             if(strchr(type, '(') == NULL || strchr(type, '$') < strchr(type, '('))
@@ -670,6 +678,24 @@ typedef struct NormalizeFunctionArraysBuffers {
 int normalize_function_arrays(const ZirModule *module, ZirFunction *fn);
 
 static int
+template_signature_type(const ZirFunction *fn, const char *type)
+{
+    if(!fn->is_template) return 0;
+    for(const char *cursor = type; *cursor;) {
+        if(!isalpha((unsigned char)*cursor) && *cursor != '_') {
+            cursor++;
+            continue;
+        }
+        const char *start = cursor++;
+        while(isalnum((unsigned char)*cursor) || *cursor == '_') cursor++;
+        if(TemplateParameterIndex(fn->template_param, start,
+                                  (size_t)(cursor - start)) >= 0)
+            return 1;
+    }
+    return 0;
+}
+
+static int
 normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn, NormalizeFunctionArraysBuffers *buffers)
 {
     size_t used = 0;
@@ -692,13 +718,18 @@ normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn,
             capacity = sizeof(buffers->parts[i]) - (size_t)(type - buffers->parts[i]);
         }
         copy_text(buffers->original_type, sizeof(buffers->original_type), type);
-        normalize_array(module, type, capacity);
+        if(fn->is_template)
+            normalize_template_array(module, type, capacity, fn->template_param);
+        else
+            normalize_array(module, type, capacity);
         if(i >= 0 && strcmp(buffers->original_type, type) != 0)
             argument_alias_changed = 1;
         int host_buffer = i >= 0 && ArrayElementType(type, NULL, 0, NULL) &&
                           !ArrayValueType(type);
-        /* A polymorphic `[]$T` is checked once specialized. */
-        if(type[0] == '[' && !host_buffer && strchr(type, '$') == NULL) {
+        /* Array signatures containing a bound type, including `[N]T`
+         * returns, are checked once specialized. */
+        if(type[0] == '[' && !host_buffer && strchr(type, '$') == NULL &&
+           !template_signature_type(fn, type)) {
             const char *problem = local_storage_error(module, type);
             if(problem == NULL && fn->is_extern &&
                (i < 0 || !SliceElementType(type, NULL, 0)))

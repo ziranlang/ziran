@@ -256,7 +256,7 @@ host_argument(const ZirModule *module, const char *type, Value value,
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
         if(capacity < 0 || value.kind != VALUE_ARRAY || value.array == NULL ||
            value.array->length != capacity ||
-           strcmp(value.array->element_type, element) != 0)
+           !array_element_matches(module, element, value.array))
             return 0;
         out->kind = VM_HOST_ARRAY;
         out->length = (size_t)capacity;
@@ -276,7 +276,7 @@ host_argument(const ZirModule *module, const char *type, Value value,
         if(value.kind != VALUE_SLICE ||
            (value.length > 0 && value.array == NULL) ||
            (value.array != NULL &&
-            (strcmp(value.array->element_type, element) != 0 ||
+            (!array_element_matches(module, element, value.array) ||
              value.offset > (size_t)value.array->length ||
              value.length > (size_t)value.array->length - value.offset)))
             return 0;

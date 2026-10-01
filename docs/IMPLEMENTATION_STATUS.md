@@ -87,6 +87,27 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   original pointer when no offset is needed. `tests/rust_empty_text.sh` checks
   these cases and nonempty text ranges from source and saved IR.
 
+- Enum validation and constant evaluation are implemented in
+  `cmd/compiler_enum.zi`: member names and lookup, implicit values, references
+  to preceding members, integer literals, checked arithmetic and shifts,
+  duplicate rejection, and integer backing bounds. The parser, checker,
+  proofs, and portable runtime use the compiled Ziran implementation;
+  the C boundary retains only IR access and workspace allocation.
+  Enum expressions such as `1 + 2 * 3`, division by `-1`, and division or
+  remainder of the minimum signed value now accept valid results while
+  rejecting overflow. `tests/compiler_enum.sh` checks source and saved IR on
+  C, C++, Go, Rust, Python, and `.zib`, including malformed input, numeric
+  boundaries, bounded workspace, deterministic byte inputs, seed agreement,
+  and the C boundary. Fresh builds use a generated seed verified by
+  `make check-bootstrap`.
+
+- Portable slices and arrays of imported records compare their element type
+  identities across module aliases, retaining shared slice storage when
+  callers and callees use different spellings for the same record.
+  `tests/portable_imported_record_slices.sh` checks aliases, returned slices,
+  shared mutation, empty views, array value copies, generic record elements,
+  and rejection of distinct same-named records from source and saved IR.
+
 - Imported polymorphic procedures specialized for caller-owned records retain
   calls to their defining module's private helpers, including recursive
   generic helpers and helpers from loaded files. Nested specializations keep

@@ -1,0 +1,126 @@
+Enum :: #import "compiler_enum";
+
+Value :: (body: string, backing: string, wanted: string, expected: s64) -> bool {
+    entries: [64]Enum.Entry
+    result := Enum.MemberValue(body, backing, wanted, entries[:], 128)
+    return result.valid && result.found && result.value == expected
+}
+Invalid :: (body: string, backing: string) -> bool {
+    entries: [64]Enum.Entry
+    result := Enum.MemberValue(body, backing, "A", entries[:], 128)
+    return !result.valid && !result.found
+}
+Arithmetic :: () -> bool {
+    if !Value("A, B, C = 10, D", "s64", "D", 11) ||
+    !Value("A = 0x2a, B = 052, C = +42", "s64", "B", 42) ||
+    !Value("A = 3, B = A * 2, C = B / 2, D = C + B * 2 - 1", "s64", "D", 14) ||
+    !Value("A = 1 + 2 * 3, B = A * 4 / 2 % 5", "s64", "B", 4) ||
+    !Value("A = 1 << 1 + 2, B = A << 1 << 1", "s64", "B", 32) ||
+    !Value("A = 7 / -1, B = 7 % -1, C = -7 / 2, D = -7 % 2", "s64", "A", -7) ||
+    !Value("A = 7 / -1, B = 7 % -1, C = -7 / 2, D = -7 % 2", "s64", "B", 0) ||
+    !Value("A = 7 / -1, B = 7 % -1, C = -7 / 2, D = -7 % 2", "s64", "C", -3) ||
+    !Value("A = 7 / -1, B = 7 % -1, C = -7 / 2, D = -7 % 2", "s64", "D", -1) ||
+    !Value("A = -3, B = -A, C = +B, D = A * -2", "s64", "D", 6) ||
+    !Value("A = -9223372036854775808, B = A / 2", "s64", "B", -4611686018427387904) ||
+    !Value("A = -9223372036854775808, B = A % 3", "s64", "B", -2) ||
+    !Value("A = 9223372036854775807, B = 0, C", "s64", "C", 1) ||
+    !Value("A = -0x8000000000000000", "s64", "A", (-9223372036854775807 - 1)) ||
+    !Value(", \t_A = 2,\nB = \r+\v_A\f*\t3, ,", "s64", "B", 6) { return false }
+    return true
+}
+Rejected :: () -> bool {
+    if !Invalid("", "s64") || !Invalid(" , \n", "s64") ||
+    !Invalid("A, A", "s64") || !Invalid("A = B, B = 1", "s64") ||
+    !Invalid("1A = 1", "s64") || !Invalid("A =", "s64") ||
+    !Invalid("A = 0x", "s64") || !Invalid("A = 08", "s64") ||
+    !Invalid("A = 1.5", "s64") || !Invalid("A = 1 trailing", "s64") ||
+    !Invalid("A = 1 +", "s64") || !Invalid("A = 1 *", "s64") ||
+    !Invalid("A = 1 <<", "s64") || !Invalid("A = 1 >> 1", "s64") ||
+    !Invalid("A = 1 | 2", "s64") || !Invalid("A = (1)", "s64") { return false }
+    if !Invalid("A = 0 / 0", "s64") || !Invalid("A = 1 % 0", "s64") ||
+    !Invalid("A = 9223372036854775808", "s64") ||
+    !Invalid("A = -9223372036854775809", "s64") ||
+    !Invalid("A = 18446744073709551616", "u64") ||
+    !Invalid("A = 0xffffffffffffffff", "u64") ||
+    !Invalid("A = 9223372036854775807, B", "s64") ||
+    !Invalid("A = 9223372036854775807 + 1", "s64") ||
+    !Invalid("A = -9223372036854775808 - 1", "s64") ||
+    !Invalid("A = 0 - -9223372036854775808", "s64") ||
+    !Invalid("A = -9223372036854775808 + -1", "s64") { return false }
+    if !Invalid("A = 9223372036854775807 * 2", "s64") ||
+    !Invalid("A = -9223372036854775808 * 2", "s64") ||
+    !Invalid("A = -9223372036854775808 * -1", "s64") ||
+    !Invalid("A = -2 * -9223372036854775808", "s64") ||
+    !Invalid("A = -9223372036854775808 / -1", "s64") ||
+    !Invalid("A = -9223372036854775808 % -1", "s64") ||
+    !Invalid("A = -9223372036854775808, B = -A", "s64") { return false }
+    if !Invalid("A = 1 << -1", "s64") || !Invalid("A = 1 << 63", "s64") ||
+    !Invalid("A = -1 << 1", "s64") || !Invalid("A = 2 << 62", "s64") ||
+    !Invalid("A = 256", "u8") || !Invalid("A = -1", "u64") ||
+    !Invalid("A = 1", "s8junk") || !Invalid("A = 1", "bool") { return false }
+    return true
+}
+Boundaries :: () -> bool {
+    minimum: s64 = -9223372036854775808
+    maximum: s64 = 9223372036854775807
+    if !Enum.FitsBacking("s64", minimum) || !Enum.FitsBacking("s64", maximum) ||
+    !Enum.FitsBacking("u64", maximum) || Enum.FitsBacking("u64", -1) ||
+    !Enum.FitsBacking("s8", -128) || !Enum.FitsBacking("s8", 127) ||
+    Enum.FitsBacking("s8", -129) || Enum.FitsBacking("s8", 128) ||
+    !Enum.FitsBacking("s16", -32768) || !Enum.FitsBacking("s16", 32767) ||
+    Enum.FitsBacking("s16", -32769) || Enum.FitsBacking("s16", 32768) ||
+    !Enum.FitsBacking("s32", -2147483648) || !Enum.FitsBacking("s32", 2147483647) ||
+    Enum.FitsBacking("s32", -2147483649) || Enum.FitsBacking("s32", 2147483648) ||
+    !Enum.FitsBacking("u8", 255) || Enum.FitsBacking("u8", 256) ||
+    !Enum.FitsBacking("u16", 65535) || Enum.FitsBacking("u16", 65536) ||
+    !Enum.FitsBacking("u32", 4294967295) || Enum.FitsBacking("u32", 4294967296) { return false }
+    entries: [3]Enum.Entry
+    entries[2] = .{"sentinel", 1234}
+    result := Enum.MemberValue("A, B", "s64", "B", entries[0:2], 128)
+    if !result.valid || !result.found || result.count != 2 || result.value != 1 ||
+    entries[2].name != "sentinel" || entries[2].value != 1234 ||
+    entries[0].name != "A" || entries[1].name != "B" { return false }
+    if Enum.MemberValue("A, B", "s64", "A", entries[0:1], 128).valid ||
+    Enum.MemberValue("A", "s64", "A", entries[0:0], 128).valid ||
+    Enum.MemberValue("Ab", "s64", "Ab", entries[:], 2).valid ||
+    !Enum.MemberValue("Ab", "s64", "Ab", entries[:], 3).valid ||
+    Enum.MemberValue("A", "s64", "A", entries[:], 0).valid ||
+    Enum.MemberValue("A, B = invalid", "s64", "A", entries[:], 128).valid { return false }
+    result = Enum.MemberValue("A = 42", "s64", "missing", entries[:], 128)
+    return result.valid && !result.found
+}
+
+#program_export
+Answer :: () -> s32 {
+    if !Arithmetic() { return 1 }
+    if !Rejected() { return 2 }
+    if !Boundaries() { return 3 }
+    return 42
+}
+
+#program_export
+Fingerprint :: () -> s64 {
+    seed: u32 = 0x31415926
+    hash: u32 = 2166136261
+    alphabet := "ABC_0123456789abcdefxX=,+-*/%<> \t\n\r\v\f"
+    input: [64]u8
+    entries: [64]Enum.Entry
+    for sample: 0..255 {
+        seed = seed * cast(u32)1664525 + cast(u32)1013904223
+        count := cast(s64)(seed % cast(u32)64)
+        for index: 0..count - 1 {
+            seed = seed * cast(u32)1664525 + cast(u32)1013904223
+            input[index] = alphabet[cast(s64)(seed % cast(u32)alphabet.count)]
+        }
+        for capacity: 0..8 {
+            result := Enum.MemberValue(TextView(input[0:count]), "s64", "A", entries[0:capacity], 8)
+            hash = hash * cast(u32)16777619 ^ cast(u32)result.valid
+            hash = hash * cast(u32)16777619 ^ cast(u32)result.found
+            hash = hash * cast(u32)16777619 ^ cast(u32)result.value
+            hash = hash * cast(u32)16777619 ^ cast(u32)result.count
+        }
+    }
+    return cast(s64)hash
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

@@ -57,6 +57,26 @@ same_record_type(const ZirModule *owner, const ZirType *type, const Record *reco
             same_type_application(owner, type, record->owner, record->type));
 }
 
+/* An array retains the spelling and scope of its allocation. A slice passed
+ * through a named import may use a different spelling for the same record. */
+int
+array_element_matches(const ZirModule *module, const char *element,
+                      const Array *array)
+{
+    if(array == NULL)
+        return 0;
+    if(!strcmp(element, array->element_type) &&
+       (module == array->owner || value_kind(element) != VALUE_INVALID))
+        return 1;
+    const ZirModule *wanted_owner = NULL, *stored_owner = NULL;
+    const ZirType *wanted = FindType(module, element, &wanted_owner);
+    const ZirType *stored = FindType(array->owner, array->element_type,
+                                    &stored_owner);
+    return wanted != NULL && stored != NULL &&
+        (wanted == stored ||
+         same_type_application(wanted_owner, wanted, stored_owner, stored));
+}
+
 ValueKind
 value_kind(const char *type)
 {
@@ -658,7 +678,7 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
         if(SliceElementType(type, element, sizeof(element))) {
             if(value.kind == VALUE_SLICE &&
                (value.array == NULL ||
-                strcmp(value.array->element_type, element) == 0))
+                array_element_matches(module, element, value.array)))
                 return value;
             vm->failed = 1;
             return int_value(0);
@@ -797,7 +817,7 @@ coerce_expression(Vm *vm, const ZirModule *module,
         int capacity;
         if(ArrayElementType(type, element, sizeof(element), &capacity) &&
            capacity == value.array->length &&
-           strcmp(element, value.array->element_type) == 0)
+           array_element_matches(module, element, value.array))
             return value;
     }
     return coerce(vm, module, value, type);

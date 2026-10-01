@@ -1,0 +1,191 @@
+// Enum validation and constant evaluation. Names borrow the body; the caller
+// supplies entry storage so the compiler boundary can report allocation errors.
+Text :: #import "compiler_text";
+
+Entry :: struct { name: string; value: s64 }
+Evaluation :: struct { valid: bool; found: bool; value: s64; count: s64 }
+
+#scope_file
+Minimum :: (-9223372036854775807 - 1);
+Maximum :: 9223372036854775807;
+Cursor :: struct { source: string; at: s64; valid: bool }
+
+Space :: (cursor: *Cursor) {
+    cursor.at = Text.SkipSpace(cursor.source, cursor.at, false)
+}
+IdentifierStart :: (byte: u8) -> bool {
+    return byte == #char "_" || (byte >= #char "a" && byte <= #char "z") ||
+    (byte >= #char "A" && byte <= #char "Z")
+}
+Digit :: (byte: u8) -> s64 {
+    if byte >= #char "0" && byte <= #char "9" { return cast(s64)(byte - #char "0") }
+    if byte >= #char "a" && byte <= #char "f" { return cast(s64)(byte - #char "a") + 10 }
+    if byte >= #char "A" && byte <= #char "F" { return cast(s64)(byte - #char "A") + 10 }
+    return -1
+}
+Number :: (cursor: *Cursor, negative: bool) -> s64 {
+    base: u64 = 10
+    if cursor.source[cursor.at] == #char "0" {
+        base = 8
+        if cursor.at + 1 < cursor.source.count &&
+        (cursor.source[cursor.at + 1] == #char "x" || cursor.source[cursor.at + 1] == #char "X") {
+            base = 16
+            cursor.at += 2
+        }
+    }
+    begin := cursor.at
+    limit: u64 = 0x7fffffffffffffff
+    if negative { limit += 1 }
+    magnitude: u64 = 0
+    while cursor.at < cursor.source.count {
+        digit := Digit(cursor.source[cursor.at])
+        if digit < 0 || cast(u64)digit >= base { break }
+        if magnitude > (limit - cast(u64)digit) / base { cursor.valid = false; return 0 }
+        magnitude = magnitude * base + cast(u64)digit
+        cursor.at += 1
+    }
+    if cursor.at == begin { cursor.valid = false; return 0 }
+    if negative { return cast(s64)(cast(u64)0 - magnitude) }
+    return cast(s64)magnitude
+}
+Term :: (cursor: *Cursor, entries: []Entry) -> s64 {
+    Space(cursor)
+    negative := false
+    if cursor.at < cursor.source.count &&
+    (cursor.source[cursor.at] == #char "+" || cursor.source[cursor.at] == #char "-") {
+        negative = cursor.source[cursor.at] == #char "-"
+        cursor.at += 1
+    }
+    Space(cursor)
+    if cursor.at == cursor.source.count { cursor.valid = false; return 0 }
+    first := cursor.source[cursor.at]
+    if first >= #char "0" && first <= #char "9" { return Number(cursor, negative) }
+    if !IdentifierStart(first) { cursor.valid = false; return 0 }
+    begin := cursor.at
+    while cursor.at < cursor.source.count && Text.IdentifierByte(cursor.source[cursor.at]) { cursor.at += 1 }
+    name := cursor.source[begin:cursor.at]
+    for entry: entries {
+        if entry.name == name {
+            if !negative { return entry.value }
+            if entry.value == Minimum { cursor.valid = false; return 0 }
+            return -entry.value
+        }
+    }
+    cursor.valid = false
+    return 0
+}
+Product :: (cursor: *Cursor, entries: []Entry) -> s64 {
+    value := Term(cursor, entries)
+    while cursor.valid {
+        Space(cursor)
+        if cursor.at == cursor.source.count { return value }
+        op := cursor.source[cursor.at]
+        if op != #char "*" && op != #char "/" && op != #char "%" { return value }
+        cursor.at += 1
+        right := Term(cursor, entries)
+        if !cursor.valid { return 0 }
+        if op == #char "*" {
+            if (value > 0 && right > 0 && value > Maximum / right) ||
+            (value > 0 && right < 0 && right < Minimum / value) ||
+            (value < 0 && right > 0 && value < Minimum / right) ||
+            (value < 0 && right < 0 && right < Maximum / value) { cursor.valid = false; return 0 }
+            value *= right
+        } else {
+            if right == 0 || (value == Minimum && right == -1) { cursor.valid = false; return 0 }
+            if op == #char "/" { value /= right }
+            else { value %= right }
+        }
+    }
+    return 0
+}
+Sum :: (cursor: *Cursor, entries: []Entry) -> s64 {
+    value := Product(cursor, entries)
+    while cursor.valid {
+        Space(cursor)
+        if cursor.at == cursor.source.count { return value }
+        op := cursor.source[cursor.at]
+        if op != #char "+" && op != #char "-" { return value }
+        cursor.at += 1
+        right := Product(cursor, entries)
+        if !cursor.valid { return 0 }
+        if (op == #char "+" && ((right > 0 && value > Maximum - right) ||
+            (right < 0 && value < Minimum - right))) ||
+        (op == #char "-" && ((right < 0 && value > Maximum + right) ||
+            (right > 0 && value < Minimum + right))) { cursor.valid = false; return 0 }
+        if op == #char "+" { value += right }
+        else { value -= right }
+    }
+    return 0
+}
+Expression :: (cursor: *Cursor, entries: []Entry) -> s64 {
+    value := Sum(cursor, entries)
+    while cursor.valid {
+        Space(cursor)
+        if cursor.at + 1 >= cursor.source.count || cursor.source[cursor.at:cursor.at + 2] != "<<" { break }
+        cursor.at += 2
+        amount := Sum(cursor, entries)
+        if !cursor.valid || amount < 0 || amount >= 63 || value < 0 || value > cast(s64)Maximum >> amount {
+            cursor.valid = false
+            return 0
+        }
+        value <<= amount
+    }
+    Space(cursor)
+    if cursor.at != cursor.source.count { cursor.valid = false }
+    return value
+}
+
+#scope_export
+FitsBacking :: (backing: string, value: s64) -> bool {
+    if backing == "s64" { return true }
+    if backing == "u64" { return value >= 0 }
+    if backing == "s8" { return value >= -128 && value <= 127 }
+    if backing == "s16" { return value >= -32768 && value <= 32767 }
+    if backing == "s32" { return value >= -2147483648 && value <= 2147483647 }
+    if backing == "u8" { return value >= 0 && value <= 255 }
+    if backing == "u16" { return value >= 0 && value <= 65535 }
+    if backing == "u32" { return value >= 0 && value <= 4294967295 }
+    return false
+}
+
+// The entire body must be valid, including members after the requested name.
+// Missing names, malformed expressions, and short workspace never succeed.
+MemberValue :: (body: string, backing: string, wanted: string, entries: []Entry,
+    name_limit: s64) -> Evaluation {
+    result: Evaluation
+    at: s64 = 0
+    next: s64 = 0
+    next_valid := true
+    while at < body.count {
+        while at < body.count && (body[at] == #char "," || Text.SpaceByte(body[at])) { at += 1 }
+        if at == body.count { break }
+        end := at
+        while end < body.count && body[end] != #char "," && body[end] != #char "\n" { end += 1 }
+        begin := at
+        if !IdentifierStart(body[at]) { return .{} }
+        while at < end && Text.IdentifierByte(body[at]) { at += 1 }
+        name := body[begin:at]
+        if name.count >= name_limit || result.count >= entries.count { return .{} }
+        for entry: entries[0:result.count] { if entry.name == name { return .{} } }
+        cursor := Cursor.{body[at:end], 0, true}
+        Space(*cursor)
+        value := next
+        if cursor.at < cursor.source.count {
+            if cursor.source[cursor.at] != #char "=" { return .{} }
+            cursor.at += 1
+            value = Expression(*cursor, entries[0:result.count])
+            if !cursor.valid { return .{} }
+        } else if !next_valid { return .{} }
+        if !FitsBacking(backing, value) { return .{} }
+        entries[result.count] = .{name, value}
+        if name == wanted { result.found = true; result.value = value }
+        result.count += 1
+        next_valid = value != Maximum
+        next = value
+        if next_valid { next += 1 }
+        at = end
+        if at < body.count { at += 1 }
+    }
+    result.valid = result.count > 0
+    return result
+}

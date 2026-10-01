@@ -40,7 +40,8 @@
 :root[data-embed-theme="waozi"] .home .c-comment { color: #60665d; }
 :root[data-embed-theme="waozi"] .playground-buttons button { border-color: var(--line); }
 :root[data-embed-theme="waozi"] .playground-buttons .playground-run { background: #315e48; color: #fcfaf5; border-color: #315e48; }
-:root[data-embed-theme="waozi"] .code-editor::selection { background: #dce2d4; }
+/* The transparent editor sits above the syntax highlighting. */
+:root[data-embed-theme="waozi"] .code-editor::selection { background: #315e4833; }
 .code-editor-wrap {
   position: relative;
   height: 264px;

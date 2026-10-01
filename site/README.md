@@ -24,6 +24,21 @@ changes. Local build objects and the Emscripten cache live under `build/`.
 `tests/playground_runtime.cjs` checks execution and diagnostics against the
 built runtime. Run it with `node tests/playground_runtime.cjs`.
 
+The same runtime exports `BuildBundle(root, search, inputs, entry_module,
+entry_function, output)` for editors that provide their own host. Search roots
+and input files are newline-separated filesystem paths; named roots use the
+normal `name=/directory` form. Clients write source into `FS`, then read the
+compiled `.zib` output. A failed compilation removes that output. This path
+uses the ordinary module loader, checker, linker, verifier, and bundle writer;
+it does not execute the program or install host capabilities.
+
+`scripts/build_playground.py --output-dir DIR --embed-file local@/virtual`
+builds the runtime for another site with additional library sources.
+`node tests/web_bundle_runtime.cjs` checks this compiler API. Native browser
+hosts can keep a bundle instance across frames and bound each call with
+`BundleInstanceLimitSteps` (`LimitBundleSteps` in `std/bundle_host`). The generic
+Web bridge accepts both wasm32 pointers and lowered memory64 pointers.
+
 With Chromium and Xvfb installed, `node tests/playground_browser.mjs` checks
 editing, execution, cancellation, diagrams, and responsive layouts. It starts
 its own local server and a private display, without using the desktop display.

@@ -949,6 +949,15 @@ prune_record_fields_with_buffers(ZirProgram *program, const char *entry_module,
             if(VecElementType(module, module->types[t].name, NULL, 0))
                 mark_all_fields(module, module->types[t].name,
                                 uses, use_count);
+        /* A native callback's records cross the foreign ABI even when the
+         * only ordinary extern parameter is the callback or its containing
+         * record. Preserve their complete layout, including unused fields. */
+        for(int t = 0; t < module->type_count; t++) {
+            const ZirType *type = &module->types[t];
+            if(type->is_procedure_type && type->is_c_call)
+                mark_signature_fields(module, type->body,
+                    type->procedure_return_type, uses, use_count);
+        }
         for(int i = 0; i < module->import_count; i++)
             if(module->imports[i].kind == ZIR_IMPORT_EXTERN)
                 mark_signature_fields(module, module->imports[i].args,

@@ -119,6 +119,18 @@ main(int argc, char **argv)
     assert(calls == 0);
     assert(BundleRun(bundle, bindings, 7, &result, &has_result));
     assert(has_result && result == 42 && calls == 9);
+    BundleInstance *instance = BundleInstantiate(bundle, bindings, 7);
+    assert(instance != NULL);
+    BundleInstanceLimitSteps(instance, 1);
+    assert(!BundleInstanceRun(instance, &result, &has_result));
+    BundleInstanceClose(instance);
+    calls = 0;
+    instance = BundleInstantiate(bundle, bindings, 7);
+    assert(instance != NULL);
+    BundleInstanceLimitSteps(instance, 1000000);
+    assert(BundleInstanceRun(instance, &result, &has_result));
+    assert(has_result && result == 42 && calls == 9);
+    BundleInstanceClose(instance);
     BundleClose(bundle);
     return 0;
 }

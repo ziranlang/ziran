@@ -40,6 +40,7 @@ addToLibrary({
       }
     };
     W.read = function (record) {
+      record = Number(record);
       var tag = HEAP32[record >> 2], aux = HEAP32[(record >> 2) + 1];
       var number = HEAPF64[(record >> 3) + 1];
       switch (tag) {
@@ -52,6 +53,7 @@ addToLibrary({
       }
     };
     W.write = function (record, value) {
+      record = Number(record);
       var tag = 5, aux = 0, number = 0;
       if (value === undefined) tag = 0;
       else if (value === null) tag = 1;
@@ -64,6 +66,7 @@ addToLibrary({
       HEAPF64[(record >> 3) + 1] = number;
     };
     W.args = function (records, count) {
+      records = Number(records);
       var values = [];
       for (var i = 0; i < count; i++) values.push(W.read(records + i * 16));
       return values;
@@ -78,7 +81,7 @@ addToLibrary({
 
   js_web_name__deps: ['$ZiranWeb'],
   js_web_name: function(text, length) {
-    var W = ZiranWeb(), name = UTF8ToString(text, length);
+    var W = ZiranWeb(), name = UTF8ToString(Number(text), length);
     var id = W.ids.get(name);
     if (!id) { id = W.names.length; W.names.push(name); W.ids.set(name, id); }
     return id;
@@ -188,7 +191,7 @@ addToLibrary({
       for (var i = 0; i < 3 && i < arguments.length; i++)
         handles[i] = W.put(arguments[i]);
       try {
-        getWasmTableEntry(callback)(context, handles[0], handles[1], handles[2]);
+        getWasmTableEntry(Number(callback))(context, handles[0], handles[1], handles[2]);
       } catch (e) {
         W.fail(e);
       } finally {
@@ -207,13 +210,14 @@ addToLibrary({
     var v = ZiranWeb().value(handle);
     if (typeof v !== 'string' || capacity <= 0) return 0;
     var length = Math.min(lengthBytesUTF8(v), capacity - 1);
-    stringToUTF8(v, buffer, capacity);
+    stringToUTF8(v, Number(buffer), capacity);
     return length;
   },
 
   // Typed arrays. Kinds: 0 Uint8, 1 Uint8Clamped, 2 Int16, 3 Int32, 4 Float32.
   js_web_bytes__deps: ['$ZiranWeb'],
   js_web_bytes: function(kind, data, count) {
+    data = Number(data);
     var Kinds = [Uint8Array, Uint8ClampedArray, Int16Array, Int32Array, Float32Array];
     var C = Kinds[kind];
     if (!C || count < 0) return 0;
@@ -227,11 +231,12 @@ addToLibrary({
     var bytes = v.buffer ? new Uint8Array(v.buffer, v.byteOffset, v.byteLength)
                          : new Uint8Array(v);
     var length = Math.min(bytes.length, capacity);
-    HEAPU8.set(bytes.subarray(0, length), data);
+    HEAPU8.set(bytes.subarray(0, length), Number(data));
     return length;
   },
   js_web_copy_in__deps: ['$ZiranWeb'],
   js_web_copy_in: function(handle, data, length) {
+    data = Number(data);
     var v = ZiranWeb().value(handle);
     if (!v || !v.buffer) return 0;
     var bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);

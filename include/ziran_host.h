@@ -103,6 +103,8 @@ BundleInstance *BundleInstantiate(const Bundle *bundle,
                                    size_t binding_count);
 int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);
+/* Bound each subsequent run to max_steps statements; zero is unbounded. */
+void BundleInstanceLimitSteps(BundleInstance *instance, int max_steps);
 void BundleInstanceClose(BundleInstance *instance);
 
 #ifdef __cplusplus

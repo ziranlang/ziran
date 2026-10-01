@@ -52,6 +52,7 @@ RawBundleInstantiate :: (bundle: *void, bindings: *HostBinding,
 RawBundleInstanceRun :: (instance: *void, result: *s64,
     has_result: *s32) -> s32 #foreign runtime "BundleInstanceRun";
 RawBundleInstanceClose :: (instance: *void) #foreign runtime "BundleInstanceClose";
+RawBundleInstanceLimitSteps :: (instance: *void, max_steps: s32) #foreign runtime "BundleInstanceLimitSteps";
 
 #scope_export
 #program_export
@@ -74,3 +75,8 @@ RunBundleInstance :: (instance: *void, result: *s64,
 
 #program_export
 CloseBundleInstance :: (instance: *void) { RawBundleInstanceClose(instance) }
+
+#program_export
+LimitBundleSteps :: (instance: *void, max_steps: s32) {
+    RawBundleInstanceLimitSteps(instance, max_steps)
+}

@@ -211,7 +211,8 @@ Module.onRuntimeInitialized = async function () {
 JS
 "$bin/zi2c" --no-main --root "$work" --module-path "$repo/std" \
     -o "$work/c" "$work/app.zi"
-EM_CACHE=$cache "$emcc" -O1 -I"$repo/include" -iquote "$work/c" \
+for memory in 0 2; do
+EM_CACHE=$cache "$emcc" -O1 -sMEMORY64=$memory -I"$repo/include" -iquote "$work/c" \
     "$work"/c/*.c --js-library "$repo/web/ziran_web.js" \
     --post-js "$work/post.js" -sASYNCIFY -sEXPORTED_FUNCTIONS=_Answer \
     -sEXPORTED_RUNTIME_METHODS=ccall -sENVIRONMENT=node \
@@ -221,3 +222,4 @@ case "$output" in
 *PASS*) echo "Ziran web bridge passed" ;;
 *) echo "$output" >&2; exit 1 ;;
 esac
+done

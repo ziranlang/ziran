@@ -9,7 +9,7 @@ name: Publish website
 on:
   push:
     branches: [master]
-    paths: ['site/**', 'web/playground.c', 'scripts/build_playground.py', 'cmd/zir/**', 'cmd/compiler_*.zi', 'bootstrap/**', 'std/**', 'Makefile', '.github/workflows/site.yml']
+    paths: ['site/**', 'web/playground.c', 'web/bundle.c', 'scripts/build_playground.py', 'cmd/zir/**', 'cmd/compiler_*.zi', 'bootstrap/**', 'std/**', 'Makefile', '.github/workflows/site.yml']
   workflow_dispatch:
 
 concurrency:
@@ -45,6 +45,7 @@ jobs:
         run: |
           python3 scripts/build_playground.py
           node tests/playground_runtime.cjs
+          node tests/web_bundle_runtime.cjs
       - name: Deploy site/ to Cloudflare Pages
         if: steps.credentials.outputs.present == 'true'
         uses: cloudflare/wrangler-action@v3

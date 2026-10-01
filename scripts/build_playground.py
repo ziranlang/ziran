@@ -15,13 +15,17 @@ import re
 repo = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--emcc', default=shutil.which('emcc'))
+parser.add_argument('--output-dir', type=Path, default=repo / 'site' / 'assets')
+parser.add_argument('--embed-file', action='append', default=[],
+                    help='Additional source files or module directories: local@/virtual')
 args = parser.parse_args()
 if not args.emcc:
     parser.error('emcc is required; activate the Emscripten SDK first')
 emcc = Path(args.emcc).resolve()
 emar = emcc.with_name('emar')
 build = repo / 'build' / 'playground64'
-assets = repo / 'site' / 'assets'
+assets = args.output_dir.resolve()
+assets.mkdir(parents=True, exist_ok=True)
 environment = dict(os.environ)
 environment.pop('DISPLAY', None)
 environment.pop('WAYLAND_DISPLAY', None)
@@ -55,9 +59,11 @@ run(['make', f'BUILD_DIR={build.relative_to(repo)}',
      'CFLAGS=-O2', 'FRAMEFLAGS=-Wframe-larger-than=16384',
      str((build / 'libziran.a').relative_to(repo))])
 run([str(emcc), '-O2', '-std=c11', '-D_GNU_SOURCE', '-Iinclude', '-Icmd/zir',
-     'web/playground.c', str(build / 'libziran.a'), '-lm',
+     'web/playground.c', 'web/bundle.c', str(build / 'libziran.a'), '-lm',
      '-sMEMORY64=2', '-sMODULARIZE=1', '-sEXPORT_NAME=createPlayground',
-     '-sEXPORTED_FUNCTIONS=_RunSource', '-sEXPORTED_RUNTIME_METHODS=FS,ccall',
+     '-sEXPORTED_FUNCTIONS=_RunSource,_BuildBundle', '-sEXPORTED_RUNTIME_METHODS=FS,ccall',
      '-sENVIRONMENT=worker,node', '-sALLOW_MEMORY_GROWTH=1',
      '-sMAXIMUM_MEMORY=536870912', '-sSTACK_SIZE=8388608',
-     '--embed-file', 'std@/std', '-o', str(assets / 'playground-runtime.js')])
+     '--embed-file', 'std@/std',
+     *[item for source in args.embed_file for item in ('--embed-file', source)],
+     '-o', str(assets / 'playground-runtime.js')])

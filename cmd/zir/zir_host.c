@@ -247,6 +247,13 @@ BundleInstanceRun(BundleInstance *instance, long long *result,
 }
 
 void
+BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
+{
+    if(instance != NULL)
+        VmInstanceLimitSteps(instance->vm, max_steps);
+}
+
+void
 BundleInstanceClose(BundleInstance *instance)
 {
     if(instance == NULL)

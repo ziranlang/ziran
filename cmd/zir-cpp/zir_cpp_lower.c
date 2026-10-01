@@ -909,7 +909,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
     for(i = 0; i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];
         if(!imp->required)
-            continue;   /* private-scope imports go to the .c only */
+            continue;   /* private-scope imports go to the .cpp only */
         if(imp->kind == ZIR_IMPORT_OPEN) {
             fprintf(h, "#include \"%s.hpp\"\n", imp->target);
         } else if(imp->kind == ZIR_IMPORT_MODULE)
@@ -1152,7 +1152,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
     /* Private-scope imports include here (implementation-only). */
     for(i = 0; i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];
-        if(imp->required || imp->kind != ZIR_IMPORT_OPEN)
+        if(imp->required || (imp->kind != ZIR_IMPORT_OPEN &&
+                             imp->kind != ZIR_IMPORT_MODULE))
             continue;
         fprintf(c, "#include \"%s.hpp\"\n", imp->target);
     }

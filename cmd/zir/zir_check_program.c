@@ -36,7 +36,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             for(int t = 0; t < module->type_count; t++) {
                 ZirType *type = &module->types[t];
                 type->native_name_mangled = 0;
-                if(type->is_procedure_type || type->is_record_template ||
+                if(type->is_record_template ||
                    (type->is_extern && !type->foreign_target[0])) continue;
                 for(int target = ZIR_C; target <= ZIR_GO; target++) {
                     char mapped[ZIR_NAME_MAX * 2];
@@ -56,7 +56,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             ZirModule *module = &programs[p]->modules[m];
             for(int t = 0; t < module->type_count; t++) {
                 ZirType *type = &module->types[t];
-                if(type->is_procedure_type || type->is_record_template ||
+                if(type->is_record_template ||
                    (type->is_extern && !type->foreign_target[0])) continue;
                 for(int q = p; q < count; q++)
                     for(int n = q == p ? m : 0;
@@ -65,8 +65,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                         for(int u = q == p && n == m ? t + 1 : 0;
                             u < other_module->type_count; u++) {
                             ZirType *other = &other_module->types[u];
-                            if(other->is_procedure_type ||
-                               other->is_record_template ||
+                            if(other->is_record_template ||
                                (other->is_extern && !other->foreign_target[0]) ||
                                strcmp(type->name, other->name)) continue;
                             if(same_type_application(module, type, other_module, other) ||

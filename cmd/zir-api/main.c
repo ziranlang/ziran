@@ -159,6 +159,8 @@ show_function(const ZirModule *module, const ZirFunction *fn, int json)
 static int
 visible_function(const ZirFunction *fn)
 {
+    if(strncmp(fn->name, "__zi_dependency_", 16) == 0)
+        return 0;
     /* Default-expression helpers inherit their declaration's visibility.
      * Their reserved generated names are never user-facing APIs, including
      * when reading saved IR that no longer marks their source role. */

@@ -169,11 +169,12 @@
 <section id="file_plan9"><p class="eyebrow">20 / std/file_plan9.zi</p><h2>file_plan9</h2><p>Import with <code>#import "file_plan9"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>FileHandle :: struct { fd: s32; valid: bool; }</code></div>
 <div><code>FileInfo :: struct { valid: bool; type: u16; device: u32; identity: u64; version: u32; identity_type: u8; mode: u32; modified: u32; length: s64; }</code><p>A value snapshot owns no libc allocation. The device and Qid fields identify a file; its version/length/timestamp can detect changed content.</p></div>
+<div><code>LastError :: (output: []u8) -&gt; string</code></div>
 <div><code>PathInfo :: (path: string) -&gt; FileInfo</code></div>
 <div><code>HandleInfo :: (file: FileHandle) -&gt; FileInfo</code></div>
 <div><code>SetFileAttributes :: (file: FileHandle, permissions: u32, modified: u32) -&gt; bool</code><p>Apply ordinary permissions and a timestamp to an already-open file. Special mode flags cannot be introduced through this operation.</p></div>
 <div><code>CurrentDirectory :: (output: []u8) -&gt; string</code></div>
-<div><code>DirectoryCursor :: struct { storage: *void; count: s64; next: s64; valid: bool; }</code><p>A cursor owns the native directory snapshot. Close it exactly once.</p></div>
+<div><code>DirectoryCursor :: struct { storage: *void; count: s64; next: s64; valid: bool; failed: bool; }</code><p>A cursor owns the native directory snapshot. Close it exactly once.</p></div>
 <div><code>DirectoryEntry :: struct { name: [256]u8; name_count: s32; valid: bool; }</code></div>
 <div><code>OpenRead :: (path: string) -&gt; FileHandle</code></div>
 <div><code>OpenUpdate :: (path: string) -&gt; FileHandle</code></div>
@@ -186,6 +187,7 @@
 <div><code>CreateDirectory :: (path: string) -&gt; bool</code></div>
 <div><code>CreatePrivateDirectory :: (path: string) -&gt; bool</code></div>
 <div><code>CreatePrivateDirectoryExclusive :: (path: string) -&gt; bool</code><p>Create a new directory without accepting or replacing an existing name.</p></div>
+<div><code>CreatePrivateDirectoryHandle :: (path: string) -&gt; FileHandle</code><p>Keep the descriptor from an exclusive directory create. Its identity and attributes remain accessible even after restrictive permissions are set.</p></div>
 <div><code>RemoveFile :: (path: string) -&gt; bool</code></div>
 <div><code>RenameNoReplace :: (source: string, destination: string) -&gt; bool</code><p>Plan 9 wstat changes the basename within its current directory. Refuse cross-directory requests instead of silently moving to the wrong path.</p></div>
 <div><code>FileSize :: (file: FileHandle) -&gt; s64</code></div>

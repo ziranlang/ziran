@@ -1533,7 +1533,7 @@ replace_template_type(char *target, size_t capacity, const char *source,
     return ok;
 }
 
-static uint64_t
+uint64_t
 specialization_hash(const ZirModule *owner, const ZirModule *instance_owner,
                     const ZirFunction *fn,
                     const char *type)
@@ -1602,7 +1602,9 @@ queue_specialization(Checker *c, const ZirModule *owner,
     request->template_owner = (ZirModule *)owner;
     request->instance_owner = (ZirModule *)instance_owner;
     request->template_index = index;
-    request->call_span = span;
+    /* Template expressions retain their original diagnostic spans. A nested
+     * specialization still resolves file-private imports beside the caller. */
+    request->call_span = c->fn && c->fn->is_specialization ? c->fn->span : span;
     copy_text(request->name, sizeof(request->name), name);
     copy_text(request->type, sizeof(request->type), type);
     return 1;

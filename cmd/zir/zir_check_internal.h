@@ -168,6 +168,7 @@ int order_using_expressions(ZirFunction *function);
 const ZirFunction *function(Checker *c, const char *name, ZirSourceSpan span);
 int replace_template_type(char *target, size_t capacity, const char *source, const char *parameter, const char *concrete);
 int queue_specialization(Checker *c, const ZirModule *owner, const ZirModule *instance_owner, const ZirFunction *fn, const char *type, char *name, size_t name_size, ZirSourceSpan span);
+uint64_t specialization_hash(const ZirModule *owner, const ZirModule *instance_owner, const ZirFunction *fn, const char *type);
 const char *lookup_lexical(Checker *c, const char *name);
 const ZirGlobal *global_binding(Checker *c, const char *name);
 const char *lookup(Checker *c, const char *name);

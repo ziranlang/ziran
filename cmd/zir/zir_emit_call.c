@@ -813,7 +813,9 @@ emit_function_value_with_buffers(Emitter *e, int index, char *out, size_t size, 
         }
         char wrapper[ZIR_NAME_MAX];
         slot_wrapper_name(e->module, e->fn, index, wrapper, sizeof(wrapper));
-        format(out, size, "(%s){NULL, %s}", value->type, wrapper);
+        char native[ZIR_NAME_MAX * 2];
+        e->resolve(e->context, value->type, native, sizeof(native));
+        format(out, size, "(%s){NULL, %s}", native, wrapper);
         return;
     }
     int count = *skip_ws(slot->body) ?

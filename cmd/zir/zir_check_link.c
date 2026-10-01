@@ -1327,6 +1327,56 @@ typedef struct InstantiateSpecializationsBuffers {
 
 int instantiate_specializations(Checker *checker);
 
+/* A template instantiated beside a caller still calls its defining module's
+ * private helpers. Retain those helpers under generated identities, without
+ * making their source names importable. The duplicate lives in its defining
+ * module, so ordinary helper bodies keep their original lexical scope. */
+static int
+retain_template_dependency(ZirModule *module, const ZirFunction *function,
+                           char *name, size_t capacity)
+{
+    int written = snprintf(name, capacity, "__zi_dependency_%016llx",
+        (unsigned long long)specialization_hash(module, module, function, ""));
+    if(written < 0 || (size_t)written >= capacity) return 0;
+    for(int f = 0; f < module->function_count; f++) {
+        const ZirFunction *other = &module->functions[f];
+        if(strcmp(other->name, name)) continue;
+        return other->is_public && !other->is_file_private &&
+               !strcmp(SpanPath(other->span), SpanPath(function->span)) &&
+               other->span.line == function->span.line &&
+               other->span.column == function->span.column &&
+               !strcmp(FunctionArgs(other), FunctionArgs(function)) &&
+               !strcmp(other->return_type, function->return_type);
+    }
+    ZirFunction *copy = AllocateOrExit(sizeof(*copy));
+    *copy = *function;
+    ZirFunction *retained = ModuleAddFunction(module, name,
+        FunctionArgs(copy), copy->return_type, 0, copy->span);
+    if(retained == NULL) { free(copy); return 0; }
+    *retained = *copy;
+    copy_text(retained->name, sizeof(retained->name), name);
+    retained->is_public = 1;
+    retained->is_file_private = 0;
+    retained->exported = 0;
+    /* Its graph and lexical owner are unchanged. Ordinary helpers have
+     * already been checked; template helpers are checked when instantiated. */
+    retained->from_ir = 1;
+    retained->stmts = NULL;
+    retained->exprs = NULL;
+    retained->stmt_cap = retained->stmt_count;
+    retained->expr_cap = retained->expr_count;
+    if(copy->stmt_count > 0) {
+        retained->stmts = AllocateOrExit((size_t)copy->stmt_count * sizeof(*copy->stmts));
+        memcpy(retained->stmts, copy->stmts, (size_t)copy->stmt_count * sizeof(*copy->stmts));
+    }
+    if(copy->expr_count > 0) {
+        retained->exprs = AllocateOrExit((size_t)copy->expr_count * sizeof(*copy->exprs));
+        memcpy(retained->exprs, copy->exprs, (size_t)copy->expr_count * sizeof(*copy->exprs));
+    }
+    free(copy);
+    return 1;
+}
+
 static int
 instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializationsBuffers *buffers)
 {
@@ -1431,11 +1481,19 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
                         const ZirImport *import = &owner->imports[import_index];
                         if(import->kind != ZIR_IMPORT_MODULE ||
                            import->resolved_module != template_owner ||
-                           !in_lookup_file(owner, import->is_file_private,
-                                           import->span)) continue;
+                           (import->is_file_private &&
+                            strcmp(SpanPath(import->span),
+                                   SpanPath(instance->span)))) continue;
+                        char dependency[ZIR_NAME_MAX];
+                        const char *callee_name = expression->name;
+                        if(!callee->is_public || callee->is_file_private) {
+                            if(!retain_template_dependency(template_owner, callee,
+                                                            dependency, sizeof(dependency))) return 0;
+                            callee_name = dependency;
+                        }
                         char qualified[ZIR_NAME_MAX];
                         int written = snprintf(qualified, sizeof(qualified),
-                            "%s.%s", import->name, expression->name);
+                            "%s.%s", import->name, callee_name);
                         if(written < 0 ||
                            (size_t)written >= sizeof(qualified)) return 0;
                         expression->name = KeepName(qualified);

@@ -943,13 +943,17 @@ static void
 EmitSlotType_with_buffers(FILE *out, const ZirType *slot, ZirTarget target,
                 ZirResolveTarget resolve_type, void *context, EmitSlotTypeBuffers *buffers)
 {
+    char name[ZIR_NAME_MAX * 2];
+    copy_text(name, sizeof(name), slot->name);
+    if(resolve_type)
+        resolve_type(context, slot->name, name, sizeof(name));
     int count = *skip_ws(slot->body) ?
         split_top_level(slot->body, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
     if(slot->is_c_call) {
         char result[ZIR_NAME_MAX];
         slot_native_type(slot->procedure_return_type, target, result,
                          sizeof(result));
-        fprintf(out, "typedef %s (*%s)(", result, slot->name);
+        fprintf(out, "typedef %s (*%s)(", result, name);
         for(int i = 0; i < count; i++) {
             const char *source = skip_ws(strchr(buffers->parameters[i], ':') + 1);
             char type[ZIR_NAME_MAX];
@@ -972,9 +976,9 @@ EmitSlotType_with_buffers(FILE *out, const ZirType *slot, ZirTarget target,
     if(resolve_type && strcmp(result_source, "void"))
         resolve_type(context, result_source, result_type, sizeof(result_type));
     if(target == ZIR_GO)
-        fprintf(out, "type %s func(", slot->name);
+        fprintf(out, "type %s func(", name);
     else
-        fprintf(out, "typedef struct %s {\n    void *context;\n    %s (*call)(void *", slot->name, result_type);
+        fprintf(out, "typedef struct %s {\n    void *context;\n    %s (*call)(void *", name, result_type);
     for(int i = 0; i < count; i++) {
         char *colon = strchr(buffers->parameters[i], ':');
         char type[ZIR_NAME_MAX];
@@ -992,7 +996,7 @@ EmitSlotType_with_buffers(FILE *out, const ZirType *slot, ZirTarget target,
     if(target == ZIR_GO)
         fprintf(out, ")%s%s\n\n", result_type[0] ? " " : "", result_type);
     else
-        fprintf(out, ");\n} %s;\n", slot->name);
+        fprintf(out, ");\n} %s;\n", name);
 }
 
 void

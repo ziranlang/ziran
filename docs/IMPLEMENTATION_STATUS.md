@@ -5,6 +5,19 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Imported polymorphic procedures specialized for caller-owned records retain
+  calls to their defining module's private helpers, including recursive
+  generic helpers and helpers from loaded files. Nested specializations keep
+  the caller's file scope when selecting an import alias. Generated helper
+  identities stay out of the text and JSON API, and private source names stay
+  inaccessible to importers. Procedure types with the same name in different
+  modules, or names that are native target keywords, receive distinct valid
+  native identities. `tests/named_generic_dependencies.sh` checks these cases
+  from source and saved IR on C, C++, Go, Rust, Python, and `.zib`.
+  C++ includes private named-module dependencies in generated implementation
+  files, keeping them out of public headers;
+  `tests/private_module_imports.sh` checks C, C++, and Plan 9 C output.
+
 - Typed Go `assert` bindings retain native interface checks, zero values on
   failure, typed nils and shared pointer/slice storage. Typed `spawn` bindings
   start capture-free Ziran callbacks in native Go goroutines, capture arguments

@@ -1,0 +1,142 @@
+// Expression tokens for the compiler. Source bytes are borrowed; scanning
+// allocates nothing and returns offsets so the caller chooses text storage.
+TokenKind :: enum s32 {
+    Eof; Ident; Int; Float; String; Char; Directive; Operator; Punct; Unknown;
+}
+
+Scan :: struct {
+    kind: TokenKind
+    begin: s64
+    end: s64
+    line: s32
+    column: s32
+    after_line: s32
+    after_column: s32
+}
+
+#scope_file
+Cursor :: struct { at: s64; line: s32; column: s32 }
+
+Byte :: (source: string, at: s64) -> u8 {
+    if at < 0 || at >= source.count { return 0 }
+    return source[at]
+}
+
+Space :: (byte: u8) -> bool {
+    return byte == 32 || (byte >= 9 && byte <= 13)
+}
+
+Digit :: (byte: u8) -> bool { return byte >= 48 && byte <= 57 }
+Letter :: (byte: u8) -> bool {
+    return (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95
+}
+Identifier :: (byte: u8) -> bool { return Letter(byte) || Digit(byte) }
+
+Advance :: (cursor: *Cursor, source: string) {
+    if Byte(source, cursor.at) == 10 {
+        cursor.line += 1
+        cursor.column = 1
+    } else { cursor.column += 1 }
+    cursor.at += 1
+}
+
+Contains :: (bytes: string, byte: u8) -> bool {
+    for value: bytes { if value == byte { return true } }
+    return false
+}
+
+Exponent :: (byte: u8, hexadecimal: bool) -> bool {
+    if hexadecimal { return byte == 112 || byte == 80 }
+    return byte == 101 || byte == 69
+}
+
+OperatorLength :: (source: string, at: s64) -> s64 {
+    first := Byte(source, at)
+    second := Byte(source, at + 1)
+    // Longest match is essential: shifts with assignment are one token.
+    if (first == 60 || first == 62) && second == first {
+        if Byte(source, at + 2) == 61 { return 3 }
+        return 2
+    }
+    if (first == 58 && (second == 58 || second == 61)) ||
+    (first == 43 && second == 43) || (first == 45 && (second == 45 || second == 62)) ||
+    (first == 61 && (second == 62 || second == 61)) ||
+    (Contains("!<>+-*/%&|^", first) && second == 61) ||
+    (first == 38 && second == 38) || (first == 124 && second == 124) {
+        return 2
+    }
+    if Contains("+-*/%=!<>.&|^?~", first) { return 1 }
+    return 0
+}
+
+#scope_export
+NextToken :: (source: string, at: s64, line: s32, column: s32) -> Scan {
+    cursor: Cursor = .{at, line, column}
+    while Space(Byte(source, cursor.at)) { Advance(*cursor, source) }
+    token: Scan
+    token.begin = cursor.at
+    token.line = cursor.line
+    token.column = cursor.column
+    byte := Byte(source, cursor.at)
+    if byte == 0 { token.kind = .Eof }
+    else if byte == 35 || Letter(byte) {
+        token.kind = .Ident
+        if byte == 35 { token.kind = .Directive }
+        Advance(*cursor, source)
+        while Identifier(Byte(source, cursor.at)) { Advance(*cursor, source) }
+    } else if Digit(byte) || (byte == 46 && Digit(Byte(source, cursor.at + 1))) {
+        real := byte == 46
+        hexadecimal := byte == 48 &&
+        (Byte(source, cursor.at + 1) == 120 || Byte(source, cursor.at + 1) == 88)
+        Advance(*cursor, source)
+        while true {
+            current := Byte(source, cursor.at)
+            // Keep malformed numeric spellings together for the checker.
+            if !Identifier(current) && current != 46 &&
+            !((current == 43 || current == 45) &&
+                Exponent(Byte(source, cursor.at - 1), hexadecimal)) { break }
+            if current == 46 || Exponent(current, hexadecimal) { real = true }
+            Advance(*cursor, source)
+        }
+        token.kind = .Int
+        if real { token.kind = .Float }
+    } else if byte == 34 || byte == 39 {
+        token.kind = .String
+        if byte == 39 { token.kind = .Char }
+        Advance(*cursor, source)
+        while Byte(source, cursor.at) != 0 {
+            current := Byte(source, cursor.at)
+            Advance(*cursor, source)
+            if current == 92 && Byte(source, cursor.at) != 0 {
+                Advance(*cursor, source)
+            } else if current == byte { break }
+        }
+    } else if Contains("{}()[],;", byte) ||
+    (byte == 58 && Byte(source, cursor.at + 1) != 58 && Byte(source, cursor.at + 1) != 61) {
+        token.kind = .Punct
+        Advance(*cursor, source)
+    } else {
+        length := OperatorLength(source, cursor.at)
+        token.kind = .Operator
+        if length == 0 { token.kind = .Unknown; length = 1 }
+        index: s64 = 0
+        while index < length { Advance(*cursor, source); index += 1 }
+    }
+    token.end = cursor.at
+    token.after_line = cursor.line
+    token.after_column = cursor.column
+    return token
+}
+
+KindName :: (kind: TokenKind) -> string {
+    if kind == .Eof { return "eof" }
+    if kind == .Ident { return "ident" }
+    if kind == .Int { return "int" }
+    if kind == .Float { return "float" }
+    if kind == .String { return "string" }
+    if kind == .Char { return "char" }
+    if kind == .Directive { return "directive" }
+    if kind == .Operator { return "operator" }
+    if kind == .Punct { return "punct" }
+    return "unknown"
+}

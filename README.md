@@ -94,3 +94,10 @@ Kryon is a separate UI library that applications import explicitly.
 
 Run `make check` for the language, backend, and portable runtime checks.
 Tests use four workers by default; set `CHECK_JOBS=1` to run them serially.
+
+The native command, formatter, and compiler expression scanner are written in
+Ziran; the rest of the compiler is still being migrated from C. A fresh build
+uses the generated scanner in `bootstrap/compiler_scan` to build a bootstrap
+compiler, then compiles `cmd/compiler_scan.zi` for the ordinary tools. Run
+`make check-bootstrap` to verify that the generated seed matches the source.
+After changing the scanner, use `make update-bootstrap` to refresh its seed.

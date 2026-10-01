@@ -20,8 +20,20 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   permissions and symlinks. `tests/formatter.sh` checks semantic preservation,
   idempotence, filesystem errors, a saved-IR command rebuild, and scanner
   agreement on C, C++, Go, Rust, Python, and `.zib`.
-  The parser, checker, native backends, and portable runtime remain C; the
-  compiler is not yet self-hosted.
+  The parser, checker, native backends, and portable runtime still contain C;
+  the compiler is not yet fully self-hosted.
+
+- Compiler expression token recognition and cursor tracking are implemented
+  in `cmd/compiler_scan.zi`. The parser and checker use this implementation
+  through a C boundary that retains their source spans and fixed token buffers.
+  Fresh builds first compile a bootstrap compiler using a checked-in generated
+  scanner, then compile the maintained `.zi` scanner for every ordinary tool
+  and the portable runtime library. `make check-bootstrap` verifies the seed;
+  `make update-bootstrap` regenerates it after an intentional scanner change.
+  `tests/compiler_scan.sh` checks token kinds, escaped and multiline literals,
+  numeric spellings, source positions, and a reproducible corpus from source
+  and saved IR on C, C++, Go, Rust, Python, and `.zib`. It also checks bootstrap
+  output agreement, C frontend lookahead, null input, and token truncation.
 
 - Rust empty text views compare, print, and slice without constructing a
   native slice from a null pointer. Empty vector and slice views retain their

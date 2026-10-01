@@ -2,9 +2,9 @@ name: Scalar proof model
 on:
   push:
     branches: [master]
-    paths: ['proofs/**', 'cmd/zir/**', 'tests/proof*', 'tests/proof/**', 'tests/law*', 'Makefile', '.github/workflows/proofs.yml']
+    paths: ['proofs/**', 'cmd/zir/**', 'cmd/compiler_scan.zi', 'bootstrap/**', 'tests/proof*', 'tests/proof/**', 'tests/law*', 'Makefile', '.github/workflows/proofs.yml']
   pull_request:
-    paths: ['proofs/**', 'cmd/zir/**', 'tests/proof*', 'tests/proof/**', 'tests/law*', 'Makefile', '.github/workflows/proofs.yml']
+    paths: ['proofs/**', 'cmd/zir/**', 'cmd/compiler_scan.zi', 'bootstrap/**', 'tests/proof*', 'tests/proof/**', 'tests/law*', 'Makefile', '.github/workflows/proofs.yml']
   workflow_dispatch:
 permissions:
   contents: read

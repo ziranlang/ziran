@@ -28,6 +28,7 @@ typedef struct ZirToken {
 typedef struct ZirLexer {
     const char *src;
     const char *path;
+    size_t length;
     size_t pos;
     int line;
     int column;

@@ -1,51 +1,29 @@
 #include "zir_token.h"
+#include "compiler_scan.h"
 
-#include <ctype.h>
 #include <string.h>
 
-static int
-is_ident_start(int c)
-{
-    return isalpha((unsigned char)c) || c == '_';
-}
+_Static_assert(ZIR_TOKEN_EOF == TokenKind_Eof &&
+               ZIR_TOKEN_IDENT == TokenKind_Ident &&
+               ZIR_TOKEN_INT == TokenKind_Int &&
+               ZIR_TOKEN_FLOAT == TokenKind_Float &&
+               ZIR_TOKEN_STRING == TokenKind_String &&
+               ZIR_TOKEN_CHAR == TokenKind_Char &&
+               ZIR_TOKEN_DIRECTIVE == TokenKind_Directive &&
+               ZIR_TOKEN_OPERATOR == TokenKind_Operator &&
+               ZIR_TOKEN_PUNCT == TokenKind_Punct &&
+               ZIR_TOKEN_UNKNOWN == TokenKind_Unknown,
+               "C frontend token kinds must match the Ziran scanner");
 
-static int
-is_ident_continue(int c)
-{
-    return isalnum((unsigned char)c) || c == '_';
-}
-
-static void
-lexer_advance(ZirLexer *lx)
-{
-    if(lx->src[lx->pos] == '\n') {
-        lx->line++;
-        lx->column = 1;
-    } else {
-        lx->column++;
-    }
-    lx->pos++;
-}
-
-static void
-token_copy(ZirToken *tok, const char *src, size_t begin, size_t end)
-{
-    size_t n = end > begin ? end - begin : 0;
-
-    if(n >= sizeof(tok->text)) {
-        n = sizeof(tok->text) - 1;
-        tok->truncated = 1;
-    }
-    memcpy(tok->text, src + begin, n);
-    tok->text[n] = '\0';
-}
-
+/* The C frontend still owns spans and fixed token buffers. All token
+ * recognition and cursor movement come from cmd/compiler_scan.zi. */
 void
 LexerInit(ZirLexer *lx, const char *src, const char *path)
 {
     memset(lx, 0, sizeof(*lx));
     lx->src = src != NULL ? src : "";
     lx->path = path != NULL ? path : "";
+    lx->length = strlen(lx->src);
     lx->line = 1;
     lx->column = 1;
 }
@@ -53,130 +31,26 @@ LexerInit(ZirLexer *lx, const char *src, const char *path)
 ZirToken
 LexerNext(ZirLexer *lx)
 {
-    ZirToken tok;
-    size_t begin;
-    int start_line;
-    int start_column;
-    int c;
-
-    memset(&tok, 0, sizeof(tok));
-    while(isspace((unsigned char)lx->src[lx->pos]))
-        lexer_advance(lx);
-    begin = lx->pos;
-    start_line = lx->line;
-    start_column = lx->column;
-    c = (unsigned char)lx->src[lx->pos];
-    tok.span = Span(lx->path, start_line, start_column);
-    if(c == '\0') {
-        tok.kind = ZIR_TOKEN_EOF;
-        return tok;
+    Scan scan = compiler_scan_NextToken(StringView(lx->src, lx->length),
+                                        lx->pos, lx->line, lx->column);
+    ZirToken token = {0};
+    token.kind = (ZirTokenKind)scan.kind;
+    token.span = Span(lx->path, scan.line, scan.column);
+    size_t length = scan.end - scan.begin;
+    if(length >= sizeof(token.text)) {
+        length = sizeof(token.text) - 1;
+        token.truncated = 1;
     }
-    if(c == '#') {
-        lexer_advance(lx);
-        while(is_ident_continue((unsigned char)lx->src[lx->pos]))
-            lexer_advance(lx);
-        tok.kind = ZIR_TOKEN_DIRECTIVE;
-        token_copy(&tok, lx->src, begin, lx->pos);
-        return tok;
-    }
-    if(is_ident_start(c)) {
-        lexer_advance(lx);
-        while(is_ident_continue((unsigned char)lx->src[lx->pos]))
-            lexer_advance(lx);
-        tok.kind = ZIR_TOKEN_IDENT;
-        token_copy(&tok, lx->src, begin, lx->pos);
-        return tok;
-    }
-    if(isdigit(c) || (c == '.' && isdigit((unsigned char)lx->src[lx->pos + 1]))) {
-        int seen_dot = c == '.';
-        int hexadecimal = c == '0' && (lx->src[lx->pos + 1] == 'x' || lx->src[lx->pos + 1] == 'X');
-
-        lexer_advance(lx);
-        while(isalnum((unsigned char)lx->src[lx->pos]) ||
-              lx->src[lx->pos] == '_' || lx->src[lx->pos] == '.' ||
-              ((lx->src[lx->pos] == '+' || lx->src[lx->pos] == '-') &&
-               strchr(hexadecimal ? "pP" : "eE", lx->src[lx->pos - 1]))) {
-            if(lx->src[lx->pos] == '.')
-                seen_dot = 1;
-            if(strchr(hexadecimal ? "pP" : "eE", lx->src[lx->pos]))
-                seen_dot = 1;
-            lexer_advance(lx);
-        }
-        tok.kind = seen_dot ? ZIR_TOKEN_FLOAT : ZIR_TOKEN_INT;
-        token_copy(&tok, lx->src, begin, lx->pos);
-        return tok;
-    }
-    if(c == '"' || c == '\'') {
-        int quote = c;
-
-        lexer_advance(lx);
-        while(lx->src[lx->pos] != '\0') {
-            if(lx->src[lx->pos] == '\\' && lx->src[lx->pos + 1] != '\0') {
-                lexer_advance(lx);
-                lexer_advance(lx);
-                continue;
-            }
-            if(lx->src[lx->pos] == quote) {
-                lexer_advance(lx);
-                break;
-            }
-            lexer_advance(lx);
-        }
-        tok.kind = quote == '"' ? ZIR_TOKEN_STRING : ZIR_TOKEN_CHAR;
-        token_copy(&tok, lx->src, begin, lx->pos);
-        return tok;
-    }
-    if(strchr("{}()[],;", c) != NULL ||
-       (c == ':' && lx->src[lx->pos + 1] != ':' && lx->src[lx->pos + 1] != '=')) {
-        lexer_advance(lx);
-        tok.kind = ZIR_TOKEN_PUNCT;
-        token_copy(&tok, lx->src, begin, lx->pos);
-        return tok;
-    }
-    {
-        static const char *const ops[] = {
-            "::", ":=", "++", "--", "->", "=>", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=",
-            "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "<<", ">>",
-            NULL
-        };
-
-        for(int i = 0; ops[i] != NULL; i++) {
-            size_t n = strlen(ops[i]);
-
-            if(strncmp(lx->src + lx->pos, ops[i], n) == 0) {
-                while(n-- > 0)
-                    lexer_advance(lx);
-                tok.kind = ZIR_TOKEN_OPERATOR;
-                token_copy(&tok, lx->src, begin, lx->pos);
-                return tok;
-            }
-        }
-    }
-    if(strchr("+-*/%=!<>.&|^?~", c) != NULL) {
-        lexer_advance(lx);
-        tok.kind = ZIR_TOKEN_OPERATOR;
-        token_copy(&tok, lx->src, begin, lx->pos);
-        return tok;
-    }
-    lexer_advance(lx);
-    tok.kind = ZIR_TOKEN_UNKNOWN;
-    token_copy(&tok, lx->src, begin, lx->pos);
-    return tok;
+    memcpy(token.text, lx->src + scan.begin, length);
+    token.text[length] = '\0';
+    lx->pos = scan.end;
+    lx->line = scan.after_line;
+    lx->column = scan.after_column;
+    return token;
 }
 
 const char *
 TokenKindName(ZirTokenKind kind)
 {
-    switch(kind) {
-    case ZIR_TOKEN_EOF: return "eof";
-    case ZIR_TOKEN_IDENT: return "ident";
-    case ZIR_TOKEN_INT: return "int";
-    case ZIR_TOKEN_FLOAT: return "float";
-    case ZIR_TOKEN_STRING: return "string";
-    case ZIR_TOKEN_CHAR: return "char";
-    case ZIR_TOKEN_DIRECTIVE: return "directive";
-    case ZIR_TOKEN_OPERATOR: return "operator";
-    case ZIR_TOKEN_PUNCT: return "punct";
-    default: return "unknown";
-    }
+    return compiler_scan_KindName((TokenKind)kind).data;
 }

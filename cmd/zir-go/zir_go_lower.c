@@ -174,7 +174,7 @@ go_type(const char *type, char *dst, size_t dst_size)
             snprintf(dst, dst_size, "*byte");
             return 1;
         }
-        if(go_type(t + 1, gt, sizeof(gt)) && strcmp(gt, "string") != 0) {
+        if(go_type(t + 1, gt, sizeof(gt))) {
             snprintf(dst, dst_size, "*%s", gt);
             return 1;
         }
@@ -1355,7 +1355,7 @@ rewrite_global_field(const ZirType *record, const char *source,
 }
 
 /* The Go type of one record field in type_scope: a Vec's data is a slice of
- * its elements, since Go has no pointer arithmetic (and no *string). */
+ * its elements, since Go has no pointer arithmetic. */
 static void
 require_go_field_type(const ZirType *type, const ZirTypeField *field,
                       char *out, size_t size)

@@ -926,10 +926,21 @@ check_function(BorrowCheck *check, BorrowFunction *function)
             BorrowBinding *assignment_target =
                 assignment_root == NULL ? NULL :
                 binding(check, assignment_root->name);
-            if(destination->type[0] == '*' && assignment_target != NULL)
+            if(destination->kind == ZIR_EXPR_IDENT &&
+               destination->type[0] == '*' && assignment_target != NULL) {
                 assignment_target->address_backing =
                     address_backing(check, statement->expr_root,
                                     &assignment_target->address_known);
+                /* A field or array element never redirects its container.
+                 * Global pointer aliases may only retain global bindings;
+                 * this function's local binding table is freed below. */
+                if(assignment_target->global_index >= 0 &&
+                   assignment_target->address_backing.root != NULL &&
+                   assignment_target->address_backing.root->global_index < 0) {
+                    assignment_target->address_backing = (BorrowPlace){0};
+                    assignment_target->address_known = 0;
+                }
+            }
             if(view_type(check, destination->type)) {
                 const ZirExpr *root = destination_root(fn, statement->lhs_root);
                 BorrowBinding *target = root == NULL ? NULL : binding(check, root->name);

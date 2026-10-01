@@ -232,3 +232,47 @@ if "$ziran" ir --root "$work" -o "$work/global-escape-ir" \
     exit 1
 fi
 rg -q 'text view assignment may escape its backing storage' "$work/global-escape.log"
+
+# Remembering a local address in an opaque global pointer must not retain a
+# pointer to the compiler's per-function binding table. The program clears
+# those pointers before ever dereferencing them.
+cat > "$work/global_pointer_storage.zi" <<'ZI'
+items: [2]*u8;
+pointer: *u8;
+Remember :: () {
+    bytes: [1]u8 = .[97]
+    items[1] = *bytes[0]
+    pointer = *bytes[0]
+}
+Reset :: () { items[0] = null; items[1] = null; pointer = null }
+#program_export
+main :: () -> s32 { Remember(); Reset(); return 0 }
+ZI
+"$ziran" ir --root "$work" -o "$work/global-pointer-storage-ir" \
+    "$work/global_pointer_storage.zi"
+"$ziran" build --target=c --root "$work" -o "$work/global-pointer-storage-source" \
+    "$work/global_pointer_storage.zi"
+"$ziran" build --target=c --root "$work/global-pointer-storage-ir" \
+    -o "$work/global-pointer-storage-saved" \
+    "$work/global-pointer-storage-ir/global_pointer_storage.zir"
+
+# Changing a pointer field does not redirect the enclosing record pointer.
+cat > "$work/pointer_field_mutation.zi" <<'ZI'
+State :: struct { bytes: [3]u8; other: *u8; }
+state: State;
+Bad :: () {
+    owner := *state
+    local: [1]u8
+    owner.other = *local[0]
+    text := TextView(owner.bytes[:])
+    state.bytes[0] = 120
+    print("%", text)
+}
+ZI
+if "$ziran" ir --root "$work" -o "$work/pointer-field-mutation-ir" \
+    "$work/pointer_field_mutation.zi" > "$work/pointer-field-mutation.log" 2>&1; then
+    echo 'TextView lost its container backing after a pointer field assignment' >&2
+    exit 1
+fi
+rg -q 'mutating text backing storage while its view is live' \
+    "$work/pointer-field-mutation.log"

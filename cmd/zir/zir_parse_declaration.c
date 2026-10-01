@@ -2,6 +2,7 @@
 
 #include "compiler_source.h"
 #include "compiler_declaration.h"
+#include "compiler_statement.h"
 
 /* Ziran owns declaration text rules. This boundary retains the C parser's
  * output buffers and diagnostics until the declaration IR is migrated. */
@@ -606,254 +607,8 @@ parse_foreign_library_line(const char *path, int line_no, const char *line,
     (*count)++;
     return 1;
 }
-/* Buffers parse_foreign_line keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct ParseForeignLineBuffers {
-    char target[ZIR_PATH_MAX];
-    char parameters[8][ZIR_TEXT_MAX];
-} ParseForeignLineBuffers;
-
-static int
-foreign_method_symbol(const char *source, char *receiver, size_t receiver_size,
-                      char *method, size_t method_size, int python)
-{
-    MethodSymbol symbol = compiler_declaration_ForeignMethod(
-        declaration_text(source), (int64_t)receiver_size, (int64_t)method_size, python);
-    if(!symbol.valid)
-        return 0;
-    copy_declaration_part(receiver, receiver_size, symbol.receiver, 0);
-    copy_declaration_part(method, method_size, symbol.method, 0);
-    return 1;
-}
-
-static int
-go_method_symbol(const char *source, char *receiver, size_t receiver_size,
-                 char *method, size_t method_size)
-{
-    return foreign_method_symbol(source, receiver, receiver_size,
-                                 method, method_size, 0);
-}
-
-static int
-py_attribute_path(const char *source)
-{
-    return compiler_declaration_PythonAttribute(declaration_text(source), ZIR_NAME_MAX);
-}
-
-static int
-py_method_symbol(const char *source, char *receiver, size_t receiver_size,
-                 char *method, size_t method_size)
-{
-    return foreign_method_symbol(source, receiver, receiver_size,
-                                 method, method_size, 1);
-}
-
-int parse_foreign_line(ZirModule *module, const char *path, int line_no,
-                   const char *line, int scope_public,
-                   char names[][ZIR_NAME_MAX],
-                   char targets[][ZIR_PATH_MAX],
-                   char paths[][SOURCE_PATH_MAX],
-                   const int *file_private, int count);
-
-static int
-parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no,
-                   const char *line, int scope_public,
-                   char names[][ZIR_NAME_MAX],
-                   char targets[][ZIR_PATH_MAX],
-                   char paths[][SOURCE_PATH_MAX],
-                   const int *file_private, int count, ParseForeignLineBuffers *buffers)
-{
-    char name[ZIR_NAME_MAX];
-    char symbol[ZIR_NAME_MAX];
-    char library[ZIR_NAME_MAX];
-    char foreign_name[ZIR_NAME_MAX];
-    ZirImport *imp;
-    ZirExternKind extern_kind;
-    if(!parse_symbol_before_colons(line, name, sizeof(name)))
-        return 0;
-    const char *declaration = skip_ws(strstr(line, "::") + 2);
-    const char *dir = strstr(line, "#foreign");
-    if(dir == NULL)
-        return 0;
-    int foreign_type = starts_word(declaration, "#type");
-    const char *results_attribute = strstr(declaration, "#go_results");
-    int go_results = contains_source_directive(declaration, "#go_results") &&
-        results_attribute && results_attribute < dir;
-    if(go_results && (foreign_type || strstr(results_attribute + strlen("#go_results"), "#go_results")))
-        die_at(Span(path, line_no, 1), "#go_results requires one foreign procedure result record");
-    const char *field_attribute = strstr(declaration, "#go_field");
-    int go_field = contains_source_directive(declaration, "#go_field") &&
-        field_attribute && field_attribute < dir;
-    if(go_field && (foreign_type || go_results ||
-                   strstr(field_attribute + strlen("#go_field"), "#go_field")))
-        die_at(Span(path, line_no, 1), "#go_field requires one foreign field accessor without #go_results");
-    const char *defer_attribute = strstr(declaration, "#go_defer");
-    int go_defer = contains_source_directive(declaration, "#go_defer") &&
-        defer_attribute && defer_attribute < dir;
-    if(go_defer && (foreign_type || go_results || go_field ||
-                   strstr(defer_attribute + strlen("#go_defer"), "#go_defer")))
-        die_at(Span(path, line_no, 1), "#go_defer requires one foreign procedure without result or field attributes");
-    const char *py_results_attribute = strstr(declaration, "#py_results");
-    const char *variadic_attribute = strstr(declaration, "#go_variadic");
-    int go_variadic = contains_source_directive(declaration, "#go_variadic");
-    if(go_variadic && (foreign_type || go_field || variadic_attribute >= dir ||
-       strstr(variadic_attribute + strlen("#go_variadic"), "#go_variadic")))
-        die_at(Span(path, line_no, 1),
-               "#go_variadic requires one foreign procedure with a final slice parameter");
-    int py_results = contains_source_directive(declaration, "#py_results") &&
-        py_results_attribute && py_results_attribute < dir;
-    const char *py_field_attribute = strstr(declaration, "#py_field");
-    int py_field = contains_source_directive(declaration, "#py_field") &&
-        py_field_attribute && py_field_attribute < dir;
-    if((py_results || py_field) &&
-       (foreign_type || go_results || go_field || go_defer || go_variadic || (py_results && py_field) ||
-        (py_results && strstr(py_results_attribute + strlen("#py_results"), "#py_results")) ||
-        (py_field && strstr(py_field_attribute + strlen("#py_field"), "#py_field"))))
-        die_at(Span(path, line_no, 1),
-               "#py_results and #py_field each apply once to a foreign procedure, not together");
-    if(foreign_type && skip_ws(declaration + strlen("#type")) != dir)
-        die_at(Span(path, line_no, 1),
-               "foreign type requires Name :: #type #foreign library;");
-    if(!foreign_type && *declaration != '(')
-        return 0;
-    if(strchr(line, '{') != NULL)
-        die_at(Span(path, line_no, 1),
-               "#foreign procedure declarations cannot have a body");
-    const char *cursor = skip_ws(dir + strlen("#foreign"));
-    size_t used = 0;
-    while((isalnum((unsigned char)*cursor) || *cursor == '_') &&
-          used + 1 < sizeof(library))
-        library[used++] = *cursor++;
-    library[used] = '\0';
-    if(!is_identifier_text(library))
-        die_at(Span(path, line_no, 1),
-               "#foreign requires a named #system_library");
-    cursor = skip_ws(cursor);
-    copy_text(foreign_name, sizeof(foreign_name), name);
-    if(*cursor == '"') {
-        size_t length = 0;
-        cursor++;
-        while(*cursor != '\0' && *cursor != '"' &&
-              length + 1 < sizeof(foreign_name))
-            foreign_name[length++] = *cursor++;
-        foreign_name[length] = '\0';
-        if(*cursor != '"')
-            die_at(Span(path, line_no, 1),
-                   "#foreign alternate symbol must be an identifier");
-        cursor = skip_ws(cursor + 1);
-    }
-    if(strcmp(cursor, ";") != 0)
-        die_at(Span(path, line_no, 1),
-               "#foreign declaration must end with ';'");
-    const char *library_target = NULL;
-    for(int i = 0; i < count; i++)
-        if(strcmp(names[i], library) == 0 &&
-           (!file_private[i] || strcmp(paths[i], path) == 0)) {
-            library_target = targets[i];
-            break;
-        }
-    if(library_target == NULL)
-        die_at(Span(path, line_no, 1),
-               "#foreign library is not declared: %s", library);
-    char receiver[ZIR_NAME_MAX] = "", method[ZIR_NAME_MAX] = "";
-    int python = !strncmp(library_target, "py:", 3);
-    int method_binding = !foreign_type &&
-        ((!strncmp(library_target, "go:", 3) &&
-          go_method_symbol(foreign_name, receiver, sizeof(receiver), method, sizeof(method))) ||
-         (python &&
-          py_method_symbol(foreign_name, receiver, sizeof(receiver), method, sizeof(method))));
-    if(!is_c_ident(foreign_name) && !method_binding && !(python && py_attribute_path(foreign_name)))
-        die_at(Span(path, line_no, 1),
-               python ? "#foreign Python symbol must be a name, a dotted attribute path, or a method (Type).name" :
-               "#foreign alternate symbol must be an identifier or a Go method expression");
-    buffers->target[0] = '\0';
-    symbol[0] = '\0';
-    if(strcmp(library_target, "host_api") == 0) {
-        if(strcmp(foreign_name, name) != 0)
-            die_at(Span(path, line_no, 1),
-                   "host capability cannot rename a #foreign symbol");
-    } else if(method_binding) {
-        if(snprintf(buffers->target, sizeof(buffers->target),
-                    python ? "%s/(%s).%s" : "%s.(%s).%s", library_target,
-                    receiver, method) >= (int)sizeof(buffers->target))
-            die_at(Span(path, line_no, 1), "#foreign target is too long");
-    } else if(python) {
-        if(snprintf(buffers->target, sizeof(buffers->target), "%s/%s", library_target,
-                    foreign_name) >= (int)sizeof(buffers->target))
-            die_at(Span(path, line_no, 1), "#foreign target is too long");
-    } else if(strncmp(library_target, "go:", 3) == 0 ||
-              strchr(library_target, '/') != NULL) {
-        if(snprintf(buffers->target, sizeof(buffers->target), "%s.%s", library_target,
-                    foreign_name) >= (int)sizeof(buffers->target))
-            die_at(Span(path, line_no, 1), "#foreign target is too long");
-    } else {
-        if(snprintf(buffers->target, sizeof(buffers->target), "c.%s", foreign_name) >=
-           (int)sizeof(buffers->target))
-            die_at(Span(path, line_no, 1), "#foreign target is too long");
-    }
-    extern_kind = classify_extern_target(buffers->target, symbol, sizeof(symbol),
-                                         path, line_no);
-    if(go_results && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
-        die_at(Span(path, line_no, 1), "#go_results requires an explicit Go foreign target");
-    if(go_field && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
-        die_at(Span(path, line_no, 1), "#go_field requires an explicit Go foreign target");
-    if(go_defer && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
-        die_at(Span(path, line_no, 1), "#go_defer requires an explicit Go foreign target");
-    if(go_variadic && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
-        die_at(Span(path, line_no, 1), "#go_variadic requires an explicit Go foreign target");
-    if((py_results || py_field) && extern_kind != ZIR_EXTERN_PY)
-        die_at(Span(path, line_no, 1), "%s requires a py: foreign target",
-               py_results ? "#py_results" : "#py_field");
-    if(foreign_type) {
-        if(!GoForeignTargetValid(buffers->target) && !PyForeignTargetValid(buffers->target))
-            die_at(Span(path, line_no, 1),
-                   "foreign types require an explicit go: or py: #system_library");
-        ZirType *type = ModuleAddType(module, name, Span(path, line_no, 1));
-        if(type == NULL)
-            die("out of memory declaring foreign type");
-        type->is_extern = 1;
-        type->is_public = scope_public;
-        copy_text(type->foreign_target, sizeof(type->foreign_target), buffers->target);
-        return 1;
-    }
-    imp = ModuleAddImport(module, ZIR_IMPORT_EXTERN,
-                             name, buffers->target[0] ? buffers->target : name, line, 1,
-                             Span(path, line_no, 1));
-    if(imp != NULL) {
-        char parsed_name[ZIR_NAME_MAX];
-        imp->is_public = scope_public;
-        parse_function_header(parsed_name, sizeof(parsed_name), imp->args,
-                              sizeof(imp->args), imp->return_type,
-                              sizeof(imp->return_type), line);
-        imp->must_use = function_must_use(line, imp->return_type,
-                                           imp->span);
-        imp->extern_kind = extern_kind;
-        imp->go_results = go_results;
-        imp->go_field = go_field;
-        imp->go_defer = go_defer;
-        imp->go_variadic = go_variadic;
-        imp->py_results = py_results;
-        imp->py_field = py_field;
-        snprintf(imp->extern_symbol, sizeof(imp->extern_symbol), "%s",
-                 symbol);
-        /* A trailing `..any` parameter marks a variadic C ABI: calls may
-         * pass any number of extra arguments after the fixed ones. */
-        {
-            int parameter_count = *skip_ws(imp->args) ?
-                split_top_level(imp->args, buffers->parameters[0], 8,
-                                sizeof(buffers->parameters[0])) : 0;
-            if(parameter_count > 0) {
-                const char *last = skip_ws(buffers->parameters[parameter_count - 1]);
-                const char *colon = strchr(last, ':');
-                const char *tail = colon != NULL ? skip_ws(colon + 1) : last;
-                if(!strcmp(tail, "..any") || !strcmp(last, "..any"))
-                    imp->is_varargs = 1;
-            }
-        }
-    }
-    return 1;
-}
-
+/* Foreign grammar and target spelling are maintained in Ziran. This
+ * boundary resolves library visibility and stores the existing C IR. */
 int
 parse_foreign_line(ZirModule *module, const char *path, int line_no,
                    const char *line, int scope_public,
@@ -862,16 +617,62 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
                    char paths[][SOURCE_PATH_MAX],
                    const int *file_private, int count)
 {
-    static _Thread_local ParseForeignLineBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ParseForeignLineBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    int returned = parse_foreign_line_with_buffers(module, path, line_no, line, scope_public, names, targets, paths, file_private, count, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-    return returned;
+    ZirSourceSpan span = Span(path, line_no, 1);
+    ForeignDeclaration declaration = compiler_declaration_ParseForeign(
+        declaration_text(line), ZIR_NAME_MAX);
+    check_declaration_error(declaration.error, span);
+    if(!declaration.present) return 0;
+    const char *library_target = NULL;
+    for(int i = 0; i < count; i++)
+        if(StringEqual(declaration.library, declaration_text(names[i])) &&
+           (!file_private[i] || strcmp(paths[i], path) == 0)) {
+            library_target = targets[i];
+            break;
+        }
+    if(library_target == NULL)
+        die_at(span, "#foreign library is not declared: %.*s",
+               (int)declaration.library.length, declaration.library.data);
+    char target[ZIR_PATH_MAX], name[ZIR_NAME_MAX], symbol[ZIR_NAME_MAX];
+    ForeignTarget resolved = compiler_declaration_ResolveForeignTarget(
+        declaration, declaration_text(library_target),
+        (Slice){target, sizeof(target) - 1}, ZIR_NAME_MAX);
+    check_declaration_error(resolved.error, span);
+    if((uint64_t)resolved.count >= sizeof(target))
+        die_at(span, "#foreign target is too long");
+    target[resolved.count] = 0;
+    copy_declaration_part(name, sizeof(name), declaration.name, 0);
+    ZirExternKind extern_kind = classify_extern_target(target, symbol,
+        sizeof(symbol), path, line_no);
+    if(declaration.is_type) {
+        if(!GoForeignTargetValid(target) && !PyForeignTargetValid(target))
+            die_at(span, "foreign types require an explicit go: or py: #system_library");
+        ZirType *type = ModuleAddType(module, name, span);
+        if(type == NULL) die("out of memory declaring foreign type");
+        type->is_extern = 1;
+        type->is_public = scope_public;
+        copy_text(type->foreign_target, sizeof(type->foreign_target), target);
+        return 1;
+    }
+    ZirImport *imp = ModuleAddImport(module, ZIR_IMPORT_EXTERN, name,
+        target[0] ? target : name, line, 1, span);
+    if(imp != NULL) {
+        char parsed_name[ZIR_NAME_MAX];
+        imp->is_public = scope_public;
+        parse_function_header(parsed_name, sizeof(parsed_name), imp->args,
+                              sizeof(imp->args), imp->return_type,
+                              sizeof(imp->return_type), line);
+        imp->must_use = function_must_use(line, imp->return_type, imp->span);
+        imp->extern_kind = extern_kind;
+        imp->go_results = declaration.go_results;
+        imp->go_field = declaration.go_field;
+        imp->go_defer = declaration.go_defer;
+        imp->go_variadic = declaration.go_variadic;
+        imp->py_results = declaration.py_results;
+        imp->py_field = declaration.py_field;
+        copy_text(imp->extern_symbol, sizeof(imp->extern_symbol), symbol);
+        imp->is_varargs = compiler_declaration_ForeignVarargs(declaration_text(imp->args));
+    }
+    return 1;
 }
 
 int
@@ -1021,162 +822,61 @@ rename_local_procedures(char *line, size_t capacity, char (*names)[2][ZIR_NAME_M
     free(out);
 }
 
-/* Locate Jai's optional `then` on an if header. A `then` inside a string,
- * grouped expression, or an unparenthesized ifx condition is not the header
- * separator. The latter remains an expression parse error until that form
- * can be split without guessing where its conditional arms end. */
-static char *
-if_header_then(char *line)
-{
-    const char *condition = NULL;
-    int parens = 0, brackets = 0, braces = 0, quote = 0;
-    if(starts_word(line, "if"))
-        condition = skip_ws(line + 2);
-    else if(starts_word(line, "else") &&
-            starts_word(skip_ws(line + 4), "if"))
-        condition = skip_ws(skip_ws(line + 4) + 2);
-    if(condition == NULL)
-        return NULL;
-    for(char *p = (char *)condition; *p; p++) {
-        if(quote) {
-            if(*p == '\\' && p[1]) p++;
-            else if(*p == quote) quote = 0;
-            continue;
-        }
-        if(*p == '"' || *p == '\'') { quote = *p; continue; }
-        if(*p == '(') { parens++; continue; }
-        if(*p == ')') { parens--; continue; }
-        if(*p == '[') { brackets++; continue; }
-        if(*p == ']') { brackets--; continue; }
-        if(*p == '{') { braces++; continue; }
-        if(*p == '}') { braces--; continue; }
-        if(parens || brackets || braces) continue;
-        if((p == condition || !source_identifier_byte((unsigned char)p[-1])) &&
-           strncmp(p, "ifx", 3) == 0 &&
-           !source_identifier_byte((unsigned char)p[3]))
-            return NULL;
-        if((p == condition || !source_identifier_byte((unsigned char)p[-1])) &&
-           strncmp(p, "then", 4) == 0 &&
-           !source_identifier_byte((unsigned char)p[4]))
-            return p;
-    }
-    return NULL;
-}
-/* Buffers split_jai_control_line keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct SplitJaiControlLineBuffers {
-    char body[SOURCE_LINE_MAX * 2];
-} SplitJaiControlLineBuffers;
-
-void split_jai_control_line(char *line, size_t capacity,
-                       char queue[16][SOURCE_LINE_MAX * 2], int *count,
-                       ZirSourceSpan span);
-
-static void
-split_jai_control_line_with_buffers(char *line, size_t capacity,
-                       char queue[16][SOURCE_LINE_MAX * 2], int *count,
-                       ZirSourceSpan span, SplitJaiControlLineBuffers *buffers)
-{
-    char *then = if_header_then(line);
-    if(then != NULL) {
-        const char *condition = starts_word(line, "if") ?
-            skip_ws(line + 2) : skip_ws(skip_ws(line + 4) + 2);
-        if(then == condition)
-            die_at(span, "if then requires a condition");
-        const char *after = skip_ws(then + 4);
-        if(strlen(after) >= sizeof(buffers->body))
-            die_at(span, "if body exceeds source limit");
-        copy_text(buffers->body, sizeof(buffers->body), after);
-        char *end = then;
-        while(end > line && isspace((unsigned char)end[-1]))
-            end--;
-        *end = '\0';
-        if(buffers->body[0] == '{') {
-            size_t used = strlen(line);
-            if(snprintf(line + used, capacity - used, " %s", buffers->body) >=
-               (int)(capacity - used))
-                die_at(span, "if header exceeds source limit");
-        } else if(buffers->body[0] != '\0') {
-            prepend_logical_line(queue, count, buffers->body, span);
-        }
-    }
-    if(starts_word(line, "else")) {
-        const char *body = skip_ws(line + 4);
-        if(*body && *body != '{' &&
-           !starts_word(body, "if") &&
-           !starts_word(body, "#if")) {
-            prepend_logical_line(queue, count, body, span);
-            line[4] = '\0';
-        }
-    }
-}
-
+/* Ziran returns borrowed header/body ranges; the boundary only copies them
+ * into the parser's mutable line and logical-line queue. */
 void
 split_jai_control_line(char *line, size_t capacity,
                        char queue[16][SOURCE_LINE_MAX * 2], int *count,
                        ZirSourceSpan span)
 {
-    static _Thread_local SplitJaiControlLineBuffers *spares[16];
-    static _Thread_local int spare_count;
-    SplitJaiControlLineBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    split_jai_control_line_with_buffers(line, capacity, queue, count, span, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
+    ControlLine result = compiler_statement_SplitControlLine(declaration_text(line));
+    if(result.error == ControlError_Condition)
+        die_at(span, "if then requires a condition");
+    if(!result.inline_body.length && !result.queued_body.length &&
+       result.header.length == (int64_t)strlen(line))
+        return;
+    if(result.inline_body.length >= SOURCE_LINE_MAX * 2 ||
+       result.queued_body.length >= SOURCE_LINE_MAX * 2)
+        die_at(span, "if body exceeds source limit");
+    char *header = AllocateOrExit(capacity);
+    int written = snprintf(header, capacity, "%.*s%s%.*s",
+        (int)result.header.length, result.header.data,
+        result.inline_body.length ? " " : "",
+        (int)result.inline_body.length,
+        result.inline_body.data ? result.inline_body.data : "");
+    if(written < 0 || (size_t)written >= capacity)
+        die_at(span, "if header exceeds source limit");
+    if(result.queued_body.length) {
+        size_t body_size = (size_t)result.queued_body.length + 1;
+        char *body = AllocateOrExit(body_size);
+        copy_declaration_part(body, body_size, result.queued_body, 0);
+        prepend_logical_line(queue, count, body, span);
+        free(body);
+    }
+    copy_text(line, capacity, header);
+    free(header);
 }
 
 int
 line_is_compile_else(const char *line)
 {
-    return strcmp(line, "} else {") == 0 || strcmp(line, "else {") == 0;
+    return compiler_statement_CompileElse(declaration_text(line));
 }
 
-/* '#if COND {' / '} else #if COND {': strips the
- * trailing '{' — region braces are consumed, never emitted. Returns 1 for
- * '#if', 2 for 'else #if', 0 otherwise; *condition points into line. */
 int
 parse_cond_start(char *line, char **condition)
 {
-    char *q = NULL;
-    int kind = 0;
-    size_t n;
-
-    if(strncmp(line, "#if", 3) == 0 &&
-       (line[3] == '\0' || isspace((unsigned char)line[3]))) {
-        q = line + 3;
-        kind = 1;
-    } else if(strncmp(line, "else #if", 8) == 0 &&
-              (line[8] == '\0' || isspace((unsigned char)line[8]))) {
-        q = line + 8;
-        kind = 2;
-    } else if(strncmp(line, "} else #if", 10) == 0 &&
-              (line[10] == '\0' || isspace((unsigned char)line[10]))) {
-        q = line + 10;
-        kind = 2;
-    } else {
-        return 0;
-    }
-    q = trim(q);
-    n = strlen(q);
-    if(n == 0 || q[n - 1] != '{')
-        return 0;
-    q[n - 1] = '\0';
-    q = trim(q);
-    if(q[0] == '\0')
-        return 0;
-    *condition = q;
-    return kind;
+    CompileHeader header = compiler_statement_CompileCondition(declaration_text(line));
+    if(!header.kind) return 0;
+    *condition = (char *)header.condition.data;
+    (*condition)[header.condition.length] = 0;
+    return header.kind;
 }
 
 int
 line_starts_compile_condition(const char *line)
 {
-    line = skip_ws(line);
-    return starts_word(line, "#if") ||
-           starts_word(line, "else #if") ||
-           starts_word(line, "} else #if");
+    return compiler_statement_StartsCompileCondition(declaration_text(line));
 }
 
 /* A procedure with several results, `-> s32, s32` or

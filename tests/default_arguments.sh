@@ -76,6 +76,10 @@ Evaluate :: (first: s32 = Next(), second: s32) -> s32 {
 Simple :: (first: s32 = 40, second: s32 = 2) -> s32 {
     return first + second
 }
+SliceDefault :: (values: []s32,
+                 extra: s32 = 2) -> s32 {
+    return values[0] + extra
+}
 DEFAULT: s32;
 LocalDefault :: (value: s32 = DEFAULT) -> s32 { return value }
 Choose :: (first: $T, second: T = 0) -> T { return first + second }
@@ -108,6 +112,8 @@ Answer :: () -> s32 {
     if InferredFromPrivate() != 40 ||
        Library.InferredFromPrivate() != 40 { return 0 }
     if Simple() != 42 || Simple(second = 3) != 43 { return 0 }
+    values: [1]s32 = .{40}
+    if SliceDefault(values[:]) != 42 || SliceDefault(values[:], extra = 3) != 43 { return 0 }
     DEFAULT: s32 = 2
     if LocalDefault() != 0 { return 0 }
     value: s32 = Evaluate(second = Next())

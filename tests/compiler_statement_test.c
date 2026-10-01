@@ -1,5 +1,7 @@
 #include "compiler_statement.h"
 #include "zir_cleanup.h"
+#include "zir_parse.h"
+#include "zir_check.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,9 +84,63 @@ static void controls(void)
     free(fn.stmts);
 }
 
+static void control_lines(void)
+{
+    const char source[] = "if ready then return 42!";
+    ControlLine split = compiler_statement_SplitControlLine(StringView(source, sizeof(source) - 2));
+    assert(split.error == ControlError_None);
+    assert(split.header.data == source && split.header.length == 8);
+    assert(StringEqual(split.queued_body, text("return 42")) && split.queued_body.data == source + 14);
+    for(size_t length = 0; length < sizeof(source) - 1; length++)
+        compiler_statement_SplitControlLine(StringView(source, length));
+    assert(compiler_statement_SplitControlLine((String){0}).header.length == 0);
+    const char condition[] = "} else #if true { !";
+    CompileHeader header = compiler_statement_CompileCondition(StringView(condition, sizeof(condition) - 2));
+    assert(header.kind == 2 && StringEqual(header.condition, text("true")));
+    assert(header.condition.data == condition + 11);
+    assert(!compiler_statement_CompileCondition((String){0}).kind);
+    const char with_null[] = "#if tru\0e {";
+    assert(!compiler_statement_CompileCondition(StringView(with_null, sizeof(with_null) - 1)).kind);
+    assert(!compiler_statement_StartsCompileCondition((String){0}));
+    assert(!compiler_statement_CompileElse((String){0}));
+    ZirProgram *program = parse_source_text("controls.zi",
+        "Flags :: struct { then: bool }\n"
+        "Answer :: () -> s32 {\n"
+        "    flags: Flags = .{true}\n"
+        "    if flags.then then return 42\n"
+        "    else return 1\n"
+        "}\n"
+        "#if false {\n"
+        "Hidden :: () -> s32 { return Missing() }\n"
+        "} else #if true {\n"
+        "Expected :: 42;\n"
+        "} else {\n"
+        "Hidden :: () -> s32 { return Missing() }\n"
+        "}\n");
+    assert(program && program->module_count == 1);
+    assert(CheckPrograms(&program, 1));
+    ZirModule *module = &program->modules[0];
+    assert(module->function_count == 1 && !strcmp(module->functions[0].name, "Answer"));
+    assert(module->define_count == 1 && !strcmp(module->defines[0].name, "Expected"));
+    ZirFunction *function = &module->functions[0];
+    int found_condition = 0, found_return = 0;
+    for(int i = 0; i < function->stmt_count; i++) {
+        ZirStmt *statement = &function->stmts[i];
+        if(statement->kind == ZIR_STMT_IF && strstr(statement->text, "flags.then"))
+            found_condition++;
+        if(statement->kind == ZIR_STMT_RETURN && !strcmp(statement->text, "return 42")) {
+            assert(statement->span.line == 4 && !strcmp(SpanPath(statement->span), "controls.zi"));
+            found_return++;
+        }
+    }
+    assert(found_condition == 1 && found_return == 1);
+    ProgramFree(program);
+}
+
 int main(void)
 {
     bounded();
     controls();
+    control_lines();
     return 0;
 }

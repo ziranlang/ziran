@@ -18,6 +18,98 @@ LoopHeader :: struct {
 }
 NamedWhile :: struct { valid: bool; name: string; condition: string }
 LoopControl :: struct { valid: bool; name: string }
+ControlError :: enum s32 { None; Condition }
+ControlLine :: struct {
+    error: ControlError
+    header: string
+    inline_body: string
+    queued_body: string
+}
+CompileHeader :: struct { kind: s32; condition: string }
+
+// Optional `then` belongs to a control header only at top level. Strings,
+// grouped expressions, member names and nested ifx arms keep their tokens.
+SplitControlLine :: (source: string) -> ControlLine {
+    result: ControlLine
+    result.header = source
+    condition: s64 = -1
+    if Source.StartsWord(source, "if") { condition = Text.SkipSpace(source, 2, true) }
+    else if Source.StartsWord(source, "else") {
+        after_else := Text.SkipSpace(source, 4, true)
+        if Source.StartsWord(source[after_else:], "if") {
+            condition = Text.SkipSpace(source, after_else + 2, true)
+        }
+    }
+    if condition >= 0 {
+        parens: s32 = 0
+        brackets: s32 = 0
+        braces: s32 = 0
+        at := condition
+        previous := ""
+        while at < source.count {
+            token := Scan.NextToken(source, at, 1, 1)
+            if token.kind == Scan.TokenKind.Eof { break }
+            spelling := source[token.begin:token.end]
+            if spelling == "/" && token.end < source.count && source[token.end] == #char "/" { break }
+            if spelling == "(" { parens += 1 }
+            else if spelling == ")" { parens -= 1 }
+            else if spelling == "[" { brackets += 1 }
+            else if spelling == "]" { brackets -= 1 }
+            else if spelling == "{" { braces += 1 }
+            else if spelling == "}" { braces -= 1 }
+            else if parens == 0 && brackets == 0 && braces == 0 && previous != "." &&
+            token.kind == Scan.TokenKind.Ident {
+                // An ungrouped ifx has its own then separator. Let expression
+                // checking reject ambiguity rather than guessing its end.
+                if spelling == "ifx" { break }
+                if spelling == "then" {
+                    if token.begin == condition { result.error = .Condition; return result }
+                    result.header = Trim(source[0:token.begin])
+                    body := source[Text.SkipSpace(source, token.end, true):]
+                    if body.count > 0 && body[0] == #char "{" { result.inline_body = body }
+                    else { result.queued_body = body }
+                    return result
+                }
+            }
+            previous = spelling
+            at = token.end
+        }
+    }
+    if Source.StartsWord(source, "else") {
+        body := source[Text.SkipSpace(source, 4, true):]
+        if body.count > 0 && body[0] != #char "{" &&
+        !Source.StartsWord(body, "if") && !Source.StartsWord(body, "#if") {
+            result.header = source[0:4]
+            result.queued_body = body
+        }
+    }
+    return result
+}
+
+CompileCondition :: (source: string) -> CompileHeader {
+    result: CompileHeader
+    prefix: s64 = 0
+    if CompilePrefix(source, "#if") { result.kind = 1; prefix = 3 }
+    else if CompilePrefix(source, "else #if") { result.kind = 2; prefix = 8 }
+    else if CompilePrefix(source, "} else #if") { result.kind = 2; prefix = 10 }
+    else { return result }
+    condition := Trim(source[prefix:])
+    if condition.count == 0 || condition[condition.count - 1] != #char "{" { return .{} }
+    result.condition = Trim(condition[0:condition.count - 1])
+    if result.condition.count == 0 { return .{} }
+    for byte: result.condition { if byte == 0 { return .{} } }
+    return result
+}
+
+CompileElse :: (source: string) -> bool {
+    return source == "} else {" || source == "else {"
+}
+
+StartsCompileCondition :: (source: string) -> bool {
+    source = source[Text.SkipSpace(source, 0, true):]
+    return Source.StartsWord(source, "#if") || Source.StartsWord(source, "else #if") ||
+        Source.StartsWord(source, "} else #if")
+}
 
 ForHeader :: (source: string, name_limit: s64 = 128, text_limit: s64 = 4096) -> LoopHeader {
     result: LoopHeader
@@ -172,6 +264,10 @@ PlainName :: (source: string) -> bool {
 }
 
 #scope_file
+CompilePrefix :: (source: string, prefix: string) -> bool {
+    if source.count < prefix.count || source[0:prefix.count] != prefix { return false }
+    return source.count == prefix.count || Text.SpaceByte(source[prefix.count])
+}
 Trim :: (source: string) -> string {
     range := Text.TrimRange(source)
     return source[range.begin:range.end]

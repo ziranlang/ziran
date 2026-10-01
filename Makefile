@@ -158,8 +158,8 @@ $(SOURCE_OBJECT): $(SOURCE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SOURCE_C)/compiler_source.c
 
-$(call obj,cmd/zir/zir_parse_declaration.c): $(DECLARATION_READY)
-$(DECLARATION_OBJECT): $(DECLARATION_READY) $(TEXT_READY) $(SOURCE_READY) $(BUILD_DIR)/.compiler-flags
+$(call obj,cmd/zir/zir_parse_declaration.c): $(DECLARATION_READY) $(STATEMENT_READY)
+$(DECLARATION_OBJECT): $(DECLARATION_READY) $(TEXT_READY) $(SOURCE_READY) $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(DECLARATION_C)/compiler_declaration.c
 
@@ -357,7 +357,7 @@ $(SOURCE_C)/.generated: cmd/compiler_source.zi $(BOOTSTRAP_BIN)
 	    -o $(SOURCE_C) cmd/compiler_source.zi
 	touch $@
 
-$(DECLARATION_C)/.generated: cmd/compiler_declaration.zi cmd/compiler_text.zi cmd/compiler_source.zi $(BOOTSTRAP_BIN)
+$(DECLARATION_C)/.generated: cmd/compiler_declaration.zi cmd/compiler_text.zi cmd/compiler_source.zi cmd/compiler_scan.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
 	    -o $(DECLARATION_C) cmd/compiler_declaration.zi
 	touch $@

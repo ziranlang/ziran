@@ -273,6 +273,61 @@ compiler_declaration_ErrorText(DeclarationError error)
     if (error == DeclarationError_UsingMap) {
         return StringLiteral("using map entries need \"new\" = \"old\"");
     }
+    if (error == DeclarationError_ForeignResults) {
+        return StringLiteral("#go_results requires one foreign procedure result record");
+    }
+    if (error == DeclarationError_ForeignField) {
+        return StringLiteral("#go_field requires one foreign field accessor without #go_results");
+    }
+    if (error == DeclarationError_ForeignDefer) {
+        return StringLiteral("#go_defer requires one foreign procedure without result or field attributes");
+    }
+    if (error == DeclarationError_ForeignVariadic) {
+        return StringLiteral("#go_variadic requires one foreign procedure with a final slice parameter");
+    }
+    if (error == DeclarationError_ForeignPythonAttributes) {
+        return StringLiteral("#py_results and #py_field each apply once to a foreign procedure, not together");
+    }
+    if (error == DeclarationError_ForeignType) {
+        return StringLiteral("foreign type requires Name :: #type #foreign library;");
+    }
+    if (error == DeclarationError_ForeignBody) {
+        return StringLiteral("#foreign procedure declarations cannot have a body");
+    }
+    if (error == DeclarationError_ForeignLibrary) {
+        return StringLiteral("#foreign requires a named #system_library");
+    }
+    if (error == DeclarationError_ForeignSymbol) {
+        return StringLiteral("#foreign alternate symbol must be an identifier or a Go method expression");
+    }
+    if (error == DeclarationError_ForeignEnd) {
+        return StringLiteral("#foreign declaration must end with ';'");
+    }
+    if (error == DeclarationError_ForeignPythonSymbol) {
+        String value_1 = StringLiteral("#foreign Python symbol must be a name, a dotted attribute path, or a method (Type).name");
+        return value_1;
+    }
+    if (error == DeclarationError_ForeignHostRename) {
+        return StringLiteral("host capability cannot rename a #foreign symbol");
+    }
+    if (error == DeclarationError_ForeignGoResults) {
+        return StringLiteral("#go_results requires an explicit Go foreign target");
+    }
+    if (error == DeclarationError_ForeignGoField) {
+        return StringLiteral("#go_field requires an explicit Go foreign target");
+    }
+    if (error == DeclarationError_ForeignGoDefer) {
+        return StringLiteral("#go_defer requires an explicit Go foreign target");
+    }
+    if (error == DeclarationError_ForeignGoVariadic) {
+        return StringLiteral("#go_variadic requires an explicit Go foreign target");
+    }
+    if (error == DeclarationError_ForeignPythonResults) {
+        return StringLiteral("#py_results requires a py: foreign target");
+    }
+    if (error == DeclarationError_ForeignPythonField) {
+        return StringLiteral("#py_field requires a py: foreign target");
+    }
     return StringLiteral("");
 }
 
@@ -912,4 +967,325 @@ compiler_declaration_PythonAttribute(String source, int64_t name_limit)
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
     return false;
+}
+
+ForeignDeclaration
+compiler_declaration_ParseForeign(String source, int64_t name_limit)
+{
+    ForeignDeclaration result = {0};
+    String value_0 = compiler_declaration_SymbolBeforeColons(source, name_limit);
+    result.name = value_0;
+    int64_t value_1 = (int64_t)(result.name).length;
+    if (value_1 == 0LL) {
+        return result;
+    }
+    String value_2 = source;
+    String value_3 = source;
+    int64_t value_4 = (int64_t)((uint64_t)(compiler_declaration_Find(source, StringLiteral("::"))) + UINT64_C(2));
+    int64_t value_5 = compiler_text_SkipSpace(value_3, value_4, true);
+    String declaration = StringRange(value_2, (int64_t)value_5, (int64_t)value_2.length);
+    int32_t attributes[6] = {0};
+    bool after_foreign[6] = {0};
+    int64_t directive = -1LL;
+    bool body = false;
+    int64_t at = 0LL;
+    while (true) {
+        int64_t value_6 = (int64_t)(declaration).length;
+        if (!(at < value_6)) { break; }
+        Scan token = compiler_scan_NextToken(declaration, at, 1, 1);
+        if (((TokenKind)(token.kind)) == ((TokenKind)(0))) {
+            break;
+        }
+        String value_7 = declaration;
+        String spelling = StringRange(value_7, (int64_t)token.begin, (int64_t)token.end);
+        bool value_8 = StringEqual(spelling, StringLiteral("/"));
+        if (value_8) {
+            int64_t value_9 = token.end;
+            int64_t value_10 = (int64_t)(declaration).length;
+            value_8 = (value_9 < value_10);
+        }
+        if (value_8 && (uint8_t)ZIRAN_INDEX(declaration.data, declaration.length, token.end) == 47) {
+            break;
+        }
+        if (StringEqual(spelling, StringLiteral("{"))) {
+            body = true;
+        }
+        if (((TokenKind)(token.kind)) == ((TokenKind)(6))) {
+            if (StringEqual(spelling, StringLiteral("#foreign")) && directive < 0LL) {
+                directive = token.begin;
+            }
+            int64_t attribute = -1LL;
+            if (StringEqual(spelling, StringLiteral("#go_results"))) {
+                attribute = 0LL;
+            }
+            if (StringEqual(spelling, StringLiteral("#go_field"))) {
+                attribute = 1LL;
+            }
+            if (StringEqual(spelling, StringLiteral("#go_defer"))) {
+                attribute = 2LL;
+            }
+            if (StringEqual(spelling, StringLiteral("#go_variadic"))) {
+                attribute = 3LL;
+            }
+            if (StringEqual(spelling, StringLiteral("#py_results"))) {
+                attribute = 4LL;
+            }
+            if (StringEqual(spelling, StringLiteral("#py_field"))) {
+                attribute = 5LL;
+            }
+            if (attribute >= 0LL) {
+                ZIRAN_INDEX(attributes, sizeof(attributes) / sizeof(attributes[0]), attribute) = (int32_t)((uint32_t)(ZIRAN_INDEX(attributes, sizeof(attributes) / sizeof(attributes[0]), attribute)) + 1u);
+                if (directive >= 0LL) {
+                    ZIRAN_INDEX(after_foreign, sizeof(after_foreign) / sizeof(after_foreign[0]), attribute) = true;
+                }
+            }
+        }
+        at = token.end;
+    }
+    if (directive < 0LL) {
+        return result;
+    }
+    result.present = true;
+    bool value_11 = compiler_source_StartsWord(declaration, StringLiteral("#type"));
+    result.is_type = value_11;
+    result.go_results = ZIRAN_INDEX(attributes, 6, 0) > 0;
+    result.go_field = ZIRAN_INDEX(attributes, 6, 1) > 0;
+    result.go_defer = ZIRAN_INDEX(attributes, 6, 2) > 0;
+    result.go_variadic = ZIRAN_INDEX(attributes, 6, 3) > 0;
+    result.py_results = ZIRAN_INDEX(attributes, 6, 4) > 0;
+    result.py_field = ZIRAN_INDEX(attributes, 6, 5) > 0;
+    bool value_12 = result.go_results && (result.is_type || ZIRAN_INDEX(attributes, 6, 0) > 1 || ZIRAN_INDEX(after_foreign, 6, 0));
+    if (value_12) {
+        result.error = DeclarationError_ForeignResults;
+        return result;
+    }
+    bool value_13 = result.go_field;
+    if (value_13) {
+        bool value_14 = result.is_type || result.go_results || ZIRAN_INDEX(attributes, 6, 1) > 1 || ZIRAN_INDEX(after_foreign, 6, 1);
+        value_13 = value_14;
+    }
+    if (value_13) {
+        result.error = DeclarationError_ForeignField;
+        return result;
+    }
+    bool value_15 = result.go_defer;
+    if (value_15) {
+        bool value_16 = result.is_type || result.go_results || result.go_field || ZIRAN_INDEX(attributes, 6, 2) > 1 || ZIRAN_INDEX(after_foreign, 6, 2);
+        value_15 = value_16;
+    }
+    if (value_15) {
+        result.error = DeclarationError_ForeignDefer;
+        return result;
+    }
+    bool value_17 = result.go_variadic;
+    if (value_17) {
+        bool value_18 = result.is_type || result.go_field || ZIRAN_INDEX(attributes, 6, 3) > 1 || ZIRAN_INDEX(after_foreign, 6, 3);
+        value_17 = value_18;
+    }
+    if (value_17) {
+        result.error = DeclarationError_ForeignVariadic;
+        return result;
+    }
+    bool value_19 = result.py_results || result.py_field;
+    if (value_19) {
+        bool value_20 = result.is_type || result.go_results || result.go_field || result.go_defer || result.go_variadic || (result.py_results && result.py_field);
+        bool value_21 = value_20 || ZIRAN_INDEX(attributes, 6, 4) > 1 || ZIRAN_INDEX(attributes, 6, 5) > 1 || ZIRAN_INDEX(after_foreign, 6, 4);
+        value_19 = (value_21 || ZIRAN_INDEX(after_foreign, 6, 5));
+    }
+    if (value_19) {
+        result.error = DeclarationError_ForeignPythonAttributes;
+        return result;
+    }
+    bool value_22 = result.is_type;
+    bool value_23 = value_22;
+    if (value_23) {
+        int64_t value_24 = compiler_text_SkipSpace(declaration, 5LL, true);
+        value_23 = (value_24 != directive);
+    }
+    if (value_23) {
+        result.error = DeclarationError_ForeignType;
+        return result;
+    }
+    bool value_25 = !result.is_type;
+    if (value_25) {
+        int64_t value_26 = (int64_t)(declaration).length;
+        value_25 = (value_26 == 0LL || (uint8_t)ZIRAN_INDEX(declaration.data, declaration.length, 0) != 40);
+    }
+    if (value_25) {
+        result.present = false;
+        return result;
+    }
+    if (body) {
+        result.error = DeclarationError_ForeignBody;
+        return result;
+    }
+    at = compiler_text_SkipSpace(declaration, (int64_t)((uint64_t)directive + UINT64_C(8)), true);
+    int64_t begin = at;
+    while (true) {
+        int64_t value_27 = (int64_t)(declaration).length;
+        bool value_28 = at < value_27;
+        bool value_29 = value_28;
+        if (value_29) {
+            bool value_30 = compiler_text_IdentifierByte((uint8_t)ZIRAN_INDEX(declaration.data, declaration.length, at));
+            value_29 = value_30;
+        }
+        if (!value_29) { break; }
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+    }
+    String value_31 = declaration;
+    result.library = StringRange(value_31, (int64_t)begin, (int64_t)at);
+    int64_t value_32 = (int64_t)(result.library).length;
+    bool value_33 = value_32 >= name_limit;
+    bool value_34 = value_33;
+    if (!value_34) {
+        bool value_35 = compiler_source_IdentifierText(result.library, false);
+        value_34 = !value_35;
+    }
+    if (value_34) {
+        result.error = DeclarationError_ForeignLibrary;
+        return result;
+    }
+    at = compiler_text_SkipSpace(declaration, at, true);
+    result.symbol = result.name;
+    int64_t value_36 = (int64_t)(declaration).length;
+    if (at < value_36 && (uint8_t)ZIRAN_INDEX(declaration.data, declaration.length, at) == 34) {
+        String value_37 = declaration;
+        QuotedText value_38 = compiler_declaration_UsingQuoted(StringRange(value_37, (int64_t)at, (int64_t)value_37.length), name_limit);
+        QuotedText quoted = value_38;
+        if (!quoted.valid) {
+            result.error = DeclarationError_ForeignSymbol;
+            return result;
+        }
+        result.symbol = quoted.value;
+        at = compiler_text_SkipSpace(declaration, (int64_t)((uint64_t)at + (uint64_t)(quoted.end)), true);
+    }
+    String value_39 = declaration;
+    bool value_40 = !StringEqual(compiler_declaration_Trim(StringRange(value_39, (int64_t)at, (int64_t)value_39.length)), StringLiteral(";"));
+    if (value_40) {
+        result.error = DeclarationError_ForeignEnd;
+    }
+    return result;
+}
+
+ForeignTarget
+compiler_declaration_ResolveForeignTarget(ForeignDeclaration declaration, String library, Slice output, int64_t name_limit)
+{
+    ForeignTarget result = {0};
+    result.error = (DeclarationError)(declaration.error);
+    if (((DeclarationError)(result.error)) != DeclarationError_None || !declaration.present) {
+        return result;
+    }
+    int64_t value_0 = (int64_t)(library).length;
+    bool value_1 = value_0 >= 3LL;
+    if (value_1) {
+        String value_2 = library;
+        value_1 = (StringEqual(StringRange(value_2, (int64_t)0LL, (int64_t)3LL), StringLiteral("py:")));
+    }
+    bool python = value_1;
+    int64_t value_3 = (int64_t)(library).length;
+    bool value_4 = value_3 >= 3LL;
+    if (value_4) {
+        String value_5 = library;
+        value_4 = (StringEqual(StringRange(value_5, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:")));
+    }
+    bool go = value_4;
+    MethodSymbol method = {0};
+    if (!declaration.is_type && (go || python)) {
+        method = compiler_declaration_ForeignMethod(declaration.symbol, name_limit, name_limit, python);
+    }
+    bool value_6 = compiler_source_IdentifierText(declaration.symbol, false);
+    bool value_7 = !value_6 && !method.valid;
+    bool value_8 = value_7;
+    if (value_8) {
+        bool value_9 = python;
+        bool value_10 = value_9;
+        if (value_10) {
+            bool value_11 = compiler_declaration_PythonAttribute(declaration.symbol, name_limit);
+            value_10 = value_11;
+        }
+        value_8 = !value_10;
+    }
+    if (value_8) {
+        result.error = DeclarationError_ForeignSymbol;
+        if (python) {
+            result.error = DeclarationError_ForeignPythonSymbol;
+        }
+        return result;
+    }
+    if (StringEqual(library, StringLiteral("host_api"))) {
+        if (!StringEqual(declaration.symbol, declaration.name)) {
+            result.error = DeclarationError_ForeignHostRename;
+        }
+    } else if (method.valid) {
+        compiler_declaration_Put(output, &(result.count), library);
+        if (python) {
+            compiler_declaration_Put(output, &(result.count), StringLiteral("/("));
+        } else {
+            compiler_declaration_Put(output, &(result.count), StringLiteral(".("));
+        }
+        compiler_declaration_Put(output, &(result.count), method.receiver);
+        compiler_declaration_Put(output, &(result.count), StringLiteral(")."));
+        compiler_declaration_Put(output, &(result.count), method.method);
+    } else if (python) {
+        compiler_declaration_Put(output, &(result.count), library);
+        compiler_declaration_Put(output, &(result.count), StringLiteral("/"));
+        compiler_declaration_Put(output, &(result.count), declaration.symbol);
+    } else {
+        bool value_12 = go;
+        bool value_13 = value_12;
+        if (!value_13) {
+            int64_t value_14 = compiler_declaration_Find(library, StringLiteral("/"));
+            value_13 = (value_14 >= 0LL);
+        }
+        if (value_13) {
+            compiler_declaration_Put(output, &(result.count), library);
+            compiler_declaration_Put(output, &(result.count), StringLiteral("."));
+            compiler_declaration_Put(output, &(result.count), declaration.symbol);
+        } else {
+            compiler_declaration_Put(output, &(result.count), StringLiteral("c."));
+            compiler_declaration_Put(output, &(result.count), declaration.symbol);
+        }
+    }
+    if (((DeclarationError)(result.error)) != DeclarationError_None) {
+        return result;
+    }
+    if (declaration.go_results && !go) {
+        result.error = DeclarationError_ForeignGoResults;
+    } else if (declaration.go_field && !go) {
+        result.error = DeclarationError_ForeignGoField;
+    } else if (declaration.go_defer && !go) {
+        result.error = DeclarationError_ForeignGoDefer;
+    } else if (declaration.go_variadic && !go) {
+        result.error = DeclarationError_ForeignGoVariadic;
+    } else if (declaration.py_results && !python) {
+        result.error = DeclarationError_ForeignPythonResults;
+    } else if (declaration.py_field && !python) {
+        result.error = DeclarationError_ForeignPythonField;
+    }
+    return result;
+}
+
+bool
+compiler_declaration_ForeignVarargs(String parameters)
+{
+    String value_0 = compiler_declaration_Trim(parameters);
+    int64_t value_1 = (int64_t)(value_0).length;
+    if (value_1 == 0LL) {
+        return false;
+    }
+    int64_t at = 0LL;
+    String last = StringLiteral("");
+    while (at >= 0LL) {
+        SourcePart range = compiler_text_NextSourcePart(parameters, at);
+        String value_2 = parameters;
+        last = compiler_declaration_Trim(StringRange(value_2, (int64_t)range.begin, (int64_t)range.end));
+        at = range.next;
+    }
+    int64_t colon = compiler_declaration_Find(last, StringLiteral(":"));
+    if (colon >= 0LL) {
+        String value_3 = last;
+        String value_4 = StringRange(value_3, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)value_3.length);
+        last = compiler_declaration_Trim(value_4);
+    }
+    return StringEqual(last, StringLiteral("..any"));
 }

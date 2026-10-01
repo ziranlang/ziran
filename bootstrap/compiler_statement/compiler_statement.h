@@ -18,6 +18,9 @@ typedef int32_t LoopKind;
 typedef struct LoopHeader LoopHeader;
 typedef struct NamedWhile NamedWhile;
 typedef struct LoopControl LoopControl;
+typedef int32_t ControlError;
+typedef struct ControlLine ControlLine;
+typedef struct CompileHeader CompileHeader;
 
 enum {
     LoopKind_Invalid = 0,
@@ -47,6 +50,27 @@ struct LoopControl {
     bool valid;
     String name;
 };
+
+enum {
+    ControlError_None = 0,
+    ControlError_Condition = 1,
+};
+
+struct ControlLine {
+    ControlError error;
+    String header;
+    String inline_body;
+    String queued_body;
+};
+
+struct CompileHeader {
+    int32_t kind;
+    String condition;
+};
+ControlLine compiler_statement_SplitControlLine(String source);
+CompileHeader compiler_statement_CompileCondition(String source);
+bool compiler_statement_CompileElse(String source);
+bool compiler_statement_StartsCompileCondition(String source);
 LoopHeader compiler_statement_ForHeader(String source, int64_t name_limit, int64_t text_limit);
 NamedWhile compiler_statement_WhileHeader(String source, int64_t name_limit, int64_t text_limit);
 LoopControl compiler_statement_ControlTarget(String source, bool continuation, int64_t name_limit);

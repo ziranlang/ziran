@@ -755,7 +755,7 @@ normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn,
     }
     if(array_arguments || argument_alias_changed)
         fn->args_text = KeepParameters(buffers->arguments);
-    if(argument_alias_changed && FunctionDefaultArgs(fn)[0]) {
+    if((array_arguments || argument_alias_changed) && FunctionDefaultArgs(fn)[0]) {
         char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
         if(defaults == NULL) return 0;
         int default_count = split_top_level(FunctionDefaultArgs(fn), defaults[0],

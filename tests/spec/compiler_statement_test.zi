@@ -79,12 +79,75 @@ Tokens :: () -> bool {
         !Statement.PlainName("Call()") && !Statement.PlainName("9") && !Statement.PlainName("")
 }
 
+ControlLines :: () -> bool {
+    split := Statement.SplitControlLine("if ready then return 42")
+    if split.error != Statement.ControlError.None || split.header != "if ready" ||
+    split.queued_body != "return 42" || split.inline_body != "" { return false }
+    split = Statement.SplitControlLine("else if ready then { return 42 }")
+    if split.header != "else if ready" || split.inline_body != "{ return 42 }" ||
+    split.queued_body != "" { return false }
+    split = Statement.SplitControlLine("else return 42")
+    if split.header != "else" || split.queued_body != "return 42" { return false }
+    split = Statement.SplitControlLine("if ready then")
+    if split.header != "if ready" || split.inline_body != "" || split.queued_body != "" { return false }
+    unchanged: [8]string = .{"if Call(\"then\") {", "if ifx ready then yes else no then return 42",
+        "if flag.then {", "if flag.then_more {", "else if ready {", "else #if true {",
+        "if ready // then return 42", "other then return 42"}
+    for source: unchanged {
+        split = Statement.SplitControlLine(source)
+        if split.header != source || split.error != Statement.ControlError.None ||
+        split.inline_body != "" || split.queued_body != "" { return false }
+    }
+    split = Statement.SplitControlLine("if flag.then then return 42")
+    if split.header != "if flag.then" || split.queued_body != "return 42" { return false }
+    split = Statement.SplitControlLine("if (ifx ready then true else false) then return 42")
+    if split.header != "if (ifx ready then true else false)" || split.queued_body != "return 42" { return false }
+    split = Statement.SplitControlLine("if Check(.{then = 1}, data[then]) then return 42")
+    if split.header != "if Check(.{then = 1}, data[then])" || split.queued_body != "return 42" { return false }
+    return Statement.SplitControlLine("if then return 42").error == Statement.ControlError.Condition &&
+        Statement.SplitControlLine("else if then { return 42 }").error == Statement.ControlError.Condition
+}
+
+CompileConditions :: () -> bool {
+    header := Statement.CompileCondition("#if value == 42 { \t")
+    if header.kind != 1 || header.condition != "value == 42" { return false }
+    header = Statement.CompileCondition("} else #if Ready(\"{\") {")
+    if header.kind != 2 || header.condition != "Ready(\"{\")" { return false }
+    header = Statement.CompileCondition("else #if true {")
+    if header.kind != 2 || header.condition != "true" { return false }
+    invalid: [7]string = .{"", "#if", "#if {", "#ifdef true {", "#if(true) {",
+        "#if true", "else #if false }"}
+    for source: invalid { if Statement.CompileCondition(source).kind != 0 { return false } }
+    return Statement.CompileElse("} else {") && Statement.CompileElse("else {") &&
+        !Statement.CompileElse("else #if true {") && !Statement.CompileElse("") &&
+        Statement.StartsCompileCondition("  #if true {") &&
+        Statement.StartsCompileCondition("\t} else #if false {") &&
+        !Statement.StartsCompileCondition("if true {") && !Statement.StartsCompileCondition("#ifdef true {")
+}
+
+Flags :: struct { then: bool }
+IsThen :: (source: string) -> bool { return source == "then" }
+
 Collection :: (marker: string, values: []s32) -> []s32 {
     if marker != ":=;.." { return values[0:0] }
     return values
 }
 
 Integration :: () -> bool {
+    flags: Flags = .{true}
+    selected: s32 = 0
+    if flags.then then selected += 1
+    else selected += 100
+    if IsThen("then") then { selected += 1 }
+    if (ifx true then true else false) then selected += 1
+    #if false {
+        selected += MissingValue()
+    } else #if true {
+        selected += 1
+    } else {
+        selected += MissingValue()
+    }
+    if selected != 4 { return false }
     values: [3]s32 = .{1, 2, 3}
     total: s32 = 0
     // Quoted statement operators are data through the real frontend too.
@@ -109,6 +172,8 @@ Answer :: () -> s32 {
     if !Controls() { return 3 }
     if !Tokens() { return 4 }
     if !Integration() { return 5 }
+    if !ControlLines() { return 6 }
+    if !CompileConditions() { return 7 }
     return 42
 }
 
@@ -148,6 +213,15 @@ Fingerprint :: () -> s64 {
         result = result * cast(u32)16777619 ^ cast(u32)Statement.Mentions(source, "a")
         result = result * cast(u32)16777619 ^ cast(u32)Statement.Changes(source, "a", sample % 2 == 0)
         result = result * cast(u32)16777619 ^ cast(u32)Statement.PlainName(source)
+        split := Statement.SplitControlLine(source)
+        result = result * cast(u32)16777619 ^ cast(u32)split.error
+        parts: [3]string = .{split.header, split.inline_body, split.queued_body}
+        for part: parts { for byte: part { result = result * cast(u32)16777619 ^ cast(u32)byte } }
+        compiled := Statement.CompileCondition(source)
+        result = result * cast(u32)16777619 ^ cast(u32)compiled.kind
+        for byte: compiled.condition { result = result * cast(u32)16777619 ^ cast(u32)byte }
+        result = result * cast(u32)16777619 ^ cast(u32)Statement.StartsCompileCondition(source)
+        result = result * cast(u32)16777619 ^ cast(u32)Statement.CompileElse(source)
     }
     return cast(s64)result
 }

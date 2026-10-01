@@ -144,11 +144,90 @@ Declarations :: () -> bool {
     return ErrorText(.None) == ""
 }
 
+SameForeignTarget :: (source: string, library: string, expected: string) -> bool {
+    declaration := ParseForeign(source)
+    if !declaration.present || declaration.error != .None { return false }
+    output: [256]u8
+    for capacity: 0..expected.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        target := ResolveForeignTarget(declaration, library, output[0:capacity])
+        if target.error != .None || target.count != expected.count || output[capacity] != 0xa5 ||
+        TextView(output[0:capacity]) != expected[0:capacity] { return false }
+    }
+    return true
+}
+
+ForeignDeclarations :: () -> bool {
+    declaration := ParseForeign("Read :: (reader: *Reader, output: []u8) -> Result #go_results #foreign lib \"(*Reader).Read\";")
+    if !declaration.present || declaration.error != .None || declaration.name != "Read" ||
+    declaration.library != "lib" || declaration.symbol != "(*Reader).Read" || !declaration.go_results ||
+    declaration.is_type || declaration.go_field || declaration.go_defer || declaration.go_variadic ||
+    declaration.py_results || declaration.py_field { return false }
+    declaration = ParseForeign("Reader :: #type #foreign lib;")
+    if !declaration.present || declaration.error != .None || !declaration.is_type ||
+    declaration.name != "Reader" || declaration.symbol != "Reader" { return false }
+    if !SameForeignTarget("Read :: () #foreign lib \"(*Reader).Read\";", "go:strings", "go:strings.(*Reader).Read") ||
+    !SameForeignTarget("Upper :: () #foreign lib \"(str).upper\";", "py:builtins", "py:builtins/(str).upper") ||
+    !SameForeignTarget("Value :: () #py_field #foreign lib \"version_info.major\";", "py:sys", "py:sys/version_info.major") ||
+    !SameForeignTarget("Load :: () #py_results #foreign lib \"loads\";", "py:json", "py:json/loads") ||
+    !SameForeignTarget("Read :: () #go_results #foreign lib;", "go:io", "go:io.Read") ||
+    !SameForeignTarget("Read :: () #go_field #foreign lib;", "go:io", "go:io.Read") ||
+    !SameForeignTarget("Close :: () #go_defer #foreign lib;", "go:io", "go:io.Close") ||
+    !SameForeignTarget("Call :: () #go_variadic #foreign lib;", "go:fmt", "go:fmt.Call") ||
+    !SameForeignTarget("Reader :: #type #foreign lib;", "go:strings", "go:strings.Reader") ||
+    !SameForeignTarget("Reader :: #type #foreign lib;", "py:io", "py:io/Reader") ||
+    !SameForeignTarget("Call :: () #foreign lib;", "example.org/api", "example.org/api.Call") ||
+    !SameForeignTarget("Call :: () #foreign lib;", "m", "c.Call") ||
+    !SameForeignTarget("Call :: () #foreign lib;", "host_api", "") { return false }
+    if ParseForeign("").present || ParseForeign("text :: \"#foreign lib\";").present ||
+    ParseForeign("Call :: () { print(\"#foreign lib\") }").present ||
+    ParseForeign("Call :: () // #foreign lib;").present ||
+    ParseForeign("Call :: 42 #foreign lib;").present ||
+    ParseForeign("Call :: () #foreigner lib;").present ||
+    ParseForeign("Call :: () #foreign lib;", 4).present { return false }
+    // Quoted spellings, braces, and comments do not become attributes or bodies.
+    declaration = ParseForeign("Call :: (text: string = \"#go_results {\") #foreign lib;")
+    if declaration.error != .None || !declaration.present || declaration.go_results { return false }
+    if ParseForeign("Call :: () #go_results #go_results #foreign lib;").error != .ForeignResults ||
+    ParseForeign("Call :: #type #go_results #foreign lib;").error != .ForeignResults ||
+    ParseForeign("Call :: () #go_results #go_field #foreign lib;").error != .ForeignField ||
+    ParseForeign("Call :: () #go_field #go_defer #foreign lib;").error != .ForeignDefer ||
+    ParseForeign("Call :: () #go_variadic #go_variadic #foreign lib;").error != .ForeignVariadic ||
+    ParseForeign("Call :: () #foreign lib \"Print\" #go_variadic;").error != .ForeignVariadic ||
+    ParseForeign("Call :: () #go_field #go_variadic #foreign lib;").error != .ForeignVariadic ||
+    ParseForeign("Call :: () #py_field #py_results #foreign lib;").error != .ForeignPythonAttributes ||
+    ParseForeign("Call :: () #py_field #go_results #foreign lib;").error != .ForeignPythonAttributes ||
+    ParseForeign("Call :: #type Extra #foreign lib;").error != .ForeignType ||
+    ParseForeign("Call :: () { #foreign lib; }").error != .ForeignBody ||
+    ParseForeign("Call :: () #foreign ;").error != .ForeignLibrary ||
+    ParseForeign("C :: () #foreign library;", 4).error != .ForeignLibrary ||
+    ParseForeign("Call :: () #foreign lib \"unterminated;").error != .ForeignSymbol ||
+    ParseForeign("Call :: () #foreign lib").error != .ForeignEnd ||
+    ParseForeign("Call :: () #foreign lib; extra").error != .ForeignEnd { return false }
+    output: [256]u8
+    if ResolveForeignTarget(ParseForeign("Call :: () #foreign lib \"bad-name\";"), "go:io", output[:]).error != .ForeignSymbol ||
+    ResolveForeignTarget(ParseForeign("Call :: () #foreign lib \"(*str).upper\";"), "py:builtins", output[:]).error != .ForeignPythonSymbol ||
+    ResolveForeignTarget(ParseForeign("Call :: () #foreign lib \"Other\";"), "host_api", output[:]).error != .ForeignHostRename ||
+    ResolveForeignTarget(ParseForeign("Call :: () #go_results #foreign lib;"), "m", output[:]).error != .ForeignGoResults ||
+    ResolveForeignTarget(ParseForeign("Call :: () #go_field #foreign lib;"), "host_api", output[:]).error != .ForeignGoField ||
+    ResolveForeignTarget(ParseForeign("Call :: () #go_defer #foreign lib;"), "py:io", output[:]).error != .ForeignGoDefer ||
+    ResolveForeignTarget(ParseForeign("Call :: () #go_variadic #foreign lib;"), "example.org/lib", output[:]).error != .ForeignGoVariadic ||
+    ResolveForeignTarget(ParseForeign("Call :: () #py_results #foreign lib;"), "go:io", output[:]).error != .ForeignPythonResults ||
+    ResolveForeignTarget(ParseForeign("Call :: () #py_field #foreign lib;"), "m", output[:]).error != .ForeignPythonField { return false }
+    if !ForeignVarargs("format: string, args: ..any") || !ForeignVarargs("..any") ||
+    !ForeignVarargs("a: s32, b: s32, c: s32, d: s32, e: s32, f: s32, g: s32, h: s32, i: s32, args: ..any") ||
+    ForeignVarargs("args: ..any, last: s32") || ForeignVarargs("text: string = \"..any\"") ||
+    ForeignVarargs("") { return false }
+    for error: 28..45 { if ErrorText(cast(DeclarationError)error).count == 0 { return false } }
+    return true
+}
+
 #program_export
 Answer :: () -> s32 {
     if !Parameters() { return 1 }
     if !Declarations() { return 2 }
     if !UsingModifiers() { return 3 }
+    if !ForeignDeclarations() { return 4 }
     return 42
 }
 
@@ -159,6 +238,7 @@ Fingerprint :: () -> s64 {
     alphabet := "using a:s32=1,(\"x=y,z\"){}[];<>\\\t#'./_\n"
     input: [64]u8
     output: [128]u8
+    foreign_input: [96]u8
     for sample: 0..255 {
         seed = seed * cast(u32)1664525 + cast(u32)1013904223
         count := cast(s64)(seed % cast(u32)64)
@@ -196,6 +276,24 @@ Fingerprint :: () -> s64 {
         method := ForeignMethod(source, 8, 8, sample % 2 == 0)
         hash = hash * cast(u32)16777619 ^ cast(u32)method.valid
         hash = hash * cast(u32)16777619 ^ cast(u32)PythonAttribute(source, 8)
+        used: s64 = 0
+        for byte: "F :: () " { foreign_input[used] = byte; used += 1 }
+        for byte: source { foreign_input[used] = byte; used += 1 }
+        for byte: " #foreign lib;" { foreign_input[used] = byte; used += 1 }
+        foreign_source := TextView(foreign_input[0:used])
+        foreign := ParseForeign(foreign_source, 8)
+        hash = hash * cast(u32)16777619 ^ cast(u32)foreign.error
+        hash = hash * cast(u32)16777619 ^ cast(u32)foreign.present
+        for byte: foreign.library { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+        for byte: foreign.symbol { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+        for capacity: 0..8 {
+            target := ResolveForeignTarget(foreign, "go:fmt", output[0:capacity], 8)
+            hash = hash * cast(u32)16777619 ^ cast(u32)target.error
+            hash = hash * cast(u32)16777619 ^ cast(u32)target.count
+            written := target.count
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+        }
     }
     return cast(s64)hash
 }

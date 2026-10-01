@@ -64,6 +64,7 @@ done
 ${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$(dirname "${ZIRAN_LIB:-$repo/build/libziran.a}")/compiler-declaration" \
     -I"$(dirname "${ZIRAN_LIB:-$repo/build/libziran.a}")/compiler-text" \
     -I"$(dirname "${ZIRAN_LIB:-$repo/build/libziran.a}")/compiler-source" \
+    -I"$(dirname "${ZIRAN_LIB:-$repo/build/libziran.a}")/compiler-scan" \
     "$repo/tests/compiler_declaration_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -o "$work/source-boundary"
 "$work/source-boundary"

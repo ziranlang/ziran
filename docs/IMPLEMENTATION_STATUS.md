@@ -169,6 +169,32 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   The checker, lowering, backends, and portable runtime still require
   further migration before the compiler is fully self-hosted.
 
+- Foreign declaration grammar and target spelling are implemented in
+  `cmd/compiler_declaration.zi`: procedure and foreign-type declarations,
+  alternate symbols, Go and Python method bindings, dotted Python attributes,
+  result/field/deferred/variadic modifiers, host-name restrictions, and the
+  final `..any` parameter. Directives are scanned as tokens; quoted defaults
+  and symbols cannot masquerade as modifiers or procedure bodies. Names and
+  symbols borrow bounded source, and target output reports its full length
+  while writing only the caller's bounded prefix. The C boundary retains
+  library visibility, target classification, diagnostics, and IR storage.
+  `tests/compiler_declaration.sh` checks source and saved IR on C, C++, Go,
+  Rust, Python, and `.zib`, including rejection cases, prefix output, borrowed
+  ranges, deterministic input, and exact generated-seed agreement.
+
+- Optional `then`, one-line `else`, and compile-time `#if`/`else #if` headers
+  are implemented in `cmd/compiler_statement.zi`. Control-header splitting
+  respects strings, grouped expressions, nested `ifx` arms, and member names
+  such as `flags.then`. Returned headers and bodies borrow bounded input;
+  the C boundary copies them into source lines and the logical-line queue.
+  `tests/compiler_statement.sh` checks source and saved IR on all six targets,
+  bounded input, deterministic inputs, seed agreement, source spans, and
+  elimination of unselected compile-time branches through the real frontend.
+  Procedures with slice parameters and defaults keep both signatures in sync
+  when checking normalizes parameter spacing, so checked IR remains writable;
+  `tests/default_arguments.sh` covers omitted and explicit defaults from source
+  and saved IR.
+
 - Portable imported callback signatures resolve their parameter and return
   types in their defining module. Record and enum parameters and record
   results retain their identities across module aliases. Aggregate field
@@ -1167,7 +1193,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   runtime still need to move from C to Ziran. The generated bootstrap modules
   currently cover token, text, source scanning, declaration syntax, enum
   evaluation, type spelling and field parsing, expression and initializer
-  grammar, and statement expression extraction. Declaration IR construction
+  grammar, foreign declarations and target spelling, and statement and
+  compile-time branch syntax. Declaration IR construction
   and semantic checking still require migration.
 - Finish Jai parity and specialization: cover remaining expression forms,
   exact foreign array ABI behavior (including nonempty `.data`), generic fields

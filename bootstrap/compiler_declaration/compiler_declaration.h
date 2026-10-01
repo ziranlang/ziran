@@ -10,6 +10,7 @@
 #include "zir_string.h"
 #include "compiler_text.h"
 #include "compiler_source.h"
+#include "compiler_scan.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,6 +23,8 @@ typedef struct ModuleImport ModuleImport;
 typedef struct LibraryDeclaration LibraryDeclaration;
 typedef struct MethodSymbol MethodSymbol;
 typedef struct UsingFilter UsingFilter;
+typedef struct ForeignDeclaration ForeignDeclaration;
+typedef struct ForeignTarget ForeignTarget;
 #ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 typedef struct QuotedText QuotedText;
 #endif
@@ -55,6 +58,24 @@ enum {
     DeclarationError_UsingList = 25,
     DeclarationError_UsingEntry = 26,
     DeclarationError_UsingMap = 27,
+    DeclarationError_ForeignResults = 28,
+    DeclarationError_ForeignField = 29,
+    DeclarationError_ForeignDefer = 30,
+    DeclarationError_ForeignVariadic = 31,
+    DeclarationError_ForeignPythonAttributes = 32,
+    DeclarationError_ForeignType = 33,
+    DeclarationError_ForeignBody = 34,
+    DeclarationError_ForeignLibrary = 35,
+    DeclarationError_ForeignSymbol = 36,
+    DeclarationError_ForeignEnd = 37,
+    DeclarationError_ForeignPythonSymbol = 38,
+    DeclarationError_ForeignHostRename = 39,
+    DeclarationError_ForeignGoResults = 40,
+    DeclarationError_ForeignGoField = 41,
+    DeclarationError_ForeignGoDefer = 42,
+    DeclarationError_ForeignGoVariadic = 43,
+    DeclarationError_ForeignPythonResults = 44,
+    DeclarationError_ForeignPythonField = 45,
 };
 
 struct ExportDirective {
@@ -109,6 +130,26 @@ struct UsingFilter {
     int64_t count;
     int64_t next;
 };
+
+struct ForeignDeclaration {
+    DeclarationError error;
+    bool present;
+    String name;
+    String library;
+    String symbol;
+    bool is_type;
+    bool go_results;
+    bool go_field;
+    bool go_defer;
+    bool go_variadic;
+    bool py_results;
+    bool py_field;
+};
+
+struct ForeignTarget {
+    DeclarationError error;
+    int64_t count;
+};
 #ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 
 struct QuotedText {
@@ -125,6 +166,9 @@ ModuleImport compiler_declaration_ImportDeclaration(String source, int64_t name_
 LibraryDeclaration compiler_declaration_SystemLibrary(String source, int64_t name_limit, int64_t path_limit);
 MethodSymbol compiler_declaration_ForeignMethod(String source, int64_t receiver_limit, int64_t method_limit, bool python);
 bool compiler_declaration_PythonAttribute(String source, int64_t name_limit);
+ForeignDeclaration compiler_declaration_ParseForeign(String source, int64_t name_limit);
+ForeignTarget compiler_declaration_ResolveForeignTarget(ForeignDeclaration declaration, String library, Slice output, int64_t name_limit);
+bool compiler_declaration_ForeignVarargs(String parameters);
 
 #ifdef __cplusplus
 }

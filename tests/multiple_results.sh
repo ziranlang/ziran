@@ -73,6 +73,20 @@ ZI
 reject result_binder 'a result of a procedure with several results needs a concrete type' <<'ZI'
 F :: (x: $T) -> $T, T { return x, x; }
 ZI
+reject result_count 'a procedure can have at most 16 results' <<'ZI'
+F :: () -> s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32 {
+    return 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17;
+}
+ZI
+reject result_name_limit 'the result types of F are too long to combine' <<'ZI'
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA :: struct { value: s32; }
+F :: () -> AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA, s32 { return AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.{1}, 2; }
+ZI
+reject return_count_limit 'return gives 17 values but the procedure has 16 results' <<'ZI'
+F :: () -> s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32, s32 {
+    return 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17;
+}
+ZI
 reject imported 'results from another module must be bound before they are returned' <<'ZI'
 #import "lib";
 F :: () -> s32, s32 { return DivMod(1, 1); }

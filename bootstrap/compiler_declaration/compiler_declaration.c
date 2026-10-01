@@ -54,6 +54,11 @@ static QuotedText compiler_declaration_Quoted(String source, int64_t limit);
 static String compiler_declaration_SymbolBeforeColons(String source, int64_t limit);
 static String compiler_declaration_Basename(String source);
 static QuotedText compiler_declaration_UsingQuoted(String source, int64_t limit);
+static bool compiler_declaration_ParameterIn(String source, String parameter);
+static String compiler_declaration_StatementValue(String source);
+static void compiler_declaration_PutByte(Slice output, int64_t* used, uint8_t byte);
+static int64_t compiler_declaration_AfterComment(String source, int64_t at);
+static void compiler_declaration_AddPrintPiece(PrintRewrite* result, Slice output, int32_t maximum, String builder, String value, bool literal);
 
 static int64_t
 compiler_declaration_Find(String source, String needle)
@@ -327,6 +332,45 @@ compiler_declaration_ErrorText(DeclarationError error)
     }
     if (error == DeclarationError_ForeignPythonField) {
         return StringLiteral("#py_field requires a py: foreign target");
+    }
+    if (error == DeclarationError_ResultCount) {
+        return StringLiteral("a procedure can have at most 16 results");
+    }
+    if (error == DeclarationError_ResultName) {
+        return StringLiteral("named results need name: Type for every result");
+    }
+    if (error == DeclarationError_ResultType) {
+        return StringLiteral("a result of a procedure with several results needs a concrete type");
+    }
+    if (error == DeclarationError_ResultParameters) {
+        return StringLiteral("multiple result type parameters exceed the size limit");
+    }
+    if (error == DeclarationError_ReturnCount) {
+        return StringLiteral("return value count does not match the procedure results");
+    }
+    if (error == DeclarationError_SymmetricParameters) {
+        return StringLiteral("#symmetric requires an operator procedure with two parameters");
+    }
+    if (error == DeclarationError_SymmetricModifier) {
+        return StringLiteral("duplicate #symmetric procedure modifier");
+    }
+    if (error == DeclarationError_ProcedureNameArguments) {
+        return StringLiteral("#procedure_name() requires empty parentheses");
+    }
+    if (error == DeclarationError_BuilderFormat) {
+        return StringLiteral("BuilderPrint needs a builder and a literal format");
+    }
+    if (error == DeclarationError_BuilderPercent) {
+        return StringLiteral("BuilderPrint format has more % than arguments");
+    }
+    if (error == DeclarationError_BuilderArguments) {
+        return StringLiteral("BuilderPrint has more arguments than % in its format");
+    }
+    if (error == DeclarationError_BuilderPieces) {
+        return StringLiteral("BuilderPrint has too many pieces");
+    }
+    if (error == DeclarationError_BuilderArgumentCount) {
+        return StringLiteral("BuilderPrint has too many arguments");
     }
     return StringLiteral("");
 }
@@ -1288,4 +1332,969 @@ compiler_declaration_ForeignVarargs(String parameters)
         last = compiler_declaration_Trim(value_4);
     }
     return StringEqual(last, StringLiteral("..any"));
+}
+
+ResultDeclaration
+compiler_declaration_ParseResults(String source, String template_parameters)
+{
+    ResultDeclaration result = {0};
+    String list = compiler_declaration_Trim(source);
+    int64_t value_0 = (int64_t)(list).length;
+    bool value_1 = value_0 > 1LL && (uint8_t)ZIRAN_INDEX(list.data, list.length, 0) == 40;
+    bool value_2 = value_1;
+    if (value_2) {
+        int64_t value_3 = compiler_source_ClosingParenthesis(list);
+        int64_t value_4 = (int64_t)((uint64_t)((int64_t)(list).length) - UINT64_C(1));
+        value_2 = (value_3 == value_4);
+    }
+    bool value_5 = value_2;
+    bool value_6 = value_5;
+    if (value_6) {
+        int64_t value_7 = compiler_declaration_Find(list, StringLiteral(":"));
+        value_6 = (value_7 >= 0LL);
+    }
+    bool named = value_6;
+    if (named) {
+        String value_8 = list;
+        String value_9 = StringRange(value_8, (int64_t)1LL, (int64_t)((int64_t)((uint64_t)((int64_t)(list).length) - UINT64_C(1))));
+        list = value_9;
+    }
+    int64_t at = 0LL;
+    while (at >= 0LL) {
+        if (result.count == 16) {
+            result.error = DeclarationError_ResultCount;
+            return result;
+        }
+        SourcePart range = compiler_text_NextSourcePart(list, at);
+        String value_10 = list;
+        String value_11 = compiler_declaration_Trim(StringRange(value_10, (int64_t)range.begin, (int64_t)range.end));
+        ZIRAN_INDEX(result.types, sizeof(result.types) / sizeof(result.types[0]), result.count) = value_11;
+        result.count = (int32_t)((uint32_t)(result.count) + 1u);
+        at = range.next;
+    }
+    if (result.count < 2) {
+        result.count = 0;
+        return result;
+    }
+    {
+        int32_t range_first_21 = 0;
+        int32_t range_last_21 = (int32_t)((uint32_t)(result.count) - 1u);
+        int32_t index = range_first_21;
+        while (index <= range_last_21) {
+            String part = ZIRAN_INDEX(result.types, 16, index);
+            if (named) {
+                int64_t colon = compiler_declaration_Find(part, StringLiteral(":"));
+                bool value_12 = colon < 0LL;
+                bool value_13 = value_12;
+                if (!value_13) {
+                    String value_14 = part;
+                    String value_15 = compiler_declaration_Trim(StringRange(value_14, (int64_t)0LL, (int64_t)colon));
+                    bool value_16 = compiler_source_IdentifierText(value_15, false);
+                    value_13 = !value_16;
+                }
+                if (value_13) {
+                    result.error = DeclarationError_ResultName;
+                    return result;
+                }
+                String value_17 = part;
+                String value_18 = StringRange(value_17, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)value_17.length);
+                part = compiler_declaration_Trim(value_18);
+                ZIRAN_INDEX(result.types, sizeof(result.types) / sizeof(result.types[0]), index) = part;
+            }
+            int64_t value_19 = (int64_t)(part).length;
+            bool value_20 = value_19 == 0LL;
+            bool value_21 = value_20;
+            if (!value_21) {
+                int64_t value_22 = compiler_declaration_Find(part, StringLiteral("$"));
+                value_21 = (value_22 >= 0LL);
+            }
+            bool value_23 = value_21;
+            bool value_24 = value_23;
+            if (!value_24) {
+                int64_t value_25 = compiler_declaration_Find(part, StringLiteral("\000"));
+                value_24 = (value_25 >= 0LL);
+            }
+            if (value_24) {
+                result.error = DeclarationError_ResultType;
+                return result;
+            }
+            int64_t cursor = 0LL;
+            while (true) {
+                int64_t value_26 = (int64_t)(part).length;
+                if (!(cursor < value_26)) { break; }
+                String value_27 = part;
+                bool value_28 = compiler_source_IdentifierText(StringRange(value_27, (int64_t)cursor, (int64_t)((int64_t)((uint64_t)cursor + UINT64_C(1)))), false);
+                if (!value_28) {
+                    cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
+                    continue;
+                }
+                int64_t begin = cursor;
+                cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
+                while (true) {
+                    int64_t value_29 = (int64_t)(part).length;
+                    bool value_30 = cursor < value_29;
+                    bool value_31 = value_30;
+                    if (value_31) {
+                        bool value_32 = compiler_text_IdentifierByte((uint8_t)ZIRAN_INDEX(part.data, part.length, cursor));
+                        value_31 = value_32;
+                    }
+                    if (!value_31) { break; }
+                    cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
+                }
+                String value_33 = part;
+                String parameter = StringRange(value_33, (int64_t)begin, (int64_t)cursor);
+                bool value_34 = compiler_declaration_ParameterIn(template_parameters, parameter);
+                if (!value_34) {
+                    continue;
+                }
+                bool seen = false;
+                {
+                    int32_t range_first_52 = 0;
+                    int32_t range_last_52 = (int32_t)((uint32_t)(result.parameter_count) - 1u);
+                    int32_t previous = range_first_52;
+                    while (previous <= range_last_52) {
+                        if (StringEqual(ZIRAN_INDEX(result.parameters, 64, previous), parameter)) {
+                            seen = true;
+                        }
+                        if (previous == range_last_52) {
+                            break;
+                        }
+                        previous = (int32_t)((uint32_t)previous + 1u);
+                    }
+                }
+                if (seen) {
+                    continue;
+                }
+                if (result.parameter_count == 64) {
+                    result.error = DeclarationError_ResultParameters;
+                    return result;
+                }
+                ZIRAN_INDEX(result.parameters, sizeof(result.parameters) / sizeof(result.parameters[0]), result.parameter_count) = parameter;
+                result.parameter_count = (int32_t)((uint32_t)(result.parameter_count) + 1u);
+            }
+            if (index == range_last_21) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    return result;
+}
+
+int64_t
+compiler_declaration_ResultsRecord(ResultDeclaration results, Slice output)
+{
+    int64_t used = 0LL;
+    compiler_declaration_Put(output, &(used), StringLiteral("Results"));
+    {
+        int32_t range_first_2 = 0;
+        int32_t range_last_2 = (int32_t)((uint32_t)(results.count) - 1u);
+        int32_t index = range_first_2;
+        while (index <= range_last_2) {
+            compiler_declaration_Put(output, &(used), StringLiteral("__"));
+            {
+                String value_0 = ZIRAN_INDEX(results.types, 16, index);
+                String loop_view_4 = StringRange(value_0, (int64_t)0, (int64_t)value_0.length);
+                int64_t loop_count_4 = (int64_t)(loop_view_4).length;
+                int64_t loop_cursor_4 = 0LL;
+                while (loop_cursor_4 < loop_count_4) {
+                    int64_t loop_index_4 = loop_cursor_4;
+                    uint8_t byte = (uint8_t)ZIRAN_INDEX(loop_view_4.data, loop_view_4.length, loop_index_4);
+                    if (compiler_text_SpaceByte(byte)) {
+                        loop_cursor_4 = (int64_t)((uint64_t)loop_cursor_4 + UINT64_C(1));
+                        continue;
+                    }
+                    uint8_t normalized = byte;
+                    bool value_1 = compiler_text_IdentifierByte(byte);
+                    if (!value_1) {
+                        normalized = 95;
+                        if (byte == 42) {
+                            normalized = 112;
+                        } else if (byte == 91) {
+                            normalized = 97;
+                        }
+                    }
+                    compiler_declaration_PutByte(output, &(used), normalized);
+                    loop_cursor_4 = (int64_t)((uint64_t)loop_cursor_4 + UINT64_C(1));
+                }
+            }
+            if (index == range_last_2) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    return used;
+}
+
+int64_t
+compiler_declaration_ResultsParameters(ResultDeclaration results, Slice output)
+{
+    int64_t used = 0LL;
+    {
+        int32_t range_first_1 = 0;
+        int32_t range_last_1 = (int32_t)((uint32_t)(results.parameter_count) - 1u);
+        int32_t index = range_first_1;
+        while (index <= range_last_1) {
+            if (index > 0) {
+                compiler_declaration_Put(output, &(used), StringLiteral(","));
+            }
+            compiler_declaration_Put(output, &(used), ZIRAN_INDEX(results.parameters, 64, index));
+            if (index == range_last_1) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    return used;
+}
+
+int64_t
+compiler_declaration_ResultsBody(ResultDeclaration results, Slice output)
+{
+    int64_t used = 0LL;
+    {
+        int32_t range_first_1 = 0;
+        int32_t range_last_1 = (int32_t)((uint32_t)(results.count) - 1u);
+        int32_t index = range_first_1;
+        while (index <= range_last_1) {
+            compiler_declaration_Put(output, &(used), StringLiteral("value_"));
+            if (index >= 10) {
+                compiler_declaration_Put(output, &(used), StringLiteral("1"));
+            }
+            compiler_declaration_PutByte(output, &(used), (uint8_t)(((int32_t)(48u + (uint32_t)((index % 10))))));
+            compiler_declaration_Put(output, &(used), StringLiteral(": "));
+            compiler_declaration_Put(output, &(used), ZIRAN_INDEX(results.types, 16, index));
+            compiler_declaration_Put(output, &(used), StringLiteral("\n"));
+            if (index == range_last_1) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    return used;
+}
+
+ResultReturn
+compiler_declaration_RewriteResultReturn(String source, String record, int32_t results, Slice output)
+{
+    ResultReturn result = {0};
+    String body = compiler_declaration_Trim(source);
+    bool value_0 = compiler_source_StartsWord(body, StringLiteral("return"));
+    if (!value_0) {
+        return result;
+    }
+    String value_1 = body;
+    String value = compiler_declaration_StatementValue(StringRange(value_1, (int64_t)6LL, (int64_t)value_1.length));
+    int64_t at = 0LL;
+    while (at >= 0LL) {
+        SourcePart range = compiler_text_NextSourcePart(value, at);
+        result.values = (int32_t)((uint32_t)(result.values) + 1u);
+        at = range.next;
+    }
+    if (result.values < 2) {
+        return result;
+    }
+    result.present = true;
+    if (result.values != results) {
+        result.error = DeclarationError_ReturnCount;
+        return result;
+    }
+    compiler_declaration_Put(output, &(result.count), StringLiteral("return "));
+    compiler_declaration_Put(output, &(result.count), record);
+    compiler_declaration_Put(output, &(result.count), StringLiteral(".{"));
+    compiler_declaration_Put(output, &(result.count), value);
+    compiler_declaration_Put(output, &(result.count), StringLiteral("};"));
+    return result;
+}
+
+ResultBinding
+compiler_declaration_MultipleBinding(String source, int32_t maximum, int64_t name_limit)
+{
+    ResultBinding result = {0};
+    int64_t at = compiler_text_SkipSpace(source, 0LL, true);
+    while (true) {
+        int64_t value_0 = (int64_t)(source).length;
+        if (!(at < value_0)) { break; }
+        int64_t begin = at;
+        while (true) {
+            int64_t value_1 = (int64_t)(source).length;
+            bool value_2 = at < value_1;
+            bool value_3 = value_2;
+            if (value_3) {
+                bool value_4 = compiler_text_IdentifierByte((uint8_t)ZIRAN_INDEX(source.data, source.length, at));
+                value_3 = value_4;
+            }
+            if (!value_3) { break; }
+            at = (int64_t)((uint64_t)at + UINT64_C(1));
+        }
+        String value_5 = source;
+        String name = StringRange(value_5, (int64_t)begin, (int64_t)at);
+        int64_t value_6 = (int64_t)(name).length;
+        bool value_7 = value_6 >= name_limit;
+        bool value_8 = value_7;
+        if (!value_8) {
+            bool value_9 = compiler_source_IdentifierText(name, false);
+            value_8 = !value_9;
+        }
+        if (value_8 || result.count == 16 || result.count >= maximum) {
+            return (ResultBinding){0};
+        }
+        ZIRAN_INDEX(result.targets, sizeof(result.targets) / sizeof(result.targets[0]), result.count) = name;
+        result.count = (int32_t)((uint32_t)(result.count) + 1u);
+        at = compiler_text_SkipSpace(source, at, true);
+        int64_t value_10 = (int64_t)(source).length;
+        if (at >= value_10 || (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 44) {
+            break;
+        }
+        at = compiler_text_SkipSpace(source, (int64_t)((uint64_t)at + UINT64_C(1)), true);
+    }
+    bool value_11 = result.count < 2;
+    if (!value_11) {
+        int64_t value_12 = (int64_t)(source).length;
+        value_11 = (at >= value_12);
+    }
+    if (value_11) {
+        return (ResultBinding){0};
+    }
+    bool value_13 = (uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 58;
+    if (value_13) {
+        int64_t value_14 = (int64_t)((uint64_t)at + UINT64_C(1));
+        int64_t value_15 = (int64_t)(source).length;
+        value_13 = (value_14 < value_15);
+    }
+    bool value_16 = value_13 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + UINT64_C(1)))) == 61;
+    if (value_16) {
+        result.inferred = true;
+        at = (int64_t)((uint64_t)at + UINT64_C(2));
+    } else {
+        bool value_17 = (uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 61;
+        if (value_17) {
+            int64_t value_18 = (int64_t)((uint64_t)at + UINT64_C(1));
+            int64_t value_19 = (int64_t)(source).length;
+            bool value_20 = value_18 == value_19 || (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + UINT64_C(1)))) != 61;
+            value_17 = value_20;
+        }
+        if (value_17) {
+            at = (int64_t)((uint64_t)at + UINT64_C(1));
+        } else {
+            return (ResultBinding){0};
+        }
+    }
+    String value_21 = source;
+    String value_22 = compiler_declaration_StatementValue(StringRange(value_21, (int64_t)at, (int64_t)value_21.length));
+    result.value = value_22;
+    int64_t value_23 = (int64_t)(result.value).length;
+    if (value_23 == 0LL) {
+        return (ResultBinding){0};
+    }
+    result.present = true;
+    return result;
+}
+
+static bool
+compiler_declaration_ParameterIn(String source, String parameter)
+{
+    int64_t at = 0LL;
+    while (at >= 0LL) {
+        SourcePart range = compiler_text_NextSourcePart(source, at);
+        String value_0 = source;
+        String value_1 = compiler_declaration_Trim(StringRange(value_0, (int64_t)range.begin, (int64_t)range.end));
+        if (StringEqual(value_1, parameter)) {
+            return true;
+        }
+        at = range.next;
+    }
+    return false;
+}
+
+static String
+compiler_declaration_StatementValue(String source)
+{
+    String value = compiler_declaration_Trim(source);
+    while (true) {
+        int64_t value_0 = (int64_t)(value).length;
+        bool value_1 = value_0 > 0LL;
+        if (value_1) {
+            uint8_t value_2 = (uint8_t)ZIRAN_INDEX(value.data, value.length, ((int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1))));
+            value_1 = (value_2 == 59);
+        }
+        if (!value_1) { break; }
+        String value_3 = value;
+        String value_4 = StringRange(value_3, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(value).length) - UINT64_C(1))));
+        value = compiler_declaration_Trim(value_4);
+    }
+    return value;
+}
+
+static void
+compiler_declaration_PutByte(Slice output, int64_t* used, uint8_t byte)
+{
+    int64_t value_0 = *(used);
+    int64_t value_1 = (int64_t)(output).length;
+    if (value_0 < value_1) {
+        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)*(used))] = byte;
+    }
+    (*(used)) = (int64_t)((uint64_t)((*(used))) + UINT64_C(1));
+}
+
+static int64_t
+compiler_declaration_AfterComment(String source, int64_t at)
+{
+    int64_t value_0 = (int64_t)((uint64_t)at + UINT64_C(1));
+    int64_t value_1 = (int64_t)(source).length;
+    if (value_0 >= value_1 || (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 47) {
+        return at;
+    }
+    if ((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + UINT64_C(1)))) == 47) {
+        return (int64_t)(source).length;
+    }
+    if ((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + UINT64_C(1)))) != 42) {
+        return at;
+    }
+    at = (int64_t)((uint64_t)at + UINT64_C(2));
+    int32_t depth = 1;
+    while (true) {
+        int64_t value_2 = (int64_t)(source).length;
+        if (!(at < value_2 && depth > 0)) { break; }
+        int64_t value_3 = (int64_t)((uint64_t)at + UINT64_C(1));
+        int64_t value_4 = (int64_t)(source).length;
+        bool value_5 = value_3 < value_4 && (uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 47 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + UINT64_C(1)))) == 42;
+        if (value_5) {
+            depth = (int32_t)((uint32_t)depth + 1u);
+            at = (int64_t)((uint64_t)at + UINT64_C(2));
+        } else {
+            int64_t value_6 = (int64_t)((uint64_t)at + UINT64_C(1));
+            int64_t value_7 = (int64_t)(source).length;
+            bool value_8 = value_6 < value_7 && (uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 42 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + UINT64_C(1)))) == 47;
+            if (value_8) {
+                depth = (int32_t)((uint32_t)depth - 1u);
+                at = (int64_t)((uint64_t)at + UINT64_C(2));
+            } else {
+                at = (int64_t)((uint64_t)at + UINT64_C(1));
+            }
+        }
+    }
+    return at;
+}
+
+bool
+compiler_declaration_DefaultScopeIndependent(String source, int64_t token_limit)
+{
+    String previous = StringLiteral("");
+    int64_t at = 0LL;
+    while (true) {
+        int64_t value_0 = (int64_t)(source).length;
+        if (!(at < value_0)) { break; }
+        Scan token = compiler_scan_NextToken(source, at, 1, 1);
+        if (((TokenKind)(token.kind)) == ((TokenKind)(0))) {
+            return true;
+        }
+        String value_1 = source;
+        String spelling = StringRange(value_1, (int64_t)token.begin, (int64_t)token.end);
+        bool value_2 = ((TokenKind)(token.kind)) == ((TokenKind)(9));
+        if (!value_2) {
+            int64_t value_3 = (int64_t)(spelling).length;
+            value_2 = (value_3 >= token_limit);
+        }
+        if (value_2) {
+            return false;
+        }
+        if (((TokenKind)(token.kind)) == ((TokenKind)(6)) && !StringEqual(spelling, StringLiteral("#char"))) {
+            return false;
+        }
+        bool value_4 = ((TokenKind)(token.kind)) == ((TokenKind)(1)) && !StringEqual(spelling, StringLiteral("true")) && !StringEqual(spelling, StringLiteral("false"));
+        if (value_4 && !StringEqual(spelling, StringLiteral("null"))) {
+            Scan next = compiler_scan_NextToken(source, token.end, 1, 1);
+            bool value_5 = !StringEqual(previous, StringLiteral("{")) && !StringEqual(previous, StringLiteral(","));
+            if (!value_5) {
+                String value_6 = source;
+                value_5 = (!StringEqual(StringRange(value_6, (int64_t)next.begin, (int64_t)next.end), StringLiteral("=")));
+            }
+            if (value_5) {
+                return false;
+            }
+        }
+        previous = spelling;
+        at = token.end;
+    }
+    return true;
+}
+
+TextRewrite
+compiler_declaration_RewriteProcedureName(String source, String name, Slice output)
+{
+    TextRewrite result = {0};
+    int64_t copied = 0LL;
+    int64_t at = 0LL;
+    while (true) {
+        int64_t value_0 = (int64_t)(source).length;
+        if (!(at < value_0)) { break; }
+        Scan token = compiler_scan_NextToken(source, at, 1, 1);
+        if (((TokenKind)(token.kind)) == ((TokenKind)(0))) {
+            break;
+        }
+        int64_t comment = compiler_declaration_AfterComment(source, token.begin);
+        int64_t value_1 = token.begin;
+        if (comment != value_1) {
+            at = comment;
+            continue;
+        }
+        at = token.end;
+        bool value_2 = ((TokenKind)(token.kind)) != ((TokenKind)(6));
+        if (!value_2) {
+            String value_3 = source;
+            bool value_4 = !StringEqual(StringRange(value_3, (int64_t)token.begin, (int64_t)token.end), StringLiteral("#procedure_name"));
+            value_2 = value_4;
+        }
+        if (value_2) {
+            continue;
+        }
+        Scan opening = compiler_scan_NextToken(source, at, 1, 1);
+        Scan closing = compiler_scan_NextToken(source, opening.end, 1, 1);
+        String value_5 = source;
+        bool value_6 = !StringEqual(StringRange(value_5, (int64_t)opening.begin, (int64_t)opening.end), StringLiteral("("));
+        bool value_7 = value_6;
+        if (!value_7) {
+            String value_8 = source;
+            bool value_9 = !StringEqual(StringRange(value_8, (int64_t)closing.begin, (int64_t)closing.end), StringLiteral(")"));
+            value_7 = value_9;
+        }
+        if (value_7) {
+            result.error = DeclarationError_ProcedureNameArguments;
+            return result;
+        }
+        String value_10 = source;
+        compiler_declaration_Put(output, &(result.count), StringRange(value_10, (int64_t)copied, (int64_t)token.begin));
+        compiler_declaration_Put(output, &(result.count), StringLiteral("\""));
+        compiler_declaration_Put(output, &(result.count), name);
+        compiler_declaration_Put(output, &(result.count), StringLiteral("\""));
+        at = closing.end;
+        copied = at;
+        result.changed = true;
+    }
+    String value_11 = source;
+    compiler_declaration_Put(output, &(result.count), StringRange(value_11, (int64_t)copied, (int64_t)value_11.length));
+    return result;
+}
+
+TextRewrite
+compiler_declaration_RewriteLocalNames(String source, Slice names, Slice output)
+{
+    TextRewrite result = {0};
+    String previous = StringLiteral("");
+    int64_t copied = 0LL;
+    int64_t at = 0LL;
+    while (true) {
+        int64_t value_0 = (int64_t)(source).length;
+        if (!(at < value_0)) { break; }
+        Scan token = compiler_scan_NextToken(source, at, 1, 1);
+        if (((TokenKind)(token.kind)) == ((TokenKind)(0))) {
+            break;
+        }
+        int64_t comment = compiler_declaration_AfterComment(source, token.begin);
+        int64_t value_1 = token.begin;
+        if (comment != value_1) {
+            at = comment;
+            continue;
+        }
+        String value_2 = source;
+        String spelling = StringRange(value_2, (int64_t)token.begin, (int64_t)token.end);
+        bool label = false;
+        bool value_3 = StringEqual(previous, StringLiteral("{")) || StringEqual(previous, StringLiteral(",")) || (StringEqual(previous, StringLiteral("(")));
+        if (value_3) {
+            Scan next = compiler_scan_NextToken(source, token.end, 1, 1);
+            String value_4 = source;
+            label = StringEqual(StringRange(value_4, (int64_t)next.begin, (int64_t)next.end), StringLiteral("="));
+        }
+        bool value_5 = ((TokenKind)(token.kind)) == ((TokenKind)(1)) && !StringEqual(previous, StringLiteral(".")) && !label;
+        if (value_5) {
+            {
+                int64_t range_first_21 = 0LL;
+                int64_t range_last_21 = (int64_t)((uint64_t)((int64_t)(names).length) - UINT64_C(1));
+                int64_t index = range_last_21;
+                while (index >= range_first_21) {
+                    bool value_6 = !StringEqual((((NameReplacement *)names.data)[SliceIndex(names, (int64_t)index)]).source, spelling);
+                    if (value_6) {
+                        if (index == range_first_21) {
+                            break;
+                        }
+                        index = (int64_t)((uint64_t)index - UINT64_C(1));
+                        continue;
+                    }
+                    String value_7 = source;
+                    compiler_declaration_Put(output, &(result.count), StringRange(value_7, (int64_t)copied, (int64_t)token.begin));
+                    compiler_declaration_Put(output, &(result.count), (((NameReplacement *)names.data)[SliceIndex(names, (int64_t)index)]).target);
+                    copied = token.end;
+                    result.changed = true;
+                    break;
+                }
+            }
+        }
+        previous = spelling;
+        at = token.end;
+    }
+    String value_8 = source;
+    compiler_declaration_Put(output, &(result.count), StringRange(value_8, (int64_t)copied, (int64_t)value_8.length));
+    return result;
+}
+
+SymmetricRewrite
+compiler_declaration_RewriteSymmetric(String source, Slice header_output, Slice wrapper_output, int64_t name_limit)
+{
+    SymmetricRewrite result = {0};
+    int64_t directive = -1LL;
+    int64_t end = 0LL;
+    int64_t at = 0LL;
+    int32_t depth = 0;
+    while (true) {
+        int64_t value_0 = (int64_t)(source).length;
+        if (!(at < value_0)) { break; }
+        Scan token = compiler_scan_NextToken(source, at, 1, 1);
+        if (((TokenKind)(token.kind)) == ((TokenKind)(0))) {
+            break;
+        }
+        int64_t comment = compiler_declaration_AfterComment(source, token.begin);
+        int64_t value_1 = token.begin;
+        if (comment != value_1) {
+            at = comment;
+            continue;
+        }
+        String value_2 = source;
+        String spelling = StringRange(value_2, (int64_t)token.begin, (int64_t)token.end);
+        bool value_3 = ((StringEqual(spelling, StringLiteral("("))) || StringEqual(spelling, StringLiteral("["))) || StringEqual(spelling, StringLiteral("{"));
+        if (value_3) {
+            depth = (int32_t)((uint32_t)depth + 1u);
+        } else {
+            bool value_4 = ((StringEqual(spelling, StringLiteral(")"))) || StringEqual(spelling, StringLiteral("]"))) || StringEqual(spelling, StringLiteral("}"));
+            if (value_4) {
+                depth = (int32_t)((uint32_t)depth - 1u);
+            }
+        }
+        if (StringEqual(spelling, StringLiteral("{")) && depth == 1) {
+            break;
+        }
+        bool value_5 = depth == 0 && ((TokenKind)(token.kind)) == ((TokenKind)(6)) && StringEqual(spelling, StringLiteral("#symmetric"));
+        if (value_5) {
+            if (directive >= 0LL) {
+                result.error = DeclarationError_SymmetricModifier;
+                return result;
+            }
+            directive = token.begin;
+            end = token.end;
+        }
+        at = token.end;
+    }
+    if (directive < 0LL) {
+        compiler_declaration_Put(header_output, &(result.header_count), source);
+        return result;
+    }
+    result.present = true;
+    String value_6 = source;
+    compiler_declaration_Put(header_output, &(result.header_count), StringRange(value_6, (int64_t)0LL, (int64_t)directive));
+    String value_7 = source;
+    compiler_declaration_Put(header_output, &(result.header_count), StringRange(value_7, (int64_t)end, (int64_t)value_7.length));
+    ProcedureHeader header = compiler_source_ProcedureHeaderParts(source);
+    int64_t value_8 = (int64_t)(header.name).length;
+    bool value_9 = value_8 < 9LL;
+    if (!value_9) {
+        String value_10 = header.name;
+        value_9 = (!StringEqual(StringRange(value_10, (int64_t)0LL, (int64_t)9LL), StringLiteral("operator_")));
+    }
+    bool value_11 = value_9;
+    if (!value_11) {
+        int64_t value_12 = (int64_t)(header.name).length;
+        value_11 = (value_12 >= name_limit);
+    }
+    if (value_11) {
+        result.error = DeclarationError_SymmetricParameters;
+        return result;
+    }
+    SourcePart first = compiler_text_NextSourcePart(header.parameters, 0LL);
+    SourcePart second = compiler_text_NextSourcePart(header.parameters, first.next);
+    int64_t value_13 = first.next;
+    bool value_14 = value_13 < 0LL;
+    if (!value_14) {
+        int64_t value_15 = second.next;
+        value_14 = (value_15 >= 0LL);
+    }
+    if (value_14) {
+        result.error = DeclarationError_SymmetricParameters;
+        return result;
+    }
+    String value_16 = header.parameters;
+    String left = compiler_declaration_Trim(StringRange(value_16, (int64_t)first.begin, (int64_t)first.end));
+    String value_17 = header.parameters;
+    String right = compiler_declaration_Trim(StringRange(value_17, (int64_t)second.begin, (int64_t)second.end));
+    int64_t left_colon = compiler_declaration_Find(left, StringLiteral(":"));
+    int64_t right_colon = compiler_declaration_Find(right, StringLiteral(":"));
+    if (left_colon < 0LL || right_colon < 0LL) {
+        result.error = DeclarationError_SymmetricParameters;
+        return result;
+    }
+    String value_18 = left;
+    String left_name = compiler_declaration_Trim(StringRange(value_18, (int64_t)0LL, (int64_t)left_colon));
+    String value_19 = right;
+    String right_name = compiler_declaration_Trim(StringRange(value_19, (int64_t)0LL, (int64_t)right_colon));
+    int64_t value_20 = (int64_t)(left_name).length;
+    bool value_21 = value_20 >= name_limit;
+    if (!value_21) {
+        int64_t value_22 = (int64_t)(right_name).length;
+        value_21 = (value_22 >= name_limit);
+    }
+    bool value_23 = value_21;
+    bool value_24 = value_23;
+    if (!value_24) {
+        bool value_25 = compiler_source_IdentifierText(left_name, false);
+        value_24 = !value_25;
+    }
+    bool value_26 = value_24;
+    bool value_27 = value_26;
+    if (!value_27) {
+        bool value_28 = compiler_source_IdentifierText(right_name, false);
+        value_27 = !value_28;
+    }
+    if (value_27) {
+        result.error = DeclarationError_SymmetricParameters;
+        return result;
+    }
+    uint8_t first_type[128] = {0};
+    uint8_t second_type[128] = {0};
+    uint8_t result_type[128] = {0};
+    String value_29 = left;
+    String value_30 = StringRange(value_29, (int64_t)((int64_t)((uint64_t)left_colon + UINT64_C(1))), (int64_t)value_29.length);
+    String value_31 = compiler_declaration_Trim(value_30);
+    Slice value_32 = {first_type, 128};
+    int64_t value_33 = compiler_source_NormalizeTypeSpacing(value_31, SliceRange(value_32, (int64_t)0, (int64_t)value_32.length, sizeof(uint8_t)));
+    int64_t left_count = value_33;
+    String value_34 = right;
+    String value_35 = StringRange(value_34, (int64_t)((int64_t)((uint64_t)right_colon + UINT64_C(1))), (int64_t)value_34.length);
+    String value_36 = compiler_declaration_Trim(value_35);
+    Slice value_37 = {second_type, 128};
+    int64_t value_38 = compiler_source_NormalizeTypeSpacing(value_36, SliceRange(value_37, (int64_t)0, (int64_t)value_37.length, sizeof(uint8_t)));
+    int64_t right_count = value_38;
+    if (left_count == 0LL || right_count == 0LL || left_count >= 128LL || right_count >= 128LL) {
+        result.error = DeclarationError_SymmetricParameters;
+        return result;
+    }
+    Slice value_39 = {first_type, 128};
+    Slice value_40 = SliceRange(value_39, (int64_t)0LL, (int64_t)left_count, sizeof(uint8_t));
+    String left_type = StringView((const char *)(value_40).data, (size_t)(value_40).length);
+    Slice value_41 = {second_type, 128};
+    Slice value_42 = SliceRange(value_41, (int64_t)0LL, (int64_t)right_count, sizeof(uint8_t));
+    String right_type = StringView((const char *)(value_42).data, (size_t)(value_42).length);
+    if (StringEqual(left_type, right_type)) {
+        return result;
+    }
+    Slice value_43 = {result_type, 128};
+    int64_t value_44 = compiler_source_NormalizeTypeSpacing(header.result, SliceRange(value_43, (int64_t)0, (int64_t)value_43.length, sizeof(uint8_t)));
+    int64_t result_count = value_44;
+    if (result_count >= 128LL) {
+        result.error = DeclarationError_SymmetricParameters;
+        return result;
+    }
+    Slice value_45 = {result_type, 128};
+    Slice value_46 = SliceRange(value_45, (int64_t)0LL, (int64_t)result_count, sizeof(uint8_t));
+    String return_type = StringView((const char *)(value_46).data, (size_t)(value_46).length);
+    result.needed = true;
+    compiler_declaration_Put(wrapper_output, &(result.count), header.name);
+    compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral(" :: ("));
+    compiler_declaration_Put(wrapper_output, &(result.count), right_name);
+    compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral(": "));
+    compiler_declaration_Put(wrapper_output, &(result.count), right_type);
+    compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral(", "));
+    compiler_declaration_Put(wrapper_output, &(result.count), left_name);
+    compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral(": "));
+    compiler_declaration_Put(wrapper_output, &(result.count), left_type);
+    compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral(")"));
+    if (!StringEqual(return_type, StringLiteral("void"))) {
+        compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral(" -> "));
+        compiler_declaration_Put(wrapper_output, &(result.count), return_type);
+    }
+    compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral(" { return "));
+    compiler_declaration_Put(wrapper_output, &(result.count), header.name);
+    compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral("("));
+    compiler_declaration_Put(wrapper_output, &(result.count), left_name);
+    compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral(", "));
+    compiler_declaration_Put(wrapper_output, &(result.count), right_name);
+    compiler_declaration_Put(wrapper_output, &(result.count), StringLiteral("); }"));
+    return result;
+}
+
+PrintRewrite
+compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t maximum)
+{
+    PrintRewrite result = {0};
+    String call = compiler_declaration_Trim(source);
+    bool value_0 = compiler_source_StartsWord(call, StringLiteral("BuilderPrint"));
+    if (!value_0) {
+        return result;
+    }
+    int64_t opening = compiler_text_SkipSpace(call, 12LL, true);
+    int64_t value_1 = (int64_t)(call).length;
+    if (opening >= value_1 || (uint8_t)ZIRAN_INDEX(call.data, call.length, opening) != 40) {
+        return result;
+    }
+    String value_2 = call;
+    int64_t value_3 = compiler_source_ClosingParenthesis(StringRange(value_2, (int64_t)opening, (int64_t)value_2.length));
+    int64_t closing = value_3;
+    if (closing < 0LL) {
+        return result;
+    }
+    closing = (int64_t)((uint64_t)closing + (uint64_t)opening);
+    String value_4 = call;
+    String value_5 = StringRange(value_4, (int64_t)((int64_t)((uint64_t)closing + UINT64_C(1))), (int64_t)value_4.length);
+    String rest = compiler_declaration_Trim(value_5);
+    if (!StringEqual(rest, StringLiteral("")) && !StringEqual(rest, StringLiteral(";"))) {
+        return result;
+    }
+    String value_6 = call;
+    String inner = StringRange(value_6, (int64_t)((int64_t)((uint64_t)opening + UINT64_C(1))), (int64_t)closing);
+    String parts[64] = {0};
+    int32_t count = 0;
+    int64_t at = 0LL;
+    while (at >= 0LL) {
+        if (count == 64) {
+            result.error = DeclarationError_BuilderArgumentCount;
+            return result;
+        }
+        SourcePart range = compiler_text_NextSourcePart(inner, at);
+        String value_7 = inner;
+        String value_8 = compiler_declaration_Trim(StringRange(value_7, (int64_t)range.begin, (int64_t)range.end));
+        ZIRAN_INDEX(parts, sizeof(parts) / sizeof(parts[0]), count) = value_8;
+        count = (int32_t)((uint32_t)count + 1u);
+        at = range.next;
+    }
+    String format = ZIRAN_INDEX(parts, 64, 1);
+    bool value_9 = count < 2;
+    if (!value_9) {
+        int64_t value_10 = (int64_t)(format).length;
+        value_9 = (value_10 < 2LL);
+    }
+    bool value_11 = value_9 || (uint8_t)ZIRAN_INDEX(format.data, format.length, 0) != 34;
+    if (!value_11) {
+        uint8_t value_12 = (uint8_t)ZIRAN_INDEX(format.data, format.length, ((int64_t)((uint64_t)((int64_t)(format).length) - UINT64_C(1))));
+        value_11 = (value_12 != 34);
+    }
+    if (value_11) {
+        result.error = DeclarationError_BuilderFormat;
+        return result;
+    }
+    String value_13 = format;
+    String value_14 = StringRange(value_13, (int64_t)1LL, (int64_t)((int64_t)((uint64_t)((int64_t)(format).length) - UINT64_C(1))));
+    format = value_14;
+    int32_t argument = 2;
+    int64_t begin = 0LL;
+    at = 0LL;
+    while (true) {
+        int64_t value_15 = (int64_t)(format).length;
+        if (!(at < value_15)) { break; }
+        uint8_t byte = (uint8_t)ZIRAN_INDEX(format.data, format.length, at);
+        bool value_16 = byte == 92;
+        if (value_16) {
+            int64_t value_17 = (int64_t)((uint64_t)at + UINT64_C(1));
+            int64_t value_18 = (int64_t)(format).length;
+            value_16 = (value_17 < value_18);
+        }
+        if (value_16) {
+            at = (int64_t)((uint64_t)at + UINT64_C(2));
+            continue;
+        }
+        bool value_19 = byte == 37;
+        if (value_19) {
+            int64_t value_20 = (int64_t)((uint64_t)at + UINT64_C(1));
+            int64_t value_21 = (int64_t)(format).length;
+            value_19 = (value_20 < value_21);
+        }
+        bool value_22 = value_19 && (uint8_t)ZIRAN_INDEX(format.data, format.length, ((int64_t)((uint64_t)at + UINT64_C(1)))) == 37;
+        if (value_22) {
+            at = (int64_t)((uint64_t)at + UINT64_C(2));
+            continue;
+        }
+        if (byte != 37) {
+            at = (int64_t)((uint64_t)at + UINT64_C(1));
+            continue;
+        }
+        if (argument == count) {
+            result.error = DeclarationError_BuilderPercent;
+            return result;
+        }
+        if (at > begin) {
+            String value_23 = format;
+            compiler_declaration_AddPrintPiece(&(result), output, maximum, ZIRAN_INDEX(parts, 64, 0), StringRange(value_23, (int64_t)begin, (int64_t)at), true);
+        }
+        if (((DeclarationError)(result.error)) != DeclarationError_None) {
+            return result;
+        }
+        compiler_declaration_AddPrintPiece(&(result), output, maximum, ZIRAN_INDEX(parts, 64, 0), ZIRAN_INDEX(parts, 64, argument), false);
+        if (((DeclarationError)(result.error)) != DeclarationError_None) {
+            return result;
+        }
+        argument = (int32_t)((uint32_t)argument + 1u);
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+        begin = at;
+    }
+    if (argument != count) {
+        result.error = DeclarationError_BuilderArguments;
+        return result;
+    }
+    if (at > begin) {
+        String value_24 = format;
+        compiler_declaration_AddPrintPiece(&(result), output, maximum, ZIRAN_INDEX(parts, 64, 0), StringRange(value_24, (int64_t)begin, (int64_t)at), true);
+    }
+    return result;
+}
+
+static void
+compiler_declaration_AddPrintPiece(PrintRewrite* result, Slice output, int32_t maximum, String builder, String value, bool literal)
+{
+    if (result->statements == 64 || result->statements >= maximum) {
+        result->error = DeclarationError_BuilderPieces;
+        return;
+    }
+    Slice slot = {0};
+    int64_t value_0 = (int64_t)(result->statements);
+    int64_t value_1 = (int64_t)(output).length;
+    if (value_0 < value_1) {
+        slot = (((StatementOutput *)output.data)[SliceIndex(output, (int64_t)result->statements)]).bytes;
+    }
+    int64_t used = 0LL;
+    compiler_declaration_Put(slot, &(used), StringLiteral("Append("));
+    compiler_declaration_Put(slot, &(used), builder);
+    compiler_declaration_Put(slot, &(used), StringLiteral(", "));
+    if (literal) {
+        compiler_declaration_Put(slot, &(used), StringLiteral("\""));
+        int64_t at = 0LL;
+        while (true) {
+            int64_t value_2 = (int64_t)(value).length;
+            if (!(at < value_2)) { break; }
+            uint8_t byte = (uint8_t)ZIRAN_INDEX(value.data, value.length, at);
+            compiler_declaration_PutByte(slot, &(used), byte);
+            at = (int64_t)((uint64_t)at + UINT64_C(1));
+            bool value_3 = byte == 92;
+            if (value_3) {
+                int64_t value_4 = (int64_t)(value).length;
+                value_3 = (at < value_4);
+            }
+            if (value_3) {
+                compiler_declaration_PutByte(slot, &(used), (uint8_t)ZIRAN_INDEX(value.data, value.length, at));
+                at = (int64_t)((uint64_t)at + UINT64_C(1));
+            } else {
+                bool value_5 = byte == 37;
+                if (value_5) {
+                    int64_t value_6 = (int64_t)(value).length;
+                    value_5 = (at < value_6);
+                }
+                if (value_5 && (uint8_t)ZIRAN_INDEX(value.data, value.length, at) == 37) {
+                    at = (int64_t)((uint64_t)at + UINT64_C(1));
+                }
+            }
+        }
+        compiler_declaration_Put(slot, &(used), StringLiteral("\""));
+    } else {
+        compiler_declaration_Put(slot, &(used), value);
+    }
+    compiler_declaration_Put(slot, &(used), StringLiteral(");"));
+    ZIRAN_INDEX(result->lengths, sizeof(result->lengths) / sizeof(result->lengths[0]), result->statements) = used;
+    result->statements = (int32_t)((uint32_t)(result->statements) + 1u);
 }

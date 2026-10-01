@@ -195,6 +195,30 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/default_arguments.sh` covers omitted and explicit defaults from source
   and saved IR.
 
+- Multiple-result syntax and declaration rewrites are implemented in
+  `cmd/compiler_declaration.zi`: named and positional result types, canonical
+  results-record spelling, template parameters in first-use order, result
+  fields, multiple-value returns, and inferred or assigned result bindings.
+  Types and names borrow bounded input; generated text reports its full length
+  while writing only the caller's bounded prefix. More than 16 results and
+  oversized generated names are rejected instead of being silently truncated.
+  The same module checks scope-independent defaults, expands `BuilderPrint`
+  into bounded `Append` statements, removes `#symmetric` and generates swapped
+  operator wrappers, lowers `#procedure_name()`, and rewrites hoisted local
+  names. Local name rewriting preserves literals, comments, named field and
+  argument labels, and member names even when spaces surround the dot.
+  The C boundary retains diagnostics, allocation, copying into source queues,
+  and declaration IR construction. Ordinary tools compile the maintained Ziran
+  source; fresh builds use its checked generated seed.
+  `tests/compiler_declaration.sh` checks source and saved IR on C, C++, Go,
+  Rust, Python, and `.zib`, bounded prefixes, borrowed ranges, deterministic
+  inputs, the C boundary, and seed agreement. `tests/multiple_results.sh`,
+  `tests/generic_multiple_results.sh`, `tests/operators.sh`,
+  `tests/local_procedures.sh`, `tests/default_arguments.sh`, and
+  `tests/format_builder.sh` exercise the frontend and generated programs.
+  Semantic checking, IR construction, lowering, native backends, and the
+  portable runtime still contain C; the compiler is not fully self-hosted.
+
 - Portable imported callback signatures resolve their parameter and return
   types in their defining module. Record and enum parameters and record
   results retain their identities across module aliases. Aggregate field

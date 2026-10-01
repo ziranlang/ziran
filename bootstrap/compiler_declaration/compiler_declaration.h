@@ -25,6 +25,14 @@ typedef struct MethodSymbol MethodSymbol;
 typedef struct UsingFilter UsingFilter;
 typedef struct ForeignDeclaration ForeignDeclaration;
 typedef struct ForeignTarget ForeignTarget;
+typedef struct ResultDeclaration ResultDeclaration;
+typedef struct ResultReturn ResultReturn;
+typedef struct ResultBinding ResultBinding;
+typedef struct SymmetricRewrite SymmetricRewrite;
+typedef struct TextRewrite TextRewrite;
+typedef struct NameReplacement NameReplacement;
+typedef struct PrintRewrite PrintRewrite;
+typedef struct StatementOutput StatementOutput;
 #ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 typedef struct QuotedText QuotedText;
 #endif
@@ -76,6 +84,19 @@ enum {
     DeclarationError_ForeignGoVariadic = 43,
     DeclarationError_ForeignPythonResults = 44,
     DeclarationError_ForeignPythonField = 45,
+    DeclarationError_ResultCount = 46,
+    DeclarationError_ResultName = 47,
+    DeclarationError_ResultType = 48,
+    DeclarationError_ResultParameters = 49,
+    DeclarationError_ReturnCount = 50,
+    DeclarationError_SymmetricParameters = 51,
+    DeclarationError_SymmetricModifier = 52,
+    DeclarationError_ProcedureNameArguments = 53,
+    DeclarationError_BuilderFormat = 54,
+    DeclarationError_BuilderPercent = 55,
+    DeclarationError_BuilderArguments = 56,
+    DeclarationError_BuilderPieces = 57,
+    DeclarationError_BuilderArgumentCount = 58,
 };
 
 struct ExportDirective {
@@ -150,6 +171,58 @@ struct ForeignTarget {
     DeclarationError error;
     int64_t count;
 };
+
+struct ResultDeclaration {
+    DeclarationError error;
+    int32_t count;
+    String types[16];
+    int32_t parameter_count;
+    String parameters[64];
+};
+
+struct ResultReturn {
+    DeclarationError error;
+    bool present;
+    int32_t values;
+    int64_t count;
+};
+
+struct ResultBinding {
+    bool present;
+    int32_t count;
+    bool inferred;
+    String targets[16];
+    String value;
+};
+
+struct SymmetricRewrite {
+    DeclarationError error;
+    bool present;
+    bool needed;
+    int64_t header_count;
+    int64_t count;
+};
+
+struct TextRewrite {
+    DeclarationError error;
+    bool changed;
+    int64_t count;
+};
+
+struct NameReplacement {
+    String source;
+    String target;
+};
+
+struct PrintRewrite {
+    DeclarationError error;
+    int32_t statements;
+    int64_t lengths[64];
+};
+
+struct StatementOutput {
+    Slice bytes;
+};
 #ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 
 struct QuotedText {
@@ -169,6 +242,17 @@ bool compiler_declaration_PythonAttribute(String source, int64_t name_limit);
 ForeignDeclaration compiler_declaration_ParseForeign(String source, int64_t name_limit);
 ForeignTarget compiler_declaration_ResolveForeignTarget(ForeignDeclaration declaration, String library, Slice output, int64_t name_limit);
 bool compiler_declaration_ForeignVarargs(String parameters);
+ResultDeclaration compiler_declaration_ParseResults(String source, String template_parameters);
+int64_t compiler_declaration_ResultsRecord(ResultDeclaration results, Slice output);
+int64_t compiler_declaration_ResultsParameters(ResultDeclaration results, Slice output);
+int64_t compiler_declaration_ResultsBody(ResultDeclaration results, Slice output);
+ResultReturn compiler_declaration_RewriteResultReturn(String source, String record, int32_t results, Slice output);
+ResultBinding compiler_declaration_MultipleBinding(String source, int32_t maximum, int64_t name_limit);
+bool compiler_declaration_DefaultScopeIndependent(String source, int64_t token_limit);
+TextRewrite compiler_declaration_RewriteProcedureName(String source, String name, Slice output);
+TextRewrite compiler_declaration_RewriteLocalNames(String source, Slice names, Slice output);
+SymmetricRewrite compiler_declaration_RewriteSymmetric(String source, Slice header_output, Slice wrapper_output, int64_t name_limit);
+PrintRewrite compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t maximum);
 
 #ifdef __cplusplus
 }

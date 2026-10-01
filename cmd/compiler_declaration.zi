@@ -16,6 +16,9 @@ DeclarationError :: enum s32 {
     ForeignType; ForeignBody; ForeignLibrary; ForeignSymbol; ForeignEnd;
     ForeignPythonSymbol; ForeignHostRename; ForeignGoResults; ForeignGoField;
     ForeignGoDefer; ForeignGoVariadic; ForeignPythonResults; ForeignPythonField;
+    ResultCount; ResultName; ResultType; ResultParameters; ReturnCount;
+    SymmetricParameters; SymmetricModifier; ProcedureNameArguments;
+    BuilderFormat; BuilderPercent; BuilderArguments; BuilderPieces; BuilderArgumentCount;
 }
 ExportDirective :: struct { error: DeclarationError; kind: s32; symbol: string; body: string }
 ParameterRewrite :: struct {
@@ -55,6 +58,32 @@ ForeignDeclaration :: struct {
     py_field: bool
 }
 ForeignTarget :: struct { error: DeclarationError; count: s64 }
+ResultDeclaration :: struct {
+    error: DeclarationError
+    count: s32
+    types: [16]string
+    parameter_count: s32
+    parameters: [64]string
+}
+ResultReturn :: struct { error: DeclarationError; present: bool; values: s32; count: s64 }
+ResultBinding :: struct {
+    present: bool
+    count: s32
+    inferred: bool
+    targets: [16]string
+    value: string
+}
+SymmetricRewrite :: struct {
+    error: DeclarationError
+    present: bool
+    needed: bool
+    header_count: s64
+    count: s64
+}
+TextRewrite :: struct { error: DeclarationError; changed: bool; count: s64 }
+NameReplacement :: struct { source: string; target: string }
+PrintRewrite :: struct { error: DeclarationError; statements: s32; lengths: [64]s64 }
+StatementOutput :: struct { bytes: []u8 }
 
 #scope_file
 Find :: (source: string, needle: string) -> s64 {
@@ -144,6 +173,19 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .ForeignGoVariadic { return "#go_variadic requires an explicit Go foreign target" }
     if error == .ForeignPythonResults { return "#py_results requires a py: foreign target" }
     if error == .ForeignPythonField { return "#py_field requires a py: foreign target" }
+    if error == .ResultCount { return "a procedure can have at most 16 results" }
+    if error == .ResultName { return "named results need name: Type for every result" }
+    if error == .ResultType { return "a result of a procedure with several results needs a concrete type" }
+    if error == .ResultParameters { return "multiple result type parameters exceed the size limit" }
+    if error == .ReturnCount { return "return value count does not match the procedure results" }
+    if error == .SymmetricParameters { return "#symmetric requires an operator procedure with two parameters" }
+    if error == .SymmetricModifier { return "duplicate #symmetric procedure modifier" }
+    if error == .ProcedureNameArguments { return "#procedure_name() requires empty parentheses" }
+    if error == .BuilderFormat { return "BuilderPrint needs a builder and a literal format" }
+    if error == .BuilderPercent { return "BuilderPrint format has more % than arguments" }
+    if error == .BuilderArguments { return "BuilderPrint has more arguments than % in its format" }
+    if error == .BuilderPieces { return "BuilderPrint has too many pieces" }
+    if error == .BuilderArgumentCount { return "BuilderPrint has too many arguments" }
     return ""
 }
 
@@ -560,4 +602,436 @@ ForeignVarargs :: (parameters: string) -> bool {
     colon := Find(last, ":")
     if colon >= 0 { last = Trim(last[colon + 1:]) }
     return last == "..any"
+}
+
+// Types and template parameters borrow the input. Only type parameters that
+// occur in the results belong to the generated record, in first-use order.
+ParseResults :: (source: string, template_parameters: string) -> ResultDeclaration {
+    result: ResultDeclaration
+    list := Trim(source)
+    named := list.count > 1 && list[0] == #char "(" &&
+        Source.ClosingParenthesis(list) == list.count - 1 && Find(list, ":") >= 0
+    if named { list = list[1:list.count - 1] }
+    at: s64 = 0
+    while at >= 0 {
+        if result.count == 16 { result.error = .ResultCount; return result }
+        range := Text.NextSourcePart(list, at)
+        result.types[result.count] = Trim(list[range.begin:range.end])
+        result.count += 1
+        at = range.next
+    }
+    if result.count < 2 { result.count = 0; return result }
+    for index: 0..result.count - 1 {
+        part := result.types[index]
+        if named {
+            colon := Find(part, ":")
+            if colon < 0 || !Source.IdentifierText(Trim(part[0:colon]), false) {
+                result.error = .ResultName
+                return result
+            }
+            part = Trim(part[colon + 1:])
+            result.types[index] = part
+        }
+        if part.count == 0 || Find(part, "$") >= 0 || Find(part, "\0") >= 0 {
+            result.error = .ResultType
+            return result
+        }
+        cursor: s64 = 0
+        while cursor < part.count {
+            if !Source.IdentifierText(part[cursor:cursor + 1], false) { cursor += 1; continue }
+            begin := cursor
+            cursor += 1
+            while cursor < part.count && Text.IdentifierByte(part[cursor]) { cursor += 1 }
+            parameter := part[begin:cursor]
+            if !ParameterIn(template_parameters, parameter) { continue }
+            seen := false
+            for previous: 0..result.parameter_count - 1 {
+                if result.parameters[previous] == parameter { seen = true }
+            }
+            if seen { continue }
+            if result.parameter_count == 64 { result.error = .ResultParameters; return result }
+            result.parameters[result.parameter_count] = parameter
+            result.parameter_count += 1
+        }
+    }
+    return result
+}
+
+// Output functions measure the complete spelling even when only a prefix fits.
+// The C boundary checks its storage limits before installing a results type.
+ResultsRecord :: (results: ResultDeclaration, output: []u8) -> s64 {
+    used: s64 = 0
+    Put(output, *used, "Results")
+    for index: 0..results.count - 1 {
+        Put(output, *used, "__")
+        for byte: results.types[index] {
+            if Text.SpaceByte(byte) { continue }
+            normalized := byte
+            if !Text.IdentifierByte(byte) {
+                normalized = #char "_"
+                if byte == #char "*" { normalized = #char "p" }
+                else if byte == #char "[" { normalized = #char "a" }
+            }
+            PutByte(output, *used, normalized)
+        }
+    }
+    return used
+}
+ResultsParameters :: (results: ResultDeclaration, output: []u8) -> s64 {
+    used: s64 = 0
+    for index: 0..results.parameter_count - 1 {
+        if index > 0 { Put(output, *used, ",") }
+        Put(output, *used, results.parameters[index])
+    }
+    return used
+}
+ResultsBody :: (results: ResultDeclaration, output: []u8) -> s64 {
+    used: s64 = 0
+    for index: 0..results.count - 1 {
+        Put(output, *used, "value_")
+        if index >= 10 { Put(output, *used, "1") }
+        PutByte(output, *used, cast(u8)(#char "0" + index % 10))
+        Put(output, *used, ": ")
+        Put(output, *used, results.types[index])
+        Put(output, *used, "\n")
+    }
+    return used
+}
+
+RewriteResultReturn :: (source: string, record: string, results: s32, output: []u8) -> ResultReturn {
+    result: ResultReturn
+    body := Trim(source)
+    if !Source.StartsWord(body, "return") { return result }
+    value := StatementValue(body[6:])
+    at: s64 = 0
+    while at >= 0 {
+        range := Text.NextSourcePart(value, at)
+        result.values += 1
+        at = range.next
+    }
+    if result.values < 2 { return result }
+    result.present = true
+    if result.values != results { result.error = .ReturnCount; return result }
+    Put(output, *result.count, "return ")
+    Put(output, *result.count, record)
+    Put(output, *result.count, ".{")
+    Put(output, *result.count, value)
+    Put(output, *result.count, "};")
+    return result
+}
+
+MultipleBinding :: (source: string, maximum: s32 = 16, name_limit: s64 = 128) -> ResultBinding {
+    result: ResultBinding
+    at := Text.SkipSpace(source, 0, true)
+    while at < source.count {
+        begin := at
+        while at < source.count && Text.IdentifierByte(source[at]) { at += 1 }
+        name := source[begin:at]
+        if name.count >= name_limit || !Source.IdentifierText(name, false) ||
+        result.count == 16 || result.count >= maximum { return .{} }
+        result.targets[result.count] = name
+        result.count += 1
+        at = Text.SkipSpace(source, at, true)
+        if at >= source.count || source[at] != #char "," { break }
+        at = Text.SkipSpace(source, at + 1, true)
+    }
+    if result.count < 2 || at >= source.count { return .{} }
+    if source[at] == #char ":" && at + 1 < source.count && source[at + 1] == #char "=" {
+        result.inferred = true
+        at += 2
+    } else if source[at] == #char "=" && (at + 1 == source.count || source[at + 1] != #char "=") {
+        at += 1
+    } else { return .{} }
+    result.value = StatementValue(source[at:])
+    if result.value.count == 0 { return .{} }
+    result.present = true
+    return result
+}
+
+#scope_file
+ParameterIn :: (source: string, parameter: string) -> bool {
+    at: s64 = 0
+    while at >= 0 {
+        range := Text.NextSourcePart(source, at)
+        if Trim(source[range.begin:range.end]) == parameter { return true }
+        at = range.next
+    }
+    return false
+}
+StatementValue :: (source: string) -> string {
+    value := Trim(source)
+    while value.count > 0 && value[value.count - 1] == #char ";" {
+        value = Trim(value[0:value.count - 1])
+    }
+    return value
+}
+PutByte :: (output: []u8, used: *s64, byte: u8) {
+    if <<used < output.count { output[<<used] = byte }
+    <<used += 1
+}
+
+// Preprocessing removes comments before the C frontend calls these rules;
+// direct callers still get bounded scanning and literal/comment preservation.
+AfterComment :: (source: string, at: s64) -> s64 {
+    if at + 1 >= source.count || source[at] != #char "/" { return at }
+    if source[at + 1] == #char "/" { return source.count }
+    if source[at + 1] != #char "*" { return at }
+    at += 2
+    depth: s32 = 1
+    while at < source.count && depth > 0 {
+        if at + 1 < source.count && source[at] == #char "/" && source[at + 1] == #char "*" {
+            depth += 1; at += 2
+        } else if at + 1 < source.count && source[at] == #char "*" && source[at + 1] == #char "/" {
+            depth -= 1; at += 2
+        } else { at += 1 }
+    }
+    return at
+}
+
+#scope_export
+DefaultScopeIndependent :: (source: string, token_limit: s64 = 8192) -> bool {
+    previous := ""
+    at: s64 = 0
+    while at < source.count {
+        token := Scan.NextToken(source, at, 1, 1)
+        if token.kind == Scan.TokenKind.Eof { return true }
+        spelling := source[token.begin:token.end]
+        if token.kind == Scan.TokenKind.Unknown || spelling.count >= token_limit { return false }
+        if token.kind == Scan.TokenKind.Directive && spelling != "#char" { return false }
+        if token.kind == Scan.TokenKind.Ident && spelling != "true" && spelling != "false" && spelling != "null" {
+            next := Scan.NextToken(source, token.end, 1, 1)
+            if (previous != "{" && previous != ",") || source[next.begin:next.end] != "=" { return false }
+        }
+        previous = spelling
+        at = token.end
+    }
+    return true
+}
+
+RewriteProcedureName :: (source: string, name: string, output: []u8) -> TextRewrite {
+    result: TextRewrite
+    copied: s64 = 0
+    at: s64 = 0
+    while at < source.count {
+        token := Scan.NextToken(source, at, 1, 1)
+        if token.kind == Scan.TokenKind.Eof { break }
+        comment := AfterComment(source, token.begin)
+        if comment != token.begin { at = comment; continue }
+        at = token.end
+        if token.kind != Scan.TokenKind.Directive || source[token.begin:token.end] != "#procedure_name" { continue }
+        opening := Scan.NextToken(source, at, 1, 1)
+        closing := Scan.NextToken(source, opening.end, 1, 1)
+        if source[opening.begin:opening.end] != "(" || source[closing.begin:closing.end] != ")" {
+            result.error = .ProcedureNameArguments
+            return result
+        }
+        Put(output, *result.count, source[copied:token.begin])
+        Put(output, *result.count, "\"")
+        Put(output, *result.count, name)
+        Put(output, *result.count, "\"")
+        at = closing.end
+        copied = at
+        result.changed = true
+    }
+    Put(output, *result.count, source[copied:])
+    return result
+}
+
+RewriteLocalNames :: (source: string, names: []NameReplacement, output: []u8) -> TextRewrite {
+    result: TextRewrite
+    previous := ""
+    copied: s64 = 0
+    at: s64 = 0
+    while at < source.count {
+        token := Scan.NextToken(source, at, 1, 1)
+        if token.kind == Scan.TokenKind.Eof { break }
+        comment := AfterComment(source, token.begin)
+        if comment != token.begin { at = comment; continue }
+        spelling := source[token.begin:token.end]
+        label := false
+        if previous == "{" || previous == "," || previous == "(" {
+            next := Scan.NextToken(source, token.end, 1, 1)
+            label = source[next.begin:next.end] == "="
+        }
+        if token.kind == Scan.TokenKind.Ident && previous != "." && !label {
+            for < index: 0..names.count - 1 {
+                if names[index].source != spelling { continue }
+                Put(output, *result.count, source[copied:token.begin])
+                Put(output, *result.count, names[index].target)
+                copied = token.end
+                result.changed = true
+                break
+            }
+        }
+        previous = spelling
+        at = token.end
+    }
+    Put(output, *result.count, source[copied:])
+    return result
+}
+
+RewriteSymmetric :: (source: string, header_output: []u8, wrapper_output: []u8,
+    name_limit: s64 = 128) -> SymmetricRewrite {
+    result: SymmetricRewrite
+    directive: s64 = -1
+    end: s64 = 0
+    at: s64 = 0
+    depth: s32 = 0
+    while at < source.count {
+        token := Scan.NextToken(source, at, 1, 1)
+        if token.kind == Scan.TokenKind.Eof { break }
+        comment := AfterComment(source, token.begin)
+        if comment != token.begin { at = comment; continue }
+        spelling := source[token.begin:token.end]
+        if spelling == "(" || spelling == "[" || spelling == "{" { depth += 1 }
+        else if spelling == ")" || spelling == "]" || spelling == "}" { depth -= 1 }
+        if spelling == "{" && depth == 1 { break }
+        if depth == 0 && token.kind == Scan.TokenKind.Directive && spelling == "#symmetric" {
+            if directive >= 0 { result.error = .SymmetricModifier; return result }
+            directive = token.begin
+            end = token.end
+        }
+        at = token.end
+    }
+    if directive < 0 { Put(header_output, *result.header_count, source); return result }
+    result.present = true
+    Put(header_output, *result.header_count, source[0:directive])
+    Put(header_output, *result.header_count, source[end:])
+    header := Source.ProcedureHeaderParts(source)
+    if header.name.count < 9 || header.name[0:9] != "operator_" || header.name.count >= name_limit {
+        result.error = .SymmetricParameters
+        return result
+    }
+    first := Text.NextSourcePart(header.parameters, 0)
+    second := Text.NextSourcePart(header.parameters, first.next)
+    if first.next < 0 || second.next >= 0 { result.error = .SymmetricParameters; return result }
+    left := Trim(header.parameters[first.begin:first.end])
+    right := Trim(header.parameters[second.begin:second.end])
+    left_colon := Find(left, ":")
+    right_colon := Find(right, ":")
+    if left_colon < 0 || right_colon < 0 { result.error = .SymmetricParameters; return result }
+    left_name := Trim(left[0:left_colon])
+    right_name := Trim(right[0:right_colon])
+    if left_name.count >= name_limit || right_name.count >= name_limit ||
+    !Source.IdentifierText(left_name, false) || !Source.IdentifierText(right_name, false) {
+        result.error = .SymmetricParameters
+        return result
+    }
+    first_type: [128]u8
+    second_type: [128]u8
+    result_type: [128]u8
+    left_count := Source.NormalizeTypeSpacing(Trim(left[left_colon + 1:]), first_type[:])
+    right_count := Source.NormalizeTypeSpacing(Trim(right[right_colon + 1:]), second_type[:])
+    if left_count == 0 || right_count == 0 || left_count >= 128 || right_count >= 128 {
+        result.error = .SymmetricParameters
+        return result
+    }
+    left_type := TextView(first_type[0:left_count])
+    right_type := TextView(second_type[0:right_count])
+    if left_type == right_type { return result }
+    result_count := Source.NormalizeTypeSpacing(header.result, result_type[:])
+    if result_count >= 128 { result.error = .SymmetricParameters; return result }
+    return_type := TextView(result_type[0:result_count])
+    result.needed = true
+    Put(wrapper_output, *result.count, header.name)
+    Put(wrapper_output, *result.count, " :: (")
+    Put(wrapper_output, *result.count, right_name)
+    Put(wrapper_output, *result.count, ": ")
+    Put(wrapper_output, *result.count, right_type)
+    Put(wrapper_output, *result.count, ", ")
+    Put(wrapper_output, *result.count, left_name)
+    Put(wrapper_output, *result.count, ": ")
+    Put(wrapper_output, *result.count, left_type)
+    Put(wrapper_output, *result.count, ")")
+    if return_type != "void" {
+        Put(wrapper_output, *result.count, " -> ")
+        Put(wrapper_output, *result.count, return_type)
+    }
+    Put(wrapper_output, *result.count, " { return ")
+    Put(wrapper_output, *result.count, header.name)
+    Put(wrapper_output, *result.count, "(")
+    Put(wrapper_output, *result.count, left_name)
+    Put(wrapper_output, *result.count, ", ")
+    Put(wrapper_output, *result.count, right_name)
+    Put(wrapper_output, *result.count, "); }")
+    return result
+}
+
+// Each output slot receives its bounded statement prefix. Missing slots still
+// get measured, so callers can size storage without retaining native buffers.
+BuilderPrintPieces :: (source: string, output: []StatementOutput, maximum: s32 = 64) -> PrintRewrite {
+    result: PrintRewrite
+    call := Trim(source)
+    if !Source.StartsWord(call, "BuilderPrint") { return result }
+    opening := Text.SkipSpace(call, 12, true)
+    if opening >= call.count || call[opening] != #char "(" { return result }
+    closing := Source.ClosingParenthesis(call[opening:])
+    if closing < 0 { return result }
+    closing += opening
+    rest := Trim(call[closing + 1:])
+    if rest != "" && rest != ";" { return result }
+    inner := call[opening + 1:closing]
+    parts: [64]string
+    count: s32 = 0
+    at: s64 = 0
+    while at >= 0 {
+        if count == 64 { result.error = .BuilderArgumentCount; return result }
+        range := Text.NextSourcePart(inner, at)
+        parts[count] = Trim(inner[range.begin:range.end])
+        count += 1
+        at = range.next
+    }
+    format := parts[1]
+    if count < 2 || format.count < 2 || format[0] != #char "\"" || format[format.count - 1] != #char "\"" {
+        result.error = .BuilderFormat
+        return result
+    }
+    format = format[1:format.count - 1]
+    argument: s32 = 2
+    begin: s64 = 0
+    at = 0
+    while at < format.count {
+        byte := format[at]
+        if byte == #char "\\" && at + 1 < format.count { at += 2; continue }
+        if byte == #char "%" && at + 1 < format.count && format[at + 1] == #char "%" { at += 2; continue }
+        if byte != #char "%" { at += 1; continue }
+        if argument == count { result.error = .BuilderPercent; return result }
+        if at > begin { AddPrintPiece(*result, output, maximum, parts[0], format[begin:at], true) }
+        if result.error != .None { return result }
+        AddPrintPiece(*result, output, maximum, parts[0], parts[argument], false)
+        if result.error != .None { return result }
+        argument += 1
+        at += 1
+        begin = at
+    }
+    if argument != count { result.error = .BuilderArguments; return result }
+    if at > begin { AddPrintPiece(*result, output, maximum, parts[0], format[begin:at], true) }
+    return result
+}
+
+#scope_file
+AddPrintPiece :: (result: *PrintRewrite, output: []StatementOutput, maximum: s32,
+    builder: string, value: string, literal: bool) {
+    if result.statements == 64 || result.statements >= maximum { result.error = .BuilderPieces; return }
+    slot: []u8
+    if result.statements < output.count { slot = output[result.statements].bytes }
+    used: s64 = 0
+    Put(slot, *used, "Append(")
+    Put(slot, *used, builder)
+    Put(slot, *used, ", ")
+    if literal {
+        Put(slot, *used, "\"")
+        at: s64 = 0
+        while at < value.count {
+            byte := value[at]
+            PutByte(slot, *used, byte)
+            at += 1
+            if byte == #char "\\" && at < value.count { PutByte(slot, *used, value[at]); at += 1 }
+            else if byte == #char "%" && at < value.count && value[at] == #char "%" { at += 1 }
+        }
+        Put(slot, *used, "\"")
+    } else { Put(slot, *used, value) }
+    Put(slot, *used, ");")
+    result.lengths[result.statements] = used
+    result.statements += 1
 }

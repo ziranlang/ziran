@@ -12,6 +12,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/app.zi" <<'ZI'
 Point :: struct { x: s32; }
+NamedPoint :: struct { Twice: s32; }
 Scale :: 3;
 
 Compute :: () -> s64 {
@@ -34,10 +35,17 @@ Other :: () -> s32 {
     return Twice(2)
 }
 
+MemberSpacing :: () -> s32 {
+    Twice :: () -> s32 { return 35; }
+    value := NamedPoint.{Twice = 7}
+    return Twice() + value . Twice
+}
+
 #program_export
 Answer :: () -> s32 {
     // 42 + 120 + 12, then 6.
     if Compute() != 174 || Other() != 6 { return 1 }
+    if MemberSpacing() != 42 { return 2 }
     return 42
 }
 ZI

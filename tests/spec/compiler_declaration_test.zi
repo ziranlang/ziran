@@ -222,12 +222,218 @@ ForeignDeclarations :: () -> bool {
     return true
 }
 
+ResultSpellings :: () -> bool {
+    results := ParseResults("T, []U, Pair(T,U), *T", "U,T,Unused")
+    if results.error != .None || results.count != 4 || results.parameter_count != 2 ||
+    results.parameters[0] != "T" || results.parameters[1] != "U" ||
+    results.types[0] != "T" || results.types[3] != "*T" { return false }
+    output: [256]u8
+    record := "Results__T__a_U__Pair_T_U___pT"
+    parameters := "T,U"
+    body := "value_0: T\nvalue_1: []U\nvalue_2: Pair(T,U)\nvalue_3: *T\n"
+    for capacity: 0..body.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        length := ResultsBody(results, output[0:capacity])
+        if length != body.count || TextView(output[0:capacity]) != body[0:capacity] ||
+        output[capacity] != 0xa5 { return false }
+    }
+    for capacity: 0..record.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        length := ResultsRecord(results, output[0:capacity])
+        if length != record.count || TextView(output[0:capacity]) != record[0:capacity] ||
+        output[capacity] != 0xa5 { return false }
+    }
+    for capacity: 0..parameters.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        length := ResultsParameters(results, output[0:capacity])
+        if length != parameters.count || TextView(output[0:capacity]) != parameters[0:capacity] ||
+        output[capacity] != 0xa5 { return false }
+    }
+    named := ParseResults(" (low: Pair(T,U), high: []T) ", "U,T")
+    if named.error != .None || named.count != 2 || named.parameter_count != 2 ||
+    named.types[0] != "Pair(T,U)" || named.types[1] != "[]T" ||
+    named.parameters[0] != "T" || named.parameters[1] != "U" { return false }
+    if ParseResults("", "").count != 0 || ParseResults("s32", "").count != 0 ||
+    ParseResults("Pair(T,U)", "T,U").count != 0 ||
+    ParseResults("(low: s32, s32)", "").error != .ResultName ||
+    ParseResults("(1: s32, high: s32)", "").error != .ResultName ||
+    ParseResults("s32, $T", "T").error != .ResultType ||
+    ParseResults("s32,", "").error != .ResultType ||
+    ParseResults(", s32", "").error != .ResultType ||
+    ParseResults("s32, a\0b", "").error != .ResultType { return false }
+    // Identical shapes keep the same template ordering across binder order.
+    other := ParseResults("T, []U, Pair(T,U), *T", "T,U")
+    if ResultsParameters(other, output[:]) != 3 || TextView(output[0:3]) != "T,U" { return false }
+    input: [128]u8
+    used: s64 = 0
+    for index: 0..16 {
+        if index > 0 { input[used] = #char ","; used += 1 }
+        for byte: "s32" { input[used] = byte; used += 1 }
+        many := ParseResults(TextView(input[0:used]), "")
+        if index == 16 {
+            if many.error != .ResultCount { return false }
+        } else if index > 0 && (many.error != .None || many.count != index + 1) { return false }
+        if index == 15 {
+            length := ResultsBody(many, output[:])
+            if length != 214 || TextView(output[length - 14:length]) != "value_15: s32\n" { return false }
+        }
+    }
+    return true
+}
+
+ResultStatements :: () -> bool {
+    output: [256]u8
+    statement := " return Call(1, 2), \"x,y\", .{left=1,right=2}; \t"
+    expected := "return Results__Pair.{Call(1, 2), \"x,y\", .{left=1,right=2}};"
+    for capacity: 0..expected.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        rewritten := RewriteResultReturn(statement, "Results__Pair", 3, output[0:capacity])
+        if !rewritten.present || rewritten.error != .None || rewritten.values != 3 ||
+        rewritten.count != expected.count || output[capacity] != 0xa5 ||
+        TextView(output[0:capacity]) != expected[0:capacity] { return false }
+    }
+    if RewriteResultReturn("return F(1, 2);", "Pair", 2, output[:]).present ||
+    RewriteResultReturn("return \"x,y\";", "Pair", 2, output[:]).present ||
+    RewriteResultReturn("returning x, y", "Pair", 2, output[:]).present ||
+    RewriteResultReturn("", "Pair", 2, output[:]).present ||
+    RewriteResultReturn("return 1,2,3;", "Pair", 2, output[:]).error != .ReturnCount { return false }
+    binding := MultipleBinding(" left, _ , right := Call(1, \"a,b\"); \t")
+    if !binding.present || binding.count != 3 || !binding.inferred ||
+    binding.targets[0] != "left" || binding.targets[1] != "_" || binding.targets[2] != "right" ||
+    binding.value != "Call(1, \"a,b\")" { return false }
+    binding = MultipleBinding("x, y = ifx flag then 1 else 2;")
+    if !binding.present || binding.inferred || binding.count != 2 ||
+    binding.value != "ifx flag then 1 else 2" { return false }
+    if MultipleBinding("").present || MultipleBinding("a := Call()").present ||
+    MultipleBinding("a, b == Call()").present || MultipleBinding("a, b += Call()").present ||
+    MultipleBinding("a, b := ;").present || MultipleBinding("1a, b := Call()").present ||
+    MultipleBinding("a.field, b := Call()").present || MultipleBinding("a, b, := Call()").present ||
+    MultipleBinding("a, b := Call()", 1).present || MultipleBinding("aa, b := Call()", 16, 2).present { return false }
+    input: [128]u8
+    used: s64 = 0
+    for index: 0..16 {
+        if index > 0 { input[used] = #char ","; used += 1 }
+        input[used] = #char "a"; used += 1
+        at := used
+        for byte: " := F()" { input[at] = byte; at += 1 }
+        binding = MultipleBinding(TextView(input[0:at]))
+        if index == 16 {
+            if binding.present { return false }
+        } else if index > 0 && (!binding.present || binding.count != index + 1) { return false }
+    }
+    return true
+}
+
+ProcedureRewrites :: () -> bool {
+    if !DefaultScopeIndependent(".{left = 1, right = \"a,b\"}") ||
+    !DefaultScopeIndependent(".{left = .{nested = true}, right = null}") ||
+    !DefaultScopeIndependent("#char \"a\"") || !DefaultScopeIndependent("") ||
+    DefaultScopeIndependent(".{left = Constant}") || DefaultScopeIndependent("Call(1)") ||
+    DefaultScopeIndependent("#procedure_name()") || DefaultScopeIndependent("@") ||
+    DefaultScopeIndependent("\"long\"", 6) { return false }
+    source := "return #procedure_name ( ), \"#procedure_name()\", #procedure_name(); // #procedure_name(1)"
+    expected := "return \"Answer\", \"#procedure_name()\", \"Answer\"; // #procedure_name(1)"
+    output: [256]u8
+    for capacity: 0..expected.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        result := RewriteProcedureName(source, "Answer", output[0:capacity])
+        if result.error != .None || !result.changed || result.count != expected.count ||
+        TextView(output[0:capacity]) != expected[0:capacity] || output[capacity] != 0xa5 { return false }
+    }
+    if RewriteProcedureName("\"#procedure_name(1)\"", "Answer", output[:]).changed ||
+    RewriteProcedureName("/* #procedure_name(1) /* nested */ */", "Answer", output[:]).changed ||
+    RewriteProcedureName("#procedure_name_extra()", "Answer", output[:]).changed ||
+    RewriteProcedureName("#procedure_name", "Answer", output[:]).error != .ProcedureNameArguments ||
+    RewriteProcedureName("#procedure_name(1)", "Answer", output[:]).error != .ProcedureNameArguments { return false }
+    names: [3]NameReplacement = .{.{"Twice", "first"}, .{"Other", "other"}, .{"Twice", "latest"}}
+    source = "Twice(Other()) + record . Twice + 1Twice + \"Twice\" /* Twice /* Other */ */ + Twice // Other"
+    expected = "latest(other()) + record . Twice + 1Twice + \"Twice\" /* Twice /* Other */ */ + latest // Other"
+    for capacity: 0..expected.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        result := RewriteLocalNames(source, names[:], output[0:capacity])
+        if result.error != .None || !result.changed || result.count != expected.count ||
+        TextView(output[0:capacity]) != expected[0:capacity] || output[capacity] != 0xa5 { return false }
+    }
+    result := RewriteLocalNames("Pair.{Twice = Twice()}, Call(Twice = Other())", names[:], output[:])
+    expected = "Pair.{Twice = latest()}, Call(Twice = other())"
+    if result.count != expected.count || TextView(output[0:result.count]) != expected { return false }
+    return !RewriteLocalNames("", names[:], output[:]).changed &&
+        !RewriteLocalNames("Other()", names[0:0], output[:]).changed
+}
+
+SymmetricOperators :: () -> bool {
+    source := "operator_multiply :: (a: * V, k: s32) -> * V #symmetric { return a; }"
+    expected := "operator_multiply :: (k: s32, a: *V) -> *V { return operator_multiply(a, k); }"
+    cleaned := "operator_multiply :: (a: * V, k: s32) -> * V  { return a; }"
+    output: [256]u8
+    header: [256]u8
+    for capacity: 0..expected.count {
+        for index: 0..255 { output[index] = 0xa5; header[index] = 0xa5 }
+        result := RewriteSymmetric(source, header[0:capacity], output[0:capacity])
+        if result.error != .None || !result.present || !result.needed || result.count != expected.count ||
+        result.header_count != cleaned.count || TextView(output[0:capacity]) != expected[0:capacity] ||
+        output[capacity] != 0xa5 || header[capacity] != 0xa5 { return false }
+        copied := capacity
+        if copied > cleaned.count { copied = cleaned.count }
+        if TextView(header[0:copied]) != cleaned[0:copied] { return false }
+    }
+    if RewriteSymmetric("operator_add :: (a: * V, b: *V) -> V #symmetric { return a; }", header[:], output[:]).needed ||
+    RewriteSymmetric("operator_add :: (a: V, b: V) -> V #symmetric #symmetric { return a; }", header[:], output[:]).error != .SymmetricModifier ||
+    RewriteSymmetric("Twice :: (a: s32) -> s32 #symmetric { return a * 2; }", header[:], output[:]).error != .SymmetricParameters ||
+    RewriteSymmetric("operator_add :: (a: V, b: V, c: V) #symmetric { }", header[:], output[:]).error != .SymmetricParameters ||
+    RewriteSymmetric("operator_add :: (a, b: V) #symmetric { }", header[:], output[:]).error != .SymmetricParameters ||
+    RewriteSymmetric("operator_add :: (a: V, b: V) #symmetric { }", header[:], output[:], 5).error != .SymmetricParameters ||
+    RewriteSymmetric("operator_add :: (a: V, b: V) { print(\"#symmetric\") }", header[:], output[:]).present ||
+    RewriteSymmetric("Call :: (text: string = \"#symmetric\") { }", header[:], output[:]).present ||
+    RewriteSymmetric("", header[:], output[:]).present { return false }
+    return true
+}
+
+BuilderPieces :: () -> bool {
+    source := "BuilderPrint(*b, \"value=% %%\\n\", Call(1,2));"
+    expected: [3]string = .{"Append(*b, \"value=\");", "Append(*b, Call(1,2));", "Append(*b, \" %\\n\");"}
+    for capacity: 0..32 {
+        first: [64]u8
+        second: [64]u8
+        third: [64]u8
+        for index: 0..63 { first[index] = 0xa5; second[index] = 0xa5; third[index] = 0xa5 }
+        slots: [3]StatementOutput = .{.{first[0:capacity]}, .{second[0:capacity]}, .{third[0:capacity]}}
+        result := BuilderPrintPieces(source, slots[:])
+        if result.error != .None || result.statements != 3 ||
+        first[capacity] != 0xa5 || second[capacity] != 0xa5 || third[capacity] != 0xa5 { return false }
+        for index: 0..2 {
+            length := result.lengths[index]
+            if length != expected[index].count { return false }
+            copied := capacity
+            if copied > length { copied = length }
+            if TextView(slots[index].bytes[0:copied]) != expected[index][0:copied] { return false }
+        }
+    }
+    absent: []StatementOutput
+    result := BuilderPrintPieces(source, absent)
+    if result.error != .None || result.statements != 3 || result.lengths[1] != expected[1].count { return false }
+    if BuilderPrintPieces(source, absent, 2).error != .BuilderPieces ||
+    BuilderPrintPieces("BuilderPrint(*b, \"% %\", 1)", absent).error != .BuilderPercent ||
+    BuilderPrintPieces("BuilderPrint(*b, \"%\", 1, 2)", absent).error != .BuilderArguments ||
+    BuilderPrintPieces("BuilderPrint(*b)", absent).error != .BuilderFormat ||
+    BuilderPrintPieces("BuilderPrint(*b, variable)", absent).error != .BuilderFormat ||
+    BuilderPrintPieces("BuilderPrint(*b, \"\")", absent).statements != 0 ||
+    BuilderPrintPieces("BuilderPrinted(*b, \"%\", 1)", absent).statements != 0 ||
+    BuilderPrintPieces("BuilderPrint(*b, \"text\") extra", absent).statements != 0 { return false }
+    return true
+}
+
 #program_export
 Answer :: () -> s32 {
     if !Parameters() { return 1 }
     if !Declarations() { return 2 }
     if !UsingModifiers() { return 3 }
     if !ForeignDeclarations() { return 4 }
+    if !ResultSpellings() { return 5 }
+    if !ResultStatements() { return 6 }
+    if !ProcedureRewrites() { return 7 }
+    if !SymmetricOperators() { return 8 }
+    if !BuilderPieces() { return 9 }
     return 42
 }
 
@@ -239,6 +445,11 @@ Fingerprint :: () -> s64 {
     input: [64]u8
     output: [128]u8
     foreign_input: [96]u8
+    return_input: [96]u8
+    header_output: [128]u8
+    symmetric_input: [192]u8
+    builder_input: [128]u8
+    replacements: [2]NameReplacement = .{.{"a", "renamed"}, .{"s32", "integer"}}
     for sample: 0..255 {
         seed = seed * cast(u32)1664525 + cast(u32)1013904223
         count := cast(s64)(seed % cast(u32)64)
@@ -291,6 +502,95 @@ Fingerprint :: () -> s64 {
             hash = hash * cast(u32)16777619 ^ cast(u32)target.error
             hash = hash * cast(u32)16777619 ^ cast(u32)target.count
             written := target.count
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+        }
+        results := ParseResults(source, "a,s32,z")
+        hash = hash * cast(u32)16777619 ^ cast(u32)results.error
+        hash = hash * cast(u32)16777619 ^ cast(u32)results.count
+        hash = hash * cast(u32)16777619 ^ cast(u32)results.parameter_count
+        for index: 0..results.count - 1 {
+            for byte: results.types[index] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+        }
+        binding := MultipleBinding(source, 16, 8)
+        hash = hash * cast(u32)16777619 ^ cast(u32)binding.present
+        hash = hash * cast(u32)16777619 ^ cast(u32)binding.count
+        hash = hash * cast(u32)16777619 ^ cast(u32)binding.inferred
+        for byte: binding.value { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+        used = 0
+        for byte: "return " { return_input[used] = byte; used += 1 }
+        for byte: source { return_input[used] = byte; used += 1 }
+        return_source := TextView(return_input[0:used])
+        used = 0
+        for byte: "operator_add :: (" { symmetric_input[used] = byte; used += 1 }
+        for byte: source { symmetric_input[used] = byte; used += 1 }
+        for byte: ") -> s32 #symmetric { }" { symmetric_input[used] = byte; used += 1 }
+        symmetric_source := TextView(symmetric_input[0:used])
+        used = 0
+        for byte: "BuilderPrint(*b, " { builder_input[used] = byte; used += 1 }
+        for byte: source { builder_input[used] = byte; used += 1 }
+        builder_input[used] = #char ")"; used += 1
+        builder_source := TextView(builder_input[0:used])
+        hash = hash * cast(u32)16777619 ^ cast(u32)DefaultScopeIndependent(source, 8)
+        for capacity: 0..8 {
+            length := ResultsRecord(results, output[0:capacity])
+            hash = hash * cast(u32)16777619 ^ cast(u32)length
+            written := length
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+            renamed := RewriteLocalNames(source, replacements[:], output[0:capacity])
+            hash = hash * cast(u32)16777619 ^ cast(u32)renamed.changed
+            hash = hash * cast(u32)16777619 ^ cast(u32)renamed.count
+            written = renamed.count
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+            named := RewriteProcedureName(source, "Answer", output[0:capacity])
+            hash = hash * cast(u32)16777619 ^ cast(u32)named.error
+            hash = hash * cast(u32)16777619 ^ cast(u32)named.changed
+            hash = hash * cast(u32)16777619 ^ cast(u32)named.count
+            written = named.count
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+            wrapper := RewriteSymmetric(symmetric_source, header_output[0:capacity], output[0:capacity])
+            hash = hash * cast(u32)16777619 ^ cast(u32)wrapper.error
+            hash = hash * cast(u32)16777619 ^ cast(u32)wrapper.present
+            hash = hash * cast(u32)16777619 ^ cast(u32)wrapper.needed
+            hash = hash * cast(u32)16777619 ^ cast(u32)wrapper.count
+            hash = hash * cast(u32)16777619 ^ cast(u32)wrapper.header_count
+            written = wrapper.count
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+            written = wrapper.header_count
+            if written > capacity { written = capacity }
+            for byte: header_output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+            slots: [1]StatementOutput = .{.{output[0:capacity]}}
+            printed := BuilderPrintPieces(builder_source, slots[:])
+            hash = hash * cast(u32)16777619 ^ cast(u32)printed.error
+            hash = hash * cast(u32)16777619 ^ cast(u32)printed.statements
+            for index: 0..printed.statements - 1 {
+                hash = hash * cast(u32)16777619 ^ cast(u32)printed.lengths[index]
+            }
+            if printed.statements > 0 {
+                written = printed.lengths[0]
+                if written > capacity { written = capacity }
+                for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+            }
+            length = ResultsParameters(results, output[0:capacity])
+            hash = hash * cast(u32)16777619 ^ cast(u32)length
+            written = length
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+            length = ResultsBody(results, output[0:capacity])
+            hash = hash * cast(u32)16777619 ^ cast(u32)length
+            written = length
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+            rewritten := RewriteResultReturn(return_source, "Pair", 2, output[0:capacity])
+            hash = hash * cast(u32)16777619 ^ cast(u32)rewritten.error
+            hash = hash * cast(u32)16777619 ^ cast(u32)rewritten.present
+            hash = hash * cast(u32)16777619 ^ cast(u32)rewritten.values
+            hash = hash * cast(u32)16777619 ^ cast(u32)rewritten.count
+            written = rewritten.count
             if written > capacity { written = capacity }
             for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
         }

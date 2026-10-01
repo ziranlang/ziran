@@ -1,0 +1,149 @@
+#import "compiler_text"
+#import "std/vec"
+
+CheckDecode :: (source: string, expected: string) -> bool {
+    bytes: [64]u8
+    result := DecodeString(source, bytes[:])
+    return result.valid && result.count == expected.count && TextView(bytes[0:result.count]) == expected
+}
+
+RejectDecode :: (source: string) -> bool {
+    bytes: [64]u8
+    result := DecodeString(source, bytes[:])
+    return !result.valid && result.count == 0
+}
+
+#program_export
+Answer :: () -> s32 {
+    if !IdentifierByte(#char "_") || !IdentifierByte(#char "9") || IdentifierByte(0xff) { return 1 }
+    if SkipSpace(" \t\r\n\v\fx", 0, false) != 6 || SkipSpace(" \t\rx", 0, true) != 2 { return 2 }
+    range := TrimRange(" \tword\r\n")
+    if range.begin != 2 || range.end != 6 || BlockHeaderEnd("if true { \r\n") != 7 { return 3 }
+    range = TrimRange(" \n")
+    if range.begin != 2 || range.end != 2 { return 4 }
+    output: [64]u8
+    used := CamelIdentifier("9_hello-WORLD", output[:])
+    if TextView(output[0:used]) != "M9HelloWORLD" { return 5 }
+    used = CamelIdentifier("---", output[:])
+    if TextView(output[0:used]) != "X" { return 6 }
+    used = GoFieldIdentifier("canonical_url", output[:])
+    if TextView(output[0:used]) != "CanonicalURL" { return 7 }
+    used = GoFieldIdentifier("selected_id", output[:])
+    if TextView(output[0:used]) != "SelectedID" { return 8 }
+    used = EscapeCString("\"\\\n\r\t\x01\x7f", output[:])
+    if TextView(output[0:used]) != "\\\"\\\\\\n\\r\\t\\x01\\x7f" { return 9 }
+    used = EscapeCString("\n", output[0:2])
+    if used != 1 || output[0] != #char "\\" || output[1] != 0 { return 10 }
+    if CamelIdentifier("x", output[0:0]) != 0 || GoFieldIdentifier("id", output[0:0]) != 0 ||
+    EscapeCString("x", output[0:0]) != 0 { return 11 }
+    source := " a, Call(1, 2), .{x = \"a,b\"}, [2]s32, "
+    part := NextSourcePart(source, 0)
+    if source[part.begin:part.end] != " a" || part.next != 3 { return 12 }
+    part = NextSourcePart(source, part.next)
+    if source[part.begin:part.end] != " Call(1, 2)" { return 13 }
+    part = NextSourcePart(source, part.next)
+    if source[part.begin:part.end] != " .{x = \"a,b\"}" { return 14 }
+    part = NextSourcePart(source, part.next)
+    if source[part.begin:part.end] != " [2]s32" { return 15 }
+    part = NextSourcePart(source, part.next)
+    if source[part.begin:part.end] != " " || part.next != -1 { return 16 }
+    part = NextSourcePart("\"unfinished\\", 0)
+    if part.end != 12 || part.next != -1 { return 17 }
+    if TopLevelAssignment("Call(x = 1) == y") != -1 || TopLevelAssignment("name != y") != -1 ||
+    TopLevelAssignment("\"x=y\" = y") != 6 || TopLevelAssignment("x += y") != 3 ||
+    TopLevelAssignment("\"unfinished\\") != -1 { return 18 }
+    if OperatorProcedure("<<") != "operator_shift_left" || ProcedureOperator("operator_bit_xor") != "^" ||
+    OperatorTokenLength("<=x") != 2 || OperatorTokenLength("+x") != 1 ||
+    OperatorProcedure("&&") != "" || ProcedureOperator("missing") != "" || OperatorTokenLength("") != 0 { return 19 }
+    if !CheckDecode("\"\"", "") || !CheckDecode("\"a\\0z\"", "a\0z") ||
+    !CheckDecode("\"\\a\\b\\f\\n\\r\\t\\v\\\\\\\"\"", "\a\b\f\n\r\t\v\\\"") { return 20 }
+    if !CheckDecode("\"\\xC3\\xA9\\u20ac\\U0001f642\"", "é€🙂") ||
+    !CheckDecode("\"\\U0010ffff\"", "\U0010ffff") { return 21 }
+    if !RejectDecode("") || !RejectDecode("\"") || !RejectDecode("no quotes") ||
+    !RejectDecode("\"x\"y\"") || !RejectDecode("\"\\q\"") || !RejectDecode("\"unfinished\\\"") ||
+    !RejectDecode("\"\\x0\"") || !RejectDecode("\"\\u12xz\"") { return 22 }
+    if !RejectDecode("\"\\ud800\"") || !RejectDecode("\"\\udfff\"") ||
+    !RejectDecode("\"\\U00110000\"") || !RejectDecode("\"\\x80\"") ||
+    !RejectDecode("\"\\xc0\\x80\"") || !RejectDecode("\"\\xe0\\x80\\x80\"") ||
+    !RejectDecode("\"\\xed\\xa0\\x80\"") || !RejectDecode("\"\\xf4\\x90\\x80\\x80\"") ||
+    !RejectDecode("\"\\xc3\"") || !RejectDecode("\"\\xc3x\"") { return 23 }
+    decoded := DecodeString("\"a\"", output[0:0])
+    if decoded.valid || decoded.count != 0 { return 24 }
+    decoded = DecodeString("\"\"", output[0:0])
+    if !decoded.valid || decoded.count != 0 { return 25 }
+    bytes: [64]u8
+    decoded = DecodeString("\"a%%b%\\0%\"", bytes[:])
+    if !decoded.valid { return 26 }
+    step := NextPrintPiece(bytes[0:decoded.count], 0, output[:])
+    if !step.valid || !step.present || step.argument || step.next != 4 ||
+    TextView(output[0:5]) != "\"a%b\"" || output[5] != 0 { return 27 }
+    step = NextPrintPiece(bytes[0:decoded.count], step.next, output[:])
+    if !step.valid || !step.argument || step.next != 5 || output[0] != 0 { return 28 }
+    step = NextPrintPiece(bytes[0:decoded.count], step.next, output[:])
+    if !step.valid || step.argument || step.next != 6 || TextView(output[0:6]) != "\"\\x00\"" { return 29 }
+    step = NextPrintPiece(bytes[0:decoded.count], step.next, output[:])
+    if !step.valid || !step.argument || step.next != 7 { return 30 }
+    step = NextPrintPiece(bytes[0:decoded.count], step.next, output[:])
+    if !step.valid || step.present || step.next != 7 { return 31 }
+    step = NextPrintPiece(bytes[0:decoded.count], 0, output[0:4])
+    if step.valid { return 32 }
+    return 42
+}
+
+// Deterministic bounded inputs exercise every byte, quotes, delimiters,
+// escape truncation, UTF-8 failures, and empty views across every target.
+#program_export
+Fingerprint :: () -> s64 {
+    state: u32 = 12345
+    result: u32 = 2166136261
+    sample: s32 = 0
+    alphabet := "abcXYZ_0129\"'\\()[]{},=<>!% \t\n\r\v\f\x7f"
+    while sample < 256 {
+        bytes: Vec(u8)
+        literal: Vec(u8)
+        VecPush(literal, #char "\"")
+        length: s32 = sample % 32
+        index: s32 = 0
+        while index < length {
+            state = state * cast(u32)1664525 + cast(u32)1013904223
+            byte := alphabet[cast(s64)(state >> 16) % alphabet.count]
+            if sample % 3 == 0 { byte = cast(u8)(state >> 24) }
+            VecPush(bytes, byte)
+            VecPush(literal, byte)
+            index += 1
+        }
+        VecPush(literal, #char "\"")
+        source := TextView(VecSlice(bytes, 0, bytes.count))
+        output: [128]u8
+        decoded := DecodeString(TextView(VecSlice(literal, 0, literal.count)), output[:])
+        result = result * cast(u32)16777619 ^ cast(u32)decoded.valid
+        result = result * cast(u32)16777619 ^ cast(u32)decoded.count
+        for byte: output[0:decoded.count] { result = result * cast(u32)16777619 ^ cast(u32)byte }
+        for capacity: 0..8 {
+            used := EscapeCString(source, output[0:capacity])
+            result = result * cast(u32)16777619 ^ cast(u32)used
+            for byte: output[0:used] { result = result * cast(u32)16777619 ^ cast(u32)byte }
+            used = CamelIdentifier(source, output[0:capacity])
+            result = result * cast(u32)16777619 ^ cast(u32)used
+            for byte: output[0:used] { result = result * cast(u32)16777619 ^ cast(u32)byte }
+        }
+        at: s64 = 0
+        while at >= 0 {
+            part := NextSourcePart(source, at)
+            result = result * cast(u32)16777619 ^ cast(u32)part.begin
+            result = result * cast(u32)16777619 ^ cast(u32)part.end
+            result = result * cast(u32)16777619 ^ cast(u32)part.next
+            at = part.next
+        }
+        result = result * cast(u32)16777619 ^ cast(u32)TopLevelAssignment(source)
+        range := TrimRange(source)
+        result = result * cast(u32)16777619 ^ cast(u32)range.begin
+        result = result * cast(u32)16777619 ^ cast(u32)range.end
+        VecFree(bytes)
+        VecFree(literal)
+        sample += 1
+    }
+    return cast(s64)result
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

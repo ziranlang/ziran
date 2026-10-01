@@ -35,6 +35,21 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   and saved IR on C, C++, Go, Rust, Python, and `.zib`. It also checks bootstrap
   output agreement, C frontend lookahead, null input, and token truncation.
 
+- Shared compiler text rules are implemented in `cmd/compiler_text.zi`:
+  whitespace and identifier bytes, trimming, native field names, C string
+  escaping, top-level argument splitting and assignments, UTF-8 string
+  decoding, print-format pieces, and operator procedure names. The frontend
+  keeps a C boundary for its buffers and interned parameter storage; float
+  formatting still uses C. Ordinary tools and the portable runtime library
+  link the freshly compiled Ziran implementation. Fresh builds use a generated
+  seed checked by `make check-bootstrap` and updated by `make update-bootstrap`.
+  `tests/compiler_text.sh` checks source and saved IR on C, C++, Go, Rust,
+  Python, and `.zib`, including malformed escapes, UTF-8 boundaries, bounded
+  output, deterministic byte inputs, bootstrap agreement, and the C boundary.
+  An unterminated quote in an argument list now stops at the source boundary
+  instead of reading beyond its terminating null. The parser, checker,
+  backends, and runtime still require further migration for full self-hosting.
+
 - Rust empty text views compare, print, and slice without constructing a
   native slice from a null pointer. Empty vector and slice views retain their
   original pointer when no offset is needed. `tests/rust_empty_text.sh` checks

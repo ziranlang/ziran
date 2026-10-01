@@ -13,6 +13,7 @@
 extern "C" {
 #endif
 typedef int32_t SourceError;
+typedef int32_t StatementKind;
 typedef struct SourceRewrite SourceRewrite;
 typedef struct CommentScan CommentScan;
 typedef struct ControlBlock ControlBlock;
@@ -22,6 +23,26 @@ enum {
     SourceError_Delimiter = 1,
     SourceError_DelimiterLine = 2,
     SourceError_Unterminated = 3,
+};
+
+enum {
+    StatementKind_Unknown = 0,
+    StatementKind_BlockOpen = 1,
+    StatementKind_BlockClose = 2,
+    StatementKind_Declaration = 3,
+    StatementKind_Assignment = 4,
+    StatementKind_Expression = 5,
+    StatementKind_If = 6,
+    StatementKind_While = 7,
+    StatementKind_For = 8,
+    StatementKind_Case = 9,
+    StatementKind_Return = 10,
+    StatementKind_Break = 11,
+    StatementKind_Continue = 12,
+    StatementKind_Defer = 13,
+    StatementKind_Unused = 14,
+    StatementKind_Unreachable = 15,
+    StatementKind_IfCase = 16,
 };
 
 struct SourceRewrite {
@@ -48,6 +69,10 @@ struct ControlBlock {
 bool compiler_source_SourceIdentifier(uint8_t byte);
 bool compiler_source_StartsWord(String source, String word);
 bool compiler_source_IdentifierText(String source, bool member_path);
+bool compiler_source_NonJaiControl(String source, String word);
+bool compiler_source_LooksLikeLabel(String source);
+StatementKind compiler_source_ClassifyStatement(String source);
+void compiler_source_NormalizeRecordSeparators(Slice body, bool split_commas);
 bool compiler_source_ContainsDirective(String source, String directive);
 SourceRewrite compiler_source_RewriteRawStrings(String source, Slice output, int64_t marker_limit);
 CommentScan compiler_source_StripComments(String source, Slice output, int32_t depth);

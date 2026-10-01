@@ -17,16 +17,45 @@ SameRewrite :: (source: string, expected: string) -> bool {
     return true
 }
 
+StatementChecks :: () -> bool {
+    if ClassifyStatement("}") != .BlockClose || ClassifyStatement("{") != .BlockOpen ||
+    ClassifyStatement("if true {") != .If || ClassifyStatement("else {") != .If ||
+    ClassifyStatement("while true {") != .While || ClassifyStatement("for x: xs {") != .For ||
+    ClassifyStatement("case;") != .Case || ClassifyStatement("return;") != .Return ||
+    ClassifyStatement("break;") != .Break || ClassifyStatement("continue;") != .Continue ||
+    ClassifyStatement("defer Call()") != .Defer || ClassifyStatement("unused x") != .Unused ||
+    ClassifyStatement("unreachable;") != .Unreachable { return false }
+    if ClassifyStatement("c := Call(.{x = 1})") != .Declaration ||
+    ClassifyStatement("field: [2]s32") != .Declaration || ClassifyStatement("s32 old_name;") != .Declaration ||
+    ClassifyStatement("field = Call(.{x = 1})") != .Assignment ||
+    ClassifyStatement("Call(.{x = 1}, \"a=b\")") != .Expression ||
+    ClassifyStatement("object.field: s32") != .Unknown || ClassifyStatement("unknown") != .Unknown ||
+    ClassifyStatement("") != .Unknown { return false }
+    if !LooksLikeLabel("outer: \t;") || LooksLikeLabel("outer: while true {") ||
+    LooksLikeLabel(":") || !NonJaiControl("if (value) {", "if") ||
+    NonJaiControl("if := true", "if") || NonJaiControl("if(value)", "if") ||
+    NonJaiControl("iffy {", "if") { return false }
+    original := "x: Pair(s32, s64); text: \"a;b,c\"; y: [2]Pair(s32, s32), z: s32"
+    expected := "x: Pair(s32, s64)\n text: \"a;b,c\"\n y: [2]Pair(s32, s32), z: s32"
+    output: [128]u8
+    for index: 0..original.count - 1 { output[index] = original[index] }
+    NormalizeRecordSeparators(output[0:original.count], false)
+    if TextView(output[0:original.count]) != expected { return false }
+    NormalizeRecordSeparators(output[0:original.count], true)
+    expected = "x: Pair(s32, s64)\n text: \"a;b,c\"\n y: [2]Pair(s32, s32)\n z: s32"
+    return TextView(output[0:original.count]) == expected
+}
+
 #program_export
 Answer :: () -> s32 {
-    if !SameRewrite("", "") || !SameRewrite("a\n\"x\\\"y\"\n'x' /* nested /* #string X */ */", 
+    if !SameRewrite("", "") || !SameRewrite("a\n\"x\\\"y\"\n'x' /* nested /* #string X */ */",
         "a\n\"x\\\"y\"\n'x' /* nested /* #string X */ */") { return 1 }
     if !SameRewrite("x :: #string END\ntext\nEND;\ny :: 3\n", "x :: \"text\\n\";\n\n\ny :: 3\n") { return 2 }
     if !SameRewrite("#string X\nX", "\"\"") ||
     !SameRewrite("#string X\r\n\"\\\t\x01\x7f\ré\nX;", "\"\\\"\\\\\\t\\x01\\x7f\\ré\\n\";") { return 3 }
     if !SameRewrite("#string X\na\nX + #string Y\nb\nY;\nnext", "\"a\\n\" + \"b\\n\";\n\n\n\n\nnext") { return 4 }
     if !SameRewrite("#string X\nX_EXTRA\n X\nX", "\"X_EXTRA\\n X\\n\"") { return 5 }
-    if !SameRewrite("// #string X\n/* #string Y */\n\"#string Z\"\n'#string Q'", 
+    if !SameRewrite("// #string X\n/* #string Y */\n\"#string Z\"\n'#string Q'",
         "// #string X\n/* #string Y */\n\"#string Z\"\n'#string Q'") { return 6 }
     if !SameRewrite("a#string X\n#stringer X\n", "a#string X\n#stringer X\n") { return 7 }
     output: [128]u8
@@ -76,6 +105,7 @@ Answer :: () -> s32 {
     SplitControlBlock("Call(.{x = 1})").valid || SplitControlBlock("if true { x := \"unfinished\\").valid { return 26 }
     if ClosingParenthesis("(Call(\")\"), ['(']) tail") != 17 ||
     ClosingParenthesis("(\"unfinished\\") != -1 || ClosingParenthesis("not a call") != -1 { return 27 }
+    if !StatementChecks() { return 28 }
     return 42
 }
 
@@ -117,6 +147,12 @@ Fingerprint :: () -> s64 {
         result = result * cast(u32)16777619 ^ cast(u32)StatementSeparator(source)
         result = result * cast(u32)16777619 ^ cast(u32)ClosingParenthesis(source)
         result = result * cast(u32)16777619 ^ cast(u32)IdentifierText(source, true)
+        result = result * cast(u32)16777619 ^ cast(u32)ClassifyStatement(source)
+        result = result * cast(u32)16777619 ^ cast(u32)LooksLikeLabel(source)
+        result = result * cast(u32)16777619 ^ cast(u32)NonJaiControl(source, "if")
+        for index: 0..source.count - 1 { output[index] = source[index] }
+        NormalizeRecordSeparators(output[0:source.count], sample % 2 == 0)
+        for byte: output[0:source.count] { result = result * cast(u32)16777619 ^ cast(u32)byte }
         block := SplitControlBlock(source)
         result = result * cast(u32)16777619 ^ cast(u32)block.valid
         result = result * cast(u32)16777619 ^ cast(u32)block.head_end

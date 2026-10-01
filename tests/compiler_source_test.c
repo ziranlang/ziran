@@ -67,5 +67,14 @@ int main(void)
     assert(compiler_source_ClosingParenthesis(text("(\"unfinished\\")) == -1);
     assert(compiler_source_StatementSeparator(text("\"unfinished\\")) == -1);
     assert(!compiler_source_SplitControlBlock(text("if true { \"unfinished\\")).valid);
+    assert(compiler_source_ClassifyStatement(text("Call(.{x = 1}, \"a=b\")")) == StatementKind_Expression);
+    assert(compiler_source_ClassifyStatement(text("x = Call(.{x = 1})")) == StatementKind_Assignment);
+    assert(compiler_source_ClassifyStatement(text("c := Call()")) == StatementKind_Declaration);
+    assert(compiler_source_ClassifyStatement(text("object.field: s32")) == StatementKind_Unknown);
+    assert(compiler_source_LooksLikeLabel(text("outer: \t;")));
+    assert(!compiler_source_NonJaiControl(text("if := true"), text("if")));
+    char fields[] = "x: Pair(s32, s64); text: \"a;b,c\", y: s32";
+    compiler_source_NormalizeRecordSeparators((Slice){fields, sizeof(fields) - 1}, true);
+    assert(!strcmp(fields, "x: Pair(s32, s64)\n text: \"a;b,c\"\n y: s32"));
     return 0;
 }

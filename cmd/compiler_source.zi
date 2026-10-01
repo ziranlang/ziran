@@ -1,6 +1,10 @@
 // Source scanning before declarations are parsed. All spans borrow source;
 // callers own output storage. No native imports or allocation are needed.
 SourceError :: enum s32 { None; Delimiter; DelimiterLine; Unterminated }
+StatementKind :: enum s32 {
+    Unknown; BlockOpen; BlockClose; Declaration; Assignment; Expression;
+    If; While; For; Case; Return; Break; Continue; Defer; Unused; Unreachable; IfCase;
+}
 SourceRewrite :: struct {
     error: SourceError
     count: s64
@@ -101,6 +105,83 @@ IdentifierText :: (source: string, member_path: bool) -> bool {
     }
     return true
 }
+
+NonJaiControl :: (source: string, word: string) -> bool {
+    if !StartsWord(source, word) { return false }
+    at := SkipSpace(source, word.count)
+    byte := Byte(source, at)
+    if byte == #char "(" { return Find(source[at:], "{") >= 0 }
+    operators := ":=.[+-*/%&|^<>!"
+    for operator_byte: operators { if byte == operator_byte { return false } }
+    return byte == 0 || byte == #char ";" || byte == #char "{" || SourceIdentifier(byte)
+}
+
+LooksLikeLabel :: (source: string) -> bool {
+    at: s64 = 0
+    while SourceIdentifier(Byte(source, at)) { at += 1 }
+    if at == 0 || Byte(source, at) != #char ":" { return false }
+    at = SkipSpace(source, at + 1)
+    return at == source.count || source[at:] == ";"
+}
+
+ClassifyStatement :: (source: string) -> StatementKind {
+    if Byte(source, 0) == #char "}" { return .BlockClose }
+    if source == "{" { return .BlockOpen }
+    if StartsWord(source, "if") || StartsWord(source, "else") { return .If }
+    if StartsWord(source, "while") { return .While }
+    if StartsWord(source, "for") { return .For }
+    if StartsWord(source, "case") || source == "case;" { return .Case }
+    if StartsWord(source, "return") || source == "return;" { return .Return }
+    if source == "unreachable" || source == "unreachable;" { return .Unreachable }
+    if StartsWord(source, "break") || source == "break;" { return .Break }
+    if StartsWord(source, "continue") || source == "continue;" { return .Continue }
+    if StartsWord(source, "defer") { return .Defer }
+    if StartsWord(source, "unused") { return .Unused }
+    if Find(source, ":=") >= 0 { return .Declaration }
+    colon := Find(source, ": ")
+    if colon < 0 { colon = Find(source, ": [") }
+    if colon > 0 && IdentifierText(source[0:colon], false) { return .Declaration }
+    // Classify foreign-style locals so the parser can reject them before
+    // unchecked declarations reach a native backend.
+    rejected: [11]string = .{"s8 ", "s16 ", "s32 ", "s64 ", "float32 ", "float64 ",
+        "bool ", "unsigned ", "long ", "const ", "struct "}
+    for prefix: rejected { if Matches(source, 0, prefix) { return .Declaration } }
+    at: s64 = 0
+    depth: s32 = 0
+    while at < source.count {
+        byte := source[at]
+        if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at); continue }
+        if byte == #char "(" || byte == #char "[" || byte == #char "{" { depth += 1 }
+        else if byte == #char ")" || byte == #char "]" || byte == #char "}" {
+            if depth > 0 { depth -= 1 }
+        } else if byte == #char "=" && depth == 0 { return .Assignment }
+        at += 1
+    }
+    if Find(source, "(") >= 0 || Find(source, "+") >= 0 || Find(source, "-") >= 0 {
+        return .Expression
+    }
+    return .Unknown
+}
+
+NormalizeRecordSeparators :: (body: []u8, split_commas: bool) {
+    at: s64 = 0
+    quoted := false
+    nesting: s32 = 0
+    while at < body.count {
+        byte := body[at]
+        if quoted {
+            if byte == #char "\\" && at + 1 < body.count { at += 1 }
+            else if byte == #char "\"" { quoted = false }
+        } else if byte == #char "\"" { quoted = true }
+        else if byte == #char "[" || byte == #char "(" { nesting += 1 }
+        else if byte == #char "]" || byte == #char ")" { nesting -= 1 }
+        else if nesting == 0 && (byte == #char ";" || (split_commas && byte == #char ",")) {
+            body[at] = #char "\n"
+        }
+        at += 1
+    }
+}
+
 ContainsDirective :: (source: string, directive: string) -> bool {
     at: s64 = 0
     while at < source.count {

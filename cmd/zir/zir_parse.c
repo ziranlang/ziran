@@ -1,6 +1,25 @@
 #include "zir_parse_internal.h"
 #include "compiler_source.h"
 
+_Static_assert(ZIR_STMT_UNKNOWN == StatementKind_Unknown &&
+               ZIR_STMT_BLOCK_OPEN == StatementKind_BlockOpen &&
+               ZIR_STMT_BLOCK_CLOSE == StatementKind_BlockClose &&
+               ZIR_STMT_DECL == StatementKind_Declaration &&
+               ZIR_STMT_ASSIGN == StatementKind_Assignment &&
+               ZIR_STMT_EXPR == StatementKind_Expression &&
+               ZIR_STMT_IF == StatementKind_If &&
+               ZIR_STMT_WHILE == StatementKind_While &&
+               ZIR_STMT_FOR == StatementKind_For &&
+               ZIR_STMT_CASE == StatementKind_Case &&
+               ZIR_STMT_RETURN == StatementKind_Return &&
+               ZIR_STMT_BREAK == StatementKind_Break &&
+               ZIR_STMT_CONTINUE == StatementKind_Continue &&
+               ZIR_STMT_DEFER == StatementKind_Defer &&
+               ZIR_STMT_UNUSED == StatementKind_Unused &&
+               ZIR_STMT_UNREACHABLE == StatementKind_Unreachable &&
+               ZIR_STMT_IF_CASE == StatementKind_IfCase,
+               "C frontend statement kinds must match the Ziran scanner");
+
 static String
 source_view(const char *source)
 {
@@ -84,20 +103,7 @@ starts_word(const char *s, const char *word)
 int
 looks_like_non_jai_control(const char *text, const char *word)
 {
-    const char *rest;
-
-    if(!starts_word(text, word))
-        return 0;
-    rest = skip_ws(text + strlen(word));
-    if(*rest == '(')
-        return strchr(rest, '{') != NULL;
-    if(*rest == ':' || *rest == '=' || *rest == '.' || *rest == '[' ||
-       *rest == '+' || *rest == '-' || *rest == '*' || *rest == '/' ||
-       *rest == '%' || *rest == '&' || *rest == '|' || *rest == '^' ||
-       *rest == '<' || *rest == '>' || *rest == '!')
-        return 0;
-    return *rest == '\0' || *rest == ';' || *rest == '{' ||
-           isalnum((unsigned char)*rest) || *rest == '_';
+    return compiler_source_NonJaiControl(source_view(text), source_view(word));
 }
 
 int
@@ -455,24 +461,7 @@ int take_abi_incomplete(ZirType *type);
 void
 normalize_record_separators(char *body, int split_commas)
 {
-    int quote = 0, nesting = 0;
-    for(char *cursor = body; *cursor; cursor++) {
-        if(quote) {
-            if(*cursor == '\\' && cursor[1])
-                cursor++;
-            else if(*cursor == '"')
-                quote = 0;
-        } else if(*cursor == '"') {
-            quote = 1;
-        } else if(*cursor == '[' || *cursor == '(') {
-            nesting++;
-        } else if(*cursor == ']' || *cursor == ')') {
-            nesting--;
-        } else if(nesting == 0 &&
-                  (*cursor == ';' || (split_commas && *cursor == ','))) {
-            *cursor = '\n';
-        }
-    }
+    compiler_source_NormalizeRecordSeparators((Slice){body, (int64_t)strlen(body)}, split_commas != 0);
 }
 
 static int
@@ -614,15 +603,7 @@ parse_quoted(const char *s, char *out, size_t out_size)
 int
 is_c_ident(const char *s)
 {
-    if(s == NULL || s[0] == '\0')
-        return 0;
-    if(!(isalpha((unsigned char)s[0]) || s[0] == '_'))
-        return 0;
-    for(const char *p = s + 1; *p != '\0'; p++) {
-        if(!(isalnum((unsigned char)*p) || *p == '_'))
-            return 0;
-    }
-    return 1;
+    return compiler_source_IdentifierText(source_view(s), false);
 }
 
 ZirExternKind
@@ -669,210 +650,13 @@ net_block_braces(const char *s)
 int
 looks_like_label(const char *s)
 {
-    size_t n = 0;
-    while(isalnum((unsigned char)s[n]) || s[n] == '_')
-        n++;
-    if(n == 0 || s[n] != ':')
-        return 0;
-    const char *rest = skip_ws(s + n + 1);
-    return *rest == '\0' || strcmp(rest, ";") == 0;
+    return compiler_source_LooksLikeLabel(source_view(s));
 }
 
 ZirStmtKind
 classify_stmt(const char *s)
 {
-    if(s[0] == '}')
-        return ZIR_STMT_BLOCK_CLOSE;
-    if(strcmp(s, "{") == 0)
-        return ZIR_STMT_BLOCK_OPEN;
-    if(starts_word(s, "if") || starts_word(s, "else"))
-        return ZIR_STMT_IF;
-    if(starts_word(s, "while"))
-        return ZIR_STMT_WHILE;
-    if(starts_word(s, "for"))
-        return ZIR_STMT_FOR;
-    if(starts_word(s, "case") || strcmp(s, "case;") == 0)
-        return ZIR_STMT_CASE;
-    if(starts_word(s, "return") || strcmp(s, "return;") == 0)
-        return ZIR_STMT_RETURN;
-    if(strcmp(s, "unreachable") == 0 || strcmp(s, "unreachable;") == 0)
-        return ZIR_STMT_UNREACHABLE;
-    if(starts_word(s, "break") || strcmp(s, "break;") == 0)
-        return ZIR_STMT_BREAK;
-    if(starts_word(s, "continue") || strcmp(s, "continue;") == 0)
-        return ZIR_STMT_CONTINUE;
-    if(starts_word(s, "defer"))
-        return ZIR_STMT_DEFER;
-    if(starts_word(s, "unused"))
-        return ZIR_STMT_UNUSED;
-    if(strstr(s, ":=") != NULL)
-        return ZIR_STMT_DECL;   /* ':=' wins over the raw 'c' prefix (a
-                                   variable may be named 'c') */
-    if(strstr(s, ": ") != NULL || strstr(s, ": [") != NULL) {
-        /* typed decl only when an identifier precedes the colon */
-        const char *c2 = strstr(s, ": ");
-
-        if(c2 == NULL)
-            c2 = strstr(s, ": [");
-        if(c2 != NULL && c2 > s &&
-           (isalpha((unsigned char)s[0]) || s[0] == '_')) {
-            int ident_only = 1;
-
-            for(const char *q = s; q < c2; q++)
-                if(!(isalnum((unsigned char)*q) || *q == '_'))
-                    ident_only = 0;
-            if(ident_only)
-                return ZIR_STMT_DECL;  /* 'x: T' / 'x: [N] T' */
-        }
-    }
-    /* Classify C-style locals so the source grammar can reject them before
-     * any native backend sees an unchecked declaration. */
-    {
-        static const char *const types[] = {
-            "s8 ", "s16 ", "s32 ", "s64 ",
-            "float32 ", "float64 ", "bool ",
-            "unsigned ", "long ", "const ", "struct ", NULL
-        };
-        int i;
-
-        for(i = 0; types[i] != NULL; i++)
-            if(strncmp(s, types[i], strlen(types[i])) == 0)
-                return ZIR_STMT_DECL;
-    }
-    /* An '=' inside a call's record literal is a field initializer,
-     * not an assignment statement (Make(Props.{value = input})). */
-    {
-        int depth = 0;
-        int quote = 0;
-        const char *p;
-
-        for(p = s; *p != '\0'; p++) {
-            if(quote) {
-                if(*p == '\\' && p[1] != '\0')
-                    p++;
-                else if(*p == quote)
-                    quote = 0;
-                continue;
-            }
-            if(*p == '"' || *p == '\'')
-                quote = *p;
-            else if(*p == '(' || *p == '[' || *p == '{')
-                depth++;
-            else if(*p == ')' || *p == ']' || *p == '}') {
-                if(depth > 0)
-                    depth--;
-            } else if(*p == '=' && depth == 0)
-                return ZIR_STMT_ASSIGN;
-        }
-    }
-    if(strchr(s, '(') != NULL || strchr(s, '+') != NULL ||
-       strchr(s, '-') != NULL)
-        return ZIR_STMT_EXPR;
-    return ZIR_STMT_UNKNOWN;
-}
-
-static int
-unwrap_outer_parentheses(const char *text, char *out, size_t out_size)
-{
-    const char *p = text;
-    const char *open;
-    const char *close = NULL;
-    int depth = 0;
-    int in_string = 0;
-
-    while(*p == ' ' || *p == '\t')
-        p++;
-    if(*p != '(')
-        return 0;
-    open = p++;
-    depth = 1;
-    while(*p != '\0') {
-        if(in_string) {
-            if(*p == '\\' && p[1] != '\0')
-                p++;
-            else if(*p == '"')
-                in_string = 0;
-        } else if(*p == '"') {
-            in_string = 1;
-        } else if(*p == '(') {
-            depth++;
-        } else if(*p == ')' && --depth == 0) {
-            close = p;
-            break;
-        }
-        p++;
-    }
-    if(close == NULL)
-        return 0;
-    p = close + 1;
-    while(*p == ' ' || *p == '\t' || *p == ';')
-        p++;
-    if(*p != '\0' || (size_t)(close - open) >= out_size)
-        return 0;
-    memcpy(out, open + 1, (size_t)(close - open - 1));
-    out[close - open - 1] = '\0';
-    trim_in_place(out);
-    return out[0] != '\0';
-}
-
-static int
-parse_direct_call_statement(const char *text, char *name, size_t name_size,
-                            char *args, size_t args_size)
-{
-    const char *p = text;
-    const char *open;
-    const char *close;
-    size_t length;
-    int depth = 0;
-    int in_string = 0;
-    char inner[ZIR_TEXT_MAX];
-
-    while(*p == ' ' || *p == '\t')
-        p++;
-    if(unwrap_outer_parentheses(p, inner, sizeof(inner)))
-        return parse_direct_call_statement(inner, name, name_size, args,
-                                           args_size);
-    open = p;
-    while(isalnum((unsigned char)*p) || *p == '_')
-        p++;
-    length = (size_t)(p - open);
-    if(length == 0 || length >= name_size)
-        return 0;
-    memcpy(name, open, length);
-    name[length] = '\0';
-    while(*p == ' ' || *p == '\t')
-        p++;
-    if(*p != '(')
-        return 0;
-    open = p++;
-    close = NULL;
-    depth = 1;
-    while(*p != '\0') {
-        if(in_string) {
-            if(*p == '\\' && p[1] != '\0')
-                p++;
-            else if(*p == '"')
-                in_string = 0;
-        } else if(*p == '"') {
-            in_string = 1;
-        } else if(*p == '(') {
-            depth++;
-        } else if(*p == ')' && --depth == 0) {
-            close = p;
-            break;
-        }
-        p++;
-    }
-    if(close == NULL || (size_t)(close - open) >= args_size)
-        return 0;
-    p = close + 1;
-    while(*p == ' ' || *p == '\t' || *p == ';')
-        p++;
-    if(*p != '\0')
-        return 0;
-    memcpy(args, open + 1, (size_t)(close - open - 1));
-    args[close - open - 1] = '\0';
-    return 1;
+    return (ZirStmtKind)compiler_source_ClassifyStatement(source_view(s));
 }
 
 int

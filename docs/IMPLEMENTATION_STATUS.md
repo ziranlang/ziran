@@ -53,7 +53,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Source preprocessing and logical-line scanning are implemented in
   `cmd/compiler_source.zi`: raw multiline strings, nested and line comments,
   identifier and directive recognition, block-brace accounting, statement
-  separators, compact control blocks, and matching parentheses. The C parser
+  classification and separators, record field separators, compact control
+  blocks, and matching parentheses. The C parser
   keeps storage and diagnostics behind a small boundary. Ordinary tools and
   the portable library compile the maintained Ziran source; fresh builds use
   a generated seed verified by `make check-bootstrap`.
@@ -1054,6 +1055,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Still required
 
+- Finish compiler self-hosting: declaration parsing, semantic checking, IR
+  persistence, proof validation, native lowering, portable linking, and the
+  runtime still need to move from C to Ziran. The generated bootstrap modules
+  currently cover token, text, and source scanning only.
 - Finish Jai parity and specialization: cover remaining expression forms,
   exact foreign array ABI behavior (including nonempty `.data`), generic fields
   whose types depend on specialization parameters, and broader procedure-value

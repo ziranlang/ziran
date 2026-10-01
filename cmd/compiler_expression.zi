@@ -1,5 +1,5 @@
 // Expression grammar. The frontend owns IR and diagnostics; callbacks let
-// this parser control binary precedence without depending on C IR layouts.
+// this parser control expression grammar without depending on C IR layouts.
 Scan :: #import "compiler_scan";
 Source :: #import "compiler_source";
 Text :: #import "compiler_text";
@@ -70,6 +70,177 @@ ParseBinary :: (hooks: *ExpressionHooks, minimum: s32) -> s32 {
     if token() == "?" { conditional_error() }
     <<hooks.depth -= 1
     return left
+}
+
+ExpressionKind :: #type () -> Scan.TokenKind;
+ExpressionParse :: #type (minimum: s32) -> s32;
+ExpressionLink :: #type (previous: s32, next: s32) -> void;
+SyntaxCursor :: struct {
+    depth: *s32
+    failed: *s32
+    source: string
+    begin: ExpressionBegin
+    token: ExpressionToken
+    kind: ExpressionKind
+    advance: ExpressionAdvance
+    parse: ExpressionParse
+    link: ExpressionLink
+}
+
+PostfixKind :: enum s32 { Index; Slice; Member; Dereference; Call }
+PostfixError :: enum s32 { PointerMember; Increment; Question }
+PostfixNode :: #type (start: s64, kind: PostfixKind, name: string, left: s32,
+    right: s32, third: s32, first: s32) -> s32;
+ExpressionArgument :: #type (child: s32, name: string) -> void;
+ExpressionChildren :: struct { first: s32; last: s32 }
+ExpressionDefaults :: #type (callee: s32, first: s32, last: s32) -> ExpressionChildren;
+ExpressionName :: #type (callee: s32) -> string;
+PostfixDiagnostic :: #type (error: PostfixError) -> void;
+PostfixHooks :: struct {
+    cursor: *SyntaxCursor
+    node: PostfixNode
+    argument: ExpressionArgument
+    defaults: ExpressionDefaults
+    name: ExpressionName
+    error: PostfixDiagnostic
+}
+
+ParsePostfix :: (hooks: *PostfixHooks, start: s64, initial: s32) -> s32 {
+    cursor := hooks.cursor
+    token := cursor.token
+    kind := cursor.kind
+    begin := cursor.begin
+    advance := cursor.advance
+    parse := cursor.parse
+    link := cursor.link
+    node := hooks.node
+    argument := hooks.argument
+    defaults := hooks.defaults
+    callee_name := hooks.name
+    error := hooks.error
+    result := initial
+    while <<cursor.failed == 0 {
+        if Take(cursor, "[") {
+            low: s32 = -1
+            if token() != ":" { low = parse(1) }
+            if Take(cursor, ":") {
+                high: s32 = -1
+                if token() != "]" { high = parse(1) }
+                Expect(cursor, "]")
+                result = node(start, .Slice, "", result, low, high, -1)
+            } else {
+                Expect(cursor, "]")
+                result = node(start, .Index, "", result, low, -1, -1)
+            }
+        } else if token() == "->" { error(.PointerMember); break }
+        else if Take(cursor, ".") {
+            if Take(cursor, "*") {
+                result = node(start, .Dereference, "", result, -1, -1, -1)
+            } else {
+                if kind() != Scan.TokenKind.Ident { <<cursor.failed = 1 }
+                name := BorrowToken(cursor.source, cursor)
+                advance()
+                result = node(start, .Member, name, result, -1, -1, -1)
+            }
+        } else if Take(cursor, "(") {
+            first: s32 = -1
+            last: s32 = -1
+            callee := result
+            name := callee_name(callee)
+            if token() != ")" {
+                while true {
+                    argument_name := ""
+                    if kind() == Scan.TokenKind.Ident && Following(cursor.source, cursor, 1) == "=" {
+                        argument_name = BorrowToken(cursor.source, cursor)
+                        advance()
+                        Expect(cursor, "=")
+                    }
+                    child := parse(1)
+                    if child < 0 { <<cursor.failed = 1; break }
+                    argument(child, argument_name)
+                    if last >= 0 { link(last, child) } else { first = child }
+                    last = child
+                    if !Take(cursor, ",") { break }
+                }
+            }
+            Expect(cursor, ")")
+            if <<cursor.failed == 0 {
+                children := defaults(callee, first, last)
+                first = children.first
+                last = children.last
+            }
+            result = node(start, .Call, name, callee, -1, -1, first)
+        } else if token() == "++" || token() == "--" { error(.Increment); break }
+        else if token() == "?" && begin() > 0 && begin() <= cursor.source.count &&
+        !Text.SpaceByte(cursor.source[begin() - 1]) { error(.Question); break }
+        else { break }
+    }
+    return result
+}
+
+InitializerFieldType :: #type (type: string, name: string, ordinal: s32) -> string;
+InitializerField :: #type (start: s64, name: string, named: bool, value: s32) -> s32;
+InitializerNode :: #type (start: s64, type: string, first: s32) -> s32;
+InitializerHooks :: struct {
+    cursor: *SyntaxCursor
+    field_type: InitializerFieldType
+    field: InitializerField
+    node: InitializerNode
+}
+
+ParseInitializer :: (hooks: *InitializerHooks, start: s64, type: string,
+    open: string, close: string) -> s32 {
+    cursor := hooks.cursor
+    token := cursor.token
+    kind := cursor.kind
+    begin := cursor.begin
+    advance := cursor.advance
+    parse := cursor.parse
+    link := cursor.link
+    field_type := hooks.field_type
+    field := hooks.field
+    node := hooks.node
+    first: s32 = -1
+    last: s32 = -1
+    ordinal: s32 = 0
+    Expect(cursor, open)
+    while <<cursor.failed == 0 && token() != close && kind() != Scan.TokenKind.Eof {
+        field_start := begin()
+        name := ""
+        named := false
+        if token() == "." && Following(cursor.source, cursor, 2) == "=" {
+            next := Scan.NextToken(cursor.source, begin() + token().count, 1, 1)
+            if next.kind == Scan.TokenKind.Ident { advance(); named = true }
+        }
+        if !named && kind() == Scan.TokenKind.Ident { named = Following(cursor.source, cursor, 1) == "=" }
+        if named {
+            if kind() != Scan.TokenKind.Ident { <<cursor.failed = 1; break }
+            name = BorrowToken(cursor.source, cursor)
+            advance()
+            Expect(cursor, "=")
+        }
+        value: s32 = -1
+        if token() == "{" {
+            nested_type := field_type(type, name, ordinal)
+            <<cursor.depth += 1
+            if <<cursor.depth > 128 {
+                <<cursor.failed = 1
+                <<cursor.depth -= 1
+                return -1
+            }
+            value = ParseInitializer(hooks, begin(), nested_type, "{", "}")
+            <<cursor.depth -= 1
+        } else { value = parse(1) }
+        ordinal += 1
+        if value < 0 { <<cursor.failed = 1; break }
+        child := field(field_start, name, named, value)
+        if child < 0 { break }
+        if last >= 0 { link(last, child) } else { first = child }
+        last = child
+        if !Take(cursor, ",") { break }
+    }
+    Expect(cursor, close)
+    return node(start, type, first)
 }
 
 CharacterByte :: (literal: string) -> s32 {
@@ -182,6 +353,38 @@ StatementParts :: (source: string, kind: Source.StatementKind) -> StatementExpre
 }
 
 #scope_file
+Take :: (cursor: *SyntaxCursor, wanted: string) -> bool {
+    token := cursor.token
+    advance := cursor.advance
+    if token() != wanted { return false }
+    advance()
+    return true
+}
+Expect :: (cursor: *SyntaxCursor, wanted: string) {
+    if !Take(cursor, wanted) { <<cursor.failed = 1 }
+}
+BorrowToken :: (source: string, cursor: *SyntaxCursor) -> string {
+    begin := cursor.begin
+    token := cursor.token
+    at := begin()
+    count := token().count
+    if at < 0 || at > cursor.source.count || count > cursor.source.count - at {
+        <<cursor.failed = 1
+        return ""
+    }
+    return source[at:at + count]
+}
+Following :: (source: string, cursor: *SyntaxCursor, distance: s32) -> string {
+    begin := cursor.begin
+    token := cursor.token
+    at := begin() + token().count
+    following: Scan.Scan
+    for index: 1..distance {
+        following = Scan.NextToken(cursor.source, at, 1, 1)
+        at = following.end
+    }
+    return source[following.begin:following.end]
+}
 Hex :: (byte: u8) -> s32 {
     if byte >= 48 && byte <= 57 { return cast(s32)(byte - 48) }
     if byte >= 65 && byte <= 70 { return cast(s32)(byte - 65) + 10 }

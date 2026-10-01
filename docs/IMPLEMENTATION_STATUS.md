@@ -121,21 +121,35 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   agreement, and the C boundary. Fresh builds compile the maintained Ziran
   source using a generated seed verified by `make check-bootstrap`.
 
-- Binary expression parsing is implemented in `cmd/compiler_expression.zi`:
+- Binary, postfix, and initializer parsing are implemented in
+  `cmd/compiler_expression.zi`:
   precedence, left associativity, recursive right operands, shared nesting
-  limits, and rejection of C-style conditionals. The same module decodes
+  limits, and rejection of C-style conditionals. The same module parses
+  calls with named arguments, chained calls, indexing, open-ended slices,
+  member access, postfix dereferencing, named and positional record/array
+  fields, and recursive nested initializers. Names borrow the original source
+  rather than a reused token buffer. The same module decodes
   one-byte `#char` literals and extracts declaration, assignment, return,
   unused, and control-flow expressions from statements. Source ranges are
   bounded and borrowed, so long statements retain their full text.
-  The C boundary retains IR storage, prefix/postfix parsing, and diagnostics;
-  callback slots expose those operations to the Ziran binary parser without
-  sharing C IR layouts. Ordinary tools compile the maintained Ziran source;
-  fresh builds use a generated seed verified by `make check-bootstrap`.
+  The C boundary retains IR storage, primary and prefix parsing, type lookup,
+  default expansion, and diagnostics; callback slots expose those operations
+  to the Ziran grammar without sharing C IR layouts. Ordinary tools compile
+  the maintained Ziran source; fresh builds use a generated seed verified by
+  `make check-bootstrap`.
   `tests/compiler_expression.sh` checks source and saved IR on C, C++, Go,
   Rust, Python, and `.zib`, including precedence, literal escapes, malformed
-  statements, nesting limits, deterministic byte inputs, seed agreement,
+  statements, chained calls, named arguments, nested initializers, open slices,
+  nesting limits, deterministic byte inputs, seed agreement,
   borrowed ranges, and the C frontend boundary. The compiler still requires
   further migration before it is fully self-hosted.
+
+- Portable imported callback signatures resolve their parameter and return
+  types in their defining module. Record, enum, pointer, slice, and array type
+  identities retain their meaning across module aliases instead of accepting
+  an unrelated same-named record. The expression-parser corpus exercises
+  imported callback records, enum parameters, and record results from source
+  and saved IR alongside native targets.
 
 - Imported polymorphic procedures specialized for caller-owned records retain
   calls to their defining module's private helpers, including recursive
@@ -1125,8 +1139,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Finish compiler self-hosting: declaration parsing, semantic checking, IR
   persistence, proof validation, native lowering, portable linking, and the
   runtime still need to move from C to Ziran. The generated bootstrap modules
-  currently cover token, text, source scanning, and declaration syntax;
-  declaration IR construction and semantic checking still require migration.
+  currently cover token, text, source scanning, declaration syntax, enum
+  evaluation, type spelling and field parsing, binary/postfix/initializer
+  grammar, and statement expression extraction. Primary and prefix parsing,
+  declaration IR construction, and semantic checking still require migration.
 - Finish Jai parity and specialization: cover remaining expression forms,
   exact foreign array ABI behavior (including nonempty `.data`), generic fields
   whose types depend on specialization parameters, and broader procedure-value

@@ -96,8 +96,9 @@ Run `make check` for the language, backend, and portable runtime checks.
 Tests use four workers by default; set `CHECK_JOBS=1` to run them serially.
 
 The native command, formatter, compiler scanners, declaration syntax rules,
-enum validation and evaluation, type spelling and field parsing, binary
-expression grammar, and statement expression extraction are written
+enum validation and evaluation, type spelling and field parsing, binary and
+postfix expression grammar, nested initializer grammar, and statement
+expression extraction are written
 in Ziran; the rest of the compiler is still being migrated from C.
 A fresh build uses the generated modules in `bootstrap/` to build a bootstrap
 compiler, then compiles their maintained `cmd/compiler_*.zi` sources for the

@@ -142,11 +142,178 @@ Statements :: () -> bool {
     return true
 }
 
+// Use the grammar with independent tree storage, including borrowed names
+// that survive token advancement and recursively parsed call arguments.
+TreeNode :: struct {
+    kind: s32
+    name: string
+    left: s32
+    right: s32
+    third: s32
+    first: s32
+    sibling: s32
+    argument: string
+}
+TreeParser :: struct {
+    source: string
+    token: Scan.Scan
+    depth: s32
+    failed: s32
+    errors: s32
+    defaults: s32
+    count: s32
+    nodes: [256]TreeNode
+}
+tree: TreeParser;
+TreeBegin :: () -> s64 { return tree.token.begin }
+TreeToken :: () -> string { return tree.source[tree.token.begin:tree.token.end] }
+TreeKind :: () -> Scan.TokenKind { return tree.token.kind }
+TreeAdvance :: () { tree.token = Scan.NextToken(tree.source, tree.token.end, 1, 1) }
+TreeLink :: (previous: s32, next: s32) { tree.nodes[previous].sibling = next }
+TreeAdd :: (kind: s32, name: string, left: s32 = -1, right: s32 = -1,
+    third: s32 = -1, first: s32 = -1) -> s32 {
+    if tree.count >= 256 { tree.failed = 1; return -1 }
+    index := tree.count
+    tree.nodes[index] = .{kind = kind, name = name, left = left, right = right,
+        third = third, first = first, sibling = -1}
+    tree.count += 1
+    return index
+}
+TreeName :: (callee: s32) -> string {
+    if callee >= 0 && tree.nodes[callee].kind == 0 { return tree.nodes[callee].name }
+    return ""
+}
+TreeArgument :: (child: s32, name: string) { tree.nodes[child].argument = name }
+TreeDefaults :: (callee: s32, first: s32, last: s32) -> Expression.ExpressionChildren {
+    if TreeName(callee) != "Default" { return .{first, last} }
+    tree.defaults += 1
+    child := TreeAdd(0, "default")
+    if last >= 0 { TreeLink(last, child) } else { first = child }
+    return .{first, child}
+}
+TreeError :: (error: Expression.PostfixError) {
+    tree.failed = 1
+    tree.errors = cast(s32)error + 1
+}
+TreeConditionalError :: () { tree.failed = 1 }
+TreePostfixNode :: (start: s64, kind: Expression.PostfixKind, name: string,
+    left: s32, right: s32, third: s32, first: s32) -> s32 {
+    if start < 0 || start > tree.source.count { tree.failed = 1 }
+    return TreeAdd(10 + cast(s32)kind, name, left, right, third, first)
+}
+TreeFieldType :: (type: string, name: string, ordinal: s32) -> string {
+    if type == "Root" && (name == "nested" || (name == "" && ordinal == 0)) { return "Child" }
+    return "Element"
+}
+TreeField :: (start: s64, name: string, named: bool, value: s32) -> s32 {
+    if start < 0 || start > tree.source.count { tree.failed = 1 }
+    return TreeAdd(2, name, cast(s32)named, value)
+}
+TreeInitializer :: (start: s64, type: string, first: s32) -> s32 {
+    if start < 0 || start > tree.source.count { tree.failed = 1 }
+    return TreeAdd(3, type, first = first)
+}
+TreeCursor :: () -> Expression.SyntaxCursor {
+    return .{*tree.depth, *tree.failed, tree.source, TreeBegin, TreeToken,
+        TreeKind, TreeAdvance, TreeParse, TreeLink}
+}
+TreePrefix :: () -> s32 {
+    tree.depth += 1
+    if tree.depth > 128 { tree.failed = 1; tree.depth -= 1; return -1 }
+    start := TreeBegin()
+    value: s32 = -1
+    if TreeToken() == "{" {
+        cursor := TreeCursor()
+        hooks: Expression.InitializerHooks = .{*cursor, TreeFieldType, TreeField, TreeInitializer}
+        value = Expression.ParseInitializer(*hooks, start, "Root", "{", "}")
+    } else if TreeToken() == "(" {
+        TreeAdvance()
+        value = TreeParse(1)
+        if TreeToken() != ")" { tree.failed = 1 } else { TreeAdvance() }
+    } else if TreeKind() == Scan.TokenKind.Int || TreeKind() == Scan.TokenKind.Ident {
+        value = TreeAdd(0, TreeToken())
+        TreeAdvance()
+    } else { tree.failed = 1 }
+    cursor := TreeCursor()
+    hooks: Expression.PostfixHooks = .{*cursor, TreePostfixNode, TreeArgument,
+        TreeDefaults, TreeName, TreeError}
+    value = Expression.ParsePostfix(*hooks, start, value)
+    tree.depth -= 1
+    return value
+}
+TreeBinary :: (start: s64, op: string, left: s32, right: s32) -> s32 {
+    if start < 0 || start > tree.source.count { tree.failed = 1 }
+    return TreeAdd(1, op, left, right)
+}
+TreeParse :: (minimum: s32) -> s32 {
+    hooks: Expression.ExpressionHooks = .{*tree.depth, *tree.failed, TreeBegin,
+        TreeToken, TreePrefix, TreeAdvance, TreeBinary, TreeConditionalError}
+    return Expression.ParseBinary(*hooks, minimum)
+}
+TreeRead :: (source: string) -> s32 {
+    tree = .{source = source}
+    TreeAdvance()
+    return TreeParse(1)
+}
+SyntaxGrammar :: () -> bool {
+    root := TreeRead("Run(first = Next(2), second = items[1:3].value).*[0]")
+    if tree.failed != 0 || tree.depth != 0 || TreeToken() != "" || tree.nodes[root].kind != 10 { return false }
+    pointer := tree.nodes[root].left
+    call := tree.nodes[pointer].left
+    if tree.nodes[pointer].kind != 13 || tree.nodes[call].kind != 14 || tree.nodes[call].name != "Run" { return false }
+    first := tree.nodes[call].first
+    second := tree.nodes[first].sibling
+    if tree.nodes[first].argument != "first" || tree.nodes[first].name != "Next" ||
+    tree.nodes[second].argument != "second" || tree.nodes[second].name != "value" ||
+    tree.nodes[second].kind != 12 || tree.nodes[tree.nodes[second].left].kind != 11 { return false }
+    expressions: [4]string = .{"items[:]", "items[:3]", "items[1:]", "items[1:3]"}
+    for index: 0..3 {
+        root = TreeRead(expressions[index])
+        if tree.failed != 0 || tree.nodes[root].kind != 11 ||
+        (tree.nodes[root].right >= 0) != (index >= 2) ||
+        (tree.nodes[root].third >= 0) != (index == 1 || index == 3) { return false }
+    }
+    root = TreeRead("Default()")
+    if tree.failed != 0 || tree.defaults != 1 || tree.nodes[tree.nodes[root].first].name != "default" { return false }
+    root = TreeRead("provider.method(1)(named = 2)")
+    if tree.failed != 0 || tree.nodes[root].name != "" || tree.nodes[tree.nodes[root].left].kind != 14 ||
+    tree.nodes[tree.nodes[root].first].argument != "named" { return false }
+    root = TreeRead("{.nested = {1, 2}, trailing = Default(3), 4,}")
+    if tree.failed != 0 || TreeToken() != "" || tree.depth != 0 || tree.nodes[root].name != "Root" { return false }
+    first = tree.nodes[root].first
+    second = tree.nodes[first].sibling
+    if tree.nodes[first].name != "nested" || tree.nodes[first].left != 1 ||
+    tree.nodes[tree.nodes[first].right].name != "Child" || tree.nodes[second].name != "trailing" ||
+    tree.nodes[tree.nodes[second].sibling].left != 0 || tree.defaults != 1 { return false }
+    root = TreeRead("{}")
+    if tree.failed != 0 || tree.nodes[root].first != -1 { return false }
+    invalid: [8]string = .{"items[1", "items[]", "items.", "Call(1,)",
+        "{named = }", "{1", "{.1 = 2}", "Call(named = )"}
+    for input: invalid {
+        unused TreeRead(input)
+        if tree.failed != 1 || tree.depth != 0 { return false }
+    }
+    errors: [3]string = .{"value->field", "value++", "value?"}
+    for index: 0..2 {
+        unused TreeRead(errors[index])
+        if tree.failed != 1 || tree.errors != index + 1 || tree.depth != 0 { return false }
+    }
+    unused TreeRead("value ?")
+    if tree.failed != 1 || tree.errors != 0 || tree.depth != 0 { return false }
+    tree = .{source = "{{1}}", depth = 128}
+    TreeAdvance()
+    cursor := TreeCursor()
+    hooks: Expression.InitializerHooks = .{*cursor, TreeFieldType, TreeField, TreeInitializer}
+    return Expression.ParseInitializer(*hooks, 0, "Root", "{", "}") == -1 &&
+        tree.failed == 1 && tree.depth == 128
+}
+
 #program_export
 Answer :: () -> s32 {
     if !Grammar() { return 1 }
     if !Characters() { return 2 }
     if !Statements() { return 3 }
+    if !SyntaxGrammar() { return 4 }
     return 42
 }
 
@@ -181,6 +348,20 @@ Fingerprint :: () -> s64 {
             hash = hash * cast(u32)16777619 ^ cast(u32)parts.error
             hash = hash * cast(u32)16777619 ^ cast(u32)parts.has_value
             hash = hash * cast(u32)16777619 ^ cast(u32)parts.is_else
+        }
+        unused TreeRead(text)
+        hash = hash * cast(u32)16777619 ^ cast(u32)tree.failed
+        hash = hash * cast(u32)16777619 ^ cast(u32)tree.depth
+        hash = hash * cast(u32)16777619 ^ cast(u32)tree.errors
+        for index: 0..tree.count - 1 {
+            node := tree.nodes[index]
+            hash = HashText(HashText(hash, node.name), node.argument)
+            hash = hash * cast(u32)16777619 ^ cast(u32)node.kind
+            hash = hash * cast(u32)16777619 ^ cast(u32)node.left
+            hash = hash * cast(u32)16777619 ^ cast(u32)node.right
+            hash = hash * cast(u32)16777619 ^ cast(u32)node.third
+            hash = hash * cast(u32)16777619 ^ cast(u32)node.first
+            hash = hash * cast(u32)16777619 ^ cast(u32)node.sibling
         }
     }
     return cast(s64)hash

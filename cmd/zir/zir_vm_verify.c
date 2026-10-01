@@ -262,13 +262,19 @@ same_verified_type(const ZirModule *declaration_module,
                    const char *declared, const ZirModule *use_module,
                    const char *checked)
 {
-    if(strcmp(declared, checked) == 0)
-        return 1;
+    if(declared[0] == '*' || checked[0] == '*')
+        return declared[0] == '*' && checked[0] == '*' &&
+               same_verified_type(declaration_module, skip_ws(declared + 1),
+                                  use_module, skip_ws(checked + 1));
     const char *scalar = ScalarType(declared);
     if(*scalar && strcmp(scalar, checked) == 0)
         return 1;
     char declared_element[ZIR_NAME_MAX], checked_element[ZIR_NAME_MAX];
     int declared_count, checked_count;
+    if(SliceElementType(declared, declared_element, sizeof(declared_element)) &&
+       SliceElementType(checked, checked_element, sizeof(checked_element)))
+        return same_verified_type(declaration_module, declared_element,
+                                  use_module, checked_element);
     if(ArrayElementType(declared, declared_element,
                         sizeof(declared_element), &declared_count) &&
        ArrayElementType(checked, checked_element,
@@ -279,6 +285,8 @@ same_verified_type(const ZirModule *declaration_module,
     const ZirModule *source_owner = NULL, *resolved_owner = NULL;
     const ZirType *source = FindType(declaration_module, declared, &source_owner);
     const ZirType *resolved = FindType(use_module, checked, &resolved_owner);
+    if(source == NULL && resolved == NULL)
+        return strcmp(declared, checked) == 0;
     return source != NULL &&
            (source == resolved ||
             same_type_application(source_owner, source, resolved_owner, resolved));
@@ -356,7 +364,8 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                expression->third == -1 && expression->first_child == -1;
     case ZIR_EXPR_IDENT: {
         if(expression->is_function_value) {
-            const ZirType *slot = FindType(module, expression->type, NULL);
+            const ZirModule *slot_owner = NULL;
+            const ZirType *slot = FindType(module, expression->type, &slot_owner);
             memset(&buffers->signature, 0, sizeof(buffers->signature));
             int actual_count, expected_count;
             if(slot == NULL || !slot->is_procedure_type ||
@@ -364,16 +373,17 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                                &owner, &callee) != 1 ||
                callee == NULL || callee->is_extern ||
                strlen(slot->body) >= ZIR_TEXT_MAX ||
-               strcmp(callee->return_type, slot->procedure_return_type) != 0)
+               !same_verified_type(slot_owner, slot->procedure_return_type,
+                                   owner, callee->return_type))
                 return 0;
             buffers->signature.args_text = KeepParameters(slot->body);
             actual_count = parse_parameters(owner, callee, buffers->actual);
-            expected_count = parse_parameters(module, &buffers->signature, buffers->expected);
+            expected_count = parse_parameters(slot_owner, &buffers->signature, buffers->expected);
             if(actual_count < 0 || actual_count != expected_count)
                 return 0;
             for(int i = 0; i < actual_count; i++) {
                 const ZirType *actual_type = FindType(owner, buffers->actual[i].type, NULL);
-                const ZirType *expected_type = FindType(module, buffers->expected[i].type, NULL);
+                const ZirType *expected_type = FindType(slot_owner, buffers->expected[i].type, NULL);
                 if(actual_type != NULL || expected_type != NULL) {
                     if(actual_type != expected_type)
                         return 0;
@@ -825,16 +835,18 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
         if(expression->slot_type[0]) {
             int index = binding_index(bindings, binding_count,
                                       expression->name);
+            const ZirModule *slot_owner = NULL;
             const ZirType *slot = FindType(module, expression->slot_type,
-                                           NULL);
+                                           &slot_owner);
             memset(&buffers->signature, 0, sizeof(buffers->signature));
             if(index < 0 || slot == NULL || !slot->is_procedure_type ||
                strcmp(bindings[index].type, expression->slot_type) != 0 ||
                strlen(slot->body) >= ZIR_TEXT_MAX ||
-               strcmp(expression->type, slot->procedure_return_type) != 0)
+               !same_verified_type(slot_owner, slot->procedure_return_type,
+                                   module, expression->type))
                 return 0;
             buffers->signature.args_text = KeepParameters(slot->body);
-            int expected = parse_parameters(module, &buffers->signature, buffers->parameters);
+            int expected = parse_parameters(slot_owner, &buffers->signature, buffers->parameters);
             if(expected < 0)
                 return 0;
             uint64_t used = 0;

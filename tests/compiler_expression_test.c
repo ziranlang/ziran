@@ -92,10 +92,89 @@ static void statements(void)
     free(function.exprs);
 }
 
+static void postfix_and_initializers(void)
+{
+    ZirFunction function = {0};
+    ZirSourceSpan span = Span("syntax.zi", 3, 5);
+    int root = ParseExprNoDefaults(&function, NULL,
+        "Run(first = Next(2), second = items[1:3].value).*[0]", span);
+    assert(root >= 0 && function.exprs[root].kind == ZIR_EXPR_INDEX);
+    int dereference = function.exprs[root].left;
+    assert(function.exprs[dereference].kind == ZIR_EXPR_UNARY);
+    assert(!strcmp(function.exprs[dereference].op, "*"));
+    int call = function.exprs[dereference].right;
+    assert(function.exprs[call].kind == ZIR_EXPR_CALL);
+    assert(!strcmp(function.exprs[call].name, "Run"));
+    int first = function.exprs[call].first_child;
+    int second = function.exprs[first].next_sibling;
+    assert(!strcmp(function.exprs[first].argument_name, "first"));
+    assert(!strcmp(function.exprs[first].name, "Next"));
+    assert(!strcmp(function.exprs[second].argument_name, "second"));
+    assert(!strcmp(function.exprs[second].name, "value"));
+    int slice = function.exprs[second].left;
+    assert(function.exprs[slice].kind == ZIR_EXPR_SLICE);
+    assert(function.exprs[slice].right >= 0 && function.exprs[slice].third >= 0);
+    assert(function.exprs[root].span.line == 3 && function.exprs[root].span.column == 5);
+
+    const char *slices[] = {"items[:]", "items[:3]", "items[1:]", "items[1:3]"};
+    for(int i = 0; i < 4; i++) {
+        root = ParseExprNoDefaults(&function, NULL, slices[i], span);
+        assert(function.exprs[root].kind == ZIR_EXPR_SLICE);
+        assert((function.exprs[root].right >= 0) == (i >= 2));
+        assert((function.exprs[root].third >= 0) == (i == 1 || i == 3));
+    }
+    root = ParseExprNoDefaults(&function, NULL, "provider.method(1)(named = 2)", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_CALL && !function.exprs[root].name[0]);
+    assert(function.exprs[function.exprs[root].left].kind == ZIR_EXPR_CALL);
+    assert(!strcmp(function.exprs[function.exprs[root].first_child].argument_name, "named"));
+
+    ZirModule module = {0};
+    ZirType *child = ModuleAddType(&module, "Child", span);
+    copy_text(child->body, sizeof(child->body), "value: s32");
+    ZirType *record = ModuleAddType(&module, "Root", span);
+    copy_text(record->body, sizeof(record->body), "nested: Child; other: s32");
+    root = ParseExprNoDefaults(&function, &module, "Root.{.nested = {7}, other = 8,}", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_COMPOUND);
+    first = function.exprs[root].first_child;
+    second = function.exprs[first].next_sibling;
+    assert(!strcmp(function.exprs[first].name, "nested"));
+    assert(!strcmp(function.exprs[second].name, "other"));
+    assert(!strcmp(function.exprs[function.exprs[first].right].name, "Child"));
+    root = ParseExprNoDefaults(&function, &module, "Root.{{7}, 8}", span);
+    first = function.exprs[root].first_child;
+    assert(!function.exprs[first].name[0]);
+    assert(!strcmp(function.exprs[function.exprs[first].right].name, "Child"));
+    root = ParseExprTyped(&function, &module, ".[ {7}, {8} ]", span, "[2]Child");
+    assert(function.exprs[root].kind == ZIR_EXPR_COMPOUND);
+    first = function.exprs[root].first_child;
+    assert(!strcmp(function.exprs[function.exprs[first].right].name, "Child"));
+
+    const char *invalid[] = {"items[1", "items[]", "items.", "Call(1,)",
+                            ".{named = }", ".{1", ".{.1 = 2}", "Call(named = )"};
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        int before = function.expr_count;
+        root = ParseExprNoDefaults(&function, &module, invalid[i], span);
+        assert(root == before && function.expr_count == before + 1);
+        assert(function.exprs[root].kind == ZIR_EXPR_UNKNOWN);
+        assert(!strcmp(function.exprs[root].text, invalid[i]));
+    }
+    char deep[400];
+    memcpy(deep, ".{", 2);
+    memset(deep + 2, '{', 150);
+    deep[152] = '1';
+    memset(deep + 153, '}', 151);
+    deep[304] = 0;
+    root = ParseExprNoDefaults(&function, NULL, deep, span);
+    assert(root >= 0 && function.exprs[root].kind == ZIR_EXPR_UNKNOWN);
+    free(module.types);
+    free(function.exprs);
+}
+
 int main(void)
 {
     grammar();
     statements();
+    postfix_and_initializers();
     assert(compiler_expression_CharacterByte((String){0}) == -1);
     assert(compiler_expression_BinaryPrecedence((String){0}) == 0);
     return 0;

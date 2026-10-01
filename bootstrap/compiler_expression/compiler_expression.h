@@ -15,6 +15,12 @@
 extern "C" {
 #endif
 typedef struct ExpressionHooks ExpressionHooks;
+typedef struct SyntaxCursor SyntaxCursor;
+typedef int32_t PostfixKind;
+typedef int32_t PostfixError;
+typedef struct ExpressionChildren ExpressionChildren;
+typedef struct PostfixHooks PostfixHooks;
+typedef struct InitializerHooks InitializerHooks;
 typedef int32_t StatementExpressionError;
 typedef struct StatementExpression StatementExpression;
 typedef struct ExpressionBegin {
@@ -41,6 +47,50 @@ typedef struct ExpressionConditionalError {
     void *context;
     void (*call)(void *);
 } ExpressionConditionalError;
+typedef struct ExpressionKind {
+    void *context;
+    TokenKind (*call)(void *);
+} ExpressionKind;
+typedef struct ExpressionParse {
+    void *context;
+    int32_t (*call)(void *, int32_t);
+} ExpressionParse;
+typedef struct ExpressionLink {
+    void *context;
+    void (*call)(void *, int32_t, int32_t);
+} ExpressionLink;
+typedef struct PostfixNode {
+    void *context;
+    int32_t (*call)(void *, int64_t, PostfixKind, String, int32_t, int32_t, int32_t, int32_t);
+} PostfixNode;
+typedef struct ExpressionArgument {
+    void *context;
+    void (*call)(void *, int32_t, String);
+} ExpressionArgument;
+typedef struct ExpressionDefaults {
+    void *context;
+    ExpressionChildren (*call)(void *, int32_t, int32_t, int32_t);
+} ExpressionDefaults;
+typedef struct ExpressionName {
+    void *context;
+    String (*call)(void *, int32_t);
+} ExpressionName;
+typedef struct PostfixDiagnostic {
+    void *context;
+    void (*call)(void *, PostfixError);
+} PostfixDiagnostic;
+typedef struct InitializerFieldType {
+    void *context;
+    String (*call)(void *, String, String, int32_t);
+} InitializerFieldType;
+typedef struct InitializerField {
+    void *context;
+    int32_t (*call)(void *, int64_t, String, bool, int32_t);
+} InitializerField;
+typedef struct InitializerNode {
+    void *context;
+    int32_t (*call)(void *, int64_t, String, int32_t);
+} InitializerNode;
 
 struct ExpressionHooks {
     int32_t* depth;
@@ -51,6 +101,53 @@ struct ExpressionHooks {
     ExpressionAdvance advance;
     ExpressionBinary binary;
     ExpressionConditionalError conditional_error;
+};
+
+struct SyntaxCursor {
+    int32_t* depth;
+    int32_t* failed;
+    String source;
+    ExpressionBegin begin;
+    ExpressionToken token;
+    ExpressionKind kind;
+    ExpressionAdvance advance;
+    ExpressionParse parse;
+    ExpressionLink link;
+};
+
+enum {
+    PostfixKind_Index = 0,
+    PostfixKind_Slice = 1,
+    PostfixKind_Member = 2,
+    PostfixKind_Dereference = 3,
+    PostfixKind_Call = 4,
+};
+
+enum {
+    PostfixError_PointerMember = 0,
+    PostfixError_Increment = 1,
+    PostfixError_Question = 2,
+};
+
+struct ExpressionChildren {
+    int32_t first;
+    int32_t last;
+};
+
+struct PostfixHooks {
+    SyntaxCursor* cursor;
+    PostfixNode node;
+    ExpressionArgument argument;
+    ExpressionDefaults defaults;
+    ExpressionName name;
+    PostfixDiagnostic error;
+};
+
+struct InitializerHooks {
+    SyntaxCursor* cursor;
+    InitializerFieldType field_type;
+    InitializerField field;
+    InitializerNode node;
 };
 
 enum {
@@ -74,6 +171,8 @@ struct StatementExpression {
 int32_t compiler_expression_BinaryPrecedence(String operator);
 String compiler_expression_BinarySpelling(String operator);
 int32_t compiler_expression_ParseBinary(ExpressionHooks* hooks, int32_t minimum);
+int32_t compiler_expression_ParsePostfix(PostfixHooks* hooks, int64_t start, int32_t initial);
+int32_t compiler_expression_ParseInitializer(InitializerHooks* hooks, int64_t start, String type, String open, String close);
 int32_t compiler_expression_CharacterByte(String literal);
 StatementExpression compiler_expression_StatementParts(String source, StatementKind kind);
 

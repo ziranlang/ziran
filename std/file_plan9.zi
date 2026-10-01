@@ -12,7 +12,6 @@ WriteRaw :: (fd: s32, input: *void, count: isize) -> isize #foreign libc "write"
 DirectoryRaw :: (fd: s32, entries: *void) -> isize #foreign libc "dirreadall";
 ReadAtRaw :: (fd: s32, output: *void, count: isize, offset: s64) -> isize #foreign libc "pread";
 WriteAtRaw :: (fd: s32, input: *void, count: isize, offset: s64) -> isize #foreign libc "pwrite";
-SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 #foreign libc "seek";
 RemoveRaw :: (path: *s8) -> s32 #foreign libc "remove";
 // Native libc owns Dir's type identity. Borrow its layout through void*,
 // rather than redeclaring its named record as a different native type.
@@ -293,8 +292,9 @@ RenameNoReplace :: (source: string, destination: string) -> bool {
 
 #program_export
 FileSize :: (file: FileHandle) -> s64 {
-    if !file.valid { return -1 }
-    return SeekRaw(file.fd, 0, 2)
+    info := HandleInfo(file)
+    if !info.valid { return -1 }
+    return info.length
 }
 
 #program_export

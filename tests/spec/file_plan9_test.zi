@@ -61,6 +61,11 @@ Run :: (root: string) -> s32 {
     snapshot := HandleInfo(file)
     if !snapshot.valid || snapshot.identity != original.identity || snapshot.device != original.device ||
         snapshot.type != original.type || snapshot.length != 4 || !CloseFile(file) { return 26 }
+    file = OpenRead(first)
+    sequential: [2]u8
+    if FileSize(file) != 4 || Read(file, sequential[:]) != 2 || sequential[0] != cast(u8)65 || sequential[1] != cast(u8)0 ||
+        FileSize(file) != 4 || Read(file, sequential[:]) != 2 || sequential[0] != cast(u8)66 || sequential[1] != cast(u8)67 ||
+        !CloseFile(file) { return 33 }
     file = OpenUpdate(first)
     if !file.valid || !SetFileAttributes(file, cast(u32)416, cast(u32)1700000000) ||
         SetFileAttributes(file, cast(u32)512, cast(u32)1700000000) || !CloseFile(file) { return 27 }

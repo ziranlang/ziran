@@ -270,13 +270,13 @@ $(BIN_DIR)/zi-fmt: $(FORMAT_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flag
 	$(NICE) $(CC) $(CFLAGS) -I$(FORMAT_C) -o $@ $(FORMAT_C)/*.c -lm
 
 $(BIN_DIR)/zi2zir: $(call obj,cmd/zir-ir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi-api: $(call obj,cmd/zir-api/main.c) $(FRONTEND_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi-inspect: $(call obj,cmd/zir-inspect/main.c) $(FRONTEND_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 RUNTIME_HEADERS := include/zir_bounds.h include/zir_string.h include/zir_slice.h \
     include/zir_vec.h include/ziran_parallel.h
@@ -287,23 +287,23 @@ $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS)
 
 $(BIN_DIR)/zi2c: $(call obj,cmd/zir-c/main.c cmd/zir-c/zir_c_lower.c cmd/zir-c/zir_c_plan9.c) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2go: $(call obj,cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2cpp: $(call obj,cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2rust: $(call obj,cmd/zir-rust/main.c cmd/zir-rust/zir_rust_lower.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2py: $(call obj,cmd/zir-py/main.c cmd/zir-py/zir_py_lower.c cmd/zir-py/zir_py_runtime.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2zib: $(call obj,cmd/zir-zib/main.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 ifneq ($(BOOTSTRAP),1)
 BOOTSTRAP_BIN := $(BUILD_DIR)/bootstrap/bin/zi2c

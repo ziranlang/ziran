@@ -1,0 +1,37 @@
+#import "inflate_plan9"
+
+Cases :: () -> s32 {
+    input := u8.[120, 156, 203, 72, 205, 201, 201, 87, 200, 64, 144, 0, 58, 46, 6, 125]
+    empty := u8.[120, 156, 3, 0, 0, 0, 0, 1]
+    expected := "hello hello hello"
+    output: [19]u8
+    output[0] = cast(u8)77; output[18] = cast(u8)88
+    if expected[0] != cast(u8)104 { print("reference changed before inflate\n"); return 11 }
+    if !DecompressZlib(input[:], output[1:18]) { return 1 }
+    if expected != "hello hello hello" { print("inflate reference text changed\n"); return 10 }
+    for index: 0..16 {
+        if output[index + 1] != expected[index] {
+            print("inflate mismatch at %: got % expected %\n", index, output[index + 1], expected[index])
+            return 2
+        }
+    }
+    if output[0] != cast(u8)77 || output[18] != cast(u8)88 { return 3 }
+    if DecompressZlib(input[:], output[1:17]) ||
+        DecompressZlib(input[:], output[1:19]) { return 4 }
+    if output[0] != cast(u8)77 || output[18] != cast(u8)88 { return 5 }
+    if !DecompressZlib(empty[:], output[1:1]) { return 6 }
+    input[15] = cast(u8)124
+    if DecompressZlib(input[:], output[1:18]) { return 7 }
+    if DecompressZlib(input[0:5], output[1:18]) { return 8 }
+    input[0] = cast(u8)0
+    if DecompressZlib(input[:], output[1:18]) { return 9 }
+    return 0
+}
+
+#program_export
+main :: () -> s32 {
+    result := Cases()
+    if result == 0 { print("inflate-plan9-test-ok\n") }
+    else { print("inflate-plan9-test-failed: %\n", result) }
+    return result
+}

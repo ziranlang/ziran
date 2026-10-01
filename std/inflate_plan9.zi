@@ -1,0 +1,51 @@
+// Bounded zlib-stream decompression using the native Plan 9 flate library.
+// Both the compressed input and exact output size must be consumed.
+flate :: #system_library "flate";
+
+#scope_file
+Reader :: struct { bytes: []u8; next: s32; }
+Writer :: struct { bytes: []u8; next: s32; }
+ReadRoutine :: #type (context: *void) -> s32 #c_call;
+WriteRoutine :: #type (context: *void, bytes: *void, count: s32) -> s32 #c_call;
+Initialize :: () -> s32 #foreign flate "inflateinit";
+Inflate :: (output: *void, write: WriteRoutine, input: *void, read: ReadRoutine) -> s32 #foreign flate "inflatezlib";
+ready: bool;
+
+ReadByte :: (context: *void) -> s32 {
+    reader := cast(*Reader)context
+    if reader.next >= reader.bytes.count { return -1 }
+    value := cast(s32)reader.bytes[reader.next]
+    reader.next += 1
+    return value
+}
+
+WriteBytes :: (context: *void, bytes: *void, count: s32) -> s32 {
+    writer := cast(*Writer)context
+    if count <= 0 || cast(s64)count > writer.bytes.count - writer.next { return -1 }
+    input := cast(*u8)bytes
+    index: s32 = 0
+    while index < count {
+        writer.bytes[writer.next] = input[index]
+        writer.next += 1
+        index += 1
+    }
+    return count
+}
+
+#scope_export
+#program_export
+DecompressZlib :: (input: []u8, output: []u8) -> bool {
+    if input.count < 6 || input.count > 2147483647 || output.count > 2147483647 { return false }
+    // Preset dictionaries need an explicit dictionary API. Reject them here.
+    if (input[0] & cast(u8)15) != cast(u8)8 || (input[0] >> cast(u8)4) > cast(u8)7 ||
+        (input[1] & cast(u8)32) != cast(u8)0 ||
+        (cast(u32)input[0] * cast(u32)256 + cast(u32)input[1]) % cast(u32)31 != cast(u32)0 { return false }
+    if !ready {
+        if Initialize() != 0 { return false }
+        ready = true
+    }
+    reader: Reader = .{bytes = input}
+    writer: Writer = .{bytes = output}
+    status := Inflate(cast(*void)(*writer), WriteBytes, cast(*void)(*reader), ReadByte)
+    return status == 0 && reader.next == input.count && writer.next == output.count
+}

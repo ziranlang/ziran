@@ -143,13 +143,15 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
 static int
 compile_executable(const char *out_dir, const char *name)
 {
-    char *args[EXE_MAX_ARGS] = {0};
+    char **args = calloc(EXE_MAX_ARGS, sizeof(*args));
     char output[ZIR_PATH_MAX];
     struct dirent **entries = NULL;
     int count = 0, files = 0, status = -1, ok = 0;
+    if(args == NULL)
+        return 0;
     const char *include = ToolchainIncludeDirectory();
     if(snprintf(output, sizeof(output), "%s/%s", out_dir, name) >= (int)sizeof(output))
-        return 0;
+        goto done;
     count = append_words(getenv("CC") && *getenv("CC") ? getenv("CC") : "cc", args, count);
     if(count >= 0)
         count = append_words(getenv("CFLAGS") ? getenv("CFLAGS") : "-O2", args, count);
@@ -191,6 +193,7 @@ compile_executable(const char *out_dir, const char *name)
 done:
     for(int i = 0; i < EXE_MAX_ARGS; i++)
         free(args[i]);
+    free(args);
     for(int i = 0; i < files; i++)
         free(entries[i]);
     free(entries);

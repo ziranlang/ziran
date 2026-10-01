@@ -1,0 +1,46 @@
+#import "package"
+#import "package_common"
+#import "std/byte_text_linux"
+#import "std/c_string"
+using Vectors :: #import "std/vec"
+CompilerVersion :: #import "version"
+
+#scope_file
+libc :: #system_library "libc";
+ReadLink :: (path: *u8, output: *u8, count: usize) -> isize #foreign libc "readlink";
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc == 2 {
+        argument := TextFromCString(argv[1])
+        if argument == "version" || argument == "--version" {
+            print("ziran %\n", CompilerVersion.Version)
+            return 0
+        }
+    }
+    arguments: Vec(string)
+    index: s32 = 1
+    while index < argc {
+        if !VecPush(arguments, TextFromCString(argv[index])) { return 2 }
+        index += 1
+    }
+    // PATH may supply just "ziran" as argv[0]. Sibling compiler tools are
+    // resolved beside this executable, as in the previous native launcher.
+    path: [32]u8
+    CopyCString("/proc/self/exe", path[:])
+    launcher: [4096]u8
+    length: s64 = cast(s64)ReadLink(*path[0], *launcher[0], 4095)
+    if length <= 0 || length >= 4095 {
+        original := TextFromCString(argv[0])
+        length = cast(s64)original.count
+        if length > 4095 { length = 4095 }
+        cursor: s64 = 0
+        while cursor < length { launcher[cursor] = original[cursor]; cursor += 1 }
+    }
+    launcher[length] = 0
+    code := PackageMain(TextFromBytes(launcher[0:length]),
+        VecSlice(arguments, 0, arguments.count))
+    VecFree(arguments)
+    return code
+}

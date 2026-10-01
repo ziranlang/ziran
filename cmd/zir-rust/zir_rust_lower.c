@@ -3746,7 +3746,7 @@ static void emit_ziran_vec_runtime(FILE *output)
     fputs("pub fn ZiranVecSlice<T>(vector: &ZiranVec<T>, low: isize, high: isize) -> ZiranSlice<T> {\n", output);
     fputs("    assert!(low >= 0 && low <= high && high as usize <= vector.count as usize);\n", output);
     fputs("    ZiranSlice {\n", output);
-    fputs("        data: unsafe { vector.data.offset(low) },\n", output);
+    fputs("        data: if low == 0 { vector.data } else { unsafe { vector.data.offset(low) } },\n", output);
     fputs("        len: (high - low) as usize,\n", output);
     fputs("    }\n", output);
     fputs("}\n", output);
@@ -4245,7 +4245,7 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
           "impl<T> ZiranSlice<T> {\n"
           "    pub fn view(source: Self, low: i64, high: i64) -> Self {\n"
           "        assert!(low >= 0 && low <= high && high as usize <= source.len, \"slice range out of bounds\");\n"
-          "        Self { data: unsafe { source.data.offset(low as isize) }, len: (high - low) as usize }\n"
+          "        Self { data: if low == 0 { source.data } else { unsafe { source.data.offset(low as isize) } }, len: (high - low) as usize }\n"
           "    }\n"
           "    pub fn view_from(source: Self, low: i64) -> Self {\n"
           "        Self::view(source, low, source.len as i64)\n"
@@ -4270,13 +4270,15 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
           "        Self { data: value.as_ptr(), len: value.len() }\n"
           "    }\n"
           "    pub fn eq(left: Self, right: Self) -> bool {\n"
+          "        if left.len != right.len { return false; }\n"
+          "        if left.len == 0 { return true; }\n"
           "        unsafe {\n"
-          "            left.len == right.len &&\n"
           "            core::slice::from_raw_parts(left.data, left.len) ==\n"
           "            core::slice::from_raw_parts(right.data, right.len)\n"
           "        }\n"
           "    }\n"
           "    pub fn as_str(self) -> std::borrow::Cow<'static, str> {\n"
+          "        if self.len == 0 { return std::borrow::Cow::Borrowed(\"\"); }\n"
           "        String::from_utf8_lossy(unsafe { core::slice::from_raw_parts(self.data, self.len) })\n"
           "    }\n"
           "    pub fn at(self, index: i64) -> u8 {\n"
@@ -4285,7 +4287,7 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
           "    }\n"
           "    pub fn slice(value: Self, low: isize, high: isize) -> Self {\n"
           "        assert!(low >= 0 && low <= high && high as usize <= value.len);\n"
-          "        Self { data: unsafe { value.data.offset(low) }, len: (high - low) as usize }\n"
+          "        Self { data: if low == 0 { value.data } else { unsafe { value.data.offset(low) } }, len: (high - low) as usize }\n"
           "    }\n"
           "}\n\n", runtime);
     emit_type_definitions(&buffers->emitter, body);

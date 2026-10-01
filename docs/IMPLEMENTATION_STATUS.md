@@ -5,6 +5,29 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- The native `ziran` command, including its launcher and package child-process
+  transport, and `zi-fmt` are implemented in Ziran. Their build compiles `.zi`
+  to native output without handwritten C command adapters or shell/AWK
+  formatting policy. Package allocations use the language's `size_of` instead
+  of C size helpers. `tests/native_commands.sh` rebuilds the command from its
+  source and saved IR, retaining version output, tool discovery from PATH,
+  inspection commands, checking, and formatting.
+  `tests/package_process.sh` checks source and saved IR,
+  literal arguments, child-only environment changes, working directories,
+  exit/signal status, truncation with pipe draining, and rejected arguments.
+  The formatter preserves strings, raw-string delimiter columns, and nested
+  comments; it writes through a temporary file beside the source and retains
+  permissions and symlinks. `tests/formatter.sh` checks semantic preservation,
+  idempotence, filesystem errors, a saved-IR command rebuild, and scanner
+  agreement on C, C++, Go, Rust, Python, and `.zib`.
+  The parser, checker, native backends, and portable runtime remain C; the
+  compiler is not yet self-hosted.
+
+- Rust empty text views compare, print, and slice without constructing a
+  native slice from a null pointer. Empty vector and slice views retain their
+  original pointer when no offset is needed. `tests/rust_empty_text.sh` checks
+  these cases and nonempty text ranges from source and saved IR.
+
 - Imported polymorphic procedures specialized for caller-owned records retain
   calls to their defining module's private helpers, including recursive
   generic helpers and helpers from loaded files. Nested specializations keep

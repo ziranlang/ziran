@@ -3,9 +3,6 @@
 #import "package_lock"
 #import "byte_text_linux"
 
-libc :: #system_library "libc";
-PkgGraphSizeRaw :: () -> u64 #foreign libc "ziran_package_graph_size";
-
 PkgModule :: struct {
     name: string
     path: string
@@ -226,7 +223,7 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
 }
 
 PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string {
-    graph: *PkgModuleGraph = cast(*PkgModuleGraph)(PkgAllocZero(PkgGraphSizeRaw()))
+    graph: *PkgModuleGraph = cast(*PkgModuleGraph)(PkgAllocZero(cast(u64)size_of(PkgModuleGraph)))
     memory: *u8 = PkgAlloc(33554432)
     if graph == null || memory == null { return "" }
     builder: PkgBuilder

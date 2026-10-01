@@ -6,9 +6,6 @@
 #import "byte_text_linux"
 
 #scope_export
-libc :: #system_library "libc";
-PkgLockSizeRaw :: () -> u64 #foreign libc "ziran_package_lock_size";
-
 PkgLocked :: struct {
     id: string
     name: string
@@ -51,7 +48,7 @@ PkgBuilder :: struct {
 }
 
 PkgNewLock :: () -> *PkgLock {
-    return cast(*PkgLock)(PkgAllocZero(PkgLockSizeRaw()))
+    return cast(*PkgLock)(PkgAllocZero(cast(u64)size_of(PkgLock)))
 }
 
 PkgJsonText :: (json: string, at: s32) -> string {

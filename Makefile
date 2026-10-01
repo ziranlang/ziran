@@ -144,20 +144,23 @@ $(BIN_DIR):
 	mkdir -p $@
 
 PACKAGE_C := $(BUILD_DIR)/package-c
-PACKAGE_SOURCES := cmd/package.zi cmd/package_add.zi cmd/package_guide.zi \
+PACKAGE_SOURCES := cmd/package.zi cmd/package_entry.zi cmd/package_process.zi \
+    cmd/package_add.zi cmd/package_guide.zi \
     cmd/package_capabilities.zi cmd/package_features.zi cmd/package_explain.zi cmd/package_common.zi \
     cmd/package_manifest.zi cmd/package_source.zi cmd/package_lock.zi cmd/package_map.zi cmd/package_options.zi cmd/package_compile_commands.zi cmd/package_template.zi \
-    std/byte_text_linux.zi std/file_linux.zi std/process_capture_linux.zi \
-    std/json_scan.zi std/text.zi
+    std/byte_text_linux.zi std/c_string.zi std/file_linux.zi \
+    std/json_scan.zi std/text.zi std/vec.zi VERSION
 # Generated files are listed when the ziran recipe expands, after generation.
-PACKAGE_OBJECTS = $(patsubst $(PACKAGE_C)/%.c,$(BUILD_DIR)/obj/package-c/%.o,$(wildcard $(PACKAGE_C)/*.c)) \
-    $(call obj,cmd/package_main.c cmd/package_host.c)
+PACKAGE_OBJECTS = $(patsubst $(PACKAGE_C)/%.c,$(BUILD_DIR)/obj/package-c/%.o,$(wildcard $(PACKAGE_C)/*.c))
 
 # Regenerate beside the old output and copy over only files whose text
 # changed, so a compiler edit that leaves ziran's C alone recompiles nothing.
 $(PACKAGE_C)/.generated: $(PACKAGE_SOURCES) $(BIN_DIR)/zi2c
 	rm -rf $(PACKAGE_C).next
-	$(BIN_DIR)/zi2c --no-main --root cmd --module-path std -o $(PACKAGE_C).next cmd/package.zi
+	mkdir -p $(BUILD_DIR)/package-source
+	printf 'Version :: "%s";\n' '$(ZIRAN_VERSION)' > $(BUILD_DIR)/package-source/version.zi
+	$(BIN_DIR)/zi2c --no-main --root cmd --module-path std \
+	    --module-path $(BUILD_DIR)/package-source -o $(PACKAGE_C).next cmd/package_entry.zi
 	mkdir -p $(PACKAGE_C)
 	for f in $(PACKAGE_C).next/*; do \
 	    cmp -s "$$f" "$(PACKAGE_C)/$${f##*/}" || cp "$$f" $(PACKAGE_C)/; done
@@ -170,17 +173,13 @@ $(BUILD_DIR)/obj/package-c/%.o: $(PACKAGE_C)/%.c $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) -I$(PACKAGE_C) $(DEPFLAGS) -c -o $@ $<
 
-$(call obj,cmd/package_main.c cmd/package_host.c): CFLAGS += -I$(PACKAGE_C)
-
 # Standalone commands fall back to this checkout's standard modules and C
 # headers when none sit beside the installed compiler.
 $(call obj,cmd/zir/zir_load.c): CFLAGS += -DZIRAN_STD_DIR='"$(abspath std)"' \
     -DZIRAN_INCLUDE_DIR='"$(abspath include)"'
 
-# The compiler's version comes from VERSION so a release edits one file.
+# The native command imports a generated Ziran constant from VERSION.
 ZIRAN_VERSION := $(shell cat VERSION)
-$(call obj,cmd/package_main.c): CFLAGS += -DZIRAN_VERSION='"$(ZIRAN_VERSION)"'
-$(call obj,cmd/package_main.c): VERSION
 
 package-objects: $(PACKAGE_OBJECTS)
 
@@ -191,12 +190,16 @@ package-objects: $(PACKAGE_OBJECTS)
 package-link: $(PACKAGE_OBJECTS)
 	$(CC) $(CFLAGS) -o $(BIN_DIR)/ziran $(PACKAGE_OBJECTS) -lcrypto -lm
 
-$(BIN_DIR)/ziran: $(PACKAGE_C)/.generated cmd/package_main.c cmd/package_host.c $(HEADERS) | $(BIN_DIR)
+$(BIN_DIR)/ziran: $(PACKAGE_C)/.generated $(HEADERS) | $(BIN_DIR)
 	+$(MAKE) --no-print-directory package-link
 
-$(BIN_DIR)/zi-fmt: scripts/zi-fmt.sh | $(BIN_DIR)
-	cp $< $@
-	chmod +x $@
+FORMAT_C := $(BUILD_DIR)/format-c
+FORMAT_SOURCES := cmd/format.zi cmd/format_source.zi std/vec.zi std/option.zi \
+    std/byte_text_linux.zi std/c_string.zi std/file_linux.zi
+$(BIN_DIR)/zi-fmt: $(FORMAT_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flags | $(BIN_DIR)
+	$(BIN_DIR)/zi2c --entry format:main --root cmd --module-path std \
+	    -o $(FORMAT_C) cmd/format.zi
+	$(NICE) $(CC) $(CFLAGS) -I$(FORMAT_C) -o $@ $(FORMAT_C)/*.c -lm
 
 $(BIN_DIR)/zi2zir: $(call obj,cmd/zir-ir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^

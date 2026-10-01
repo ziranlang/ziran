@@ -2,6 +2,7 @@
 #import "c_string"
 #import "file_linux"
 #import "text"
+#import "package_process"
 
 #scope_export
 libc :: #system_library "libc";
@@ -13,8 +14,6 @@ PkgGetcwdRaw :: (buffer: *u8, size: u64) -> *u8 #foreign libc "getcwd";
 PkgRealpathRaw :: (path: *u8, resolved: *u8) -> *u8 #foreign libc "realpath";
 PkgWriteRaw :: (fd: s32, bytes: *u8, count: u64) -> s64 #foreign libc "write";
 PkgSha256Raw :: (input: *u8, size: u64, digest: *u8) -> *u8 #foreign crypto "SHA256";
-PkgHostRun :: (args: []string, cwd: string, names: []string,
-    values: []string, output: []u8) -> s32 #foreign libc "ziran_package_run";
 
 PkgReadResult :: struct {
     text: string
@@ -184,7 +183,7 @@ PkgEndsWith :: (value: string, suffix: string) -> bool {
 PkgRun :: (arguments: []string, cwd: string, names: []string,
     values: []string) -> s32 {
     empty: [0]u8
-    return PkgHostRun(arguments, cwd, names, values, empty[:])
+    return RunProcess(arguments, cwd, names, values, empty[:])
 }
 
 PkgCaptureRaw :: (arguments: []string, cwd: string) -> PkgProcessResult {
@@ -194,7 +193,7 @@ PkgCaptureRaw :: (arguments: []string, cwd: string) -> PkgProcessResult {
     memory: *u8 = PkgMallocRaw(1048576)
     if memory == null { result.code = -1; return result }
     output: []u8 = BytesFromPointer(memory, 1048576)
-    result.code = PkgHostRun(arguments, cwd, names[:], values[:], output)
+    result.code = RunProcess(arguments, cwd, names[:], values[:], output)
     result.text = TextFromCString(memory)
     return result
 }
@@ -205,7 +204,7 @@ PkgCaptureEnv :: (arguments: []string, cwd: string, names: []string,
     memory: *u8 = PkgMallocRaw(1048576)
     if memory == null { result.code = -1; return result }
     output: []u8 = BytesFromPointer(memory, 1048576)
-    result.code = PkgHostRun(arguments, cwd, names, values, output)
+    result.code = RunProcess(arguments, cwd, names, values, output)
     result.text = PkgTrim(TextFromCString(memory))
     return result
 }

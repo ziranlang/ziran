@@ -1,0 +1,186 @@
+using Vectors :: #import "std/vec"
+#import "std/option"
+
+// Formatting policy lives in Ziran. This module has no filesystem or process
+// dependency, so the same scanner can be used by other compiler tools.
+#scope_file
+FormatState :: struct {
+    indent: s64
+    parentheses: s64
+    comment_depth: s64
+    quote: u8
+    escaped: bool
+    delimiter: string
+}
+
+Horizontal :: (byte: u8) -> bool {
+    return byte == #char " " || byte == #char "\t" || byte == #char "\r"
+}
+
+Identifier :: (byte: u8) -> bool {
+    return (byte >= #char "a" && byte <= #char "z") ||
+    (byte >= #char "A" && byte <= #char "Z") ||
+    (byte >= #char "0" && byte <= #char "9") || byte == #char "_"
+}
+
+Operator :: (byte: u8) -> bool {
+    return byte == #char "!" || byte == #char "<" || byte == #char ">" ||
+    byte == #char "=" || byte == #char ":" || byte == #char "+" ||
+    byte == #char "-" || byte == #char "*" || byte == #char "/" ||
+    byte == #char "%" || byte == #char "&" || byte == #char "|" ||
+    byte == #char "^"
+}
+
+// A raw-string opener ends its physical line. The returned view borrows the
+// source, which stays alive throughout FormatSource.
+RawMarker :: (line: string, at: s64) -> string {
+    if at + 7 >= line.count || line[at:at + 7] != "#string" ||
+    (at > 0 && Identifier(line[at - 1])) || !Horizontal(line[at + 7]) {
+        return ""
+    }
+    cursor: s64 = at + 7
+    while cursor < line.count && Horizontal(line[cursor]) { cursor += 1 }
+    start: s64 = cursor
+    if start >= line.count || !Identifier(line[start]) ||
+    (line[start] >= #char "0" && line[start] <= #char "9") { return "" }
+    while cursor < line.count && Identifier(line[cursor]) { cursor += 1 }
+    end: s64 = cursor
+    while cursor < line.count && Horizontal(line[cursor]) { cursor += 1 }
+    if cursor != line.count { return "" }
+    return line[start:end]
+}
+
+TrimOutput :: (output: *Vec(u8), start: s64) {
+    while (<<output).count > start && Horizontal((<<output)[(<<output).count - 1]) {
+        unused VecPop(<<output)
+    }
+}
+
+// Structure is counted only in code. Strings and nested comments retain
+// their bytes and cannot change the indentation of subsequent code.
+ScanLine :: (state: *FormatState, line: string, output: *Vec(u8), spacing: bool) {
+    start: s64 = (<<output).count
+    index: s64 = 0
+    while index < line.count {
+        byte: u8 = line[index]
+        next_byte: u8 = 0
+        if index + 1 < line.count { next_byte = line[index + 1] }
+        if state.comment_depth > 0 {
+            if byte == #char "/" && next_byte == #char "*" {
+                state.comment_depth += 1
+                BuilderAppend(<<output, "/*")
+                index += 2
+            } else if byte == #char "*" && next_byte == #char "/" {
+                state.comment_depth -= 1
+                BuilderAppend(<<output, "*/")
+                index += 2
+            } else {
+                VecPush(<<output, byte)
+                index += 1
+            }
+            continue
+        }
+        if state.quote != 0 {
+            VecPush(<<output, byte)
+            if state.escaped { state.escaped = false }
+            else if byte == #char "\\" { state.escaped = true }
+            else if byte == state.quote { state.quote = 0 }
+            index += 1
+            continue
+        }
+        if byte == #char "/" && next_byte == #char "/" {
+            BuilderAppend(<<output, line[index:])
+            return
+        }
+        if byte == #char "/" && next_byte == #char "*" {
+            state.comment_depth = 1
+            BuilderAppend(<<output, "/*")
+            index += 2
+            continue
+        }
+        if byte == #char "\"" || byte == #char "'" {
+            state.quote = byte
+            VecPush(<<output, byte)
+            index += 1
+            continue
+        }
+        if byte == #char "#" {
+            marker := RawMarker(line, index)
+            if marker.count > 0 {
+                state.delimiter = marker
+                BuilderAppend(<<output, line[index:])
+                if spacing { TrimOutput(output, start) }
+                return
+            }
+        }
+        if byte == #char "{" { state.indent += 1 }
+        if byte == #char "}" && state.indent > 0 { state.indent -= 1 }
+        if byte == #char "(" { state.parentheses += 1 }
+        if byte == #char ")" && state.parentheses > 0 { state.parentheses -= 1 }
+        token: string = ""
+        if spacing {
+            if byte == #char ":" && next_byte == #char ":" { token = " :: " }
+            else if byte == #char "=" && next_byte == #char ">" { token = " => " }
+            else if byte == #char "=" && next_byte != #char "=" &&
+            (index == 0 || !Operator(line[index - 1])) { token = " = " }
+        }
+        if token.count > 0 {
+            TrimOutput(output, start)
+            BuilderAppend(<<output, token)
+            index += 1
+            if token != " = " { index += 1 }
+            while index < line.count && Horizontal(line[index]) { index += 1 }
+        } else {
+            VecPush(<<output, byte)
+            index += 1
+        }
+    }
+    if spacing && state.quote == 0 && state.comment_depth == 0 {
+        TrimOutput(output, start)
+    }
+    // A backslash followed by a physical newline has consumed that newline,
+    // so it does not escape the first byte on the next line.
+    if state.quote != 0 { state.escaped = false }
+}
+
+#scope_export
+FormatSource :: (source: string) -> Vec(u8) {
+    result: Vec(u8)
+    state: FormatState
+    cursor: s64 = 0
+    while cursor < source.count {
+        end: s64 = cursor
+        while end < source.count && source[end] != #char "\n" { end += 1 }
+        line: string = source[cursor:end]
+        if state.delimiter.count > 0 {
+            length: s64 = cast(s64)state.delimiter.count
+            if line.count >= length && line[0:length] == state.delimiter &&
+            (line.count == length || !Identifier(line[length])) {
+                BuilderAppend(result, line[0:length])
+                state.delimiter = ""
+                ScanLine(*state, line[length:], *result, false)
+            } else { BuilderAppend(result, line) }
+        } else if state.quote != 0 || state.comment_depth > 0 {
+            // Leading whitespace is content when a literal or comment spans
+            // lines; never trim it or prepend indentation.
+            ScanLine(*state, line, *result, false)
+        } else {
+            first: s64 = 0
+            while first < line.count && Horizontal(line[first]) { first += 1 }
+            if first < line.count {
+                indentation: s64 = state.indent
+                if line[first] == #char "}" && indentation > 0 { indentation -= 1 }
+                if state.parentheses > 0 { indentation += 1 }
+                level: s64 = 0
+                while level < indentation {
+                    BuilderAppend(result, "    ")
+                    level += 1
+                }
+                ScanLine(*state, line[first:], *result, true)
+            }
+        }
+        VecPush(result, #char "\n")
+        cursor = end + 1
+    }
+    return result
+}

@@ -1,0 +1,165 @@
+#import "format_source"
+using Vectors :: #import "std/vec"
+#import "std/byte_text_linux"
+#import "std/c_string"
+#import "std/file_linux"
+
+#scope_file
+libc :: #system_library "libc";
+Allocate :: (size: usize) -> *u8 #foreign libc "malloc";
+Release :: (storage: *u8) #foreign libc "free";
+CanonicalPath :: (path: *u8, output: *u8) -> *u8 #foreign libc "realpath";
+TemporaryFile :: (pattern: *u8) -> s32 #foreign libc "mkstemp";
+SetMode :: (fd: s32, mode: u32) -> s32 #foreign libc "fchmod";
+Stat :: (fd: s32, path: *u8, flags: s32, mask: u32,
+    metadata: *FileMetadata) -> s32 #foreign libc "statx";
+
+// Linux's statx ABI has a stable 32-byte prefix followed by 224 bytes of
+// attributes. Only file type and permissions are needed here.
+FileMetadata :: struct {
+    mask: u32
+    block_size: u32
+    attributes: u64
+    links: u32
+    uid: u32
+    gid: u32
+    mode: u16
+    reserved: u16
+    remainder: [224]u8
+}
+
+Report :: (message: string, path: string) -> s32 {
+    stderr: FileHandle = .{fd = 2, valid = true}
+    // stderr may be a pipe, so use sequential writes rather than pwrite.
+    bytes: [4096]u8
+    pieces: [3]string = .{"zi-fmt: ", message, path}
+    for piece: pieces {
+        cursor: s64 = 0
+        while cursor < piece.count {
+            count: s64 = cast(s64)piece.count - cursor
+            if count > 4096 { count = 4096 }
+            offset: s64 = 0
+            while offset < count { bytes[offset] = piece[cursor + offset]; offset += 1 }
+            written := Write(stderr, bytes[0:count])
+            if written <= 0 { return 1 }
+            cursor += written
+        }
+    }
+    bytes[0] = #char "\n"
+    Write(stderr, bytes[0:1])
+    return 1
+}
+
+Replace :: (path: string, mode: u16, content: []u8) -> bool {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return false }
+    canonical: [4096]u8
+    if CanonicalPath(*name[0], *canonical[0]) == null { return false }
+    destination: string = TextFromCString(*canonical[0])
+    directory_end: s64 = cast(s64)destination.count
+    while directory_end > 0 && destination[directory_end - 1] != #char "/" {
+        directory_end -= 1
+    }
+    suffix: string = ".zi-fmt.XXXXXX"
+    pattern: [4096]u8
+    if directory_end + suffix.count >= pattern.count { return false }
+    index: s64 = 0
+    while index < directory_end { pattern[index] = destination[index]; index += 1 }
+    cursor: s64 = 0
+    while cursor < suffix.count { pattern[index] = suffix[cursor]; index += 1; cursor += 1 }
+    pattern[index] = 0
+    fd := TemporaryFile(*pattern[0])
+    if fd < 0 { return false }
+    temporary: string = TextFromCString(*pattern[0])
+    file: FileHandle = .{fd = fd, valid = true}
+    valid: bool = true
+    offset: s64 = 0
+    while offset < content.count {
+        written := WriteAt(file, content[offset:], offset)
+        if written <= 0 { valid = false; break }
+        offset += written
+    }
+    if valid { valid = SetMode(fd, cast(u32)mode & 4095) == 0 }
+    if valid { valid = SyncFile(file) }
+    closed := CloseFile(file)
+    if valid && closed { valid = RenamePath(temporary, destination) }
+    else { valid = false }
+    if !valid { RemoveFile(temporary) }
+    return valid
+}
+
+FormatFile :: (path: string, check: bool) -> s32 {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return Report("invalid path: ", path) }
+    metadata: FileMetadata
+    empty: [1]u8
+    // Inspect before opening: a FIFO or device must never block the formatter.
+    if Stat(-100, *name[0], 0, 3, *metadata) != 0 ||
+    (metadata.mode & 61440) != 32768 {
+        return Report("not found or not a regular file: ", path)
+    }
+    file := OpenRead(path)
+    if !file.valid { return Report("cannot read: ", path) }
+    if Stat(file.fd, *empty[0], 4096, 3, *metadata) != 0 ||
+    (metadata.mode & 61440) != 32768 {
+        CloseFile(file)
+        return Report("not a regular file: ", path)
+    }
+    size := FileSize(file)
+    if size < 0 || size == 9223372036854775807 {
+        CloseFile(file)
+        return Report("cannot determine size: ", path)
+    }
+    storage := Allocate(cast(usize)size + 1)
+    if storage == null { CloseFile(file); return Report("out of memory: ", path) }
+    bytes := BytesFromPointer(storage, cast(u64)size + 1)
+    valid: bool = true
+    offset: s64 = 0
+    while offset < size {
+        count := ReadAt(file, bytes[offset:size], offset)
+        if count <= 0 { valid = false; break }
+        offset += count
+    }
+    closed := CloseFile(file)
+    if !valid || !closed {
+        Release(storage)
+        return Report("cannot read: ", path)
+    }
+    formatted := FormatSource(TextFromBytes(bytes[0:size]))
+    same: bool = formatted.count == size
+    index: s64 = 0
+    while same && index < size {
+        same = bytes[index] == formatted[index]
+        index += 1
+    }
+    status: s32 = 0
+    if !same {
+        if check { status = Report("would reformat ", path) }
+        else if !Replace(path, metadata.mode, VecSlice(formatted, 0, formatted.count)) {
+            status = Report("cannot replace: ", path)
+        }
+    }
+    VecFree(formatted)
+    Release(storage)
+    return status
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    check: bool = false
+    first: s32 = 1
+    if argc > 1 && TextFromCString(argv[1]) == "--check" { check = true; first += 1 }
+    if first == argc {
+        unused Report("usage: zi-fmt [--check] file.zi [...]", "")
+        return 2
+    }
+    status: s32 = 0
+    index: s32 = first
+    while index < argc {
+        result := FormatFile(TextFromCString(argv[index]), check)
+        if result != 0 { status = result }
+        index += 1
+    }
+    return status
+}

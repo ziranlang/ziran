@@ -1,0 +1,153 @@
+// Native process transport for the package command. The argument vector goes
+// straight to execvp; package decisions and filesystem policy stay in callers.
+#scope_file
+libc :: #system_library "libc";
+Allocate :: (size: usize) -> *u8 #foreign libc "malloc";
+Release :: (memory: *u8) #foreign libc "free";
+Pipe :: (fds: *s32) -> s32 #foreign libc "pipe";
+Fork :: () -> s32 #foreign libc "fork";
+Duplicate :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
+Close :: (fd: s32) -> s32 #foreign libc "close";
+ChangeDirectory :: (path: *u8) -> s32 #foreign libc "chdir";
+SetEnvironment :: (name: *u8, value: *u8, overwrite: s32) -> s32 #foreign libc "setenv";
+Execute :: (path: *u8, arguments: *ProcessPointer) -> s32 #foreign libc "execvp";
+Exit :: (code: s32) #foreign libc "_exit";
+Wait :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
+Read :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
+Flush :: (stream: *void) -> s32 #foreign libc "fflush";
+LastError :: () -> *s32 #foreign libc "__errno_location";
+PrintError :: (prefix: *u8) #foreign libc "perror";
+
+ProcessPointer :: struct { value: *u8 }
+
+CopyArgument :: (value: string) -> *u8 {
+    index: s64 = 0
+    while index < value.count {
+        if value[index] == 0 { return null }
+        index += 1
+    }
+    storage := Allocate(cast(usize)value.count + 1)
+    if storage == null { return null }
+    index = 0
+    while index < value.count { storage[index] = value[index]; index += 1 }
+    storage[index] = 0
+    return storage
+}
+
+ReleaseArguments :: (arguments: []ProcessPointer) {
+    for argument: arguments { Release(argument.value) }
+}
+
+#scope_export
+RunProcess :: (arguments: []string, directory: string,
+    names: []string, values: []string, output: []u8) -> s32 {
+    if arguments.count < 1 || arguments.count > 256 || names.count != values.count ||
+    names.count > 32 || output.count < 0 {
+        if output.count > 0 { output[0] = 0 }
+        return -1
+    }
+    pointers: [257]ProcessPointer
+    keys: [32]ProcessPointer
+    entries: [32]ProcessPointer
+    cwd: *u8 = null
+    valid: bool = true
+    index: s64 = 0
+    while valid && index < arguments.count {
+        pointers[index].value = CopyArgument(arguments[index])
+        valid = pointers[index].value != null
+        index += 1
+    }
+    index = 0
+    while valid && index < names.count {
+        keys[index].value = CopyArgument(names[index])
+        entries[index].value = CopyArgument(values[index])
+        valid = keys[index].value != null && entries[index].value != null
+        index += 1
+    }
+    if valid && directory.count > 0 {
+        cwd = CopyArgument(directory)
+        valid = cwd != null
+    }
+    if !valid {
+        if output.count > 0 { output[0] = 0 }
+        ReleaseArguments(pointers[:])
+        ReleaseArguments(keys[:])
+        ReleaseArguments(entries[:])
+        Release(cwd)
+        return -1
+    }
+    fds: [2]s32 = .[-1, -1]
+    capture: bool = output.count > 0
+    if capture { output[0] = 0 }
+    if capture && Pipe(*fds[0]) != 0 {
+        ReleaseArguments(pointers[:])
+        ReleaseArguments(keys[:])
+        ReleaseArguments(entries[:])
+        Release(cwd)
+        return -1
+    }
+    Flush(null)
+    child := Fork()
+    if child < 0 {
+        if capture { Close(fds[0]); Close(fds[1]) }
+        ReleaseArguments(pointers[:])
+        ReleaseArguments(keys[:])
+        ReleaseArguments(entries[:])
+        Release(cwd)
+        return -1
+    }
+    if child == 0 {
+        if capture {
+            Close(fds[0])
+            if Duplicate(fds[1], 1) < 0 || Duplicate(fds[1], 2) < 0 { Exit(127) }
+            if fds[1] != 1 && fds[1] != 2 { Close(fds[1]) }
+        }
+        if cwd != null && ChangeDirectory(cwd) != 0 { Exit(127) }
+        index = 0
+        while index < names.count {
+            if SetEnvironment(keys[index].value, entries[index].value, 1) != 0 { Exit(127) }
+            index += 1
+        }
+        Execute(pointers[0].value, *pointers[0])
+        PrintError(pointers[0].value)
+        Exit(127)
+    }
+    truncated: bool = false
+    if capture {
+        Close(fds[1])
+        used: s64 = 0
+        while true {
+            chunk: [8192]u8
+            count := Read(fds[0], *chunk[0], 8192)
+            if count < 0 && <<LastError() == 4 { continue }
+            if count < 0 { truncated = true; break }
+            if count == 0 { break }
+            copied: s64 = cast(s64)count
+            if copied > output.count - used - 1 {
+                copied = output.count - used - 1
+                truncated = true
+            }
+            index = 0
+            while index < copied { output[used + index] = chunk[index]; index += 1 }
+            used += copied
+        }
+        output[used] = 0
+        Close(fds[0])
+    }
+    status: s32 = 0
+    waited: s32 = -1
+    while true {
+        waited = Wait(child, *status, 0)
+        if waited < 0 && <<LastError() == 4 { continue }
+        break
+    }
+    ReleaseArguments(pointers[:])
+    ReleaseArguments(keys[:])
+    ReleaseArguments(entries[:])
+    Release(cwd)
+    if truncated || waited != child { return -1 }
+    signal: s32 = status & 127
+    if signal == 0 { return (status >> 8) & 255 }
+    if signal != 127 { return 128 + signal }
+    return -1
+}

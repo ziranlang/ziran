@@ -13,7 +13,7 @@ for index in 1 2 3 4 5 6 7 8; do
         for (line = 0; line < 1000; line++)
             print "fn Example() -> i32 {\nreturn 1\n}"
     }' > "$source"
-    TMPDIR="$scratch" sh "$formatter" "$source" &
+    TMPDIR="$scratch" "$formatter" "$source" &
     pids="$pids $!"
 done
 
@@ -25,5 +25,5 @@ for index in 1 2 3 4 5 6 7 8; do
     source="$scratch/$index.zi"
     [ "$(head -n 1 "$source")" = "// unique marker $index" ]
     [ "$(wc -c < "$source")" -gt 10000 ]
-    TMPDIR="$scratch" sh "$formatter" --check "$source"
+    TMPDIR="$scratch" "$formatter" --check "$source"
 done

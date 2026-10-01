@@ -372,7 +372,110 @@ compiler_declaration_ErrorText(DeclarationError error)
     if (error == DeclarationError_BuilderArgumentCount) {
         return StringLiteral("BuilderPrint has too many arguments");
     }
+    if (error == DeclarationError_GoMethodQuote) {
+        return StringLiteral("#go_method requires a quoted method identifier");
+    }
+    if (error == DeclarationError_GoMethodDuplicate) {
+        return StringLiteral("duplicate #go_method procedure modifier");
+    }
+    if (error == DeclarationError_GoMethodResults) {
+        return StringLiteral("#go_results applies once to a #go_method procedure");
+    }
+    if (error == DeclarationError_GoMethodForeign) {
+        return StringLiteral("#go_method requires an ordinary procedure body");
+    }
     return StringLiteral("");
+}
+
+GoMethodDeclaration
+compiler_declaration_ParseGoMethod(String source, int64_t name_limit)
+{
+    GoMethodDeclaration result = {0};
+    int64_t opening = compiler_declaration_Find(source, StringLiteral("("));
+    if (opening < 0LL) {
+        return result;
+    }
+    String value_0 = source;
+    int64_t value_1 = compiler_source_ClosingParenthesis(StringRange(value_0, (int64_t)opening, (int64_t)value_0.length));
+    int64_t closing = value_1;
+    if (closing < 0LL) {
+        return result;
+    }
+    int64_t at = (int64_t)(((uint64_t)opening + (uint64_t)closing) + UINT64_C(1));
+    int32_t result_count = 0;
+    bool result_arguments = false;
+    bool foreign = false;
+    while (true) {
+        int64_t value_2 = (int64_t)(source).length;
+        if (!(at < value_2)) { break; }
+        Scan token = compiler_scan_NextToken(source, at, 1, 1);
+        if (((TokenKind)(token.kind)) == ((TokenKind)(0))) {
+            break;
+        }
+        String value_3 = source;
+        String spelling = StringRange(value_3, (int64_t)token.begin, (int64_t)token.end);
+        if (StringEqual(spelling, StringLiteral("{")) || StringEqual(spelling, StringLiteral(";"))) {
+            break;
+        }
+        at = token.end;
+        if (((TokenKind)(token.kind)) != ((TokenKind)(6))) {
+            continue;
+        }
+        if (StringEqual(spelling, StringLiteral("#foreign"))) {
+            foreign = true;
+        }
+        if (StringEqual(spelling, StringLiteral("#go_results"))) {
+            result_count = (int32_t)((uint32_t)result_count + 1u);
+            Scan next = compiler_scan_NextToken(source, at, 1, 1);
+            String value_4 = source;
+            String following = StringRange(value_4, (int64_t)next.begin, (int64_t)next.end);
+            if (((TokenKind)(next.kind)) != ((TokenKind)(6)) && !StringEqual(following, StringLiteral("{"))) {
+                result_arguments = true;
+            }
+        }
+        if (!StringEqual(spelling, StringLiteral("#go_method"))) {
+            continue;
+        }
+        int64_t value_5 = (int64_t)(result.name).length;
+        if (value_5 != 0LL) {
+            result.error = DeclarationError_GoMethodDuplicate;
+            return result;
+        }
+        int64_t quoted_at = compiler_text_SkipSpace(source, at, true);
+        String value_6 = source;
+        QuotedText value_7 = compiler_declaration_UsingQuoted(StringRange(value_6, (int64_t)quoted_at, (int64_t)value_6.length), name_limit);
+        QuotedText quoted = value_7;
+        bool value_8 = !quoted.valid;
+        bool value_9 = value_8;
+        if (!value_9) {
+            bool value_10 = compiler_source_IdentifierText(quoted.value, false);
+            value_9 = !value_10;
+        }
+        if (value_9) {
+            result.error = DeclarationError_GoMethodQuote;
+            return result;
+        }
+        result.name = quoted.value;
+        at = (int64_t)((uint64_t)quoted_at + (uint64_t)(quoted.end));
+        Scan next = compiler_scan_NextToken(source, at, 1, 1);
+        String value_11 = source;
+        String following = StringRange(value_11, (int64_t)next.begin, (int64_t)next.end);
+        if (((TokenKind)(next.kind)) != ((TokenKind)(6)) && !StringEqual(following, StringLiteral("{"))) {
+            result.error = DeclarationError_GoMethodQuote;
+            return result;
+        }
+    }
+    int64_t value_12 = (int64_t)(result.name).length;
+    if (value_12 == 0LL) {
+        return result;
+    }
+    if (foreign) {
+        result.error = DeclarationError_GoMethodForeign;
+    } else if (result_count > 1 || result_arguments) {
+        result.error = DeclarationError_GoMethodResults;
+    }
+    result.results = result_count != 0;
+    return result;
 }
 
 UsingFilter

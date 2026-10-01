@@ -63,6 +63,89 @@ typedef struct CheckFunctionBuffers {
 
 int check_function(Checker *c, ZirFunction *fn);
 
+/* Method adapters are native ABI metadata; their canonical bodies and ordinary
+ * calls remain checked Ziran procedures on every target. */
+int
+check_go_method(Checker *c, ZirFunction *fn)
+{
+    if(!fn->go_method[0])
+        return !fn->go_method_results;
+    static const char *const keywords[] = {
+        "break", "case", "chan", "const", "continue", "default", "defer",
+        "else", "fallthrough", "for", "func", "go", "goto", "if", "import",
+        "interface", "map", "package", "range", "return", "select",
+        "struct", "switch", "type", "var", "_", NULL
+    };
+    int errors_before = c->errors;
+    select_lookup_file(c->module, fn->span);
+    for(int i = 0; keywords[i] != NULL; i++)
+        if(!strcmp(fn->go_method, keywords[i]))
+            error(c, fn->span, "#go_method needs a non-keyword Go identifier", fn->go_method);
+    if(fn->is_extern || fn->is_template || fn->is_specialization ||
+       fn->is_global_initializer || fn->is_conversion)
+        error(c, fn->span, "#go_method requires a concrete ordinary procedure", fn->name);
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    const char *receiver = parameters->count > 0 ? parameters->items[0].type : NULL;
+    const char *base = receiver != NULL && receiver[0] == '*' ? receiver + 1 : receiver;
+    const ZirModule *owner = NULL;
+    const ZirType *record = base != NULL ? FindType(c->module, base, &owner) : NULL;
+    if(record == NULL || owner != c->module || record->is_extern ||
+       record->is_enum || record->is_union || record->is_procedure_type ||
+       record->is_record_template || record->is_go_anonymous ||
+       record->is_owned_vec || record->is_map) {
+        error(c, fn->span, "#go_method first parameter must be a local named record or its pointer", fn->name);
+        return 0;
+    }
+    size_t offset = 0;
+    ZirTypeField field;
+    while(TypeNextField(record, &offset, &field) == 1) {
+        char native_name[ZIR_NAME_MAX];
+        go_field_ident(field.name, native_name, sizeof(native_name));
+        if(!strcmp(native_name, fn->go_method))
+            error(c, fn->span, "#go_method name conflicts with a record field", fn->go_method);
+    }
+    for(int i = 0; i < c->module->function_count; i++) {
+        const ZirFunction *other = &c->module->functions[i];
+        if(other == fn || strcmp(other->go_method, fn->go_method))
+            continue;
+        const ZirParameters *other_parameters = ParametersOf(FunctionArgs(other));
+        if(other_parameters->count == 0 || other_parameters->items[0].type == NULL)
+            continue;
+        const char *other_receiver = other_parameters->items[0].type;
+        if(other_receiver[0] == '*') other_receiver++;
+        select_lookup_file(c->module, other->span);
+        const ZirModule *other_owner = NULL;
+        const ZirType *other_record = FindType(c->module, other_receiver, &other_owner);
+        select_lookup_file(c->module, fn->span);
+        if(other_record == record && other_owner == owner)
+            error(c, fn->span, "duplicate #go_method for this record", fn->go_method);
+    }
+    for(int i = 0; i < parameters->count; i++)
+        if(parameters->items[i].type != NULL &&
+           contains_vec(c->module, parameters->items[i].type, 0))
+            error(c, fn->span, "Vec cannot cross a Go method signature", parameters->items[i].name);
+    if(contains_vec(c->module, fn->return_type, 0))
+        error(c, fn->span, "Vec cannot cross a Go method signature", fn->name);
+    if(contains_vec(c->module, base, 0))
+        error(c, fn->span, "Vec cannot cross a Go method receiver", fn->name);
+    if(fn->go_method_results) {
+        const ZirType *result = FindType(c->module, fn->return_type, NULL);
+        offset = 0;
+        if(result == NULL || result->is_extern || result->is_enum ||
+           result->is_union || result->is_procedure_type || result->is_map ||
+           result->is_owned_vec || result->is_record_template ||
+           TypeNextField(result, &offset, &field) != 1)
+            error(c, fn->span, "#go_results method requires a nonempty concrete result record", fn->name);
+        else {
+            offset = 0;
+            while(TypeNextField(result, &offset, &field) == 1)
+                if(field.is_using || !strcmp(field.name, "_"))
+                    error(c, fn->span, "#go_results method fields must be named without using", fn->name);
+        }
+    }
+    return c->errors == errors_before;
+}
+
 static int
 check_function_with_buffers(Checker *c, ZirFunction *fn, CheckFunctionBuffers *buffers)
 {

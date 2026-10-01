@@ -260,6 +260,7 @@ void defer_line(DeferredLines *lines, const char *line, const char *rel, int lin
 void rename_local_procedures(char *line, size_t capacity, char (*names)[2][ZIR_NAME_MAX],
                              int count, ZirSourceSpan span);
 int function_must_use(const char *line, const char *return_type, ZirSourceSpan span);
+void parse_go_method(const char *line, ZirFunction *function, ZirSourceSpan span);
 int strip_program_export(char *line, char *symbol, size_t symbol_size, ZirSourceSpan span);
 void separate_parameter_defaults(char *args, size_t capacity, char *defaults, size_t defaults_capacity, ZirSourceSpan span);
 uint64_t strip_using_parameters(char *args, size_t capacity, ZirSourceSpan span);

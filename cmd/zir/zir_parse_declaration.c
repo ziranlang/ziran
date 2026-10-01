@@ -54,6 +54,19 @@ check_declaration_error(DeclarationError error, ZirSourceSpan span)
     }
 }
 
+void
+parse_go_method(const char *line, ZirFunction *function, ZirSourceSpan span)
+{
+    GoMethodDeclaration method = compiler_declaration_ParseGoMethod(
+        declaration_text(line), ZIR_NAME_MAX);
+    check_declaration_error(method.error, span);
+    if(function != NULL) {
+        copy_declaration_part(function->go_method, sizeof(function->go_method),
+                              method.name, 0);
+        function->go_method_results = method.results;
+    }
+}
+
 /* Grammar lives in compiler_declaration.zi; this boundary retains storage
  * and source diagnostics for the existing declaration IR. */
 int

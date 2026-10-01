@@ -1512,6 +1512,7 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
             }
         }
     }
+resolve_reachability:
     for(int changed = 1; changed;) {
         changed = 0;
         for(int m = 0; m < program->module_count; m++) {
@@ -1735,6 +1736,29 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
                     goto failed;
             }
         }
+    }
+    /* Go interfaces dispatch through the receiver's method set, outside the
+     * explicit Ziran call graph. Retain methods of every retained record and
+     * close their dependencies before pruning fields and declarations. */
+    if(native == 2) {
+        int added_methods = 0;
+        for(int m = 0; m < program->module_count; m++) {
+            const ZirModule *module = &program->modules[m];
+            for(int f = 0; f < module->function_count; f++) {
+                const ZirFunction *function = &module->functions[f];
+                if(keep[m][f] || !function->go_method[0]) continue;
+                const ZirParameters *parameters = ParametersOf(FunctionArgs(function));
+                const char *receiver = parameters->items[0].type;
+                if(receiver[0] == '*') receiver++;
+                const ZirType *record = FindType(module, receiver, NULL);
+                for(int t = 0; t < module->type_count; t++)
+                    if(record == &module->types[t] && keep_types[m][t]) {
+                        keep[m][f] = 1;
+                        added_methods = 1;
+                    }
+            }
+        }
+        if(added_methods) goto resolve_reachability;
     }
     /* Constants are source expressions in saved IR. Keep only constants
      * referenced by retained declarations, then follow their dependencies. */
@@ -2106,9 +2130,9 @@ BundleLink(const ZirProgram *program, const char *entry_module,
     return linked;
 }
 
-ZirProgram *
-NativeLink(const ZirProgram *program, const char *entry_module,
-           const char *entry_function)
+static ZirProgram *
+native_link(const ZirProgram *program, const char *entry_module,
+            const char *entry_function, int native)
 {
     ZirProgram *optimized = copy_program(program);
     if(optimized == NULL) return NULL;
@@ -2119,9 +2143,23 @@ NativeLink(const ZirProgram *program, const char *entry_module,
                 return NULL;
             }
     ZirProgram *linked = link_checked_entry(optimized, entry_module,
-                                            entry_function, 1);
+                                            entry_function, native);
     ProgramFree(optimized);
     return linked;
+}
+
+ZirProgram *
+NativeLink(const ZirProgram *program, const char *entry_module,
+           const char *entry_function)
+{
+    return native_link(program, entry_module, entry_function, 1);
+}
+
+ZirProgram *
+NativeGoLink(const ZirProgram *program, const char *entry_module,
+             const char *entry_function)
+{
+    return native_link(program, entry_module, entry_function, 2);
 }
 
 int

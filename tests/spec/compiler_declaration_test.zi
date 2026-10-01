@@ -434,7 +434,24 @@ Answer :: () -> s32 {
     if !ProcedureRewrites() { return 7 }
     if !SymmetricOperators() { return 8 }
     if !BuilderPieces() { return 9 }
+    if !GoMethods() { return 10 }
     return 42
+}
+
+GoMethods :: () -> bool {
+    method := ParseGoMethod("Write :: (self: *Writer) -> Result #go_method \"Write\" #go_results { return .{} }")
+    if method.error != .None || method.name != "Write" || !method.results { return false }
+    method = ParseGoMethod("Write :: (self: Writer, default: string = \"#go_method\") #go_method \"Reset\" { }")
+    if method.error != .None || method.name != "Reset" || method.results { return false }
+    method = ParseGoMethod("Write :: (self: Writer) { print(\"#go_method\") }")
+    if method.error != .None || method.name != "" || method.results { return false }
+    if ParseGoMethod("Write :: (self: Writer) #go_method \"bad.name\" { }").error != .GoMethodQuote { return false }
+    if ParseGoMethod("Write :: (self: Writer) #go_method Missing { }").error != .GoMethodQuote { return false }
+    if ParseGoMethod("Write :: (self: Writer) #go_method \"X\" #go_method \"Y\" { }").error != .GoMethodDuplicate { return false }
+    if ParseGoMethod("Write :: (self: Writer) #go_method \"X\" #go_results #go_results { }").error != .GoMethodResults { return false }
+    if ParseGoMethod("Write :: (self: Writer) #go_results extra #go_method \"X\" { }").error != .GoMethodResults { return false }
+    if ParseGoMethod("Write :: (self: Writer) #go_method \"X\" #foreign native;").error != .GoMethodForeign { return false }
+    return true
 }
 
 #program_export

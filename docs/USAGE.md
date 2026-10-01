@@ -224,9 +224,33 @@ cannot use variadic parameters, `#go_results`, or `#go_defer`.
 Methods of predeclared Go interfaces use their native receiver spelling,
 for example `#foreign builtin "error.Error"` with an `Error` parameter.
 
-Use `#go_results` to pack a Go function's multiple results into a concrete
-record. Record fields correspond to Go results in declaration order, including
-native error interfaces. It also works with method expressions:
+Ordinary procedures can implement native Go interfaces with
+`#go_method "MethodName"`. The first parameter is a local named record or its
+pointer; remaining parameters and the result form the native method signature.
+The generated method calls the ordinary Ziran procedure, preserving pointer,
+error and panic identity. Method names must be Go identifiers, unique for the
+receiver record, and different from its generated field names. Foreign types,
+anonymous record aliases, generic procedures and owned vector signatures are
+rejected. Go checks interface satisfaction when compiling the generated code.
+
+```jai
+Message :: struct { text: string }
+Describe :: (message: Message) -> string #go_method "Error" {
+    return message.text
+}
+```
+
+On an ordinary method procedure, `#go_results` flattens a nonempty concrete
+result record into native Go multiple results in field order. Its fields must
+be named without `using` or owned vectors. Ordinary Ziran calls still receive
+that record. C, C++ and the portable VM keep the same ordinary procedure body;
+method adapters are Go ABI metadata. Both attributes survive saved IR. Go
+executable entry selection retains methods of reachable receiver records for
+native interface dispatch.
+
+Use `#go_results` on foreign declarations to pack a Go function's multiple
+results into a concrete record. Record fields correspond to Go results in
+declaration order, including native error interfaces. It also works with method expressions:
 
 ```jai
 #import "go_types"

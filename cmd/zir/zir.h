@@ -155,6 +155,8 @@ typedef struct ZirFunction {
     char return_type[ZIR_NAME_MAX];
     int must_use; /* #must requires callers to keep the result */
     int is_conversion; /* `Name :: #as (source: Type) -> Result` */
+    char go_method[ZIR_NAME_MAX]; /* native receiver adapter; first parameter is the receiver */
+    int go_method_results; /* flatten the result record into Go multiple results */
     char effect_class[12]; /* pure | observing | mutating | external */
     int exported;
     char export_symbol[ZIR_NAME_MAX]; /* optional #program_export linker name */

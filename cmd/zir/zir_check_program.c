@@ -630,6 +630,12 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             }
         }
         for(int f = 0; f < buffers->c.module->function_count; f++) {
+            if(!check_go_method(&buffers->c, &buffers->c.module->functions[f])) {
+                free(buffers->c.bindings);
+                free(buffers->c.specializations);
+                free(buffers->c.enum_names);
+                return 0;
+            }
             if(buffers->c.module->functions[f].is_template) {
                 if(!check_template_declaration(&buffers->c,
                         &buffers->c.module->functions[f])) {

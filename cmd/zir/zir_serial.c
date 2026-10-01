@@ -48,7 +48,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 54u
+#define ZIR_FORMAT_VERSION 55u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -96,6 +96,8 @@ static const Field function_fields[] = {
     U64_FIELD(ZirFunction, using_parameters),
     STRING_FIELD(ZirFunction, return_type), INTEGER_FIELD(ZirFunction, must_use),
     INTEGER_FIELD(ZirFunction, is_conversion),
+    STRING_FIELD(ZirFunction, go_method),
+    INTEGER_FIELD(ZirFunction, go_method_results),
     STRING_FIELD(ZirFunction, effect_class),
     INTEGER_FIELD(ZirFunction, exported),
     STRING_FIELD(ZirFunction, export_symbol),
@@ -786,6 +788,12 @@ validate_program(const ZirProgram *program)
             if(!function->name[0] ||
                !default_signature_valid(function) ||
                !export_symbol_valid(function->export_symbol) ||
+               !export_symbol_valid(function->go_method) ||
+               (function->go_method_results != 0 && function->go_method_results != 1) ||
+               (function->go_method_results && !function->go_method[0]) ||
+               (function->go_method[0] &&
+                (function->is_extern || function->is_template ||
+                 function->is_specialization || function->is_global_initializer)) ||
                (function->export_symbol[0] && !function->exported) ||
                (function->must_use != 0 && function->must_use != 1) ||
                (function->must_use &&

@@ -602,7 +602,12 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
         if(mode == TOP && contains_source_directive(t, "#private"))
             die_at(Span(buffers->rel, line_no, 1),
                    "#private is not Jai syntax; use #scope_file");
+        if(mode == TOP && contains_source_directive(t, "#go_method") &&
+           !looks_like_function_header(t))
+            die_at(Span(buffers->rel, line_no, 1),
+                   "#go_method requires an ordinary procedure body");
         if(mode == TOP && looks_like_function_header(t)) {
+            parse_go_method(t, NULL, Span(buffers->rel, line_no, 1));
             if(contains_source_directive(t, "#symmetric")) {
                 char *wrapper = AllocateOrExit(SOURCE_LINE_MAX);
                 if(symmetric_operator_wrapper(t, wrapper, SOURCE_LINE_MAX,
@@ -612,7 +617,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 free(wrapper);
             }
             if(contains_source_directive(t, "#go_results") &&
-               !contains_source_directive(t, "#foreign"))
+               !contains_source_directive(t, "#foreign") &&
+               !contains_source_directive(t, "#go_method"))
                 die_at(Span(buffers->rel, line_no, 1), "#go_results requires a foreign procedure");
             if(contains_source_directive(t, "#go_field") &&
                !contains_source_directive(t, "#foreign"))
@@ -638,6 +644,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 (body_open == NULL || modifier < body_open);
                 modifier = strchr(modifier + 1, '#'))
                 if(!starts_word(modifier, "#foreign") &&
+                   !starts_word(modifier, "#go_method") &&
                    !starts_word(modifier, "#go_results") &&
                    !starts_word(modifier, "#go_field") &&
                    !starts_word(modifier, "#go_defer") &&

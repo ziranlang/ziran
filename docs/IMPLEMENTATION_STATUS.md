@@ -240,6 +240,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   files, keeping them out of public headers;
   `tests/private_module_imports.sh` checks C, C++, and Plan 9 C output.
 
+- Ordinary Ziran procedures implement native Go interfaces with
+  `#go_method "Name"`; the first parameter supplies a local record receiver.
+  Generated methods call the canonical checked procedure and optionally
+  flatten its result record with `#go_results`. Source and saved IR retain
+  value/pointer receivers, native error and panic identity, and ordinary calls
+  on C, C++ and the portable VM. `tests/go_method_exports.sh` checks native
+  interface dispatch, mutation, failure paths and rejected method metadata.
+
 - Typed Go `assert` bindings retain native interface checks, zero values on
   failure, typed nils and shared pointer/slice storage. Typed `spawn` bindings
   start capture-free Ziran callbacks in native Go goroutines, capture arguments

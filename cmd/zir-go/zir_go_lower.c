@@ -1334,6 +1334,67 @@ lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
         free(buffers);
 }
 
+/* Native methods delegate to the ordinary free function, retaining a single
+ * implementation and preserving pointer receivers, error and panic identity. */
+static void
+emit_go_method(FILE *out, const ZirModule *module, const ZirFunction *fn,
+               const char *guard)
+{
+    if(!fn->go_method[0]) return;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    char receiver_type[ZIR_GO_NAME_MAX], function_name[ZIR_GO_NAME_MAX];
+    require_go_type(parameters->items[0].type, receiver_type, sizeof(receiver_type), fn->span);
+    camel_ident(fn->name, function_name, sizeof(function_name));
+    fprintf(out, "func (receiver %s) %s(", receiver_type, fn->go_method);
+    for(int i = 1; i < parameters->count; i++) {
+        char native_type[ZIR_GO_NAME_MAX];
+        require_go_type(parameters->items[i].type, native_type, sizeof(native_type), fn->span);
+        fprintf(out, "%sargument%d %s", i > 1 ? ", " : "", i, native_type);
+    }
+    fputs(")", out);
+    const ZirType *result_record = NULL;
+    if(fn->go_method_results) {
+        const ZirModule *result_owner = NULL;
+        result_record = FindType(module, fn->return_type, &result_owner);
+        const ZirModule *saved_scope = type_scope;
+        type_scope = result_owner;
+        size_t offset = 0;
+        ZirTypeField field;
+        int fields = 0;
+        fputs(" (", out);
+        while(TypeNextField(result_record, &offset, &field) == 1) {
+            char native_type[ZIR_GO_NAME_MAX];
+            require_go_type(field.type, native_type, sizeof(native_type), fn->span);
+            fprintf(out, "%s%s", fields++ ? ", " : "", native_type);
+        }
+        fputs(")", out);
+        type_scope = saved_scope;
+    } else {
+        char native_type[ZIR_GO_NAME_MAX];
+        require_go_type(fn->return_type, native_type, sizeof(native_type), fn->span);
+        if(native_type[0]) fprintf(out, " %s", native_type);
+    }
+    fputs(" {\n\t", out);
+    if(result_record != NULL) fputs("result := ", out);
+    else if(strcmp(fn->return_type, "void")) fputs("return ", out);
+    fprintf(out, "%s_%s(receiver", guard, function_name);
+    for(int i = 1; i < parameters->count; i++) fprintf(out, ", argument%d", i);
+    fputs(")\n", out);
+    if(result_record != NULL) {
+        size_t offset = 0;
+        ZirTypeField field;
+        int fields = 0;
+        fputs("\treturn ", out);
+        while(TypeNextField(result_record, &offset, &field) == 1) {
+            char native_name[ZIR_GO_NAME_MAX];
+            go_field_ident(field.name, native_name, sizeof(native_name));
+            fprintf(out, "%sresult.%s", fields++ ? ", " : "", native_name);
+        }
+        fputc('\n', out);
+    }
+    fputs("}\n\n", out);
+}
+
 static int
 rewrite_global_scalar(const ZirModule *module, const char *source,
                       char *out, size_t size, void *context)
@@ -2096,6 +2157,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 if(m->functions[i].is_extern || m->functions[i].is_template)
                     continue;
                 lower_function(f, m, &m->functions[i], guard);
+                emit_go_method(f, m, &m->functions[i], guard);
             }
             int startup_count = 0;
             for(int i = 0; i < m->function_count; i++)

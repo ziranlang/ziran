@@ -16,6 +16,7 @@
 extern "C" {
 #endif
 typedef int32_t DeclarationError;
+typedef struct GoMethodDeclaration GoMethodDeclaration;
 typedef struct ExportDirective ExportDirective;
 typedef struct ParameterRewrite ParameterRewrite;
 typedef int32_t ImportMode;
@@ -97,6 +98,16 @@ enum {
     DeclarationError_BuilderArguments = 56,
     DeclarationError_BuilderPieces = 57,
     DeclarationError_BuilderArgumentCount = 58,
+    DeclarationError_GoMethodQuote = 59,
+    DeclarationError_GoMethodDuplicate = 60,
+    DeclarationError_GoMethodResults = 61,
+    DeclarationError_GoMethodForeign = 62,
+};
+
+struct GoMethodDeclaration {
+    DeclarationError error;
+    String name;
+    bool results;
 };
 
 struct ExportDirective {
@@ -232,6 +243,7 @@ struct QuotedText {
 };
 #endif
 String compiler_declaration_ErrorText(DeclarationError error);
+GoMethodDeclaration compiler_declaration_ParseGoMethod(String source, int64_t name_limit);
 UsingFilter compiler_declaration_UsingModifierClause(String source, Slice output, int64_t name_limit);
 ExportDirective compiler_declaration_ProgramExport(String source, int64_t symbol_limit);
 ParameterRewrite compiler_declaration_RewriteParameters(String source, Slice output, bool strip_defaults, bool strip_using, int64_t name_limit);

@@ -19,6 +19,12 @@ DeclarationError :: enum s32 {
     ResultCount; ResultName; ResultType; ResultParameters; ReturnCount;
     SymmetricParameters; SymmetricModifier; ProcedureNameArguments;
     BuilderFormat; BuilderPercent; BuilderArguments; BuilderPieces; BuilderArgumentCount;
+    GoMethodQuote; GoMethodDuplicate; GoMethodResults; GoMethodForeign;
+}
+GoMethodDeclaration :: struct {
+    error: DeclarationError
+    name: string
+    results: bool
 }
 ExportDirective :: struct { error: DeclarationError; kind: s32; symbol: string; body: string }
 ParameterRewrite :: struct {
@@ -186,7 +192,66 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .BuilderArguments { return "BuilderPrint has more arguments than % in its format" }
     if error == .BuilderPieces { return "BuilderPrint has too many pieces" }
     if error == .BuilderArgumentCount { return "BuilderPrint has too many arguments" }
+    if error == .GoMethodQuote { return "#go_method requires a quoted method identifier" }
+    if error == .GoMethodDuplicate { return "duplicate #go_method procedure modifier" }
+    if error == .GoMethodResults { return "#go_results applies once to a #go_method procedure" }
+    if error == .GoMethodForeign { return "#go_method requires an ordinary procedure body" }
     return ""
+}
+
+// Native interface methods retain the ordinary checked procedure body. Scan
+// only its modifiers, so quoted defaults and body literals are never metadata.
+ParseGoMethod :: (source: string, name_limit: s64 = 128) -> GoMethodDeclaration {
+    result: GoMethodDeclaration
+    opening := Find(source, "(")
+    if opening < 0 { return result }
+    closing := Source.ClosingParenthesis(source[opening:])
+    if closing < 0 { return result }
+    at := opening + closing + 1
+    result_count: s32 = 0
+    result_arguments := false
+    foreign := false
+    while at < source.count {
+        token := Scan.NextToken(source, at, 1, 1)
+        if token.kind == Scan.TokenKind.Eof { break }
+        spelling := source[token.begin:token.end]
+        if spelling == "{" || spelling == ";" { break }
+        at = token.end
+        if token.kind != Scan.TokenKind.Directive { continue }
+        if spelling == "#foreign" { foreign = true }
+        if spelling == "#go_results" {
+            result_count += 1
+            next := Scan.NextToken(source, at, 1, 1)
+            following := source[next.begin:next.end]
+            if next.kind != Scan.TokenKind.Directive && following != "{" {
+                result_arguments = true
+            }
+        }
+        if spelling != "#go_method" { continue }
+        if result.name.count != 0 {
+            result.error = .GoMethodDuplicate
+            return result
+        }
+        quoted_at := Text.SkipSpace(source, at, true)
+        quoted := UsingQuoted(source[quoted_at:], name_limit)
+        if !quoted.valid || !Source.IdentifierText(quoted.value, false) {
+            result.error = .GoMethodQuote
+            return result
+        }
+        result.name = quoted.value
+        at = quoted_at + quoted.end
+        next := Scan.NextToken(source, at, 1, 1)
+        following := source[next.begin:next.end]
+        if next.kind != Scan.TokenKind.Directive && following != "{" {
+            result.error = .GoMethodQuote
+            return result
+        }
+    }
+    if result.name.count == 0 { return result }
+    if foreign { result.error = .GoMethodForeign }
+    else if result_count > 1 || result_arguments { result.error = .GoMethodResults }
+    result.results = result_count != 0
+    return result
 }
 
 // A short output receives its prefix; count measures the complete filter.

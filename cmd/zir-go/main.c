@@ -144,7 +144,7 @@ main(int argc, char **argv)
         for(i = 0; i < host_module_count; i++)
             if(!BindHostModule(&merged, host_modules[i]))
                 goto done;
-        linked = NativeLink(&merged, entry_module, entry_function);
+        linked = NativeGoLink(&merged, entry_module, entry_function);
         if(linked == NULL)
             goto done;
         const ZirProgram *only = linked;

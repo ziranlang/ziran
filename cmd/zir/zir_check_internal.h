@@ -247,6 +247,7 @@ void mark_expr_moves(Checker *c, int index);
 void check_vec_call_results(Checker *c, int index, int transferred, int discarded);
 int check_function(Checker *c, ZirFunction *fn);
 int check_template_declaration(Checker *c, ZirFunction *fn);
+int check_go_method(Checker *c, ZirFunction *fn);
 int normalize_function_arrays(const ZirModule *module, ZirFunction *fn);
 int canonical_type_arguments(const char *source, char *output, size_t capacity);
 int rewrite_type_applications(ZirModule *module, const char *source, char *output, size_t capacity, ZirSourceSpan span, int recursion);

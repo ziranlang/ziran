@@ -1150,6 +1150,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 }
                 fn->using_parameters = using_parameters;
                 fn->must_use = function_must_use(t, ret, fn->span);
+                parse_go_method(t, fn, fn->span);
                 fn->default_args_text = KeepParameters(buffers->defaults);
                 if(strchr(buffers->args, '$') != NULL) {
                     int count = split_top_level(buffers->args, buffers->parameters[0], 64,

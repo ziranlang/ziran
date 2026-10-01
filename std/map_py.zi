@@ -1,0 +1,29 @@
+// Explicit conversions between portable string-keyed maps and Python dicts.
+// Containers are copied. Free returned HashMaps with HashMapFree.
+#import "hash_map"
+#import "py_types"
+Collections :: #import "collections_py";
+ToDictionary :: (value: *HashMap(string, string)) -> Object {
+    result := Collections.Dictionary()
+    for slot: 0..value.states.count - 1 {
+        if value.states[slot] == 1 { Collections.SetText(result, value.keys[slot], value.values[slot]) }
+    }
+    return result
+}
+ToDictionary :: (value: *HashMap(string, s64)) -> Object {
+    result := Collections.Dictionary()
+    for slot: 0..value.states.count - 1 {
+        if value.states[slot] == 1 { Collections.SetInteger(result, value.keys[slot], value.values[slot]) }
+    }
+    return result
+}
+StringMap :: (value: Object) -> HashMap(string, string) {
+    result: HashMap(string, string)
+    for key: Collections.Keys(value) { HashMapSet(*result, key, Collections.GetText(value, key)) }
+    return result
+}
+IntegerMap :: (value: Object) -> HashMap(string, s64) {
+    result: HashMap(string, s64)
+    for key: Collections.Keys(value) { HashMapSet(*result, key, Collections.GetInteger(value, key)) }
+    return result
+}

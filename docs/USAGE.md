@@ -435,6 +435,22 @@ to their declared width. `py_types` declares `Object`, any Python value, with
 becomes a callable whose arguments and result convert the same way, so Python
 can call back into Ziran (`map`, `sorted` keys, handlers).
 
+Slices of strings, booleans, fixed-width numbers, enums, or Python foreign
+objects convert to Python lists, and Python iterables convert back to typed
+Ziran slices. The container is copied in both directions; Python objects
+inside it retain their identity. `[]u8` keeps its bytes conversion. Nested
+typed slices are not supported; use `Object` for nested Python containers.
+
+Named arguments on a Python foreign call become Python keyword arguments.
+Positional arguments stay positional; all arguments, including a method's
+receiver, evaluate in Ziran source order. Bind only the options the call
+needs, leaving other Python defaults untouched:
+
+```jai
+Dumps :: (obj: Object, sort_keys: bool) -> string #foreign json "dumps";
+text := Dumps(value, sort_keys = true)
+```
+
 `#py_field` reads an attribute with a result and sets it with one value and
 no result. `(Type).name` takes the object first; a plain name is a module
 attribute:
@@ -445,7 +461,8 @@ Major :: () -> s32 #py_field #foreign sys "version_info.major";
 SetName :: (item: Object, value: string) #py_field #foreign types "(SimpleNamespace).name";
 ```
 
-A Python exception otherwise stops the program with its traceback. With
+A Python exception otherwise stops the program with its traceback, including
+the original `.zi` statement locations in executable output. With
 `#py_results`, the declared result record catches it: its last field `error`
 receives the exception as `"Type: message"` text, or as the exception object
 when declared with a foreign Python type, and an optional first field receives
@@ -456,10 +473,89 @@ Loaded :: struct { value: Object; error: string }
 TryLoads :: (text: string) -> Loaded #py_results #foreign json "loads";
 ```
 
+Conversion failures also populate `error`; partial iterable results are not
+published. Python `SystemExit` and `KeyboardInterrupt` retain their usual
+behavior.
+
 Python imports stay Python imports in saved `.zir`. Modules that use them
 build only for the Python target; the C, C++, Go, and Rust targets reject
 them. A module meant for every target gives each target its own
 implementation behind one Ziran interface.
+
+### Python-target scripts
+
+Run a script with Python 3.10 or newer in one command:
+
+```sh
+ziran run --target=py scripts/task.zi -- --name café
+```
+
+The default entry is the input module's `main`; override it with
+`--entry module:function`. `.zir` inputs use the same convention. Arguments
+after the source file go unchanged to the script, with an optional `--`
+separator. In a project, `ziran run --target=py -- ARGS` uses its manifest
+entry, dependency map, and pinned toolchain. Compiler options precede the
+source file. `--python PATH` or `ZIRAN_PYTHON` selects the interpreter;
+otherwise the launcher uses `python3` from `PATH`.
+
+The launcher caches generated Python under `$XDG_CACHE_HOME/ziran/python`
+(or `$HOME/.cache/ziran/python`). Its content key includes the compiler,
+entry, flags, sources, module search trees, standard library, package map,
+and link configuration. New modules that shadow earlier imports invalidate
+the cache. Failed builds do not run stale output. `--no-cache` compiles every
+time. Sources containing `#load` also compile every time because loaded files
+can be outside the module roots. Imported Python libraries remain runtime
+dependencies; Python files beside the original script are on `PYTHONPATH`.
+
+`std/args_py` exposes arguments and the original script filename. A script
+may start with a shebang and be made executable with `chmod +x`:
+
+```jai
+#!/usr/bin/env -S ziran run --target=py
+Args :: #import "std/args_py";
+Process :: #import "std/process_py";
+
+#program_export
+main :: () -> s32 {
+    parser := Args.Parser("Run a command")
+    Args.AddText(parser, "--message", fallback = "hello")
+    options := Args.Parse(parser)
+    message := Args.Text(options, "message")
+    command: [2]string = .["echo", message]
+    result := Process.Run(command[:])
+    if result.error != "" { print("%\n", result.error); return 1 }
+    print("%", result.stdout)
+    return result.code
+}
+```
+
+The scripting modules are ordinary Ziran APIs over Python's standard library:
+
+- `std/args_py`: arguments, flags, text and integer options, repeatable text
+  options, parsing, and the original script filename.
+- `std/collections_py`: typed iterable copies, dictionary access, scalar
+  boxing, and an iterator with a separate `done` flag so `None` remains data.
+- `std/map_py`: explicit copies between Python dictionaries and portable
+  `HashMap(string, string)` or `HashMap(string, s64)` values.
+- `std/file_py`: UTF-8 text, bytes, paths, sorted recursive globs, temporary
+  directories, copying, renaming, and removal. File operations return errors.
+- `std/process_py`: argument lists, cwd, environment, stdin, output capture,
+  timeouts, executable lookup, and preserved Python exceptions. `Run` checks
+  exit status by default; set `allow_failure` to receive a nonzero code
+  without an error. `inherit_output` passes both streams to the parent.
+  Child environments omit `DISPLAY` and `WAYLAND_DISPLAY` unless
+  `inherit_desktop` is explicitly set; the supplied environment is copied.
+- `std/json_py`: parsing, Unicode output, sorted keys, and pretty printing.
+- `std/regex_py`: search, capture-aware results, replacement, and whole-match
+  iteration. `FindTexts` returns `Vec(string)` and raises on invalid patterns;
+  the other operations return errors.
+- `std/text_py`: Unicode case conversion, stripping, splitting, joining,
+  replacement, and byte conversion. Ziran string indexing still counts bytes.
+- `std/time_py`: wall-clock and monotonic time, sleep, and UTC ISO timestamps.
+
+These modules require the Python target. The Python interpreter and any
+third-party libraries still need to be installed. See
+`scripts/build_playground.zi` for a maintained build tool using these APIs.
 
 ### Host capabilities and visibility
 

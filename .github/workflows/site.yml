@@ -9,7 +9,7 @@ name: Publish website
 on:
   push:
     branches: [master]
-    paths: ['site/**', 'web/playground.c', 'web/bundle.c', 'scripts/build_playground.py', 'cmd/zir/**', 'cmd/compiler_*.zi', 'bootstrap/**', 'std/**', 'Makefile', '.github/workflows/site.yml']
+    paths: ['site/**', 'web/playground.c', 'web/bundle.c', 'scripts/build_playground.zi', 'cmd/zir/**', 'cmd/zir-py/**', 'cmd/package*.zi', 'cmd/compiler_*.zi', 'bootstrap/**', 'std/**', 'Makefile', '.github/workflows/site.yml']
   workflow_dispatch:
 
 concurrency:
@@ -43,7 +43,8 @@ jobs:
       - name: Build the browser playground
         if: steps.credentials.outputs.present == 'true'
         run: |
-          python3 scripts/build_playground.py
+          make -j2 all
+          build/bin/ziran run --target=py scripts/build_playground.zi
           node tests/playground_runtime.cjs
           node tests/web_bundle_runtime.cjs
       - name: Deploy site/ to Cloudflare Pages

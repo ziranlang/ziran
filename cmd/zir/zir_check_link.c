@@ -131,7 +131,7 @@ check_foreign_slice_returns(ZirProgram **programs, int count)
             ZirModule *module = &programs[p]->modules[m];
             for(int i = 0; i < module->import_count; i++) {
                 ZirImport *import = &module->imports[i];
-                if(import->kind == ZIR_IMPORT_EXTERN &&
+                if(import->kind == ZIR_IMPORT_EXTERN && import->extern_kind != ZIR_EXTERN_PY &&
                    SliceElementType(import->return_type, NULL, 0)) {
                     char element[ZIR_NAME_MAX];
                     if(!SliceElementType(import->return_type, element,

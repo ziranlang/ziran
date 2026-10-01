@@ -15,6 +15,8 @@ Guide :: (arguments: []string) -> s32 {
     PkgPrint("  Replace c with cpp, go, rust, py, or plan9-c for those targets.\n", false)
     PkgPrint("  ziran bundle --root src --entry main:Answer -o build/app.zib src/main.zi\n", false)
     PkgPrint("  ziran run build/app.zib\n", false)
+    PkgPrint("  ziran run --target=py scripts/task.zi -- ARGUMENTS runs a cached Python-target script.\n", false)
+    PkgPrint("  Use --python PATH or ZIRAN_PYTHON to select Python; --no-cache forces compilation.\n", false)
     PkgPrint("  For a ziran.toml project: ziran lock, then ziran check --project --locked.\n\n", false)
     PkgPrint("  ziran features --id compile.assertions --json reports tested syntax.\n\n", false)
     PkgPrint("  ziran capabilities --target=go --json reports target limits.\n\n", false)

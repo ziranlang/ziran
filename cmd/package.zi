@@ -10,6 +10,7 @@
 #import "package_options"
 #import "package_compile_commands"
 #import "package_template"
+#import "package_python"
 #import "file_linux"
 
 // `ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] DIR`
@@ -484,6 +485,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         PkgPrint("in a project, run, build, check, and install without a file work on its program\n", false)
+        PkgPrint("scripts: ziran run --target=py [--python PATH] [--no-cache] FILE.zi -- ARGS\n", false)
         PkgPrint("new to Ziran? run ziran guide\n", false)
         return 0
     }
@@ -496,6 +498,11 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "capabilities" { return Capabilities(arguments[1:]) }
     if command == "explain" { return Explain(arguments[1:]) }
     if command == "add" { return Add(launcher, arguments[1:]) }
+    separator: s32 = PkgAfterSeparator(arguments)
+    if command == "run" && PkgHasArgument(arguments[0:PythonArgumentEnd(arguments)], "--target=py") {
+        separator = PythonArgumentEnd(arguments)
+    }
+    flags: []string = arguments[0:separator]
     root: string = ""
     // `ziran run`, `build`, and `check` without a file, inside a project,
     // work on the project's own program; with a file they resolve its
@@ -503,19 +510,19 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     // asks for a standalone command.
     lifecycle: bool = (command == "run" || command == "build" ||
         command == "check" || command == "install") &&
-        !PkgHasSource(arguments[1:])
+        !PkgHasSource(flags[1:])
     implied: bool = false
     if (command == "run" || command == "build" || command == "check") &&
-        !PkgHasArgument(arguments, "--project") &&
-        !PkgHasArgument(arguments, "--root") &&
-        !PkgHasArgument(arguments, "--module-path") &&
-        !PkgHasBundle(arguments[1:]) {
+        !PkgHasArgument(flags, "--project") &&
+        !PkgHasArgument(flags, "--root") &&
+        !PkgHasArgument(flags, "--module-path") &&
+        !PkgHasBundle(flags[1:]) {
         root = PkgProjectRoot()
         implied = root.count > 0
     }
     if command == "lock" || command == "update" || command == "fetch" ||
        command == "tool" || command == "install" || command == "pkg" ||
-       PkgHasArgument(arguments, "--project") {
+       PkgHasArgument(flags, "--project") {
         root = PkgProjectRoot()
         if root.count == 0 { return PkgFail("no ziran.toml found") }
     }
@@ -530,8 +537,6 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         if PkgResolveLock(root, refresh) { return 0 }
         return PkgFail("cannot update project lock")
     }
-    separator: s32 = PkgAfterSeparator(arguments)
-    flags: []string = arguments[0:separator]
     project: bool = PkgHasArgument(flags, "--project") || implied
     locked_mode: bool = PkgHasArgument(flags, "--locked")
     offline: bool = PkgHasArgument(flags, "--offline")
@@ -548,7 +553,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         }
         index += 1
     }
-    if project && PkgHasArgument(filtered[0:count], "--module-path") {
+    if project && PkgHasArgument(flags, "--module-path") {
         return PkgFail("--module-path is for standalone commands")
     }
     locked: *PkgLock = null
@@ -643,7 +648,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     }
     // A project whose [package] tool is set, such as a Kryon application,
     // hands its program's run, build, check, and install to that tool.
-    whole: bool = lifecycle && current != null && !PkgHasTarget(arguments[1:])
+    whole: bool = lifecycle && current != null && !PkgHasTarget(flags[1:])
     if whole && current.tool.count > 0 && command != "install" {
         passed: [257]string
         passed[0] = command
@@ -717,6 +722,47 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             passed[0:passed_count], names[:], values[:])
     }
     empty: [0]string
+    if command == "run" && PkgHasArgument(flags, "--target=py") {
+        binary := PkgJoin(PkgLauncherDirectory(launcher), "/zi2py")
+        program_root := ""
+        program_file := ""
+        map := ""
+        libraries := PkgGetenv("LDLIBS")
+        search: [65]string
+        searches: s64 = 0
+        if project {
+            binary = PkgJoin(locked.tool_path, "/build/bin/zi2py")
+            if !PathExists(binary) {
+                make_args: [5]string = .["make", "-C", locked.tool_path, "all", "BUILD_DIR=build"]
+                if PkgRunToStderr(make_args[:], "") != 0 { return PkgFail("cannot build pinned Ziran compiler") }
+            }
+            program_root = PkgJoin3(root, "/", current.roots[0])
+            if !PkgHasSource(flags[1:]) { program_file = PkgJoin3(root, "/", current.entry) }
+            map = PkgWriteMap(root, locked, current)
+            if map.count == 0 { return PkgFail("cannot build project import map") }
+            index = 0
+            while index < locked.count {
+                if !locked.packages[index].source {
+                    search[searches] = locked.packages[index].path
+                    searches += 1
+                }
+                index += 1
+            }
+            index = 0
+            while index < current.link_count {
+                libraries = PkgJoin3(libraries, " -l", current.links[index])
+                index += 1
+            }
+        }
+        standard := PkgGetenv("ZIRAN_STD")
+        if standard.count == 0 {
+            standard = PkgJoin(ParentDirectory(binary), "/../../std")
+            if !DirectoryExists(standard) { standard = PkgJoin(ParentDirectory(binary), "/../../../std") }
+        }
+        if DirectoryExists(standard) { search[searches] = standard; searches += 1 }
+        return PythonRun(filtered[0:count], binary, root, program_root, program_file,
+            search[0:searches], map, libraries, PkgCacheRoot())
+    }
     return PkgDispatch(command, filtered[0:count], project, root, locked,
         current, launcher, empty[:], empty[:])
 }

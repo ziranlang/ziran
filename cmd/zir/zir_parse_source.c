@@ -250,6 +250,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
         }
         if(!from_queue)
             line_no++;
+        if(line_no == 1 && !from_queue && !from_lookahead &&
+           buffers->line[0] == '#' && buffers->line[1] == '!')
+            continue;
         if(!from_queue && !from_lookahead)
             strip_block_comments(buffers->line, &in_block_comment);
         if(contains_source_directive(buffers->line, "#else_if") ||

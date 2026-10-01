@@ -1,0 +1,24 @@
+// Regular expressions on the Python target. FindAll preserves Python's
+// capture-group results; FindTexts returns the complete matching text.
+#import "py_types"
+#scope_file
+re :: #system_library "py:re";
+Matches :: (pattern: string, text: string, flags: s32) -> []Object #foreign re "finditer";
+Group :: (match: Object) -> string #foreign re "(Match).group";
+FindRaw :: (pattern: string, text: string, flags: s32) -> ObjectResult #py_results #foreign re "findall";
+SearchRaw :: (pattern: string, text: string, flags: s32) -> ObjectResult #py_results #foreign re "search";
+ReplaceRaw :: (pattern: string, replacement: string, text: string, count: s32, flags: s32) -> TextResult #py_results #foreign re "sub";
+using Vectors :: #import "vec"
+#scope_export
+ObjectResult :: struct { value: Object; error: string }
+TextResult :: struct { value: string; error: string }
+Search :: (pattern: string, text: string, flags: s32 = 0) -> ObjectResult { return SearchRaw(pattern, text, flags) }
+FindAll :: (pattern: string, text: string, flags: s32 = 0) -> ObjectResult { return FindRaw(pattern, text, flags) }
+Replace :: (pattern: string, replacement: string, text: string, count: s32 = 0, flags: s32 = 0) -> TextResult {
+    return ReplaceRaw(pattern, replacement, text, count = count, flags = flags)
+}
+FindTexts :: (pattern: string, text: string, flags: s32 = 0) -> Vec(string) {
+    result: Vec(string)
+    for match: Matches(pattern, text, flags) { VecPush(result, Group(match)) }
+    return result
+}

@@ -1,0 +1,44 @@
+// CLI arguments and argparse adapters on the Python target. The runner
+// exposes the original script path and forwards arguments unchanged.
+#import "py_types"
+#scope_file
+sys :: #system_library "py:sys";
+main :: #system_library "py:__main__";
+argparse :: #system_library "py:argparse";
+builtins :: #system_library "py:builtins";
+Argv :: () -> []string #py_field #foreign sys "argv";
+ParserRaw :: (description: string) -> Object #foreign argparse "ArgumentParser";
+FlagRaw :: (parser: Object, name: string, action: string, help: string) -> Object #foreign argparse "(ArgumentParser).add_argument";
+TextRaw :: (parser: Object, name: string, default: string, help: string, required: bool) -> Object #foreign argparse "(ArgumentParser).add_argument";
+IntegerRaw :: (parser: Object, name: string, type: Object, default: s64, help: string) -> Object #foreign argparse "(ArgumentParser).add_argument";
+TextsRaw :: (parser: Object, name: string, action: string, default: []string, help: string) -> Object #foreign argparse "(ArgumentParser).add_argument";
+IntType :: () -> Object #py_field #foreign builtins "int";
+ParseRaw :: (parser: Object, args: []string) -> Object #foreign argparse "(ArgumentParser).parse_args";
+#scope_file
+ScriptFileForeign :: () -> string  #py_field #foreign main "__file__";
+TextForeign :: (arguments: Object, name: string) -> string  #foreign builtins "getattr";
+IntegerForeign :: (arguments: Object, name: string) -> s64  #foreign builtins "getattr";
+FlagForeign :: (arguments: Object, name: string) -> bool  #foreign builtins "getattr";
+TextsForeign :: (arguments: Object, name: string) -> []string #foreign builtins "getattr";
+
+#scope_export
+Arguments :: () -> []string { return Argv()[1:] }
+ScriptFile :: () -> string  { return ScriptFileForeign() }
+Parser :: (description: string = "") -> Object { return ParserRaw(description = description) }
+AddFlag :: (parser: Object, name: string, help: string = "") { FlagRaw(parser, name, action = "store_true", help = help) }
+AddText :: (parser: Object, name: string, fallback: string = "", help: string = "", required: bool = false) {
+    TextRaw(parser, name, default = fallback, help = help, required = required)
+}
+AddInteger :: (parser: Object, name: string, fallback: s64 = 0, help: string = "") {
+    IntegerRaw(parser, name, type = IntType(), default = fallback, help = help)
+}
+AddTexts :: (parser: Object, name: string, help: string = "") {
+    empty: [0]string
+    TextsRaw(parser, name, action = "append", default = empty[:], help = help)
+}
+Parse :: (parser: Object) -> Object { return ParseRaw(parser, Arguments()) }
+Parse :: (parser: Object, arguments: []string) -> Object { return ParseRaw(parser, arguments) }
+Text :: (arguments: Object, name: string) -> string  { return TextForeign(arguments, name) }
+Integer :: (arguments: Object, name: string) -> s64  { return IntegerForeign(arguments, name) }
+Flag :: (arguments: Object, name: string) -> bool  { return FlagForeign(arguments, name) }
+Texts :: (arguments: Object, name: string) -> []string { return TextsForeign(arguments, name) }

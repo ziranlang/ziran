@@ -8,6 +8,7 @@
 libc :: #system_library "libc";
 crypto :: #system_library "crypto";
 PkgMallocRaw :: (size: u64) -> *u8 #foreign libc "malloc";
+PkgFreeRaw :: (memory: *u8) #foreign libc "free";
 PkgCallocRaw :: (count: u64, size: u64) -> *u8 #foreign libc "calloc";
 PkgGetenvRaw :: (name: *u8) -> *u8 #foreign libc "getenv";
 PkgGetcwdRaw :: (buffer: *u8, size: u64) -> *u8 #foreign libc "getcwd";
@@ -292,6 +293,24 @@ PkgFail :: (message: string) -> s32 {
     PkgPrint(message, true)
     PkgPrint("\n", true)
     return 2
+}
+
+PkgDigest :: (value: string) -> string {
+    digest: [32]u8
+    memory := PkgAlloc(cast(u64)value.count + 1)
+    if memory == null { return "" }
+    bytes := BytesFromPointer(memory, cast(u64)value.count + 1)
+    PkgCopy(bytes, 0, value)
+    hashed := PkgSha256Raw(*bytes[0], cast(u64)value.count, *digest[0]) != null
+    PkgFreeRaw(memory)
+    if !hashed { return "" }
+    alphabet := "0123456789abcdef"
+    output: [64]u8
+    for index: 0..31 {
+        output[index * 2] = alphabet[cast(s32)(digest[index] >> cast(u8)4)]
+        output[index * 2 + 1] = alphabet[cast(s32)(digest[index] & cast(u8)15)]
+    }
+    return PkgJoin("", TextFromBytes(output[:]))
 }
 
 PkgSourceId :: (url: string, commit: string) -> string {

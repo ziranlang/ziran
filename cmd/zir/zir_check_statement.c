@@ -307,13 +307,17 @@ static int
 py_value_type(const ZirModule *module, const char *type, int procedures)
 {
     const ZirType *declared;
+    char element[ZIR_NAME_MAX];
     type = skip_ws(type);
     if(!strcmp(type, "bool") || integer_type(type) || !strcmp(type, "float32") ||
        !strcmp(type, "float64") || !strcmp(type, "string") || !strcmp(type, "[]u8"))
         return 1;
+    if(SliceElementType(type, element, sizeof(element)))
+        return !SliceElementType(element, NULL, 0) && py_value_type(module, element, 0);
     declared = FindType(module, type, NULL);
     return declared != NULL &&
-        ((declared->is_extern && !strncmp(declared->foreign_target, "py:", 3)) ||
+        (declared->is_enum ||
+         (declared->is_extern && !strncmp(declared->foreign_target, "py:", 3)) ||
          (procedures && declared->is_procedure_type));
 }
 
@@ -350,7 +354,7 @@ check_py_binding(const ZirModule *module, const ZirImport *binding,
         if(colon == NULL || !py_value_type(module, colon + 1, 1)) {
             Diagnostic(binding->span, "check.foreign",
                        "Python foreign parameters must be bool, integers, floats, string, "
-                       "[]u8, Python foreign types, or procedures");
+                       "typed slices, Python foreign types, or procedures");
             return 0;
         }
     }
@@ -397,7 +401,7 @@ check_py_binding(const ZirModule *module, const ZirImport *binding,
         }
     } else if(!result_void && !py_value_type(module, binding->return_type, 0)) {
         Diagnostic(binding->span, "check.foreign",
-                   "Python foreign results must be bool, integers, floats, string, []u8, "
+                   "Python foreign results must be bool, integers, floats, string, typed slices, "
                    "or Python foreign types");
         return 0;
     }

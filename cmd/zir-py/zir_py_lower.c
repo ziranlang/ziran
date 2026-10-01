@@ -1523,7 +1523,14 @@ static char *py_from_python(const ZirModule *scope, const char *type)
         return NULL;
     switch(info.kind) {
     case PY_STRING: return py_copy_string("_py_text");
-    case PY_SLICE: return py_copy_string("_py_u8");
+    case PY_SLICE: {
+        if(!strcmp(info.element, "u8")) return py_copy_string("_py_u8");
+        char *element = py_from_python(scope, info.element);
+        char *result = py_format("(lambda value: _py_slice(value, %s))",
+                                element != NULL ? element : "None");
+        free(element);
+        return result;
+    }
     case PY_BOOL: return py_copy_string("bool");
     case PY_FLOAT: return py_copy_string("float");
     case PY_INT:
@@ -1557,8 +1564,14 @@ static char *py_to_python(const ZirModule *scope, const char *type)
         return NULL;
     if(info.kind == PY_STRING)
         return py_copy_string("_py_str");
-    if(info.kind == PY_SLICE)
-        return py_copy_string("_py_bytes");
+    if(info.kind == PY_SLICE) {
+        if(!strcmp(info.element, "u8")) return py_copy_string("_py_bytes");
+        char *element = py_to_python(scope, info.element);
+        char *result = py_format("(lambda value: _py_list(value, %s))",
+                                element != NULL ? element : "None");
+        free(element);
+        return result;
+    }
     return NULL;
 }
 
@@ -1616,8 +1629,13 @@ static char *emit_python_call(PyEmitter *emitter, const ZirExpr *expression,
     const ZirModule *scope = owner != NULL ? owner : emitter->module;
     int parts = PyForeignCallParts(foreign->target, python_module, sizeof(python_module),
                                    receiver, sizeof(receiver), name, sizeof(name));
+    int named = 0;
+    for(int index = 0; index < child_total; index++)
+        named |= emitter->function->exprs[children[index]].argument_name[0] != '\0';
     for(int index = 0; index < child_total; index++) {
-        const char *type = index < count ? parameters[index] :
+        const ZirExpr *argument = &emitter->function->exprs[children[index]];
+        int parameter = argument->argument_index >= 0 ? argument->argument_index : index;
+        const char *type = parameter < count ? parameters[parameter] :
             emitter->function->exprs[children[index]].type;
         char *raw = emit_value(emitter, children[index], type);
         char *value = py_bare(raw);
@@ -1635,9 +1653,24 @@ static char *emit_python_call(PyEmitter *emitter, const ZirExpr *expression,
         } else
             arguments[index] = value;
         free(convert);
+        if(named) {
+            char *item = py_format("(%d, %s%s%s, %s)", parameter,
+                argument->argument_name[0] ? "\"" : "",
+                argument->argument_name[0] ? argument->argument_name : "None",
+                argument->argument_name[0] ? "\"" : "", arguments[index]);
+            free(arguments[index]);
+            arguments[index] = item;
+        }
     }
     py_module_symbol(python_module, module_symbol, sizeof(module_symbol));
-    {
+    if(named) {
+        joined = join_arguments(arguments, child_total);
+        for(int index = 0; index < child_total; index++) arguments[index] = NULL;
+        call = py_format("_py_call(%s, \"%s\", %s, (%s%s), %s)", module_symbol, name,
+                         parts == 2 ? "True" : "False", joined,
+                         child_total == 1 ? "," : "", foreign->py_field ? "True" : "False");
+        free(joined);
+    } else {
         const char *object = parts == 2 ? arguments[0] : module_symbol;
         int first = parts == 2 ? 1 : 0;
         if(foreign->py_field && child_total > first) {
@@ -3028,6 +3061,13 @@ static void emit_sequence(PyEmitter *emitter, int begin, int end)
         if(statement->kind == ZIR_STMT_ASSIGN && statement->for_step &&
            loop_is_native(emitter, statement->for_step))
             continue;
+        /* Comments carry source locations without changing generated code
+         * or the emitter's statement/empty-block accounting. */
+        char *source = py_string_literal((const unsigned char *)SpanPath(statement->span),
+                                        strlen(SpanPath(statement->span)));
+        for(int indent = 0; indent < emitter->indent; indent++) fputs("    ", emitter->output);
+        fprintf(emitter->output, "# ziran-source (%s, %d)\n", source, statement->span.line);
+        free(source);
         switch(statement->kind) {
         case ZIR_STMT_DECL: {
             PyType info;
@@ -4090,11 +4130,11 @@ int py_lower(const ZirProgram *const *programs, int program_count,
         function_symbol(emitter, entry_owner, entry, symbol, sizeof(symbol));
         fputs("if __name__ == \"__main__\":\n", body);
         if(strcmp(entry->return_type, "void") == 0)
-            fprintf(body, "    %s()\n", symbol);
+            fprintf(body, "    _ziran_entry(%s)\n", symbol);
         else if(strcmp(entry->return_type, "bool") == 0)
-            fprintf(body, "    sys.exit(1 if %s() else 0)\n", symbol);
+            fprintf(body, "    sys.exit(1 if _ziran_entry(%s) else 0)\n", symbol);
         else
-            fprintf(body, "    sys.exit(%s() & 0xFF)\n", symbol);
+            fprintf(body, "    sys.exit(_ziran_entry(%s) & 0xFF)\n", symbol);
     }
     if(fclose(body) != 0) {
         Diagnostic(Span(output_directory, 1, 1), "zir_py.output", "cannot buffer Python output");

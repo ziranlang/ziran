@@ -7,6 +7,15 @@ builtins :: #system_library "py:builtins";
 Encode :: (text: string, encoding: string, errors: string) -> []u8 #foreign builtins "(str).encode";
 Copy :: (value: []u8) -> string #foreign builtins "bytes";
 
+#scope_file
+UpperForeign :: (text: string) -> string  #foreign builtins "(str).upper";
+LowerForeign :: (text: string) -> string  #foreign builtins "(str).lower";
+StripForeign :: (text: string) -> string  #foreign builtins "(str).strip";
+SplitForeign :: (text: string, separator: string) -> []string  #foreign builtins "(str).split";
+LinesForeign :: (text: string) -> []string  #foreign builtins "(str).splitlines";
+JoinForeign :: (separator: string, values: []string) -> string  #foreign builtins "(str).join";
+ReplaceForeign :: (text: string, before: string, after: string) -> string  #foreign builtins "(str).replace";
+
 #scope_export
 FromBytes :: (value: []u8) -> string {
     return Copy(value)
@@ -14,3 +23,12 @@ FromBytes :: (value: []u8) -> string {
 ToBytes :: (value: string) -> []u8 {
     return Encode(value, "utf-8", "surrogateescape")
 }
+// Unicode-aware Python text operations. Native string indexing/counts still
+// refer to UTF-8 bytes, just as on every other Ziran target.
+Upper :: (text: string) -> string  { return UpperForeign(text) }
+Lower :: (text: string) -> string  { return LowerForeign(text) }
+Strip :: (text: string) -> string  { return StripForeign(text) }
+Split :: (text: string, separator: string) -> []string  { return SplitForeign(text, separator) }
+Lines :: (text: string) -> []string  { return LinesForeign(text) }
+Join :: (separator: string, values: []string) -> string  { return JoinForeign(separator, values) }
+Replace :: (text: string, before: string, after: string) -> string  { return ReplaceForeign(text, before, after) }

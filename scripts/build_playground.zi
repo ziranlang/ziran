@@ -1,0 +1,115 @@
+#!/usr/bin/env -S ziran run --target=py
+// Build the website's checker and VM with Emscripten. Generated assets stay
+// out of Git; the website workflow builds them before publishing.
+// ziran run --target=py scripts/build_playground.zi [--emcc PATH]
+#import "std/py_types"
+using Vectors :: #import "std/vec"
+Args :: #import "std/args_py";
+Files :: #import "std/file_py";
+Process :: #import "std/process_py";
+Text :: #import "std/text_py";
+Collections :: #import "std/collections_py";
+Regex :: #import "std/regex_py";
+#scope_file
+builtins :: #system_library "py:builtins";
+shlex :: #system_library "py:shlex";
+argparse :: #system_library "py:argparse";
+re :: #system_library "py:re";
+Sorted :: (values: []string) -> []string #foreign builtins "sorted";
+Quote :: (value: string) -> string #foreign shlex "quote";
+Drop :: (value: Object, name: string, fallback: Object) -> Object #foreign builtins "(dict).pop";
+ArgumentError :: (parser: Object, message: string) #foreign argparse "(ArgumentParser).error";
+DotAll :: () -> s32 #py_field #foreign re "DOTALL";
+
+Contains :: (values: []string, value: string) -> bool {
+    for item: values { if item == value { return true } }
+    return false
+}
+Join :: (left: string, right: string) -> string {
+    parts: [2]string = .[left, right]
+    return Text.Join("", parts[:])
+}
+EnsureDirectory :: (path: string) -> bool {
+    result := Files.CreateDirectory(path)
+    if result.error != "" { print("%: %\n", path, result.error); return false }
+    return true
+}
+Run :: (command: []string, repo: string, environment: Object) -> bool {
+    result := Process.Run(command, .{cwd = repo, environment = environment, inherit_output = true})
+    if result.error != "" { print("% failed: %\n", Text.Join(" ", command), result.error); return false }
+    return true
+}
+
+#scope_export
+#program_export
+main :: () -> s32 {
+    repo := Files.Parent(Files.Parent(Files.Absolute(Args.ScriptFile())))
+    parser := Args.Parser("Build the website's real Ziran checker and VM with Emscripten.")
+    Args.AddText(parser, "--emcc", fallback = Process.Find("emcc"))
+    Args.AddText(parser, "--output-dir", fallback = Files.Join(repo, "site/assets"))
+    Args.AddTexts(parser, "--embed-file", help = "Additional source files or module directories: local@/virtual")
+    arguments := Args.Parse(parser)
+    compiler := Args.Text(arguments, "emcc")
+    if compiler == "" { ArgumentError(parser, "emcc is required; activate the Emscripten SDK first"); return 2 }
+    emcc := Files.Resolve(compiler)
+    emar := Files.Join(Files.Parent(emcc), "emar")
+    assets := Files.Resolve(Args.Text(arguments, "output_dir"))
+    build := Files.Join(repo, "build/playground64")
+    private := Files.Join(build, "private")
+    if !EnsureDirectory(assets) || !EnsureDirectory(private) { return 1 }
+    environment := Process.Environment()
+    if !Contains(Collections.Keys(environment), "EM_CACHE") {
+        Collections.SetText(environment, "EM_CACHE", Files.Join(repo, "build/emscripten-cache"))
+    }
+    Drop(environment, "EM_FROZEN_CACHE", null)
+    groups: [4]string = .["parse", "check", "emit", "vm"]
+    keywords: [13]string = .["char", "const", "double", "float", "int", "long", "short",
+        "signed", "sizeof", "struct", "union", "unsigned", "void"]
+    for group: groups {
+        header_file := Files.Join(repo, Join(Join("cmd/zir/zir_", group), "_internal.h"))
+        header := Files.ReadText(header_file)
+        if header.error != "" { print("%: %\n", header_file, header.error); return 1 }
+        start := Text.Split(header.value, "#pragma GCC visibility push(hidden)")
+        if start.count < 2 { print("%: missing private declaration block\n", header_file); return 1 }
+        end := Text.Split(start[1], "#pragma GCC visibility pop")
+        stripped := Regex.Replace("/\\*.*?\\*/|//[^\\n]*", "", end[0], flags = DotAll())
+        if stripped.error != "" { print("%\n", stripped.error); return 1 }
+        names: Vec(string)
+        matches := Regex.FindTexts("\\b[A-Za-z_]\\w*\\s*\\((?!\\s*\\*)", stripped.value)
+        for match: VecSlice(matches, 0, matches.count) {
+            name := Text.Strip(Text.Split(match, "(")[0])
+            if !Contains(keywords[:], name) && !Contains(VecSlice(names, 0, names.count), name) { VecPush(names, name) }
+        }
+        content: Vec(string)
+        for name: Sorted(VecSlice(names, 0, names.count)) {
+            parts: [7]string = .["#define ", name, " private_", group, "_", name, "\n"]
+            VecPush(content, Text.Join("", parts[:]))
+        }
+        path := Files.Join(private, Join(group, ".h"))
+        new := Text.Join("", VecSlice(content, 0, content.count))
+        old := Files.ReadText(path)
+        if old.error != "" || old.value != new {
+            written := Files.WriteText(path, new)
+            if written.error != "" { print("%: %\n", path, written.error); return 1 }
+        }
+    }
+    // Keep C's 64-bit long, then lower addressing for wasm32 browsers.
+    make: [9]string = .["make", "BUILD_DIR=build/playground64",
+        Join(Join("CC=", Quote(emcc)), " -sMEMORY64=2"), Join("AR=", Quote(emar)),
+        "OBJCOPY=true", "WASM_PRIVATE_HEADERS=build/playground64/private", "CFLAGS=-O2",
+        "FRAMEFLAGS=-Wframe-larger-than=16384", "build/playground64/libziran.a"]
+    if !Run(make[:], repo, environment) { return 1 }
+    command: Vec(string)
+    fixed: [20]string = .[emcc, "-O2", "-std=c11", "-D_GNU_SOURCE", "-Iinclude", "-Icmd/zir",
+        "web/playground.c", "web/bundle.c", Files.Join(build, "libziran.a"), "-lm",
+        "-sMEMORY64=2", "-sMODULARIZE=1", "-sEXPORT_NAME=createPlayground",
+        "-sEXPORTED_FUNCTIONS=_RunSource,_BuildBundle", "-sEXPORTED_RUNTIME_METHODS=FS,ccall",
+        "-sENVIRONMENT=worker,node", "-sALLOW_MEMORY_GROWTH=1", "-sMAXIMUM_MEMORY=536870912",
+        "-sSTACK_SIZE=8388608", "--embed-file"]
+    for part: fixed { VecPush(command, part) }
+    VecPush(command, "std@/std")
+    for embed: Args.Texts(arguments, "embed_file") { VecPush(command, "--embed-file"); VecPush(command, embed) }
+    VecPush(command, "-o"); VecPush(command, Files.Join(assets, "playground-runtime.js"))
+    if !Run(VecSlice(command, 0, command.count), repo, environment) { return 1 }
+    return 0
+}

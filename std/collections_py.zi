@@ -1,0 +1,57 @@
+// Python collection adapters. Typed slices copy their containers at the
+// foreign boundary; Object elements retain Python object identity.
+#import "py_types"
+#scope_file
+builtins :: #system_library "py:builtins";
+operator :: #system_library "py:operator";
+IterRaw :: (value: Object) -> Object #foreign builtins "iter";
+NextRaw :: (iterator: Object, fallback: Object) -> Object #foreign builtins "next";
+Sentinel :: () -> Object #foreign builtins "object";
+Same :: (left: Object, right: Object) -> bool #foreign operator "is_";
+#scope_file
+ItemsForeign :: (value: Object) -> []Object  #foreign builtins "list";
+StringsForeign :: (value: Object) -> []string  #foreign builtins "list";
+IntegersForeign :: (value: Object) -> []s64  #foreign builtins "list";
+FloatsForeign :: (value: Object) -> []float64  #foreign builtins "list";
+LengthForeign :: (value: Object) -> s64  #foreign builtins "len";
+TextForeign :: (value: Object) -> string  #foreign builtins "str";
+StringObjectForeign :: (value: string) -> Object  #foreign builtins "str";
+IntegerObjectForeign :: (value: s64) -> Object  #foreign builtins "int";
+FloatObjectForeign :: (value: float64) -> Object  #foreign builtins "float";
+BoolObjectForeign :: (value: bool) -> Object  #foreign builtins "bool";
+DictionaryForeign :: () -> Object  #foreign builtins "dict";
+KeysForeign :: (value: Object) -> []string  #foreign builtins "list";
+GetForeign :: (value: Object, key: Object) -> Object  #foreign builtins "(dict).__getitem__";
+SetForeign :: (value: Object, key: Object, item: Object)  #foreign builtins "(dict).__setitem__";
+GetTextForeign :: (value: Object, key: string) -> string  #foreign builtins "(dict).__getitem__";
+GetIntegerForeign :: (value: Object, key: string) -> s64  #foreign builtins "(dict).__getitem__";
+SetTextForeign :: (value: Object, key: string, item: string)  #foreign builtins "(dict).__setitem__";
+SetIntegerForeign :: (value: Object, key: string, item: s64)  #foreign builtins "(dict).__setitem__";
+
+#scope_export
+Items :: (value: Object) -> []Object  { return ItemsForeign(value) }
+Strings :: (value: Object) -> []string  { return StringsForeign(value) }
+Integers :: (value: Object) -> []s64  { return IntegersForeign(value) }
+Floats :: (value: Object) -> []float64  { return FloatsForeign(value) }
+Length :: (value: Object) -> s64  { return LengthForeign(value) }
+Text :: (value: Object) -> string  { return TextForeign(value) }
+StringObject :: (value: string) -> Object  { return StringObjectForeign(value) }
+IntegerObject :: (value: s64) -> Object  { return IntegerObjectForeign(value) }
+FloatObject :: (value: float64) -> Object  { return FloatObjectForeign(value) }
+BoolObject :: (value: bool) -> Object  { return BoolObjectForeign(value) }
+Dictionary :: () -> Object  { return DictionaryForeign() }
+Keys :: (value: Object) -> []string  { return KeysForeign(value) }
+Get :: (value: Object, key: Object) -> Object  { return GetForeign(value, key) }
+Set :: (value: Object, key: Object, item: Object)  { SetForeign(value, key, item) }
+GetText :: (value: Object, key: string) -> string  { return GetTextForeign(value, key) }
+GetInteger :: (value: Object, key: string) -> s64  { return GetIntegerForeign(value, key) }
+SetText :: (value: Object, key: string, item: string)  { SetTextForeign(value, key, item) }
+SetInteger :: (value: Object, key: string, item: s64)  { SetIntegerForeign(value, key, item) }
+Iterator :: struct { native: Object; sentinel: Object }
+IteratorStep :: struct { value: Object; done: bool }
+Iterate :: (value: Object) -> Iterator { return .{native = IterRaw(value), sentinel = Sentinel()} }
+Next :: (iterator: Iterator) -> IteratorStep {
+    value := NextRaw(iterator.native, iterator.sentinel)
+    if Same(value, iterator.sentinel) { return .{done = true} }
+    return .{value = value}
+}

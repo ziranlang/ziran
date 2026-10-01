@@ -1,0 +1,71 @@
+// Child processes on the Python target. Arguments bypass the shell. Capture
+// both streams, preserve exceptions, and optionally isolate desktop access.
+#import "py_types"
+Collections :: #import "collections_py";
+#scope_file
+subprocess :: #system_library "py:subprocess";
+os :: #system_library "py:os";
+builtins :: #system_library "py:builtins";
+shutil :: #system_library "py:shutil";
+FindRaw :: (name: string) -> string #foreign shutil "which";
+NativeResult :: struct { value: Object; error: Object }
+RunRaw :: (args: []string, cwd: Object, input: Object, env: Object,
+    timeout: Object, capture_output: bool, text: bool, check: bool) -> NativeResult #py_results #foreign subprocess "run";
+CodeRaw :: (value: Object) -> s32 #py_field #foreign subprocess "(CompletedProcess).returncode";
+OutRaw :: (value: Object) -> string #py_field #foreign subprocess "(CompletedProcess).stdout";
+ErrRaw :: (value: Object) -> string #py_field #foreign subprocess "(CompletedProcess).stderr";
+EnvironmentRaw :: () -> Object #py_field #foreign os "environ";
+CopyEnvironment :: (value: Object) -> Object #foreign builtins "dict";
+DropEnvironment :: (value: Object, key: string, fallback: Object) -> Object #foreign builtins "(dict).pop";
+ErrorText :: (value: Object) -> string #foreign builtins "str";
+ErrorCode :: (value: Object, name: string, fallback: s32) -> s32 #foreign builtins "getattr";
+ErrorOutput :: (value: Object, name: string, fallback: string) -> string #foreign builtins "getattr";
+#scope_export
+ProcessOptions :: struct {
+    cwd: string
+    input: string
+    has_input: bool
+    environment: Object
+    timeout_seconds: float64
+    inherit_output: bool
+    allow_failure: bool
+    inherit_desktop: bool
+}
+ProcessResult :: struct { code: s32; stdout: string; stderr: string; error: string; exception: Object }
+Environment :: () -> Object { return CopyEnvironment(EnvironmentRaw()) }
+Find :: (name: string) -> string { return FindRaw(name) }
+Run :: (arguments: []string, options: ProcessOptions = .{}) -> ProcessResult {
+    result: ProcessResult
+    result.code = 1
+    if arguments.count == 0 || options.timeout_seconds < 0 {
+        result.error = "invalid process arguments or timeout"
+        return result
+    }
+    cwd: Object = null
+    input: Object = null
+    timeout: Object = null
+    if options.cwd != "" { cwd = Collections.StringObject(options.cwd) }
+    if options.has_input || options.input != "" { input = Collections.StringObject(options.input) }
+    if options.timeout_seconds > 0 { timeout = Collections.FloatObject(options.timeout_seconds) }
+    environment := options.environment
+    if !options.inherit_desktop {
+        if environment == null { environment = EnvironmentRaw() }
+        environment = CopyEnvironment(environment)
+        DropEnvironment(environment, "DISPLAY", null)
+        DropEnvironment(environment, "WAYLAND_DISPLAY", null)
+    }
+    native := RunRaw(arguments, cwd = cwd, input = input, env = environment,
+        timeout = timeout, capture_output = !options.inherit_output, text = true, check = !options.allow_failure)
+    if native.error != null {
+        result.exception = native.error
+        result.error = ErrorText(native.error)
+        result.code = ErrorCode(native.error, "returncode", 1)
+        result.stdout = ErrorOutput(native.error, "stdout", "")
+        result.stderr = ErrorOutput(native.error, "stderr", "")
+        return result
+    }
+    result.code = CodeRaw(native.value)
+    result.stdout = OutRaw(native.value)
+    result.stderr = ErrRaw(native.value)
+    return result
+}

@@ -1,0 +1,18 @@
+// Python wall-clock and monotonic time, and UTC ISO timestamps.
+#import "py_types"
+#scope_file
+time :: #system_library "py:time";
+datetime :: #system_library "py:datetime";
+UTCRaw :: () -> Object #py_field #foreign datetime "timezone.utc";
+NowRaw :: (tz: Object) -> Object #foreign datetime "datetime.now";
+ISORaw :: (value: Object) -> string #foreign datetime "(datetime).isoformat";
+#scope_file
+NowForeign :: () -> float64  #foreign time "time";
+MonotonicForeign :: () -> float64  #foreign time "monotonic";
+SleepForeign :: (seconds: float64)  #foreign time "sleep";
+
+#scope_export
+Now :: () -> float64  { return NowForeign() }
+Monotonic :: () -> float64  { return MonotonicForeign() }
+Sleep :: (seconds: float64)  { SleepForeign(seconds) }
+UTCISO :: () -> string { return ISORaw(NowRaw(UTCRaw())) }

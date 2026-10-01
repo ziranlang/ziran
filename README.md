@@ -52,7 +52,7 @@ Use `build/bin/ziran` from the checkout, or `ziran` after installation.
 | `check` | Validate source and imports. |
 | `build` | Generate C, C++, Go, Rust, or Python output. |
 | `ir` / `inspect` | Save checked modules and read their contents. |
-| `bundle` / `run` | Build and run portable programs. |
+| `bundle` / `run` | Build and run portable programs; `run --target=py FILE.zi -- ARGS` runs Python-target scripts. |
 | `fmt` | Format source files. |
 | `guide` / `features` / `capabilities` | Explore syntax, support, and target limits. |
 | `api` | Query public declarations as JSON. |

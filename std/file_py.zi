@@ -1,0 +1,57 @@
+// Filesystem operations on the Python target. Text uses explicit UTF-8;
+// binary operations preserve all bytes. Results retain useful error text.
+#import "py_types"
+#scope_file
+pathlib :: #system_library "py:pathlib";
+os :: #system_library "py:os";
+glob :: #system_library "py:glob";
+shutil :: #system_library "py:shutil";
+tempfile :: #system_library "py:tempfile";
+builtins :: #system_library "py:builtins";
+Path :: (path: string) -> Object #foreign pathlib "Path";
+ReadTextRaw :: (file: Object, encoding: string) -> TextResult #py_results #foreign pathlib "(Path).read_text";
+WriteTextRaw :: (file: Object, data: string, encoding: string) -> CountResult #py_results #foreign pathlib "(Path).write_text";
+ReadBytesRaw :: (file: Object) -> BytesResult #py_results #foreign pathlib "(Path).read_bytes";
+WriteBytesRaw :: (file: Object, data: []u8) -> CountResult #py_results #foreign pathlib "(Path).write_bytes";
+DirectoryRaw :: (name: string, exist_ok: bool) -> FileResult #py_results #foreign os "makedirs";
+GlobRaw :: (pathname: string, recursive: bool) -> []string #foreign glob "glob";
+SortRaw :: (paths: []string) -> []string #foreign builtins "sorted";
+TempRaw :: (prefix: string) -> TextResult #py_results #foreign tempfile "mkdtemp";
+TempAtRaw :: (prefix: string, dir: string) -> TextResult #py_results #foreign tempfile "mkdtemp";
+#scope_file
+PathExistsForeign :: (path: string) -> bool  #foreign os "path.exists";
+DirectoryExistsForeign :: (path: string) -> bool  #foreign os "path.isdir";
+RemoveForeign :: (path: string) -> FileResult  #py_results #foreign os "remove";
+RenameForeign :: (source: string, destination: string) -> FileResult  #py_results #foreign os "replace";
+CopyForeign :: (source: string, destination: string) -> TextResult  #py_results #foreign shutil "copy2";
+RemoveTreeForeign :: (path: string) -> FileResult  #py_results #foreign shutil "rmtree";
+JoinForeign :: (directory: string, name: string) -> string  #foreign os "path.join";
+ParentForeign :: (path: string) -> string  #foreign os "path.dirname";
+AbsoluteForeign :: (path: string) -> string  #foreign os "path.abspath";
+ResolveForeign :: (path: string) -> string  #foreign os "path.realpath";
+
+#scope_export
+TextResult :: struct { value: string; error: string }
+BytesResult :: struct { value: []u8; error: string }
+CountResult :: struct { value: s64; error: string }
+FileResult :: struct { error: string }
+ReadText :: (path: string, encoding: string = "utf-8") -> TextResult { return ReadTextRaw(Path(path), encoding) }
+WriteText :: (path: string, text: string, encoding: string = "utf-8") -> CountResult { return WriteTextRaw(Path(path), text, encoding) }
+ReadBytes :: (path: string) -> BytesResult { return ReadBytesRaw(Path(path)) }
+WriteBytes :: (path: string, bytes: []u8) -> CountResult { return WriteBytesRaw(Path(path), bytes) }
+PathExists :: (path: string) -> bool  { return PathExistsForeign(path) }
+DirectoryExists :: (path: string) -> bool  { return DirectoryExistsForeign(path) }
+CreateDirectory :: (path: string) -> FileResult { return DirectoryRaw(path, exist_ok = true) }
+Glob :: (pattern: string, recursive: bool = false) -> []string { return SortRaw(GlobRaw(pattern, recursive = recursive)) }
+Remove :: (path: string) -> FileResult  { return RemoveForeign(path) }
+Rename :: (source: string, destination: string) -> FileResult  { return RenameForeign(source, destination) }
+Copy :: (source: string, destination: string) -> TextResult  { return CopyForeign(source, destination) }
+RemoveTree :: (path: string) -> FileResult  { return RemoveTreeForeign(path) }
+TemporaryDirectory :: (prefix: string = "ziran-", directory: string = "") -> TextResult {
+    if directory == "" { return TempRaw(prefix = prefix) }
+    return TempAtRaw(prefix = prefix, dir = directory)
+}
+Join :: (directory: string, name: string) -> string  { return JoinForeign(directory, name) }
+Parent :: (path: string) -> string  { return ParentForeign(path) }
+Absolute :: (path: string) -> string  { return AbsoluteForeign(path) }
+Resolve :: (path: string) -> string  { return ResolveForeign(path) }

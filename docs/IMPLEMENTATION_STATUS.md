@@ -282,8 +282,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   capabilities through a `host` object the embedding program sets. A view of mutable bytes is a snapshot.
   `py:` libraries import Python modules directly: functions, methods on the
   first argument, dotted attributes (`#py_field`), and exceptions caught into
-  a result record (`#py_results`), with `string`, `[]u8`, integers, Python
-  objects, and procedure callbacks converted at the boundary;
+  a result record (`#py_results`), with `string`, `[]u8`, typed scalar/text/
+  object slices, enums, Python objects, and procedure callbacks converted at
+  the boundary. Named foreign arguments become Python keywords, retaining
+  source evaluation order. Executables report uncaught exceptions at Ziran
+  statement locations. `ziran run --target=py` compiles and caches scripts,
+  forwards arguments, supports shebangs, and uses project toolchain pins.
+  The `args_py`, `collections_py`, `map_py`, `file_py`, `process_py`, `json_py`,
+  `regex_py`, `text_py`, and `time_py` modules supply routine scripting APIs;
+  `tests/py_scripting.sh`, `tests/py_run.sh`, and `tests/build_playground.sh`
+  exercise them and the migrated playground build tool;
   `tests/py_native.sh` covers them, and the other targets reject them.
   `tests/py_backend.sh` covers it, and `tests/numeric_semantics.sh`,
   `tests/print.sh`, `tests/examples.sh`, and `tests/named_imports.sh` compare

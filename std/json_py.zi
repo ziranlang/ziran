@@ -1,0 +1,17 @@
+// JSON on the Python target. Dictionary access/conversion lives in
+// collections_py and map_py; malformed input returns its Python error.
+#import "py_types"
+Collections :: #import "collections_py";
+#scope_file
+json :: #system_library "py:json";
+DumpRaw :: (obj: Object, ensure_ascii: bool, sort_keys: bool, indent: Object) -> TextResult #py_results #foreign json "dumps";
+LoadRaw :: (text: string) -> ObjectResult #py_results #foreign json "loads";
+#scope_export
+ObjectResult :: struct { value: Object; error: string }
+TextResult :: struct { value: string; error: string }
+Load :: (text: string) -> ObjectResult { return LoadRaw(text) }
+Dump :: (value: Object, pretty: bool = false, sort_keys: bool = false) -> TextResult {
+    indent: Object = null
+    if pretty { indent = Collections.IntegerObject(2) }
+    return DumpRaw(value, ensure_ascii = false, sort_keys = sort_keys, indent = indent)
+}

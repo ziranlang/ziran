@@ -46,6 +46,17 @@ Shadowed :: () -> s32 {
     return values[0]
 }
 
+ReusedSlot :: (first: bool) -> s32 {
+    if first {
+        values: Vec(s32)
+        VecPush(values, 6)
+        return values[0]
+    }
+    scalar: s32 = 9
+    if scalar > 0 { return scalar }
+    return 0
+}
+
 #program_export
 Check :: () -> s32 {
     result: s32 = 0
@@ -58,6 +69,7 @@ Check :: () -> s32 {
     result += Early(false)
     result += Branched(true) + Branched(false)
     result += Shadowed()
+    result += ReusedSlot(true) + ReusedSlot(false)
     Make()
     moved: Vec(s32) = Make()
     result += Take(moved)
@@ -110,7 +122,7 @@ void __wrap_free(void *p) {
 }
 
 int main(void) {
-    if (Check() != 32) return 1;
+    if (Check() != 47) return 1;
     return outstanding == 0 ? 0 : 2;
 }
 C
@@ -141,7 +153,7 @@ extern "C" void __wrap_free(void *p) {
 }
 
 int main() {
-    if (Check() != 32) return 1;
+    if (Check() != 47) return 1;
     return outstanding == 0 ? 0 : 2;
 }
 CPP
@@ -154,7 +166,7 @@ CPP
         --module-path "$repo/std" -o "$go_output" "$module"
     cat > "$go_output/main.go" <<'GO'
 package main
-func main() { if Owned_Check() != 32 { panic("Vec result") } }
+func main() { if Owned_Check() != 47 { panic("Vec result") } }
 GO
     GO111MODULE=off go run "$go_output"/*.go
 done

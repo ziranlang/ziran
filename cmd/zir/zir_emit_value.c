@@ -376,6 +376,9 @@ void
 track_local(Emitter *e, const char *name, const char *type)
 {
     Local *local = &e->locals[e->local_count++];
+    /* Slots are reused when a lexical block ends. A scalar in the next
+     * block must not inherit an owned Vec's now out-of-scope drop alias. */
+    memset(local, 0, sizeof(*local));
     copy_text(local->name, sizeof(local->name), name);
     copy_text(local->type, sizeof(local->type), type);
     local->depth = e->depth;

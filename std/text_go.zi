@@ -4,8 +4,14 @@ builtin :: #system_library "go:builtin";
 #scope_file
 StringRaw :: (value: []u8) -> string #foreign builtin "string";
 AllocateBytes :: (count: isize) -> []u8 #foreign builtin "make";
+BytesNil :: (value: []u8) -> bool #foreign builtin "is_nil";
 
 #scope_export
+// Nil and allocated empty slices carry different native JSON and SQL values.
+IsNil :: (value: []u8) -> bool {
+    return BytesNil(value)
+}
+
 FromBytes :: (value: []u8) -> string {
     return StringRaw(value)
 }

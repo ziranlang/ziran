@@ -121,6 +121,22 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   agreement, and the C boundary. Fresh builds compile the maintained Ziran
   source using a generated seed verified by `make check-bootstrap`.
 
+- Binary expression parsing is implemented in `cmd/compiler_expression.zi`:
+  precedence, left associativity, recursive right operands, shared nesting
+  limits, and rejection of C-style conditionals. The same module decodes
+  one-byte `#char` literals and extracts declaration, assignment, return,
+  unused, and control-flow expressions from statements. Source ranges are
+  bounded and borrowed, so long statements retain their full text.
+  The C boundary retains IR storage, prefix/postfix parsing, and diagnostics;
+  callback slots expose those operations to the Ziran binary parser without
+  sharing C IR layouts. Ordinary tools compile the maintained Ziran source;
+  fresh builds use a generated seed verified by `make check-bootstrap`.
+  `tests/compiler_expression.sh` checks source and saved IR on C, C++, Go,
+  Rust, Python, and `.zib`, including precedence, literal escapes, malformed
+  statements, nesting limits, deterministic byte inputs, seed agreement,
+  borrowed ranges, and the C frontend boundary. The compiler still requires
+  further migration before it is fully self-hosted.
+
 - Imported polymorphic procedures specialized for caller-owned records retain
   calls to their defining module's private helpers, including recursive
   generic helpers and helpers from loaded files. Nested specializations keep

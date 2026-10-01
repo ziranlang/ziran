@@ -1,0 +1,212 @@
+// Expression grammar. The frontend owns IR and diagnostics; callbacks let
+// this parser control binary precedence without depending on C IR layouts.
+Scan :: #import "compiler_scan";
+Source :: #import "compiler_source";
+Text :: #import "compiler_text";
+
+ExpressionBegin :: #type () -> s64;
+ExpressionToken :: #type () -> string;
+ExpressionPrefix :: #type () -> s32;
+ExpressionAdvance :: #type () -> void;
+ExpressionBinary :: #type (start: s64, operator: string, left: s32, right: s32) -> s32;
+ExpressionConditionalError :: #type () -> void;
+ExpressionHooks :: struct {
+    depth: *s32
+    failed: *s32
+    begin: ExpressionBegin
+    token: ExpressionToken
+    prefix: ExpressionPrefix
+    advance: ExpressionAdvance
+    binary: ExpressionBinary
+    conditional_error: ExpressionConditionalError
+}
+
+BinaryPrecedence :: (operator: string) -> s32 {
+    if operator == "||" { return 2 }
+    if operator == "&&" { return 3 }
+    if operator == "|" { return 4 }
+    if operator == "^" { return 5 }
+    if operator == "&" { return 6 }
+    if operator == "==" || operator == "!=" { return 7 }
+    if operator == "<" || operator == "<=" || operator == ">" || operator == ">=" { return 8 }
+    if operator == "<<" || operator == ">>" { return 9 }
+    if operator == "+" || operator == "-" { return 10 }
+    if operator == "*" || operator == "/" || operator == "%" { return 11 }
+    return 0
+}
+
+// The token callback can borrow a reused frontend buffer. Keep a canonical
+// operator spelling before advancing or recursively parsing the right side.
+BinarySpelling :: (operator: string) -> string {
+    operators: [18]string = .{"||", "&&", "|", "^", "&", "==", "!=", "<", "<=",
+        ">", ">=", "<<", ">>", "+", "-", "*", "/", "%"}
+    for spelling: operators { if operator == spelling { return spelling } }
+    return ""
+}
+
+ParseBinary :: (hooks: *ExpressionHooks, minimum: s32) -> s32 {
+    begin := hooks.begin
+    token := hooks.token
+    prefix := hooks.prefix
+    advance := hooks.advance
+    binary := hooks.binary
+    conditional_error := hooks.conditional_error
+    start := begin()
+    left := prefix()
+    <<hooks.depth += 1
+    if <<hooks.depth > 128 {
+        <<hooks.failed = 1
+        <<hooks.depth -= 1
+        return -1
+    }
+    while <<hooks.failed == 0 {
+        operator := BinarySpelling(token())
+        precedence := BinaryPrecedence(operator)
+        if precedence == 0 || precedence < minimum { break }
+        advance()
+        right := ParseBinary(hooks, precedence + 1)
+        left = binary(start, operator, left, right)
+    }
+    if token() == "?" { conditional_error() }
+    <<hooks.depth -= 1
+    return left
+}
+
+CharacterByte :: (literal: string) -> s32 {
+    if literal.count == 3 && literal[0] == 34 && literal[2] == 34 && literal[1] < 128 {
+        return cast(s32)literal[1]
+    }
+    if literal.count == 4 && literal[0] == 34 && literal[1] == 92 && literal[3] == 34 {
+        escape := literal[2]
+        if escape == 48 { return 0 }
+        if escape == 110 { return 10 }
+        if escape == 114 { return 13 }
+        if escape == 116 { return 9 }
+        if escape == 34 { return 34 }
+        if escape == 92 { return 92 }
+        return -1
+    }
+    if literal.count == 6 && literal[0] == 34 && literal[1] == 92 &&
+    literal[2] == 120 && literal[5] == 34 {
+        high := Hex(literal[3])
+        low := Hex(literal[4])
+        if high >= 0 && low >= 0 { return high * 16 + low }
+    }
+    return -1
+}
+
+StatementExpressionError :: enum s32 { None; Modifier; ArrayLiteral }
+StatementExpression :: struct {
+    name: string
+    type: string
+    value: string
+    lhs: string
+    assignment: string
+    modifier: string
+    has_declaration: bool
+    has_value: bool
+    is_else: bool
+    error: StatementExpressionError
+}
+
+StatementParts :: (source: string, kind: Source.StatementKind) -> StatementExpression {
+    result: StatementExpression
+    result.is_else = kind == Source.StatementKind.If && WordAt(source, 0, "else")
+    if kind == Source.StatementKind.Declaration {
+        colon := FindByte(source, 58)
+        if colon >= 0 {
+            result.has_declaration = true
+            result.name = Trim(source[0:colon])
+            type := source[colon + 1:]
+            equals := FindByte(type, 61)
+            if equals >= 0 {
+                result.has_value = true
+                result.value = type[equals + 1:]
+                type = type[0:equals]
+            }
+            type = Trim(type)
+            if type.count > 0 && type[type.count - 1] == 59 { type = Trim(type[0:type.count - 1]) }
+            result.type = type
+            modifier := FindByte(type, 35)
+            if modifier >= 0 {
+                result.error = .Modifier
+                result.modifier = type[modifier:]
+                return result
+            }
+        }
+    } else if kind == Source.StatementKind.Assignment {
+        at: s64 = 0
+        while at < source.count {
+            token := Scan.NextToken(source, at, 1, 1)
+            if token.kind == Scan.TokenKind.Eof { break }
+            operator := source[token.begin:token.end]
+            if AssignmentOperator(operator) {
+                result.assignment = operator
+                result.lhs = source[0:token.begin]
+                result.value = source[token.end:]
+                result.has_value = true
+                break
+            }
+            at = token.end
+        }
+    } else if kind == Source.StatementKind.Return || kind == Source.StatementKind.Unused {
+        if source.count >= 6 { result.value = source[6:]; result.has_value = true }
+    } else if kind == Source.StatementKind.Expression {
+        result.value = source
+        result.has_value = true
+    } else if kind == Source.StatementKind.IfCase {
+        if source.count >= 2 {
+            condition := SkipSpace(source[2:])
+            if condition.count > 9 && condition[0:9] == "#complete" && Text.SpaceByte(condition[9]) {
+                condition = SkipSpace(condition[9:])
+            }
+            equals := FindPair(condition, "==")
+            if equals >= 0 { condition = Trim(condition[0:equals]) }
+            result.value = condition
+            result.has_value = true
+        }
+    } else if kind == Source.StatementKind.While || kind == Source.StatementKind.If {
+        condition := source[0:Text.BlockHeaderEnd(source)]
+        if condition.count >= 4 && condition[0:4] == "else" { condition = SkipSpace(condition[4:]) }
+        at: s64 = 0
+        while at < condition.count && !Text.SpaceByte(condition[at]) && condition[at] != 40 { at += 1 }
+        result.value = condition[at:]
+        result.has_value = true
+    }
+    if result.has_value && SkipSpace(result.value) == ";" { result.has_value = false }
+    if result.has_value && kind == Source.StatementKind.Declaration && result.type.count > 0 && result.type[0] == 91 {
+        value := SkipSpace(result.value)
+        if value.count > 0 && value[0] == 123 { result.error = .ArrayLiteral }
+    }
+    return result
+}
+
+#scope_file
+Hex :: (byte: u8) -> s32 {
+    if byte >= 48 && byte <= 57 { return cast(s32)(byte - 48) }
+    if byte >= 65 && byte <= 70 { return cast(s32)(byte - 65) + 10 }
+    if byte >= 97 && byte <= 102 { return cast(s32)(byte - 97) + 10 }
+    return -1
+}
+Trim :: (source: string) -> string {
+    range := Text.TrimRange(source)
+    return source[range.begin:range.end]
+}
+SkipSpace :: (source: string) -> string { return source[Text.TrimRange(source).begin:] }
+FindByte :: (source: string, wanted: u8) -> s64 {
+    for at: 0..source.count - 1 { if source[at] == wanted { return at } }
+    return -1
+}
+FindPair :: (source: string, wanted: string) -> s64 {
+    for at: 0..source.count - 2 { if source[at:at + 2] == wanted { return at } }
+    return -1
+}
+WordAt :: (source: string, at: s64, word: string) -> bool {
+    return at >= 0 && word.count <= source.count - at && source[at:at + word.count] == word &&
+        (at + word.count == source.count || Text.SpaceByte(source[at + word.count]))
+}
+AssignmentOperator :: (operator: string) -> bool {
+    return operator == "=" || operator == "+=" || operator == "-=" || operator == "*=" ||
+        operator == "/=" || operator == "%=" || operator == "&=" || operator == "|=" ||
+        operator == "^=" || operator == "<<=" || operator == ">>="
+}

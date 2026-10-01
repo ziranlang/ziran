@@ -1,0 +1,189 @@
+Expression :: #import "compiler_expression";
+Scan :: #import "compiler_scan";
+Source :: #import "compiler_source";
+
+Parser :: struct {
+    source: string
+    token: Scan.Scan
+    depth: s32
+    failed: s32
+    conditional: s32
+    binaries: s32
+}
+parser: Parser;
+
+Begin :: () -> s64 { return parser.token.begin }
+Token :: () -> string { return parser.source[parser.token.begin:parser.token.end] }
+Advance :: () { parser.token = Scan.NextToken(parser.source, parser.token.end, 1, 1) }
+ConditionalError :: () { parser.failed = 1; parser.conditional += 1 }
+Hooks :: () -> Expression.ExpressionHooks {
+    return .{*parser.depth, *parser.failed, Begin, Token, Prefix, Advance, Binary, ConditionalError}
+}
+Parse :: (minimum: s32) -> s32 {
+    hooks := Hooks()
+    return Expression.ParseBinary(*hooks, minimum)
+}
+Prefix :: () -> s32 {
+    parser.depth += 1
+    if parser.depth > 128 { parser.failed = 1; parser.depth -= 1; return -1 }
+    token := Token()
+    value: s32 = 0
+    if token == "(" {
+        Advance()
+        value = Parse(1)
+        if Token() != ")" { parser.failed = 1 }
+        else { Advance() }
+    } else if token == "-" || token == "+" {
+        Advance()
+        value = Prefix()
+        if token == "-" { value = -value }
+    } else if parser.token.kind == Scan.TokenKind.Int {
+        for byte: token { value = value * 10 + cast(s32)(byte - 48) }
+        Advance()
+    } else { parser.failed = 1; value = -1 }
+    parser.depth -= 1
+    return value
+}
+Binary :: (start: s64, op: string, left: s32, right: s32) -> s32 {
+    if start < 0 || start > parser.source.count { parser.failed = 1 }
+    parser.binaries += 1
+    if parser.failed != 0 { return -1 }
+    if op == "+" { return left + right }
+    if op == "-" { return left - right }
+    if op == "*" { return left * right }
+    if op == "/" { return left / right }
+    if op == "%" { return left % right }
+    if op == "<<" { return left << right }
+    if op == ">>" { return left >> right }
+    if op == "&" { return left & right }
+    if op == "|" { return left | right }
+    if op == "^" { return left ^ right }
+    if op == "==" { return cast(s32)(left == right) }
+    if op == "!=" { return cast(s32)(left != right) }
+    if op == "<" { return cast(s32)(left < right) }
+    if op == "<=" { return cast(s32)(left <= right) }
+    if op == ">" { return cast(s32)(left > right) }
+    if op == ">=" { return cast(s32)(left >= right) }
+    if op == "&&" { return cast(s32)(left != 0 && right != 0) }
+    if op == "||" { return cast(s32)(left != 0 || right != 0) }
+    parser.failed = 1
+    return -1
+}
+Evaluate :: (source: string) -> s32 {
+    parser = .{source = source}
+    Advance()
+    return Parse(1)
+}
+
+Grammar :: () -> bool {
+    expressions: [18]string = .{"1 + 2 * 3", "9 - 3 - 2", "24 / 3 / 2", "10 % 3",
+        "1 + 2 << 2", "32 >> 2 + 1", "7 & 3", "4 | 3", "7 ^ 3",
+        "2 + 3 == 5", "2 != 3", "2 < 3", "2 <= 2", "3 > 2", "3 >= 3",
+        "1 && 0 || 1", "-(2 + 3) * 2", "1 | 2 ^ 3 & 1"}
+    values: [18]s32 = .{7, 4, 4, 1, 12, 4, 3, 7, 4, 1, 1, 1, 1, 1, 1, 1, -10, 3}
+    for index: 0..17 {
+        if Evaluate(expressions[index]) != values[index] || parser.failed != 0 ||
+        parser.depth != 0 || Token() != "" { return false }
+    }
+    if Evaluate("1 +") != -1 || parser.failed != 1 || parser.depth != 0 { return false }
+    unused Evaluate("1 ? 2 : 3")
+    if parser.conditional != 1 || parser.depth != 0 { return false }
+    parser = .{source = "1 + 2"}
+    Advance()
+    if Parse(12) != 1 || Token() != "+" || parser.binaries != 0 { return false }
+    parser = .{source = "1", depth = 128}
+    Advance()
+    if Parse(1) != -1 || parser.failed != 1 || parser.depth != 128 { return false }
+    parser = .{source = "1;"}
+    Advance()
+    return Parse(0) == 1 && Token() == ";" && parser.depth == 0
+}
+
+Characters :: () -> bool {
+    literals: [10]string = .{"\"A\"", "\"\\0\"", "\"\\n\"", "\"\\r\"", "\"\\t\"",
+        "\"\\\"\"", "\"\\\\\"", "\"\\x00\"", "\"\\xAf\"", "\"\\xFF\""}
+    values: [10]s32 = .{65, 0, 10, 13, 9, 34, 92, 0, 175, 255}
+    for index: 0..9 { if Expression.CharacterByte(literals[index]) != values[index] { return false } }
+    invalid: [13]string = .{"", "\"\"", "\"AB\"", "'A'", "\"\\q\"", "\"\\xg0\"",
+        "\"\\x0g\"", "\"\\x0\"", "\"\\x000\"", "\"\\u0041\"", "\"é\"", "\"A", "A\""}
+    for text: invalid { if Expression.CharacterByte(text) != -1 { return false } }
+    return true
+}
+
+Statements :: () -> bool {
+    parts := Expression.StatementParts("answer : s32 = 1 + 2;", Source.StatementKind.Declaration)
+    if !parts.has_declaration || !parts.has_value || parts.name != "answer" || parts.type != "s32" ||
+    parts.value != " 1 + 2;" || parts.error != Expression.StatementExpressionError.None { return false }
+    parts = Expression.StatementParts("value: [2]s32; ", Source.StatementKind.Declaration)
+    if !parts.has_declaration || parts.has_value || parts.type != "[2]s32" { return false }
+    parts = Expression.StatementParts("value: s32 #wrong", Source.StatementKind.Declaration)
+    if parts.error != Expression.StatementExpressionError.Modifier || parts.modifier != "#wrong" { return false }
+    parts = Expression.StatementParts("value: [2]s32 = {1, 2}", Source.StatementKind.Declaration)
+    if parts.error != Expression.StatementExpressionError.ArrayLiteral { return false }
+    parts = Expression.StatementParts("array[index(\"+=\")] <<= 2", Source.StatementKind.Assignment)
+    if parts.assignment != "<<=" || parts.lhs != "array[index(\"+=\")] " || parts.value != " 2" { return false }
+    operators: [11]string = .{"=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="}
+    for op: operators {
+        parts = Expression.StatementParts(op, Source.StatementKind.Assignment)
+        if parts.assignment != op || !parts.has_value || parts.lhs != "" || parts.value != "" { return false }
+    }
+    parts = Expression.StatementParts("else if (ok) { \t", Source.StatementKind.If)
+    if !parts.is_else || !parts.has_value || parts.value != " (ok)" { return false }
+    parts = Expression.StatementParts("while(ok) {", Source.StatementKind.While)
+    if parts.value != "(ok)" { return false }
+    parts = Expression.StatementParts("if #complete item == {", Source.StatementKind.IfCase)
+    if parts.value != "item" { return false }
+    parts = Expression.StatementParts("return 42;", Source.StatementKind.Return)
+    if parts.value != " 42;" { return false }
+    parts = Expression.StatementParts("unused thing", Source.StatementKind.Unused)
+    if parts.value != " thing" { return false }
+    if Expression.StatementParts(" ;", Source.StatementKind.Expression).has_value ||
+    Expression.StatementParts("break", Source.StatementKind.Break).has_value { return false }
+    return true
+}
+
+#program_export
+Answer :: () -> s32 {
+    if !Grammar() { return 1 }
+    if !Characters() { return 2 }
+    if !Statements() { return 3 }
+    return 42
+}
+
+HashText :: (hash: u32, text: string) -> u32 {
+    result := hash
+    for byte: text { result = result * cast(u32)16777619 ^ cast(u32)byte }
+    return result
+}
+
+// Deterministic bounded byte corpus, including malformed tokens and
+// incomplete declarations. Hash all borrowed ranges to compare backends.
+#program_export
+Fingerprint :: () -> s64 {
+    corpus := " aZ09_=+-*/%&|^<>!;:\"\\x\n\t?{}[]()#\0é"
+    hash: u32 = 2166136261
+    random: u32 = 17
+    input: [64]u8
+    for trial: 0..191 {
+        random = random * cast(u32)1664525 + cast(u32)1013904223
+        count := cast(s64)(random % cast(u32)64)
+        for index: 0..count - 1 {
+            random = random * cast(u32)1664525 + cast(u32)1013904223
+            input[index] = corpus[cast(s64)(random % cast(u32)corpus.count)]
+        }
+        text := TextView(input[0:count])
+        hash = hash * cast(u32)16777619 ^ cast(u32)Expression.CharacterByte(text)
+        hash = hash * cast(u32)16777619 ^ cast(u32)Expression.BinaryPrecedence(text)
+        for kind: 0..16 {
+            parts := Expression.StatementParts(text, cast(Source.StatementKind)kind)
+            hash = HashText(HashText(HashText(hash, parts.name), parts.type), parts.value)
+            hash = HashText(HashText(HashText(hash, parts.lhs), parts.assignment), parts.modifier)
+            hash = hash * cast(u32)16777619 ^ cast(u32)parts.error
+            hash = hash * cast(u32)16777619 ^ cast(u32)parts.has_value
+            hash = hash * cast(u32)16777619 ^ cast(u32)parts.is_else
+        }
+    }
+    return cast(s64)hash
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

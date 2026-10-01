@@ -3,6 +3,7 @@
 #include "zir_diagnostic.h"
 #include "zir_token.h"
 #include "zir_text.h"
+#include "compiler_expression.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -19,7 +20,7 @@ typedef struct ExprParser {
     const char *expected_type;
     int stmt_index;
     int expand_defaults;
-    int failed, depth;
+    int32_t failed, depth;
 } ExprParser;
 
 static void
@@ -357,36 +358,6 @@ append_default_arguments(ExprParser *p, int callee,
         free(buffers);
 }
 
-static int
-jai_char_byte(const char *text, int *value)
-{
-    size_t length = strlen(text);
-    if(length == 3 && text[0] == '"' && text[2] == '"' &&
-       (unsigned char)text[1] < 128) {
-        *value = (unsigned char)text[1];
-        return 1;
-    }
-    if(length == 4 && text[0] == '"' && text[1] == '\\' && text[3] == '"') {
-        switch(text[2]) {
-        case '0': *value = 0; return 1;
-        case 'n': *value = '\n'; return 1;
-        case 'r': *value = '\r'; return 1;
-        case 't': *value = '\t'; return 1;
-        case '"': *value = '"'; return 1;
-        case '\\': *value = '\\'; return 1;
-        default: return 0;
-        }
-    }
-    if(length == 6 && text[0] == '"' && text[1] == '\\' &&
-       text[2] == 'x' && text[5] == '"' &&
-       isxdigit((unsigned char)text[3]) &&
-       isxdigit((unsigned char)text[4])) {
-        char digits[3] = {text[3], text[4], 0};
-        *value = (int)strtol(digits, NULL, 16);
-        return 1;
-    }
-    return 0;
-}
 /* Buffers record_initializer keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct RecordInitializerBuffers {
@@ -589,9 +560,9 @@ prefix_with_buffers(ExprParser *p, PrefixBuffers *buffers)
                 p->fn->exprs[result].text = KeepText(literal);
         }
     } else if(take(p, "#char")) {
-        int value;
-        if(p->token.kind != ZIR_TOKEN_STRING ||
-           !jai_char_byte(p->token.text, &value)) {
+        int value = compiler_expression_CharacterByte(
+            StringView(p->token.text, strlen(p->token.text)));
+        if(p->token.kind != ZIR_TOKEN_STRING || value < 0) {
             Diagnostic(p->span, "parse.jai_char",
                        "#char requires a one-byte string literal");
             exit(1);
@@ -873,43 +844,54 @@ prefix(ExprParser *p)
     return returned;
 }
 
-static int
-precedence(const char *op)
+/* These callbacks expose storage operations; binary grammar and recursion
+ * are maintained in compiler_expression.zi. */
+static int64_t expression_begin(void *context)
 {
-    if(!strcmp(op, "||")) return 2;
-    if(!strcmp(op, "&&")) return 3;
-    if(!strcmp(op, "|")) return 4;
-    if(!strcmp(op, "^")) return 5;
-    if(!strcmp(op, "&")) return 6;
-    if(!strcmp(op, "==") || !strcmp(op, "!=")) return 7;
-    if(!strcmp(op, "<") || !strcmp(op, "<=") || !strcmp(op, ">") || !strcmp(op, ">=")) return 8;
-    if(!strcmp(op, "<<") || !strcmp(op, ">>")) return 9;
-    if(!strcmp(op, "+") || !strcmp(op, "-")) return 10;
-    if(!strcmp(op, "*") || !strcmp(op, "/") || !strcmp(op, "%")) return 11;
-    return 0;
+    return ((ExprParser *)context)->begin;
+}
+
+static String expression_token(void *context)
+{
+    const char *text = ((ExprParser *)context)->token.text;
+    return StringView(text, strlen(text));
+}
+
+static int32_t expression_prefix(void *context)
+{
+    return prefix(context);
+}
+
+static void expression_advance(void *context)
+{
+    next(context);
+}
+
+static int32_t expression_binary(void *context, int64_t start, String op,
+                                 int32_t left, int32_t right)
+{
+    return node(context, ZIR_EXPR_BINARY, (size_t)start, "", op.data, left, right);
+}
+
+static void expression_conditional_error(void *context)
+{
+    ExprParser *p = context;
+    Diagnostic(p->span, "parse.jai_syntax",
+               "C-style conditional is not valid Jai syntax; use ifx ... then ... else ...");
+    exit(1);
 }
 
 static int
 expression(ExprParser *p, int minimum)
 {
-    size_t start = p->begin;
-    int left = prefix(p), prec;
-    if(++p->depth > 128) { p->failed = 1; p->depth--; return -1; }
-    while(!p->failed && (prec = precedence(p->token.text)) >= minimum) {
-        char op[8];
-        int right;
-        copy_text(op, sizeof(op), p->token.text);
-        next(p);
-        right = expression(p, prec + 1);
-        left = node(p, ZIR_EXPR_BINARY, start, "", op, left, right);
-    }
-    if(is(p, "?")) {
-        Diagnostic(p->span, "parse.jai_syntax",
-                   "C-style conditional is not valid Jai syntax; use ifx ... then ... else ...");
-        exit(1);
-    }
-    p->depth--;
-    return left;
+    ExpressionHooks hooks = {
+        .depth = &p->depth, .failed = &p->failed,
+        .begin = {p, expression_begin}, .token = {p, expression_token},
+        .prefix = {p, expression_prefix}, .advance = {p, expression_advance},
+        .binary = {p, expression_binary},
+        .conditional_error = {p, expression_conditional_error},
+    };
+    return compiler_expression_ParseBinary(&hooks, minimum);
 }
 
 static int
@@ -956,123 +938,68 @@ ParseExprTyped(ZirFunction *fn, const ZirModule *module,
 {
     return parse_expr(fn, module, text, span, expected_type, -1, 0);
 }
-/* Buffers StructureFunction keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct StructureFunctionBuffers {
-    char text[ZIR_TEXT_MAX];
-    ZirToken tok;
-} StructureFunctionBuffers;
-
-void StructureFunction(ZirFunction *fn, const ZirModule *module);
-
-static void
-StructureFunction_with_buffers(ZirFunction *fn, const ZirModule *module, StructureFunctionBuffers *buffers)
+static const char *
+expression_name(String part)
 {
-    free(fn->exprs); fn->exprs = NULL; fn->expr_count = fn->expr_cap = 0;
-    /* A statement longer than the buffer is parsed from its own copy. */
-    char *owned = NULL;
-    for(int i = 0; i < fn->stmt_count; i++) {
-        ZirStmt *st = &fn->stmts[i];
-        char *value = NULL;
-        char *text = buffers->text;
-        if(strlen(st->text) >= sizeof(buffers->text)) {
-            free(owned);
-            owned = AllocateOrExit(strlen(st->text) + 1);
-            strcpy(owned, st->text);
-            text = owned;
-        } else
-            copy_text(buffers->text, sizeof(buffers->text), st->text);
-        st->expr_root = st->lhs_root = -1;
-        if(st->is_using && st->kind == ZIR_STMT_EXPR) {
-            st->expr_root = ParseExprNoDefaults(fn, module, "0", st->span);
-            continue;
-        }
-        st->is_else = st->kind == ZIR_STMT_IF &&
-                      strncmp(text, "else", 4) == 0 &&
-                      (text[4] == 0 || isspace((unsigned char)text[4]));
-        if(st->kind == ZIR_STMT_DECL) {
-            char *colon = strchr(text, ':');
-            if(colon) {
-                *colon++ = 0; trim_in_place(text);
-                st->name = KeepName(text);
-                value = strchr(colon, '=');
-                if(value) *value++ = 0;
-                trim_in_place(colon);
-                size_t type_length = strlen(colon);
-                if(type_length && colon[type_length - 1] == ';') {
-                    colon[--type_length] = '\0';
-                    trim_in_place(colon);
-                }
-                if(strchr(colon, '#') != NULL) {
-                    Diagnostic(st->span, "parse.modifier",
-                        "unknown declaration modifier: %s", strchr(colon, '#'));
-                    exit(1);
-                }
-                st->type = KeepName(colon);
-            }
-        } else if(st->kind == ZIR_STMT_ASSIGN) {
-            ZirLexer lexer; 
-            LexerInit(&lexer, text, SpanPath(st->span));
-            do {
-                buffers->tok = LexerNext(&lexer);
-                if(!strcmp(buffers->tok.text, "=") || !strcmp(buffers->tok.text, "+=") ||
-                   !strcmp(buffers->tok.text, "-=") || !strcmp(buffers->tok.text, "*=") ||
-                   !strcmp(buffers->tok.text, "/=") || !strcmp(buffers->tok.text, "%=") ||
-                   !strcmp(buffers->tok.text, "&=") || !strcmp(buffers->tok.text, "|=") ||
-                   !strcmp(buffers->tok.text, "^=") || !strcmp(buffers->tok.text, "<<=") || !strcmp(buffers->tok.text, ">>=")) {
-                    value = text + lexer.pos;
-                    copy_text(st->assignment_op, sizeof(st->assignment_op), buffers->tok.text);
-                    text[lexer.pos - strlen(buffers->tok.text)] = 0;
-                    st->lhs_root = parse_expr(fn, module, text, st->span,
-                                              NULL, i, 1);
-                    break;
-                }
-            } while(buffers->tok.kind != ZIR_TOKEN_EOF);
-        } else if(st->kind == ZIR_STMT_RETURN) value = text + 6;
-        else if(st->kind == ZIR_STMT_UNUSED) value = text + 6;
-        else if(st->kind == ZIR_STMT_EXPR) value = text;
-        else if(st->kind == ZIR_STMT_IF_CASE) {
-            char *condition = (char *)skip_ws(text + 2);
-            if(strncmp(condition, "#complete", 9) == 0 &&
-               isspace((unsigned char)condition[9]))
-                condition = (char *)skip_ws(condition + 9);
-            char *equals = strstr(condition, "==");
-            if(equals != NULL) {
-                *equals = '\0';
-                trim_in_place(condition);
-            }
-            value = condition;
-        }
-        else if(st->kind == ZIR_STMT_WHILE || st->kind == ZIR_STMT_IF) {
-            strip_block_brace(text);
-            value = text;
-            if(!strncmp(value, "else", 4)) value = (char *)skip_ws(value + 4);
-            while(*value && !isspace((unsigned char)*value) && *value != '(') value++;
-        }
-        if(value && strcmp(skip_ws(value), ";")) {
-            if(st->kind == ZIR_STMT_DECL && st->type[0] == '[' &&
-               *skip_ws(value) == '{') {
-                Diagnostic(st->span, "parse.jai_syntax",
-                           "C-style array literal is not valid Jai syntax; use .[...]");
-                exit(1);
-            }
-            st->expr_root = parse_expr(fn, module, value, st->span,
-                st->kind == ZIR_STMT_DECL ? st->type : NULL, i, 1);
-        }
-    }
-    free(owned);
+    char text[ZIR_NAME_MAX];
+    size_t length = (size_t)part.length;
+    if(length >= sizeof(text)) length = sizeof(text) - 1;
+    if(length != 0) memcpy(text, part.data, length);
+    text[length] = 0;
+    return KeepName(text);
+}
+
+static char *
+expression_copy(String part)
+{
+    char *text = AllocateOrExit((size_t)part.length + 1);
+    if(part.length != 0) memcpy(text, part.data, (size_t)part.length);
+    text[part.length] = 0;
+    return text;
 }
 
 void
 StructureFunction(ZirFunction *fn, const ZirModule *module)
 {
-    static _Thread_local StructureFunctionBuffers *spares[16];
-    static _Thread_local int spare_count;
-    StructureFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    StructureFunction_with_buffers(fn, module, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
+    free(fn->exprs); fn->exprs = NULL; fn->expr_count = fn->expr_cap = 0;
+    for(int i = 0; i < fn->stmt_count; i++) {
+        ZirStmt *st = &fn->stmts[i];
+        st->expr_root = st->lhs_root = -1;
+        if(st->is_using && st->kind == ZIR_STMT_EXPR) {
+            st->expr_root = ParseExprNoDefaults(fn, module, "0", st->span);
+            continue;
+        }
+        StatementExpression parts = compiler_expression_StatementParts(
+            StringView(st->text, strlen(st->text)), (StatementKind)st->kind);
+        st->is_else = parts.is_else;
+        if(parts.error == StatementExpressionError_Modifier) {
+            char *modifier = expression_copy(parts.modifier);
+            Diagnostic(st->span, "parse.modifier",
+                       "unknown declaration modifier: %s", modifier);
+            free(modifier);
+            exit(1);
+        }
+        if(parts.error == StatementExpressionError_ArrayLiteral) {
+            Diagnostic(st->span, "parse.jai_syntax",
+                       "C-style array literal is not valid Jai syntax; use .[...]");
+            exit(1);
+        }
+        if(parts.has_declaration) {
+            st->name = expression_name(parts.name);
+            st->type = expression_name(parts.type);
+        }
+        if(parts.assignment.length != 0) {
+            copy_text(st->assignment_op, sizeof(st->assignment_op),
+                      expression_name(parts.assignment));
+            char *lhs = expression_copy(parts.lhs);
+            st->lhs_root = parse_expr(fn, module, lhs, st->span, NULL, i, 1);
+            free(lhs);
+        }
+        if(parts.has_value) {
+            char *value = expression_copy(parts.value);
+            st->expr_root = parse_expr(fn, module, value, st->span,
+                st->kind == ZIR_STMT_DECL ? st->type : NULL, i, 1);
+            free(value);
+        }
+    }
 }

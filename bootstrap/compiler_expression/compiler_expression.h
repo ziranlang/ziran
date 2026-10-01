@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "zir_bounds.h"
+#include "zir_slice.h"
 #include "zir_string.h"
 #include "compiler_scan.h"
 #include "compiler_source.h"
@@ -21,6 +22,9 @@ typedef int32_t PostfixError;
 typedef struct ExpressionChildren ExpressionChildren;
 typedef struct PostfixHooks PostfixHooks;
 typedef struct InitializerHooks InitializerHooks;
+typedef int32_t PrefixKind;
+typedef int32_t PrefixError;
+typedef struct PrefixHooks PrefixHooks;
 typedef int32_t StatementExpressionError;
 typedef struct StatementExpression StatementExpression;
 typedef struct ExpressionBegin {
@@ -91,6 +95,22 @@ typedef struct InitializerNode {
     void *context;
     int32_t (*call)(void *, int64_t, String, int32_t);
 } InitializerNode;
+typedef struct TypeQuery {
+    void *context;
+    bool (*call)(void *, String);
+} TypeQuery;
+typedef struct PrefixArray {
+    void *context;
+    int32_t (*call)(void *, int64_t, String);
+} PrefixArray;
+typedef struct PrefixNode {
+    void *context;
+    int32_t (*call)(void *, int64_t, PrefixKind, String, String, int32_t, int32_t, int32_t, int32_t);
+} PrefixNode;
+typedef struct PrefixDiagnostic {
+    void *context;
+    void (*call)(void *, PrefixError);
+} PrefixDiagnostic;
 
 struct ExpressionHooks {
     int32_t* depth;
@@ -151,6 +171,50 @@ struct InitializerHooks {
 };
 
 enum {
+    PrefixKind_Identifier = 0,
+    PrefixKind_Integer = 1,
+    PrefixKind_Float = 2,
+    PrefixKind_String = 3,
+    PrefixKind_This = 4,
+    PrefixKind_CompileTime = 5,
+    PrefixKind_ProcedureName = 6,
+    PrefixKind_Character = 7,
+    PrefixKind_Conditional = 8,
+    PrefixKind_SizeOf = 9,
+    PrefixKind_Cast = 10,
+    PrefixKind_Unary = 11,
+};
+
+enum {
+    PrefixError_ThisScope = 0,
+    PrefixError_CallerLocation = 1,
+    PrefixError_ProcedureScope = 2,
+    PrefixError_Character = 3,
+    PrefixError_Sizeof = 4,
+    PrefixError_Primitive = 5,
+    PrefixError_Increment = 6,
+    PrefixError_AddressOf = 7,
+    PrefixError_Cast = 8,
+    PrefixError_Literal = 9,
+    PrefixError_SingleQuote = 10,
+};
+
+struct PrefixHooks {
+    SyntaxCursor* cursor;
+    InitializerHooks* initializers;
+    PostfixHooks* postfix;
+    TypeQuery is_type;
+    TypeQuery is_record;
+    TypeQuery is_array;
+    PrefixArray array;
+    PrefixNode node;
+    PrefixDiagnostic error;
+    String scope;
+    String expected_type;
+    int64_t name_limit;
+};
+
+enum {
     StatementExpressionError_None = 0,
     StatementExpressionError_Modifier = 1,
     StatementExpressionError_ArrayLiteral = 2,
@@ -173,6 +237,7 @@ String compiler_expression_BinarySpelling(String operator);
 int32_t compiler_expression_ParseBinary(ExpressionHooks* hooks, int32_t minimum);
 int32_t compiler_expression_ParsePostfix(PostfixHooks* hooks, int64_t start, int32_t initial);
 int32_t compiler_expression_ParseInitializer(InitializerHooks* hooks, int64_t start, String type, String open, String close);
+int32_t compiler_expression_ParsePrefix(PrefixHooks* hooks);
 int32_t compiler_expression_CharacterByte(String literal);
 StatementExpression compiler_expression_StatementParts(String source, StatementKind kind);
 

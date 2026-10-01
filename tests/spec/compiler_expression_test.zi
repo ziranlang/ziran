@@ -156,6 +156,7 @@ TreeNode :: struct {
 }
 TreeParser :: struct {
     source: string
+    scope: string
     token: Scan.Scan
     depth: s32
     failed: s32
@@ -202,7 +203,7 @@ TreePostfixNode :: (start: s64, kind: Expression.PostfixKind, name: string,
     return TreeAdd(10 + cast(s32)kind, name, left, right, third, first)
 }
 TreeFieldType :: (type: string, name: string, ordinal: s32) -> string {
-    if type == "Root" && (name == "nested" || (name == "" && ordinal == 0)) { return "Child" }
+    if (type == "Root" || type == "") && (name == "nested" || (name == "" && ordinal == 0)) { return "Child" }
     return "Element"
 }
 TreeField :: (start: s64, name: string, named: bool, value: s32) -> s32 {
@@ -211,35 +212,64 @@ TreeField :: (start: s64, name: string, named: bool, value: s32) -> s32 {
 }
 TreeInitializer :: (start: s64, type: string, first: s32) -> s32 {
     if start < 0 || start > tree.source.count { tree.failed = 1 }
-    return TreeAdd(3, type, first = first)
+    name := type
+    if name == "" { name = "Root" }
+    if name == "Library.Root" { name = "Library.Root" }
+    return TreeAdd(3, name, first = first)
 }
 TreeCursor :: () -> Expression.SyntaxCursor {
     return .{*tree.depth, *tree.failed, tree.source, TreeBegin, TreeToken,
         TreeKind, TreeAdvance, TreeParse, TreeLink}
 }
-TreePrefix :: () -> s32 {
-    tree.depth += 1
-    if tree.depth > 128 { tree.failed = 1; tree.depth -= 1; return -1 }
-    start := TreeBegin()
-    value: s32 = -1
-    if TreeToken() == "{" {
-        cursor := TreeCursor()
-        hooks: Expression.InitializerHooks = .{*cursor, TreeFieldType, TreeField, TreeInitializer}
-        value = Expression.ParseInitializer(*hooks, start, "Root", "{", "}")
-    } else if TreeToken() == "(" {
-        TreeAdvance()
-        value = TreeParse(1)
-        if TreeToken() != ")" { tree.failed = 1 } else { TreeAdvance() }
-    } else if TreeKind() == Scan.TokenKind.Int || TreeKind() == Scan.TokenKind.Ident {
-        value = TreeAdd(0, TreeToken())
-        TreeAdvance()
-    } else { tree.failed = 1 }
+TreeIsType :: (name: string) -> bool {
+    return name == "s32" || name == "string" || name == "Root" ||
+        name == "Child" || name == "Library.Root"
+}
+TreeIsRecord :: (name: string) -> bool {
+    return name == "Root" || name == "Child" || name == "Library.Root"
+}
+TreeIsArray :: (name: string) -> bool { return name.count > 0 && name[0] == 91 }
+TreeTypedArray :: (start: s64, element: string) -> s32 {
     cursor := TreeCursor()
-    hooks: Expression.PostfixHooks = .{*cursor, TreePostfixNode, TreeArgument,
+    hooks: Expression.InitializerHooks = .{*cursor, TreeFieldType, TreeField, TreeInitializer}
+    return Expression.ParseInitializer(*hooks, start, element, "[", "]")
+}
+TreePrefixError :: (error: Expression.PrefixError) {
+    tree.failed = 1
+    tree.errors = 100 + cast(s32)error
+}
+TreePrefixNode :: (start: s64, kind: Expression.PrefixKind, name: string, op: string,
+    left: s32, right: s32, third: s32, byte: s32) -> s32 {
+    primary_name := name
+    if kind == Expression.PrefixKind.Identifier && name.count > 0 && name[0] == 46 {
+        marker := Scan.NextToken(tree.source, start, 1, 1)
+        member := Scan.NextToken(tree.source, marker.end, 1, 1)
+        primary_name = tree.source[marker.begin:member.end]
+    }
+    if kind == Expression.PrefixKind.Integer || kind == Expression.PrefixKind.Float ||
+    kind == Expression.PrefixKind.String {
+        original := Scan.NextToken(tree.source, start, 1, 1)
+        primary_name = tree.source[original.begin:original.end]
+    }
+    primary_kind: s32 = 0
+    if kind == Expression.PrefixKind.Unary { primary_kind = 8; primary_name = op }
+    else if kind == Expression.PrefixKind.Conditional { primary_kind = 5; primary_name = op }
+    else if kind == Expression.PrefixKind.SizeOf { primary_kind = 6 }
+    else if kind == Expression.PrefixKind.Cast { primary_kind = 7 }
+    else if kind == Expression.PrefixKind.CompileTime { primary_kind = 9 }
+    else if kind == Expression.PrefixKind.ProcedureName { primary_kind = 15 }
+    else if kind == Expression.PrefixKind.Character { primary_kind = 16; left = byte }
+    return TreeAdd(primary_kind, primary_name, left, right, third)
+}
+TreePrefix :: () -> s32 {
+    cursor := TreeCursor()
+    initializers: Expression.InitializerHooks = .{*cursor, TreeFieldType, TreeField, TreeInitializer}
+    postfix: Expression.PostfixHooks = .{*cursor, TreePostfixNode, TreeArgument,
         TreeDefaults, TreeName, TreeError}
-    value = Expression.ParsePostfix(*hooks, start, value)
-    tree.depth -= 1
-    return value
+    hooks: Expression.PrefixHooks = .{*cursor, *initializers, *postfix,
+        TreeIsType, TreeIsRecord, TreeIsArray, TreeTypedArray, TreePrefixNode,
+        TreePrefixError, tree.scope, "[2]Child", 256}
+    return Expression.ParsePrefix(*hooks)
 }
 TreeBinary :: (start: s64, op: string, left: s32, right: s32) -> s32 {
     if start < 0 || start > tree.source.count { tree.failed = 1 }
@@ -251,9 +281,60 @@ TreeParse :: (minimum: s32) -> s32 {
     return Expression.ParseBinary(*hooks, minimum)
 }
 TreeRead :: (source: string) -> s32 {
-    tree = .{source = source}
+    tree = .{source = source, scope = "Owner"}
     TreeAdvance()
     return TreeParse(1)
+}
+PrefixGrammar :: () -> bool {
+    root := TreeRead("-cast(s32) <<pointer")
+    cast_node := tree.nodes[root].right
+    pointer := tree.nodes[cast_node].right
+    if tree.failed != 0 || tree.depth != 0 || TreeToken() != "" ||
+    tree.nodes[root].name != "-" || tree.nodes[cast_node].kind != 7 ||
+    tree.nodes[cast_node].name != "s32" || tree.nodes[pointer].name != "*" { return false }
+    unary: [5]string = .{"+value", "-value", "!value", "~value", "*value"}
+    operators: [5]string = .{"+", "-", "!", "~", "&"}
+    for index: 0..4 {
+        root = TreeRead(unary[index])
+        if tree.failed != 0 || tree.nodes[root].kind != 8 || tree.nodes[root].name != operators[index] { return false }
+    }
+    root = TreeRead(".Member")
+    if tree.failed != 0 || tree.nodes[root].name != ".Member" { return false }
+    root = TreeRead("#this(1)")
+    if tree.failed != 0 || tree.nodes[root].kind != 14 || tree.nodes[root].name != "Owner" { return false }
+    root = TreeRead("#procedure_name()")
+    if tree.failed != 0 || tree.nodes[root].kind != 15 || tree.nodes[root].name != "Owner" { return false }
+    root = TreeRead("#char \"\\xFF\"")
+    if tree.failed != 0 || tree.nodes[root].kind != 16 || tree.nodes[root].left != 255 { return false }
+    root = TreeRead("#compile_time")
+    if tree.failed != 0 || tree.nodes[root].kind != 9 { return false }
+    root = TreeRead("size_of(Vec(s32))")
+    if tree.failed != 0 || tree.nodes[root].kind != 6 || tree.nodes[root].name != "Vec(s32)" { return false }
+    root = TreeRead("ifx 1 then 2 else 3")
+    if tree.failed != 0 || tree.nodes[root].kind != 5 || tree.nodes[root].name != "ifx" ||
+    tree.nodes[tree.nodes[root].left].name != "1" || tree.nodes[tree.nodes[root].third].name != "3" { return false }
+    root = TreeRead("#ifx 1 2; else 3")
+    if tree.failed != 0 || tree.nodes[root].name != "#ifx" { return false }
+    literals: [6]string = .{"Root.{nested = {1}, 2}", "Library.Root.{1}",
+        "s32.[1, 2]", "Library.Root.[{1}]", ".[1, 2]", "(Root.{1})"}
+    for input: literals {
+        root = TreeRead(input)
+        if tree.failed != 0 || tree.depth != 0 || TreeToken() != "" || tree.nodes[root].kind != 3 { return false }
+    }
+    invalid: [9]string = .{"#caller_location", "sizeof(s32)", "cast(char) 1", "++value",
+        "&value", "(s32) 1", "(value) {1}", "'x'", "#char \"ab\""}
+    for input: invalid {
+        unused TreeRead(input)
+        if tree.failed != 1 || tree.errors < 100 || tree.depth != 0 { return false }
+    }
+    tree = .{source = "#this"}
+    TreeAdvance()
+    unused TreePrefix()
+    if tree.failed != 1 || tree.errors != 100 || tree.depth != 0 { return false }
+    tree = .{source = "#procedure_name()"}
+    TreeAdvance()
+    unused TreePrefix()
+    return tree.failed == 1 && tree.errors == 102 && tree.depth == 0
 }
 SyntaxGrammar :: () -> bool {
     root := TreeRead("Run(first = Next(2), second = items[1:3].value).*[0]")
@@ -278,17 +359,17 @@ SyntaxGrammar :: () -> bool {
     root = TreeRead("provider.method(1)(named = 2)")
     if tree.failed != 0 || tree.nodes[root].name != "" || tree.nodes[tree.nodes[root].left].kind != 14 ||
     tree.nodes[tree.nodes[root].first].argument != "named" { return false }
-    root = TreeRead("{.nested = {1, 2}, trailing = Default(3), 4,}")
+    root = TreeRead("Root.{.nested = {1, 2}, trailing = Default(3), 4,}")
     if tree.failed != 0 || TreeToken() != "" || tree.depth != 0 || tree.nodes[root].name != "Root" { return false }
     first = tree.nodes[root].first
     second = tree.nodes[first].sibling
     if tree.nodes[first].name != "nested" || tree.nodes[first].left != 1 ||
     tree.nodes[tree.nodes[first].right].name != "Child" || tree.nodes[second].name != "trailing" ||
     tree.nodes[tree.nodes[second].sibling].left != 0 || tree.defaults != 1 { return false }
-    root = TreeRead("{}")
+    root = TreeRead(".{}")
     if tree.failed != 0 || tree.nodes[root].first != -1 { return false }
     invalid: [8]string = .{"items[1", "items[]", "items.", "Call(1,)",
-        "{named = }", "{1", "{.1 = 2}", "Call(named = )"}
+        ".{named = }", ".{1", ".{.1 = 2}", "Call(named = )"}
     for input: invalid {
         unused TreeRead(input)
         if tree.failed != 1 || tree.depth != 0 { return false }
@@ -314,6 +395,7 @@ Answer :: () -> s32 {
     if !Characters() { return 2 }
     if !Statements() { return 3 }
     if !SyntaxGrammar() { return 4 }
+    if !PrefixGrammar() { return 5 }
     return 42
 }
 

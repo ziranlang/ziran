@@ -46,12 +46,6 @@ take(ExprParser *p, const char *s)
     return 1;
 }
 
-static void
-expect(ExprParser *p, const char *s)
-{
-    if(!take(p, s)) p->failed = 1;
-}
-
 static int
 node(ExprParser *p, ZirExprKind kind, size_t start, const char *name,
      const char *op, int left, int right)
@@ -360,7 +354,6 @@ append_default_arguments(ExprParser *p, int callee,
 
 static SyntaxCursor syntax_cursor(ExprParser *p);
 static const char *expression_name(String part);
-static int postfix(ExprParser *p, size_t start, int result);
 
 /* IR lookup and storage stay at the frontend boundary. Initializer grammar,
  * field ordering, delimiter handling, and recursive nesting are Ziran. */
@@ -455,270 +448,7 @@ typed_array_initializer(ExprParser *p, size_t start,
         p->failed = 1;
     return result;
 }
-/* Buffers prefix keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct PrefixBuffers {
-    ZirToken tok;
-    ZirToken after_type;
-    ZirToken following;
-    ZirToken dot;
-    ZirToken opener;
-} PrefixBuffers;
-
 static int prefix(ExprParser *p);
-
-static int
-prefix_with_buffers(ExprParser *p, PrefixBuffers *buffers)
-{
-    size_t start = p->begin;
-    buffers->tok = p->token;
-    int result = -1;
-    if(++p->depth > 128) { p->failed = 1; p->depth--; return -1; }
-    if(take(p, "#this")) {
-        if(p->fn->name[0] == '\0') {
-            Diagnostic(p->span, "parse.this",
-                       "#this requires a procedure or type scope");
-            exit(1);
-        }
-        result = node(p, ZIR_EXPR_IDENT, start, p->fn->name, "", -1, -1);
-        if(result >= 0)
-            p->fn->exprs[result].is_this = 1;
-    } else if(is(p, "#caller_location")) {
-        Diagnostic(p->span, "parse.caller_location",
-                   "#caller_location is only valid as a parameter default");
-        exit(1);
-    } else if(take(p, "#compile_time")) {
-        result = node(p, ZIR_EXPR_COMPILE_TIME, start, "", "", -1, -1);
-    } else if(take(p, "#procedure_name")) {
-        if(p->fn->name[0] == '\0') {
-            Diagnostic(p->span, "parse.procedure_name",
-                       "#procedure_name() requires a procedure scope");
-            exit(1);
-        }
-        expect(p, "(");
-        expect(p, ")");
-        result = node(p, ZIR_EXPR_STRING, start, "", "", -1, -1);
-        if(result >= 0) {
-            char literal[ZIR_NAME_MAX + 3];
-            int written = snprintf(literal, sizeof(literal), "\"%s\"",
-                                   p->fn->name);
-            if(written < 0 || (size_t)written >= sizeof(literal))
-                p->failed = 1;
-            else
-                p->fn->exprs[result].text = KeepText(literal);
-        }
-    } else if(take(p, "#char")) {
-        int value = compiler_expression_CharacterByte(
-            StringView(p->token.text, strlen(p->token.text)));
-        if(p->token.kind != ZIR_TOKEN_STRING || value < 0) {
-            Diagnostic(p->span, "parse.jai_char",
-                       "#char requires a one-byte string literal");
-            exit(1);
-        }
-        next(p);
-        result = node(p, ZIR_EXPR_INT, start, "", "", -1, -1);
-        if(result >= 0) {
-            char digits[32];
-            snprintf(digits, sizeof(digits), "%d", value);
-            p->fn->exprs[result].text = KeepText(digits);
-        }
-    } else if(is(p, "ifx") || is(p, "#ifx")) {
-        char op[8];
-        copy_text(op, sizeof(op), p->token.text);
-        next(p);
-        int condition = expression(p, 2);
-        take(p, "then");
-        int selected = expression(p, 1);
-        take(p, ";");
-        expect(p, "else");
-        int alternative = expression(p, 1);
-        result = node(p, ZIR_EXPR_CONDITIONAL, start, "", op,
-                      condition, selected);
-        if(result >= 0)
-            p->fn->exprs[result].third = alternative;
-    } else if(is(p, "sizeof")) {
-        Diagnostic(p->span, "parse.jai_syntax",
-                   "sizeof is not Jai syntax; use size_of(Type)");
-        exit(1);
-    } else if(take(p, "size_of")) {
-        char type[ZIR_NAME_MAX];
-        size_t begin, length;
-        int nested = 0;
-        expect(p, "(");
-        begin = p->begin;
-        while(p->token.kind != ZIR_TOKEN_EOF) {
-            if(is(p, ")") && nested == 0) break;
-            if(is(p, "(")) nested++;
-            if(is(p, ")")) nested--;
-            next(p);
-        }
-        length = p->begin - begin;
-        if(length >= sizeof(type)) { p->failed = 1; length = 0; }
-        memcpy(type, p->source + begin, length);
-        type[length] = '\0';
-        trim_in_place(type);
-        expect(p, ")");
-        result = node(p, ZIR_EXPR_SIZE_OF, start, type, "", -1, -1);
-    } else if(take(p, "cast")) {
-        char type[ZIR_NAME_MAX];
-        size_t ts, length;
-        expect(p, "(");
-        ts = p->begin;
-        if(is(p, "char")) {
-            Diagnostic(p->span, "parse.jai_syntax",
-                       "non-Jai primitive type spelling: char");
-            exit(1);
-        }
-        while(p->token.kind != ZIR_TOKEN_EOF && !is(p, ")")) next(p);
-        length = p->begin - ts;
-        if(length >= sizeof(type)) { p->failed = 1; length = 0; }
-        memcpy(type, p->source + ts, length);
-        type[length] = 0;
-        trim_in_place(type);
-        if(!type_name(p, type) && type[0] != '[' && type[0] != '*')
-            p->failed = 1;
-        expect(p, ")");
-        int right = prefix(p);
-        result = node(p, ZIR_EXPR_CAST, start, type, "", -1, right);
-    } else if(is(p, "++") || is(p, "--")) {
-        Diagnostic(p->span, "parse.jai_syntax",
-                   "Jai has no increment or decrement operators; use += 1 or -= 1");
-        exit(1);
-    } else if(take(p, "<<")) {
-        int right = prefix(p);
-        result = node(p, ZIR_EXPR_UNARY, start, "", "*", -1, right);
-    } else if(is(p, "+") || is(p, "-") || is(p, "!") || is(p, "~") ||
-              is(p, "*")) {
-        int right;
-        const char *op = !strcmp(buffers->tok.text, "*") ? "&" : buffers->tok.text;
-        next(p);
-        right = prefix(p);
-        result = node(p, ZIR_EXPR_UNARY, start, "", op, -1, right);
-    } else if(is(p, "&")) {
-        Diagnostic(p->span, "parse.jai_syntax",
-                   "C-style address-of is not valid Jai syntax; use *value");
-        exit(1);
-    } else if(take(p, "(")) {
-        if(type_name(p, p->token.text) || is(p, "[")) {
-            /* `(Color.{...})` is a parenthesized record literal, not a
-             * C-style cast: the record marker `.` follows the type name. */
-            ZirLexer lookahead = p->lexer;
-            buffers->after_type = LexerNext(&lookahead);
-            int record_literal = is(p, ".") || !strcmp(buffers->after_type.text, ".");
-            if(!record_literal) {
-                Diagnostic(p->span, "parse.jai_syntax",
-                           "C-style cast or literal is not valid Jai syntax; use cast(Type) value or Type.{...}");
-                exit(1);
-            }
-            result = expression(p, 1);
-            expect(p, ")");
-        } else {
-            result = expression(p, 1);
-            expect(p, ")");
-            if(is(p, "{")) {
-                Diagnostic(p->span, "parse.jai_syntax",
-                           "C-style literal is not valid Jai syntax; use Type.{...}");
-                exit(1);
-            }
-        }
-    } else if(take(p, ".")) {
-        char name[ZIR_NAME_MAX];
-        if(is(p, "{")) {
-            result = record_initializer(p, start, "", "{", "}");
-        } else if(is(p, "[") && p->expected_type != NULL &&
-                  ArrayElementType(p->expected_type, NULL, 0, NULL)) {
-            result = record_initializer(p, start, p->expected_type, "[", "]");
-        } else if(p->token.kind != ZIR_TOKEN_IDENT) {
-            p->failed = 1;
-        } else {
-            int length = snprintf(name, sizeof(name), ".%s", p->token.text);
-            if(length < 0 || (size_t)length >= sizeof(name))
-                p->failed = 1;
-            next(p);
-            if(!p->failed)
-                result = node(p, ZIR_EXPR_IDENT, start, name, "", -1, -1);
-        }
-    } else {
-        ZirExprKind kind;
-        switch(buffers->tok.kind) {
-        case ZIR_TOKEN_IDENT: kind = ZIR_EXPR_IDENT; break;
-        case ZIR_TOKEN_INT: kind = ZIR_EXPR_INT; break;
-        case ZIR_TOKEN_FLOAT: kind = ZIR_EXPR_FLOAT; break;
-        case ZIR_TOKEN_STRING: kind = ZIR_EXPR_STRING; break;
-        case ZIR_TOKEN_CHAR:
-            Diagnostic(p->span, "parse.jai_char",
-                       "single-quoted character literals are not valid Jai syntax; use #char \"x\"");
-            exit(1);
-        default: p->failed = 1; p->depth--; return -1;
-        }
-        next(p);
-        if(kind == ZIR_EXPR_IDENT && is(p, ".")) {
-            ZirLexer lookahead = p->lexer;
-            buffers->following = LexerNext(&lookahead);
-            if(!strcmp(buffers->following.text, "{")) {
-                const ZirType *record = p->module ?
-                    FindType(p->module, buffers->tok.text, NULL) : NULL;
-                if(record == NULL || record->is_enum) p->failed = 1;
-                next(p);
-                result = record_initializer(p, start, buffers->tok.text, "{", "}");
-            } else if(!strcmp(buffers->following.text, "[") &&
-                      type_name(p, buffers->tok.text)) {
-                next(p);
-                result = typed_array_initializer(p, start, buffers->tok.text);
-            } else if(buffers->following.kind == ZIR_TOKEN_IDENT) {
-                buffers->dot = LexerNext(&lookahead);
-                buffers->opener = LexerNext(&lookahead);
-                char qualified[ZIR_NAME_MAX];
-                int length = snprintf(qualified, sizeof(qualified), "%s.%s",
-                                      buffers->tok.text, buffers->following.text);
-                if(!strcmp(buffers->dot.text, ".") &&
-                   length >= 0 &&
-                   (size_t)length < sizeof(qualified) &&
-                   type_name(p, qualified)) {
-                    if(!strcmp(buffers->opener.text, "[") ||
-                       !strcmp(buffers->opener.text, "{")) {
-                        next(p);
-                        next(p);
-                        next(p);
-                        if(!strcmp(buffers->opener.text, "["))
-                            result = typed_array_initializer(p, start,
-                                                             qualified);
-                        else {
-                            const ZirType *record = FindType(p->module,
-                                                             qualified, NULL);
-                            if(record == NULL || record->is_enum)
-                                p->failed = 1;
-                            else
-                                result = record_initializer(p, start,
-                                                            qualified, "{", "}");
-                        }
-                    }
-                }
-            }
-        }
-        if(result < 0 && !p->failed)
-            result = node(p, kind, start,
-                          kind == ZIR_EXPR_IDENT ? buffers->tok.text : "", "", -1, -1);
-    }
-    result = postfix(p, start, result);
-    p->depth--;
-    return result;
-}
-
-static int
-prefix(ExprParser *p)
-{
-    static _Thread_local PrefixBuffers *spares[16];
-    static _Thread_local int spare_count;
-    PrefixBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    int returned = prefix_with_buffers(p, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-    return returned;
-}
 
 /* These callbacks expose storage operations; expression grammar and recursion
  * are maintained in compiler_expression.zi. */
@@ -836,15 +566,138 @@ static void expression_postfix_error(void *context, PostfixError error)
     exit(1);
 }
 
-static int postfix(ExprParser *p, size_t start, int result)
+static bool prefix_is_type(void *context, String name)
+{
+    if(name.length >= ZIR_NAME_MAX) return false;
+    return type_name(context, expression_name(name));
+}
+
+static bool prefix_is_record(void *context, String name)
+{
+    ExprParser *p = context;
+    if(name.length >= ZIR_NAME_MAX) return false;
+    const ZirType *type = p->module ?
+        FindType(p->module, expression_name(name), NULL) : NULL;
+    return type != NULL && !type->is_enum;
+}
+
+static bool prefix_is_array(void *context, String name)
+{
+    (void)context;
+    return ArrayElementType(expression_name(name), NULL, 0, NULL);
+}
+
+static int32_t prefix_array(void *context, int64_t start, String element)
+{
+    return typed_array_initializer(context, (size_t)start, expression_name(element));
+}
+
+static int32_t
+prefix_node(void *context, int64_t start, PrefixKind kind, String name,
+            String op, int32_t left, int32_t right, int32_t third, int32_t byte)
+{
+    ExprParser *p = context;
+    ZirExprKind ir_kind = kind == PrefixKind_Identifier || kind == PrefixKind_This ? ZIR_EXPR_IDENT :
+        kind == PrefixKind_Integer || kind == PrefixKind_Character ? ZIR_EXPR_INT :
+        kind == PrefixKind_Float ? ZIR_EXPR_FLOAT :
+        kind == PrefixKind_String || kind == PrefixKind_ProcedureName ? ZIR_EXPR_STRING :
+        kind == PrefixKind_CompileTime ? ZIR_EXPR_COMPILE_TIME :
+        kind == PrefixKind_Conditional ? ZIR_EXPR_CONDITIONAL :
+        kind == PrefixKind_SizeOf ? ZIR_EXPR_SIZE_OF :
+        kind == PrefixKind_Cast ? ZIR_EXPR_CAST : ZIR_EXPR_UNARY;
+    int result = node(p, ir_kind, (size_t)start,
+                      kind == PrefixKind_ProcedureName ? "" : expression_name(name),
+                      op.data, left, right);
+    if(result >= 0) {
+        ZirExpr *value = &p->fn->exprs[result];
+        if(kind == PrefixKind_This) value->is_this = 1;
+        if(kind == PrefixKind_Conditional) value->third = third;
+        if(kind == PrefixKind_Character) {
+            char digits[32];
+            snprintf(digits, sizeof(digits), "%d", byte);
+            value->text = KeepText(digits);
+        }
+        if(kind == PrefixKind_ProcedureName) {
+            char literal[ZIR_NAME_MAX + 3];
+            int written = snprintf(literal, sizeof(literal), "\"%s\"", p->fn->name);
+            if(written < 0 || (size_t)written >= sizeof(literal)) p->failed = 1;
+            else value->text = KeepText(literal);
+        }
+    }
+    return result;
+}
+
+static void expression_prefix_error(void *context, PrefixError error)
+{
+    ExprParser *p = context;
+    const char *message;
+    switch(error) {
+    case PrefixError_ThisScope:
+        Diagnostic(p->span, "parse.this",
+                   "#this requires a procedure or type scope");
+        exit(1);
+    case PrefixError_CallerLocation:
+        Diagnostic(p->span, "parse.caller_location",
+                   "#caller_location is only valid as a parameter default");
+        exit(1);
+    case PrefixError_ProcedureScope:
+        Diagnostic(p->span, "parse.procedure_name",
+                   "#procedure_name() requires a procedure scope");
+        exit(1);
+    case PrefixError_Character:
+        Diagnostic(p->span, "parse.jai_char",
+                   "#char requires a one-byte string literal");
+        exit(1);
+    case PrefixError_Sizeof:
+        message = "sizeof is not Jai syntax; use size_of(Type)";
+        break;
+    case PrefixError_Primitive:
+        message = "non-Jai primitive type spelling: char";
+        break;
+    case PrefixError_Increment:
+        message = "Jai has no increment or decrement operators; use += 1 or -= 1";
+        break;
+    case PrefixError_AddressOf:
+        message = "C-style address-of is not valid Jai syntax; use *value";
+        break;
+    case PrefixError_Cast:
+        message = "C-style cast or literal is not valid Jai syntax; use cast(Type) value or Type.{...}";
+        break;
+    case PrefixError_Literal:
+        message = "C-style literal is not valid Jai syntax; use Type.{...}";
+        break;
+    default:
+        Diagnostic(p->span, "parse.jai_char",
+                   "single-quoted character literals are not valid Jai syntax; use #char \"x\"");
+        exit(1);
+    }
+    Diagnostic(p->span, "parse.jai_syntax", "%s", message);
+    exit(1);
+}
+
+static int prefix(ExprParser *p)
 {
     SyntaxCursor cursor = syntax_cursor(p);
-    PostfixHooks hooks = {
+    InitializerHooks initializers = {
+        .cursor = &cursor, .field_type = {p, initializer_field_type},
+        .field = {p, initializer_field}, .node = {p, initializer_node},
+    };
+    PostfixHooks postfix = {
         .cursor = &cursor, .node = {p, postfix_node},
         .argument = {p, expression_argument}, .defaults = {p, expression_defaults},
         .name = {p, expression_callee_name}, .error = {p, expression_postfix_error},
     };
-    return compiler_expression_ParsePostfix(&hooks, start, result);
+    const char *expected = p->expected_type != NULL ? p->expected_type : "";
+    PrefixHooks hooks = {
+        .cursor = &cursor, .initializers = &initializers, .postfix = &postfix,
+        .is_type = {p, prefix_is_type}, .is_record = {p, prefix_is_record},
+        .is_array = {p, prefix_is_array}, .array = {p, prefix_array},
+        .node = {p, prefix_node}, .error = {p, expression_prefix_error},
+        .scope = StringView(p->fn->name, strlen(p->fn->name)),
+        .expected_type = StringView(expected, strlen(expected)),
+        .name_limit = ZIR_NAME_MAX,
+    };
+    return compiler_expression_ParsePrefix(&hooks);
 }
 
 static int32_t expression_binary(void *context, int64_t start, String op,

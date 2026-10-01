@@ -121,33 +121,36 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   agreement, and the C boundary. Fresh builds compile the maintained Ziran
   source using a generated seed verified by `make check-bootstrap`.
 
-- Binary, postfix, and initializer parsing are implemented in
+- Primary, prefix, binary, postfix, and initializer parsing are implemented in
   `cmd/compiler_expression.zi`:
   precedence, left associativity, recursive right operands, shared nesting
   limits, and rejection of C-style conditionals. The same module parses
   calls with named arguments, chained calls, indexing, open-ended slices,
   member access, postfix dereferencing, named and positional record/array
   fields, and recursive nested initializers. Names borrow the original source
-  rather than a reused token buffer. The same module decodes
+  rather than a reused token buffer. Primary and prefix rules cover literals,
+  scope directives, `size_of`, casts, `ifx`, unary operators, parenthesized
+  expressions, and local or imported typed literals. The same module decodes
   one-byte `#char` literals and extracts declaration, assignment, return,
   unused, and control-flow expressions from statements. Source ranges are
   bounded and borrowed, so long statements retain their full text.
-  The C boundary retains IR storage, primary and prefix parsing, type lookup,
-  default expansion, and diagnostics; callback slots expose those operations
+  The C boundary retains IR storage, type lookup, default expansion, and
+  diagnostics; callback slots expose those operations
   to the Ziran grammar without sharing C IR layouts. Ordinary tools compile
   the maintained Ziran source; fresh builds use a generated seed verified by
   `make check-bootstrap`.
   `tests/compiler_expression.sh` checks source and saved IR on C, C++, Go,
   Rust, Python, and `.zib`, including precedence, literal escapes, malformed
   statements, chained calls, named arguments, nested initializers, open slices,
-  nesting limits, deterministic byte inputs, seed agreement,
-  borrowed ranges, and the C frontend boundary. The compiler still requires
-  further migration before it is fully self-hosted.
+  prefix forms, scope errors, nesting limits, deterministic byte inputs,
+  seed agreement, borrowed ranges, and the C frontend boundary. The compiler
+  still requires further migration before it is fully self-hosted.
 
 - Portable imported callback signatures resolve their parameter and return
-  types in their defining module. Record, enum, pointer, slice, and array type
-  identities retain their meaning across module aliases instead of accepting
-  an unrelated same-named record. The expression-parser corpus exercises
+  types in their defining module. Record and enum parameters and record
+  results retain their identities across module aliases. Aggregate field
+  checks also retain type identities through pointers, slices, and arrays
+  instead of accepting an unrelated same-named record. The corpus exercises
   imported callback records, enum parameters, and record results from source
   and saved IR alongside native targets.
 
@@ -1140,9 +1143,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   persistence, proof validation, native lowering, portable linking, and the
   runtime still need to move from C to Ziran. The generated bootstrap modules
   currently cover token, text, source scanning, declaration syntax, enum
-  evaluation, type spelling and field parsing, binary/postfix/initializer
-  grammar, and statement expression extraction. Primary and prefix parsing,
-  declaration IR construction, and semantic checking still require migration.
+  evaluation, type spelling and field parsing, expression and initializer
+  grammar, and statement expression extraction. Declaration IR construction
+  and semantic checking still require migration.
 - Finish Jai parity and specialization: cover remaining expression forms,
   exact foreign array ABI behavior (including nonempty `.data`), generic fields
   whose types depend on specialization parameters, and broader procedure-value

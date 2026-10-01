@@ -170,11 +170,68 @@ static void postfix_and_initializers(void)
     free(function.exprs);
 }
 
+static void primary_and_prefix(void)
+{
+    ZirFunction function = {0};
+    copy_text(function.name, sizeof(function.name), "Owner");
+    ZirSourceSpan span = Span("prefix.zi", 9, 4);
+    int root = ParseExprNoDefaults(&function, NULL, "-cast(s32) <<pointer", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_UNARY && !strcmp(function.exprs[root].op, "-"));
+    int cast = function.exprs[root].right;
+    assert(function.exprs[cast].kind == ZIR_EXPR_CAST && !strcmp(function.exprs[cast].name, "s32"));
+    int pointer = function.exprs[cast].right;
+    assert(function.exprs[pointer].kind == ZIR_EXPR_UNARY && !strcmp(function.exprs[pointer].op, "*"));
+    root = ParseExprNoDefaults(&function, NULL, "#this(1)", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_CALL && function.exprs[root].is_this);
+    assert(!strcmp(function.exprs[root].name, "Owner"));
+    root = ParseExprNoDefaults(&function, NULL, "#procedure_name()", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_STRING);
+    assert(!strcmp(function.exprs[root].text, "\"Owner\""));
+    root = ParseExprNoDefaults(&function, NULL, "ifx 1 then 2 else 3", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_CONDITIONAL && !strcmp(function.exprs[root].op, "ifx"));
+    assert(!strcmp(function.exprs[function.exprs[root].left].text, "1"));
+    assert(!strcmp(function.exprs[function.exprs[root].right].text, "2"));
+    assert(!strcmp(function.exprs[function.exprs[root].third].text, "3"));
+    root = ParseExprNoDefaults(&function, NULL, "size_of(Vec(s32))", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_SIZE_OF && !strcmp(function.exprs[root].name, "Vec(s32)"));
+    root = ParseExprNoDefaults(&function, NULL, ".Member", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_IDENT && !strcmp(function.exprs[root].name, ".Member"));
+    root = ParseExprNoDefaults(&function, NULL, "#compile_time", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_COMPILE_TIME);
+    root = ParseExprNoDefaults(&function, NULL, "cast(*s32) pointer", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_CAST && !strcmp(function.exprs[root].name, "*s32"));
+    root = ParseExprNoDefaults(&function, NULL, "42.5", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_FLOAT && !strcmp(function.exprs[root].text, "42.5"));
+    root = ParseExprNoDefaults(&function, NULL, "\"literal\"", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_STRING && !strcmp(function.exprs[root].text, "\"literal\""));
+    char oversized[ZIR_NAME_MAX + 24];
+    memcpy(oversized, "size_of(", 8);
+    memset(oversized + 8, 'x', ZIR_NAME_MAX);
+    strcpy(oversized + 8 + ZIR_NAME_MAX, ")");
+    root = ParseExprNoDefaults(&function, NULL, oversized, span);
+    assert(function.exprs[root].kind == ZIR_EXPR_UNKNOWN);
+    /* Type queries must use the full token, rather than match its prefix
+     * against a shorter declared type and diagnose a nonexistent C cast. */
+    ZirModule module = {0};
+    char type_name[ZIR_NAME_MAX];
+    memset(type_name, 'A', sizeof(type_name) - 1);
+    type_name[sizeof(type_name) - 1] = 0;
+    ModuleAddType(&module, type_name, span);
+    oversized[0] = '(';
+    memset(oversized + 1, 'A', ZIR_NAME_MAX);
+    strcpy(oversized + 1 + ZIR_NAME_MAX, ")");
+    root = ParseExprNoDefaults(&function, &module, oversized, span);
+    assert(function.exprs[root].kind == ZIR_EXPR_IDENT);
+    free(module.types);
+    free(function.exprs);
+}
+
 int main(void)
 {
     grammar();
     statements();
     postfix_and_initializers();
+    primary_and_prefix();
     assert(compiler_expression_CharacterByte((String){0}) == -1);
     assert(compiler_expression_BinaryPrecedence((String){0}) == 0);
     return 0;

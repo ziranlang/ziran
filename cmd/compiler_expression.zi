@@ -243,6 +243,190 @@ ParseInitializer :: (hooks: *InitializerHooks, start: s64, type: string,
     return node(start, type, first)
 }
 
+PrefixKind :: enum s32 {
+    Identifier; Integer; Float; String; This; CompileTime; ProcedureName;
+    Character; Conditional; SizeOf; Cast; Unary;
+}
+PrefixError :: enum s32 {
+    ThisScope; CallerLocation; ProcedureScope; Character; Sizeof; Primitive;
+    Increment; AddressOf; Cast; Literal; SingleQuote;
+}
+TypeQuery :: #type (name: string) -> bool;
+PrefixArray :: #type (start: s64, element: string) -> s32;
+PrefixNode :: #type (start: s64, kind: PrefixKind, name: string, op: string,
+    left: s32, right: s32, third: s32, byte: s32) -> s32;
+PrefixDiagnostic :: #type (error: PrefixError) -> void;
+PrefixHooks :: struct {
+    cursor: *SyntaxCursor
+    initializers: *InitializerHooks
+    postfix: *PostfixHooks
+    is_type: TypeQuery
+    is_record: TypeQuery
+    is_array: TypeQuery
+    array: PrefixArray
+    node: PrefixNode
+    error: PrefixDiagnostic
+    scope: string
+    expected_type: string
+    name_limit: s64
+}
+
+// Storage callbacks copy names before returning: qualified names can borrow
+// this parser's local buffer, while token names borrow the original source.
+ParsePrefix :: (hooks: *PrefixHooks) -> s32 {
+    cursor := hooks.cursor
+    token := cursor.token
+    kind := cursor.kind
+    begin := cursor.begin
+    advance := cursor.advance
+    parse := cursor.parse
+    is_type := hooks.is_type
+    is_record := hooks.is_record
+    is_array := hooks.is_array
+    array := hooks.array
+    node := hooks.node
+    error := hooks.error
+    start := begin()
+    original := BorrowToken(cursor.source, cursor)
+    original_kind := kind()
+    result: s32 = -1
+    <<cursor.depth += 1
+    if <<cursor.depth > 128 {
+        <<cursor.failed = 1
+        <<cursor.depth -= 1
+        return -1
+    }
+    if Take(cursor, "#this") {
+        if hooks.scope.count == 0 { error(.ThisScope) }
+        result = node(start, .This, hooks.scope, "", -1, -1, -1, 0)
+    } else if token() == "#caller_location" { error(.CallerLocation) }
+    else if Take(cursor, "#compile_time") {
+        result = node(start, .CompileTime, "", "", -1, -1, -1, 0)
+    } else if Take(cursor, "#procedure_name") {
+        if hooks.scope.count == 0 { error(.ProcedureScope) }
+        Expect(cursor, "(")
+        Expect(cursor, ")")
+        result = node(start, .ProcedureName, hooks.scope, "", -1, -1, -1, 0)
+    } else if Take(cursor, "#char") {
+        byte := CharacterByte(token())
+        if kind() != Scan.TokenKind.String || byte < 0 { error(.Character) }
+        advance()
+        result = node(start, .Character, "", "", -1, -1, -1, byte)
+    } else if token() == "ifx" || token() == "#ifx" {
+        op := "ifx"
+        if token() == "#ifx" { op = "#ifx" }
+        advance()
+        condition := parse(2)
+        unused Take(cursor, "then")
+        selected := parse(1)
+        unused Take(cursor, ";")
+        Expect(cursor, "else")
+        alternative := parse(1)
+        result = node(start, .Conditional, "", op, condition, selected, alternative, 0)
+    } else if token() == "sizeof" { error(.Sizeof) }
+    else if Take(cursor, "size_of") {
+        Expect(cursor, "(")
+        type_start := begin()
+        nested: s32 = 0
+        while kind() != Scan.TokenKind.Eof {
+            if token() == ")" && nested == 0 { break }
+            if token() == "(" { nested += 1 }
+            if token() == ")" { nested -= 1 }
+            advance()
+        }
+        type := TypeRange(cursor.source, cursor, type_start, hooks.name_limit)
+        Expect(cursor, ")")
+        result = node(start, .SizeOf, type, "", -1, -1, -1, 0)
+    } else if Take(cursor, "cast") {
+        Expect(cursor, "(")
+        type_start := begin()
+        if token() == "char" { error(.Primitive) }
+        while kind() != Scan.TokenKind.Eof && token() != ")" { advance() }
+        type := TypeRange(cursor.source, cursor, type_start, hooks.name_limit)
+        if !is_type(type) && (type.count == 0 || (type[0] != 91 && type[0] != 42)) {
+            <<cursor.failed = 1
+        }
+        Expect(cursor, ")")
+        right := ParsePrefix(hooks)
+        result = node(start, .Cast, type, "", -1, right, -1, 0)
+    } else if token() == "++" || token() == "--" { error(.Increment) }
+    else if Take(cursor, "<<") {
+        right := ParsePrefix(hooks)
+        result = node(start, .Unary, "", "*", -1, right, -1, 0)
+    } else if token() == "+" || token() == "-" || token() == "!" || token() == "~" || token() == "*" {
+        op := UnarySpelling(token())
+        advance()
+        right := ParsePrefix(hooks)
+        result = node(start, .Unary, "", op, -1, right, -1, 0)
+    } else if token() == "&" { error(.AddressOf) }
+    else if Take(cursor, "(") {
+        typed := is_type(token()) || token() == "["
+        if typed && token() != "." && Following(cursor.source, cursor, 1) != "." { error(.Cast) }
+        result = parse(1)
+        Expect(cursor, ")")
+        if !typed && token() == "{" { error(.Literal) }
+    } else if Take(cursor, ".") {
+        if token() == "{" {
+            result = ParseInitializer(hooks.initializers, start, "", "{", "}")
+        } else if token() == "[" && is_array(hooks.expected_type) {
+            result = ParseInitializer(hooks.initializers, start, hooks.expected_type, "[", "]")
+        } else if kind() != Scan.TokenKind.Ident { <<cursor.failed = 1 }
+        else {
+            buffer: [256]u8
+            name := QualifiedName(buffer[:], "", BorrowToken(cursor.source, cursor), hooks.name_limit)
+            if name.count == 0 { <<cursor.failed = 1 }
+            advance()
+            if <<cursor.failed == 0 { result = node(start, .Identifier, name, "", -1, -1, -1, 0) }
+        }
+    } else {
+        primary := PrefixKind.Identifier
+        if original_kind == Scan.TokenKind.Int { primary = .Integer }
+        else if original_kind == Scan.TokenKind.Float { primary = .Float }
+        else if original_kind == Scan.TokenKind.String { primary = .String }
+        else if original_kind == Scan.TokenKind.Char { error(.SingleQuote) }
+        else if original_kind != Scan.TokenKind.Ident {
+            <<cursor.failed = 1
+            <<cursor.depth -= 1
+            return -1
+        }
+        advance()
+        if primary == .Identifier && token() == "." {
+            following := Following(cursor.source, cursor, 1)
+            if following == "{" {
+                if !is_record(original) { <<cursor.failed = 1 }
+                advance()
+                result = ParseInitializer(hooks.initializers, start, original, "{", "}")
+            } else if following == "[" && is_type(original) {
+                advance()
+                result = array(start, original)
+            } else {
+                next := Scan.NextToken(cursor.source, begin() + token().count, 1, 1)
+                if next.kind == Scan.TokenKind.Ident && Following(cursor.source, cursor, 2) == "." {
+                    buffer: [256]u8
+                    qualified := QualifiedName(buffer[:], original, following, hooks.name_limit)
+                    opener := Following(cursor.source, cursor, 3)
+                    if qualified.count > 0 && is_type(qualified) && (opener == "[" || opener == "{") {
+                        advance()
+                        advance()
+                        advance()
+                        if opener == "[" { result = array(start, qualified) }
+                        else if !is_record(qualified) { <<cursor.failed = 1 }
+                        else { result = ParseInitializer(hooks.initializers, start, qualified, "{", "}") }
+                    }
+                }
+            }
+        }
+        if result < 0 && <<cursor.failed == 0 {
+            name := ""
+            if primary == .Identifier { name = original }
+            result = node(start, primary, name, "", -1, -1, -1, 0)
+        }
+    }
+    result = ParsePostfix(hooks.postfix, start, result)
+    <<cursor.depth -= 1
+    return result
+}
+
 CharacterByte :: (literal: string) -> s32 {
     if literal.count == 3 && literal[0] == 34 && literal[2] == 34 && literal[1] < 128 {
         return cast(s32)literal[1]
@@ -353,6 +537,30 @@ StatementParts :: (source: string, kind: Source.StatementKind) -> StatementExpre
 }
 
 #scope_file
+UnarySpelling :: (operator: string) -> string {
+    if operator == "*" { return "&" }
+    if operator == "+" { return "+" }
+    if operator == "-" { return "-" }
+    if operator == "!" { return "!" }
+    return "~"
+}
+TypeRange :: (source: string, cursor: *SyntaxCursor, start: s64, limit: s64) -> string {
+    begin := cursor.begin
+    end := begin()
+    if start < 0 || end < start || end > source.count || end - start >= limit {
+        <<cursor.failed = 1
+        return ""
+    }
+    return Trim(source[start:end])
+}
+QualifiedName :: (output: []u8, first: string, second: string, limit: s64) -> string {
+    count := first.count + 1 + second.count
+    if count >= limit || count > output.count { return "" }
+    for index: 0..first.count - 1 { output[index] = first[index] }
+    output[first.count] = 46
+    for index: 0..second.count - 1 { output[first.count + 1 + index] = second[index] }
+    return TextView(output[0:count])
+}
 Take :: (cursor: *SyntaxCursor, wanted: string) -> bool {
     token := cursor.token
     advance := cursor.advance

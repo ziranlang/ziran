@@ -1,4 +1,11 @@
 #include "zir_parse_internal.h"
+#include "compiler_source.h"
+
+static String
+source_view(const char *source)
+{
+    return StringView(source != NULL ? source : "", source != NULL ? strlen(source) : 0);
+}
 
 void
 die(const char *fmt, ...)
@@ -38,179 +45,40 @@ source_append(SourceBuffer *buffer, char byte)
     buffer->text[buffer->length] = '\0';
 }
 
-static void
-source_append_scanned(SourceBuffer *buffer, char byte, int *line_gaps)
-{
-    source_append(buffer, byte);
-    if(byte == '\n') {
-        while(*line_gaps > 0) {
-            source_append(buffer, '\n');
-            (*line_gaps)--;
-        }
-    }
-}
-
 int
 source_identifier_byte(unsigned char byte)
 {
-    return isalnum(byte) || byte == '_';
+    return compiler_source_SourceIdentifier(byte);
 }
 
-/* Rewrite Jai's raw multiline token as a checked ordinary string literal.
- * Keep the original number of line breaks so later source spans stay put. */
+/* C owns parser storage and diagnostics; scanning rules live in Ziran. */
 char *
 lower_jai_multiline_strings(const char *source, const char *path)
 {
-    SourceBuffer output = {0};
-    size_t length = strlen(source);
-    size_t pos = 0;
-    int line = 1, column = 1, quote = 0, line_comment = 0;
-    int block_comment = 0;
-    int line_gaps = 0;
-    while(pos < length) {
-        unsigned char byte = (unsigned char)source[pos];
-        if(line_comment) {
-            source_append_scanned(&output, (char)byte, &line_gaps);
-            pos++;
-            if(byte == '\n') { line_comment = 0; line++; column = 1; }
-            else column++;
-            continue;
-        }
-        if(block_comment) {
-            if(byte == '/' && pos + 1 < length && source[pos + 1] == '*') {
-                block_comment++;
-                source_append(&output, '/'); source_append(&output, '*');
-                pos += 2; column += 2;
-                continue;
-            }
-            if(byte == '*' && pos + 1 < length && source[pos + 1] == '/') {
-                block_comment--;
-                source_append(&output, '*'); source_append(&output, '/');
-                pos += 2; column += 2;
-                continue;
-            }
-            source_append_scanned(&output, (char)byte, &line_gaps);
-            pos++;
-            if(byte == '\n') { line++; column = 1; }
-            else column++;
-            continue;
-        }
-        if(quote) {
-            source_append_scanned(&output, (char)byte, &line_gaps);
-            pos++;
-            if(byte == '\\' && pos < length) {
-                source_append_scanned(&output, source[pos++], &line_gaps);
-                column += 2;
-            } else if(byte == quote) {
-                quote = 0;
-                column++;
-            } else if(byte == '\n') { line++; column = 1; }
-            else column++;
-            continue;
-        }
-        if(byte == '/' && pos + 1 < length && source[pos + 1] == '/') {
-            line_comment = 1;
-            source_append(&output, '/'); source_append(&output, '/');
-            pos += 2; column += 2;
-            continue;
-        }
-        if(byte == '/' && pos + 1 < length && source[pos + 1] == '*') {
-            block_comment = 1;
-            source_append(&output, '/'); source_append(&output, '*');
-            pos += 2; column += 2;
-            continue;
-        }
-        if(byte == '"' || byte == '\'') {
-            quote = byte;
-            source_append(&output, (char)byte);
-            pos++; column++;
-            continue;
-        }
-        if(byte == '#' && pos + 7 <= length &&
-           strncmp(source + pos, "#string", 7) == 0 &&
-           (pos == 0 || !source_identifier_byte((unsigned char)source[pos - 1])) &&
-           (pos + 7 == length || isspace((unsigned char)source[pos + 7]))) {
-            ZirSourceSpan span = Span(path, line, column);
-            size_t cursor = pos + 7, start, marker_length;
-            while(cursor < length &&
-                  (source[cursor] == ' ' || source[cursor] == '\t')) cursor++;
-            start = cursor;
-            while(cursor < length &&
-                  source_identifier_byte((unsigned char)source[cursor])) cursor++;
-            marker_length = cursor - start;
-            if(marker_length == 0 || marker_length >= ZIR_NAME_MAX ||
-               (!isalpha((unsigned char)source[start]) &&
-                source[start] != '_'))
-                die_at(span, "#string requires an identifier delimiter");
-            while(cursor < length &&
-                  (source[cursor] == ' ' || source[cursor] == '\t')) cursor++;
-            if(cursor < length && source[cursor] == '\r') cursor++;
-            if(cursor >= length || source[cursor] != '\n')
-                die_at(span, "#string delimiter must end its line");
-            size_t body_start = cursor + 1, close = body_start;
-            while(close < length) {
-                if(close + marker_length <= length &&
-                   strncmp(source + close, source + start,
-                           marker_length) == 0 &&
-                   (close + marker_length == length ||
-                    !source_identifier_byte(
-                        (unsigned char)source[close + marker_length])))
-                    break;
-                const char *newline = memchr(source + close, '\n',
-                                             length - close);
-                if(newline == NULL) { close = length; break; }
-                close = (size_t)(newline - source) + 1;
-            }
-            if(close >= length)
-                die_at(span, "unterminated #string delimiter: %.*s",
-                       (int)marker_length, source + start);
-            source_append(&output, '"');
-            for(size_t i = body_start; i < close; i++) {
-                unsigned char raw = (unsigned char)source[i];
-                const char *escape = raw == '"' ? "\\\"" :
-                                     raw == '\\' ? "\\\\" :
-                                     raw == '\n' ? "\\n" :
-                                     raw == '\r' ? "\\r" :
-                                     raw == '\t' ? "\\t" : NULL;
-                if(escape != NULL)
-                    for(const char *part = escape; *part; part++)
-                        source_append(&output, *part);
-                else if(raw < 32 || raw == 127) {
-                    static const char digits[] = "0123456789abcdef";
-                    source_append(&output, '\\');
-                    source_append(&output, 'x');
-                    source_append(&output, digits[raw >> 4]);
-                    source_append(&output, digits[raw & 15]);
-                } else source_append(&output, (char)raw);
-            }
-            source_append(&output, '"');
-            for(size_t i = pos; i < close; i++)
-                if(source[i] == '\n') { line++; line_gaps++; }
-            column = (int)marker_length + 1;
-            pos = close + marker_length;
-            continue;
-        }
-        source_append_scanned(&output, (char)byte, &line_gaps);
-        pos++;
-        if(byte == '\n') { line++; column = 1; }
-        else column++;
-    }
-    if(output.text == NULL) {
-        output.text = malloc(1);
-        if(output.text == NULL) die("out of memory reading source");
-        output.text[0] = '\0';
-    }
-    return output.text;
+    String input = source_view(source);
+    SourceRewrite result = compiler_source_RewriteRawStrings(input, (Slice){0}, ZIR_NAME_MAX);
+    ZirSourceSpan span = Span(path, result.line, result.column);
+    if(result.error == SourceError_Delimiter)
+        die_at(span, "#string requires an identifier delimiter");
+    if(result.error == SourceError_DelimiterLine)
+        die_at(span, "#string delimiter must end its line");
+    if(result.error == SourceError_Unterminated)
+        die_at(span, "unterminated #string delimiter: %.*s",
+               (int)(result.marker_end - result.marker_begin),
+               source + result.marker_begin);
+    if(result.count < 0 || (uint64_t)result.count >= SIZE_MAX)
+        die("source exceeds available memory");
+    char *output = malloc((size_t)result.count + 1);
+    if(output == NULL) die("out of memory reading source");
+    compiler_source_RewriteRawStrings(input, (Slice){output, result.count}, ZIR_NAME_MAX);
+    output[result.count] = '\0';
+    return output;
 }
 
 int
 starts_word(const char *s, const char *word)
 {
-    size_t n = strlen(word);
-
-    return strncmp(s, word, n) == 0 &&
-           (s[n] == '\0' || s[n] == ' ' || s[n] == '\t' ||
-            s[n] == '(' || s[n] == '"' || s[n] == '{');
+    return compiler_source_StartsWord(source_view(s), source_view(word));
 }
 
 int
@@ -235,14 +103,7 @@ looks_like_non_jai_control(const char *text, const char *word)
 int
 is_identifier_text(const char *text)
 {
-    const unsigned char *cursor = (const unsigned char *)text;
-
-    if(cursor == NULL || (!isalpha(*cursor) && *cursor != '_'))
-        return 0;
-    cursor++;
-    while(isalnum(*cursor) || *cursor == '_')
-        cursor++;
-    return *cursor == '\0';
+    return compiler_source_IdentifierText(source_view(text), false);
 }
 
 int
@@ -373,16 +234,9 @@ parse_using_modifiers(const char **cursor, char *filter, size_t filter_size,
 int
 is_member_path_text(const char *text)
 {
-    const unsigned char *cursor = (const unsigned char *)text;
-    if(cursor == NULL || (!isalpha(*cursor) && *cursor != '_'))
-        return 0;
-    for(;;) {
-        while(isalnum(*cursor) || *cursor == '_') cursor++;
-        if(*cursor == '\0') return 1;
-        if(*cursor++ != '.' || (!isalpha(*cursor) && *cursor != '_'))
-            return 0;
-    }
+    return compiler_source_IdentifierText(source_view(text), true);
 }
+
 /* Buffers parse_file_global keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct ParseFileGlobalBuffers {
@@ -472,26 +326,7 @@ parse_file_global(ZirModule *module, const char *declaration,
 int
 contains_source_directive(const char *source, const char *directive)
 {
-    size_t length = strlen(directive);
-    int quoted = 0;
-
-    for(const char *cursor = source; *cursor != '\0'; cursor++) {
-        if(quoted) {
-            if(*cursor == '\\' && cursor[1] != '\0')
-                cursor++;
-            else if(*cursor == '"')
-                quoted = 0;
-        } else if(cursor[0] == '/' && cursor[1] == '/') {
-            return 0;
-        } else if(*cursor == '"') {
-            quoted = 1;
-        } else if(strncmp(cursor, directive, length) == 0 &&
-                  !isalnum((unsigned char)cursor[length]) &&
-                  cursor[length] != '_') {
-            return 1;
-        }
-    }
-    return 0;
+    return compiler_source_ContainsDirective(source_view(source), source_view(directive));
 }
 
 int
@@ -825,44 +660,10 @@ classify_extern_target(const char *target, char *symbol, size_t symbol_size,
     return ZIR_EXTERN_HOST;
 }
 
-/* Net block braces: only '{'/'}' at paren/bracket depth 0 open/close
- * blocks. Braces inside a call argument's record literal are expressions. */
 int
 net_block_braces(const char *s)
 {
-    int pd = 0;
-    int in_s = 0;
-    int in_c = 0;
-    int delta = 0;
-
-    for(const char *p = s; *p != '\0'; p++) {
-        if(in_s) {
-            if(*p == '\\' && p[1] != '\0')
-                p++;
-            else if(*p == '"')
-                in_s = 0;
-        } else if(in_c) {
-            if(*p == '\\' && p[1] != '\0')
-                p++;
-            else if(*p == '\'')
-                in_c = 0;
-        } else if(*p == '"') {
-            in_s = 1;
-        } else if(*p == '\'') {
-            in_c = 1;
-        } else if(*p == '(' || *p == '[') {
-            pd++;
-        } else if(*p == ')' || *p == ']') {
-            if(pd > 0)
-                pd--;
-        } else if(pd == 0) {
-            if(*p == '{')
-                delta++;
-            else if(*p == '}')
-                delta--;
-        }
-    }
-    return delta;
+    return compiler_source_NetBlockBraces(source_view(s));
 }
 
 int
@@ -1120,40 +921,11 @@ parse_block_call_header(const char *text, char *callee, size_t callee_size,
     return 1;
 }
 
-/* A semicolon separates logical statements only outside nested expressions
- * and block bodies. #ifx also uses a semicolon before its else arm. */
 char *
 statement_separator(char *line)
 {
-    int parens = 0, brackets = 0, braces = 0, quote = 0;
-
-    for(char *p = line; *p; p++) {
-        if(quote) {
-            if(*p == '\\' && p[1]) p++;
-            else if(*p == quote) quote = 0;
-        } else if(*p == '"' || *p == '\'') {
-            quote = *p;
-        } else if(*p == '(') parens++;
-        else if(*p == ')') parens--;
-        else if(*p == '[') brackets++;
-        else if(*p == ']') brackets--;
-        else if(*p == '{') braces++;
-        /* A leading closer belongs to a block opened on an earlier line.
-         * It must not make the following compact branch's depth negative. */
-        else if(*p == '}' && braces > 0) braces--;
-        else if(*p == ';' && parens == 0 && brackets == 0 && braces == 0 &&
-                *skip_ws(p + 1)) {
-            if(starts_word(line, "for") &&
-               (strchr(line, '{') == NULL || p < strchr(line, '{')))
-                continue; /* Let the checker reject C-style for headers. */
-            const char *ifx = strstr(line, "#ifx");
-            if(ifx != NULL && ifx < p &&
-               starts_word(skip_ws(p + 1), "else"))
-                continue;
-            return p;
-        }
-    }
-    return NULL;
+    int64_t at = compiler_source_StatementSeparator(source_view(line));
+    return at < 0 ? NULL : line + at;
 }
 
 void
@@ -1171,144 +943,25 @@ int
 split_oneline_block(const char *t, char *head, size_t hsz,
                     char *body, size_t bsz, char *tail, size_t tsz)
 {
-    static const char *kws[] = { "if", "else", "while", "for", "defer", "switch",
-                                 "case", "guard", "do" };
-    size_t n = strlen(t);
-    size_t brace_pos = 0, close_pos = 0;
-    int depth = 0, expression_braces = 0;
-    int in_str = 0;
-    int in_chr = 0;
-    char w0[16];
-    size_t wl = 0;
-    size_t i;
-
-    if(n < 4)
+    String input = source_view(t);
+    ControlBlock block = compiler_source_SplitControlBlock(input);
+    if(!block.valid || (uint64_t)block.head_end >= hsz ||
+       (uint64_t)(block.body_end - block.body_begin) >= bsz ||
+       (uint64_t)(input.length - block.tail_begin) >= tsz)
         return 0;
-    /* A continued branch can follow the previous body's closer on the same
-     * line. Keep that closer in the header, but recognize the control word
-     * after it so compact else bodies are queued like other compact blocks. */
-    const char *control = t;
-    if(*control == '}' && starts_word(skip_ws(control + 1), "else"))
-        control = skip_ws(control + 1);
-    for(i = (size_t)(control - t); t[i] != '\0' && (isalnum((unsigned char)t[i]) || t[i] == '_') &&
-        wl + 1 < sizeof(w0); i++)
-        w0[wl++] = t[i];
-    w0[wl] = '\0';
-    {
-        int is_kw = 0;
-
-        for(size_t k = 0; k < sizeof(kws) / sizeof(kws[0]); k++)
-            if(strcmp(w0, kws[k]) == 0)
-                is_kw = 1;
-        if(!is_kw)
-            return 0;
-    }
-    for(i = 0; i < n; i++) {
-        char ch = t[i];
-
-        if(in_str) {
-            if(ch == '\\' && i + 1 < n)
-                i++;
-            else if(ch == '"')
-                in_str = 0;
-        } else if(in_chr) {
-            if(ch == '\\' && i + 1 < n)
-                i++;
-            else if(ch == '\'')
-                in_chr = 0;
-        } else if(ch == '"') {
-            in_str = 1;
-        } else if(ch == '\'') {
-            in_chr = 1;
-        } else if(ch == '(' || ch == '[') {
-            depth++;
-        } else if(ch == ')' || ch == ']') {
-            depth--;
-        } else if(ch == '{' && depth == 0) {
-            /* A record literal in the condition may appear before the body. */
-            const char *before = t + i;
-            while(before > t && isspace((unsigned char)before[-1])) before--;
-            if(expression_braces ||
-               (before > t && before[-1] == '.' &&
-                (before - t < 2 || before[-2] != '.'))) {
-                expression_braces++;
-            } else {
-                brace_pos = i;
-                break;
-            }
-        } else if(ch == '}' && depth == 0 && expression_braces > 0) {
-            expression_braces--;
-        }
-    }
-    if(brace_pos == 0 || expression_braces != 0)
-        return 0;
-    /* Match the first control block; a following else starts a new logical
-     * line and can itself contain another one-line block. */
-    depth = 1;
-    in_str = in_chr = 0;
-    for(i = brace_pos + 1; i < n; i++) {
-        char ch = t[i];
-
-        if(in_str) {
-            if(ch == '\\' && i + 1 < n)
-                i++;
-            else if(ch == '"')
-                in_str = 0;
-        } else if(in_chr) {
-            if(ch == '\\' && i + 1 < n)
-                i++;
-            else if(ch == '\'')
-                in_chr = 0;
-        } else if(ch == '"') {
-            in_str = 1;
-        } else if(ch == '\'') {
-            in_chr = 1;
-        } else if(ch == '{') {
-            depth++;
-        } else if(ch == '}' && --depth == 0) {
-            close_pos = i;
-            break;
-        }
-    }
-    if(close_pos == 0)
-        return 0;
-    /* A block ends at its closing brace: an else continues the if, and any
-     * other statement after it is the next logical line. */
-    const char *after = skip_ws(t + close_pos + 1);
-    if(*after == ';')
-        after = skip_ws(after + 1);
-    if(*after &&
-       (strcmp(w0, "do") == 0 || strcmp(w0, "case") == 0 ||
-        strcmp(w0, "guard") == 0 ||
-        (starts_word(after, "else") &&
-         strcmp(w0, "if") != 0 && strcmp(w0, "else") != 0)))
-        return 0;
-    size_t hlen = brace_pos + 1;
-    size_t blen = close_pos - brace_pos - 1;
-    if(hlen >= hsz || blen >= bsz || strlen(after) >= tsz)
-        return 0;
-    memcpy(head, t, hlen); head[hlen] = '\0';
-    memcpy(body, t + brace_pos + 1, blen); body[blen] = '\0';
+    memcpy(head, t, (size_t)block.head_end);
+    head[block.head_end] = '\0';
+    size_t body_length = (size_t)(block.body_end - block.body_begin);
+    memcpy(body, t + block.body_begin, body_length);
+    body[body_length] = '\0';
     trim_in_place(body);
-    copy_text(tail, tsz, after);
+    copy_text(tail, tsz, t + block.tail_begin);
     return 1;
 }
 
 const char *
 closing_parenthesis(const char *open)
 {
-    int depth = 0;
-    if(open == NULL || *open != '(') return NULL;
-    for(const char *cursor = open; *cursor; cursor++) {
-        if(*cursor == '"' || *cursor == '\'') {
-            char quote = *cursor++;
-            while(*cursor && *cursor != quote) {
-                if(*cursor == '\\' && cursor[1]) cursor++;
-                cursor++;
-            }
-            if(!*cursor) return NULL;
-        } else if(*cursor == '(') depth++;
-        else if(*cursor == ')' && --depth == 0) return cursor;
-    }
-    return NULL;
+    int64_t at = compiler_source_ClosingParenthesis(source_view(open));
+    return at < 0 ? NULL : open + at;
 }

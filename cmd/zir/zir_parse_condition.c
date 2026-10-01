@@ -1,4 +1,5 @@
 #include "zir_parse_internal.h"
+#include "compiler_source.h"
 
 static int compile_size_of_ready(const ZirModule *module, char *condition);
 
@@ -912,60 +913,14 @@ cond_frame_settle(ZirCondFrame *frames, int count)
         frames[count - 1].braces--;
 }
 
-/* Strip nested block and line comments in place while preserving newlines.
- * Block depth carries across source lines; quoted delimiters are inert. */
+/* The output aliases the input; the Ziran scanner never overwrites unread bytes. */
 void
 strip_block_comments(char *s, int *comment_depth)
 {
-    char *w = s;
-    char *r = s;
-    int in_str = 0;
-    int in_chr = 0;
-
-    while(*r != '\0') {
-        if(*comment_depth) {
-            if(*r == '/' && r[1] == '*') {
-                (*comment_depth)++;
-                r += 2;
-            } else if(*r == '*' && r[1] == '/') {
-                (*comment_depth)--;
-                r += 2;
-                if(*comment_depth == 0)
-                    *w++ = ' ';   /* keep tokens on either side apart */
-            } else {
-                if(*r == '\n') *w++ = '\n';
-                r++;
-            }
-            continue;
-        }
-        if(in_str || in_chr) {
-            if(*r == '\\' && r[1] != '\0') {
-                *w++ = *r++;
-                *w++ = *r++;
-                continue;
-            }
-            if((in_str && *r == '"') || (in_chr && *r == '\''))
-                in_str = in_chr = 0;
-            else if(*r == '\n')
-                in_str = in_chr = 0;
-            *w++ = *r++;
-        } else if(*r == '"') {
-            in_str = 1;
-            *w++ = *r++;
-        } else if(*r == '\'') {
-            in_chr = 1;
-            *w++ = *r++;
-        } else if(*r == '/' && r[1] == '/') {
-            while(*r != '\0' && *r != '\n') r++;
-            if(*r == '\n') *w++ = *r++;
-        } else if(*r == '/' && r[1] == '*') {
-            *comment_depth = 1;
-            r += 2;
-        } else if(*r == '\n') {
-            *w++ = *r++;
-        } else {
-            *w++ = *r++;
-        }
-    }
-    *w = '\0';
+    size_t length = strlen(s);
+    CommentScan result = compiler_source_StripComments(StringView(s, length),
+                                                       (Slice){s, (int64_t)length},
+                                                       *comment_depth);
+    s[result.count] = '\0';
+    *comment_depth = result.depth;
 }

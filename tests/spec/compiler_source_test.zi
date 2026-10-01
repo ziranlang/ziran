@@ -1,0 +1,130 @@
+#import "compiler_source"
+#import "std/vec"
+
+SameRewrite :: (source: string, expected: string) -> bool {
+    output: [512]u8
+    measure := RewriteRawStrings(source, output[0:0], 128)
+    rewritten := RewriteRawStrings(source, output[:], 128)
+    if measure.error != .None || rewritten.error != .None ||
+    measure.count != expected.count || rewritten.count != expected.count ||
+    TextView(output[0:rewritten.count]) != expected { return false }
+    for capacity: 0..expected.count {
+        for index: 0..511 { output[index] = 0xa5 }
+        prefix := RewriteRawStrings(source, output[0:capacity], 128)
+        if prefix.error != .None || prefix.count != expected.count || output[capacity] != 0xa5 ||
+        TextView(output[0:capacity]) != expected[0:capacity] { return false }
+    }
+    return true
+}
+
+#program_export
+Answer :: () -> s32 {
+    if !SameRewrite("", "") || !SameRewrite("a\n\"x\\\"y\"\n'x' /* nested /* #string X */ */", 
+        "a\n\"x\\\"y\"\n'x' /* nested /* #string X */ */") { return 1 }
+    if !SameRewrite("x :: #string END\ntext\nEND;\ny :: 3\n", "x :: \"text\\n\";\n\n\ny :: 3\n") { return 2 }
+    if !SameRewrite("#string X\nX", "\"\"") ||
+    !SameRewrite("#string X\r\n\"\\\t\x01\x7f\ré\nX;", "\"\\\"\\\\\\t\\x01\\x7f\\ré\\n\";") { return 3 }
+    if !SameRewrite("#string X\na\nX + #string Y\nb\nY;\nnext", "\"a\\n\" + \"b\\n\";\n\n\n\n\nnext") { return 4 }
+    if !SameRewrite("#string X\nX_EXTRA\n X\nX", "\"X_EXTRA\\n X\\n\"") { return 5 }
+    if !SameRewrite("// #string X\n/* #string Y */\n\"#string Z\"\n'#string Q'", 
+        "// #string X\n/* #string Y */\n\"#string Z\"\n'#string Q'") { return 6 }
+    if !SameRewrite("a#string X\n#stringer X\n", "a#string X\n#stringer X\n") { return 7 }
+    output: [128]u8
+    failed := RewriteRawStrings("\n  #string 123\n", output[:], 128)
+    if failed.error != .Delimiter || failed.line != 2 || failed.column != 3 { return 8 }
+    failed = RewriteRawStrings("#string", output[:], 128)
+    if failed.error != .Delimiter { return 9 }
+    failed = RewriteRawStrings("#string ABCD\nABCD", output[:], 4)
+    if failed.error != .Delimiter { return 10 }
+    failed = RewriteRawStrings("#string X extra\nX", output[:], 128)
+    if failed.error != .DelimiterLine { return 11 }
+    failed = RewriteRawStrings("\"a\\\nb\"\n  #string X\nbody", output[:], 128)
+    if failed.error != .Unterminated || failed.line != 3 || failed.column != 3 ||
+    failed.marker_begin != 17 || failed.marker_end != 18 { return 12 }
+    if !StartsWord("if (true)", "if") || StartsWord("iffy", "if") ||
+    StartsWord("if:", "if") || !StartsWord("if", "if") { return 13 }
+    if !IdentifierText("a_9", false) || IdentifierText("9a", false) || IdentifierText("", true) ||
+    !IdentifierText("a.b_9.C", true) || IdentifierText("a..b", true) ||
+    IdentifierText("a.b", false) || IdentifierText("a.", true) { return 14 }
+    if !ContainsDirective("x #else", "#else") || ContainsDirective("#else_if", "#else") ||
+    ContainsDirective("\"#else\" // #else", "#else") || ContainsDirective("\"unfinished\\", "#else") { return 15 }
+    stripped := StripComments("a/* outer /* nested */ tail */b // line\n\"/*x*/\" '\\''", output[:], 0)
+    if stripped.depth != 0 || TextView(output[0:stripped.count]) != "a b \n\"/*x*/\" '\\''" { return 16 }
+    stripped = StripComments("a /* nested", output[:], 0)
+    if stripped.depth != 1 || TextView(output[0:stripped.count]) != "a " { return 17 }
+    stripped = StripComments("more /* deeper */ */b", output[:], stripped.depth)
+    if stripped.depth != 0 || TextView(output[0:stripped.count]) != " b" { return 18 }
+    stripped = StripComments("/*a\n/*b\n*/c\n*/d", output[:], 0)
+    if stripped.depth != 0 || TextView(output[0:stripped.count]) != "\n\n\n d" { return 19 }
+    if NetBlockBraces("if Call(.{x = \"}\"}, ['{']) { }") != 0 ||
+    NetBlockBraces("} else if Call(.{x = 1}) {") != 0 || NetBlockBraces("{{ }") != 1 { return 20 }
+    if StatementSeparator("x := Call(.{x = 1; y = 2}); y := 3") != 26 ||
+    StatementSeparator("x := \";\"; y := 3") != 8 || StatementSeparator("x := 1;  ") != -1 ||
+    StatementSeparator("for i := 0; i < 3; i += 1 {") != -1 { return 21 }
+    if StatementSeparator("x := #ifx true 1; else 2; y := 3") != 24 ||
+    StatementSeparator("} else { x := 1; } y := 2; z := 3") != 25 { return 22 }
+    block := SplitControlBlock("if Check(.{value = 1}) { Call(\"}\"); } else { Next(); }")
+    if !block.valid || block.head_end != 24 || block.body_begin != 24 ||
+    block.body_end != 36 || block.tail_begin != 38 { return 23 }
+    block = SplitControlBlock("} else { Next(); } After()")
+    if !block.valid || block.tail_begin != 19 { return 24 }
+    block = SplitControlBlock("if .{x = 1}.x == 1 { Answer(); }")
+    if !block.valid || block.head_end != 20 { return 25 }
+    if SplitControlBlock("case { Next(); } else { Other(); }").valid ||
+    SplitControlBlock("do { Next(); } while true").valid ||
+    SplitControlBlock("while true { Next(); } else { Other(); }").valid ||
+    SplitControlBlock("Call(.{x = 1})").valid || SplitControlBlock("if true { x := \"unfinished\\").valid { return 26 }
+    if ClosingParenthesis("(Call(\")\"), ['(']) tail") != 17 ||
+    ClosingParenthesis("(\"unfinished\\") != -1 || ClosingParenthesis("not a call") != -1 { return 27 }
+    return 42
+}
+
+#program_export
+Fingerprint :: () -> s64 {
+    state: u32 = 7341
+    result: u32 = 2166136261
+    alphabet := "abcXYZ_0129\"'\\()[]{};,#/=<>!% \t\n\r\v\f\x7f"
+    for sample: 0..255 {
+        bytes: Vec(u8)
+        if sample % 4 == 0 { BuilderAppend(bytes, "#string X\n") }
+        else if sample % 4 == 1 { BuilderAppend(bytes, "/* outer /* ") }
+        else if sample % 4 == 2 { BuilderAppend(bytes, "if .{x = 1}.x { ") }
+        length := sample % 48
+        for index: 0..length - 1 {
+            state = state * cast(u32)1664525 + cast(u32)1013904223
+            VecPush(bytes, alphabet[cast(s64)(state >> 16) % alphabet.count])
+        }
+        if sample % 4 == 0 { BuilderAppend(bytes, "\nX;\nnext") }
+        else if sample % 4 == 1 { BuilderAppend(bytes, "*/ */ after") }
+        else if sample % 4 == 2 { BuilderAppend(bytes, "} else { Next(); }") }
+        source := TextView(VecSlice(bytes, 0, bytes.count))
+        output: [256]u8
+        for capacity: 0..8 {
+            rewrite := RewriteRawStrings(source, output[0:capacity], 128)
+            result = result * cast(u32)16777619 ^ cast(u32)rewrite.error
+            result = result * cast(u32)16777619 ^ cast(u32)rewrite.count
+            count := rewrite.count
+            if count > capacity { count = capacity }
+            for byte: output[0:count] { result = result * cast(u32)16777619 ^ cast(u32)byte }
+            comments := StripComments(source, output[0:capacity], cast(s32)(sample % 3))
+            result = result * cast(u32)16777619 ^ cast(u32)comments.depth
+            result = result * cast(u32)16777619 ^ cast(u32)comments.count
+            count = comments.count
+            if count > capacity { count = capacity }
+            for byte: output[0:count] { result = result * cast(u32)16777619 ^ cast(u32)byte }
+        }
+        result = result * cast(u32)16777619 ^ cast(u32)NetBlockBraces(source)
+        result = result * cast(u32)16777619 ^ cast(u32)StatementSeparator(source)
+        result = result * cast(u32)16777619 ^ cast(u32)ClosingParenthesis(source)
+        result = result * cast(u32)16777619 ^ cast(u32)IdentifierText(source, true)
+        block := SplitControlBlock(source)
+        result = result * cast(u32)16777619 ^ cast(u32)block.valid
+        result = result * cast(u32)16777619 ^ cast(u32)block.head_end
+        result = result * cast(u32)16777619 ^ cast(u32)block.body_end
+        result = result * cast(u32)16777619 ^ cast(u32)block.tail_begin
+        VecFree(bytes)
+    }
+    return cast(s64)result
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

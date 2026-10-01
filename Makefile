@@ -37,18 +37,23 @@ HOST_CC ?= cc
 BOOTSTRAP ?= 0
 SCANNER_OBJECT := $(BUILD_DIR)/obj/compiler-scan.o
 TEXT_OBJECT := $(BUILD_DIR)/obj/compiler-text.o
+SOURCE_OBJECT := $(BUILD_DIR)/obj/compiler-source.o
 ifeq ($(BOOTSTRAP),1)
 SCANNER_C := bootstrap/compiler_scan
 SCANNER_READY := $(SCANNER_C)/compiler_scan.c $(SCANNER_C)/compiler_scan.h
 TEXT_C := bootstrap/compiler_text
 TEXT_READY := $(TEXT_C)/compiler_text.c $(TEXT_C)/compiler_text.h
+SOURCE_C := bootstrap/compiler_source
+SOURCE_READY := $(SOURCE_C)/compiler_source.c $(SOURCE_C)/compiler_source.h
 else
 SCANNER_C := $(BUILD_DIR)/compiler-scan
 SCANNER_READY := $(SCANNER_C)/.generated
 TEXT_C := $(BUILD_DIR)/compiler-text
 TEXT_READY := $(TEXT_C)/.generated
+SOURCE_C := $(BUILD_DIR)/compiler-source
+SOURCE_READY := $(SOURCE_C)/.generated
 endif
-override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C)
+override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C)
 FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_text.c \
     cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
@@ -62,9 +67,9 @@ LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(BUILD_DIR)/obj/check.o \
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o
-FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(BUILD_DIR)/obj/check.o \
+FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o
 BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
@@ -122,6 +127,11 @@ $(call obj,cmd/zir/zir_text.c): $(TEXT_READY)
 $(TEXT_OBJECT): $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TEXT_C)/compiler_text.c
+
+$(call obj,cmd/zir/zir_parse.c cmd/zir/zir_parse_condition.c): $(SOURCE_READY)
+$(SOURCE_OBJECT): $(SOURCE_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SOURCE_C)/compiler_source.c
 
 $(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
@@ -271,7 +281,8 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     $(PORTABLE) cmd/zir/zir_runtime.c cmd/zir-c/main.c cmd/zir-c/zir_c_lower.c \
     cmd/zir-c/zir_c_plan9.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     bootstrap/compiler_scan/compiler_scan.c bootstrap/compiler_scan/compiler_scan.h \
-    bootstrap/compiler_text/compiler_text.c bootstrap/compiler_text/compiler_text.h Makefile
+    bootstrap/compiler_text/compiler_text.c bootstrap/compiler_text/compiler_text.h \
+    bootstrap/compiler_source/compiler_source.c bootstrap/compiler_source/compiler_source.h Makefile
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=objcopy CFLAGS=-O2 \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -286,6 +297,11 @@ $(TEXT_C)/.generated: cmd/compiler_text.zi $(BOOTSTRAP_BIN)
 	    -o $(TEXT_C) cmd/compiler_text.zi
 	touch $@
 
+$(SOURCE_C)/.generated: cmd/compiler_source.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
+	    -o $(SOURCE_C) cmd/compiler_source.zi
+	touch $@
+
 .PHONY: check-bootstrap update-bootstrap
 check-bootstrap: $(BIN_DIR)/zi2c
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
@@ -296,6 +312,10 @@ check-bootstrap: $(BIN_DIR)/zi2c
 	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_text.zi
 	cmp bootstrap/compiler_text/compiler_text.c $(BUILD_DIR)/bootstrap-check/compiler_text.c
 	cmp bootstrap/compiler_text/compiler_text.h $(BUILD_DIR)/bootstrap-check/compiler_text.h
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
+	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_source.zi
+	cmp bootstrap/compiler_source/compiler_source.c $(BUILD_DIR)/bootstrap-check/compiler_source.c
+	cmp bootstrap/compiler_source/compiler_source.h $(BUILD_DIR)/bootstrap-check/compiler_source.h
 
 update-bootstrap: $(BIN_DIR)/zi2c
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
@@ -306,6 +326,10 @@ update-bootstrap: $(BIN_DIR)/zi2c
 	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_text.zi
 	cp $(BUILD_DIR)/bootstrap-check/compiler_text.c bootstrap/compiler_text/
 	cp $(BUILD_DIR)/bootstrap-check/compiler_text.h bootstrap/compiler_text/
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
+	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_source.zi
+	cp $(BUILD_DIR)/bootstrap-check/compiler_source.c bootstrap/compiler_source/
+	cp $(BUILD_DIR)/bootstrap-check/compiler_source.h bootstrap/compiler_source/
 endif
 
 $(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJECTS) $(call obj,$(PORTABLE)) \

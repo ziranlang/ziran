@@ -1,0 +1,356 @@
+// Source scanning before declarations are parsed. All spans borrow source;
+// callers own output storage. No native imports or allocation are needed.
+SourceError :: enum s32 { None; Delimiter; DelimiterLine; Unterminated }
+SourceRewrite :: struct {
+    error: SourceError
+    count: s64
+    line: s32
+    column: s32
+    marker_begin: s64
+    marker_end: s64
+}
+CommentScan :: struct { count: s64; depth: s32 }
+ControlBlock :: struct {
+    valid: bool
+    head_end: s64
+    body_begin: s64
+    body_end: s64
+    tail_begin: s64
+}
+
+#scope_file
+Byte :: (source: string, at: s64) -> u8 {
+    if at < 0 || at >= source.count { return 0 }
+    return source[at]
+}
+Space :: (byte: u8) -> bool { return byte == #char " " || (byte >= 9 && byte <= 13) }
+Letter :: (byte: u8) -> bool {
+    return (byte >= #char "A" && byte <= #char "Z") || (byte >= #char "a" && byte <= #char "z") || byte == #char "_"
+}
+SkipSpace :: (source: string, at: s64) -> s64 {
+    while at < source.count && Space(source[at]) { at += 1 }
+    return at
+}
+Matches :: (source: string, at: s64, text: string) -> bool {
+    return at >= 0 && at <= source.count && text.count <= source.count - at &&
+    source[at:at + text.count] == text
+}
+Find :: (source: string, text: string) -> s64 {
+    at: s64 = 0
+    while at <= source.count {
+        if Matches(source, at, text) { return at }
+        at += 1
+    }
+    return -1
+}
+AfterQuote :: (source: string, at: s64) -> s64 {
+    quote := source[at]
+    at += 1
+    while at < source.count {
+        byte := source[at]
+        at += 1
+        if byte == #char "\\" && at < source.count { at += 1 }
+        else if byte == quote { break }
+    }
+    return at
+}
+Put :: (output: []u8, used: *s64, byte: u8) {
+    if <<used < output.count { output[<<used] = byte }
+    <<used += 1
+}
+PutScanned :: (output: []u8, used: *s64, byte: u8, gaps: *s64) {
+    Put(output, used, byte)
+    if byte == #char "\n" {
+        while <<gaps > 0 { Put(output, used, #char "\n"); <<gaps -= 1 }
+    }
+}
+PutRaw :: (output: []u8, used: *s64, byte: u8) {
+    escaped: u8 = 0
+    if byte == #char "\"" || byte == #char "\\" { escaped = byte }
+    else if byte == #char "\n" { escaped = #char "n" }
+    else if byte == #char "\r" { escaped = #char "r" }
+    else if byte == #char "\t" { escaped = #char "t" }
+    if escaped != 0 { Put(output, used, #char "\\"); Put(output, used, escaped) }
+    else if byte < #char " " || byte == 127 {
+        digits := "0123456789abcdef"
+        Put(output, used, #char "\\")
+        Put(output, used, #char "x")
+        Put(output, used, digits[byte >> 4])
+        Put(output, used, digits[byte & 15])
+    } else { Put(output, used, byte) }
+}
+
+#scope_export
+SourceIdentifier :: (byte: u8) -> bool {
+    return Letter(byte) || (byte >= #char "0" && byte <= #char "9")
+}
+StartsWord :: (source: string, word: string) -> bool {
+    if !Matches(source, 0, word) { return false }
+    byte := Byte(source, word.count)
+    return byte == 0 || byte == #char " " || byte == #char "\t" ||
+    byte == #char "(" || byte == #char "\"" || byte == #char "{"
+}
+IdentifierText :: (source: string, member_path: bool) -> bool {
+    if source.count == 0 || !Letter(source[0]) { return false }
+    at: s64 = 1
+    while at < source.count {
+        if SourceIdentifier(source[at]) { at += 1 }
+        else if member_path && source[at] == #char "." && Letter(Byte(source, at + 1)) {
+            at += 2
+        } else { return false }
+    }
+    return true
+}
+ContainsDirective :: (source: string, directive: string) -> bool {
+    at: s64 = 0
+    while at < source.count {
+        if source[at] == #char "\"" { at = AfterQuote(source, at) }
+        else if Matches(source, at, "//") { return false }
+        else if Matches(source, at, directive) &&
+        !SourceIdentifier(Byte(source, at + directive.count)) { return true }
+        else { at += 1 }
+    }
+    return false
+}
+
+// Empty output measures the required storage. A shorter buffer receives only
+// its bounded prefix; count always reports the complete rewritten length.
+// Raw bodies lose their physical newlines, which are restored after the next
+// code newline so declaration spans after the delimiter stay in place.
+RewriteRawStrings :: (source: string, output: []u8, marker_limit: s64) -> SourceRewrite {
+    result: SourceRewrite
+    at: s64 = 0
+    used: s64 = 0
+    gaps: s64 = 0
+    line: s32 = 1
+    column: s32 = 1
+    quote: u8 = 0
+    line_comment := false
+    comment_depth: s32 = 0
+    while at < source.count {
+        byte := source[at]
+        if !line_comment && quote == 0 &&
+        (Matches(source, at, "/*") || (comment_depth > 0 && Matches(source, at, "*/"))) {
+            if byte == #char "/" { comment_depth += 1 } else { comment_depth -= 1 }
+            Put(output, *used, byte)
+            Put(output, *used, source[at + 1])
+            at += 2
+            column += 2
+            continue
+        }
+        if !line_comment && comment_depth == 0 && quote == 0 {
+            if Matches(source, at, "//") { line_comment = true }
+            else if byte == #char "\"" || byte == #char "'" { quote = byte }
+            else if Matches(source, at, "#string") &&
+            (at == 0 || !SourceIdentifier(source[at - 1])) &&
+            (at + 7 == source.count || Space(source[at + 7])) {
+                result.line = line
+                result.column = column
+                cursor := at + 7
+                while Byte(source, cursor) == #char " " || Byte(source, cursor) == #char "\t" { cursor += 1 }
+                begin := cursor
+                while SourceIdentifier(Byte(source, cursor)) { cursor += 1 }
+                end := cursor
+                result.marker_begin = begin
+                result.marker_end = end
+                if end == begin || end - begin >= marker_limit || !Letter(Byte(source, begin)) {
+                    result.error = .Delimiter
+                    return result
+                }
+                while Byte(source, cursor) == #char " " || Byte(source, cursor) == #char "\t" { cursor += 1 }
+                if Byte(source, cursor) == #char "\r" { cursor += 1 }
+                if cursor >= source.count || source[cursor] != #char "\n" {
+                    result.error = .DelimiterLine
+                    return result
+                }
+                body := cursor + 1
+                close := body
+                marker := source[begin:end]
+                while close < source.count {
+                    if Matches(source, close, marker) &&
+                    !SourceIdentifier(Byte(source, close + marker.count)) { break }
+                    while close < source.count && source[close] != #char "\n" { close += 1 }
+                    if close < source.count { close += 1 }
+                }
+                if close >= source.count { result.error = .Unterminated; return result }
+                Put(output, *used, #char "\"")
+                cursor = body
+                while cursor < close { PutRaw(output, *used, source[cursor]); cursor += 1 }
+                Put(output, *used, #char "\"")
+                while at < close {
+                    if source[at] == #char "\n" { line += 1; gaps += 1 }
+                    at += 1
+                }
+                column = cast(s32)marker.count + 1
+                at += marker.count
+                continue
+            }
+            // An opening quote is copied below; it must not also close itself.
+            PutScanned(output, *used, byte, *gaps)
+            at += 1
+        } else if quote != 0 {
+            PutScanned(output, *used, byte, *gaps)
+            at += 1
+            if byte == #char "\\" && at < source.count {
+                column += 1
+                byte = source[at]
+                PutScanned(output, *used, byte, *gaps)
+                at += 1
+            } else if byte == quote { quote = 0 }
+        } else {
+            PutScanned(output, *used, byte, *gaps)
+            at += 1
+        }
+        if byte == #char "\n" { line += 1; column = 1; line_comment = false }
+        else { column += 1 }
+    }
+    result.count = used
+    return result
+}
+
+// The output may be the source's own storage: writes never pass unread bytes.
+// Comment depth survives physical lines; ordinary quotes end at a newline.
+StripComments :: (source: string, output: []u8, depth: s32) -> CommentScan {
+    at: s64 = 0
+    used: s64 = 0
+    quote: u8 = 0
+    while at < source.count {
+        byte := source[at]
+        if depth > 0 {
+            if Matches(source, at, "/*") { depth += 1; at += 2 }
+            else if Matches(source, at, "*/") {
+                depth -= 1
+                at += 2
+                if depth == 0 { Put(output, *used, #char " ") }
+            } else {
+                if byte == #char "\n" { Put(output, *used, byte) }
+                at += 1
+            }
+        } else if quote != 0 {
+            Put(output, *used, byte)
+            at += 1
+            if byte == #char "\\" && at < source.count {
+                Put(output, *used, source[at]); at += 1
+            } else if byte == quote || byte == #char "\n" { quote = 0 }
+        } else if byte == #char "\"" || byte == #char "'" {
+            quote = byte
+            Put(output, *used, byte)
+            at += 1
+        } else if Matches(source, at, "//") {
+            while at < source.count && source[at] != #char "\n" { at += 1 }
+        } else if Matches(source, at, "/*") { depth = 1; at += 2 }
+        else { Put(output, *used, byte); at += 1 }
+    }
+    return .{used, depth}
+}
+
+NetBlockBraces :: (source: string) -> s32 {
+    at: s64 = 0
+    parentheses: s32 = 0
+    result: s32 = 0
+    while at < source.count {
+        byte := source[at]
+        if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at); continue }
+        if byte == #char "(" || byte == #char "[" { parentheses += 1 }
+        else if byte == #char ")" || byte == #char "]" {
+            if parentheses > 0 { parentheses -= 1 }
+        } else if parentheses == 0 {
+            if byte == #char "{" { result += 1 }
+            else if byte == #char "}" { result -= 1 }
+        }
+        at += 1
+    }
+    return result
+}
+
+StatementSeparator :: (source: string) -> s64 {
+    at: s64 = 0
+    parentheses: s32 = 0
+    brackets: s32 = 0
+    braces: s32 = 0
+    first_brace := Find(source, "{")
+    conditional := Find(source, "#ifx")
+    while at < source.count {
+        byte := source[at]
+        if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at); continue }
+        if byte == #char "(" { parentheses += 1 }
+        else if byte == #char ")" { parentheses -= 1 }
+        else if byte == #char "[" { brackets += 1 }
+        else if byte == #char "]" { brackets -= 1 }
+        else if byte == #char "{" { braces += 1 }
+        else if byte == #char "}" && braces > 0 { braces -= 1 }
+        else if byte == #char ";" && parentheses == 0 && brackets == 0 && braces == 0 {
+            after := SkipSpace(source, at + 1)
+            if after < source.count &&
+            !(StartsWord(source, "for") && (first_brace < 0 || at < first_brace)) &&
+            !(conditional >= 0 && conditional < at && StartsWord(source[after:], "else")) { return at }
+        }
+        at += 1
+    }
+    return -1
+}
+
+SplitControlBlock :: (source: string) -> ControlBlock {
+    result: ControlBlock
+    if source.count < 4 { return result }
+    control: s64 = 0
+    if source[0] == #char "}" {
+        after := SkipSpace(source, 1)
+        if StartsWord(source[after:], "else") { control = after }
+    }
+    end := control
+    while end < source.count && SourceIdentifier(source[end]) && end - control < 15 { end += 1 }
+    word := source[control:end]
+    if word != "if" && word != "else" && word != "while" && word != "for" &&
+    word != "defer" && word != "switch" && word != "case" && word != "guard" && word != "do" {
+        return result
+    }
+    at: s64 = 0
+    parentheses: s32 = 0
+    expressions: s32 = 0
+    opening: s64 = 0
+    while at < source.count {
+        byte := source[at]
+        if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at); continue }
+        if byte == #char "(" || byte == #char "[" { parentheses += 1 }
+        else if byte == #char ")" || byte == #char "]" { parentheses -= 1 }
+        else if byte == #char "{" && parentheses == 0 {
+            before := at
+            while before > 0 && Space(source[before - 1]) { before -= 1 }
+            if expressions > 0 || (before > 0 && source[before - 1] == #char "." &&
+                (before < 2 || source[before - 2] != #char ".")) { expressions += 1 }
+            else { opening = at; break }
+        } else if byte == #char "}" && parentheses == 0 && expressions > 0 { expressions -= 1 }
+        at += 1
+    }
+    if opening == 0 || expressions != 0 { return result }
+    depth: s32 = 1
+    at = opening + 1
+    while at < source.count {
+        byte := source[at]
+        if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at); continue }
+        if byte == #char "{" { depth += 1 }
+        else if byte == #char "}" { depth -= 1; if depth == 0 { break } }
+        at += 1
+    }
+    if at >= source.count { return result }
+    tail := SkipSpace(source, at + 1)
+    if Byte(source, tail) == #char ";" { tail = SkipSpace(source, tail + 1) }
+    if tail < source.count && (word == "do" || word == "case" || word == "guard" ||
+        (StartsWord(source[tail:], "else") && word != "if" && word != "else")) { return result }
+    return .{true, opening + 1, opening + 1, at, tail}
+}
+
+ClosingParenthesis :: (source: string) -> s64 {
+    if source.count == 0 || source[0] != #char "(" { return -1 }
+    depth: s32 = 0
+    at: s64 = 0
+    while at < source.count {
+        byte := source[at]
+        if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at); continue }
+        if byte == #char "(" { depth += 1 }
+        else if byte == #char ")" { depth -= 1; if depth == 0 { return at } }
+        at += 1
+    }
+    return -1
+}

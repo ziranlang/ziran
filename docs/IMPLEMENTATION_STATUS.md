@@ -50,6 +50,20 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   instead of reading beyond its terminating null. The parser, checker,
   backends, and runtime still require further migration for full self-hosting.
 
+- Source preprocessing and logical-line scanning are implemented in
+  `cmd/compiler_source.zi`: raw multiline strings, nested and line comments,
+  identifier and directive recognition, block-brace accounting, statement
+  separators, compact control blocks, and matching parentheses. The C parser
+  keeps storage and diagnostics behind a small boundary. Ordinary tools and
+  the portable library compile the maintained Ziran source; fresh builds use
+  a generated seed verified by `make check-bootstrap`.
+  `tests/compiler_source.sh` checks source and saved IR on C, C++, Go, Rust,
+  Python, and `.zib`, including bounded outputs, in-place comment removal,
+  malformed delimiters, nested literals, and a reproducible input corpus.
+  Raw-string diagnostics now count escaped physical newlines in preceding
+  ordinary strings correctly. Declaration parsing, checking, native lowering,
+  and the portable runtime still contain C and require further migration.
+
 - Rust empty text views compare, print, and slice without constructing a
   native slice from a null pointer. Empty vector and slice views retain their
   original pointer when no offset is needed. `tests/rust_empty_text.sh` checks

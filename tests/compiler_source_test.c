@@ -1,0 +1,71 @@
+#include "compiler_source.h"
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+
+static String text(const char *source)
+{
+    return StringView(source, strlen(source));
+}
+
+static void rewrite(const char *source, const char *expected)
+{
+    SourceRewrite measure = compiler_source_RewriteRawStrings(text(source), (Slice){0}, 128);
+    assert(measure.error == SourceError_None && measure.count == (int64_t)strlen(expected));
+    unsigned char *output = malloc((size_t)measure.count + 2);
+    assert(output);
+    for(int64_t capacity = 0; capacity <= measure.count; capacity++) {
+        memset(output, 0xa5, (size_t)measure.count + 2);
+        SourceRewrite result = compiler_source_RewriteRawStrings(text(source),
+                                                                 (Slice){output, capacity}, 128);
+        assert(result.error == SourceError_None && result.count == measure.count);
+        assert(!memcmp(output, expected, (size_t)capacity) && output[capacity] == 0xa5);
+    }
+    free(output);
+}
+
+int main(void)
+{
+    rewrite("", "");
+    rewrite("#string END\r\n\"\\\t\001\177\nEND;\nnext", "\"\\\"\\\\\\t\\x01\\x7f\\n\";\n\n\nnext");
+    rewrite("#string X\na\nX + #string Y\nb\nY;\n", "\"a\\n\" + \"b\\n\";\n\n\n\n\n");
+    rewrite("// #string X\n/* nested /* #string Y */ */\n\"#string Z\"",
+            "// #string X\n/* nested /* #string Y */ */\n\"#string Z\"");
+    unsigned char output[128];
+    const struct { const char *source; SourceError error; int line, column; } invalid[] = {
+        {"#string", SourceError_Delimiter, 1, 1},
+        {"\n  #string 0BAD\n", SourceError_Delimiter, 2, 3},
+        {"#string X extra\nX", SourceError_DelimiterLine, 1, 1},
+        {"\"a\\\nb\"\n  #string X\nbody", SourceError_Unterminated, 3, 3},
+    };
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        SourceRewrite result = compiler_source_RewriteRawStrings(text(invalid[i].source),
+                                                                 (Slice){output, 128}, 128);
+        assert(result.error == invalid[i].error && result.line == invalid[i].line &&
+               result.column == invalid[i].column);
+    }
+    const unsigned char with_null[] = {'#', 's', 't', 'r', 'i', 'n', 'g', ' ', 'X', '\n',
+                                       'a', 0, '\n', 'X'};
+    SourceRewrite result = compiler_source_RewriteRawStrings(
+        StringView((const char *)with_null, sizeof(with_null)), (Slice){output, 128}, 128);
+    assert(result.error == SourceError_None && result.count == 9);
+    assert(!memcmp(output, "\"a\\x00\\n\"", 9));
+
+    char line[] = "a/* outer /* nested */ tail */b // line\n\"/* quoted */\"";
+    CommentScan comments = compiler_source_StripComments(text(line),
+                                                         (Slice){line, (int64_t)strlen(line)}, 0);
+    line[comments.count] = 0;
+    assert(comments.depth == 0 && !strcmp(line, "a b \n\"/* quoted */\""));
+    char first[] = "a /* nested";
+    comments = compiler_source_StripComments(text(first), (Slice){first, sizeof(first) - 1}, 0);
+    first[comments.count] = 0;
+    assert(comments.depth == 1 && !strcmp(first, "a "));
+    char second[] = "more /* deeper */ */b";
+    comments = compiler_source_StripComments(text(second), (Slice){second, sizeof(second) - 1}, comments.depth);
+    second[comments.count] = 0;
+    assert(comments.depth == 0 && !strcmp(second, " b"));
+    assert(compiler_source_ClosingParenthesis(text("(\"unfinished\\")) == -1);
+    assert(compiler_source_StatementSeparator(text("\"unfinished\\")) == -1);
+    assert(!compiler_source_SplitControlBlock(text("if true { \"unfinished\\")).valid);
+    return 0;
+}

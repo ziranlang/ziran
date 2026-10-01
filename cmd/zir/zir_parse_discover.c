@@ -432,6 +432,7 @@ discover_named_type_with_buffers(const char *source, const char *path, const cha
     }
     if(!buffers->type.is_enum && !take_abi_incomplete(&buffers->type))
         return;
+    if(!take_go_anonymous(&buffers->type)) return;
     if(!expand_type_this(&buffers->type)) return;
     if(future->count == future->capacity) {
         int capacity = future->capacity > 0 ? future->capacity * 2 : 8;

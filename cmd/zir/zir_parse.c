@@ -458,6 +458,42 @@ typedef struct TakeAbiIncompleteBuffers {
 
 int take_abi_incomplete(ZirType *type);
 
+/* Native Go anonymous records still have ordinary checked Ziran fields.
+ * Strip their identity annotation before field parsing and discovery. */
+int
+take_go_anonymous(ZirType *type)
+{
+    static const char directive[] = "#go_anonymous";
+    const char *line = type->body;
+    char *output = type->body;
+    int found = type->is_go_anonymous;
+    while(*line) {
+        const char *newline = strchr(line, '\n');
+        size_t length = newline ? (size_t)(newline - line) + 1 : strlen(line);
+        if(compiler_source_ContainsDirective(StringView(line, length), StringLiteral(directive))) {
+            const char *begin = line;
+            const char *end = line + length;
+            while(begin < end && isspace((unsigned char)*begin)) begin++;
+            while(end > begin && isspace((unsigned char)end[-1])) end--;
+            if(end > begin && end[-1] == ';') end--;
+            while(end > begin && isspace((unsigned char)end[-1])) end--;
+            if(found || (size_t)(end - begin) != sizeof(directive) - 1 ||
+               memcmp(begin, directive, sizeof(directive) - 1) ||
+               type->is_enum || type->is_union || type->is_extern ||
+               type->is_abi_incomplete || type->is_map || type->is_owned_vec)
+                return 0;
+            found = 1;
+        } else {
+            memmove(output, line, length);
+            output += length;
+        }
+        line += length;
+    }
+    *output = '\0';
+    type->is_go_anonymous = found;
+    return 1;
+}
+
 void
 normalize_record_separators(char *body, int split_commas)
 {

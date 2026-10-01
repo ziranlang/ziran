@@ -228,6 +228,7 @@ int parse_symbol_before_colons(const char *s, char *out, size_t out_size);
 int parse_type_parameters(const char *after, const char *keyword, char *names, size_t capacity);
 int line_is_abi_incomplete(const char *line, size_t length);
 int take_abi_incomplete(ZirType *type);
+int take_go_anonymous(ZirType *type);
 int expand_type_this(ZirType *type);
 const char *relative_path(const char *root, const char *path);
 int parse_quoted(const char *s, char *out, size_t out_size);

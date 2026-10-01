@@ -48,7 +48,7 @@ typedef struct Reader {
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 53u
+#define ZIR_FORMAT_VERSION 54u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -61,6 +61,7 @@ static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, go_results),
     INTEGER_FIELD(ZirImport, go_field),
     INTEGER_FIELD(ZirImport, go_defer),
+    INTEGER_FIELD(ZirImport, go_variadic),
     INTEGER_FIELD(ZirImport, py_results),
     INTEGER_FIELD(ZirImport, py_field),
     INTEGER_FIELD(ZirImport, is_using),
@@ -156,6 +157,7 @@ static const Field type_fields[] = {
     INTEGER_FIELD(ZirType, is_file_private),
     INTEGER_FIELD(ZirType, is_enum),
     INTEGER_FIELD(ZirType, is_union),
+    INTEGER_FIELD(ZirType, is_go_anonymous),
     INTEGER_FIELD(ZirType, is_enum_flags),
     INTEGER_FIELD(ZirType, is_enum_specified),
     STRING_FIELD(ZirType, enum_backing),
@@ -660,6 +662,7 @@ validate_program(const ZirProgram *program)
                (module->imports[i].go_results != 0 && module->imports[i].go_results != 1) ||
                (module->imports[i].go_field != 0 && module->imports[i].go_field != 1) ||
                (module->imports[i].go_defer != 0 && module->imports[i].go_defer != 1) ||
+               (module->imports[i].go_variadic != 0 && module->imports[i].go_variadic != 1) ||
                (module->imports[i].py_results != 0 && module->imports[i].py_results != 1) ||
                (module->imports[i].py_field != 0 && module->imports[i].py_field != 1) ||
                ((module->imports[i].py_results || module->imports[i].py_field) &&
@@ -675,6 +678,11 @@ validate_program(const ZirProgram *program)
                 (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
                  module->imports[i].extern_kind != ZIR_EXTERN_GO ||
                  module->imports[i].go_results ||
+                 strncmp(module->imports[i].target, "go:", 3))) ||
+               (module->imports[i].go_variadic &&
+                (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
+                 module->imports[i].extern_kind != ZIR_EXTERN_GO ||
+                 module->imports[i].go_field || module->imports[i].is_varargs ||
                  strncmp(module->imports[i].target, "go:", 3))) ||
                (module->imports[i].go_results &&
                 (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
@@ -705,6 +713,12 @@ validate_program(const ZirProgram *program)
                 return 0;
         for(int t = 0; t < module->type_count; t++) {
             const ZirType *type = &module->types[t];
+            if((type->is_go_anonymous != 0 && type->is_go_anonymous != 1) ||
+               (type->is_go_anonymous &&
+                (type->is_enum || type->is_union || type->is_extern ||
+                 type->is_procedure_type || type->is_abi_incomplete ||
+                 type->is_map || type->is_owned_vec)))
+                return 0;
             if((type->is_map != 0 && type->is_map != 1) ||
                (type->is_map &&
                 (!MapTypeParts(module, type->name, NULL, 0, NULL, 0) ||

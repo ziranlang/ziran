@@ -617,6 +617,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             if(contains_source_directive(t, "#go_defer") &&
                !contains_source_directive(t, "#foreign"))
                 die_at(Span(buffers->rel, line_no, 1), "#go_defer requires a foreign procedure");
+            if(contains_source_directive(t, "#go_variadic") &&
+               !contains_source_directive(t, "#foreign"))
+                die_at(Span(buffers->rel, line_no, 1), "#go_variadic requires a foreign procedure");
             if((contains_source_directive(t, "#py_results") ||
                 contains_source_directive(t, "#py_field")) &&
                !contains_source_directive(t, "#foreign"))
@@ -635,6 +638,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                    !starts_word(modifier, "#go_results") &&
                    !starts_word(modifier, "#go_field") &&
                    !starts_word(modifier, "#go_defer") &&
+                   !starts_word(modifier, "#go_variadic") &&
                    !starts_word(modifier, "#py_results") &&
                    !starts_word(modifier, "#py_field") &&
                    !starts_word(modifier, "#must"))
@@ -1491,6 +1495,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         if(!take_abi_incomplete(ty))
                             die_at(ty->span,
                                    "#abi_incomplete must appear alone in a record body");
+                        if(!take_go_anonymous(ty))
+                            die_at(ty->span,
+                                   "#go_anonymous must appear once alone in an ordinary record body");
                         if(!expand_type_this(ty))
                             die_at(ty->span, "#this type body exceeds size limit");
                     } else {
@@ -1517,6 +1524,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 if(!take_abi_incomplete(ty))
                     die_at(ty->span,
                            "#abi_incomplete must appear alone in a record body");
+                if(!take_go_anonymous(ty))
+                    die_at(ty->span,
+                           "#go_anonymous must appear once alone in an ordinary record body");
                 if(!expand_type_this(ty))
                     die_at(ty->span, "#this type body exceeds size limit");
                 if(ty->is_enum)
@@ -1534,7 +1544,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     die_at(Span(buffers->rel, line_no, 1),
                            "#abi_incomplete must appear alone in a record body");
                 ty->is_abi_incomplete = 1;
-            } else if(t[0] == '#') {
+            } else if(t[0] == '#' && !contains_source_directive(t, "#go_anonymous")) {
                 die_at(Span(buffers->rel, line_no, 1),
                        "unknown type-body directive: %s", t);
             } else {

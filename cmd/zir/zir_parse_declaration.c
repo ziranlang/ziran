@@ -676,13 +676,19 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
                    strstr(defer_attribute + strlen("#go_defer"), "#go_defer")))
         die_at(Span(path, line_no, 1), "#go_defer requires one foreign procedure without result or field attributes");
     const char *py_results_attribute = strstr(declaration, "#py_results");
+    const char *variadic_attribute = strstr(declaration, "#go_variadic");
+    int go_variadic = contains_source_directive(declaration, "#go_variadic");
+    if(go_variadic && (foreign_type || go_field || variadic_attribute >= dir ||
+       strstr(variadic_attribute + strlen("#go_variadic"), "#go_variadic")))
+        die_at(Span(path, line_no, 1),
+               "#go_variadic requires one foreign procedure with a final slice parameter");
     int py_results = contains_source_directive(declaration, "#py_results") &&
         py_results_attribute && py_results_attribute < dir;
     const char *py_field_attribute = strstr(declaration, "#py_field");
     int py_field = contains_source_directive(declaration, "#py_field") &&
         py_field_attribute && py_field_attribute < dir;
     if((py_results || py_field) &&
-       (foreign_type || go_results || go_field || go_defer || (py_results && py_field) ||
+       (foreign_type || go_results || go_field || go_defer || go_variadic || (py_results && py_field) ||
         (py_results && strstr(py_results_attribute + strlen("#py_results"), "#py_results")) ||
         (py_field && strstr(py_field_attribute + strlen("#py_field"), "#py_field"))))
         die_at(Span(path, line_no, 1),
@@ -775,6 +781,8 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         die_at(Span(path, line_no, 1), "#go_field requires an explicit Go foreign target");
     if(go_defer && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
         die_at(Span(path, line_no, 1), "#go_defer requires an explicit Go foreign target");
+    if(go_variadic && (extern_kind != ZIR_EXTERN_GO || strncmp(buffers->target, "go:", 3)))
+        die_at(Span(path, line_no, 1), "#go_variadic requires an explicit Go foreign target");
     if((py_results || py_field) && extern_kind != ZIR_EXTERN_PY)
         die_at(Span(path, line_no, 1), "%s requires a py: foreign target",
                py_results ? "#py_results" : "#py_field");
@@ -805,6 +813,7 @@ parse_foreign_line_with_buffers(ZirModule *module, const char *path, int line_no
         imp->go_results = go_results;
         imp->go_field = go_field;
         imp->go_defer = go_defer;
+        imp->go_variadic = go_variadic;
         imp->py_results = py_results;
         imp->py_field = py_field;
         snprintf(imp->extern_symbol, sizeof(imp->extern_symbol), "%s",

@@ -24,6 +24,9 @@ AsReader :: (value: Any) -> ReaderResult #go_results #foreign builtin "assert";
 AsEvent :: (value: Any) -> EventResult #go_results #foreign builtin "assert";
 AsSlice :: (value: Any) -> SliceResult #go_results #foreign builtin "assert";
 AsPointer :: (value: Any) -> PointerResult #go_results #foreign builtin "assert";
+RequireReader :: (value: Any) -> Reader #foreign builtin "assert";
+RequireEvent :: (value: Any) -> Event #foreign builtin "assert";
+RequirePointer :: (value: Any) -> *s32 #foreign builtin "assert";
 Worker :: #type (group: *Group, channel: channels.Channel, name: string) -> void;
 Spawn :: (callback: Worker, group: *Group, channel: channels.Channel, name: string) #foreign builtin "spawn";
 Complete :: (group: *Group) #foreign sync "(*WaitGroup).Done";
@@ -124,6 +127,7 @@ import (
     "context"
     "io"
     "reflect"
+    "runtime"
     "sync"
     "time"
 )
@@ -147,6 +151,26 @@ func main() {
     if result := Native_AsPointer(pointer); !result.Present || result.Value != pointer { panic("pointer assertion") }
     var nilPointer *int32
     if result := Native_AsPointer(nilPointer); !result.Present || result.Value != nil { panic("typed nil pointer") }
+    if Native_RequireReader(reader) != reader || Native_RequireEvent(event) != event ||
+        Native_RequirePointer(pointer) != pointer || Native_RequirePointer(nilPointer) != nil {
+        panic("required assertion identity")
+    }
+    for _, value := range []any{nil, "wrong", event, (*int64)(nil)} {
+        func() {
+            var expected any
+            func() {
+                defer func() { expected = recover() }()
+                _ = value.(*int32)
+            }()
+            defer func() {
+                actual := recover()
+                got, gotOK := actual.(*runtime.TypeAssertionError)
+                want, wantOK := expected.(*runtime.TypeAssertionError)
+                if !gotOK || !wantOK || got.Error() != want.Error() { panic("native assertion panic changed") }
+            }()
+            Native_RequirePointer(value)
+        }()
+    }
     var group sync.WaitGroup
     if result := Native_Run(&group, "captured"); !result.Present || result.Value != (Event{Name: "captured", Count: 42}) { panic("spawn argument capture or typed channel") }
     if !Native_Buffered() { panic("channel capacity or close behavior") }
@@ -192,7 +216,7 @@ GO
 done
 cmp "$work/source-go/native.go" "$work/saved-go/native.go"
 for declaration in \
-    'Bad :: (value: Any) -> Result #foreign builtin "assert";' \
+    'Bad :: (value: Any) #foreign builtin "assert";' \
     'Bad :: () -> Result #go_results #foreign builtin "assert";' \
     'Bad :: (value: s32) -> Result #go_results #foreign builtin "assert";' \
     'Bad :: (value: Any, other: Any) -> Result #go_results #foreign builtin "assert";' \
@@ -207,6 +231,16 @@ for declaration in \
         exit 1
     fi
 done
+cat > "$work/owned-assertion.zi" <<'ZI'
+#import "go_types"
+#import "vec"
+builtin :: #system_library "go:builtin";
+Bad :: (value: Any) -> Vec(u8) #foreign builtin "assert";
+ZI
+if "$ziran" check --root "$work" --module-path std "$work/owned-assertion.zi" > "$work/bad.out" 2>&1; then
+    echo 'owned value accepted by required assertion' >&2
+    exit 1
+fi
 for fields in 'value: s32' 'value: s32; present: s32' 'value: s32; present: bool; extra: bool' 'value: Vec(u8); present: bool'; do
     printf '#import "go_types"\n#import "vec"\nbuiltin :: #system_library "go:builtin";\nResult :: struct { %s }\nBad :: (value: Any) -> Result #go_results #foreign builtin "assert";\n' "$fields" > "$work/bad.zi"
     if "$ziran" check --root "$work" --module-path std "$work/bad.zi" > "$work/bad.out" 2>&1; then

@@ -1,5 +1,6 @@
 // Native Go SQL handles, nullable strings and transaction cleanup primitives.
 #import "go_types"
+ctx :: #import "context_go";
 go_sql :: #system_library "go:database/sql";
 Database :: #type #foreign go_sql "DB";
 Transaction :: #type #foreign go_sql "Tx";
@@ -10,6 +11,22 @@ Result :: #type #foreign go_sql "Result";
 NullString :: #type #foreign go_sql "NullString";
 AffectedRowsResult :: struct {
     value: s64
+    error: Error
+}
+QueryResult :: struct {
+    value: *Rows
+    error: Error
+}
+ColumnsResult :: struct {
+    value: []string
+    error: Error
+}
+ExecResult :: struct {
+    value: Result
+    error: Error
+}
+TransactionResult :: struct {
+    value: *Transaction
     error: Error
 }
 
@@ -24,8 +41,48 @@ NullStringValueRaw :: (value: NullString) -> string #go_field #foreign go_sql "N
 NoRowsRaw :: () -> Error #go_field #foreign go_sql "ErrNoRows";
 TransactionDoneRaw :: () -> Error #go_field #foreign go_sql "ErrTxDone";
 RowsAffectedRaw :: (result: Result) -> AffectedRowsResult #go_results #foreign go_sql "Result.RowsAffected";
+QueryRaw :: (database: *Database, context: ctx.Context, query: string, arguments: []Any) -> QueryResult #go_results #go_variadic #foreign go_sql "(*DB).QueryContext";
+QueryRowRaw :: (database: *Database, context: ctx.Context, query: string, arguments: []Any) -> *Row #go_variadic #foreign go_sql "(*DB).QueryRowContext";
+ColumnsRaw :: (rows: *Rows) -> ColumnsResult #go_results #foreign go_sql "(*Rows).Columns";
+ScanRowsRaw :: (rows: *Rows, destinations: []Any) -> Error #go_variadic #foreign go_sql "(*Rows).Scan";
+ScanRowRaw :: (row: *Row, destinations: []Any) -> Error #go_variadic #foreign go_sql "(*Row).Scan";
+BeginRaw :: (database: *Database, context: ctx.Context, options: *TransactionOptions) -> TransactionResult #go_results #foreign go_sql "(*DB).BeginTx";
+ExecRaw :: (database: *Database, context: ctx.Context, query: string, arguments: []Any) -> ExecResult #go_results #go_variadic #foreign go_sql "(*DB).ExecContext";
+ExecTxRaw :: (transaction: *Transaction, context: ctx.Context, query: string, arguments: []Any) -> ExecResult #go_results #go_variadic #foreign go_sql "(*Tx).ExecContext";
+QueryTxRaw :: (transaction: *Transaction, context: ctx.Context, query: string, arguments: []Any) -> QueryResult #go_results #go_variadic #foreign go_sql "(*Tx).QueryContext";
+QueryRowTxRaw :: (transaction: *Transaction, context: ctx.Context, query: string, arguments: []Any) -> *Row #go_variadic #foreign go_sql "(*Tx).QueryRowContext";
 
 #scope_export
+Begin :: (database: *Database, context: ctx.Context, options: *TransactionOptions) -> TransactionResult {
+    return BeginRaw(database, context, options)
+}
+Exec :: (database: *Database, context: ctx.Context, query: string, arguments: []Any) -> ExecResult {
+    return ExecRaw(database, context, query, arguments)
+}
+ExecTx :: (transaction: *Transaction, context: ctx.Context, query: string, arguments: []Any) -> ExecResult {
+    return ExecTxRaw(transaction, context, query, arguments)
+}
+QueryTx :: (transaction: *Transaction, context: ctx.Context, query: string, arguments: []Any) -> QueryResult {
+    return QueryTxRaw(transaction, context, query, arguments)
+}
+QueryRowTx :: (transaction: *Transaction, context: ctx.Context, query: string, arguments: []Any) -> *Row {
+    return QueryRowTxRaw(transaction, context, query, arguments)
+}
+Query :: (database: *Database, context: ctx.Context, query: string, arguments: []Any) -> QueryResult {
+    return QueryRaw(database, context, query, arguments)
+}
+QueryRow :: (database: *Database, context: ctx.Context, query: string, arguments: []Any) -> *Row {
+    return QueryRowRaw(database, context, query, arguments)
+}
+Columns :: (rows: *Rows) -> ColumnsResult {
+    return ColumnsRaw(rows)
+}
+ScanRows :: (rows: *Rows, destinations: []Any) -> Error {
+    return ScanRowsRaw(rows, destinations)
+}
+ScanRow :: (row: *Row, destinations: []Any) -> Error {
+    return ScanRowRaw(row, destinations)
+}
 Next :: (rows: *Rows) -> bool {
     return NextRaw(rows)
 }

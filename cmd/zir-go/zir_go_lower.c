@@ -315,6 +315,7 @@ typedef struct {
     int go_results;
     int go_field;
     int go_defer;
+    int go_variadic;
     int direct_ziran;
     int direct_c;
     char c_symbol[ZIR_GO_NAME_MAX];
@@ -364,6 +365,14 @@ go_builtin_callback(const ZirGoExtern *binding)
     return binding->direct_go && !binding->go_receiver[0] &&
            !strcmp(binding->go_import_path, "builtin") &&
            (!strcmp(binding->go, "call") || !strcmp(binding->go, "spawn"));
+}
+
+static int
+go_builtin_assertion(const ZirGoExtern *binding)
+{
+    return binding->direct_go && !binding->go_receiver[0] &&
+           !strcmp(binding->go_import_path, "builtin") &&
+           !strcmp(binding->go, "assert");
 }
 /* Extract the Go method name from a resolved #foreign package target: the segment
  * after the last dot. */
@@ -422,7 +431,7 @@ extern_direct_go_target(const char *target, char *import_path,
 static void
 add_extern(const char *source, const char *args, const char *ret,
            const char *target, const char *provider_symbol,
-           int go_results, int go_field, int go_defer, ZirSourceSpan span)
+           int go_results, int go_field, int go_defer, int go_variadic, ZirSourceSpan span)
 {
     ZirGoExtern *ex;
     if(go_extern_index(source, strlen(source)) >= 0 || g_extern_count >= 64)
@@ -434,6 +443,7 @@ add_extern(const char *source, const char *args, const char *ret,
     ex->go_results = go_results;
     ex->go_field = go_field;
     ex->go_defer = go_defer;
+    ex->go_variadic = go_variadic;
     ex->parameters = ParametersOf(args);
     ex->pcount = ex->parameters->count;
     for(int p = 0; p < ex->pcount; p++) {
@@ -540,7 +550,7 @@ parse_extern_import_with_buffers(const ZirImport *imp, ParseExternImportBuffers 
 {
     if(imp->args[0] || imp->return_type[0]) {
         add_extern(imp->name, imp->args, imp->return_type[0] ? imp->return_type : "void",
-                   imp->target, imp->extern_symbol, imp->go_results, imp->go_field, imp->go_defer, imp->span);
+                   imp->target, imp->extern_symbol, imp->go_results, imp->go_field, imp->go_defer, imp->go_variadic, imp->span);
         return;
     }
     char ret[ZIR_GO_NAME_MAX];
@@ -578,7 +588,7 @@ parse_extern_import_with_buffers(const ZirImport *imp, ParseExternImportBuffers 
             buffers->target[n] = '\0';
         }
     }
-    add_extern(imp->name, buffers->args, ret, buffers->target, imp->extern_symbol, imp->go_results, imp->go_field, imp->go_defer, imp->span);
+    add_extern(imp->name, buffers->args, ret, buffers->target, imp->extern_symbol, imp->go_results, imp->go_field, imp->go_defer, imp->go_variadic, imp->span);
 }
 
 /* Parse "name :: (args) -> ret #foreign library;" from a raw foreign import
@@ -709,9 +719,9 @@ go_set_module(const ZirModule *m, const char *guard)
             continue;
         if(fn->extern_target[0] != '\0')
             add_extern(fn->name, FunctionArgs(fn), fn->return_type,
-                       fn->extern_target, "", 0, 0, 0, fn->span);
+                       fn->extern_target, "", 0, 0, 0, 0, fn->span);
         else
-            add_extern(fn->name, FunctionArgs(fn), fn->return_type, "", "", 0, 0, 0, fn->span);
+            add_extern(fn->name, FunctionArgs(fn), fn->return_type, "", "", 0, 0, 0, 0, fn->span);
     }
     for(int i = 0; i < m->type_count; i++) {
         if(m->types[i].is_enum)
@@ -1012,8 +1022,9 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
                     p = ae;
                     if(g_externs[xi].go_defer)
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "defer ");
-                    if(g_externs[xi].direct_c || g_externs[xi].go_results || g_externs[xi].go_field ||
-                       go_builtin_method(&g_externs[xi]) || go_builtin_callback(&g_externs[xi])) {
+                    if(g_externs[xi].direct_c || g_externs[xi].go_results || g_externs[xi].go_field || g_externs[xi].go_variadic ||
+                       go_builtin_method(&g_externs[xi]) || go_builtin_callback(&g_externs[xi]) ||
+                       go_builtin_assertion(&g_externs[xi])) {
                         char name[ZIR_GO_NAME_MAX];
                         camel_ident(g_externs[xi].source, name, sizeof(name));
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "%s_%s(", g_guard, name);
@@ -1542,8 +1553,8 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
 {
     for(int i = 0; i < g_extern_count; i++) {
         const ZirGoExtern *binding = &g_externs[i];
-        if(!binding->go_results && !binding->go_field && !go_builtin_method(binding) &&
-           !go_builtin_callback(binding)) continue;
+        if(!binding->go_results && !binding->go_field && !binding->go_variadic && !go_builtin_method(binding) &&
+           !go_builtin_callback(binding) && !go_builtin_assertion(binding)) continue;
         char result_type[ZIR_GO_NAME_MAX] = "", name[ZIR_GO_NAME_MAX];
         const ZirType *record = FindType(module, binding->ret, NULL);
         if(strcmp(binding->ret, "void"))
@@ -1557,6 +1568,12 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
             fprintf(out, "%s%s %s", p ? ", " : "", parameter, type);
         }
         fprintf(out, ") %s {\n", result_type);
+        if(go_builtin_assertion(binding) && !binding->go_results) {
+            char parameter[ZIR_GO_NAME_MAX];
+            camel_ident(binding->parameters->items[0].name, parameter, sizeof(parameter));
+            fprintf(out, "\treturn %s.(%s)\n}\n\n", parameter, result_type);
+            continue;
+        }
         if(go_builtin_method(binding) || go_builtin_callback(binding)) {
             char parameter[ZIR_GO_NAME_MAX];
             camel_ident(binding->parameters->items[0].name, parameter, sizeof(parameter));
@@ -1588,6 +1605,23 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
             }
             continue;
         }
+        if(binding->go_variadic && !binding->go_results) {
+            const char *receiver = binding->go_receiver;
+            fprintf(out, "\t%s", result_type[0] ? "return " : "");
+            if(receiver[0])
+                fprintf(out, "(%s%s.%s).%s(", receiver[0] == '*' ? "*" : "",
+                    binding->go_import_alias, receiver + (receiver[0] == '*'), binding->go);
+            else
+                fprintf(out, "%s.%s(", binding->go_import_alias, binding->go);
+            for(int p = 0; p < binding->pcount; p++) {
+                char parameter[ZIR_GO_NAME_MAX];
+                camel_ident(binding->parameters->items[p].name, parameter, sizeof(parameter));
+                fprintf(out, "%s%s%s", p ? ", " : "", parameter,
+                        p + 1 == binding->pcount ? "..." : "");
+            }
+            fputs(")\n}\n\n", out);
+            continue;
+        }
         fprintf(out, "\tvar result %s\n\t", result_type);
         size_t offset = 0;
         ZirTypeField field;
@@ -1616,7 +1650,8 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
         for(int p = 0; p < binding->pcount; p++) {
             char parameter[ZIR_GO_NAME_MAX];
             camel_ident(binding->parameters->items[p].name, parameter, sizeof(parameter));
-            fprintf(out, "%s%s", p ? ", " : "", parameter);
+            fprintf(out, "%s%s%s", p ? ", " : "", parameter,
+                    binding->go_variadic && p + 1 == binding->pcount ? "..." : "");
         }
         fputs(")\n\treturn result\n}\n\n", out);
     }
@@ -1958,7 +1993,8 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                         }
                         fprintf(f, ")\n\n");
                     } else {
-                        fprintf(f, "type %s struct {\n", native);
+                        fprintf(f, "type %s %sstruct {\n", native,
+                                t->is_go_anonymous ? "= " : "");
                     {
                         size_t offset = 0;
                         ZirTypeField field;

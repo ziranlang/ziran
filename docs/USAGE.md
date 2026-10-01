@@ -389,6 +389,22 @@ Response :: struct {
 }
 ```
 
+Go can preserve an anonymous native struct's identity with `#go_anonymous`
+alone in its record body:
+
+```jai
+Reply :: struct {
+    #go_anonymous
+    code: isize #go_tag "json:\"code\""
+    message: string #go_tag "json:\"message\""
+}
+```
+
+The Go declaration is `type Reply = struct { ... }`. Native reflection has
+an empty type name, and JSON decoding retains anonymous struct error details.
+The annotation preserves ordinary checked Ziran fields and is retained in
+saved IR. Other targets keep their ordinary record representation.
+
 ### Python modules
 
 The Python target imports Python modules the way the Go target imports Go

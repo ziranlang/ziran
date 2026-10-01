@@ -1,12 +1,22 @@
 // Go mutexes. Keep one mutex in shared storage and pass its address.
+#import "go_types"
 go_sync :: #system_library "go:sync";
 Mutex :: #type #foreign go_sync "Mutex";
+ConcurrentMap :: #type #foreign go_sync "Map";
+LoadResult :: struct {
+    value: Any
+    loaded: bool
+}
 
 #scope_file
 LockRaw :: (mutex: *Mutex) #foreign go_sync "(*Mutex).Lock";
 UnlockRaw :: (mutex: *Mutex) #foreign go_sync "(*Mutex).Unlock";
+LoadOrStoreRaw :: (mapping: *ConcurrentMap, key: Any, value: Any) -> LoadResult #go_results #foreign go_sync "(*Map).LoadOrStore";
 
 #scope_export
+LoadOrStore :: (mapping: *ConcurrentMap, key: Any, value: Any) -> LoadResult {
+    return LoadOrStoreRaw(mapping, key, value)
+}
 Lock :: (mutex: *Mutex) {
     LockRaw(mutex)
 }

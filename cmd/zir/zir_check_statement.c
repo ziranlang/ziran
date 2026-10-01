@@ -418,6 +418,18 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
     }
     int count = *skip_ws(binding->args) ?
         split_top_level(binding->args, parameters[0], 64, ZIR_TEXT_MAX) : 0;
+    if(binding->go_variadic) {
+        const char *colon = count > 0 ? strchr(parameters[count - 1], ':') : NULL;
+        const char *last = colon ? skip_ws(colon + 1) : "";
+        if(count <= (receiver[0] ? 1 : 0) || binding->go_field ||
+           binding->is_varargs || !strcmp(package, "builtin") ||
+           !SliceElementType(last, NULL, 0) ||
+           go_getter_contains_owned(module, last, 0)) {
+            Diagnostic(binding->span, "check.foreign",
+                       "#go_variadic requires a final slice parameter without owned storage on a Go package function or method");
+            return 0;
+        }
+    }
     if(binding->go_defer) {
         int valid = !binding->go_results && !binding->go_field && !binding->is_varargs &&
                     !strcmp(binding->return_type, "void") &&
@@ -541,12 +553,18 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             const ZirType *record = FindType(module, result, NULL);
             size_t offset = 0;
             ZirTypeField value, present, extra;
-            allocation = binding->go_results && input &&
-                !strcmp(input->foreign_target, "go:builtin.any") && record &&
-                TypeNextField(record, &offset, &value) == 1 &&
-                TypeNextField(record, &offset, &present) == 1 &&
-                TypeNextField(record, &offset, &extra) == 0 &&
-                !strcmp(present.type, "bool");
+            allocation = input && !strcmp(input->foreign_target, "go:builtin.any");
+            if(binding->go_results) {
+                allocation = allocation && record &&
+                    TypeNextField(record, &offset, &value) == 1 &&
+                    TypeNextField(record, &offset, &present) == 1 &&
+                    TypeNextField(record, &offset, &extra) == 0 &&
+                    !strcmp(present.type, "bool");
+            } else {
+                allocation = allocation && strcmp(result, "void") &&
+                    local_storage_error(module, result) == NULL &&
+                    !contains_vec(module, result, 0);
+            }
         }
         if(!allocation) {
             Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append, panic, call, spawn or assert signature");

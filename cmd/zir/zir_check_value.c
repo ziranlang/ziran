@@ -1122,6 +1122,10 @@ same_declared_type(const ZirModule *module, const char *to,
        to_capacity >= 0 && to_capacity == from_capacity)
         return same_declared_type(module, to_element, from_element,
                                   depth + 1);
+    if(SliceElementType(to, to_element, sizeof(to_element)) &&
+       SliceElementType(from, from_element, sizeof(from_element)))
+        return same_declared_type(module, to_element, from_element,
+                                  depth + 1);
     if(*to == '*' && *from == '*')
         return same_declared_type(module, skip_ws(to + 1),
                                   skip_ws(from + 1), depth + 1);

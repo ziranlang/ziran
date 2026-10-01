@@ -98,6 +98,7 @@ typedef struct ZirImport {
     int go_results; /* direct Go results populate the declared result record in field order */
     int go_field; /* one Go receiver argument reads its declared native field */
     int go_defer; /* a standalone call schedules its Go foreign target at function exit */
+    int go_variadic; /* expand the final slice parameter into native Go variadic arguments */
     int py_results; /* a raised Python exception fills the result record's last field */
     int py_field; /* reads, or with a value sets, one Python attribute of the receiver */
     int required;
@@ -301,6 +302,7 @@ typedef struct ZirType {
     int is_file_private;
     int is_enum;   /* 'Name :: enum' — emit typedef enum, not struct */
     int is_union;  /* fields share storage */
+    int is_go_anonymous; /* Go aliases the record's unnamed struct identity */
     int is_enum_flags;
     int is_enum_specified;
     char enum_backing[ZIR_NAME_MAX]; /* checked integer storage type */

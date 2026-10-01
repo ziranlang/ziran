@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 52 now exists for
+This is the target contract. An experimental binary version 54 now exists for
 the tested C/C++/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -108,6 +108,9 @@ Older binary versions are rejected.
 Record field bodies preserve checked `#go_tag` string literals for Go reflection
 metadata. These tags do not change field storage in other native targets or
 the portable runtime.
+Record declarations retain `#go_anonymous` in version 54. Go emits these
+records as aliases of unnamed structs, preserving native reflection and JSON
+error types. Other targets retain their ordinary record storage and identity.
 Record bodies retain `using` on contained fields. A checked member expression
 that names a promoted field records its concrete contained-field path; the
 reader verifies each intermediate field is a `using` field. Native backends

@@ -1,8 +1,12 @@
 (function () {
   var root = document.documentElement;
   var saved;
-  try { saved = localStorage.getItem('ziran-theme'); } catch (_) {}
-  if (saved === 'dark' || saved === 'light') root.dataset.theme = saved;
+  var paperPreview = root.dataset.embedTheme === 'waozi';
+  if (paperPreview) root.dataset.theme = 'light';
+  else {
+    try { saved = localStorage.getItem('ziran-theme'); } catch (_) {}
+    if (saved === 'dark' || saved === 'light') root.dataset.theme = saved;
+  }
   var toggle = document.querySelector('.theme-toggle');
   function updateThemeLabel() {
     if (toggle) toggle.setAttribute('aria-label', root.dataset.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');

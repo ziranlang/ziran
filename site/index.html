@@ -3,7 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script>if (new URLSearchParams(location.search).has('mini')) document.documentElement.dataset.mini = '';</script>
+  <script>
+    const previewQuery = new URLSearchParams(location.search);
+    if (previewQuery.has('mini')) {
+      document.documentElement.dataset.mini = '';
+      if (previewQuery.get('theme') === 'waozi') document.documentElement.dataset.embedTheme = 'waozi';
+    }
+  </script>
   <meta name="theme-color" content="#f7f3eb">
   <meta name="description" content="Ziran is an experimental, open-source programming language. Write checked .zi programs, build C, C++, Go, Rust, or Python output, and run supported portable bundles.">
   <title>Ziran — Build useful software</title>

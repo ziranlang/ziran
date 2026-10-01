@@ -15,6 +15,32 @@
 :root[data-mini] .playground-status { width: 100%; }
 :root[data-mini] .code-foot { text-transform: none; letter-spacing: 0; }
 :root[data-mini] .code-foot > span { display: none; }
+/* An embed can use the host site's paper palette without changing preferences. */
+:root[data-embed-theme="waozi"] .home {
+  --editor: #f7f3eb;
+  --editor-ink: #202c29;
+  --editor-muted: #60665d;
+  --line: #d9d6ca;
+}
+:root[data-embed-theme="waozi"] .code-title,
+:root[data-embed-theme="waozi"] .example-tabs,
+:root[data-embed-theme="waozi"] .playground-toolbar,
+:root[data-embed-theme="waozi"] .code-output,
+:root[data-embed-theme="waozi"] .code-foot { border-color: var(--line); }
+:root[data-embed-theme="waozi"] .example-tabs button[aria-selected="true"] { border-bottom-color: #315e48; }
+:root[data-embed-theme="waozi"] .home .code-output { background: #fcfaf5; }
+:root[data-embed-theme="waozi"] .home .code-output code,
+:root[data-embed-theme="waozi"] .home .c-call,
+:root[data-embed-theme="waozi"] .home .c-string { color: #315e48; }
+:root[data-embed-theme="waozi"] .home .c-decl,
+:root[data-embed-theme="waozi"] .home .c-keyword,
+:root[data-embed-theme="waozi"] .home .c-number,
+:root[data-embed-theme="waozi"] .home .code-output.has-error code { color: #a64e32; }
+:root[data-embed-theme="waozi"] .home .c-type { color: #3d6868; }
+:root[data-embed-theme="waozi"] .home .c-comment { color: #60665d; }
+:root[data-embed-theme="waozi"] .playground-buttons button { border-color: var(--line); }
+:root[data-embed-theme="waozi"] .playground-buttons .playground-run { background: #315e48; color: #fcfaf5; border-color: #315e48; }
+:root[data-embed-theme="waozi"] .code-editor::selection { background: #dce2d4; }
 .code-editor-wrap {
   position: relative;
   height: 264px;

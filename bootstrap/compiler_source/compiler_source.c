@@ -332,22 +332,18 @@ compiler_source_ClassifyStatement(String source)
     if (compiler_source_StartsWord(source, StringLiteral("unused"))) {
         return StatementKind_Unused;
     }
-    int64_t value_8 = compiler_source_Find(source, StringLiteral(":="));
-    if (value_8 >= 0LL) {
-        return StatementKind_Declaration;
-    }
     int64_t colon = compiler_source_Find(source, StringLiteral(": "));
     if (colon < 0LL) {
         colon = compiler_source_Find(source, StringLiteral(": ["));
     }
-    bool value_9 = colon > 0LL;
-    bool value_10 = value_9;
-    if (value_10) {
-        String value_11 = source;
-        bool value_12 = compiler_source_IdentifierText(StringRange(value_11, (int64_t)0LL, (int64_t)colon), false);
-        value_10 = value_12;
+    bool value_8 = colon > 0LL;
+    bool value_9 = value_8;
+    if (value_9) {
+        String value_10 = source;
+        bool value_11 = compiler_source_IdentifierText(StringRange(value_10, (int64_t)0LL, (int64_t)colon), false);
+        value_9 = value_11;
     }
-    if (value_10) {
+    if (value_9) {
         return StatementKind_Declaration;
     }
     String rejected[11] = {StringLiteral("s8 "), StringLiteral("s16 "), StringLiteral("s32 "), StringLiteral("s64 "), StringLiteral("float32 "), StringLiteral("float64 "), StringLiteral("bool "), StringLiteral("unsigned "), StringLiteral("long "), StringLiteral("const "), StringLiteral("struct ")};
@@ -360,8 +356,8 @@ compiler_source_ClassifyStatement(String source)
     int64_t at = 0LL;
     int32_t depth = 0;
     while (true) {
-        int64_t value_13 = (int64_t)(source).length;
-        if (!(at < value_13)) { break; }
+        int64_t value_12 = (int64_t)(source).length;
+        if (!(at < value_12)) { break; }
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         if (byte == 34 || byte == 39) {
             at = compiler_source_AfterQuote(source, at);
@@ -373,23 +369,33 @@ compiler_source_ClassifyStatement(String source)
             if (depth > 0) {
                 depth = (int32_t)((uint32_t)depth - 1u);
             }
-        } else if (byte == 61 && depth == 0) {
-            return StatementKind_Assignment;
+        } else {
+            bool value_13 = depth == 0;
+            bool value_14 = value_13;
+            if (value_14) {
+                bool value_15 = compiler_source_Matches(source, at, StringLiteral(":="));
+                value_14 = value_15;
+            }
+            if (value_14) {
+                return StatementKind_Declaration;
+            } else if (byte == 61 && depth == 0) {
+                return StatementKind_Assignment;
+            }
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    int64_t value_14 = compiler_source_Find(source, StringLiteral("("));
-    bool value_15 = value_14 >= 0LL;
-    if (!value_15) {
-        int64_t value_16 = compiler_source_Find(source, StringLiteral("+"));
-        value_15 = (value_16 >= 0LL);
-    }
-    bool value_17 = value_15;
+    int64_t value_16 = compiler_source_Find(source, StringLiteral("("));
+    bool value_17 = value_16 >= 0LL;
     if (!value_17) {
-        int64_t value_18 = compiler_source_Find(source, StringLiteral("-"));
+        int64_t value_18 = compiler_source_Find(source, StringLiteral("+"));
         value_17 = (value_18 >= 0LL);
     }
-    if (value_17) {
+    bool value_19 = value_17;
+    if (!value_19) {
+        int64_t value_20 = compiler_source_Find(source, StringLiteral("-"));
+        value_19 = (value_20 >= 0LL);
+    }
+    if (value_19) {
         return StatementKind_Expression;
     }
     return StatementKind_Unknown;

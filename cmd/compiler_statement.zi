@@ -1,0 +1,207 @@
+// Statement syntax borrows bounded source ranges. The frontend retains IR
+// storage and loop lowering; grammar and token rules live here.
+Scan :: #import "compiler_scan";
+Source :: #import "compiler_source";
+Text :: #import "compiler_text";
+
+LoopKind :: enum s32 { Invalid; Range; Collection }
+LoopHeader :: struct {
+    kind: LoopKind
+    value_name: string
+    index_name: string
+    first: string
+    last: string
+    collection: string
+    reverse: bool
+    pointer: bool
+    c_style: bool
+}
+NamedWhile :: struct { valid: bool; name: string; condition: string }
+LoopControl :: struct { valid: bool; name: string }
+
+ForHeader :: (source: string, name_limit: s64 = 128, text_limit: s64 = 4096) -> LoopHeader {
+    result: LoopHeader
+    header := HeaderBody(source, "for", text_limit)
+    if header.count == 0 { return result }
+    while header.count > 0 && (header[0] == #char "<" || header[0] == #char "*") {
+        if header[0] == #char "<" {
+            if result.reverse { return .{} }
+            result.reverse = true
+        } else {
+            if result.pointer { return .{} }
+            result.pointer = true
+        }
+        header = Trim(header[1:])
+    }
+    // Track matching delimiters, including record literals, so separators
+    // inside calls, slices, strings, and initializers belong to expressions.
+    delimiters: [128]u8
+    depth: s64 = 0
+    colon: s64 = -1
+    dots: s64 = -1
+    at: s64 = 0
+    while at < header.count {
+        byte := header[at]
+        if byte == 0 { return .{} }
+        if byte == #char "\"" || byte == #char "'" {
+            at = AfterQuote(header, at)
+            if at < 0 { return .{} }
+            continue
+        }
+        if byte == #char "(" || byte == #char "[" || byte == #char "{" {
+            if depth == delimiters.count { return .{} }
+            delimiters[depth] = byte
+            depth += 1
+        } else if byte == #char ")" || byte == #char "]" || byte == #char "}" {
+            if depth == 0 { return .{} }
+            opening := delimiters[depth - 1]
+            if (byte == #char ")" && opening != #char "(") ||
+            (byte == #char "]" && opening != #char "[") ||
+            (byte == #char "}" && opening != #char "{") { return .{} }
+            depth -= 1
+        } else if depth == 0 {
+            if byte == #char ";" { return .{c_style = true} }
+            if byte == #char ":" {
+                if colon >= 0 || dots >= 0 { return .{} }
+                colon = at
+            }
+            if byte == #char "." && at + 1 < header.count && header[at + 1] == #char "." {
+                if dots >= 0 { return .{} }
+                dots = at
+                at += 1
+            }
+        }
+        at += 1
+    }
+    if depth != 0 { return .{} }
+    result.value_name = "it"
+    result.index_name = "it_index"
+    expression := header
+    if colon >= 0 {
+        names := Trim(header[0:colon])
+        comma := FindByte(names, #char ",")
+        if comma >= 0 {
+            if dots >= 0 { return .{} }
+            result.index_name = Trim(names[comma + 1:])
+            names = Trim(names[0:comma])
+        }
+        result.value_name = names
+        expression = Trim(header[colon + 1:])
+    }
+    if !Name(result.value_name, name_limit) { return .{} }
+    if dots >= 0 {
+        if result.pointer { return .{} }
+        result.first = Trim(header[colon + 1:dots])
+        result.last = Trim(header[dots + 2:])
+        if result.first.count == 0 || result.last.count == 0 { return .{} }
+        result.kind = .Range
+    } else {
+        if expression.count == 0 || !Name(result.index_name, name_limit) ||
+        result.value_name == result.index_name { return .{} }
+        result.collection = expression
+        result.kind = .Collection
+    }
+    return result
+}
+
+WhileHeader :: (source: string, name_limit: s64 = 128, text_limit: s64 = 4096) -> NamedWhile {
+    result: NamedWhile
+    header := HeaderBody(source, "while", text_limit)
+    at: s64 = 0
+    while at < header.count && Text.IdentifierByte(header[at]) { at += 1 }
+    name := header[0:at]
+    after := Trim(header[at:])
+    if !Name(name, name_limit) || after.count < 2 || after[0:2] != ":=" { return result }
+    condition := Trim(after[2:])
+    if condition.count == 0 { return result }
+    return .{true, name, condition}
+}
+
+ControlTarget :: (source: string, continuation: bool, name_limit: s64 = 128) -> LoopControl {
+    result: LoopControl
+    source = Trim(source)
+    keyword := "break"
+    if continuation { keyword = "continue" }
+    bare_semicolon := source.count == keyword.count + 1 &&
+        source[0:keyword.count] == keyword && source[keyword.count] == #char ";"
+    if !Source.StartsWord(source, keyword) && !bare_semicolon { return result }
+    target := Trim(source[keyword.count:])
+    if target.count > 0 && target[target.count - 1] == #char ";" {
+        target = Trim(target[0:target.count - 1])
+    }
+    if target.count > 0 && !Name(target, name_limit) { return result }
+    return .{true, target}
+}
+
+Mentions :: (source: string, name: string) -> bool {
+    at: s64 = 0
+    while at < source.count {
+        token := Scan.NextToken(source, at, 1, 1)
+        if token.kind == Scan.TokenKind.Eof { break }
+        if token.kind == Scan.TokenKind.Ident && source[token.begin:token.end] == name { return true }
+        at = token.end
+    }
+    return false
+}
+
+Changes :: (source: string, name: string, assignment: bool) -> bool {
+    at: s64 = 0
+    first := true
+    address := false
+    operand := false
+    while at < source.count {
+        token := Scan.NextToken(source, at, 1, 1)
+        if token.kind == Scan.TokenKind.Eof { break }
+        spelling := source[token.begin:token.end]
+        if token.kind == Scan.TokenKind.Ident && spelling == name &&
+        (address || (first && assignment)) { return true }
+        address = spelling == "*" && !operand
+        operand = token.kind == Scan.TokenKind.Ident || token.kind == Scan.TokenKind.Int ||
+            token.kind == Scan.TokenKind.Float || token.kind == Scan.TokenKind.String ||
+            token.kind == Scan.TokenKind.Char || spelling == ")" || spelling == "]"
+        first = false
+        at = token.end
+    }
+    return false
+}
+
+PlainName :: (source: string) -> bool {
+    token := Scan.NextToken(source, 0, 1, 1)
+    return token.kind == Scan.TokenKind.Ident &&
+        Scan.NextToken(source, token.end, 1, 1).kind == Scan.TokenKind.Eof
+}
+
+#scope_file
+Trim :: (source: string) -> string {
+    range := Text.TrimRange(source)
+    return source[range.begin:range.end]
+}
+Name :: (source: string, limit: s64) -> bool {
+    return source.count < limit && Source.IdentifierText(source, false)
+}
+HeaderBody :: (source: string, keyword: string, limit: s64) -> string {
+    source = Trim(source)
+    if !Source.StartsWord(source, keyword) { return "" }
+    header := Trim(source[keyword.count:])
+    if header.count == 0 || header.count >= limit || header[header.count - 1] != #char "{" { return "" }
+    return Trim(header[0:header.count - 1])
+}
+AfterQuote :: (source: string, start: s64) -> s64 {
+    quote := source[start]
+    at := start + 1
+    while at < source.count {
+        byte := source[at]
+        if byte == 0 { return -1 }
+        at += 1
+        if byte == quote { return at }
+        if byte == #char "\\" {
+            if at == source.count || source[at] == 0 { return -1 }
+            at += 1
+        }
+    }
+    return -1
+}
+FindByte :: (source: string, wanted: u8) -> s64 {
+    for at: 0..source.count - 1 { if source[at] == wanted { return at } }
+    return -1
+}

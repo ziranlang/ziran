@@ -42,6 +42,7 @@ DECLARATION_OBJECT := $(BUILD_DIR)/obj/compiler-declaration.o
 ENUM_OBJECT := $(BUILD_DIR)/obj/compiler-enum.o
 TYPE_OBJECT := $(BUILD_DIR)/obj/compiler-type.o
 EXPRESSION_OBJECT := $(BUILD_DIR)/obj/compiler-expression.o
+STATEMENT_OBJECT := $(BUILD_DIR)/obj/compiler-statement.o
 ifeq ($(BOOTSTRAP),1)
 SCANNER_C := bootstrap/compiler_scan
 SCANNER_READY := $(SCANNER_C)/compiler_scan.c $(SCANNER_C)/compiler_scan.h
@@ -57,6 +58,8 @@ TYPE_C := bootstrap/compiler_type
 TYPE_READY := $(TYPE_C)/compiler_type.c $(TYPE_C)/compiler_type.h
 EXPRESSION_C := bootstrap/compiler_expression
 EXPRESSION_READY := $(EXPRESSION_C)/compiler_expression.c $(EXPRESSION_C)/compiler_expression.h
+STATEMENT_C := bootstrap/compiler_statement
+STATEMENT_READY := $(STATEMENT_C)/compiler_statement.c $(STATEMENT_C)/compiler_statement.h
 else
 SCANNER_C := $(BUILD_DIR)/compiler-scan
 SCANNER_READY := $(SCANNER_C)/.generated
@@ -72,8 +75,10 @@ TYPE_C := $(BUILD_DIR)/compiler-type
 TYPE_READY := $(TYPE_C)/.generated
 EXPRESSION_C := $(BUILD_DIR)/compiler-expression
 EXPRESSION_READY := $(EXPRESSION_C)/.generated
+STATEMENT_C := $(BUILD_DIR)/compiler-statement
+STATEMENT_READY := $(STATEMENT_C)/.generated
 endif
-override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C)
+override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C)
 FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
     cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
@@ -87,9 +92,9 @@ LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(BUILD_DIR)/obj/check.o \
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o
-FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(BUILD_DIR)/obj/check.o \
+FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o
 BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
@@ -172,6 +177,11 @@ $(call obj,cmd/zir/zir_expr.c): $(EXPRESSION_READY)
 $(EXPRESSION_OBJECT): $(EXPRESSION_READY) $(SCANNER_READY) $(SOURCE_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(EXPRESSION_C)/compiler_expression.c
+
+$(call obj,cmd/zir/zir_cleanup.c): $(STATEMENT_READY)
+$(STATEMENT_OBJECT): $(STATEMENT_READY) $(SCANNER_READY) $(SOURCE_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(STATEMENT_C)/compiler_statement.c
 
 $(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
@@ -326,7 +336,8 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_declaration/compiler_declaration.c bootstrap/compiler_declaration/compiler_declaration.h \
     bootstrap/compiler_enum/compiler_enum.c bootstrap/compiler_enum/compiler_enum.h \
     bootstrap/compiler_type/compiler_type.c bootstrap/compiler_type/compiler_type.h \
-    bootstrap/compiler_expression/compiler_expression.c bootstrap/compiler_expression/compiler_expression.h Makefile
+    bootstrap/compiler_expression/compiler_expression.c bootstrap/compiler_expression/compiler_expression.h \
+    bootstrap/compiler_statement/compiler_statement.c bootstrap/compiler_statement/compiler_statement.h Makefile
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=objcopy CFLAGS=-O2 \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -366,6 +377,11 @@ $(EXPRESSION_C)/.generated: cmd/compiler_expression.zi cmd/compiler_scan.zi cmd/
 	    -o $(EXPRESSION_C) cmd/compiler_expression.zi
 	touch $@
 
+$(STATEMENT_C)/.generated: cmd/compiler_statement.zi cmd/compiler_scan.zi cmd/compiler_source.zi cmd/compiler_text.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
+	    -o $(STATEMENT_C) cmd/compiler_statement.zi
+	touch $@
+
 .PHONY: check-bootstrap update-bootstrap
 check-bootstrap: $(BIN_DIR)/zi2c
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
@@ -397,6 +413,10 @@ check-bootstrap: $(BIN_DIR)/zi2c
 	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_expression.zi
 	cmp bootstrap/compiler_expression/compiler_expression.c $(BUILD_DIR)/bootstrap-check/compiler_expression.c
 	cmp bootstrap/compiler_expression/compiler_expression.h $(BUILD_DIR)/bootstrap-check/compiler_expression.h
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
+	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_statement.zi
+	cmp bootstrap/compiler_statement/compiler_statement.c $(BUILD_DIR)/bootstrap-check/compiler_statement.c
+	cmp bootstrap/compiler_statement/compiler_statement.h $(BUILD_DIR)/bootstrap-check/compiler_statement.h
 
 update-bootstrap: $(BIN_DIR)/zi2c
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
@@ -427,6 +447,10 @@ update-bootstrap: $(BIN_DIR)/zi2c
 	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_expression.zi
 	cp $(BUILD_DIR)/bootstrap-check/compiler_expression.c bootstrap/compiler_expression/
 	cp $(BUILD_DIR)/bootstrap-check/compiler_expression.h bootstrap/compiler_expression/
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
+	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_statement.zi
+	cp $(BUILD_DIR)/bootstrap-check/compiler_statement.c bootstrap/compiler_statement/
+	cp $(BUILD_DIR)/bootstrap-check/compiler_statement.h bootstrap/compiler_statement/
 
 endif
 

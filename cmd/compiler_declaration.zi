@@ -10,6 +10,7 @@ DeclarationError :: enum s32 {
     ImportFileSyntax; ImportFilePath; ImportFileName; ImportAlias;
     ImportTarget; ImportPackage; ImportUsing;
     LibraryQuote; LibraryEnd; LibraryCharacter;
+    UsingKind; UsingList; UsingEntry; UsingMap;
 }
 ExportDirective :: struct { error: DeclarationError; kind: s32; symbol: string; body: string }
 ParameterRewrite :: struct {
@@ -33,6 +34,7 @@ ModuleImport :: struct {
 }
 LibraryDeclaration :: struct { error: DeclarationError; present: bool; name: string; target: string }
 MethodSymbol :: struct { valid: bool; receiver: string; method: string }
+UsingFilter :: struct { error: DeclarationError; present: bool; count: s64; next: s64 }
 
 #scope_file
 Find :: (source: string, needle: string) -> s64 {
@@ -100,8 +102,69 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .LibraryQuote { return "#system_library requires a quoted library name" }
     if error == .LibraryEnd { return "#system_library declaration must end with ';'" }
     if error == .LibraryCharacter { return "#system_library name contains an invalid character" }
+    if error == .UsingKind { return "using modifier must be only, except, or map" }
+    if error == .UsingList { return "using modifier requires a parenthesized name list" }
+    if error == .UsingEntry { return "using modifier entries must be quoted names" }
+    if error == .UsingMap { return "using map entries need \"new\" = \"old\"" }
     return ""
 }
+
+// A short output receives its prefix; count measures the complete filter.
+// next advances past the clause and following whitespace, leaving the binding.
+UsingModifierClause :: (source: string, output: []u8, name_limit: s64) -> UsingFilter {
+    result: UsingFilter
+    if source.count == 0 || source[0] != #char "," { return result }
+    result.present = true
+    at := Text.SkipSpace(source, 1, false)
+    mode := source[at:]
+    prefix := ""
+    if Source.StartsWord(mode, "only") { prefix = "O:"; at += 4 }
+    else if Source.StartsWord(mode, "except") { prefix = "E:"; at += 6 }
+    else if Source.StartsWord(mode, "map") { prefix = "M:"; at += 3 }
+    else { result.error = .UsingKind; return result }
+    at = Text.SkipSpace(source, at, false)
+    if at >= source.count || source[at] != #char "(" { result.error = .UsingList; return result }
+    at = Text.SkipSpace(source, at + 1, false)
+    Put(output, *result.count, prefix)
+    entries: s64 = 0
+    while at < source.count && source[at] != #char ")" {
+        quoted := UsingQuoted(source[at:], name_limit)
+        if !quoted.valid { result.error = .UsingEntry; return result }
+        name := quoted.value
+        at = Text.SkipSpace(source, at + quoted.end, false)
+        mapped := ""
+        if prefix == "M:" {
+            if at >= source.count || source[at] != #char "=" { result.error = .UsingMap; return result }
+            at = Text.SkipSpace(source, at + 1, false)
+            quoted = UsingQuoted(source[at:], name_limit)
+            if !quoted.valid { result.error = .UsingMap; return result }
+            mapped = quoted.value
+            at = Text.SkipSpace(source, at + quoted.end, false)
+        }
+        if entries > 0 { Put(output, *result.count, ",") }
+        Put(output, *result.count, name)
+        if prefix == "M:" { Put(output, *result.count, "="); Put(output, *result.count, mapped) }
+        entries += 1
+        if at >= source.count || source[at] != #char "," { break }
+        at = Text.SkipSpace(source, at + 1, false)
+    }
+    if entries == 0 || at >= source.count || source[at] != #char ")" {
+        result.error = .UsingList
+        return result
+    }
+    result.next = Text.SkipSpace(source, at + 1, false)
+    return result
+}
+
+#scope_file
+UsingQuoted :: (source: string, limit: s64) -> QuotedText {
+    if source.count == 0 || source[0] != #char "\"" { return .{} }
+    at: s64 = 1
+    while at < source.count && source[at] != #char "\"" && source[at] != 0 { at += 1 }
+    if at == source.count || source[at] != #char "\"" || at == 1 || at - 1 >= limit { return .{} }
+    return .{true, source[1:at], at + 1}
+}
+#scope_export
 
 ProgramExport :: (source: string, symbol_limit: s64) -> ExportDirective {
     result: ExportDirective

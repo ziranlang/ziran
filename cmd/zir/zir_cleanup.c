@@ -3,6 +3,7 @@
 #include "zir_text.h"
 #include "zir_token.h"
 #include "zir_expr.h"
+#include "compiler_statement.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -27,17 +28,26 @@ fail(const ZirStmt *st, const char *message)
     return 0;
 }
 
+/* The C boundary only borrows source and copies into IR storage. */
+static String
+statement_text(const char *text)
+{
+    return StringView(text, strlen(text));
+}
+
+static int
+statement_copy(String source, char *output, size_t capacity)
+{
+    if(source.length < 0 || (uint64_t)source.length >= capacity) return 0;
+    if(source.length) memcpy(output, source.data, (size_t)source.length);
+    output[source.length] = 0;
+    return 1;
+}
+
 static int
 mentions(const char *text, const char *name)
 {
-    ZirLexer lexer;
-    ZirToken token;
-    LexerInit(&lexer, text, "");
-    do {
-        token = LexerNext(&lexer);
-        if(token.kind == ZIR_TOKEN_IDENT && !strcmp(token.text, name)) return 1;
-    } while(token.kind != ZIR_TOKEN_EOF);
-    return 0;
+    return compiler_statement_Mentions(statement_text(text), statement_text(name));
 }
 
 static int
@@ -591,145 +601,23 @@ LowerCleanup(ZirFunction *fn)
     return returned;
 }
 
-static int
-range_identifier(const char *name)
+static LoopHeader
+for_header(const ZirStmt *statement)
 {
-    if(!isalpha((unsigned char)*name) && *name != '_') return 0;
-    for(const char *p = name + 1; *p; p++)
-        if(!isalnum((unsigned char)*p) && *p != '_') return 0;
-    return 1;
+    return compiler_statement_ForHeader(statement_text(statement->text),
+                                         ZIR_NAME_MAX, ZIR_TEXT_MAX);
 }
 
 static int
 range_header(const ZirStmt *statement, char *name, char *start, char *end,
              int *reverse)
 {
-    char header[ZIR_TEXT_MAX];
-    const char *source = skip_ws(statement->text + 3);
-    *reverse = *source == '<';
-    if(*reverse) source = skip_ws(source + 1);
-    copy_text(header, sizeof(header), source);
-    trim_in_place(header);
-    size_t length = strlen(header);
-    if(length == 0 || header[length - 1] != '{') return 0;
-    header[length - 1] = '\0';
-    trim_in_place(header);
-    int nesting = 0, quote = 0, escaped = 0;
-    int colon = -1, dots = -1;
-    for(int i = 0; header[i]; i++) {
-        char ch = header[i];
-        if(quote) {
-            if(escaped) escaped = 0;
-            else if(ch == '\\') escaped = 1;
-            else if(ch == quote) quote = 0;
-            continue;
-        }
-        if(ch == '\'' || ch == '"') { quote = ch; continue; }
-        if(ch == '(' || ch == '[') { nesting++; continue; }
-        if(ch == ')' || ch == ']') { nesting--; continue; }
-        if(nesting != 0) continue;
-        if(ch == ':' && colon < 0 && dots < 0) colon = i;
-        if(ch == '.' && header[i + 1] == '.') {
-            if(dots >= 0) return 0;
-            dots = i;
-            i++;
-        }
-    }
-    if(quote || nesting != 0 || dots < 0 ||
-       (colon >= 0 && colon > dots)) return 0;
-    if(colon >= 0) {
-        header[colon] = '\0';
-        copy_text(name, ZIR_NAME_MAX, header);
-        trim_in_place(name);
-        if(!range_identifier(name)) return 0;
-    } else {
-        copy_text(name, ZIR_NAME_MAX, "it");
-    }
-    header[dots] = '\0';
-    copy_text(start, ZIR_TEXT_MAX, skip_ws(header + (colon >= 0 ? colon + 1 : 0)));
-    copy_text(end, ZIR_TEXT_MAX, skip_ws(header + dots + 2));
-    trim_in_place(start);
-    trim_in_place(end);
-    return *start && *end;
-}
-/* Buffers collection_header keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct CollectionHeaderBuffers {
-    char header[ZIR_TEXT_MAX];
-    char names[ZIR_TEXT_MAX];
-} CollectionHeaderBuffers;
-
-static int collection_header(const ZirStmt *statement, char *value_name,
-                  char *index_name, char *collection, int *reverse,
-                  int *pointer);
-
-static int
-collection_header_with_buffers(const ZirStmt *statement, char *value_name,
-                  char *index_name, char *collection, int *reverse,
-                  int *pointer, CollectionHeaderBuffers *buffers)
-{
-    const char *source = skip_ws(statement->text + 3);
-    *reverse = *pointer = 0;
-    while(*source == '<' || *source == '*') {
-        if(*source == '<') {
-            if(*reverse) return 0;
-            *reverse = 1;
-        } else {
-            if(*pointer) return 0;
-            *pointer = 1;
-        }
-        source = skip_ws(source + 1);
-    }
-    copy_text(buffers->header, sizeof(buffers->header), source);
-    trim_in_place(buffers->header);
-    size_t length = strlen(buffers->header);
-    if(length == 0 || buffers->header[length - 1] != '{') return 0;
-    buffers->header[length - 1] = '\0';
-    trim_in_place(buffers->header);
-    int nesting = 0, quote = 0, escaped = 0, colon = -1;
-    for(int i = 0; buffers->header[i]; i++) {
-        char ch = buffers->header[i];
-        if(quote) {
-            if(escaped) escaped = 0;
-            else if(ch == '\\') escaped = 1;
-            else if(ch == quote) quote = 0;
-            continue;
-        }
-        if(ch == '\'' || ch == '"') { quote = ch; continue; }
-        if(ch == '(' || ch == '[' || ch == '{') { nesting++; continue; }
-        if(ch == ')' || ch == ']' || ch == '}') { nesting--; continue; }
-        if(nesting != 0) continue;
-        if(ch == '.' && buffers->header[i + 1] == '.') return 0;
-        if(ch == ':') {
-            if(colon >= 0) return 0;
-            colon = i;
-        }
-    }
-    if(quote || nesting != 0) return 0;
-    copy_text(value_name, ZIR_NAME_MAX, "it");
-    copy_text(index_name, ZIR_NAME_MAX, "it_index");
-    if(colon >= 0) {
-        buffers->header[colon] = '\0';
-        copy_text(buffers->names, sizeof(buffers->names), buffers->header);
-        trim_in_place(buffers->names);
-        char *comma = strchr(buffers->names, ',');
-        if(comma != NULL) {
-            *comma++ = '\0';
-            if(strchr(comma, ',') != NULL) return 0;
-            copy_text(index_name, ZIR_NAME_MAX, comma);
-            trim_in_place(index_name);
-        }
-        copy_text(value_name, ZIR_NAME_MAX, buffers->names);
-        trim_in_place(value_name);
-        if(!range_identifier(value_name) ||
-           !range_identifier(index_name) ||
-           strcmp(value_name, index_name) == 0) return 0;
-        copy_text(collection, ZIR_TEXT_MAX, skip_ws(buffers->header + colon + 1));
-    } else {
-        copy_text(collection, ZIR_TEXT_MAX, buffers->header);
-    }
-    trim_in_place(collection);
-    return *collection != '\0';
+    LoopHeader header = for_header(statement);
+    if(header.kind != LoopKind_Range) return 0;
+    *reverse = header.reverse;
+    return statement_copy(header.value_name, name, ZIR_NAME_MAX) &&
+           statement_copy(header.first, start, ZIR_TEXT_MAX) &&
+           statement_copy(header.last, end, ZIR_TEXT_MAX);
 }
 
 static int
@@ -737,39 +625,22 @@ collection_header(const ZirStmt *statement, char *value_name,
                   char *index_name, char *collection, int *reverse,
                   int *pointer)
 {
-    static _Thread_local CollectionHeaderBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CollectionHeaderBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    int returned = collection_header_with_buffers(statement, value_name, index_name, collection, reverse, pointer, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-    return returned;
+    LoopHeader header = for_header(statement);
+    if(header.kind != LoopKind_Collection) return 0;
+    *reverse = header.reverse;
+    *pointer = header.pointer;
+    return statement_copy(header.value_name, value_name, ZIR_NAME_MAX) &&
+           statement_copy(header.index_name, index_name, ZIR_NAME_MAX) &&
+           statement_copy(header.collection, collection, ZIR_TEXT_MAX);
 }
 
 static int
-named_while_header(const ZirStmt *statement, char *name,
-                   char *condition)
+named_while_header(const ZirStmt *statement, char *name, char *condition)
 {
-    char header[ZIR_TEXT_MAX];
-    copy_text(header, sizeof(header), skip_ws(statement->text + 5));
-    trim_in_place(header);
-    size_t length = strlen(header);
-    if(length == 0 || header[length - 1] != '{')
-        return 0;
-    header[length - 1] = '\0';
-    trim_in_place(header);
-    char *assignment = strstr(header, ":=");
-    if(assignment == NULL)
-        return 0;
-    *assignment = '\0';
-    copy_text(name, ZIR_NAME_MAX, header);
-    trim_in_place(name);
-    copy_text(condition, ZIR_TEXT_MAX, skip_ws(assignment + 2));
-    trim_in_place(condition);
-    return range_identifier(name) && *condition;
+    NamedWhile header = compiler_statement_WhileHeader(statement_text(statement->text),
+                                                        ZIR_NAME_MAX, ZIR_TEXT_MAX);
+    return header.valid && statement_copy(header.name, name, ZIR_NAME_MAX) &&
+           statement_copy(header.condition, condition, ZIR_TEXT_MAX);
 }
 
 typedef struct LoopScope {
@@ -784,28 +655,9 @@ static int range_line(ZirFunction *out, ZirStmtKind kind,
 static int
 control_name(const ZirStmt *statement, char *name)
 {
-    const char *keyword = statement->kind == ZIR_STMT_BREAK ?
-        "break" : "continue";
-    const char *cursor = skip_ws(statement->text + strlen(keyword));
-    size_t length = 0;
-    name[0] = '\0';
-    if(*cursor == ';')
-        cursor = skip_ws(cursor + 1);
-    else if(*cursor != '\0') {
-        while(isalnum((unsigned char)cursor[length]) ||
-              cursor[length] == '_')
-            length++;
-        if(length == 0 || length >= ZIR_NAME_MAX)
-            return 0;
-        memcpy(name, cursor, length);
-        name[length] = '\0';
-        if(!range_identifier(name))
-            return 0;
-        cursor = skip_ws(cursor + length);
-        if(*cursor == ';')
-            cursor = skip_ws(cursor + 1);
-    }
-    return *cursor == '\0';
+    LoopControl control = compiler_statement_ControlTarget(statement_text(statement->text),
+                              statement->kind == ZIR_STMT_CONTINUE, ZIR_NAME_MAX);
+    return control.valid && statement_copy(control.name, name, ZIR_NAME_MAX);
 }
 /* Buffers lower_named_while keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -1079,27 +931,10 @@ body_mentions(const ZirFunction *fn, int index, int close, const char *name)
 static int
 body_changes(const ZirFunction *fn, int index, int close, const char *name)
 {
-    for(int i = index + 1; i < close; i++) {
-        ZirLexer lexer;
-        ZirToken token;
-        int first = 1, address = 0, operand = 0;
-        LexerInit(&lexer, fn->stmts[i].text, "");
-        do {
-            token = LexerNext(&lexer);
-            if(token.kind == ZIR_TOKEN_IDENT && !strcmp(token.text, name) &&
-               (address || (first && fn->stmts[i].kind == ZIR_STMT_ASSIGN)))
-                return 1;
-            /* A * after an operand multiplies; anywhere else it takes an
-             * address. */
-            address = token.kind != ZIR_TOKEN_EOF && !strcmp(token.text, "*") && !operand;
-            operand = token.kind == ZIR_TOKEN_IDENT || token.kind == ZIR_TOKEN_INT ||
-                      token.kind == ZIR_TOKEN_FLOAT || token.kind == ZIR_TOKEN_STRING ||
-                      token.kind == ZIR_TOKEN_CHAR ||
-                      (token.kind != ZIR_TOKEN_EOF &&
-                       (!strcmp(token.text, ")") || !strcmp(token.text, "]")));
-            first = 0;
-        } while(token.kind != ZIR_TOKEN_EOF);
-    }
+    for(int i = index + 1; i < close; i++)
+        if(compiler_statement_Changes(statement_text(fn->stmts[i].text),
+                statement_text(name), fn->stmts[i].kind == ZIR_STMT_ASSIGN))
+            return 1;
     return 0;
 }
 
@@ -1160,8 +995,6 @@ lower_one_range_with_buffers(ZirFunction *fn, const ZirModule *module, int index
     char binder[ZIR_NAME_MAX];
     char first[ZIR_NAME_MAX], last[ZIR_NAME_MAX], cursor[ZIR_NAME_MAX];
     int reverse;
-    if(strchr(header->text, ';') != NULL)
-        return fail(header, "C-style for headers are not Jai syntax");
     if(close >= fn->stmt_count ||
        !range_header(header, binder, buffers->start, buffers->end, &reverse))
         return fail(header,
@@ -1289,17 +1122,6 @@ lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
     return returned;
 }
 
-/* A lone identifier, such as a local array or slice. */
-static int
-plain_name(const char *text)
-{
-    ZirLexer lexer;
-    ZirToken token;
-    LexerInit(&lexer, text, "");
-    token = LexerNext(&lexer);
-    if(token.kind != ZIR_TOKEN_IDENT) return 0;
-    return LexerNext(&lexer).kind == ZIR_TOKEN_EOF;
-}
 /* Buffers lower_one_collection keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct LowerOneCollectionBuffers {
@@ -1319,8 +1141,6 @@ lower_one_collection_with_buffers(ZirFunction *fn, const ZirModule *module, int 
     char view[ZIR_NAME_MAX];
     char count[ZIR_NAME_MAX], cursor[ZIR_NAME_MAX], item_index[ZIR_NAME_MAX];
     int reverse, pointer;
-    if(strchr(header->text, ';') != NULL)
-        return fail(header, "C-style for headers are not Jai syntax");
     if(close >= fn->stmt_count ||
        !collection_header(header, value_name, index_name, buffers->collection,
                           &reverse, &pointer))
@@ -1338,7 +1158,7 @@ lower_one_collection_with_buffers(ZirFunction *fn, const ZirModule *module, int 
     }
     /* A forward loop over a name the body leaves alone indexes it
      * directly, counting with its own index name. */
-    int direct = !reverse && !header->is_parallel && plain_name(buffers->collection) &&
+    int direct = !reverse && !header->is_parallel && compiler_statement_PlainName(statement_text(buffers->collection)) &&
                  !body_changes(fn, index, close, buffers->collection) &&
                  !body_changes(fn, index, close, index_name);
     if(direct) {
@@ -1422,42 +1242,19 @@ lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
         free(buffers);
     return returned;
 }
-/* Buffers LowerJaiFor keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct LowerJaiForBuffers {
-    char first[ZIR_TEXT_MAX];
-    char last[ZIR_TEXT_MAX];
-} LowerJaiForBuffers;
-
-int LowerJaiFor(ZirFunction *fn, const ZirModule *module);
-
-static int
-LowerJaiFor_with_buffers(ZirFunction *fn, const ZirModule *module, LowerJaiForBuffers *buffers)
+int
+LowerJaiFor(ZirFunction *fn, const ZirModule *module)
 {
     for(int i = fn->stmt_count - 1; i >= 0; i--) {
         if(fn->stmts[i].kind != ZIR_STMT_FOR) continue;
-        char binder[ZIR_NAME_MAX];
-        int reverse;
-        if(range_header(&fn->stmts[i], binder, buffers->first, buffers->last, &reverse)) {
+        LoopHeader header = for_header(&fn->stmts[i]);
+        if(header.c_style)
+            return fail(&fn->stmts[i], "C-style for headers are not Jai syntax");
+        if(header.kind == LoopKind_Range) {
             if(!lower_one_range(fn, module, i)) return 0;
         } else if(!lower_one_collection(fn, module, i)) {
             return 0;
         }
     }
     return 1;
-}
-
-int
-LowerJaiFor(ZirFunction *fn, const ZirModule *module)
-{
-    static _Thread_local LowerJaiForBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LowerJaiForBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    int returned = LowerJaiFor_with_buffers(fn, module, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-    return returned;
 }

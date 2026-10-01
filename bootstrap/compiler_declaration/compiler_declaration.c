@@ -53,6 +53,7 @@ static void compiler_declaration_Put(Slice output, int64_t* used, String source)
 static QuotedText compiler_declaration_Quoted(String source, int64_t limit);
 static String compiler_declaration_SymbolBeforeColons(String source, int64_t limit);
 static String compiler_declaration_Basename(String source);
+static QuotedText compiler_declaration_UsingQuoted(String source, int64_t limit);
 
 static int64_t
 compiler_declaration_Find(String source, String needle)
@@ -260,7 +261,140 @@ compiler_declaration_ErrorText(DeclarationError error)
     if (error == DeclarationError_LibraryCharacter) {
         return StringLiteral("#system_library name contains an invalid character");
     }
+    if (error == DeclarationError_UsingKind) {
+        return StringLiteral("using modifier must be only, except, or map");
+    }
+    if (error == DeclarationError_UsingList) {
+        return StringLiteral("using modifier requires a parenthesized name list");
+    }
+    if (error == DeclarationError_UsingEntry) {
+        return StringLiteral("using modifier entries must be quoted names");
+    }
+    if (error == DeclarationError_UsingMap) {
+        return StringLiteral("using map entries need \"new\" = \"old\"");
+    }
     return StringLiteral("");
+}
+
+UsingFilter
+compiler_declaration_UsingModifierClause(String source, Slice output, int64_t name_limit)
+{
+    UsingFilter result = {0};
+    int64_t value_0 = (int64_t)(source).length;
+    if (value_0 == 0LL || (uint8_t)ZIRAN_INDEX(source.data, source.length, 0) != 44) {
+        return result;
+    }
+    result.present = true;
+    int64_t at = compiler_text_SkipSpace(source, 1LL, false);
+    String value_1 = source;
+    String mode = StringRange(value_1, (int64_t)at, (int64_t)value_1.length);
+    String prefix = StringLiteral("");
+    if (compiler_source_StartsWord(mode, StringLiteral("only"))) {
+        prefix = StringLiteral("O:");
+        at = (int64_t)((uint64_t)at + UINT64_C(4));
+    } else if (compiler_source_StartsWord(mode, StringLiteral("except"))) {
+        prefix = StringLiteral("E:");
+        at = (int64_t)((uint64_t)at + UINT64_C(6));
+    } else if (compiler_source_StartsWord(mode, StringLiteral("map"))) {
+        prefix = StringLiteral("M:");
+        at = (int64_t)((uint64_t)at + UINT64_C(3));
+    } else {
+        result.error = DeclarationError_UsingKind;
+        return result;
+    }
+    at = compiler_text_SkipSpace(source, at, false);
+    int64_t value_2 = (int64_t)(source).length;
+    if (at >= value_2 || (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 40) {
+        result.error = DeclarationError_UsingList;
+        return result;
+    }
+    at = compiler_text_SkipSpace(source, (int64_t)((uint64_t)at + UINT64_C(1)), false);
+    compiler_declaration_Put(output, &(result.count), prefix);
+    int64_t entries = 0LL;
+    while (true) {
+        int64_t value_3 = (int64_t)(source).length;
+        if (!(at < value_3 && (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 41)) { break; }
+        String value_4 = source;
+        QuotedText value_5 = compiler_declaration_UsingQuoted(StringRange(value_4, (int64_t)at, (int64_t)value_4.length), name_limit);
+        QuotedText quoted = value_5;
+        if (!quoted.valid) {
+            result.error = DeclarationError_UsingEntry;
+            return result;
+        }
+        String name = quoted.value;
+        at = compiler_text_SkipSpace(source, (int64_t)((uint64_t)at + (uint64_t)(quoted.end)), false);
+        String mapped = StringLiteral("");
+        if (StringEqual(prefix, StringLiteral("M:"))) {
+            int64_t value_6 = (int64_t)(source).length;
+            if (at >= value_6 || (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 61) {
+                result.error = DeclarationError_UsingMap;
+                return result;
+            }
+            at = compiler_text_SkipSpace(source, (int64_t)((uint64_t)at + UINT64_C(1)), false);
+            String value_7 = source;
+            QuotedText value_8 = compiler_declaration_UsingQuoted(StringRange(value_7, (int64_t)at, (int64_t)value_7.length), name_limit);
+            quoted = value_8;
+            if (!quoted.valid) {
+                result.error = DeclarationError_UsingMap;
+                return result;
+            }
+            mapped = quoted.value;
+            at = compiler_text_SkipSpace(source, (int64_t)((uint64_t)at + (uint64_t)(quoted.end)), false);
+        }
+        if (entries > 0LL) {
+            compiler_declaration_Put(output, &(result.count), StringLiteral(","));
+        }
+        compiler_declaration_Put(output, &(result.count), name);
+        if (StringEqual(prefix, StringLiteral("M:"))) {
+            compiler_declaration_Put(output, &(result.count), StringLiteral("="));
+            compiler_declaration_Put(output, &(result.count), mapped);
+        }
+        entries = (int64_t)((uint64_t)entries + UINT64_C(1));
+        int64_t value_9 = (int64_t)(source).length;
+        if (at >= value_9 || (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 44) {
+            break;
+        }
+        at = compiler_text_SkipSpace(source, (int64_t)((uint64_t)at + UINT64_C(1)), false);
+    }
+    bool value_10 = entries == 0LL;
+    if (!value_10) {
+        int64_t value_11 = (int64_t)(source).length;
+        value_10 = (at >= value_11);
+    }
+    if (value_10 || (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 41) {
+        result.error = DeclarationError_UsingList;
+        return result;
+    }
+    int64_t value_12 = compiler_text_SkipSpace(source, (int64_t)((uint64_t)at + UINT64_C(1)), false);
+    result.next = value_12;
+    return result;
+}
+
+static QuotedText
+compiler_declaration_UsingQuoted(String source, int64_t limit)
+{
+    int64_t value_0 = (int64_t)(source).length;
+    if (value_0 == 0LL || (uint8_t)ZIRAN_INDEX(source.data, source.length, 0) != 34) {
+        return (QuotedText){0};
+    }
+    int64_t at = 1LL;
+    while (true) {
+        int64_t value_1 = (int64_t)(source).length;
+        bool value_2 = at < value_1 && (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 34 && (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 0;
+        if (!value_2) { break; }
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+    }
+    int64_t value_3 = (int64_t)(source).length;
+    bool value_4 = at == value_3 || (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 34 || at == 1LL;
+    if (!value_4) {
+        int64_t value_5 = (int64_t)((uint64_t)at - UINT64_C(1));
+        value_4 = (value_5 >= limit);
+    }
+    if (value_4) {
+        return (QuotedText){0};
+    }
+    String value_6 = source;
+    return (QuotedText){.valid = true, .value = StringRange(value_6, (int64_t)1LL, (int64_t)at), .end = (int64_t)((uint64_t)at + UINT64_C(1))};
 }
 
 ExportDirective

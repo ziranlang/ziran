@@ -21,6 +21,7 @@ typedef int32_t ImportMode;
 typedef struct ModuleImport ModuleImport;
 typedef struct LibraryDeclaration LibraryDeclaration;
 typedef struct MethodSymbol MethodSymbol;
+typedef struct UsingFilter UsingFilter;
 #ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 typedef struct QuotedText QuotedText;
 #endif
@@ -50,6 +51,10 @@ enum {
     DeclarationError_LibraryQuote = 21,
     DeclarationError_LibraryEnd = 22,
     DeclarationError_LibraryCharacter = 23,
+    DeclarationError_UsingKind = 24,
+    DeclarationError_UsingList = 25,
+    DeclarationError_UsingEntry = 26,
+    DeclarationError_UsingMap = 27,
 };
 
 struct ExportDirective {
@@ -97,6 +102,13 @@ struct MethodSymbol {
     String receiver;
     String method;
 };
+
+struct UsingFilter {
+    DeclarationError error;
+    bool present;
+    int64_t count;
+    int64_t next;
+};
 #ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 
 struct QuotedText {
@@ -106,6 +118,7 @@ struct QuotedText {
 };
 #endif
 String compiler_declaration_ErrorText(DeclarationError error);
+UsingFilter compiler_declaration_UsingModifierClause(String source, Slice output, int64_t name_limit);
 ExportDirective compiler_declaration_ProgramExport(String source, int64_t symbol_limit);
 ParameterRewrite compiler_declaration_RewriteParameters(String source, Slice output, bool strip_defaults, bool strip_using, int64_t name_limit);
 ModuleImport compiler_declaration_ImportDeclaration(String source, int64_t name_limit, int64_t path_limit);

@@ -1,0 +1,155 @@
+Statement :: #import "compiler_statement";
+
+Ranges :: () -> bool {
+    header := Statement.ForHeader("for index: Start(\"..\")..End(values[1:3]) {")
+    if header.kind != Statement.LoopKind.Range || header.value_name != "index" ||
+    header.first != "Start(\"..\")" || header.last != "End(values[1:3])" ||
+    header.reverse || header.pointer { return false }
+    header = Statement.ForHeader("  for < 0..3 { \t")
+    if header.kind != Statement.LoopKind.Range || header.value_name != "it" ||
+    header.first != "0" || header.last != "3" || !header.reverse { return false }
+    header = Statement.ForHeader("for x: 0..3 {", 2)
+    if header.kind != Statement.LoopKind.Range || header.value_name != "x" { return false }
+    if Statement.ForHeader("for index: 0..3 {", 5).kind != Statement.LoopKind.Invalid ||
+    Statement.ForHeader("for x: 0..3 {", 128, 9).kind != Statement.LoopKind.Invalid { return false }
+    invalid: [17]string = .{"", "for", "for {", "for 0.. {", "for ..3 {", "for 0..1..2 {",
+        "for x, y: 0..3 {", "for 9x: 0..3 {", "for * x: 0..3 {", "for << 0..3 {",
+        "for x: (0]..3 {", "for x: [0)..3 {", "for x: 0..(3 {", "for x: 0..3 }",
+        "for x: \"unfinished..3 {", "for x: \"unfinished\\ {", "for x: 0..y:z {"}
+    for source: invalid { if Statement.ForHeader(source).kind != Statement.LoopKind.Invalid { return false } }
+    header = Statement.ForHeader("for i := 0; i < 3; i += 1 {")
+    return header.kind == Statement.LoopKind.Invalid && header.c_style
+}
+
+Collections :: () -> bool {
+    header := Statement.ForHeader("for < * value, index: Get(.{text = \"..:;\"}, data[1:3]) {")
+    if header.kind != Statement.LoopKind.Collection || header.value_name != "value" ||
+    header.index_name != "index" || header.collection != "Get(.{text = \"..:;\"}, data[1:3])" ||
+    !header.reverse || !header.pointer { return false }
+    header = Statement.ForHeader("for * < values {")
+    if header.kind != Statement.LoopKind.Collection || header.value_name != "it" ||
+    header.index_name != "it_index" || header.collection != "values" ||
+    !header.reverse || !header.pointer { return false }
+    header = Statement.ForHeader("for Text(\"semi;colon\") {")
+    if header.kind != Statement.LoopKind.Collection || header.c_style { return false }
+    header = Statement.ForHeader("for value: values[Low()..High()] {")
+    if header.kind != Statement.LoopKind.Collection || header.collection != "values[Low()..High()]" { return false }
+    invalid: [14]string = .{"for value, value: values {", "for it_index: values {",
+        "for a,b,c: values {", "for 9x: values {", "for x, : values {", "for : values {",
+        "for x: {", "for << values {", "for ** values {", "for x: values[0:2) {",
+        "for x: Get(.{value = 1)) {", "for x: Get(\"unfinished\\) {", "format values {", "for x:y:values {"}
+    for source: invalid { if Statement.ForHeader(source).kind != Statement.LoopKind.Invalid { return false } }
+    return Statement.ForHeader("for value, index: values {", 5).kind == Statement.LoopKind.Invalid
+}
+
+Controls :: () -> bool {
+    header := Statement.WhileHeader(" while running := Check(\":=\") { ")
+    if !header.valid || header.name != "running" || header.condition != "Check(\":=\")" { return false }
+    if Statement.WhileHeader("while Check(\"running :=\") {").valid ||
+    Statement.WhileHeader("while 9x := true {").valid ||
+    Statement.WhileHeader("while running := {").valid ||
+    Statement.WhileHeader("while running := true {", 7).valid ||
+    Statement.WhileHeader("while running := true {", 128, 17).valid { return false }
+    plain: [4]string = .{"break", "break;", "break ;", " break ; \t"}
+    for source: plain {
+        target := Statement.ControlTarget(source, false)
+        if !target.valid || target.name != "" { return false }
+    }
+    target := Statement.ControlTarget("continue outer ; \t", true)
+    if !target.valid || target.name != "outer" { return false }
+    target = Statement.ControlTarget("break outer", false)
+    if !target.valid || target.name != "outer" { return false }
+    invalid: [8]string = .{"break 9x", "break target.more", "break a b", "break ;;",
+        "break ; target", "continue outer", "breaker outer", ""}
+    for source: invalid { if Statement.ControlTarget(source, false).valid { return false } }
+    return !Statement.ControlTarget("break outer", false, 5).valid
+}
+
+Tokens :: () -> bool {
+    if !Statement.Mentions("Call(value, \"value\")", "value") ||
+    Statement.Mentions("value_2 + \"value\"", "value") ||
+    Statement.Mentions("#value", "value") || Statement.Mentions("", "value") { return false }
+    if !Statement.Changes("value += 1", "value", true) ||
+    !Statement.Changes("Call(*value)", "value", false) ||
+    !Statement.Changes("Call(1 + *value)", "value", false) ||
+    Statement.Changes("other = factor * value", "value", true) ||
+    Statement.Changes("Call(\"*value\")", "value", false) ||
+    Statement.Changes("Call(value)", "value", false) { return false }
+    return Statement.PlainName(" value_2 \t") && !Statement.PlainName("value.field") &&
+        !Statement.PlainName("Call()") && !Statement.PlainName("9") && !Statement.PlainName("")
+}
+
+Collection :: (marker: string, values: []s32) -> []s32 {
+    if marker != ":=;.." { return values[0:0] }
+    return values
+}
+
+Integration :: () -> bool {
+    values: [3]s32 = .{1, 2, 3}
+    total: s32 = 0
+    // Quoted statement operators are data through the real frontend too.
+    for value: Collection(":=;..", values[:]) { total += value }
+    for outer: 0..2 {
+        for inner: 0..2 {
+            if inner == 1 { continue outer }
+            total += 1
+        }
+    }
+    while running := total < 12 {
+        total += 1
+        if total == 11 { break running }
+    }
+    return total == 11
+}
+
+#program_export
+Answer :: () -> s32 {
+    if !Ranges() { return 1 }
+    if !Collections() { return 2 }
+    if !Controls() { return 3 }
+    if !Tokens() { return 4 }
+    if !Integration() { return 5 }
+    return 42
+}
+
+#program_export
+Fingerprint :: () -> s64 {
+    alphabet := "abc_09 \t\n:.,;()[]{}<*>+\"'\\="
+    state: u32 = 271828
+    result: u32 = 2166136261
+    bytes: [160]u8
+    for sample: 0..399 {
+        count := sample % 89
+        offset: s64 = 0
+        if sample % 4 == 0 {
+            bytes[0] = #char "f"; bytes[1] = #char "o"; bytes[2] = #char "r"; bytes[3] = #char " "
+            offset = 4
+        }
+        for index: 0..count - 1 {
+            state = state * cast(u32)1664525 + cast(u32)1013904223
+            bytes[index + offset] = alphabet[cast(s64)(state >> 16) % alphabet.count]
+        }
+        count += offset
+        if sample % 4 == 0 {
+            bytes[count] = #char "{"; count += 1
+        }
+        source := TextView(bytes[0:count])
+        header := Statement.ForHeader(source, sample % 32, sample % 128)
+        result = result * cast(u32)16777619 ^ cast(u32)header.kind
+        result = result * cast(u32)16777619 ^ cast(u32)header.reverse
+        result = result * cast(u32)16777619 ^ cast(u32)header.pointer
+        result = result * cast(u32)16777619 ^ cast(u32)header.c_style
+        texts: [6]string = .{header.value_name, header.index_name, header.first,
+            header.last, header.collection, Statement.WhileHeader(source).condition}
+        for text: texts { for byte: text { result = result * cast(u32)16777619 ^ cast(u32)byte } }
+        target := Statement.ControlTarget(source, sample % 2 == 0, sample % 32)
+        result = result * cast(u32)16777619 ^ cast(u32)target.valid
+        for byte: target.name { result = result * cast(u32)16777619 ^ cast(u32)byte }
+        result = result * cast(u32)16777619 ^ cast(u32)Statement.Mentions(source, "a")
+        result = result * cast(u32)16777619 ^ cast(u32)Statement.Changes(source, "a", sample % 2 == 0)
+        result = result * cast(u32)16777619 ^ cast(u32)Statement.PlainName(source)
+    }
+    return cast(s64)result
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

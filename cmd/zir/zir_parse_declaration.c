@@ -53,6 +53,24 @@ check_declaration_error(DeclarationError error, ZirSourceSpan span)
     }
 }
 
+/* Grammar lives in compiler_declaration.zi; this boundary retains storage
+ * and source diagnostics for the existing declaration IR. */
+int
+parse_using_modifiers(const char **cursor, char *filter, size_t filter_size,
+                      const char *path, int line_no)
+{
+    UsingFilter result = compiler_declaration_UsingModifierClause(
+        declaration_text(*cursor),
+        (Slice){filter, filter_size > 0 ? (int64_t)filter_size - 1 : 0}, ZIR_NAME_MAX);
+    check_declaration_error(result.error, Span(path, line_no, 1));
+    if(!result.present) return 1;
+    if((uint64_t)result.count >= filter_size)
+        die_at(Span(path, line_no, 1), "using modifier list is too long");
+    filter[result.count] = 0;
+    *cursor += result.next;
+    return 1;
+}
+
 /* Return 1 for a standalone directive and 2 for an inline declaration. */
 int
 strip_program_export(char *line, char *symbol, size_t symbol_size,

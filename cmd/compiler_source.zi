@@ -139,7 +139,6 @@ ClassifyStatement :: (source: string) -> StatementKind {
     if StartsWord(source, "continue") || source == "continue;" { return .Continue }
     if StartsWord(source, "defer") { return .Defer }
     if StartsWord(source, "unused") { return .Unused }
-    if Find(source, ":=") >= 0 { return .Declaration }
     colon := Find(source, ": ")
     if colon < 0 { colon = Find(source, ": [") }
     if colon > 0 && IdentifierText(source[0:colon], false) { return .Declaration }
@@ -156,7 +155,8 @@ ClassifyStatement :: (source: string) -> StatementKind {
         if byte == #char "(" || byte == #char "[" || byte == #char "{" { depth += 1 }
         else if byte == #char ")" || byte == #char "]" || byte == #char "}" {
             if depth > 0 { depth -= 1 }
-        } else if byte == #char "=" && depth == 0 { return .Assignment }
+        } else if depth == 0 && Matches(source, at, ":=") { return .Declaration }
+        else if byte == #char "=" && depth == 0 { return .Assignment }
         at += 1
     }
     if Find(source, "(") >= 0 || Find(source, "+") >= 0 || Find(source, "-") >= 0 {

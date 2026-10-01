@@ -70,6 +70,8 @@ int main(void)
     assert(compiler_source_ClassifyStatement(text("Call(.{x = 1}, \"a=b\")")) == StatementKind_Expression);
     assert(compiler_source_ClassifyStatement(text("x = Call(.{x = 1})")) == StatementKind_Assignment);
     assert(compiler_source_ClassifyStatement(text("c := Call()")) == StatementKind_Declaration);
+    assert(compiler_source_ClassifyStatement(text("header = Parse(\"for i := 0; i < 3; i += 1 {\")")) == StatementKind_Assignment);
+    assert(compiler_source_ClassifyStatement(text("Parse(\"named := value\")")) == StatementKind_Expression);
     assert(compiler_source_ClassifyStatement(text("object.field: s32")) == StatementKind_Unknown);
     assert(compiler_source_LooksLikeLabel(text("outer: \t;")));
     assert(!compiler_source_NonJaiControl(text("if := true"), text("if")));

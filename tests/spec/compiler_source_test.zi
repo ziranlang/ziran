@@ -29,6 +29,8 @@ StatementChecks :: () -> bool {
     ClassifyStatement("field: [2]s32") != .Declaration || ClassifyStatement("s32 old_name;") != .Declaration ||
     ClassifyStatement("field = Call(.{x = 1})") != .Assignment ||
     ClassifyStatement("Call(.{x = 1}, \"a=b\")") != .Expression ||
+    ClassifyStatement("header = Parse(\"for i := 0; i < 3; i += 1 {\")") != .Assignment ||
+    ClassifyStatement("Parse(\"named := value\")") != .Expression ||
     ClassifyStatement("object.field: s32") != .Unknown || ClassifyStatement("unknown") != .Unknown ||
     ClassifyStatement("") != .Unknown { return false }
     if !LooksLikeLabel("outer: \t;") || LooksLikeLabel("outer: while true {") ||

@@ -13,6 +13,41 @@ SameParameters :: (source: string, expected: string, defaults: bool, using_value
     return true
 }
 
+SameUsingFilter :: (source: string, expected: string, rest: string) -> bool {
+    output: [256]u8
+    for capacity: 0..expected.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        filter := UsingModifierClause(source, output[0:capacity], 128)
+        if filter.error != .None || !filter.present || filter.count != expected.count ||
+        source[filter.next:] != rest || output[capacity] != 0xa5 ||
+        TextView(output[0:capacity]) != expected[0:capacity] { return false }
+    }
+    return true
+}
+
+UsingModifiers :: () -> bool {
+    if !SameUsingFilter(", only(\"left\", \"right\") pair;", "O:left,right", "pair;") ||
+    !SameUsingFilter(", except ( \"left\", ) \tPair;", "E:left", "Pair;") ||
+    !SameUsingFilter(", map(\"first\" = \"left\", \"second\" = \"right\") pair;",
+        "M:first=left,second=right", "pair;") ||
+    !SameUsingFilter(", map ( \"alias\" = \"field\" )", "M:alias=field", "") { return false }
+    output: [256]u8
+    if UsingModifierClause("pair;", output[:], 128).present ||
+    UsingModifierClause("", output[:], 128).present ||
+    UsingModifierClause(", unknown(\"left\") pair;", output[:], 128).error != .UsingKind ||
+    UsingModifierClause(", only \"left\" pair;", output[:], 128).error != .UsingList ||
+    UsingModifierClause(", only() pair;", output[:], 128).error != .UsingList ||
+    UsingModifierClause(", only(\"left\" pair;", output[:], 128).error != .UsingList ||
+    UsingModifierClause(", only(left) pair;", output[:], 128).error != .UsingEntry ||
+    UsingModifierClause(", only(\"\") pair;", output[:], 128).error != .UsingEntry ||
+    UsingModifierClause(", only(\"unterminated", output[:], 128).error != .UsingEntry ||
+    UsingModifierClause(", only(\"left\") pair;", output[:], 4).error != .UsingEntry ||
+    UsingModifierClause(", map(\"alias\" \"field\") pair;", output[:], 128).error != .UsingMap ||
+    UsingModifierClause(", map(\"alias\" = \"\") pair;", output[:], 128).error != .UsingMap ||
+    UsingModifierClause(", map(\"a\" = \"field\") pair;", output[:], 5).error != .UsingMap { return false }
+    return true
+}
+
 Parameters :: () -> bool {
     if !SameParameters("", "", true, true, 0, false) ||
     !SameParameters(" \t", "", true, true, 0, false) ||
@@ -113,6 +148,7 @@ Declarations :: () -> bool {
 Answer :: () -> s32 {
     if !Parameters() { return 1 }
     if !Declarations() { return 2 }
+    if !UsingModifiers() { return 3 }
     return 42
 }
 
@@ -137,6 +173,14 @@ Fingerprint :: () -> s64 {
             hash = hash * cast(u32)16777619 ^ cast(u32)rewritten.count
             hash = hash * cast(u32)16777619 ^ cast(u32)rewritten.using_parameters
             written := rewritten.count
+            if written > capacity { written = capacity }
+            for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
+            filter := UsingModifierClause(source, output[0:capacity], 8)
+            hash = hash * cast(u32)16777619 ^ cast(u32)filter.error
+            hash = hash * cast(u32)16777619 ^ cast(u32)filter.present
+            hash = hash * cast(u32)16777619 ^ cast(u32)filter.count
+            hash = hash * cast(u32)16777619 ^ cast(u32)filter.next
+            written = filter.count
             if written > capacity { written = capacity }
             for byte: output[0:written] { hash = hash * cast(u32)16777619 ^ cast(u32)byte }
         }

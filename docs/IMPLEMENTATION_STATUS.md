@@ -81,6 +81,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   saved IR on C, C++, Go, Rust, Python, and `.zib`, including nested defaults,
   the 64-parameter limit, `using` flags, rejected declarations, bounded output,
   a reproducible byte corpus, seed agreement, and the C boundary.
+  The same module parses `using, only`, `except`, and `map` clauses, with
+  bounded name lists, complete output measurement, and exact binding offsets.
+  The C boundary retains checked storage and diagnostics; grammar no longer
+  has a separate C implementation. The declaration module checks compare
+  short output prefixes and rejected clauses across every target, and
+  `tests/using_modifiers.sh` exercises record and enum bindings end to end.
 
 - Rust empty text views compare, print, and slice without constructing a
   native slice from a null pointer. Empty vector and slice views retain their
@@ -145,6 +151,23 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   prefix forms, scope errors, nesting limits, deterministic byte inputs,
   seed agreement, borrowed ranges, and the C frontend boundary. The compiler
   still requires further migration before it is fully self-hosted.
+
+- Loop syntax is implemented in `cmd/compiler_statement.zi`: forward and
+  reverse integer ranges, collection iteration and pointer bindings, named
+  `while` headers, named `break` and `continue` targets, and identifier
+  reference and mutation scanning. Header fields borrow bounded source
+  ranges, with matching delimiters and explicit name, text, and nesting
+  limits. Oversized binders are rejected instead of silently truncated.
+  Quoted `:=` no longer changes an assignment or call into a declaration,
+  and separators inside quoted strings and nested expressions stay out of
+  loop-header syntax. The C boundary retains IR storage, scope binding, and
+  loop lowering. Fresh builds use a generated seed verified by
+  `make check-bootstrap`; ordinary tools compile the maintained Ziran source.
+  `tests/compiler_statement.sh` checks source and saved IR on C, C++, Go,
+  Rust, Python, and `.zib`, including malformed headers, borrowed ranges,
+  limits, deterministic byte inputs, seed agreement, and the C scope boundary.
+  The checker, lowering, backends, and portable runtime still require
+  further migration before the compiler is fully self-hosted.
 
 - Portable imported callback signatures resolve their parameter and return
   types in their defining module. Record and enum parameters and record

@@ -763,25 +763,32 @@ typedef struct NormalizeRecordArraysBuffers {
     char body[sizeof(((ZirType *)0)->body)];
 } NormalizeRecordArraysBuffers;
 
-int normalize_record_arrays(ZirModule *module);
+int normalize_record_arrays(ZirModule *module, int templates_only);
 
 static int
-normalize_record_arrays_with_buffers(ZirModule *module, NormalizeRecordArraysBuffers *buffers)
+normalize_record_arrays_with_buffers(ZirModule *module, int templates_only,
+                                      NormalizeRecordArraysBuffers *buffers)
 {
     for(int i = 0; i < module->type_count; i++) {
         ZirType *record = &module->types[i];
         select_lookup_file(module, record->span);
-        if(record->is_procedure_type || record->is_enum)
+        if(record->is_procedure_type || record->is_enum ||
+           (templates_only && !record->is_record_template))
             continue;
         size_t offset = 0;
         ZirTypeField field;
         int status, changed = 0;
         while((status = TypeNextField(record, &offset, &field)) == 1) {
             copy_text(buffers->normalized, sizeof(buffers->normalized), field.type);
-            normalize_array(module, buffers->normalized, sizeof(buffers->normalized));
+            normalize_template_array(module, buffers->normalized,
+                sizeof(buffers->normalized),
+                record->is_record_template ? record->template_params : NULL);
             if(strcmp(buffers->normalized, field.type) != 0)
                 changed = 1;
         }
+        if(status < 0 && templates_only)
+            return record_declaration_error(record,
+                "malformed generic record field", NULL);
         if(status < 0)
             return 0;
         if(!changed)
@@ -790,7 +797,8 @@ normalize_record_arrays_with_buffers(ZirModule *module, NormalizeRecordArraysBuf
         size_t used = 0;
         offset = 0;
         while((status = TypeNextField(record, &offset, &field)) == 1) {
-            normalize_array(module, field.type, sizeof(field.type));
+            normalize_template_array(module, field.type, sizeof(field.type),
+                record->is_record_template ? record->template_params : NULL);
             int length = snprintf(buffers->body + used, sizeof(buffers->body) - used,
                                   "%s%s: %s\n", field.is_using ? "using " : "",
                                   field.name, field.type);
@@ -812,13 +820,13 @@ normalize_record_arrays_with_buffers(ZirModule *module, NormalizeRecordArraysBuf
  * A bundle intentionally omits source definitions, so a field must not keep
  * depending on a compile-time name after this point. */
 int
-normalize_record_arrays(ZirModule *module)
+normalize_record_arrays(ZirModule *module, int templates_only)
 {
     static _Thread_local NormalizeRecordArraysBuffers *spares[16];
     static _Thread_local int spare_count;
     NormalizeRecordArraysBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
         AllocateOrExit(sizeof(*buffers));
-    int returned = normalize_record_arrays_with_buffers(module, buffers);
+    int returned = normalize_record_arrays_with_buffers(module, templates_only, buffers);
     if(spare_count < 16)
         spares[spare_count++] = buffers;
     else

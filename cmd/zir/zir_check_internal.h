@@ -232,7 +232,7 @@ int compound_operator_assignment(Checker *c, ZirStmt *st);
 const char *storage_type_error(const ZirModule *module, const char *source, const RecordPath *path, int indirect, ValidatedRecords *checked, char *detail, size_t detail_capacity);
 const char *local_storage_error(const ZirModule *module, const char *type);
 int check_type_declarations(ZirModule *module);
-int normalize_record_arrays(ZirModule *module);
+int normalize_record_arrays(ZirModule *module, int templates_only);
 int all_arms_return(const ZirFunction *fn, int begin, int *last);
 int sequence_returns(const ZirFunction *fn, int begin, int end);
 int starts_word(const char *source, const char *word);

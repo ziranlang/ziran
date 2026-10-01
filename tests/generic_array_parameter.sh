@@ -12,6 +12,7 @@ cat > "$work/lib.zi" <<'ZI'
 Width :: 3;
 T :: [5]u8;
 #scope_export
+Holder :: struct($T: Type) { values: [Width]T; }
 Copy :: (values: [Width]$T) -> [Width]T { return values; }
 First :: (values: [3] $T) -> T { return values[0]; }
 Change :: (values: [3]$T, replacement: T) -> T {
@@ -19,7 +20,7 @@ Change :: (values: [3]$T, replacement: T) -> T {
     return values[0];
 }
 Empty :: (values: [0]$T) -> s64 { return values.count; }
-Pair :: (values: [3]$E, label: $L) -> E, L { return values[0], label; }
+Pair :: (values: [3]$T, label: $L) -> T, L { return values[0], label; }
 Outer :: (values: [2]$T) -> T { return values[1]; }
 Take :: (values: [3]$T, other: [2]T) -> T { return other[1]; }
 ZI
@@ -41,8 +42,13 @@ main :: () {
     if First(wide) != 5000000000 { print("wide element\n"); return; }
     items: [3]Item = .[.{value = 40}, .{value = 1}, .{value = 2}];
     records := Library.Copy(items);
+    holder: Library.Holder(Item);
+    holder.values = records;
     if records[2].value != 2 || Library.First(items).value != 40 {
         print("record element\n"); return;
+    }
+    if holder.values[0].value != 40 || holder.values[2].value != 2 {
+        print("generic array field\n"); return;
     }
     item, label := Library.Pair(items, "array");
     if item.value != 40 || label != "array" { print("independent binders\n"); return; }

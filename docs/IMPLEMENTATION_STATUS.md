@@ -209,10 +209,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   declared capacity, including zero-capacity arrays. Bounds resolve in the
   defining module, and dependent `[N]T` parameters and return types are checked
   after specialization without resolving a bound type as a same-named local
-  alias. Array arguments keep ordinary value semantics.
+  alias. Generic record fields and generated result records preserve their
+  bound types too, and record array capacities resolve in the defining module
+  before instances copy the fields into a caller. Array arguments keep
+  ordinary value semantics.
   `tests/generic_array_parameter.sh` checks named/open imports, scalars,
-  records, independent type parameters, multiple results, array aliases,
-  source/saved IR and separately saved libraries on C, C++, Go, Rust, Python,
+  records, generic array fields, independent type parameters, multiple results,
+  array aliases, source/saved IR and separately saved libraries on C, C++, Go, Rust, Python,
   and `.zib`. Nested-array elements and returns work on the native targets;
   the portable linker explicitly rejects unsupported nested-array returns.
   The test also rejects slices, scalars, mismatched capacities and element

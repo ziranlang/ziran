@@ -491,6 +491,12 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                 module->define_count--;
             }
         }
+    /* Resolve generic record array bounds in their defining module before
+     * instances copy the fields into a caller with a different namespace. */
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++)
+            if(!normalize_record_arrays(&programs[p]->modules[m], 1))
+                return 0;
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++)
             if(!normalize_type_applications(&programs[p]->modules[m]))
@@ -592,7 +598,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++)
             if(!check_type_declarations(&programs[p]->modules[m]) ||
-               !normalize_record_arrays(&programs[p]->modules[m]))
+               !normalize_record_arrays(&programs[p]->modules[m], 0))
                 return 0;
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++) {

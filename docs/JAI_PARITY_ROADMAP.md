@@ -217,6 +217,9 @@ original saved-library declarations are still checked for canonical metadata.
 Fixed-array binders `[N]$T` now infer the element type while enforcing a
 compile-time capacity from the defining module. Dependent array parameters
 and returns specialize normally, including through a separately saved library.
+Generic record array fields retain their defining module's capacity, and
+generic fields and result records keep their bound types when a local alias
+has the same name.
 `tests/generic_array_parameter.sh` covers scalar and record elements,
 zero-capacity arrays, value semantics, named/open imports, independent binders,
 multiple results, and source/saved IR on C, C++, Go, Rust, Python, and `.zib`.

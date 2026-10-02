@@ -3,3 +3,4 @@ __pycache__/
 /.wrangler/
 /site/assets/playground-runtime.js
 /site/assets/playground-runtime.wasm
+.wrangler/

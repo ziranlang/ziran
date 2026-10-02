@@ -1,12 +1,12 @@
 #import "date_time_types"
 
-// Linux time_t is 64-bit on the supported native Linux target. Read the
-// common struct tm prefix without exposing its platform-specific tail.
+// Linux time_t and long are 64-bit on the supported native Linux target.
+// Keep libc's struct tm layout private and copy each reentrant reading.
 #scope_file
 libc :: #system_library "libc";
 TimeRaw :: (result: *s64) -> s64 #foreign libc "time";
-LocalTimeRaw :: (seconds: *s64) -> *void #foreign libc "localtime";
-UtcTimeRaw :: (seconds: *s64) -> *void #foreign libc "gmtime";
+LocalTimeRaw :: (seconds: *s64, fields: *TimeFields) -> *TimeFields #foreign libc "localtime_r";
+UtcTimeRaw :: (seconds: *s64, fields: *TimeFields) -> *TimeFields #foreign libc "gmtime_r";
 ClockValue :: struct { seconds: s64; nanoseconds: s64; }
 ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
 
@@ -20,12 +20,13 @@ TimeFields :: struct {
     weekday: s32
     day_of_year: s32
     daylight_saving: s32
+    utc_offset: s64
+    timezone: *u8
 }
 
-Reading :: (memory: *void) -> LocalDateTime {
+Reading :: (fields: *TimeFields) -> LocalDateTime {
     result: LocalDateTime
-    if memory == null { return result }
-    fields := cast(*TimeFields)memory
+    if fields == null { return result }
     result.year = fields.year + 1900
     result.month = fields.month + 1
     result.day = fields.day
@@ -38,7 +39,8 @@ Reading :: (memory: *void) -> LocalDateTime {
 }
 
 #scope_export
-#program_export
+// Keep these clock providers module-qualified: a native host may also
+// import date_time, which exports UnixNow and LocalNow for its callers.
 UnixNow :: () -> s64 {
     return TimeRaw(null)
 }
@@ -47,15 +49,20 @@ UnixNow :: () -> s64 {
 UnixMilliseconds :: () -> s64 {
     value: ClockValue
     if ClockGetTimeRaw(0, *value) != 0 || value.seconds < 0 ||
-        value.seconds > 9223372036854775 || value.nanoseconds < 0 || value.nanoseconds > 999999999 { return -1 }
+    value.seconds > 9223372036854775 || value.nanoseconds < 0 || value.nanoseconds > 999999999 { return -1 }
     return value.seconds * 1000 + value.nanoseconds / 1000000
 }
 
 #program_export
-LocalAt :: (seconds: s64) -> LocalDateTime { return Reading(LocalTimeRaw(*seconds)) }
+LocalAt :: (seconds: s64) -> LocalDateTime {
+    fields: TimeFields
+    return Reading(LocalTimeRaw(*seconds, *fields))
+}
 
 #program_export
-UtcAt :: (seconds: s64) -> LocalDateTime { return Reading(UtcTimeRaw(*seconds)) }
+UtcAt :: (seconds: s64) -> LocalDateTime {
+    fields: TimeFields
+    return Reading(UtcTimeRaw(*seconds, *fields))
+}
 
-#program_export
 LocalNow :: () -> LocalDateTime { return LocalAt(UnixNow()) }

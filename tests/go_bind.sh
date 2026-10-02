@@ -21,6 +21,11 @@ BindAll :: (callback: Adder, count: *s64, amount: s64) -> Reader #foreign builti
 Writer :: #type (count: *s64, bytes: []u8) -> void;
 Output :: #type (bytes: []u8) -> void;
 BindWriter :: (callback: Writer, count: *s64) -> Output #foreign builtin "bind";
+TextState :: struct { text: string }
+RetainText :: (value: string) -> string #foreign builtin "retain";
+RetainBytes :: (value: []u8) -> []u8 #foreign builtin "retain";
+RetainResult :: (value: slots.Result) -> slots.Result #foreign builtin "retain";
+ReadText :: (state: *TextState) -> string { return RetainText(state.text) }
 Capture :: (callback: slots.Full, state: *slots.State, prefix: string) -> slots.Bound {
     bound := Binder(callback, state, prefix)
     prefix = "changed"
@@ -58,6 +63,8 @@ package main
 import (
     "errors"
     "reflect"
+    "strings"
+    "unsafe"
 )
 func main() {
     sentinel := errors.New("native error")
@@ -96,6 +103,13 @@ func main() {
         nilCallback(source)
     }()
     if Binding_BindEntry() != 42 { panic("canonical procedure callback") }
+    text := strings.Repeat("heap string", 128)
+    retained := Binding_ReadText(&TextState{Text: text})
+    if retained != text || unsafe.StringData(retained) != unsafe.StringData(text) { panic("native string storage changed") }
+    if bytes := Binding_RetainBytes(source); &bytes[0] != &source[0] { panic("native slice storage changed") }
+    if Binding_RetainBytes(nil) != nil { panic("native nil slice changed") }
+    result = Binding_RetainResult(Result{Value: source, Error: sentinel})
+    if &result.Value[0] != &source[0] || result.Error != sentinel { panic("native record storage changed") }
 }
 GO
     GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go run -race "$out"/*.go
@@ -128,7 +142,7 @@ done
 cmp "$work/source-go/binding.go" "$work/saved-go/binding.go"
 cmp "$work/source-go/slots.go" "$work/saved-go/slots.go"
 
-for mode in wrong_capture wrong_tail wrong_result no_capture no_callback non_procedure owned_capture owned_tail owned_result c_callback; do
+for mode in wrong_capture wrong_tail wrong_result no_capture no_callback non_procedure owned_capture owned_tail owned_result c_callback retain_type retain_count retain_owned; do
     cat > "$work/bad.zi" <<'ZI'
 builtin :: #system_library "go:builtin";
 #import "vec"
@@ -146,6 +160,9 @@ ZI
     owned_tail) echo 'Other :: #type (capture: s32, value: Vec(s32)) -> s64; Tail :: #type (value: Vec(s32)) -> s64; Bind :: (callback: Other, capture: s32) -> Tail #foreign builtin "bind";' ;;
     owned_result) echo 'Owned :: struct { value: Vec(s32) }; Other :: #type (capture: s32, value: s64) -> Owned; Tail :: #type (value: s64) -> Owned; Bind :: (callback: Other, capture: s32) -> Tail #foreign builtin "bind";' ;;
     c_callback) echo 'Other :: #type (capture: s32, value: s64) -> s64 #c_call; Bind :: (callback: Other, capture: s32) -> Result #foreign builtin "bind";' ;;
+    retain_type) echo 'Retain :: (value: []u8) -> []s32 #foreign builtin "retain";' ;;
+    retain_count) echo 'Retain :: (first: string, second: string) -> string #foreign builtin "retain";' ;;
+    retain_owned) echo 'Retain :: (value: Vec(s32)) -> Vec(s32) #foreign builtin "retain";' ;;
     esac >> "$work/bad.zi"
     sed -i 's/; Bind/;\nBind/;s/; Tail/;\nTail/;s/; Other/;\nOther/' "$work/bad.zi"
     if "$ziran" ir --root "$work" --module-path std -o "$work/bad-ir" "$work/bad.zi" > "$work/bad.log" 2>&1; then

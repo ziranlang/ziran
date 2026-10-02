@@ -607,6 +607,16 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             allocation = check_go_callback(module, binding, parameters, count);
         if(!strcmp(symbol, "bind"))
             allocation = check_go_bind(module, binding, parameters, count);
+        if(!strcmp(symbol, "retain")) {
+            const char *colon = count == 1 ? strchr(parameters[0], ':') : NULL;
+            const char *value = colon ? skip_ws(colon + 1) : "";
+            allocation = colon && strcmp(result, "void") &&
+                !binding->go_results && !binding->go_field && !binding->go_defer &&
+                !binding->go_variadic && !binding->is_varargs &&
+                go_callback_type_equal(module, value, module, result, 0) &&
+                local_storage_error(module, value) == NULL &&
+                !go_getter_contains_owned(module, value, 0);
+        }
         if(!strcmp(symbol, "spawn"))
             allocation = !strcmp(result, "void") &&
                          check_go_callback(module, binding, parameters, count);
@@ -630,7 +640,7 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             }
         }
         if(!allocation) {
-            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append, is_nil, panic, call, bind, spawn or assert signature");
+            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append, is_nil, panic, call, bind, retain, spawn or assert signature");
             return 0;
         }
     }

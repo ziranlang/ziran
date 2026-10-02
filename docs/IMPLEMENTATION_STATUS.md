@@ -254,7 +254,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   panic identity, including fully bound and void procedures. Source and saved
   IR validate parameter and return types and reject owned vectors and C
   callbacks. `tests/go_bind.sh` checks native execution, imported signatures,
-  nil callbacks, declaration text independence and target reachability.
+  nil callbacks, declaration text independence and target reachability. Native
+  `retain` bindings preserve a value under Go's managed lifetime without copying
+  backing data; the same tests cover string/slice/record storage identity,
+  returning native text through a pointer and rejected retention signatures.
 
 - Typed Go `assert` bindings retain native interface checks, zero values on
   failure, typed nils and shared pointer/slice storage. Typed `spawn` bindings

@@ -351,6 +351,13 @@ Bound :: #type (amount: s64) -> s64;
 Bind :: (callback: Full, count: *s64) -> Bound #foreign builtin "bind";
 ```
 
+Typed `go:builtin` `retain` declarations return their one argument unchanged
+under Go's managed storage lifetime. The parameter and result types must match
+and cannot contain owned vectors. This explicit native boundary allows strings,
+slices and records read through pointers to escape a procedure while preserving
+their original storage and nil values. It does not copy backing data or keep
+foreign C allocations alive; such allocations retain their foreign lifetime.
+
 Typed `go:builtin` `spawn` declarations start the first procedure argument in
 a native Go goroutine with the remaining arguments. The callback and binding
 must return `void`; their parameter types must match and cannot contain owned

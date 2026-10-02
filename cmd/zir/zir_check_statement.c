@@ -244,35 +244,6 @@ go_getter_contains_owned(const ZirModule *module, const char *type, int depth)
 }
 
 static int
-go_callback_type_equal(const ZirModule *left_module, const char *left,
-                       const ZirModule *right_module, const char *right, int depth)
-{
-    if(depth > 16) return 0;
-    if(*left == '*' && *right == '*')
-        return go_callback_type_equal(left_module, skip_ws(left + 1),
-                                      right_module, skip_ws(right + 1), depth + 1);
-    char left_element[ZIR_NAME_MAX], right_element[ZIR_NAME_MAX];
-    if(SliceElementType(left, left_element, sizeof(left_element)) &&
-       SliceElementType(right, right_element, sizeof(right_element)))
-        return go_callback_type_equal(left_module, left_element,
-                                      right_module, right_element, depth + 1);
-    int left_count, right_count;
-    if(ArrayElementType(left, left_element, sizeof(left_element), &left_count) &&
-       ArrayElementType(right, right_element, sizeof(right_element), &right_count))
-        return left_count == right_count &&
-               go_callback_type_equal(left_module, left_element,
-                                      right_module, right_element, depth + 1);
-    const ZirType *left_type = FindType(left_module, left, NULL);
-    const ZirType *right_type = FindType(right_module, right, NULL);
-    if(left_type || right_type)
-        return left_type && right_type &&
-               (left_type == right_type ||
-                (left_type->foreign_target[0] &&
-                 !strcmp(left_type->foreign_target, right_type->foreign_target)));
-    return !strcmp(left, right);
-}
-
-static int
 check_go_callback(const ZirModule *module, const ZirImport *binding,
                   char parameters[][ZIR_TEXT_MAX], int count)
 {
@@ -281,8 +252,8 @@ check_go_callback(const ZirModule *module, const ZirImport *binding,
     const ZirType *slot = colon ? FindType(module, skip_ws(colon + 1), &owner) : NULL;
     if(!slot || !slot->is_procedure_type || slot->is_c_call) return 0;
     if(!owner) owner = module;
-    if(!go_callback_type_equal(owner, slot->procedure_return_type,
-                               module, binding->return_type, 0) ||
+    if(!callback_type_equal(owner, slot->procedure_return_type,
+                            module, binding->return_type, 0) ||
        go_getter_contains_owned(owner, slot->procedure_return_type, 0)) return 0;
     char (*arguments)[ZIR_TEXT_MAX] = calloc(64, sizeof(*arguments));
     if(!arguments) return 0;
@@ -293,8 +264,8 @@ check_go_callback(const ZirModule *module, const ZirImport *binding,
         const char *declared = strchr(arguments[i], ':');
         const char *supplied = strchr(parameters[i + 1], ':');
         valid = declared && supplied &&
-                go_callback_type_equal(owner, skip_ws(declared + 1),
-                                       module, skip_ws(supplied + 1), 0) &&
+                callback_type_equal(owner, skip_ws(declared + 1),
+                                    module, skip_ws(supplied + 1), 0) &&
                 !go_getter_contains_owned(owner, skip_ws(declared + 1), 0);
     }
     free(arguments);
@@ -318,8 +289,8 @@ check_go_bind(const ZirModule *module, const ZirImport *binding,
         return 0;
     if(!input_owner) input_owner = module;
     if(!output_owner) output_owner = module;
-    if(!go_callback_type_equal(input_owner, input->procedure_return_type,
-                               output_owner, output->procedure_return_type, 0) ||
+    if(!callback_type_equal(input_owner, input->procedure_return_type,
+                            output_owner, output->procedure_return_type, 0) ||
        go_getter_contains_owned(input_owner, input->procedure_return_type, 0))
         return 0;
     char (*input_args)[ZIR_TEXT_MAX] = calloc(64, sizeof(*input_args));
@@ -339,7 +310,7 @@ check_go_bind(const ZirModule *module, const ZirImport *binding,
         const char *declared = strchr(input_args[i], ':');
         const char *supplied = strchr(i < captures ? parameters[i + 1] : output_args[i - captures], ':');
         valid = declared && supplied &&
-            go_callback_type_equal(input_owner, skip_ws(declared + 1),
+            callback_type_equal(input_owner, skip_ws(declared + 1),
                 i < captures ? module : output_owner, skip_ws(supplied + 1), 0) &&
             !go_getter_contains_owned(input_owner, skip_ws(declared + 1), 0);
     }
@@ -642,7 +613,7 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             allocation = colon && strcmp(result, "void") &&
                 !binding->go_results && !binding->go_field && !binding->go_defer &&
                 !binding->go_variadic && !binding->is_varargs &&
-                go_callback_type_equal(module, value, module, result, 0) &&
+                callback_type_equal(module, value, module, result, 0) &&
                 local_storage_error(module, value) == NULL &&
                 !go_getter_contains_owned(module, value, 0);
         }

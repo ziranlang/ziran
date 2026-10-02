@@ -220,6 +220,8 @@ int compatible_checked(Checker *c, const char *to, const char *from);
 int text_type(const char *type);
 int assignable(Checker *c, int index);
 int readonly_text_destination(Checker *c, int index);
+int callback_type_equal(const ZirModule *left_module, const char *left,
+                        const ZirModule *right_module, const char *right, int depth);
 void contextual_slot(Checker *c, int index, const char *expected);
 int rewrite_checked_text(Checker *c, const ZirExpr *expr, const char *replacement);
 int lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration, const char *member, int opened);

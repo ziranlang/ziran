@@ -392,6 +392,10 @@ Captured parameters, remaining parameters and results cannot contain owned
 vectors. C callback types are rejected. These signatures are checked in both
 source and saved IR.
 
+Ordinary procedure values also resolve each parameter and result in the
+declaring procedure type's module. Imported records, pointers, slices and native
+Go interfaces keep their type identity across different import aliases.
+
 ```jai
 builtin :: #system_library "go:builtin";
 Full :: #type (count: *s64, amount: s64) -> s64;

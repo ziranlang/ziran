@@ -632,6 +632,113 @@ NativeTypeAtUse(const ZirModule *module, const char *type,
     return out[0] != '\0';
 }
 
+static const ZirModule *
+native_go_constant_owner(const ZirModule *module, const char *name)
+{
+    for(int pass = 0; pass < 2; pass++) {
+        int count = pass == 0 ? 1 : module->import_count;
+        for(int i = 0; i < count; i++) {
+            const ZirModule *scope = pass == 0 ? module : module->imports[i].resolved_module;
+            if(scope == NULL)
+                continue;
+            for(int j = 0; j < scope->define_count; j++) {
+                if((pass == 0 || scope->defines[j].is_public) &&
+                   !strcmp(scope->defines[j].name, name))
+                    return scope;
+            }
+        }
+    }
+    return NULL;
+}
+
+/* Checked Ziran and generated Go scalar type -> Go type. */
+int
+NativeGoType(const ZirModule *module, const char *type, char *dst, size_t dst_size)
+{
+    char t[ZIR_NAME_MAX * 2];
+    size_t n;
+
+    snprintf(t, sizeof(t), "%s", type);
+    n = strlen(t);
+    while(n > 0 && isspace((unsigned char)t[n - 1]))
+        t[--n] = '\0';
+    {
+        const char *p = t;
+
+        while(*p != '\0' && isspace((unsigned char)*p))
+            p++;
+        if(p != t)
+            memmove(t, p, strlen(p) + 1);
+        n = strlen(t);
+    }
+    const char *scalar = ScalarType(t);
+    if(*scalar && TargetType(t, ZIR_GO)) {
+        snprintf(dst, dst_size, "%s", TargetType(t, ZIR_GO));
+        return 1;
+    }
+    if(t[0] == '[') {
+        char *close = strchr(t, ']');
+        const char *base;
+
+        if(close != NULL) {
+            char bound[ZIR_NAME_MAX * 2];
+            snprintf(bound, sizeof(bound), "%.*s", (int)(close - t - 1), t + 1);
+            if(module != NULL &&
+               native_go_constant_owner(module, bound) != NULL) {
+                char mapped[ZIR_NAME_MAX * 2];
+                TargetDefineName(native_go_constant_owner(module, bound),
+                                 ZIR_GO, bound, mapped, sizeof(mapped));
+                snprintf(bound, sizeof(bound), "%s", mapped);
+            }
+            base = close + 1;
+            while(*base == ' ' || *base == '\t')
+                base++;
+            {
+                char gt[ZIR_NAME_MAX * 2];
+
+                if(NativeGoType(module, base, gt, sizeof(gt))) {
+                    *close = '\0';
+                    snprintf(dst, dst_size, "[%s]%s", bound, gt);
+                    return 1;
+                }
+            }
+        }
+        return 0;
+    }
+    if(t[0] == '*' && t[1] != '\0') {
+        char gt[ZIR_NAME_MAX * 2];
+
+        if(!strcmp(t + 1, "void")) {
+            snprintf(dst, dst_size, "*byte");
+            return 1;
+        }
+        if(NativeGoType(module, t + 1, gt, sizeof(gt))) {
+            snprintf(dst, dst_size, "*%s", gt);
+            return 1;
+        }
+        return 0;
+    }
+    /* A name alone is not evidence that a type exists. */
+    {
+        int identish = t[0] != '\0';
+
+        for(char *c = t; *c != '\0'; c++)
+            if(!is_ident_char((unsigned char)*c) && *c != '.')
+                identish = 0;
+        const ZirModule *owner = NULL;
+        const ZirType *declared = identish && module != NULL ?
+            FindType(module, t, &owner) : NULL;
+        if(declared != NULL) {
+            if(owner != NULL)
+                NativeTypeName(owner, declared, dst, dst_size);
+            else
+                snprintf(dst, dst_size, "%s", declared->name);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int
 NativeEnumMemberName(const ZirModule *owner, const ZirType *type,
                      const char *member, char *out, size_t size)

@@ -825,7 +825,10 @@ static void
 emit_function_value_with_buffers(Emitter *e, int index, char *out, size_t size, EmitFunctionValueBuffers *buffers)
 {
     const ZirExpr *value = &e->fn->exprs[index];
-    const ZirType *slot = FindType(e->module, value->type, NULL);
+    const ZirModule *slot_owner = NULL;
+    const ZirType *slot = FindType(e->module, value->type, &slot_owner);
+    if(slot_owner == NULL)
+        slot_owner = e->module;
     if(e->target == ZIR_C || e->target == ZIR_CPP) {
         if(slot != NULL && slot->is_c_call) {
             size_t length;
@@ -855,12 +858,12 @@ emit_function_value_with_buffers(Emitter *e, int index, char *out, size_t size, 
                                   "%s%s", argument ? ", " : "", parameter);
         if(e->target == ZIR_GO) {
             const char *source = skip_ws(strchr(buffers->parameters[argument], ':') + 1);
-            const char *scalar = TargetType(source, ZIR_GO);
             char type[ZIR_NAME_MAX];
-            if(scalar)
-                copy_text(type, sizeof(type), scalar);
-            else
-                e->resolve(e->context, source, type, sizeof(type));
+            if(!NativeGoType(slot_owner, source, type, sizeof(type))) {
+                Diagnostic(slot->span, "zir_go.callback",
+                           "unsupported callback parameter type: %s", source);
+                exit(1);
+            }
             signature_length += (size_t)format(buffers->signature + signature_length,
                 sizeof(buffers->signature) - signature_length, "%s%s %s", argument ? ", " : "", parameter, type);
         }
@@ -870,12 +873,13 @@ emit_function_value_with_buffers(Emitter *e, int index, char *out, size_t size, 
     if(e->target == ZIR_GO) {
         char result_type[ZIR_NAME_MAX] = "";
         if(strcmp(slot->procedure_return_type, "void")) {
-            const char *scalar = TargetType(slot->procedure_return_type, ZIR_GO);
-            if(scalar)
-                copy_text(result_type, sizeof(result_type), scalar);
-            else
-                e->resolve(e->context, slot->procedure_return_type,
-                           result_type, sizeof(result_type));
+            if(!NativeGoType(slot_owner, slot->procedure_return_type,
+                             result_type, sizeof(result_type))) {
+                Diagnostic(slot->span, "zir_go.callback",
+                           "unsupported callback result type: %s",
+                           slot->procedure_return_type);
+                exit(1);
+            }
         }
         format(out, size, "func(%s)%s%s { %s%s }", buffers->signature,
                result_type[0] ? " " : "", result_type,

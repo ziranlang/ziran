@@ -11,6 +11,9 @@ void NativeTypeName(const ZirModule *owner, const ZirType *type,
                     char *out, size_t size);
 int NativeTypeAtUse(const ZirModule *module, const char *type,
                     char *out, size_t size);
+/* Resolve compound Go types in the scope that owns their declaration. */
+int NativeGoType(const ZirModule *module, const char *type,
+                  char *out, size_t size);
 int NativeEnumMemberName(const ZirModule *owner, const ZirType *type,
                          const char *member, char *out, size_t size);
 int TypeHasZeroArray(const ZirModule *module, const char *type);

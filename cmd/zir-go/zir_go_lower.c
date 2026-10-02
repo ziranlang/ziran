@@ -114,91 +114,11 @@ scalar_byte_width(const char *type)
 static const ZirModule *module_constant_owner(const ZirModule *module,
                                                const char *name);
 
-/* Checked Ziran and generated Go scalar type -> Go type. */
+/* Resolve types through the same owner-aware path used by callback adapters. */
 static int
 go_type(const char *type, char *dst, size_t dst_size)
 {
-    char t[ZIR_GO_NAME_MAX];
-    size_t n;
-
-    snprintf(t, sizeof(t), "%s", type);
-    n = strlen(t);
-    while(n > 0 && isspace((unsigned char)t[n - 1]))
-        t[--n] = '\0';
-    {
-        const char *p = t;
-
-        while(*p != '\0' && isspace((unsigned char)*p))
-            p++;
-        if(p != t)
-            memmove(t, p, strlen(p) + 1);
-        n = strlen(t);
-    }
-    const char *scalar = ScalarType(t);
-    if(*scalar && TargetType(t,ZIR_GO)) {
-        snprintf(dst,dst_size,"%s",TargetType(t,ZIR_GO)); return 1;
-    }
-    if(t[0] == '[') {
-        char *close = strchr(t, ']');
-        const char *base;
-
-        if(close != NULL) {
-            char bound[ZIR_GO_NAME_MAX];
-            snprintf(bound, sizeof(bound), "%.*s", (int)(close - t - 1), t + 1);
-            if(type_scope != NULL &&
-               module_constant_owner(type_scope, bound) != NULL) {
-                char mapped[ZIR_GO_NAME_MAX];
-                TargetDefineName(module_constant_owner(type_scope, bound),
-                                 ZIR_GO, bound, mapped, sizeof(mapped));
-                snprintf(bound, sizeof(bound), "%s", mapped);
-            }
-            base = close + 1;
-            while(*base == ' ' || *base == '\t')
-                base++;
-            {
-                char gt[ZIR_GO_NAME_MAX];
-
-                if(go_type(base, gt, sizeof(gt))) {
-                    *close = '\0';
-                    snprintf(dst, dst_size, "[%s]%s", bound, gt);
-                    return 1;
-                }
-            }
-        }
-        return 0;
-    }
-    if(t[0] == '*' && t[1] != '\0') {
-        char gt[ZIR_GO_NAME_MAX];
-
-        if(!strcmp(t + 1, "void")) {
-            snprintf(dst, dst_size, "*byte");
-            return 1;
-        }
-        if(go_type(t + 1, gt, sizeof(gt))) {
-            snprintf(dst, dst_size, "*%s", gt);
-            return 1;
-        }
-        return 0;
-    }
-    /* A name alone is not evidence that a type exists. */
-    {
-        int identish = t[0] != '\0';
-
-        for(char *c = t; *c != '\0'; c++)
-            if(!is_ident_char((unsigned char)*c) && *c != '.')
-                identish = 0;
-        const ZirModule *owner = NULL;
-        const ZirType *declared = identish && type_scope != NULL ?
-            FindType(type_scope, t, &owner) : NULL;
-        if(declared != NULL) {
-            if(owner != NULL)
-                NativeTypeName(owner, declared, dst, dst_size);
-            else
-                snprintf(dst, dst_size, "%s", declared->name);
-            return 1;
-        }
-    }
-    return 0;
+    return NativeGoType(type_scope, type, dst, dst_size);
 }
 
 static void

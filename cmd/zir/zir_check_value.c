@@ -1196,6 +1196,37 @@ readonly_text_destination(Checker *c, int index)
     }
     return 0;
 }
+
+/* Compound parameters keep the declaration scope of each callback. */
+int
+callback_type_equal(const ZirModule *left_module, const char *left,
+                    const ZirModule *right_module, const char *right, int depth)
+{
+    if(depth > 16) return 0;
+    if(*left == '*' && *right == '*')
+        return callback_type_equal(left_module, skip_ws(left + 1),
+                                   right_module, skip_ws(right + 1), depth + 1);
+    char left_element[ZIR_NAME_MAX], right_element[ZIR_NAME_MAX];
+    if(SliceElementType(left, left_element, sizeof(left_element)) &&
+       SliceElementType(right, right_element, sizeof(right_element)))
+        return callback_type_equal(left_module, left_element,
+                                   right_module, right_element, depth + 1);
+    int left_count, right_count;
+    if(ArrayElementType(left, left_element, sizeof(left_element), &left_count) &&
+       ArrayElementType(right, right_element, sizeof(right_element), &right_count))
+        return left_count == right_count &&
+               callback_type_equal(left_module, left_element,
+                                   right_module, right_element, depth + 1);
+    const ZirType *left_type = FindType(left_module, left, NULL);
+    const ZirType *right_type = FindType(right_module, right, NULL);
+    if(left_type || right_type)
+        return left_type && right_type &&
+               (left_type == right_type ||
+                (left_type->foreign_target[0] &&
+                 !strcmp(left_type->foreign_target, right_type->foreign_target)));
+    return !strcmp(left, right);
+}
+
 /* Function values require a slot context; ordinary names retain lexical lookup.
  * Annotate before recursively checking expressions so a declaration identifier
  * is not mistaken for an unresolved variable. */
@@ -1225,10 +1256,8 @@ contextual_slot(Checker *c, int index, const char *expected)
         if(*actual_scalar || *wanted_scalar) {
             matches = !strcmp(actual_scalar, wanted_scalar);
         } else {
-            const ZirType *actual_record = FindType(owner, declaration->return_type, NULL);
-            const ZirType *wanted_record = FindType(slot_owner, slot->procedure_return_type, NULL);
-            matches = actual_record || wanted_record ? actual_record == wanted_record :
-                !strcmp(declaration->return_type, slot->procedure_return_type);
+            matches = callback_type_equal(owner, declaration->return_type,
+                                          slot_owner, slot->procedure_return_type, 0);
         }
     }
     const ZirParameters *actual = ParametersOf(matches ? FunctionArgs(declaration) : "");
@@ -1246,10 +1275,8 @@ contextual_slot(Checker *c, int index, const char *expected)
         if(*actual_scalar || *wanted_scalar) {
             matches = !strcmp(actual_scalar, wanted_scalar);
         } else {
-            const ZirType *actual_record = FindType(owner, actual_type, NULL);
-            const ZirType *wanted_record = FindType(slot_owner, wanted_type, NULL);
-            matches = actual_record || wanted_record ? actual_record == wanted_record :
-                !strcmp(actual_type, wanted_type);
+            matches = callback_type_equal(owner, actual_type,
+                                          slot_owner, wanted_type, 0);
         }
     }
     if(!matches) {

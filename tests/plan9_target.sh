@@ -74,6 +74,7 @@ for header in "$work/generated"/*.h; do
     runtime_include_count=$((runtime_include_count + \
         ${header_count:-0}))
 done
+
 if [ "$runtime_include_count" -ne 1 ]; then
     echo 'plan9-c emitted duplicate runtime includes' >&2
     exit 1
@@ -391,6 +392,20 @@ for form in source saved; do
         echo 'plan9-c retained the unsafe partial local array initializer' >&2
         exit 1
     fi
+    "${CC:-cc}" -std=c11 -Dprint=printf -include stdio.h -I"$work/plan9-include" -I"$output" \
+        "$output"/*.c "$work/fake-plan9-exits.c" -o "$output/run"
+    "$output/run"
+done
+
+# Indexed record writes must preserve every field and the assigned value.
+"$ziran" ir --root "$repo/tests/spec" -o "$work/record-ir" \
+    "$repo/tests/spec/plan9_record_array_test.zi"
+for form in source saved; do
+    root=$repo/tests/spec
+    input=$root/plan9_record_array_test.zi
+    if test "$form" = saved; then root=$work/record-ir; input=$root/plan9_record_array_test.zir; fi
+    output=$work/record-$form
+    "$ziran" build --target=plan9-c --root "$root" -o "$output" "$input"
     "${CC:-cc}" -std=c11 -Dprint=printf -include stdio.h -I"$work/plan9-include" -I"$output" \
         "$output"/*.c "$work/fake-plan9-exits.c" -o "$output/run"
     "$output/run"

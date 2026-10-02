@@ -1,0 +1,30 @@
+Entry :: struct { key: u64; label: string; disabled: bool; closeable: bool; }
+
+CheckSlice :: (entries: []Entry) -> bool {
+    return entries.count == 2 && entries[0].key == cast(u64)1500 &&
+        entries[1].key == cast(u64)1501 && entries[0].label == "first" &&
+        entries[1].label == "second" && !entries[0].disabled && entries[0].closeable &&
+        !entries[1].disabled && entries[1].closeable
+}
+
+#program_export
+main :: () -> s32 {
+    entries: [2]Entry
+    wide: [2]u64
+    numbers: [2]s32
+    for index: cast(s32)0..cast(s32)1 {
+        entries[index].key = cast(u64)(1500 + index)
+        entries[index].label = ifx index == 0 then "first" else "second"
+        entries[index].disabled = false
+        entries[index].closeable = true
+        wide[index] = cast(u64)(1500 + index)
+        numbers[index] = 420 + index
+    }
+    if entries[0].key != cast(u64)1500 || entries[1].key != cast(u64)1501 { return 1 }
+    if entries[0].label != "first" || entries[1].label != "second" { return 2 }
+    if !CheckSlice(entries[:]) { return 3 }
+    if wide[0] != cast(u64)1500 || wide[1] != cast(u64)1501 { return 4 }
+    if numbers[0] != 420 || numbers[1] != 421 { return 5 }
+    print("plan9-record-array-test-ok\n")
+    return 0
+}

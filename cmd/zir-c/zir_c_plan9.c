@@ -1869,8 +1869,11 @@ c_plan9_write_runtime(const char *out_dir)
 "    }\n"
 "    return (size_t)index;\n"
 "}\n"
+/* 8c can clobber a pending scalar store when the indexed lvalue calls
+   the bounds helper. Valid indexing stays call-free; failures still trap. */
 "#define ZIRAN_INDEX(base, length, index) \\\n"
-"    ((base)[Plan9ArrayIndex((size_t)(length), (uint64_t)(index))])\n"
+"    ((base)[(uint64_t)(index) < (size_t)(length) ? (size_t)(index) : \\\n"
+"        Plan9ArrayIndex((size_t)(length), (uint64_t)(index))])\n"
 "#define ZIRAN_EMPTY_INDEX(base, index) \\\n"
 "    ((base)[Plan9EmptyArrayIndex((size_t)(index))])\n\n"
 "#endif\n",

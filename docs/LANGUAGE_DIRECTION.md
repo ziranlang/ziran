@@ -375,7 +375,7 @@ and enum members are also selected while parsing a declaration.
 Exported native symbols use Jai's `#program_export` before a procedure,
 either on its own line or inline. A quoted symbol such as
 `#program_export "entry" Start :: () { ... }` selects the C/C++ linker name;
-the Go target reports that symbol override as unsupported. The old `#export`
+the Go target emits a typed native adapter with that name. The old `#export`
 signature modifier is rejected.
 File-scope variables use `name: Type;` or `name: Type = value;`. The old
 `name :: Type #global` and C-style `static name: Type` forms are rejected.

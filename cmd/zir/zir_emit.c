@@ -447,6 +447,8 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                 NativeGoFunctionName(native_programs, count, module, function,
                                      native, sizeof(native));
                 native_names_mark(&names[2], native);
+                if(function->export_symbol[0])
+                    native_names_mark(&names[2], function->export_symbol);
             }
         }
     for(int t = 0; t < 3; t++)

@@ -68,13 +68,19 @@ for input in "$work/plain.zi" "$work/plain-ir/plain.zir"; do
     "$ziran" build --target=go --root "$work" -o "$work/plain-go" "$input"
 done
 
-if "$ziran" build --target=go --root "$work" \
-    -o "$work/alias-go" "$work/exported.zi" 2> "$work/alias-go.err"; then
-    echo 'Go silently accepted a quoted linker name' >&2
-    exit 1
-fi
-grep -Fq 'quoted #program_export symbol requires the C or C++ target' \
-    "$work/alias-go.err"
+for input in "$work/exported.zi" "$work/ir/exported.zir"; do
+    "$ziran" build --target=go --pkg main --no-main --root "$work" \
+        -o "$work/alias-go" "$input"
+    cat > "$work/alias-go/main.go" <<'GO'
+package main
+func main() {
+    if native_answer() != 42 || standalone_answer() != 42 || Exported_Helper() != 42 {
+        panic("native Go export name")
+    }
+}
+GO
+    GO111MODULE=off go run "$work/alias-go"/*.go
+done
 
 cat > "$work/invalid.zi" <<'ZI'
 #program_export "bad-name" Broken :: () -> s32 { return 42 }

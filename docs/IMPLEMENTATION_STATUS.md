@@ -567,8 +567,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   and two applicable conversions are ambiguous. Literals that already widen
   natively never trigger a conversion.
 - Jai-style `#program_export` on its own line or inline exports a procedure's
-  native symbol. A quoted linker name works in C/C++; Go reports that override
-  as unsupported. File-scope variables use `name: Type` declarations.
+  native symbol. A quoted linker name works in C/C++; Go emits a typed native
+  adapter with the requested name. Native testing modules generate `_test.go`
+  files with discoverable test, fuzz and benchmark signatures. Source and
+  saved-IR checks preserve failure assertions, pointer/slice/error/panic
+  identity and module-name collision handling. File-scope variables use
+  `name: Type` declarations.
   `#export`, `#global`, and C-style `static` source forms are rejected. Source
   and saved IR retain these exports and globals across native and portable
   builds.

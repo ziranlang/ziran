@@ -174,6 +174,21 @@ TrimSpace :: (value: string) -> string #foreign strings "TrimSpace";
 The Go target emits a direct package call. These declarations remain Go
 imports in saved `.zir`; they are not portable host capabilities.
 
+An explicit `#program_export "NativeName"` emits a typed Go function with that
+exact name. Checked Ziran calls retain their module-qualified implementation
+name. Reserved names and collisions with functions, types, imports and module
+startup are rejected; colliding globals and constants keep their generated
+private names.
+
+Native Go tests use `_test.zi` files and named exports such as
+`#program_export "TestSigning"`. Modules using native `testing` bindings or
+named test, fuzz and benchmark exports generate `_test.go` files, including
+when their module names need disambiguation. Their native adapters expose
+`*testing.T`, `*testing.F`, `*testing.B` or `*testing.M` directly for Go's test
+discovery. Test helper modules may import the testing bindings from another
+Ziran module. Ordinary Ziran checks without this native boundary retain the
+`_test_ziran.go` filename and remain ordinary package code.
+
 To require a package for its native initialization, bind its `init` symbol as a
 nullary void procedure:
 

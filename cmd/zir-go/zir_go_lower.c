@@ -146,6 +146,7 @@ typedef struct {
     char go[ZIR_GO_NAME_MAX * 2];
     char guard[ZIR_GO_NAME_MAX];
     const ZirModule *module;
+    const ZirFunction *declaration;
 } ZirGoGlobalFunction;
 
 enum { ZIR_GO_GLOBAL_FUNCTION_MAX = 4096 };
@@ -212,10 +213,175 @@ go_build_global_functions(const ZirProgram *const *progs, int prog_count)
                 snprintf(g_functions[g_function_count].go,
                          sizeof(g_functions[0].go), "%s_%s", guard, fname);
                 g_functions[g_function_count].module = m;
+                g_functions[g_function_count].declaration = fn;
                 g_function_count++;
             }
         }
     }
+}
+
+/* Named exports are native Go entry points. Keep checked procedure calls on
+ * their module-qualified names and emit a typed adapter for the native name. */
+static int
+go_validate_exports(const ZirProgram *const *programs, int count)
+{
+    static const char *const reserved[] = {
+        "_", "init", "main", "any", "bool", "byte", "comparable", "complex64",
+        "complex128", "error", "float32", "float64", "int", "int8", "int16",
+        "int32", "int64", "rune", "string", "uint", "uint8", "uint16", "uint32",
+        "uint64", "uintptr", "true", "false", "iota", "nil", "append", "cap",
+        "clear", "close", "complex", "copy", "delete", "imag", "len", "make",
+        "max", "min", "new", "panic", "print", "println", "real", "recover",
+        "unsafe", "signedBits", "wrapAdd", "wrapSub", "wrapMul", "floatToInt",
+        "integerOp", NULL
+    };
+    for(int i = 0; i < g_function_count; i++) {
+        const ZirFunction *function = g_functions[i].declaration;
+        const char *symbol = function->export_symbol;
+        if(!symbol[0]) continue;
+        char mapped[ZIR_GO_NAME_MAX];
+        TargetBindingName(NULL, ZIR_GO, symbol, mapped, sizeof(mapped));
+        int invalid = strcmp(symbol, mapped) != 0;
+        for(int name = 0; reserved[name]; name++)
+            invalid |= !strcmp(symbol, reserved[name]);
+        if(invalid) {
+            Diagnostic(function->span, "zir_go.export",
+                       "reserved native Go export name: %s", symbol);
+            return 0;
+        }
+        for(int other = 0; other < g_function_count; other++) {
+            if(!strcmp(symbol, g_functions[other].go) ||
+               (other != i && !strcmp(symbol, g_functions[other].declaration->export_symbol))) {
+                Diagnostic(function->span, "zir_go.export",
+                           "duplicate native Go export name: %s", symbol);
+                return 0;
+            }
+        }
+        for(int p = 0; p < count; p++)
+            for(int m = 0; m < programs[p]->module_count; m++) {
+                const ZirModule *module = &programs[p]->modules[m];
+                char stem[ZIR_PATH_MAX], guard[ZIR_GO_NAME_MAX], generated[ZIR_GO_NAME_MAX * 2];
+                NativeGoModuleIdentity(programs, count, module, stem, sizeof(stem),
+                                       guard, sizeof(guard));
+                if(ModuleNeedsStartup(module)) {
+                    snprintf(generated, sizeof(generated), "%s_ziranInit", guard);
+                    int collision = !strcmp(symbol, generated);
+                    snprintf(generated, sizeof(generated), "%s_ziranInitState", guard);
+                    if(collision || !strcmp(symbol, generated)) {
+                        Diagnostic(function->span, "zir_go.export",
+                                   "native Go export collides with module startup: %s", symbol);
+                        return 0;
+                    }
+                }
+                for(int t = 0; t < module->type_count; t++) {
+                    NativeTypeName(module, &module->types[t], mapped, sizeof(mapped));
+                    if(!strcmp(symbol, mapped)) {
+                        Diagnostic(function->span, "zir_go.export",
+                                   "native Go export collides with type: %s", symbol);
+                        return 0;
+                    }
+                }
+            }
+    }
+    return 1;
+}
+
+static int
+go_validate_export_import(const char *declaration)
+{
+    char alias[ZIR_GO_NAME_MAX];
+    if(sscanf(declaration, "%255s", alias) != 1 ||
+       alias[0] == '"' || !strcmp(alias, "_")) return 1;
+    for(int i = 0; i < g_function_count; i++) {
+        const ZirFunction *function = g_functions[i].declaration;
+        if(!strcmp(function->export_symbol, alias)) {
+            Diagnostic(function->span, "zir_go.export",
+                       "native Go export collides with import: %s", alias);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+typedef struct {
+    const ZirModule **modules;
+    size_t count;
+    size_t capacity;
+} GoTestModules;
+
+static int
+go_module_uses_testing(const ZirModule *module, GoTestModules *visited)
+{
+    if(module == NULL) return 0;
+    for(size_t i = 0; i < visited->count; i++)
+        if(visited->modules[i] == module) return 0;
+    if(visited->count == visited->capacity) {
+        size_t capacity = visited->capacity ? visited->capacity * 2 : 16;
+        const ZirModule **modules = realloc(visited->modules, capacity * sizeof(*modules));
+        if(modules == NULL) {
+            Diagnostic(module->span, "zir_go.tests", "out of memory classifying Go tests");
+            exit(1);
+        }
+        visited->modules = modules;
+        visited->capacity = capacity;
+    }
+    visited->modules[visited->count++] = module;
+    for(int t = 0; t < module->type_count; t++)
+        if(!strncmp(module->types[t].foreign_target, "go:testing.", 11)) return 1;
+    for(int i = 0; i < module->import_count; i++)
+        if(!strncmp(module->imports[i].target, "go:testing.", 11)) return 1;
+    for(int f = 0; f < module->function_count; f++) {
+        const char *name = module->functions[f].export_symbol;
+        if(!strncmp(name, "Test", 4) || !strncmp(name, "Fuzz", 4) ||
+           !strncmp(name, "Benchmark", 9)) return 1;
+    }
+    for(int i = 0; i < module->import_count; i++)
+        if(go_module_uses_testing(module->imports[i].resolved_module, visited)) return 1;
+    return 0;
+}
+
+static int
+go_module_is_native_test(const ZirModule *module)
+{
+    size_t length = strlen(module->source_path);
+    if(length < 8 || strcmp(module->source_path + length - 8, "_test.zi")) return 0;
+    GoTestModules visited = {0};
+    int result = go_module_uses_testing(module, &visited);
+    free(visited.modules);
+    return result;
+}
+
+/* Go's test loader examines syntax before type checking and requires *T,
+ * *F, *B or *M, even when another native alias names the same testing type. */
+static int
+go_export_testing_type(const ZirModule *module, const char *source,
+                       char *out, size_t size)
+{
+    source = skip_ws(source);
+    if(*source != '*') return 0;
+    const ZirType *type = FindType(module, skip_ws(source + 1), NULL);
+    if(type == NULL || strncmp(type->foreign_target, "go:testing.", 11)) return 0;
+    const char *name = type->foreign_target + 11;
+    if(name[1] || (name[0] != 'T' && name[0] != 'F' && name[0] != 'B' && name[0] != 'M'))
+        return 0;
+    snprintf(out, size, "*testing.%s", name);
+    return 1;
+}
+
+static int
+go_exports_use_testing(const ZirModule *module)
+{
+    for(int f = 0; f < module->function_count; f++) {
+        const ZirFunction *function = &module->functions[f];
+        if(!function->export_symbol[0]) continue;
+        const ZirParameters *parameters = ParametersOf(FunctionArgs(function));
+        for(int p = 0; p < parameters->count; p++) {
+            char type[ZIR_GO_NAME_MAX];
+            if(go_export_testing_type(module, parameters->items[p].type, type, sizeof(type)))
+                return 1;
+        }
+    }
+    return 0;
 }
 
 /* ------------------------------------------------ module lowering context */
@@ -1238,11 +1404,6 @@ lower_function_with_buffers(FILE *f, const ZirModule *m, const ZirFunction *fn,
 {
     char ret[ZIR_GO_NAME_MAX];
     int saved_local_count = zir_go_local_count;
-    if(fn->export_symbol[0]) {
-        Diagnostic(fn->span, "zir_go.export",
-                   "quoted #program_export symbol requires the C or C++ target");
-        exit(1);
-    }
     zir_go_local_count = 0;
     camel_ident(fn->name, buffers->fname, sizeof(buffers->fname));
     /* signature: converted arguments */
@@ -1276,6 +1437,22 @@ lower_function_with_buffers(FILE *f, const ZirModule *m, const ZirFunction *fn,
         exit(1);
     }
     fprintf(f, "}\n\n");
+    if(fn->export_symbol[0]) {
+        const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+        fprintf(f, "func %s(", fn->export_symbol);
+        for(int i = 0; i < parameters->count; i++) {
+            char type[ZIR_GO_NAME_MAX];
+            if(!go_export_testing_type(m, parameters->items[i].type, type, sizeof(type)))
+                require_go_type(parameters->items[i].type, type, sizeof(type), fn->span);
+            fprintf(f, "%sexport_arg_%d %s", i ? ", " : "", i, type);
+        }
+        fprintf(f, ")%s%s {\n    %s%s_%s(", ret[0] ? " " : "", ret,
+                ret[0] ? "return " : "", guard, buffers->fname);
+        for(int i = 0; i < parameters->count; i++) {
+            fprintf(f, "%sexport_arg_%d", i ? ", " : "", i);
+        }
+        fputs(")\n}\n\n", f);
+    }
     zir_go_local_count = saved_local_count;
 }
 
@@ -1988,6 +2165,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
 {
     unsigned number_helpers = 0;
     go_build_global_functions(progs, prog_count);
+    if(!go_validate_exports(progs, prog_count)) return 1;
     for(int pi = 0; pi < prog_count; pi++) {
         const ZirProgram *prog = progs[pi];
         for(int mi = 0; mi < prog->module_count; mi++) {
@@ -2004,8 +2182,10 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     return 1;
                 }
             size_t stem_length = strlen(buffers->stem);
+            int test_stem = stem_length >= 5 && !strcmp(buffers->stem + stem_length - 5, "_test");
+            int native_test = go_module_is_native_test(m);
             snprintf(buffers->path, sizeof(buffers->path), "%s/%s%s.go", out_dir, buffers->stem,
-                     stem_length >= 5 && !strcmp(buffers->stem + stem_length - 5, "_test") ? "_ziran" : "");
+                     test_stem ? (native_test ? "" : "_ziran") : (native_test ? "_test" : ""));
             mkdir_parent(buffers->path);
             f = tmpfile();
             if(f == NULL) {
@@ -2120,6 +2300,21 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 }
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "_ %s", quoted);
             }
+            if(go_exports_use_testing(m)) {
+                int present = 0;
+                for(int i = 0; i < import_count; i++)
+                    if(!strcmp(buffers->imports[i], "testing \"testing\"")) present = 1;
+                if(!present) {
+                    if(import_count == 64) {
+                        Diagnostic(m->span, "zir_go.import", "too many Go imports");
+                        return 1;
+                    }
+                    copy_text(buffers->imports[import_count++], sizeof(buffers->imports[0]),
+                              "testing \"testing\"");
+                }
+            }
+            for(int i = 0; i < import_count; i++)
+                if(!go_validate_export_import(buffers->imports[i])) return 1;
             if(import_count == 1)
                 fprintf(f, "import %s\n\n", buffers->imports[0]);
             else if(import_count > 1) {

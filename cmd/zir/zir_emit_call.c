@@ -522,9 +522,29 @@ replace_call_placeholders(const char *text, char arguments[][ZIR_NAME_MAX],
     out[used < size ? used : size - 1] = '\0';
 }
 
+/* The root local whose storage an address or fixed-array view exposes.
+ * String and slice views expose their data, not the containing local record. */
+static int
+local_storage_root(const ZirFunction *fn, int index, const char *name)
+{
+    if(index < 0)
+        return 0;
+    const ZirExpr *expr = &fn->exprs[index];
+    switch(expr->kind) {
+    case ZIR_EXPR_IDENT:
+        return !strcmp(expr->name, name);
+    case ZIR_EXPR_MEMBER: case ZIR_EXPR_INDEX: case ZIR_EXPR_CAST:
+        return local_storage_root(fn, expr->left, name);
+    case ZIR_EXPR_UNARY:
+        return local_storage_root(fn, expr->right, name);
+    default:
+        return 1;
+    }
+}
+
 /* Whether a later call can change what this expression reads: a global,
- * memory behind a pointer or slice, or any local once the function takes an
- * address or a slice. Constants and results already captured never change. */
+ * memory behind a pointer or slice, or a local whose storage is exposed.
+ * Constants and results already captured never change. */
 int
 call_can_change(const Emitter *e, int index)
 {
@@ -545,10 +565,16 @@ call_can_change(const Emitter *e, int index)
             local = !strcmp(e->locals[i].name, expr->name);
         if(!local)
             return 1;
-        for(int i = 0; i < e->fn->expr_count; i++)
-            if(e->fn->exprs[i].kind == ZIR_EXPR_SLICE ||
-               (e->fn->exprs[i].kind == ZIR_EXPR_UNARY && !strcmp(e->fn->exprs[i].op, "&")))
+        for(int i = 0; i < e->fn->expr_count; i++) {
+            const ZirExpr *other = &e->fn->exprs[i];
+            if(other->kind == ZIR_EXPR_SLICE && other->left >= 0 &&
+               strcmp(e->fn->exprs[other->left].type, "string") &&
+               local_storage_root(e->fn, other->left, expr->name))
                 return 1;
+            if(other->kind == ZIR_EXPR_UNARY && !strcmp(other->op, "&") &&
+               local_storage_root(e->fn, other->right, expr->name))
+                return 1;
+        }
         return 0;
     }
     case ZIR_EXPR_MEMBER:

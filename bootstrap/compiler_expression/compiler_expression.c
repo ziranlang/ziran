@@ -46,8 +46,7 @@ compiler_expression_BinaryPrecedence(String operator)
     if (StringEqual(operator, StringLiteral("+")) || StringEqual(operator, StringLiteral("-"))) {
         return 10;
     }
-    bool value_1 = StringEqual(operator, StringLiteral("*")) || StringEqual(operator, StringLiteral("/")) || StringEqual(operator, StringLiteral("%"));
-    if (value_1) {
+    if (StringEqual(operator, StringLiteral("*")) || StringEqual(operator, StringLiteral("/")) || StringEqual(operator, StringLiteral("%"))) {
         return 11;
     }
     return 0;
@@ -140,128 +139,126 @@ compiler_expression_ParsePostfix(PostfixHooks* hooks, int64_t start, int32_t ini
                 }
                 compiler_expression_Expect(cursor, StringLiteral("]"));
                 PostfixNode value_4 = node;
-                int32_t value_5 = value_4.call(value_4.context, start, PostfixKind_Slice, StringLiteral(""), result, low, high, -1);
-                result = value_5;
+                result = value_4.call(value_4.context, start, PostfixKind_Slice, StringLiteral(""), result, low, high, -1);
             } else {
                 compiler_expression_Expect(cursor, StringLiteral("]"));
-                PostfixNode value_6 = node;
-                result = value_6.call(value_6.context, start, PostfixKind_Index, StringLiteral(""), result, low, -1, -1);
+                PostfixNode value_5 = node;
+                result = value_5.call(value_5.context, start, PostfixKind_Index, StringLiteral(""), result, low, -1, -1);
             }
         } else {
-            ExpressionToken value_7 = token;
-            if (StringEqual(value_7.call(value_7.context), StringLiteral("->"))) {
-                PostfixDiagnostic value_8 = error;
-                value_8.call(value_8.context, PostfixError_PointerMember);
+            ExpressionToken value_6 = token;
+            if (StringEqual(value_6.call(value_6.context), StringLiteral("->"))) {
+                PostfixDiagnostic value_7 = error;
+                value_7.call(value_7.context, PostfixError_PointerMember);
                 break;
             } else if (compiler_expression_Take(cursor, StringLiteral("."))) {
                 if (compiler_expression_Take(cursor, StringLiteral("*"))) {
-                    PostfixNode value_9 = node;
-                    int32_t value_10 = value_9.call(value_9.context, start, PostfixKind_Dereference, StringLiteral(""), result, -1, -1, -1);
-                    result = value_10;
+                    PostfixNode value_8 = node;
+                    result = value_8.call(value_8.context, start, PostfixKind_Dereference, StringLiteral(""), result, -1, -1, -1);
                 } else {
-                    ExpressionKind value_11 = kind;
-                    if (((TokenKind)(value_11.call(value_11.context))) != ((TokenKind)(1))) {
+                    ExpressionKind value_9 = kind;
+                    if (((TokenKind)(value_9.call(value_9.context))) != ((TokenKind)(1))) {
                         (*(cursor->failed)) = 1;
                     }
                     String name = compiler_expression_BorrowToken(cursor->source, cursor);
-                    ExpressionAdvance value_12 = advance;
-                    value_12.call(value_12.context);
-                    PostfixNode value_13 = node;
-                    result = value_13.call(value_13.context, start, PostfixKind_Member, name, result, -1, -1, -1);
+                    ExpressionAdvance value_10 = advance;
+                    value_10.call(value_10.context);
+                    PostfixNode value_11 = node;
+                    result = value_11.call(value_11.context, start, PostfixKind_Member, name, result, -1, -1, -1);
                 }
             } else if (compiler_expression_Take(cursor, StringLiteral("("))) {
                 int32_t first = -1;
                 int32_t last = -1;
                 int32_t callee = result;
-                ExpressionName value_14 = callee_name;
-                String name = value_14.call(value_14.context, callee);
-                ExpressionToken value_15 = token;
-                if ((!StringEqual(value_15.call(value_15.context), StringLiteral(")")))) {
+                ExpressionName value_12 = callee_name;
+                String name = value_12.call(value_12.context, callee);
+                ExpressionToken value_13 = token;
+                if ((!StringEqual(value_13.call(value_13.context), StringLiteral(")")))) {
                     while (true) {
                         String argument_name = StringLiteral("");
-                        ExpressionKind value_16 = kind;
-                        bool value_17 = ((TokenKind)(value_16.call(value_16.context))) == ((TokenKind)(1));
-                        bool value_18 = value_17;
-                        if (value_18) {
-                            bool value_19 = StringEqual(compiler_expression_Following(cursor->source, cursor, 1), StringLiteral("="));
-                            value_18 = value_19;
+                        ExpressionKind value_14 = kind;
+                        bool value_15 = ((TokenKind)(value_14.call(value_14.context))) == ((TokenKind)(1));
+                        bool value_16 = value_15;
+                        if (value_16) {
+                            bool value_17 = StringEqual(compiler_expression_Following(cursor->source, cursor, 1), StringLiteral("="));
+                            value_16 = value_17;
                         }
-                        if (value_18) {
+                        if (value_16) {
                             argument_name = compiler_expression_BorrowToken(cursor->source, cursor);
-                            ExpressionAdvance value_20 = advance;
-                            value_20.call(value_20.context);
+                            ExpressionAdvance value_18 = advance;
+                            value_18.call(value_18.context);
                             compiler_expression_Expect(cursor, StringLiteral("="));
                         }
-                        ExpressionParse value_21 = parse;
-                        int32_t child = value_21.call(value_21.context, 1);
+                        ExpressionParse value_19 = parse;
+                        int32_t child = value_19.call(value_19.context, 1);
                         if (child < 0) {
                             (*(cursor->failed)) = 1;
                             break;
                         }
-                        ExpressionArgument value_22 = argument;
-                        value_22.call(value_22.context, child, argument_name);
+                        ExpressionArgument value_20 = argument;
+                        value_20.call(value_20.context, child, argument_name);
                         if (last >= 0) {
-                            ExpressionLink value_23 = link;
-                            value_23.call(value_23.context, last, child);
+                            ExpressionLink value_21 = link;
+                            value_21.call(value_21.context, last, child);
                         } else {
                             first = child;
                         }
                         last = child;
-                        bool value_24 = compiler_expression_Take(cursor, StringLiteral(","));
-                        if (!value_24) {
+                        bool value_22 = compiler_expression_Take(cursor, StringLiteral(","));
+                        if (!value_22) {
                             break;
                         }
                     }
                 }
                 compiler_expression_Expect(cursor, StringLiteral(")"));
                 if (*(cursor->failed) == 0) {
-                    ExpressionDefaults value_25 = defaults;
-                    ExpressionChildren children = value_25.call(value_25.context, callee, first, last);
+                    ExpressionDefaults value_23 = defaults;
+                    ExpressionChildren children = value_23.call(value_23.context, callee, first, last);
                     first = children.first;
                     last = children.last;
                 }
-                PostfixNode value_26 = node;
-                result = value_26.call(value_26.context, start, PostfixKind_Call, name, callee, -1, -1, first);
+                PostfixNode value_24 = node;
+                result = value_24.call(value_24.context, start, PostfixKind_Call, name, callee, -1, -1, first);
             } else {
-                ExpressionToken value_27 = token;
-                bool value_28 = StringEqual(value_27.call(value_27.context), StringLiteral("++"));
-                bool value_29 = value_28;
-                if (!value_29) {
-                    ExpressionToken value_30 = token;
-                    bool value_31 = StringEqual(value_30.call(value_30.context), StringLiteral("--"));
-                    value_29 = value_31;
+                ExpressionToken value_25 = token;
+                bool value_26 = StringEqual(value_25.call(value_25.context), StringLiteral("++"));
+                bool value_27 = value_26;
+                if (!value_27) {
+                    ExpressionToken value_28 = token;
+                    bool value_29 = StringEqual(value_28.call(value_28.context), StringLiteral("--"));
+                    value_27 = value_29;
                 }
-                if (value_29) {
-                    PostfixDiagnostic value_32 = error;
-                    value_32.call(value_32.context, PostfixError_Increment);
+                if (value_27) {
+                    PostfixDiagnostic value_30 = error;
+                    value_30.call(value_30.context, PostfixError_Increment);
                     break;
                 } else {
-                    ExpressionToken value_33 = token;
-                    bool value_34 = StringEqual(value_33.call(value_33.context), StringLiteral("\?"));
-                    bool value_35 = value_34;
-                    if (value_35) {
-                        ExpressionBegin value_36 = begin;
-                        int64_t value_37 = value_36.call(value_36.context);
-                        value_35 = (value_37 > 0LL);
+                    ExpressionToken value_31 = token;
+                    bool value_32 = StringEqual(value_31.call(value_31.context), StringLiteral("\?"));
+                    bool value_33 = value_32;
+                    if (value_33) {
+                        ExpressionBegin value_34 = begin;
+                        int64_t value_35 = value_34.call(value_34.context);
+                        value_33 = (value_35 > 0LL);
                     }
-                    bool value_38 = value_35;
-                    if (value_38) {
-                        ExpressionBegin value_39 = begin;
-                        int64_t value_40 = value_39.call(value_39.context);
-                        int64_t value_41 = (int64_t)(cursor->source).length;
-                        value_38 = (value_40 <= value_41);
+                    bool value_36 = value_33;
+                    if (value_36) {
+                        ExpressionBegin value_37 = begin;
+                        int64_t value_38 = value_37.call(value_37.context);
+                        int64_t value_39 = (int64_t)(cursor->source).length;
+                        value_36 = (value_38 <= value_39);
                     }
-                    bool value_42 = value_38;
-                    bool value_43 = value_42;
-                    if (value_43) {
-                        ExpressionBegin value_44 = begin;
-                        int64_t value_45 = (int64_t)((uint64_t)(value_44.call(value_44.context)) - UINT64_C(1));
-                        bool value_46 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, value_45));
-                        value_43 = !value_46;
+                    bool value_40 = value_36;
+                    bool value_41 = value_40;
+                    if (value_41) {
+                        ExpressionBegin value_42 = begin;
+                        int64_t value_43 = (int64_t)((uint64_t)(value_42.call(value_42.context)) - UINT64_C(1));
+                        bool value_44 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, value_43));
+                        value_41 = !value_44;
                     }
-                    if (value_43) {
-                        PostfixDiagnostic value_47 = error;
-                        value_47.call(value_47.context, PostfixError_Question);
+                    if (value_41) {
+                        PostfixDiagnostic value_45 = error;
+                        value_45.call(value_45.context, PostfixError_Question);
                         break;
                     } else {
                         break;
@@ -323,78 +320,76 @@ compiler_expression_ParseInitializer(InitializerHooks* hooks, int64_t start, Str
             int64_t value_15 = value_14.call(value_14.context);
             ExpressionToken value_16 = token;
             String value_17 = value_16.call(value_16.context);
-            Scan value_18 = compiler_scan_NextToken(value_13, (int64_t)((uint64_t)value_15 + (uint64_t)((int64_t)(value_17).length)), 1, 1);
-            Scan next = value_18;
+            Scan next = compiler_scan_NextToken(value_13, (int64_t)((uint64_t)value_15 + (uint64_t)((int64_t)(value_17).length)), 1, 1);
             if (((TokenKind)(next.kind)) == ((TokenKind)(1))) {
-                ExpressionAdvance value_19 = advance;
-                value_19.call(value_19.context);
+                ExpressionAdvance value_18 = advance;
+                value_18.call(value_18.context);
                 named = true;
             }
         }
-        bool value_20 = !named;
-        if (value_20) {
-            ExpressionKind value_21 = kind;
-            bool value_22 = ((TokenKind)(value_21.call(value_21.context))) == ((TokenKind)(1));
-            value_20 = value_22;
+        bool value_19 = !named;
+        if (value_19) {
+            ExpressionKind value_20 = kind;
+            bool value_21 = ((TokenKind)(value_20.call(value_20.context))) == ((TokenKind)(1));
+            value_19 = value_21;
         }
-        if (value_20) {
+        if (value_19) {
             named = StringEqual(compiler_expression_Following(cursor->source, cursor, 1), StringLiteral("="));
         }
         if (named) {
-            ExpressionKind value_23 = kind;
-            if (((TokenKind)(value_23.call(value_23.context))) != ((TokenKind)(1))) {
+            ExpressionKind value_22 = kind;
+            if (((TokenKind)(value_22.call(value_22.context))) != ((TokenKind)(1))) {
                 (*(cursor->failed)) = 1;
                 break;
             }
             name = compiler_expression_BorrowToken(cursor->source, cursor);
-            ExpressionAdvance value_24 = advance;
-            value_24.call(value_24.context);
+            ExpressionAdvance value_23 = advance;
+            value_23.call(value_23.context);
             compiler_expression_Expect(cursor, StringLiteral("="));
         }
         int32_t value = -1;
-        ExpressionToken value_25 = token;
-        if (StringEqual(value_25.call(value_25.context), StringLiteral("{"))) {
-            InitializerFieldType value_26 = field_type;
-            String nested_type = value_26.call(value_26.context, type, name, ordinal);
+        ExpressionToken value_24 = token;
+        if (StringEqual(value_24.call(value_24.context), StringLiteral("{"))) {
+            InitializerFieldType value_25 = field_type;
+            String nested_type = value_25.call(value_25.context, type, name, ordinal);
             (*(cursor->depth)) = (int32_t)((uint32_t)((*(cursor->depth))) + 1u);
             if (*(cursor->depth) > 128) {
                 (*(cursor->failed)) = 1;
                 (*(cursor->depth)) = (int32_t)((uint32_t)((*(cursor->depth))) - 1u);
                 return -1;
             }
-            ExpressionBegin value_27 = begin;
-            int32_t value_28 = compiler_expression_ParseInitializer(hooks, value_27.call(value_27.context), nested_type, StringLiteral("{"), StringLiteral("}"));
-            value = value_28;
+            ExpressionBegin value_26 = begin;
+            value = compiler_expression_ParseInitializer(hooks, value_26.call(value_26.context), nested_type, StringLiteral("{"), StringLiteral("}"));
             (*(cursor->depth)) = (int32_t)((uint32_t)((*(cursor->depth))) - 1u);
         } else {
-            ExpressionParse value_29 = parse;
-            value = value_29.call(value_29.context, 1);
+            ExpressionParse value_27 = parse;
+            value = value_27.call(value_27.context, 1);
         }
         ordinal = (int32_t)((uint32_t)ordinal + 1u);
         if (value < 0) {
             (*(cursor->failed)) = 1;
             break;
         }
-        InitializerField value_30 = field;
-        int32_t child = value_30.call(value_30.context, field_start, name, named, value);
+        InitializerField value_28 = field;
+        int32_t child = value_28.call(value_28.context, field_start, name, named, value);
         if (child < 0) {
             break;
         }
         if (last >= 0) {
-            ExpressionLink value_31 = link;
-            value_31.call(value_31.context, last, child);
+            ExpressionLink value_29 = link;
+            value_29.call(value_29.context, last, child);
         } else {
             first = child;
         }
         last = child;
-        bool value_32 = compiler_expression_Take(cursor, StringLiteral(","));
-        if (!value_32) {
+        bool value_30 = compiler_expression_Take(cursor, StringLiteral(","));
+        if (!value_30) {
             break;
         }
     }
     compiler_expression_Expect(cursor, close);
-    InitializerNode value_33 = node;
-    return value_33.call(value_33.context, start, type, first);
+    InitializerNode value_31 = node;
+    return value_31.call(value_31.context, start, type, first);
 }
 
 int32_t
@@ -431,285 +426,270 @@ compiler_expression_ParsePrefix(PrefixHooks* hooks)
             value_3.call(value_3.context, PrefixError_ThisScope);
         }
         PrefixNode value_4 = node;
-        int32_t value_5 = value_4.call(value_4.context, start, PrefixKind_This, hooks->scope, StringLiteral(""), -1, -1, -1, 0);
-        result = value_5;
+        result = value_4.call(value_4.context, start, PrefixKind_This, hooks->scope, StringLiteral(""), -1, -1, -1, 0);
     } else {
-        ExpressionToken value_6 = token;
-        if (StringEqual(value_6.call(value_6.context), StringLiteral("#caller_location"))) {
-            PrefixDiagnostic value_7 = error;
-            value_7.call(value_7.context, PrefixError_CallerLocation);
+        ExpressionToken value_5 = token;
+        if (StringEqual(value_5.call(value_5.context), StringLiteral("#caller_location"))) {
+            PrefixDiagnostic value_6 = error;
+            value_6.call(value_6.context, PrefixError_CallerLocation);
         } else if (compiler_expression_Take(cursor, StringLiteral("#compile_time"))) {
-            PrefixNode value_8 = node;
-            int32_t value_9 = value_8.call(value_8.context, start, PrefixKind_CompileTime, StringLiteral(""), StringLiteral(""), -1, -1, -1, 0);
-            result = value_9;
+            PrefixNode value_7 = node;
+            result = value_7.call(value_7.context, start, PrefixKind_CompileTime, StringLiteral(""), StringLiteral(""), -1, -1, -1, 0);
         } else if (compiler_expression_Take(cursor, StringLiteral("#procedure_name"))) {
-            int64_t value_10 = (int64_t)(hooks->scope).length;
-            if (value_10 == 0LL) {
-                PrefixDiagnostic value_11 = error;
-                value_11.call(value_11.context, PrefixError_ProcedureScope);
+            int64_t value_8 = (int64_t)(hooks->scope).length;
+            if (value_8 == 0LL) {
+                PrefixDiagnostic value_9 = error;
+                value_9.call(value_9.context, PrefixError_ProcedureScope);
             }
             compiler_expression_Expect(cursor, StringLiteral("("));
             compiler_expression_Expect(cursor, StringLiteral(")"));
-            PrefixNode value_12 = node;
-            int32_t value_13 = value_12.call(value_12.context, start, PrefixKind_ProcedureName, hooks->scope, StringLiteral(""), -1, -1, -1, 0);
-            result = value_13;
+            PrefixNode value_10 = node;
+            result = value_10.call(value_10.context, start, PrefixKind_ProcedureName, hooks->scope, StringLiteral(""), -1, -1, -1, 0);
         } else if (compiler_expression_Take(cursor, StringLiteral("#char"))) {
-            ExpressionToken value_14 = token;
-            int32_t byte = compiler_expression_CharacterByte(value_14.call(value_14.context));
-            ExpressionKind value_15 = kind;
-            bool value_16 = ((TokenKind)(value_15.call(value_15.context))) != ((TokenKind)(4));
-            if (value_16 || byte < 0) {
-                PrefixDiagnostic value_17 = error;
-                value_17.call(value_17.context, PrefixError_Character);
+            ExpressionToken value_11 = token;
+            int32_t byte = compiler_expression_CharacterByte(value_11.call(value_11.context));
+            ExpressionKind value_12 = kind;
+            bool value_13 = ((TokenKind)(value_12.call(value_12.context))) != ((TokenKind)(4));
+            if (value_13 || byte < 0) {
+                PrefixDiagnostic value_14 = error;
+                value_14.call(value_14.context, PrefixError_Character);
             }
-            ExpressionAdvance value_18 = advance;
-            value_18.call(value_18.context);
-            PrefixNode value_19 = node;
-            int32_t value_20 = value_19.call(value_19.context, start, PrefixKind_Character, StringLiteral(""), StringLiteral(""), -1, -1, -1, byte);
-            result = value_20;
+            ExpressionAdvance value_15 = advance;
+            value_15.call(value_15.context);
+            PrefixNode value_16 = node;
+            result = value_16.call(value_16.context, start, PrefixKind_Character, StringLiteral(""), StringLiteral(""), -1, -1, -1, byte);
         } else {
-            ExpressionToken value_21 = token;
-            bool value_22 = StringEqual(value_21.call(value_21.context), StringLiteral("ifx"));
-            bool value_23 = value_22;
-            if (!value_23) {
-                ExpressionToken value_24 = token;
-                bool value_25 = StringEqual(value_24.call(value_24.context), StringLiteral("#ifx"));
-                value_23 = value_25;
+            ExpressionToken value_17 = token;
+            bool value_18 = StringEqual(value_17.call(value_17.context), StringLiteral("ifx"));
+            bool value_19 = value_18;
+            if (!value_19) {
+                ExpressionToken value_20 = token;
+                bool value_21 = StringEqual(value_20.call(value_20.context), StringLiteral("#ifx"));
+                value_19 = value_21;
             }
-            if (value_23) {
+            if (value_19) {
                 String op = StringLiteral("ifx");
-                ExpressionToken value_26 = token;
-                if (StringEqual(value_26.call(value_26.context), StringLiteral("#ifx"))) {
+                ExpressionToken value_22 = token;
+                if (StringEqual(value_22.call(value_22.context), StringLiteral("#ifx"))) {
                     op = StringLiteral("#ifx");
                 }
-                ExpressionAdvance value_27 = advance;
-                value_27.call(value_27.context);
-                ExpressionParse value_28 = parse;
-                int32_t condition = value_28.call(value_28.context, 2);
+                ExpressionAdvance value_23 = advance;
+                value_23.call(value_23.context);
+                ExpressionParse value_24 = parse;
+                int32_t condition = value_24.call(value_24.context, 2);
                 compiler_expression_Take(cursor, StringLiteral("then"));
-                ExpressionParse value_29 = parse;
-                int32_t selected = value_29.call(value_29.context, 1);
+                ExpressionParse value_25 = parse;
+                int32_t selected = value_25.call(value_25.context, 1);
                 compiler_expression_Take(cursor, StringLiteral(";"));
                 compiler_expression_Expect(cursor, StringLiteral("else"));
-                ExpressionParse value_30 = parse;
-                int32_t alternative = value_30.call(value_30.context, 1);
-                PrefixNode value_31 = node;
-                int32_t value_32 = value_31.call(value_31.context, start, PrefixKind_Conditional, StringLiteral(""), op, condition, selected, alternative, 0);
-                result = value_32;
+                ExpressionParse value_26 = parse;
+                int32_t alternative = value_26.call(value_26.context, 1);
+                PrefixNode value_27 = node;
+                result = value_27.call(value_27.context, start, PrefixKind_Conditional, StringLiteral(""), op, condition, selected, alternative, 0);
             } else {
-                ExpressionToken value_33 = token;
-                if (StringEqual(value_33.call(value_33.context), StringLiteral("sizeof"))) {
-                    PrefixDiagnostic value_34 = error;
-                    value_34.call(value_34.context, PrefixError_Sizeof);
+                ExpressionToken value_28 = token;
+                if (StringEqual(value_28.call(value_28.context), StringLiteral("sizeof"))) {
+                    PrefixDiagnostic value_29 = error;
+                    value_29.call(value_29.context, PrefixError_Sizeof);
                 } else if (compiler_expression_Take(cursor, StringLiteral("size_of"))) {
                     compiler_expression_Expect(cursor, StringLiteral("("));
-                    ExpressionBegin value_35 = begin;
-                    int64_t type_start = value_35.call(value_35.context);
+                    ExpressionBegin value_30 = begin;
+                    int64_t type_start = value_30.call(value_30.context);
                     int32_t nested = 0;
                     while (true) {
-                        ExpressionKind value_36 = kind;
-                        if (!(((TokenKind)(value_36.call(value_36.context))) != ((TokenKind)(0)))) { break; }
-                        ExpressionToken value_37 = token;
-                        bool value_38 = StringEqual(value_37.call(value_37.context), StringLiteral(")"));
-                        if (value_38 && nested == 0) {
+                        ExpressionKind value_31 = kind;
+                        if (!(((TokenKind)(value_31.call(value_31.context))) != ((TokenKind)(0)))) { break; }
+                        ExpressionToken value_32 = token;
+                        bool value_33 = StringEqual(value_32.call(value_32.context), StringLiteral(")"));
+                        if (value_33 && nested == 0) {
                             break;
                         }
-                        ExpressionToken value_39 = token;
-                        if ((StringEqual(value_39.call(value_39.context), StringLiteral("(")))) {
+                        ExpressionToken value_34 = token;
+                        if ((StringEqual(value_34.call(value_34.context), StringLiteral("(")))) {
                             nested = (int32_t)((uint32_t)nested + 1u);
                         }
-                        ExpressionToken value_40 = token;
-                        if ((StringEqual(value_40.call(value_40.context), StringLiteral(")")))) {
+                        ExpressionToken value_35 = token;
+                        if ((StringEqual(value_35.call(value_35.context), StringLiteral(")")))) {
                             nested = (int32_t)((uint32_t)nested - 1u);
                         }
-                        ExpressionAdvance value_41 = advance;
-                        value_41.call(value_41.context);
+                        ExpressionAdvance value_36 = advance;
+                        value_36.call(value_36.context);
                     }
                     String type = compiler_expression_TypeRange(cursor->source, cursor, type_start, hooks->name_limit);
                     compiler_expression_Expect(cursor, StringLiteral(")"));
-                    PrefixNode value_42 = node;
-                    int32_t value_43 = value_42.call(value_42.context, start, PrefixKind_SizeOf, type, StringLiteral(""), -1, -1, -1, 0);
-                    result = value_43;
+                    PrefixNode value_37 = node;
+                    result = value_37.call(value_37.context, start, PrefixKind_SizeOf, type, StringLiteral(""), -1, -1, -1, 0);
                 } else if (compiler_expression_Take(cursor, StringLiteral("cast"))) {
                     compiler_expression_Expect(cursor, StringLiteral("("));
-                    ExpressionBegin value_44 = begin;
-                    int64_t type_start = value_44.call(value_44.context);
-                    ExpressionToken value_45 = token;
-                    if (StringEqual(value_45.call(value_45.context), StringLiteral("char"))) {
-                        PrefixDiagnostic value_46 = error;
-                        value_46.call(value_46.context, PrefixError_Primitive);
+                    ExpressionBegin value_38 = begin;
+                    int64_t type_start = value_38.call(value_38.context);
+                    ExpressionToken value_39 = token;
+                    if (StringEqual(value_39.call(value_39.context), StringLiteral("char"))) {
+                        PrefixDiagnostic value_40 = error;
+                        value_40.call(value_40.context, PrefixError_Primitive);
                     }
                     while (true) {
-                        ExpressionKind value_47 = kind;
-                        bool value_48 = ((TokenKind)(value_47.call(value_47.context))) != ((TokenKind)(0));
-                        bool value_49 = value_48;
-                        if (value_49) {
-                            ExpressionToken value_50 = token;
-                            bool value_51 = !StringEqual(value_50.call(value_50.context), StringLiteral(")"));
-                            value_49 = value_51;
+                        ExpressionKind value_41 = kind;
+                        bool value_42 = ((TokenKind)(value_41.call(value_41.context))) != ((TokenKind)(0));
+                        bool value_43 = value_42;
+                        if (value_43) {
+                            ExpressionToken value_44 = token;
+                            bool value_45 = !StringEqual(value_44.call(value_44.context), StringLiteral(")"));
+                            value_43 = value_45;
                         }
-                        if (!value_49) { break; }
-                        ExpressionAdvance value_52 = advance;
-                        value_52.call(value_52.context);
+                        if (!value_43) { break; }
+                        ExpressionAdvance value_46 = advance;
+                        value_46.call(value_46.context);
                     }
                     String type = compiler_expression_TypeRange(cursor->source, cursor, type_start, hooks->name_limit);
-                    TypeQuery value_53 = is_type;
-                    bool value_54 = value_53.call(value_53.context, type);
-                    bool value_55 = !value_54;
-                    if (value_55) {
-                        int64_t value_56 = (int64_t)(type).length;
-                        bool value_57 = value_56 == 0LL;
-                        if (!value_57) {
-                            bool value_58 = (uint8_t)ZIRAN_INDEX(type.data, type.length, 0) != 91 && (uint8_t)ZIRAN_INDEX(type.data, type.length, 0) != 42;
-                            value_57 = value_58;
+                    TypeQuery value_47 = is_type;
+                    bool value_48 = value_47.call(value_47.context, type);
+                    bool value_49 = !value_48;
+                    if (value_49) {
+                        int64_t value_50 = (int64_t)(type).length;
+                        bool value_51 = value_50 == 0LL;
+                        if (!value_51) {
+                            bool value_52 = (uint8_t)ZIRAN_INDEX(type.data, type.length, 0) != 91 && (uint8_t)ZIRAN_INDEX(type.data, type.length, 0) != 42;
+                            value_51 = value_52;
                         }
-                        value_55 = value_57;
+                        value_49 = value_51;
                     }
-                    if (value_55) {
+                    if (value_49) {
                         (*(cursor->failed)) = 1;
                     }
                     compiler_expression_Expect(cursor, StringLiteral(")"));
                     int32_t right = compiler_expression_ParsePrefix(hooks);
-                    PrefixNode value_59 = node;
-                    int32_t value_60 = value_59.call(value_59.context, start, PrefixKind_Cast, type, StringLiteral(""), -1, right, -1, 0);
-                    result = value_60;
+                    PrefixNode value_53 = node;
+                    result = value_53.call(value_53.context, start, PrefixKind_Cast, type, StringLiteral(""), -1, right, -1, 0);
                 } else {
-                    ExpressionToken value_61 = token;
-                    bool value_62 = StringEqual(value_61.call(value_61.context), StringLiteral("++"));
-                    bool value_63 = value_62;
-                    if (!value_63) {
-                        ExpressionToken value_64 = token;
-                        bool value_65 = StringEqual(value_64.call(value_64.context), StringLiteral("--"));
-                        value_63 = value_65;
+                    ExpressionToken value_54 = token;
+                    bool value_55 = StringEqual(value_54.call(value_54.context), StringLiteral("++"));
+                    bool value_56 = value_55;
+                    if (!value_56) {
+                        ExpressionToken value_57 = token;
+                        bool value_58 = StringEqual(value_57.call(value_57.context), StringLiteral("--"));
+                        value_56 = value_58;
                     }
-                    if (value_63) {
-                        PrefixDiagnostic value_66 = error;
-                        value_66.call(value_66.context, PrefixError_Increment);
+                    if (value_56) {
+                        PrefixDiagnostic value_59 = error;
+                        value_59.call(value_59.context, PrefixError_Increment);
                     } else if (compiler_expression_Take(cursor, StringLiteral("<<"))) {
                         int32_t right = compiler_expression_ParsePrefix(hooks);
-                        PrefixNode value_67 = node;
-                        int32_t value_68 = value_67.call(value_67.context, start, PrefixKind_Unary, StringLiteral(""), StringLiteral("*"), -1, right, -1, 0);
-                        result = value_68;
+                        PrefixNode value_60 = node;
+                        result = value_60.call(value_60.context, start, PrefixKind_Unary, StringLiteral(""), StringLiteral("*"), -1, right, -1, 0);
                     } else {
-                        ExpressionToken value_69 = token;
-                        bool value_70 = StringEqual(value_69.call(value_69.context), StringLiteral("+"));
-                        bool value_71 = value_70;
-                        if (!value_71) {
-                            ExpressionToken value_72 = token;
-                            bool value_73 = StringEqual(value_72.call(value_72.context), StringLiteral("-"));
-                            value_71 = value_73;
+                        ExpressionToken value_61 = token;
+                        bool value_62 = StringEqual(value_61.call(value_61.context), StringLiteral("+"));
+                        bool value_63 = value_62;
+                        if (!value_63) {
+                            ExpressionToken value_64 = token;
+                            bool value_65 = StringEqual(value_64.call(value_64.context), StringLiteral("-"));
+                            value_63 = value_65;
                         }
-                        bool value_74 = value_71;
-                        if (!value_74) {
+                        bool value_66 = value_63;
+                        if (!value_66) {
+                            ExpressionToken value_67 = token;
+                            bool value_68 = StringEqual(value_67.call(value_67.context), StringLiteral("!"));
+                            value_66 = value_68;
+                        }
+                        bool value_69 = value_66;
+                        if (!value_69) {
+                            ExpressionToken value_70 = token;
+                            bool value_71 = StringEqual(value_70.call(value_70.context), StringLiteral("~"));
+                            value_69 = value_71;
+                        }
+                        bool value_72 = value_69;
+                        if (!value_72) {
+                            ExpressionToken value_73 = token;
+                            bool value_74 = StringEqual(value_73.call(value_73.context), StringLiteral("*"));
+                            value_72 = value_74;
+                        }
+                        if (value_72) {
                             ExpressionToken value_75 = token;
-                            bool value_76 = StringEqual(value_75.call(value_75.context), StringLiteral("!"));
-                            value_74 = value_76;
-                        }
-                        bool value_77 = value_74;
-                        if (!value_77) {
-                            ExpressionToken value_78 = token;
-                            bool value_79 = StringEqual(value_78.call(value_78.context), StringLiteral("~"));
-                            value_77 = value_79;
-                        }
-                        bool value_80 = value_77;
-                        if (!value_80) {
-                            ExpressionToken value_81 = token;
-                            bool value_82 = StringEqual(value_81.call(value_81.context), StringLiteral("*"));
-                            value_80 = value_82;
-                        }
-                        if (value_80) {
-                            ExpressionToken value_83 = token;
-                            String op = compiler_expression_UnarySpelling(value_83.call(value_83.context));
-                            ExpressionAdvance value_84 = advance;
-                            value_84.call(value_84.context);
+                            String op = compiler_expression_UnarySpelling(value_75.call(value_75.context));
+                            ExpressionAdvance value_76 = advance;
+                            value_76.call(value_76.context);
                             int32_t right = compiler_expression_ParsePrefix(hooks);
-                            PrefixNode value_85 = node;
-                            int32_t value_86 = value_85.call(value_85.context, start, PrefixKind_Unary, StringLiteral(""), op, -1, right, -1, 0);
-                            result = value_86;
+                            PrefixNode value_77 = node;
+                            result = value_77.call(value_77.context, start, PrefixKind_Unary, StringLiteral(""), op, -1, right, -1, 0);
                         } else {
-                            ExpressionToken value_87 = token;
-                            if (StringEqual(value_87.call(value_87.context), StringLiteral("&"))) {
-                                PrefixDiagnostic value_88 = error;
-                                value_88.call(value_88.context, PrefixError_AddressOf);
+                            ExpressionToken value_78 = token;
+                            if (StringEqual(value_78.call(value_78.context), StringLiteral("&"))) {
+                                PrefixDiagnostic value_79 = error;
+                                value_79.call(value_79.context, PrefixError_AddressOf);
                             } else if (compiler_expression_Take(cursor, StringLiteral("("))) {
-                                TypeQuery value_89 = is_type;
-                                ExpressionToken value_90 = token;
-                                bool value_91 = value_89.call(value_89.context, value_90.call(value_90.context));
-                                bool value_92 = value_91;
-                                if (!value_92) {
-                                    ExpressionToken value_93 = token;
-                                    bool value_94 = StringEqual(value_93.call(value_93.context), StringLiteral("["));
-                                    value_92 = value_94;
+                                TypeQuery value_80 = is_type;
+                                ExpressionToken value_81 = token;
+                                bool value_82 = value_80.call(value_80.context, value_81.call(value_81.context));
+                                bool value_83 = value_82;
+                                if (!value_83) {
+                                    ExpressionToken value_84 = token;
+                                    bool value_85 = StringEqual(value_84.call(value_84.context), StringLiteral("["));
+                                    value_83 = value_85;
                                 }
-                                bool typed = value_92;
-                                bool value_95 = typed;
-                                bool value_96 = value_95;
-                                if (value_96) {
-                                    ExpressionToken value_97 = token;
-                                    bool value_98 = !StringEqual(value_97.call(value_97.context), StringLiteral("."));
-                                    value_96 = value_98;
+                                bool typed = value_83;
+                                bool value_86 = typed;
+                                if (value_86) {
+                                    ExpressionToken value_87 = token;
+                                    bool value_88 = !StringEqual(value_87.call(value_87.context), StringLiteral("."));
+                                    value_86 = value_88;
                                 }
-                                bool value_99 = value_96;
-                                bool value_100 = value_99;
-                                if (value_100) {
-                                    bool value_101 = !StringEqual(compiler_expression_Following(cursor->source, cursor, 1), StringLiteral("."));
-                                    value_100 = value_101;
+                                bool value_89 = value_86;
+                                if (value_89) {
+                                    bool value_90 = !StringEqual(compiler_expression_Following(cursor->source, cursor, 1), StringLiteral("."));
+                                    value_89 = value_90;
                                 }
-                                if (value_100) {
-                                    PrefixDiagnostic value_102 = error;
-                                    value_102.call(value_102.context, PrefixError_Cast);
+                                if (value_89) {
+                                    PrefixDiagnostic value_91 = error;
+                                    value_91.call(value_91.context, PrefixError_Cast);
                                 }
-                                ExpressionParse value_103 = parse;
-                                result = value_103.call(value_103.context, 1);
+                                ExpressionParse value_92 = parse;
+                                result = value_92.call(value_92.context, 1);
                                 compiler_expression_Expect(cursor, StringLiteral(")"));
-                                bool value_104 = !typed;
-                                bool value_105 = value_104;
-                                if (value_105) {
-                                    ExpressionToken value_106 = token;
-                                    bool value_107 = StringEqual(value_106.call(value_106.context), StringLiteral("{"));
-                                    value_105 = value_107;
+                                bool value_93 = !typed;
+                                if (value_93) {
+                                    ExpressionToken value_94 = token;
+                                    bool value_95 = StringEqual(value_94.call(value_94.context), StringLiteral("{"));
+                                    value_93 = value_95;
                                 }
-                                if (value_105) {
-                                    PrefixDiagnostic value_108 = error;
-                                    value_108.call(value_108.context, PrefixError_Literal);
+                                if (value_93) {
+                                    PrefixDiagnostic value_96 = error;
+                                    value_96.call(value_96.context, PrefixError_Literal);
                                 }
                             } else if (compiler_expression_Take(cursor, StringLiteral("."))) {
-                                ExpressionToken value_109 = token;
-                                if (StringEqual(value_109.call(value_109.context), StringLiteral("{"))) {
-                                    int32_t value_110 = compiler_expression_ParseInitializer(hooks->initializers, start, StringLiteral(""), StringLiteral("{"), StringLiteral("}"));
-                                    result = value_110;
+                                ExpressionToken value_97 = token;
+                                if (StringEqual(value_97.call(value_97.context), StringLiteral("{"))) {
+                                    result = compiler_expression_ParseInitializer(hooks->initializers, start, StringLiteral(""), StringLiteral("{"), StringLiteral("}"));
                                 } else {
-                                    ExpressionToken value_111 = token;
-                                    bool value_112 = StringEqual(value_111.call(value_111.context), StringLiteral("["));
-                                    bool value_113 = value_112;
-                                    if (value_113) {
-                                        TypeQuery value_114 = is_array;
-                                        bool value_115 = value_114.call(value_114.context, hooks->expected_type);
-                                        value_113 = value_115;
+                                    ExpressionToken value_98 = token;
+                                    bool value_99 = StringEqual(value_98.call(value_98.context), StringLiteral("["));
+                                    bool value_100 = value_99;
+                                    if (value_100) {
+                                        TypeQuery value_101 = is_array;
+                                        bool value_102 = value_101.call(value_101.context, hooks->expected_type);
+                                        value_100 = value_102;
                                     }
-                                    if (value_113) {
-                                        int32_t value_116 = compiler_expression_ParseInitializer(hooks->initializers, start, hooks->expected_type, StringLiteral("["), StringLiteral("]"));
-                                        result = value_116;
+                                    if (value_100) {
+                                        result = compiler_expression_ParseInitializer(hooks->initializers, start, hooks->expected_type, StringLiteral("["), StringLiteral("]"));
                                     } else {
-                                        ExpressionKind value_117 = kind;
-                                        if (((TokenKind)(value_117.call(value_117.context))) != ((TokenKind)(1))) {
+                                        ExpressionKind value_103 = kind;
+                                        if (((TokenKind)(value_103.call(value_103.context))) != ((TokenKind)(1))) {
                                             (*(cursor->failed)) = 1;
                                         } else {
                                             uint8_t buffer[256] = {0};
-                                            Slice value_118 = {buffer, 256};
-                                            Slice value_119 = SliceRange(value_118, (int64_t)0, (int64_t)value_118.length, sizeof(uint8_t));
-                                            String value_120 = compiler_expression_BorrowToken(cursor->source, cursor);
-                                            String name = compiler_expression_QualifiedName(value_119, StringLiteral(""), value_120, hooks->name_limit);
-                                            int64_t value_121 = (int64_t)(name).length;
-                                            if (value_121 == 0LL) {
+                                            Slice value_104 = {buffer, 256};
+                                            Slice value_105 = SliceRange(value_104, (int64_t)0, (int64_t)value_104.length, sizeof(uint8_t));
+                                            String value_106 = compiler_expression_BorrowToken(cursor->source, cursor);
+                                            String name = compiler_expression_QualifiedName(value_105, StringLiteral(""), value_106, hooks->name_limit);
+                                            int64_t value_107 = (int64_t)(name).length;
+                                            if (value_107 == 0LL) {
                                                 (*(cursor->failed)) = 1;
                                             }
-                                            ExpressionAdvance value_122 = advance;
-                                            value_122.call(value_122.context);
+                                            ExpressionAdvance value_108 = advance;
+                                            value_108.call(value_108.context);
                                             if (*(cursor->failed) == 0) {
-                                                PrefixNode value_123 = node;
-                                                int32_t value_124 = value_123.call(value_123.context, start, PrefixKind_Identifier, name, StringLiteral(""), -1, -1, -1, 0);
-                                                result = value_124;
+                                                PrefixNode value_109 = node;
+                                                result = value_109.call(value_109.context, start, PrefixKind_Identifier, name, StringLiteral(""), -1, -1, -1, 0);
                                             }
                                         }
                                     }
@@ -723,94 +703,85 @@ compiler_expression_ParsePrefix(PrefixHooks* hooks)
                                 } else if (original_kind == ((TokenKind)(4))) {
                                     primary = PrefixKind_String;
                                 } else if (original_kind == ((TokenKind)(5))) {
-                                    PrefixDiagnostic value_125 = error;
-                                    value_125.call(value_125.context, PrefixError_SingleQuote);
+                                    PrefixDiagnostic value_110 = error;
+                                    value_110.call(value_110.context, PrefixError_SingleQuote);
                                 } else if (original_kind != ((TokenKind)(1))) {
                                     (*(cursor->failed)) = 1;
                                     (*(cursor->depth)) = (int32_t)((uint32_t)((*(cursor->depth))) - 1u);
                                     return -1;
                                 }
-                                ExpressionAdvance value_126 = advance;
-                                value_126.call(value_126.context);
-                                bool value_127 = primary == PrefixKind_Identifier;
-                                bool value_128 = value_127;
-                                if (value_128) {
-                                    ExpressionToken value_129 = token;
-                                    bool value_130 = StringEqual(value_129.call(value_129.context), StringLiteral("."));
-                                    value_128 = value_130;
+                                ExpressionAdvance value_111 = advance;
+                                value_111.call(value_111.context);
+                                bool value_112 = primary == PrefixKind_Identifier;
+                                if (value_112) {
+                                    ExpressionToken value_113 = token;
+                                    bool value_114 = StringEqual(value_113.call(value_113.context), StringLiteral("."));
+                                    value_112 = value_114;
                                 }
-                                if (value_128) {
+                                if (value_112) {
                                     String following = compiler_expression_Following(cursor->source, cursor, 1);
                                     if (StringEqual(following, StringLiteral("{"))) {
-                                        TypeQuery value_131 = is_record;
-                                        bool value_132 = value_131.call(value_131.context, original);
-                                        if (!value_132) {
+                                        TypeQuery value_115 = is_record;
+                                        bool value_116 = value_115.call(value_115.context, original);
+                                        if (!value_116) {
                                             (*(cursor->failed)) = 1;
                                         }
-                                        ExpressionAdvance value_133 = advance;
-                                        value_133.call(value_133.context);
-                                        int32_t value_134 = compiler_expression_ParseInitializer(hooks->initializers, start, original, StringLiteral("{"), StringLiteral("}"));
-                                        result = value_134;
+                                        ExpressionAdvance value_117 = advance;
+                                        value_117.call(value_117.context);
+                                        result = compiler_expression_ParseInitializer(hooks->initializers, start, original, StringLiteral("{"), StringLiteral("}"));
                                     } else {
-                                        bool value_135 = StringEqual(following, StringLiteral("["));
-                                        bool value_136 = value_135;
-                                        if (value_136) {
-                                            TypeQuery value_137 = is_type;
-                                            bool value_138 = value_137.call(value_137.context, original);
-                                            value_136 = value_138;
+                                        bool value_118 = StringEqual(following, StringLiteral("["));
+                                        if (value_118) {
+                                            TypeQuery value_119 = is_type;
+                                            bool value_120 = value_119.call(value_119.context, original);
+                                            value_118 = value_120;
                                         }
-                                        if (value_136) {
-                                            ExpressionAdvance value_139 = advance;
-                                            value_139.call(value_139.context);
-                                            PrefixArray value_140 = array;
-                                            result = value_140.call(value_140.context, start, original);
+                                        if (value_118) {
+                                            ExpressionAdvance value_121 = advance;
+                                            value_121.call(value_121.context);
+                                            PrefixArray value_122 = array;
+                                            result = value_122.call(value_122.context, start, original);
                                         } else {
-                                            String value_141 = cursor->source;
-                                            ExpressionBegin value_142 = begin;
-                                            int64_t value_143 = value_142.call(value_142.context);
-                                            ExpressionToken value_144 = token;
-                                            String value_145 = value_144.call(value_144.context);
-                                            Scan value_146 = compiler_scan_NextToken(value_141, (int64_t)((uint64_t)value_143 + (uint64_t)((int64_t)(value_145).length)), 1, 1);
-                                            Scan next = value_146;
-                                            bool value_147 = ((TokenKind)(next.kind)) == ((TokenKind)(1));
-                                            bool value_148 = value_147;
-                                            if (value_148) {
-                                                bool value_149 = StringEqual(compiler_expression_Following(cursor->source, cursor, 2), StringLiteral("."));
-                                                value_148 = value_149;
+                                            String value_123 = cursor->source;
+                                            ExpressionBegin value_124 = begin;
+                                            int64_t value_125 = value_124.call(value_124.context);
+                                            ExpressionToken value_126 = token;
+                                            String value_127 = value_126.call(value_126.context);
+                                            Scan next = compiler_scan_NextToken(value_123, (int64_t)((uint64_t)value_125 + (uint64_t)((int64_t)(value_127).length)), 1, 1);
+                                            bool value_128 = ((TokenKind)(next.kind)) == ((TokenKind)(1));
+                                            if (value_128) {
+                                                bool value_129 = StringEqual(compiler_expression_Following(cursor->source, cursor, 2), StringLiteral("."));
+                                                value_128 = value_129;
                                             }
-                                            if (value_148) {
+                                            if (value_128) {
                                                 uint8_t buffer[256] = {0};
-                                                Slice value_150 = {buffer, 256};
-                                                String value_151 = compiler_expression_QualifiedName(SliceRange(value_150, (int64_t)0, (int64_t)value_150.length, sizeof(uint8_t)), original, following, hooks->name_limit);
-                                                String qualified = value_151;
+                                                Slice value_130 = {buffer, 256};
+                                                String qualified = compiler_expression_QualifiedName(SliceRange(value_130, (int64_t)0, (int64_t)value_130.length, sizeof(uint8_t)), original, following, hooks->name_limit);
                                                 String opener = compiler_expression_Following(cursor->source, cursor, 3);
-                                                int64_t value_152 = (int64_t)(qualified).length;
-                                                bool value_153 = value_152 > 0LL;
-                                                bool value_154 = value_153;
-                                                if (value_154) {
-                                                    TypeQuery value_155 = is_type;
-                                                    bool value_156 = value_155.call(value_155.context, qualified);
-                                                    value_154 = value_156;
+                                                int64_t value_131 = (int64_t)(qualified).length;
+                                                bool value_132 = value_131 > 0LL;
+                                                if (value_132) {
+                                                    TypeQuery value_133 = is_type;
+                                                    bool value_134 = value_133.call(value_133.context, qualified);
+                                                    value_132 = value_134;
                                                 }
-                                                bool value_157 = value_154 && (StringEqual(opener, StringLiteral("[")) || StringEqual(opener, StringLiteral("{")));
-                                                if (value_157) {
-                                                    ExpressionAdvance value_158 = advance;
-                                                    value_158.call(value_158.context);
-                                                    ExpressionAdvance value_159 = advance;
-                                                    value_159.call(value_159.context);
-                                                    ExpressionAdvance value_160 = advance;
-                                                    value_160.call(value_160.context);
+                                                if (value_132 && (StringEqual(opener, StringLiteral("[")) || StringEqual(opener, StringLiteral("{")))) {
+                                                    ExpressionAdvance value_135 = advance;
+                                                    value_135.call(value_135.context);
+                                                    ExpressionAdvance value_136 = advance;
+                                                    value_136.call(value_136.context);
+                                                    ExpressionAdvance value_137 = advance;
+                                                    value_137.call(value_137.context);
                                                     if (StringEqual(opener, StringLiteral("["))) {
-                                                        PrefixArray value_161 = array;
-                                                        result = value_161.call(value_161.context, start, qualified);
+                                                        PrefixArray value_138 = array;
+                                                        result = value_138.call(value_138.context, start, qualified);
                                                     } else {
-                                                        TypeQuery value_162 = is_record;
-                                                        bool value_163 = value_162.call(value_162.context, qualified);
-                                                        if (!value_163) {
+                                                        TypeQuery value_139 = is_record;
+                                                        bool value_140 = value_139.call(value_139.context, qualified);
+                                                        if (!value_140) {
                                                             (*(cursor->failed)) = 1;
                                                         } else {
-                                                            int32_t value_164 = compiler_expression_ParseInitializer(hooks->initializers, start, qualified, StringLiteral("{"), StringLiteral("}"));
-                                                            result = value_164;
+                                                            result = compiler_expression_ParseInitializer(hooks->initializers, start, qualified, StringLiteral("{"), StringLiteral("}"));
                                                         }
                                                     }
                                                 }
@@ -823,8 +794,8 @@ compiler_expression_ParsePrefix(PrefixHooks* hooks)
                                     if (primary == PrefixKind_Identifier) {
                                         name = original;
                                     }
-                                    PrefixNode value_165 = node;
-                                    result = value_165.call(value_165.context, start, primary, name, StringLiteral(""), -1, -1, -1, 0);
+                                    PrefixNode value_141 = node;
+                                    result = value_141.call(value_141.context, start, primary, name, StringLiteral(""), -1, -1, -1, 0);
                                 }
                             }
                         }
@@ -872,8 +843,7 @@ compiler_expression_CharacterByte(String literal)
     }
     int64_t value_4 = (int64_t)(literal).length;
     bool value_5 = value_4 == 6LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) == 92;
-    bool value_6 = value_5 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 2) == 120 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 5) == 34;
-    if (value_6) {
+    if (value_5 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 2) == 120 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 5) == 34) {
         int32_t high = compiler_expression_Hex((uint8_t)ZIRAN_INDEX(literal.data, literal.length, 3));
         int32_t low = compiler_expression_Hex((uint8_t)ZIRAN_INDEX(literal.data, literal.length, 4));
         if (high >= 0 && low >= 0) {
@@ -888,161 +858,154 @@ compiler_expression_StatementParts(String source, StatementKind kind)
 {
     StatementExpression result = {0};
     bool value_0 = kind == ((StatementKind)(6));
-    bool value_1 = value_0;
-    if (value_1) {
-        bool value_2 = compiler_expression_WordAt(source, 0LL, StringLiteral("else"));
-        value_1 = value_2;
+    if (value_0) {
+        bool value_1 = compiler_expression_WordAt(source, 0LL, StringLiteral("else"));
+        value_0 = value_1;
     }
-    result.is_else = value_1;
+    result.is_else = value_0;
     if (kind == ((StatementKind)(3))) {
         int64_t colon = compiler_expression_FindByte(source, 58);
         if (colon >= 0LL) {
             result.has_declaration = true;
+            String value_2 = source;
+            result.name = compiler_expression_Trim(StringRange(value_2, (int64_t)0LL, (int64_t)colon));
             String value_3 = source;
-            String value_4 = compiler_expression_Trim(StringRange(value_3, (int64_t)0LL, (int64_t)colon));
-            result.name = value_4;
-            String value_5 = source;
-            String value_6 = StringRange(value_5, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)value_5.length);
-            String type = value_6;
+            String type = StringRange(value_3, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)value_3.length);
             int64_t equals = compiler_expression_FindByte(type, 61);
             if (equals >= 0LL) {
                 result.has_value = true;
-                String value_7 = type;
-                String value_8 = StringRange(value_7, (int64_t)((int64_t)((uint64_t)equals + UINT64_C(1))), (int64_t)value_7.length);
-                result.value = value_8;
-                String value_9 = type;
-                type = StringRange(value_9, (int64_t)0LL, (int64_t)equals);
+                String value_4 = type;
+                result.value = StringRange(value_4, (int64_t)((int64_t)((uint64_t)equals + UINT64_C(1))), (int64_t)value_4.length);
+                String value_5 = type;
+                type = StringRange(value_5, (int64_t)0LL, (int64_t)equals);
             }
             type = compiler_expression_Trim(type);
-            int64_t value_10 = (int64_t)(type).length;
-            bool value_11 = value_10 > 0LL;
-            if (value_11) {
-                uint8_t value_12 = (uint8_t)ZIRAN_INDEX(type.data, type.length, ((int64_t)((uint64_t)((int64_t)(type).length) - UINT64_C(1))));
-                value_11 = (value_12 == 59);
+            int64_t value_6 = (int64_t)(type).length;
+            bool value_7 = value_6 > 0LL;
+            if (value_7) {
+                bool value_8 = (uint8_t)ZIRAN_INDEX(type.data, type.length, ((int64_t)((uint64_t)((int64_t)(type).length) - UINT64_C(1)))) == 59;
+                value_7 = value_8;
             }
-            if (value_11) {
-                String value_13 = type;
-                String value_14 = StringRange(value_13, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(type).length) - UINT64_C(1))));
-                type = compiler_expression_Trim(value_14);
+            if (value_7) {
+                String value_9 = type;
+                type = compiler_expression_Trim(StringRange(value_9, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(type).length) - UINT64_C(1)))));
             }
             result.type = type;
             int64_t modifier = compiler_expression_FindByte(type, 35);
             if (modifier >= 0LL) {
                 result.error = StatementExpressionError_Modifier;
-                String value_15 = type;
-                result.modifier = StringRange(value_15, (int64_t)modifier, (int64_t)value_15.length);
+                String value_10 = type;
+                result.modifier = StringRange(value_10, (int64_t)modifier, (int64_t)value_10.length);
                 return result;
             }
         }
     } else if (kind == ((StatementKind)(4))) {
         int64_t at = 0LL;
         while (true) {
-            int64_t value_16 = (int64_t)(source).length;
-            if (!(at < value_16)) { break; }
+            int64_t value_11 = (int64_t)(source).length;
+            if (!(at < value_11)) { break; }
             Scan token = compiler_scan_NextToken(source, at, 1, 1);
             if (((TokenKind)(token.kind)) == ((TokenKind)(0))) {
                 break;
             }
-            String value_17 = source;
-            String operator = StringRange(value_17, (int64_t)token.begin, (int64_t)token.end);
+            String value_12 = source;
+            String operator = StringRange(value_12, (int64_t)token.begin, (int64_t)token.end);
             if (compiler_expression_AssignmentOperator(operator)) {
                 result.assignment = operator;
-                String value_18 = source;
-                result.lhs = StringRange(value_18, (int64_t)0LL, (int64_t)token.begin);
-                String value_19 = source;
-                result.value = StringRange(value_19, (int64_t)token.end, (int64_t)value_19.length);
+                String value_13 = source;
+                result.lhs = StringRange(value_13, (int64_t)0LL, (int64_t)token.begin);
+                String value_14 = source;
+                result.value = StringRange(value_14, (int64_t)token.end, (int64_t)value_14.length);
                 result.has_value = true;
                 break;
             }
             at = token.end;
         }
     } else if (kind == ((StatementKind)(10)) || kind == ((StatementKind)(14))) {
-        int64_t value_20 = (int64_t)(source).length;
-        if (value_20 >= 6LL) {
-            String value_21 = source;
-            result.value = StringRange(value_21, (int64_t)6LL, (int64_t)value_21.length);
+        int64_t value_15 = (int64_t)(source).length;
+        if (value_15 >= 6LL) {
+            String value_16 = source;
+            result.value = StringRange(value_16, (int64_t)6LL, (int64_t)value_16.length);
             result.has_value = true;
         }
     } else if (kind == ((StatementKind)(5))) {
         result.value = source;
         result.has_value = true;
     } else if (kind == ((StatementKind)(16))) {
-        int64_t value_22 = (int64_t)(source).length;
-        if (value_22 >= 2LL) {
-            String value_23 = source;
-            String condition = compiler_expression_SkipSpace(StringRange(value_23, (int64_t)2LL, (int64_t)value_23.length));
-            int64_t value_24 = (int64_t)(condition).length;
-            bool value_25 = value_24 > 9LL;
-            if (value_25) {
-                String value_26 = condition;
-                value_25 = (StringEqual(StringRange(value_26, (int64_t)0LL, (int64_t)9LL), StringLiteral("#complete")));
+        int64_t value_17 = (int64_t)(source).length;
+        if (value_17 >= 2LL) {
+            String value_18 = source;
+            String condition = compiler_expression_SkipSpace(StringRange(value_18, (int64_t)2LL, (int64_t)value_18.length));
+            int64_t value_19 = (int64_t)(condition).length;
+            bool value_20 = value_19 > 9LL;
+            if (value_20) {
+                String value_21 = condition;
+                value_20 = (StringEqual(StringRange(value_21, (int64_t)0LL, (int64_t)9LL), StringLiteral("#complete")));
             }
-            bool value_27 = value_25;
-            bool value_28 = value_27;
-            if (value_28) {
-                bool value_29 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(condition.data, condition.length, 9));
-                value_28 = value_29;
+            bool value_22 = value_20;
+            bool value_23 = value_22;
+            if (value_23) {
+                bool value_24 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(condition.data, condition.length, 9));
+                value_23 = value_24;
             }
-            if (value_28) {
-                String value_30 = condition;
-                condition = compiler_expression_SkipSpace(StringRange(value_30, (int64_t)9LL, (int64_t)value_30.length));
+            if (value_23) {
+                String value_25 = condition;
+                condition = compiler_expression_SkipSpace(StringRange(value_25, (int64_t)9LL, (int64_t)value_25.length));
             }
             int64_t equals = compiler_expression_FindPair(condition, StringLiteral("=="));
             if (equals >= 0LL) {
-                String value_31 = condition;
-                condition = compiler_expression_Trim(StringRange(value_31, (int64_t)0LL, (int64_t)equals));
+                String value_26 = condition;
+                condition = compiler_expression_Trim(StringRange(value_26, (int64_t)0LL, (int64_t)equals));
             }
             result.value = condition;
             result.has_value = true;
         }
     } else if (kind == ((StatementKind)(7)) || kind == ((StatementKind)(6))) {
-        String value_32 = source;
-        int64_t value_33 = compiler_text_BlockHeaderEnd(source);
-        String condition = StringRange(value_32, (int64_t)0LL, (int64_t)value_33);
-        int64_t value_34 = (int64_t)(condition).length;
-        bool value_35 = value_34 >= 4LL;
-        if (value_35) {
-            String value_36 = condition;
-            value_35 = (StringEqual(StringRange(value_36, (int64_t)0LL, (int64_t)4LL), StringLiteral("else")));
+        String value_27 = source;
+        int64_t value_28 = compiler_text_BlockHeaderEnd(source);
+        String condition = StringRange(value_27, (int64_t)0LL, (int64_t)value_28);
+        int64_t value_29 = (int64_t)(condition).length;
+        bool value_30 = value_29 >= 4LL;
+        if (value_30) {
+            String value_31 = condition;
+            value_30 = (StringEqual(StringRange(value_31, (int64_t)0LL, (int64_t)4LL), StringLiteral("else")));
         }
-        if (value_35) {
-            String value_37 = condition;
-            condition = compiler_expression_SkipSpace(StringRange(value_37, (int64_t)4LL, (int64_t)value_37.length));
+        if (value_30) {
+            String value_32 = condition;
+            condition = compiler_expression_SkipSpace(StringRange(value_32, (int64_t)4LL, (int64_t)value_32.length));
         }
         int64_t at = 0LL;
         while (true) {
-            int64_t value_38 = (int64_t)(condition).length;
-            bool value_39 = at < value_38;
-            bool value_40 = value_39;
-            if (value_40) {
-                bool value_41 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(condition.data, condition.length, at));
-                value_40 = !value_41;
+            int64_t value_33 = (int64_t)(condition).length;
+            bool value_34 = at < value_33;
+            if (value_34) {
+                bool value_35 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(condition.data, condition.length, at));
+                value_34 = !value_35;
             }
-            if (!(value_40 && (uint8_t)ZIRAN_INDEX(condition.data, condition.length, at) != 40)) { break; }
+            if (!(value_34 && (uint8_t)ZIRAN_INDEX(condition.data, condition.length, at) != 40)) { break; }
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
-        String value_42 = condition;
-        result.value = StringRange(value_42, (int64_t)at, (int64_t)value_42.length);
+        String value_36 = condition;
+        result.value = StringRange(value_36, (int64_t)at, (int64_t)value_36.length);
         result.has_value = true;
     }
-    bool value_43 = result.has_value;
-    bool value_44 = value_43;
-    if (value_44) {
-        bool value_45 = StringEqual(compiler_expression_SkipSpace(result.value), StringLiteral(";"));
-        value_44 = value_45;
+    bool value_37 = result.has_value;
+    if (value_37) {
+        bool value_38 = StringEqual(compiler_expression_SkipSpace(result.value), StringLiteral(";"));
+        value_37 = value_38;
     }
-    if (value_44) {
+    if (value_37) {
         result.has_value = false;
     }
-    bool value_46 = result.has_value && kind == ((StatementKind)(3));
-    if (value_46) {
-        int64_t value_47 = (int64_t)(result.type).length;
-        value_46 = (value_47 > 0LL);
+    bool value_39 = result.has_value && kind == ((StatementKind)(3));
+    if (value_39) {
+        int64_t value_40 = (int64_t)(result.type).length;
+        value_39 = (value_40 > 0LL);
     }
-    if (value_46 && (uint8_t)ZIRAN_INDEX(result.type.data, result.type.length, 0) == 91) {
+    if (value_39 && (uint8_t)ZIRAN_INDEX(result.type.data, result.type.length, 0) == 91) {
         String value = compiler_expression_SkipSpace(result.value);
-        int64_t value_48 = (int64_t)(value).length;
-        if (value_48 > 0LL && (uint8_t)ZIRAN_INDEX(value.data, value.length, 0) == 123) {
+        int64_t value_41 = (int64_t)(value).length;
+        if (value_41 > 0LL && (uint8_t)ZIRAN_INDEX(value.data, value.length, 0) == 123) {
             result.error = StatementExpressionError_ArrayLiteral;
         }
     }
@@ -1094,14 +1057,13 @@ compiler_expression_TypeRange(String source, SyntaxCursor* cursor, int64_t start
 static String
 compiler_expression_QualifiedName(Slice output, String first, String second, int64_t limit)
 {
-    int64_t value_0 = (int64_t)(((uint64_t)((int64_t)(first).length) + UINT64_C(1)) + (uint64_t)((int64_t)(second).length));
-    int64_t count = value_0;
-    bool value_1 = count >= limit;
-    if (!value_1) {
-        int64_t value_2 = (int64_t)(output).length;
-        value_1 = (count > value_2);
+    int64_t count = (int64_t)(((uint64_t)((int64_t)(first).length) + UINT64_C(1)) + (uint64_t)((int64_t)(second).length));
+    bool value_0 = count >= limit;
+    if (!value_0) {
+        int64_t value_1 = (int64_t)(output).length;
+        value_0 = (count > value_1);
     }
-    if (value_1) {
+    if (value_0) {
         return StringLiteral("");
     }
     {
@@ -1129,9 +1091,9 @@ compiler_expression_QualifiedName(Slice output, String first, String second, int
             index = (int64_t)((uint64_t)index + UINT64_C(1));
         }
     }
-    Slice value_3 = output;
-    Slice value_4 = SliceRange(value_3, (int64_t)0LL, (int64_t)count, sizeof(uint8_t));
-    return StringView((const char *)(value_4).data, (size_t)(value_4).length);
+    Slice value_2 = output;
+    Slice value_3 = SliceRange(value_2, (int64_t)0LL, (int64_t)count, sizeof(uint8_t));
+    return StringView((const char *)(value_3).data, (size_t)(value_3).length);
 }
 
 static bool
@@ -1273,8 +1235,7 @@ compiler_expression_FindPair(String source, String wanted)
         int64_t at = range_first_0;
         while (at <= range_last_0) {
             String value_0 = source;
-            bool value_1 = StringEqual(StringRange(value_0, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + UINT64_C(2)))), wanted);
-            if (value_1) {
+            if (StringEqual(StringRange(value_0, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + UINT64_C(2)))), wanted)) {
                 return at;
             }
             if (at == range_last_0) {
@@ -1298,8 +1259,8 @@ compiler_expression_WordAt(String source, int64_t at, String word)
     bool value_3 = value_0;
     if (value_3) {
         String value_4 = source;
-        String value_5 = StringRange(value_4, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(word).length))));
-        value_3 = (StringEqual(value_5, word));
+        bool value_5 = StringEqual(StringRange(value_4, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(word).length)))), word);
+        value_3 = value_5;
     }
     bool value_6 = value_3;
     bool value_7 = value_6;
@@ -1307,13 +1268,11 @@ compiler_expression_WordAt(String source, int64_t at, String word)
         int64_t value_8 = (int64_t)((uint64_t)at + (uint64_t)((int64_t)(word).length));
         int64_t value_9 = (int64_t)(source).length;
         bool value_10 = value_8 == value_9;
-        bool value_11 = value_10;
-        if (!value_11) {
-            uint8_t value_12 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + (uint64_t)((int64_t)(word).length))));
-            bool value_13 = compiler_text_SpaceByte(value_12);
-            value_11 = value_13;
+        if (!value_10) {
+            bool value_11 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + (uint64_t)((int64_t)(word).length)))));
+            value_10 = value_11;
         }
-        value_7 = value_11;
+        value_7 = value_10;
     }
     return value_7;
 }
@@ -1325,6 +1284,5 @@ compiler_expression_AssignmentOperator(String operator)
     bool value_1 = value_0 || StringEqual(operator, StringLiteral("*=")) || StringEqual(operator, StringLiteral("/="));
     bool value_2 = value_1 || StringEqual(operator, StringLiteral("%=")) || StringEqual(operator, StringLiteral("&="));
     bool value_3 = value_2 || StringEqual(operator, StringLiteral("|=")) || StringEqual(operator, StringLiteral("^="));
-    bool value_4 = value_3 || StringEqual(operator, StringLiteral("<<=")) || StringEqual(operator, StringLiteral(">>="));
-    return value_4;
+    return value_3 || StringEqual(operator, StringLiteral("<<=")) || StringEqual(operator, StringLiteral(">>="));
 }

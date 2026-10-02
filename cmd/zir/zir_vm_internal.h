@@ -244,6 +244,8 @@ Record *allocate_record(Vm *vm, const ZirModule *owner, const ZirType *type, int
 Array *allocate_array_try(Vm *vm, const ZirModule *owner, const char *element, int length, int fail_hard);
 Value default_value(Vm *vm, const ZirModule *module, const char *type, int depth);
 Value coerce(Vm *vm, const ZirModule *module, Value value, const char *type);
+const VmSignature *vm_signature(Vm *vm, const ZirModule *module,
+                               const ZirFunction *function);
 Value coerce_expression(Vm *vm, const ZirModule *module, Value value, const char *type);
 void retire_value(Vm *vm, Value value, int depth);
 int array_has_active_slice(Vm *vm, const Array *array);

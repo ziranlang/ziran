@@ -933,8 +933,12 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     break;
                 }
             } else {
-                /* A call assigned to a name runs last, so it assigns directly. */
-                e->call_in_place = e->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT;
+                /* A stable local field is as safe as a name: no call can
+                 * change its destination while the right side runs. Keep
+                 * snapshots for computed or aliasable destinations. */
+                e->call_in_place = e->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT ||
+                    (!expression_calls(e->fn, st->lhs_root) &&
+                     !call_can_change(e, st->lhs_root));
                 emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,buffers->value,sizeof(buffers->value));
                 copy_text(buffers->result,sizeof(buffers->result),buffers->value);
             }

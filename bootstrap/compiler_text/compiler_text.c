@@ -16,8 +16,7 @@ compiler_text_SpaceByte(uint8_t byte)
 bool
 compiler_text_IdentifierByte(uint8_t byte)
 {
-    bool value_0 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 95;
-    return value_0;
+    return (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 95;
 }
 
 int64_t
@@ -217,16 +216,15 @@ compiler_text_EscapeCString(String source, Slice output)
             }
             uint8_t escaped[4] = {0};
             Slice value_4 = {escaped, 4};
-            int64_t value_5 = compiler_text_EscapeByte(byte, true, SliceRange(value_4, (int64_t)0, (int64_t)value_4.length, sizeof(uint8_t)));
-            int64_t count = value_5;
+            int64_t count = compiler_text_EscapeByte(byte, true, SliceRange(value_4, (int64_t)0, (int64_t)value_4.length, sizeof(uint8_t)));
             {
                 int64_t range_first_10 = 0LL;
                 int64_t range_last_10 = (int64_t)((uint64_t)count - UINT64_C(1));
                 int64_t index = range_first_10;
                 while (index <= range_last_10) {
-                    int64_t value_6 = (int64_t)((uint64_t)used + UINT64_C(1));
-                    int64_t value_7 = (int64_t)(output).length;
-                    if (value_6 < value_7) {
+                    int64_t value_5 = (int64_t)((uint64_t)used + UINT64_C(1));
+                    int64_t value_6 = (int64_t)(output).length;
+                    if (value_5 < value_6) {
                         ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = ZIRAN_INDEX(escaped, 4, index);
                         used = (int64_t)((uint64_t)used + UINT64_C(1));
                     }
@@ -335,8 +333,8 @@ compiler_text_DecodeString(String source, Slice output)
     int64_t value_0 = (int64_t)(source).length;
     bool value_1 = value_0 < 2LL || (uint8_t)ZIRAN_INDEX(source.data, source.length, 0) != 34;
     if (!value_1) {
-        uint8_t value_2 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1))));
-        value_1 = (value_2 != 34);
+        bool value_2 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1)))) != 34;
+        value_1 = value_2;
     }
     if (value_1) {
         return (DecodedLiteral){.valid = false, .count = 0LL};
@@ -551,11 +549,10 @@ compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
         }
         uint8_t escaped[4] = {0};
         Slice value_15 = {escaped, 4};
-        int64_t value_16 = compiler_text_EscapeByte(byte, false, SliceRange(value_15, (int64_t)0, (int64_t)value_15.length, sizeof(uint8_t)));
-        int64_t count = value_16;
-        int64_t value_17 = (int64_t)(((uint64_t)used + (uint64_t)count) + UINT64_C(2));
-        int64_t value_18 = (int64_t)(output).length;
-        if (value_17 > value_18) {
+        int64_t count = compiler_text_EscapeByte(byte, false, SliceRange(value_15, (int64_t)0, (int64_t)value_15.length, sizeof(uint8_t)));
+        int64_t value_16 = (int64_t)(((uint64_t)used + (uint64_t)count) + UINT64_C(2));
+        int64_t value_17 = (int64_t)(output).length;
+        if (value_16 > value_17) {
             return (FormatStep){.valid = false, .argument = false, .present = false, .next = at};
         }
         {

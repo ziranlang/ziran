@@ -539,6 +539,25 @@ failed:
 
 Value eval(Frame *frame, int index, int depth);
 
+static int
+vm_expression_calls(const ZirFunction *function, int index, int depth)
+{
+    if(index < 0)
+        return 0;
+    if(index >= function->expr_count || depth >= VM_MAX_DEPTH)
+        return 1;
+    const ZirExpr *expression = &function->exprs[index];
+    if(expression->kind == ZIR_EXPR_CALL)
+        return 1;
+    for(int child = expression->first_child; child >= 0;
+        child = function->exprs[child].next_sibling)
+        if(vm_expression_calls(function, child, depth + 1))
+            return 1;
+    return vm_expression_calls(function, expression->left, depth + 1) ||
+           vm_expression_calls(function, expression->right, depth + 1) ||
+           vm_expression_calls(function, expression->third, depth + 1);
+}
+
 Value
 eval(Frame *frame, int index, int depth)
 {
@@ -1391,6 +1410,8 @@ eval(Frame *frame, int index, int depth)
         Value few[4];
         Value *args = slots <= 4 ? few : AllocateOrExit((size_t)slots * sizeof(*args));
         memset(args, 0, (size_t)(slots <= 4 ? 4 : slots) * sizeof(*args));
+        const VmSignature *parameters = callee != NULL ?
+            vm_signature(frame->vm, owner, callee) : NULL;
         for(int child = expression->first_child; child >= 0;
             child = frame->function->exprs[child].next_sibling) {
             int position = frame->function->exprs[child].argument_index;
@@ -1400,6 +1421,26 @@ eval(Frame *frame, int index, int depth)
                 break;
             }
             args[position] = eval(frame, child, depth + 1);
+            /* Capture value parameters before another argument can mutate
+             * their source through a pointer or fixed-array view. A read-only
+             * callee may share this snapshot, never the caller's live record. */
+            if(parameters != NULL && position < parameters->count &&
+               (args[position].kind == VALUE_RECORD ||
+                (args[position].kind == VALUE_ARRAY &&
+                 ArrayElementType(parameters->parameters[position].type,
+                                  NULL, 0, NULL))) &&
+               !VecElementType(owner, parameters->parameters[position].type,
+                               NULL, 0)) {
+                for(int later = frame->function->exprs[child].next_sibling;
+                    later >= 0;
+                    later = frame->function->exprs[later].next_sibling) {
+                    if(vm_expression_calls(frame->function, later, 0)) {
+                        args[position] = coerce(frame->vm, owner, args[position],
+                            parameters->parameters[position].type);
+                        break;
+                    }
+                }
+            }
             used |= (uint64_t)1 << position;
             count++;
         }
@@ -1435,4 +1476,3 @@ eval(Frame *frame, int index, int depth)
     return coerce_expression(frame->vm, frame->module, value,
                              expression->type);
 }
-

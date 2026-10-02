@@ -1390,9 +1390,11 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             atom = 1;
     }
     /* A consumer that runs nothing after this expression takes its calls in
-     * place; otherwise they are captured below, in order. */
+     * place; otherwise they are captured below, in order. Source line length
+     * must not create extra aggregate copies: repeated record updates can
+     * otherwise exhaust a native thread's stack solely because their emitted
+     * call text crosses the readability bound. */
     int in_place = call_in_place &&
-                   (e->minify || strlen(buffers->result) <= ZIR_INLINE_MAX) &&
                    (e->target == ZIR_GO || !ArrayElementType(type, NULL, 0, NULL));
     if(in_place || folds_text(e, buffers->result, type)) {
         /* declare() applies this cast for named enum types; inlined text has

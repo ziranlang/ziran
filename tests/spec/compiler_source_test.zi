@@ -180,6 +180,14 @@ Answer :: () -> s32 {
     SplitControlBlock("do { Next(); } while true").valid ||
     SplitControlBlock("while true { Next(); } else { Other(); }").valid ||
     SplitControlBlock("Call(.{x = 1})").valid || SplitControlBlock("if true { x := \"unfinished\\").valid { return 26 }
+    block = SplitControlBlock("for y: 0..2 { for x: 0..2 {")
+    if !block.valid || !block.open || block.head_end != 13 || block.body_end != 27 ||
+    block.tail_begin != 27 || SplitControlBlock("for x: 0..2 {  ").valid ||
+    SplitControlBlock("if Check(.{x = 1}) { Call(\"{\")").body_end != 30 ||
+    SplitControlBlock("if true { Call(); }").open { return 30 }
+    if StatementSeparator("} }") != 0 || StatementSeparator("}}") != 0 ||
+    StatementSeparator("} } else {") != 0 || StatementSeparator("}") != -1 ||
+    StatementSeparator("} else {") != -1 { return 31 }
     if ClosingParenthesis("(Call(\")\"), ['(']) tail") != 17 ||
     ClosingParenthesis("(\"unfinished\\") != -1 || ClosingParenthesis("not a call") != -1 { return 27 }
     if !StatementChecks() { return 28 }

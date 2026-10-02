@@ -3,7 +3,7 @@ set -eu
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-printf '10 11 12 13\n11 12 13 14\n1 2\n12 34\n' > "$work/expected"
+printf '10 11 12 13\n11 12 13 14\n1 2\n12 34\n5 1104\n' > "$work/expected"
 "$ziran" ir --root tests/spec -o "$work/ir" tests/spec/compact_branches.zi
 for mode in source saved; do
     root=tests/spec

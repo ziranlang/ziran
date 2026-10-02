@@ -522,14 +522,16 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     t = buffers->logical;
                 }
             } else {
-                if(split_oneline_block(t, buffers->head, sizeof(buffers->head),
-                                       buffers->body, sizeof(buffers->body),
-                                       buffers->tail, sizeof(buffers->tail))) {
+                int split = split_oneline_block(t, buffers->head, sizeof(buffers->head),
+                                                buffers->body, sizeof(buffers->body),
+                                                buffers->tail, sizeof(buffers->tail));
+                if(split) {
                     if(buffers->tail[0])
                         prepend_logical_line(buffers->onelineq, &onelineq_count,
                                              buffers->tail, Span(buffers->rel, line_no, 1));
-                    prepend_logical_line(buffers->onelineq, &onelineq_count, "}",
-                                         Span(buffers->rel, line_no, 1));
+                    if(split == 1)
+                        prepend_logical_line(buffers->onelineq, &onelineq_count, "}",
+                                             Span(buffers->rel, line_no, 1));
                     if(buffers->body[0])
                         prepend_logical_line(buffers->onelineq, &onelineq_count,
                                              buffers->body, Span(buffers->rel, line_no, 1));

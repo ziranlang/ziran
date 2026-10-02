@@ -67,6 +67,7 @@ struct ControlBlock {
     int64_t body_begin;
     int64_t body_end;
     int64_t tail_begin;
+    bool open;
 };
 
 struct ProcedureHeader {

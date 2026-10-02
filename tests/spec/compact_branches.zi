@@ -32,9 +32,24 @@ ContinuedStatements :: (enabled: bool) -> s32 {
     return state.first * 10 + state.second
 }
 
+// Blocks opened together on one line and closed together with '} }'.
+SharedLines :: (limit: s32) -> s32 {
+    total: s32 = 0
+    for y: 0..limit { for x: 0..limit {
+        total += x * 10 + y
+    } }
+    if limit > 0 { if total > 0 {
+        total += 1000
+    } }
+    for y: 0..1 { if y == 1 { total += 5
+    } }
+    return total
+}
+
 main :: () {
     print("% % % %\n", Branch(0), Branch(1), Branch(2), Branch(3))
     print("% % % %\n", Nested(-1), Nested(0), Nested(1), Nested(2))
     print("% %\n", Negated(true), Negated(false))
     print("% %\n", ContinuedStatements(true), ContinuedStatements(false))
+    print("% %\n", SharedLines(0), SharedLines(2))
 }

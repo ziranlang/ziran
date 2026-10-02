@@ -682,7 +682,7 @@ split_oneline_block(const char *t, char *head, size_t hsz,
     body[body_length] = '\0';
     trim_in_place(body);
     copy_text(tail, tsz, t + block.tail_begin);
-    return 1;
+    return block.open ? 2 : 1; /* 2: the body continues on later lines. */
 }
 
 const char *

@@ -20,6 +20,8 @@ ControlBlock :: struct {
     body_begin: s64
     body_end: s64
     tail_begin: s64
+    // The body continues on the following lines; no closer is on this line.
+    open: bool
 }
 ProcedureHeader :: struct { name: string; parameters: string; result: string }
 MustUseModifier :: enum s32 { None; Required; Arguments; Duplicate; NoResult }
@@ -59,6 +61,18 @@ AfterQuote :: (source: string, at: s64) -> s64 {
         else if byte == quote { break }
     }
     return at
+}
+// AfterQuote, or -1 when the literal does not close within this text.
+ClosedQuote :: (source: string, at: s64) -> s64 {
+    quote := source[at]
+    at += 1
+    while at < source.count {
+        byte := source[at]
+        at += 1
+        if byte == #char "\\" && at < source.count { at += 1 }
+        else if byte == quote { return at }
+    }
+    return -1
 }
 Put :: (output: []u8, used: *s64, byte: u8) {
     if <<used < output.count { output[<<used] = byte }
@@ -347,6 +361,8 @@ NetBlockBraces :: (source: string) -> s32 {
 }
 
 StatementSeparator :: (source: string) -> s64 {
+    // '} }' closes two blocks: the first closer is a statement of its own.
+    if Byte(source, 0) == #char "}" && Byte(source, SkipSpace(source, 1)) == #char "}" { return 0 }
     at: s64 = 0
     parentheses: s32 = 0
     brackets: s32 = 0
@@ -411,17 +427,24 @@ SplitControlBlock :: (source: string) -> ControlBlock {
     at = opening + 1
     while at < source.count {
         byte := source[at]
-        if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at); continue }
+        if byte == #char "\"" || byte == #char "'" {
+            at = ClosedQuote(source, at); if at < 0 { return result }; continue
+        }
         if byte == #char "{" { depth += 1 }
         else if byte == #char "}" { depth -= 1; if depth == 0 { break } }
         at += 1
     }
-    if at >= source.count { return result }
+    if at >= source.count {
+        // 'for y: 0..2 { for x: 0..2 {' leaves the body open on later lines;
+        // its first statement here becomes a line of its own.
+        if SkipSpace(source, opening + 1) >= source.count { return result }
+        return .{true, opening + 1, opening + 1, source.count, source.count, true}
+    }
     tail := SkipSpace(source, at + 1)
     if Byte(source, tail) == #char ";" { tail = SkipSpace(source, tail + 1) }
     if tail < source.count && (word == "do" || word == "case" || word == "guard" ||
         (StartsWord(source[tail:], "else") && word != "if" && word != "else")) { return result }
-    return .{true, opening + 1, opening + 1, at, tail}
+    return .{true, opening + 1, opening + 1, at, tail, false}
 }
 
 ClosingParenthesis :: (source: string) -> s64 {
@@ -575,7 +598,7 @@ SplitProcedureBody :: (source: string) -> ControlBlock {
         at += 1
     }
     if depth != 0 { return block }
-    return .{true, opening + 1, opening + 1, source.count - 1, source.count}
+    return .{true, opening + 1, opening + 1, source.count - 1, source.count, false}
 }
 
 ProcedureMustUse :: (source: string, result_type: string) -> MustUseModifier {

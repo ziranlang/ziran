@@ -689,6 +689,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `for` bodies now normalize to checked blocks. Named `break` and `continue`
   target enclosing `for` binders or named `while` condition binders; defer
   cleanup and range advancement apply when those controls cross nested loops.
+- Go fixed arrays of pointers retain prefix pointer syntax and the declaring
+  module's type names. Source and saved IR preserve scalar, indirect, nested,
+  imported-record and native Go pointers, including zero values and shared
+  storage. C and C++ keep their own pointer declarators.
 - `check`, `ir`, `build`, and `bundle` discover extensionless imports
   transitively. Repeated `--module-path DIR` options locate ordinary libraries
   outside an app root; explicitly supplied modules take precedence. A separate

@@ -122,7 +122,15 @@ array_target_type(Emitter *e, const char *type, char *target_element,
         /* Pointer elements lower through the same naming as slot types:
          * [4]*u8 emits uint8_t* name[4]. */
         char native[ZIR_NAME_MAX * 2];
-        slot_native_type(element, e->target, native, sizeof(native));
+        if(e->target == ZIR_GO) {
+            if(!NativeGoType(e->module, element, native, sizeof(native))) {
+                Diagnostic(e->fn->span, "emit.array_element",
+                           "unsupported Go array element type: %s", element);
+                exit(1);
+            }
+        } else {
+            slot_native_type(element, e->target, native, sizeof(native));
+        }
         copy_text(target_element, element_size, native);
     } else {
         e->resolve(e->context, element, target_element, element_size);

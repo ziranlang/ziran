@@ -1,7 +1,8 @@
-#ifndef ZIRAN_BOUNDS_H
-#define ZIRAN_BOUNDS_H
+#ifndef ZIRAN_RUNTIME_BOUNDS_H
+#define ZIRAN_RUNTIME_BOUNDS_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -9,38 +10,34 @@
 extern "C" {
 #endif
 
-/* Debug bounds checking for .zi fixed-array and string indexing. Builds
- * that define ZIRAN_BOUNDS_CHECK trap on out-of-range indexes with the
- * offending expression; release builds compile to plain indexing. */
-#ifdef ZIRAN_BOUNDS_CHECK
-static inline size_t BoundsCheck(size_t length, size_t index,
+/* Fixed-array and string indexing is checked in every build. Keep the index
+ * wide until it is validated: a 64-bit index must not wrap into a valid
+ * offset on a 32-bit target. */
+static inline size_t BoundsCheck(size_t length, uint64_t index,
                                  const char *what)
 {
     if(index >= length) {
-        fprintf(stderr, "ziran: index %zu out of bounds for %s (length %zu)\n",
-                index, what, length);
+        fprintf(stderr, "ziran: index %llu out of bounds for %s (length %zu)\n",
+                (unsigned long long)index, what, length);
         abort();
     }
-    return index;
+    return (size_t)index;
 }
 #define ZIRAN_INDEX(base, length, index) \
-    ((base)[BoundsCheck((size_t)(length), (size_t)(index), #base)])
-#else
-#define ZIRAN_INDEX(base, length, index) ((base)[(index)])
-#endif
+    ((base)[BoundsCheck((size_t)(length), (uint64_t)(index), #base)])
 
 /* A zero-capacity array has no valid index in any build configuration. */
-static inline size_t EmptyArrayIndex(size_t index, const char *what)
+static inline size_t EmptyArrayIndex(uint64_t index, const char *what)
 {
-    fprintf(stderr, "ziran: index %zu out of bounds for %s (length 0)\n",
-            index, what);
+    fprintf(stderr, "ziran: index %llu out of bounds for %s (length 0)\n",
+            (unsigned long long)index, what);
     abort();
 }
 #define ZIRAN_EMPTY_INDEX(base, index) \
-    ((base)[EmptyArrayIndex((size_t)(index), #base)])
+    ((base)[EmptyArrayIndex((uint64_t)(index), #base)])
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* ZIRAN_BOUNDS_H */
+#endif /* ZIRAN_RUNTIME_BOUNDS_H */

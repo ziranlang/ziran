@@ -4,7 +4,8 @@ set -eu
 ziran=$(realpath "${1:?pass the ziran command}")
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+variant=$(mktemp -d "$repo/build/python-project-tools.XXXXXX")
+trap 'rm -rf "$work" "$variant"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY
 export XDG_CACHE_HOME="$work/cache"
 export PYTHONDONTWRITEBYTECODE=1
@@ -178,6 +179,25 @@ cd project
 "$ziran" lock
 test "$("$ziran" run --target=py -- --project)" = 'project script'
 test "$("$ziran" run --target=py --project src/main.zi -- --project)" = 'project script'
+
+# A launcher from a variant build in this compiler tree must use its sibling
+# Python compiler, just as a sanitizer launcher must keep using sanitized tools.
+cp "$ziran" "$variant/ziran"
+cat > "$variant/zi2py" <<'SH'
+#!/bin/sh
+tool=${0##*/}
+printf '%s\n' "$tool" >> "$ZIRAN_TEST_VARIANT_MARKER"
+exec "$ZIRAN_TEST_VARIANT_TOOLS/$tool" "$@"
+SH
+chmod +x "$variant/zi2py"
+cp "$variant/zi2py" "$variant/zi2zir"
+export ZIRAN_TEST_VARIANT_MARKER="$work/variant-used"
+export ZIRAN_TEST_VARIANT_TOOLS="$(dirname "$ziran")"
+test "$("$variant/ziran" run --target=py -- --project)" = 'project script'
+grep -Fxq zi2py "$ZIRAN_TEST_VARIANT_MARKER"
+"$variant/ziran" check --project
+grep -Fxq zi2zir "$ZIRAN_TEST_VARIANT_MARKER"
+
 if "$ziran" run --target=py --locked -- --project > locked.out 2> locked.err; then
     echo 'locked mode accepted local overrides' >&2; exit 1
 fi

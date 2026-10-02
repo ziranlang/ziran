@@ -71,6 +71,21 @@ PkgHasArgument :: (arguments: []string, expected: string) -> bool {
     return false
 }
 
+// A variant launcher built by this pinned compiler uses its own sibling
+// tools. This keeps sanitizer and other variant builds together instead of
+// rebuilding the default toolchain while independent checks are running.
+PkgToolDirectory :: (launcher: string, tool_path: string, tool: string) -> string {
+    tool_root := PkgJoin(PkgCanonical(tool_path), "/")
+    own := PkgCanonical(launcher)
+    directory := PkgLauncherDirectory(launcher)
+    if tool_root.count > 1 && own.count > tool_root.count &&
+       own[0:tool_root.count] == tool_root &&
+       PathExists(PkgJoin3(directory, "/", tool)) {
+        return directory
+    }
+    return PkgJoin(tool_path, "/build/bin")
+}
+
 PkgPrepareSubmodules :: (directory: string, offline: bool) -> bool {
     args: [7]string
     args[0] = "git"
@@ -180,7 +195,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     }
     if executable.count == 0 { return PkgFail("unknown Ziran command") }
     tool_directory: string = PkgLauncherDirectory(launcher)
-    if project { tool_directory = PkgJoin(locked.tool_path, "/build/bin") }
+    if project { tool_directory = PkgToolDirectory(launcher, locked.tool_path, executable) }
     if tool_directory.count == 0 { return PkgFail("cannot find Ziran binaries") }
     binary: string = PkgJoin3(tool_directory, "/", executable)
     names: [8]string
@@ -731,7 +746,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         search: [65]string
         searches: s64 = 0
         if project {
-            binary = PkgJoin(locked.tool_path, "/build/bin/zi2py")
+            binary = PkgJoin(PkgToolDirectory(launcher, locked.tool_path, "zi2py"), "/zi2py")
             if !PathExists(binary) {
                 make_args: [5]string = .["make", "-C", locked.tool_path, "all", "BUILD_DIR=build"]
                 if PkgRunToStderr(make_args[:], "") != 0 { return PkgFail("cannot build pinned Ziran compiler") }

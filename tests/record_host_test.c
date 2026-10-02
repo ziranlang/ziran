@@ -44,6 +44,19 @@ host_call(void *context, const char *module, const char *function,
         calls++;
         return sum_slice(context, module, function, args, arg_count, result);
     }
+    if(strcmp(function, "ObserveHost") == 0) {
+        assert(strcmp(module, "record_host") == 0);
+        assert(arg_count == 2 && args[0].kind == VM_HOST_RECORD);
+        assert(strcmp(args[0].type, "State") == 0 && args[0].field_count == 1);
+        const VmHostValue *values = &args[0].fields[0].value;
+        assert(values->kind == VM_HOST_ARRAY && values->length == 2);
+        assert(values->elements[0].integer == 10 && args[1].integer == 1);
+        calls++;
+        result->kind = VM_HOST_INTEGER;
+        result->type = "s32";
+        result->integer = values->elements[0].integer * 10 + args[1].integer;
+        return 1;
+    }
     assert(strcmp(module, "record_host") == 0);
     assert(strcmp(function, "TransformHost") == 0);
     assert(arg_count == 1);
@@ -93,26 +106,27 @@ main(int argc, char **argv)
     assert(argc == 2);
     Bundle *bundle = BundleOpen(argv[1]);
     assert(bundle != NULL);
-    assert(BundleCapabilityCount(bundle) == 2);
+    assert(BundleCapabilityCount(bundle) == 3);
     assert(strcmp(BundleCapabilityModule(bundle, 0), "record_host") == 0);
     assert(strcmp(BundleCapabilityFunction(bundle, 0), "TransformHost") == 0);
-    HostBinding binding[2] = {
+    HostBinding binding[3] = {
         {"record_host", "TransformHost", host_call, NULL},
-        {"record_host", "SumSliceHost", host_call, NULL}
+        {"record_host", "SumSliceHost", host_call, NULL},
+        {"record_host", "ObserveHost", host_call, NULL}
     };
     long long result = 0;
     int has_result = 0;
-    assert(BundleRun(bundle, binding, 2, &result, &has_result));
-    assert(has_result && result == 42 && calls == 2);
+    assert(BundleRun(bundle, binding, 3, &result, &has_result));
+    assert(has_result && result == 42 && calls == 3);
     malformed = 1;
-    assert(!BundleRun(bundle, binding, 2, &result, &has_result));
+    assert(!BundleRun(bundle, binding, 3, &result, &has_result));
     malformed = 2;
-    assert(!BundleRun(bundle, binding, 2, &result, &has_result));
+    assert(!BundleRun(bundle, binding, 3, &result, &has_result));
     malformed = 3;
-    assert(!BundleRun(bundle, binding, 2, &result, &has_result));
+    assert(!BundleRun(bundle, binding, 3, &result, &has_result));
     malformed = 0;
-    assert(BundleRun(bundle, binding, 2, &result, &has_result));
-    assert(has_result && result == 42 && calls == 7);
+    assert(BundleRun(bundle, binding, 3, &result, &has_result));
+    assert(has_result && result == 42 && calls == 9);
     BundleClose(bundle);
     return 0;
 }

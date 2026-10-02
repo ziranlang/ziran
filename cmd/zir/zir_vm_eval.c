@@ -1407,11 +1407,27 @@ eval(Frame *frame, int index, int depth)
             frame->vm->failed = 1;
             break;
         }
+        ZirFunction *external_signature = NULL;
+        if(external != NULL) {
+            /* Foreign calls need their parameter types before arguments are
+             * evaluated too. Keep the large function descriptor on the heap. */
+            external_signature = AllocateOrExit(sizeof(*external_signature));
+            memset(external_signature, 0, sizeof(*external_signature));
+            copy_text(external_signature->name, sizeof(external_signature->name),
+                      external->name);
+            external_signature->args_text = KeepParameters(external->args);
+            copy_text(external_signature->return_type,
+                      sizeof(external_signature->return_type),
+                      external->return_type);
+            external_signature->is_extern = 1;
+            external_signature->span = external->span;
+            owner = frame->module;
+            callee = external_signature;
+        }
         Value few[4];
         Value *args = slots <= 4 ? few : AllocateOrExit((size_t)slots * sizeof(*args));
         memset(args, 0, (size_t)(slots <= 4 ? 4 : slots) * sizeof(*args));
-        const VmSignature *parameters = callee != NULL ?
-            vm_signature(frame->vm, owner, callee) : NULL;
+        const VmSignature *parameters = vm_signature(frame->vm, owner, callee);
         for(int child = expression->first_child; child >= 0;
             child = frame->function->exprs[child].next_sibling) {
             int position = frame->function->exprs[child].argument_index;
@@ -1444,27 +1460,9 @@ eval(Frame *frame, int index, int depth)
             used |= (uint64_t)1 << position;
             count++;
         }
-        if(!frame->vm->failed) {
-            if(external != NULL) {
-                /* Allocated only here: a whole ZirFunction per expression
-                 * level made every nested call cost kilobytes. */
-                ZirFunction *signature = AllocateOrExit(sizeof(*signature));
-                memset(signature, 0, sizeof(*signature));
-                copy_text(signature->name, sizeof(signature->name),
-                          external->name);
-                signature->args_text = KeepParameters(external->args);
-                copy_text(signature->return_type,
-                          sizeof(signature->return_type),
-                          external->return_type);
-                signature->is_extern = 1;
-                signature->span = external->span;
-                value = run_function(frame->vm, frame->module,
-                                     signature, args, count);
-                free(signature);
-            } else {
-                value = run_function(frame->vm, owner, callee, args, count);
-            }
-        }
+        if(!frame->vm->failed)
+            value = run_function(frame->vm, owner, callee, args, count);
+        free(external_signature);
         if(args != few)
             free(args);
         break;

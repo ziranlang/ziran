@@ -22,12 +22,18 @@ Packet :: struct {
     label: string
     tone: Tone
 }
+State :: struct { values: [2]s32; }
 EOF
 cat > "$work/record_host.zi" <<'EOF'
 host_api :: #system_library "host_api";
 #import "shapes"
 TransformHost :: (packet: Packet) -> Packet #foreign host_api;
 SumSliceHost :: (points: []Point) -> s32 #foreign host_api;
+ObserveHost :: (state: State, amount: s32) -> s32 #foreign host_api;
+MutateState :: (values: []s32) -> s32 {
+    values[0] = 99
+    return 1
+}
 #program_export
 Answer :: () -> s32 {
     using Tone;
@@ -45,6 +51,10 @@ Answer :: () -> s32 {
     points[1] = transformed.point
     view: []Point = points[0:2]
     if SumSliceHost(view) != 49 { return 0 }
+    state: State
+    state.values[0] = 10
+    values := state.values[:]
+    if ObserveHost(state, MutateState(values)) != 101 { return 0 }
     return 42
 }
 EOF
@@ -86,6 +96,9 @@ int32_t SumSliceHost(Slice view) {
         total += points[i].x + points[i].y;
     return (int32_t)total;
 }
+int32_t ObserveHost(State state, int32_t amount) {
+    return state.values[0] * 10 + amount;
+}
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$output" -I"$include" \
@@ -106,6 +119,9 @@ extern "C" int32_t SumSliceHost(Slice view) {
     for(int64_t i = 0; i < view.length; i++)
         total += points[i].x + points[i].y;
     return static_cast<int32_t>(total);
+}
+extern "C" int32_t ObserveHost(State state, int32_t amount) {
+    return state.values[0] * 10 + amount;
 }
 int main() { return Answer() == 42 ? 0 : 1; }
 CPP
@@ -129,6 +145,9 @@ func (testHost) SumSliceHost(points []Point) int32 {
         total += int64(p.X + p.Y)
     }
     return int32(total)
+}
+func (testHost) ObserveHost(state State, amount int32) int32 {
+    return state.Values[0] * 10 + amount
 }
 func init() { SetRecordHostHost(testHost{}) }
 GO

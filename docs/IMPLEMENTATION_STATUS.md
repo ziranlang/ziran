@@ -248,6 +248,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   on C, C++ and the portable VM. `tests/go_method_exports.sh` checks native
   interface dispatch, mutation, failure paths and rejected method metadata.
 
+- Typed Go `bind` bindings capture leading procedure arguments and return a
+  checked procedure for the remaining arguments. Native Go closures preserve
+  captured values, shared pointer/slice storage, result records, errors and
+  panic identity, including fully bound and void procedures. Source and saved
+  IR validate parameter and return types and reject owned vectors and C
+  callbacks. `tests/go_bind.sh` checks native execution, imported signatures,
+  nil callbacks, declaration text independence and target reachability.
+
 - Typed Go `assert` bindings retain native interface checks, zero values on
   failure, typed nils and shared pointer/slice storage. Typed `spawn` bindings
   start capture-free Ziran callbacks in native Go goroutines, capture arguments

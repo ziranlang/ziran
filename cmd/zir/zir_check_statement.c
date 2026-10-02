@@ -301,6 +301,53 @@ check_go_callback(const ZirModule *module, const ZirImport *binding,
     return valid;
 }
 
+/* Bind leading arguments by value and return a typed native Go closure. */
+static int
+check_go_bind(const ZirModule *module, const ZirImport *binding,
+              char parameters[][ZIR_TEXT_MAX], int count)
+{
+    if(count < 2 || binding->go_results || binding->go_field ||
+       binding->go_defer || binding->go_variadic || binding->is_varargs)
+        return 0;
+    const char *colon = strchr(parameters[0], ':');
+    const ZirModule *input_owner = NULL, *output_owner = NULL;
+    const ZirType *input = colon ? FindType(module, skip_ws(colon + 1), &input_owner) : NULL;
+    const ZirType *output = FindType(module, binding->return_type, &output_owner);
+    if(!input || !output || !input->is_procedure_type || !output->is_procedure_type ||
+       input->is_c_call || output->is_c_call)
+        return 0;
+    if(!input_owner) input_owner = module;
+    if(!output_owner) output_owner = module;
+    if(!go_callback_type_equal(input_owner, input->procedure_return_type,
+                               output_owner, output->procedure_return_type, 0) ||
+       go_getter_contains_owned(input_owner, input->procedure_return_type, 0))
+        return 0;
+    char (*input_args)[ZIR_TEXT_MAX] = calloc(64, sizeof(*input_args));
+    char (*output_args)[ZIR_TEXT_MAX] = calloc(64, sizeof(*output_args));
+    if(!input_args || !output_args) {
+        free(input_args);
+        free(output_args);
+        return 0;
+    }
+    int input_count = *skip_ws(input->body) ?
+        split_top_level(input->body, input_args[0], 64, ZIR_TEXT_MAX) : 0;
+    int output_count = *skip_ws(output->body) ?
+        split_top_level(output->body, output_args[0], 64, ZIR_TEXT_MAX) : 0;
+    int captures = count - 1;
+    int valid = input_count == captures + output_count;
+    for(int i = 0; i < input_count && valid; i++) {
+        const char *declared = strchr(input_args[i], ':');
+        const char *supplied = strchr(i < captures ? parameters[i + 1] : output_args[i - captures], ':');
+        valid = declared && supplied &&
+            go_callback_type_equal(input_owner, skip_ws(declared + 1),
+                i < captures ? module : output_owner, skip_ws(supplied + 1), 0) &&
+            !go_getter_contains_owned(input_owner, skip_ws(declared + 1), 0);
+    }
+    free(input_args);
+    free(output_args);
+    return valid;
+}
+
 /* Values that cross into Python: scalars, text, bytes, Python objects, and
  * procedures, which Python calls back with converted arguments. */
 static int
@@ -558,6 +605,8 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
         }
         if(!strcmp(symbol, "call"))
             allocation = check_go_callback(module, binding, parameters, count);
+        if(!strcmp(symbol, "bind"))
+            allocation = check_go_bind(module, binding, parameters, count);
         if(!strcmp(symbol, "spawn"))
             allocation = !strcmp(result, "void") &&
                          check_go_callback(module, binding, parameters, count);
@@ -581,7 +630,7 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             }
         }
         if(!allocation) {
-            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append, is_nil, panic, call, spawn or assert signature");
+            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append, is_nil, panic, call, bind, spawn or assert signature");
             return 0;
         }
     }

@@ -333,6 +333,24 @@ when cleanup needs to observe a value changed later in the calling function.
 Checked IR retains the typed callback and the schedule independently of the
 declaration's diagnostic source text.
 
+Typed `go:builtin` `bind` declarations capture one or more leading procedure
+arguments and return a procedure for the remaining arguments. The first
+parameter is the full procedure type; subsequent parameters match its leading
+parameters. The returned procedure matches its remaining parameters and result.
+Captured values are copied when binding, so pointers retain shared storage while
+later replacement of a value does not alter the capture. Binding never invokes
+the procedure; native errors, slices and panic values retain their identity.
+Captured parameters, remaining parameters and results cannot contain owned
+vectors. C callback types are rejected. These signatures are checked in both
+source and saved IR.
+
+```jai
+builtin :: #system_library "go:builtin";
+Full :: #type (count: *s64, amount: s64) -> s64;
+Bound :: #type (amount: s64) -> s64;
+Bind :: (callback: Full, count: *s64) -> Bound #foreign builtin "bind";
+```
+
 Typed `go:builtin` `spawn` declarations start the first procedure argument in
 a native Go goroutine with the remaining arguments. The callback and binding
 must return `void`; their parameter types must match and cannot contain owned

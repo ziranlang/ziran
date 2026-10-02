@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Foreign types, maps, and Python natives exist only on their own target;
+/* Foreign types, imports, and maps exist only on their own target;
  * allowed_prefix ("go:" or "py:") keeps the current target's natives. */
 int
 RejectForeignTypesExcept(const ZirProgram *program, const char *allowed_prefix)
@@ -35,11 +35,15 @@ RejectForeignTypesExcept(const ZirProgram *program, const char *allowed_prefix)
                 return 0;
             }
         }
-        for(int i = 0; i < module->import_count && !python; i++) {
+        for(int i = 0; i < module->import_count; i++) {
             const ZirImport *import = &module->imports[i];
-            if(import->kind == ZIR_IMPORT_EXTERN && import->extern_kind == ZIR_EXTERN_PY) {
+            if(import->kind == ZIR_IMPORT_EXTERN &&
+               ((import->extern_kind == ZIR_EXTERN_PY && !python) ||
+                (import->extern_kind == ZIR_EXTERN_GO && !go))) {
                 Diagnostic(import->span, "check.foreign",
-                           "Python foreign imports require the Python target: %s",
+                           "%s foreign imports require the %s target: %s",
+                           import->extern_kind == ZIR_EXTERN_PY ? "Python" : "Go",
+                           import->extern_kind == ZIR_EXTERN_PY ? "Python" : "Go",
                            import->name);
                 return 0;
             }

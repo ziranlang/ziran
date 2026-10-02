@@ -397,7 +397,7 @@ for form in source saved; do
     "$output/run"
 done
 
-# Indexed record writes must preserve every field and the assigned value.
+# Fixed-array and Vec record writes must preserve every assigned field.
 "$ziran" ir --root "$repo/tests/spec" -o "$work/record-ir" \
     "$repo/tests/spec/plan9_record_array_test.zi"
 for form in source saved; do
@@ -409,4 +409,32 @@ for form in source saved; do
     "${CC:-cc}" -std=c11 -Dprint=printf -include stdio.h -I"$work/plan9-include" -I"$output" \
         "$output"/*.c "$work/fake-plan9-exits.c" -o "$output/run"
     "$output/run"
+done
+
+# Indexed Vec stores must still trap negative and upper-bound indices,
+# including an empty vector.
+cat > "$work/vec-bounds-runner.c" <<'EOF'
+#include "zir_plan9_runtime.h"
+int main(int argc, char **argv) {
+    int values[2] = {0, 0};
+    int64_t index = 0, count = 2;
+    if(argc > 1) {
+        if(argv[1][0] == 'n') index = -1;
+        else if(argv[1][0] == 'u') index = 2;
+        else if(argv[1][0] == 'e') count = 0;
+    }
+    ZIRAN_VEC_INDEX(values, count, index) = 17;
+    return values[0] == 17 ? 0 : 1;
+}
+EOF
+"${CC:-cc}" -std=c11 -I"$work/plan9-include" -I"$work/record-source" \
+    "$work/vec-bounds-runner.c" "$work/fake-plan9-exits.c" -o "$work/vec-bounds-runner"
+"$work/vec-bounds-runner"
+ulimit -c 0
+for invalid in negative upper empty; do
+    if "$work/vec-bounds-runner" "$invalid" > "$work/vec-bounds-$invalid.log" 2>&1; then
+        echo "plan9-c accepted an invalid $invalid Vec index" >&2
+        exit 1
+    fi
+    rg -q 'Vec index .* out of bounds' "$work/vec-bounds-$invalid.log"
 done

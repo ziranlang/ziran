@@ -1,10 +1,43 @@
+using Vectors :: #import "std/vec";
+
 Entry :: struct { key: u64; label: string; disabled: bool; closeable: bool; }
+Label :: struct { offset: s64; length: s64; key: u64; }
+Group :: struct { labels: Vec(Label); }
 
 CheckSlice :: (entries: []Entry) -> bool {
     return entries.count == 2 && entries[0].key == cast(u64)1500 &&
         entries[1].key == cast(u64)1501 && entries[0].label == "first" &&
         entries[1].label == "second" && !entries[0].disabled && entries[0].closeable &&
         !entries[1].disabled && entries[1].closeable
+}
+
+CheckVectors :: () -> bool {
+    groups: [2]Group
+    defer VecFree(groups[0].labels)
+    defer VecFree(groups[1].labels)
+    for slot: cast(s32)0..cast(s32)1 {
+        for index: cast(s32)0..cast(s32)2 {
+            if !VecPush(groups[slot].labels, Label.{}) { return false }
+            value := ifx index == 0 then "first" else "second"
+            groups[slot].labels[index].offset = cast(s64)(100 + slot * 10 + index)
+            groups[slot].labels[index].length = value.count
+            groups[slot].labels[index].key = cast(u64)(1500 + slot * 10 + index)
+        }
+    }
+    for slot: cast(s32)0..cast(s32)1 {
+        for index: cast(s32)0..cast(s32)2 {
+            expected := ifx index == 0 then 5 else 6
+            if groups[slot].labels[index].offset != cast(s64)(100 + slot * 10 + index) ||
+                groups[slot].labels[index].length != expected ||
+                groups[slot].labels[index].key != cast(u64)(1500 + slot * 10 + index) {
+                print("indexed vector record [%][%]: offset %, length %, key %\n",
+                    slot, index, groups[slot].labels[index].offset,
+                    groups[slot].labels[index].length, groups[slot].labels[index].key)
+                return false
+            }
+        }
+    }
+    return true
 }
 
 #program_export
@@ -25,6 +58,7 @@ main :: () -> s32 {
     if !CheckSlice(entries[:]) { return 3 }
     if wide[0] != cast(u64)1500 || wide[1] != cast(u64)1501 { return 4 }
     if numbers[0] != 420 || numbers[1] != 421 { return 5 }
+    if !CheckVectors() { return 6 }
     print("plan9-record-array-test-ok\n")
     return 0
 }

@@ -19,6 +19,7 @@
  */
 #include "zir_c_plan9.h"
 #include "zir.h"
+#include "zir_emit.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -53,6 +54,7 @@ c_plan9_set_enabled(int enabled)
 {
     plan9_enabled = enabled;
     unresolved_count = 0;
+    EmitUseSeparateIndexedStores(enabled);
 }
 
 int

@@ -1,11 +1,18 @@
 #include "zir_emit_internal.h"
 
 int zir_minify_output;
+static int separate_indexed_stores;
 
 void
 EmitUseMinifiedOutput(int enabled)
 {
     zir_minify_output = enabled != 0;
+}
+
+void
+EmitUseSeparateIndexedStores(int enabled)
+{
+    separate_indexed_stores = enabled != 0;
 }
 
 int
@@ -69,6 +76,19 @@ assign_value(Emitter *e, const char *destination, const char *type, const char *
 {
     char plain[ZIR_TEXT_MAX];
     source = bare(source, plain, sizeof(plain));
+    if(separate_indexed_stores && e->target == ZIR_C && width(canonical(type)) &&
+       (strstr(destination, "ZIRAN_INDEX(") ||
+        strstr(destination, "ZIRAN_VEC_INDEX("))) {
+        /* 8c can lose a pending scalar when an indexed destination calls a
+         * bounds helper, including helpers introduced for wide comparisons.
+         * Capture the address after emitted RHS calls, before the store. */
+        char place[ZIR_NAME_MAX];
+        fresh(e, place);
+        line(e, "%s *%s = &(%s);", TargetType(canonical(type), ZIR_C),
+             place, destination);
+        line(e, "*%s = %s;", place, source);
+        return;
+    }
     if(ArrayElementType(type, NULL, 0, NULL) &&
        (e->target == ZIR_C || e->target == ZIR_CPP)) {
         line(e, "memmove(%s, %s, sizeof(%s));", destination, source, destination);

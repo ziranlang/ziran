@@ -908,12 +908,14 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
     EmitStringType(h);
     for(i = 0; i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];
-        if(!imp->required)
-            continue;   /* private-scope imports go to the .cpp only */
+        int use = NativeHeaderImportUse(m, imp);
+        if(!use) continue;
+        if(use == 2) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
         if(imp->kind == ZIR_IMPORT_OPEN) {
             fprintf(h, "#include \"%s.hpp\"\n", imp->target);
         } else if(imp->kind == ZIR_IMPORT_MODULE)
             fprintf(h, "#include \"%s.hpp\"\n", imp->target);
+        if(use == 2) fputs("#endif\n", h);
     }
     /* Generated decls keep C linkage; includes above guard themselves. */
     fprintf(h, "\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n");
@@ -933,7 +935,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         const ZirType *slot = &m->types[i];
         if(!slot->is_procedure_type || !slot->is_c_call)
             continue;
+        if(!slot->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
         EmitSlotType(h, slot, ZIR_CPP, resolve_slot_type, (void *)m);
+        if(!slot->is_public) fputs("#endif\n", h);
     }
     for(i = 0; i < m->type_count; i++) {
         const ZirType *ty = &m->types[i];
@@ -964,7 +968,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         const ZirType *slot = &m->types[i];
         if(!slot->is_procedure_type || slot->is_c_call)
             continue;
+        if(!slot->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
         EmitSlotType(h, slot, ZIR_CPP, resolve_slot_type, (void *)m);
+        if(!slot->is_public) fputs("#endif\n", h);
     }
     for(i = 0; i < m->type_count; i++) {
         const ZirType *ty = &m->types[i];

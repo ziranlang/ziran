@@ -133,6 +133,84 @@ TypeHasZeroArray(const ZirModule *module, const char *type)
     return type_has_zero_array(module, type, 0);
 }
 
+static int
+header_type_uses_import(const ZirModule *module, const char *type,
+                        const ZirImport *import)
+{
+    if(type == NULL || import->resolved_module == NULL) return 0;
+    char base[ZIR_NAME_MAX];
+    copy_text(base, sizeof(base), type);
+    for(int depth = 0; depth < 64; depth++) {
+        char element[ZIR_NAME_MAX];
+        if(ArrayElementType(base, element, sizeof(element), NULL) ||
+           SliceElementType(base, element, sizeof(element))) {
+            copy_text(base, sizeof(base), element);
+            continue;
+        }
+        if(base[0] == '*') {
+            memmove(base, base + 1, strlen(base));
+            continue;
+        }
+        break;
+    }
+    const ZirModule *owner = NULL;
+    return FindType(module, base, &owner) != NULL &&
+           owner == import->resolved_module;
+}
+
+static int
+header_parameters_use_import(const ZirModule *module, const char *args,
+                              const ZirImport *import)
+{
+    const ZirParameters *parameters = ParametersOf(args);
+    for(int index = 0; index < parameters->count; index++)
+        if(header_type_uses_import(module, parameters->items[index].type, import))
+            return 1;
+    return 0;
+}
+
+int
+NativeHeaderImportUse(const ZirModule *module, const ZirImport *import)
+{
+    if(import->kind != ZIR_IMPORT_OPEN && import->kind != ZIR_IMPORT_MODULE)
+        return 0;
+    if(import->required) return 1;
+    int private_use = 0;
+    for(int index = 0; index < module->type_count; index++) {
+        const ZirType *type = &module->types[index];
+        if(type->is_extern || type->is_enum || type->is_record_template) continue;
+        int used = 0;
+        if(type->is_procedure_type) {
+            used = header_type_uses_import(module, type->procedure_return_type, import) ||
+                   header_parameters_use_import(module, type->body, import);
+        } else {
+            size_t offset = 0;
+            ZirTypeField field;
+            while(TypeNextField(type, &offset, &field) == 1)
+                if(header_type_uses_import(module, field.type, import)) { used = 1; break; }
+        }
+        if(used && type->is_public) return 1;
+        if(used) private_use = 1;
+    }
+    for(int index = 0; index < module->function_count; index++) {
+        const ZirFunction *function = &module->functions[index];
+        if(function->is_template || !function->is_public) continue;
+        if(header_type_uses_import(module, function->return_type, import) ||
+           header_parameters_use_import(module, FunctionArgs(function), import)) return 1;
+    }
+    for(int index = 0; index < module->global_count; index++) {
+        const ZirGlobal *global = &module->globals[index];
+        if(!global->is_static && header_type_uses_import(module, global->type, import)) return 1;
+    }
+    for(int index = 0; index < module->import_count; index++) {
+        const ZirImport *foreign = &module->imports[index];
+        if(foreign->kind != ZIR_IMPORT_EXTERN || !foreign->is_public) continue;
+        if(header_type_uses_import(module, foreign->return_type, import) ||
+           header_parameters_use_import(module, foreign->args, import)) return 1;
+    }
+    return private_use ? 2 : 0;
+}
+
 int
 ModuleUsesSlices(const ZirModule *module)
 {
@@ -1049,6 +1127,29 @@ void EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
                 ZirResolveTarget resolve_type, void *context);
 
 static void
+slot_type_at_use(const char *source, ZirTarget target,
+                  ZirResolveTarget resolve_type, void *context,
+                  char *out, size_t size)
+{
+    const char *base = source;
+    while(*base == '*' || *base == '[') {
+        if(*base == '*') base = skip_ws(base + 1);
+        else {
+            const char *close = strchr(base, ']');
+            if(close == NULL) break;
+            base = skip_ws(close + 1);
+        }
+    }
+    if(resolve_type && strchr(base, '.') != NULL) {
+        char resolved[ZIR_NAME_MAX], canonical[ZIR_NAME_MAX * 2];
+        resolve_type(context, base, resolved, sizeof(resolved));
+        format(canonical, sizeof(canonical), "%.*s%s",
+               (int)(base - source), source, resolved);
+        slot_native_type(canonical, target, out, size);
+    } else slot_native_type(source, target, out, size);
+}
+
+static void
 EmitSlotType_with_buffers(FILE *out, const ZirType *slot, ZirTarget target,
                 ZirResolveTarget resolve_type, void *context, EmitSlotTypeBuffers *buffers)
 {
@@ -1060,13 +1161,13 @@ EmitSlotType_with_buffers(FILE *out, const ZirType *slot, ZirTarget target,
         split_top_level(slot->body, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
     if(slot->is_c_call) {
         char result[ZIR_NAME_MAX];
-        slot_native_type(slot->procedure_return_type, target, result,
-                         sizeof(result));
+        slot_type_at_use(slot->procedure_return_type, target, resolve_type,
+                          context, result, sizeof(result));
         fprintf(out, "typedef %s (*%s)(", result, name);
         for(int i = 0; i < count; i++) {
             const char *source = skip_ws(strchr(buffers->parameters[i], ':') + 1);
             char type[ZIR_NAME_MAX];
-            slot_native_type(source, target, type, sizeof(type));
+            slot_type_at_use(source, target, resolve_type, context, type, sizeof(type));
             fprintf(out, "%s%s", i ? ", " : "", type);
         }
         fprintf(out, "%s);\n", count ? "" : "void");

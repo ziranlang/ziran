@@ -726,6 +726,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   fields, and stored types no longer pass checking merely because a C header
   was imported. Downstream C-backed modules that used header imports require
   source migration.
+- Native C, C++, and Plan 9 C headers include imported modules when their types
+  appear in exported records, callbacks, or procedure signatures, including
+  arrays and pointers. Imports used only by private record and callback types
+  stay under the generated private guard; implementation-only imports stay in
+  the implementation file. `#c_call` callback parameters and results resolve
+  imported type aliases in their declaring module. Source and saved IR are
+  covered by `tests/private_module_imports.sh`.
 - Module inputs accept `.zi` source and `.zir` IR only; `.kry`, `.kir`, and
   `.krb` are rejected by the shared loader. Kryon owns the UI test fixtures;
   Ziran keeps a non-UI array and UTF-8 byte law fixture that runs from source

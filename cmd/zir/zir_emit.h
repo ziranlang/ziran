@@ -54,6 +54,9 @@ void EmitGlobalSlotWrappers(FILE *out, const ZirModule *module,
 /* C/C++ private ABI names and source-shaped arguments for array values. */
 int ArrayValueType(const char *type);
 int ModuleUsesSlices(const ZirModule *module);
+/* 1: public header types need this import, 2: only private header types do,
+ * 0: implementation-only. Source visibility does not change. */
+int NativeHeaderImportUse(const ZirModule *module, const ZirImport *import);
 int ModuleUsesVecOperations(const ZirModule *module);
 void TargetBindingName(const ZirFunction *fn, ZirTarget target,
                        const char *name, char *out, size_t size);

@@ -278,6 +278,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   strict cgo pointer checking, no-cgo execution, invalid ABI/header declarations,
   declaration-text independence and portable entry pruning.
 
+- Native Go `init` bindings preserve package initialization before generated
+  globals, once per imported package. Blank imports share package identity with
+  named function and type imports. Source and saved IR validate the nullary
+  void signature and preserve initializer metadata independently of declaration
+  text. Go executable entries now have generated provenance and tracked output
+  ownership. `tests/go_package_init.sh` checks initialization order, repeated
+  calls, import deduplication, no-cgo execution, entry pruning and stale entries.
+
 - Foreign slice returns resolve generic element types after linking and type
   normalization. Native Go `make` and `append` can return `[]Map(string, Any)`
   and slices of imported generic records without declaration-order failures.

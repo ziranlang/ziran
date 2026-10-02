@@ -487,6 +487,17 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             return 0;
         }
     }
+    if(strncmp(package, "C/", 2) && !strcmp(symbol, "init")) {
+        int valid = strcmp(package, "builtin") && strcmp(package, "C") &&
+            !receiver[0] && count == 0 && !strcmp(binding->return_type, "void") &&
+            !binding->go_results && !binding->go_field && !binding->go_defer &&
+            !binding->go_variadic && !binding->is_varargs;
+        if(!valid) {
+            Diagnostic(binding->span, "check.foreign",
+                "Go package initialization requires a nullary void binding without modifiers or a receiver");
+            return 0;
+        }
+    }
     if(binding->go_variadic) {
         const char *colon = count > 0 ? strchr(parameters[count - 1], ':') : NULL;
         const char *last = colon ? skip_ws(colon + 1) : "";

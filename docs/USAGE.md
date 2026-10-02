@@ -174,6 +174,24 @@ TrimSpace :: (value: string) -> string #foreign strings "TrimSpace";
 The Go target emits a direct package call. These declarations remain Go
 imports in saved `.zir`; they are not portable host capabilities.
 
+To require a package for its native initialization, bind its `init` symbol as a
+nullary void procedure:
+
+```ziran
+driver :: #system_library "go:example.org/database/driver";
+Initialize :: () #foreign driver "init";
+```
+
+The generated Go import runs the package's initialization once, before the
+generated package's globals. The binding's call then has no work to repeat.
+If no types or functions need a named import, the compiler emits a blank import.
+Initialization bindings accept no receiver, parameters, results or modifiers.
+Keep a call on the entry's dependency path when generating a pruned executable.
+
+Generated Go executable entries carry the same provenance header and output
+ownership as other generated files. `--prune-stale` removes an old entry when
+the output directory is later generated with `--no-main`.
+
 ### Foreign Go types
 
 Declare an opaque Go type alongside the package's foreign procedures:

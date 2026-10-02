@@ -390,6 +390,13 @@ go_builtin_cgo_enabled(const ZirGoExtern *binding)
 }
 
 static int
+go_package_initializer(const ZirGoExtern *binding)
+{
+    return binding->direct_go && !binding->direct_c && !binding->go_receiver[0] &&
+           strcmp(binding->go_import_path, "builtin") && !strcmp(binding->go, "init");
+}
+
+static int
 go_builtin_assertion(const ZirGoExtern *binding)
 {
     return binding->direct_go && !binding->go_receiver[0] &&
@@ -1064,7 +1071,8 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
                        go_builtin_method(&g_externs[xi]) || go_builtin_callback(&g_externs[xi]) ||
                        go_builtin_assertion(&g_externs[xi]) || go_builtin_nil_check(&g_externs[xi]) ||
                        go_builtin_bind(&g_externs[xi]) || go_builtin_retain(&g_externs[xi]) ||
-                       go_builtin_cgo_enabled(&g_externs[xi])) {
+                       go_builtin_cgo_enabled(&g_externs[xi]) ||
+                       go_package_initializer(&g_externs[xi])) {
                         char name[ZIR_GO_NAME_MAX];
                         camel_ident(g_externs[xi].source, name, sizeof(name));
                         dn += (size_t)snprintf(dst + dn, ZIR_GO_TEXT_MAX - dn, "%s_%s(", g_guard, name);
@@ -1860,7 +1868,8 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
         if(!binding->go_results && !binding->go_field && !binding->go_variadic && !go_builtin_method(binding) &&
            !go_builtin_callback(binding) && !go_builtin_assertion(binding) &&
            !go_builtin_nil_check(binding) && !go_builtin_bind(binding) &&
-           !go_builtin_retain(binding) && !go_builtin_cgo_enabled(binding)) continue;
+           !go_builtin_retain(binding) && !go_builtin_cgo_enabled(binding) &&
+           !go_package_initializer(binding)) continue;
         char result_type[ZIR_GO_NAME_MAX] = "", name[ZIR_GO_NAME_MAX];
         const ZirType *record = FindType(module, binding->ret, NULL);
         if(strcmp(binding->ret, "void"))
@@ -1874,6 +1883,10 @@ emit_go_foreign_adapters(FILE *out, const ZirModule *module)
             fprintf(out, "%s%s %s", p ? ", " : "", parameter, type);
         }
         fprintf(out, ") %s {\n", result_type);
+        if(go_package_initializer(binding)) {
+            fputs("\t// Native Go imports initialize the package before this package starts.\n}\n\n", out);
+            continue;
+        }
         if(go_builtin_cgo_enabled(binding)) {
             fputs("\treturn zirGoCgoEnabled\n}\n\n", out);
             continue;
@@ -2129,11 +2142,12 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
             for(int i = 0; i < g_extern_count && import_count < 64; i++) {
                 int duplicate = 0;
                 if(!g_externs[i].direct_go || g_externs[i].c_header[0] ||
+                   go_package_initializer(&g_externs[i]) ||
                    (g_externs[i].go_field && g_externs[i].go_receiver[0]) ||
                    !strcmp(g_externs[i].go_import_path, "builtin"))
                     continue;
                 for(int j = 0; j < i; j++) {
-                    if(g_externs[j].direct_go &&
+                    if(g_externs[j].direct_go && !go_package_initializer(&g_externs[j]) &&
                        (!g_externs[j].go_field || !g_externs[j].go_receiver[0]) &&
                        strcmp(g_externs[j].go_import_path,
                               g_externs[i].go_import_path) == 0) {
@@ -2170,6 +2184,21 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     }
                     copy_text(buffers->imports[import_count++], sizeof(buffers->imports[0]), declaration);
                 }
+            }
+            for(int i = 0; i < g_extern_count; i++) {
+                const ZirGoExtern *binding = &g_externs[i];
+                if(!go_package_initializer(binding)) continue;
+                char quoted[ZIR_PATH_MAX + 4];
+                snprintf(quoted, sizeof(quoted), "\"%s\"", binding->go_import_path);
+                int duplicate = 0;
+                for(int j = 0; j < import_count; j++)
+                    if(strstr(buffers->imports[j], quoted)) duplicate = 1;
+                if(duplicate) continue;
+                if(import_count == 64) {
+                    Diagnostic(m->span, "zir_go.import", "too many Go imports");
+                    return 1;
+                }
+                snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "_ %s", quoted);
             }
             if(import_count == 1)
                 fprintf(f, "import %s\n\n", buffers->imports[0]);

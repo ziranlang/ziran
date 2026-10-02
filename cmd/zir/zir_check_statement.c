@@ -455,6 +455,8 @@ check_py_binding(const ZirModule *module, const ZirImport *binding,
     return 1;
 }
 
+static int go_c_abi_type(const ZirModule *module, const char *source, int allow_void);
+
 static int
 check_go_binding(const ZirModule *module, const ZirImport *binding,
                   char parameters[][ZIR_TEXT_MAX])
@@ -469,6 +471,22 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
     }
     int count = *skip_ws(binding->args) ?
         split_top_level(binding->args, parameters[0], 64, ZIR_TEXT_MAX) : 0;
+    if(!strncmp(package, "C/", 2)) {
+        int valid = GoCHeader(package, NULL, 0) && !binding->go_results &&
+            !binding->go_variadic && !binding->is_varargs &&
+            (!receiver[0] || binding->go_field) &&
+            (go_c_abi_type(module, binding->return_type, 1) ||
+             (binding->go_field && !receiver[0] && !strcmp(binding->return_type, "string")));
+        for(int i = 0; valid && i < count; i++) {
+            const char *colon = strchr(parameters[i], ':');
+            valid = colon && go_c_abi_type(module, skip_ws(colon + 1), 0);
+        }
+        if(!valid) {
+            Diagnostic(binding->span, "check.foreign",
+                "cgo header bindings require a relative header path and scalar or C-pointer ABI types without result packing, variadics or methods");
+            return 0;
+        }
+    }
     if(binding->go_variadic) {
         const char *colon = count > 0 ? strchr(parameters[count - 1], ':') : NULL;
         const char *last = colon ? skip_ws(colon + 1) : "";
@@ -617,6 +635,10 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
                 local_storage_error(module, value) == NULL &&
                 !go_getter_contains_owned(module, value, 0);
         }
+        if(!strcmp(symbol, "cgo_enabled"))
+            allocation = count == 0 && !strcmp(result, "bool") &&
+                !binding->go_results && !binding->go_field && !binding->go_defer &&
+                !binding->go_variadic && !binding->is_varargs;
         if(!strcmp(symbol, "spawn"))
             allocation = !strcmp(result, "void") &&
                          check_go_callback(module, binding, parameters, count);
@@ -640,11 +662,25 @@ check_go_binding(const ZirModule *module, const ZirImport *binding,
             }
         }
         if(!allocation) {
-            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append, is_nil, panic, call, bind, retain, spawn or assert signature");
+            Diagnostic(binding->span, "check.foreign", "Go builtin requires a valid new, make, string, len, append, is_nil, panic, call, bind, retain, cgo_enabled, spawn or assert signature");
             return 0;
         }
     }
     return 1;
+}
+
+static int
+go_c_abi_type(const ZirModule *module, const char *source, int allow_void)
+{
+    int depth = 0;
+    while(*source == '*') { depth++; source++; }
+    if(!strcmp(source, "void")) return depth || allow_void;
+    if(!strcmp(source, "bool") || !strcmp(source, "char") ||
+       integer_type(source) || !strcmp(source, "float32") || !strcmp(source, "float64")) return 1;
+    const ZirType *type = FindType(module, source, NULL);
+    char package[ZIR_PATH_MAX];
+    return depth && type && GoForeignCallParts(type->foreign_target, package,
+        sizeof(package), NULL, 0, NULL, 0) && GoCHeader(package, NULL, 0);
 }
 
 static int
@@ -829,6 +865,15 @@ check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuf
         if(!check_go_binding(module, &module->imports[i], buffers->parameters_2) ||
            !check_py_binding(module, &module->imports[i], buffers->parameters_2))
             return 0;
+    }
+    for(int i = 0; i < module->type_count; i++) {
+        char package[ZIR_PATH_MAX];
+        const ZirType *type = &module->types[i];
+        if(GoForeignCallParts(type->foreign_target, package, sizeof(package), NULL, 0, NULL, 0) &&
+           !strncmp(package, "C/", 2)) {
+            if(!GoCHeader(package, NULL, 0))
+                return record_declaration_error(type, "invalid relative cgo header path", NULL);
+        }
     }
     return 1;
 }

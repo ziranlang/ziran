@@ -491,6 +491,7 @@ ZirExpr *FunctionAddExpr(ZirFunction *fn, ZirExprKind kind,
                             const char *text, ZirSourceSpan span);
 void ProgramDump(const ZirProgram *program, FILE *out);
 int GoForeignTargetValid(const char *target);
+int GoCHeader(const char *package, char *header, size_t header_size);
 int GoForeignCallParts(const char *target, char *package, size_t package_size,
                        char *receiver, size_t receiver_size,
                        char *symbol, size_t symbol_size);

@@ -268,6 +268,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   deadlines. `tests/go_assert_spawn.sh` checks source and saved IR, asynchronous
   startup, native identities, cancellation, panic cleanup and rejected bindings.
 
+- Native Go header bindings use `go:C/<relative-header>` and preserve the C
+  header's declared ABI and type layout. Scalar/pointer adapters, C field and
+  constant access, and deferred cleanup survive source and saved IR lowering.
+  Generated build-tag companions keep ordinary procedures available without
+  cgo; `go:builtin` `cgo_enabled` selects application fallback paths, while
+  direct unavailable C calls panic. `tests/go_c_headers.sh` checks native
+  allocation, pointer mutation, size_t, field setters, error/panic cleanup,
+  strict cgo pointer checking, no-cgo execution, invalid ABI/header declarations,
+  declaration-text independence and portable entry pruning.
+
 - Foreign slice returns resolve generic element types after linking and type
   normalization. Native Go `make` and `append` can return `[]Map(string, Any)`
   and slices of imported generic records without declaration-order failures.

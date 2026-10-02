@@ -78,6 +78,26 @@ int GoForeignTargetValid(const char *target)
     return compiler_type_GoTypeTarget(type_text(target));
 }
 
+int GoCHeader(const char *package, char *header, size_t header_size)
+{
+    if(strncmp(package, "C/", 2) || !package[2]) return 0;
+    const char *path = package + 2;
+    const char *segment = path;
+    for(const char *p = path; ; p++) {
+        if(*p == '/' || *p == '\0') {
+            size_t length = (size_t)(p - segment);
+            if(length == 0 || (length == 1 && segment[0] == '.') ||
+               (length == 2 && segment[0] == '.' && segment[1] == '.')) return 0;
+            if(!*p) break;
+            segment = p + 1;
+        } else if(!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+                    (*p >= '0' && *p <= '9') || *p == '_' || *p == '-' || *p == '.')) {
+            return 0;
+        }
+    }
+    return copy_part(header, header_size, type_text(path));
+}
+
 int PyForeignCallParts(const char *target, char *module, size_t module_size,
                       char *receiver, size_t receiver_size, char *symbol, size_t symbol_size)
 {

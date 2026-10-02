@@ -51,6 +51,36 @@ continue to call those packages directly. C ABI calls need `CGO_ENABLED=1`
 and a C compiler. `LDFLAGS` and `LDLIBS` are preserved in the cgo preamble.
 Slice, record and variadic C ABI parameters are rejected on Go; modules
 can wrap those APIs with scalar and pointer declarations.
+
+Go can also bind a C header directly with `go:C/<relative-header>`. The header
+supplies the function declarations and native type layout; generated adapters
+do not redeclare its ABI. For example:
+
+```ziran
+c :: #system_library "go:C/example/signature.h";
+builtin :: #system_library "go:builtin";
+Signature :: #type #foreign c "signature";
+New :: () -> *Signature #foreign c "signature_new";
+Length :: (value: *Signature) -> usize #go_field #foreign c "(*signature).length";
+FreeAtReturn :: (value: *Signature) #go_defer #foreign c "signature_free";
+NativeAvailable :: () -> bool #foreign builtin "cgo_enabled";
+```
+
+Header calls accept scalar values and pointers to scalars or declared C types.
+`#go_field` supports native fields and header constants; `#go_defer` preserves
+cleanup during returns and panic unwinding. Pass include and library paths to
+Go through `CGO_CFLAGS` and `CGO_LDFLAGS`, or preserve linker flags at generation
+through `LDFLAGS` and `LDLIBS`. Calls still obey cgo's pointer ownership rules.
+Header paths cannot be absolute or contain empty, `.` or `..` segments.
+
+Header bindings generate `.cgo.go` and `.nocgo.go` companions. Ordinary Ziran
+procedures remain available in either build. `cgo_enabled` reports the native
+build setting so application code can choose its unavailable path before a C
+call. With `CGO_ENABLED=0`, C pointer types are opaque and C calls panic instead
+of fabricating results. Build the generated Go package with `go build .` or
+`go run .`, which honor the build tags. Reachable header bindings and native
+availability checks require Go; pruning a portable entry can remove them.
+
 The Rust backend also preserves `LDFLAGS` and `LDLIBS` in its generated
 Cargo project. Python copies scalar pointer buffers into C storage for a
 call, preserves aliases within that call, and copies mutations back. Native

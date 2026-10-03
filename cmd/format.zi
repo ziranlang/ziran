@@ -1,4 +1,5 @@
 #import "format_source"
+Diagnostics :: #import "diagnostics"
 using Vectors :: #import "std/vec"
 #import "std/byte_text_linux"
 #import "std/c_string"
@@ -13,6 +14,7 @@ TemporaryFile :: (pattern: *u8) -> s32 #foreign libc "mkstemp";
 SetMode :: (fd: s32, mode: u32) -> s32 #foreign libc "fchmod";
 Stat :: (fd: s32, path: *u8, flags: s32, mask: u32,
     metadata: *FileMetadata) -> s32 #foreign libc "statx";
+Environment :: (name: *u8) -> *u8 #foreign libc "getenv";
 
 // Linux's statx ABI has a stable 32-byte prefix followed by 224 bytes of
 // attributes. Only file type and permissions are needed here.
@@ -29,6 +31,14 @@ FileMetadata :: struct {
 }
 
 Report :: (message: string, path: string) -> s32 {
+    if Diagnostics.IsJson() {
+        if path == "" { Diagnostics.Emit("command.arguments", message, path) }
+        else if message == "cannot replace: " { Diagnostics.Emit("format.output", message, path) }
+        else if message == "would reformat " { Diagnostics.Emit("format.changed", message, path) }
+        else if message == "out of memory: " { Diagnostics.Emit("compiler.memory", message, path) }
+        else { Diagnostics.Emit("format.input", message, path) }
+        return 1
+    }
     stderr: FileHandle = .{fd = 2, valid = true}
     // stderr may be a pipe, so use sequential writes rather than pwrite.
     bytes: [4096]u8
@@ -149,9 +159,28 @@ FormatFile :: (path: string, check: bool) -> s32 {
 main :: (argc: s32, argv: **u8) -> s32 {
     check: bool = false
     first: s32 = 1
-    if argc > 1 && TextFromCString(argv[1]) == "--check" { check = true; first += 1 }
+    name: [19]u8
+    CopyCString("ZIRAN_DIAGNOSTICS", name[:])
+    Diagnostics.SetFormat(TextFromCString(Environment(*name[0])))
+    for index: 1..cast(s64)argc - 1 {
+        argument := TextFromCString(argv[index])
+        if argument == "--" { break }
+        if argument == "--diagnostics=json" { Diagnostics.SetFormat("json") }
+        if argument == "--diagnostics=text" { Diagnostics.SetFormat("text") }
+    }
+    while first < argc {
+        argument := TextFromCString(argv[first])
+        if argument == "--check" { check = true }
+        else if argument == "--diagnostics=json" || argument == "--diagnostics=text" { }
+        else if argument == "--" { first += 1; break }
+        else if argument.count > 0 && argument[0] == #char "-" {
+            unused Report("unknown formatter option: ", "")
+            return 2
+        } else { break }
+        first += 1
+    }
     if first == argc {
-        unused Report("usage: zi-fmt [--check] file.zi [...]", "")
+        unused Report("usage: zi-fmt [--check] [--diagnostics=text|json] file.zi [...]", "")
         return 2
     }
     status: s32 = 0

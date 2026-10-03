@@ -255,34 +255,36 @@ int64_t
 compiler_text_GoFieldIdentifier(String source, Slice output)
 {
     int64_t used = compiler_text_CamelIdentifier(source, output);
-    Slice value_0 = output;
-    Slice value_1 = SliceRange(value_0, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
-    String name = StringView((const char *)(value_1).data, (size_t)(value_1).length);
     String replacement = StringLiteral("");
-    if (StringEqual(name, StringLiteral("Id"))) {
-        replacement = StringLiteral("ID");
-    } else if (StringEqual(name, StringLiteral("FocusId"))) {
-        replacement = StringLiteral("FocusID");
-    } else if (StringEqual(name, StringLiteral("MenuId"))) {
-        replacement = StringLiteral("MenuID");
-    } else if (StringEqual(name, StringLiteral("SelectedId"))) {
-        replacement = StringLiteral("SelectedID");
-    } else if (StringEqual(name, StringLiteral("ActivatedId"))) {
-        replacement = StringLiteral("ActivatedID");
-    } else if (StringEqual(name, StringLiteral("CanonicalUrl"))) {
-        replacement = StringLiteral("CanonicalURL");
+    {
+        Slice value_0 = output;
+        Slice value_1 = SliceRange(value_0, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
+        String name = StringView((const char *)(value_1).data, (size_t)(value_1).length);
+        if (StringEqual(name, StringLiteral("Id"))) {
+            replacement = StringLiteral("ID");
+        } else if (StringEqual(name, StringLiteral("FocusId"))) {
+            replacement = StringLiteral("FocusID");
+        } else if (StringEqual(name, StringLiteral("MenuId"))) {
+            replacement = StringLiteral("MenuID");
+        } else if (StringEqual(name, StringLiteral("SelectedId"))) {
+            replacement = StringLiteral("SelectedID");
+        } else if (StringEqual(name, StringLiteral("ActivatedId"))) {
+            replacement = StringLiteral("ActivatedID");
+        } else if (StringEqual(name, StringLiteral("CanonicalUrl"))) {
+            replacement = StringLiteral("CanonicalURL");
+        }
     }
     int64_t value_2 = (int64_t)(replacement).length;
     if (value_2 == 0LL) {
         return used;
     }
     {
-        int64_t range_first_24 = 0LL;
-        int64_t range_last_24 = (int64_t)((uint64_t)used - UINT64_C(1));
-        int64_t index = range_first_24;
-        while (index <= range_last_24) {
+        int64_t range_first_26 = 0LL;
+        int64_t range_last_26 = (int64_t)((uint64_t)used - UINT64_C(1));
+        int64_t index = range_first_26;
+        while (index <= range_last_26) {
             ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = (uint8_t)ZIRAN_INDEX(replacement.data, replacement.length, index);
-            if (index == range_last_24) {
+            if (index == range_last_26) {
                 break;
             }
             index = (int64_t)((uint64_t)index + UINT64_C(1));

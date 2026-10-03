@@ -19,6 +19,7 @@
  */
 #include "zir_c_plan9.h"
 #include "zir.h"
+#include "zir_diagnostic.h"
 #include "zir_emit.h"
 
 #include <ctype.h>
@@ -2056,7 +2057,7 @@ rewrite_integer_suffixes(char *line)
     const char *read;
     char *source = strdup(line);
     if(source == NULL) {
-        fprintf(stderr, "zi2c: no memory for Plan 9 integer lowering\n");
+        DiagnosticOutOfMemory();
         exit(1);
     }
 
@@ -2139,7 +2140,8 @@ rewrite_integer_suffixes(char *line)
                 size_t suffix = unsigned_suffix ? 3 : 2;
                 if((size_t)(write - line) + digits + suffix +
                    strlen(token_end) >= PLAN9_LINE_MAX) {
-                    fprintf(stderr, "zi2c: Plan 9 integer line too long\n");
+                    DiagnosticTarget((ZirSourceSpan){0}, "zir_c.plan9", "plan9-c", "lowering.integer",
+                                     "Plan 9 integer line too long");
                     free(source);
                     exit(1);
                 }

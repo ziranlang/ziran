@@ -21,6 +21,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/diagnostic_metadata.sh` checks the metadata and verifies that applying
   the suggested name edits produces a checked program. The VS Code extension
   shows related locations and offers Quick Fixes guarded by the original text.
+  Compiler tools, the native package launcher, and formatter honor JSON mode
+  before argument validation and report ordinary input/output, allocation,
+  and native toolchain failures through the versioned schema. Invalid UTF-8
+  filesystem/log bytes are escaped. Native C compilation drains captured
+  output even after its bounded log fills. `tests/tool_diagnostics.sh` covers
+  these failure paths and allocation-free out-of-memory reporting. Arbitrary
+  external package tools and fatal signals remain outside that transport.
 
 - The native `ziran` command, including its launcher and package child-process
   transport, and `zi-fmt` are implemented in Ziran. Their build compiles `.zi`
@@ -1089,8 +1096,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   parameters preserve the same backing identity. A `TextView` reached through
   an opaque local pointer is rejected when its backing lifetime cannot be
   proved; copying bytes into owned local storage provides an explicit lifetime.
-  Aliases between separate pointer parameters and arbitrary host-backed
-  storage still need a complete cross-target contract.
+  Separate pointer and slice parameters with the same type are possible
+  aliases, preserving sibling-field precision. Checked calls summarize
+  transitive parameter and global writes; temporary text arguments stay live
+  through later argument evaluation and the call. Unknown callbacks
+  conservatively write reference arguments. `tests/text_call_mutation.sh`
+  covers these cases and permitted sibling-field writes. Differently typed
+  pointer aliases and arbitrary host-backed storage still need a complete
+  cross-target contract. Raw native FFI has no checked memory-effect summary.
   `make check` compares source and saved-IR bundles with C, C++, and Go on a
   string program and rejects out-of-range indexing.
 - Portable finished-builder strings and `TextView` snapshots carry their

@@ -100,8 +100,8 @@ CcAbsolute :: (path: string, output: []u8) -> bool {
     if path.count > 0 && path[0] == 47 {
         if !CcCopy(path, joined[:]) { return false }
     } else {
-        directory: string = CcCurrentDirectory(joined[:])
-        if directory.count == 0 { return false }
+        directory_count := CcCurrentDirectory(joined[:]).count
+        if directory_count == 0 { return false }
         if !CcAppend(joined[:], "/") || !CcAppend(joined[:], path) { return false }
     }
     resolved: CcPathBytes
@@ -287,8 +287,9 @@ CcEmitArgument :: (sink: *CcSink, text: string, last: bool) {
 WriteCompileCommands :: (include: string, compiler: string, generated: string,
     destination: string) -> string {
     project: [4096]u8
-    if CcCurrentDirectory(project[:]).count == 0 { return "cannot read the current directory" }
-    if !CcAbsolute(CcText(project[:]), project[:]) { return "cannot resolve the project directory" }
+    current_directory: [4096]u8
+    if CcCurrentDirectory(current_directory[:]).count == 0 { return "cannot read the current directory" }
+    if !CcAbsolute(CcText(current_directory[:]), project[:]) { return "cannot resolve the project directory" }
     include_path: [4096]u8
     generated_path: [4096]u8
     if !CcAbsolute(include, include_path[:]) { return "cannot resolve the Ziran include directory" }

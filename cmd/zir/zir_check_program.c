@@ -48,7 +48,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             }
         }
     if(!MarkNativeNameCollisions(programs, count)) {
-        fprintf(stderr, "out of memory while naming native values\n");
+        DiagnosticOutOfMemory();
         return 0;
     }
     for(int p = 0; p < count; p++)

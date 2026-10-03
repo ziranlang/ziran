@@ -40,8 +40,17 @@ global is rejected in any function. A view reached through a local pointer creat
 with Jai `*value` protects its pointee binding and pointer aliases while live.
 Local copies of pointer parameters keep the parameter's backing identity.
 `TextView` through an opaque local pointer is rejected when its backing lifetime
-cannot be proved. Aliases between separate pointer parameters and arbitrary
-host boundaries still need coverage. The current origin summary tracks every global in the program. The
+cannot be proved. Separate pointer or slice parameters with the same type are
+treated as possible aliases, with sibling record fields still disjoint.
+Checked procedure bodies summarize parameter and global writes, including
+transitive calls; a live view rejects a call that writes its backing storage.
+String argument temporaries stay live through later argument evaluation and
+the call, and unknown callbacks conservatively write reference arguments.
+The checks use lexical scopes; close a view's scope before reusing its buffer.
+Differently typed pointer aliases and raw native FFI still need explicit
+memory contracts. A raw foreign declaration has no checked read/write summary;
+the caller remains responsible for its pointer arguments. The current origin
+summary tracks every global in the program. The
 rest of this page describes the intended contract, not a guarantee that every
 case is enforced today.
 

@@ -233,7 +233,7 @@ $(BIN_DIR):
 	mkdir -p $@
 
 PACKAGE_C := $(BUILD_DIR)/package-c
-PACKAGE_SOURCES := cmd/package.zi cmd/package_entry.zi cmd/package_process.zi cmd/package_python.zi \
+PACKAGE_SOURCES := cmd/package.zi cmd/package_entry.zi cmd/package_process.zi cmd/package_python.zi cmd/diagnostics.zi \
     cmd/package_add.zi cmd/package_guide.zi \
     cmd/package_capabilities.zi cmd/package_features.zi cmd/package_explain.zi cmd/package_common.zi \
     cmd/package_manifest.zi cmd/package_source.zi cmd/package_lock.zi cmd/package_map.zi cmd/package_options.zi cmd/package_compile_commands.zi cmd/package_template.zi \
@@ -283,7 +283,7 @@ $(BIN_DIR)/ziran: $(PACKAGE_C)/.generated $(HEADERS) | $(BIN_DIR)
 	+$(MAKE) --no-print-directory package-link
 
 FORMAT_C := $(BUILD_DIR)/format-c
-FORMAT_SOURCES := cmd/format.zi cmd/format_source.zi std/vec.zi std/option.zi \
+FORMAT_SOURCES := cmd/format.zi cmd/format_source.zi cmd/diagnostics.zi std/vec.zi std/option.zi \
     std/byte_text_linux.zi std/c_string.zi std/file_linux.zi
 $(BIN_DIR)/zi-fmt: $(FORMAT_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flags | $(BIN_DIR)
 	$(BIN_DIR)/zi2c --entry format:main --root cmd --module-path std \

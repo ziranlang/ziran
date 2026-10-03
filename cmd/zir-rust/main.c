@@ -16,7 +16,7 @@
 
 static void usage(void)
 {
-    fprintf(stderr,
+    Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2rust [--exe] [--no-main] [--entry module:function] "
             "[--bind module:function=module:function] [--bind-host module] "
             "[--diagnostics=text|json] [--module-path DIR] --root DIR -o DIR "
@@ -63,6 +63,7 @@ main(int argc, char **argv)
     int file_count;
     int first_file = 0;
 
+    SetDiagnosticFormatFromArguments(argc, argv);
     for(int index = 1; index < argc; index++) {
         if(strncmp(argv[index], "--diagnostics=", 14) == 0) {
             if(!SetDiagnosticFormat(argv[index] + 14)) {

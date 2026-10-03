@@ -19,6 +19,9 @@ typedef struct DiagnosticDetails {
 } DiagnosticDetails;
 
 int SetDiagnosticFormat(const char *format);
+void SetDiagnosticFormatFromArguments(int argc, char *const *argv);
+int DiagnosticJsonEnabled(void);
+void DiagnosticOutOfMemory(void);
 void Diagnostic(ZirSourceSpan span, const char *code, const char *format, ...);
 void DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args);
 void DiagnosticDetailed(ZirSourceSpan span, const char *code,

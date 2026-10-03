@@ -1,5 +1,6 @@
 #include "zir_text.h"
 #include "zir.h"
+#include "zir_diagnostic.h"
 #include "compiler_text.h"
 
 #include <stdio.h>
@@ -163,7 +164,7 @@ ParametersOf(const char *text)
         parameter_lists.texts = calloc(parameter_lists.slots, sizeof(*parameter_lists.texts));
         parameter_lists.lists = calloc(parameter_lists.slots, sizeof(*parameter_lists.lists));
         if(parameter_lists.texts == NULL || parameter_lists.lists == NULL) {
-            fprintf(stderr, "ziran: out of memory keeping parameter lists\n");
+            DiagnosticOutOfMemory();
             exit(1);
         }
         for(size_t i = 0; i < old_slots; i++)

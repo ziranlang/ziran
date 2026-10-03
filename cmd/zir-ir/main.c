@@ -16,7 +16,7 @@
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: zi2zir [--check-only] [--target=c|cpp|go|rust|py|zib|plan9-c] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
+    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|cpp|go|rust|py|zib|plan9-c] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...");
 }
 
 static int
@@ -113,6 +113,7 @@ main(int argc, char **argv)
     int define_count = 0;
     int count;
 
+    SetDiagnosticFormatFromArguments(argc, argv);
     for(int i = 1; i < argc; i++) {
         if(strncmp(argv[i], "--diagnostics=", 14) == 0) {
             if(!SetDiagnosticFormat(argv[i] + 14)) {

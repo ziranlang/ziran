@@ -1,3 +1,4 @@
+Diagnostics :: #import "diagnostics"
 #import "byte_text_linux"
 #import "c_string"
 #import "file_linux"
@@ -24,6 +25,16 @@ PkgReadResult :: struct {
 PkgProcessResult :: struct {
     text: string
     code: s32
+}
+
+PkgSetDiagnosticFormat :: (arguments: []string) {
+    Diagnostics.SetFormat("text")
+    if PkgGetenv("ZIRAN_DIAGNOSTICS") == "json" { Diagnostics.SetFormat("json") }
+    for argument: arguments {
+        if argument == "--" { break }
+        if argument == "--diagnostics=json" { Diagnostics.SetFormat("json") }
+        if argument == "--diagnostics=text" { Diagnostics.SetFormat("text") }
+    }
 }
 
 #program_export
@@ -184,7 +195,10 @@ PkgEndsWith :: (value: string, suffix: string) -> bool {
 PkgRun :: (arguments: []string, cwd: string, names: []string,
     values: []string) -> s32 {
     empty: [0]u8
-    return RunProcess(arguments, cwd, names, values, empty[:])
+    code := RunProcess(arguments, cwd, names, values, empty[:])
+    if code == 127 { PkgFailCode("package.process", PkgJoin("command exited with status 127: ", arguments[0])) }
+    else if code < 0 { PkgFailCode("package.process", "cannot start command") }
+    return code
 }
 
 PkgCaptureRaw :: (arguments: []string, cwd: string) -> PkgProcessResult {
@@ -234,7 +248,9 @@ PkgRunToStderr :: (arguments: []string, cwd: string) -> s32 {
     values[2] = ""
     values[3] = ""
     result: PkgProcessResult = PkgCaptureEnv(arguments, cwd, names[:], values[:])
-    PkgPrint(result.text, true)
+    if Diagnostics.IsJson() {
+        if result.code != 0 { PkgFailCode("package.tool", result.text) }
+    } else { PkgPrint(result.text, true) }
     return result.code
 }
 
@@ -258,41 +274,26 @@ PkgPrint :: (value: string, error: bool) -> void {
     }
 }
 
-PkgJsonString :: (value: string) -> void {
-    PkgPrint("\"", false)
-    index: s64 = 0
-    while index < cast(s64)value.count {
-        byte: u8 = value[index]
-        if byte == cast(u8)34 || byte == cast(u8)92 {
-            PkgPrint("\\", false)
-            if byte == cast(u8)34 { PkgPrint("\"", false) }
-            else { PkgPrint("\\", false) }
-        } else if byte == cast(u8)10 {
-            PkgPrint("\\n", false)
-        } else if byte == cast(u8)13 {
-            PkgPrint("\\r", false)
-        } else if byte == cast(u8)9 {
-            PkgPrint("\\t", false)
-        } else if byte < cast(u8)32 {
-            alphabet: string = "0123456789abcdef"
-            high: s32 = cast(s32)(byte >> cast(u8)4)
-            low: s32 = cast(s32)(byte & cast(u8)15)
-            PkgPrint("\\u00", false)
-            PkgPrint(alphabet[high:high + 1], false)
-            PkgPrint(alphabet[low:low + 1], false)
-        } else {
-            PkgPrint(value[index:index + 1], false)
-        }
-        index += 1
-    }
-    PkgPrint("\"", false)
-}
+PkgJsonString :: (value: string) -> void { Diagnostics.Quote(value, false) }
 
 PkgFail :: (message: string) -> s32 {
-    PkgPrint("ziran: ", true)
-    PkgPrint(message, true)
-    PkgPrint("\n", true)
+    return PkgFailCode("package.command", message)
+}
+
+PkgFailCode :: (code: string, message: string) -> s32 {
+    if Diagnostics.IsJson() {
+        Diagnostics.Emit(code, message, "")
+    } else {
+        PkgPrint("ziran: ", true)
+        PkgPrint(message, true)
+        PkgPrint("\n", true)
+    }
     return 2
+}
+
+PkgShowToolFailure :: (output: string) {
+    if Diagnostics.IsJson() { PkgFailCode("package.tool", output) }
+    else { PkgPrint(output, true); PkgPrint("\n", true) }
 }
 
 PkgDigest :: (value: string) -> string {

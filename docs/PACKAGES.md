@@ -35,6 +35,13 @@ with. In file contents and paths, `{{name}}` becomes the package name and
 `--name NAME` sets the name when the directory's name is not one, and
 `--ref REF` fetches the template from another branch, tag, or commit.
 
+`--overrides FILE` copies a validated local configuration into the new
+project's ignored `ziran.local.toml` before locking. Use it with a local
+template and overrides for the toolchain and dependencies to build against
+existing source checkouts without fetching copies. Relative override paths
+are relative to the created project. An existing `ziran.local.toml` is never
+overwritten, including when applying a template with `init`.
+
 `ziran init --template SOURCE` applies a template to the project in the
 current directory. It never overwrites a file. When the project already has a
 `ziran.toml`, the template's manifest is merged into it: missing tables and

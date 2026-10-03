@@ -751,7 +751,7 @@ vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
         vm->signature_slots = old_slots ? old_slots * 2 : 256;
         vm->signatures = calloc(vm->signature_slots, sizeof(*vm->signatures));
         if(vm->signatures == NULL) {
-            fprintf(stderr, "ziran: out of memory keeping signatures\n");
+            DiagnosticOutOfMemory();
             exit(1);
         }
         for(size_t i = 0; i < old_slots; i++)

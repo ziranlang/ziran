@@ -5,6 +5,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- JSON diagnostics carry a schema version, structured initializer, assignment,
+  argument, and return type details, and related declaration locations where
+  available. Missing names include suggestions and source edits when the
+  lexer confirms one unambiguous identifier on the reported line.
+  `tests/diagnostic_metadata.sh` checks the metadata and verifies that applying
+  the suggested name edits produces a checked program. The VS Code extension
+  shows related locations and offers Quick Fixes guarded by the original text.
+
 - The native `ziran` command, including its launcher and package child-process
   transport, and `zi-fmt` are implemented in Ziran. Their build compiles `.zi`
   to native output without handwritten C command adapters or shell/AWK

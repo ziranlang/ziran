@@ -430,10 +430,8 @@ restart:
                 if(converted != NULL)
                     type = converted;
                 else {
-                    char detail[ZIR_TEXT_MAX];
-                    error(c, st->span, "initializer type mismatch",
-                          mismatch_detail(detail, sizeof(detail), st->name,
-                                          st->type, type));
+                    type_error(c, st->span, "initializer type mismatch",
+                               st->name, st->type, type, st->span);
                 }
             }
             if(!strcmp(st->type, "null"))
@@ -560,10 +558,8 @@ restart:
                 if(converted != NULL)
                     type = converted;
                 else {
-                    char detail[ZIR_TEXT_MAX];
-                    error(c, st->span, "assignment type mismatch",
-                          mismatch_detail(detail, sizeof(detail), st->text,
-                                          lhs, type));
+                    type_error(c, st->span, "assignment type mismatch",
+                               st->text, lhs, type, (ZirSourceSpan){0});
                 }
             }
         } else if(st->kind == ZIR_STMT_RETURN) {
@@ -582,7 +578,6 @@ restart:
                 if(converted != NULL)
                     type = converted;
                 else {
-                    char detail[ZIR_TEXT_MAX];
                     char first[ZIR_NAME_MAX];
                     const char *dot = strrchr(type, '.');
                     if(results_first_type(c, c->fn->return_type, first, sizeof(first)) &&
@@ -592,9 +587,8 @@ restart:
                               "they are returned; write a, b := F(); return a, b",
                               c->fn->name);
                     else
-                        error(c, st->span, "return type mismatch",
-                              mismatch_detail(detail, sizeof(detail), c->fn->name,
-                                              c->fn->return_type, type));
+                        type_error(c, st->span, "return type mismatch",
+                                   c->fn->name, c->fn->return_type, type, c->fn->span);
                 }
             }
             if((st->expr_root < 0) != !strcmp(c->fn->return_type, "void"))

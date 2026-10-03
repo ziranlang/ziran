@@ -164,14 +164,16 @@ ReadStringText :: (text: string, at: s32, output: []u8) -> s32 {
             }
             length = AppendUtf8(output, length, codepoint)
         } else {
-            // Raw bytes, including UTF-8 sequences, copy through unchanged.
-            if length + 2 > (cast(s32)output.count) {
-                length = -1
-            } else {
-                output[length] = ch
-                length = length + 1
+            // Copy a whole unescaped run, including its UTF-8 bytes. Bounds
+            // are checked once per run rather than once per output byte.
+            start: s32 = cursor
+            while cursor < span.end && text[cursor] != cast(u8)92 { cursor += 1 }
+            size: s32 = cursor - start
+            if size >= cast(s32)output.count - length { length = -1 }
+            else {
+                for i: 0..size - 1 { output[length + i] = text[start + i] }
+                length += size
             }
-            cursor = cursor + 1
         }
     }
     if length < 0 {
@@ -352,6 +354,39 @@ FieldAt :: (text: string, object_at: s32, name: string) -> s32 {
         cursor = Space(text, cursor + 1)
     }
     return -1
+}
+
+// Index several unescaped ASCII member names in one validated pass. Missing
+// members receive -1; duplicate keys keep their first value, like FieldAt.
+// Positions borrow the current text and are usable only when this returns true.
+// The output must have room for every requested name; extra cells are untouched.
+#program_export
+ObjectPositions :: (text: string, object_at: s32, names: []string,
+                    output: []s32) -> bool {
+    if output.count < names.count { return false }
+    for i: 0..cast(s32)names.count - 1 { output[i] = -1 }
+    cursor: s32 = Space(text, object_at)
+    if cursor < 0 || cursor >= cast(s32)text.count || text[cursor] != cast(u8)123 { return false }
+    cursor = Space(text, cursor + 1)
+    if cursor < cast(s32)text.count && text[cursor] == cast(u8)125 { return true }
+    while cursor < cast(s32)text.count {
+        key: JsonSpan = ReadString(text, cursor)
+        if !key.valid { return false }
+        cursor = Space(text, key.after)
+        if cursor >= cast(s32)text.count || text[cursor] != cast(u8)58 { return false }
+        cursor = Space(text, cursor + 1)
+        for i: 0..cast(s32)names.count - 1 {
+            if output[i] < 0 && SpanEqualsASCII(text, key, names[i]) { output[i] = cursor }
+        }
+        cursor = ValueEnd(text, cursor, 0)
+        if cursor < 0 { return false }
+        cursor = Space(text, cursor)
+        if cursor >= cast(s32)text.count { return false }
+        if text[cursor] == cast(u8)125 { return true }
+        if text[cursor] != cast(u8)44 { return false }
+        cursor = Space(text, cursor + 1)
+    }
+    return false
 }
 
 #program_export

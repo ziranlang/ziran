@@ -60,6 +60,26 @@ SelfTest :: () -> s32 {
     nested: s32 = FieldAt(array, positions[1], "nested")
     if ArrayPositions(array, nested, positions[:]) != 2 ||
        !ReadString(array, positions[1]).valid { return 20 }
+    names: [4]string = .{"value", "skip", "missing", "value"}
+    members: [5]s32
+    members[4] = 777
+    if !ObjectPositions(body, 0, names[:], members[:]) ||
+        members[0] != value_at || members[1] != skip_at || members[2] != -1 ||
+        members[3] != value_at || members[4] != 777 { return 21 }
+    if !ObjectPositions("{\"value\":1,\"value\":2}", 0, names[:], members[:]) ||
+        ReadNumber("{\"value\":1,\"value\":2}", members[0]).value != 1.0 { return 22 }
+    if ObjectPositions(body, 0, names[:], short[:]) ||
+        ObjectPositions("{\"value\":1,}", 0, names[:], members[:]) ||
+        ObjectPositions("{\"value\":1 2}", 0, names[:], members[:]) ||
+        ObjectPositions("{\"value\":", 0, names[:], members[:]) ||
+        ObjectPositions("{\"skip\":[1,]}", 0, names[:], members[:]) ||
+        ObjectPositions("[]", 0, names[:], members[:]) ||
+        ObjectPositions(body, -1, names[:], members[:]) { return 23 }
+    if !ObjectPositions("{}", 0, names[:], members[:]) || members[0] != -1 { return 24 }
+    no_names: []string
+    if !ObjectPositions(body, 0, no_names, empty) { return 25 }
+    if ReadStringText("\"café 日本語\"", 0, decoded[:]) != 15 || decoded[15] != cast(u8)0 { return 26 }
+    if ReadStringText("\"raw\\nbytes\"", 0, decoded[:]) != 9 || decoded[3] != cast(u8)10 { return 27 }
     return 42
 }
 

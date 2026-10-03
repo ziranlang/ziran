@@ -38,9 +38,12 @@ dangling view.
   reference, capabilities, and feature documentation from one checked source
   rather than parallel hand-maintained copies.
 - Finish JSON diagnostics across loading, parsing, checking, cleanup, laws,
-  lowering, verification, and execution. Add related spans, expected and actual
-  types, target-capability context, and reliable machine-readable suggested
-  edits. Test every negative fixture as a JSON line.
+  lowering, verification, and execution. Initializer, assignment, argument,
+  and return mismatches now provide structured type details and related
+  declaration spans where available. Missing names have lexer-verified edits,
+  and the editor checks their original text before applying them. Extend this
+  metadata to the remaining error kinds and target-capability boundaries.
+  Test every negative fixture as a JSON line.
 - Extend the scalar proof kernel beyond its current pure acyclic fragment.
   Structured evidence, module-scoped identities, qualified waiver targets,
   and saved certificate rechecking are implemented. General quantified

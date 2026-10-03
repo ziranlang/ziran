@@ -44,8 +44,20 @@ typedef struct DiagnosticVBuffers {
 void DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args);
 
 static void
+json_span(FILE *out, ZirSourceSpan span)
+{
+    fputs("\"path\":", out);
+    json_string(out, SpanPath(span));
+    fprintf(out, ",\"line\":%d,\"column\":%d,\"end_line\":%d,\"end_column\":%d",
+            span.line, span.column,
+            span.end_line > 0 ? span.end_line : span.line,
+            span.end_column > 0 ? span.end_column : span.column);
+}
+
+static void
 report(ZirSourceSpan span, const char *severity, const char *code,
-       const char *format, va_list args, DiagnosticVBuffers *buffers)
+       const DiagnosticDetails *details, const char *format,
+       va_list args, DiagnosticVBuffers *buffers)
 {
     vsnprintf(buffers->message, sizeof(buffers->message), format, args);
     if(diagnostic_json < 0) {
@@ -54,29 +66,73 @@ report(ZirSourceSpan span, const char *severity, const char *code,
     }
     int warning = strcmp(severity, "warning") == 0;
     if(diagnostic_json) {
-        fprintf(stderr, "{\"severity\":\"%s\",\"code\":", severity);
+        fprintf(stderr, "{\"schema_version\":1,\"severity\":\"%s\",\"code\":", severity);
         json_string(stderr, code);
         fputs(",\"message\":", stderr);
         json_string(stderr, buffers->message);
-        fputs(",\"path\":", stderr);
-        json_string(stderr, SpanPath(span));
-        fprintf(stderr, ",\"line\":%d,\"column\":%d,"
-                "\"end_line\":%d,\"end_column\":%d}\n",
-                span.line, span.column,
-                span.end_line > 0 ? span.end_line : span.line,
-                span.end_column > 0 ? span.end_column : span.column);
+        fputc(',', stderr);
+        json_span(stderr, span);
+        if(details != NULL) {
+            if(details->expected_type != NULL) {
+                fputs(",\"expected_type\":", stderr);
+                json_string(stderr, details->expected_type);
+            }
+            if(details->actual_type != NULL) {
+                fputs(",\"actual_type\":", stderr);
+                json_string(stderr, details->actual_type);
+            }
+            if(details->related_message != NULL && details->related_span.line > 0) {
+                fputs(",\"related\":[{", stderr);
+                json_span(stderr, details->related_span);
+                fputs(",\"message\":", stderr);
+                json_string(stderr, details->related_message);
+                fputs("}]", stderr);
+            }
+            if(details->target != NULL) {
+                fputs(",\"target\":", stderr);
+                json_string(stderr, details->target);
+            }
+            if(details->capability != NULL) {
+                fputs(",\"capability\":", stderr);
+                json_string(stderr, details->capability);
+            }
+            if(details->suggested_name != NULL) {
+                fputs(",\"suggested_name\":", stderr);
+                json_string(stderr, details->suggested_name);
+            }
+            if(details->replacement != NULL && details->edit_span.line > 0) {
+                fputs(",\"edits\":[{", stderr);
+                json_span(stderr, details->edit_span);
+                fputs(",\"replacement\":", stderr);
+                json_string(stderr, details->replacement);
+                if(details->original != NULL) {
+                    fputs(",\"original\":", stderr);
+                    json_string(stderr, details->original);
+                }
+                fputs(",\"message\":", stderr);
+                json_string(stderr, details->edit_message != NULL ?
+                            details->edit_message : "Replace this name");
+                fputs("}]", stderr);
+            }
+        }
+        fputs("}\n", stderr);
     } else if(SpanPath(span)[0] != '\0') {
         fprintf(stderr, "%s:%d:%d: %s%s\n", SpanPath(span), span.line, span.column,
                 warning ? "warning: " : "", buffers->message);
     } else {
         fprintf(stderr, "ziran: %s%s\n", warning ? "warning: " : "", buffers->message);
     }
+    if(!diagnostic_json && details != NULL && details->related_message != NULL &&
+       details->related_span.line > 0)
+        fprintf(stderr, "%s:%d:%d: note: %s\n", SpanPath(details->related_span),
+                details->related_span.line, details->related_span.column,
+                details->related_message);
 }
 
 static void
 DiagnosticV_with_buffers(ZirSourceSpan span, const char *code, const char *format, va_list args, DiagnosticVBuffers *buffers)
 {
-    report(span, "error", code, format, args, buffers);
+    report(span, "error", code, NULL, format, args, buffers);
 }
 
 void
@@ -104,12 +160,24 @@ Diagnostic(ZirSourceSpan span, const char *code, const char *format, ...)
 }
 
 void
+DiagnosticDetailed(ZirSourceSpan span, const char *code,
+                   const DiagnosticDetails *details, const char *format, ...)
+{
+    DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
+    va_list args;
+    va_start(args, format);
+    report(span, "error", code, details, format, args, buffers);
+    va_end(args);
+    free(buffers);
+}
+
+void
 Warning(ZirSourceSpan span, const char *code, const char *format, ...)
 {
     va_list args;
     DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
     va_start(args, format);
-    report(span, "warning", code, format, args, buffers);
+    report(span, "warning", code, NULL, format, args, buffers);
     va_end(args);
     free(buffers);
 }

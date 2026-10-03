@@ -997,7 +997,7 @@ consider_name(const char *name, const char *candidate, int *best,
 /* "NAME (did you mean CLOSE?)" when a visible name is a likely typo. */
 static const char *
 unresolved_detail(Checker *c, const char *name, int procedures,
-                  char *out, size_t size)
+                  char *out, size_t size, const char **replacement)
 {
     int length = (int)strlen(name);
     int best = length <= 3 ? 1 : length <= 8 ? 2 : 3;
@@ -1026,8 +1026,73 @@ unresolved_detail(Checker *c, const char *name, int procedures,
     }
     if(choice == NULL)
         return name;
+    *replacement = choice;
     snprintf(out, size, "%s (did you mean %s?)", name, choice);
     return out;
+}
+
+/* Only publish an edit when the source lexer confirms one unambiguous
+ * identifier on the reported line. Some lowered expressions lack the source
+ * indentation; strings/comments and repeated names must never become edits. */
+static int
+name_edit_span(Checker *c, const ZirExpr *expression, ZirSourceSpan *span)
+{
+    char path[ZIR_PATH_MAX * 2];
+    const char *source = SpanPath(expression->span);
+    if(expression->span.line < 1 || expression->span.column < 1 || !*source)
+        return 0;
+    int length = snprintf(path, sizeof(path), "%s%s%s",
+                          source[0] == '/' ? "" : c->module->source_root,
+                          source[0] == '/' || !c->module->source_root[0] ? "" : "/", source);
+    if(length < 0 || (size_t)length >= sizeof(path)) return 0;
+    FILE *file = fopen(path, "rb");
+    if(file == NULL) return 0;
+    if(fseek(file, 0, SEEK_END) != 0) { fclose(file); return 0; }
+    long bytes = ftell(file);
+    if(bytes < 0 || bytes > 64 * 1024 * 1024 || fseek(file, 0, SEEK_SET) != 0) {
+        fclose(file); return 0;
+    }
+    char *text = malloc((size_t)bytes + 1);
+    if(text == NULL) { fclose(file); return 0; }
+    size_t read = fread(text, 1, (size_t)bytes, file);
+    int valid = read == (size_t)bytes && !ferror(file);
+    fclose(file);
+    text[read] = 0;
+    ZirLexer lexer;
+    LexerInit(&lexer, text, source);
+    int found = 0;
+    while(valid) {
+        ZirToken token = LexerNext(&lexer);
+        if(token.kind == ZIR_TOKEN_EOF || token.span.line > expression->span.line) break;
+        if(token.kind == ZIR_TOKEN_IDENT && !token.truncated &&
+           token.span.line == expression->span.line &&
+           !strcmp(token.text, expression->name)) {
+            *span = token.span;
+            span->end_line = span->line;
+            span->end_column = span->column + (int)strlen(expression->name);
+            found++;
+        }
+    }
+    free(text);
+    return found == 1;
+}
+
+static void
+unresolved_error(Checker *c, const ZirExpr *expression, int procedures)
+{
+    char message[ZIR_TEXT_MAX];
+    const char *replacement = NULL;
+    const char *detail = unresolved_detail(c, expression->name, procedures,
+                                           message, sizeof(message), &replacement);
+    DiagnosticDetails details = {.suggested_name = replacement};
+    if(replacement != NULL && name_edit_span(c, expression, &details.edit_span)) {
+        details.replacement = replacement;
+        details.original = expression->name;
+    }
+    c->errors++;
+    DiagnosticDetailed(details.replacement != NULL ? details.edit_span : expression->span,
+                       "check.type", &details, "%s: %s",
+                       procedures ? "unresolved function" : "unresolved name", detail);
 }
 
 static const char *
@@ -1596,9 +1661,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             } else if(status < 0) {
                 error(c, e->span, "invalid or ambiguous constant", e->name);
             } else {
-                char detail[ZIR_TEXT_MAX];
-                error(c, e->span, "unresolved name",
-                      unresolved_detail(c, e->name, 0, detail, sizeof(detail)));
+                unresolved_error(c, e, 0);
             }
         }
         break;
@@ -2339,13 +2402,11 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     if(converted != NULL)
                         arg_type = converted;
                     else {
-                        char detail[ZIR_TEXT_MAX];
-                        signature_error(c, c->fn->exprs[child].span,
-                                        "argument type mismatch",
-                                        mismatch_detail(detail, sizeof(detail),
-                                                        display_name,
-                                                        skip_ws(colon + 1),
-                                                        arg_type));
+                        type_error(c, c->fn->exprs[child].span,
+                                   "argument type mismatch", display_name,
+                                   skip_ws(colon + 1), arg_type,
+                                   callee ? callee->span : slot ? slot->span :
+                                   (ZirSourceSpan){0});
                     }
                 }
                 if(colon && (!strcmp(arg_type, "integer") || !strcmp(arg_type, "real"))) {
@@ -2389,9 +2450,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 signature_error(c, e->span, "argument count mismatch", detail);
             }
         } else {
-            char detail[ZIR_TEXT_MAX];
-            error(c, e->span, "unresolved function",
-                  unresolved_detail(c, e->name, 1, detail, sizeof(detail)));
+            unresolved_error(c, e, 1);
         }
         free(parts);
         break;

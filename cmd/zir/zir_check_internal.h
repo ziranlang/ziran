@@ -19,6 +19,7 @@
 #include <string.h>
 
 typedef struct Binding {
+    ZirSourceSpan span;
     char name[ZIR_NAME_MAX];
     char type[ZIR_NAME_MAX];
     char using_path[ZIR_NAME_MAX];
@@ -152,6 +153,9 @@ int check_file_scope_enum_names(const ZirModule *module, const ZirFunction *expr
 int contains_vec(const ZirModule *module, const char *type, int depth);
 int layout_type(const ZirModule *module, const char *source, int depth, size_t *size, size_t *alignment);
 void error(Checker *c, ZirSourceSpan span, const char *message, const char *detail);
+void type_error(Checker *c, ZirSourceSpan span, const char *message,
+                const char *subject, const char *expected, const char *actual,
+                ZirSourceSpan declaration);
 void signature_error(Checker *c, ZirSourceSpan span, const char *message, const char *name);
 int bind_varargs_call(Checker *c, ZirExpr *call, char parts[][ZIR_TEXT_MAX], int fixed, const char *display_name);
 int bind_call_arguments(Checker *c, ZirExpr *call, char parts[][ZIR_TEXT_MAX], int expected, const char *display_name, const char *default_args);

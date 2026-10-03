@@ -596,6 +596,22 @@ error(Checker *c, ZirSourceSpan span, const char *message, const char *detail)
 }
 
 void
+type_error(Checker *c, ZirSourceSpan span, const char *message,
+           const char *subject, const char *expected, const char *actual,
+           ZirSourceSpan declaration)
+{
+    char detail[ZIR_TEXT_MAX];
+    DiagnosticDetails details = {
+        .expected_type = expected, .actual_type = actual,
+        .related_span = declaration,
+        .related_message = "The required type is declared here"
+    };
+    c->errors++;
+    DiagnosticDetailed(span, "check.type", &details, "%s: %s", message,
+                       mismatch_detail(detail, sizeof(detail), subject, expected, actual));
+}
+
+void
 signature_error(Checker *c, ZirSourceSpan span,
                 const char *message, const char *name)
 {
@@ -829,6 +845,7 @@ bind(Checker *c, const char *name, const char *type, ZirSourceSpan span)
     }
     copy_text(c->bindings[c->count].name, ZIR_NAME_MAX, name);
     copy_text(c->bindings[c->count].type, ZIR_NAME_MAX, type);
+    c->bindings[c->count].span = span;
     c->bindings[c->count].using_path[0] = '\0';
     c->bindings[c->count].depth = c->depth;
     c->bindings[c->count].is_using_namespace = 0;

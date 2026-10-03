@@ -4,7 +4,7 @@ Compiler failures use a diagnostic code, source span, and message. With
 `--diagnostics=json`, supported compiler paths emit one JSON object per line:
 
 ```json
-{"severity":"error","code":"check.type","message":"...","path":"main.zi",
+{"schema_version":1,"severity":"error","code":"check.type","message":"...","path":"main.zi",
  "line":1,"column":1,"end_line":1,"end_column":1}
 ```
 
@@ -35,8 +35,19 @@ The list output has the same schema version and stability field, with a
 if a new code is missing from the registry. Unknown codes exit nonzero rather
 than receiving a guessed explanation.
 
-The current JSON diagnostic shape is intentionally small. It has only error
-severity and does not yet include related spans, expected/actual types, target
-capability details, or machine-readable suggested edits. Some loading and tool
-failures can still be plain text. Consumers should reject unknown schema
-versions and preserve diagnostic ordering when displaying multiple lines.
+Diagnostics use schema version 1 and `error` or `warning` severity. Initializer,
+assignment, argument, and return mismatches include `expected_type` and
+`actual_type`. A `related` array names
+declarations with their paths, source spans, and messages. Target restrictions
+can supply `target` and `capability` metadata. Missing-name diagnostics include
+`suggested_name` when a close visible name exists, and an `edits` array only
+when the source lexer confirms an unambiguous identifier on the reported line.
+Each edit includes a span, `original`, `replacement`, and `message`. Consumers
+must verify `original` against the current document before applying an edit.
+Strings, comments, ambiguous occurrences, and source rewritten after checking
+must never be changed by a guessed edit.
+
+Some loading and tool failures can still be plain text. Consumers should
+reject unknown schema versions and preserve diagnostic ordering. Missing
+optional metadata means it is unavailable; consumers must not guess it from
+the human-readable message.

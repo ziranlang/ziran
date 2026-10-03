@@ -76,6 +76,27 @@ static void fields(void)
     strcpy(record->body + ZIR_NAME_MAX, ": s64");
     offset = 0;
     assert(TypeNextField(record, &offset, &field) == -1);
+    /* Reused snapshots survive record relocation and a rewrite at the same
+     * address. A malformed suffix keeps the valid prefix and terminal error. */
+    strcpy(record->body, "first: s32; second: s64");
+    for(int pass = 0; pass < 3; pass++) {
+        offset = 0;
+        assert(TypeNextField(record, &offset, &field) == 1 && !strcmp(field.name, "first"));
+        assert(TypeNextField(record, &offset, &field) == 1 && !strcmp(field.type, "s64"));
+        assert(TypeNextField(record, &offset, &field) == 0);
+    }
+    ZirType *copy = malloc(sizeof(*copy));
+    assert(copy != NULL);
+    *copy = *record;
+    strcpy(record->body, "changed: bool; malformed");
+    offset = 0;
+    assert(TypeNextField(record, &offset, &field) == 1 && !strcmp(field.name, "changed"));
+    assert(TypeNextField(record, &offset, &field) == -1);
+    offset = 0;
+    assert(TypeNextField(copy, &offset, &field) == 1 && !strcmp(field.name, "first"));
+    assert(TypeNextField(copy, &offset, &field) == 1 && !strcmp(field.name, "second"));
+    assert(TypeNextField(copy, &offset, &field) == 0);
+    free(copy);
     free(record);
 }
 

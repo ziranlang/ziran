@@ -418,6 +418,15 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   change. Checking Inbe went from 3.9 s and 466 MB to 2.9 s and 222 MB with
   byte-identical IR and generated C for Inbe, Workbook, Kryon, and KSS.
   `make sanitize` also compares every kept type lookup with a fresh one.
+- Record fields are parsed into immutable snapshots shared by identical field
+  bodies. `TypeNextField` cursors index those snapshots, so checking, all native
+  emitters, and the portable verifier/runner reuse the same fields without
+  reparsing each walk. Copied records share a snapshot; rewriting a body and
+  starting a new walk selects a new one. Malformed suffixes still return an
+  error after any valid prefix. `tests/compiler_type.sh` checks this boundary,
+  source/saved IR, all native targets, the VM, and bootstrap agreement.
+  `.zir` still stores textual field bodies; this does not replace the remaining
+  textual declaration or import lowering.
 - The portable runner has no statement budget (only the web playground
   bounds a run), holds as many locals as a function declares, takes the
   language's 64 parameters, and nests calls until the C stack is nearly full

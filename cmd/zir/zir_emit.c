@@ -1140,7 +1140,7 @@ slot_type_at_use(const char *source, ZirTarget target,
             base = skip_ws(close + 1);
         }
     }
-    if(resolve_type && strchr(base, '.') != NULL) {
+    if(resolve_type) {
         char resolved[ZIR_NAME_MAX], canonical[ZIR_NAME_MAX * 2];
         resolve_type(context, base, resolved, sizeof(resolved));
         format(canonical, sizeof(canonical), "%.*s%s",

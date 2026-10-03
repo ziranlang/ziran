@@ -1991,7 +1991,9 @@ parse_source(const char *path, const char *root, const char *source,
     static _Thread_local int spare_count;
     ParseSourceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
         AllocateOrExit(sizeof(*buffers));
+    uint64_t profile_started = ProfileStart();
     ZirProgram *returned = parse_source_with_buffers(path, root, source, resolver, resolver_context, defines, define_count, buffers);
+    ProfileEnd("parse", profile_started);
     if(spare_count < 16)
         spares[spare_count++] = buffers;
     else

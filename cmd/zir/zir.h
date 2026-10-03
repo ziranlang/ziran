@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include "zir_profile.h"
 
 enum {
     ZIR_PATH_MAX = 1024,

@@ -85,7 +85,7 @@ FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text
     cmd/zir/zir_proof_kernel.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
-    cmd/zir/zir_diagnostic.c
+    cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c
 PORTABLE := cmd/zir/zir_bundle.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c

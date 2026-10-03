@@ -798,6 +798,7 @@ ProgramsLoadWithDefines(ProgramSet *set, const char *root,
                         const char *const *defines, int define_count,
                         const char *const *inputs, int input_count)
 {
+    uint64_t profile_started = ProfileStart();
     char *canonical_root = realpath(root, NULL);
     char **canonical_paths = NULL;
     char **path_names = NULL;
@@ -876,5 +877,6 @@ done:
     PackageMapFree(context.packages);
     if(!ok)
         ProgramsFree(set);
+    ProfileEnd("load", profile_started);
     return ok;
 }

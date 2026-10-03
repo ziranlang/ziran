@@ -25,6 +25,7 @@ int TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field)
     if(record->is_enum || record->is_procedure_type || *offset > sizeof(record->body))
         return -1;
     unsigned char tag_workspace[sizeof(field->go_tag)];
+    ProfileCount("record_field_parse");
     RecordField result = compiler_type_NextField(
         StringView(record->body, sizeof(record->body)), (int64_t)*offset,
         record->is_union != 0, sizeof(field->name), sizeof(field->type),

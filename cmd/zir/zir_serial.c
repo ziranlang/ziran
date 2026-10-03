@@ -890,8 +890,8 @@ validate_program(const ZirProgram *program)
     return 1;
 }
 
-int
-ProgramWrite(const ZirProgram *program, FILE *out)
+static int
+write_program(const ZirProgram *program, FILE *out)
 {
     static const unsigned char magic[4] = {'Z', 'I', 'R', 0};
     if(program == NULL || out == NULL || !validate_program(program) ||
@@ -903,6 +903,15 @@ ProgramWrite(const ZirProgram *program, FILE *out)
         if(!write_module(out, &program->modules[i]))
             return 0;
     return fflush(out) == 0;
+}
+
+int
+ProgramWrite(const ZirProgram *program, FILE *out)
+{
+    uint64_t started = ProfileStart();
+    int result = write_program(program, out);
+    ProfileEnd("ir.write", started);
+    return result;
 }
 
 ZirProgram *

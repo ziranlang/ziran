@@ -3,6 +3,7 @@
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_text.h"
+#include "compiler_type.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -12,22 +13,43 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Foreign types, imports, and maps exist only on their own target;
- * allowed_prefix ("go:" or "py:") keeps the current target's natives. */
 int
-RejectForeignTypesExcept(const ZirProgram *program, const char *allowed_prefix)
+TargetNameKnown(const char *target)
 {
-    int python = allowed_prefix != NULL && !strcmp(allowed_prefix, "py:");
-    int go = allowed_prefix != NULL && !strcmp(allowed_prefix, "go:");
+    return target != NULL && compiler_type_TargetKnown(StringView(target, strlen(target)));
+}
+
+/* The maintained Ziran type module owns the target policy. This boundary
+ * walks checked declarations and attaches their source locations. */
+int
+CheckTargetCapabilities(const ZirProgram *program, const char *target)
+{
+    if(program == NULL || !TargetNameKnown(target)) return 0;
+    String selected = StringView(target, strlen(target));
     for(int m = 0; m < program->module_count; m++) {
         const ZirModule *module = &program->modules[m];
         for(int t = 0; t < module->type_count; t++) {
             const ZirType *type = &module->types[t];
-            int foreign_python = !strncmp(type->foreign_target, "py:", 3);
-            /* Maps and foreign Go types are Go values. */
-            int allowed = foreign_python ? python : go;
-            if((type->foreign_target[0] || type->is_map) && !allowed) {
-                Diagnostic(type->span, "check.record",
+            if(type->is_union && !type->is_record_template &&
+               (!strcmp(target, "zib") || !strcmp(target, "go")) &&
+               !UnionScalarFields(module, type)) {
+                if(!strcmp(target, "zib"))
+                    DiagnosticTarget(type->span, "zib.union", target, "unions.scalar",
+                        "portable unions support scalar fields only: %s", type->name);
+                else
+                    DiagnosticTarget(type->span, "zir_go.union", target, "unions.scalar",
+                        "Go unions support scalar fields only: %s", type->name);
+                return 0;
+            }
+            String required = compiler_type_ForeignTypeTarget(
+                StringView(type->foreign_target, strlen(type->foreign_target)), type->is_map);
+            int foreign_python = StringEqual(required, StringLiteral("py"));
+            if(required.length != 0 && !StringEqual(required, selected)) {
+                DiagnosticDetails details = {0};
+                details.target = target;
+                details.capability = type->is_map ? "maps.go" :
+                    foreign_python ? "types.py" : "types.go";
+                DiagnosticDetailed(type->span, "check.record", &details,
                            "%s require the %s target: %s",
                            type->is_map ? "maps" :
                            foreign_python ? "foreign Python types" : "foreign Go types",
@@ -37,25 +59,30 @@ RejectForeignTypesExcept(const ZirProgram *program, const char *allowed_prefix)
         }
         for(int i = 0; i < module->import_count; i++) {
             const ZirImport *import = &module->imports[i];
-            if(import->kind == ZIR_IMPORT_EXTERN &&
-               ((import->extern_kind == ZIR_EXTERN_PY && !python) ||
-                (import->extern_kind == ZIR_EXTERN_GO && !go))) {
-                Diagnostic(import->span, "check.foreign",
-                           "%s foreign imports require the %s target: %s",
-                           import->extern_kind == ZIR_EXTERN_PY ? "Python" : "Go",
-                           import->extern_kind == ZIR_EXTERN_PY ? "Python" : "Go",
-                           import->name);
+            if(import->kind != ZIR_IMPORT_EXTERN) continue;
+            const char *kind = import->extern_kind == ZIR_EXTERN_GO ? "go" :
+                import->extern_kind == ZIR_EXTERN_PY ? "py" :
+                import->extern_kind == ZIR_EXTERN_HOST ? "host" : "c";
+            if(!compiler_type_ForeignImportSupported(selected, StringView(kind, strlen(kind)))) {
+                DiagnosticDetails details = {0};
+                details.target = target;
+                details.capability = import->extern_kind == ZIR_EXTERN_GO ? "ffi.go" :
+                    import->extern_kind == ZIR_EXTERN_PY ? "ffi.py" : "ffi.c";
+                if(import->extern_kind == ZIR_EXTERN_C)
+                    DiagnosticDetailed(import->span, "check.foreign", &details,
+                        "C foreign imports require a native target or a checked host binding: %s",
+                        import->name);
+                else
+                    DiagnosticDetailed(import->span, "check.foreign", &details,
+                               "%s foreign imports require the %s target: %s",
+                               import->extern_kind == ZIR_EXTERN_PY ? "Python" : "Go",
+                               import->extern_kind == ZIR_EXTERN_PY ? "Python" : "Go",
+                               import->name);
                 return 0;
             }
         }
     }
     return 1;
-}
-
-int
-RejectForeignGoTypes(const ZirProgram *program)
-{
-    return RejectForeignTypesExcept(program, NULL);
 }
 
 int

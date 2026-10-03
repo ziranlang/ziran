@@ -152,6 +152,26 @@ int SliceElementType(const char *type, char *element, size_t element_size)
     return result.valid && copy_part(element, element_size, result.element);
 }
 
+size_t ScalarByteWidth(const char *type)
+{
+    return (size_t)compiler_type_ScalarByteWidth(type_text(type));
+}
+
+int UnionScalarFields(const ZirModule *module, const ZirType *record)
+{
+    if(record == NULL || !record->is_union) return 0;
+    size_t cursor = 0;
+    ZirTypeField field;
+    int status;
+    while((status = TypeNextField(record, &cursor, &field)) == 1) {
+        const ZirType *enumeration = FindType(module, field.type, NULL);
+        const char *backing = enumeration != NULL && enumeration->is_enum ?
+            enumeration->enum_backing : field.type;
+        if(ScalarByteWidth(backing) == 0) return 0;
+    }
+    return status == 0;
+}
+
 int ArrayElementType(const char *type, char *element, size_t element_size, int *capacity)
 {
     ElementType result = compiler_type_ArrayElement(type_text(type));

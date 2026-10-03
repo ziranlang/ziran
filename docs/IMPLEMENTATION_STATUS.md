@@ -53,11 +53,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   output agreement, C frontend lookahead, null input, and token truncation.
 
 - Shared compiler text rules are implemented in `cmd/compiler_text.zi`:
-  this includes bounded name edit distance for checker suggestions. The C
-  boundary delegates to that implementation, with no second distance policy.
-  Cross-target tests include embedded NUL bytes, invalid limits, and an
-  independent full-matrix distance oracle at the native boundary.
-  whitespace and identifier bytes, trimming, native field names, C string
+  bounded name edit distance for checker suggestions, whitespace and
+  identifier bytes, trimming, native field names, C string
   escaping, top-level argument splitting and assignments, UTF-8 string
   decoding, print-format pieces, and operator procedure names. The frontend
   keeps a C boundary for its buffers and interned parameter storage; float
@@ -67,6 +64,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/compiler_text.sh` checks source and saved IR on C, C++, Go, Rust,
   Python, and `.zib`, including malformed escapes, UTF-8 boundaries, bounded
   output, deterministic byte inputs, bootstrap agreement, and the C boundary.
+  Name-distance cases include embedded NUL bytes, invalid limits, and an
+  independent full-matrix oracle at the native boundary.
   An unterminated quote in an argument list now stops at the source boundary
   instead of reading beyond its terminating null. The parser, checker,
   backends, and runtime still require further migration for full self-hosting.
@@ -1086,10 +1085,23 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   storage, and mutation of a tracked backing global is rejected in any
   function; tracking scales to the program's global count. A view through a
   local `*value` pointer tracks its pointee and rejects mutation through either
-  the original binding or the pointer while live. Unknown heap-pointer and
-  host-backed origins still need a complete cross-target contract.
+  the original binding or the pointer while live. Local copies of pointer
+  parameters preserve the same backing identity. A `TextView` reached through
+  an opaque local pointer is rejected when its backing lifetime cannot be
+  proved; copying bytes into owned local storage provides an explicit lifetime.
+  Aliases between separate pointer parameters and arbitrary host-backed
+  storage still need a complete cross-target contract.
   `make check` compares source and saved-IR bundles with C, C++, and Go on a
   string program and rejects out-of-range indexing.
+- Portable finished-builder strings and `TextView` snapshots carry their
+  allocation owner through copies, ranges, records, arrays, and host-returned
+  ranges of text arguments. Unreachable snapshots are collected at top-level
+  statement boundaries and completed top-level calls; literal caches and live
+  globals remain valid. `VmInstanceLiveValueBytes` includes string storage.
+  `tests/string_storage.sh` checks bounded storage over repeated runs and
+  source/saved IR, plus allocation-balanced empty `BuilderFinish` in C/C++/Rust.
+  Empty finished builders release reserved native storage in C, C++, and Rust.
+  Nonempty finished native strings still retain their bytes for process lifetime.
 - Portable bundles retain referenced module globals, including records and
   fixed arrays. Explicit initializers run before the first statement of
   every `BundleRun`: integer and boolean literals, compile-time constant

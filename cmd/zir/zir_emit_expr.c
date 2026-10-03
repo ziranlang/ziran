@@ -347,6 +347,7 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
             line(e, "%s.data = (%s).count > 0 ? (const char *)(%s).data : \"\";",
                  finished, buffers->vector, buffers->vector);
             line(e, "%s.length = (size_t)(%s).count;", finished, buffers->vector);
+            line(e, "if ((%s).count == 0) free((%s).data);", buffers->vector, buffers->vector);
             /* The finished string borrows the builder's bytes; the builder
              * detaches without freeing them. */
             line(e, "(%s).data = NULL;", buffers->vector);

@@ -20,6 +20,7 @@ ziran explain check.slice_lifetime
 ziran explain zir.noncanonical --json
 ziran explain --list
 ziran explain --list --json
+ziran check --target=zib --diagnostics=json --root . main.zi
 ```
 
 A single explanation has schema version 1:
@@ -46,6 +47,12 @@ Each edit includes a span, `original`, `replacement`, and `message`. Consumers
 must verify `original` against the current document before applying an edit.
 Strings, comments, ambiguous occurrences, and source rewritten after checking
 must never be changed by a guessed edit.
+
+`check --target=c|cpp|go|rust|py|zib|plan9-c` checks target-specific foreign
+identities/imports and Go/portable scalar-union restrictions before writing
+output. Builds use the same preflight policy. Its failures include `target`
+and a capability such as `ffi.go`, `types.py`, or `unions.scalar`; individual
+lowerers and the portable verifier still check their remaining target limits.
 
 Some loading and tool failures can still be plain text. Consumers should
 reject unknown schema versions and preserve diagnostic ordering. Missing

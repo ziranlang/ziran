@@ -96,19 +96,7 @@ static int g_union_unsafe;
 static size_t
 scalar_byte_width(const char *type)
 {
-    if(!strcmp(type, "s8") || !strcmp(type, "u8") ||
-       !strcmp(type, "bool"))
-        return 1;
-    if(!strcmp(type, "s16") || !strcmp(type, "u16"))
-        return 2;
-    if(!strcmp(type, "s32") || !strcmp(type, "u32") ||
-       !strcmp(type, "float32"))
-        return 4;
-    if(!strcmp(type, "s64") || !strcmp(type, "u64") ||
-       !strcmp(type, "float64") ||
-       !strcmp(type, "integer"))
-        return 8;
-    return 0;
+    return ScalarByteWidth(type);
 }
 
 static const ZirModule *module_constant_owner(const ZirModule *module,

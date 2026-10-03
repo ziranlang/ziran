@@ -58,8 +58,8 @@ def main():
         parser.error(f"no checks match {args.filter!r}")
 
     env = os.environ.copy()
-    env.pop("DISPLAY", None)
-    env.pop("WAYLAND_DISPLAY", None)
+    for key in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS"):
+        env.pop(key, None)
     env["ZIRAN_LIB"] = str(bin_dir.parent / "libziran.a")
 
     def run(name, command):

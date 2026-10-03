@@ -1405,7 +1405,7 @@ cpp_lower(const ZirProgram *program, const char *root, const char *out_dir, cons
     (void)root;
     if(program == NULL)
         return 0;
-    if(!RejectForeignGoTypes(program))
+    if(!CheckTargetCapabilities(program, "cpp"))
         return 0;
     for(i = 0; i < program->module_count; i++)
         if(!lower_module(&program->modules[i], restab, restab_count,

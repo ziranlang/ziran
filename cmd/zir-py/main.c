@@ -154,13 +154,13 @@ main(int argc, char **argv)
         if(linked == NULL)
             goto done;
         const ZirProgram *only = linked;
-        if(!RejectForeignTypesExcept(only, "py:"))
+        if(!CheckTargetCapabilities(only, "py"))
             goto done;
         result = py_lower(&only, 1, output_directory, entry_module,
                             entry_function, executable) != 0;
     } else {
         for(int index = 0; index < file_count; index++)
-            if(!RejectForeignTypesExcept(programs[index], "py:"))
+            if(!CheckTargetCapabilities(programs[index], "py"))
                 goto done;
         result = py_lower((const ZirProgram *const *)programs, file_count,
                             output_directory, "", "", 0) != 0;

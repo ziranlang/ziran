@@ -498,12 +498,14 @@ int GoCHeader(const char *package, char *header, size_t header_size);
 int GoForeignCallParts(const char *target, char *package, size_t package_size,
                        char *receiver, size_t receiver_size,
                        char *symbol, size_t symbol_size);
-int RejectForeignGoTypes(const ZirProgram *program);
+int TargetNameKnown(const char *target);
+int CheckTargetCapabilities(const ZirProgram *program, const char *target);
+size_t ScalarByteWidth(const char *type);
+int UnionScalarFields(const ZirModule *module, const ZirType *record);
 int PyForeignCallParts(const char *target, char *module, size_t module_size,
                        char *receiver, size_t receiver_size,
                        char *symbol, size_t symbol_size);
 int PyForeignTargetValid(const char *target);
-int RejectForeignTypesExcept(const ZirProgram *program, const char *allowed_prefix);
 int MapTypeParts(const ZirModule *module, const char *name,
                  char *key, size_t key_size, char *value, size_t value_size);
 int MapPrimitiveName(const char *name);

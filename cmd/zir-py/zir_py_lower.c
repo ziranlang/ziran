@@ -538,7 +538,7 @@ static const ZirExpr *expression_at(PyEmitter *emitter, int index)
 
 static void unsupported_expression(const ZirExpr *expression)
 {
-    Diagnostic(expression->span, "zir_py.expression",
+    DiagnosticTarget(expression->span, "zir_py.expression", "py", "expressions.py",
             "unsupported expression in the Python target: %s",
             expression->text && expression->text[0] ? expression->text :
                 ExprKindName(expression->kind));
@@ -3396,7 +3396,7 @@ static void emit_union_class(PyEmitter *emitter, FILE *output, const ZirModule *
     size_t offset = 0;
     ZirTypeField field;
     if(!TypeLayout(module, record->name, &size, &alignment)) {
-        Diagnostic(record->span, "zir_py.union", "cannot lay out union %s", record->name);
+        DiagnosticTarget(record->span, "zir_py.union", "py", "unions.layout", "cannot lay out union %s", record->name);
         exit(1);
     }
     fprintf(output, "class %s:\n", name);
@@ -3423,7 +3423,7 @@ static void emit_union_class(PyEmitter *emitter, FILE *output, const ZirModule *
             continue;
         }
         if(format == NULL) {
-            Diagnostic(record->span, "zir_py.union",
+            DiagnosticTarget(record->span, "zir_py.union", "py", "unions.scalar",
                     "the Python target lowers only scalar union fields: %s", field.name);
             exit(1);
         }

@@ -14,6 +14,36 @@ RecordField :: struct {
 ElementType :: struct { valid: bool; element: string; capacity: s64 }
 ForeignCall :: struct { kind: s32; module: string; receiver: string; symbol: string }
 
+TargetKnown :: (target: string) -> bool {
+    return target == "c" || target == "cpp" || target == "go" || target == "rust" ||
+        target == "py" || target == "zib" || target == "plan9-c"
+}
+
+// Empty means an ordinary language type. Foreign identities belong to the
+// target that defines their representation, even when unused by an entry.
+ForeignTypeTarget :: (foreign: string, is_map: bool) -> string {
+    if foreign.count >= 3 && foreign[0:3] == "py:" { return "py" }
+    if is_map || (foreign.count >= 3 && foreign[0:3] == "go:") { return "go" }
+    if foreign.count > 0 { return "unknown" }
+    return ""
+}
+
+ForeignImportSupported :: (target: string, foreign: string) -> bool {
+    if !TargetKnown(target) { return false }
+    if foreign == "go" || foreign == "py" { return target == foreign }
+    if foreign == "host" { return true }
+    if foreign == "c" { return target != "zib" }
+    return false
+}
+
+ScalarByteWidth :: (type: string) -> s32 {
+    if type == "s8" || type == "u8" || type == "bool" { return 1 }
+    if type == "s16" || type == "u16" { return 2 }
+    if type == "s32" || type == "u32" || type == "float32" { return 4 }
+    if type == "s64" || type == "u64" || type == "float64" || type == "integer" { return 8 }
+    return 0
+}
+
 NextField :: (body: string, at: s64, union_record: bool, name_limit: s64,
     type_limit: s64, tag_workspace: []u8) -> RecordField {
     result: RecordField

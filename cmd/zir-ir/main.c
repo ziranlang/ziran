@@ -16,7 +16,7 @@
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: zi2zir [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
+    fprintf(stderr, "usage: zi2zir [--check-only] [--target=c|cpp|go|rust|py|zib|plan9-c] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
 }
 
 static int
@@ -98,6 +98,7 @@ main(int argc, char **argv)
     const char *root = NULL;
     const char *out_dir = NULL;
     const char *entry = NULL;
+    const char *target = NULL;
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
     int check_only = 0;
     int lint = 0;
@@ -116,6 +117,13 @@ main(int argc, char **argv)
         if(strncmp(argv[i], "--diagnostics=", 14) == 0) {
             if(!SetDiagnosticFormat(argv[i] + 14)) {
                 usage();
+                return 1;
+            }
+        } else if(strncmp(argv[i], "--target=", 9) == 0) {
+            target = argv[i] + 9;
+            if(!TargetNameKnown(target)) {
+                Diagnostic(Span("<command>", 1, 1), "zir.validation",
+                           "unknown output target: %s", target);
                 return 1;
             }
         } else if(strcmp(argv[i], "--root") == 0 && i + 1 < argc) {
@@ -147,6 +155,14 @@ main(int argc, char **argv)
         usage();
         return 1;
     }
+    if(target != NULL && !strcmp(target, "plan9-c")) {
+        if(define_count == 64) {
+            Diagnostic(Span("<command>", 1, 1), "zir.validation",
+                       "no define slot left for the Plan 9 target");
+            return 1;
+        }
+        defines[define_count++] = "PLAN9";
+    }
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file),
@@ -163,6 +179,10 @@ main(int argc, char **argv)
         LintPrograms(set.programs, count);
     if(check_only)
         PrintLawResults(set.programs, count, stdout);
+    if(target != NULL && (check_only || entry == NULL))
+        for(int i = 0; i < count; i++)
+            if(!CheckTargetCapabilities(set.programs[i], target))
+                goto done;
     if(!check_only) {
         if(entry != NULL) {
             for(int i = 0; i < count; i++)
@@ -180,6 +200,8 @@ main(int argc, char **argv)
                 goto done;
             linked = NativeLink(&merged, entry_module, entry_function);
             if(linked == NULL)
+                goto done;
+            if(target != NULL && !CheckTargetCapabilities(linked, target))
                 goto done;
             for(int i = 0; i < linked->module_count; i++) {
                 ZirProgram view = {0};

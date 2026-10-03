@@ -1,5 +1,25 @@
 #include "zir_check_internal.h"
 
+static ZirSourceSpan
+assignment_declaration(Checker *c, int index)
+{
+    while(index >= 0 && index < c->fn->expr_count) {
+        const ZirExpr *expression = &c->fn->exprs[index];
+        if(expression->kind == ZIR_EXPR_IDENT) {
+            for(int i = c->count - 1; i >= 0; i--)
+                if(!c->bindings[i].is_using_namespace &&
+                   !strcmp(c->bindings[i].name, expression->name))
+                    return c->bindings[i].span;
+            const ZirGlobal *global = global_binding(c, expression->name);
+            return global != NULL ? global->span : (ZirSourceSpan){0};
+        }
+        if(expression->kind != ZIR_EXPR_MEMBER && expression->kind != ZIR_EXPR_POINTER_MEMBER &&
+           expression->kind != ZIR_EXPR_INDEX) break;
+        index = expression->left;
+    }
+    return (ZirSourceSpan){0};
+}
+
 /* A pointer to a fixed array, such as *[16]float64. Native backends have no
  * declarator for it yet, so the checker rejects it instead of emitting C
  * that points at the wrong type. */
@@ -559,7 +579,7 @@ restart:
                     type = converted;
                 else {
                     type_error(c, st->span, "assignment type mismatch",
-                               st->text, lhs, type, (ZirSourceSpan){0});
+                               st->text, lhs, type, assignment_declaration(c, st->lhs_root));
                 }
             }
         } else if(st->kind == ZIR_STMT_RETURN) {

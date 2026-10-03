@@ -10,6 +10,7 @@
     "zib"
   ],
   "evidence": "tests/numeric_semantics.sh",
+  "additional_evidence": ["tests/numeric_width_matrix.sh"],
   "cases": [
     {
       "id": "numeric.compile.div_min.s32",
@@ -105,7 +106,7 @@
     },
     {
       "id": "numeric.cast.width_pairs.all",
-      "summary": "All eight signed/unsigned integer width pairs convert by declared width."
+      "summary": "All 64 conversions among the eight signed/unsigned integer types preserve their declared widths, including sign and truncation boundaries."
     },
     {
       "id": "numeric.mixed.add.u16_to_u8",

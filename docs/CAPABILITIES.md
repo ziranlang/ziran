@@ -6,7 +6,10 @@ supported output targets and shared limits. Use `--target=c`, `cpp`, `go`,
 access, so an editor or coding agent can query the installed compiler before
 generating code. The `numeric_conformance` object is a stable-ID registry. Its `ids` cite the
 numerical cases proven by [numeric semantics](../tests/numeric_semantics.sh)
-for C, C++, Go, and `.zib`; they are described by [numeric_conformance.json](../tests/numeric_conformance.json).
+for C, C++, Go, Rust, Python, and `.zib`; they are described by [numeric_conformance.json](../tests/numeric_conformance.json).
+The [width matrix](../tests/numeric_width_matrix.sh) adds 592 independently
+generated boundary conversions across all 64 integer type pairs, from source
+and saved IR on those six targets.
 `schema_version` starts at 1; consumers should reject schema
 versions they do not understand and ignore unknown fields within a version.
 
@@ -38,8 +41,10 @@ checked-call-produced view is live. Field-sensitive checks protect the
 borrowed field or array while allowing sibling record fields to change. Global
 views track their backing-global origins and alias chains, and views through
 local `*value` pointers protect their pointee and pointer aliases. Unknown
-heap and host-backed aliases are not yet covered; portable code should avoid
-those mutations.
+local pointer views are rejected when their backing lifetime cannot be proved.
+Local copies of pointer parameters preserve their backing identity; aliases
+between separate pointer parameters and arbitrary host-backed aliases still
+need further coverage.
 
 `automatic_vec_drop` is `true` for every target: direct owned `Vec` locals
 and parameters are released at scope exit or return, as are vectors reachable
@@ -48,8 +53,13 @@ not automatically released.
 `text_view_local_mutation_check` is `true` for every target: checking rejects
 mutation of local backing storage while a direct, field-held, aliased, or
 checked-call-produced `TextView` is live. Checks are field-sensitive, include
-global backing origins and local `*value` pointer aliases, and exclude unknown
-heap and host-backed aliases.
+global backing origins, local `*value` pointer aliases, and local copies of
+pointer parameters.
+`text_view_opaque_pointer_check` reports rejection of `TextView` through opaque
+local pointers with unproven backing lifetimes.
+`target_preflight` reports the common foreign identity/import and Go/portable
+scalar-union checks available through `ziran check --target=...` and builds;
+the target's lowerer and verifier still enforce its other limits.
 `aggregate_vec_transfer` is `true`: whole local aggregates, fresh aggregate
 call results, and vector-bearing record-literal fields can move through
 assignment, argument passing, and return, with native targets recursively

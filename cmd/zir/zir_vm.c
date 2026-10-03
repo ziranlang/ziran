@@ -132,15 +132,7 @@ vm_union_field_width(const ZirModule *module, const char *type)
 int
 portable_union(const ZirModule *module, const ZirType *record)
 {
-    size_t offset = 0;
-    ZirTypeField field;
-    int status;
-    if(record == NULL || !record->is_union)
-        return 0;
-    while((status = TypeNextField(record, &offset, &field)) == 1)
-        if(vm_union_field_width(module, field.type) == 0)
-            return 0;
-    return status == 0;
+    return UnionScalarFields(module, record);
 }
 
 static int
@@ -306,11 +298,30 @@ string_value(const unsigned char *data, size_t length)
 }
 
 Value
+keep_string(Vm *vm, StringLiteral *item, const ZirExpr *expression, size_t bytes)
+{
+    item->expression = expression;
+    item->bytes = bytes;
+    item->allocation = ++vm->allocation;
+    item->pinned = 0;
+    item->next = vm->strings;
+    vm->strings = item;
+    vm->string_bytes += bytes;
+    vm->allocated_since_collection += bytes;
+    Value value = string_value(item->data, item->length);
+    value.string_owner = item;
+    return value;
+}
+
+Value
 literal_string(Vm *vm, const ZirExpr *expression)
 {
     for(StringLiteral *item = vm->strings; item != NULL; item = item->next)
-        if(item->expression == expression)
-            return string_value(item->data, item->length);
+        if(item->expression == expression) {
+            Value value = string_value(item->data, item->length);
+            value.string_owner = item;
+            return value;
+        }
     size_t capacity = strlen(expression->text);
     StringLiteral *item = malloc(sizeof(*item) + capacity + 1);
     if(item == NULL || !DecodeStringLiteral(expression->text, item->data,
@@ -319,10 +330,7 @@ literal_string(Vm *vm, const ZirExpr *expression)
         vm->failed = 1;
         return string_value((const unsigned char *)"", 0);
     }
-    item->expression = expression;
-    item->next = vm->strings;
-    vm->strings = item;
-    return string_value(item->data, item->length);
+    return keep_string(vm, item, expression, sizeof(*item) + capacity + 1);
 }
 
 Value
@@ -336,10 +344,7 @@ global_literal_string(Vm *vm, const char *source)
         vm->failed = 1;
         return string_value((const unsigned char *)"", 0);
     }
-    item->expression = NULL;
-    item->next = vm->strings;
-    vm->strings = item;
-    return string_value(item->data, item->length);
+    return keep_string(vm, item, NULL, sizeof(*item) + capacity + 1);
 }
 
 Value
@@ -488,12 +493,13 @@ allocate_record(Vm *vm, const ZirModule *owner,
     return record;
 }
 
-/* Whether a value of this type can reach VM records or arrays. Scalars,
- * strings, raw pointers (opaque handles), enums, and procedure values
- * cannot, so arrays of them need no element walk when marking or copying. */
+/* Whether a value of this type can reach VM records, arrays, or owned text.
+ * Numeric scalars, raw handles, enums, and procedure values cannot, so arrays
+ * of them need no element walk when marking or copying. */
 static int
 type_holds_references(const ZirModule *module, const char *type)
 {
+    if(!strcmp(type, "string")) return 1;
     if(value_kind(type) != VALUE_INVALID)
         return 0;
     const ZirType *found = module != NULL ? FindType(module, type, NULL) : NULL;

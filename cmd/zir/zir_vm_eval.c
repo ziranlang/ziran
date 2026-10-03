@@ -873,8 +873,9 @@ eval(Frame *frame, int index, int depth)
                 break;
             }
             size_t start = (size_t)integer_bits(low);
-            value = string_value(left.data != NULL ? left.data + start : NULL,
-                                 (size_t)(integer_bits(high) - integer_bits(low)));
+            value = left;
+            value.data = left.data != NULL ? left.data + start : NULL;
+            value.length = (size_t)(integer_bits(high) - integer_bits(low));
             break;
         }
         Array *backing = NULL;
@@ -975,10 +976,7 @@ eval(Frame *frame, int index, int depth)
                 break;
             item->data[bytes.length] = 0;
             item->length = bytes.length;
-            item->expression = NULL;
-            item->next = frame->vm->strings;
-            frame->vm->strings = item;
-            value = string_value(item->data, item->length);
+            value = keep_string(frame->vm, item, NULL, sizeof(*item) + bytes.length + 1);
             break;
         }
         if(!strcmp(expression->name, "print")) {
@@ -1247,21 +1245,17 @@ eval(Frame *frame, int index, int depth)
                             frame->vm->failed = 1;
                             break;
                         }
-                        built->expression = NULL;
                         built->length = (size_t)count->integer;
-                        built->next = frame->vm->strings;
-                        frame->vm->strings = built;
                     }
                     value = built != NULL ?
-                        string_value(built->data, built->length) :
+                        keep_string(frame->vm, built, NULL, sizeof(*built) + built->length) :
                         string_value((const unsigned char *)"", 0);
-                    if(data->kind == VALUE_ARRAY && count->integer > 0) {
-                        for(int i = 0; i < count->integer; i++)
-                            retire_value(frame->vm, data->array->elements[i], 0);
-                    }
+                    if(data->kind == VALUE_ARRAY)
+                        retire_value(frame->vm, *data, 0);
                     *data = (Value){.kind = VALUE_ARRAY};
                     *count = int_value(0);
                     *capacity = int_value(0);
+                    release_retired(frame->vm);
                     break;
                 }
                 {

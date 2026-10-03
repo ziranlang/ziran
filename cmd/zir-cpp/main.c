@@ -104,6 +104,10 @@ main(int argc, char **argv)
                                       (const char *const *)set.paths);
     if(!check_ok)
         goto done;
+    if(entry == NULL)
+        for(i = 0; i < file_count; i++)
+            if(!CheckTargetCapabilities(progs[i], "cpp"))
+                goto done;
     if(entry != NULL) {
         for(i = 0; i < file_count; i++)
             merged.module_count += progs[i]->module_count;

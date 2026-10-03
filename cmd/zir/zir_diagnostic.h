@@ -23,6 +23,8 @@ void Diagnostic(ZirSourceSpan span, const char *code, const char *format, ...);
 void DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args);
 void DiagnosticDetailed(ZirSourceSpan span, const char *code,
                         const DiagnosticDetails *details, const char *format, ...);
+void DiagnosticTarget(ZirSourceSpan span, const char *code, const char *target,
+                      const char *capability, const char *format, ...);
 /* A note that does not fail the command: "path:line:col: warning: ...". */
 void Warning(ZirSourceSpan span, const char *code, const char *format, ...);
 

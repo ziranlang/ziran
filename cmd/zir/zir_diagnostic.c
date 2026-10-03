@@ -181,3 +181,18 @@ Warning(ZirSourceSpan span, const char *code, const char *format, ...)
     va_end(args);
     free(buffers);
 }
+
+void
+DiagnosticTarget(ZirSourceSpan span, const char *code, const char *target,
+                 const char *capability, const char *format, ...)
+{
+    DiagnosticDetails details = {0};
+    details.target = target;
+    details.capability = capability;
+    DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
+    va_list args;
+    va_start(args, format);
+    report(span, "error", code, &details, format, args, buffers);
+    va_end(args);
+    free(buffers);
+}

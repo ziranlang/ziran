@@ -115,7 +115,8 @@ bundle_command(int argc, char **argv)
         if(!BindHostModule(&merged, host_modules[host]))
             goto done;
     linked = BundleLink(&merged, entry_module, entry_function);
-    if(linked == NULL || !VmVerify(linked, entry_module, entry_function))
+    if(linked == NULL || !CheckTargetCapabilities(linked, "zib") ||
+       !VmVerify(linked, entry_module, entry_function))
         goto done;
     file = fopen(output, "wb");
     if(file == NULL) {

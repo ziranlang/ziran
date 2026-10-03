@@ -47,6 +47,7 @@ typedef enum ValueKind {
 typedef struct Record Record;
 typedef struct Array Array;
 typedef struct Frame Frame;
+typedef struct StringLiteral StringLiteral;
 
 typedef struct Value {
     ValueKind kind;
@@ -56,6 +57,7 @@ typedef struct Value {
     double real;
     const unsigned char *data;
     size_t length;
+    StringLiteral *string_owner; /* snapshots and any ranges/copies of them */
     size_t offset;
     const ZirType *enumeration;
     Record *record;
@@ -115,12 +117,14 @@ struct Array {
     Value elements[];
 };
 
-typedef struct StringLiteral {
+struct StringLiteral {
     struct StringLiteral *next;
     const ZirExpr *expression;
     size_t length;
+    size_t bytes;
+    uint64_t allocation, pinned;
     unsigned char data[];
-} StringLiteral;
+};
 
 typedef struct Local {
     char name[ZIR_NAME_MAX];
@@ -162,6 +166,7 @@ typedef struct Vm {
     int depth_exceeded;
     size_t record_bytes;
     size_t array_bytes;
+    size_t string_bytes;
     size_t allocated_since_collection;
     uint64_t allocation;
     uint64_t pin_generation;
@@ -233,6 +238,7 @@ Value int_value(int64_t integer);
 Value uint_value(uint64_t bits);
 Value real_value(double real);
 Value string_value(const unsigned char *data, size_t length);
+Value keep_string(Vm *vm, StringLiteral *item, const ZirExpr *expression, size_t bytes);
 Value literal_string(Vm *vm, const ZirExpr *expression);
 Value global_literal_string(Vm *vm, const char *source);
 Value enum_value(const ZirType *type, int64_t integer);

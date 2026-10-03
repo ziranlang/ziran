@@ -28,7 +28,7 @@ VmInstance *VmInstanceOpen(const ZirProgram *program,
 int VmInstanceRun(VmInstance *instance, long long *result, int *has_result);
 /* Bounds later runs to MAX_STEPS statements; zero removes the bound. */
 void VmInstanceLimitSteps(VmInstance *instance, int max_steps);
-/* Live portable value storage, excluding module IR and interned strings. */
+/* Live portable value storage, including text snapshots, excluding module IR. */
 size_t VmInstanceLiveValueBytes(const VmInstance *instance);
 void VmInstanceClose(VmInstance *instance);
 

@@ -1003,6 +1003,17 @@ prune_record_fields_with_buffers(ZirProgram *program, const char *entry_module,
                 else if(expr->kind == ZIR_EXPR_SIZE_OF &&
                         expr->name[0])
                     mark_all_fields(module, expr->name, uses, use_count);
+                else if(expr->kind == ZIR_EXPR_CAST &&
+                        expr->right >= 0 && expr->right < fn->expr_count &&
+                        (expr->type[0] == '*' ||
+                         fn->exprs[expr->right].type[0] == '*')) {
+                    /* A pointer cast exposes storage through another view,
+                     * including native memory returned as void*. Neither
+                     * view may lose fields or change nested record strides. */
+                    mark_all_fields(module, expr->type, uses, use_count);
+                    mark_all_fields(module, fn->exprs[expr->right].type,
+                                    uses, use_count);
+                }
             }
         }
     }

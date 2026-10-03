@@ -108,6 +108,11 @@ Older binary versions are rejected.
 Record field bodies preserve checked `#go_tag` string literals for Go reflection
 metadata. These tags do not change field storage in other native targets or
 the portable runtime.
+Entry linking preserves complete record layouts exposed by native foreign
+signatures, callbacks, size queries and pointer casts, including nested records
+and fixed-array element strides. A cast from raw native memory must keep fields
+that ordinary member expressions never read; removing them would change offsets.
+Records used only through checked member access may still omit unused fields.
 Record declarations retain `#go_anonymous` in version 54. Go emits these
 records as aliases of unnamed structs, preserving native reflection and JSON
 error types. Other targets retain their ordinary record storage and identity.

@@ -960,14 +960,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         fprintf(h, "#define %s %s\n", name, buffers->value);
         if(!d->is_public) fputs("#endif\n", h);
     }
-    for(i = 0; i < m->type_count; i++) {
-        const ZirType *slot = &m->types[i];
-        if(!slot->is_procedure_type || !slot->is_c_call)
-            continue;
-        if(!slot->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
-        EmitSlotType(h, slot, ZIR_CPP, resolve_slot_type, (void *)m);
-        if(!slot->is_public) fputs("#endif\n", h);
-    }
+    /* Callback signatures can reference records and enums owned by this
+     * module. Declare those names before either kind of procedure value. */
     for(i = 0; i < m->type_count; i++) {
         const ZirType *ty = &m->types[i];
         char native[LOWER_NAME_MAX * 2];
@@ -995,7 +989,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
     }
     for(i = 0; i < m->type_count; i++) {
         const ZirType *slot = &m->types[i];
-        if(!slot->is_procedure_type || slot->is_c_call)
+        if(!slot->is_procedure_type)
             continue;
         if(!slot->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
         EmitSlotType(h, slot, ZIR_CPP, resolve_slot_type, (void *)m);

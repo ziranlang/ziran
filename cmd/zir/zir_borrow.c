@@ -541,6 +541,13 @@ address_backing(BorrowCheck *check, int index, int *known)
     *known = source->address_known;
     if(source->address_known)
         return source->address_backing;
+    /* Pointer parameters are borrowed for this invocation. A local alias
+     * keeps the same backing identity, so writes through either spelling
+     * conflict with a live text view. Never retain this root in globals. */
+    if(source->local < 0 && source->origin.depth == 1) {
+        *known = 1;
+        return root_place(source);
+    }
     /* An opaque pointer parameter has no known storage place. Its binding
      * belongs to this function's temporary analysis and cannot be retained
      * by a global alias after the function check frees that storage. Global
@@ -721,6 +728,8 @@ expression_origin(BorrowCheck *check, int index)
         return expression_origin(check, expression->left);
     case ZIR_EXPR_SLICE: {
         const ZirExpr *base = &fn->exprs[expression->left];
+        Origin backing = expression_origin(check, expression->left);
+        if(backing.unknown) return backing;
         if(ArrayElementType(base->type, NULL, 0, NULL)) {
             BorrowPlace place = storage_place(check, expression->left, 1);
             if(place.root != NULL) {
@@ -732,7 +741,7 @@ expression_origin(BorrowCheck *check, int index)
                 return origin;
             }
         }
-        return expression_origin(check, expression->left);
+        return backing;
     }
     case ZIR_EXPR_CONDITIONAL:
         return merge(check, expression_origin(check, expression->right),
@@ -791,6 +800,10 @@ check_ranges(BorrowCheck *check, int index)
     if(index < 0 || check->failed)
         return;
     const ZirExpr *expression = &check->current->fn->exprs[index];
+    if(expression->kind == ZIR_EXPR_CALL && !strcmp(expression->name, "TextView") &&
+       expression_origin(check, expression->first_child).unknown)
+        reject(check, expression->span,
+               "text view backing lifetime cannot be proved through an opaque pointer; copy bytes into owned storage first");
     if(expression->kind == ZIR_EXPR_SLICE &&
        strcmp(check->current->fn->exprs[expression->left].type, "string") != 0 &&
        expression_origin(check, index).invalid)

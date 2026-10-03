@@ -1188,7 +1188,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
         for(int t = 0; t < module->type_count; t++)
             if(module->types[t].is_union &&
                !portable_union(module, &module->types[t])) {
-                Diagnostic(module->types[t].span, "zib.union",
+                DiagnosticTarget(module->types[t].span, "zib.union", "zib", "unions.scalar",
                            "portable unions support scalar fields only");
                 return 0;
             }
@@ -1238,7 +1238,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
             if((module->imports[i].kind != ZIR_IMPORT_OPEN &&
                 module->imports[i].kind != ZIR_IMPORT_MODULE) ||
                module->imports[i].resolved_module == NULL) {
-                Diagnostic(module->imports[i].span, "zib.capability",
+                DiagnosticTarget(module->imports[i].span, "zib.capability", "zib", "ffi.host",
                               "portable execution requires an included Ziran module or supported host capability");
                 return 0;
             }
@@ -1314,7 +1314,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                                            bindings, binding_count, 0, 0);
             free(bindings);
             if(!verified) {
-                Diagnostic(function->span, "zib.statement",
+                DiagnosticTarget(function->span, "zib.statement", "zib", "execution.portable",
                            "statement is outside the portable subset in %s",
                            function->name);
                 return 0;

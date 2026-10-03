@@ -105,6 +105,28 @@ Names :: () -> bool {
     return !Types.MapPrimitive("Map") && !Types.MapPrimitive("MapSetX")
 }
 
+Targets :: () -> bool {
+    targets: [7]string = .{"c", "cpp", "go", "rust", "py", "zib", "plan9-c"}
+    for target: targets {
+        if !Types.TargetKnown(target) || !Types.ForeignImportSupported(target, "host") ||
+        Types.ForeignImportSupported(target, "c") != (target != "zib") ||
+        Types.ForeignImportSupported(target, "go") != (target == "go") ||
+        Types.ForeignImportSupported(target, "py") != (target == "py") ||
+        Types.ForeignImportSupported(target, "unknown") { return false }
+    }
+    if Types.ScalarByteWidth("s8") != 1 || Types.ScalarByteWidth("bool") != 1 ||
+       Types.ScalarByteWidth("u16") != 2 || Types.ScalarByteWidth("float32") != 4 ||
+       Types.ScalarByteWidth("u64") != 8 || Types.ScalarByteWidth("string") != 0 ||
+       Types.ScalarByteWidth("[2]s8") != 0 { return false }
+    return !Types.TargetKnown("") && !Types.TargetKnown("gpu") &&
+        !Types.ForeignImportSupported("gpu", "host") &&
+        Types.ForeignTypeTarget("", false) == "" &&
+        Types.ForeignTypeTarget("", true) == "go" &&
+        Types.ForeignTypeTarget("go:time.Time", false) == "go" &&
+        Types.ForeignTypeTarget("py:builtins/bytes", false) == "py" &&
+        Types.ForeignTypeTarget("other:value", false) == "unknown"
+}
+
 #program_export
 Answer :: () -> s32 {
     if !Fields() { return 1 }
@@ -112,6 +134,7 @@ Answer :: () -> s32 {
     if !GoSymbols() { return 3 }
     if !PythonSymbols() { return 4 }
     if !Names() { return 5 }
+    if !Targets() { return 6 }
     return 42
 }
 

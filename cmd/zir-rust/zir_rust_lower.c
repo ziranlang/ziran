@@ -774,7 +774,7 @@ static void require_rust_type(RustEmitter *emitter, ZirSourceSpan span,
 {
     if(rust_type(emitter, type, output, size))
         return;
-    Diagnostic(span, "zir_rust.type",
+    DiagnosticTarget(span, "zir_rust.type", "rust", "types.rust",
                "the Rust target cannot lower this type: %s",
                type);
     exit(1);
@@ -3765,6 +3765,10 @@ static void emit_ziran_vec_runtime(FILE *output)
     fputs("}\n", output);
     fputs("\n", output);
     fputs("pub fn ZiranBuilderFinish(vector: &mut ZiranVec<u8>) -> ZiranText {\n", output);
+    fputs("    if vector.count == 0 {\n", output);
+    fputs("        ZiranVecFree(vector);\n", output);
+    fputs("        return ZiranText { data: core::ptr::null(), len: 0 };\n", output);
+    fputs("    }\n", output);
     fputs("    let text = ZiranText { data: vector.data, len: vector.count as usize };\n", output);
     fputs("    vector.data = core::ptr::null_mut();\n", output);
     fputs("    vector.count = 0;\n", output);

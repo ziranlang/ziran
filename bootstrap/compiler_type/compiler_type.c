@@ -6,6 +6,84 @@ static String compiler_type_Trim(String source);
 static bool compiler_type_Identifier(String source);
 static bool compiler_type_DottedIdentifier(String source);
 
+bool
+compiler_type_TargetKnown(String target)
+{
+    bool value_0 = StringEqual(target, StringLiteral("c")) || StringEqual(target, StringLiteral("cpp")) || StringEqual(target, StringLiteral("go"));
+    bool value_1 = value_0 || StringEqual(target, StringLiteral("rust")) || StringEqual(target, StringLiteral("py"));
+    return value_1 || StringEqual(target, StringLiteral("zib")) || StringEqual(target, StringLiteral("plan9-c"));
+}
+
+String
+compiler_type_ForeignTypeTarget(String foreign, bool is_map)
+{
+    int64_t value_0 = (int64_t)(foreign).length;
+    bool value_1 = value_0 >= 3LL;
+    if (value_1) {
+        String value_2 = foreign;
+        value_1 = (StringEqual(StringRange(value_2, (int64_t)0LL, (int64_t)3LL), StringLiteral("py:")));
+    }
+    if (value_1) {
+        return StringLiteral("py");
+    }
+    bool value_3 = is_map;
+    if (!value_3) {
+        int64_t value_4 = (int64_t)(foreign).length;
+        bool value_5 = value_4 >= 3LL;
+        if (value_5) {
+            String value_6 = foreign;
+            value_5 = (StringEqual(StringRange(value_6, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:")));
+        }
+        value_3 = value_5;
+    }
+    if (value_3) {
+        return StringLiteral("go");
+    }
+    int64_t value_7 = (int64_t)(foreign).length;
+    if (value_7 > 0LL) {
+        return StringLiteral("unknown");
+    }
+    return StringLiteral("");
+}
+
+bool
+compiler_type_ForeignImportSupported(String target, String foreign)
+{
+    bool value_0 = compiler_type_TargetKnown(target);
+    if (!value_0) {
+        return false;
+    }
+    if (StringEqual(foreign, StringLiteral("go")) || StringEqual(foreign, StringLiteral("py"))) {
+        return StringEqual(target, foreign);
+    }
+    if (StringEqual(foreign, StringLiteral("host"))) {
+        return true;
+    }
+    if (StringEqual(foreign, StringLiteral("c"))) {
+        return !StringEqual(target, StringLiteral("zib"));
+    }
+    return false;
+}
+
+int32_t
+compiler_type_ScalarByteWidth(String type)
+{
+    if (StringEqual(type, StringLiteral("s8")) || StringEqual(type, StringLiteral("u8")) || StringEqual(type, StringLiteral("bool"))) {
+        return 1;
+    }
+    if (StringEqual(type, StringLiteral("s16")) || StringEqual(type, StringLiteral("u16"))) {
+        return 2;
+    }
+    if (StringEqual(type, StringLiteral("s32")) || StringEqual(type, StringLiteral("u32")) || StringEqual(type, StringLiteral("float32"))) {
+        return 4;
+    }
+    bool value_0 = StringEqual(type, StringLiteral("s64")) || StringEqual(type, StringLiteral("u64")) || StringEqual(type, StringLiteral("float64"));
+    if (value_0 || StringEqual(type, StringLiteral("integer"))) {
+        return 8;
+    }
+    return 0;
+}
+
 RecordField
 compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name_limit, int64_t type_limit, Slice tag_workspace)
 {

@@ -444,8 +444,20 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
     }
     if(kind == VM_HOST_REAL)
         result = real_value(input->real);
-    else if(kind == VM_HOST_STRING)
+    else if(kind == VM_HOST_STRING) {
         result = string_value(input->data, input->length);
+        /* A host may return a range of one of its borrowed text arguments.
+         * Preserve that VM owner rather than treating the alias as host-owned. */
+        uintptr_t data = (uintptr_t)input->data;
+        for(StringLiteral *item = vm->strings; item != NULL; item = item->next) {
+            uintptr_t begin = (uintptr_t)item->data;
+            if(data >= begin && data - begin <= item->length &&
+               input->length <= item->length - (data - begin)) {
+                result.string_owner = item;
+                break;
+            }
+        }
+    }
     else if(kind == VM_HOST_POINTER)
         result = uint_value((uintptr_t)input->pointer);
     else if(kind == VM_HOST_UNSIGNED)
@@ -560,6 +572,10 @@ parameter_read_only(const ZirFunction *function, const char *name)
 void
 pin_value(Vm *vm, Value value, int depth)
 {
+    if(value.kind == VALUE_STRING && value.string_owner != NULL) {
+        value.string_owner->pinned = vm->pin_generation;
+        return;
+    }
     if(depth >= VM_MAX_DEPTH)
         return;
     if(value.kind == VALUE_RECORD && value.record != NULL &&
@@ -607,6 +623,22 @@ pin_active_frames(Vm *vm)
 }
 
 static void
+release_call_strings(Vm *vm, uint64_t entry, uint64_t before_result)
+{
+    StringLiteral **slot = &vm->strings;
+    while(*slot != NULL) {
+        StringLiteral *current = *slot;
+        if(current->expression == NULL && current->allocation > entry &&
+           current->allocation <= before_result &&
+           current->pinned != vm->pin_generation) {
+            *slot = current->next;
+            vm->string_bytes -= current->bytes;
+            free(current);
+        } else slot = &current->next;
+    }
+}
+
+static void
 collect_unreachable(Vm *vm)
 {
     uint64_t remaining_retired = 0;
@@ -646,6 +678,7 @@ collect_unreachable(Vm *vm)
         }
     }
     vm->retire_floor = remaining_retired;
+    release_call_strings(vm, 0, UINT64_MAX);
     vm->allocated_since_collection = 0;
 }
 
@@ -939,6 +972,10 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
         pin_value(vm, returned, 0);
         release_call_records(vm, allocation_entry, allocation_before_result);
         release_call_arrays(vm, allocation_entry, allocation_before_result);
+        /* Nested callers may hold unevaluated expression arguments outside
+         * their locals. Only a top-level return is a string collection point. */
+        if(vm->depth == 0)
+            release_call_strings(vm, allocation_entry, allocation_before_result);
     }
     return returned;
 }
@@ -995,6 +1032,7 @@ free_strings(Vm *vm)
 {
     while(vm->strings != NULL) {
         StringLiteral *next = vm->strings->next;
+        vm->string_bytes -= vm->strings->bytes;
         free(vm->strings);
         vm->strings = next;
     }
@@ -1296,7 +1334,7 @@ size_t
 VmInstanceLiveValueBytes(const VmInstance *instance)
 {
     return instance == NULL ? 0 :
-        instance->vm.record_bytes + instance->vm.array_bytes;
+        instance->vm.record_bytes + instance->vm.array_bytes + instance->vm.string_bytes;
 }
 
 void

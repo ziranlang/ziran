@@ -34,7 +34,8 @@ for prefix, expected, actual in [
 ]:
     item = error(prefix)
     assert (item['expected_type'], item['actual_type']) == (expected, actual), item
-for prefix, line in [('argument type mismatch', 1), ('return type mismatch', 2)]:
+for prefix, line in [('argument type mismatch', 1), ('return type mismatch', 2),
+                     ('assignment type mismatch', 5)]:
     item = error(prefix)
     related = item['related'][0]
     assert related['line'] == line and Path(related['path']).name == 'types.zi', item

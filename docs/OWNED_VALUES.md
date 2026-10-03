@@ -38,8 +38,10 @@ its global backing aliases for the rest of the program: assignment from local
 or parameter-backed storage is rejected, and mutation of a tracked backing
 global is rejected in any function. A view reached through a local pointer created
 with Jai `*value` protects its pointee binding and pointer aliases while live.
-Views reached through unknown heap pointers or host boundaries remain
-unmodeled. The current origin summary tracks every global in the program. The
+Local copies of pointer parameters keep the parameter's backing identity.
+`TextView` through an opaque local pointer is rejected when its backing lifetime
+cannot be proved. Aliases between separate pointer parameters and arbitrary
+host boundaries still need coverage. The current origin summary tracks every global in the program. The
 rest of this page describes the intended contract, not a guarantee that every
 case is enforced today.
 
@@ -49,10 +51,12 @@ local so its lifetime is explicit; an ordinary call can consume the fresh
 result directly.
 
 `BuilderFinish` consumes the builder: the returned `string` keeps the builder's
-bytes without copying them. C99 and C++ detach the buffer instead of freeing
-it, so a finished string stays valid for the remaining process lifetime; Go
-must copy into its immutable string representation, and the portable VM copies
-into its interned string storage. Appending an empty string always succeeds
+bytes without copying them on native C/C++/Rust when nonempty. Those targets
+still retain nonempty finished bytes for process lifetime; they now release
+reserved storage when the result is empty. Go copies into its immutable string
+representation. The VM copies into an owned snapshot, preserves its owner
+through aliases and ranges, and collects unused snapshots at safe statement
+and call boundaries. Appending an empty string always succeeds
 without allocating.
 
 Generic

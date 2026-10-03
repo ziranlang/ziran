@@ -38,6 +38,10 @@ struct ForeignCall {
     String receiver;
     String symbol;
 };
+bool compiler_type_TargetKnown(String target);
+String compiler_type_ForeignTypeTarget(String foreign, bool is_map);
+bool compiler_type_ForeignImportSupported(String target, String foreign);
+int32_t compiler_type_ScalarByteWidth(String type);
 RecordField compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name_limit, int64_t type_limit, Slice tag_workspace);
 ElementType compiler_type_SliceElement(String type);
 ElementType compiler_type_ArrayElement(String type);

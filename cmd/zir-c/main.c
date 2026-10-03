@@ -294,6 +294,10 @@ main(int argc, char **argv)
     if(!check_ok)
         goto done;
     c_plan9_set_enabled(plan9);
+    if(entry == NULL)
+        for(i = 0; i < file_count; i++)
+            if(!CheckTargetCapabilities(progs[i], plan9 ? "plan9-c" : "c"))
+                goto done;
     if(entry != NULL) {
         for(i = 0; i < file_count; i++)
             merged.module_count += progs[i]->module_count;

@@ -13,6 +13,7 @@
 #include "zir_cpp_lower.h"
 
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,7 +22,19 @@ usage(void)
 {
     fprintf(stderr,
             "usage: zi2cpp [--no-main] [--prune-stale] [--entry module:function] "
-            "[--diagnostics=text|json] [--module-path DIR] --root DIR -o DIR file.zi|file.zir ...\n");
+            "[--diagnostics=text|json] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
+}
+
+static int
+valid_define(const char *name)
+{
+    if(name == NULL || (!isalpha((unsigned char)*name) && *name != '_') ||
+       strlen(name) >= ZIR_NAME_MAX)
+        return 0;
+    for(const unsigned char *p = (const unsigned char *)name + 1; *p; p++)
+        if(!isalnum(*p) && *p != '_')
+            return 0;
+    return 1;
 }
 
 static int
@@ -53,6 +66,8 @@ main(int argc, char **argv)
     ProgramSet set = {0};
     const char *module_paths[64];
     int module_path_count = 0;
+    const char *defines[64];
+    int define_count = 0;
     ZirProgram **progs;
     ZirCppModuleSyms *syms = NULL;
     int syms_count = 0;
@@ -74,6 +89,9 @@ main(int argc, char **argv)
             root = argv[++i];
         } else if(strcmp(argv[i], "--module-path") == 0 && i + 1 < argc && module_path_count < 64) {
             module_paths[module_path_count++] = argv[++i];
+        } else if(strcmp(argv[i], "--define") == 0 && i + 1 < argc &&
+                  define_count < 64 && valid_define(argv[i + 1])) {
+            defines[define_count++] = argv[++i];
         } else if(strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
             out_dir = argv[++i];
         } else if(strcmp(argv[i], "--entry") == 0 && i + 1 < argc) {
@@ -95,8 +113,9 @@ main(int argc, char **argv)
         usage();
         return 1;
     }
-    if(!ProgramsLoad(&set, root, module_paths, module_path_count,
-                     (const char *const *)(argv + first_file), argc - first_file))
+    if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
+                                defines, define_count,
+                                (const char *const *)(argv + first_file), argc - first_file))
         return 1;
     file_count = set.count;
     progs = set.programs;

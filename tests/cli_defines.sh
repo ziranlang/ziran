@@ -41,6 +41,23 @@ for platform in desktop android web; do
         grep -n -A 8 PlatformValue "$work/$platform/platform.c" >&2
         exit 1
     fi
+    "$tool_dir/zi2zir" --root "$work" "$@" -o "$work/ir-$platform" "$work/main.zi"
+    for form in source saved; do
+        module_root="$work"
+        input="$work/main.zi"
+        if test "$form" = saved; then
+            module_root="$work/ir-$platform"
+            input="$module_root/main.zir"
+        fi
+        output="$work/cpp-$platform-$form"
+        "$tool_dir/zi2cpp" --no-main --root "$module_root" "$@" -o "$output" "$input"
+        cat > "$output/caller.cpp" <<EOF
+#include "main.hpp"
+int main(void) { return Answer() == $expected ? 0 : 1; }
+EOF
+        "${CXX:-c++}" -std=c++17 -O1 -I"$output" "$output"/*.cpp -o "$output/test"
+        "$output/test"
+    done
 done
 
 if "$tool_dir/zi2zir" --check-only --root "$work" \
@@ -48,3 +65,17 @@ if "$tool_dir/zi2zir" --check-only --root "$work" \
     echo 'accepted an invalid compiler definition' >&2
     exit 1
 fi
+
+for name in 'ANDROID-BUILD' '1ANDROID' ''; do
+    if "$tool_dir/zi2cpp" --no-main --root "$work" -o "$work/invalid" \
+        --define "$name" "$work/main.zi" >/dev/null 2>&1; then
+        echo 'C++ accepted an invalid compiler definition' >&2
+        exit 1
+    fi
+done
+if "$tool_dir/zi2cpp" --no-main --root "$work" -o "$work/invalid" \
+    --define >/dev/null 2>&1; then
+    echo 'C++ accepted --define without a name' >&2
+    exit 1
+fi
+echo 'Compiler definitions: C generation and C++ source/saved-IR execution passed'

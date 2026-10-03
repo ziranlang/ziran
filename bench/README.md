@@ -1,4 +1,30 @@
-# Cross-target smoke benchmark
+# Runtime and compiler benchmarks
+
+For compiler scaling, module graphs, generic specialization, and source/saved
+IR validation, run:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/compiler_scaling.py \
+  --out build/benchmarks/compiler-scaling --sizes 8 32 128
+```
+
+The harness validates every C and portable result against an independent
+checksum and records checking, saved IR, C emission, native compilation, and
+execution separately. `--project /absolute/path/to/entry.zi` adds a real
+package check using its package map. Results include source and binary hashes,
+raw samples, a discarded warmup, tool versions, cache caveats, and compiler
+profiles. Choose a new output directory for every run.
+
+Set `ZIRAN_PROFILE=/absolute/path/to/profile.jsonl` for any compiler command to
+append a process profile without changing ordinary output or JSON diagnostics.
+Profiles contain inclusive parse/load/check/emission/IR-write times, record
+field parsing counts, peak RSS, and allocation-request counts for compiler
+workspace allocations through `AllocateOrExit`. These allocations are a
+subset, not total allocations or currently live bytes. Nested phase times
+overlap and must not be summed into a claimed build duration; the harness
+measures whole commands separately.
+
+## Cross-target smoke benchmark
 
 From the repository root, build the current toolchain and run:
 

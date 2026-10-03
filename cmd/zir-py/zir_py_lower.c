@@ -4053,7 +4053,7 @@ static int integer_type(const char *type)
     return py_integer_width(type, &bits, &is_signed);
 }
 
-int py_lower(const ZirProgram *const *programs, int program_count,
+static int emit_python(const ZirProgram *const *programs, int program_count,
              const char *output_directory, const char *entry_module,
              const char *entry_function, int executable)
 {
@@ -4178,4 +4178,15 @@ int py_lower(const ZirProgram *const *programs, int program_count,
         return 1;
     }
     return 0;
+}
+
+int py_lower(const ZirProgram *const *programs, int program_count,
+             const char *output_directory, const char *entry_module,
+             const char *entry_function, int executable)
+{
+    uint64_t started = ProfileStart();
+    int result = emit_python(programs, program_count, output_directory,
+                             entry_module, entry_function, executable);
+    ProfileEnd("emit.py", started);
+    return result;
 }

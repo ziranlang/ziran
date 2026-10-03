@@ -729,6 +729,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
 int
 CheckPrograms(ZirProgram **programs, int count)
 {
+    uint64_t profile_started = ProfileStart();
     static _Thread_local CheckProgramsBuffers *spares[16];
     static _Thread_local int spare_count;
     CheckProgramsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
@@ -738,6 +739,7 @@ CheckPrograms(ZirProgram **programs, int count)
         spares[spare_count++] = buffers;
     else
         free(buffers);
+    ProfileEnd("check", profile_started);
     return returned;
 }
 

@@ -1002,6 +1002,7 @@ kept_text_slot(const char *text, size_t length)
 void *
 AllocateOrExit(size_t size)
 {
+    ProfileAllocation(size);
     void *memory = malloc(size);
     if(memory == NULL) {
         fprintf(stderr, "out of memory\n");

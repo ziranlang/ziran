@@ -4365,7 +4365,9 @@ rust_lower(const ZirProgram *const *programs, int program_count,
     static _Thread_local int spare_count;
     RustLowerBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
         AllocateOrExit(sizeof(*buffers));
+    uint64_t profile_started = ProfileStart();
     int returned = rust_lower_with_buffers(programs, program_count, output_directory, entry_module, entry_function, executable, buffers);
+    ProfileEnd("emit.rust", profile_started);
     if(spare_count < 16)
         spares[spare_count++] = buffers;
     else

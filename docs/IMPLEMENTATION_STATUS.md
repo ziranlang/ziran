@@ -5,6 +5,15 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Opt-in compiler process profiles record inclusive loading, parsing, checking,
+  native emission, and IR writing, with record-field parsing counts and
+  workspace allocation requests. `tests/compiler_profile.sh` checks the
+  schema, separate output, and failure reporting. `bench/compiler_scaling.py`
+  validates module graphs and generic specializations from source and saved
+  IR on native C and `.zib`, retains phase profiles and whole-command samples,
+  and can check real package entries. These are measured workloads, not a
+  claim about every application or target.
+
 - JSON diagnostics carry a schema version, structured initializer, assignment,
   argument, and return type details, and related declaration locations where
   available. Missing names include suggestions and source edits when the

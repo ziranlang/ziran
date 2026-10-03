@@ -2692,7 +2692,9 @@ go_lower(const ZirProgram *const *progs, int prog_count,
     static _Thread_local int spare_count;
     GoLowerBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
         AllocateOrExit(sizeof(*buffers));
+    uint64_t profile_started = ProfileStart();
     int returned = go_lower_with_buffers(progs, prog_count, root, out_dir, pkg, no_main, buffers);
+    ProfileEnd("emit.go", profile_started);
     if(spare_count < 16)
         spares[spare_count++] = buffers;
     else

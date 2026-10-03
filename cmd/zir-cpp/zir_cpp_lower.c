@@ -1393,7 +1393,9 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
     static _Thread_local int spare_count;
     LowerModuleBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
         AllocateOrExit(sizeof(*buffers));
+    uint64_t profile_started = ProfileStart();
     int returned = lower_module_with_buffers(m, restab, restab_count, out_dir, buffers);
+    ProfileEnd("emit.cpp", profile_started);
     if(spare_count < 16)
         spares[spare_count++] = buffers;
     else

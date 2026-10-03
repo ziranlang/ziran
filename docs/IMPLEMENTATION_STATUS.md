@@ -53,6 +53,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   output agreement, C frontend lookahead, null input, and token truncation.
 
 - Shared compiler text rules are implemented in `cmd/compiler_text.zi`:
+  this includes bounded name edit distance for checker suggestions. The C
+  boundary delegates to that implementation, with no second distance policy.
+  Cross-target tests include embedded NUL bytes, invalid limits, and an
+  independent full-matrix distance oracle at the native boundary.
   whitespace and identifier bytes, trimming, native field names, C string
   escaping, top-level argument splitting and assignments, UTF-8 string
   decoding, print-format pieces, and operator procedure names. The frontend

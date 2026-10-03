@@ -39,6 +39,7 @@ struct FormatStep {
     bool present;
     int64_t next;
 };
+int32_t compiler_text_NameDistance(String a, String b, int32_t limit);
 bool compiler_text_SpaceByte(uint8_t byte);
 bool compiler_text_IdentifierByte(uint8_t byte);
 int64_t compiler_text_SkipSpace(String source, int64_t at, bool inline_only);

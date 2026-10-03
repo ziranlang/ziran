@@ -6,6 +6,40 @@ SourcePart :: struct { begin: s64; end: s64; next: s64 }
 DecodedLiteral :: struct { valid: bool; count: s64 }
 FormatStep :: struct { valid: bool; argument: bool; present: bool; next: s64 }
 
+// Bounded byte edit distance used by name diagnostics. An exceeded limit
+// returns limit + 1; invalid limits return 128. Compiler names are <128 bytes.
+NameDistance :: (a: string, b: string, limit: s32) -> s32 {
+    if limit < 0 || limit >= 128 { return 128 }
+    if a.count >= 128 || b.count >= 128 ||
+       a.count - b.count > limit || b.count - a.count > limit { return limit + 1 }
+    previous: [128]s32
+    current: [128]s32
+    for j: 0..b.count { previous[j] = cast(s32)j }
+    i: s64 = 1
+    while i <= a.count {
+        best := cast(s32)i
+        current[0] = best
+        j: s64 = 1
+        while j <= b.count {
+            substitute := previous[j - 1] + cast(s32)(a[i - 1] != b[j - 1])
+            remove := previous[j] + 1
+            insert := current[j - 1] + 1
+            value := substitute
+            if remove < value { value = remove }
+            if insert < value { value = insert }
+            current[j] = value
+            if value < best { best = value }
+            j += 1
+        }
+        if best > limit { return limit + 1 }
+        for j: 0..b.count { previous[j] = current[j] }
+        i += 1
+    }
+    distance := previous[b.count]
+    if distance > limit { return limit + 1 }
+    return distance
+}
+
 SpaceByte :: (byte: u8) -> bool { return byte == 32 || (byte >= 9 && byte <= 13) }
 IdentifierByte :: (byte: u8) -> bool {
     return (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) ||

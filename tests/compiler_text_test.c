@@ -18,8 +18,38 @@ static void decode(const char *source, const unsigned char *expected, size_t siz
     }
 }
 
+/* An independent full matrix is the oracle for the bounded Ziran policy. */
+static void distances(void)
+{
+    const char *names[] = {"", "a", "ab", "ba", "abc", "xyz", "appl", "apple", "long_identifier"};
+    for(size_t a = 0; a < sizeof(names) / sizeof(*names); a++)
+        for(size_t b = 0; b < sizeof(names) / sizeof(*names); b++) {
+            int matrix[32][32] = {{0}};
+            size_t na = strlen(names[a]), nb = strlen(names[b]);
+            for(size_t i = 0; i <= na; i++) matrix[i][0] = (int)i;
+            for(size_t j = 0; j <= nb; j++) matrix[0][j] = (int)j;
+            for(size_t i = 1; i <= na; i++)
+                for(size_t j = 1; j <= nb; j++) {
+                    int value = matrix[i - 1][j - 1] + (names[a][i - 1] != names[b][j - 1]);
+                    if(matrix[i - 1][j] + 1 < value) value = matrix[i - 1][j] + 1;
+                    if(matrix[i][j - 1] + 1 < value) value = matrix[i][j - 1] + 1;
+                    matrix[i][j] = value;
+                }
+            for(int limit = 0; limit < 8; limit++)
+                assert(NameDistance(names[a], names[b], limit) ==
+                       (matrix[na][nb] > limit ? limit + 1 : matrix[na][nb]));
+        }
+    char boundary[129];
+    memset(boundary, 'a', 128); boundary[128] = 0;
+    assert(NameDistance(boundary, boundary, 2) == 3);
+    boundary[127] = 0;
+    assert(NameDistance(boundary, boundary, 2) == 0);
+    assert(NameDistance("x", "x", -1) == 128);
+}
+
 int main(void)
 {
+    distances();
     assert(skip_ws(NULL) == NULL && skip_inline_ws(NULL) == NULL);
     assert(trim(NULL) == NULL && trim_in_place(NULL) == NULL);
     strip_block_brace(NULL);

@@ -374,8 +374,12 @@ ElementAt :: (text: string, array_at: s32, index: s32) -> s32 {
     return -1
 }
 
+// Counts and validates an array while recording the first output.count element
+// offsets. Returns the complete count, even when output is shorter, or -1 for
+// malformed input. Offsets are borrowed positions, never cached string storage;
+// callers use them only after success and clamp access to their buffer length.
 #program_export
-ArrayCount :: (text: string, array_at: s32) -> s32 {
+ArrayPositions :: (text: string, array_at: s32, output: []s32) -> s32 {
     cursor: s32 = Space(text, array_at)
     if cursor < 0 || cursor >= (cast(s32)text.count) ||
        text[cursor] != cast(u8)91 {
@@ -388,6 +392,7 @@ ArrayCount :: (text: string, array_at: s32) -> s32 {
 
     count: s32 = 0
     while cursor < (cast(s32)text.count) {
+        if count < cast(s32)output.count { output[count] = cursor }
         cursor = ValueEnd(text, cursor, 0)
         if cursor < 0 {
             return -1
@@ -409,4 +414,10 @@ ArrayCount :: (text: string, array_at: s32) -> s32 {
         }
     }
     return -1
+}
+
+#program_export
+ArrayCount :: (text: string, array_at: s32) -> s32 {
+    positions: []s32
+    return ArrayPositions(text, array_at, positions)
 }

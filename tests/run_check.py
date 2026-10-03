@@ -44,6 +44,10 @@ def main():
     }
     checks = [("bundle-link-test", [str(bin_dir / "bundle-link-test")])]
     for script in sorted((repo / "tests").glob("*.sh")):
+        # This is an explicit QEMU/8c hardware runner, taking a fixture name
+        # rather than a compiler. plan9_target.sh covers generated Plan 9 code.
+        if script.name == "plan9_native_test.sh":
+            continue
         compiler = str(bin_dir / "zi2zir") if script.name == "pointer_member_check.sh" else ziran
         command = ["sh", str(script), compiler]
         if script.name in extra:

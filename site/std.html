@@ -130,7 +130,7 @@
 <div><code>UnixNow :: () -&gt; s64</code><p class="api-note">Needs a host capability.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/date_time.zi">Source ↗</a></p></section>
 <section id="date_time_linux"><p class="eyebrow">14 / std/date_time_linux.zi</p><h2>date_time_linux</h2><p>Import with <code>#import "date_time_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
-<div><code>UnixNow :: () -&gt; s64</code></div>
+<div><code>UnixNow :: () -&gt; s64</code><p>Keep these clock providers module-qualified: a native host may also import date_time, which exports UnixNow and LocalNow for its callers.</p></div>
 <div><code>UnixMilliseconds :: () -&gt; s64</code></div>
 <div><code>LocalAt :: (seconds: s64) -&gt; LocalDateTime</code></div>
 <div><code>UtcAt :: (seconds: s64) -&gt; LocalDateTime</code></div>
@@ -373,6 +373,7 @@
 <div><code>ValueEnd :: (text: string, at: s32, depth: s32) -&gt; s32</code></div>
 <div><code>FieldAt :: (text: string, object_at: s32, name: string) -&gt; s32</code></div>
 <div><code>ElementAt :: (text: string, array_at: s32, index: s32) -&gt; s32</code></div>
+<div><code>ArrayPositions :: (text: string, array_at: s32, output: []s32) -&gt; s32</code><p>Counts and validates an array while recording the first output.count element offsets. Returns the complete count, even when output is shorter, or -1 for malformed input. Offsets are borrowed positions, never cached string storage; callers use them only after success and clamp access to their buffer length.</p></div>
 <div><code>ArrayCount :: (text: string, array_at: s32) -&gt; s32</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/json_scan.zi">Source ↗</a></p></section>
 <section id="map_go"><p class="eyebrow">35 / std/map_go.zi</p><h2>map_go</h2><p>Go maps share their storage when copied or passed to a function. The private fields describe type arguments; access goes through Map operations. Go target only. Import option to use MapLookup, whose result is Option(V). MapSet initializes nil storage; MapInit preserves an existing map. MapGet returns a zero value for absent keys. MapKeys returns an unordered snapshot.</p><p>Import with <code>#import "map_go"</code> and pass <code>--module-path std</code>.</p><div class="api-list">

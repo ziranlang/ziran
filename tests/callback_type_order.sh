@@ -35,11 +35,34 @@ ReadPrivate :: () -> s32 {
     return visit(*node)
 }
 ZI
+cat > "$work/first.zi" <<'ZI'
+Session :: struct { value: s32; }
+ZI
+cat > "$work/second.zi" <<'ZI'
+Session :: struct { other: s32; }
+ZI
+cat > "$work/native_slot.zi" <<'ZI'
+#import "first"
+Visit :: #type (session: *Session) -> Session #c_call;
+Pass :: (session: *Session) -> Session { return session.* }
+Read :: () -> s32 {
+    value: Session
+    value.value = 40
+    visit: Visit = Pass
+    answer := visit(*value)
+    return answer.value
+}
+ZI
 cat > "$work/app.zi" <<'ZI'
 Callbacks :: #import "callbacks";
+Native :: #import "native_slot";
+Other :: #import "second";
 #program_export
 main :: () -> s32 {
-    return ifx Callbacks.Read() == 42 && Callbacks.ReadPrivate() == 42 then 0 else 1
+    other: Other.Session
+    other.other = 2
+    return ifx Callbacks.Read() == 42 && Callbacks.ReadPrivate() == 42 &&
+        Native.Read() + other.other == 42 then 0 else 1
 }
 ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
@@ -56,4 +79,4 @@ for form in source saved; do
         timeout --kill-after=2s 10s "$out/run"
     done
 done
-echo 'Native callbacks over own public/private records and enums passed C/C++ source and saved IR'
+echo 'Native callbacks over public/private records, enums and colliding type names passed C/C++ source and saved IR'

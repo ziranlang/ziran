@@ -11,8 +11,8 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 for name in first second; do
     cat > "$work/$name.zi" <<ZI
 libc :: #system_library "libc";
-Absolute :: (value: s32) -> s32 #foreign libc "abs";
-Print :: (format: *u8, args: ..any) -> s32 #foreign libc "printf";
+Absolute :: (${name}_argument: s32) -> s32 #foreign libc "abs";
+Print :: (${name}_format: *u8, ${name}_arguments: ..any) -> s32 #foreign libc "printf";
 ${name}_magnitude :: (value: s32) -> s32 { return Absolute(value) }
 ZI
 done
@@ -37,25 +37,22 @@ for form in source saved; do
     done
 done
 
-# A shared name with a different symbol or ABI must remain a real conflict.
+# C has no overloads: a shared name with a different symbol or ABI remains
+# a real conflict instead of silently reusing the first binding.
 cp "$work/second.zi" "$work/second-original.zi"
 for clash in symbol signature; do
     if test "$clash" = symbol; then
         sed 's/"abs"/"labs"/' "$work/second-original.zi" > "$work/second.zi"
     else
-        sed 's/Absolute :: (value: s32)/Absolute :: (value: s64)/' "$work/second-original.zi" > "$work/second.zi"
+        sed 's/second_argument: s32/second_argument: s64/' "$work/second-original.zi" > "$work/second.zi"
     fi
-    for target in c cpp; do
-        output="$work/$clash-$target"
-        "$ziran" build "--target=$target" --entry main:main --no-main --root "$work" -o "$output" "$work/main.zi"
-        if test "$target" = c; then compiler=${CC:-cc}; standard=c99; extension=c
-        else compiler=${CXX:-c++}; standard=c++17; extension=cpp; fi
-        if "$compiler" -std="$standard" -I"$repo/include" -I"$output" \
-            "$output"/*."$extension" -o "$output/app" > "$output/errors" 2>&1; then
-            echo "Two foreign bindings named Absolute with different $clash compiled together ($target)" >&2
-            exit 1
-        fi
-        rg -q 'redefinition.*Absolute|conflicting.*zir_foreign_Absolute' "$output/errors"
-    done
+    output="$work/$clash-c"
+    "$ziran" build --target=c --entry main:main --no-main --root "$work" -o "$output" "$work/main.zi"
+    if "${CC:-cc}" -std=c99 -I"$repo/include" -I"$output" \
+        "$output"/*.c -o "$output/app" > "$output/errors" 2>&1; then
+        echo "Two foreign bindings named Absolute with different $clash compiled together" >&2
+        exit 1
+    fi
+    rg -q 'redefinition.*Absolute|conflicting.*zir_foreign_Absolute' "$output/errors"
 done
 echo 'Shared foreign bindings passed C/C++ source and saved IR execution; symbol and ABI clashes rejected'

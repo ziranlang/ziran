@@ -538,7 +538,7 @@ resolve_slot_type(void *context, const char *source,
 /* Convert Jai parameters to C++ and strip imported type qualifiers. */
 static void
 convert_args(const ZirModule *m, const ZirFunction *fn,
-             const char *args, char *dst, size_t dst_size)
+             const char *args, char *dst, size_t dst_size, int canonical_names)
 {
     size_t n = 0;
 
@@ -606,6 +606,9 @@ convert_args(const ZirModule *m, const ZirFunction *fn,
                         copy_text(name, sizeof(name), binding);
                     }
                     strip_alias_type(m, ty, type, sizeof(type));
+                    /* Parameter labels do not change the foreign ABI. */
+                    if(canonical_names)
+                        copy_text(name, sizeof(name), "_");
                     {
                         /* 'name: [N] Type' parameters must emit C array
                          * syntax 'Type name[N]', not '[N] Type name'. */
@@ -777,6 +780,7 @@ typedef struct EmitExternPrototypeBuffers {
     char cargs[LOWER_TEXT_MAX];
     char abi_args[LOWER_TEXT_MAX];
     char conv[LOWER_TEXT_MAX];
+    char binding_args[LOWER_TEXT_MAX];
     ZirFunction abi;
     char call[LOWER_TEXT_MAX];
 } EmitExternPrototypeBuffers;
@@ -786,8 +790,8 @@ static void emit_extern_prototype(FILE *c, const ZirModule *m, const ZirImport *
 /* Several modules may bind the same foreign function under the same name
  * (for example `Sleep :: ... #foreign libc "sleep"`). Their headers can meet in
  * one translation unit, so each alias and wrapper is guarded by its name, ABI
- * symbol and C++ signature: identical bindings share one definition, while
- * different ones still fail to compile instead of calling the wrong function. */
+ * symbol and C++ signature. Identical bindings share one definition; distinct
+ * bindings use separate guards instead of being silently omitted. */
 static uint32_t
 foreign_binding_hash(const char *symbol, const char *ret, const char *args)
 {
@@ -818,7 +822,7 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
     buffers->abi.args_text = KeepParameters(buffers->cargs);
     copy_text(buffers->abi.return_type, sizeof(buffers->abi.return_type), ret);
     ArrayAbiArgs(&buffers->abi, buffers->abi_args, sizeof(buffers->abi_args));
-    convert_args(m, NULL, buffers->abi_args, buffers->conv, sizeof(buffers->conv));
+    convert_args(m, NULL, buffers->abi_args, buffers->conv, sizeof(buffers->conv), 0);
     if(ArrayElementType(ret, NULL, 0, NULL))
         copy_text(ret, sizeof(ret), "void");
     if(c_extern_symbol(imp, symbol, sizeof(symbol))) {
@@ -832,7 +836,8 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
          * (for example, renameat takes const char* rather than Ziran *u8).
          * The assembler label preserves the requested symbol at link time. */
         char foreign_name[LOWER_NAME_MAX * 2];
-        uint32_t binding = foreign_binding_hash(symbol, ret[0] ? ret : "void", buffers->conv);
+        convert_args(m, NULL, buffers->abi_args, buffers->binding_args, sizeof(buffers->binding_args), 1);
+        uint32_t binding = foreign_binding_hash(symbol, ret[0] ? ret : "void", buffers->binding_args);
         snprintf(foreign_name, sizeof(foreign_name), "zir_foreign_%s", imp->name);
         fprintf(c, "#ifndef ZIR_FOREIGN_%s_%08x\n#define ZIR_FOREIGN_%s_%08x\n",
                 imp->name, (unsigned)binding, imp->name, (unsigned)binding);
@@ -1123,7 +1128,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
             continue;   /* private functions are file-static */
         function_c_name(m, fn, cname, sizeof(cname));
         ArrayAbiArgs(fn, buffers->abi_args, sizeof(buffers->abi_args));
-        convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs));
+        convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
         if(NativeMainReturnsStatus(fn))
@@ -1214,7 +1219,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
             continue;
         function_c_name(m, fn, cname, sizeof(cname));
         ArrayAbiArgs(fn, buffers->abi_args, sizeof(buffers->abi_args));
-        convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs));
+        convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
         if(NativeMainReturnsStatus(fn))
@@ -1278,7 +1283,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         if(fn->is_template) continue;
         function_c_name(m, fn, cname, sizeof(cname));
         ArrayAbiArgs(fn, buffers->abi_args, sizeof(buffers->abi_args));
-        convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs));
+        convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
         if(NativeMainReturnsStatus(fn))

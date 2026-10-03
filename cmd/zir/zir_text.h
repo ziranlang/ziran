@@ -46,6 +46,7 @@ const ZirParameters *ParametersOf(const char *text);
 const char *OperatorProcedureName(const char *op);
 /* Length of the operator token at TEXT that has a procedure name, or 0. */
 size_t OperatorTokenLength(const char *text);
+int NameDistance(const char *a, const char *b, int limit);
 /* The operator procedure NAME declares, such as "+" for operator_add, or
  * NULL for any other name. */
 const char *OperatorOfProcedure(const char *name);

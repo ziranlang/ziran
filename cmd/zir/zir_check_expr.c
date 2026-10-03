@@ -958,36 +958,12 @@ compound_operator_assignment(Checker *c, ZirStmt *st)
     return 1;
 }
 
-/* Edit distance between two names, or LIMIT + 1 once it exceeds LIMIT. */
-static int
-name_distance(const char *a, const char *b, int limit)
-{
-    int la = (int)strlen(a), lb = (int)strlen(b);
-    if(la - lb > limit || lb - la > limit || la >= ZIR_NAME_MAX || lb >= ZIR_NAME_MAX)
-        return limit + 1;
-    int previous[ZIR_NAME_MAX], current[ZIR_NAME_MAX];
-    for(int j = 0; j <= lb; j++) previous[j] = j;
-    for(int i = 1; i <= la; i++) {
-        int best = current[0] = i;
-        for(int j = 1; j <= lb; j++) {
-            int substitute = previous[j - 1] + (a[i - 1] != b[j - 1]);
-            int remove = previous[j] + 1, insert = current[j - 1] + 1;
-            current[j] = substitute < remove ? substitute : remove;
-            if(insert < current[j]) current[j] = insert;
-            if(current[j] < best) best = current[j];
-        }
-        if(best > limit) return limit + 1;
-        memcpy(previous, current, (size_t)(lb + 1) * sizeof(int));
-    }
-    return previous[lb];
-}
-
 static void
 consider_name(const char *name, const char *candidate, int *best,
               const char **choice)
 {
     if(!candidate[0] || !strcmp(name, candidate)) return;
-    int distance = name_distance(name, candidate, *best);
+    int distance = NameDistance(name, candidate, *best);
     if(distance < *best) {
         *best = distance;
         *choice = candidate;

@@ -7,6 +7,102 @@ static int64_t compiler_text_EscapeByte(uint8_t byte, bool c_string, Slice outpu
 static String Operators[16] = {{"==", sizeof("==") - 1}, {"!=", sizeof("!=") - 1}, {"<=", sizeof("<=") - 1}, {">=", sizeof(">=") - 1}, {"<<", sizeof("<<") - 1}, {">>", sizeof(">>") - 1}, {"+", sizeof("+") - 1}, {"-", sizeof("-") - 1}, {"*", sizeof("*") - 1}, {"/", sizeof("/") - 1}, {"%", sizeof("%") - 1}, {"<", sizeof("<") - 1}, {">", sizeof(">") - 1}, {"&", sizeof("&") - 1}, {"|", sizeof("|") - 1}, {"^", sizeof("^") - 1}};
 static String Procedures[16] = {{"operator_equal", sizeof("operator_equal") - 1}, {"operator_not_equal", sizeof("operator_not_equal") - 1}, {"operator_less_equal", sizeof("operator_less_equal") - 1}, {"operator_greater_equal", sizeof("operator_greater_equal") - 1}, {"operator_shift_left", sizeof("operator_shift_left") - 1}, {"operator_shift_right", sizeof("operator_shift_right") - 1}, {"operator_add", sizeof("operator_add") - 1}, {"operator_subtract", sizeof("operator_subtract") - 1}, {"operator_multiply", sizeof("operator_multiply") - 1}, {"operator_divide", sizeof("operator_divide") - 1}, {"operator_modulo", sizeof("operator_modulo") - 1}, {"operator_less", sizeof("operator_less") - 1}, {"operator_greater", sizeof("operator_greater") - 1}, {"operator_bit_and", sizeof("operator_bit_and") - 1}, {"operator_bit_or", sizeof("operator_bit_or") - 1}, {"operator_bit_xor", sizeof("operator_bit_xor") - 1}};
 
+int32_t
+compiler_text_NameDistance(String a, String b, int32_t limit)
+{
+    if (limit < 0 || limit >= 128) {
+        return 128;
+    }
+    int64_t value_0 = (int64_t)(a).length;
+    bool value_1 = value_0 >= 128LL;
+    if (!value_1) {
+        int64_t value_2 = (int64_t)(b).length;
+        value_1 = (value_2 >= 128LL);
+    }
+    bool value_3 = value_1;
+    if (!value_3) {
+        int64_t value_4 = (int64_t)((uint64_t)((int64_t)(a).length) - (uint64_t)((int64_t)(b).length));
+        int64_t value_5 = (int64_t)(limit);
+        value_3 = (value_4 > value_5);
+    }
+    bool value_6 = value_3;
+    if (!value_6) {
+        int64_t value_7 = (int64_t)((uint64_t)((int64_t)(b).length) - (uint64_t)((int64_t)(a).length));
+        int64_t value_8 = (int64_t)(limit);
+        value_6 = (value_7 > value_8);
+    }
+    if (value_6) {
+        return (int32_t)((uint32_t)limit + 1u);
+    }
+    int32_t previous[128] = {0};
+    int32_t current[128] = {0};
+    {
+        int64_t range_first_8 = 0LL;
+        int64_t range_last_8 = (int64_t)(b).length;
+        int64_t j = range_first_8;
+        while (j <= range_last_8) {
+            ZIRAN_INDEX(previous, sizeof(previous) / sizeof(previous[0]), j) = (int32_t)(j);
+            if (j == range_last_8) {
+                break;
+            }
+            j = (int64_t)((uint64_t)j + UINT64_C(1));
+        }
+    }
+    int64_t i = 1LL;
+    while (true) {
+        int64_t value_9 = (int64_t)(a).length;
+        if (!(i <= value_9)) { break; }
+        int32_t best = (int32_t)(i);
+        ZIRAN_INDEX(current, sizeof(current) / sizeof(current[0]), 0) = best;
+        int64_t j = 1LL;
+        while (true) {
+            int64_t value_10 = (int64_t)(b).length;
+            if (!(j <= value_10)) { break; }
+            bool value_11 = (uint8_t)ZIRAN_INDEX(a.data, a.length, ((int64_t)((uint64_t)i - UINT64_C(1)))) != (uint8_t)ZIRAN_INDEX(b.data, b.length, ((int64_t)((uint64_t)j - UINT64_C(1))));
+            int32_t value_12 = 0;
+            if (value_11) {
+                value_12 = 1;
+            }
+            int32_t substitute = (int32_t)((uint32_t)(ZIRAN_INDEX(previous, 128, ((int64_t)((uint64_t)j - UINT64_C(1))))) + (uint32_t)value_12);
+            int32_t remove = (int32_t)((uint32_t)(ZIRAN_INDEX(previous, 128, j)) + 1u);
+            int32_t insert = (int32_t)((uint32_t)(ZIRAN_INDEX(current, 128, ((int64_t)((uint64_t)j - UINT64_C(1))))) + 1u);
+            int32_t value = substitute;
+            if (remove < value) {
+                value = remove;
+            }
+            if (insert < value) {
+                value = insert;
+            }
+            ZIRAN_INDEX(current, sizeof(current) / sizeof(current[0]), j) = value;
+            if (value < best) {
+                best = value;
+            }
+            j = (int64_t)((uint64_t)j + UINT64_C(1));
+        }
+        if (best > limit) {
+            return (int32_t)((uint32_t)limit + 1u);
+        }
+        {
+            int64_t range_first_36 = 0LL;
+            int64_t range_last_36 = (int64_t)(b).length;
+            int64_t j = range_first_36;
+            while (j <= range_last_36) {
+                ZIRAN_INDEX(previous, sizeof(previous) / sizeof(previous[0]), j) = ZIRAN_INDEX(current, 128, j);
+                if (j == range_last_36) {
+                    break;
+                }
+                j = (int64_t)((uint64_t)j + UINT64_C(1));
+            }
+        }
+        i = (int64_t)((uint64_t)i + UINT64_C(1));
+    }
+    int32_t distance = ZIRAN_INDEX(previous, 128, (int64_t)(b).length);
+    if (distance > limit) {
+        return (int32_t)((uint32_t)limit + 1u);
+    }
+    return distance;
+}
+
 bool
 compiler_text_SpaceByte(uint8_t byte)
 {

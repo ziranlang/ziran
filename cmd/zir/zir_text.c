@@ -308,6 +308,12 @@ OperatorProcedureName(const char *op)
     return name.length > 0 ? name.data : NULL;
 }
 
+int
+NameDistance(const char *a, const char *b, int limit)
+{
+    return compiler_text_NameDistance(source_text(a), source_text(b), limit);
+}
+
 size_t
 OperatorTokenLength(const char *text)
 {

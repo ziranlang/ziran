@@ -87,6 +87,10 @@ Answer :: () -> s32 {
     if !step.valid || step.present || step.next != 7 { return 31 }
     step = NextPrintPiece(bytes[0:decoded.count], 0, output[0:4])
     if step.valid { return 32 }
+    if NameDistance("", "", 0) != 0 || NameDistance("", "x", 0) != 1 ||
+    NameDistance("appl", "apple", 2) != 1 || NameDistance("name", "nmae", 2) != 2 ||
+    NameDistance("abc", "xyz", 1) != 2 || NameDistance("a\0b", "a\0c", 2) != 1 ||
+    NameDistance("x", "x", -1) != 128 || NameDistance("x", "x", 128) != 128 { return 33 }
     return 42
 }
 
@@ -139,6 +143,9 @@ Fingerprint :: () -> s64 {
         range := TrimRange(source)
         result = result * cast(u32)16777619 ^ cast(u32)range.begin
         result = result * cast(u32)16777619 ^ cast(u32)range.end
+        for limit: 0..3 {
+            result = result * cast(u32)16777619 ^ cast(u32)NameDistance(source, "word", cast(s32)limit)
+        }
         VecFree(bytes)
         VecFree(literal)
         sample += 1

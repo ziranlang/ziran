@@ -54,8 +54,9 @@ dangling view.
   parameter lists, are interned kept text; parameter lists are split once
   (`ParametersOf`); type lookups are kept until what they read changes.
   Record fields, type bodies, and the other ZirFunction and ZirType names are
-  still spelling-sized buffers, and record fields are parsed from text on each
-  walk.
+  still spelling-sized buffers. Parsed record fields now use shared immutable
+  snapshots; saved field bodies and the remaining declaration/import lowering
+  still need a fully structured representation.
 
 ## Priority 3: a fast agent and editor loop
 

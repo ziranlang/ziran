@@ -66,7 +66,7 @@ def main():
     (output / 'metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
     samples = []
     invocation = 0
-    def run(command, case, phase, oracle=None):
+    def run(command, case, phase, oracle=None, cwd=ROOT):
         nonlocal invocation
         for repetition in range(args.repetitions + 1):
             invocation += 1
@@ -74,10 +74,10 @@ def main():
             child_env = {**env, 'ZIRAN_PROFILE': str(profile)}
             argv = [str(part) for part in command]
             started = time.perf_counter_ns()
-            child = subprocess.run(argv, cwd=ROOT, env=child_env, text=True, capture_output=True, timeout=300)
+            child = subprocess.run(argv, cwd=cwd, env=child_env, text=True, capture_output=True, timeout=300)
             elapsed = (time.perf_counter_ns() - started) / 1e6
             record = dict(case=case, phase=phase, repetition=repetition, warmup=repetition == 0,
-                argv=argv, elapsed_ms=elapsed, returncode=child.returncode,
+                argv=argv, cwd=str(cwd), elapsed_ms=elapsed, returncode=child.returncode,
                 stdout=child.stdout, stderr=child.stderr,
                 compiler_profiles=[json.loads(line) for line in profile.read_text().splitlines()] if profile.exists() else [])
             with (output / 'samples.jsonl').open('a') as log:
@@ -135,7 +135,13 @@ def main():
         for kind in ['modules', 'generics']:
             workload(kind, size)
     for entry in args.project:
-        run([binaries/'ziran', 'check', '--project', entry.resolve()], f'project/{entry.parent.name}', 'check')
+        entry = entry.resolve()
+        project = next((parent for parent in entry.parents if (parent/'ziran.toml').is_file()), None)
+        if project is None:
+            parser.error(f'no package manifest above {entry}')
+        flags = [] if (project/'ziran.local.toml').is_file() else ['--locked']
+        run([binaries/'ziran', 'check', '--project', *flags, entry],
+            f'project/{project.name}', 'check', cwd=project)
     groups = {}
     for record in samples:
         groups.setdefault((record['case'], record['phase']), []).append(record['elapsed_ms'])

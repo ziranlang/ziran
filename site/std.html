@@ -372,6 +372,7 @@
 <div><code>MatchLiteral :: (text: string, at: s32, literal: string) -&gt; bool</code></div>
 <div><code>ValueEnd :: (text: string, at: s32, depth: s32) -&gt; s32</code></div>
 <div><code>FieldAt :: (text: string, object_at: s32, name: string) -&gt; s32</code></div>
+<div><code>ObjectPositions :: (text: string, object_at: s32, names: []string, output: []s32) -&gt; bool</code></div>
 <div><code>ElementAt :: (text: string, array_at: s32, index: s32) -&gt; s32</code></div>
 <div><code>ArrayPositions :: (text: string, array_at: s32, output: []s32) -&gt; s32</code><p>Counts and validates an array while recording the first output.count element offsets. Returns the complete count, even when output is shorter, or -1 for malformed input. Offsets are borrowed positions, never cached string storage; callers use them only after success and clamp access to their buffer length.</p></div>
 <div><code>ArrayCount :: (text: string, array_at: s32) -&gt; s32</code></div>

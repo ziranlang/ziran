@@ -328,8 +328,10 @@ typedef struct ZirTypeField {
     int is_using;
 } ZirTypeField;
 
-/* Start offset at zero. Returns 1 for a field, 0 at end, -1 for malformed
- * record syntax. Names/types are trimmed without truncating source tokens. */
+/* Start the opaque cursor at zero. Returns 1 for a field, 0 at end, -1 for
+ * malformed syntax. The record body must remain unchanged during a walk;
+ * reset the cursor after any rewrite. Fields come from one immutable parsed
+ * snapshot. Names/types are trimmed without truncating source tokens. */
 int TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field);
 int EnumMemberValue(const ZirType *type, const char *name, int64_t *value);
 

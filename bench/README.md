@@ -18,11 +18,23 @@ profiles. Choose a new output directory for every run.
 Set `ZIRAN_PROFILE=/absolute/path/to/profile.jsonl` for any compiler command to
 append a process profile without changing ordinary output or JSON diagnostics.
 Profiles contain inclusive parse/load/check/emission/IR-write times, record
-field parsing counts, peak RSS, and allocation-request counts for compiler
+field parsing and snapshot-reuse counts, peak RSS, and allocation-request counts for compiler
 workspace allocations through `AllocateOrExit`. These allocations are a
 subset, not total allocations or currently live bytes. Nested phase times
 overlap and must not be summed into a claimed build duration; the harness
 measures whole commands separately.
+
+The October 3 field-snapshot comparison used module/generic sizes 8 and 32,
+three measured repetitions, and checks of the real Kryon and t9 packages
+(162 validated measured samples per run). Kryon's field-parser calls fell
+from 2,056,209 to 2,883 and t9's from 2,747,749 to 3,839. Whole-command check
+medians were 515/537 ms for Kryon and 813/849 ms for t9 (before/after), so this
+run establishes elimination of repeated parsing, not a wall-clock speedup.
+The machine was shared and both metadata records identify dirty working trees;
+each records the actual tool hashes. Local raw samples are under
+`build/benchmarks/compiler-fields-before-fixed` and
+`build/benchmarks/compiler-fields-after`. Repeat on a stable machine before
+using these timings as a regression threshold.
 
 ## Cross-target smoke benchmark
 

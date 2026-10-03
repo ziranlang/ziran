@@ -99,14 +99,16 @@ CamelIdentifier :: (source: string, output: []u8) -> s64 {
 
 GoFieldIdentifier :: (source: string, output: []u8) -> s64 {
     used := CamelIdentifier(source, output)
-    name := TextView(output[0:used])
     replacement := ""
-    if name == "Id" { replacement = "ID" }
-    else if name == "FocusId" { replacement = "FocusID" }
-    else if name == "MenuId" { replacement = "MenuID" }
-    else if name == "SelectedId" { replacement = "SelectedID" }
-    else if name == "ActivatedId" { replacement = "ActivatedID" }
-    else if name == "CanonicalUrl" { replacement = "CanonicalURL" }
+    {
+        name := TextView(output[0:used])
+        if name == "Id" { replacement = "ID" }
+        else if name == "FocusId" { replacement = "FocusID" }
+        else if name == "MenuId" { replacement = "MenuID" }
+        else if name == "SelectedId" { replacement = "SelectedID" }
+        else if name == "ActivatedId" { replacement = "ActivatedID" }
+        else if name == "CanonicalUrl" { replacement = "CanonicalURL" }
+    }
     if replacement.count == 0 { return used }
     for index: 0..used - 1 { output[index] = replacement[index] }
     return used

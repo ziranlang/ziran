@@ -48,9 +48,9 @@ PkgTemplateKey :: struct {
 
 PkgTemplateUsage :: (command: string) -> s32 {
     if command == "new" {
-        return PkgFail("usage: ziran new DIR [--template SOURCE[:NAME]] [--ref REF] [--name NAME]")
+        return PkgFail("usage: ziran new DIR [--template SOURCE[:NAME]] [--ref REF] [--name NAME] [--overrides FILE]")
     }
-    return PkgFail("usage: ziran init [--template SOURCE[:NAME]] [--ref REF] [--name NAME]")
+    return PkgFail("usage: ziran init [--template SOURCE[:NAME]] [--ref REF] [--name NAME] [--overrides FILE]")
 }
 
 PkgTemplateLocal :: (source: string) -> bool {
@@ -573,14 +573,19 @@ Template :: (launcher: string, command: string, arguments: []string) -> s32 {
     spec: string = ""
     name: string = ""
     reference: string = "master"
+    overrides_file: string = ""
     index: s32 = 0
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
-        if (part == "--template" || part == "--name" || part == "--ref") {
+        if (part == "--template" || part == "--name" || part == "--ref" || part == "--overrides") {
             if index + 1 >= cast(s32)arguments.count { return PkgTemplateUsage(command) }
             if part == "--template" { spec = arguments[index + 1] }
             if part == "--name" { name = arguments[index + 1] }
             if part == "--ref" { reference = arguments[index + 1] }
+            if part == "--overrides" {
+                overrides_file = arguments[index + 1]
+                if overrides_file.count == 0 { return PkgTemplateUsage(command) }
+            }
             index += 2
         } else if command == "new" && target.count == 0 && part.count > 0 &&
                   part[0] != cast(u8)45 {
@@ -608,6 +613,18 @@ Template :: (launcher: string, command: string, arguments: []string) -> s32 {
     if command == "new" && PathExists(target) && !PkgDirectoryEmpty(target) {
         return PkgFail(PkgJoin3("", target, " is not empty; use ziran init inside it"))
     }
+    overrides: PkgReadResult
+    local_file := PkgJoin(target, "/ziran.local.toml")
+    if overrides_file.count > 0 {
+        if PathExists(local_file) {
+            return PkgFail("ziran.local.toml already exists; keep its overrides or update it explicitly")
+        }
+        parsed := PkgNewOverrides()
+        overrides = PkgRead(overrides_file)
+        if parsed == null || !overrides.valid || !PkgParseOverrides(overrides_file, parsed) {
+            return PkgFail(PkgJoin("cannot read or parse local overrides: ", overrides_file))
+        }
+    }
     // Resolve the template first, so a wrong name leaves no directory behind.
     template: PkgTemplateSource = PkgResolveTemplate(launcher, spec, reference)
     if !template.valid { return 2 }
@@ -615,13 +632,24 @@ Template :: (launcher: string, command: string, arguments: []string) -> s32 {
         return PkgFail(PkgJoin("cannot create ", target))
     }
     if !PkgApplyTemplate(template.directory, target, name) { return 2 }
+    if overrides_file.count > 0 {
+        // Exclusive creation preserves an existing config, including symlinks.
+        file := OpenExclusivePrivate(local_file)
+        if !file.valid { return PkgFail("cannot create ziran.local.toml; existing files are preserved") }
+        copied := WriteTextAt(file, overrides.text, 0) == cast(s64)overrides.text.count
+        if copied { copied = SyncFile(file) }
+        CloseFile(file)
+        if !copied {
+            unused RemoveFile(local_file)
+            return PkgFail("cannot write local overrides")
+        }
+    }
     lock: [2]string
     lock[0] = launcher
     lock[1] = "lock"
     locked: PkgProcessResult = PkgCapture(lock[:], target)
     if locked.code != 0 {
-        PkgPrint(locked.text, true)
-        PkgPrint("\n", true)
+        PkgShowToolFailure(locked.text)
         return PkgFail("the project was written but ziran lock failed; fix ziran.toml and run ziran lock")
     }
     // A package with a program runs; a library checks its exports.

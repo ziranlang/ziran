@@ -125,8 +125,7 @@ Add :: (launcher: string, arguments: []string) -> s32 {
     locked: PkgProcessResult = PkgCapture(command[:], root)
     if locked.code != 0 {
         PkgWrite(manifest_path, original.text)
-        PkgPrint(locked.text, true)
-        PkgPrint("\n", true)
+        PkgShowToolFailure(locked.text)
         return PkgFail("ziran add: lock failed; ziran.toml restored")
     }
     PkgPrint(PkgJoin3("added ", alias, " from "), false)

@@ -495,6 +495,7 @@ PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
 
 #program_export
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
+    PkgSetDiagnosticFormat(arguments)
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
         PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)

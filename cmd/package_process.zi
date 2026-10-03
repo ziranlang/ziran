@@ -109,7 +109,9 @@ RunProcess :: (arguments: []string, directory: string,
             index += 1
         }
         Execute(pointers[0].value, *pointers[0])
-        PrintError(pointers[0].value)
+        // A captured failure becomes the caller's diagnostic. Uncaptured
+        // transport reports its status without corrupting a JSON stream.
+        if capture { PrintError(pointers[0].value) }
         Exit(127)
     }
     truncated: bool = false

@@ -24,8 +24,7 @@ Run :: (root: string) -> s32 {
     missing_path := Path(root, "missing", missing[:])
     error: [256]u8
     if PathInfo(missing_path).valid || LastError(error[:]) == "" || LastError(tiny[:]) != "" { return 32 }
-    if !CopyCString(missing_path, missing[:]) ||
-        open(cast(*s8)(*missing[0]), 0) >= 0 ||
+    if open(cast(*s8)(*missing[0]), 0) >= 0 ||
         dirstat(cast(*s8)(*missing[0])) != null { return 12 }
     directory_bytes: [1024]u8
     first_bytes: [1024]u8

@@ -13,8 +13,9 @@
 static void
 usage(void)
 {
-    fputs("usage: ziran api [--json] [--diagnostics=text|json] "
-          "[--module-path DIR] [--define NAME] --root DIR file.zi|file.zir ...\n", stderr);
+    Diagnostic((ZirSourceSpan){0}, "command.arguments",
+          "usage: ziran api [--json] [--diagnostics=text|json] "
+          "[--module-path DIR] [--define NAME] --root DIR file.zi|file.zir ...");
 }
 
 static void
@@ -103,7 +104,7 @@ show_function(const ZirModule *module, const ZirFunction *fn, int json)
     struct { char args[ZIR_TEXT_MAX * 2], result[ZIR_TEXT_MAX], spelled[ZIR_TEXT_MAX]; }
         *text = calloc(1, sizeof(*text));
     if(text == NULL) {
-        fputs("out of memory\n", stderr);
+        DiagnosticOutOfMemory();
         exit(1);
     }
     char *args = text->args, *result = text->result;
@@ -370,6 +371,7 @@ main(int argc, char **argv)
     int first_module = 1;
     ProgramSet set = {0};
 
+    SetDiagnosticFormatFromArguments(argc, argv);
     for(int i = 1; i < argc; i++) {
         if(strcmp(argv[i], "--json") == 0) {
             json = 1;

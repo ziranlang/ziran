@@ -4,6 +4,24 @@
 
 static int diagnostic_json = -1;
 
+/* Paths and subprocess output may contain non-UTF-8 bytes. Preserve valid
+ * UTF-8, but escape individual invalid bytes so each JSON line is decodable. */
+static size_t
+utf8_length(const unsigned char *at)
+{
+    unsigned char first = at[0];
+    size_t length = first >= 0xc2 && first <= 0xdf ? 2 :
+        first >= 0xe0 && first <= 0xef ? 3 :
+        first >= 0xf0 && first <= 0xf4 ? 4 : 0;
+    for(size_t i = 1; i < length; i++)
+        if(at[i] == 0 || at[i] < 0x80 || at[i] > 0xbf) return 0;
+    if((first == 0xe0 && at[1] < 0xa0) ||
+       (first == 0xed && at[1] >= 0xa0) ||
+       (first == 0xf0 && at[1] < 0x90) ||
+       (first == 0xf4 && at[1] >= 0x90)) return 0;
+    return length;
+}
+
 static void
 json_string(FILE *out, const char *value)
 {
@@ -16,6 +34,13 @@ json_string(FILE *out, const char *value)
             fputc(*cursor, out);
         } else if(*cursor < 0x20) {
             fprintf(out, "\\u%04x", *cursor);
+        } else if(*cursor >= 0x80) {
+            size_t length = utf8_length(cursor);
+            if(length == 0) fprintf(out, "\\u%04x", *cursor);
+            else {
+                fwrite(cursor, 1, length, out);
+                cursor += length - 1;
+            }
         } else {
             fputc(*cursor, out);
         }
@@ -34,6 +59,36 @@ SetDiagnosticFormat(const char *format)
     else
         return 0;
     return 1;
+}
+
+void
+SetDiagnosticFormatFromArguments(int argc, char *const *argv)
+{
+    /* Even an earlier invalid option must honor a following format flag. */
+    for(int i = 1; i < argc && strcmp(argv[i], "--"); i++)
+        if(!strncmp(argv[i], "--diagnostics=", 14))
+            SetDiagnosticFormat(argv[i] + 14);
+}
+
+int
+DiagnosticJsonEnabled(void)
+{
+    if(diagnostic_json < 0) {
+        const char *environment = getenv("ZIRAN_DIAGNOSTICS");
+        diagnostic_json = environment != NULL && !strcmp(environment, "json");
+    }
+    return diagnostic_json;
+}
+
+void
+DiagnosticOutOfMemory(void)
+{
+    /* No allocation, source interning, or nested diagnostic buffer needed. */
+    if(DiagnosticJsonEnabled())
+        fputs("{\"schema_version\":1,\"severity\":\"error\",\"code\":\"compiler.memory\","
+              "\"message\":\"out of memory\",\"path\":\"\",\"line\":0,\"column\":0,"
+              "\"end_line\":0,\"end_column\":0}\n", stderr);
+    else fputs("ziran: out of memory\n", stderr);
 }
 /* Buffers DiagnosticV keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -60,10 +115,7 @@ report(ZirSourceSpan span, const char *severity, const char *code,
        va_list args, DiagnosticVBuffers *buffers)
 {
     vsnprintf(buffers->message, sizeof(buffers->message), format, args);
-    if(diagnostic_json < 0) {
-        const char *environment = getenv("ZIRAN_DIAGNOSTICS");
-        diagnostic_json = environment != NULL && strcmp(environment, "json") == 0;
-    }
+    DiagnosticJsonEnabled();
     int warning = strcmp(severity, "warning") == 0;
     if(diagnostic_json) {
         fprintf(stderr, "{\"schema_version\":1,\"severity\":\"%s\",\"code\":", severity);

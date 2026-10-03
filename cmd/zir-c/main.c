@@ -23,11 +23,12 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <errno.h>
 
 static void
 usage(void)
 {
-    fprintf(stderr,
+    Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2c [--no-main] [--prune-stale] [--plan9|--target=plan9-c] "
             "[--entry module:function [--exe]] [--include-dir DIR] "
             "[--diagnostics=text|json] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
@@ -104,7 +105,8 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
     const char *result = fn->return_type;
     int returns_integer = ScalarWidth(result) != 0;
     if(strcmp(result, "void") && !returns_integer) {
-        fprintf(stderr, "zi2c: --exe entry %s must return nothing or an integer\n",
+        DiagnosticTarget(fn->span, "zir_c.entry", "c", "entry.signature",
+                "--exe entry %s must return nothing or an integer",
                 fn->name);
         return 0;
     }
@@ -112,7 +114,8 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
     copy_text(parameters, sizeof(parameters), FunctionArgs(fn));
     int arguments = parameters[0] != '\0';
     if(arguments && (strstr(parameters, "**") == NULL || strchr(parameters, ',') == NULL)) {
-        fprintf(stderr, "zi2c: --exe entry %s takes nothing or (argc: s32, argv: **u8)\n",
+        DiagnosticTarget(fn->span, "zir_c.entry", "c", "entry.signature",
+                "--exe entry %s takes nothing or (argc: s32, argv: **u8)",
                 fn->name);
         return 0;
     }
@@ -123,7 +126,7 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
         stem[length - 3] = '\0';
     FILE *out = fopen(path, "w");
     if(out == NULL) {
-        fprintf(stderr, "zi2c: cannot write %s\n", path);
+        Diagnostic(fn->span, "zir.output", "cannot write %s: %s", path, strerror(errno));
         return 0;
     }
     fprintf(out, "/* zi2c --exe: runs %s:%s as the program. */\n", module->name, fn->name);
@@ -135,7 +138,11 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
     else
         fprintf(out, "    %s(%s);\n    return 0;\n}\n", native, call_arguments);
     (void)out_dir;
-    return fclose(out) == 0;
+    if(fclose(out) != 0) {
+        Diagnostic(fn->span, "zir.output", "cannot finish %s: %s", path, strerror(errno));
+        return 0;
+    }
+    return 1;
 }
 
 /* Compile every generated C file in OUT_DIR, with the toolchain's headers,
@@ -147,8 +154,13 @@ compile_executable(const char *out_dir, const char *name)
     char output[ZIR_PATH_MAX];
     struct dirent **entries = NULL;
     int count = 0, files = 0, status = -1, ok = 0;
-    if(args == NULL)
+    char log[ZIR_TEXT_MAX] = {0};
+    size_t used = 0;
+    int truncated = 0;
+    if(args == NULL) {
+        DiagnosticOutOfMemory();
         return 0;
+    }
     const char *include = ToolchainIncludeDirectory();
     if(snprintf(output, sizeof(output), "%s/%s", out_dir, name) >= (int)sizeof(output))
         goto done;
@@ -179,18 +191,58 @@ compile_executable(const char *out_dir, const char *name)
     args[count++] = strdup("-lm");
     for(int i = 0; i < count; i++)
         if(args[i] == NULL) goto done;
+    int capture = DiagnosticJsonEnabled(), pipes[2] = {-1, -1};
+    if(capture && pipe(pipes) != 0) goto done;
+    fflush(NULL);
     pid_t child = fork();
     if(child == 0) {
+        if(capture) {
+            close(pipes[0]);
+            if(dup2(pipes[1], STDOUT_FILENO) < 0 ||
+               dup2(pipes[1], STDERR_FILENO) < 0) _exit(127);
+            if(pipes[1] != STDOUT_FILENO && pipes[1] != STDERR_FILENO) close(pipes[1]);
+        }
         execvp(args[0], args);
-        fprintf(stderr, "zi2c: cannot run %s\n", args[0]);
+        /* Captured by the parent in JSON mode. */
+        dprintf(STDERR_FILENO, "cannot run %s: %s\n", args[0], strerror(errno));
         _exit(127);
     }
-    if(child > 0 && waitpid(child, &status, 0) == child &&
+    if(capture) {
+        close(pipes[1]);
+        if(child > 0) {
+            char chunk[4096];
+            ssize_t bytes;
+            while((bytes = read(pipes[0], chunk, sizeof(chunk))) != 0) {
+                if(bytes < 0) {
+                    if(errno == EINTR) continue;
+                    break;
+                }
+                size_t copied = (size_t)bytes;
+                if(copied > sizeof(log) - 1 - used) {
+                    copied = sizeof(log) - 1 - used;
+                    truncated = 1;
+                }
+                for(size_t i = 0; i < copied; i++)
+                    log[used++] = chunk[i] != 0 ? chunk[i] : '?';
+            }
+        }
+        close(pipes[0]);
+    }
+    pid_t waited;
+    do { waited = child > 0 ? waitpid(child, &status, 0) : -1; }
+    while(waited < 0 && errno == EINTR && child > 0);
+    if(waited == child && child > 0 &&
        WIFEXITED(status) && WEXITSTATUS(status) == 0)
         ok = 1;
-    else
-        fprintf(stderr, "zi2c: compiling %s failed\n", output);
+    if(ok && used > 0)
+        Warning((ZirSourceSpan){0}, "zir_c.toolchain", "%s%s", log,
+                truncated ? " [output truncated]" : "");
 done:
+    if(!ok)
+        DiagnosticTarget((ZirSourceSpan){0}, "zir_c.toolchain", "c", "toolchain.native",
+                         "compiling %s failed%s%s%s", out_dir,
+                         used > 0 ? ": " : "", used > 0 ? log : "",
+                         truncated ? " [output truncated]" : "");
     for(int i = 0; i < EXE_MAX_ARGS; i++)
         free(args[i]);
     free(args);
@@ -229,6 +281,7 @@ main(int argc, char **argv)
     int i;
     int first_file = 0;
 
+    SetDiagnosticFormatFromArguments(argc, argv);
     for(i = 1; i < argc; i++) {
         if(strncmp(argv[i], "--diagnostics=", 14) == 0) {
             if(!SetDiagnosticFormat(argv[i] + 14)) {
@@ -269,8 +322,10 @@ main(int argc, char **argv)
     if(root == NULL || out_dir == NULL || first_file == 0 ||
        (entry != NULL && !split_entry(entry, entry_module, entry_function)) ||
        (exe && (entry == NULL || plan9))) {
-        if(exe && entry == NULL)
-            fprintf(stderr, "zi2c: --exe needs --entry module:function\n");
+        if(exe && entry == NULL) {
+            Diagnostic((ZirSourceSpan){0}, "command.arguments", "--exe needs --entry module:function");
+            return 1;
+        }
         usage();
         return 1;
     }
@@ -344,7 +399,8 @@ main(int argc, char **argv)
                     }
             }
             if(entry_fn == NULL) {
-                fprintf(stderr, "zi2c: --exe cannot find %s\n", entry);
+                DiagnosticTarget((ZirSourceSpan){0}, "zir_c.entry", "c", "entry.signature",
+                                 "--exe cannot find %s", entry);
                 goto done;
             }
             if(!write_entry_main(entry_owner, entry_fn, out_dir, wrapper))
@@ -385,7 +441,7 @@ done:
         return result;
     if(prune_stale &&
        GeneratedOutputPrune(out_dir, "/* Generated by zi2c from ") != 0) {
-        fprintf(stderr, "zi2c: cannot remove stale generated files in %s\n",
+        Diagnostic((ZirSourceSpan){0}, "zir.output", "cannot remove stale generated files in %s",
                 out_dir);
         return 1;
     }
@@ -399,9 +455,9 @@ done:
         /* Unresolved declarations are usually inside platform guards the
          * native build compiles out; the in-guest compile is the final
          * arbiter, so warn rather than fail. */
-        fprintf(stderr,
-                "zi2c: --plan9 left %d __auto_type declarations unresolved "
-                "(guarded code compiles out; the rest must be resolvable)\n",
+        Warning((ZirSourceSpan){0}, "zir_c.plan9",
+                "--plan9 left %d __auto_type declarations unresolved "
+                "(guarded code compiles out; the rest must be resolvable)",
                 unresolved);
     }
     return 0;

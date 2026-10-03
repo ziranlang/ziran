@@ -306,10 +306,8 @@ Features :: (arguments: []string) -> s32 {
         index += 1
     }
     if selected < 0 {
-        PkgPrint("ziran: unknown feature ID: ", true)
-        PkgPrint(id, true)
-        PkgPrint("\nRun ziran features for known IDs.\n", true)
-        return 2
+        return PkgFail(PkgJoin3("unknown feature ID: ", id,
+            "\nRun ziran features for known IDs."))
     }
     if json {
         PkgPrint("{\"schema_version\":1,\"stability\":\"stable-id\",\"feature\":", false)

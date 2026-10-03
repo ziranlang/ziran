@@ -42,9 +42,13 @@ borrowed field or array while allowing sibling record fields to change. Global
 views track their backing-global origins and alias chains, and views through
 local `*value` pointers protect their pointee and pointer aliases. Unknown
 local pointer views are rejected when their backing lifetime cannot be proved.
-Local copies of pointer parameters preserve their backing identity; aliases
-between separate pointer parameters and arbitrary host-backed aliases still
-need further coverage.
+Local copies of pointer parameters preserve their backing identity. Separate
+pointer or slice parameters of the same type are possible aliases. Checked
+calls include transitive parameter/global writes, and earlier text arguments
+stay live while later arguments and the procedure body execute. Unknown
+callbacks conservatively write reference arguments. Differently typed pointer
+aliases and arbitrary host-backed aliases still need further coverage; raw
+native FFI has no checked memory-effect contract.
 
 `automatic_vec_drop` is `true` for every target: direct owned `Vec` locals
 and parameters are released at scope exit or return, as are vectors reachable
@@ -63,8 +67,11 @@ the target's lowerer and verifier still enforce its other limits.
 `aggregate_vec_transfer` is `true`: whole local aggregates, fresh aggregate
 call results, and vector-bearing record-literal fields can move through
 assignment, argument passing, and return, with native targets recursively
-clearing every moved vector field. `diagnostics_json` is `partial` because some compiler paths
-still print plain errors even when JSON is requested. These are current
+clearing every moved vector field. `diagnostics_json` is `partial`: compiler
+tools, the package launcher, and formatter report ordinary argument, input,
+output, allocation, and native-tool failures as schema-versioned JSON, but
+arbitrary external package tools and fatal process signals can still produce
+unstructured output. These are current
 boundaries, not feature requests or guarantees about unlisted behavior. See
 [implementation status](IMPLEMENTATION_STATUS.md) and the
 [owned-value contract](OWNED_VALUES.md) for detail.

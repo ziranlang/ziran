@@ -692,7 +692,7 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
             const ZirModule *fresh_owner = NULL;
             const ZirType *fresh = find_type_depth(module, name, &fresh_owner, 0);
             if(fresh != lookup->type || fresh_owner != lookup->owner) {
-                fprintf(stderr, "ziran: kept type lookup of %s in %s is stale\n",
+                Diagnostic(module->span, "compiler.internal", "kept type lookup of %s in %s is stale",
                         name, module->name);
                 abort();
             }
@@ -947,7 +947,7 @@ SourceFile(const char *path)
         source_files.slot_count = old_count ? old_count * 2 : 256;
         source_files.slots = calloc(source_files.slot_count, sizeof(int));
         if(source_files.slots == NULL) {
-            fprintf(stderr, "out of memory recording source paths\n");
+            DiagnosticOutOfMemory();
             exit(1);
         }
         for(size_t i = 0; i < old_count; i++)
@@ -965,7 +965,7 @@ SourceFile(const char *path)
         int capacity = source_files.capacity ? source_files.capacity * 2 : 64;
         char **paths = realloc(source_files.paths, (size_t)capacity * sizeof(*paths));
         if(paths == NULL) {
-            fprintf(stderr, "out of memory recording source paths\n");
+            DiagnosticOutOfMemory();
             exit(1);
         }
         source_files.paths = paths;
@@ -973,7 +973,7 @@ SourceFile(const char *path)
     }
     char *copy = strdup(path);
     if(copy == NULL) {
-        fprintf(stderr, "out of memory recording source paths\n");
+        DiagnosticOutOfMemory();
         exit(1);
     }
     source_files.paths[source_files.count] = copy;
@@ -1032,7 +1032,7 @@ AllocateOrExit(size_t size)
     ProfileAllocation(size);
     void *memory = malloc(size);
     if(memory == NULL) {
-        fprintf(stderr, "out of memory\n");
+        DiagnosticOutOfMemory();
         exit(1);
     }
     return memory;
@@ -1041,7 +1041,7 @@ AllocateOrExit(size_t size)
 static void
 kept_text_failed(void)
 {
-    fprintf(stderr, "out of memory keeping source text\n");
+    DiagnosticOutOfMemory();
     exit(1);
 }
 

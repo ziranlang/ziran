@@ -845,6 +845,30 @@ def templates(ziran: str, root: Path, compiler: Path, env: dict) -> None:
     assert 'name = "greeter"' in manifest and "{{" not in manifest, manifest
     assert (greeter / ".gitignore").exists() and (greeter / "ziran.lock").exists()
     write(greeter / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+    # Explicit local overrides are installed before locking, preserving the
+    # existing checkout and making fresh template projects work offline.
+    overrides = work / "overrides.toml"
+    write(overrides, f'[overrides]\nziran = "{compiler}"\n')
+    local_created = call(ziran, "new", "local-tool", "--overrides", str(overrides),
+                         cwd=work, env=env)
+    assert "created local-tool from cli" in local_created, local_created
+    local_tool = work / "local-tool"
+    assert (local_tool / "ziran.local.toml").read_bytes() == overrides.read_bytes()
+    assert (local_tool / "ziran.local.toml").stat().st_mode & 0o777 == 0o600
+    assert call(ziran, "run", cwd=local_tool, env=env) == "Hello, world!\n"
+    before_manifest = (local_tool / "ziran.toml").read_bytes()
+    refused_local = call(ziran, "init", "--overrides", str(overrides),
+                         cwd=local_tool, env=env, succeed=False)
+    assert "ziran.local.toml already exists" in refused_local, refused_local
+    assert (local_tool / "ziran.toml").read_bytes() == before_manifest
+    assert (local_tool / "ziran.local.toml").read_bytes() == overrides.read_bytes()
+    malformed = work / "malformed.toml"
+    write(malformed, "[overrides\n")
+    for configuration in (malformed, work / "missing.toml"):
+        refused_local = call(ziran, "new", "invalid-local", "--overrides",
+                             str(configuration), cwd=work, env=env, succeed=False)
+        assert "cannot read or parse local overrides" in refused_local, refused_local
+        assert not (work / "invalid-local").exists()
     assert call(ziran, "run", cwd=greeter, env=env) == "Hello, world!\n"
     assert call(ziran, "run", "--", "Ada", "--locked", cwd=greeter,
                 env=env) == "Hello, Ada!\n"

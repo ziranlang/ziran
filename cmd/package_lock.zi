@@ -213,8 +213,7 @@ PkgRemoteCapture :: (args: []string, url_index: s32) -> PkgProcessResult {
     retried: PkgProcessResult = PkgCaptureEnv(args, "", names[:], values[:])
     args[url_index] = url
     if retried.code == 0 { return retried }
-    PkgPrint(result.text, true)
-    PkgPrint("\n", true)
+    PkgShowToolFailure(result.text)
     return result
 }
 

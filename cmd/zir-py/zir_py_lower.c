@@ -113,7 +113,7 @@ static void *py_allocate(size_t size)
 {
     void *memory = calloc(1, size);
     if(memory == NULL) {
-        fprintf(stderr, "zi2py: out of memory\n");
+        DiagnosticOutOfMemory();
         exit(1);
     }
     return memory;
@@ -125,7 +125,7 @@ static char *py_format(const char *format, ...)
     char *text = NULL;
     va_start(arguments, format);
     if(vasprintf(&text, format, arguments) < 0) {
-        fprintf(stderr, "zi2py: out of memory\n");
+        DiagnosticOutOfMemory();
         exit(1);
     }
     va_end(arguments);
@@ -185,7 +185,7 @@ static void names_add(PyNames *names, const char *name)
         int capacity = names->capacity ? names->capacity * 2 : 64;
         void *items = realloc(names->items, (size_t)capacity * sizeof(*names->items));
         if(items == NULL) {
-            fprintf(stderr, "zi2py: out of memory\n");
+            DiagnosticOutOfMemory();
             exit(1);
         }
         names->items = items;
@@ -472,7 +472,7 @@ static PyLocal *declare_local(PyEmitter *emitter, const char *source)
         int capacity = emitter->local_capacity ? emitter->local_capacity * 2 : 64;
         PyLocal *locals = realloc(emitter->locals, (size_t)capacity * sizeof(*locals));
         if(locals == NULL) {
-            fprintf(stderr, "zi2py: out of memory\n");
+            DiagnosticOutOfMemory();
             exit(1);
         }
         emitter->locals = locals;
@@ -3844,7 +3844,7 @@ static PyModuleVisit *module_visit(PyModuleVisits *visits, const ZirModule *modu
         size_t capacity = visits->capacity ? visits->capacity * 2 : 16;
         PyModuleVisit *items = realloc(visits->items, capacity * sizeof(*items));
         if(items == NULL) {
-            fprintf(stderr, "zi2py: out of memory\n");
+            DiagnosticOutOfMemory();
             exit(1);
         }
         visits->items = items;

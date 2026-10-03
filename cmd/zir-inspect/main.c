@@ -1,9 +1,11 @@
 #include "zir.h"
 #include "zir_serial.h"
+#include "zir_diagnostic.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 static void
 quoted(const char *value)
@@ -153,23 +155,31 @@ int
 main(int argc, char **argv)
 {
     int hex = 0, first = 1;
-    if(argc > 1 && strcmp(argv[1], "--hex") == 0) {
-        hex = 1;
+    SetDiagnosticFormatFromArguments(argc, argv);
+    while(first < argc && argv[first][0] == '-') {
+        if(!strcmp(argv[first], "--hex")) hex = 1;
+        else if(!strncmp(argv[first], "--diagnostics=", 14) &&
+                SetDiagnosticFormat(argv[first] + 14)) { }
+        else {
+            Diagnostic((ZirSourceSpan){0}, "command.arguments", "unknown inspect option: %s", argv[first]);
+            return 2;
+        }
         first++;
     }
     if(first == argc) {
-        fputs("usage: ziran inspect [--hex] file.zir ...\n", stderr);
+        Diagnostic((ZirSourceSpan){0}, "command.arguments",
+                   "usage: ziran inspect [--hex] [--diagnostics=text|json] file.zir ...");
         return 2;
     }
     for(int i = first; i < argc; i++) {
         const char *path = argv[i];
         if(!PathIsIR(path)) {
-            fprintf(stderr, "ziran inspect: expected .zir file: %s\n", path);
+            Diagnostic(Span(path, 0, 0), "zir.input", "expected .zir file: %s", path);
             return 2;
         }
         FILE *file = fopen(path, "rb");
         if(file == NULL) {
-            perror(path);
+            Diagnostic(Span(path, 0, 0), "zir.input", "cannot open %s: %s", path, strerror(errno));
             return 1;
         }
         ZirProgram *program = ProgramRead(file, path);
@@ -180,7 +190,7 @@ main(int argc, char **argv)
         printf("file %s\n", path);
         if(hex) {
             if(!show_hex(file)) {
-                perror(path);
+                Diagnostic(Span(path, 0, 0), "zir.input", "cannot read %s: %s", path, strerror(errno));
                 ProgramFree(program);
                 fclose(file);
                 return 1;

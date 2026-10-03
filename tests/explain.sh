@@ -46,6 +46,11 @@ for path in (repo / "cmd").rglob("*.c"):
         literal = re.search(r'"([A-Za-z0-9_.-]+)"', tail)
         if literal:
             emitted.add(literal.group(1))
+    if re.search(r"DiagnosticOutOfMemory\s*\(", text):
+        emitted.add("compiler.memory")
+for path in (repo / "cmd").glob("*.zi"):
+    text = path.read_text()
+    emitted.update(re.findall(r'(?:PkgFailCode|Diagnostics\.Emit)\s*\(\s*"([A-Za-z0-9_.-]+)"', text))
 assert set(listing["codes"]) == emitted, (
     sorted(emitted - set(listing["codes"])),
     sorted(set(listing["codes"]) - emitted),

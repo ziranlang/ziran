@@ -17,7 +17,7 @@
 static void
 usage(void)
 {
-    fprintf(stderr,
+    Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2zib bundle [--module-path DIR] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
             "       zi2zib run file.zib\n");
 }
@@ -165,6 +165,11 @@ enum { RUN_STACK_BYTES = 256 * 1024 * 1024 };
 static int
 run_command(int argc, char **argv)
 {
+    while(argc > 0 && !strncmp(argv[0], "--diagnostics=", 14)) {
+        if(!SetDiagnosticFormat(argv[0] + 14)) { usage(); return 1; }
+        argc--;
+        argv++;
+    }
     if(argc != 1) {
         usage();
         return 1;
@@ -197,6 +202,7 @@ run_command(int argc, char **argv)
 int
 main(int argc, char **argv)
 {
+    SetDiagnosticFormatFromArguments(argc, argv);
     if(argc > 1 && strcmp(argv[1], "bundle") == 0)
         return bundle_command(argc - 2, argv + 2);
     if(argc > 1 && strcmp(argv[1], "run") == 0)

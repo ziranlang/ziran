@@ -99,7 +99,7 @@ ReadNoteId :: (pid: s32) -> s32 {
     if pid <= 0 { return 0 }
     name: [64]u8
     path := NumberedPath("/proc/", pid, "/noteid", name[:])
-    if !CopyCString(path, name[:]) { return 0 }
+    if path.count == 0 { return 0 }
     descriptor := OpenRaw(cast(*s8)(*name[0]), 0)
     if descriptor < 0 { return 0 }
     bytes: [32]u8
@@ -151,7 +151,7 @@ ExecuteChild :: (descriptor: s32, path: *s8, arguments: *void) {
     }
     name: [64]u8
     duplicate := NumberedPath("#d/", descriptor, "", name[:])
-    if !CopyCString(duplicate, name[:]) { ExitRaw(null); return }
+    if duplicate.count == 0 { ExitRaw(null); return }
     // OWRITE | OCEXEC: do not leave the handshake pipe in the new program.
     inherited := OpenRaw(cast(*s8)(*name[0]), 1 | 32)
     if inherited >= 0 {

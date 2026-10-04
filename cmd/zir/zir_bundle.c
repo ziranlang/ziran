@@ -1199,7 +1199,14 @@ global_is_used(const ZirProgram *program, unsigned char **keep,
                 const ZirExpr *expression = &function->exprs[e];
                 const ZirModule *resolved_owner = NULL;
                 const ZirGlobal *resolved_global = NULL;
-                if(expression->kind == ZIR_EXPR_IDENT &&
+                if(expression->kind != ZIR_EXPR_IDENT) continue;
+                /* A global can only be named by its identifier or an
+                 * import-qualified identifier. Most retained expressions
+                 * name locals: do not walk their import graph once for
+                 * every global declaration in the program. */
+                const char *symbol = strrchr(expression->name, '.');
+                symbol = symbol == NULL ? expression->name : symbol + 1;
+                if(strcmp(symbol, global->name) == 0 &&
                    ResolveGlobalAt(module, expression->name,
                                    SpanPath(expression->span), &resolved_owner,
                                    &resolved_global) == 1 &&

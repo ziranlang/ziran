@@ -1,16 +1,17 @@
 #!/bin/sh
 set -eu
 ziran=$1
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
-python3 - "$ziran" "$work" <<'PY'
+python3 - "$ziran" "$work" "$repo" <<'PY'
 import json
 from pathlib import Path
 import subprocess
 import sys
 
-ziran, work = sys.argv[1], Path(sys.argv[2])
+ziran, work, repo = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
 node = 'Node :: struct { bytes: [2]u8; other: [2]u8; result: s32 }\n'
 writer = 'Write :: (node: *Node) { node.bytes[0] = cast(u8)98 }\n'
 cases = {
@@ -68,6 +69,26 @@ cases = {
         WriteGlobal()
         return cast(s32)box.text[0]
     }''',
+    'local_record_member_backing': '''Box :: struct { text: string }
+    Bad :: () -> s32 {
+        node: Node
+        box: Box
+        box.text = TextView(node.bytes[:])
+        text := box.text
+        Write(*node)
+        return cast(s32)text[0]
+    }\n''' + writer,
+    'nested_record_argument_backing': '''Box :: struct { text: string }
+    Consume :: (node: *Node, box: Box) -> s32 {
+        Write(node)
+        return cast(s32)box.text[0]
+    }
+    Bad :: () -> s32 {
+        node: Node
+        box: Box
+        box.text = TextView(node.bytes[:])
+        return Consume(*node, box)
+    }\n''' + writer,
     'inline': '''WriteRead :: (node: *Node, text: string) -> s32 {
         node.bytes[0] = cast(u8)98
         return cast(s32)text[0]
@@ -95,6 +116,44 @@ for name, body in cases.items():
     items = [json.loads(line) for line in result.stderr.splitlines()]
     assert any(item['code'] == 'check.slice_lifetime' and
                'mutating text backing storage' in item['message'] for item in items), (name, items)
+
+identity = work / 'identity.zi'
+identity.write_text('''
+    Identity :: struct { name: string; context: *void }
+    Owner :: struct { identity: Identity }
+    Signer :: #type (context: *void, text: string, output: []u8) -> bool;
+    Sign :: (context: *void, text: string, output: []u8) -> bool {
+        unused context
+        output[0] = text[0]
+        return true
+    }
+    Send :: (identity: Identity, sign: Signer, output: []u8) -> bool {
+        return sign(identity.context, identity.name, output)
+    }
+    FromRecord :: (owner: *Owner, sign: Signer) -> s32 {
+        bytes: [1]u8
+        if !Send(owner.identity, sign, bytes[:]) { return 0 }
+        return cast(s32)bytes[0]
+    }
+    #program_export
+    CheckIdentity :: () -> s32 {
+        owner: Owner
+        owner.identity.name = "a"
+        if FromRecord(*owner, Sign) != 97 { return 1 }
+        return 0
+    }
+''')
+subprocess.run([ziran, 'ir', '--root', str(work), '-o', str(work / 'identity-ir'), str(identity)], check=True)
+for source in (identity, work / 'identity-ir/identity.zir'):
+    subprocess.run([ziran, 'check', '--root', str(work), str(source)], check=True)
+    native = work / ('c-source' if source == identity else 'c-saved')
+    subprocess.run([ziran, 'build', '--target=c', '--no-main', '--root', str(work),
+                    '-o', str(native), str(source)], check=True)
+    (native / 'main.c').write_text('#include "identity.h"\nint main(void) { return CheckIdentity(); }\n')
+    subprocess.run(['cc', '-std=c11', '-I' + str(repo / 'include'),
+                    '-I' + str(native), *map(str, native.glob('*.c')),
+                    '-o', str(native / 'test'), '-lm'], check=True)
+    subprocess.run([str(native / 'test')], check=True)
 
 safe = work / 'safe.zi'
 safe.write_text(node + writer + '''

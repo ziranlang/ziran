@@ -797,6 +797,17 @@ text_view_backings(BorrowCheck *check, int index)
     if(expression->kind == ZIR_EXPR_MEMBER ||
        expression->kind == ZIR_EXPR_POINTER_MEMBER ||
        expression->kind == ZIR_EXPR_INDEX) {
+        /* Copying a string descriptor retains its immutable bytes; it does
+         * not borrow the containing record or array of descriptors. Keep
+         * known mutable byte backing from assignments to that container,
+         * but do not invent a borrow of an incoming record pointer. Also,
+         * a member name describes the descriptor, not a field of its byte
+         * backing (box.text may borrow completely different storage). */
+        if(text_view_type(check, expression->type)) {
+            const ZirExpr *root = destination_root(fn, index);
+            BorrowBinding *source = root == NULL ? NULL : binding(check, root->name);
+            return source == NULL ? NULL : source->text_backings;
+        }
         BorrowSource *result = NULL;
         BorrowSource *sources = text_view_backings(check, expression->left);
         for(BorrowSource *source = sources; source != NULL; source = source->next)

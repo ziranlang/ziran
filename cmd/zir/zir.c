@@ -230,14 +230,62 @@ file_scope_visible_at(const char *source_path, int is_file_private,
            strcmp(source_path, SpanPath(span)) == 0;
 }
 
-static int
-resolve_function_depth(const ZirModule *module, const char *name,
+/* Resolution follows an import graph. Cache each scope within one lookup,
+ * including misses and ambiguous results, rather than rewalking shared
+ * dependencies for every path. The entry scope exposes ordinary imports;
+ * a nested scope exposes only imports marked using. */
+typedef struct SymbolVisit {
+    const ZirModule *module;
+    const char *name;
+    const char *source_path;
+    int entry_scope;
+    int status;
+    const ZirModule *owner;
+    const void *symbol;
+    struct SymbolVisit *next;
+} SymbolVisit;
+
+static SymbolVisit *
+symbol_visit(SymbolVisit **visits, const ZirModule *module, const char *name,
+             const char *source_path, int depth, int *created)
+{
+    const char *path = source_path == NULL ? "" : source_path;
+    for(SymbolVisit *visit = *visits; visit != NULL; visit = visit->next)
+        if(visit->module == module && visit->entry_scope == (depth == 0) &&
+           strcmp(visit->name, name) == 0 &&
+           strcmp(visit->source_path, path) == 0) {
+            *created = 0;
+            return visit;
+        }
+    SymbolVisit *visit = AllocateOrExit(sizeof(*visit));
+    *visit = (SymbolVisit){.module = module, .name = name,
+        .source_path = path, .entry_scope = depth == 0, .next = *visits};
+    *visits = visit;
+    *created = 1;
+    return visit;
+}
+
+static void
+free_symbol_visits(SymbolVisit *visits)
+{
+    while(visits != NULL) {
+        SymbolVisit *next = visits->next;
+        free(visits);
+        visits = next;
+    }
+}
+
+static int resolve_function_depth(const ZirModule *module, const char *name,
                        const char *source_path, const ZirModule **owner,
-                       const ZirFunction **function, int depth)
+                       const ZirFunction **function, int depth, SymbolVisit **visits);
+
+static int
+resolve_function_uncached(const ZirModule *module, const char *name,
+                       const char *source_path, const ZirModule **owner,
+                       const ZirFunction **function, int depth, SymbolVisit **visits)
 {
     *owner = NULL;
     *function = NULL;
-    if(depth > 32) return 0;
     const char *dot = strchr(name, '.');
     if(dot != NULL) {
         size_t alias_length = (size_t)(dot - name);
@@ -267,7 +315,7 @@ resolve_function_depth(const ZirModule *module, const char *name,
             const ZirModule *nested_owner = NULL;
             const ZirFunction *nested = NULL;
             int status = resolve_function_depth(target, dot + 1, NULL,
-                &nested_owner, &nested, depth + 1);
+                &nested_owner, &nested, depth + 1, visits);
             if(status < 0) return -1;
             if(status > 0 && nested->is_public && !nested->is_file_private) {
                 if(*function != NULL && *function != nested) return -1;
@@ -325,7 +373,7 @@ resolve_function_depth(const ZirModule *module, const char *name,
         const ZirModule *nested_owner = NULL;
         const ZirFunction *nested = NULL;
         int status = resolve_function_depth(imported, name, NULL,
-            &nested_owner, &nested, depth + 1);
+            &nested_owner, &nested, depth + 1, visits);
         if(status < 0) return -1;
         if(status > 0 && nested->is_public && !nested->is_file_private) {
             if(*function != NULL && *function != nested) return -1;
@@ -336,13 +384,34 @@ resolve_function_depth(const ZirModule *module, const char *name,
     return *function != NULL;
 }
 
+static int
+resolve_function_depth(const ZirModule *module, const char *name,
+                       const char *source_path, const ZirModule **owner,
+                       const ZirFunction **function, int depth, SymbolVisit **visits)
+{
+    int created;
+    SymbolVisit *visit = symbol_visit(visits, module, name, source_path, depth, &created);
+    if(created) {
+        visit->status = resolve_function_uncached(module, name, source_path,
+                                                  owner, function, depth, visits);
+        visit->owner = *owner;
+        visit->symbol = *function;
+    }
+    *owner = visit->owner;
+    *function = visit->symbol;
+    return visit->status;
+}
+
 int
 ResolveFunctionAt(const ZirModule *module, const char *name,
                   const char *source_path, const ZirModule **owner,
                   const ZirFunction **function)
 {
-    return resolve_function_depth(module, name, source_path, owner,
-                                  function, 0);
+    SymbolVisit *visits = NULL;
+    int status = resolve_function_depth(module, name, source_path, owner,
+                                       function, 0, &visits);
+    free_symbol_visits(visits);
+    return status;
 }
 
 int
@@ -353,15 +422,18 @@ ResolveFunction(const ZirModule *module, const char *name,
                              owner, function);
 }
 
-static int
-resolve_global_depth(const ZirModule *module, const char *name,
+static int resolve_global_depth(const ZirModule *module, const char *name,
                      const char *source_path, const ZirModule **owner,
-                     const ZirGlobal **global, int depth)
+                     const ZirGlobal **global, int depth, SymbolVisit **visits);
+
+static int
+resolve_global_uncached(const ZirModule *module, const char *name,
+                     const char *source_path, const ZirModule **owner,
+                     const ZirGlobal **global, int depth, SymbolVisit **visits)
 {
     const char *dot = strchr(name, '.');
     *owner = NULL;
     *global = NULL;
-    if(depth > 32) return 0;
     if(dot == NULL) {
         for(int g = 0; g < module->global_count; g++) {
             const ZirGlobal *candidate = &module->globals[g];
@@ -422,7 +494,7 @@ resolve_global_depth(const ZirModule *module, const char *name,
         const ZirModule *nested_owner = NULL;
         const ZirGlobal *nested = NULL;
         int status = resolve_global_depth(target, symbol, NULL,
-            &nested_owner, &nested, depth + 1);
+            &nested_owner, &nested, depth + 1, visits);
         if(status < 0) return -1;
         if(status > 0 && !nested->is_file_private && !nested->is_static) {
             if(*global != NULL && *global != nested) return -1;
@@ -433,12 +505,33 @@ resolve_global_depth(const ZirModule *module, const char *name,
     return *global != NULL;
 }
 
+static int
+resolve_global_depth(const ZirModule *module, const char *name,
+                     const char *source_path, const ZirModule **owner,
+                     const ZirGlobal **global, int depth, SymbolVisit **visits)
+{
+    int created;
+    SymbolVisit *visit = symbol_visit(visits, module, name, source_path, depth, &created);
+    if(created) {
+        visit->status = resolve_global_uncached(module, name, source_path,
+                                                owner, global, depth, visits);
+        visit->owner = *owner;
+        visit->symbol = *global;
+    }
+    *owner = visit->owner;
+    *global = visit->symbol;
+    return visit->status;
+}
+
 int
 ResolveGlobalAt(const ZirModule *module, const char *name,
                 const char *source_path, const ZirModule **owner,
                 const ZirGlobal **global)
 {
-    return resolve_global_depth(module, name, source_path, owner, global, 0);
+    SymbolVisit *visits = NULL;
+    int status = resolve_global_depth(module, name, source_path, owner, global, 0, &visits);
+    free_symbol_visits(visits);
+    return status;
 }
 
 int

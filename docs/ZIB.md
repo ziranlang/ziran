@@ -77,8 +77,9 @@ every handle it hands out.
 Source and saved-IR bundle bytes match in scalar, record, and enum tests,
 including Kryon's geometry, layout, and popup ownership tests. Synchronous
 procedure type aliases with imported named functions run from
-source and saved IR. Fixed arrays with numeric or resolved integer
-constant-expression capacities support defaults,
+source and saved IR, including pointer and slice arguments, nullable values,
+global initializers, and calls through record fields and fixed arrays.
+Fixed arrays with numeric or resolved integer constant-expression capacities support defaults,
 positional literals, element reads and writes, and value copies, including
 nested arrays and `u8` arrays inside imported records. Indexing is bounds-checked. Version 26 is
 experimental and has no compatibility promise. Host calls with procedure

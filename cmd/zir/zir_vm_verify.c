@@ -291,6 +291,33 @@ same_verified_type(const ZirModule *declaration_module,
            (source == resolved ||
             same_type_application(source_owner, source, resolved_owner, resolved));
 }
+/* Resolve a function value against its declared portable signature. */
+int
+portable_function_value(const ZirModule *module, const char *type,
+                        const ZirModule *value_module, const char *name,
+                        const ZirModule **owner,
+                        const ZirFunction **function)
+{
+    const ZirModule *slot_owner = NULL;
+    const ZirType *slot = FindType(module, type, &slot_owner);
+    if(slot == NULL || !slot->is_procedure_type || slot->is_c_call ||
+       ResolveFunction(value_module, name, owner, function) != 1 ||
+       *function == NULL || (*function)->is_extern ||
+       !same_verified_type(slot_owner, slot->procedure_return_type,
+                           *owner, (*function)->return_type))
+        return 0;
+    const ZirParameters *actual = ParametersOf(FunctionArgs(*function));
+    const ZirParameters *expected = ParametersOf(slot->body);
+    if(actual->count != expected->count)
+        return 0;
+    for(int p = 0; p < actual->count; p++)
+        if(actual->items[p].type == NULL || expected->items[p].type == NULL ||
+           !same_verified_type(slot_owner, expected->items[p].type,
+                               *owner, actual->items[p].type))
+            return 0;
+    return 1;
+}
+
 /* Buffers verify_expression keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct VerifyExpressionBuffers {
@@ -363,35 +390,9 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                expression->left == -1 && expression->right == -1 &&
                expression->third == -1 && expression->first_child == -1;
     case ZIR_EXPR_IDENT: {
-        if(expression->is_function_value) {
-            const ZirModule *slot_owner = NULL;
-            const ZirType *slot = FindType(module, expression->type, &slot_owner);
-            memset(&buffers->signature, 0, sizeof(buffers->signature));
-            int actual_count, expected_count;
-            if(slot == NULL || !slot->is_procedure_type ||
-               ResolveFunction(module, expression->name,
-                               &owner, &callee) != 1 ||
-               callee == NULL || callee->is_extern ||
-               strlen(slot->body) >= ZIR_TEXT_MAX ||
-               !same_verified_type(slot_owner, slot->procedure_return_type,
-                                   owner, callee->return_type))
-                return 0;
-            buffers->signature.args_text = KeepParameters(slot->body);
-            actual_count = parse_parameters(owner, callee, buffers->actual);
-            expected_count = parse_parameters(slot_owner, &buffers->signature, buffers->expected);
-            if(actual_count < 0 || actual_count != expected_count)
-                return 0;
-            for(int i = 0; i < actual_count; i++) {
-                const ZirType *actual_type = FindType(owner, buffers->actual[i].type, NULL);
-                const ZirType *expected_type = FindType(slot_owner, buffers->expected[i].type, NULL);
-                if(actual_type != NULL || expected_type != NULL) {
-                    if(actual_type != expected_type)
-                        return 0;
-                } else if(strcmp(buffers->actual[i].type, buffers->expected[i].type) != 0)
-                    return 0;
-            }
-            return 1;
-        }
+        if(expression->is_function_value)
+            return portable_function_value(module, expression->type, module,
+                                           expression->name, &owner, &callee);
         if(strcmp(expression->name, "true") == 0 ||
            strcmp(expression->name, "false") == 0 ||
            strcmp(expression->name, "null") == 0 ||
@@ -451,6 +452,16 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                     strcmp(expression->op, "!=") == 0);
         const ZirType *left_enum = FindType(module, left_type, NULL);
         const ZirType *right_enum = FindType(module, right_type, NULL);
+        if((left_enum != NULL && left_enum->is_procedure_type) ||
+           (right_enum != NULL && right_enum->is_procedure_type)) {
+            int same = left_enum != NULL && left_enum == right_enum;
+            int nullable = left_enum != NULL && left_enum->is_procedure_type &&
+                !strcmp(right_type, "null");
+            nullable |= right_enum != NULL && right_enum->is_procedure_type &&
+                !strcmp(left_type, "null");
+            return (same || nullable) &&
+                (!strcmp(expression->op, "==") || !strcmp(expression->op, "!="));
+        }
         if((left_enum != NULL && left_enum->is_enum_flags) ||
            (right_enum != NULL && right_enum->is_enum_flags)) {
             const ZirType *flags = left_enum != NULL && left_enum->is_enum_flags ?
@@ -666,7 +677,7 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                verify_expression(module, function, bindings, binding_count,
                                  expression->third, depth + 1);
     case ZIR_EXPR_CALL:
-        if(expression->name[0] == 0)
+        if(expression->name[0] == 0 && expression->slot_type[0] == 0)
             return 0;
         if(!strcmp(expression->name, "TextView")) {
             int first = expression->first_child;
@@ -835,12 +846,22 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
         if(expression->slot_type[0]) {
             int index = binding_index(bindings, binding_count,
                                       expression->name);
+            const ZirGlobal *global = expression->name[0] && index < 0 ?
+                find_global_declaration(module, expression->name,
+                                        SpanPath(expression->span)) : NULL;
+            int callable = expression->name[0] ?
+                (index >= 0 && !strcmp(bindings[index].type, expression->slot_type)) ||
+                (global != NULL && !strcmp(global->type, expression->slot_type)) :
+                expression->left >= 0 && expression->left < function->expr_count &&
+                same_verified_type(module, function->exprs[expression->left].type,
+                                   module, expression->slot_type) &&
+                verify_expression(module, function, bindings, binding_count,
+                                  expression->left, depth + 1);
             const ZirModule *slot_owner = NULL;
             const ZirType *slot = FindType(module, expression->slot_type,
                                            &slot_owner);
             memset(&buffers->signature, 0, sizeof(buffers->signature));
-            if(index < 0 || slot == NULL || !slot->is_procedure_type ||
-               strcmp(bindings[index].type, expression->slot_type) != 0 ||
+            if(!callable || slot == NULL || !slot->is_procedure_type ||
                strlen(slot->body) >= ZIR_TEXT_MAX ||
                !same_verified_type(slot_owner, slot->procedure_return_type,
                                    module, expression->type))
@@ -1273,7 +1294,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                     const ZirType *record = FindType(module, global->type,
                                                      NULL);
                     if(record != NULL && !record->is_enum &&
-                       !record->is_procedure_type && !record->is_union &&
+                       !record->is_union &&
                        !SliceElementType(global->type, NULL, 0) &&
                        !ArrayElementType(global->type, NULL, 0, NULL))
                         literal_ok = verify_global_aggregate(module, global);
@@ -1284,7 +1305,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                 if(!literal_ok ||
                    SliceElementType(global->type, NULL, 0)) {
                     Diagnostic(global->span, "zib.global",
-                               "portable global initializers need a scalar, string, record, or array literal value");
+                               "portable global initializers need a scalar, string, function, record, or array literal value");
                     return 0;
                 }
             }

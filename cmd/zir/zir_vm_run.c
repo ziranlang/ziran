@@ -1042,10 +1042,11 @@ free_strings(Vm *vm)
  * Types come from the declared global, never the probe expression (parsed
  * standalone, so it carries no inferred types). Scalars, string literals,
  * records, and arrays recurse through the declared storage shape. */
-int
-fold_global_element(Vm *vm, const ZirModule *module, const ZirFunction *probe,
-                    int index, Value *target, const char *type,
-                    ZirSourceSpan span)
+static int
+fold_global_element_in_scope(Vm *vm, const ZirModule *module,
+                             const ZirModule *scope, const ZirFunction *probe,
+                             int index, Value *target, const char *type,
+                             ZirSourceSpan span)
 {
     const ZirExpr *expr = &probe->exprs[index];
     if((target->kind == VALUE_ARRAY || target->kind == VALUE_RECORD) &&
@@ -1060,7 +1061,7 @@ fold_global_element(Vm *vm, const ZirModule *module, const ZirFunction *probe,
             child = probe->exprs[child].next_sibling) {
             const ZirExpr *entry = &probe->exprs[child];
             if(entry->right < 0 || position >= target->array->length ||
-               !fold_global_element(vm, module, probe, entry->right,
+               !fold_global_element_in_scope(vm, module, scope, probe, entry->right,
                                     &target->array->elements[position],
                                     element, span))
                 return 0;
@@ -1087,11 +1088,21 @@ fold_global_element(Vm *vm, const ZirModule *module, const ZirFunction *probe,
                     break;
                 }
             if(field_type[0] == '\0') return 0;
-            matched = fold_global_element(vm, module, probe,
-                                          entry->right, field, field_type,
+            matched = fold_global_element_in_scope(vm, module, target->record->owner,
+                                          probe, entry->right, field, field_type,
                                           span);
         }
         return matched;
+    }
+    if(target->kind == VALUE_SLOT) {
+        const ZirModule *owner = NULL;
+        const ZirFunction *function = NULL;
+        if((expr->kind != ZIR_EXPR_IDENT && expr->kind != ZIR_EXPR_MEMBER) ||
+           !portable_function_value(scope, type, module, expr->text, &owner, &function))
+            return 0;
+        target->slot_module = owner;
+        target->slot_function = function;
+        return 1;
     }
     if(target->kind == VALUE_STRING) {
         *target = global_literal_string(vm, expr->text);
@@ -1113,6 +1124,15 @@ fold_global_element(Vm *vm, const ZirModule *module, const ZirFunction *probe,
         }
     }
     return 0;
+}
+
+int
+fold_global_element(Vm *vm, const ZirModule *module, const ZirFunction *probe,
+                    int index, Value *target, const char *type,
+                    ZirSourceSpan span)
+{
+    return fold_global_element_in_scope(vm, module, module, probe, index,
+                                        target, type, span);
 }
 
 static int
@@ -1181,7 +1201,8 @@ initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlo
             if(!vm->failed && slot->declaration->init[0]) {
                 const char *init = skip_ws(slot->declaration->init);
                 if(slot->value.kind == VALUE_ARRAY ||
-                   slot->value.kind == VALUE_RECORD) {
+                   slot->value.kind == VALUE_RECORD ||
+                   slot->value.kind == VALUE_SLOT) {
                     memset(&buffers->probe, 0, sizeof(buffers->probe));
                     int root = ParseExprTyped(&buffers->probe, module,
                                                slot->declaration->init,

@@ -25,10 +25,10 @@ overlap and must not be summed into a claimed build duration; the harness
 measures whole commands separately.
 
 The October 3 field-snapshot comparison used module/generic sizes 8 and 32,
-three measured repetitions, and checks of the real Kryon and t9 packages
+three measured repetitions, and checks of the real Kryon and Terminal packages
 (162 validated measured samples per run). Kryon's field-parser calls fell
-from 2,056,209 to 2,883 and t9's from 2,747,749 to 3,839. Whole-command check
-medians were 515/537 ms for Kryon and 813/849 ms for t9 (before/after), so this
+from 2,056,209 to 2,883 and Terminal's from 2,747,749 to 3,839. Whole-command check
+medians were 515/537 ms for Kryon and 813/849 ms for Terminal (before/after), so this
 run establishes elimination of repeated parsing, not a wall-clock speedup.
 The machine was shared and both metadata records identify dirty working trees;
 each records the actual tool hashes. Local raw samples are under

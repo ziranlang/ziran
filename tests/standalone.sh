@@ -804,7 +804,7 @@ python3 - "$work/app.zib" "$work/bad-bundle.zib" "$work/old-bundle.zib" <<'PY'
 from pathlib import Path
 import sys
 data = Path(sys.argv[1]).read_bytes()
-assert data[:8] == b'ZIB\0\x19\0\0\0', data[:8]
+assert data[:8] == b'ZIB\0\x1a\0\0\0', data[:8]
 Path(sys.argv[2]).write_bytes(data[:17])
 old = bytearray(data)
 old[4] = 19

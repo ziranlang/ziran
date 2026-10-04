@@ -47,6 +47,13 @@ HostBinding :: struct {
 #scope_file
 RawBundleOpen :: (path: *u8) -> *void #foreign runtime "BundleOpen";
 RawBundleClose :: (bundle: *void) #foreign runtime "BundleClose";
+RawBundleCapabilityCount :: (bundle: *void) -> u64 #foreign runtime "BundleCapabilityCount";
+RawBundleCapabilityModule :: (bundle: *void, index: u64) -> *u8 #foreign runtime "BundleCapabilityModule";
+RawBundleCapabilityFunction :: (bundle: *void, index: u64) -> *u8 #foreign runtime "BundleCapabilityFunction";
+RawBundleAssetCount :: (bundle: *void) -> u64 #foreign runtime "BundleAssetCount";
+RawBundleAssetName :: (bundle: *void, index: u64) -> *u8 #foreign runtime "BundleAssetName";
+RawBundleAssetData :: (bundle: *void, index: u64) -> *u8 #foreign runtime "BundleAssetData";
+RawBundleAssetSize :: (bundle: *void, index: u64) -> u64 #foreign runtime "BundleAssetSize";
 RawBundleInstantiate :: (bundle: *void, bindings: *HostBinding,
     count: u64) -> *void #foreign runtime "BundleInstantiate";
 RawBundleInstanceRun :: (instance: *void, result: *s64,
@@ -61,15 +68,50 @@ OpenBundle :: (path: *u8) -> *void { return RawBundleOpen(path) }
 #program_export
 CloseBundle :: (bundle: *void) { RawBundleClose(bundle) }
 
+// Borrowed names remain valid until CloseBundle. A host can bind the exact
+// package-qualified names in a downloaded program without knowing its lock.
+#program_export
+BundleCapabilities :: (bundle: *void) -> u64 {
+    return RawBundleCapabilityCount(bundle)
+}
+
+#program_export
+BundleCapabilityModuleName :: (bundle: *void, index: u64) -> *u8 {
+    return RawBundleCapabilityModule(bundle, index)
+}
+
+#program_export
+BundleCapabilityFunctionName :: (bundle: *void, index: u64) -> *u8 {
+    return RawBundleCapabilityFunction(bundle, index)
+}
+
+#program_export
+BundleAssets :: (bundle: *void) -> u64 { return RawBundleAssetCount(bundle) }
+
+#program_export
+BundleAssetPath :: (bundle: *void, index: u64) -> *u8 {
+    return RawBundleAssetName(bundle, index)
+}
+
+#program_export
+BundleAssetBytes :: (bundle: *void, index: u64) -> *u8 {
+    return RawBundleAssetData(bundle, index)
+}
+
+#program_export
+BundleAssetLength :: (bundle: *void, index: u64) -> u64 {
+    return RawBundleAssetSize(bundle, index)
+}
+
 #program_export
 InstantiateBundle :: (bundle: *void, bindings: *HostBinding,
-                      count: u64) -> *void {
+    count: u64) -> *void {
     return RawBundleInstantiate(bundle, bindings, count)
 }
 
 #program_export
 RunBundleInstance :: (instance: *void, result: *s64,
-                     has_result: *s32) -> s32 {
+    has_result: *s32) -> s32 {
     return RawBundleInstanceRun(instance, result, has_result)
 }
 

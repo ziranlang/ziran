@@ -14,6 +14,7 @@ struct Bundle {
     char entry_module[ZIR_NAME_MAX];
     char entry_function[ZIR_NAME_MAX];
     ZibLawTable laws;
+    ZibAssets assets;
 };
 
 /* Mirrors the linker's rule: externs kept only for laws demand no binding. */
@@ -73,7 +74,7 @@ BundleOpen(const char *path)
                                      sizeof(bundle->entry_module),
                                      bundle->entry_function,
                                      sizeof(bundle->entry_function),
-                                     &bundle->laws);
+                                     &bundle->laws, &bundle->assets);
     fclose(file);
     if(bundle == NULL)
         return NULL;
@@ -92,8 +93,36 @@ BundleClose(Bundle *bundle)
     if(bundle != NULL) {
         ProgramFree(bundle->program);
         ZibLawTableFree(&bundle->laws);
+        ZibAssetsFree(&bundle->assets);
         free(bundle);
     }
+}
+
+size_t
+BundleAssetCount(const Bundle *bundle)
+{
+    return bundle != NULL ? bundle->assets.count : 0;
+}
+
+const char *
+BundleAssetName(const Bundle *bundle, size_t index)
+{
+    return bundle != NULL && index < bundle->assets.count ?
+        bundle->assets.items[index].name : NULL;
+}
+
+const unsigned char *
+BundleAssetData(const Bundle *bundle, size_t index)
+{
+    return bundle != NULL && index < bundle->assets.count ?
+        bundle->assets.items[index].data : NULL;
+}
+
+size_t
+BundleAssetSize(const Bundle *bundle, size_t index)
+{
+    return bundle != NULL && index < bundle->assets.count ?
+        bundle->assets.items[index].size : 0;
 }
 
 size_t

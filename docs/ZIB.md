@@ -3,9 +3,9 @@
 This describes the target contract and the experimental subset that ships now.
 See [Implementation status](IMPLEMENTATION_STATUS.md) for the remaining work.
 
-## Experimental version 25
+## Experimental version 26
 
-`zi2zib bundle --root DIR [--module-path DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
+`zi2zib bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, then links reachable
 modules. `zi2zib run FILE` validates and executes
 zero-argument integer, bool, or void entry functions on a portable interpreter.
@@ -80,16 +80,15 @@ procedure type aliases with imported named functions run from
 source and saved IR. Fixed arrays with numeric or resolved integer
 constant-expression capacities support defaults,
 positional literals, element reads and writes, and value copies, including
-nested arrays and `u8` arrays inside imported records. Indexing is bounds-checked. Version 24 is
+nested arrays and `u8` arrays inside imported records. Indexing is bounds-checked. Version 26 is
 experimental and has no compatibility promise. Host calls with procedure
 slots remain unsupported. Default-initialized module globals of
 portable value types work within one `BundleRun`; each call starts with fresh
 global values. `BundleInstantiate` creates an instance whose globals persist
 across `BundleInstanceRun` calls. Checked runtime global initializers run once
-when an instance opens, after imported modules initialize. Complete
-graphical runtime integration, slice fields/globals and unsupported host return shapes,
-unresolved fixed-array bounds,
-module state, custom `for_expansion` iteration, and `switch` remain unsupported.
+when an instance opens, after imported modules initialize. Native pointer
+casts and callbacks across the host boundary remain unsupported; required
+capabilities must use the portable signatures described above.
 
 Local slices may borrow fixed arrays or other slices, cross ordinary Ziran
 function calls, return views of permitted backing storage, and read or write
@@ -119,6 +118,28 @@ diagnostics. A portable bundle cannot contain an undeclared dependency on
 target-specific C, C++, or Go code. Hosts may implement the declared
 capability interfaces with native libraries.
 
-The old `.krb` cartridge is a Kryon-specific format. It is not renamed or
-reinterpreted as `.zib`. Existing programs must be migrated to `.zi` and
-recompiled through the Ziran pipeline.
+## Embedded files and application hosts
+
+`--define NAME` selects the same source branches as the native compiler.
+`--asset-dir assets=assets` embeds regular files recursively under `assets/`.
+The argument's left side is the path prefix inside the bundle, and its right
+side is the source directory or file. Multiple mappings may be supplied.
+Names are sorted bytewise for deterministic output. Duplicate names,
+symlinks, absolute paths, backslashes, empty components, and `.` or `..`
+components are rejected.
+
+After the checked IR, version 26 stores a little-endian u32 file count. Each
+file has a u32 name length, name bytes, a u32 data length, and exact binary
+bytes. Empty files are supported. The loader checks lengths against remaining
+input before allocating and rejects noncanonical names/order and trailing data.
+`BundleAssetCount`, `BundleAssetName`, `BundleAssetData`, and `BundleAssetSize`
+expose immutable files until `BundleClose`. Ziran hosts import `std/bundle_host`
+for file access and enumeration of the exact required capability names.
+
+Kryon's reusable desktop player supplies rendering and input to a Zib instance;
+the application's widgets and state run inside the VM. A downloaded graphical
+program launches with `kryon run app.zib`, including embedded images. See
+[Kryon project profiles](https://github.com/kryonlabs/kryon/blob/master/docs/PROJECTS.md).
+Application-specific storage, audio, and other native interfaces still require
+declared host capabilities with portable signatures. A native application's
+pointer casts or calls through native callbacks cannot simply be bundled.

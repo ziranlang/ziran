@@ -86,7 +86,7 @@ FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
     cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c
-PORTABLE := cmd/zir/zir_bundle.c
+PORTABLE := cmd/zir/zir_bundle.c cmd/zir/zir_bundle_assets.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
@@ -96,7 +96,7 @@ LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOU
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o
-BUNDLE_OBJECT := $(call obj,cmd/zir/zir_bundle.c)
+BUNDLE_OBJECT := $(call obj,$(PORTABLE))
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
 
 .PHONY: all check curl-http-test clean install-user package-objects package-link force-compiler-flags

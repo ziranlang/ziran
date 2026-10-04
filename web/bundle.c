@@ -65,7 +65,7 @@ BuildBundle(const char *root, const char *search, const char *inputs,
     linked = BundleLink(&merged, entry_module, entry_function);
     if(linked == NULL || !VmVerify(linked, entry_module, entry_function)) goto done;
     file = fopen(output, "wb");
-    if(file == NULL || !BundleWrite(file, linked, entry_module, entry_function)) goto done;
+    if(file == NULL || !BundleWrite(file, linked, entry_module, entry_function, NULL)) goto done;
     status = 0;
 done:
     if(file != NULL && fclose(file) != 0) status = 1;

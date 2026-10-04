@@ -117,10 +117,12 @@ USER_BIN ?= $(HOME)/.local/bin
 USER_SHARE ?= $(HOME)/.local/share/ziran/bootstrap
 install-user: all
 	mkdir -p $(USER_BIN) $(USER_SHARE)/build/bin
-	cp $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api \
-	    $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go \
-	    $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib \
-	    $(USER_SHARE)/build/bin/
+	@set -e; for tool in ziran zi-fmt zi2zir zi-api zi-inspect zi2c zi2go zi2cpp zi2rust zi2py zi2zib; do \
+		temporary=$$(mktemp "$(USER_SHARE)/build/bin/.$$tool.XXXXXX"); \
+		trap 'rm -f "$$temporary"' EXIT; \
+		cp "$(BIN_DIR)/$$tool" "$$temporary"; chmod 755 "$$temporary"; \
+		mv -f "$$temporary" "$(USER_SHARE)/build/bin/$$tool"; \
+	done
 	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include $(USER_SHARE)/templates
 	cp -r std include templates $(USER_SHARE)/
 	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add

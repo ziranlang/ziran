@@ -196,11 +196,22 @@ portable_type_at(const ZirModule *module, const char *type, int depth,
                 return 0;
             while(*cursor == ' ' || *cursor == '\t')
                 cursor++;
-            while(isalnum((unsigned char)*cursor) || *cursor == '_') {
-                if(length + 1 >= sizeof(parameter_type))
+            const char *start = cursor;
+            if(*cursor == '[') {
+                cursor++;
+                while(isalnum((unsigned char)*cursor) || *cursor == '_')
+                    cursor++;
+                if(*cursor++ != ']')
                     return 0;
-                parameter_type[length++] = *cursor++;
             }
+            while(*cursor == '*')
+                cursor++;
+            while(isalnum((unsigned char)*cursor) || *cursor == '_' || *cursor == '.') {
+                cursor++;
+            }
+            length = (size_t)(cursor - start);
+            if(length >= sizeof(parameter_type)) return 0;
+            memcpy(parameter_type, start, length);
             parameter_type[length] = 0;
             if(length == 0 || ++parameters > VM_MAX_PARAMS ||
                strcmp(parameter_type, "void") == 0 ||

@@ -6,6 +6,7 @@
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
 #include "zir_serial.h"
+#include "zir_expr.h"
 #include "zir_text.h"
 
 #include <ctype.h>
@@ -1199,7 +1200,9 @@ global_is_used(const ZirProgram *program, unsigned char **keep,
                 const ZirExpr *expression = &function->exprs[e];
                 const ZirModule *resolved_owner = NULL;
                 const ZirGlobal *resolved_global = NULL;
-                if(expression->kind != ZIR_EXPR_IDENT) continue;
+                if(expression->kind != ZIR_EXPR_IDENT &&
+                   !(expression->kind == ZIR_EXPR_CALL &&
+                     expression->slot_type[0] && expression->name[0])) continue;
                 /* A global can only be named by its identifier or an
                  * import-qualified identifier. Most retained expressions
                  * name locals: do not walk their import graph once for
@@ -1311,6 +1314,46 @@ reexports_kept(const ZirProgram *program, const ZirModule *via,
     return 0;
 }
 
+/* Literal global initializers store function values outside function IR. */
+static int
+mark_global_functions(const ZirProgram *program, const ZirModule *module,
+                      const ZirGlobal *global, unsigned char **keep,
+                      int *changed, const ZirModule *imported)
+{
+    if(!global->init[0])
+        return 0;
+    ZirFunction *probe = calloc(1, sizeof(*probe));
+    if(probe == NULL)
+        return -1;
+    int root = ParseExprTyped(probe, module, global->init, global->span,
+                              global->type);
+    int used = 0;
+    for(int e = 0; root >= 0 && e < probe->expr_count; e++) {
+        const ZirExpr *expression = &probe->exprs[e];
+        const ZirModule *owner = NULL;
+        const ZirFunction *function = NULL;
+        if((expression->kind != ZIR_EXPR_IDENT &&
+            expression->kind != ZIR_EXPR_MEMBER) ||
+           ResolveFunction(module, expression->text, &owner, &function) != 1 ||
+           owner == NULL || function == NULL)
+            continue;
+        if(imported != NULL) {
+            used |= reexports_module(imported, owner, 0);
+            continue;
+        }
+        for(int m = 0; m < program->module_count; m++)
+            if(owner == &program->modules[m])
+                for(int f = 0; f < owner->function_count; f++)
+                    if(function == &owner->functions[f] && !keep[m][f]) {
+                        keep[m][f] = 1;
+                        *changed = 1;
+                    }
+    }
+    free(probe->exprs);
+    free(probe);
+    return used;
+}
+
 static int
 import_is_used(const ZirProgram *program, const ZirModule *module,
                const unsigned char *keep, unsigned char **keep_all,
@@ -1331,6 +1374,11 @@ import_is_used(const ZirProgram *program, const ZirModule *module,
         import->kind != ZIR_IMPORT_MODULE) ||
        import->resolved_module == NULL)
         return 0;
+    for(int g = 0; g < module->global_count; g++)
+        if(global_is_used(program, keep_all, module, &module->globals[g]) &&
+           mark_global_functions(program, module, &module->globals[g],
+                                 NULL, NULL, import->resolved_module) != 0)
+            return 1;
     if(reexports_kept(program, import->resolved_module, keep_all, keep_types))
         return 1;
     /* A module kept only for a program export that a foreign call binds
@@ -1529,6 +1577,11 @@ resolve_reachability:
                         active = 1;
                         break;
                     }
+            for(int g = 0; g < module->global_count; g++)
+                if(global_is_used(program, keep, module, &module->globals[g]) &&
+                   mark_global_functions(program, module, &module->globals[g],
+                                         keep, &changed, NULL) < 0)
+                    goto failed;
             if(active)
                 for(int f = 0; f < module->function_count; f++)
                     if(module->functions[f].is_global_initializer &&
@@ -1705,6 +1758,11 @@ resolve_reachability:
                         goto failed;
                 }
             }
+            for(int g = 0; g < module->global_count; g++)
+                if(global_is_used(program, keep, module, &module->globals[g]) &&
+                   !mark_type(program, module, module->globals[g].type,
+                              keep_types, &changed))
+                    goto failed;
             for(int t = 0; t < module->type_count; t++) {
                 if(!keep_types[m][t])
                     continue;

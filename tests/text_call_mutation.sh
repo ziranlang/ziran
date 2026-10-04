@@ -154,6 +154,11 @@ for source in (identity, work / 'identity-ir/identity.zir'):
                     '-I' + str(native), *map(str, native.glob('*.c')),
                     '-o', str(native / 'test'), '-lm'], check=True)
     subprocess.run([str(native / 'test')], check=True)
+    bundle = work / 'identity.zib'
+    subprocess.run([ziran, 'bundle', '--root', str(work), '--entry', 'identity:CheckIdentity',
+                    '-o', str(bundle), str(source)], check=True)
+    result = subprocess.run([ziran, 'run', str(bundle)], capture_output=True, text=True, check=True)
+    assert result.stdout.strip() == '0', result
 
 safe = work / 'safe.zi'
 safe.write_text(node + writer + '''

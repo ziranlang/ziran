@@ -364,6 +364,20 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
     double a = as_real(left), b = as_real(right);
     if(vm->failed || left.kind == VALUE_VOID || right.kind == VALUE_VOID)
         goto failed;
+    if(left.kind == VALUE_SLOT || right.kind == VALUE_SLOT) {
+        if((left.kind != VALUE_SLOT &&
+            (left.kind != VALUE_INT || integer_bits(left) != 0)) ||
+           (right.kind != VALUE_SLOT &&
+            (right.kind != VALUE_INT || integer_bits(right) != 0)))
+            goto failed;
+        const ZirFunction *a_function = left.kind == VALUE_SLOT ? left.slot_function : NULL;
+        const ZirFunction *b_function = right.kind == VALUE_SLOT ? right.slot_function : NULL;
+        int equal = a_function == b_function &&
+            (a_function == NULL || left.slot_module == right.slot_module);
+        if(!strcmp(op, "==")) return int_value(equal);
+        if(!strcmp(op, "!=")) return int_value(!equal);
+        goto failed;
+    }
     if(left.kind == VALUE_POINTER || right.kind == VALUE_POINTER) {
         /* Pointers compare by target; null is the handle 0. */
         const Value *a_target = left.kind == VALUE_POINTER ? left.pointee :
@@ -1373,13 +1387,23 @@ eval(Frame *frame, int index, int depth)
         const ZirFunction *callee = NULL;
         const ZirImport *external = NULL;
         if(expression->slot_type[0]) {
-            Local *binding = find_local(frame, expression->name);
-            if(binding == NULL || binding->value.kind != VALUE_SLOT) {
+            Value callable;
+            if(expression->name[0]) {
+                Local *binding = find_local(frame, expression->name);
+                Value *global = binding == NULL ?
+                    find_global_value(frame, expression->name) : NULL;
+                callable = binding != NULL ? binding->value :
+                    global != NULL ? *global : (Value){0};
+            } else {
+                callable = eval(frame, expression->left, depth + 1);
+            }
+            if(frame->vm->failed || callable.kind != VALUE_SLOT ||
+               callable.slot_type != FindType(frame->module, expression->slot_type, NULL)) {
                 frame->vm->failed = 1;
                 break;
             }
-            owner = binding->value.slot_module;
-            callee = binding->value.slot_function;
+            owner = callable.slot_module;
+            callee = callable.slot_function;
         } else {
             int resolved = ResolveFunction(frame->module, expression->name,
                                            &owner, &callee);

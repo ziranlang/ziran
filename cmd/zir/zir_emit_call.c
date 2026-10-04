@@ -51,8 +51,8 @@ global_function_slot(const ZirModule *module, const ZirModule *scope,
     const ZirModule *owner = NULL;
     const ZirFunction *declaration = NULL;
     if(slot == NULL || !slot->is_procedure_type ||
-       expr->kind != ZIR_EXPR_IDENT ||
-       ResolveFunction(module, expr->name, &owner, &declaration) != 1 ||
+       (expr->kind != ZIR_EXPR_IDENT && expr->kind != ZIR_EXPR_MEMBER) ||
+       ResolveFunction(module, expr->text, &owner, &declaration) != 1 ||
        declaration->is_extern)
         return NULL;
     return slot;
@@ -202,7 +202,7 @@ emit_global_literal_node_with_buffers(GlobalLiteralEmit *emit, int index,
         size_t length;
         if(emit->target == ZIR_GO || slot->is_c_call) {
             if(emit->scalar == NULL) return 0;
-            format(buffers->call, sizeof(buffers->call), "%s()", expr->name);
+            format(buffers->call, sizeof(buffers->call), "%s()", expr->text);
             if(!emit->scalar(emit->module, buffers->call, buffers->resolved,
                              sizeof(buffers->resolved), emit->context)) return 0;
             length = strlen(buffers->resolved);
@@ -364,7 +364,7 @@ emit_global_slot_wrappers_node_with_buffers(FILE *out, const ZirModule *module,
     global_slot_wrapper_name(module, global, index,
                              wrapper, sizeof(wrapper));
     fprintf(out, "static %s %s(void *context", resolved_result, wrapper);
-    size_t length = (size_t)format(buffers->call, sizeof(buffers->call), "%s(", value->name);
+    size_t length = (size_t)format(buffers->call, sizeof(buffers->call), "%s(", value->text);
     for(int argument = 0; argument < count; argument++) {
         const char *separator = strchr(buffers->parameters[argument], ':');
         if(separator == NULL) break;

@@ -48,6 +48,9 @@ Factory :: #type () -> *Record;
 Sink :: #type (record: *Record) -> ();
 
 storage: Record;
+ByteWriter :: #type (output: []u8, value: u8) -> ();
+
+WriteByte :: (output: []u8, value: u8) { output[0] = value }
 
 Read :: (record: *Record, index: s32) -> s32 {
     return record.value + index
@@ -63,6 +66,10 @@ Raise :: (record: *Record) {
 
 #program_export
 NativeAnswer :: () -> s32 {
+    bytes: [1]u8
+    writer: ByteWriter = WriteByte
+    writer(bytes[:], cast(u8)40)
+    if bytes[0] != cast(u8)40 { return 0 }
     storage.value = 39
     reader: Reader = Read
     factory: Factory = RecordPointer
@@ -72,6 +79,15 @@ NativeAnswer :: () -> s32 {
     return reader(record, 2)
 }
 EOF
+
+"$ziran" ir --root "$work" -o "$work/native-ir" "$work/native_slots.zi"
+"$ziran" bundle --root "$work" --entry native_slots:NativeAnswer \
+    -o "$work/native-source.zib" "$work/native_slots.zi"
+"$ziran" bundle --root "$work/native-ir" --entry native_slots:NativeAnswer \
+    -o "$work/native-saved.zib" "$work/native-ir/native_slots.zir"
+cmp "$work/native-source.zib" "$work/native-saved.zib"
+test "$("$ziran" run "$work/native-source.zib")" = 42
+test "$("$ziran" run "$work/native-saved.zib")" = 42
 
 "$tool_dir/zi2c" --no-main --root "$work" -o "$work/native-c" \
     "$work/native_slots.zi"

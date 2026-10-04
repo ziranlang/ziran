@@ -8,17 +8,19 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/lib.zi" <<'ZI'
 #scope_export
+Callback :: #type (value: s32) -> s32;
+Holder :: struct { callback: Callback }
 AddTwo :: (value: s32) -> s32 { return value + 2 }
 ZI
 cat > "$work/main.zi" <<'ZI'
-#import, file "lib.zi";
-Callback :: #type (value: s32) -> s32;
-Holder :: struct { callback: Callback }
+Library :: #import "lib";
 AddOne :: (value: s32) -> s32 { return value + 1 }
-holders: [2] Holder = .[Holder.{callback = AddOne}, Holder.{callback = AddTwo}];
-current: Callback = AddOne;
+holders: [2]Library.Holder = .[Library.Holder.{callback = AddOne}, Library.Holder.{callback = Library.AddTwo}];
+current: Library.Callback = AddOne;
+empty: Library.Callback;
 #program_export
 Answer :: () -> s32 {
+    if empty != null { return 0 }
     return holders[0].callback(41) + holders[1].callback(40) + current(41)
 }
 ZI
@@ -30,6 +32,9 @@ for input in source saved; do
     else
         set -- "$work/ir/lib.zir" "$work/ir/main.zir"
     fi
+    "$ziran" bundle --root "$work" --entry main:Answer \
+        -o "$work/$input.zib" "$@"
+    test "$("$ziran" run "$work/$input.zib")" = 126
     for target in c cpp go; do
         "$ziran" build --target="$target" --root "$work" \
             -o "$work/$target-$input" "$@"
@@ -64,3 +69,4 @@ func TestGlobalSlot(t *testing.T) {
 GO
     (cd "$work/go-$input" && GO111MODULE=off go test)
 done
+cmp "$work/source.zib" "$work/saved.zib"

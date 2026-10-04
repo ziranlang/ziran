@@ -48,6 +48,8 @@ Answer :: () -> s32 {
     holder.callback = selected
     holder.callbacks[0] = installed
     holder.callbacks[1] = holder.callback
+    if holder.callback(40) != 42 || holder.callbacks[0](40) != 41 ||
+        installed(40) != 41 { return 0 }
     a: Callback = holder.callbacks[0]
     b: Callback = holder.callbacks[1]
     c: Callback = holder.callback

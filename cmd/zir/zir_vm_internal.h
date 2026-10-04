@@ -226,6 +226,10 @@ typedef struct VmTypePath {
 #pragma GCC visibility push(hidden)
 const ZirImport *host_import(const ZirModule *module, const char *name);
 const ZirFunction *bound_provider(const ZirProgram *program, const ZirImport *import, const ZirModule **owner);
+int portable_function_value(const ZirModule *module, const char *type,
+                            const ZirModule *value_module, const char *name,
+                            const ZirModule **owner,
+                            const ZirFunction **function);
 int same_bound_type(const ZirModule *caller, const ZirModule *provider, const char *type);
 int same_record_type(const ZirModule *owner, const ZirType *type, const Record *record);
 int array_element_matches(const ZirModule *module, const char *element, const Array *array);

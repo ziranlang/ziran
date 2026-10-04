@@ -7,6 +7,7 @@
 #include "zir_text.h"
 #include "zir_expr.h"
 #include "zir_diagnostic.h"
+#include "zir_stream.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -14,6 +15,37 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Scratch output is used only to detect setup statements. Memory streams
+ * keep compiler/runtime libraries usable on Android API 21; platforms without
+ * memory streams can count bytes in a temporary stream instead. */
+static inline FILE *
+EmitScratchOpen(unsigned char **text, size_t *size)
+{
+#if defined(ZIR_MEMORY_STREAMS)
+    return ZirWriteMemory(text, size);
+#else
+    *text = NULL;
+    *size = 0;
+    return tmpfile();
+#endif
+}
+
+static inline void
+EmitScratchClose(FILE *file, size_t *size)
+{
+#if !defined(ZIR_MEMORY_STREAMS)
+    long written = ftell(file);
+    if(written < 0) {
+        fclose(file);
+        *size = 1;
+        return;
+    }
+    *size = (size_t)written;
+#endif
+    if(fclose(file) != 0)
+        *size = 1;
+}
 
 typedef struct ModuleVisits {
     const ZirModule **items;

@@ -409,17 +409,17 @@ static int
 condition_in_header(Emitter *e, int root)
 {
     char cond[ZIR_TEXT_MAX];
-    char *scratch_text = NULL;
+    unsigned char *scratch_text = NULL;
     size_t scratch_size = 0;
     FILE *saved_out = e->out;
     int saved_serial = e->serial, saved_locals = e->local_count;
-    FILE *scratch = open_memstream(&scratch_text, &scratch_size);
+    FILE *scratch = EmitScratchOpen(&scratch_text, &scratch_size);
     if(scratch == NULL)
         return 0;
     e->out = scratch;
     e->call_in_place = 1;
     emit_expr(e, root, "bool", cond, sizeof(cond));
-    fclose(scratch);
+    EmitScratchClose(scratch, &scratch_size);
     e->out = saved_out;
     free(scratch_text);
     e->serial = saved_serial;
@@ -621,17 +621,17 @@ native_for_with_buffers(Emitter *e, int open, int close, NativeForBuffers *buffe
     TargetBindingName(fn, e->target, counter->name, counter_name, sizeof(counter_name));
     /* Header parts must not need statements of their own. */
     {
-        char *scratch_text = NULL;
+        unsigned char *scratch_text = NULL;
         size_t scratch_size = 0;
         FILE *saved_out = e->out;
-        FILE *scratch = open_memstream(&scratch_text, &scratch_size);
+        FILE *scratch = EmitScratchOpen(&scratch_text, &scratch_size);
         if(scratch == NULL)
             return 0;
         e->out = scratch;
         emit_expr(e, counter->expr_root, counter->type, buffers->start, sizeof(buffers->start));
         track_local(e, counter->name, counter->type);
         emit_expr(e, loop->expr_root, "bool", buffers->condition, sizeof(buffers->condition));
-        fclose(scratch);
+        EmitScratchClose(scratch, &scratch_size);
         e->out = saved_out;
         free(scratch_text);
         if(scratch_size != 0) {
@@ -1020,17 +1020,17 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             } else {
                 /* A condition that needs no setup statements goes in the
                  * loop header; otherwise it runs first in each iteration. */
-                char *scratch_text = NULL;
+                unsigned char *scratch_text = NULL;
                 size_t scratch_size = 0;
                 FILE *saved_out = e->out;
                 int saved_serial = e->serial;
-                FILE *scratch = open_memstream(&scratch_text, &scratch_size);
+                FILE *scratch = EmitScratchOpen(&scratch_text, &scratch_size);
                 int header = 0;
                 if(scratch != NULL) {
                     e->out = scratch;
                     e->call_in_place = 1;
                     emit_expr(e,st->expr_root,"bool",buffers->value,sizeof(buffers->value));
-                    fclose(scratch);
+                    EmitScratchClose(scratch, &scratch_size);
                     e->out = saved_out;
                     header = scratch_size == 0;
                     free(scratch_text);

@@ -1207,15 +1207,15 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         if(!strcmp(expr->op,"&&") || !strcmp(expr->op,"||")) {
             /* A right side that needs no setup statements stays in place,
              * so the target's own && and || keep the short circuit. */
-            char *scratch_text = NULL;
+            unsigned char *scratch_text = NULL;
             size_t scratch_size = 0;
             FILE *saved_out = e->out;
             int saved_serial = e->serial;
-            FILE *scratch = open_memstream(&scratch_text, &scratch_size);
+            FILE *scratch = EmitScratchOpen(&scratch_text, &scratch_size);
             if(scratch != NULL) {
                 e->out = scratch;
                 emit_expr(e,expr->right,"bool",buffers->b,sizeof(buffers->b));
-                fclose(scratch);
+                EmitScratchClose(scratch, &scratch_size);
                 e->out = saved_out;
                 int inline_right = scratch_size == 0;
                 free(scratch_text);

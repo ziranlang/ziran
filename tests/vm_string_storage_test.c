@@ -36,7 +36,7 @@ int main(int argc, char **argv)
     FILE *input = fopen(argv[1], "rb");
     assert(input != NULL);
     ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module),
-                                     entry, sizeof(entry), &laws);
+                                     entry, sizeof(entry), &laws, NULL);
     fclose(input);
     assert(program != NULL);
     Probe probe = {0};

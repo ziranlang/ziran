@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { ZIB_VERSION = 25, ZIB_MAX_IR_BYTES = 256 * 1024 * 1024,
+enum { ZIB_VERSION = 26, ZIB_MAX_IR_BYTES = 256 * 1024 * 1024,
        ZIB_MAX_CAPABILITIES = 4096 };
 
 typedef struct CapabilityName {
@@ -2159,7 +2159,8 @@ NativeGoLink(const ZirProgram *program, const char *entry_module,
 
 int
 BundleWrite(FILE *out, const ZirProgram *program,
-               const char *entry_module, const char *entry_function)
+               const char *entry_module, const char *entry_function,
+               const ZibAssets *assets)
 {
     FILE *payload;
     long length;
@@ -2234,7 +2235,8 @@ BundleWrite(FILE *out, const ZirProgram *program,
                 }
         }
         ok = ok && write_u32(out, (uint32_t)length) &&
-             copy_bytes(payload, out, (uint32_t)length) && fflush(out) == 0;
+             copy_bytes(payload, out, (uint32_t)length) &&
+             ZibAssetsWrite(out, assets) && fflush(out) == 0;
     }
     fclose(payload);
     return ok;
@@ -2257,7 +2259,7 @@ ZirProgram *
 BundleRead(FILE *in, const char *path,
            char *entry_module, size_t module_size,
            char *entry_function, size_t function_size,
-           ZibLawTable *laws)
+           ZibLawTable *laws, ZibAssets *assets)
 {
     unsigned char signature[4];
     uint32_t version, capability_count, length;
@@ -2265,6 +2267,9 @@ BundleRead(FILE *in, const char *path,
     ZirProgram *program = NULL;
     CapabilityName *capabilities = NULL;
     ZibLawTable discarded = {0};
+    ZibAssets discarded_assets = {0};
+    int discard_assets = assets == NULL;
+    if(discard_assets) assets = &discarded_assets;
     int discard_laws = laws == NULL;
     if(discard_laws) laws = &discarded;
     const char *problem = "invalid or truncated bundle";
@@ -2344,7 +2349,8 @@ BundleRead(FILE *in, const char *path,
         goto failed;
     payload = tmpfile();
     if(payload == NULL || !copy_bytes(in, payload, length) ||
-       fgetc(in) != EOF || ferror(in) || fseek(payload, 0, SEEK_SET))
+       !ZibAssetsRead(in, assets) || fgetc(in) != EOF || ferror(in) ||
+       fseek(payload, 0, SEEK_SET))
         goto failed;
     program = ProgramRead(payload, path);
     if(program == NULL) {
@@ -2413,6 +2419,7 @@ BundleRead(FILE *in, const char *path,
     fclose(payload);
     free(capabilities);
     if(discard_laws) ZibLawTableFree(&discarded);
+    if(discard_assets) ZibAssetsFree(&discarded_assets);
     return program;
 failed:
     Diagnostic(Span(path, 1, 1), "zib.invalid", "%s", problem);
@@ -2420,6 +2427,7 @@ failed:
         fclose(payload);
     free(capabilities);
     ProgramFree(program);
+    ZibAssetsFree(assets);
     if(discard_laws) ZibLawTableFree(&discarded);
     return NULL;
 }

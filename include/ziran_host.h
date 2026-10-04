@@ -71,12 +71,19 @@ typedef struct HostBinding {
     void *context;
 } HostBinding;
 
-/* Open and validate a version 24 portable bundle. Close releases all names. */
+/* Open and validate a version 26 portable bundle. Close releases all names. */
 Bundle *BundleOpen(const char *path);
 void BundleClose(Bundle *bundle);
 size_t BundleCapabilityCount(const Bundle *bundle);
 const char *BundleCapabilityModule(const Bundle *bundle, size_t index);
 const char *BundleCapabilityFunction(const Bundle *bundle, size_t index);
+
+/* Embedded files have canonical relative paths and immutable bytes. Names and
+ * data are borrowed until BundleClose; an invalid index returns NULL/zero. */
+size_t BundleAssetCount(const Bundle *bundle);
+const char *BundleAssetName(const Bundle *bundle, size_t index);
+const unsigned char *BundleAssetData(const Bundle *bundle, size_t index);
+size_t BundleAssetSize(const Bundle *bundle, size_t index);
 
 /* Every required capability must have exactly one binding before execution.
  * Integer/bool entry results are returned in result; void sets has_result=0. */

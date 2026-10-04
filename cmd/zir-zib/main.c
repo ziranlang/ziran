@@ -8,6 +8,7 @@
 #include "ziran_host.h"
 
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #if defined(__unix__) || defined(__APPLE__)
@@ -18,8 +19,20 @@ static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
-            "usage: zi2zib bundle [--module-path DIR] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
+            "usage: zi2zib bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
             "       zi2zib run file.zib\n");
+}
+
+static int
+valid_define(const char *name)
+{
+    if(name == NULL || (!isalpha((unsigned char)*name) && *name != '_') ||
+       strlen(name) >= ZIR_NAME_MAX)
+        return 0;
+    for(const unsigned char *p = (const unsigned char *)name + 1; *p; p++)
+        if(!isalnum(*p) && *p != '_')
+            return 0;
+    return 1;
 }
 
 static int
@@ -50,6 +63,8 @@ bundle_command(int argc, char **argv)
     ProgramSet set = {0};
     const char *module_paths[64];
     int module_path_count = 0;
+    const char *defines[64];
+    int define_count = 0;
     const char *bindings[64];
     int binding_count = 0;
     const char *host_modules[16];
@@ -57,12 +72,23 @@ bundle_command(int argc, char **argv)
     ZirProgram **programs = NULL;
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
+    ZibAssets assets = {0};
     FILE *file = NULL;
     for(int i = 0; i < argc; i++) {
         if(strcmp(argv[i], "--root") == 0 && i + 1 < argc)
             root = argv[++i];
         else if(strcmp(argv[i], "--module-path") == 0 && i + 1 < argc && module_path_count < 64)
             module_paths[module_path_count++] = argv[++i];
+        else if(strcmp(argv[i], "--define") == 0 && i + 1 < argc &&
+                define_count < 64 && valid_define(argv[i + 1]))
+            defines[define_count++] = argv[++i];
+        else if(strcmp(argv[i], "--asset-dir") == 0 && i + 1 < argc) {
+            if(!ZibAssetsCollect(&assets, argv[++i])) {
+                Diagnostic(Span("<command>", 1, 1), "zib.assets",
+                           "cannot bundle assets: %s", argv[i]);
+                goto done;
+            }
+        }
         else if(strcmp(argv[i], "--bind") == 0 && i + 1 < argc && binding_count < 64)
             bindings[binding_count++] = argv[++i];
         else if(strcmp(argv[i], "--bind-host") == 0 && i + 1 < argc && host_module_count < 16)
@@ -87,7 +113,8 @@ bundle_command(int argc, char **argv)
         usage();
         return 1;
     }
-    if(!ProgramsLoad(&set, root, module_paths, module_path_count,
+    if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
+                     defines, define_count,
                      (const char *const *)(argv + first_file), argc - first_file))
         goto done;
     count = set.count;
@@ -124,7 +151,7 @@ bundle_command(int argc, char **argv)
                       "cannot open bundle output");
         goto done;
     }
-    if(!BundleWrite(file, linked, entry_module, entry_function)) {
+    if(!BundleWrite(file, linked, entry_module, entry_function, &assets)) {
         Diagnostic(Span(output, 1, 1), "zib.output",
                       "cannot write bundle");
         goto done;
@@ -136,6 +163,7 @@ done:
     if(result != 0 && file != NULL)
         remove(output);
     ProgramFree(linked);
+    ZibAssetsFree(&assets);
     free(merged.modules);
     ProgramsFree(&set);
     return result;

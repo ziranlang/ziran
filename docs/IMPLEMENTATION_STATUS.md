@@ -797,10 +797,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   independent union value copies across all four targets. Unions with string,
   record, array, or pointer fields remain C/C++-only.
 - `zi2zib bundle --root DIR --entry module:function -o FILE` builds an
-  experimental version 24 `.zib` from source or saved IR. `zi2zib run FILE`
+  experimental version 26 `.zib` from source or saved IR. `zi2zib run FILE`
   loads and executes the validated scalar, plain record, enum, and fixed-array
-  subset without a
-  display or Kryon.
+  subset with no host bindings. Graphical programs use an embedding host;
+  Kryon's reusable desktop player supplies its rendering and input capabilities.
   The test runs an imported two-module call and compares bundle bytes from
   source and saved IR. The current runner supports zero-argument entry
   functions with `s32`/`int`/`bool`/`void` results, and helper functions with
@@ -1061,6 +1061,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   are checked recursively; `tests/host_arrays.sh` covers source and saved
   bundles, malformed host results, and native C, C++, and Go foreign calls.
   `BundleRun` checks all required bindings before execution.
+  Native Ziran hosts can enumerate capability names through `std/bundle_host`.
+  `--asset-dir NAME=DIR` embeds sorted, canonical relative file paths and binary
+  contents. Both the C API and native Ziran wrapper expose those resources;
+  malformed paths, duplicates, ordering, lengths and truncation are rejected.
+  Source and saved-IR packaging is byte-identical, including binary and empty
+  assets. `--define NAME` selects the same source branches as native compilers.
   The CLI runner also checks required bindings before execution. Source and
   saved-IR bundles, unused extern pruning, list tampering, missing binding
   preflight, malformed record returns, and pointer dereference rejection

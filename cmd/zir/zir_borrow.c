@@ -634,10 +634,25 @@ check_mutation(BorrowCheck *check, BorrowPlace destination, ZirSourceSpan span)
     }
 }
 
+typedef struct ForeignVisit {
+    const ZirModule *module;
+    const char *name;
+    struct ForeignVisit *next;
+} ForeignVisit;
+
 static int
-foreign_call(const ZirModule *module, const char *name, int depth)
+foreign_call_visit(const ZirModule *module, const char *name,
+                   ForeignVisit **visited)
 {
-    if(module == NULL || depth > 32) return 0;
+    if(module == NULL) return 0;
+    /* Open imports form a graph, often with cycles and shared dependencies.
+     * Revisit neither a module nor the remaining name within this lookup. */
+    for(ForeignVisit *item = *visited; item != NULL; item = item->next)
+        if(item->module == module && !strcmp(item->name, name)) return 0;
+    ForeignVisit *visit = malloc(sizeof(*visit));
+    if(visit == NULL) return 0;
+    *visit = (ForeignVisit){module, name, *visited};
+    *visited = visit;
     const char *dot = strchr(name, '.');
     for(int i = 0; i < module->import_count; i++) {
         const ZirImport *import = &module->imports[i];
@@ -646,11 +661,24 @@ foreign_call(const ZirModule *module, const char *name, int depth)
         if(dot != NULL && import->resolved_module != NULL &&
            strlen(import->name) == (size_t)(dot - name) &&
            !strncmp(import->name, name, (size_t)(dot - name)))
-            return foreign_call(import->resolved_module, dot + 1, depth + 1);
+            return foreign_call_visit(import->resolved_module, dot + 1, visited);
         if(dot == NULL && import->kind == ZIR_IMPORT_OPEN &&
-           foreign_call(import->resolved_module, name, depth + 1)) return 1;
+           foreign_call_visit(import->resolved_module, name, visited)) return 1;
     }
     return 0;
+}
+
+static int
+foreign_call(const ZirModule *module, const char *name)
+{
+    ForeignVisit *visited = NULL;
+    int found = foreign_call_visit(module, name, &visited);
+    while(visited != NULL) {
+        ForeignVisit *next = visited->next;
+        free(visited);
+        visited = next;
+    }
+    return found;
 }
 
 static void
@@ -679,7 +707,7 @@ check_call_mutations(BorrowCheck *check, const ZirExpr *expression)
      * responsibility; checked wrappers still summarize their own writes. */
     if((callee != NULL && callee->is_extern) ||
        (callee == NULL && binding(check, name) == NULL &&
-        foreign_call(check->current->module, name, 0))) return;
+        foreign_call(check->current->module, name))) return;
     BorrowFunction *summary = NULL;
     for(int i = 0; i < check->count; i++)
         if(check->functions[i].fn == callee) { summary = &check->functions[i]; break; }

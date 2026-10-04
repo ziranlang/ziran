@@ -37,7 +37,14 @@
 <div><code>HostCall :: #type (context: *void, module: *u8, function: *u8, arguments: *HostValue, count: s32, result: *HostValue) -&gt; s32</code></div>
 <div><code>HostBinding :: struct { module: *u8; function: *u8; call: HostCall; context: *void; }</code></div>
 <div><code>OpenBundle :: (path: *u8) -&gt; *void</code></div>
-<div><code>CloseBundle :: (bundle: *void)</code></div>
+<div><code>CloseBundle :: (bundle: *void)</code><p>Borrowed names remain valid until CloseBundle. A host can bind the exact</p></div>
+<div><code>BundleCapabilities :: (bundle: *void) -&gt; u64</code><p>Borrowed names remain valid until CloseBundle. A host can bind the exact package-qualified names in a downloaded program without knowing its lock.</p></div>
+<div><code>BundleCapabilityModuleName :: (bundle: *void, index: u64) -&gt; *u8</code></div>
+<div><code>BundleCapabilityFunctionName :: (bundle: *void, index: u64) -&gt; *u8</code></div>
+<div><code>BundleAssets :: (bundle: *void) -&gt; u64</code></div>
+<div><code>BundleAssetPath :: (bundle: *void, index: u64) -&gt; *u8</code></div>
+<div><code>BundleAssetBytes :: (bundle: *void, index: u64) -&gt; *u8</code></div>
+<div><code>BundleAssetLength :: (bundle: *void, index: u64) -&gt; u64</code></div>
 <div><code>InstantiateBundle :: (bundle: *void, bindings: *HostBinding, count: u64) -&gt; *void</code></div>
 <div><code>RunBundleInstance :: (instance: *void, result: *s64, has_result: *s32) -&gt; s32</code></div>
 <div><code>CloseBundleInstance :: (instance: *void)</code></div>

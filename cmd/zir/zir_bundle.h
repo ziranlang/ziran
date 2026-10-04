@@ -15,8 +15,24 @@ ZirProgram *NativeGoLink(const ZirProgram *program, const char *entry_module,
 /* Bind one declared host capability to an exported Ziran implementation. */
 int BindHostProvider(ZirProgram *program, const char *spec);
 int BindHostModule(ZirProgram *program, const char *spec);
+typedef struct ZibAsset {
+    char *name;
+    unsigned char *data;
+    uint32_t size;
+} ZibAsset;
+
+typedef struct ZibAssets {
+    ZibAsset *items;
+    size_t count;
+} ZibAssets;
+
+void ZibAssetsFree(ZibAssets *assets);
+int ZibAssetsCollect(ZibAssets *assets, const char *spec);
+int ZibAssetsWrite(FILE *out, const ZibAssets *assets);
+int ZibAssetsRead(FILE *in, ZibAssets *assets);
 int BundleWrite(FILE *out, const ZirProgram *program,
-                   const char *entry_module, const char *entry_function);
+                const char *entry_module, const char *entry_function,
+                const ZibAssets *assets);
 typedef struct ZibLawRecord {
     char module[ZIR_NAME_MAX];
     char name[ZIR_NAME_MAX];
@@ -43,6 +59,6 @@ void ZibLawTableFree(ZibLawTable *table);
 ZirProgram *BundleRead(FILE *in, const char *path,
                           char *entry_module, size_t module_size,
                           char *entry_function, size_t function_size,
-                          ZibLawTable *laws);
+                          ZibLawTable *laws, ZibAssets *assets);
 
 #endif

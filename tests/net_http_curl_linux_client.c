@@ -26,6 +26,15 @@ main(int argc, char **argv)
     assert(result.code == 0 && result.status == 200);
     assert(result.length == 5 && strcmp(output, "ready") == 0);
 
+    request.url = url(address, sizeof address, argv[1], "/slow");
+    result = SendCurlWithin(request, buffer, 500);
+    assert(result.code == 28 && result.length == 0);
+    result = SendCurlWithin(request, buffer, 10000);
+    assert(result.code == 0 && result.status == 200);
+    assert(result.length == 5 && strcmp(output, "ready") == 0);
+    result = SendCurlWithin(request, buffer, 0);
+    assert(result.code != 0 && result.length == 0);
+
     request.url = url(address, sizeof address, argv[1], "/gzip");
     result = SendCurl(request, buffer);
     assert(result.code == 0 && result.status == 200);

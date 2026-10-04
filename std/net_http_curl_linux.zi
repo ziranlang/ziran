@@ -236,6 +236,12 @@ AddNamedHeader :: (headers: **void, name: string, value: string,
 // HTTP errors retain their status and body for protocol-level decisions.
 #program_export
 SendCurl :: (request: HttpRequest, output: []u8) -> CurlResult {
+    return SendCurlWithin(request, output, 20000)
+}
+// The same request with its own total timeout, for slow services such as
+// model generation. Connecting still has 10 seconds.
+#program_export
+SendCurlWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) -> CurlResult {
     result: CurlResult
     result.code = -1
     if output.count == 0 { return result }
@@ -267,7 +273,7 @@ SendCurl :: (request: HttpRequest, output: []u8) -> CurlResult {
     curl_easy_setopt(handle, CurlMethod, *method[0]) == 0 &&
     curl_easy_setopt(handle, CurlAcceptEncoding, *encoding[0]) == 0 &&
     curl_easy_setopt(handle, CurlWriteData, *context) == 0 &&
-    SetCurlLong(handle, CurlTimeoutMs, 20000) &&
+    timeout_ms > 0 && SetCurlLong(handle, CurlTimeoutMs, timeout_ms) &&
     SetCurlLong(handle, CurlConnectTimeoutMs, 10000) &&
     SetCurlLong(handle, CurlNoSignal, 1)
     if configured {

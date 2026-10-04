@@ -959,10 +959,16 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         if(!ty->is_extern && !ty->is_record_template &&
            !ty->is_procedure_type && !ty->is_enum) {
             if(!ty->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
+            /* One checked type application can occur in several module
+             * headers. C99 requires its typedef to be declared only once. */
+            if(ty->is_synthetic_application)
+                fprintf(h, "#ifndef ZIRAN_CONCRETE_FORWARD_%s\n#define ZIRAN_CONCRETE_FORWARD_%s\n",
+                        native, native);
             fprintf(h, "typedef %s %s %s;\n",
                     ty->is_union ? "union" : "struct", native, native);
             if(ty->is_abi_incomplete)
                 fprintf(h, "#pragma ziran abi_incomplete %s\n", native);
+            if(ty->is_synthetic_application) fputs("#endif\n", h);
             if(!ty->is_public) fputs("#endif\n", h);
         }
         if(ty->is_enum) {

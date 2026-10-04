@@ -64,7 +64,7 @@ for input in source saved; do
         case "$target" in
         c)
             printf '#include "app.h"\nint main(void) { return SelfTest() == 42 ? 0 : 1; }\n' > "$out/main.c"
-            ${CC:-cc} -Iinclude -I"$out" "$out"/*.c -o "$out/test"
+            ${CC:-cc} -std=c99 -pedantic-errors -Iinclude -I"$out" "$out"/*.c -o "$out/test"
             "$out/test"
             ;;
         cpp)

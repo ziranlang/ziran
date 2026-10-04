@@ -3,7 +3,7 @@
 #include "zir_diagnostic.h"
 #include "zir_vm.h"
 
-#include "zir_bundle.h"
+#include "zir_stream.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,34 +56,51 @@ capability_at(const Bundle *bundle, size_t index, const ZirModule **owner)
     return NULL;
 }
 
-Bundle *
-BundleOpen(const char *path)
+static Bundle *
+open_bundle_stream(FILE *file, const char *name)
 {
-    FILE *file;
-    Bundle *bundle;
-    if(path == NULL)
-        return NULL;
-    file = fopen(path, "rb");
-    if(file == NULL) {
-        Diagnostic(Span(path, 1, 1), "zib.input", "cannot open bundle");
-        return NULL;
-    }
-    bundle = calloc(1, sizeof(*bundle));
-    if(bundle != NULL)
-        bundle->program = BundleRead(file, path, bundle->entry_module,
-                                     sizeof(bundle->entry_module),
-                                     bundle->entry_function,
-                                     sizeof(bundle->entry_function),
-                                     &bundle->laws, &bundle->assets);
-    fclose(file);
+    Bundle *bundle = calloc(1, sizeof(*bundle));
     if(bundle == NULL)
         return NULL;
+    bundle->program = BundleRead(file, name, bundle->entry_module,
+                                 sizeof(bundle->entry_module),
+                                 bundle->entry_function,
+                                 sizeof(bundle->entry_function),
+                                 &bundle->laws, &bundle->assets);
     if(bundle->program == NULL ||
        !VmVerify(bundle->program, bundle->entry_module,
                  bundle->entry_function)) {
         BundleClose(bundle);
         return NULL;
     }
+    return bundle;
+}
+
+Bundle *
+BundleOpen(const char *path)
+{
+    if(path == NULL)
+        return NULL;
+    FILE *file = fopen(path, "rb");
+    if(file == NULL) {
+        Diagnostic(Span(path, 1, 1), "zib.input", "cannot open bundle");
+        return NULL;
+    }
+    Bundle *bundle = open_bundle_stream(file, path);
+    fclose(file);
+    return bundle;
+}
+
+Bundle *
+BundleOpenBytes(const unsigned char *data, size_t size)
+{
+    if(data == NULL || size == 0)
+        return NULL;
+    FILE *file = ZirReadMemory(data, size);
+    if(file == NULL)
+        return NULL;
+    Bundle *bundle = open_bundle_stream(file, "<embedded bundle>");
+    fclose(file);
     return bundle;
 }
 

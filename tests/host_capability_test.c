@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int storage = 7;
@@ -95,7 +96,27 @@ main(int argc, char **argv)
     HostBinding bindings[7];
     int bound[7] = {0};
     assert(argc == 2);
-    Bundle *bundle = BundleOpen(argv[1]);
+    FILE *input = fopen(argv[1], "rb");
+    assert(input != NULL && fseek(input, 0, SEEK_END) == 0);
+    long size = ftell(input);
+    assert(size > 0 && fseek(input, 0, SEEK_SET) == 0);
+    unsigned char *bytes = malloc((size_t)size);
+    assert(bytes != NULL && fread(bytes, 1, (size_t)size, input) == (size_t)size);
+    fclose(input);
+    assert(BundleOpenBytes(NULL, (size_t)size) == NULL);
+    assert(BundleOpenBytes(bytes, 0) == NULL);
+    assert(BundleOpenBytes(bytes, (size_t)size - 1) == NULL);
+    Bundle *bundle = BundleOpenBytes(bytes, (size_t)size);
+    assert(bundle != NULL);
+    BundleClose(bundle);
+    unsigned char *trailing = malloc((size_t)size + 1);
+    assert(trailing != NULL);
+    memcpy(trailing, bytes, (size_t)size);
+    trailing[size] = 0;
+    assert(BundleOpenBytes(trailing, (size_t)size + 1) == NULL);
+    free(trailing);
+    bundle = BundleOpenBytes(bytes, (size_t)size);
+    free(bytes); /* The runtime does not retain the caller's input allocation. */
     assert(bundle != NULL);
     assert(BundleCapabilityCount(bundle) == 7);
     for(size_t i = 0; i < 7; i++) {

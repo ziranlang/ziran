@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +33,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/ok":
             self.respond(200, b"ready")
+        elif self.path == "/slow":
+            time.sleep(1.5)
+            try:
+                self.respond(200, b"ready")
+            except BrokenPipeError:
+                pass  # The client's shorter timeout already closed it.
         elif self.path == "/auth":
             self.respond(401, b"denied")
         elif self.path == "/large":

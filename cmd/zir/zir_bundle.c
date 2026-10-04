@@ -1,4 +1,5 @@
 #include "zir_bundle.h"
+#include "zir_stream.h"
 #include "zir_check.h"
 #include "zir_law.h"
 #include "zir_proof.h"
@@ -2329,6 +2330,7 @@ BundleRead(FILE *in, const char *path,
     unsigned char signature[4];
     uint32_t version, capability_count, length;
     FILE *payload = NULL;
+    unsigned char *payload_bytes = NULL;
     ZirProgram *program = NULL;
     CapabilityName *capabilities = NULL;
     ZibLawTable discarded = {0};
@@ -2412,10 +2414,12 @@ BundleRead(FILE *in, const char *path,
     }
     if(!read_u32(in, &length) || length == 0 || length > ZIB_MAX_IR_BYTES)
         goto failed;
-    payload = tmpfile();
-    if(payload == NULL || !copy_bytes(in, payload, length) ||
-       !ZibAssetsRead(in, assets) || fgetc(in) != EOF || ferror(in) ||
-       fseek(payload, 0, SEEK_SET))
+    payload_bytes = malloc(length);
+    if(payload_bytes == NULL || fread(payload_bytes, 1, length, in) != length ||
+       !ZibAssetsRead(in, assets) || fgetc(in) != EOF || ferror(in))
+        goto failed;
+    payload = ZirReadMemory(payload_bytes, length);
+    if(payload == NULL)
         goto failed;
     program = ProgramRead(payload, path);
     if(program == NULL) {
@@ -2482,6 +2486,7 @@ BundleRead(FILE *in, const char *path,
         }
     }
     fclose(payload);
+    free(payload_bytes);
     free(capabilities);
     if(discard_laws) ZibLawTableFree(&discarded);
     if(discard_assets) ZibAssetsFree(&discarded_assets);
@@ -2490,6 +2495,7 @@ failed:
     Diagnostic(Span(path, 1, 1), "zib.invalid", "%s", problem);
     if(payload != NULL)
         fclose(payload);
+    free(payload_bytes);
     free(capabilities);
     ProgramFree(program);
     ZibAssetsFree(assets);

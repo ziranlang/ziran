@@ -1,3 +1,4 @@
+#include "zir_stream.h"
 #include "zir_serial.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
@@ -1067,6 +1068,10 @@ CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
     FILE *before = NULL;
     FILE *after = NULL;
     int saved_count = 0;
+#if defined(ZIR_MEMORY_STREAMS)
+    unsigned char *before_data = NULL, *after_data = NULL;
+    size_t before_size = 0, after_size = 0;
+#endif
     int first_saved = -1;
     int valid = 0;
     SavedModuleShape **original_counts = NULL;
@@ -1100,8 +1105,13 @@ CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
     }
     /* Saved IR is an executable typed artifact. Require checked statement
      * and expression graphs before target emission. */
+#if defined(ZIR_MEMORY_STREAMS)
+    before = ZirWriteMemory(&before_data, &before_size);
+    after = ZirWriteMemory(&after_data, &after_size);
+#else
     before = tmpfile();
     after = tmpfile();
+#endif
     if(before == NULL || after == NULL)
         goto failed;
     for(int i = 0; i < count; i++)
@@ -1115,6 +1125,21 @@ CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
         if(!write_original_checked_program(programs[i], original_counts[i], after))
             goto failed;
     }
+#if defined(ZIR_MEMORY_STREAMS)
+    int before_status = fclose(before);
+    int after_status = fclose(after);
+    before = NULL;
+    after = NULL;
+    if(before_status != 0 || after_status != 0)
+        goto failed;
+    if(before_size != after_size || memcmp(before_data, after_data, before_size) != 0) {
+        Diagnostic(Span(input_paths != NULL ? input_paths[first_saved] : "<bundle>",
+                        1, 1), "zir.noncanonical",
+                   "saved IR does not match the checked program");
+        goto done;
+    }
+    valid = 1;
+#else
     if(fseek(before, 0, SEEK_SET) || fseek(after, 0, SEEK_SET))
         goto failed;
     for(;;) {
@@ -1134,6 +1159,7 @@ CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
             break;
         }
     }
+#endif
     goto done;
 failed:
     Diagnostic(Span(input_paths != NULL && first_saved >= 0 ?
@@ -1153,6 +1179,10 @@ done:
         fclose(before);
     if(after != NULL)
         fclose(after);
+#if defined(ZIR_MEMORY_STREAMS)
+    free(before_data);
+    free(after_data);
+#endif
     return valid;
 }
 

@@ -73,6 +73,9 @@ typedef struct HostBinding {
 
 /* Open and validate a version 26 portable bundle. Close releases all names. */
 Bundle *BundleOpen(const char *path);
+/* Validate an embedded/downloaded bundle without an application pathname.
+ * Input bytes are borrowed only during this call; the opened bundle owns IR. */
+Bundle *BundleOpenBytes(const unsigned char *data, size_t size);
 void BundleClose(Bundle *bundle);
 size_t BundleCapabilityCount(const Bundle *bundle);
 const char *BundleCapabilityModule(const Bundle *bundle, size_t index);

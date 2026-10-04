@@ -136,6 +136,12 @@ input before allocating and rejects noncanonical names/order and trailing data.
 `BundleAssetCount`, `BundleAssetName`, `BundleAssetData`, and `BundleAssetSize`
 expose immutable files until `BundleClose`. Ziran hosts import `std/bundle_host`
 for file access and enumeration of the exact required capability names.
+`BundleOpenBytes` / `OpenBundleBytes` validate embedded or downloaded bytes
+through the same reader and verifier, without requiring an application file
+path. The caller may release the input bytes after opening the bundle. Unix,
+Android (including API 21) and Web hosts read the input and embedded IR through
+read-only memory streams; loading needs no temporary directory. Windows and
+Plan 9 hosts use seekable temporary streams.
 
 Kryon's reusable desktop player supplies rendering and input to a Zib instance;
 the application's widgets and state run inside the VM. A downloaded graphical

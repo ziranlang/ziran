@@ -22,9 +22,9 @@ HostValue :: struct {
     bits: u64
     real: float64
     data: *u8
-    length: u64
+    length: usize
     fields: *HostField
-    field_count: u64
+    field_count: usize
     elements: *HostValue
     pointer: *void
 }
@@ -46,16 +46,17 @@ HostBinding :: struct {
 
 #scope_file
 RawBundleOpen :: (path: *u8) -> *void #foreign runtime "BundleOpen";
+RawBundleOpenBytes :: (data: *u8, size: usize) -> *void #foreign runtime "BundleOpenBytes";
 RawBundleClose :: (bundle: *void) #foreign runtime "BundleClose";
-RawBundleCapabilityCount :: (bundle: *void) -> u64 #foreign runtime "BundleCapabilityCount";
-RawBundleCapabilityModule :: (bundle: *void, index: u64) -> *u8 #foreign runtime "BundleCapabilityModule";
-RawBundleCapabilityFunction :: (bundle: *void, index: u64) -> *u8 #foreign runtime "BundleCapabilityFunction";
-RawBundleAssetCount :: (bundle: *void) -> u64 #foreign runtime "BundleAssetCount";
-RawBundleAssetName :: (bundle: *void, index: u64) -> *u8 #foreign runtime "BundleAssetName";
-RawBundleAssetData :: (bundle: *void, index: u64) -> *u8 #foreign runtime "BundleAssetData";
-RawBundleAssetSize :: (bundle: *void, index: u64) -> u64 #foreign runtime "BundleAssetSize";
+RawBundleCapabilityCount :: (bundle: *void) -> usize #foreign runtime "BundleCapabilityCount";
+RawBundleCapabilityModule :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleCapabilityModule";
+RawBundleCapabilityFunction :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleCapabilityFunction";
+RawBundleAssetCount :: (bundle: *void) -> usize #foreign runtime "BundleAssetCount";
+RawBundleAssetName :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleAssetName";
+RawBundleAssetData :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleAssetData";
+RawBundleAssetSize :: (bundle: *void, index: usize) -> usize #foreign runtime "BundleAssetSize";
 RawBundleInstantiate :: (bundle: *void, bindings: *HostBinding,
-    count: u64) -> *void #foreign runtime "BundleInstantiate";
+    count: usize) -> *void #foreign runtime "BundleInstantiate";
 RawBundleInstanceRun :: (instance: *void, result: *s64,
     has_result: *s32) -> s32 #foreign runtime "BundleInstanceRun";
 RawBundleInstanceClose :: (instance: *void) #foreign runtime "BundleInstanceClose";
@@ -66,47 +67,80 @@ RawBundleInstanceLimitSteps :: (instance: *void, max_steps: s32) #foreign runtim
 OpenBundle :: (path: *u8) -> *void { return RawBundleOpen(path) }
 
 #program_export
+OpenBundleBytes :: (data: *u8, size: u64) -> *void {
+    narrowed := cast(usize)size
+    if cast(u64)narrowed != size {
+        return null
+    }
+    return RawBundleOpenBytes(data, narrowed)
+}
+
+#program_export
 CloseBundle :: (bundle: *void) { RawBundleClose(bundle) }
 
 // Borrowed names remain valid until CloseBundle. A host can bind the exact
 // package-qualified names in a downloaded program without knowing its lock.
 #program_export
 BundleCapabilities :: (bundle: *void) -> u64 {
-    return RawBundleCapabilityCount(bundle)
+    return cast(u64)RawBundleCapabilityCount(bundle)
 }
 
 #program_export
 BundleCapabilityModuleName :: (bundle: *void, index: u64) -> *u8 {
-    return RawBundleCapabilityModule(bundle, index)
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return null
+    }
+    return RawBundleCapabilityModule(bundle, narrowed)
 }
 
 #program_export
 BundleCapabilityFunctionName :: (bundle: *void, index: u64) -> *u8 {
-    return RawBundleCapabilityFunction(bundle, index)
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return null
+    }
+    return RawBundleCapabilityFunction(bundle, narrowed)
 }
 
 #program_export
-BundleAssets :: (bundle: *void) -> u64 { return RawBundleAssetCount(bundle) }
+BundleAssets :: (bundle: *void) -> u64 { return cast(u64)RawBundleAssetCount(bundle) }
 
 #program_export
 BundleAssetPath :: (bundle: *void, index: u64) -> *u8 {
-    return RawBundleAssetName(bundle, index)
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return null
+    }
+    return RawBundleAssetName(bundle, narrowed)
 }
 
 #program_export
 BundleAssetBytes :: (bundle: *void, index: u64) -> *u8 {
-    return RawBundleAssetData(bundle, index)
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return null
+    }
+    return RawBundleAssetData(bundle, narrowed)
 }
 
 #program_export
 BundleAssetLength :: (bundle: *void, index: u64) -> u64 {
-    return RawBundleAssetSize(bundle, index)
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return 0
+    }
+    return cast(u64)RawBundleAssetSize(bundle, narrowed)
 }
 
 #program_export
 InstantiateBundle :: (bundle: *void, bindings: *HostBinding,
     count: u64) -> *void {
-    return RawBundleInstantiate(bundle, bindings, count)
+    narrowed := cast(usize)count
+    if cast(u64)narrowed != count {
+        return null
+    }
+    return RawBundleInstantiate(bundle, bindings, narrowed)
 }
 
 #program_export

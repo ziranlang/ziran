@@ -275,6 +275,24 @@ main :: () -> s32 {
         call(ziran, "fetch", "--offline", cwd=app, env=env)
         call(ziran, "check", "--project", cwd=app, env=env)
 
+        # Many module roots resolve (Harmony lists 17; the old limit was 16),
+        # and an overlong list names module_roots instead of a fetch failure.
+        extra = [f"root{i:02}" for i in range(24)]
+        for name in extra:
+            (app / name).mkdir()
+        listed = ", ".join(['"src"'] + [f'"{name}"' for name in extra])
+        write(app / "ziran.toml", base_manifest.replace('module_roots = ["src"]', f"module_roots = [{listed}]"))
+        call(ziran, "pkg", "list", "--offline", cwd=app, env=env)
+        call(ziran, "check", "--project", cwd=app, env=env)
+        overlong = ", ".join(f'"over{i:02}"' for i in range(80))
+        write(app / "ziran.toml", base_manifest.replace('module_roots = ["src"]', f"module_roots = [{overlong}]"))
+        refused = call(ziran, "pkg", "list", "--offline", cwd=app, env=env, succeed=False)
+        assert "module_roots must be an array of at most 64" in refused, refused
+        assert "cannot fetch locked packages" not in refused, refused
+        write(app / "ziran.toml", base_manifest)
+        for name in extra:
+            shutil.rmtree(app / name)
+
         # A cache entry left at another commit, as an interrupted fetch
         # leaves it, is repaired by the next online fetch.
         entry = Path(call(ziran, "pkg", "path", "A", "--offline",

@@ -17,10 +17,13 @@ PkgDependency :: struct {
     alias_count: s32
 }
 
+// Large apps list many module roots (Harmony had 17 when 16 was the limit).
+PkgMaxModuleRoots :: 64;
+
 PkgManifest :: struct {
     name: string
     entry: string
-    roots: [16]string
+    roots: [PkgMaxModuleRoots]string
     root_count: s32
     bridges: [16]string
     bridge_count: s32
@@ -242,7 +245,11 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
             if key == "entry" { output.entry = value }
             if key == "module_roots" {
                 output.root_count = PkgTomlArray(raw, output.roots[:])
-                if output.root_count < 0 { return false }
+                if output.root_count < 0 {
+                    // Say why instead of letting callers report a fetch failure.
+                    unused PkgFail("ziran.toml module_roots must be an array of at most 64 non-empty strings")
+                    return false
+                }
             }
             if key == "bridge_modules" {
                 output.bridge_count = PkgTomlArray(raw, output.bridges[:])

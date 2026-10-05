@@ -280,7 +280,11 @@ PkgFail :: (message: string) -> s32 {
     return PkgFailCode("package.command", message)
 }
 
+// Set once a specific failure is printed, so callers do not add a generic one.
+pkg_failure_reported: bool;
+
 PkgFailCode :: (code: string, message: string) -> s32 {
+    pkg_failure_reported = true
     if Diagnostics.IsJson() {
         Diagnostics.Emit(code, message, "")
     } else {

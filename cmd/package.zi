@@ -583,6 +583,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             return PkgFail("cannot read ziran.lock; run ziran lock")
         }
         if !PkgCheckoutGraph(root, locked, offline, locked_mode, current) {
+            if pkg_failure_reported { return 2 }
             return PkgFail("cannot fetch locked packages")
         }
         // A project runs with its pinned toolchain's own launcher, so an

@@ -483,6 +483,19 @@ static const char *rust_scalar_type(const char *type)
     return NULL;
 }
 
+/* Rust rejects raw text-direction controls in literals. Keep the original
+ * UTF-8 value while spelling those codepoints visibly in generated source. */
+static unsigned rust_direction_codepoint(const unsigned char *bytes, size_t length)
+{
+    if(length < 3 || bytes[0] != 0xe2)
+        return 0;
+    if(bytes[1] == 0x80 && bytes[2] >= 0xaa && bytes[2] <= 0xae)
+        return 0x202a + bytes[2] - 0xaa;
+    if(bytes[1] == 0x81 && bytes[2] >= 0xa6 && bytes[2] <= 0xa9)
+        return 0x2066 + bytes[2] - 0xa6;
+    return 0;
+}
+
 static int rust_string_literal(const char *source, char *output, size_t size)
 {
     static const char escapes[] = { 'n', 'r', 't', '0' };
@@ -500,6 +513,15 @@ static int rust_string_literal(const char *source, char *output, size_t size)
         return 0;
     used += (size_t)written;
     for(size_t index = 0; index < length; index++) {
+        unsigned direction = rust_direction_codepoint(decoded + index, length - index);
+        if(direction != 0) {
+            written = snprintf(output + used, size - used, "\\u{%x}", direction);
+            if(written < 0 || used + (size_t)written >= size)
+                return 0;
+            used += (size_t)written;
+            index += 2;
+            continue;
+        }
         unsigned char byte = decoded[index];
         int escape = -1;
         for(size_t candidate = 0; candidate < sizeof(values); candidate++)
@@ -1310,6 +1332,13 @@ static void rust_format_text(char *format, size_t *used, const unsigned char *by
                              size_t length)
 {
     for(size_t i = 0; i < length && *used + 12 < ZIR_RUST_TEXT_MAX; i++) {
+        unsigned direction = rust_direction_codepoint(bytes + i, length - i);
+        if(direction != 0) {
+            *used += (size_t)snprintf(format + *used, ZIR_RUST_TEXT_MAX - *used,
+                                    "\\u{%x}", direction);
+            i += 2;
+            continue;
+        }
         unsigned char byte = bytes[i];
         const char *escape = byte == '\n' ? "\\n" : byte == '\t' ? "\\t" :
             byte == '\r' ? "\\r" : byte == '"' ? "\\\"" : byte == '\\' ? "\\\\" :

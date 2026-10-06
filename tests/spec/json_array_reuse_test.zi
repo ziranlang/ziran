@@ -1,0 +1,61 @@
+#import "json_scan"
+#import "text"
+
+Compare :: (old: string, value: string, cached: s32, capacity: s32) -> bool {
+    previous: [16]JsonRange; expected: [16]JsonRange; actual: [16]JsonRange
+    old_count := ArrayRanges(old, FieldAt(old, 0, "items"), previous[:])
+    if old_count < 0 { return false }
+    if cached > old_count { cached = old_count }
+    for i: 0..cast(s32)15 { actual[i] = .{777, 888}; expected[i] = .{777, 888} }
+    at := FieldAt(value, 0, "items")
+    count := ArrayRanges(value, at, expected[:capacity])
+    reused := ArrayRangesReuse(value, at, actual[:capacity], old, previous[:cached])
+    if count != reused { return false }
+    // Failed scans may have written a prefix; it must never be consumed.
+    if count >= 0 {
+        for i: 0..cast(s32)15 {
+            if actual[i].start != expected[i].start || actual[i].end != expected[i].end { return false }
+        }
+    }
+    return true
+}
+
+CheckTransitions :: () -> bool {
+    old_arrays: [10]string = .{"[]", "[1]", "[12]", "[-1,1e1]", "[null,true,false]",
+        "[\"café 日本語\\n\",{\"a\":[1,2]}]", "[1,2,3,4]", "[1, 2, 3, 4]",
+        "[{\"text\":\"escaped \\\" quote\\u03a9\"},[true,false],null]", "[1e12,-12]"}
+    new_arrays: [22]string = .{"[]", "[1]", "[12]", "[-1,1e1]", "[null,true,false]",
+        "[\"café 日本語\\n\",{\"a\":[1,2]}]", "[1,2,3,4]", "[1, 2, 3, 4]",
+        "[{\"text\":\"escaped \\\" quote\\u03a9\"},[true,false],null]", "[1e12,-12]",
+        "[4,3,2,1]", "[1,2,3,4,5]", "[1,]", "[1 2]", "[1", "[truefalse]",
+        "[1e]", "[1,{\"a\":2,}]", "[1,[2,]]", "[1,\"bad\\x\"]", "{}", "[1,2,3,4,]"}
+    for old_array: old_arrays {
+        old_builder: Vec(u8); BuilderPrint(*old_builder, "{\"items\":%}", old_array); old := BuilderFinish(old_builder)
+        for new_array: new_arrays {
+            builder: Vec(u8); BuilderPrint(*builder, " \n{\"prefix\":true,\"items\": \t%,\"tail\":0}", new_array); value := BuilderFinish(builder)
+            for cached: 0..cast(s32)4 {
+                for capacity: 0..cast(s32)4 {
+                    if !Compare(old, value, cached, capacity) { return false }
+                }
+            }
+        }
+    }
+    return true
+}
+
+CheckBounds :: () -> bool {
+    old := "[1]"; output: [2]JsonRange; ranges: [1]JsonRange
+    invalid: [5]JsonRange = .{.{-1, 2}, .{1, 4}, .{2, 1}, .{1, 1}, .{2147483646, 2147483647}}
+    for range: invalid {
+        ranges[0] = range
+        if ArrayRangesReuse("[12]", 0, output[:], old, ranges[:]) != 1 || output[0].end != 3 { return false }
+    }
+    ranges[0] = .{1, 2}
+    return ArrayRangesReuse("[1]", -1, output[:], old, ranges[:]) == -1 &&
+        ArrayRangesReuse("[1]", 3, output[:], old, ranges[:]) == -1 &&
+        ArrayRangesReuse("[1,]", 0, output[:], old, ranges[:]) == -1
+}
+
+SelfTest :: () -> s64 { if !CheckTransitions() { return 1 }; if !CheckBounds() { return 2 }; return 42 }
+#program_export
+NativeMain :: () -> s32 { return ifx SelfTest() == 42 then 0 else 1 }

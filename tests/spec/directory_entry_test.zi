@@ -1,0 +1,46 @@
+#import "std/file"
+#import "std/text"
+libc :: #system_library "libc";
+FailNext :: () #foreign libc "directory_test_fail_next";
+UnknownNext :: () #foreign libc "directory_test_unknown_next";
+DirtyErrno :: () #foreign libc "directory_test_dirty_errno";
+
+#program_export
+main :: () -> s32 {
+    cursor := OpenDirectory("entries")
+    if !cursor.valid || cursor.failed { return 1 }
+    count: s32
+    while true {
+        // An unrelated errno must not turn end-of-directory into failure.
+        DirtyErrno()
+        entry := NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+        name := TextView(entry.name[0:entry.name_count])
+        if name == "." || name == ".." { continue }
+        count += 1
+        if name == "ordinary" || name == "café 日本語.json" {
+            if entry.kind != .Regular { return 2 }
+        } else if name == "directory" {
+            if entry.kind != .Directory { return 3 }
+        } else if name == "link" || name == "dangling" {
+            if entry.kind != .Link { return 4 }
+        } else if name == "fifo" {
+            if entry.kind != .Other { return 5 }
+        } else { return 6 }
+    }
+    if count != 6 || cursor.failed || !CloseDirectory(*cursor) ||
+        cursor.valid || CloseDirectory(*cursor) { return 7 }
+    cursor = OpenDirectory("entries")
+    UnknownNext()
+    entry := NextDirectoryEntry(*cursor)
+    if !entry.valid || entry.kind != .Unknown || cursor.failed ||
+        !CloseDirectory(*cursor) { return 8 }
+    cursor = OpenDirectory("entries")
+    FailNext()
+    if NextDirectoryEntry(*cursor).valid || !cursor.failed ||
+        NextDirectoryEntry(*cursor).valid || !CloseDirectory(*cursor) { return 9 }
+    malformed: DirectoryCursor = .{valid = true}
+    if NextDirectoryEntry(*malformed).valid || !malformed.failed ||
+        OpenDirectory("missing").valid { return 10 }
+    return 0
+}

@@ -8,6 +8,11 @@
 //
 //     ok := WriteEntireFile("notes.txt", "hello\n")
 //     text, found := ReadEntireFile("notes.txt")
+//
+// DirectoryEntry.kind reports a snapshot of the entry's type without following
+// links. Unknown requires a path query; Plan 9 reports non-directory streams
+// as Unknown. Check DirectoryCursor.failed before accepting a complete walk,
+// and always CloseDirectory even after an error.
 
 #if #defined(PLAN9) {
     using Platform :: #import "file_plan9"

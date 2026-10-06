@@ -303,6 +303,7 @@ DirectoryMetadata :: struct {
         if (search.data.attributes & cast(u32)AttributeDirectory) != 0 {
             entry.kind = 4
         }
+        if (search.data.attributes & cast(u32)1024) != 0 { entry.kind = 10 }
         search.entry = entry
         return *search.entry
     }
@@ -321,6 +322,11 @@ DirectoryMetadata :: struct {
     OpenDirectoryRaw :: (path: *u8) -> *void #foreign libc "opendir";
     ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir64";
     CloseDirectoryRaw :: (directory: *void) -> s32 #foreign libc "closedir";
+    #if #defined(ANDROID_BUILD) {
+        DirectoryErrno :: () -> *s32 #foreign libc "__errno";
+    } else {
+        DirectoryErrno :: () -> *s32 #foreign libc "__errno_location";
+    }
 
     #if #defined(ANDROID_BUILD) {
         // Android's 32-bit off_t is narrower than the public file offset. The
@@ -373,12 +379,17 @@ FileHandle :: struct {
 DirectoryCursor :: struct {
     storage: *void
     valid: bool
+    failed: bool
 }
+
+// Unknown requires a fresh path query; directory types are only a snapshot.
+DirectoryKind :: enum u8 { Unknown :: 0; Directory :: 4; Regular :: 8; Link :: 10; Other :: 255; }
 
 DirectoryEntry :: struct {
     name: [256]u8
     name_count: s32
     valid: bool
+    kind: DirectoryKind
 }
 
 #scope_file
@@ -607,17 +618,33 @@ OpenDirectory :: (path: string) -> DirectoryCursor {
 #program_export
 NextDirectoryEntry :: (cursor: *DirectoryCursor) -> DirectoryEntry {
     result: DirectoryEntry
-    if cursor == null || !cursor.valid { return result }
+    if cursor == null || !cursor.valid || cursor.failed { return result }
+    if cursor.storage == null { cursor.failed = true; return result }
+    #if !#defined(_WIN32) {
+        DirectoryErrno().* = 0
+    }
     entry := ReadDirectoryRaw(cursor.storage)
-    if entry == null { return result }
+    if entry == null {
+        #if #defined(_WIN32) {
+            cursor.failed = LastErrorRaw() != cast(u32)18
+        } else {
+            cursor.failed = DirectoryErrno().* != 0
+        }
+        return result
+    }
     index: s32 = 0
     while entry.name[index] != 0 {
-        if index >= 255 { return result }
+        if index >= 255 { cursor.failed = true; return result }
         result.name[index] = entry.name[index]
         index += 1
     }
     result.name_count = index
     result.valid = true
+    result.kind = .Other
+    if entry.kind == cast(u8)0 { result.kind = .Unknown }
+    if entry.kind == cast(u8)4 { result.kind = .Directory }
+    if entry.kind == cast(u8)8 { result.kind = .Regular }
+    if entry.kind == cast(u8)10 { result.kind = .Link }
     return result
 }
 

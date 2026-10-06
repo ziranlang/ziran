@@ -4,6 +4,14 @@
 first: Thread;
 second: Thread;
 sums: [2]s64;
+Notice :: struct { thread: *Thread; value: *s64; calls: s32; valid: bool }
+notices: [2]Notice;
+
+Notify :: (argument: *void) {
+    notice := cast(*Notice)argument
+    notice.valid = notice.thread.finished && notice.value.* == 5000050000
+    notice.calls += 1
+}
 
 Sum :: (argument: *void) {
     slot := cast(*s64)argument
@@ -37,5 +45,27 @@ SelfTest :: () -> s32 {
     if !ThreadStart(*first, procedure, cast(*void)*sums[0]) { return 8 }
     ThreadWait(*first)
     if sums[0] != 5000050000 { return 9 }
+    notify: ThreadProcedure = Notify
+    notifications: [2]ThreadNotification
+    notifications[0] = .{notify, cast(*void)*notices[0]}
+    notifications[1] = .{notify, cast(*void)*notices[1]}
+    notices[0].thread = *first; notices[0].value = *sums[0]
+    notices[1].thread = *second; notices[1].value = *sums[1]
+    // Each restart owns its notification arguments until joined. A rejected
+    // start sends no extra notice; a later unnotified start keeps none.
+    for iteration: 0..15 {
+        sums[0] = 0; sums[1] = 0
+        if !ThreadStart(*first, procedure, cast(*void)*sums[0], notifications[0]) { return 10 }
+        if ThreadStart(*first, procedure, cast(*void)*sums[0], notifications[0]) { return 11 }
+        if !ThreadStart(*second, procedure, cast(*void)*sums[1], notifications[1]) { return 12 }
+        ThreadWait(*first); ThreadWait(*second)
+        if !notices[0].valid || !notices[1].valid || notices[0].calls != iteration + 1 || notices[1].calls != iteration + 1 { return 13 }
+    }
+    if !ThreadStart(*first, procedure, cast(*void)*sums[0]) { return 14 }
+    ThreadWait(*first)
+    if notices[0].calls != 16 { return 15 }
+    missing: ThreadNotification
+    if ThreadStart(*first, missing.procedure, null, notifications[0]) { return 16 }
+    if notices[0].calls != 16 { return 17 }
     return 42
 }

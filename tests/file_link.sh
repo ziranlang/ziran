@@ -28,6 +28,27 @@ for form in source saved; do
     done
 done
 "$ziran" build --target=c --define ANDROID_BUILD --define __arm__ --root "$root/tests/spec" -o "$work/android" "$input"
+android_clang=
+for candidate in "${ANDROID_HOME:-$HOME/Android/Sdk}"/ndk/*/toolchains/llvm/prebuilt/linux-x86_64/bin/clang; do
+    if test -x "$candidate"; then android_clang=$candidate; fi
+done
+if test -n "$android_clang"; then
+    for architecture in x86_64 aarch64 armv7a i686; do
+        case "$architecture" in
+            x86_64) target=x86_64-linux-android21; define=__x86_64__ ;;
+            aarch64) target=aarch64-linux-android21; define=__aarch64__ ;;
+            armv7a) target=armv7a-linux-androideabi21; define=__arm__ ;;
+            i686) target=i686-linux-android21; define=__i386__ ;;
+        esac
+        output="$work/android-$architecture"
+        "$ziran" build --target=c --define ANDROID_BUILD --define "$define" \
+            --root "$root/tests/spec" -o "$output" "$input"
+        "$android_clang" --target="$target" -std=c11 -Wall -Wextra -Werror \
+            -Wno-unused-function -fPIC -shared -Wl,--no-undefined \
+            -I"$root/include" "$output"/*.c -o "$output/libfile_link.so"
+    done
+    printf 'Android API 21 link queries linked for all four NDK ABIs.\n'
+fi
 "$ziran" build --target=c --define PLATFORM_WEB --root "$root/tests/spec" -o "$work/web" "$input"
 "$ziran" build --target=c --define _WIN32 --root "$root/tests/spec" -o "$work/windows" "$input"
 if rg '__asm__\("readlink"\)' "$work/windows"; then exit 1; fi

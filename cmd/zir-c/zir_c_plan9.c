@@ -56,6 +56,7 @@ c_plan9_set_enabled(int enabled)
     plan9_enabled = enabled;
     unresolved_count = 0;
     EmitUseSeparateIndexedStores(enabled);
+    EmitUseSizedStringLiterals(enabled);
 }
 
 int

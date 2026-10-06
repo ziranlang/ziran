@@ -88,6 +88,8 @@ int NativeMainReturnsStatus(const ZirFunction *fn);
 int FoldIntegerOperation(const char *op, const char *type, uint64_t a, uint64_t b,
                          uint64_t *result);
 void EmitStringType(FILE *out);
+/* Encode a checked literal for native expressions and constant byte arrays. */
+void EmitStringLiteral(const ZirExpr *expr, ZirTarget target, char *out, size_t size);
 void EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                          ZirTarget target, ZirResolveTarget resolver, void *context);
 void EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
@@ -100,4 +102,6 @@ void EmitUseMinifiedOutput(int enabled);
 /* Native dialects can compute a checked scalar store's address in its own
  * statement before assigning the value. Ordinary C output stays unchanged. */
 void EmitUseSeparateIndexedStores(int enabled);
+/* Avoid literal macro expansion in native dialects with bounded preprocessors. */
+void EmitUseSizedStringLiterals(int enabled);
 #endif

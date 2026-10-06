@@ -5,7 +5,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 module=${1:-plan9_record_array_test}
 case "$module" in
-    plan9_record_array_test|plan9_wide_compare_test) ;;
+    plan9_record_array_test|plan9_wide_compare_test|plan9_large_text_test|plan9_global_init_test) ;;
     *) echo "Unknown native Plan 9 compiler fixture: $module" >&2; exit 2 ;;
 esac
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY ENV BASH_ENV

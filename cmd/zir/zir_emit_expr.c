@@ -1,5 +1,13 @@
 #include "zir_emit_internal.h"
 
+static int sized_string_literals;
+
+void
+EmitUseSizedStringLiterals(int enabled)
+{
+    sized_string_literals = enabled;
+}
+
 typedef struct EmitMapCallBuffers {
     char map[ZIR_TEXT_MAX];
     char argument[ZIR_TEXT_MAX];
@@ -1016,9 +1024,34 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         pure = 1;
         break;
     case ZIR_EXPR_STRING:
-        string_literal(expr, e->target, buffers->a, sizeof(buffers->a));
-        if(e->target == ZIR_C || e->target == ZIR_CPP)
-            format(buffers->result, sizeof(buffers->result), "StringLiteral(%s)", buffers->a);
+        EmitStringLiteral(expr, e->target, buffers->a, sizeof(buffers->a));
+        if(e->target == ZIR_C || e->target == ZIR_CPP) {
+            if(sized_string_literals) {
+                /* The Plan 9 preprocessor has a bounded expansion buffer.
+                 * StringLiteral duplicates its argument for sizeof, which
+                 * overflows that buffer for otherwise valid long literals.
+                 * Carry the decoded byte count, including embedded NULs,
+                 * instead of scanning the string at runtime. */
+                size_t length;
+                if(!DecodeStringLiteral(expr->text, (unsigned char *)buffers->b,
+                                        sizeof(buffers->b), &length))
+                    fatal(expr, "could not decode string literal");
+                /* Named constants use one byte array instead of a second
+                 * copy of their long text at each reference. */
+                for(int i = 0; i < e->module->define_count; i++) {
+                    const ZirDefine *d = &e->module->defines[i];
+                    if(d->value[0] == '"' && !strcmp(d->value, expr->text)) {
+                        TargetDefineName(e->module, ZIR_C, d->name,
+                                         buffers->a, sizeof(buffers->a));
+                        break;
+                    }
+                }
+                format(buffers->result, sizeof(buffers->result), "StringView(%s, %zu)",
+                       buffers->a, length);
+            } else {
+                format(buffers->result, sizeof(buffers->result), "StringLiteral(%s)", buffers->a);
+            }
+        }
         else
             copy_text(buffers->result, sizeof(buffers->result), buffers->a);
         pure = 1;

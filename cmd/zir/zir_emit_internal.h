@@ -200,7 +200,6 @@ void slice_index(Emitter *e, const char *type, const char *base, const char *ind
 void go_pointer_index(Emitter *e, const char *base, const char *index, char *out, size_t size);
 void emit_destination(Emitter *e, int index, char *out, size_t size);
 void literal(Emitter *e, const ZirExpr *expr, const char *type, int negative, char *out, size_t size);
-void string_literal(const ZirExpr *expr, ZirTarget target, char *out, size_t size);
 void emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size);
 void emit_function_value(Emitter *e, int index, char *out, size_t size);
 int member_path(const ZirFunction *fn, int index);

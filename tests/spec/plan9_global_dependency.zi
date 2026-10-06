@@ -1,0 +1,6 @@
+count: s32;
+Advance :: () -> s32 { count += 1; return count }
+ready: s32 = Advance();
+values: [3]s32 = .[31, 41, 59];
+borrowed: []s32 = values[:];
+Read :: () -> s32 { return ready + count + borrowed[1] }

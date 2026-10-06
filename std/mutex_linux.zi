@@ -1,0 +1,25 @@
+// A native POSIX mutex. Keep the record at one address while open; stop and
+// join users before closing it. The storage covers the supported pthread ABIs.
+libc :: #system_library "libc";
+MutexInitRaw :: (storage: *void, attributes: *void) -> s32 #foreign libc "pthread_mutex_init";
+MutexDestroyRaw :: (storage: *void) -> s32 #foreign libc "pthread_mutex_destroy";
+MutexLockRaw :: (storage: *void) -> s32 #foreign libc "pthread_mutex_lock";
+MutexUnlockRaw :: (storage: *void) -> s32 #foreign libc "pthread_mutex_unlock";
+Mutex :: struct { storage: [8]u64; opened: bool }
+Address :: (mutex: *Mutex) -> *void { return cast(*void)*mutex.storage[0] }
+#program_export
+Open :: (mutex: *Mutex) -> bool {
+    if mutex == null || mutex.opened { return false }
+    if MutexInitRaw(Address(mutex), null) != 0 { return false }
+    mutex.opened = true; return true
+}
+#program_export
+Close :: (mutex: *Mutex) -> bool {
+    if mutex == null || !mutex.opened { return false }
+    if MutexDestroyRaw(Address(mutex)) != 0 { return false }
+    mutex.opened = false; return true
+}
+#program_export
+Lock :: (mutex: *Mutex) -> bool { return mutex != null && mutex.opened && MutexLockRaw(Address(mutex)) == 0 }
+#program_export
+Unlock :: (mutex: *Mutex) -> bool { return mutex != null && mutex.opened && MutexUnlockRaw(Address(mutex)) == 0 }

@@ -1,0 +1,20 @@
+M :: #import "std/mutex_linux";
+T :: #import "std/thread_linux";
+mutex: M.Mutex;
+total: s32;
+Worker :: (argument: *void) {
+    for i: 0..cast(s32)999 {
+        if !M.Lock(*mutex) { return }; total += 1; unused M.Unlock(*mutex)
+    }
+}
+#program_export
+Main :: () -> s32 {
+    if M.Open(null) || M.Lock(*mutex) || M.Unlock(*mutex) || M.Close(*mutex) { return 1 }
+    if !M.Open(*mutex) || M.Open(*mutex) { return 2 }
+    threads: [8]T.Thread; procedure: T.ThreadProcedure = Worker
+    for i: 0..cast(s32)7 { if !T.ThreadStart(*threads[i], procedure, null) { return 3 } }
+    for i: 0..cast(s32)7 { T.ThreadWait(*threads[i]) }
+    if total != 8000 || !M.Close(*mutex) || M.Close(*mutex) { return 4 }
+    if !M.Open(*mutex) || !M.Lock(*mutex) || !M.Unlock(*mutex) || !M.Close(*mutex) { return 5 }
+    return 0
+}

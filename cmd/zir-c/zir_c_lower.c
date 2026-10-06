@@ -158,6 +158,14 @@ resolve_module_fn(const ZirModule *m, const char *ident, size_t len,
         return 0;
     memcpy(name, ident, len);
     name[len] = '\0';
+    for(int i = 0; i < m->import_count; i++) {
+        const ZirImport *foreign = &m->imports[i];
+        if(foreign->kind == ZIR_IMPORT_EXTERN &&
+           !strcmp(foreign->name, name) && !strncmp(foreign->target, "c.", 2)) {
+            NativeCForeignName(m, foreign, dst, dst_size);
+            return strlen(dst);
+        }
+    }
     if(ResolveFunction(m, name, &owner, &fn) == 1) {
         function_c_name(owner, fn, dst, dst_size);
         return strlen(dst);
@@ -773,11 +781,8 @@ typedef struct EmitExternPrototypeBuffers {
 
 static void emit_extern_prototype(FILE *c, const ZirModule *m, const ZirImport *imp);
 
-/* Several modules may bind the same foreign function under the same name
- * (for example `Sleep :: ... #foreign libc "sleep"`). Their headers can meet in
- * one translation unit, so each alias and wrapper is guarded by its name, ABI
- * symbol and C signature: identical bindings share one definition, while
- * different ones still fail to compile instead of calling the wrong function. */
+/* A module owns each foreign alias and wrapper. The signature guard avoids
+ * re-emitting that module's identical binding through multiple headers. */
 static uint32_t
 foreign_binding_hash(const char *symbol, const char *ret, const char *args)
 {
@@ -813,33 +818,29 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
         copy_text(ret, sizeof(ret), "void");
     if(c_extern_symbol(imp, symbol, sizeof(symbol))) {
         cname = symbol;
-        if(strcmp(symbol, imp->name) == 0) {
-            if(c_plan9_enabled() && c_plan9_runtime_symbol(symbol))
-                return;
-            fprintf(c, "%s %s(%s);\n", ret[0] ? ret : "void", cname, buffers->conv);
-            return;
-        }
         /* Use a local C name for the declaration. Standard headers may
          * already declare the ABI symbol with a different pointer spelling
          * (for example, renameat takes const char* rather than Ziran *u8).
          * The assembler label preserves the requested symbol at link time. */
         char foreign_name[LOWER_NAME_MAX * 2];
+        char local_name[LOWER_NAME_MAX];
+        NativeCForeignName(m, imp, local_name, sizeof(local_name));
         convert_args(m, NULL, buffers->abi_args, buffers->binding_args, sizeof(buffers->binding_args), 1);
         uint32_t binding = foreign_binding_hash(symbol, ret[0] ? ret : "void", buffers->binding_args);
-        snprintf(foreign_name, sizeof(foreign_name), "zir_foreign_%s", imp->name);
+        snprintf(foreign_name, sizeof(foreign_name), "zir_foreign_%s", local_name);
         fprintf(c, "#ifndef ZIR_FOREIGN_%s_%08x\n#define ZIR_FOREIGN_%s_%08x\n",
-                imp->name, (unsigned)binding, imp->name, (unsigned)binding);
+                local_name, (unsigned)binding, local_name, (unsigned)binding);
         fprintf(c, "%s %s(%s) __asm__(\"%s\");\n",
                 ret[0] ? ret : "void", foreign_name, buffers->conv, symbol);
         if(imp->is_varargs) {
             /* A C variadic argument list cannot be forwarded by a
              * regular wrapper. Let the call target the ABI symbol. */
-            fprintf(c, "#define %s %s\n#endif\n", imp->name, foreign_name);
+            fprintf(c, "#define %s %s\n#endif\n", local_name, foreign_name);
             return;
         }
         extern_call_args(&buffers->abi, buffers->abi_args, buffers->call, sizeof(buffers->call));
         fprintf(c, "static %s\n%s(%s)\n{\n",
-                ret[0] ? ret : "void", imp->name, buffers->conv);
+                ret[0] ? ret : "void", local_name, buffers->conv);
         if(ret[0] != '\0' && strcmp(ret, "void") != 0)
             fprintf(c, "    return %s(%s);\n", foreign_name, buffers->call);
         else

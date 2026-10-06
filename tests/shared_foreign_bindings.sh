@@ -1,6 +1,6 @@
 #!/bin/sh
 # Modules that bind the same foreign function under the same name can be
-# included together; a clashing binding of that name still fails to compile.
+# included together; each module also owns distinct symbols and signatures.
 set -eu
 
 ziran=$1
@@ -12,8 +12,9 @@ for name in first second; do
     cat > "$work/$name.zi" <<ZI
 libc :: #system_library "libc";
 Absolute :: (${name}_argument: s32) -> s32 #foreign libc "abs";
+abs :: (value: s32) -> s32 #foreign libc "abs";
 Print :: (${name}_format: *u8, ${name}_arguments: ..any) -> s32 #foreign libc "printf";
-${name}_magnitude :: (value: s32) -> s32 { return Absolute(value) }
+${name}_magnitude :: (value: s32) -> s32 { return Absolute(value) + abs(0) }
 ZI
 done
 cat > "$work/main.zi" <<'ZI'
@@ -37,22 +38,24 @@ for form in source saved; do
     done
 done
 
-# C has no overloads: a shared name with a different symbol or ABI remains
-# a real conflict instead of silently reusing the first binding.
-cp "$work/second.zi" "$work/second-original.zi"
-for clash in symbol signature; do
-    if test "$clash" = symbol; then
-        sed 's/"abs"/"labs"/' "$work/second-original.zi" > "$work/second.zi"
-    else
-        sed 's/second_argument: s32/second_argument: s64/' "$work/second-original.zi" > "$work/second.zi"
-    fi
-    output="$work/$clash-c"
-    "$ziran" build --target=c --entry main:main --no-main --root "$work" -o "$output" "$work/main.zi"
-    if "${CC:-cc}" -std=c99 -I"$repo/include" -I"$output" \
-        "$output"/*.c -o "$output/app" > "$output/errors" 2>&1; then
-        echo "Two foreign bindings named Absolute with different $clash compiled together" >&2
-        exit 1
-    fi
-    rg -q 'redefinition.*Absolute|conflicting.*zir_foreign_Absolute' "$output/errors"
+# Independent modules may use the same local name for different real ABIs.
+cat > "$work/second.zi" <<'ZI'
+libc :: #system_library "libc";
+Absolute :: (value: s64) -> s64 #foreign libc "labs";
+second_magnitude :: (value: s32) -> s32 { return cast(s32)Absolute(cast(s64)value) }
+ZI
+"$ziran" ir --entry main:main --root "$work" -o "$work/distinct-ir" "$work/main.zi"
+for form in source saved; do
+    input="$work/main.zi"
+    if test "$form" = saved; then input="$work/distinct-ir/main.zir"; fi
+    for target in c cpp; do
+        output="$work/distinct-$form-$target"
+        "$ziran" build "--target=$target" --entry main:main --no-main --root "$work" -o "$output" "$input"
+        if test "$target" = c; then compiler=${CC:-cc}; standard=c99; extension=c
+        else compiler=${CXX:-c++}; standard=c++17; extension=cpp; fi
+        "$compiler" -std="$standard" -pedantic-errors -Wall -Werror -Wno-unused-function \
+            -I"$repo/include" -I"$output" "$output"/*."$extension" -o "$output/app"
+        "$output/app"
+    done
 done
-echo 'Shared foreign bindings passed C/C++ source and saved IR execution; symbol and ABI clashes rejected'
+echo 'Module-owned foreign bindings passed C/C++ source and saved IR with shared and distinct symbols/ABIs'

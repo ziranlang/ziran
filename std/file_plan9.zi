@@ -111,6 +111,14 @@ HandleInfo :: (file: FileHandle) -> FileInfo {
     return Information(DescriptorStatRaw(file.fd))
 }
 
+// Native Plan 9 has no symbolic links or reparse points. Keep the common
+// path query without treating a text file containing a path as a link.
+#program_export
+PathIsLink :: (path: string) -> bool {
+    unused path
+    return false
+}
+
 // Apply ordinary permissions and a timestamp to an already-open file.
 // Special mode flags cannot be introduced through this operation.
 #program_export

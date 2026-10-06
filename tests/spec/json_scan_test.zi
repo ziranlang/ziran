@@ -1,5 +1,30 @@
 #import "json_scan"
 
+CheckArrayRanges :: () -> bool {
+    document := "{\"items\": [ null, 12.5e2, \"café 日本語\\nquote \\\"\", {\"nested\":[true,false]} ],\"other\":7}"
+    at := FieldAt(document, 0, "items"); ranges: [5]JsonRange; positions: [4]s32
+    ranges[4] = .{777, 888}
+    if ArrayRanges(document, at, ranges[:]) != 4 || ArrayPositions(document, at, positions[:]) != 4 { return false }
+    if ranges[4].start != 777 || ranges[4].end != 888 { return false }
+    for i: 0..cast(s32)3 {
+        if ranges[i].start != positions[i] || ranges[i].end != ValueEnd(document, positions[i], 0) { return false }
+        if document[ranges[i].start:ranges[i].end] != document[ElementAt(document, at, i):ranges[i].end] { return false }
+    }
+    if document[ranges[0].start:ranges[0].end] != "null" ||
+        document[ranges[1].start:ranges[1].end] != "12.5e2" ||
+        document[ranges[3].start:ranges[3].end] != "{\"nested\":[true,false]}" { return false }
+    short: [1]JsonRange; empty: []JsonRange
+    if ArrayRanges(document, at, short[:]) != 4 || short[0].start != ranges[0].start ||
+        short[0].end != ranges[0].end || ArrayRanges(document, at, empty) != 4 { return false }
+    malformed: [8]string = .{"[1,]", "[1 2]", "[1", "[1,\"unterminated]", "[1,{\"a\":2,}]", "[1,[2,]]", "{}", ""}
+    for value: malformed {
+        // A short or empty output must not hide malformed trailing elements.
+        if ArrayRanges(value, 0, short[:]) != -1 || ArrayRanges(value, 0, empty) != -1 { return false }
+    }
+    return ArrayRanges("[ ]", 0, ranges[:]) == 0 && ArrayRanges(document, -1, ranges[:]) == -1 &&
+        ArrayRanges(document, cast(s32)document.count, ranges[:]) == -1
+}
+
 #program_export
 SelfTest :: () -> s32 {
     body: string = "{\"skip\":[true,{\"quoted\":\"a\\\"b\"}],\"value\":1.25e2}"
@@ -80,6 +105,7 @@ SelfTest :: () -> s32 {
     if !ObjectPositions(body, 0, no_names, empty) { return 25 }
     if ReadStringText("\"café 日本語\"", 0, decoded[:]) != 15 || decoded[15] != cast(u8)0 { return 26 }
     if ReadStringText("\"raw\\nbytes\"", 0, decoded[:]) != 9 || decoded[3] != cast(u8)10 { return 27 }
+    if !CheckArrayRanges() { return 30 }
     return 42
 }
 

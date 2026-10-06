@@ -1905,6 +1905,15 @@ emit_expression_with_buffers(RustEmitter *emitter, int index, char *output,
         const ZirModule *owner = NULL;
         const ZirType *record = NULL;
         const char *base_type = emitter->function->exprs[expression->left].type;
+        if(base_type[0] == '*' &&
+           rust_owned_vec_type(emitter, base_type + 1, NULL, NULL, NULL, 0) &&
+           (!strcmp(expression->name, "count") ||
+            !strcmp(expression->name, "capacity"))) {
+            emit_expression(emitter, expression->left, buffers->base, sizeof(buffers->base));
+            snprintf(output, size, "((*%s).%s as i64)", buffers->base,
+                     expression->name);
+            break;
+        }
         if(base_type[0] != '*' ||
            !rust_record_type(emitter, base_type + 1, &owner, &record)) {
             unsupported_expression(emitter, expression);

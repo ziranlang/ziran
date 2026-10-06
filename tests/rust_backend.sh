@@ -187,6 +187,14 @@ Consume :: (items: Vec(s32)) -> s32 {
     return cast(s32) items.count
 }
 
+Borrow :: (items: *Vec(s32)) -> *Vec(s32) { return items }
+Metadata :: (items: *Vec(s32)) -> s32 {
+    alias := items
+    if items.capacity < items.count || alias.capacity != items.capacity { return -1 }
+    if Borrow(items).count != alias.count { return -2 }
+    return cast(s32)alias.count
+}
+
 Early :: () -> s32 {
     values: Vec(s32)
     VecPush(values, 13)
@@ -225,6 +233,7 @@ main :: () -> s32 {
     if !VecPush(values, 7) { return 1 }
     if !VecPush(values, 9) { return 2 }
     if values.count != 2 || values[1] != 9 { return 3 }
+    if Metadata(*values) != 2 { return 24 }
     if !VecGet(values, 0).has_value { return 4 }
     if !VecPop(values).has_value { return 5 }
     VecFree(values)

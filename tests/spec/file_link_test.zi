@@ -1,0 +1,13 @@
+#import "std/file"
+
+#program_export
+main :: () -> s32 {
+    if PathIsLink("ordinary") || PathIsLink("directory") || PathIsLink("missing") { return 1 }
+    if !PathIsLink("link") || !PathIsLink("dangling") || !PathIsLink("link-directory") { return 2 }
+    if !PathIsLink("lien café 日本語") { return 3 }
+    if PathIsLink("link\x00suffix") || PathIsLink("") { return 4 }
+    // Every call observes the current entry rather than retaining its type.
+    if !RemoveFile("link") || !WriteEntireFile("link", "ordinary now") { return 5 }
+    if PathIsLink("link") || !PathIsLink("dangling") { return 6 }
+    return 0
+}

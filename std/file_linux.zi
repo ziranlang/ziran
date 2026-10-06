@@ -5,6 +5,9 @@
 // encoding explicit.
 #scope_file
 libc :: #system_library "libc";
+#if !#defined(_WIN32) {
+    ReadLinkRaw :: (path: *u8, output: *u8, capacity: usize) -> isize #foreign libc "readlink";
+}
 
 // The readdir64 record. Windows fills only the name and kind.
 DirectoryMetadata :: struct {
@@ -426,6 +429,25 @@ RemoveFile :: (path: string) -> bool {
     name: [4096]u8
     if !CopyCString(path, name[:]) { return false }
     return UnlinkRaw(*name[0]) == 0
+}
+
+// Inspect the path itself, including a dangling link. No target is opened,
+// no result is cached, and invalid paths cannot be shortened at a NUL.
+// Windows includes junctions and other reparse points in this link policy.
+#program_export
+PathIsLink :: (path: string) -> bool {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return false }
+    #if #defined(_WIN32) {
+        wide: [4096]u16
+        if !WidePath(*name[0], wide[:]) { return false }
+        attributes := AttributesRaw(*wide[0])
+        return attributes != cast(u32)MissingAttributes &&
+            (attributes & cast(u32)1024) != cast(u32)0
+    } else {
+        byte: u8
+        return ReadLinkRaw(*name[0], *byte, 1) > 0
+    }
 }
 
 #program_export

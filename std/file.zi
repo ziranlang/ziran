@@ -2,7 +2,7 @@
 // and Windows use file_linux, and Plan 9 (--target=plan9-c defines PLAN9)
 // uses file_plan9. Both provide OpenRead, OpenWrite, OpenUpdate,
 // OpenReplace, Read, Write, ReadAt, WriteAt, FileSize, CloseFile,
-// RemoveFile, RenameNoReplace, PathExists, DirectoryExists,
+// RemoveFile, RenameNoReplace, PathExists, PathIsLink, DirectoryExists,
 // CreateDirectory, CreatePrivateDirectory, OpenDirectory,
 // NextDirectoryEntry, and CloseDirectory, plus the whole-file helpers here.
 //

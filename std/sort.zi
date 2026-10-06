@@ -59,6 +59,42 @@ BinarySearch :: (values: []$T, target: T) -> s64 {
 
 #scope_file
 
+// Text has value equality but no < operator. Compare its unsigned UTF-8 bytes,
+// including embedded NUL, for deterministic ordering independent of locale.
+TextBefore :: (a: string, b: string) -> bool {
+    index: s64 = 0
+    while index < cast(s64)a.count && index < cast(s64)b.count {
+        if a[index] != b[index] { return a[index] < b[index] }
+        index += 1
+    }
+    return a.count < b.count
+}
+
+TextSiftDown :: (values: []string, root: s64, end: s64) {
+    parent := root
+    while parent * 2 + 1 < end {
+        child := parent * 2 + 1
+        if child + 1 < end && TextBefore(values[child], values[child + 1]) { child += 1 }
+        if !TextBefore(values[parent], values[child]) { return }
+        saved := values[parent]; values[parent] = values[child]; values[child] = saved
+        parent = child
+    }
+}
+
+#scope_export
+SortText :: (values: []string) {
+    start := cast(s64)values.count / 2
+    while start > 0 { start -= 1; TextSiftDown(values, start, cast(s64)values.count) }
+    end := cast(s64)values.count
+    while end > 1 {
+        end -= 1
+        saved := values[0]; values[0] = values[end]; values[end] = saved
+        TextSiftDown(values, 0, end)
+    }
+}
+
+#scope_file
+
 // Moves values[root] down until the max-heap in values[0:end] holds again.
 SortSiftDown :: (values: []$T, root: s64, end: s64) {
     parent: s64 = root

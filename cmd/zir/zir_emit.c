@@ -1671,9 +1671,9 @@ static const struct {
     {"FloatToInt",
      "/* FloatToInt converts x to a w-bit integer, aborting when it does not fit. */\n"
      "static inline uint64_t FloatToInt(double x, int w, int sign) {\n"
-     "    double bound = 1;\n"
-     "    int i;\n"
-     "    for(i = 0; i < w - sign; i++) bound *= 2;\n"
+     "    /* Powers of two are exact in double, including the unsigned 64-bit bound. */\n"
+     "    double bound = w - sign == 64 ? 18446744073709551616.0 :\n"
+     "        (double)(UINT64_C(1) << (w - sign));\n"
      "    if(!(x >= (sign ? -bound : 0) && x < bound)) abort();\n"
      "    return sign ? (uint64_t)(int64_t)x : (uint64_t)x;\n"
      "}\n"},

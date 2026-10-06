@@ -809,6 +809,15 @@ after a nonnegative return. Short output buffers still validate every element.
 Run `sh tests/json_array_reuse.sh build/bin/ziran` for source, saved-IR and
 cross-target transition checks, including malformed replies and numeric prefixes.
 
+`ReadStringValue(text, at, max_bytes)` decodes a quoted value into owned bytes
+and reports `valid`, including for empty strings. Its limit counts decoded
+bytes, so a long escaped value can fit. Consume the returned `value` vector
+with `BuilderFinish`, or let normal vector cleanup release it. Ordinary UTF-8
+runs append directly, and escaped code points use a five-byte temporary buffer
+instead of a maximum-size string buffer. Invalid input or an exceeded limit
+returns no decoded bytes. Run `sh tests/json_string_value.sh build/bin/ziran`
+for source/saved-IR VM and cross-target Unicode, ownership and boundary checks.
+
 `std/zip.zi` reads classic ZIP directories from caller-owned bytes, verifies
 stored entries with CRC-32, and writes stored archives into caller-owned output.
 It rejects split, encrypted, and malformed archives, and duplicate requested

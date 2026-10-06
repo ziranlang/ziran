@@ -192,7 +192,26 @@ Bad :: () -> s32 {
 }
 ZI
 
-for name in direct field nested pointer_direct pointer_alias call_alias call_second_alias conditional_alias record_literal_alias record_return enclosing_record; do
+# Equal record names in different modules must retain separate cache answers.
+cat > "$work/raw_record.zi" <<'ZI'
+Buffer :: struct { bytes: [1]u8; }
+data: Buffer;
+Mutate :: () { data.bytes[0] = cast(u8)98 }
+ZI
+cat > "$work/text_record.zi" <<'ZI'
+Raw :: #import "raw_record";
+Buffer :: struct { text: string; }
+saved: Buffer;
+Hold :: () { saved.text = TextView(Raw.data.bytes[:]) }
+Read :: () -> u8 { return saved.text[0] }
+ZI
+cat > "$work/imported_record_names.zi" <<'ZI'
+Raw :: #import "raw_record";
+Text :: #import "text_record";
+Bad :: () -> u8 { Text.Hold(); Raw.Mutate(); return Text.Read() }
+ZI
+
+for name in direct field nested pointer_direct pointer_alias call_alias call_second_alias conditional_alias record_literal_alias record_return enclosing_record imported_record_names; do
     if "$ziran" check --diagnostics=json --root "$work" \
         "$work/$name.zi" > "$work/$name.out" 2> "$work/$name.err"; then
         echo "$name accepted mutation of live text backing storage" >&2

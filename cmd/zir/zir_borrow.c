@@ -457,9 +457,10 @@ text_type_hash(const ZirModule *module, const char *type)
 }
 
 static int
-text_view_type(BorrowCheck *check, const char *type)
+cached_contains_text(BorrowCheck *check, const ZirModule *module, const char *type)
 {
-    const ZirModule *module = check->current->module;
+    if(module == NULL || type == NULL)
+        return contains_text(module, type, 0);
     if(strlen(type) >= ZIR_NAME_MAX)
         return contains_text(module, type, 0);
     if((check->text_type_count + 1) * 4 > check->text_type_capacity * 3) {
@@ -492,6 +493,12 @@ text_view_type(BorrowCheck *check, const char *type)
     answer->holds_text = contains_text(module, type, 0);
     check->text_type_count++;
     return answer->holds_text;
+}
+
+static int
+text_view_type(BorrowCheck *check, const char *type)
+{
+    return cached_contains_text(check, check->current->module, type);
 }
 
 static const ZirExpr *
@@ -614,7 +621,7 @@ check_mutation(BorrowCheck *check, BorrowPlace destination, ZirSourceSpan span)
     }
     for(int g = 0; g < check->global_count; g++) {
         BorrowBinding *view = &check->globals[g];
-        if(!contains_text(view->module, view->type, 0)) continue;
+        if(!cached_contains_text(check, view->module, view->type)) continue;
         if(destination.root->global_index >= 0 &&
            has_global(check->global_origins[g], destination.root->global_index)) {
             if(view->global_backing_state == 1 &&
@@ -790,7 +797,7 @@ text_view_backings(BorrowCheck *check, int index)
          * a string-containing slice retains its bytes independently of the
          * caller's mutable element descriptors. */
         if(source->parameter >= 0 &&
-           contains_text(check->current->module, source->type, 0)) return NULL;
+           cached_contains_text(check, check->current->module, source->type)) return NULL;
         return source->local < 0 || source->parameter >= 0 ?
             add_source(check, NULL, root_place(source)) : NULL;
     }

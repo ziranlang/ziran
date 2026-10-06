@@ -680,6 +680,36 @@ static char *py_round_float32_literal(double value)
 /* Convert text of one checked scalar type to another, as a cast does. */
 static const char *py_pointer_ctype(PyEmitter *emitter, const char *type);
 
+/* Strings and slices have a pointer/count native header. Keep casts to that
+ * layout attached to the original place; record names and field names do not
+ * determine the representation. */
+static char *py_sequence_header(PyEmitter *emitter, const char *text,
+                                const PyType *source, const PyType *target)
+{
+    PyType sequence, record, data, length;
+    ZirTypeField fields[3];
+    size_t offset = 0;
+    char first[ZIR_NAME_MAX], second[ZIR_NAME_MAX], name[ZIR_NAME_MAX];
+    if(source->kind != PY_POINTER || target->kind != PY_POINTER ||
+       !py_classify(emitter->module, source->element, &sequence) ||
+       (sequence.kind != PY_STRING && sequence.kind != PY_SLICE) ||
+       !py_classify(emitter->module, target->element, &record) ||
+       record.kind != PY_RECORD ||
+       TypeNextField(record.declared, &offset, &fields[0]) != 1 ||
+       TypeNextField(record.declared, &offset, &fields[1]) != 1 ||
+       TypeNextField(record.declared, &offset, &fields[2]) != 0 ||
+       !py_classify(record.owner, fields[0].type, &data) || data.kind != PY_POINTER ||
+       strcmp(data.element, sequence.kind == PY_STRING ? "u8" : sequence.element) ||
+       !py_classify(record.owner, fields[1].type, &length) || length.kind != PY_INT ||
+       length.bits != 64 || length.is_signed != (sequence.kind == PY_SLICE))
+        return NULL;
+    py_field_name(fields[0].name, first, sizeof(first));
+    py_field_name(fields[1].name, second, sizeof(second));
+    py_class_name(&record, name, sizeof(name));
+    return py_format("_sequence_header(%s, \"%s\", \"%s\", %s, %s)",
+                     text, first, second, name, sequence.kind == PY_STRING ? "True" : "False");
+}
+
 static char *py_convert(PyEmitter *emitter, const char *text, const char *from,
                         const char *to)
 {
@@ -688,6 +718,10 @@ static char *py_convert(PyEmitter *emitter, const char *text, const char *from,
        !py_classify(emitter->module, from, &source) ||
        !py_classify(emitter->module, to, &target))
         return py_copy_string(text);
+    {
+        char *header = py_sequence_header(emitter, text, &source, &target);
+        if(header != NULL) return header;
+    }
     if(target.kind == PY_POINTER && strcmp(target.element, "void") &&
        (source.kind == PY_POINTER || source.kind == PY_INT)) {
         const char *ctype = py_pointer_ctype(emitter, to);

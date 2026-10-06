@@ -43,7 +43,8 @@ that procedure and exits with its integer result; the entry takes nothing or
 source that `python3 DIR` runs; it needs only the standard library. Its C
 foreign functions resolve in the running Python process, and `LDLIBS` names
 the shared libraries to load for them, as it does for a C build: for example
-`LDLIBS=-lcairo ziran build --target=py ...`. Use
+`LDLIBS=-lcairo ziran build --target=py ...`. The exact filename form
+`-l:libcairo.so.2` loads that file directly, without a development symlink. Use
 `ziran build --target=go --pkg main --exe --entry module:function -o DIR`
 for Go output. C foreign procedures with scalar or pointer parameters and
 results route through generated cgo adapters; native Go package imports
@@ -87,6 +88,20 @@ call, preserves aliases within that call, and copies mutations back. Native
 pointer outputs and C-owned scalar buffers remain accessible through the
 same pointer API. C libraries that retain Ziran-owned memory after a call
 need a copying API or C-owned storage on Python.
+
+Python preserves native-layout casts from an addressed string or slice to a
+two-field record containing its typed data pointer and 64-bit count. The string
+count is unsigned; the slice count is signed. Record and field names do not
+select this behavior. The cast keeps the original pointer identity, and its
+fields observe and update the original place. Data and count can be assigned
+in either order; read the resulting range only after both fields are valid.
+`std/byte_text_linux` uses this representation for `TextFromCString` and
+`BytesFromPointer`. Keep borrowed C storage alive while using the returned
+string or slice. Ordinary `TextView` retains the Python target's snapshot rule.
+
+Run `sh tests/sequence_header.sh build/bin/ziran` to compare these operations
+from source and saved IR on Python, C and C++, including embedded NUL bytes,
+pointer aliases, header assignment and borrowed buffer writes.
 
 Use
 `ziran build --target=plan9-c` for the experimental Plan 9 C output path.

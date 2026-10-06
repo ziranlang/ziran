@@ -1,0 +1,42 @@
+#import "parallel_linux"
+
+libc :: #system_library "libc";
+ThreadIdentity :: () -> usize #foreign libc "pthread_self";
+Data :: struct { values: [513]s64; visits: [513]s32; identities: [513]usize; pass: s64 }
+data: Data;
+pool: ParallelPool;
+Fill :: (start: s64, end: s64, argument: *void) {
+    values := cast(*Data)argument
+    for i: start..end - 1 {
+        values.values[i] = i * i + values.pass
+        values.visits[i] += 1
+        values.identities[i] = ThreadIdentity()
+    }
+}
+
+#program_export
+SelfTest :: () -> s32 {
+    procedure: RangeProcedure = Fill
+    ParallelRun(*pool, 0, 0, procedure, cast(*void)*data)
+    if pool.initialized { return 1 }
+    for pass: 0..cast(s32)127 {
+        data.pass = cast(s64)pass
+        ParallelRun(*pool, 0, 513, procedure, cast(*void)*data)
+        for i: 0..cast(s32)512 {
+            if data.values[i] != cast(s64)i * cast(s64)i + pass || data.visits[i] != pass + 1 { return 2 }
+        }
+    }
+    distinct: bool
+    for i: 0..cast(s32)512 { if data.identities[i] != data.identities[0] { distinct = true } }
+    if ParallelCount() > 1 && (!distinct || pool.workers == 0) { return 3 }
+    if ParallelCount() == 1 && (distinct || pool.workers != 0) { return 4 }
+    // A short tail executes once even when it cannot use every lane.
+    ParallelRun(*pool, 511, 513, procedure, cast(*void)*data)
+    if data.visits[510] != 128 || data.visits[511] != 129 || data.visits[512] != 129 { return 5 }
+    ParallelClose(*pool); ParallelClose(*pool)
+    if pool.initialized || pool.workers != 0 { return 6 }
+    ParallelRun(*pool, 0, 513, procedure, cast(*void)*data)
+    ParallelClose(*pool)
+    if data.visits[0] != 129 || data.visits[512] != 130 { return 7 }
+    return 42
+}

@@ -148,7 +148,7 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
 /* Compile every generated C file in OUT_DIR, with the toolchain's headers,
  * into OUT_DIR/NAME. CC, CFLAGS, LDFLAGS, and LDLIBS apply as in make. */
 static int
-compile_executable(const char *out_dir, const char *name)
+compile_executable(const char *out_dir, const char *name, int posix_threads)
 {
     char **args = calloc(EXE_MAX_ARGS, sizeof(*args));
     char output[ZIR_PATH_MAX];
@@ -172,6 +172,8 @@ compile_executable(const char *out_dir, const char *name)
         goto done;
     args[count++] = strdup("-I");
     args[count++] = strdup(out_dir);
+    if(posix_threads)
+        args[count++] = strdup("-pthread");
     if(include != NULL) {
         args[count++] = strdup("-I");
         args[count++] = strdup(include);
@@ -271,7 +273,7 @@ main(int argc, char **argv)
     ZirProgram *linked = NULL;
     const char *module_paths[64];
     int module_path_count = 0;
-    const char *defines[64];
+    const char *defines[65];
     int define_count = 0;
     ZirProgram **progs;
     ZirCModuleSyms *syms = NULL;
@@ -337,6 +339,19 @@ main(int argc, char **argv)
         if(!present)
             defines[define_count++] = "PLAN9";
     }
+    /* Native POSIX adapters are available by default. Cross-platform C
+     * targets explicitly identify themselves, as std/file already requires. */
+    int posix_threads = !plan9;
+    int threads_defined = 0;
+    for(int d = 0; d < define_count; d++) {
+        threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
+        if(strcmp(defines[d], "_WIN32") == 0 ||
+           strcmp(defines[d], "PLATFORM_WEB") == 0 ||
+           strcmp(defines[d], "PLAN9") == 0)
+            posix_threads = 0;
+    }
+    if(posix_threads && !threads_defined)
+        defines[define_count++] = "POSIX_THREADS";
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file),
@@ -447,7 +462,7 @@ done:
     }
     if(exe) {
         const char *name = strrchr(entry_module, '/');
-        if(!compile_executable(out_dir, name != NULL ? name + 1 : entry_module))
+        if(!compile_executable(out_dir, name != NULL ? name + 1 : entry_module, posix_threads))
             return 1;
     }
     unresolved = c_plan9_unresolved();

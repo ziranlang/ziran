@@ -420,7 +420,8 @@ ElementAt :: (text: string, array_at: s32, index: s32) -> s32 {
 #program_export
 ArrayPositions :: (text: string, array_at: s32, output: []s32) -> s32 {
     ranges: []JsonRange
-    return WalkArray(text, array_at, output, ranges)
+    previous: []JsonRange
+    return WalkArray(text, array_at, output, ranges, "", previous)
 }
 
 // Counts and validates the complete array, retaining the first output.count
@@ -429,11 +430,26 @@ ArrayPositions :: (text: string, array_at: s32, output: []s32) -> s32 {
 #program_export
 ArrayRanges :: (text: string, array_at: s32, output: []JsonRange) -> s32 {
     positions: []s32
-    return WalkArray(text, array_at, positions, output)
+    previous: []JsonRange
+    return WalkArray(text, array_at, positions, output, "", previous)
+}
+
+// Like ArrayRanges, using ranges from a successful scan of previous_text.
+// The caller must preserve those bytes and ranges until this call returns.
+// Only complete, byte-identical values reuse validation; changed values and
+// uncached trailing elements are parsed normally. Array delimiters are always
+// checked, including when the output slice is empty or shorter than the array.
+// Output must not alias previous_ranges, whose offsets belong to the old text.
+#program_export
+ArrayRangesReuse :: (text: string, array_at: s32, output: []JsonRange,
+                     previous_text: string, previous_ranges: []JsonRange) -> s32 {
+    positions: []s32
+    return WalkArray(text, array_at, positions, output, previous_text, previous_ranges)
 }
 
 WalkArray :: (text: string, array_at: s32, positions: []s32,
-              ranges: []JsonRange) -> s32 {
+              ranges: []JsonRange, previous_text: string,
+              previous_ranges: []JsonRange) -> s32 {
     cursor: s32 = Space(text, array_at)
     if cursor < 0 || cursor >= (cast(s32)text.count) ||
        text[cursor] != cast(u8)91 {
@@ -448,7 +464,23 @@ WalkArray :: (text: string, array_at: s32, positions: []s32,
     while cursor < (cast(s32)text.count) {
         start := cursor
         if count < cast(s32)positions.count { positions[count] = start }
-        cursor = ValueEnd(text, cursor, 0)
+        after: s32 = -1
+        if count < cast(s32)previous_ranges.count {
+            old := previous_ranges[count]
+            if old.start >= 0 && old.end > old.start && old.end <= cast(s32)previous_text.count {
+                size := old.end - old.start
+                if size <= cast(s32)text.count - start &&
+                    text[start:start + size] == previous_text[old.start:old.end] {
+                    boundary := Space(text, start + size)
+                    if boundary < cast(s32)text.count &&
+                        (text[boundary] == cast(u8)44 || text[boundary] == cast(u8)93) {
+                        after = start + size
+                    }
+                }
+            }
+        }
+        // A matching prefix is not a complete value: 1 may have become 12.
+        cursor = ifx after >= 0 then after else ValueEnd(text, cursor, 0)
         if cursor < 0 {
             return -1
         }

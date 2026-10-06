@@ -800,6 +800,15 @@ bytes. Callers keep the original input string and use byte offsets returned by
 the scanner. Its tests compare source and saved-IR portable bundles, and the
 same module is exercised through native C, C++, and Go by a downstream client.
 
+`ArrayRangesReuse` accepts value ranges from a successful scan and their
+unchanged backing document. It reuses validation only for complete values
+whose bytes match at the same array index; other values and the array's
+separators are checked normally. Keep the preceding document and ranges alive
+until the call returns, use a separate output slice, and consume offsets only
+after a nonnegative return. Short output buffers still validate every element.
+Run `sh tests/json_array_reuse.sh build/bin/ziran` for source, saved-IR and
+cross-target transition checks, including malformed replies and numeric prefixes.
+
 `std/zip.zi` reads classic ZIP directories from caller-owned bytes, verifies
 stored entries with CRC-32, and writes stored archives into caller-owned output.
 It rejects split, encrypted, and malformed archives, and duplicate requested

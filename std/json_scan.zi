@@ -15,6 +15,10 @@ JsonNumber :: struct {
     valid: bool
 }
 
+// A complete JSON value, including string quotes or container delimiters.
+// The range borrows its document; end is the first byte after the value.
+JsonRange :: struct { start: s32; end: s32 }
+
 #program_export
 Space :: (text: string, at: s32) -> s32 {
     cursor: s32 = at
@@ -415,6 +419,21 @@ ElementAt :: (text: string, array_at: s32, index: s32) -> s32 {
 // callers use them only after success and clamp access to their buffer length.
 #program_export
 ArrayPositions :: (text: string, array_at: s32, output: []s32) -> s32 {
+    ranges: []JsonRange
+    return WalkArray(text, array_at, output, ranges)
+}
+
+// Counts and validates the complete array, retaining the first output.count
+// value ranges. Compare or reuse values only after a nonnegative return;
+// ranges are byte offsets and do not own the underlying document.
+#program_export
+ArrayRanges :: (text: string, array_at: s32, output: []JsonRange) -> s32 {
+    positions: []s32
+    return WalkArray(text, array_at, positions, output)
+}
+
+WalkArray :: (text: string, array_at: s32, positions: []s32,
+              ranges: []JsonRange) -> s32 {
     cursor: s32 = Space(text, array_at)
     if cursor < 0 || cursor >= (cast(s32)text.count) ||
        text[cursor] != cast(u8)91 {
@@ -427,11 +446,13 @@ ArrayPositions :: (text: string, array_at: s32, output: []s32) -> s32 {
 
     count: s32 = 0
     while cursor < (cast(s32)text.count) {
-        if count < cast(s32)output.count { output[count] = cursor }
+        start := cursor
+        if count < cast(s32)positions.count { positions[count] = start }
         cursor = ValueEnd(text, cursor, 0)
         if cursor < 0 {
             return -1
         }
+        if count < cast(s32)ranges.count { ranges[count] = .{start, cursor} }
         count += 1
         cursor = Space(text, cursor)
         if cursor >= (cast(s32)text.count) {

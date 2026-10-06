@@ -919,6 +919,14 @@ privately for bounded byte parsing without copying it. Its borrowed slice is
 valid only until `UnmapFile`, and writes to that slice do not change the file.
 `std/process_capture_linux.zi` captures a child process without a shell;
 `std/net_http_linux.zi` uses it to send JSON over HTTPS through `curl`.
+`std/process_channel_linux.zi` keeps an owned child open for bidirectional byte
+I/O. `StartChannel` takes an explicit argument vector and optionally merges
+stderr into the channel. `ChannelSend` and `ChannelReceive` use caller-owned
+buffers and bounded waits. `WaitChannel` joins the child and records its exit
+code. `CloseChannel` closes the stream, waits for the requested grace period,
+then terminates only the child's own process group if it is still running.
+Keep one owner for each channel and close it before releasing its storage;
+failed sends may have delivered a prefix and must not be blindly replayed.
 These native adapters keep libc calls out of applications and require glibc
 Linux and a `curl` executable. Portable bundles should use the host capabilities
 above instead.

@@ -1,0 +1,153 @@
+// An owned native child with bidirectional byte I/O. Arguments pass directly
+// to execvp, and each child has its own process group. Do not copy a live
+// channel: one owner must join it before releasing its storage.
+Capture :: #import "process_capture_linux"
+Socket :: #import "socket_linux"
+Timer :: #import "timer_linux"
+#import "c_string"
+libc :: #system_library "libc";
+ChannelPairRaw :: (domain: s32, kind: s32, protocol: s32, fds: *s32) -> s32 #foreign libc "socketpair";
+ChannelFlagsRaw :: (fd: s32, command: s32, value: s32) -> s32 #foreign libc "fcntl";
+ChannelGroupRaw :: (pid: s32, group: s32) -> s32 #foreign libc "setpgid";
+ChannelKillRaw :: (pid: s32, signal: s32) -> s32 #foreign libc "kill";
+ChannelForkRaw :: () -> s32 #foreign libc "fork";
+ChannelDupRaw :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
+ChannelCloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+ChannelExecRaw :: (path: *u8, arguments: *Capture.CapturePointer) -> s32 #foreign libc "execvp";
+ChannelExitRaw :: (code: s32) -> void #foreign libc "_exit";
+ChannelWaitRaw :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
+ChannelSendRaw :: (fd: s32, output: *u8, count: usize, flags: s32) -> isize #foreign libc "send";
+
+ProcessChannel :: struct {
+    socket: Socket.LinuxSocket
+    pid: s32
+    code: s32
+    exited: bool
+    error: s32
+}
+
+#program_export
+StartChannel :: (arguments: []string, merge_stderr: bool) -> ProcessChannel {
+    result: ProcessChannel
+    result.socket.fd = -1; result.code = 127
+    if arguments.count == 0 || arguments.count > 16 {
+        result.error = 22; return result
+    }
+    bytes: [16]Capture.CaptureArgument
+    pointers: [17]Capture.CapturePointer
+    for i: 0..cast(s32)arguments.count - 1 {
+        if !CopyCString(arguments[i], bytes[i].bytes[:]) {
+            result.error = 7; return result
+        }
+        pointers[i].value = *bytes[i].bytes[0]
+    }
+    pointers[arguments.count].value = null
+    fds: [2]s32
+    // CLOEXEC on both endpoints; nonblocking only on the parent's endpoint.
+    // The child receives ordinary blocking stdin/stdout.
+    if ChannelPairRaw(1, 524289, 0, *fds[0]) != 0 {
+        result.error = Socket.LinuxErrno(); return result
+    }
+    flags := ChannelFlagsRaw(fds[0], 3, 0)
+    if flags < 0 || ChannelFlagsRaw(fds[0], 4, flags | 2048) != 0 {
+        result.error = Socket.LinuxErrno()
+        ChannelCloseRaw(fds[0]); ChannelCloseRaw(fds[1]); return result
+    }
+    pid := ChannelForkRaw()
+    if pid < 0 {
+        result.error = Socket.LinuxErrno()
+        ChannelCloseRaw(fds[0]); ChannelCloseRaw(fds[1]); return result
+    }
+    if pid == 0 {
+        ChannelCloseRaw(fds[0])
+        if ChannelGroupRaw(0, 0) != 0 || ChannelDupRaw(fds[1], 0) < 0 ||
+            ChannelDupRaw(fds[1], 1) < 0 { ChannelExitRaw(127) }
+        if merge_stderr && ChannelDupRaw(fds[1], 2) < 0 { ChannelExitRaw(127) }
+        if fds[1] > 2 { ChannelCloseRaw(fds[1]) }
+        ChannelExecRaw(*bytes[0].bytes[0], *pointers[0])
+        ChannelExitRaw(127)
+    }
+    ChannelCloseRaw(fds[1])
+    result.pid = pid; result.socket.fd = fds[0]; result.socket.valid = true
+    return result
+}
+
+#program_export
+ChannelSend :: (channel: ProcessChannel, input: []u8, timeout_ms: s32) -> s64 {
+    if channel.pid <= 0 || timeout_ms < 0 { return -1 }
+    started := Timer.MonotonicMilliseconds()
+    if started < 0 { return -1 }
+    sent: s64
+    while sent < cast(s64)input.count {
+        now := Timer.MonotonicMilliseconds()
+        remaining := started + cast(s64)timeout_ms - now
+        if now < 0 || remaining < 0 { return -1 }
+        ready := Socket.SocketWaitForEvents(channel.socket, 4 | 8, cast(s32)remaining)
+        if ready.error != 0 { if ready.error == 4 { continue }; return -1 }
+        size := ChannelSendRaw(channel.socket.fd, *input[sent],
+            cast(usize)(cast(s64)input.count - sent), 16384)
+        if size > cast(isize)0 { sent += cast(s64)size; continue }
+        if size == cast(isize)0 { return -1 }
+        error := Socket.LinuxErrno()
+        if error != 4 && error != 11 { return -1 }
+    }
+    return sent
+}
+
+#program_export
+ChannelReceive :: (channel: ProcessChannel, output: []u8, timeout_ms: s32) -> s64 {
+    if timeout_ms < 0 { return -1 }
+    return Socket.SocketReceive(channel.socket, output, timeout_ms)
+}
+
+#program_export
+WaitChannel :: (channel: *ProcessChannel, timeout_ms: s32) -> bool {
+    if channel.exited { return true }
+    if channel.pid <= 0 || timeout_ms < 0 { return false }
+    started := Timer.MonotonicMilliseconds()
+    if started < 0 { channel.error = 5; return false }
+    channel.error = 0
+    while true {
+        status: s32
+        waited := ChannelWaitRaw(channel.pid, *status, 1)
+        if waited == channel.pid {
+            channel.pid = 0; channel.exited = true
+            channel.code = (status >> 8) & 255
+            if (status & 127) != 0 { channel.code = 128 + (status & 127) }
+            return true
+        }
+        if waited < 0 {
+            error := Socket.LinuxErrno()
+            if error != 4 { channel.error = error; return false }
+        }
+        now := Timer.MonotonicMilliseconds()
+        if now < 0 || now - started >= cast(s64)timeout_ms { return false }
+        if !Timer.SleepMilliseconds(1) { channel.error = 5; return false }
+    }
+    return false
+}
+
+#program_export
+CloseChannel :: (channel: *ProcessChannel, timeout_ms: s32) -> bool {
+    if timeout_ms < 0 { return false }
+    if channel.socket.valid { unused Socket.SocketClose(*channel.socket) }
+    if channel.exited || channel.pid <= 0 { return true }
+    if WaitChannel(channel, timeout_ms) { return true }
+    if channel.error != 0 { return false }
+    // An unreaped child cannot have its PID reused. Kill only its supervised
+    // process group; no inherited terminal/session group is ever addressed.
+    if ChannelKillRaw(-channel.pid, 9) != 0 { unused ChannelKillRaw(channel.pid, 9) }
+    while true {
+        status: s32
+        waited := ChannelWaitRaw(channel.pid, *status, 0)
+        if waited == channel.pid {
+            channel.pid = 0; channel.exited = true
+            channel.code = (status >> 8) & 255
+            if (status & 127) != 0 { channel.code = 128 + (status & 127) }
+            return true
+        }
+        channel.error = Socket.LinuxErrno()
+        if channel.error != 4 { return false }
+    }
+    return false
+}

@@ -2122,9 +2122,20 @@ resolve_reachability:
      * saved IR loads the caller first. Give both paths one module order. */
     qsort(linked->modules, (size_t)linked->module_count,
           sizeof(*linked->modules), module_name_order);
+    /* Removing declarations can remove a local type that shadowed an imported
+     * record field. Recheck this closed graph so its member types are canonical
+     * in the surviving scope before it is serialized or lowered. The loader
+     * still independently requires exact canonical saved IR. */
     if(!LinkImports(&linked, 1) ||
        !prune_record_fields(linked, entry_module, entry_function))
         goto failed;
+    /* These are already checked and pruned expression graphs. Use the same
+     * graph-preserving check as saved IR, rather than re-elaborating source
+     * expressions and producing a different source/saved graph. */
+    for(int m = 0; m < linked->module_count; m++)
+        for(int f = 0; f < linked->modules[m].function_count; f++)
+            linked->modules[m].functions[f].from_ir = 1;
+    if(!CheckPrograms(&linked, 1)) goto failed;
     if(!CheckLawGates(&linked, 1)) goto failed;
     for(int m = 0; m < program->module_count; m++)
         free(keep[m]);

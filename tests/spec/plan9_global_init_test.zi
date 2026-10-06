@@ -1,0 +1,19 @@
+Dependency :: #import "plan9_global_dependency";
+
+count: s32;
+#program_export
+Advance :: () -> s32 { count += 1; return count }
+first: s32 = Advance();
+imported: s32 = Dependency.Read();
+values: [3]u8 = .[4, 5, 6];
+borrowed: []u8 = values[:];
+
+#program_export
+main :: () -> s32 {
+    if first != 1 || count != 1 || imported != 43 || borrowed.count != 3 ||
+        borrowed[2] != cast(u8)6 || Dependency.Read() != 43 { return 1 }
+    // Entry calls do not rerun globals, including an exported function used
+    // by the initializer while its module is being initialized.
+    if Advance() != 2 || Advance() != 3 || first != 1 { return 2 }
+    print("Global entry startup and imported slices preserved\n"); return 0
+}

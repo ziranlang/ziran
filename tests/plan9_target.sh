@@ -411,6 +411,46 @@ for form in source saved; do
     "$output/run"
 done
 
+# Long literals carry exact byte counts instead of duplicating their text in
+# a preprocessor macro. Include UTF-8, escaped delimiters and embedded NULs.
+"$ziran" ir --root "$repo/tests/spec" -o "$work/text-ir" \
+    "$repo/tests/spec/plan9_large_text_test.zi"
+for form in source saved; do
+    root=$repo/tests/spec
+    input=$root/plan9_large_text_test.zi
+    if test "$form" = saved; then root=$work/text-ir; input=$root/plan9_large_text_test.zir; fi
+    output=$work/text-$form
+    "$ziran" build --target=plan9-c --root "$root" -o "$output" "$input"
+    rg -q -F 'StringView(LongText, 3840)' "$output/plan9_large_text_test.c"
+    rg -q -F 'extern const char LongText[3841];' "$output/plan9_large_text_test.h"
+    if rg -q -F 'StringLiteral(' "$output/plan9_large_text_test.c"; then
+        echo 'plan9-c retained a literal macro expansion' >&2
+        exit 1
+    fi
+    "${CC:-cc}" -std=c11 -Dprint=printf -include stdio.h -I"$work/plan9-include" -I"$output" \
+        "$output"/*.c "$work/fake-plan9-exits.c" -o "$output/run"
+    "$output/run"
+done
+
+# Initialize runtime globals and their imports at exported entry points,
+# without a GCC constructor or repeating initialization on later calls.
+"$ziran" ir --root "$repo/tests/spec" -o "$work/startup-ir" \
+    "$repo/tests/spec/plan9_global_init_test.zi"
+for form in source saved; do
+    root=$repo/tests/spec
+    input=$root/plan9_global_init_test.zi
+    if test "$form" = saved; then root=$work/startup-ir; input=$root/plan9_global_init_test.zir; fi
+    output=$work/startup-$form
+    "$ziran" build --target=plan9-c --root "$root" -o "$output" "$input"
+    if rg -q '__attribute__' "$output"/*.c; then
+        echo 'plan9-c retained a GCC constructor attribute' >&2
+        exit 1
+    fi
+    "${CC:-cc}" -std=c11 -Dprint=printf -include stdio.h -I"$work/plan9-include" -I"$output" \
+        "$output"/*.c "$work/fake-plan9-exits.c" -o "$output/run"
+    "$output/run"
+done
+
 # Indexed Vec stores must still trap negative and upper-bound indices,
 # including an empty vector.
 cat > "$work/vec-bounds-runner.c" <<'EOF'

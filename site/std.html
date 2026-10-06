@@ -456,6 +456,7 @@
 <div><code>AddCurlHeader :: (headers: **void, prefix: string, value: string, buffer: []u8) -&gt; bool</code></div>
 <div><code>AddNamedHeader :: (headers: **void, name: string, value: string, buffer: []u8) -&gt; bool</code></div>
 <div><code>SendCurl :: (request: HttpRequest, output: []u8) -&gt; CurlResult</code><p>The caller owns output. It remains NUL terminated, including on failure. HTTP errors retain their status and body for protocol-level decisions.</p></div>
+<div><code>SendCurlWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) -&gt; CurlResult</code><p>The same request with its own total timeout, for slow services such as model generation. Connecting still has 10 seconds.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/net_http_curl_linux.zi">Source ↗</a></p></section>
 <section id="net_http_linux"><p class="eyebrow">42 / std/net_http_linux.zi</p><h2>net_http_linux</h2><p>Import with <code>#import "net_http_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>PostJson :: (url: string, body: string, output: []u8) -&gt; CaptureResult</code><p>Native HTTPS JSON transport. curl owns TLS and HTTP framing; Ziran owns the request arguments and caller-provided response buffer.</p></div>
@@ -662,10 +663,11 @@
 <section id="thread_linux"><p class="eyebrow">69 / std/thread_linux.zi</p><h2>thread_linux</h2><p>Background work for native Linux and Android programs. A thread runs one procedure while the thread that started it keeps going, and that thread can ask whether the work has finished without waiting, so a frame loop keeps drawing while a request is in flight.  A Thread record must stay at one address from ThreadStart until ThreadFinished or ThreadWait reports the end. Once it has, everything the procedure wrote is visible to the thread that asked, and the record can start another procedure.</p><p>Import with <code>#import "thread_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>ThreadProcedure :: #type (argument: *void)</code></div>
 <div><code>PosixThreadEntry :: #type (argument: *void) -&gt; *void</code></div>
-<div><code>Thread :: struct { handle: usize; lock: [8]u64; procedure: ThreadProcedure; argument: *void; running: bool; finished: bool; }</code></div>
+<div><code>ThreadNotification :: struct { procedure: ThreadProcedure; argument: *void; }</code></div>
+<div><code>Thread :: struct { handle: usize; lock: [8]u64; procedure: ThreadProcedure; argument: *void; notification: ThreadNotification; running: bool; finished: bool; }</code></div>
 <div><code>ThreadLock :: (thread: *Thread) -&gt; *void</code></div>
 <div><code>ThreadRun :: (argument: *void) -&gt; *void</code></div>
-<div><code>ThreadStart :: (thread: *Thread, procedure: ThreadProcedure, argument: *void) -&gt; bool</code></div>
+<div><code>ThreadStart :: (thread: *Thread, procedure: ThreadProcedure, argument: *void, notification: ThreadNotification) -&gt; bool</code></div>
 <div><code>ThreadRunning :: (thread: *Thread) -&gt; bool</code><p>Whether the record is running a procedure that has not been reported finished yet.</p></div>
 <div><code>ThreadFinished :: (thread: *Thread) -&gt; bool</code><p>Whether the procedure started on `thread` has finished. Never waits; the first time it reports true the thread is joined and the record is free.</p></div>
 <div><code>ThreadWait :: (thread: *Thread)</code><p>Waits until the procedure started on `thread` has finished.</p></div>

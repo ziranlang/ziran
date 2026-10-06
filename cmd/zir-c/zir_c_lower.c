@@ -870,6 +870,7 @@ rewrite_global_scalar(const ZirModule *module, const char *source,
 /* Buffers lower_module keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct LowerModuleBuffers {
+    ZirExpr literal;
     char stem[512];
     char guard[600];
     char hpath[1024];
@@ -899,6 +900,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     FILE *h;
     FILE *c;
     int i;
+    int needs_startup = ModuleNeedsStartup(m);
+    char init_name[LOWER_NAME_MAX];
+    NativeCModuleInitName(m, init_name, sizeof(init_name));
     stem_from_source(m->source_path, buffers->stem, sizeof(buffers->stem));
     NativeHeaderGuard(buffers->stem, buffers->guard, sizeof(buffers->guard));
     snprintf(buffers->hpath, sizeof(buffers->hpath), "%s/%s.h", out_dir, buffers->stem);
@@ -943,10 +947,23 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         const ZirDefine *d = &m->defines[i];
         char name[LOWER_NAME_MAX];
         TargetDefineName(m, ZIR_C, d->name, name, sizeof(name));
-        if(!rewrite_body2(m, NULL, 0, d->value, buffers->value, sizeof(buffers->value)))
-            c_rewrite_overflow(m->source_path, d->span.line);
         if(!d->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
-        fprintf(h, "#define %s %s\n", name, buffers->value);
+        if(c_plan9_enabled() && d->value[0] == '"') {
+            size_t length;
+            if(!DecodeStringLiteral(d->value, (unsigned char *)buffers->raw,
+                                    sizeof(buffers->raw), &length)) {
+                Diagnostic(d->span, "zir_c.global", "cannot decode string constant");
+                fclose(h);
+                return 0;
+            }
+            /* 8c's macro-definition scanner also has a text limit. Keep one
+             * named byte array, with its exact bound available to C hosts. */
+            fprintf(h, "extern const char %s[%zu];\n", name, length + 1);
+        } else {
+            if(!rewrite_body2(m, NULL, 0, d->value, buffers->value, sizeof(buffers->value)))
+                c_rewrite_overflow(m->source_path, d->span.line);
+            fprintf(h, "#define %s %s\n", name, buffers->value);
+        }
         if(!d->is_public) fputs("#endif\n", h);
     }
     /* Stored procedure values may appear in record fields and in #c_call
@@ -1178,6 +1195,20 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     if(ModuleUsesVecOperations(m))
         fputs("#include \"zir_vec.h\"\n", c);
     EmitNumbers(c, m, ZIR_C);
+    if(c_plan9_enabled()) {
+        for(i = 0; i < m->define_count; i++) {
+            const ZirDefine *d = &m->defines[i];
+            char name[LOWER_NAME_MAX];
+            if(d->value[0] != '"') continue;
+            TargetDefineName(m, ZIR_C, d->name, name, sizeof(name));
+            memset(&buffers->literal, 0, sizeof(buffers->literal));
+            buffers->literal.kind = ZIR_EXPR_STRING;
+            buffers->literal.span = d->span;
+            buffers->literal.text = d->value;
+            EmitStringLiteral(&buffers->literal, ZIR_C, buffers->value, sizeof(buffers->value));
+            fprintf(c, "const char %s[] = %s;\n", name, buffers->value);
+        }
+    }
     /* Private-scope imports include here (implementation-only). */
     for(i = 0; i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];
@@ -1266,6 +1297,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                     buffers->initw[0] ? buffers->initw : zero ? "{}" : "{0}");
         }
     }
+    if(c_plan9_enabled() && needs_startup)
+        fprintf(c, "\nstatic int %s_state;\nvoid %s(void);\n", init_name, init_name);
     for(i = 0; i < m->function_count; i++) {
         const ZirFunction *fn = &m->functions[i];
         char cname[LOWER_NAME_MAX];
@@ -1297,6 +1330,11 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         else
             fprintf(c, "static %s\n%s(%s)\n{\n",
                     cret[0] ? cret : "void", cname, buffers->cargs);
+        /* Native Plan 9 has no ELF constructor attributes. Exported entry
+         * points initialize their dependency graph once. Calls made by an
+         * initializer itself may use already initialized earlier globals. */
+        if(c_plan9_enabled() && needs_startup && fn->exported)
+            fprintf(c, "    if(%s_state == 0) %s();\n", init_name, init_name);
         lower_body(c, m, restab, restab_count, fn);
         if(NativeMainReturnsStatus(fn))
             fputs("    return 0;\n", c);
@@ -1305,11 +1343,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     int startup_count = 0;
     for(i = 0; i < m->function_count; i++)
         startup_count += m->functions[i].is_global_initializer;
-    char init_name[LOWER_NAME_MAX];
-    NativeCModuleInitName(m, init_name, sizeof(init_name));
     /* A module with no globals to set up, directly or through imports,
      * needs no init function; callers skip it by the same test. */
-    if(ModuleNeedsStartup(m)) {
+    if(needs_startup) {
         fprintf(c, "\n#include <stdlib.h>\n");
         for(i = 0; i < m->import_count; i++) {
             const ZirModule *dependency = m->imports[i].resolved_module;
@@ -1319,11 +1355,12 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 fprintf(c, "void %s(void);\n", name);
             }
         }
-        fprintf(c, "\nstatic int %s_state;\nvoid\n%s(void)\n{\n"
+        if(!c_plan9_enabled()) fprintf(c, "\nstatic int %s_state;", init_name);
+        fprintf(c, "\nvoid\n%s(void)\n{\n"
                    "    if(%s_state == 2) return;\n"
                    "    if(%s_state == 1) abort();\n"
                    "    %s_state = 1;\n",
-                init_name, init_name, init_name, init_name, init_name);
+                init_name, init_name, init_name, init_name);
         for(i = 0; i < m->import_count; i++) {
             const ZirModule *dependency = m->imports[i].resolved_module;
             if(ModuleNeedsStartup(dependency)) {
@@ -1340,7 +1377,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             }
         fprintf(c, "    %s_state = 2;\n}\n", init_name);
     }
-    if(startup_count) {
+    if(startup_count && !c_plan9_enabled()) {
         fprintf(c, "\n__attribute__((constructor)) static void\n"
                    "%s_constructor(void)\n{\n"
                    "    %s();\n}\n", init_name, init_name);

@@ -1011,7 +1011,7 @@ print_run_flush_with_buffers(Emitter *e, PrintRun *run, int format_expr, PrintRu
     else
         ziran_literal_of(run->format, run->format_length, buffers->source, sizeof(buffers->source));
     buffers->piece.text = KeepText(buffers->source);
-    string_literal(&buffers->piece, e->target, buffers->literal, sizeof(buffers->literal));
+    EmitStringLiteral(&buffers->piece, e->target, buffers->literal, sizeof(buffers->literal));
     if(e->target == ZIR_GO)
         line(e, run->values ? "fmt.Printf(%s%s)" : "fmt.Print(%s%s)",
              buffers->literal, run->arguments);
@@ -1152,7 +1152,7 @@ emit_print_with_buffers(Emitter *e, const ZirExpr *expr, EmitPrintBuffers *buffe
                 buffers->piece = e->fn->exprs[first];
                 print_run_flush(e, &run, first);
                 buffers->piece.text = KeepText(pieces[i].literal);
-                string_literal(&buffers->piece, e->target, buffers->literal, sizeof(buffers->literal));
+                EmitStringLiteral(&buffers->piece, e->target, buffers->literal, sizeof(buffers->literal));
                 line(e, "fwrite(%s, 1, %zu, stdout);", buffers->literal, length);
                 continue;
             }

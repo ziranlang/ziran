@@ -1021,7 +1021,7 @@ literal(Emitter *e, const ZirExpr *expr, const char *type, int negative, char *o
 }
 
 void
-string_literal(const ZirExpr *expr, ZirTarget target, char *out, size_t size)
+EmitStringLiteral(const ZirExpr *expr, ZirTarget target, char *out, size_t size)
 {
     size_t used = 0;
     int remaining = 0;
@@ -1154,7 +1154,7 @@ ScalarLiteral_with_buffers(const char *type, const char *text, ZirTarget target,
     if(index>=0) {
         ZirExpr *expr=&buffers->fn.exprs[index];
         if(expr->kind == ZIR_EXPR_STRING && !strcmp(type, "string")) {
-            string_literal(expr, target, buffers->value, sizeof(buffers->value));
+            EmitStringLiteral(expr, target, buffers->value, sizeof(buffers->value));
             if(target == ZIR_C || target == ZIR_CPP)
                 format(out, size, "{%s, sizeof(%s) - 1}", buffers->value, buffers->value);
             else

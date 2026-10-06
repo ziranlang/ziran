@@ -66,7 +66,7 @@ main(int argc, char **argv)
     ProgramSet set = {0};
     const char *module_paths[64];
     int module_path_count = 0;
-    const char *defines[64];
+    const char *defines[65];
     int define_count = 0;
     ZirProgram **progs;
     ZirCppModuleSyms *syms = NULL;
@@ -114,6 +114,17 @@ main(int argc, char **argv)
         usage();
         return 1;
     }
+    int posix_threads = 1;
+    int threads_defined = 0;
+    for(int d = 0; d < define_count; d++) {
+        threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
+        if(strcmp(defines[d], "_WIN32") == 0 ||
+           strcmp(defines[d], "PLATFORM_WEB") == 0 ||
+           strcmp(defines[d], "PLAN9") == 0)
+            posix_threads = 0;
+    }
+    if(posix_threads && !threads_defined)
+        defines[define_count++] = "POSIX_THREADS";
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file), argc - first_file))

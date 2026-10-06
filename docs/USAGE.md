@@ -882,6 +882,17 @@ The worker calls that notification once after publishing completion, allowing
 an event loop or pipe waiter to wake immediately. The notification must not
 join or restart its own thread. Keep the thread and argument storage alive
 until `ThreadFinished` or `ThreadWait` joins it before consuming results.
+`std/parallel_linux.zi` supplies a reusable `ParallelPool` for independent
+half-open ranges. `ParallelRun` divides a range among persistent workers and
+the submitting thread, then waits for every lane before returning. Keep the
+pool at one address, submit from one owner, and call `ParallelClose` before
+releasing it. Callbacks must write only their own range and keep shared inputs
+immutable. Four lanes run by default; `ZIRAN_PAR_THREADS` selects 1–64 lanes.
+Native C and C++ source builds define `POSIX_THREADS` automatically, except
+when `_WIN32`, `PLAN9` or `PLATFORM_WEB` identifies another platform. Libraries
+can use that capability to parallelize their native adapters by default while
+keeping portable output independent of pthreads. This does not parallelize
+arbitrary program state or make shared mutable data safe.
 The file module can create a private file exclusively, sync its contents, and
 publish it through a hard link that fails if the destination already exists.
 `std/byte_text_linux.zi` also borrows caller-owned C strings and byte buffers;

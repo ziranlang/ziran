@@ -1,0 +1,130 @@
+// Reusable native range workers. One owner submits non-overlapping ranges
+// and joins their effects before continuing. Keep the pool at one address
+// until ParallelClose; callbacks must not submit to or close their own pool.
+#import "thread_linux"
+
+libc :: #system_library "libc";
+MutexInit :: (mutex: *void, attributes: *void) -> s32 #foreign libc "pthread_mutex_init";
+MutexDestroy :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_destroy";
+MutexLock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_lock";
+MutexUnlock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_unlock";
+ConditionInit :: (condition: *void, attributes: *void) -> s32 #foreign libc "pthread_cond_init";
+ConditionDestroy :: (condition: *void) -> s32 #foreign libc "pthread_cond_destroy";
+ConditionWait :: (condition: *void, mutex: *void) -> s32 #foreign libc "pthread_cond_wait";
+ConditionSignal :: (condition: *void) -> s32 #foreign libc "pthread_cond_signal";
+ConditionBroadcast :: (condition: *void) -> s32 #foreign libc "pthread_cond_broadcast";
+EnvironmentValue :: (name: *u8) -> *u8 #foreign libc "getenv";
+
+RangeProcedure :: #type (start: s64, end: s64, argument: *void) #c_call;
+ParallelLane :: struct { pool: *ParallelPool; index: s32 }
+ParallelPool :: struct {
+    threads: [63]Thread
+    lanes: [63]ParallelLane
+    lock: [8]u64
+    wake: [8]u64
+    done: [8]u64
+    procedure: RangeProcedure
+    argument: *void
+    start: s64
+    end: s64
+    generation: u64
+    remaining: s32
+    workers: s32
+    initialized: bool
+    stopping: bool
+}
+
+// Matches checked #parallel regions: four lanes by default, including the
+// submitting thread. ZIRAN_PAR_THREADS=1 is useful for parity and profiling.
+ParallelCount :: () -> s32 {
+    name: [18]u8 = .{90,73,82,65,78,95,80,65,82,95,84,72,82,69,65,68,83,0}
+    value := EnvironmentValue(*name[0]); if value == null { return 4 }
+    count: s32
+    for i: 0..cast(s32)3 {
+        byte := value[i]
+        if byte == cast(u8)0 { return ifx count > 0 then count else 4 }
+        if byte < cast(u8)48 || byte > cast(u8)57 { return 4 }
+        count = count * 10 + cast(s32)byte - 48
+        if count >= 64 { return 64 }
+    }
+    return 4
+}
+ParallelLock :: (pool: *ParallelPool) -> *void { return cast(*void)*pool.lock[0] }
+ParallelWake :: (pool: *ParallelPool) -> *void { return cast(*void)*pool.wake[0] }
+ParallelDone :: (pool: *ParallelPool) -> *void { return cast(*void)*pool.done[0] }
+
+ParallelWorker :: (argument: *void) {
+    lane := cast(*ParallelLane)argument; pool := lane.pool; generation: u64
+    unused MutexLock(ParallelLock(pool))
+    while true {
+        while !pool.stopping && generation == pool.generation {
+            unused ConditionWait(ParallelWake(pool), ParallelLock(pool))
+        }
+        if pool.stopping { break }
+        generation = pool.generation
+        span := pool.end - pool.start; chunk := span / cast(s64)(pool.workers + 1)
+        start := pool.start + cast(s64)lane.index * chunk
+        procedure := pool.procedure; data := pool.argument
+        unused MutexUnlock(ParallelLock(pool))
+        procedure(start, start + chunk, data)
+        unused MutexLock(ParallelLock(pool))
+        pool.remaining -= 1
+        if pool.remaining == 0 { unused ConditionSignal(ParallelDone(pool)) }
+    }
+    unused MutexUnlock(ParallelLock(pool))
+}
+
+ParallelInit :: (pool: *ParallelPool) -> bool {
+    if pool.initialized { return true }
+    if MutexInit(ParallelLock(pool), null) != 0 { return false }
+    if ConditionInit(ParallelWake(pool), null) != 0 {
+        unused MutexDestroy(ParallelLock(pool)); return false
+    }
+    if ConditionInit(ParallelDone(pool), null) != 0 {
+        unused ConditionDestroy(ParallelWake(pool)); unused MutexDestroy(ParallelLock(pool)); return false
+    }
+    pool.stopping = false; pool.generation = cast(u64)0; pool.workers = 0
+    count := ParallelCount(); procedure: ThreadProcedure = ParallelWorker
+    for i: 0..count - 2 {
+        pool.lanes[i] = .{pool, i}
+        if !ThreadStart(*pool.threads[i], procedure, cast(*void)*pool.lanes[i]) { break }
+        pool.workers += 1
+    }
+    pool.initialized = true; return true
+}
+
+// Half-open [start, end). The caller guarantees callbacks write only their
+// own range and do not mutate inputs used by another lane. Returning is a
+// completion barrier; all writes are visible and borrowed arguments reusable.
+// Small ranges and thread-creation failure retain exactly the same behavior.
+#program_export
+ParallelRun :: (pool: *ParallelPool, start: s64, end: s64,
+    procedure: RangeProcedure, argument: *void) {
+    if end <= start || procedure == null { return }
+    if pool == null || !ParallelInit(pool) || pool.workers == 0 || end - start < cast(s64)(pool.workers + 1) * 2 {
+        procedure(start, end, argument); return
+    }
+    unused MutexLock(ParallelLock(pool))
+    pool.procedure = procedure; pool.argument = argument; pool.start = start; pool.end = end
+    pool.remaining = pool.workers; pool.generation += cast(u64)1
+    unused ConditionBroadcast(ParallelWake(pool))
+    chunk := (end - start) / cast(s64)(pool.workers + 1)
+    caller_start := start + cast(s64)pool.workers * chunk
+    unused MutexUnlock(ParallelLock(pool))
+    procedure(caller_start, end, argument)
+    unused MutexLock(ParallelLock(pool))
+    while pool.remaining > 0 { unused ConditionWait(ParallelDone(pool), ParallelLock(pool)) }
+    pool.argument = null
+    unused MutexUnlock(ParallelLock(pool))
+}
+
+#program_export
+ParallelClose :: (pool: *ParallelPool) {
+    if pool == null || !pool.initialized { return }
+    unused MutexLock(ParallelLock(pool)); pool.stopping = true
+    unused ConditionBroadcast(ParallelWake(pool)); unused MutexUnlock(ParallelLock(pool))
+    for i: 0..pool.workers - 1 { ThreadWait(*pool.threads[i]) }
+    unused ConditionDestroy(ParallelDone(pool)); unused ConditionDestroy(ParallelWake(pool))
+    unused MutexDestroy(ParallelLock(pool))
+    pool.workers = 0; pool.initialized = false
+}

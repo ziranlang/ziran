@@ -876,6 +876,12 @@ interruptible sleeps; it does not expose wall-clock time.
 `std/thread_linux.zi` runs a procedure on a background thread that the
 starting thread can poll for completion without waiting, which suits a frame
 loop with a request in flight; it builds on pthreads, including Android's.
+`ThreadStart` also accepts an optional `ThreadNotification` containing a
+`procedure` and its `argument`.
+The worker calls that notification once after publishing completion, allowing
+an event loop or pipe waiter to wake immediately. The notification must not
+join or restart its own thread. Keep the thread and argument storage alive
+until `ThreadFinished` or `ThreadWait` joins it before consuming results.
 The file module can create a private file exclusively, sync its contents, and
 publish it through a hard link that fails if the destination already exists.
 `std/byte_text_linux.zi` also borrows caller-owned C strings and byte buffers;

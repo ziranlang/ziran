@@ -20,6 +20,8 @@ PosixMutexDestroy :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_destroy"
 PosixMutexLock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_lock";
 PosixMutexUnlock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_unlock";
 
+ThreadNotification :: struct { procedure: ThreadProcedure; argument: *void }
+
 Thread :: struct {
     handle: usize
     // Storage for a pthread_mutex_t, which is at most 40 bytes on the
@@ -27,6 +29,7 @@ Thread :: struct {
     lock: [8]u64
     procedure: ThreadProcedure
     argument: *void
+    notification: ThreadNotification
     running: bool
     finished: bool
 }
@@ -41,18 +44,25 @@ ThreadRun :: (argument: *void) -> *void {
     unused PosixMutexLock(ThreadLock(thread))
     thread.finished = true
     unused PosixMutexUnlock(ThreadLock(thread))
+    // Publish completion before waking a waiter. The owner still joins
+    // through ThreadFinished/ThreadWait before using or releasing results.
+    if thread.notification.procedure != null { thread.notification.procedure(thread.notification.argument) }
     return null
 }
 
 // Starts `procedure(argument)` on a new thread. Returns false when the
 // record is still running something or no thread could be started.
+// `notification.procedure(notification.argument)` runs once after completion is
+// published, so an event loop can wake without polling. It must not join or
+// restart this Thread. Both arguments must live until the owner joins it.
 #program_export
 ThreadStart :: (thread: *Thread, procedure: ThreadProcedure,
-    argument: *void) -> bool {
-    if thread == null || thread.running { return false }
+    argument: *void, notification: ThreadNotification = .{}) -> bool {
+    if thread == null || thread.running || procedure == null { return false }
     if PosixMutexInit(ThreadLock(thread), null) != 0 { return false }
     thread.procedure = procedure
     thread.argument = argument
+    thread.notification = notification
     thread.finished = false
     thread.running = true
     entry: PosixThreadEntry = ThreadRun

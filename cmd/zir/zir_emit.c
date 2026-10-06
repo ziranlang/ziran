@@ -888,6 +888,18 @@ NativeCFunctionName(const ZirModule *module, const ZirFunction *fn,
         copy_text(out, size, fn->name);
 }
 
+/* Foreign bindings belong to their source module, just like functions. The
+ * ABI assembler label is separate and may be shared by independent bindings. */
+void
+NativeCForeignName(const ZirModule *module, const ZirImport *foreign,
+                   char *out, size_t size)
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for(const unsigned char *p = (const unsigned char *)module->name; *p; p++)
+        hash = (hash ^ *p) * UINT64_C(1099511628211);
+    format(out, size, "zir_f_%016llx_%s", (unsigned long long)hash, foreign->name);
+}
+
 void
 NativeCModuleInitName(const ZirModule *module, char *out, size_t size)
 {

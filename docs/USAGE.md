@@ -800,6 +800,8 @@ nested-array returns that its runtime cannot represent yet.
 `std/sort.zi` sorts any slice whose elements support `<` in place with
 `Sort(values[:])`, and searches a sorted slice with `LowerBound` and
 `BinarySearch`. Sorting allocates nothing and is not stable.
+`SortText(texts[:])` orders strings by unsigned UTF-8 bytes, including embedded
+NUL and prefixes, independently of the system locale. It also allocates nothing.
 
 `std/queue.zi` is an allocation-free bounded byte FIFO. Queue state is passed
 and returned by value, and every operation receives the caller-owned backing

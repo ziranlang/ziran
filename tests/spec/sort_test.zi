@@ -56,5 +56,18 @@ SelfTest :: () -> s32 {
     Sort(many[:])
     if !IsSorted(many[:]) { return 12 }
 
+    texts: [7]string = .["日本語", "aa", "a\x00z", "", "é", "a", "aa"]
+    SortText(texts[:])
+    if texts[0] != "" || texts[1] != "a" || texts[2] != "a\x00z" ||
+        texts[3] != "aa" || texts[4] != "aa" || texts[5] != "é" || texts[6] != "日本語" { return 13 }
+    text_empty: [0]string
+    SortText(text_empty[:])
+    single: [1]string = .["unchanged"]
+    SortText(single[:])
+    if single[0] != "unchanged" { return 14 }
+    text_part: [4]string = .["outside", "z", "a", "last"]
+    SortText(text_part[1:3])
+    if text_part[0] != "outside" || text_part[1] != "a" || text_part[2] != "z" || text_part[3] != "last" { return 15 }
+
     return 42
 }

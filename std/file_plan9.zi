@@ -157,7 +157,11 @@ DirectoryEntry :: struct {
     name_count: s32
     valid: bool
     info: FileInfo
+    kind: DirectoryKind
 }
+
+// Plan 9 exposes directory metadata; other streams require a path query.
+DirectoryKind :: enum u8 { Unknown :: 0; Directory :: 4; Regular :: 8; Link :: 10; Other :: 255; }
 
 #scope_file
 OpenPath :: (path: string, flags: s32) -> FileHandle {
@@ -391,6 +395,7 @@ NextDirectoryEntry :: (cursor: *DirectoryCursor) -> DirectoryEntry {
     // Own a value snapshot of the metadata returned by the directory read.
     // No native allocation is retained after the cursor closes.
     result.info = Snapshot(cast(*void)entry)
+    if (result.info.mode & cast(u32)0x80000000) != 0 { result.kind = .Directory }
     return result
 }
 

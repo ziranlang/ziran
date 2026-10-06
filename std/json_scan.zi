@@ -1,4 +1,5 @@
 #import "text"
+#import "vec"
 
 // A small allocation-free JSON scanner. Positions are UTF-8 byte offsets.
 // String spans retain escapes; member lookup matches unescaped ASCII names.
@@ -18,6 +19,11 @@ JsonNumber :: struct {
 // A complete JSON value, including string quotes or container delimiters.
 // The range borrows its document; end is the first byte after the value.
 JsonRange :: struct { start: s32; end: s32 }
+
+// Owned decoded bytes. The caller may consume value with BuilderFinish or
+// let normal vector cleanup release it; valid distinguishes an empty string
+// from malformed input or a decoded value exceeding the requested limit.
+JsonText :: struct { value: Vec(u8); valid: bool }
 
 #program_export
 Space :: (text: string, at: s32) -> s32 {
@@ -186,6 +192,43 @@ ReadStringText :: (text: string, at: s32, output: []u8) -> s32 {
     }
     output[length] = cast(u8)0
     return length
+}
+
+// Decode into owned storage without a maximum-size temporary buffer. Runs of
+// ordinary UTF-8 append directly; escape fragments need at most four bytes.
+// max_bytes bounds decoded bytes, not the serialized span (escapes shrink).
+#program_export
+ReadStringValue :: (text: string, at: s32, max_bytes: s32) -> JsonText {
+    span := ReadString(text, at)
+    if !span.valid || max_bytes < 0 { return .{} }
+    out: Vec(u8); cursor := span.start; start := cursor
+    while cursor < span.end {
+        if text[cursor] != cast(u8)92 { cursor += 1; continue }
+        if out.count + cursor - start > max_bytes || !BuilderAppend(out, text[start:cursor]) { return .{} }
+        escaped := text[cursor + 1]; cursor += 2
+        codepoint := cast(s32)escaped
+        if escaped == cast(u8)98 { codepoint = 8 }
+        if escaped == cast(u8)102 { codepoint = 12 }
+        if escaped == cast(u8)110 { codepoint = 10 }
+        if escaped == cast(u8)114 { codepoint = 13 }
+        if escaped == cast(u8)116 { codepoint = 9 }
+        if escaped == cast(u8)117 {
+            codepoint = ReadHex4(text, cursor, span.end); cursor += 4
+            if codepoint >= 55296 && codepoint <= 56319 && cursor + 6 <= span.end &&
+                text[cursor] == cast(u8)92 && text[cursor + 1] == cast(u8)117 {
+                low := ReadHex4(text, cursor + 2, span.end)
+                if low >= 56320 && low <= 57343 {
+                    codepoint = 65536 + (codepoint - 55296) * 1024 + low - 56320; cursor += 6
+                }
+            }
+            if codepoint >= 55296 && codepoint <= 57343 { codepoint = 65533 }
+        }
+        encoded: [5]u8; size := AppendUtf8(encoded[:], 0, codepoint)
+        if size < 0 || out.count + size > max_bytes || !BuilderAppend(out, TextView(encoded[:size])) { return .{} }
+        start = cursor
+    }
+    if out.count + span.end - start > max_bytes || !BuilderAppend(out, text[start:span.end]) { return .{} }
+    return .{out, true}
 }
 
 #program_export

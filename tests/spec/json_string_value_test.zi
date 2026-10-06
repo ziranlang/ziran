@@ -1,0 +1,62 @@
+#import "json_scan"
+#import "text"
+
+Matches :: (input: string, expected: string, limit: s32) -> bool {
+    parsed := ReadStringValue(input, 0, limit)
+    if !parsed.valid || parsed.value.count != expected.count { return false }
+    for i: 0..cast(s32)expected.count - 1 { if parsed.value[i] != expected[i] { return false } }
+    return true
+}
+
+CheckStrings :: () -> bool {
+    if !Matches("\"\"", "", 0) || !Matches("\"café 日本語\"", "café 日本語", 64) ||
+        !Matches("\"\\u03a9\\ud83d\\ude00\"", "Ω😀", 6) ||
+        !Matches("\"\\ud800x\\udc00\"", "�x�", 7) ||
+        !Matches("\"\\ud800\\u0041\"", "�A", 4) ||
+        !Matches("\"\\u007f\\u0080\\u07ff\\u0800\\uffff\"", "\u007f\u0080\u07ff\u0800\uffff", 11) { return false }
+    escaped := ReadStringValue("\"\\u0000\\b\\f\\n\\r\\t\\/\\\"\\\\\"", 0, 9)
+    bytes: [9]u8 = .{0, 8, 12, 10, 13, 9, 47, 34, 92}
+    if !escaped.valid || escaped.value.count != 9 { return false }
+    for i: 0..cast(s32)8 { if escaped.value[i] != bytes[i] { return false } }
+    malformed: [8]string = .{"", "null", "true", "\"unterminated", "\"bad\\x\"", "\"\\u0x00\"", "\"bad\n\"", "\"tail\\"}
+    for input: malformed { parsed := ReadStringValue(input, 0, 64); if parsed.valid || parsed.value.count != 0 { return false } }
+    zero := ReadStringValue("\"x\"", 0, 0); negative := ReadStringValue("\"x\"", 0, -1)
+    before := ReadStringValue("\"x\"", -1, 8); after := ReadStringValue("\"x\"", 3, 8)
+    short := ReadStringValue("\"\\ud83d\\ude00\"", 0, 3)
+    return !zero.valid && !negative.valid && !before.valid && !after.valid && !short.valid
+}
+
+CheckBytes :: () -> bool {
+    storage: [4]u8
+    for byte: 0..cast(s32)255 {
+        storage[0] = cast(u8)34; storage[1] = cast(u8)byte; storage[2] = cast(u8)34
+        parsed := ReadStringValue(TextView(storage[:3]), 0, 1)
+        valid := byte >= 32 && byte != 92
+        if parsed.valid != valid { return false }
+        if valid && (parsed.value.count != (ifx byte == 34 then 0 else 1) ||
+            (byte != 34 && parsed.value[0] != cast(u8)byte)) { return false }
+    }
+    storage[0] = cast(u8)34; storage[1] = cast(u8)97; storage[2] = cast(u8)34
+    parsed := ReadStringValue(TextView(storage[:3]), 0, 1); storage[1] = cast(u8)98
+    if !parsed.valid || parsed.value.count != 1 || parsed.value[0] != cast(u8)97 { return false }
+    // Consuming an owned field leaves ordinary scalar fields available.
+    transferred := BuilderFinish(parsed.value)
+    return transferred == "a" && parsed.valid
+}
+
+CheckLarge :: () -> bool {
+    raw: Vec(u8); BuilderPrint(*raw, "\"")
+    for i: 0..cast(s32)262142 { BuilderPrint(*raw, "a") }; BuilderPrint(*raw, "\"")
+    input := BuilderFinish(raw); parsed := ReadStringValue(input, 0, 262143)
+    if !parsed.valid || parsed.value.count != 262143 || parsed.value[262142] != cast(u8)97 { return false }
+    rejected := ReadStringValue(input, 0, 262142); if rejected.valid || rejected.value.count != 0 { return false }
+    escaped: Vec(u8); BuilderPrint(*escaped, "\"")
+    for i: 0..cast(s32)131071 { BuilderPrint(*escaped, "\\n") }; BuilderPrint(*escaped, "\"")
+    serialized := BuilderFinish(escaped); decoded := ReadStringValue(serialized, 0, 131072)
+    if !decoded.valid || decoded.value.count != 131072 || decoded.value[131071] != cast(u8)10 { return false }
+    short := ReadStringValue(serialized, 0, 131071); return !short.valid
+}
+
+SelfTest :: () -> s64 { if !CheckStrings() { return 1 }; if !CheckBytes() { return 2 }; return 42 }
+#program_export
+NativeMain :: () -> s32 { return ifx SelfTest() == 42 && CheckLarge() then 0 else 1 }

@@ -713,7 +713,7 @@ extract_extern_signature(const ZirImport *imp, char *ret, size_t ret_size,
 }
 
 static void
-extern_call_args(const char *args, char *dst, size_t dst_size)
+extern_call_args(const ZirFunction *fn, const char *args, char *dst, size_t dst_size)
 {
     const char *p = args;
     const char *start = args;
@@ -743,9 +743,14 @@ extern_call_args(const char *args, char *dst, size_t dst_size)
                   (name_end[-1] == ' ' || name_end[-1] == '\t'))
                 name_end--;
             if(colon < p && name_end > name_start) {
+                char name[LOWER_NAME_MAX], binding[LOWER_NAME_MAX];
+                size_t length = (size_t)(name_end - name_start);
+                if(length >= sizeof(name)) length = sizeof(name) - 1;
+                memcpy(name, name_start, length); name[length] = '\0';
+                /* Use the same binding as the wrapper parameter declaration. */
+                TargetBindingName(fn, ZIR_C, name, binding, sizeof(binding));
                 n += (size_t)snprintf(dst + n, dst_size > n ? dst_size - n : 0,
-                                      "%s%.*s", first ? "" : ", ",
-                                      (int)(name_end - name_start), name_start);
+                                      "%s%s", first ? "" : ", ", binding);
                 first = 0;
             }
             if(*p == '\0')
@@ -803,7 +808,7 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
     buffers->abi.args_text = KeepParameters(buffers->cargs);
     copy_text(buffers->abi.return_type, sizeof(buffers->abi.return_type), ret);
     ArrayAbiArgs(&buffers->abi, buffers->abi_args, sizeof(buffers->abi_args));
-    convert_args(m, NULL, buffers->abi_args, buffers->conv, sizeof(buffers->conv), 0);
+    convert_args(m, &buffers->abi, buffers->abi_args, buffers->conv, sizeof(buffers->conv), 0);
     if(ArrayElementType(ret, NULL, 0, NULL))
         copy_text(ret, sizeof(ret), "void");
     if(c_extern_symbol(imp, symbol, sizeof(symbol))) {
@@ -832,7 +837,7 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
             fprintf(c, "#define %s %s\n#endif\n", imp->name, foreign_name);
             return;
         }
-        extern_call_args(buffers->abi_args, buffers->call, sizeof(buffers->call));
+        extern_call_args(&buffers->abi, buffers->abi_args, buffers->call, sizeof(buffers->call));
         fprintf(c, "static %s\n%s(%s)\n{\n",
                 ret[0] ? ret : "void", imp->name, buffers->conv);
         if(ret[0] != '\0' && strcmp(ret, "void") != 0)

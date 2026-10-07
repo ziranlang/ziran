@@ -93,6 +93,14 @@ RunCore :: () -> s32 {
     if current.cells[0] != 80 { return 12 }
     free(current)
     current = null
+    // These heap values have no owner outside their pointer array. Nested
+    // collection must trace the elements even though raw handles are scalar.
+    references: [2]*Payload
+    references[0] = New(Payload); references[0].value = 55
+    references[1] = New(Payload); references[1].value = 66
+    if Burn(1200) != 7 { return 13 }
+    if references[0].value != 55 || references[1].value != 66 { return 14 }
+    free(references[0]); free(references[1])
     // Earlier print arguments must survive a later allocating argument.
     print("% %\n", Label(), Burn(240))
     return 42

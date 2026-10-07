@@ -339,11 +339,17 @@ host_argument(const ZirModule *module, const char *type, Value value,
     }
     if(record != NULL && record->is_enum && value.kind != VALUE_ENUM)
         return 0;
-    out->integer = value.integer;
-    out->bits = value.bits;
-    out->real = value.real;
-    out->data = value.data;
-    out->length = value.length;
+    /* The host ABI has separate fields. Copy only the active VM payload;
+     * inactive union words may contain a different kind's bits or address. */
+    if(value.kind == VALUE_INT || value.kind == VALUE_ENUM) {
+        out->integer = value.integer;
+        out->bits = value.bits;
+    } else if(value.kind == VALUE_REAL) {
+        out->real = value.real;
+    } else if(value.kind == VALUE_STRING) {
+        out->data = value.data;
+        out->length = value.length;
+    }
     out->kind = value.kind == VALUE_REAL ? VM_HOST_REAL :
         value.kind == VALUE_STRING ? VM_HOST_STRING :
         type[0] == '*' ? VM_HOST_POINTER :

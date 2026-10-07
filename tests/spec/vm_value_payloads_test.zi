@@ -1,0 +1,36 @@
+host_api :: #system_library "host_api";
+Tone :: enum { Normal :: 0; Accent :: 2; }
+Payload :: struct {
+    number: s64
+    wide: u64
+    real: float64
+    text: string
+    tone: Tone
+    handle: *void
+}
+Handle :: () -> *void #foreign host_api;
+RoundTrip :: (number: s64, wide: u64, real: float64, text: string,
+              tone: Tone, handle: *void) -> Payload #foreign host_api;
+Inspect :: (values: []Payload) -> s32 #foreign host_api;
+
+#program_export
+Answer :: () -> s32 {
+    using Tone;
+    widest: u64 = 18446744073709551615;
+    high: u64 = 9223372036854775808;
+    handle := Handle()
+    if handle == null { return 1 }
+    values: [2]Payload
+    values[0] = RoundTrip(-17, widest, 1.25, "payload", cast(Tone)Accent, handle)
+    values[1] = RoundTrip(23, high, -2.5, "tail", cast(Tone)Normal, handle)
+    if values[0].number != -17 || values[0].wide != widest ||
+       values[0].real != 1.25 || values[0].text != "payload" ||
+       values[0].tone != cast(Tone)Accent || values[0].handle != handle { return 2 }
+    if values[1].number != 23 || values[1].wide != high ||
+       values[1].real != -2.5 || values[1].text != "tail" ||
+       values[1].tone != cast(Tone)Normal || values[1].handle != handle { return 3 }
+    if Inspect(values[:]) != 42 { return 4 }
+    if values[0].real != 3.5 || values[0].wide != 9 ||
+       values[0].text != "changed" || values[0].handle != handle { return 5 }
+    return 42
+}

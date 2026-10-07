@@ -11,6 +11,10 @@ cat > "$work/channel_test.zi" <<'ZI'
 #import "timer_linux"
 libc :: #system_library "libc";
 GroupRaw :: (pid: s32) -> s32 #foreign libc "getpgid";
+DuplicateRaw :: (fd: s32) -> s32 #foreign libc "dup";
+FlagsRaw :: (fd: s32, command: s32, value: s32) -> s32 #foreign libc "fcntl";
+CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+DuplicateToRaw :: (fd: s32, destination: s32) -> s32 #foreign libc "dup2";
 
 #program_export
 Main :: () -> s32 {
@@ -37,6 +41,31 @@ Main :: () -> s32 {
     size := ChannelReceive(channel, exact[:], 1000)
     if size <= 0 || TextFromBytes(exact[:size]) != literal[2] { return 9 }
     if !WaitChannel(*channel, 1000) || channel.code != 0 || !CloseChannel(*channel, 0) { return 10 }
+
+    // Daemons can launch children with closed standard descriptors. Restore
+    // only this test process's descriptors, after moving its channel above 2.
+    for mask: cast(s32)0..cast(s32)7 {
+        saved: [3]s32
+        for fd: cast(s32)0..cast(s32)2 { saved[fd] = DuplicateRaw(fd); if saved[fd] < 0 { return 19 } }
+        for fd: cast(s32)0..cast(s32)2 { if (mask & (1 << fd)) != 0 { unused CloseRaw(fd) } }
+        channel = StartChannel(literal[:], true)
+        if channel.socket.valid && channel.socket.fd <= 2 {
+            moved := FlagsRaw(channel.socket.fd, 1030, 3)
+            unused CloseRaw(channel.socket.fd)
+            channel.socket.fd = moved; channel.socket.valid = moved >= 0
+        }
+        for fd: cast(s32)0..cast(s32)2 {
+            if DuplicateToRaw(saved[fd], fd) < 0 { return 20 }
+            unused CloseRaw(saved[fd])
+        }
+        if channel.error != 0 || !channel.socket.valid { return 21 }
+        size = ChannelReceive(channel, exact[:], 1000)
+        if size <= 0 || TextFromBytes(exact[:size]) != literal[2] {
+            print("closed standard descriptor mask % lost child output\n", mask)
+            unused CloseChannel(*channel, 0); return 22
+        }
+        if !WaitChannel(*channel, 1000) || channel.code != 0 || !CloseChannel(*channel, 0) { return 23 }
+    }
 
     sleeper: [2]string = .["sleep", "60"]
     channel = StartChannel(sleeper[:], true)

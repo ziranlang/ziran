@@ -11,6 +11,7 @@
 #include "zir_text.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2268,7 +2269,8 @@ NativeGoLink(const ZirProgram *program, const char *entry_module,
 }
 
 int
-BundleWrite(FILE *out, const ZirProgram *program,
+BundleWriteInContext(FILE *out, const ZirProgram *program,
+               const ZirProgram *context,
                const char *entry_module, const char *entry_function,
                const ZibAssets *assets)
 {
@@ -2317,7 +2319,7 @@ BundleWrite(FILE *out, const ZirProgram *program,
                     l++) {
                     const ZirLaw *law = &program->modules[m].laws[l];
                     char detail[ZIR_TEXT_MAX];
-                    int status = EvaluateLaw(program,
+                    int status = EvaluateLaw(context,
                         &program->modules[m], law, detail,
                         sizeof(detail));
                     ok = write_name(out, program->modules[m].name) &&
@@ -2352,6 +2354,72 @@ BundleWrite(FILE *out, const ZirProgram *program,
     return ok;
 }
 
+int
+BundleWrite(FILE *out, const ZirProgram *program,
+            const char *entry_module, const char *entry_function,
+            const ZibAssets *assets)
+{
+    return BundleWriteInContext(out, program, program, entry_module,
+                                entry_function, assets);
+}
+
+/* Checking changes lookup context. Check private copies first, then the host
+ * may share the library's immutable executable graphs across instances. */
+static int
+append_library(ZirProgram *program, const ZirProgram *library)
+{
+    if(library == NULL || library->module_count <= 0 ||
+       program->module_count > INT_MAX - library->module_count)
+        return 0;
+    for(int m = 0; m < library->module_count; m++)
+        for(int p = 0; p < program->module_count; p++)
+            if(strcmp(library->modules[m].name, program->modules[p].name) == 0)
+                return 0;
+    unsigned char *bytes = NULL;
+    size_t size = 0;
+#if defined(ZIR_MEMORY_STREAMS)
+    FILE *stream = ZirWriteMemory(&bytes, &size);
+#else
+    FILE *stream = tmpfile();
+#endif
+    if(stream == NULL)
+        return 0;
+    ZirProgram *copy = NULL;
+    int written = ProgramWrite(library, stream) && fflush(stream) == 0;
+#if defined(ZIR_MEMORY_STREAMS)
+    if(fclose(stream) != 0) written = 0;
+    stream = written ? ZirReadMemory(bytes, size) : NULL;
+    if(stream != NULL)
+        copy = ProgramRead(stream, "<bundle library>");
+#else
+    if(written && fseek(stream, 0, SEEK_SET) == 0)
+        copy = ProgramRead(stream, "<bundle library>");
+#endif
+    if(stream != NULL) fclose(stream);
+    free(bytes);
+    if(copy == NULL)
+        return 0;
+    size_t total = (size_t)program->module_count + (size_t)copy->module_count;
+    if(total > SIZE_MAX / sizeof(*program->modules)) {
+        ProgramFree(copy);
+        return 0;
+    }
+    ZirModule *modules = realloc(program->modules, total * sizeof(*modules));
+    if(modules == NULL) {
+        ProgramFree(copy);
+        return 0;
+    }
+    program->modules = modules;
+    memcpy(modules + program->module_count, copy->modules,
+           (size_t)copy->module_count * sizeof(*modules));
+    program->module_count += copy->module_count;
+    program->module_cap = program->module_count;
+    free(copy->modules);
+    free(copy);
+    TypeLookupsChanged();
+    return 1;
+}
+
 void
 ZibLawTableFree(ZibLawTable *table)
 {
@@ -2366,10 +2434,12 @@ ZibLawTableFree(ZibLawTable *table)
 }
 
 ZirProgram *
-BundleRead(FILE *in, const char *path,
+BundleReadInContext(FILE *in, const char *path,
            char *entry_module, size_t module_size,
            char *entry_function, size_t function_size,
-           ZibLawTable *laws, ZibAssets *assets)
+           ZibLawTable *laws, ZibAssets *assets,
+           const ZirProgram *const *libraries, size_t library_count,
+           int *own_module_count)
 {
     unsigned char signature[4];
     uint32_t version, capability_count, length;
@@ -2384,8 +2454,10 @@ BundleRead(FILE *in, const char *path,
     int discard_laws = laws == NULL;
     if(discard_laws) laws = &discarded;
     const char *problem = "invalid or truncated bundle";
+    int own_modules = 0;
     if(in == NULL || path == NULL || entry_module == NULL ||
-       entry_function == NULL)
+       entry_function == NULL || library_count > 64 ||
+       (library_count != 0 && libraries == NULL))
         return NULL;
     if(fread(signature, 1, 4, in) != 4 || memcmp(signature, "ZIB\0", 4))
         goto failed;
@@ -2492,13 +2564,20 @@ BundleRead(FILE *in, const char *path,
                 }
                 next_capability++;
             }
+    own_modules = program->module_count;
+    for(size_t i = 0; i < library_count; i++) {
+        if(!append_library(program, libraries[i])) {
+            problem = "missing or conflicting bundle library";
+            goto failed;
+        }
+    }
     if(!CheckCanonicalPrograms(&program, 1, NULL)) {
         problem = "embedded ZIR failed semantic checking";
         goto failed;
     }
     if(laws) {
         int next = 0, next_waiver = 0;
-        for(int m = 0; m < program->module_count; m++) {
+        for(int m = 0; m < own_modules; m++) {
             const ZirModule *module = &program->modules[m];
             for(int l = 0; l < module->law_count; l++) {
                 const ZirLaw *law = &module->laws[l];
@@ -2534,6 +2613,7 @@ BundleRead(FILE *in, const char *path,
     free(capabilities);
     if(discard_laws) ZibLawTableFree(&discarded);
     if(discard_assets) ZibAssetsFree(&discarded_assets);
+    if(own_module_count != NULL) *own_module_count = own_modules;
     return program;
 failed:
     Diagnostic(Span(path, 1, 1), "zib.invalid", "%s", problem);
@@ -2545,4 +2625,14 @@ failed:
     ZibAssetsFree(assets);
     if(discard_laws) ZibLawTableFree(&discarded);
     return NULL;
+}
+
+ZirProgram *
+BundleRead(FILE *in, const char *path,
+           char *entry_module, size_t module_size,
+           char *entry_function, size_t function_size,
+           ZibLawTable *laws, ZibAssets *assets)
+{
+    return BundleReadInContext(in, path, entry_module, module_size,
+        entry_function, function_size, laws, assets, NULL, 0, NULL);
 }

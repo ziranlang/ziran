@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #if defined(__unix__) || defined(__APPLE__)
@@ -19,7 +20,7 @@ static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
-            "usage: zi2zib bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
+            "usage: zi2zib bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--library FILE.zib|--include-library FILE.zib] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
             "       zi2zib run file.zib\n");
 }
 
@@ -52,6 +53,47 @@ split_entry(const char *text, char *module, char *function)
 }
 
 static int
+asset_order(const void *left, const void *right)
+{
+    return strcmp(((const ZibAsset *)left)->name, ((const ZibAsset *)right)->name);
+}
+
+static int
+include_library_assets(ZibAssets *assets, const Bundle *library)
+{
+    for(size_t i = 0; i < BundleAssetCount(library); i++) {
+        const char *name = BundleAssetName(library, i);
+        size_t size = BundleAssetSize(library, i);
+        for(size_t j = 0; j < assets->count; j++)
+            if(strcmp(assets->items[j].name, name) == 0)
+                return 0;
+        if(size > UINT32_MAX || assets->count >= SIZE_MAX / sizeof(*assets->items))
+            return 0;
+        ZibAsset item = {0};
+        item.name = strdup(name);
+        item.data = malloc(size ? size : 1);
+        item.size = (uint32_t)size;
+        if(item.name == NULL || item.data == NULL) {
+            free(item.name);
+            free(item.data);
+            return 0;
+        }
+        memcpy(item.data, BundleAssetData(library, i), size);
+        ZibAsset *items = realloc(assets->items, (assets->count + 1) * sizeof(*items));
+        if(items == NULL) {
+            free(item.name);
+            free(item.data);
+            return 0;
+        }
+        assets->items = items;
+        items[assets->count++] = item;
+    }
+    if(assets->count > 1)
+        qsort(assets->items, assets->count, sizeof(*assets->items), asset_order);
+    return 1;
+}
+
+static int
 bundle_command(int argc, char **argv)
 {
     const char *root = NULL;
@@ -74,6 +116,11 @@ bundle_command(int argc, char **argv)
     ZirProgram *linked = NULL;
     ZibAssets assets = {0};
     FILE *file = NULL;
+    const char *library_paths[64];
+    int library_count = 0;
+    int include_libraries = 0;
+    Bundle *libraries[64] = {0};
+    ZirProgram thin = {0}, context = {0};
     for(int i = 0; i < argc; i++) {
         if(strcmp(argv[i], "--root") == 0 && i + 1 < argc)
             root = argv[++i];
@@ -93,6 +140,18 @@ bundle_command(int argc, char **argv)
             bindings[binding_count++] = argv[++i];
         else if(strcmp(argv[i], "--bind-host") == 0 && i + 1 < argc && host_module_count < 16)
             host_modules[host_module_count++] = argv[++i];
+        else if((strcmp(argv[i], "--library") == 0 ||
+                 strcmp(argv[i], "--include-library") == 0) &&
+                i + 1 < argc && library_count < 64) {
+            int embedded = strcmp(argv[i], "--include-library") == 0;
+            if(library_count != 0 && embedded != include_libraries) {
+                Diagnostic(Span("<command>", 1, 1), "zib.library",
+                           "do not mix external and included libraries");
+                goto done;
+            }
+            include_libraries = embedded;
+            library_paths[library_count++] = argv[++i];
+        }
         else if(strcmp(argv[i], "--entry") == 0 && i + 1 < argc)
             entry = argv[++i];
         else if(strcmp(argv[i], "-o") == 0 && i + 1 < argc)
@@ -145,13 +204,69 @@ bundle_command(int argc, char **argv)
     if(linked == NULL || !CheckTargetCapabilities(linked, "zib") ||
        !VmVerify(linked, entry_module, entry_function))
         goto done;
+    const ZirProgram *output_program = linked;
+    const ZirProgram *checking_program = linked;
+    if(library_count != 0) {
+        int total = linked->module_count;
+        for(int i = 0; i < library_count; i++) {
+            libraries[i] = BundleOpen(library_paths[i]);
+            const ZirProgram *library = BundleProgram(libraries[i]);
+            if(library == NULL || library->module_count > INT_MAX - total)
+                goto done;
+            total += library->module_count;
+            if(include_libraries && !include_library_assets(&assets, libraries[i])) {
+                Diagnostic(Span("<command>", 1, 1), "zib.library",
+                           "conflicting or invalid library assets");
+                goto done;
+            }
+        }
+        thin.modules = calloc((size_t)linked->module_count, sizeof(*thin.modules));
+        context.modules = calloc((size_t)total, sizeof(*context.modules));
+        if(thin.modules == NULL || context.modules == NULL)
+            goto done;
+        for(int m = 0; m < linked->module_count; m++) {
+            int shared = 0;
+            for(int i = 0; i < library_count && !shared; i++) {
+                const ZirProgram *library = BundleProgram(libraries[i]);
+                for(int n = 0; n < library->module_count; n++)
+                    if(strcmp(linked->modules[m].name, library->modules[n].name) == 0)
+                        shared = 1;
+            }
+            if(!shared)
+                thin.modules[thin.module_count++] = linked->modules[m];
+        }
+        memcpy(context.modules, thin.modules,
+               (size_t)thin.module_count * sizeof(*thin.modules));
+        context.module_count = thin.module_count;
+        for(int i = 0; i < library_count; i++) {
+            const ZirProgram *library = BundleProgram(libraries[i]);
+            for(int n = 0; n < library->module_count; n++) {
+                for(int p = 0; p < context.module_count; p++) {
+                    if(strcmp(context.modules[p].name, library->modules[n].name) == 0) {
+                        Diagnostic(Span("<command>", 1, 1), "zib.library",
+                                   "conflicting library module: %s", library->modules[n].name);
+                        goto done;
+                    }
+                }
+                context.modules[context.module_count++] = library->modules[n];
+            }
+        }
+        ZirProgram *context_pointer = &context;
+        if(!CheckCanonicalPrograms(&context_pointer, 1, NULL) ||
+           !CheckTargetCapabilities(&context, "zib") ||
+           !VmVerify(&context, entry_module, entry_function))
+            goto done;
+        checking_program = &context;
+        output_program = include_libraries ? &context : &thin;
+    }
     file = fopen(output, "wb");
     if(file == NULL) {
         Diagnostic(Span(output, 1, 1), "zib.output",
                       "cannot open bundle output");
         goto done;
     }
-    if(!BundleWrite(file, linked, entry_module, entry_function, &assets)) {
+    if(!BundleWriteInContext(file, output_program, checking_program,
+                             entry_module, entry_function, &assets)) {
         Diagnostic(Span(output, 1, 1), "zib.output",
                       "cannot write bundle");
         goto done;
@@ -164,6 +279,11 @@ done:
         remove(output);
     ProgramFree(linked);
     ZibAssetsFree(&assets);
+    free(thin.modules);
+    free(context.modules);
+    TypeLookupsChanged();
+    for(int i = 0; i < library_count; i++)
+        BundleClose(libraries[i]);
     free(merged.modules);
     ProgramsFree(&set);
     return result;

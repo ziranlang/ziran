@@ -33,6 +33,11 @@ int ZibAssetsRead(FILE *in, ZibAssets *assets);
 int BundleWrite(FILE *out, const ZirProgram *program,
                 const char *entry_module, const char *entry_function,
                 const ZibAssets *assets);
+/* Libraries are ordinary checked bundles. Thin programs retain their own
+ * modules and are checked against the exact libraries supplied by the host. */
+int BundleWriteInContext(FILE *out, const ZirProgram *program,
+                const ZirProgram *context, const char *entry_module,
+                const char *entry_function, const ZibAssets *assets);
 typedef struct ZibLawRecord {
     char module[ZIR_NAME_MAX];
     char name[ZIR_NAME_MAX];
@@ -60,5 +65,13 @@ ZirProgram *BundleRead(FILE *in, const char *path,
                           char *entry_module, size_t module_size,
                           char *entry_function, size_t function_size,
                           ZibLawTable *laws, ZibAssets *assets);
+ZirProgram *BundleReadInContext(FILE *in, const char *path,
+                          char *entry_module, size_t module_size,
+                          char *entry_function, size_t function_size,
+                          ZibLawTable *laws, ZibAssets *assets,
+                          const ZirProgram *const *libraries, size_t count,
+                          int *own_module_count);
+typedef struct Bundle Bundle;
+const ZirProgram *BundleProgram(const Bundle *bundle);
 
 #endif

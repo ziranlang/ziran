@@ -76,6 +76,13 @@ Bundle *BundleOpen(const char *path);
 /* Validate an embedded/downloaded bundle without an application pathname.
  * Input bytes are borrowed only during this call; the opened bundle owns IR. */
 Bundle *BundleOpenBytes(const unsigned char *data, size_t size);
+/* Dependencies must already be verified by the publisher-aware host.
+ * Libraries are retained until this bundle closes. Code/assets are shared;
+ * every instance owns its globals. Missing/conflicting imports are rejected. */
+Bundle *BundleOpenWithLibraries(const char *path,
+                               Bundle *const *libraries, size_t count);
+Bundle *BundleOpenBytesWithLibraries(const unsigned char *data, size_t size,
+                                    Bundle *const *libraries, size_t count);
 void BundleClose(Bundle *bundle);
 size_t BundleCapabilityCount(const Bundle *bundle);
 const char *BundleCapabilityModule(const Bundle *bundle, size_t index);

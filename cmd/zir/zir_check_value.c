@@ -727,9 +727,21 @@ compound_qualifier_for_global(CompoundConstant *compound,
     compound->qualifier[dot - current] = '\0';
 }
 
+typedef struct DefineVisit {
+    const ZirModule *module;
+    int depth, status;
+    const ZirDefine *definition;
+    const ZirModule *owner;
+    struct DefineVisit *next;
+} DefineVisit;
+
+static int exported_define_depth(const ZirModule *module, const char *name,
+    int depth, const ZirDefine **definition, const ZirModule **owner,
+    DefineVisit **visits);
+
 static int
-exported_define(const ZirModule *module, const char *name, int depth,
-                const ZirDefine **definition, const ZirModule **owner)
+exported_define_uncached(const ZirModule *module, const char *name, int depth,
+    const ZirDefine **definition, const ZirModule **owner, DefineVisit **visits)
 {
     if(depth >= 32) return -1;
     *definition = NULL;
@@ -750,8 +762,8 @@ exported_define(const ZirModule *module, const char *name, int depth,
             continue;
         const ZirDefine *candidate = NULL;
         const ZirModule *candidate_owner = NULL;
-        int found = exported_define(import->resolved_module, name,
-                                    depth + 1, &candidate, &candidate_owner);
+        int found = exported_define_depth(import->resolved_module, name,
+                                    depth + 1, &candidate, &candidate_owner, visits);
         if(found < 0 || (found == 1 && *definition != NULL &&
                          *definition != candidate))
             return -1;
@@ -761,6 +773,43 @@ exported_define(const ZirModule *module, const char *name, int depth,
         }
     }
     return *definition != NULL;
+}
+
+static int
+exported_define_depth(const ZirModule *module, const char *name, int depth,
+    const ZirDefine **definition, const ZirModule **owner, DefineVisit **visits)
+{
+    /* The name is fixed throughout one lookup. Preserve ambiguity and the
+     * depth limit while visiting shared scopes only once at each depth. */
+    for(DefineVisit *visit = *visits; visit != NULL; visit = visit->next) {
+        if(visit->module == module && visit->depth == depth) {
+            *definition = visit->definition;
+            *owner = visit->owner;
+            return visit->status;
+        }
+    }
+    DefineVisit *visit = AllocateOrExit(sizeof(*visit));
+    *visit = (DefineVisit){.module = module, .depth = depth, .next = *visits};
+    *visits = visit;
+    visit->status = exported_define_uncached(module, name, depth,
+        &visit->definition, &visit->owner, visits);
+    *definition = visit->definition;
+    *owner = visit->owner;
+    return visit->status;
+}
+
+static int
+exported_define(const ZirModule *module, const char *name, int depth,
+                const ZirDefine **definition, const ZirModule **owner)
+{
+    DefineVisit *visits = NULL;
+    int status = exported_define_depth(module, name, depth, definition, owner, &visits);
+    while(visits != NULL) {
+        DefineVisit *next = visits->next;
+        free(visits);
+        visits = next;
+    }
+    return status;
 }
 
 int

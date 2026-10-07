@@ -583,9 +583,27 @@ reachable_module(const ZirModule *module, const char *name, size_t length,
     return NULL;
 }
 
+typedef struct TypeVisit {
+    const ZirModule *module;
+    const char *name;
+    int depth;
+    const ZirType *type;
+    const ZirModule *owner;
+    struct TypeVisit *next;
+} TypeVisit;
+
+typedef struct TypeVisits {
+    TypeVisit **slots;
+    size_t count, capacity;
+    TypeVisit *items;
+} TypeVisits;
+
+static const ZirType *find_type_depth(const ZirModule *module, const char *name,
+    const ZirModule **owner, int depth, TypeVisits *visits);
+
 static const ZirType *
-find_type_depth(const ZirModule *module, const char *name,
-                const ZirModule **owner, int depth)
+find_type_uncached(const ZirModule *module, const char *name,
+                  const ZirModule **owner, int depth, TypeVisits *visits)
 {
     const ZirType *found = NULL;
     const ZirModule *scope = NULL;
@@ -619,7 +637,7 @@ find_type_depth(const ZirModule *module, const char *name,
             }
             const ZirModule *nested_owner = NULL;
             const ZirType *nested = find_type_depth(target, dot + 1,
-                                                    &nested_owner, depth + 1);
+                                                    &nested_owner, depth + 1, visits);
             if(nested != NULL && nested->is_public && !nested->is_file_private) {
                 if(found != NULL && found != nested) return NULL;
                 found = nested;
@@ -686,7 +704,7 @@ find_type_depth(const ZirModule *module, const char *name,
         }
         const ZirModule *nested_owner = NULL;
         const ZirType *nested = find_type_depth(target, name,
-                                                &nested_owner, depth + 1);
+                                                &nested_owner, depth + 1, visits);
         if(nested != NULL && nested->is_public && !nested->is_file_private) {
             if(found != NULL && found != nested) return NULL;
             found = nested;
@@ -701,6 +719,73 @@ find_type_depth(const ZirModule *module, const char *name,
     if(found != NULL && owner != NULL)
         *owner = module;
     return found;
+}
+
+static size_t
+type_visit_slot(TypeVisit *const *slots, size_t capacity,
+                const ZirModule *module, const char *name, int depth)
+{
+    size_t hash = ((uintptr_t)module >> 4) * 31 + (unsigned)depth;
+    for(const unsigned char *ch = (const unsigned char *)name; *ch; ch++)
+        hash = hash * 33 + *ch;
+    size_t slot = hash & (capacity - 1);
+    while(slots[slot] != NULL &&
+          (slots[slot]->module != module || slots[slot]->depth != depth ||
+           strcmp(slots[slot]->name, name) != 0))
+        slot = (slot + 1) & (capacity - 1);
+    return slot;
+}
+
+static const ZirType *
+find_type_depth(const ZirModule *module, const char *name,
+                const ZirModule **owner, int depth, TypeVisits *visits)
+{
+    /* A diamond can reach one scope along exponentially many paths. Keep
+     * misses as well as answers for this lookup, independently of the
+     * generation cache. Depth remains part of the key because the bounded
+     * search can see different declarations along shorter paths. */
+    if(visits->count * 2 >= visits->capacity) {
+        size_t capacity = visits->capacity ? visits->capacity * 2 : 64;
+        TypeVisit **slots = AllocateOrExit(capacity * sizeof(*slots));
+        memset(slots, 0, capacity * sizeof(*slots));
+        for(TypeVisit *visit = visits->items; visit != NULL; visit = visit->next) {
+            size_t slot = type_visit_slot(slots, capacity, visit->module,
+                                         visit->name, visit->depth);
+            slots[slot] = visit;
+        }
+        free(visits->slots);
+        visits->slots = slots;
+        visits->capacity = capacity;
+    }
+    size_t slot = type_visit_slot(visits->slots, visits->capacity, module, name, depth);
+    TypeVisit *visit = visits->slots[slot];
+    if(visit != NULL) {
+        if(owner) *owner = visit->owner;
+        return visit->type;
+    }
+    visit = AllocateOrExit(sizeof(*visit));
+    *visit = (TypeVisit){.module = module, .name = name, .depth = depth,
+        .next = visits->items};
+    visits->items = visit;
+    visits->slots[slot] = visit;
+    visits->count++;
+    visit->type = find_type_uncached(module, name, &visit->owner, depth, visits);
+    if(owner) *owner = visit->owner;
+    return visit->type;
+}
+
+static const ZirType *
+find_type(const ZirModule *module, const char *name, const ZirModule **owner)
+{
+    TypeVisits visits = {0};
+    const ZirType *type = find_type_depth(module, name, owner, 0, &visits);
+    while(visits.items != NULL) {
+        TypeVisit *next = visits.items->next;
+        free(visits.items);
+        visits.items = next;
+    }
+    free(visits.slots);
+    return type;
 }
 
 static void kept_text_failed(void);
@@ -789,7 +874,7 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
     if(lookup->name != NULL && lookup->generation == type_lookups.generation) {
         if(type_lookups.verify) {
             const ZirModule *fresh_owner = NULL;
-            const ZirType *fresh = find_type_depth(module, name, &fresh_owner, 0);
+            const ZirType *fresh = find_type(module, name, &fresh_owner);
             if(fresh != lookup->type || fresh_owner != lookup->owner) {
                 Diagnostic(module->span, "compiler.internal", "kept type lookup of %s in %s is stale",
                         name, module->name);
@@ -801,7 +886,7 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
         return lookup->type;
     }
     const ZirModule *found_owner = NULL;
-    const ZirType *found = find_type_depth(module, name, &found_owner, 0);
+    const ZirType *found = find_type(module, name, &found_owner);
     if(lookup->name == NULL)
         type_lookups.count++;
     lookup->module = module;

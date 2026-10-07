@@ -14,12 +14,14 @@ for index in range(40):
     imports = ''.join(f'using Next{child} :: #import "layer_{child}";\n'
                       for child in (index + 1, index + 2) if child < 40)
     globals = ''.join(f'unused_{index}_{item}: s32;\n' for item in range(40))
-    leaf = '''leaf_count: s32;
+    leaf = '''Shared :: struct { value: s32; }
+leaf_count: s32;
 Leaf :: () -> s32 { leaf_count += 1; return leaf_count }
 ''' if index == 39 else ''
     (root / f'layer_{index}.zi').write_text(imports + globals + leaf)
 (root / 'state.zi').write_text('counter: s32;\nunused_counter: s32;\n')
 (root / 'app.zi').write_text('''#import "layer_0";
+using Shortcut :: #import "layer_25";
 State :: #import "state";
 #program_export
 Answer :: () -> s32 {
@@ -27,9 +29,13 @@ Answer :: () -> s32 {
     <<pointer = 40
     value := <<pointer
     free(pointer)
+    // Resolve the shared type through the shorter path even after the
+    // longer path reaches the type lookup's depth bound.
+    shared: Shared
+    shared.value = value
     leaf_count = 0
     State.counter += 1
-    return value + State.counter + Leaf()
+    return shared.value + State.counter + Leaf()
 }
 ''')
 PY

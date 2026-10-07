@@ -26,6 +26,12 @@ jobs:
         run: make
       - name: Run the language, backend, and portable runtime checks
         run: env -u DISPLAY -u WAYLAND_DISPLAY make check CHECK_JOBS=4
+      - name: Keep complete check logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-logs
+          path: build/check-logs/
   sanitize:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -38,6 +44,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Run the checks under AddressSanitizer and UBSan
         run: env -u DISPLAY -u WAYLAND_DISPLAY make sanitize CHECK_JOBS=4
+      - name: Keep complete sanitizer check logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitizer-check-logs
+          path: build/sanitize/check-logs/
   fuzz:
     runs-on: ubuntu-latest
     timeout-minutes: 10

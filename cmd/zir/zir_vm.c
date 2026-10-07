@@ -280,35 +280,6 @@ host_type_at(const ZirModule *module, const char *type, int depth,
 }
 
 Value
-int_value(int64_t integer)
-{
-    Value value = {.kind = VALUE_INT, .integer = integer,
-                   .bits = (uint64_t)integer};
-    return value;
-}
-
-Value
-uint_value(uint64_t bits)
-{
-    Value value = {.kind = VALUE_INT, .bits = bits, .unsigned64 = 1};
-    return value;
-}
-
-Value
-real_value(double real)
-{
-    Value value = {.kind = VALUE_REAL, .real = real};
-    return value;
-}
-
-Value
-string_value(const unsigned char *data, size_t length)
-{
-    Value value = {.kind = VALUE_STRING, .data = data, .length = length};
-    return value;
-}
-
-Value
 keep_string(Vm *vm, StringLiteral *item, const ZirExpr *expression, size_t bytes)
 {
     item->expression = expression;

@@ -11,6 +11,18 @@ ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_
 ClockSleepRaw :: (clock: s32, flags: s32, request: *ClockValue,
     remaining: *ClockValue) -> s32 #foreign libc "clock_nanosleep";
 
+// Nanosecond resolution for profiling short operations. -1 reports a failed
+// clock or a value outside the signed nanosecond range.
+#program_export
+MonotonicNanoseconds :: () -> s64 {
+    value: ClockValue
+    if ClockGetTimeRaw(1, *value) != 0 || value.seconds < 0 ||
+       value.nanoseconds < 0 || value.nanoseconds > 999999999 ||
+       value.seconds > 9223372036 ||
+       (value.seconds == 9223372036 && value.nanoseconds > 854775807) { return -1 }
+    return value.seconds * 1000000000 + value.nanoseconds
+}
+
 #program_export
 MonotonicMilliseconds :: () -> s64 {
     value: [1]ClockValue

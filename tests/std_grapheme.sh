@@ -31,7 +31,21 @@ for fixture in std_grapheme grapheme_conformance; do
                 "$ziran" build "$@" --target="$target" --exe --entry "$fixture:NativeMain" -o "$output" "$input"
             fi
             case "$target" in
-                c|cpp) "$output/$fixture" ;;
+                c|cpp) "$output/$fixture"
+                       # C++ exports retain their typed linkage; check the
+                       # demangled names as well as C's exact symbols.
+                       symbols=GraphemeNext
+                       # The conformance fixture only calls Next; its Count
+                       # export is removed with other unreachable code.
+                       if test "$fixture" = std_grapheme; then
+                           symbols="$symbols GraphemeCount"
+                       fi
+                       for symbol in $symbols; do
+                           if ! nm -C "$output/$fixture" | grep -Eq " T $symbol(\\(|$)"; then
+                               echo "missing named $target export: $symbol" >&2
+                               exit 1
+                           fi
+                       done ;;
                 go) GO111MODULE=off go run "$output"/*.go ;;
                 py) python3 "$output" ;;
                 rust) CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --offline --manifest-path "$output/Cargo.toml"

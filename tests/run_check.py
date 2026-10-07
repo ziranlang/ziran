@@ -7,11 +7,39 @@ so separate scripts can safely run together after the toolchain is built.
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import time
+
+
+def run_check(name, command, repo, env, log_dir):
+    started = time.monotonic()
+    log = log_dir / (name + ".log")
+    with log.open("w", encoding="utf-8") as output:
+        try:
+            result = subprocess.run(command, cwd=repo, env=env, stdout=output,
+                                    stderr=subprocess.STDOUT, check=False)
+            code = result.returncode
+        except OSError as error:
+            output.write(str(error) + "\n")
+            code = 127
+    return dict(name=name, exit_code=code, seconds=time.monotonic() - started,
+                log=str(log))
+
+
+def failure_tail(log):
+    # Linker failures can produce tens of megabytes. Keep the complete output
+    # on disk and bound both memory use and the CI console's failure excerpt.
+    with Path(log).open("rb") as source:
+        size = source.seek(0, os.SEEK_END)
+        source.seek(max(0, size - 16384))
+        lines = source.read().decode("utf-8", errors="replace").splitlines()
+    if size > 16384:
+        lines = lines[1:]
+    return "\n".join(lines[-60:])
 
 
 def positive_int(value):
@@ -29,6 +57,7 @@ def main():
     parser.add_argument("--bin-dir", type=Path, default=Path("build/bin"))
     parser.add_argument("--jobs", type=positive_int, default=4)
     parser.add_argument("--filter", default="", help="run checks whose name contains this text")
+    parser.add_argument("--log-dir", type=Path, help="save full logs and results (default: BUILD/check-logs)")
     args = parser.parse_args()
 
     repo = Path(__file__).resolve().parent.parent
@@ -56,31 +85,38 @@ def main():
     checks = [(name, command) for name, command in checks if args.filter in name]
     if not checks:
         parser.error(f"no checks match {args.filter!r}")
+    log_dir = (args.log_dir or bin_dir.parent / "check-logs").resolve()
+    log_dir.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
     for key in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS"):
         env.pop(key, None)
     env["ZIRAN_LIB"] = str(bin_dir.parent / "libziran.a")
 
-    def run(name, command):
-        started = time.monotonic()
-        result = subprocess.run(command, cwd=repo, env=env, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True, check=False)
-        return name, result.returncode, time.monotonic() - started, result.stdout
-
     print(f"Running {len(checks)} checks with {min(args.jobs, len(checks))} jobs", flush=True)
     failed = 0
+    results = []
     started = time.monotonic()
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = [pool.submit(run, name, command) for name, command in checks]
+        futures = [pool.submit(run_check, name, command, repo, env, log_dir) for name, command in checks]
         for future in as_completed(futures):
-            name, code, elapsed, output = future.result()
-            print(f"{'PASS' if code == 0 else 'FAIL'} {name} ({elapsed:.1f}s)", flush=True)
+            result = future.result()
+            results.append(result)
+            name, code, elapsed = result["name"], result["exit_code"], result["seconds"]
+            reason = "" if code == 0 else f", exit {code}" + (" (timeout)" if code == 124 else "")
+            print(f"{'PASS' if code == 0 else 'FAIL'} {name} ({elapsed:.1f}s{reason})", flush=True)
             if code:
                 failed += 1
-                print(output, end="" if output.endswith("\n") else "\n", flush=True)
+                output = failure_tail(result["log"])
+                if output:
+                    print(output, flush=True)
+                print(f"Full log: {result['log']}", flush=True)
 
-    print(f"{len(checks) - failed}/{len(checks)} passed in {time.monotonic() - started:.1f}s",
+    elapsed = time.monotonic() - started
+    (log_dir / "results.json").write_text(json.dumps(dict(
+        total=len(checks), failed=failed, seconds=elapsed,
+        checks=sorted(results, key=lambda result: result["name"])), indent=2) + "\n")
+    print(f"{len(checks) - failed}/{len(checks)} passed in {elapsed:.1f}s",
           flush=True)
     return 1 if failed else 0
 

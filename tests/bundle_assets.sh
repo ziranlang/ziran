@@ -45,7 +45,7 @@ ZI
 cmp "$work/source.zib" "$work/saved.zib"
 test "$("$ziran" run "$work/source.zib")" = 42
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/read.zi"
-"${CC:-cc}" -std=c11 -Wno-main -I"$repo/include" -I"$work/c" "$work/c"/*.c \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -Wno-main -I"$repo/include" -I"$work/c" "$work/c"/*.c \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -lpthread -o "$work/read"
 "$work/read" "$work/source.zib"
 python3 - "$work" <<'PY'

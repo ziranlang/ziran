@@ -22,7 +22,6 @@ State :: struct {
 }
 Step :: struct { state: State; boundary: bool; }
 
-#program_export
 Push :: (state: State, scalar: u32, valid: bool) -> Step {
     result: Step
     flags := Data.Property(scalar)
@@ -76,7 +75,6 @@ Next :: (value: string, at: s32) -> s32 {
 }
 
 // Finds the preceding cluster start, including when at is inside a cluster.
-#program_export
 Previous :: (value: string, at: s32) -> s32 {
     if at <= 0 { return 0 }
     if at > cast(s32)value.count { at = cast(s32)value.count }
@@ -90,7 +88,6 @@ Previous :: (value: string, at: s32) -> s32 {
 }
 
 // Snap a borrowed byte offset down to a complete grapheme boundary.
-#program_export
 Boundary :: (value: string, at: s32) -> s32 {
     if at <= 0 { return 0 }
     if at >= cast(s32)value.count { return cast(s32)value.count }

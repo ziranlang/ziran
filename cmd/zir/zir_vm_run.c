@@ -53,14 +53,13 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             Record *union_record = NULL;
             const char *union_type = NULL;
             Value held[2] = {assignment_slot_root(frame, statement->lhs_root, 0), {0}};
-            Value *slot = held[0].pointee;
             if(frame->union_write_record != NULL) {
                 union_record = frame->union_write_record;
                 union_type = frame->union_write_type;
                 frame->union_write_record = NULL;
                 frame->union_write_type = NULL;
             }
-            if(slot == NULL)
+            if(!place_valid(held[0]))
                 return FLOW_ERROR;
             /* A compound assignment reads its target before the right side
              * runs, as native targets do: x += Bump() adds to the old x. */
@@ -68,7 +67,7 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             Value current = {0};
             if(compound)
                 current = union_record != NULL ?
-                    union_member_read(vm, union_record, union_type) : *slot;
+                    union_member_read(vm, union_record, union_type) : place_read(vm, held[0]);
             held[1] = current;
             VmRoots roots = {vm->evaluation_roots, held, 2};
             vm->evaluation_roots = &roots;
@@ -96,26 +95,26 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
                 vm->evaluation_roots = roots.previous;
                 break;
             }
-            Value previous = *slot;
+            Value previous = place_read(vm, held[0]);
             if(previous.kind == VALUE_ARRAY && previous.array != NULL &&
                replacement.kind == VALUE_ARRAY && replacement.array != NULL &&
                previous.array->length == replacement.array->length &&
-               array_has_active_slice(vm, previous.array)) {
-                /* A live slice borrows the array's storage. Native array
+               (previous.array->address_taken || array_has_active_slice(vm, previous.array))) {
+                /* A pointer or live slice borrows the array's storage. Native array
                  * assignment updates that storage, so keep its identity and
                  * move the replacement elements into the existing slots. */
                 for(int element = 0; element < previous.array->length; element++) {
-                    Value old = previous.array->elements[element];
-                    previous.array->elements[element] =
-                        replacement.array->elements[element];
-                    replacement.array->elements[element] = old;
+                    Value old = array_get(previous.array, (size_t)element);
+                    array_set(previous.array, (size_t)element,
+                              array_get(replacement.array, (size_t)element));
+                    array_set(replacement.array, (size_t)element, old);
                 }
                 retire_value(vm, replacement, 0);
                 release_retired(vm);
                 vm->evaluation_roots = roots.previous;
                 break;
             }
-            *slot = replacement;
+            place_write(vm, held[0], replacement);
             if(previous.kind == VALUE_RECORD || previous.kind == VALUE_ARRAY) {
                 retire_value(vm, previous, 0);
                 release_retired(vm);
@@ -285,7 +284,7 @@ host_argument(const ZirModule *module, const char *type, Value value,
             return 0;
         for(int i = 0; i < capacity; i++)
             if(!host_argument(module, value.array->element_type,
-                              value.array->elements[i],
+                              array_get(value.array, (size_t)i),
                               &out->elements[i], depth + 1))
                 return 0;
         return 1;
@@ -306,7 +305,7 @@ host_argument(const ZirModule *module, const char *type, Value value,
             return 0;
         for(size_t i = 0; i < value.length; i++)
             if(!host_argument(module, value.array->element_type,
-                              value.array->elements[value.offset + i],
+                              array_get(value.array, value.offset + i),
                               &out->elements[i], depth + 1))
                 return 0;
         return 1;
@@ -390,8 +389,8 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
         if(array == NULL)
             return result;
         for(int i = 0; i < capacity && !vm->failed; i++)
-            array->elements[i] = host_return(vm, module, array_element,
-                                              &input->elements[i], depth + 1);
+            array_set(array, (size_t)i, host_return(vm, module, array_element,
+                                              &input->elements[i], depth + 1));
         return (Value){.kind = VALUE_ARRAY, .array = array};
     }
     const ZirModule *owner = NULL;
@@ -435,8 +434,7 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
         Array *owned;
         if(input->kind != VM_HOST_SLICE ||
            (input->length > 0 && input->elements == NULL) ||
-           input->length >
-               (VM_MAX_ARRAY_BYTES - sizeof(Array)) / sizeof(Value) ||
+           !array_length_fits(slice_element, input->length) ||
            input->field_count != 0 || input->fields != NULL) {
             vm->failed = 1;
             return result;
@@ -446,8 +444,8 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
         if(owned == NULL)
             return result;
         for(size_t i = 0; i < input->length && !vm->failed; i++)
-            owned->elements[i] = host_return(vm, module, slice_element,
-                                             &input->elements[i], depth + 1);
+            array_set(owned, i, host_return(vm, module, slice_element,
+                                             &input->elements[i], depth + 1));
         if(vm->failed)
             return result;
         return (Value){.kind = VALUE_SLICE, .array = owned,
@@ -520,9 +518,8 @@ host_copy_back(Vm *vm, const ZirModule *module, const char *type,
                                  &input->elements[i], 1);
     if(!vm->failed) {
         for(size_t i = 0; i < target.length; i++) {
-            Value *slot = &target.array->elements[target.offset + i];
-            Value previous = *slot;
-            *slot = updates[i];
+            Value previous = array_get(target.array, target.offset + i);
+            array_set(target.array, target.offset + i, updates[i]);
             retire_value(vm, previous, 0);
         }
         release_retired(vm);
@@ -612,7 +609,7 @@ pin_value(Vm *vm, Value value, int depth)
         value.array->pinned = vm->pin_generation;
         if(value.array->holds_references)
             for(int i = 0; i < value.array->length; i++)
-                pin_value(vm, value.array->elements[i], depth + 1);
+                pin_value(vm, array_get(value.array, (size_t)i), depth + 1);
     } else if(value.kind == VALUE_SLICE && value.array != NULL) {
         pin_value(vm, (Value){.kind = VALUE_ARRAY, .array = value.array},
                   depth + 1);
@@ -700,8 +697,7 @@ collect_unreachable(Vm *vm)
         Array *current = *array;
         if(current->pinned != vm->pin_generation) {
             *array = current->next;
-            vm->array_bytes -= sizeof(Array) +
-                (size_t)current->length * sizeof(Value);
+            vm->array_bytes -= array_size(current);
             free(current);
         } else {
             if(current->retired &&
@@ -750,8 +746,7 @@ release_call_arrays(Vm *vm, uint64_t entry, uint64_t before_result)
            current->allocation <= before_result &&
            current->pinned != vm->pin_generation) {
             *array = current->next;
-            vm->array_bytes -= sizeof(Array) +
-                (size_t)current->length * sizeof(Value);
+            vm->array_bytes -= array_size(current);
             free(current);
         } else {
             if(current->allocation <= entry)
@@ -1095,11 +1090,13 @@ fold_global_element_in_scope(Vm *vm, const ZirModule *module,
         for(int child = expr->first_child; child >= 0;
             child = probe->exprs[child].next_sibling) {
             const ZirExpr *entry = &probe->exprs[child];
-            if(entry->right < 0 || position >= target->array->length ||
-               !fold_global_element_in_scope(vm, module, scope, probe, entry->right,
-                                    &target->array->elements[position],
-                                    element, span))
+            if(entry->right < 0 || position >= target->array->length)
                 return 0;
+            Value item = array_get(target->array, (size_t)position);
+            if(!fold_global_element_in_scope(vm, module, scope, probe, entry->right,
+                                            &item, element, span))
+                return 0;
+            array_set(target->array, (size_t)position, item);
             position++;
         }
         return 1;

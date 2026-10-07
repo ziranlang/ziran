@@ -49,7 +49,10 @@ typedef struct StringLiteral StringLiteral;
 
 typedef struct Value {
     ValueKind kind;
-    int unsigned64;
+    union {
+        int unsigned64;
+        int indexed; /* VALUE_POINTER: array plus logical element offset */
+    };
     /* Only the payload selected by kind is live. Integers need both their
      * signed value and unsigned bits; pointers need a target, call serial
      * and both container references. Other kinds share those same words. */
@@ -144,6 +147,11 @@ struct Record {
     RecordField fields[];
 };
 
+typedef enum ArrayStorage {
+    ARRAY_BOXED, ARRAY_S8, ARRAY_U8, ARRAY_S16, ARRAY_U16,
+    ARRAY_S32, ARRAY_U32, ARRAY_S64, ARRAY_U64, ARRAY_F32, ARRAY_F64
+} ArrayStorage;
+
 struct Array {
     Array *next;
     int retired;
@@ -156,8 +164,103 @@ struct Array {
     char element_type[ZIR_NAME_MAX];
     int holds_references; /* elements can reach records or arrays */
     int length;
-    Value elements[];
+    ArrayStorage storage;
+    size_t data_bytes;
+    /* Stable logical locations let pointers and slices borrow typed storage.
+     * Packed slots have one validity bit so popped/moved Vec slots retain
+     * their invalid state, including writes through older slices. */
+    _Alignas(Value) unsigned char data[];
 };
+
+static inline size_t
+array_size(const Array *array)
+{
+    return sizeof(Array) + array->data_bytes +
+        (array->storage == ARRAY_BOXED ? 0 : ((size_t)array->length + 7) / 8);
+}
+
+static inline Value *
+array_boxed_slot(Array *array, size_t index)
+{
+    return array != NULL && array->storage == ARRAY_BOXED &&
+        index < (size_t)array->length ? &((Value *)array->data)[index] : NULL;
+}
+
+static inline Value
+array_get(const Array *array, size_t index)
+{
+    if(array == NULL || index >= (size_t)array->length)
+        return (Value){0};
+    if(array->storage == ARRAY_BOXED)
+        return ((const Value *)array->data)[index];
+    if(!(array->data[array->data_bytes + index / 8] & (1u << (index % 8))))
+        return (Value){0};
+    switch(array->storage) {
+    case ARRAY_S8: return int_value(((const int8_t *)array->data)[index]);
+    case ARRAY_U8: return int_value(array->data[index]);
+    /* Fixed-size copies avoid aliasing typed scalars through byte storage. */
+    case ARRAY_S16: { int16_t item; memcpy(&item, array->data + index * 2, 2); return int_value(item); }
+    case ARRAY_U16: { uint16_t item; memcpy(&item, array->data + index * 2, 2); return int_value(item); }
+    case ARRAY_S32: { int32_t item; memcpy(&item, array->data + index * 4, 4); return int_value(item); }
+    case ARRAY_U32: { uint32_t item; memcpy(&item, array->data + index * 4, 4); return int_value(item); }
+    case ARRAY_S64: { int64_t item; memcpy(&item, array->data + index * 8, 8); return int_value(item); }
+    case ARRAY_U64: { uint64_t item; memcpy(&item, array->data + index * 8, 8); return uint_value(item); }
+    case ARRAY_F32: { float item; memcpy(&item, array->data + index * 4, 4); return real_value(item); }
+    case ARRAY_F64: { double item; memcpy(&item, array->data + index * 8, 8); return real_value(item); }
+    default: return (Value){0};
+    }
+}
+
+static inline void
+array_set(Array *array, size_t index, Value value)
+{
+    if(array->storage == ARRAY_BOXED) {
+        ((Value *)array->data)[index] = value;
+        return;
+    }
+    unsigned char *valid = &array->data[array->data_bytes + index / 8];
+    unsigned char bit = (unsigned char)(1u << (index % 8));
+    if(value.kind == VALUE_INVALID) {
+        *valid &= (unsigned char)~bit;
+        return;
+    }
+    *valid |= bit;
+    /* Storage boundaries already coerce to the declared element type. */
+    uint64_t bits = value.kind == VALUE_INT || value.kind == VALUE_ENUM ?
+        (value.unsigned64 ? value.bits : (uint64_t)value.integer) : 0;
+    switch(array->storage) {
+    case ARRAY_S8: array->data[index] = (uint8_t)bits; break;
+    case ARRAY_U8: array->data[index] = (uint8_t)bits; break;
+    case ARRAY_S16: case ARRAY_U16: {
+        uint16_t item = (uint16_t)bits; memcpy(array->data + index * 2, &item, 2); break;
+    }
+    case ARRAY_S32: case ARRAY_U32: {
+        uint32_t item = (uint32_t)bits; memcpy(array->data + index * 4, &item, 4); break;
+    }
+    case ARRAY_S64: memcpy(array->data + index * 8, &value.integer, 8); break;
+    case ARRAY_U64: memcpy(array->data + index * 8, &bits, 8); break;
+    case ARRAY_F32: {
+        float item = (float)value.real; memcpy(array->data + index * 4, &item, 4); break;
+    }
+    case ARRAY_F64: memcpy(array->data + index * 8, &value.real, 8); break;
+    default: break;
+    }
+}
+
+static inline int
+place_valid(Value place)
+{
+    return place.kind == VALUE_POINTER &&
+        (place.indexed ? place.array != NULL &&
+         place.offset < (size_t)place.array->length : place.pointee != NULL);
+}
+
+static inline Value *
+place_slot(Value place)
+{
+    return place.indexed ? array_boxed_slot(place.array, place.offset) :
+        place.pointee;
+}
 
 struct StringLiteral {
     struct StringLiteral *next;
@@ -290,6 +393,7 @@ int64_t signed64(uint64_t bits);
 double as_real(Value value);
 int truthy(Value value);
 Record *allocate_record(Vm *vm, const ZirModule *owner, const ZirType *type, int count);
+int array_length_fits(const char *element, size_t length);
 Array *allocate_array_try(Vm *vm, const ZirModule *owner, const char *element, int length, int fail_hard);
 Value default_value(Vm *vm, const ZirModule *module, const char *type, int depth);
 Value coerce(Vm *vm, const ZirModule *module, Value value, const char *type);
@@ -316,9 +420,10 @@ Value union_member_read(Vm *vm, Record *record, const char *field_type);
 int union_member_write(Vm *vm, Record *record, const char *field_type, Value value);
 Value *assignment_slot(Frame *frame, int index, int depth);
 Value assignment_slot_root(Frame *frame, int index, int depth);
-/* A pointer's target, or NULL (and a failed VM) when it is null or its
- * call has returned. */
-Value *pointer_target(Vm *vm, Value pointer);
+/* Validate a pointer's location and call lifetime, failing the VM if invalid. */
+int pointer_target(Vm *vm, Value pointer);
+Value place_read(Vm *vm, Value place);
+void place_write(Vm *vm, Value place, Value value);
 Value binary_value(Vm *vm, const char *op, Value left, Value right, const char *left_type, const char *right_type);
 Value eval(Frame *frame, int index, int depth);
 void pin_value(Vm *vm, Value value, int depth);

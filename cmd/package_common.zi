@@ -16,6 +16,7 @@ PkgGetcwdRaw :: (buffer: *u8, size: u64) -> *u8 #foreign libc "getcwd";
 PkgRealpathRaw :: (path: *u8, resolved: *u8) -> *u8 #foreign libc "realpath";
 PkgWriteRaw :: (fd: s32, bytes: *u8, count: u64) -> s64 #foreign libc "write";
 PkgSha256Raw :: (input: *u8, size: u64, digest: *u8) -> *u8 #foreign crypto "SHA256";
+PkgRandomRaw :: (output: *u8, size: s32) -> s32 #foreign crypto "RAND_bytes";
 
 PkgReadResult :: struct {
     text: string
@@ -140,6 +141,27 @@ PkgWrite :: (path: string, content: string) -> bool {
     valid: bool = WriteTextAt(file, content, 0) == cast(s64)content.count
     if valid { valid = SyncFile(file) }
     CloseFile(file)
+    return valid
+}
+
+// Readers see either complete version. Every writer owns an exclusive private
+// temporary beside the destination; concurrent writers never share a .tmp.
+PkgWriteAtomic :: (path: string, content: string) -> bool {
+    random: [16]u8; hex: [32]u8; digits := "0123456789abcdef"
+    if PkgRandomRaw(*random[0], 16) != 1 { return false }
+    for i: 0..15 {
+        hex[i * 2] = digits[cast(s32)(random[i] >> cast(u8)4)]
+        hex[i * 2 + 1] = digits[cast(s32)(random[i] & cast(u8)15)]
+    }
+    temporary := PkgJoin3(path, ".tmp.", TextFromBytes(hex[:]))
+    file := OpenExclusivePrivate(temporary)
+    if !file.valid { return false }
+    valid := WriteTextAt(file, content, 0) == cast(s64)content.count
+    if valid { valid = SyncFile(file) }
+    closed := CloseFile(file)
+    if valid && closed { valid = RenamePath(temporary, path) }
+    else { valid = false }
+    if !valid { unused RemoveFile(temporary) }
     return valid
 }
 

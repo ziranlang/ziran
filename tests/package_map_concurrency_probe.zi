@@ -1,0 +1,20 @@
+#import "package_map"
+#import "package_common"
+#import "package_manifest"
+#import "package_lock"
+#import "byte_text_linux"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 3 { return 78 }
+    root := TextFromCString(argv[1])
+    current := PkgNewManifest(); locked := PkgNewLock()
+    if current == null || locked == null { return 1 }
+    locked.tool_path = root
+    current.name = "map-fixture"
+    current.root_count = 1; current.roots[0] = TextFromCString(argv[2])
+    path := PkgWriteMap(root, locked, current)
+    if path == "" { return 1 }
+    print("%\n", path)
+    return 0
+}

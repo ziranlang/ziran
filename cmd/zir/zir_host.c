@@ -2,6 +2,7 @@
 #include "zir_bundle.h"
 #include "zir_diagnostic.h"
 #include "zir_vm.h"
+#include "zir_check.h"
 
 #include "zir_stream.h"
 
@@ -15,7 +16,81 @@ struct Bundle {
     char entry_function[ZIR_NAME_MAX];
     ZibLawTable laws;
     ZibAssets assets;
+    int own_module_count;
+    int shared_module_count;
+    size_t own_asset_count;
+    Bundle **libraries;
+    size_t library_count;
+    size_t references;
 };
+
+const ZirProgram *
+BundleProgram(const Bundle *bundle)
+{
+    return bundle != NULL ? bundle->program : NULL;
+}
+
+static int
+share_library_modules(Bundle *bundle)
+{
+    for(int m = bundle->own_module_count; m < bundle->program->module_count; m++) {
+        ZirModule *module = &bundle->program->modules[m];
+        const ZirModule *shared = NULL;
+        for(size_t i = 0; i < bundle->library_count && shared == NULL; i++) {
+            const ZirProgram *library = bundle->libraries[i]->program;
+            for(int n = 0; n < library->module_count; n++) {
+                if(strcmp(module->name, library->modules[n].name) == 0) {
+                    shared = &library->modules[n];
+                    break;
+                }
+            }
+        }
+        if(shared == NULL)
+            return 0;
+        ZirProgram *discard = ProgramNew();
+        if(discard == NULL)
+            return 0;
+        discard->modules = malloc(sizeof(*discard->modules));
+        if(discard->modules == NULL) {
+            ProgramFree(discard);
+            return 0;
+        }
+        discard->module_count = 1;
+        discard->modules[0] = *module;
+        ZirImport *imports = module->imports;
+        discard->modules[0].imports = NULL;
+        discard->modules[0].import_count = 0;
+        *module = *shared;
+        module->imports = imports;
+        ProgramFree(discard);
+        bundle->shared_module_count++;
+    }
+    return LinkImports(&bundle->program, 1);
+}
+
+static int
+share_library_assets(Bundle *bundle)
+{
+    for(size_t i = 0; i < bundle->library_count; i++) {
+        const ZibAssets *assets = &bundle->libraries[i]->assets;
+        for(size_t a = 0; a < assets->count; a++) {
+            const ZibAsset *asset = &assets->items[a];
+            for(size_t b = 0; b < bundle->assets.count; b++) {
+                if(strcmp(asset->name, bundle->assets.items[b].name) == 0)
+                    return 0;
+            }
+            if(bundle->assets.count >= SIZE_MAX / sizeof(*bundle->assets.items))
+                return 0;
+            ZibAsset *items = realloc(bundle->assets.items,
+                (bundle->assets.count + 1) * sizeof(*items));
+            if(items == NULL)
+                return 0;
+            bundle->assets.items = items;
+            items[bundle->assets.count++] = *asset;
+        }
+    }
+    return 1;
+}
 
 /* Mirrors the linker's rule: externs kept only for laws demand no binding. */
 static int
@@ -57,19 +132,48 @@ capability_at(const Bundle *bundle, size_t index, const ZirModule **owner)
 }
 
 static Bundle *
-open_bundle_stream(FILE *file, const char *name)
+open_bundle_stream(FILE *file, const char *name,
+                   Bundle *const *libraries, size_t count)
 {
     Bundle *bundle = calloc(1, sizeof(*bundle));
     if(bundle == NULL)
         return NULL;
-    bundle->program = BundleRead(file, name, bundle->entry_module,
+    bundle->references = 1;
+    if(count > 64 || (count != 0 && libraries == NULL)) {
+        BundleClose(bundle);
+        return NULL;
+    }
+    const ZirProgram *programs[64];
+    if(count != 0) {
+        bundle->libraries = calloc(count, sizeof(*bundle->libraries));
+        if(bundle->libraries == NULL) {
+            BundleClose(bundle);
+            return NULL;
+        }
+    }
+    for(size_t i = 0; i < count; i++) {
+        if(libraries[i] == NULL || libraries[i]->references == SIZE_MAX) {
+            BundleClose(bundle);
+            return NULL;
+        }
+        libraries[i]->references++;
+        bundle->libraries[bundle->library_count++] = libraries[i];
+        programs[i] = libraries[i]->program;
+    }
+    bundle->program = BundleReadInContext(file, name, bundle->entry_module,
                                  sizeof(bundle->entry_module),
                                  bundle->entry_function,
                                  sizeof(bundle->entry_function),
-                                 &bundle->laws, &bundle->assets);
+                                 &bundle->laws, &bundle->assets, programs,
+                                 count, &bundle->own_module_count);
+    bundle->own_asset_count = bundle->assets.count;
     if(bundle->program == NULL ||
        !VmVerify(bundle->program, bundle->entry_module,
                  bundle->entry_function)) {
+        BundleClose(bundle);
+        return NULL;
+    }
+    if(!share_library_modules(bundle) || !share_library_assets(bundle)) {
         BundleClose(bundle);
         return NULL;
     }
@@ -79,6 +183,12 @@ open_bundle_stream(FILE *file, const char *name)
 Bundle *
 BundleOpen(const char *path)
 {
+    return BundleOpenWithLibraries(path, NULL, 0);
+}
+
+Bundle *
+BundleOpenWithLibraries(const char *path, Bundle *const *libraries, size_t count)
+{
     if(path == NULL)
         return NULL;
     FILE *file = fopen(path, "rb");
@@ -86,7 +196,7 @@ BundleOpen(const char *path)
         Diagnostic(Span(path, 1, 1), "zib.input", "cannot open bundle");
         return NULL;
     }
-    Bundle *bundle = open_bundle_stream(file, path);
+    Bundle *bundle = open_bundle_stream(file, path, libraries, count);
     fclose(file);
     return bundle;
 }
@@ -94,12 +204,19 @@ BundleOpen(const char *path)
 Bundle *
 BundleOpenBytes(const unsigned char *data, size_t size)
 {
+    return BundleOpenBytesWithLibraries(data, size, NULL, 0);
+}
+
+Bundle *
+BundleOpenBytesWithLibraries(const unsigned char *data, size_t size,
+                            Bundle *const *libraries, size_t count)
+{
     if(data == NULL || size == 0)
         return NULL;
     FILE *file = ZirReadMemory(data, size);
     if(file == NULL)
         return NULL;
-    Bundle *bundle = open_bundle_stream(file, "<embedded bundle>");
+    Bundle *bundle = open_bundle_stream(file, "<embedded bundle>", libraries, count);
     fclose(file);
     return bundle;
 }
@@ -108,9 +225,25 @@ void
 BundleClose(Bundle *bundle)
 {
     if(bundle != NULL) {
+        if(--bundle->references != 0)
+            return;
+        if(bundle->program != NULL) {
+            /* Executable graphs in borrowed modules belong to the library.
+             * Their import tables alone belong to this lookup context. */
+            for(int m = bundle->own_module_count;
+                m < bundle->own_module_count + bundle->shared_module_count; m++) {
+                ZirImport *imports = bundle->program->modules[m].imports;
+                memset(&bundle->program->modules[m], 0, sizeof(ZirModule));
+                bundle->program->modules[m].imports = imports;
+            }
+        }
         ProgramFree(bundle->program);
         ZibLawTableFree(&bundle->laws);
+        bundle->assets.count = bundle->own_asset_count;
         ZibAssetsFree(&bundle->assets);
+        for(size_t i = 0; i < bundle->library_count; i++)
+            BundleClose(bundle->libraries[i]);
+        free(bundle->libraries);
         free(bundle);
     }
 }
@@ -332,46 +465,84 @@ BundleRun(const Bundle *bundle, const HostBinding *bindings,
 size_t
 BundleLawCount(const Bundle *bundle)
 {
-    return bundle == NULL ? 0 : (size_t)bundle->laws.law_count;
+    if(bundle == NULL) return 0;
+    size_t count = (size_t)bundle->laws.law_count;
+    for(size_t i = 0; i < bundle->library_count; i++)
+        count += BundleLawCount(bundle->libraries[i]);
+    return count;
+}
+
+static const ZibLawRecord *
+law_at(const Bundle *bundle, size_t index)
+{
+    if(bundle == NULL) return NULL;
+    if(index < (size_t)bundle->laws.law_count)
+        return &bundle->laws.laws[index];
+    index -= (size_t)bundle->laws.law_count;
+    for(size_t i = 0; i < bundle->library_count; i++) {
+        size_t count = BundleLawCount(bundle->libraries[i]);
+        if(index < count) return law_at(bundle->libraries[i], index);
+        index -= count;
+    }
+    return NULL;
 }
 
 const char *
 BundleLawModule(const Bundle *bundle, size_t index)
 {
-    return bundle != NULL && index < (size_t)bundle->laws.law_count ?
-           bundle->laws.laws[index].module : NULL;
+    const ZibLawRecord *law = law_at(bundle, index);
+    return law != NULL ? law->module : NULL;
 }
 
 const char *
 BundleLawName(const Bundle *bundle, size_t index)
 {
-    return bundle != NULL && index < (size_t)bundle->laws.law_count ?
-           bundle->laws.laws[index].name : NULL;
+    const ZibLawRecord *law = law_at(bundle, index);
+    return law != NULL ? law->name : NULL;
 }
 
 const char *
 BundleLawStatus(const Bundle *bundle, size_t index)
 {
-    return bundle != NULL && index < (size_t)bundle->laws.law_count ?
-           bundle->laws.laws[index].status : NULL;
+    const ZibLawRecord *law = law_at(bundle, index);
+    return law != NULL ? law->status : NULL;
 }
 
 size_t
 BundleLawWaiverCount(const Bundle *bundle)
 {
-    return bundle == NULL ? 0 : (size_t)bundle->laws.waiver_count;
+    if(bundle == NULL) return 0;
+    size_t count = (size_t)bundle->laws.waiver_count;
+    for(size_t i = 0; i < bundle->library_count; i++)
+        count += BundleLawWaiverCount(bundle->libraries[i]);
+    return count;
+}
+
+static const ZibLawWaiverRecord *
+waiver_at(const Bundle *bundle, size_t index)
+{
+    if(bundle == NULL) return NULL;
+    if(index < (size_t)bundle->laws.waiver_count)
+        return &bundle->laws.waivers[index];
+    index -= (size_t)bundle->laws.waiver_count;
+    for(size_t i = 0; i < bundle->library_count; i++) {
+        size_t count = BundleLawWaiverCount(bundle->libraries[i]);
+        if(index < count) return waiver_at(bundle->libraries[i], index);
+        index -= count;
+    }
+    return NULL;
 }
 
 const char *
 BundleLawWaiverName(const Bundle *bundle, size_t index)
 {
-    return bundle != NULL && index < (size_t)bundle->laws.waiver_count ?
-           bundle->laws.waivers[index].name : NULL;
+    const ZibLawWaiverRecord *waiver = waiver_at(bundle, index);
+    return waiver != NULL ? waiver->name : NULL;
 }
 
 const char *
 BundleLawWaiverReason(const Bundle *bundle, size_t index)
 {
-    return bundle != NULL && index < (size_t)bundle->laws.waiver_count ?
-           bundle->laws.waivers[index].reason : NULL;
+    const ZibLawWaiverRecord *waiver = waiver_at(bundle, index);
+    return waiver != NULL ? waiver->reason : NULL;
 }

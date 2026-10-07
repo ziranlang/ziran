@@ -47,6 +47,10 @@ HostBinding :: struct {
 #scope_file
 RawBundleOpen :: (path: *u8) -> *void #foreign runtime "BundleOpen";
 RawBundleOpenBytes :: (data: *u8, size: usize) -> *void #foreign runtime "BundleOpenBytes";
+RawBundleOpenWithLibraries :: (path: *u8, libraries: **void,
+    count: usize) -> *void #foreign runtime "BundleOpenWithLibraries";
+RawBundleOpenBytesWithLibraries :: (data: *u8, size: usize,
+    libraries: **void, count: usize) -> *void #foreign runtime "BundleOpenBytesWithLibraries";
 RawBundleClose :: (bundle: *void) #foreign runtime "BundleClose";
 RawBundleCapabilityCount :: (bundle: *void) -> usize #foreign runtime "BundleCapabilityCount";
 RawBundleCapabilityModule :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleCapabilityModule";
@@ -65,6 +69,25 @@ RawBundleInstanceLimitSteps :: (instance: *void, max_steps: s32) #foreign runtim
 #scope_export
 #program_export
 OpenBundle :: (path: *u8) -> *void { return RawBundleOpen(path) }
+
+#program_export
+OpenBundleWithLibraries :: (path: *u8, libraries: **void,
+    count: u64) -> *void {
+    if count > 64 {
+        return null
+    }
+    return RawBundleOpenWithLibraries(path, libraries, cast(usize)count)
+}
+
+#program_export
+OpenBundleBytesWithLibraries :: (data: *u8, size: u64,
+    libraries: **void, count: u64) -> *void {
+    narrowed := cast(usize)size
+    if cast(u64)narrowed != size || count > 64 {
+        return null
+    }
+    return RawBundleOpenBytesWithLibraries(data, narrowed, libraries, cast(usize)count)
+}
 
 #program_export
 OpenBundleBytes :: (data: *u8, size: u64) -> *void {

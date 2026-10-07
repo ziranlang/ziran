@@ -65,6 +65,21 @@ Bundle *BundleOpenBytes(const unsigned char *data, size_t size)
     return (Bundle *)&token;
 }
 
+Bundle *BundleOpenWithLibraries(const char *path, Bundle *const *libraries, size_t count)
+{
+    assert(path == (const char *)&token && libraries == NULL && count == expected_count);
+    calls++;
+    return (Bundle *)&token;
+}
+
+Bundle *BundleOpenBytesWithLibraries(const unsigned char *data, size_t size,
+                                    Bundle *const *libraries, size_t count)
+{
+    assert(data == &token && size == expected_size && libraries == NULL && count == expected_count);
+    calls++;
+    return (Bundle *)&token;
+}
+
 void BundleClose(Bundle *bundle)
 {
     assert(bundle == (Bundle *)&token);
@@ -153,6 +168,8 @@ int main(void)
     void *bundle = OpenBundle(&token);
     assert(bundle == &token);
     assert(OpenBundleBytes(&token, expected_size) == &token);
+    assert(OpenBundleWithLibraries(&token, NULL, expected_count) == &token);
+    assert(OpenBundleBytesWithLibraries(&token, expected_size, NULL, expected_count) == &token);
     assert(BundleCapabilities(bundle) == (uint64_t)SIZE_MAX);
     assert(BundleAssets(bundle) == (uint64_t)SIZE_MAX);
     assert(BundleCapabilityModuleName(bundle, expected_index) ==
@@ -176,6 +193,9 @@ int main(void)
         uint64_t too_large = (uint64_t)SIZE_MAX + 1;
         int previous_calls = calls;
         assert(OpenBundleBytes(&token, too_large) == NULL);
+        assert(OpenBundleWithLibraries(&token, NULL, too_large) == NULL);
+        assert(OpenBundleBytesWithLibraries(&token, too_large, NULL, expected_count) == NULL);
+        assert(OpenBundleBytesWithLibraries(&token, expected_size, NULL, too_large) == NULL);
         assert(BundleCapabilityModuleName(bundle, too_large) == NULL);
         assert(BundleCapabilityFunctionName(bundle, too_large) == NULL);
         assert(BundleAssetPath(bundle, too_large) == NULL);

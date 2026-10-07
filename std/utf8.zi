@@ -69,6 +69,24 @@ Next :: (value: string, at: s32) -> s32 {
     return decoded.after
 }
 
+// Validate every byte without allocating or decoding ordinary ASCII scalars.
+// Multibyte windows borrow at most four bytes, keeping Decode's absolute
+// 32-bit offset independent of the size of the complete string.
+#program_export
+Valid :: (text: string) -> bool {
+    at: s64 = 0
+    while at < text.count {
+        while at < text.count && text[at] < cast(u8)128 { at += 1 }
+        if at == text.count { return true }
+        end := at + 4
+        if end > text.count { end = text.count }
+        decoded := Decode(text[at:end], 0)
+        if !decoded.valid || decoded.after <= 0 { return false }
+        at += decoded.after
+    }
+    return true
+}
+
 #program_export
 Count :: (value: string) -> s32 {
     at: s32 = 0

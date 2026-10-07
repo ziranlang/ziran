@@ -1,0 +1,112 @@
+#import "std/vec"
+host_api :: #system_library "host_api";
+Measure :: () -> s64 #foreign host_api;
+
+Payload :: struct { cells: [256]s32; label: string; value: s32 }
+Pair :: struct { first: Payload; second: Payload; marker: s32 }
+Rows :: struct { items: [2]Payload }
+
+Label :: () -> string {
+    text: Vec(u8)
+    BuilderAppend(text, "rooted string")
+    return BuilderFinish(text)
+}
+
+Make :: (value: s32) -> Payload {
+    result: Payload
+    result.cells[0] = value; result.cells[255] = value + 1
+    result.label = Label(); result.value = value
+    return result
+}
+
+Burn :: (count: s32) -> s32 {
+    for index: 0..count - 1 {
+        payload := Make(index)
+        if payload.cells[0] != index || payload.cells[255] != index + 1 ||
+            payload.label != "rooted string" { return -1 }
+        if index % 25 == 0 { unused Measure() }
+    }
+    return 7
+}
+
+AfterBurnLabel :: () -> string {
+    if Burn(240) != 7 { return "failure" }
+    return Label()
+}
+
+MakeRows :: () -> Rows {
+    result: Rows
+    result.items[0] = Make(21); result.items[1] = Make(22)
+    return result
+}
+
+Six :: (a: Payload, b: Payload, c: Payload, d: Payload, e: Payload, n: s32) -> s32 {
+    if a.label != "rooted string" || e.label != "rooted string" { return -1 }
+    return a.cells[0] + b.cells[0] + c.cells[0] + d.cells[0] + e.cells[0] + n
+}
+
+MakePair :: () -> Pair {
+    return Pair.{first = Make(11), second = Make(12), marker = Burn(240)}
+}
+
+// Module startup and ordinary nested bodies both retain partial aggregates.
+startup: Pair = MakePair();
+held: [2]s32;
+current: *Payload;
+ReplaceArray :: () -> s32 {
+    if Burn(240) != 7 { return -1 }
+    held = s32.[41, 42]
+    return 7
+}
+Observe :: (values: []s32, marker: s32) -> s32 {
+    return values[0] + values[1] + marker
+}
+
+ReplacePointer :: () -> s32 {
+    current = New(Payload)
+    current.cells[0] = 80
+    return Burn(240)
+}
+
+RunCore :: () -> s32 {
+    if Burn(1200) != 7 { return 1 }
+    if startup.first.cells[0] != 11 || startup.second.cells[255] != 13 || startup.marker != 7 { return 2 }
+    pair := MakePair()
+    if pair.first.label != "rooted string" || pair.second.value != 12 || pair.marker != 7 { return 3 }
+    items: [2]Payload = .[Make(31), Make(Burn(240))]
+    if items[0].cells[255] != 32 || items[1].value != 7 { return 4 }
+    item := MakeRows().items[Burn(240) % 2]
+    if item.value != 22 || item.label != "rooted string" { return 5 }
+    if Label() != AfterBurnLabel() { return 6 }
+    if Label()[Burn(240) % 3:8] != "ooted s" { return 7 }
+    if Label()[Burn(240) % 3] != cast(u8)111 { return 8 }
+    if Six(Make(1), Make(2), Make(3), Make(4), Make(5), Burn(240)) != 22 { return 9 }
+    if Six(a = Make(1), n = Burn(240), e = Make(5), b = Make(2),
+        d = Make(4), c = Make(3)) != 22 { return 11 }
+    held = s32.[1, 2]
+    if Observe(held[:], ReplaceArray()) != 90 { return 10 }
+    current = New(Payload)
+    current.cells[0] = 31
+    // The left target and old value must survive even when the right call
+    // replaces their only global owner before allocating more temporaries.
+    current.cells[0] += ReplacePointer()
+    if current.cells[0] != 80 { return 12 }
+    free(current)
+    current = null
+    // Earlier print arguments must survive a later allocating argument.
+    print("% %\n", Label(), Burn(240))
+    return 42
+}
+
+Work :: #type () -> s32;
+#program_export
+Memory :: () -> s32 {
+    if Burn(3600) != 7 { return 1 }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    work: Work = RunCore
+    return work()
+}

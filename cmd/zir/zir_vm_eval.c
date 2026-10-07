@@ -22,11 +22,14 @@ vm_print_with_buffers(Frame *frame, const ZirExpr *expression, int depth, VmPrin
         frame->vm->failed = 1;
         return;
     }
+    VmRoots roots = {frame->vm->evaluation_roots, buffers->values, 0};
+    frame->vm->evaluation_roots = &roots;
     for(int child = function->exprs[first].next_sibling;
         child >= 0 && !frame->vm->failed && argument < PRINT_PIECES_MAX;
         child = function->exprs[child].next_sibling, argument++) {
         types[argument] = ScalarType(function->exprs[child].type);
         buffers->values[argument] = eval(frame, child, depth + 1);
+        roots.count = argument + 1;
     }
     argument = 0;
     for(int i = 0; i < count && !frame->vm->failed; i++) {
@@ -66,6 +69,7 @@ vm_print_with_buffers(Frame *frame, const ZirExpr *expression, int depth, VmPrin
         fputs(text, stdout);
     }
     free(pieces);
+    frame->vm->evaluation_roots = roots.previous;
 }
 
 /* Checked `print`: evaluate every argument left to right, then write literal
@@ -301,7 +305,13 @@ owned_slot(Frame *frame, int index, int depth, Record **record, Array **array,
     }
     if(expression->kind == ZIR_EXPR_INDEX) {
         Value *base = owned_slot(frame, expression->left, depth + 1, record, array, call);
+        Value held[2] = {{.kind = VALUE_POINTER, .pointee = base,
+                         .record = *record, .array = *array, .bits = *call},
+                        base != NULL ? *base : (Value){0}};
+        VmRoots roots = {frame->vm->evaluation_roots, held, 2};
+        frame->vm->evaluation_roots = &roots;
         Value index_value = eval(frame, expression->right, depth + 1);
+        frame->vm->evaluation_roots = roots.previous;
         if(base == NULL || index_value.kind != VALUE_INT ||
            (!index_value.unsigned64 && index_value.integer < 0)) {
             frame->vm->failed = 1;
@@ -342,6 +352,17 @@ assignment_slot(Frame *frame, int index, int depth)
     Array *array = NULL;
     uint64_t call = 0;
     return owned_slot(frame, index, depth, &record, &array, &call);
+}
+
+Value
+assignment_slot_root(Frame *frame, int index, int depth)
+{
+    Record *record = NULL;
+    Array *array = NULL;
+    uint64_t call = 0;
+    Value *slot = owned_slot(frame, index, depth, &record, &array, &call);
+    return (Value){.kind = VALUE_POINTER, .pointee = slot,
+                   .record = record, .array = array, .bits = call};
 }
 
 Value
@@ -572,16 +593,20 @@ vm_expression_calls(const ZirFunction *function, int index, int depth)
            vm_expression_calls(function, expression->third, depth + 1);
 }
 
-Value
-eval(Frame *frame, int index, int depth)
+static Value
+eval_expression(Frame *frame, int index, int depth)
 {
     const ZirExpr *expression;
-    Value value = int_value(0), left, right;
+    Value value = int_value(0), left = int_value(0), right = int_value(0);
     if(frame->vm->failed || index < 0 || index >= frame->function->expr_count ||
        depth >= VM_MAX_DEPTH) {
         frame->vm->failed = 1;
         return value;
     }
+    VmRoots value_root = {frame->vm->evaluation_roots, &value, 1};
+    VmRoots left_root = {&value_root, &left, 1};
+    VmRoots right_root = {&left_root, &right, 1};
+    frame->vm->evaluation_roots = &right_root;
     expression = &frame->function->exprs[index];
     switch(expression->kind) {
     case ZIR_EXPR_SIZE_OF: {
@@ -1041,7 +1066,8 @@ eval(Frame *frame, int index, int depth)
            !strcmp(expression->name, "BuilderFinish")) {
             int first = expression->first_child;
             int push = !strcmp(expression->name, "VecPush");
-            Value *vec = assignment_slot(frame, first, depth + 1);
+            left = assignment_slot_root(frame, first, depth + 1);
+            Value *vec = left.pointee;
             char element[ZIR_NAME_MAX];
             if(vec == NULL || vec->kind != VALUE_RECORD ||
                !VecElementType(frame->module,
@@ -1050,6 +1076,7 @@ eval(Frame *frame, int index, int depth)
                 frame->vm->failed = 1;
                 break;
             }
+            value = *vec;
             if(!strcmp(expression->name, "VecSwap")) {
                 int second = frame->function->exprs[first].next_sibling;
                 Value *other = assignment_slot(frame, second, depth + 1);
@@ -1445,6 +1472,8 @@ eval(Frame *frame, int index, int depth)
         Value few[4];
         Value *args = slots <= 4 ? few : AllocateOrExit((size_t)slots * sizeof(*args));
         memset(args, 0, (size_t)(slots <= 4 ? 4 : slots) * sizeof(*args));
+        VmRoots argument_roots = {frame->vm->evaluation_roots, args, slots};
+        frame->vm->evaluation_roots = &argument_roots;
         const VmSignature *parameters = vm_signature(frame->vm, owner, callee);
         for(int child = expression->first_child; child >= 0;
             child = frame->function->exprs[child].next_sibling) {
@@ -1480,6 +1509,10 @@ eval(Frame *frame, int index, int depth)
         }
         if(!frame->vm->failed)
             value = run_function(frame->vm, owner, callee, args, count);
+        frame->vm->evaluation_roots = argument_roots.previous;
+        /* A consumed Vec is retired by its callee. The argument roots keep
+         * it safe until that call returns; release it when they leave scope. */
+        release_retired(frame->vm);
         free(external_signature);
         if(args != few)
             free(args);
@@ -1491,4 +1524,13 @@ eval(Frame *frame, int index, int depth)
     }
     return coerce_expression(frame->vm, frame->module, value,
                              expression->type);
+}
+
+Value
+eval(Frame *frame, int index, int depth)
+{
+    VmRoots *previous = frame->vm->evaluation_roots;
+    Value result = eval_expression(frame, index, depth);
+    frame->vm->evaluation_roots = previous;
+    return result;
 }

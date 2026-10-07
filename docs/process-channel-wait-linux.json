@@ -1,0 +1,187 @@
+{
+  "observed_at": "2026-10-07T05:16:02.820640+00:00",
+  "scope": "Owned-child exit timestamp to reaping on native glibc Linux. Kernel-notification path versus bounded waitpid polling fallback in the same generated binary. Not full UI latency.",
+  "samples_per_mode_and_form": 128,
+  "forms": [
+    "source C",
+    "source C++",
+    "saved IR C",
+    "saved IR C++"
+  ],
+  "modes": {
+    "0": "pidfd poll",
+    "1": "forced ENOSYS fallback",
+    "2": "forced EPERM fallback",
+    "3": "repeated poll EINTR with a 15 ms original deadline"
+  },
+  "results": [
+    {
+      "mode": 0,
+      "mean_us": 78,
+      "sleep_calls": 0,
+      "poll_calls": 128,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 43.5,
+      "p95_us": 145,
+      "form": "saved-c"
+    },
+    {
+      "mode": 1,
+      "mean_us": 829,
+      "sleep_calls": 129,
+      "poll_calls": 0,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 822.5,
+      "p95_us": 893,
+      "form": "saved-c"
+    },
+    {
+      "mode": 2,
+      "mean_us": 865,
+      "sleep_calls": 129,
+      "poll_calls": 0,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 823.0,
+      "p95_us": 944,
+      "form": "saved-c"
+    },
+    {
+      "interrupted_deadline_ms": 14,
+      "interrupts": 7,
+      "descriptor_growth": 0,
+      "form": "saved-c"
+    },
+    {
+      "mode": 0,
+      "mean_us": 62,
+      "sleep_calls": 0,
+      "poll_calls": 128,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 37.0,
+      "p95_us": 77,
+      "form": "saved-cpp"
+    },
+    {
+      "mode": 1,
+      "mean_us": 827,
+      "sleep_calls": 128,
+      "poll_calls": 0,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 833.0,
+      "p95_us": 847,
+      "form": "saved-cpp"
+    },
+    {
+      "mode": 2,
+      "mean_us": 823,
+      "sleep_calls": 128,
+      "poll_calls": 0,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 829.0,
+      "p95_us": 972,
+      "form": "saved-cpp"
+    },
+    {
+      "interrupted_deadline_ms": 14,
+      "interrupts": 7,
+      "descriptor_growth": 0,
+      "form": "saved-cpp"
+    },
+    {
+      "mode": 0,
+      "mean_us": 67,
+      "sleep_calls": 0,
+      "poll_calls": 128,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 48.5,
+      "p95_us": 126,
+      "form": "source-c"
+    },
+    {
+      "mode": 1,
+      "mean_us": 818,
+      "sleep_calls": 130,
+      "poll_calls": 0,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 824.5,
+      "p95_us": 1027,
+      "form": "source-c"
+    },
+    {
+      "mode": 2,
+      "mean_us": 836,
+      "sleep_calls": 130,
+      "poll_calls": 0,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 827.5,
+      "p95_us": 997,
+      "form": "source-c"
+    },
+    {
+      "interrupted_deadline_ms": 14,
+      "interrupts": 7,
+      "descriptor_growth": 0,
+      "form": "source-c"
+    },
+    {
+      "mode": 0,
+      "mean_us": 95,
+      "sleep_calls": 0,
+      "poll_calls": 128,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 60.0,
+      "p95_us": 321,
+      "form": "source-cpp"
+    },
+    {
+      "mode": 1,
+      "mean_us": 865,
+      "sleep_calls": 131,
+      "poll_calls": 0,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 821.0,
+      "p95_us": 1208,
+      "form": "source-cpp"
+    },
+    {
+      "mode": 2,
+      "mean_us": 822,
+      "sleep_calls": 129,
+      "poll_calls": 0,
+      "pidfd_attempts": 128,
+      "samples": 128,
+      "median_us": 824.5,
+      "p95_us": 989,
+      "form": "source-cpp"
+    },
+    {
+      "interrupted_deadline_ms": 16,
+      "interrupts": 8,
+      "descriptor_growth": 0,
+      "form": "source-cpp"
+    }
+  ],
+  "checks": [
+    "Basic binary I/O, literal arguments, stderr, timeout, supervised process groups and exit status passed in four native forms",
+    "No polling sleeps on the supported kernel; 128 successful child waits per form",
+    "Descriptor count unchanged after all normal, fallback, interrupted and killed-child waits",
+    "Harmony terminal frame checks: eight cases in each of four source/saved-IR C/C++ forms; bounded retained allocations and cancellation preserved"
+  ],
+  "limitations": [
+    "Performance measured on native Linux only; no all-platform speedup claim.",
+    "Fallback deliberately retains the existing 1 ms polling wait on older kernels or hosts that deny process descriptors.",
+    "The full Harmony comparison is recorded separately and is exposed to independent host compiler activity.",
+    "No RAM reduction or 10x full-interaction improvement proved."
+  ]
+}

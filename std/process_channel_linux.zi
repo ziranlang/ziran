@@ -17,6 +17,7 @@ ChannelExecRaw :: (path: *u8, arguments: *Capture.CapturePointer) -> s32 #foreig
 ChannelExitRaw :: (code: s32) -> void #foreign libc "_exit";
 ChannelWaitRaw :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
 ChannelSendRaw :: (fd: s32, output: *u8, count: usize, flags: s32) -> isize #foreign libc "send";
+ChannelPidFdRaw :: (number: isize, pid: isize, flags: usize) -> isize #foreign libc "syscall";
 
 ProcessChannel :: struct {
     socket: Socket.LinuxSocket
@@ -107,6 +108,8 @@ WaitChannel :: (channel: *ProcessChannel, timeout_ms: s32) -> bool {
     started := Timer.MonotonicMilliseconds()
     if started < 0 { channel.error = 5; return false }
     channel.error = 0
+    exit_fd: s32 = -1; opened: bool
+    defer { if exit_fd >= 0 { unused ChannelCloseRaw(exit_fd) } }
     while true {
         status: s32
         waited := ChannelWaitRaw(channel.pid, *status, 1)
@@ -122,6 +125,25 @@ WaitChannel :: (channel: *ProcessChannel, timeout_ms: s32) -> bool {
         }
         now := Timer.MonotonicMilliseconds()
         if now < 0 || now - started >= cast(s64)timeout_ms { return false }
+        if !opened {
+            opened = true
+            // pidfd_open is syscall 434 on the native Linux ABIs supported
+            // here. An unreaped owned child retains its PID. Older kernels
+            // and restricted hosts keep the bounded waitpid fallback below.
+            exit_fd = cast(s32)ChannelPidFdRaw(cast(isize)434, cast(isize)channel.pid, cast(usize)0)
+        }
+        if exit_fd >= 0 {
+            exit_socket: Socket.LinuxSocket; exit_socket.fd = exit_fd; exit_socket.valid = true
+            remaining := started + cast(s64)timeout_ms - now
+            ready := Socket.SocketWaitForEvents(exit_socket, 1, cast(s32)remaining)
+            if ready.error != 0 {
+                if ready.error == 4 || ready.error == 110 { continue }
+                channel.error = ready.error; return false
+            }
+            if (ready.ready & (1 | 16)) == 0 { channel.error = 5; return false }
+            // Reap only this channel's child, including a deadline-edge exit.
+            continue
+        }
         if !Timer.SleepMilliseconds(1) { channel.error = 5; return false }
     }
     return false

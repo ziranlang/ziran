@@ -870,6 +870,12 @@ retire_value(Vm *vm, Value value, int depth)
 int
 array_has_active_slice(Vm *vm, const Array *array)
 {
+    for(VmRoots *roots = vm->evaluation_roots; roots != NULL;
+        roots = roots->previous)
+        for(int i = 0; i < roots->count; i++)
+            if(roots->values[i].kind == VALUE_SLICE &&
+               roots->values[i].array == array)
+                return 1;
     for(Frame *frame = vm->active_frame; frame != NULL;
         frame = frame->caller) {
         for(int i = 0; i < frame->local_count; i++) {
@@ -889,6 +895,7 @@ release_retired(Vm *vm)
     uint64_t floor = vm->retire_floor;
     uint64_t remaining = 0;
     vm->pin_generation++;
+    pin_evaluation_roots(vm);
     for(Frame *frame = vm->active_frame; frame != NULL;
         frame = frame->caller) {
         for(int i = 0; i < frame->local_count; i++)

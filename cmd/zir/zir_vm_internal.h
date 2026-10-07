@@ -70,6 +70,15 @@ typedef struct Value {
     struct Value *pointee;
 } Value;
 
+/* Values held by an expression while another expression or call runs.
+ * The nodes borrow stack or argument-buffer storage and are removed by the
+ * evaluator before that storage goes away. */
+typedef struct VmRoots {
+    struct VmRoots *previous;
+    const Value *values;
+    int count;
+} VmRoots;
+
 /* One record field's name and type. Both strings are interned with
  * KeepText, so every record of a type shares them. */
 typedef struct VmField {
@@ -177,6 +186,7 @@ typedef struct Vm {
     GlobalSlot *globals;
     int global_count;
     Frame *active_frame;
+    VmRoots *evaluation_roots;
     VmHostCall host;
     void *host_context;
     uint64_t call_serial;
@@ -276,12 +286,14 @@ Value *record_field(Record *record, const char *name);
 Value union_member_read(Vm *vm, Record *record, const char *field_type);
 int union_member_write(Vm *vm, Record *record, const char *field_type, Value value);
 Value *assignment_slot(Frame *frame, int index, int depth);
+Value assignment_slot_root(Frame *frame, int index, int depth);
 /* A pointer's target, or NULL (and a failed VM) when it is null or its
  * call has returned. */
 Value *pointer_target(Vm *vm, Value pointer);
 Value binary_value(Vm *vm, const char *op, Value left, Value right, const char *left_type, const char *right_type);
 Value eval(Frame *frame, int index, int depth);
 void pin_value(Vm *vm, Value value, int depth);
+void pin_evaluation_roots(Vm *vm);
 Value run_function(Vm *vm, const ZirModule *module, const ZirFunction *function, const Value *args, int arg_count);
 const VmLayout *record_layout(Vm *vm, const ZirType *type);
 void free_records(Vm *vm);

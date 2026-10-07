@@ -14,19 +14,21 @@ enum { VM_STACK_MARGIN = 1024 * 1024 };
 static void collect_unreachable(Vm *vm);
 
 static Flow
-execute_sequence(Frame *frame, int begin, int end, int depth,
-                 Value *result)
+execute_sequence(Frame *frame, int begin, int end, int depth, Value *result);
+
+static Flow
+execute_sequence_body(Frame *frame, int begin, int end, int depth,
+                      Value *result)
 {
     Vm *vm = frame->vm;
     const ZirFunction *function = frame->function;
     if(depth >= VM_MAX_DEPTH)
         return FLOW_ERROR;
     for(int s = begin; s < end && !vm->failed; s++) {
-        /* At a top-level statement boundary no expression temporaries are
-         * live outside Frame.locals. Batch reclamation here instead of
-         * walking growing globals after every helper call. */
-        if(vm->depth == 1 &&
-           vm->allocated_since_collection >= 4 * 1024 * 1024)
+        /* Suspended expressions retain their partial values explicitly,
+         * so nested calls can reclaim garbage at statement boundaries too.
+         * Batch collection instead of walking globals after every helper. */
+        if(vm->allocated_since_collection >= 4 * 1024 * 1024)
             collect_unreachable(vm);
         const ZirStmt *statement = &function->stmts[s];
         int close;
@@ -50,7 +52,8 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
         case ZIR_STMT_ASSIGN: {
             Record *union_record = NULL;
             const char *union_type = NULL;
-            Value *slot = assignment_slot(frame, statement->lhs_root, 0);
+            Value held[2] = {assignment_slot_root(frame, statement->lhs_root, 0), {0}};
+            Value *slot = held[0].pointee;
             if(frame->union_write_record != NULL) {
                 union_record = frame->union_write_record;
                 union_type = frame->union_write_type;
@@ -66,6 +69,9 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
             if(compound)
                 current = union_record != NULL ?
                     union_member_read(vm, union_record, union_type) : *slot;
+            held[1] = current;
+            VmRoots roots = {vm->evaluation_roots, held, 2};
+            vm->evaluation_roots = &roots;
             Value right = eval(frame, statement->expr_root, 0);
             if(vm->failed)
                 return FLOW_ERROR;
@@ -87,6 +93,7 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
                 if(!union_member_write(vm, union_record, union_type,
                                        replacement))
                     return FLOW_ERROR;
+                vm->evaluation_roots = roots.previous;
                 break;
             }
             Value previous = *slot;
@@ -105,6 +112,7 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
                 }
                 retire_value(vm, replacement, 0);
                 release_retired(vm);
+                vm->evaluation_roots = roots.previous;
                 break;
             }
             *slot = replacement;
@@ -112,6 +120,7 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
                 retire_value(vm, previous, 0);
                 release_retired(vm);
             }
+            vm->evaluation_roots = roots.previous;
             break;
         }
         case ZIR_STMT_RETURN:
@@ -218,6 +227,15 @@ execute_sequence(Frame *frame, int begin, int end, int depth,
         }
     }
     return vm->failed ? FLOW_ERROR : FLOW_NEXT;
+}
+
+static Flow
+execute_sequence(Frame *frame, int begin, int end, int depth, Value *result)
+{
+    VmRoots *previous = frame->vm->evaluation_roots;
+    Flow flow = execute_sequence_body(frame, begin, end, depth, result);
+    frame->vm->evaluation_roots = previous;
+    return flow;
 }
 
 static void
@@ -603,6 +621,15 @@ pin_value(Vm *vm, Value value, int depth)
     }
 }
 
+void
+pin_evaluation_roots(Vm *vm)
+{
+    for(VmRoots *roots = vm->evaluation_roots; roots != NULL;
+        roots = roots->previous)
+        for(int i = 0; i < roots->count; i++)
+            pin_value(vm, roots->values[i], 0);
+}
+
 static void
 pin_globals(Vm *vm)
 {
@@ -645,6 +672,7 @@ collect_unreachable(Vm *vm)
     vm->pin_generation++;
     pin_globals(vm);
     pin_active_frames(vm);
+    pin_evaluation_roots(vm);
     Record **record = &vm->records;
     while(*record != NULL) {
         Record *current = *record;
@@ -957,7 +985,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     /* Named Ziran procedure values carry no borrowed frame context. The
      * returned value has already been copied, so slot-using calls can drop
      * temporaries by the same reachability rule as direct calls. */
-    /* Nested calls are collected at a top-level statement boundary. A call
+    /* Nested calls are collected at statement boundaries. A call
      * with unusually large live storage still reclaims its own temporaries
      * before the VM's allocation limits are reached. */
     /* A call that allocated nothing left nothing to reclaim; skipping it
@@ -969,11 +997,12 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
         vm->pin_generation++;
         pin_globals(vm);
         pin_active_frames(vm);
+        pin_evaluation_roots(vm);
         pin_value(vm, returned, 0);
         release_call_records(vm, allocation_entry, allocation_before_result);
         release_call_arrays(vm, allocation_entry, allocation_before_result);
-        /* Nested callers may hold unevaluated expression arguments outside
-         * their locals. Only a top-level return is a string collection point. */
+        /* Nested strings are reclaimed at the next statement boundary;
+         * an outermost return also collects its call's temporary strings. */
         if(vm->depth == 0)
             release_call_strings(vm, allocation_entry, allocation_before_result);
     }

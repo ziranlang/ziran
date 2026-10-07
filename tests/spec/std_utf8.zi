@@ -1,4 +1,44 @@
 #import "utf8"
+#import "std/text"
+#import "std/vec"
+
+Nibble :: (byte: u8) -> u8 {
+    return ifx byte <= cast(u8)57 then byte - cast(u8)48 else byte - cast(u8)87
+}
+
+CheckValidity :: () -> bool {
+    if !Valid("") || !Valid("aé中🙂") || !Valid("\x00\t\n\r\x7f") { return false }
+    // All one-byte and two-byte strings: two ASCII scalars or one legal
+    // two-byte scalar are the only complete encodings of this size.
+    bytes: [2]u8
+    for first: 0..cast(s32)255 {
+        bytes[0] = cast(u8)first
+        if Valid(TextView(bytes[:1])) != (first < 128) { return false }
+        for second: 0..cast(s32)255 {
+            bytes[1] = cast(u8)second
+            expected := (first < 128 && second < 128) ||
+                (first >= 194 && first <= 223 && second >= 128 && second <= 191)
+            if Valid(TextView(bytes[:])) != expected { return false }
+        }
+    }
+    legal: [12]string = .{"\xc2\x80", "\xdf\xbf", "\xe0\xa0\x80", "\xed\x9f\xbf",
+        "\xee\x80\x80", "\xef\xbf\xbf", "\xf0\x90\x80\x80", "\xf4\x8f\xbf\xbf",
+        "ascii\xc3\xa9tail", "\xf0\x9f\x99\x82ASCII", "é中🙂é", "\x00\xf4\x8f\xbf\xbf\x7f"}
+    for text: legal { if !Valid(text) { return false } }
+    // Source string literals are valid UTF-8 by construction. Build invalid
+    // wire bytes from hex fixtures instead of bypassing that source rule.
+    malformed: [21]string = .{"80", "bf", "c080", "c1bf", "c2", "c241",
+        "e09fbf", "e180", "eda080", "edbfbf", "e24180", "f08fbfbf", "f09080",
+        "f4908080", "f5808080", "fe", "ff", "76616c696420415343494980",
+        "c3a9e4b8adf09f9982c2", "e18041", "f0908041"}
+    storage: [32]u8
+    for text: malformed {
+        size := cast(s32)text.count / 2
+        for i: 0..size - 1 { storage[i] = Nibble(text[2 * i]) * cast(u8)16 + Nibble(text[2 * i + 1]) }
+        if Valid(TextView(storage[:size])) { return false }
+    }
+    return true
+}
 
 #program_export
 SelfTest :: () -> s32 {
@@ -16,8 +56,12 @@ SelfTest :: () -> s32 {
        emoji.after != 10 || !emoji.valid {
         return 4
     }
+    if !CheckValidity() { return 5 }
     return 42
 }
+
+#program_export
+NativeMain :: () -> s32 { return ifx SelfTest() == 42 then 0 else 1 }
 
 #program_export
 main :: () -> s32 { return SelfTest() }

@@ -217,152 +217,146 @@ union_member_write(Vm *vm, Record *record, const char *field_type, Value value)
     return 1;
 }
 
-static Value *
+static Value
 indexed_element(Value base, uint64_t index)
 {
+    Array *array = NULL;
+    size_t offset = 0;
     if(base.kind == VALUE_RECORD && base.record != NULL &&
-       VecElementType(base.record->owner, base.record->type->name,
-                      NULL, 0)) {
+       VecElementType(base.record->owner, base.record->type->name, NULL, 0)) {
         Value *data = record_field(base.record, "data");
         Value *count = record_field(base.record, "count");
-        if(data != NULL && count != NULL &&
-           count->kind == VALUE_INT && count->integer >= 0 &&
-           index < (uint64_t)count->integer &&
-           data->kind == VALUE_ARRAY && data->array != NULL &&
-           index < (uint64_t)data->array->length)
-            return &data->array->elements[index];
-        return NULL;
+        if(data == NULL || count == NULL || count->kind != VALUE_INT ||
+           count->integer < 0 || index >= (uint64_t)count->integer ||
+           data->kind != VALUE_ARRAY || data->array == NULL)
+            return (Value){0};
+        array = data->array;
+    } else if(base.kind == VALUE_ARRAY) {
+        array = base.array;
+    } else if(base.kind == VALUE_SLICE && base.array != NULL &&
+              base.offset <= (size_t)base.array->length &&
+              base.length <= (size_t)base.array->length - base.offset &&
+              index < base.length) {
+        array = base.array;
+        offset = base.offset;
+    } else {
+        return (Value){0};
     }
-    if(base.kind == VALUE_ARRAY && base.array != NULL &&
-       index < (uint64_t)base.array->length)
-        return &base.array->elements[index];
-    if(base.kind == VALUE_SLICE && base.array != NULL &&
-       base.offset <= (size_t)base.array->length &&
-       base.length <= (size_t)base.array->length - base.offset &&
-       index < base.length)
-        return &base.array->elements[base.offset + (size_t)index];
-    return NULL;
+    if(array == NULL || index >= (uint64_t)array->length - offset)
+        return (Value){0};
+    return (Value){.kind = VALUE_POINTER, .indexed = 1, .array = array,
+                   .offset = offset + (size_t)index};
 }
 
-Value *
+int
 pointer_target(Vm *vm, Value pointer)
 {
-    if(pointer.kind != VALUE_POINTER || pointer.pointee == NULL ||
-       (pointer.array != NULL && pointer.array->freed)) {
+    if(!place_valid(pointer) || (pointer.array != NULL && pointer.array->freed)) {
         vm->failed = 1;
-        return NULL;
+        return 0;
     }
     if(pointer.bits != 0) {
-        /* A pointer at a local is valid only while its call runs. */
         for(Frame *frame = vm->active_frame; frame != NULL; frame = frame->caller)
             if(frame->serial == pointer.bits)
-                return pointer.pointee;
+                return 1;
         vm->failed = 1;
-        return NULL;
+        return 0;
     }
-    return pointer.pointee;
+    return 1;
 }
 
-/* The storage an assignable expression names, and the record or array that
- * holds it, if any, so a pointer at it can keep that container alive. */
-static Value *
-owned_slot(Frame *frame, int index, int depth, Record **record, Array **array,
-           uint64_t *call)
+Value
+place_read(Vm *vm, Value place)
 {
-    if(index < 0 || index >= frame->function->expr_count ||
-       depth >= VM_MAX_DEPTH)
-        return NULL;
+    if(!pointer_target(vm, place))
+        return (Value){0};
+    return place.indexed ? array_get(place.array, place.offset) : *place.pointee;
+}
+
+void
+place_write(Vm *vm, Value place, Value value)
+{
+    if(!pointer_target(vm, place))
+        return;
+    if(place.indexed)
+        array_set(place.array, place.offset, value);
+    else
+        *place.pointee = value;
+}
+
+/* A location names a stable slot or an array and logical index. Taking a
+ * numeric element's address never expands the complete array into Values. */
+static Value
+owned_place(Frame *frame, int index, int depth)
+{
+    if(index < 0 || index >= frame->function->expr_count || depth >= VM_MAX_DEPTH)
+        return (Value){0};
     const ZirExpr *expression = &frame->function->exprs[index];
     if(expression->kind == ZIR_EXPR_IDENT) {
         Local *local = find_local(frame, expression->name);
-        if(local != NULL) {
-            *call = frame->serial;
-            return &local->value;
-        }
-        return find_global_value(frame, expression->name);
+        return (Value){.kind = VALUE_POINTER,
+            .pointee = local != NULL ? &local->value : find_global_value(frame, expression->name),
+            .bits = local != NULL ? frame->serial : 0};
     }
     if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*")) {
         Value pointer = eval(frame, expression->right, depth + 1);
-        Value *target = pointer_target(frame->vm, pointer);
-        if(target != NULL) {
-            *record = pointer.record;
-            *array = pointer.array;
-            *call = pointer.bits;
-        }
-        return target;
+        return pointer_target(frame->vm, pointer) ? pointer : (Value){0};
     }
     if(expression->kind == ZIR_EXPR_POINTER_MEMBER) {
         Value pointer = eval(frame, expression->left, depth + 1);
-        Value *target = pointer_target(frame->vm, pointer);
-        if(target == NULL || target->kind != VALUE_RECORD || target->record == NULL) {
+        Value target = place_read(frame->vm, pointer);
+        if(target.kind != VALUE_RECORD || target.record == NULL) {
             frame->vm->failed = 1;
-            return NULL;
+            return (Value){0};
         }
-        *record = target->record;
-        *array = NULL;
-        *call = 0;
-        return record_field_path(target->record, expression->name);
+        return (Value){.kind = VALUE_POINTER, .record = target.record,
+                      .pointee = record_field_path(target.record, expression->name)};
     }
     if(expression->kind == ZIR_EXPR_INDEX) {
-        Value *base = owned_slot(frame, expression->left, depth + 1, record, array, call);
-        Value held[2] = {{.kind = VALUE_POINTER, .pointee = base,
-                         .record = *record, .array = *array, .bits = *call},
-                        base != NULL ? *base : (Value){0}};
+        Value base = owned_place(frame, expression->left, depth + 1);
+        Value held[2] = {base, place_valid(base) ? place_read(frame->vm, base) : (Value){0}};
         VmRoots roots = {frame->vm->evaluation_roots, held, 2};
         frame->vm->evaluation_roots = &roots;
         Value index_value = eval(frame, expression->right, depth + 1);
         frame->vm->evaluation_roots = roots.previous;
-        if(base == NULL || index_value.kind != VALUE_INT ||
+        if(!place_valid(base) || index_value.kind != VALUE_INT ||
            (!index_value.unsigned64 && index_value.integer < 0)) {
             frame->vm->failed = 1;
-            return NULL;
+            return (Value){0};
         }
-        Value *element = indexed_element(*base, integer_bits(index_value));
-        if(element == NULL)
+        Value element = indexed_element(place_read(frame->vm, base), integer_bits(index_value));
+        if(!place_valid(element))
             frame->vm->failed = 1;
-        else if(base->kind == VALUE_ARRAY || base->kind == VALUE_SLICE) {
-            *record = NULL;
-            *array = base->array;
-            *call = 0;
-        }
         return element;
     }
     if(expression->kind != ZIR_EXPR_MEMBER)
-        return NULL;
-    Value *base = owned_slot(frame, expression->left, depth + 1, record, array, call);
-    if(base == NULL || base->kind != VALUE_RECORD)
-        return NULL;
-    *record = base->record;
-    *array = NULL;
-    *call = 0;
-    if(base->record->type != NULL && base->record->type->is_union) {
-        /* Union writes land in the shared bit slot; the assignment layer
-         * reinterprets through the declared field type. */
-        frame->union_write_record = base->record;
+        return (Value){0};
+    Value base_place = owned_place(frame, expression->left, depth + 1);
+    if(!place_valid(base_place))
+        return (Value){0};
+    Value base = place_read(frame->vm, base_place);
+    if(base.kind != VALUE_RECORD || base.record == NULL)
+        return (Value){0};
+    if(base.record->type != NULL && base.record->type->is_union) {
+        frame->union_write_record = base.record;
         frame->union_write_type = expression->type;
-        return &base->record->fields[0].value;
+        return (Value){.kind = VALUE_POINTER, .record = base.record,
+                      .pointee = &base.record->fields[0].value};
     }
-    return record_field_path(base->record, expression->name);
+    return (Value){.kind = VALUE_POINTER, .record = base.record,
+                  .pointee = record_field_path(base.record, expression->name)};
 }
 
 Value *
 assignment_slot(Frame *frame, int index, int depth)
 {
-    Record *record = NULL;
-    Array *array = NULL;
-    uint64_t call = 0;
-    return owned_slot(frame, index, depth, &record, &array, &call);
+    return place_slot(owned_place(frame, index, depth));
 }
 
 Value
 assignment_slot_root(Frame *frame, int index, int depth)
 {
-    Record *record = NULL;
-    Array *array = NULL;
-    uint64_t call = 0;
-    Value *slot = owned_slot(frame, index, depth, &record, &array, &call);
-    return (Value){.kind = VALUE_POINTER, .pointee = slot,
-                   .record = record, .array = array, .bits = call};
+    return owned_place(frame, index, depth);
 }
 
 Value
@@ -400,15 +394,15 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         goto failed;
     }
     if(left.kind == VALUE_POINTER || right.kind == VALUE_POINTER) {
-        /* Pointers compare by target; null is the handle 0. */
-        const Value *a_target = left.kind == VALUE_POINTER ? left.pointee :
-            integer_bits(left) == 0 ? NULL : (const Value *)&left;
-        const Value *b_target = right.kind == VALUE_POINTER ? right.pointee :
-            integer_bits(right) == 0 ? NULL : (const Value *)&right;
+        /* Indexed pointers compare by container and logical slot. */
+        int equal = left.kind == VALUE_POINTER && right.kind == VALUE_POINTER ?
+            (left.indexed == right.indexed &&
+             (left.indexed ? left.array == right.array && left.offset == right.offset :
+              left.pointee == right.pointee)) : 0;
         if(strcmp(op, "==") == 0)
-            return int_value(a_target == b_target);
+            return int_value(equal);
         if(strcmp(op, "!=") == 0)
-            return int_value(a_target != b_target);
+            return int_value(!equal);
         goto failed;
     }
     if(left.kind == VALUE_STRING || right.kind == VALUE_STRING) {
@@ -710,28 +704,21 @@ eval_expression(Frame *frame, int index, int depth)
     case ZIR_EXPR_UNARY:
         if(strcmp(expression->op, "&") == 0) {
             /* *place: a pointer at the storage the place names. */
-            Record *record = NULL;
-            Array *array = NULL;
-            uint64_t call = 0;
-            Value *target = owned_slot(frame, expression->right, depth + 1,
-                                       &record, &array, &call);
-            if(target == NULL) {
+            Value target = owned_place(frame, expression->right, depth + 1);
+            if(!place_valid(target)) {
                 frame->vm->failed = 1;
                 break;
             }
-            if(record != NULL) record->address_taken = 1;
-            if(array != NULL) array->address_taken = 1;
-            value = (Value){.kind = VALUE_POINTER, .pointee = target,
-                            .record = record, .array = array, .bits = call};
+            if(target.record != NULL) target.record->address_taken = 1;
+            if(target.array != NULL) target.array->address_taken = 1;
+            value = target;
             break;
         }
         right = eval(frame, expression->right, depth + 1);
         if(frame->vm->failed)
             break;
         if(strcmp(expression->op, "*") == 0) {
-            Value *target = pointer_target(frame->vm, right);
-            if(target != NULL)
-                value = *target;
+            value = place_read(frame->vm, right);
             break;
         }
         if(strcmp(expression->op, "-") == 0)
@@ -790,9 +777,9 @@ eval_expression(Frame *frame, int index, int depth)
                 Value initialized = eval(frame, item->right, depth + 1);
                 if(frame->vm->failed)
                     break;
-                value.array->elements[position++] = coerce(frame->vm,
+                array_set(value.array, (size_t)position++, coerce(frame->vm,
                     value.array->owner, initialized,
-                    value.array->element_type);
+                    value.array->element_type));
             }
             break;
         }
@@ -832,14 +819,13 @@ eval_expression(Frame *frame, int index, int depth)
     case ZIR_EXPR_POINTER_MEMBER: {
         /* p.field reads a field of the record p points at. */
         left = eval(frame, expression->left, depth + 1);
-        Value *target = frame->vm->failed ? NULL : pointer_target(frame->vm, left);
-        Value *field = target != NULL && target->kind == VALUE_RECORD &&
-                       target->record != NULL ?
-                       record_field_path(target->record, expression->name) : NULL;
+        Value target = frame->vm->failed ? (Value){0} : place_read(frame->vm, left);
+        Value *field = target.kind == VALUE_RECORD && target.record != NULL ?
+                       record_field_path(target.record, expression->name) : NULL;
         if(field == NULL)
             frame->vm->failed = 1;
-        else if(target->record->type != NULL && target->record->type->is_union)
-            value = union_member_read(frame->vm, target->record, expression->type);
+        else if(target.record->type != NULL && target.record->type->is_union)
+            value = union_member_read(frame->vm, target.record, expression->type);
         else
             value = *field;
         break;
@@ -975,9 +961,9 @@ eval_expression(Frame *frame, int index, int depth)
         if(left.kind == VALUE_STRING && integer_bits(right) < left.length)
             value = int_value(left.data[integer_bits(right)]);
         else {
-            Value *element = indexed_element(left, integer_bits(right));
-            if(element != NULL)
-                value = *element;
+            Value element = indexed_element(left, integer_bits(right));
+            if(place_valid(element))
+                value = place_read(frame->vm, element);
             else
                 frame->vm->failed = 1;
         }
@@ -1003,13 +989,13 @@ eval_expression(Frame *frame, int index, int depth)
                 break;
             }
             for(size_t i = 0; i < bytes.length; i++) {
-                Value *part = indexed_element(bytes, i);
-                if(part == NULL || part->kind != VALUE_INT) {
+                Value part = place_read(frame->vm, indexed_element(bytes, i));
+                if(part.kind != VALUE_INT) {
                     frame->vm->failed = 1;
                     free(item);
                     break;
                 }
-                item->data[i] = (unsigned char)integer_bits(*part);
+                item->data[i] = (unsigned char)integer_bits(part);
             }
             if(frame->vm->failed)
                 break;
@@ -1029,11 +1015,10 @@ eval_expression(Frame *frame, int index, int depth)
             Array *storage = allocate_array_try(frame->vm, frame->module, target, 1, 1);
             if(storage == NULL)
                 break;
-            storage->elements[0] = default_value(frame->vm, frame->module, target, 0);
+            array_set(storage, 0, default_value(frame->vm, frame->module, target, 0));
             storage->address_taken = 1;
             storage->heap = 1;
-            value = (Value){.kind = VALUE_POINTER, .pointee = &storage->elements[0],
-                            .array = storage};
+            value = (Value){.kind = VALUE_POINTER, .indexed = 1, .array = storage};
             break;
         }
         if(!strcmp(expression->name, "zi_free")) {
@@ -1067,7 +1052,7 @@ eval_expression(Frame *frame, int index, int depth)
             int first = expression->first_child;
             int push = !strcmp(expression->name, "VecPush");
             left = assignment_slot_root(frame, first, depth + 1);
-            Value *vec = left.pointee;
+            Value *vec = place_slot(left);
             char element[ZIR_NAME_MAX];
             if(vec == NULL || vec->kind != VALUE_RECORD ||
                !VecElementType(frame->module,
@@ -1130,14 +1115,14 @@ eval_expression(Frame *frame, int index, int depth)
                     }
                     for(int i = 0; i < src_count->integer && !frame->vm->failed;
                         i++) {
-                        Value *entry = src_data->kind == VALUE_ARRAY ?
-                            &src_data->array->elements[i] : NULL;
-                        if(entry == NULL) {
+                        Value entry = src_data->kind == VALUE_ARRAY ?
+                            array_get(src_data->array, (size_t)i) : (Value){0};
+                        if(entry.kind == VALUE_INVALID) {
                             frame->vm->failed = 1;
                             break;
                         }
-                        copy->elements[i] = coerce(frame->vm, frame->module,
-                                                   *entry, element);
+                        array_set(copy, (size_t)i, coerce(frame->vm, frame->module,
+                                                   entry, element));
                     }
                     if(frame->vm->failed)
                         break;
@@ -1228,19 +1213,19 @@ eval_expression(Frame *frame, int index, int depth)
                 }
                 if(get ? (at >= 0 && at < count->integer)
                        : (count->integer > 0)) {
-                    Value *source = data->kind == VALUE_ARRAY ?
-                        &data->array->elements[get ? at :
-                         count->integer - 1] : NULL;
-                    if(source == NULL) {
+                    size_t position = (size_t)(get ? at : count->integer - 1);
+                    Value source = data->kind == VALUE_ARRAY ?
+                        array_get(data->array, position) : (Value){0};
+                    if(source.kind == VALUE_INVALID) {
                         frame->vm->failed = 1;
                         break;
                     }
                     if(get)
-                        *item = coerce(frame->vm, frame->module, *source,
+                        *item = coerce(frame->vm, frame->module, source,
                                        element);
                     else {
-                        *item = *source;
-                        *source = (Value){0};
+                        *item = source;
+                        array_set(data->array, position, (Value){0});
                         count->integer--;
                     }
                     if(frame->vm->failed)
@@ -1271,15 +1256,15 @@ eval_expression(Frame *frame, int index, int depth)
                                        (size_t)count->integer);
                         if(built != NULL) {
                             for(int i = 0; i < count->integer; i++) {
-                                Value *byte = data->kind == VALUE_ARRAY ?
-                                    &data->array->elements[i] : NULL;
-                                if(byte == NULL || byte->kind != VALUE_INT) {
+                                Value byte = data->kind == VALUE_ARRAY ?
+                                    array_get(data->array, (size_t)i) : (Value){0};
+                                if(byte.kind != VALUE_INT) {
                                     free(built);
                                     built = NULL;
                                     break;
                                 }
                                 built->data[i] =
-                                    (unsigned char)integer_bits(*byte);
+                                    (unsigned char)integer_bits(byte);
                             }
                         }
                         if(built == NULL) {
@@ -1334,8 +1319,8 @@ eval_expression(Frame *frame, int index, int depth)
                         }
                         if(data->array != NULL) {
                             for(int i = 0; i < count->integer; i++) {
-                                grown->elements[i] = data->array->elements[i];
-                                data->array->elements[i] = (Value){0};
+                                array_set(grown, (size_t)i, array_get(data->array, (size_t)i));
+                                array_set(data->array, (size_t)i, (Value){0});
                             }
                             retire_value(frame->vm, *data, 0);
                         }
@@ -1343,8 +1328,8 @@ eval_expression(Frame *frame, int index, int depth)
                         *capacity = int_value(next_capacity);
                     }
                     for(position = 0; position < length; position++) {
-                        data->array->elements[count->integer + position] =
-                            int_value(text.data[position]);
+                        array_set(data->array, (size_t)(count->integer + position),
+                            int_value(text.data[position]));
                     }
                     count->integer += length;
                     value = int_value(1);
@@ -1378,8 +1363,8 @@ eval_expression(Frame *frame, int index, int depth)
                     }
                     if(data->array != NULL) {
                         for(int i = 0; i < count->integer; i++) {
-                            grown->elements[i] = data->array->elements[i];
-                            data->array->elements[i] = (Value){0};
+                            array_set(grown, (size_t)i, array_get(data->array, (size_t)i));
+                            array_set(data->array, (size_t)i, (Value){0});
                         }
                         retire_value(frame->vm, *data, 0);
                     }
@@ -1388,14 +1373,14 @@ eval_expression(Frame *frame, int index, int depth)
                 }
                 Value stored = coerce(frame->vm, frame->module, item, element);
                 if(frame->vm->failed) break;
-                data->array->elements[count->integer] = stored;
+                array_set(data->array, (size_t)count->integer, stored);
                 count->integer++;
                 value = int_value(1);
             } else {
                 if(data->array != NULL) {
                     for(int i = 0; i < count->integer; i++) {
-                        retire_value(frame->vm, data->array->elements[i], 0);
-                        data->array->elements[i] = (Value){0};
+                        retire_value(frame->vm, array_get(data->array, (size_t)i), 0);
+                        array_set(data->array, (size_t)i, (Value){0});
                     }
                 }
                 *count = int_value(0);

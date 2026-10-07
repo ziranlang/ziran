@@ -1,0 +1,121 @@
+#import "std/vec"
+#import "std/option"
+host_api :: #system_library "host_api";
+Measure :: () -> s64 #foreign host_api;
+
+bytes: [65536]u8;
+words: [65536]u16;
+pixels: [65536]u32;
+wide: [65536]u64;
+initial: [3]s16 = .[-32768, 0, 32767];
+Row :: struct { values: [3]s32; label: string }
+
+Set :: (target: *s32, value: s32) { <<target = value }
+Make :: () -> [3]s32 { return s32.[11, 12, 13] }
+borrowed: *Vec(s32);
+DropLast :: () { unused VecPop(<<borrowed) }
+Empty :: () { VecClear(<<borrowed) }
+Grow :: () { VecPush(<<borrowed, 8) }
+
+// A moved or popped slot must stay invalid, rather than become scalar zero.
+#program_export
+PopInvalid :: () -> s32 {
+    values: Vec(s32); VecPush(values, 7); borrowed = *values
+    view := VecSlice(values, 0, 1)
+    DropLast()
+    return view[0]
+}
+#program_export
+ClearInvalid :: () -> s32 {
+    values: Vec(s32); VecPush(values, 7); borrowed = *values
+    view := VecSlice(values, 0, 1)
+    Empty()
+    return view[0]
+}
+#program_export
+GrowthInvalid :: () -> s32 {
+    values: Vec(s32)
+    for index: 0..7 { VecPush(values, cast(s32)index) }
+    borrowed = *values
+    view := VecSlice(values, 0, 8)
+    Grow()
+    view[7] = 77
+    if view[7] != 77 { return 1 }
+    return view[0]
+}
+
+// The largest supported fixed byte buffer stays compact after address taking.
+#program_export
+Capacity :: () -> s32 {
+    buffer: [1048576]u8
+    last := *buffer[1048575]
+    <<last = 255
+    if buffer[0] != 0 || buffer[1048575] != 255 || Measure() > 3145728 { return 1 }
+    return 42
+}
+
+#program_export
+Answer :: () -> s32 {
+    if bytes[65535] != 0 || words[65535] != 0 || pixels[65535] != 0 || wide[65535] != 0 { return 1 }
+    if Measure() > 2097152 { return 2 }
+    bp := *bytes[65535]; wp := *words[65535]; pp := *pixels[65535]; up := *wide[65535]
+    <<bp = 255; <<wp = 65535; <<pp = 4294967295; <<up = 18446744073709551615
+    if bytes[65535] != 255 || words[65535] != 65535 ||
+       pixels[65535] != 4294967295 || wide[65535] != 18446744073709551615 { return 3 }
+    if bp != *bytes[65535] || bp == *bytes[0] || bp == null { return 4 }
+    if Measure() > 2097152 { return 5 }
+
+    tiny: [3]s8 = .[-128, 0, 127]
+    signed: [3]s32 = .[-2147483648, 0, 2147483647]
+    huge: [3]s64 = .[-9223372036854775808, 0, 9223372036854775807]
+    minimum: s64 = -9223372036854775808
+    flags: [3]bool = .[true, false, true]
+    floats: [3]float32 = .[-1.25, 0, 3.5]
+    doubles: [3]float64 = .[-2.5, 0, 1.25]
+    reals: [3]real = .[1.25, 0, -3.5]
+    if tiny[0] != -128 || tiny[2] != 127 || initial[0] != -32768 || initial[2] != 32767 { return 6 }
+    if signed[0] != -2147483648 || signed[2] != 2147483647 ||
+       huge[0] != minimum || huge[2] != 9223372036854775807 { return 7 }
+    if !flags[0] || flags[1] || !flags[2] || floats[0] != -1.25 || floats[2] != 3.5 ||
+       doubles[0] != -2.5 || doubles[2] != 1.25 || reals[0] != 1.25 || reals[2] != -3.5 { return 8 }
+    fs := floats[:]; fs[1] = 2.25
+    hp := *huge[1]; <<hp = -17
+    fp := *flags[1]; <<fp = true
+    if floats[1] != 2.25 || huge[1] != -17 || !flags[1] { return 9 }
+
+    values: [3]s32 = .[1, 2, 3]
+    vp := *values[1]
+    values = Make()
+    if <<vp != 12 || vp != *values[1] { return 10 }
+    view := values[:]
+    view[0] = 31; Set(*view[2], 33)
+    if values[0] != 31 || values[2] != 33 || *view[1] != vp { return 11 }
+    copy := values; copy[0] = 99
+    if values[0] != 31 || copy[0] != 99 { return 12 }
+    rows: [2]Row
+    rows[1].values = Make(); rows[1].label = "row"
+    Set(*rows[1].values[2], 23)
+    if rows[1].values[2] != 23 || rows[0].values[2] != 0 || rows[1].label != "row" { return 13 }
+    heap := New(u64); <<heap = 18446744073709551615
+    if <<heap != 18446744073709551615 { return 14 }
+    free(heap)
+
+    numbers: Vec(u64)
+    for index: 0..99 { if !VecPush(numbers, 9223372036854775808 + cast(u64)index) { return 15 } }
+    if numbers[99] != 9223372036854775907 || VecGet(numbers, 1).value != 9223372036854775809 { return 16 }
+    cloned: Vec(u64)
+    if !VecClone(cloned, numbers) { return 17 }
+    if VecPop(numbers).value != 9223372036854775907 || cloned.count != 100 { return 18 }
+    VecClear(numbers)
+    if !VecPush(numbers, 18446744073709551615) || numbers[0] != 18446744073709551615 { return 19 }
+    VecSwap(numbers, cloned)
+    if numbers.count != 100 || cloned.count != 1 || cloned[0] != 18446744073709551615 { return 20 }
+    decimals: Vec(float64)
+    if !VecPush(decimals, -2.5) || !VecPush(decimals, 1.25) { return 21 }
+    if VecPop(decimals).value != 1.25 || decimals[0] != -2.5 { return 22 }
+    builder: Vec(u8)
+    if !BuilderAppend(builder, "packed ") || !BuilderAppend(builder, "arrays") { return 23 }
+    if BuilderFinish(builder) != "packed arrays" { return 24 }
+    if Measure() > 2097152 { return 25 }
+    return 42
+}

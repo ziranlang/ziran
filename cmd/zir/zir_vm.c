@@ -1,4 +1,5 @@
 #include "zir_vm_internal.h"
+#include <limits.h>
 
 const ZirImport *
 host_import(const ZirModule *module, const char *name)
@@ -165,7 +166,7 @@ portable_type_at(const ZirModule *module, const char *type, int depth,
     }
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
         return capacity >= 0 &&
-               (size_t)capacity <= VM_MAX_ARRAY_BYTES / sizeof(Value) &&
+               array_length_fits(element, (size_t)capacity) &&
                portable_type_at(module, element, depth + 1, path);
     }
     record = FindType(module, type, &owner);
@@ -256,7 +257,7 @@ host_type_at(const ZirModule *module, const char *type, int depth,
         return 0;
     if(ArrayElementType(type, element, sizeof(element), &capacity))
         return capacity >= 0 &&
-               (size_t)capacity <= VM_MAX_ARRAY_BYTES / sizeof(Value) &&
+               array_length_fits(element, (size_t)capacity) &&
                host_type_at(module, element, depth + 1, 0);
     if(SliceElementType(type, element, sizeof(element)))
         return element[0] != '[' && element[0] != '\0' &&
@@ -495,16 +496,59 @@ type_holds_references(const ZirModule *module, const char *type)
     return found == NULL || !(found->is_enum || found->is_procedure_type);
 }
 
+static ArrayStorage
+array_storage(const char *element)
+{
+    if(!strcmp(element, "s8")) return ARRAY_S8;
+    if(!strcmp(element, "u8") || !strcmp(element, "bool")) return ARRAY_U8;
+    if(!strcmp(element, "s16")) return ARRAY_S16;
+    if(!strcmp(element, "u16")) return ARRAY_U16;
+    if(!strcmp(element, "s32")) return ARRAY_S32;
+    if(!strcmp(element, "u32")) return ARRAY_U32;
+    if(!strcmp(element, "s64")) return ARRAY_S64;
+    if(!strcmp(element, "u64")) return ARRAY_U64;
+    if(!strcmp(element, "float32")) return ARRAY_F32;
+    if(!strcmp(element, "float64") || !strcmp(element, "real")) return ARRAY_F64;
+    return ARRAY_BOXED;
+}
+
+static size_t
+array_width(ArrayStorage storage)
+{
+    switch(storage) {
+    case ARRAY_S8: case ARRAY_U8: return 1;
+    case ARRAY_S16: case ARRAY_U16: return 2;
+    case ARRAY_S32: case ARRAY_U32: case ARRAY_F32: return 4;
+    case ARRAY_S64: case ARRAY_U64: case ARRAY_F64: return 8;
+    default: return sizeof(Value);
+    }
+}
+
+int
+array_length_fits(const char *element, size_t length)
+{
+    ArrayStorage storage = array_storage(element);
+    size_t width = array_width(storage);
+    if(length > INT_MAX || length > (VM_MAX_ARRAY_BYTES - sizeof(Array)) / width)
+        return 0;
+    size_t payload = length * width;
+    size_t validity = storage == ARRAY_BOXED ? 0 : (length + 7) / 8;
+    return validity <= VM_MAX_ARRAY_BYTES - sizeof(Array) - payload;
+}
+
 Array *
 allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
                    int length, int fail_hard)
 {
-    if(length < 0 || (size_t)length >
-       (VM_MAX_ARRAY_BYTES - sizeof(Array)) / sizeof(Value)) {
+    ArrayStorage storage = array_storage(element);
+    size_t width = array_width(storage);
+    if(length < 0 || !array_length_fits(element, (size_t)length)) {
         if(fail_hard) vm->failed = 1;
         return NULL;
     }
-    size_t bytes = sizeof(Array) + (size_t)length * sizeof(Value);
+    size_t data_bytes = (size_t)length * width;
+    size_t bytes = sizeof(Array) + data_bytes +
+        (storage == ARRAY_BOXED ? 0 : ((size_t)length + 7) / 8);
     if(bytes > VM_MAX_ARRAY_BYTES - vm->array_bytes) {
         if(fail_hard && !vm->failed)
             Diagnostic(Span("<bundle>", 1, 1), "zib.memory",
@@ -524,6 +568,8 @@ allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
     copy_text(array->element_type, sizeof(array->element_type), element);
     array->holds_references = type_holds_references(owner, element);
     array->length = length;
+    array->storage = storage;
+    array->data_bytes = data_bytes;
     vm->arrays = array;
     vm->array_bytes += bytes;
     vm->allocated_since_collection += bytes;
@@ -558,12 +604,12 @@ clone_value(Vm *vm, Value value, int depth)
         if(copy == NULL)
             return int_value(0);
         if(!value.array->holds_references)
-            memcpy(copy->elements, value.array->elements,
-                   (size_t)copy->length * sizeof(Value));
+            memcpy(copy->data, value.array->data,
+                   array_size(copy) - sizeof(Array));
         else
             for(int i = 0; i < copy->length && !vm->failed; i++)
-                copy->elements[i] = clone_value(vm,
-                    value.array->elements[i], depth + 1);
+                array_set(copy, (size_t)i, clone_value(vm,
+                    array_get(value.array, (size_t)i), depth + 1));
         return (Value){.kind = VALUE_ARRAY, .array = copy};
     }
     if(value.record == NULL || depth >= VM_MAX_DEPTH) {
@@ -605,15 +651,19 @@ default_value(Vm *vm, const ZirModule *module, const char *type, int depth)
         Array *array = allocate_array(vm, module, element, capacity);
         if(array == NULL)
             return int_value(0);
-        if(!array->holds_references && capacity > 0) {
+        if(array->storage != ARRAY_BOXED) {
+            /* calloc supplied scalar zeroes; all fixed-array slots are live. */
+            memset(array->data + array->data_bytes, 255,
+                   ((size_t)capacity + 7) / 8);
+        } else if(!array->holds_references && capacity > 0) {
             /* Scalar defaults allocate nothing, so one serves every slot. */
             Value zero = default_value(vm, module, element, depth + 1);
             for(int i = 0; i < capacity; i++)
-                array->elements[i] = zero;
+                array_set(array, (size_t)i, zero);
         } else
             for(int i = 0; i < capacity && !vm->failed; i++)
-                array->elements[i] = default_value(vm, module, element,
-                                                   depth + 1);
+                array_set(array, (size_t)i,
+                          default_value(vm, module, element, depth + 1));
         return (Value){.kind = VALUE_ARRAY, .array = array};
     }
     const ZirModule *owner = NULL;
@@ -688,8 +738,8 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
             if(copy == NULL)
                 return int_value(0);
             for(int i = 0; i < capacity && !vm->failed; i++)
-                copy->elements[i] = coerce(vm, module,
-                    value.array->elements[i], element);
+                array_set(copy, (size_t)i, coerce(vm, module,
+                    array_get(value.array, (size_t)i), element));
             return (Value){.kind = VALUE_ARRAY, .array = copy};
         }
         const ZirModule *owner = NULL;
@@ -840,8 +890,9 @@ retire_value(Vm *vm, Value value, int depth)
         if(vm->retire_floor == 0 ||
            value.array->allocation < vm->retire_floor)
             vm->retire_floor = value.array->allocation;
-        for(int i = 0; i < value.array->length; i++)
-            retire_value(vm, value.array->elements[i], depth + 1);
+        if(value.array->holds_references)
+            for(int i = 0; i < value.array->length; i++)
+                retire_value(vm, array_get(value.array, (size_t)i), depth + 1);
     }
 }
 
@@ -902,8 +953,7 @@ release_retired(Vm *vm)
            (*array)->pinned != vm->pin_generation) {
             Array *dead = *array;
             *array = dead->next;
-            vm->array_bytes -= sizeof(Array) +
-                (size_t)dead->length * sizeof(Value);
+            vm->array_bytes -= array_size(dead);
             free(dead);
         } else {
             if((*array)->retired &&

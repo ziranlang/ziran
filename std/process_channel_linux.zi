@@ -64,6 +64,12 @@ StartChannel :: (arguments: []string, merge_stderr: bool) -> ProcessChannel {
         if ChannelGroupRaw(0, 0) != 0 || ChannelDupRaw(fds[1], 0) < 0 ||
             ChannelDupRaw(fds[1], 1) < 0 { ChannelExitRaw(127) }
         if merge_stderr && ChannelDupRaw(fds[1], 2) < 0 { ChannelExitRaw(127) }
+        // dup2(fd, fd) keeps CLOEXEC. When a standard descriptor was closed,
+        // socketpair can return its number; retain that redirected endpoint
+        // across exec, without opening stderr when it was not requested.
+        if fds[1] <= 1 || (fds[1] == 2 && merge_stderr) {
+            if ChannelFlagsRaw(fds[1], 2, 0) != 0 { ChannelExitRaw(127) }
+        }
         if fds[1] > 2 { ChannelCloseRaw(fds[1]) }
         ChannelExecRaw(*bytes[0].bytes[0], *pointers[0])
         ChannelExitRaw(127)

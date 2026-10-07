@@ -619,25 +619,30 @@ check_mutation(BorrowCheck *check, BorrowPlace destination, ZirSourceSpan span)
         reject(check, span, "mutating text backing storage while its view is live");
         return;
     }
+    /* Only globals can back a retained global text view. Local/reference
+     * mutations still need the active-borrow check above and their effect
+     * summary, so a later call can check the actual argument's storage. */
+    int backing_global = destination.root->global_index;
+    if(backing_global < 0) return;
     for(int g = 0; g < check->global_count; g++) {
         BorrowBinding *view = &check->globals[g];
+        /* Most globals retain no view of this destination. Test the known
+         * origin first rather than hashing their type on every mutation. */
+        if(!has_global(check->global_origins[g], backing_global)) continue;
         if(!cached_contains_text(check, view->module, view->type)) continue;
-        if(destination.root->global_index >= 0 &&
-           has_global(check->global_origins[g], destination.root->global_index)) {
-            if(view->global_backing_state == 1 &&
-               view->text_backing.root == destination.root &&
-               !places_overlap(view->text_backing, destination)) continue;
-            if(!check->failed) {
-                DiagnosticDetails details = {0};
-                details.related_span = view->global->span;
-                details.related_message = "global value retains a text view of this backing storage";
-                DiagnosticDetailed(span, "check.slice_lifetime", &details,
-                    "mutating text backing storage while its view is live (backing %s.%s, view %s.%s)",
-                    destination.root->module->name, destination.root->name,
-                    view->module->name, view->name);
-            }
-            check->failed = 1;
+        if(view->global_backing_state == 1 &&
+           view->text_backing.root == destination.root &&
+           !places_overlap(view->text_backing, destination)) continue;
+        if(!check->failed) {
+            DiagnosticDetails details = {0};
+            details.related_span = view->global->span;
+            details.related_message = "global value retains a text view of this backing storage";
+            DiagnosticDetailed(span, "check.slice_lifetime", &details,
+                "mutating text backing storage while its view is live (backing %s.%s, view %s.%s)",
+                destination.root->module->name, destination.root->name,
+                view->module->name, view->name);
         }
+        check->failed = 1;
     }
 }
 

@@ -25,6 +25,42 @@ CheckArrayRanges :: () -> bool {
         ArrayRanges(document, cast(s32)document.count, ranges[:]) == -1
 }
 
+// Every raw byte around run boundaries, with prefixes and short tails.
+// Expectations come from JSON delimiters and controls, including raw UTF-8.
+CheckRawStrings :: () -> bool {
+    storage: [64]u8
+    decoded: [64]u8
+    for prefix: 0..cast(s32)7 {
+        for size: 0..cast(s32)31 {
+            for i: 0..cast(s32)63 { storage[i] = cast(u8)97 }
+            storage[prefix] = cast(u8)34; storage[prefix + size + 1] = cast(u8)34
+            value := TextView(storage[:prefix + size + 2])
+            span := ReadString(value, prefix)
+            if !span.valid || span.start != prefix + 1 || span.end != prefix + size + 1 || span.after != prefix + size + 2 { return false }
+            if ReadStringText(value, prefix, decoded[:]) != size || decoded[size] != cast(u8)0 { return false }
+        }
+        for lane: 0..cast(s32)15 {
+            for byte: 0..cast(s32)255 {
+                for i: 0..cast(s32)63 { storage[i] = cast(u8)97 }
+                storage[prefix] = cast(u8)34; storage[prefix + 17] = cast(u8)34
+                storage[prefix + lane + 1] = cast(u8)byte
+                value := TextView(storage[:prefix + 18]); span := ReadString(value, prefix)
+                valid := byte >= 32 && byte != 92
+                if span.valid != valid { return false }
+                if valid && (span.end != (ifx byte == 34 then prefix + lane + 1 else prefix + 17) || span.after != span.end + 1) { return false }
+                length := ReadStringText(value, prefix, decoded[:])
+                expected := ifx byte == 34 then lane else 16
+                if !valid { if length != -1 || decoded[0] != cast(u8)0 { return false } }
+                else {
+                    if length != expected || decoded[length] != cast(u8)0 { return false }
+                    if byte != 34 && decoded[lane] != cast(u8)byte { return false }
+                }
+            }
+        }
+    }
+    return !ReadString("\"x\"", -1).valid && !ReadString("\"x\"", 3).valid
+}
+
 #program_export
 SelfTest :: () -> s32 {
     body: string = "{\"skip\":[true,{\"quoted\":\"a\\\"b\"}],\"value\":1.25e2}"
@@ -105,6 +141,11 @@ SelfTest :: () -> s32 {
     if !ObjectPositions(body, 0, no_names, empty) { return 25 }
     if ReadStringText("\"café 日本語\"", 0, decoded[:]) != 15 || decoded[15] != cast(u8)0 { return 26 }
     if ReadStringText("\"raw\\nbytes\"", 0, decoded[:]) != 9 || decoded[3] != cast(u8)10 { return 27 }
+    if !CheckRawStrings() { return 28 }
+    malformed: [8]string = .{"\"", "\"plain", "\"tail\\", "\"\\q\"", "\"\\u0X00\"", "\"\\u123\"", "\"\\ud800\\uX000\"", "\"valid\\nthen\\q\""}
+    for invalid: malformed {
+        if ReadStringText(invalid, 0, decoded[:]) != -1 || decoded[0] != cast(u8)0 { return 29 }
+    }
     if !CheckArrayRanges() { return 30 }
     return 42
 }

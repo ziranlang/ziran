@@ -1,0 +1,22 @@
+G :: #import "std/grapheme";
+
+#program_export
+SelfTest :: () -> s32 {
+    if G.Count("") != 0 || G.Count("aé中") != 3 { return 1 }
+    accent := "éx"
+    if G.Next(accent, 0) != 3 || G.Previous(accent, 3) != 0 ||
+       G.Boundary(accent, 2) != 0 || G.Count(accent) != 2 { return 2 }
+    emoji := "👨‍👩‍👧‍👦👍🏽🇵🇾"
+    if G.Count(emoji) != 3 || G.Next(emoji, 0) != 25 ||
+       G.Next(emoji, 25) != 33 || G.Previous(emoji, 41) != 33 { return 3 }
+    if G.Count("\r\n") != 1 || G.Count("각") != 1 || G.Count("क्‍त") != 1 { return 4 }
+    if G.Next("a", -5) != 1 || G.Next("a", 99) != 1 ||
+       G.Previous("a", 99) != 0 || G.Boundary("a", 99) != 1 { return 5 }
+    bytes: [4]u8 = .{255, 204, 136, 97}
+    invalid := TextView(bytes[:])
+    if G.Next(invalid, 0) != 1 || G.Next(invalid, 1) != 3 || G.Count(invalid) != 3 { return 6 }
+    return 42
+}
+
+#program_export
+NativeMain :: () -> s32 { return ifx SelfTest() == 42 then 0 else SelfTest() }

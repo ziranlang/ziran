@@ -1030,42 +1030,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             slot->is_file_private = scope_file;
             copy_text(slot->procedure_return_type,
                       sizeof(slot->procedure_return_type), ret);
-            if(*skip_ws(buffers->args)) {
-                int count = split_top_level(buffers->args, buffers->parts[0], 16,
-                                            sizeof(buffers->parts[0]));
-                size_t used = 0;
-                if(count < 1 || count > 16)
-                    die_at(slot->span, "invalid procedure type parameters");
-                for(int parameter = 0; parameter < count; parameter++) {
-                    char *part = trim(buffers->parts[parameter]);
-                    char *colon = strchr(part, ':');
-                    const char *type = colon == NULL ? part : skip_ws(colon + 1);
-                    char parameter_name[ZIR_NAME_MAX];
-                    int written;
-                    if(colon != NULL) {
-                        *colon = '\0';
-                        trim_in_place(part);
-                        if(!is_identifier_text(part))
-                            die_at(slot->span,
-                                   "procedure type parameter needs a name");
-                        copy_text(parameter_name, sizeof(parameter_name), part);
-                    } else
-                        snprintf(parameter_name, sizeof(parameter_name),
-                                 "arg%d", parameter);
-                    if(*type == '\0' || strchr(type, ':') != NULL)
-                        die_at(slot->span,
-                               "procedure type parameter needs a type");
-                    written = snprintf(slot->body + used,
-                                       sizeof(slot->body) - used,
-                                       "%s%s: %s", parameter ? ", " : "",
-                                       parameter_name, type);
-                    if(written < 0 || (size_t)written >=
-                        sizeof(slot->body) - used)
-                        die_at(slot->span,
-                               "procedure type parameters exceed size limit");
-                    used += (size_t)written;
-                }
-            }
+            parse_procedure_type_parameters(buffers->args, slot->body,
+                                            sizeof(slot->body), slot->span);
             continue;
         } else if(mode == TOP && looks_like_function_header(t)) {
             char name[ZIR_NAME_MAX];

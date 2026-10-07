@@ -1285,16 +1285,49 @@ uses_imported_constant(const ZirModule *module, const unsigned char *keep,
 }
 
 /* True when `via` is `target` or reaches it through `using` imports, the
- * way a public module entry re-exports the modules it names. */
+ * way a public module entry re-exports the modules it names. Shared paths
+ * visit each module once, including unsuccessful reachability queries. */
 static int
 reexports_module(const ZirModule *via, const ZirModule *target, int depth)
 {
-    if(via == NULL || depth > 32) return 0;
+    (void)depth;
+    if(via == NULL) return 0;
     if(via == target) return 1;
-    for(int i = 0; i < via->import_count; i++)
-        if(via->imports[i].is_using &&
-           reexports_module(via->imports[i].resolved_module, target, depth + 1))
-            return 1;
+    size_t capacity = 16, count = 1;
+    const ZirModule **seen = AllocateOrExit(capacity * sizeof(*seen));
+    seen[0] = via;
+    for(size_t at = 0; at < count; at++) {
+        const ZirModule *module = seen[at];
+        for(int i = 0; i < module->import_count; i++) {
+            const ZirImport *import = &module->imports[i];
+            const ZirModule *next = import->resolved_module;
+            if(!import->is_using || next == NULL) continue;
+            if(next == target) {
+                free(seen);
+                return 1;
+            }
+            size_t found = 0;
+            while(found < count && seen[found] != next) found++;
+            if(found < count) continue;
+            if(count == capacity) {
+                if(capacity > SIZE_MAX / 2 / sizeof(*seen)) {
+                    free(seen);
+                    DiagnosticOutOfMemory();
+                    exit(1);
+                }
+                capacity *= 2;
+                const ZirModule **grown = realloc(seen, capacity * sizeof(*seen));
+                if(grown == NULL) {
+                    free(seen);
+                    DiagnosticOutOfMemory();
+                    exit(1);
+                }
+                seen = grown;
+            }
+            seen[count++] = next;
+        }
+    }
+    free(seen);
     return 0;
 }
 

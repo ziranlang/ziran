@@ -61,9 +61,18 @@ global backing origins, local `*value` pointer aliases, and local copies of
 pointer parameters.
 `text_view_opaque_pointer_check` reports rejection of `TextView` through opaque
 local pointers with unproven backing lifetimes.
-`target_preflight` reports the common foreign identity/import and Go/portable
-scalar-union checks available through `ziran check --target=...` and builds;
-the target's lowerer and verifier still enforce its other limits.
+`heap_allocation` reports zero-initialized `New(T)` and `free(pointer)`.
+C, C++, Go, Rust, Python, and the portable VM are checked from source and
+saved IR by `tests/heap_new.sh`; Plan 9 inherits the experimental C post-pass.
+Native pointers retain their native lifetime rules; this flag does not promise
+automatic ownership or runtime checking of arbitrary pointer aliases.
+
+`target_preflight` reports the common foreign identity/import, native callback
+ABI, and Go/portable scalar-union checks available through
+`ziran check --target=...` and builds. Go and `.zib` reject `#c_call`
+procedure types with a `procedures.c-call` capability diagnostic before
+native output is emitted. The target's lowerer and verifier still enforce
+its other limits.
 `aggregate_vec_transfer` is `true`: whole local aggregates, fresh aggregate
 call results, and vector-bearing record-literal fields can move through
 assignment, argument passing, and return, with native targets recursively

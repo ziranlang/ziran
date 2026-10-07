@@ -1974,6 +1974,18 @@ static char *emit_call(PyEmitter *emitter, int index, const ZirExpr *expression)
     char *joined, *result;
     const ZirImport *foreign;
     (void)index;
+    if(!strcmp(expression->name, "zi_new") && expression->type[0] == '*') {
+        char *zero = py_zero(emitter, emitter->module, expression->type + 1);
+        result = py_format("_heap_new(%s)", zero);
+        free(zero);
+        return result;
+    }
+    if(!strcmp(expression->name, "zi_free") && count == 1) {
+        char *pointer = emit_expression(emitter, children[0]);
+        result = py_format("_heap_free(%s)", pointer);
+        free(pointer);
+        return result;
+    }
     if(is_vec_builtin(expression->name))
         return emit_vec_call(emitter, expression);
     if(strcmp(expression->name, "TextView") == 0 && count == 1) {

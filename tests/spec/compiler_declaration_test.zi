@@ -48,6 +48,33 @@ UsingModifiers :: () -> bool {
     return true
 }
 
+ProcedureTypeParameters :: () -> bool {
+    output: [256]u8
+    source := " s32, value: *Node, Pair(s32, s64) "
+    expected := "arg0: s32, value: *Node, arg2: Pair(s32, s64)"
+    for capacity: 0..expected.count {
+        for index: 0..255 { output[index] = 0xa5 }
+        result := RewriteProcedureTypeParameters(source, output[0:capacity], 128)
+        if result.error != .None || result.parameters != 3 || result.count != expected.count ||
+        output[capacity] != 0xa5 || TextView(output[0:capacity]) != expected[0:capacity] { return false }
+    }
+    if RewriteProcedureTypeParameters("", output[:], 128).count != 0 ||
+    RewriteProcedureTypeParameters("value:", output[:], 128).error != .ProcedureTypeType ||
+    RewriteProcedureTypeParameters("a.b:s32", output[:], 128).error != .ProcedureTypeName ||
+    RewriteProcedureTypeParameters("long:s32", output[:], 4).error != .ProcedureTypeName ||
+    RewriteProcedureTypeParameters("s32,", output[:], 128).error != .ProcedureTypeType ||
+    RewriteProcedureTypeParameters("x:s32 = 2", output[:], 128).error != .ProcedureTypeDefault { return false }
+    source = "s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32"
+    result := RewriteProcedureTypeParameters(source, output[:], 128)
+    if result.error != .None || result.parameters != 16 ||
+    TextView(output[0:result.count]) != "arg0: s32, arg1: s32, arg2: s32, arg3: s32, arg4: s32, arg5: s32, arg6: s32, arg7: s32, arg8: s32, arg9: s32, arg10: s32, arg11: s32, arg12: s32, arg13: s32, arg14: s32, arg15: s32" {
+        return false
+    }
+    source = "s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32,s32"
+    if RewriteProcedureTypeParameters(source, output[:], 128).error != .ProcedureTypeCount { return false }
+    return true
+}
+
 Parameters :: () -> bool {
     if !SameParameters("", "", true, true, 0, false) ||
     !SameParameters(" \t", "", true, true, 0, false) ||
@@ -435,6 +462,7 @@ Answer :: () -> s32 {
     if !SymmetricOperators() { return 8 }
     if !BuilderPieces() { return 9 }
     if !GoMethods() { return 10 }
+    if !ProcedureTypeParameters() { return 11 }
     return 42
 }
 

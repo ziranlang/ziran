@@ -36,6 +36,10 @@ ForeignImportSupported :: (target: string, foreign: string) -> bool {
     return false
 }
 
+ProcedureTypeSupported :: (target: string, c_call: bool) -> bool {
+    return TargetKnown(target) && (!c_call || (target != "go" && target != "zib"))
+}
+
 ScalarByteWidth :: (type: string) -> s32 {
     if type == "s8" || type == "u8" || type == "bool" { return 1 }
     if type == "s16" || type == "u16" { return 2 }

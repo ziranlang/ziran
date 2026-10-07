@@ -30,6 +30,12 @@ CheckTargetCapabilities(const ZirProgram *program, const char *target)
         const ZirModule *module = &program->modules[m];
         for(int t = 0; t < module->type_count; t++) {
             const ZirType *type = &module->types[t];
+            if(type->is_procedure_type &&
+               !compiler_type_ProcedureTypeSupported(selected, type->is_c_call)) {
+                DiagnosticTarget(type->span, "check.record", target, "procedures.c-call",
+                    "target does not support #c_call procedure types: %s", type->name);
+                return 0;
+            }
             if(type->is_union && !type->is_record_template &&
                (!strcmp(target, "zib") || !strcmp(target, "go")) &&
                !UnionScalarFields(module, type)) {

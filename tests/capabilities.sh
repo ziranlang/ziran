@@ -26,6 +26,7 @@ assert item['source_and_saved_ir'] is True
 assert item['target_preflight'] is True
 assert item['text_view_opaque_pointer_check'] is True
 assert item['automatic_vec_drop'] is True
+assert item['heap_allocation'] is True
 assert item['aggregate_vec_transfer'] is True
 assert item['text_view_local_mutation_check'] is True
 assert item['gpu_execution'] == 'cpu_fallback'
@@ -64,6 +65,7 @@ assert item['target_preflight'] is True
 assert item['text_view_opaque_pointer_check'] is True
 assert item['automatic_vec_drop'] is True
 numeric = item['numeric_conformance']
+assert item['heap_allocation'] is True
 assert numeric['schema_version'] == 1
 assert numeric['stability'] == 'stable-id'
 if target == 'plan9-c':

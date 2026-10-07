@@ -194,12 +194,31 @@ static void multiple_results(void)
     assert(!compiler_declaration_MultipleBinding(text(binding_source), 2, 128).present);
 }
 
+static void procedure_type_parameters(void)
+{
+    const char source[] = {'s', '3', '2', ',', 'x', ':', '*', 'N', 'o', 'd', 'e', '!'};
+    const char *expected = "arg0: s32, x: *Node";
+    unsigned char output[128];
+    for(int64_t capacity = 0; capacity <= (int64_t)strlen(expected); capacity++) {
+        memset(output, 0xa5, sizeof(output));
+        ParameterRewrite result = compiler_declaration_RewriteProcedureTypeParameters(
+            StringView(source, sizeof(source) - 1), (Slice){output, capacity}, 128);
+        assert(result.error == DeclarationError_None && result.parameters == 2);
+        assert(result.count == (int64_t)strlen(expected) && output[capacity] == 0xa5);
+        assert(!memcmp(output, expected, (size_t)capacity));
+    }
+    assert(compiler_declaration_RewriteProcedureTypeParameters((String){0}, (Slice){0}, 128).count == 0);
+    for(int error = DeclarationError_ProcedureTypeCount; error <= DeclarationError_ProcedureTypeDefault; error++)
+        assert(compiler_declaration_ErrorText(error).length > 0);
+}
+
 int main(void)
 {
     foreign_declarations();
     multiple_results();
     procedure_rewrites();
     builder_pieces();
+    procedure_type_parameters();
     unsigned char output[128];
     const char *source = "using a:s32 = Call(1, 2), text:string = \"x=y,z\"";
     const char *expected = "a:s32, text:string";

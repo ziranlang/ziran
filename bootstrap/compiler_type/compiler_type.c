@@ -65,6 +65,18 @@ compiler_type_ForeignImportSupported(String target, String foreign)
     return false;
 }
 
+bool
+compiler_type_ProcedureTypeSupported(String target, bool c_call)
+{
+    bool value_0 = compiler_type_TargetKnown(target);
+    bool value_1 = value_0;
+    if (value_1) {
+        bool value_2 = !c_call || (!StringEqual(target, StringLiteral("go")) && !StringEqual(target, StringLiteral("zib")));
+        value_1 = value_2;
+    }
+    return value_1;
+}
+
 int32_t
 compiler_type_ScalarByteWidth(String type)
 {

@@ -100,7 +100,8 @@ declaration, foreign binding, and `using` modifier syntax, enum validation and
 evaluation, type spelling and field parsing, expression and nested initializer
 grammar, statement expression extraction, loop headers, optional `then`, and
 compile-time branch syntax are also written in Ziran. Ziran also parses multiple
-results and bindings, expands formatted builder statements, and rewrites
+results and bindings, normalizes procedure-type parameters, expands formatted
+builder statements, and rewrites
 symmetric operators, procedure-name expressions, and local procedure names.
 The rest of the compiler is still being migrated from C.
 A fresh build uses the generated modules in `bootstrap/` to build a bootstrap

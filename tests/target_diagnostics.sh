@@ -28,6 +28,9 @@ cat > "$work/c_api.zi" <<'ZI'
 native :: #system_library "libc";
 Abs :: (value: s32) -> s32 #foreign native "abs";
 ZI
+cat > "$work/c_callback.zi" <<'ZI'
+Callback :: #type (value: s32) -> s32 #c_call;
+ZI
 cat > "$work/aggregate_union.zi" <<'ZI'
 Item :: struct { value: s64 }
 Payload :: union { item: Item; value: s64 }
@@ -36,7 +39,7 @@ Answer :: () -> s32 { payload: Payload; return cast(s32)payload.item.value }
 ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/plain.zi" \
     "$work/go_api.zi" "$work/py_api.zi" "$work/go_type.zi" "$work/py_type.zi" "$work/c_api.zi" \
-    "$work/aggregate_union.zi"
+    "$work/aggregate_union.zi" "$work/c_callback.zi"
 
 for form in source saved; do
     root=$work
@@ -44,9 +47,9 @@ for form in source saved; do
     if [ "$form" = saved ]; then root=$work/ir; extension=zir; fi
     for target in c cpp go rust py zib plan9-c; do
         "$ziran" check "--target=$target" --root "$root" "$root/plain.$extension"
-        for fixture in go_api py_api go_type py_type c_api; do
+        for fixture in go_api py_api go_type py_type c_api c_callback; do
             case "$fixture:$target" in
-                go_*:go|py_*:py|c_api:c|c_api:cpp|c_api:go|c_api:rust|c_api:py|c_api:plan9-c)
+                go_*:go|py_*:py|c_api:c|c_api:cpp|c_api:go|c_api:rust|c_api:py|c_api:plan9-c|c_callback:c|c_callback:cpp|c_callback:rust|c_callback:py|c_callback:plan9-c)
                     "$ziran" check "--target=$target" --root "$root" "$root/$fixture.$extension"
                     continue ;;
             esac
@@ -62,6 +65,7 @@ for form in source saved; do
                 go_type) capability=types.go ;;
                 py_type) capability=types.py ;;
                 c_api) capability=ffi.c ;;
+                c_callback) capability=procedures.c-call ;;
             esac
             python3 - "$diagnostics" "$target" "$capability" <<'PY'
 import json, pathlib, sys
@@ -73,6 +77,16 @@ assert item['target'] == sys.argv[2] and item['capability'] == sys.argv[3], item
 assert item['code'] in ('check.record', 'check.foreign') and item['line'] > 0, item
 PY
         done
+        if [ "$target" = go ]; then
+            output=$work/$form-callback-output
+            if "$ziran" build --target=go --diagnostics=json --root "$root" \
+                -o "$output" "$root/plain.$extension" "$root/c_callback.$extension" \
+                > "$work/stdout" 2> "$work/callback.jsonl"; then
+                echo 'Go emitted an unsupported C callback type' >&2
+                exit 1
+            fi
+            test ! -d "$output" || test -z "$(find "$output" -type f -print -quit)"
+        fi
         # Preflight all inputs before emitting even the first valid module.
         if [ "$target" != zib ]; then
             fixture=go_type

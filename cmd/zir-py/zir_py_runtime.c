@@ -201,6 +201,23 @@ const PyRuntimeItem py_runtime_items[] = {
      "        if isinstance(self.base, ctypes._Pointer):\n"
      "            return hash(ctypes.cast(self.base, ctypes.c_void_p).value + self.key * ctypes.sizeof(self.base._type_))\n"
      "        return hash((id(self.base), self.key))\n"},
+    {"ZiranHeapStorage", "",
+     "class ZiranHeapStorage(list):\n"
+     "    \"\"\"One allocated value; clearing it invalidates pointer aliases.\"\"\"\n"
+     "    __slots__ = ()\n"},
+    {"_heap_new", "",
+     "def _heap_new(value):\n"
+     "    return ZiranPointer(ZiranHeapStorage([value]), 0)\n"},
+    {"_heap_free", "",
+     "def _heap_free(pointer):\n"
+     "    if pointer is None:\n"
+     "        return\n"
+     "    if (not isinstance(pointer, ZiranPointer) or\n"
+     "            not isinstance(pointer.base, ZiranHeapStorage) or pointer.key != 0):\n"
+     "        raise ValueError(\"free requires a pointer from New\")\n"
+     "    if not pointer.base:\n"
+     "        raise ValueError(\"allocation already freed\")\n"
+     "    pointer.base.clear()\n"},
     {"ZiranTextView", "",
      "class ZiranTextView(bytes):\n"
      "    \"\"\"A borrowed pointer/count string; header writes publish new values.\"\"\"\n"

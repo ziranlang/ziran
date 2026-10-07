@@ -20,6 +20,7 @@ DeclarationError :: enum s32 {
     SymmetricParameters; SymmetricModifier; ProcedureNameArguments;
     BuilderFormat; BuilderPercent; BuilderArguments; BuilderPieces; BuilderArgumentCount;
     GoMethodQuote; GoMethodDuplicate; GoMethodResults; GoMethodForeign;
+    ProcedureTypeCount; ProcedureTypeName; ProcedureTypeType; ProcedureTypeDefault;
 }
 GoMethodDeclaration :: struct {
     error: DeclarationError
@@ -138,6 +139,10 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .ExportName { return "#program_export symbol must be an identifier" }
     if error == .Parameters { return "too many procedure parameters" }
     if error == .DefaultValue { return "default parameter needs a value" }
+    if error == .ProcedureTypeCount { return "invalid procedure type parameters" }
+    if error == .ProcedureTypeName { return "procedure type parameter needs a name" }
+    if error == .ProcedureTypeType { return "procedure type parameter needs a type" }
+    if error == .ProcedureTypeDefault { return "defaults on procedure type parameters are not supported" }
     if error == .UsingModifier { return "using parameter modifiers are not supported" }
     if error == .UsingType { return "using parameter needs name: Type" }
     if error == .UsingName { return "using parameter needs a plain name" }
@@ -360,6 +365,47 @@ RewriteParameters :: (source: string, output: []u8, strip_defaults: bool,
         }
         if result.parameters > 0 { Put(output, *result.count, ", ") }
         Put(output, *result.count, part)
+        result.parameters += 1
+        at = range.next
+    }
+    return result
+}
+
+// Normalize a callback signature without constructing declaration IR. Bounded
+// outputs receive their prefix and count measures the complete result.
+RewriteProcedureTypeParameters :: (source: string, output: []u8,
+    name_limit: s64) -> ParameterRewrite {
+    result: ParameterRewrite
+    if Text.SkipSpace(source, 0, true) == source.count { return result }
+    at: s64 = 0
+    while at >= 0 {
+        if result.parameters == 16 { result.error = .ProcedureTypeCount; return result }
+        range := Text.NextSourcePart(source, at)
+        part := Trim(source[range.begin:range.end])
+        if Text.TopLevelAssignment(part) >= 0 { result.error = .ProcedureTypeDefault; return result }
+        colon := Find(part, ":")
+        type := part
+        if result.parameters > 0 { Put(output, *result.count, ", ") }
+        if colon >= 0 {
+            name := Trim(part[0:colon])
+            if name.count >= name_limit || !Source.IdentifierText(name, false) {
+                result.error = .ProcedureTypeName
+                return result
+            }
+            Put(output, *result.count, name)
+            type = Trim(part[colon + 1:])
+        } else {
+            Put(output, *result.count, "arg")
+            digits: [2]u8
+            length: s64 = 0
+            if result.parameters >= 10 { digits[length] = #char "1"; length += 1 }
+            digits[length] = #char "0" + cast(u8)(result.parameters % 10)
+            length += 1
+            Put(output, *result.count, TextView(digits[0:length]))
+        }
+        if type.count == 0 || Find(type, ":") >= 0 { result.error = .ProcedureTypeType; return result }
+        Put(output, *result.count, ": ")
+        Put(output, *result.count, type)
         result.parameters += 1
         at = range.next
     }

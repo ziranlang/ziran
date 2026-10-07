@@ -72,7 +72,7 @@ if "$ziran" build --target=go --root "$work" -o "$work/go" \
     echo '#c_call unexpectedly built for Go' >&2
     exit 1
 fi
-grep -Fq '#c_call procedure types require the native C or C++ target' "$work/go.out"
+grep -Fq 'target does not support #c_call procedure types' "$work/go.out"
 
 # A Ziran function with an exact C callback signature can fill a native
 # callback field. Portable bundles and Go must still reject that field.
@@ -143,13 +143,13 @@ if "$ziran" bundle --root "$work" --entry native:Answer \
     echo '#c_call function value unexpectedly entered a portable bundle' >&2
     exit 1
 fi
-grep -Fq 'outside the portable subset' "$work/bundle.out"
+grep -Fq 'target does not support #c_call procedure types' "$work/bundle.out"
 if "$ziran" build --target=go --root "$work" -o "$work/native-go" \
     "$work/native.zi" > "$work/native-go.out" 2>&1; then
     echo '#c_call function value unexpectedly built for Go' >&2
     exit 1
 fi
-grep -Fq '#c_call procedure types require the native C or C++ target' \
+grep -Fq 'target does not support #c_call procedure types' \
     "$work/native-go.out"
 
 # Native callbacks are plain function pointers. Closure slots retain their

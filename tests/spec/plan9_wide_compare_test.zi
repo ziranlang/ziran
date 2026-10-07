@@ -20,6 +20,33 @@ ZeroArrayPreservesRecord :: () -> bool {
     return expected == "hello hello hello" && expected[0] == cast(u8)104
 }
 
+SignedMinimumLiteral :: () -> bool {
+    minimum: s64 = -9223372036854775808
+    if minimum != -9223372036854775808 || -9223372036854775808 != minimum ||
+        !(minimum == -9223372036854775808) || !(-9223372036854775808 == minimum) ||
+        !(minimum <= -9223372036854775808) || !(-9223372036854775808 <= minimum) ||
+        !(minimum >= -9223372036854775808) || !(-9223372036854775808 >= minimum) ||
+        minimum < -9223372036854775808 || -9223372036854775808 < minimum ||
+        minimum > -9223372036854775808 || -9223372036854775808 > minimum { return false }
+    values := s64.[-9223372036854775807, -1, 0, 1, 9223372036854775807]
+    for value: values {
+        if !(value > -9223372036854775808) || !(-9223372036854775808 < value) ||
+            !(value >= -9223372036854775808) || !(-9223372036854775808 <= value) ||
+            value < -9223372036854775808 || -9223372036854775808 > value ||
+            value <= -9223372036854775808 || -9223372036854775808 >= value ||
+            value == -9223372036854775808 || -9223372036854775808 == value ||
+            !(value != -9223372036854775808) || !(-9223372036854775808 != value) { return false }
+    }
+    one: s64 = 1
+    if one / -9223372036854775808 != 0 || one % -9223372036854775808 != one { return false }
+    expected: float64 = cast(float64)minimum
+    if cast(float64)(-9223372036854775808) != expected { return false }
+    high: u64 = cast(u64)9223372036854775808
+    maximum: u64 = cast(u64)18446744073709551615
+    return -high == high && -maximum == cast(u64)1 &&
+        high > cast(u64)0 && maximum > high
+}
+
 #program_export
 main :: () -> s32 {
     entries[0].unsigned = cast(u64)4294967296
@@ -42,6 +69,7 @@ main :: () -> s32 {
     if entries[left].unsigned < Change() || entries[left].unsigned != cast(u64)0 { return 4 }
     if !BytesMatch() { return 5 }
     if !ZeroArrayPreservesRecord() { return 6 }
+    if !SignedMinimumLiteral() { return 7 }
     print("plan9-wide-compare-test-ok\n")
     return 0
 }

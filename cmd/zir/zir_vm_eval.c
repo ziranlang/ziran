@@ -723,7 +723,11 @@ eval_expression(Frame *frame, int index, int depth)
         }
         if(strcmp(expression->op, "-") == 0)
             value = right.kind == VALUE_REAL ? real_value(-right.real) :
-                    right.unsigned64 ? uint_value(UINT64_C(0) - right.bits) :
+                    /* A positive abstract literal can need unsigned storage
+                     * even though its negation, notably INT64_MIN, is signed.
+                     * Only a concrete unsigned expression keeps that form. */
+                    right.unsigned64 && strcmp(expression->type, "integer") != 0 ?
+                                       uint_value(UINT64_C(0) - right.bits) :
                                        int_value(signed64(UINT64_C(0) -
                                                           integer_bits(right)));
         else if(strcmp(expression->op, "+") == 0)

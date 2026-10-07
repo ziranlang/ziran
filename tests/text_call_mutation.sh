@@ -60,6 +60,25 @@ cases = {
         WriteGlobal()
         return cast(s32)text[0]
     }''',
+    'global_view_parameter': '''bytes: [2]u8;
+    saved: string;
+    Hold :: () { saved = TextView(bytes[:]) }
+    WriteSlice :: (storage: []u8) { storage[0] = cast(u8)98 }
+    Forward :: (storage: []u8) { WriteSlice(storage) }
+    Bad :: () -> s32 {
+        Hold()
+        Forward(bytes[:])
+        return cast(s32)saved[0]
+    }''',
+    'global_view_pointer_alias': '''state: Node;
+    saved: string;
+    Hold :: () { saved = TextView(state.bytes[:]) }
+    Bad :: () -> s32 {
+        Hold()
+        pointer := *state
+        pointer.bytes[0] = cast(u8)98
+        return cast(s32)saved[0]
+    }''',
     'local_record_global_backing': '''bytes: [2]u8;
     Box :: struct { text: string }
     WriteGlobal :: () { bytes[0] = cast(u8)98 }
@@ -162,6 +181,9 @@ for source in (identity, work / 'identity-ir/identity.zir'):
 
 safe = work / 'safe.zi'
 safe.write_text(node + writer + '''
+    global_bytes: [2]u8 = .[97, 98];
+    global_view: string;
+    Hold :: () { global_view = TextView(global_bytes[:]) }
     Read :: (node: *Node) -> s32 { return cast(s32)node.bytes[0] }
     Sibling :: (node: *Node) { node.other[0] = cast(u8)99 }
     Forward :: (node: *Node) { Sibling(node) }
@@ -172,6 +194,7 @@ safe.write_text(node + writer + '''
     }
     #program_export
     Answer :: () -> s32 {
+        Hold()
         node: Node
         node.bytes[0] = 97
         node.bytes[1] = 98
@@ -183,6 +206,7 @@ safe.write_text(node + writer + '''
         }
         Write(*node)
         if node.bytes[0] != 98 || node.other[0] != 99 { return 3 }
+        if global_view != "ab" { return 4 }
         return node.result
     }
 ''')

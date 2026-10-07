@@ -58,7 +58,7 @@ Push :: (state: State, scalar: u32, valid: bool) -> Step {
 
 // at must be a cluster boundary. Invalid UTF-8 bytes form individual clusters
 // and reset context. Clamped endpoints always make progress.
-#program_export
+#program_export "GraphemeNext"
 Next :: (value: string, at: s32) -> s32 {
     if at < 0 { at = 0 }
     length := cast(s32)value.count
@@ -103,7 +103,7 @@ Boundary :: (value: string, at: s32) -> s32 {
     return cursor
 }
 
-#program_export
+#program_export "GraphemeCount"
 Count :: (value: string) -> s32 {
     cursor: s32 = 0
     count: s32 = 0

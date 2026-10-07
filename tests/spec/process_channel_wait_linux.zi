@@ -1,0 +1,51 @@
+#import "process_channel_linux"
+#import "timer_linux"
+fixture :: #system_library "libc";
+Spawn :: (delay_us: s32) -> s32 #foreign fixture "channel_wait_spawn";
+Configure :: (mode: s32) -> void #foreign fixture "channel_wait_configure";
+Descriptors :: () -> s32 #foreign fixture "channel_wait_descriptors";
+ExitTime :: () -> s64 #foreign fixture "channel_wait_exit_time";
+Now :: () -> s64 #foreign fixture "channel_wait_now";
+Sleeps :: () -> s32 #foreign fixture "channel_wait_sleeps";
+Polls :: () -> s32 #foreign fixture "channel_wait_polls";
+Opens :: () -> s32 #foreign fixture "channel_wait_opens";
+Interrupts :: () -> s32 #foreign fixture "channel_wait_interrupts";
+Release :: () -> void #foreign fixture "channel_wait_release";
+
+#program_export
+Main :: () -> s32 {
+    original := Descriptors()
+    for mode: cast(s32)0..cast(s32)2 {
+        Configure(mode)
+        delay: s64; samples: s32 = 128
+        print("{\"mode\":%,\"exit_to_reap_us\":[", mode)
+        for i: 0..samples - 1 {
+            channel: ProcessChannel; channel.socket.fd = -1; channel.pid = Spawn(150)
+            if channel.pid <= 0 { return 1 }
+            if !WaitChannel(*channel, 1000) || !channel.exited || channel.pid != 0 || channel.code != 7 { return 2 }
+            elapsed := (Now() - ExitTime()) / 1000
+            if elapsed < 0 { return 3 }
+            if i > 0 { print(",") }; print("%", elapsed); delay += elapsed
+            if !CloseChannel(*channel, 0) || !WaitChannel(*channel, 0) { return 4 }
+        }
+        print("],\"mean_us\":%,\"sleep_calls\":%,\"poll_calls\":%,\"pidfd_attempts\":%}\n",
+            delay / samples, Sleeps(), Polls(), Opens())
+        if mode == 0 && (Sleeps() != 0 || Polls() == 0 || Opens() == 0) { return 5 }
+        if mode > 0 && (Sleeps() == 0 || Polls() != 0 || Opens() == 0) { return 6 }
+        if Descriptors() != original { return 7 }
+    }
+    // Repeated EINTR must consume the original deadline, without killing the
+    // child or retaining the process descriptor. The owner then joins it.
+    Configure(3)
+    channel: ProcessChannel; channel.socket.fd = -1; channel.pid = Spawn(100000)
+    if channel.pid <= 0 { return 8 }
+    started := Now()
+    if WaitChannel(*channel, 15) || channel.error != 0 || channel.exited || channel.pid <= 0 { return 9 }
+    elapsed := (Now() - started) / 1000000
+    if elapsed < 10 || elapsed > 80 || Interrupts() < 2 { return 10 }
+    if !CloseChannel(*channel, 0) || channel.code != 137 { return 11 }
+    Release()
+    if Descriptors() != original { return 12 }
+    print("{\"interrupted_deadline_ms\":%,\"interrupts\":%,\"descriptor_growth\":0}\n", elapsed, Interrupts())
+    return 0
+}

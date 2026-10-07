@@ -10,8 +10,12 @@ cat > "$work/dependency.zi" <<'ZI'
 #scope_export
 Other :: () -> s32 { return 43 }
 ZI
+cat > "$work/containers.zi" <<'ZI'
+Packet :: struct($T: Type) { value: T }
+ZI
 cat > "$work/lib.zi" <<'ZI'
 Dependency :: #import "dependency";
+Containers :: #import "containers";
 #scope_file
 Base :: () -> s32 { return 40 }
 #scope_export
@@ -55,10 +59,23 @@ ChooseName :: (first: $T, name: string = #procedure_name()) -> string {
 GenericBodyName :: (first: $T) -> string {
     return #procedure_name()
 }
+ImportedRecordDefault :: (packet: *Containers.Packet(s32),
+                          extra: s32 = Base()) -> s32 {
+    return packet.value + extra
+}
+NestedRecordDefault :: (packet: *Containers.Packet(Containers.Packet(s32)),
+                        extra: s32 = 2) -> s32 {
+    return packet.value.value + extra
+}
+ConstructedRecordDefault :: (packet: Containers.Packet(s32) =
+                             Containers.Packet(s32).{value = Base()}) -> s32 {
+    return packet.value
+}
 ZI
 cat > "$work/app.zi" <<'ZI'
 #import "lib"
 Library :: #import "lib";
+Containers :: #import "containers";
 Embedded :: #import, string "Defaulted :: (value := 42) -> s64 { return value }";
 Base :: () -> s32 { return 2 }
 FROM_RUN :: #run Offset(extra = 2);
@@ -104,6 +121,12 @@ NestedInferred :: (value := LaterInferred()) -> s64 { return value }
 LaterInferred :: (value := 42) -> s64 { return value }
 Operation :: #type () -> s32;
 Shadowed :: (Evaluate: Operation) -> s32 { return Evaluate() }
+LocalPacket :: struct($T: Type) { value: T }
+LocalRecordDefault :: (packet: *LocalPacket(s32), extra: s32 = 2,
+                       label: string = "LocalPacket(s32)") -> s32 {
+    if label != "LocalPacket(s32)" { return 0 }
+    return packet.value + extra
+}
 #program_export
 Answer :: () -> s32 {
     if Offset(extra = 2) != FROM_RUN { return 0 }
@@ -150,6 +173,18 @@ Answer :: () -> s32 {
     if InferredForward() != 42 { return 0 }
     if NestedInferred() != 42 { return 0 }
     if Shadowed(Zero) != 7 { return 0 }
+    local: LocalPacket(s32) = .{value = 40}
+    if LocalRecordDefault(*local) != 42 ||
+       LocalRecordDefault(*local, extra = 3) != 43 { return 0 }
+    imported: Containers.Packet(s32) = .{value = 2}
+    if ImportedRecordDefault(*imported) != 42 ||
+       Library.ImportedRecordDefault(*imported, extra = 3) != 5 { return 0 }
+    nested: Containers.Packet(Containers.Packet(s32))
+    nested.value.value = 40
+    if NestedRecordDefault(*nested) != 42 ||
+       Library.NestedRecordDefault(*nested, extra = 3) != 43 { return 0 }
+    if ConstructedRecordDefault() != 40 ||
+       Library.ConstructedRecordDefault(imported) != 2 { return 0 }
     return 42
 }
 ZI

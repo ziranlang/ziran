@@ -359,6 +359,14 @@ rewrite_function_type_applications_with_buffers(ZirModule *module, ZirFunction *
             sizeof(buffers->expanded), fn->span, 0)) return 0;
     if(strlen(buffers->expanded) >= ZIR_TEXT_MAX) return 0;
     fn->args_text = KeepParameters(buffers->expanded);
+    /* Defaults retain a second parameter signature. Keep its types and any
+     * record constructors concrete too, so checked IR can validate it. */
+    if(FunctionDefaultArgs(fn)[0]) {
+        if(!rewrite_type_applications(module, FunctionDefaultArgs(fn), buffers->expanded,
+                sizeof(buffers->expanded), fn->span, 0)) return 0;
+        if(strlen(buffers->expanded) >= ZIR_TEXT_MAX) return 0;
+        fn->default_args_text = KeepParameters(buffers->expanded);
+    }
     if(!rewrite_type_applications(module, fn->return_type, buffers->expanded,
             sizeof(buffers->expanded), fn->span, 0)) return 0;
     if(strlen(buffers->expanded) >= sizeof(fn->return_type)) return 0;

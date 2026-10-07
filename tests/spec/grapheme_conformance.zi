@@ -1,0 +1,1595 @@
+// Generated Unicode 17.0.0 GraphemeBreakTest corpus; Unicode License V3.
+// https://www.unicode.org/license.txt
+G :: #import "std/grapheme";
+Check :: (value: string, offsets: []s32) -> bool {
+        at: s32 = 0
+        index: s32 = 1
+        while at < cast(s32)value.count {
+            at = G.Next(value, at)
+            if index >= cast(s32)offsets.count || at != offsets[index] { return false }
+            index += 1
+        }
+        if index != cast(s32)offsets.count { return false }
+        index = cast(s32)offsets.count - 1
+        while index > 0 {
+            if G.Previous(value, offsets[index]) != offsets[index - 1] { return false }
+            index -= 1
+        }
+    return true
+}
+Cases0 :: () -> bool {
+    offsets0: [3]s32 = .{0, 1, 2}
+    if !Check("\x0d\x0d", offsets0[:]) { return false }
+    offsets1: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x0d\xcc\x88\x0d", offsets1[:]) { return false }
+    offsets2: [2]s32 = .{0, 2}
+    if !Check("\x0d\x0a", offsets2[:]) { return false }
+    offsets3: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x0d\xcc\x88\x0a", offsets3[:]) { return false }
+    offsets4: [3]s32 = .{0, 1, 2}
+    if !Check("\x0d\x00", offsets4[:]) { return false }
+    offsets5: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x0d\xcc\x88\x00", offsets5[:]) { return false }
+    offsets6: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xe0\xa5\x8d", offsets6[:]) { return false }
+    offsets7: [3]s32 = .{0, 1, 6}
+    if !Check("\x0d\xcc\x88\xe0\xa5\x8d", offsets7[:]) { return false }
+    offsets8: [3]s32 = .{0, 1, 3}
+    if !Check("\x0d\xcc\x80", offsets8[:]) { return false }
+    offsets9: [3]s32 = .{0, 1, 5}
+    if !Check("\x0d\xcc\x88\xcc\x80", offsets9[:]) { return false }
+    offsets10: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xe2\x80\x8c", offsets10[:]) { return false }
+    offsets11: [3]s32 = .{0, 1, 6}
+    if !Check("\x0d\xcc\x88\xe2\x80\x8c", offsets11[:]) { return false }
+    offsets12: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xe2\x80\x8d", offsets12[:]) { return false }
+    offsets13: [3]s32 = .{0, 1, 6}
+    if !Check("\x0d\xcc\x88\xe2\x80\x8d", offsets13[:]) { return false }
+    offsets14: [3]s32 = .{0, 1, 5}
+    if !Check("\x0d\xf0\x9f\x87\xa6", offsets14[:]) { return false }
+    offsets15: [4]s32 = .{0, 1, 3, 7}
+    if !Check("\x0d\xcc\x88\xf0\x9f\x87\xa6", offsets15[:]) { return false }
+    offsets16: [3]s32 = .{0, 1, 3}
+    if !Check("\x0d\xdb\x9d", offsets16[:]) { return false }
+    offsets17: [4]s32 = .{0, 1, 3, 5}
+    if !Check("\x0d\xcc\x88\xdb\x9d", offsets17[:]) { return false }
+    offsets18: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xe0\xa4\x83", offsets18[:]) { return false }
+    offsets19: [3]s32 = .{0, 1, 6}
+    if !Check("\x0d\xcc\x88\xe0\xa4\x83", offsets19[:]) { return false }
+    offsets20: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xe1\x84\x80", offsets20[:]) { return false }
+    offsets21: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0d\xcc\x88\xe1\x84\x80", offsets21[:]) { return false }
+    offsets22: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xe1\x85\xa0", offsets22[:]) { return false }
+    offsets23: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0d\xcc\x88\xe1\x85\xa0", offsets23[:]) { return false }
+    offsets24: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xe1\x86\xa8", offsets24[:]) { return false }
+    offsets25: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0d\xcc\x88\xe1\x86\xa8", offsets25[:]) { return false }
+    offsets26: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xea\xb0\x80", offsets26[:]) { return false }
+    offsets27: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0d\xcc\x88\xea\xb0\x80", offsets27[:]) { return false }
+    offsets28: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xea\xb0\x81", offsets28[:]) { return false }
+    offsets29: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0d\xcc\x88\xea\xb0\x81", offsets29[:]) { return false }
+    offsets30: [3]s32 = .{0, 1, 4}
+    if !Check("\x0d\xe0\xa4\x95", offsets30[:]) { return false }
+    offsets31: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0d\xcc\x88\xe0\xa4\x95", offsets31[:]) { return false }
+    offsets32: [3]s32 = .{0, 1, 3}
+    if !Check("\x0d\xc2\xa9", offsets32[:]) { return false }
+    offsets33: [4]s32 = .{0, 1, 3, 5}
+    if !Check("\x0d\xcc\x88\xc2\xa9", offsets33[:]) { return false }
+    offsets34: [3]s32 = .{0, 1, 2}
+    if !Check("\x0d\x20", offsets34[:]) { return false }
+    offsets35: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x0d\xcc\x88\x20", offsets35[:]) { return false }
+    offsets36: [3]s32 = .{0, 1, 3}
+    if !Check("\x0d\xcd\xb8", offsets36[:]) { return false }
+    offsets37: [4]s32 = .{0, 1, 3, 5}
+    if !Check("\x0d\xcc\x88\xcd\xb8", offsets37[:]) { return false }
+    offsets38: [3]s32 = .{0, 1, 2}
+    if !Check("\x0a\x0d", offsets38[:]) { return false }
+    offsets39: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x0a\xcc\x88\x0d", offsets39[:]) { return false }
+    offsets40: [3]s32 = .{0, 1, 2}
+    if !Check("\x0a\x0a", offsets40[:]) { return false }
+    offsets41: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x0a\xcc\x88\x0a", offsets41[:]) { return false }
+    offsets42: [3]s32 = .{0, 1, 2}
+    if !Check("\x0a\x00", offsets42[:]) { return false }
+    offsets43: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x0a\xcc\x88\x00", offsets43[:]) { return false }
+    offsets44: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xe0\xa5\x8d", offsets44[:]) { return false }
+    offsets45: [3]s32 = .{0, 1, 6}
+    if !Check("\x0a\xcc\x88\xe0\xa5\x8d", offsets45[:]) { return false }
+    offsets46: [3]s32 = .{0, 1, 3}
+    if !Check("\x0a\xcc\x80", offsets46[:]) { return false }
+    offsets47: [3]s32 = .{0, 1, 5}
+    if !Check("\x0a\xcc\x88\xcc\x80", offsets47[:]) { return false }
+    offsets48: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xe2\x80\x8c", offsets48[:]) { return false }
+    offsets49: [3]s32 = .{0, 1, 6}
+    if !Check("\x0a\xcc\x88\xe2\x80\x8c", offsets49[:]) { return false }
+    offsets50: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xe2\x80\x8d", offsets50[:]) { return false }
+    offsets51: [3]s32 = .{0, 1, 6}
+    if !Check("\x0a\xcc\x88\xe2\x80\x8d", offsets51[:]) { return false }
+    offsets52: [3]s32 = .{0, 1, 5}
+    if !Check("\x0a\xf0\x9f\x87\xa6", offsets52[:]) { return false }
+    offsets53: [4]s32 = .{0, 1, 3, 7}
+    if !Check("\x0a\xcc\x88\xf0\x9f\x87\xa6", offsets53[:]) { return false }
+    offsets54: [3]s32 = .{0, 1, 3}
+    if !Check("\x0a\xdb\x9d", offsets54[:]) { return false }
+    offsets55: [4]s32 = .{0, 1, 3, 5}
+    if !Check("\x0a\xcc\x88\xdb\x9d", offsets55[:]) { return false }
+    offsets56: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xe0\xa4\x83", offsets56[:]) { return false }
+    offsets57: [3]s32 = .{0, 1, 6}
+    if !Check("\x0a\xcc\x88\xe0\xa4\x83", offsets57[:]) { return false }
+    offsets58: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xe1\x84\x80", offsets58[:]) { return false }
+    offsets59: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0a\xcc\x88\xe1\x84\x80", offsets59[:]) { return false }
+    offsets60: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xe1\x85\xa0", offsets60[:]) { return false }
+    offsets61: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0a\xcc\x88\xe1\x85\xa0", offsets61[:]) { return false }
+    offsets62: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xe1\x86\xa8", offsets62[:]) { return false }
+    offsets63: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0a\xcc\x88\xe1\x86\xa8", offsets63[:]) { return false }
+    offsets64: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xea\xb0\x80", offsets64[:]) { return false }
+    offsets65: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0a\xcc\x88\xea\xb0\x80", offsets65[:]) { return false }
+    offsets66: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xea\xb0\x81", offsets66[:]) { return false }
+    offsets67: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0a\xcc\x88\xea\xb0\x81", offsets67[:]) { return false }
+    offsets68: [3]s32 = .{0, 1, 4}
+    if !Check("\x0a\xe0\xa4\x95", offsets68[:]) { return false }
+    offsets69: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x0a\xcc\x88\xe0\xa4\x95", offsets69[:]) { return false }
+    offsets70: [3]s32 = .{0, 1, 3}
+    if !Check("\x0a\xc2\xa9", offsets70[:]) { return false }
+    offsets71: [4]s32 = .{0, 1, 3, 5}
+    if !Check("\x0a\xcc\x88\xc2\xa9", offsets71[:]) { return false }
+    offsets72: [3]s32 = .{0, 1, 2}
+    if !Check("\x0a\x20", offsets72[:]) { return false }
+    offsets73: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x0a\xcc\x88\x20", offsets73[:]) { return false }
+    offsets74: [3]s32 = .{0, 1, 3}
+    if !Check("\x0a\xcd\xb8", offsets74[:]) { return false }
+    offsets75: [4]s32 = .{0, 1, 3, 5}
+    if !Check("\x0a\xcc\x88\xcd\xb8", offsets75[:]) { return false }
+    offsets76: [3]s32 = .{0, 1, 2}
+    if !Check("\x00\x0d", offsets76[:]) { return false }
+    offsets77: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x00\xcc\x88\x0d", offsets77[:]) { return false }
+    offsets78: [3]s32 = .{0, 1, 2}
+    if !Check("\x00\x0a", offsets78[:]) { return false }
+    offsets79: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x00\xcc\x88\x0a", offsets79[:]) { return false }
+    return true
+}
+Cases1 :: () -> bool {
+    offsets80: [3]s32 = .{0, 1, 2}
+    if !Check("\x00\x00", offsets80[:]) { return false }
+    offsets81: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x00\xcc\x88\x00", offsets81[:]) { return false }
+    offsets82: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xe0\xa5\x8d", offsets82[:]) { return false }
+    offsets83: [3]s32 = .{0, 1, 6}
+    if !Check("\x00\xcc\x88\xe0\xa5\x8d", offsets83[:]) { return false }
+    offsets84: [3]s32 = .{0, 1, 3}
+    if !Check("\x00\xcc\x80", offsets84[:]) { return false }
+    offsets85: [3]s32 = .{0, 1, 5}
+    if !Check("\x00\xcc\x88\xcc\x80", offsets85[:]) { return false }
+    offsets86: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xe2\x80\x8c", offsets86[:]) { return false }
+    offsets87: [3]s32 = .{0, 1, 6}
+    if !Check("\x00\xcc\x88\xe2\x80\x8c", offsets87[:]) { return false }
+    offsets88: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xe2\x80\x8d", offsets88[:]) { return false }
+    offsets89: [3]s32 = .{0, 1, 6}
+    if !Check("\x00\xcc\x88\xe2\x80\x8d", offsets89[:]) { return false }
+    offsets90: [3]s32 = .{0, 1, 5}
+    if !Check("\x00\xf0\x9f\x87\xa6", offsets90[:]) { return false }
+    offsets91: [4]s32 = .{0, 1, 3, 7}
+    if !Check("\x00\xcc\x88\xf0\x9f\x87\xa6", offsets91[:]) { return false }
+    offsets92: [3]s32 = .{0, 1, 3}
+    if !Check("\x00\xdb\x9d", offsets92[:]) { return false }
+    offsets93: [4]s32 = .{0, 1, 3, 5}
+    if !Check("\x00\xcc\x88\xdb\x9d", offsets93[:]) { return false }
+    offsets94: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xe0\xa4\x83", offsets94[:]) { return false }
+    offsets95: [3]s32 = .{0, 1, 6}
+    if !Check("\x00\xcc\x88\xe0\xa4\x83", offsets95[:]) { return false }
+    offsets96: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xe1\x84\x80", offsets96[:]) { return false }
+    offsets97: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x00\xcc\x88\xe1\x84\x80", offsets97[:]) { return false }
+    offsets98: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xe1\x85\xa0", offsets98[:]) { return false }
+    offsets99: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x00\xcc\x88\xe1\x85\xa0", offsets99[:]) { return false }
+    offsets100: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xe1\x86\xa8", offsets100[:]) { return false }
+    offsets101: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x00\xcc\x88\xe1\x86\xa8", offsets101[:]) { return false }
+    offsets102: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xea\xb0\x80", offsets102[:]) { return false }
+    offsets103: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x00\xcc\x88\xea\xb0\x80", offsets103[:]) { return false }
+    offsets104: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xea\xb0\x81", offsets104[:]) { return false }
+    offsets105: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x00\xcc\x88\xea\xb0\x81", offsets105[:]) { return false }
+    offsets106: [3]s32 = .{0, 1, 4}
+    if !Check("\x00\xe0\xa4\x95", offsets106[:]) { return false }
+    offsets107: [4]s32 = .{0, 1, 3, 6}
+    if !Check("\x00\xcc\x88\xe0\xa4\x95", offsets107[:]) { return false }
+    offsets108: [3]s32 = .{0, 1, 3}
+    if !Check("\x00\xc2\xa9", offsets108[:]) { return false }
+    offsets109: [4]s32 = .{0, 1, 3, 5}
+    if !Check("\x00\xcc\x88\xc2\xa9", offsets109[:]) { return false }
+    offsets110: [3]s32 = .{0, 1, 2}
+    if !Check("\x00\x20", offsets110[:]) { return false }
+    offsets111: [4]s32 = .{0, 1, 3, 4}
+    if !Check("\x00\xcc\x88\x20", offsets111[:]) { return false }
+    offsets112: [3]s32 = .{0, 1, 3}
+    if !Check("\x00\xcd\xb8", offsets112[:]) { return false }
+    offsets113: [4]s32 = .{0, 1, 3, 5}
+    if !Check("\x00\xcc\x88\xcd\xb8", offsets113[:]) { return false }
+    offsets114: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa5\x8d\x0d", offsets114[:]) { return false }
+    offsets115: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa5\x8d\xcc\x88\x0d", offsets115[:]) { return false }
+    offsets116: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa5\x8d\x0a", offsets116[:]) { return false }
+    offsets117: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa5\x8d\xcc\x88\x0a", offsets117[:]) { return false }
+    offsets118: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa5\x8d\x00", offsets118[:]) { return false }
+    offsets119: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa5\x8d\xcc\x88\x00", offsets119[:]) { return false }
+    offsets120: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa5\x8d\xe0\xa5\x8d", offsets120[:]) { return false }
+    offsets121: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xe0\xa5\x8d", offsets121[:]) { return false }
+    offsets122: [2]s32 = .{0, 5}
+    if !Check("\xe0\xa5\x8d\xcc\x80", offsets122[:]) { return false }
+    offsets123: [2]s32 = .{0, 7}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xcc\x80", offsets123[:]) { return false }
+    offsets124: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa5\x8d\xe2\x80\x8c", offsets124[:]) { return false }
+    offsets125: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xe2\x80\x8c", offsets125[:]) { return false }
+    offsets126: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa5\x8d\xe2\x80\x8d", offsets126[:]) { return false }
+    offsets127: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xe2\x80\x8d", offsets127[:]) { return false }
+    offsets128: [3]s32 = .{0, 3, 7}
+    if !Check("\xe0\xa5\x8d\xf0\x9f\x87\xa6", offsets128[:]) { return false }
+    offsets129: [3]s32 = .{0, 5, 9}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xf0\x9f\x87\xa6", offsets129[:]) { return false }
+    offsets130: [3]s32 = .{0, 3, 5}
+    if !Check("\xe0\xa5\x8d\xdb\x9d", offsets130[:]) { return false }
+    offsets131: [3]s32 = .{0, 5, 7}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xdb\x9d", offsets131[:]) { return false }
+    offsets132: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa5\x8d\xe0\xa4\x83", offsets132[:]) { return false }
+    offsets133: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xe0\xa4\x83", offsets133[:]) { return false }
+    offsets134: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa5\x8d\xe1\x84\x80", offsets134[:]) { return false }
+    offsets135: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xe1\x84\x80", offsets135[:]) { return false }
+    offsets136: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa5\x8d\xe1\x85\xa0", offsets136[:]) { return false }
+    offsets137: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xe1\x85\xa0", offsets137[:]) { return false }
+    offsets138: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa5\x8d\xe1\x86\xa8", offsets138[:]) { return false }
+    offsets139: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xe1\x86\xa8", offsets139[:]) { return false }
+    offsets140: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa5\x8d\xea\xb0\x80", offsets140[:]) { return false }
+    offsets141: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xea\xb0\x80", offsets141[:]) { return false }
+    offsets142: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa5\x8d\xea\xb0\x81", offsets142[:]) { return false }
+    offsets143: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xea\xb0\x81", offsets143[:]) { return false }
+    offsets144: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa5\x8d\xe0\xa4\x95", offsets144[:]) { return false }
+    offsets145: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xe0\xa4\x95", offsets145[:]) { return false }
+    offsets146: [3]s32 = .{0, 3, 5}
+    if !Check("\xe0\xa5\x8d\xc2\xa9", offsets146[:]) { return false }
+    offsets147: [3]s32 = .{0, 5, 7}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xc2\xa9", offsets147[:]) { return false }
+    offsets148: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa5\x8d\x20", offsets148[:]) { return false }
+    offsets149: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa5\x8d\xcc\x88\x20", offsets149[:]) { return false }
+    offsets150: [3]s32 = .{0, 3, 5}
+    if !Check("\xe0\xa5\x8d\xcd\xb8", offsets150[:]) { return false }
+    offsets151: [3]s32 = .{0, 5, 7}
+    if !Check("\xe0\xa5\x8d\xcc\x88\xcd\xb8", offsets151[:]) { return false }
+    offsets152: [3]s32 = .{0, 2, 3}
+    if !Check("\xcc\x80\x0d", offsets152[:]) { return false }
+    offsets153: [3]s32 = .{0, 4, 5}
+    if !Check("\xcc\x80\xcc\x88\x0d", offsets153[:]) { return false }
+    offsets154: [3]s32 = .{0, 2, 3}
+    if !Check("\xcc\x80\x0a", offsets154[:]) { return false }
+    offsets155: [3]s32 = .{0, 4, 5}
+    if !Check("\xcc\x80\xcc\x88\x0a", offsets155[:]) { return false }
+    offsets156: [3]s32 = .{0, 2, 3}
+    if !Check("\xcc\x80\x00", offsets156[:]) { return false }
+    offsets157: [3]s32 = .{0, 4, 5}
+    if !Check("\xcc\x80\xcc\x88\x00", offsets157[:]) { return false }
+    offsets158: [2]s32 = .{0, 5}
+    if !Check("\xcc\x80\xe0\xa5\x8d", offsets158[:]) { return false }
+    offsets159: [2]s32 = .{0, 7}
+    if !Check("\xcc\x80\xcc\x88\xe0\xa5\x8d", offsets159[:]) { return false }
+    return true
+}
+Cases2 :: () -> bool {
+    offsets160: [2]s32 = .{0, 4}
+    if !Check("\xcc\x80\xcc\x80", offsets160[:]) { return false }
+    offsets161: [2]s32 = .{0, 6}
+    if !Check("\xcc\x80\xcc\x88\xcc\x80", offsets161[:]) { return false }
+    offsets162: [2]s32 = .{0, 5}
+    if !Check("\xcc\x80\xe2\x80\x8c", offsets162[:]) { return false }
+    offsets163: [2]s32 = .{0, 7}
+    if !Check("\xcc\x80\xcc\x88\xe2\x80\x8c", offsets163[:]) { return false }
+    offsets164: [2]s32 = .{0, 5}
+    if !Check("\xcc\x80\xe2\x80\x8d", offsets164[:]) { return false }
+    offsets165: [2]s32 = .{0, 7}
+    if !Check("\xcc\x80\xcc\x88\xe2\x80\x8d", offsets165[:]) { return false }
+    offsets166: [3]s32 = .{0, 2, 6}
+    if !Check("\xcc\x80\xf0\x9f\x87\xa6", offsets166[:]) { return false }
+    offsets167: [3]s32 = .{0, 4, 8}
+    if !Check("\xcc\x80\xcc\x88\xf0\x9f\x87\xa6", offsets167[:]) { return false }
+    offsets168: [3]s32 = .{0, 2, 4}
+    if !Check("\xcc\x80\xdb\x9d", offsets168[:]) { return false }
+    offsets169: [3]s32 = .{0, 4, 6}
+    if !Check("\xcc\x80\xcc\x88\xdb\x9d", offsets169[:]) { return false }
+    offsets170: [2]s32 = .{0, 5}
+    if !Check("\xcc\x80\xe0\xa4\x83", offsets170[:]) { return false }
+    offsets171: [2]s32 = .{0, 7}
+    if !Check("\xcc\x80\xcc\x88\xe0\xa4\x83", offsets171[:]) { return false }
+    offsets172: [3]s32 = .{0, 2, 5}
+    if !Check("\xcc\x80\xe1\x84\x80", offsets172[:]) { return false }
+    offsets173: [3]s32 = .{0, 4, 7}
+    if !Check("\xcc\x80\xcc\x88\xe1\x84\x80", offsets173[:]) { return false }
+    offsets174: [3]s32 = .{0, 2, 5}
+    if !Check("\xcc\x80\xe1\x85\xa0", offsets174[:]) { return false }
+    offsets175: [3]s32 = .{0, 4, 7}
+    if !Check("\xcc\x80\xcc\x88\xe1\x85\xa0", offsets175[:]) { return false }
+    offsets176: [3]s32 = .{0, 2, 5}
+    if !Check("\xcc\x80\xe1\x86\xa8", offsets176[:]) { return false }
+    offsets177: [3]s32 = .{0, 4, 7}
+    if !Check("\xcc\x80\xcc\x88\xe1\x86\xa8", offsets177[:]) { return false }
+    offsets178: [3]s32 = .{0, 2, 5}
+    if !Check("\xcc\x80\xea\xb0\x80", offsets178[:]) { return false }
+    offsets179: [3]s32 = .{0, 4, 7}
+    if !Check("\xcc\x80\xcc\x88\xea\xb0\x80", offsets179[:]) { return false }
+    offsets180: [3]s32 = .{0, 2, 5}
+    if !Check("\xcc\x80\xea\xb0\x81", offsets180[:]) { return false }
+    offsets181: [3]s32 = .{0, 4, 7}
+    if !Check("\xcc\x80\xcc\x88\xea\xb0\x81", offsets181[:]) { return false }
+    offsets182: [3]s32 = .{0, 2, 5}
+    if !Check("\xcc\x80\xe0\xa4\x95", offsets182[:]) { return false }
+    offsets183: [3]s32 = .{0, 4, 7}
+    if !Check("\xcc\x80\xcc\x88\xe0\xa4\x95", offsets183[:]) { return false }
+    offsets184: [3]s32 = .{0, 2, 4}
+    if !Check("\xcc\x80\xc2\xa9", offsets184[:]) { return false }
+    offsets185: [3]s32 = .{0, 4, 6}
+    if !Check("\xcc\x80\xcc\x88\xc2\xa9", offsets185[:]) { return false }
+    offsets186: [3]s32 = .{0, 2, 3}
+    if !Check("\xcc\x80\x20", offsets186[:]) { return false }
+    offsets187: [3]s32 = .{0, 4, 5}
+    if !Check("\xcc\x80\xcc\x88\x20", offsets187[:]) { return false }
+    offsets188: [3]s32 = .{0, 2, 4}
+    if !Check("\xcc\x80\xcd\xb8", offsets188[:]) { return false }
+    offsets189: [3]s32 = .{0, 4, 6}
+    if !Check("\xcc\x80\xcc\x88\xcd\xb8", offsets189[:]) { return false }
+    offsets190: [3]s32 = .{0, 3, 4}
+    if !Check("\xe2\x80\x8c\x0d", offsets190[:]) { return false }
+    offsets191: [3]s32 = .{0, 5, 6}
+    if !Check("\xe2\x80\x8c\xcc\x88\x0d", offsets191[:]) { return false }
+    offsets192: [3]s32 = .{0, 3, 4}
+    if !Check("\xe2\x80\x8c\x0a", offsets192[:]) { return false }
+    offsets193: [3]s32 = .{0, 5, 6}
+    if !Check("\xe2\x80\x8c\xcc\x88\x0a", offsets193[:]) { return false }
+    offsets194: [3]s32 = .{0, 3, 4}
+    if !Check("\xe2\x80\x8c\x00", offsets194[:]) { return false }
+    offsets195: [3]s32 = .{0, 5, 6}
+    if !Check("\xe2\x80\x8c\xcc\x88\x00", offsets195[:]) { return false }
+    offsets196: [2]s32 = .{0, 6}
+    if !Check("\xe2\x80\x8c\xe0\xa5\x8d", offsets196[:]) { return false }
+    offsets197: [2]s32 = .{0, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xe0\xa5\x8d", offsets197[:]) { return false }
+    offsets198: [2]s32 = .{0, 5}
+    if !Check("\xe2\x80\x8c\xcc\x80", offsets198[:]) { return false }
+    offsets199: [2]s32 = .{0, 7}
+    if !Check("\xe2\x80\x8c\xcc\x88\xcc\x80", offsets199[:]) { return false }
+    offsets200: [2]s32 = .{0, 6}
+    if !Check("\xe2\x80\x8c\xe2\x80\x8c", offsets200[:]) { return false }
+    offsets201: [2]s32 = .{0, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xe2\x80\x8c", offsets201[:]) { return false }
+    offsets202: [2]s32 = .{0, 6}
+    if !Check("\xe2\x80\x8c\xe2\x80\x8d", offsets202[:]) { return false }
+    offsets203: [2]s32 = .{0, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xe2\x80\x8d", offsets203[:]) { return false }
+    offsets204: [3]s32 = .{0, 3, 7}
+    if !Check("\xe2\x80\x8c\xf0\x9f\x87\xa6", offsets204[:]) { return false }
+    offsets205: [3]s32 = .{0, 5, 9}
+    if !Check("\xe2\x80\x8c\xcc\x88\xf0\x9f\x87\xa6", offsets205[:]) { return false }
+    offsets206: [3]s32 = .{0, 3, 5}
+    if !Check("\xe2\x80\x8c\xdb\x9d", offsets206[:]) { return false }
+    offsets207: [3]s32 = .{0, 5, 7}
+    if !Check("\xe2\x80\x8c\xcc\x88\xdb\x9d", offsets207[:]) { return false }
+    offsets208: [2]s32 = .{0, 6}
+    if !Check("\xe2\x80\x8c\xe0\xa4\x83", offsets208[:]) { return false }
+    offsets209: [2]s32 = .{0, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xe0\xa4\x83", offsets209[:]) { return false }
+    offsets210: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8c\xe1\x84\x80", offsets210[:]) { return false }
+    offsets211: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xe1\x84\x80", offsets211[:]) { return false }
+    offsets212: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8c\xe1\x85\xa0", offsets212[:]) { return false }
+    offsets213: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xe1\x85\xa0", offsets213[:]) { return false }
+    offsets214: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8c\xe1\x86\xa8", offsets214[:]) { return false }
+    offsets215: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xe1\x86\xa8", offsets215[:]) { return false }
+    offsets216: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8c\xea\xb0\x80", offsets216[:]) { return false }
+    offsets217: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xea\xb0\x80", offsets217[:]) { return false }
+    offsets218: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8c\xea\xb0\x81", offsets218[:]) { return false }
+    offsets219: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xea\xb0\x81", offsets219[:]) { return false }
+    offsets220: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8c\xe0\xa4\x95", offsets220[:]) { return false }
+    offsets221: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8c\xcc\x88\xe0\xa4\x95", offsets221[:]) { return false }
+    offsets222: [3]s32 = .{0, 3, 5}
+    if !Check("\xe2\x80\x8c\xc2\xa9", offsets222[:]) { return false }
+    offsets223: [3]s32 = .{0, 5, 7}
+    if !Check("\xe2\x80\x8c\xcc\x88\xc2\xa9", offsets223[:]) { return false }
+    offsets224: [3]s32 = .{0, 3, 4}
+    if !Check("\xe2\x80\x8c\x20", offsets224[:]) { return false }
+    offsets225: [3]s32 = .{0, 5, 6}
+    if !Check("\xe2\x80\x8c\xcc\x88\x20", offsets225[:]) { return false }
+    offsets226: [3]s32 = .{0, 3, 5}
+    if !Check("\xe2\x80\x8c\xcd\xb8", offsets226[:]) { return false }
+    offsets227: [3]s32 = .{0, 5, 7}
+    if !Check("\xe2\x80\x8c\xcc\x88\xcd\xb8", offsets227[:]) { return false }
+    offsets228: [3]s32 = .{0, 3, 4}
+    if !Check("\xe2\x80\x8d\x0d", offsets228[:]) { return false }
+    offsets229: [3]s32 = .{0, 5, 6}
+    if !Check("\xe2\x80\x8d\xcc\x88\x0d", offsets229[:]) { return false }
+    offsets230: [3]s32 = .{0, 3, 4}
+    if !Check("\xe2\x80\x8d\x0a", offsets230[:]) { return false }
+    offsets231: [3]s32 = .{0, 5, 6}
+    if !Check("\xe2\x80\x8d\xcc\x88\x0a", offsets231[:]) { return false }
+    offsets232: [3]s32 = .{0, 3, 4}
+    if !Check("\xe2\x80\x8d\x00", offsets232[:]) { return false }
+    offsets233: [3]s32 = .{0, 5, 6}
+    if !Check("\xe2\x80\x8d\xcc\x88\x00", offsets233[:]) { return false }
+    offsets234: [2]s32 = .{0, 6}
+    if !Check("\xe2\x80\x8d\xe0\xa5\x8d", offsets234[:]) { return false }
+    offsets235: [2]s32 = .{0, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xe0\xa5\x8d", offsets235[:]) { return false }
+    offsets236: [2]s32 = .{0, 5}
+    if !Check("\xe2\x80\x8d\xcc\x80", offsets236[:]) { return false }
+    offsets237: [2]s32 = .{0, 7}
+    if !Check("\xe2\x80\x8d\xcc\x88\xcc\x80", offsets237[:]) { return false }
+    offsets238: [2]s32 = .{0, 6}
+    if !Check("\xe2\x80\x8d\xe2\x80\x8c", offsets238[:]) { return false }
+    offsets239: [2]s32 = .{0, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xe2\x80\x8c", offsets239[:]) { return false }
+    return true
+}
+Cases3 :: () -> bool {
+    offsets240: [2]s32 = .{0, 6}
+    if !Check("\xe2\x80\x8d\xe2\x80\x8d", offsets240[:]) { return false }
+    offsets241: [2]s32 = .{0, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xe2\x80\x8d", offsets241[:]) { return false }
+    offsets242: [3]s32 = .{0, 3, 7}
+    if !Check("\xe2\x80\x8d\xf0\x9f\x87\xa6", offsets242[:]) { return false }
+    offsets243: [3]s32 = .{0, 5, 9}
+    if !Check("\xe2\x80\x8d\xcc\x88\xf0\x9f\x87\xa6", offsets243[:]) { return false }
+    offsets244: [3]s32 = .{0, 3, 5}
+    if !Check("\xe2\x80\x8d\xdb\x9d", offsets244[:]) { return false }
+    offsets245: [3]s32 = .{0, 5, 7}
+    if !Check("\xe2\x80\x8d\xcc\x88\xdb\x9d", offsets245[:]) { return false }
+    offsets246: [2]s32 = .{0, 6}
+    if !Check("\xe2\x80\x8d\xe0\xa4\x83", offsets246[:]) { return false }
+    offsets247: [2]s32 = .{0, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xe0\xa4\x83", offsets247[:]) { return false }
+    offsets248: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8d\xe1\x84\x80", offsets248[:]) { return false }
+    offsets249: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xe1\x84\x80", offsets249[:]) { return false }
+    offsets250: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8d\xe1\x85\xa0", offsets250[:]) { return false }
+    offsets251: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xe1\x85\xa0", offsets251[:]) { return false }
+    offsets252: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8d\xe1\x86\xa8", offsets252[:]) { return false }
+    offsets253: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xe1\x86\xa8", offsets253[:]) { return false }
+    offsets254: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8d\xea\xb0\x80", offsets254[:]) { return false }
+    offsets255: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xea\xb0\x80", offsets255[:]) { return false }
+    offsets256: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8d\xea\xb0\x81", offsets256[:]) { return false }
+    offsets257: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xea\xb0\x81", offsets257[:]) { return false }
+    offsets258: [3]s32 = .{0, 3, 6}
+    if !Check("\xe2\x80\x8d\xe0\xa4\x95", offsets258[:]) { return false }
+    offsets259: [3]s32 = .{0, 5, 8}
+    if !Check("\xe2\x80\x8d\xcc\x88\xe0\xa4\x95", offsets259[:]) { return false }
+    offsets260: [3]s32 = .{0, 3, 5}
+    if !Check("\xe2\x80\x8d\xc2\xa9", offsets260[:]) { return false }
+    offsets261: [3]s32 = .{0, 5, 7}
+    if !Check("\xe2\x80\x8d\xcc\x88\xc2\xa9", offsets261[:]) { return false }
+    offsets262: [3]s32 = .{0, 3, 4}
+    if !Check("\xe2\x80\x8d\x20", offsets262[:]) { return false }
+    offsets263: [3]s32 = .{0, 5, 6}
+    if !Check("\xe2\x80\x8d\xcc\x88\x20", offsets263[:]) { return false }
+    offsets264: [3]s32 = .{0, 3, 5}
+    if !Check("\xe2\x80\x8d\xcd\xb8", offsets264[:]) { return false }
+    offsets265: [3]s32 = .{0, 5, 7}
+    if !Check("\xe2\x80\x8d\xcc\x88\xcd\xb8", offsets265[:]) { return false }
+    offsets266: [3]s32 = .{0, 4, 5}
+    if !Check("\xf0\x9f\x87\xa6\x0d", offsets266[:]) { return false }
+    offsets267: [3]s32 = .{0, 6, 7}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\x0d", offsets267[:]) { return false }
+    offsets268: [3]s32 = .{0, 4, 5}
+    if !Check("\xf0\x9f\x87\xa6\x0a", offsets268[:]) { return false }
+    offsets269: [3]s32 = .{0, 6, 7}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\x0a", offsets269[:]) { return false }
+    offsets270: [3]s32 = .{0, 4, 5}
+    if !Check("\xf0\x9f\x87\xa6\x00", offsets270[:]) { return false }
+    offsets271: [3]s32 = .{0, 6, 7}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\x00", offsets271[:]) { return false }
+    offsets272: [2]s32 = .{0, 7}
+    if !Check("\xf0\x9f\x87\xa6\xe0\xa5\x8d", offsets272[:]) { return false }
+    offsets273: [2]s32 = .{0, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xe0\xa5\x8d", offsets273[:]) { return false }
+    offsets274: [2]s32 = .{0, 6}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x80", offsets274[:]) { return false }
+    offsets275: [2]s32 = .{0, 8}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xcc\x80", offsets275[:]) { return false }
+    offsets276: [2]s32 = .{0, 7}
+    if !Check("\xf0\x9f\x87\xa6\xe2\x80\x8c", offsets276[:]) { return false }
+    offsets277: [2]s32 = .{0, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xe2\x80\x8c", offsets277[:]) { return false }
+    offsets278: [2]s32 = .{0, 7}
+    if !Check("\xf0\x9f\x87\xa6\xe2\x80\x8d", offsets278[:]) { return false }
+    offsets279: [2]s32 = .{0, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xe2\x80\x8d", offsets279[:]) { return false }
+    offsets280: [2]s32 = .{0, 8}
+    if !Check("\xf0\x9f\x87\xa6\xf0\x9f\x87\xa6", offsets280[:]) { return false }
+    offsets281: [3]s32 = .{0, 6, 10}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xf0\x9f\x87\xa6", offsets281[:]) { return false }
+    offsets282: [3]s32 = .{0, 4, 6}
+    if !Check("\xf0\x9f\x87\xa6\xdb\x9d", offsets282[:]) { return false }
+    offsets283: [3]s32 = .{0, 6, 8}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xdb\x9d", offsets283[:]) { return false }
+    offsets284: [2]s32 = .{0, 7}
+    if !Check("\xf0\x9f\x87\xa6\xe0\xa4\x83", offsets284[:]) { return false }
+    offsets285: [2]s32 = .{0, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xe0\xa4\x83", offsets285[:]) { return false }
+    offsets286: [3]s32 = .{0, 4, 7}
+    if !Check("\xf0\x9f\x87\xa6\xe1\x84\x80", offsets286[:]) { return false }
+    offsets287: [3]s32 = .{0, 6, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xe1\x84\x80", offsets287[:]) { return false }
+    offsets288: [3]s32 = .{0, 4, 7}
+    if !Check("\xf0\x9f\x87\xa6\xe1\x85\xa0", offsets288[:]) { return false }
+    offsets289: [3]s32 = .{0, 6, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xe1\x85\xa0", offsets289[:]) { return false }
+    offsets290: [3]s32 = .{0, 4, 7}
+    if !Check("\xf0\x9f\x87\xa6\xe1\x86\xa8", offsets290[:]) { return false }
+    offsets291: [3]s32 = .{0, 6, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xe1\x86\xa8", offsets291[:]) { return false }
+    offsets292: [3]s32 = .{0, 4, 7}
+    if !Check("\xf0\x9f\x87\xa6\xea\xb0\x80", offsets292[:]) { return false }
+    offsets293: [3]s32 = .{0, 6, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xea\xb0\x80", offsets293[:]) { return false }
+    offsets294: [3]s32 = .{0, 4, 7}
+    if !Check("\xf0\x9f\x87\xa6\xea\xb0\x81", offsets294[:]) { return false }
+    offsets295: [3]s32 = .{0, 6, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xea\xb0\x81", offsets295[:]) { return false }
+    offsets296: [3]s32 = .{0, 4, 7}
+    if !Check("\xf0\x9f\x87\xa6\xe0\xa4\x95", offsets296[:]) { return false }
+    offsets297: [3]s32 = .{0, 6, 9}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xe0\xa4\x95", offsets297[:]) { return false }
+    offsets298: [3]s32 = .{0, 4, 6}
+    if !Check("\xf0\x9f\x87\xa6\xc2\xa9", offsets298[:]) { return false }
+    offsets299: [3]s32 = .{0, 6, 8}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xc2\xa9", offsets299[:]) { return false }
+    offsets300: [3]s32 = .{0, 4, 5}
+    if !Check("\xf0\x9f\x87\xa6\x20", offsets300[:]) { return false }
+    offsets301: [3]s32 = .{0, 6, 7}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\x20", offsets301[:]) { return false }
+    offsets302: [3]s32 = .{0, 4, 6}
+    if !Check("\xf0\x9f\x87\xa6\xcd\xb8", offsets302[:]) { return false }
+    offsets303: [3]s32 = .{0, 6, 8}
+    if !Check("\xf0\x9f\x87\xa6\xcc\x88\xcd\xb8", offsets303[:]) { return false }
+    offsets304: [3]s32 = .{0, 2, 3}
+    if !Check("\xdb\x9d\x0d", offsets304[:]) { return false }
+    offsets305: [3]s32 = .{0, 4, 5}
+    if !Check("\xdb\x9d\xcc\x88\x0d", offsets305[:]) { return false }
+    offsets306: [3]s32 = .{0, 2, 3}
+    if !Check("\xdb\x9d\x0a", offsets306[:]) { return false }
+    offsets307: [3]s32 = .{0, 4, 5}
+    if !Check("\xdb\x9d\xcc\x88\x0a", offsets307[:]) { return false }
+    offsets308: [3]s32 = .{0, 2, 3}
+    if !Check("\xdb\x9d\x00", offsets308[:]) { return false }
+    offsets309: [3]s32 = .{0, 4, 5}
+    if !Check("\xdb\x9d\xcc\x88\x00", offsets309[:]) { return false }
+    offsets310: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xe0\xa5\x8d", offsets310[:]) { return false }
+    offsets311: [2]s32 = .{0, 7}
+    if !Check("\xdb\x9d\xcc\x88\xe0\xa5\x8d", offsets311[:]) { return false }
+    offsets312: [2]s32 = .{0, 4}
+    if !Check("\xdb\x9d\xcc\x80", offsets312[:]) { return false }
+    offsets313: [2]s32 = .{0, 6}
+    if !Check("\xdb\x9d\xcc\x88\xcc\x80", offsets313[:]) { return false }
+    offsets314: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xe2\x80\x8c", offsets314[:]) { return false }
+    offsets315: [2]s32 = .{0, 7}
+    if !Check("\xdb\x9d\xcc\x88\xe2\x80\x8c", offsets315[:]) { return false }
+    offsets316: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xe2\x80\x8d", offsets316[:]) { return false }
+    offsets317: [2]s32 = .{0, 7}
+    if !Check("\xdb\x9d\xcc\x88\xe2\x80\x8d", offsets317[:]) { return false }
+    offsets318: [2]s32 = .{0, 6}
+    if !Check("\xdb\x9d\xf0\x9f\x87\xa6", offsets318[:]) { return false }
+    offsets319: [3]s32 = .{0, 4, 8}
+    if !Check("\xdb\x9d\xcc\x88\xf0\x9f\x87\xa6", offsets319[:]) { return false }
+    return true
+}
+Cases4 :: () -> bool {
+    offsets320: [2]s32 = .{0, 4}
+    if !Check("\xdb\x9d\xdb\x9d", offsets320[:]) { return false }
+    offsets321: [3]s32 = .{0, 4, 6}
+    if !Check("\xdb\x9d\xcc\x88\xdb\x9d", offsets321[:]) { return false }
+    offsets322: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xe0\xa4\x83", offsets322[:]) { return false }
+    offsets323: [2]s32 = .{0, 7}
+    if !Check("\xdb\x9d\xcc\x88\xe0\xa4\x83", offsets323[:]) { return false }
+    offsets324: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xe1\x84\x80", offsets324[:]) { return false }
+    offsets325: [3]s32 = .{0, 4, 7}
+    if !Check("\xdb\x9d\xcc\x88\xe1\x84\x80", offsets325[:]) { return false }
+    offsets326: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xe1\x85\xa0", offsets326[:]) { return false }
+    offsets327: [3]s32 = .{0, 4, 7}
+    if !Check("\xdb\x9d\xcc\x88\xe1\x85\xa0", offsets327[:]) { return false }
+    offsets328: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xe1\x86\xa8", offsets328[:]) { return false }
+    offsets329: [3]s32 = .{0, 4, 7}
+    if !Check("\xdb\x9d\xcc\x88\xe1\x86\xa8", offsets329[:]) { return false }
+    offsets330: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xea\xb0\x80", offsets330[:]) { return false }
+    offsets331: [3]s32 = .{0, 4, 7}
+    if !Check("\xdb\x9d\xcc\x88\xea\xb0\x80", offsets331[:]) { return false }
+    offsets332: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xea\xb0\x81", offsets332[:]) { return false }
+    offsets333: [3]s32 = .{0, 4, 7}
+    if !Check("\xdb\x9d\xcc\x88\xea\xb0\x81", offsets333[:]) { return false }
+    offsets334: [2]s32 = .{0, 5}
+    if !Check("\xdb\x9d\xe0\xa4\x95", offsets334[:]) { return false }
+    offsets335: [3]s32 = .{0, 4, 7}
+    if !Check("\xdb\x9d\xcc\x88\xe0\xa4\x95", offsets335[:]) { return false }
+    offsets336: [2]s32 = .{0, 4}
+    if !Check("\xdb\x9d\xc2\xa9", offsets336[:]) { return false }
+    offsets337: [3]s32 = .{0, 4, 6}
+    if !Check("\xdb\x9d\xcc\x88\xc2\xa9", offsets337[:]) { return false }
+    offsets338: [2]s32 = .{0, 3}
+    if !Check("\xdb\x9d\x20", offsets338[:]) { return false }
+    offsets339: [3]s32 = .{0, 4, 5}
+    if !Check("\xdb\x9d\xcc\x88\x20", offsets339[:]) { return false }
+    offsets340: [2]s32 = .{0, 4}
+    if !Check("\xdb\x9d\xcd\xb8", offsets340[:]) { return false }
+    offsets341: [3]s32 = .{0, 4, 6}
+    if !Check("\xdb\x9d\xcc\x88\xcd\xb8", offsets341[:]) { return false }
+    offsets342: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa4\x83\x0d", offsets342[:]) { return false }
+    offsets343: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa4\x83\xcc\x88\x0d", offsets343[:]) { return false }
+    offsets344: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa4\x83\x0a", offsets344[:]) { return false }
+    offsets345: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa4\x83\xcc\x88\x0a", offsets345[:]) { return false }
+    offsets346: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa4\x83\x00", offsets346[:]) { return false }
+    offsets347: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa4\x83\xcc\x88\x00", offsets347[:]) { return false }
+    offsets348: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa4\x83\xe0\xa5\x8d", offsets348[:]) { return false }
+    offsets349: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xe0\xa5\x8d", offsets349[:]) { return false }
+    offsets350: [2]s32 = .{0, 5}
+    if !Check("\xe0\xa4\x83\xcc\x80", offsets350[:]) { return false }
+    offsets351: [2]s32 = .{0, 7}
+    if !Check("\xe0\xa4\x83\xcc\x88\xcc\x80", offsets351[:]) { return false }
+    offsets352: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa4\x83\xe2\x80\x8c", offsets352[:]) { return false }
+    offsets353: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xe2\x80\x8c", offsets353[:]) { return false }
+    offsets354: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa4\x83\xe2\x80\x8d", offsets354[:]) { return false }
+    offsets355: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xe2\x80\x8d", offsets355[:]) { return false }
+    offsets356: [3]s32 = .{0, 3, 7}
+    if !Check("\xe0\xa4\x83\xf0\x9f\x87\xa6", offsets356[:]) { return false }
+    offsets357: [3]s32 = .{0, 5, 9}
+    if !Check("\xe0\xa4\x83\xcc\x88\xf0\x9f\x87\xa6", offsets357[:]) { return false }
+    offsets358: [3]s32 = .{0, 3, 5}
+    if !Check("\xe0\xa4\x83\xdb\x9d", offsets358[:]) { return false }
+    offsets359: [3]s32 = .{0, 5, 7}
+    if !Check("\xe0\xa4\x83\xcc\x88\xdb\x9d", offsets359[:]) { return false }
+    offsets360: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa4\x83\xe0\xa4\x83", offsets360[:]) { return false }
+    offsets361: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xe0\xa4\x83", offsets361[:]) { return false }
+    offsets362: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x83\xe1\x84\x80", offsets362[:]) { return false }
+    offsets363: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xe1\x84\x80", offsets363[:]) { return false }
+    offsets364: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x83\xe1\x85\xa0", offsets364[:]) { return false }
+    offsets365: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xe1\x85\xa0", offsets365[:]) { return false }
+    offsets366: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x83\xe1\x86\xa8", offsets366[:]) { return false }
+    offsets367: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xe1\x86\xa8", offsets367[:]) { return false }
+    offsets368: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x83\xea\xb0\x80", offsets368[:]) { return false }
+    offsets369: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xea\xb0\x80", offsets369[:]) { return false }
+    offsets370: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x83\xea\xb0\x81", offsets370[:]) { return false }
+    offsets371: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xea\xb0\x81", offsets371[:]) { return false }
+    offsets372: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x83\xe0\xa4\x95", offsets372[:]) { return false }
+    offsets373: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x83\xcc\x88\xe0\xa4\x95", offsets373[:]) { return false }
+    offsets374: [3]s32 = .{0, 3, 5}
+    if !Check("\xe0\xa4\x83\xc2\xa9", offsets374[:]) { return false }
+    offsets375: [3]s32 = .{0, 5, 7}
+    if !Check("\xe0\xa4\x83\xcc\x88\xc2\xa9", offsets375[:]) { return false }
+    offsets376: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa4\x83\x20", offsets376[:]) { return false }
+    offsets377: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa4\x83\xcc\x88\x20", offsets377[:]) { return false }
+    offsets378: [3]s32 = .{0, 3, 5}
+    if !Check("\xe0\xa4\x83\xcd\xb8", offsets378[:]) { return false }
+    offsets379: [3]s32 = .{0, 5, 7}
+    if !Check("\xe0\xa4\x83\xcc\x88\xcd\xb8", offsets379[:]) { return false }
+    offsets380: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x84\x80\x0d", offsets380[:]) { return false }
+    offsets381: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x84\x80\xcc\x88\x0d", offsets381[:]) { return false }
+    offsets382: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x84\x80\x0a", offsets382[:]) { return false }
+    offsets383: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x84\x80\xcc\x88\x0a", offsets383[:]) { return false }
+    offsets384: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x84\x80\x00", offsets384[:]) { return false }
+    offsets385: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x84\x80\xcc\x88\x00", offsets385[:]) { return false }
+    offsets386: [2]s32 = .{0, 6}
+    if !Check("\xe1\x84\x80\xe0\xa5\x8d", offsets386[:]) { return false }
+    offsets387: [2]s32 = .{0, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xe0\xa5\x8d", offsets387[:]) { return false }
+    offsets388: [2]s32 = .{0, 5}
+    if !Check("\xe1\x84\x80\xcc\x80", offsets388[:]) { return false }
+    offsets389: [2]s32 = .{0, 7}
+    if !Check("\xe1\x84\x80\xcc\x88\xcc\x80", offsets389[:]) { return false }
+    offsets390: [2]s32 = .{0, 6}
+    if !Check("\xe1\x84\x80\xe2\x80\x8c", offsets390[:]) { return false }
+    offsets391: [2]s32 = .{0, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xe2\x80\x8c", offsets391[:]) { return false }
+    offsets392: [2]s32 = .{0, 6}
+    if !Check("\xe1\x84\x80\xe2\x80\x8d", offsets392[:]) { return false }
+    offsets393: [2]s32 = .{0, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xe2\x80\x8d", offsets393[:]) { return false }
+    offsets394: [3]s32 = .{0, 3, 7}
+    if !Check("\xe1\x84\x80\xf0\x9f\x87\xa6", offsets394[:]) { return false }
+    offsets395: [3]s32 = .{0, 5, 9}
+    if !Check("\xe1\x84\x80\xcc\x88\xf0\x9f\x87\xa6", offsets395[:]) { return false }
+    offsets396: [3]s32 = .{0, 3, 5}
+    if !Check("\xe1\x84\x80\xdb\x9d", offsets396[:]) { return false }
+    offsets397: [3]s32 = .{0, 5, 7}
+    if !Check("\xe1\x84\x80\xcc\x88\xdb\x9d", offsets397[:]) { return false }
+    offsets398: [2]s32 = .{0, 6}
+    if !Check("\xe1\x84\x80\xe0\xa4\x83", offsets398[:]) { return false }
+    offsets399: [2]s32 = .{0, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xe0\xa4\x83", offsets399[:]) { return false }
+    return true
+}
+Cases5 :: () -> bool {
+    offsets400: [2]s32 = .{0, 6}
+    if !Check("\xe1\x84\x80\xe1\x84\x80", offsets400[:]) { return false }
+    offsets401: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xe1\x84\x80", offsets401[:]) { return false }
+    offsets402: [2]s32 = .{0, 6}
+    if !Check("\xe1\x84\x80\xe1\x85\xa0", offsets402[:]) { return false }
+    offsets403: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xe1\x85\xa0", offsets403[:]) { return false }
+    offsets404: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x84\x80\xe1\x86\xa8", offsets404[:]) { return false }
+    offsets405: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xe1\x86\xa8", offsets405[:]) { return false }
+    offsets406: [2]s32 = .{0, 6}
+    if !Check("\xe1\x84\x80\xea\xb0\x80", offsets406[:]) { return false }
+    offsets407: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xea\xb0\x80", offsets407[:]) { return false }
+    offsets408: [2]s32 = .{0, 6}
+    if !Check("\xe1\x84\x80\xea\xb0\x81", offsets408[:]) { return false }
+    offsets409: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xea\xb0\x81", offsets409[:]) { return false }
+    offsets410: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x84\x80\xe0\xa4\x95", offsets410[:]) { return false }
+    offsets411: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x84\x80\xcc\x88\xe0\xa4\x95", offsets411[:]) { return false }
+    offsets412: [3]s32 = .{0, 3, 5}
+    if !Check("\xe1\x84\x80\xc2\xa9", offsets412[:]) { return false }
+    offsets413: [3]s32 = .{0, 5, 7}
+    if !Check("\xe1\x84\x80\xcc\x88\xc2\xa9", offsets413[:]) { return false }
+    offsets414: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x84\x80\x20", offsets414[:]) { return false }
+    offsets415: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x84\x80\xcc\x88\x20", offsets415[:]) { return false }
+    offsets416: [3]s32 = .{0, 3, 5}
+    if !Check("\xe1\x84\x80\xcd\xb8", offsets416[:]) { return false }
+    offsets417: [3]s32 = .{0, 5, 7}
+    if !Check("\xe1\x84\x80\xcc\x88\xcd\xb8", offsets417[:]) { return false }
+    offsets418: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x85\xa0\x0d", offsets418[:]) { return false }
+    offsets419: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x85\xa0\xcc\x88\x0d", offsets419[:]) { return false }
+    offsets420: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x85\xa0\x0a", offsets420[:]) { return false }
+    offsets421: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x85\xa0\xcc\x88\x0a", offsets421[:]) { return false }
+    offsets422: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x85\xa0\x00", offsets422[:]) { return false }
+    offsets423: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x85\xa0\xcc\x88\x00", offsets423[:]) { return false }
+    offsets424: [2]s32 = .{0, 6}
+    if !Check("\xe1\x85\xa0\xe0\xa5\x8d", offsets424[:]) { return false }
+    offsets425: [2]s32 = .{0, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xe0\xa5\x8d", offsets425[:]) { return false }
+    offsets426: [2]s32 = .{0, 5}
+    if !Check("\xe1\x85\xa0\xcc\x80", offsets426[:]) { return false }
+    offsets427: [2]s32 = .{0, 7}
+    if !Check("\xe1\x85\xa0\xcc\x88\xcc\x80", offsets427[:]) { return false }
+    offsets428: [2]s32 = .{0, 6}
+    if !Check("\xe1\x85\xa0\xe2\x80\x8c", offsets428[:]) { return false }
+    offsets429: [2]s32 = .{0, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xe2\x80\x8c", offsets429[:]) { return false }
+    offsets430: [2]s32 = .{0, 6}
+    if !Check("\xe1\x85\xa0\xe2\x80\x8d", offsets430[:]) { return false }
+    offsets431: [2]s32 = .{0, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xe2\x80\x8d", offsets431[:]) { return false }
+    offsets432: [3]s32 = .{0, 3, 7}
+    if !Check("\xe1\x85\xa0\xf0\x9f\x87\xa6", offsets432[:]) { return false }
+    offsets433: [3]s32 = .{0, 5, 9}
+    if !Check("\xe1\x85\xa0\xcc\x88\xf0\x9f\x87\xa6", offsets433[:]) { return false }
+    offsets434: [3]s32 = .{0, 3, 5}
+    if !Check("\xe1\x85\xa0\xdb\x9d", offsets434[:]) { return false }
+    offsets435: [3]s32 = .{0, 5, 7}
+    if !Check("\xe1\x85\xa0\xcc\x88\xdb\x9d", offsets435[:]) { return false }
+    offsets436: [2]s32 = .{0, 6}
+    if !Check("\xe1\x85\xa0\xe0\xa4\x83", offsets436[:]) { return false }
+    offsets437: [2]s32 = .{0, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xe0\xa4\x83", offsets437[:]) { return false }
+    offsets438: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x85\xa0\xe1\x84\x80", offsets438[:]) { return false }
+    offsets439: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xe1\x84\x80", offsets439[:]) { return false }
+    offsets440: [2]s32 = .{0, 6}
+    if !Check("\xe1\x85\xa0\xe1\x85\xa0", offsets440[:]) { return false }
+    offsets441: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xe1\x85\xa0", offsets441[:]) { return false }
+    offsets442: [2]s32 = .{0, 6}
+    if !Check("\xe1\x85\xa0\xe1\x86\xa8", offsets442[:]) { return false }
+    offsets443: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xe1\x86\xa8", offsets443[:]) { return false }
+    offsets444: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x85\xa0\xea\xb0\x80", offsets444[:]) { return false }
+    offsets445: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xea\xb0\x80", offsets445[:]) { return false }
+    offsets446: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x85\xa0\xea\xb0\x81", offsets446[:]) { return false }
+    offsets447: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xea\xb0\x81", offsets447[:]) { return false }
+    offsets448: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x85\xa0\xe0\xa4\x95", offsets448[:]) { return false }
+    offsets449: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x85\xa0\xcc\x88\xe0\xa4\x95", offsets449[:]) { return false }
+    offsets450: [3]s32 = .{0, 3, 5}
+    if !Check("\xe1\x85\xa0\xc2\xa9", offsets450[:]) { return false }
+    offsets451: [3]s32 = .{0, 5, 7}
+    if !Check("\xe1\x85\xa0\xcc\x88\xc2\xa9", offsets451[:]) { return false }
+    offsets452: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x85\xa0\x20", offsets452[:]) { return false }
+    offsets453: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x85\xa0\xcc\x88\x20", offsets453[:]) { return false }
+    offsets454: [3]s32 = .{0, 3, 5}
+    if !Check("\xe1\x85\xa0\xcd\xb8", offsets454[:]) { return false }
+    offsets455: [3]s32 = .{0, 5, 7}
+    if !Check("\xe1\x85\xa0\xcc\x88\xcd\xb8", offsets455[:]) { return false }
+    offsets456: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x86\xa8\x0d", offsets456[:]) { return false }
+    offsets457: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x86\xa8\xcc\x88\x0d", offsets457[:]) { return false }
+    offsets458: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x86\xa8\x0a", offsets458[:]) { return false }
+    offsets459: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x86\xa8\xcc\x88\x0a", offsets459[:]) { return false }
+    offsets460: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x86\xa8\x00", offsets460[:]) { return false }
+    offsets461: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x86\xa8\xcc\x88\x00", offsets461[:]) { return false }
+    offsets462: [2]s32 = .{0, 6}
+    if !Check("\xe1\x86\xa8\xe0\xa5\x8d", offsets462[:]) { return false }
+    offsets463: [2]s32 = .{0, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xe0\xa5\x8d", offsets463[:]) { return false }
+    offsets464: [2]s32 = .{0, 5}
+    if !Check("\xe1\x86\xa8\xcc\x80", offsets464[:]) { return false }
+    offsets465: [2]s32 = .{0, 7}
+    if !Check("\xe1\x86\xa8\xcc\x88\xcc\x80", offsets465[:]) { return false }
+    offsets466: [2]s32 = .{0, 6}
+    if !Check("\xe1\x86\xa8\xe2\x80\x8c", offsets466[:]) { return false }
+    offsets467: [2]s32 = .{0, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xe2\x80\x8c", offsets467[:]) { return false }
+    offsets468: [2]s32 = .{0, 6}
+    if !Check("\xe1\x86\xa8\xe2\x80\x8d", offsets468[:]) { return false }
+    offsets469: [2]s32 = .{0, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xe2\x80\x8d", offsets469[:]) { return false }
+    offsets470: [3]s32 = .{0, 3, 7}
+    if !Check("\xe1\x86\xa8\xf0\x9f\x87\xa6", offsets470[:]) { return false }
+    offsets471: [3]s32 = .{0, 5, 9}
+    if !Check("\xe1\x86\xa8\xcc\x88\xf0\x9f\x87\xa6", offsets471[:]) { return false }
+    offsets472: [3]s32 = .{0, 3, 5}
+    if !Check("\xe1\x86\xa8\xdb\x9d", offsets472[:]) { return false }
+    offsets473: [3]s32 = .{0, 5, 7}
+    if !Check("\xe1\x86\xa8\xcc\x88\xdb\x9d", offsets473[:]) { return false }
+    offsets474: [2]s32 = .{0, 6}
+    if !Check("\xe1\x86\xa8\xe0\xa4\x83", offsets474[:]) { return false }
+    offsets475: [2]s32 = .{0, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xe0\xa4\x83", offsets475[:]) { return false }
+    offsets476: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x86\xa8\xe1\x84\x80", offsets476[:]) { return false }
+    offsets477: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xe1\x84\x80", offsets477[:]) { return false }
+    offsets478: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x86\xa8\xe1\x85\xa0", offsets478[:]) { return false }
+    offsets479: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xe1\x85\xa0", offsets479[:]) { return false }
+    return true
+}
+Cases6 :: () -> bool {
+    offsets480: [2]s32 = .{0, 6}
+    if !Check("\xe1\x86\xa8\xe1\x86\xa8", offsets480[:]) { return false }
+    offsets481: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xe1\x86\xa8", offsets481[:]) { return false }
+    offsets482: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x86\xa8\xea\xb0\x80", offsets482[:]) { return false }
+    offsets483: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xea\xb0\x80", offsets483[:]) { return false }
+    offsets484: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x86\xa8\xea\xb0\x81", offsets484[:]) { return false }
+    offsets485: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xea\xb0\x81", offsets485[:]) { return false }
+    offsets486: [3]s32 = .{0, 3, 6}
+    if !Check("\xe1\x86\xa8\xe0\xa4\x95", offsets486[:]) { return false }
+    offsets487: [3]s32 = .{0, 5, 8}
+    if !Check("\xe1\x86\xa8\xcc\x88\xe0\xa4\x95", offsets487[:]) { return false }
+    offsets488: [3]s32 = .{0, 3, 5}
+    if !Check("\xe1\x86\xa8\xc2\xa9", offsets488[:]) { return false }
+    offsets489: [3]s32 = .{0, 5, 7}
+    if !Check("\xe1\x86\xa8\xcc\x88\xc2\xa9", offsets489[:]) { return false }
+    offsets490: [3]s32 = .{0, 3, 4}
+    if !Check("\xe1\x86\xa8\x20", offsets490[:]) { return false }
+    offsets491: [3]s32 = .{0, 5, 6}
+    if !Check("\xe1\x86\xa8\xcc\x88\x20", offsets491[:]) { return false }
+    offsets492: [3]s32 = .{0, 3, 5}
+    if !Check("\xe1\x86\xa8\xcd\xb8", offsets492[:]) { return false }
+    offsets493: [3]s32 = .{0, 5, 7}
+    if !Check("\xe1\x86\xa8\xcc\x88\xcd\xb8", offsets493[:]) { return false }
+    offsets494: [3]s32 = .{0, 3, 4}
+    if !Check("\xea\xb0\x80\x0d", offsets494[:]) { return false }
+    offsets495: [3]s32 = .{0, 5, 6}
+    if !Check("\xea\xb0\x80\xcc\x88\x0d", offsets495[:]) { return false }
+    offsets496: [3]s32 = .{0, 3, 4}
+    if !Check("\xea\xb0\x80\x0a", offsets496[:]) { return false }
+    offsets497: [3]s32 = .{0, 5, 6}
+    if !Check("\xea\xb0\x80\xcc\x88\x0a", offsets497[:]) { return false }
+    offsets498: [3]s32 = .{0, 3, 4}
+    if !Check("\xea\xb0\x80\x00", offsets498[:]) { return false }
+    offsets499: [3]s32 = .{0, 5, 6}
+    if !Check("\xea\xb0\x80\xcc\x88\x00", offsets499[:]) { return false }
+    offsets500: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x80\xe0\xa5\x8d", offsets500[:]) { return false }
+    offsets501: [2]s32 = .{0, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xe0\xa5\x8d", offsets501[:]) { return false }
+    offsets502: [2]s32 = .{0, 5}
+    if !Check("\xea\xb0\x80\xcc\x80", offsets502[:]) { return false }
+    offsets503: [2]s32 = .{0, 7}
+    if !Check("\xea\xb0\x80\xcc\x88\xcc\x80", offsets503[:]) { return false }
+    offsets504: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x80\xe2\x80\x8c", offsets504[:]) { return false }
+    offsets505: [2]s32 = .{0, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xe2\x80\x8c", offsets505[:]) { return false }
+    offsets506: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x80\xe2\x80\x8d", offsets506[:]) { return false }
+    offsets507: [2]s32 = .{0, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xe2\x80\x8d", offsets507[:]) { return false }
+    offsets508: [3]s32 = .{0, 3, 7}
+    if !Check("\xea\xb0\x80\xf0\x9f\x87\xa6", offsets508[:]) { return false }
+    offsets509: [3]s32 = .{0, 5, 9}
+    if !Check("\xea\xb0\x80\xcc\x88\xf0\x9f\x87\xa6", offsets509[:]) { return false }
+    offsets510: [3]s32 = .{0, 3, 5}
+    if !Check("\xea\xb0\x80\xdb\x9d", offsets510[:]) { return false }
+    offsets511: [3]s32 = .{0, 5, 7}
+    if !Check("\xea\xb0\x80\xcc\x88\xdb\x9d", offsets511[:]) { return false }
+    offsets512: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x80\xe0\xa4\x83", offsets512[:]) { return false }
+    offsets513: [2]s32 = .{0, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xe0\xa4\x83", offsets513[:]) { return false }
+    offsets514: [3]s32 = .{0, 3, 6}
+    if !Check("\xea\xb0\x80\xe1\x84\x80", offsets514[:]) { return false }
+    offsets515: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xe1\x84\x80", offsets515[:]) { return false }
+    offsets516: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x80\xe1\x85\xa0", offsets516[:]) { return false }
+    offsets517: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xe1\x85\xa0", offsets517[:]) { return false }
+    offsets518: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x80\xe1\x86\xa8", offsets518[:]) { return false }
+    offsets519: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xe1\x86\xa8", offsets519[:]) { return false }
+    offsets520: [3]s32 = .{0, 3, 6}
+    if !Check("\xea\xb0\x80\xea\xb0\x80", offsets520[:]) { return false }
+    offsets521: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xea\xb0\x80", offsets521[:]) { return false }
+    offsets522: [3]s32 = .{0, 3, 6}
+    if !Check("\xea\xb0\x80\xea\xb0\x81", offsets522[:]) { return false }
+    offsets523: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xea\xb0\x81", offsets523[:]) { return false }
+    offsets524: [3]s32 = .{0, 3, 6}
+    if !Check("\xea\xb0\x80\xe0\xa4\x95", offsets524[:]) { return false }
+    offsets525: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x80\xcc\x88\xe0\xa4\x95", offsets525[:]) { return false }
+    offsets526: [3]s32 = .{0, 3, 5}
+    if !Check("\xea\xb0\x80\xc2\xa9", offsets526[:]) { return false }
+    offsets527: [3]s32 = .{0, 5, 7}
+    if !Check("\xea\xb0\x80\xcc\x88\xc2\xa9", offsets527[:]) { return false }
+    offsets528: [3]s32 = .{0, 3, 4}
+    if !Check("\xea\xb0\x80\x20", offsets528[:]) { return false }
+    offsets529: [3]s32 = .{0, 5, 6}
+    if !Check("\xea\xb0\x80\xcc\x88\x20", offsets529[:]) { return false }
+    offsets530: [3]s32 = .{0, 3, 5}
+    if !Check("\xea\xb0\x80\xcd\xb8", offsets530[:]) { return false }
+    offsets531: [3]s32 = .{0, 5, 7}
+    if !Check("\xea\xb0\x80\xcc\x88\xcd\xb8", offsets531[:]) { return false }
+    offsets532: [3]s32 = .{0, 3, 4}
+    if !Check("\xea\xb0\x81\x0d", offsets532[:]) { return false }
+    offsets533: [3]s32 = .{0, 5, 6}
+    if !Check("\xea\xb0\x81\xcc\x88\x0d", offsets533[:]) { return false }
+    offsets534: [3]s32 = .{0, 3, 4}
+    if !Check("\xea\xb0\x81\x0a", offsets534[:]) { return false }
+    offsets535: [3]s32 = .{0, 5, 6}
+    if !Check("\xea\xb0\x81\xcc\x88\x0a", offsets535[:]) { return false }
+    offsets536: [3]s32 = .{0, 3, 4}
+    if !Check("\xea\xb0\x81\x00", offsets536[:]) { return false }
+    offsets537: [3]s32 = .{0, 5, 6}
+    if !Check("\xea\xb0\x81\xcc\x88\x00", offsets537[:]) { return false }
+    offsets538: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x81\xe0\xa5\x8d", offsets538[:]) { return false }
+    offsets539: [2]s32 = .{0, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xe0\xa5\x8d", offsets539[:]) { return false }
+    offsets540: [2]s32 = .{0, 5}
+    if !Check("\xea\xb0\x81\xcc\x80", offsets540[:]) { return false }
+    offsets541: [2]s32 = .{0, 7}
+    if !Check("\xea\xb0\x81\xcc\x88\xcc\x80", offsets541[:]) { return false }
+    offsets542: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x81\xe2\x80\x8c", offsets542[:]) { return false }
+    offsets543: [2]s32 = .{0, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xe2\x80\x8c", offsets543[:]) { return false }
+    offsets544: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x81\xe2\x80\x8d", offsets544[:]) { return false }
+    offsets545: [2]s32 = .{0, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xe2\x80\x8d", offsets545[:]) { return false }
+    offsets546: [3]s32 = .{0, 3, 7}
+    if !Check("\xea\xb0\x81\xf0\x9f\x87\xa6", offsets546[:]) { return false }
+    offsets547: [3]s32 = .{0, 5, 9}
+    if !Check("\xea\xb0\x81\xcc\x88\xf0\x9f\x87\xa6", offsets547[:]) { return false }
+    offsets548: [3]s32 = .{0, 3, 5}
+    if !Check("\xea\xb0\x81\xdb\x9d", offsets548[:]) { return false }
+    offsets549: [3]s32 = .{0, 5, 7}
+    if !Check("\xea\xb0\x81\xcc\x88\xdb\x9d", offsets549[:]) { return false }
+    offsets550: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x81\xe0\xa4\x83", offsets550[:]) { return false }
+    offsets551: [2]s32 = .{0, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xe0\xa4\x83", offsets551[:]) { return false }
+    offsets552: [3]s32 = .{0, 3, 6}
+    if !Check("\xea\xb0\x81\xe1\x84\x80", offsets552[:]) { return false }
+    offsets553: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xe1\x84\x80", offsets553[:]) { return false }
+    offsets554: [3]s32 = .{0, 3, 6}
+    if !Check("\xea\xb0\x81\xe1\x85\xa0", offsets554[:]) { return false }
+    offsets555: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xe1\x85\xa0", offsets555[:]) { return false }
+    offsets556: [2]s32 = .{0, 6}
+    if !Check("\xea\xb0\x81\xe1\x86\xa8", offsets556[:]) { return false }
+    offsets557: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xe1\x86\xa8", offsets557[:]) { return false }
+    offsets558: [3]s32 = .{0, 3, 6}
+    if !Check("\xea\xb0\x81\xea\xb0\x80", offsets558[:]) { return false }
+    offsets559: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xea\xb0\x80", offsets559[:]) { return false }
+    return true
+}
+Cases7 :: () -> bool {
+    offsets560: [3]s32 = .{0, 3, 6}
+    if !Check("\xea\xb0\x81\xea\xb0\x81", offsets560[:]) { return false }
+    offsets561: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xea\xb0\x81", offsets561[:]) { return false }
+    offsets562: [3]s32 = .{0, 3, 6}
+    if !Check("\xea\xb0\x81\xe0\xa4\x95", offsets562[:]) { return false }
+    offsets563: [3]s32 = .{0, 5, 8}
+    if !Check("\xea\xb0\x81\xcc\x88\xe0\xa4\x95", offsets563[:]) { return false }
+    offsets564: [3]s32 = .{0, 3, 5}
+    if !Check("\xea\xb0\x81\xc2\xa9", offsets564[:]) { return false }
+    offsets565: [3]s32 = .{0, 5, 7}
+    if !Check("\xea\xb0\x81\xcc\x88\xc2\xa9", offsets565[:]) { return false }
+    offsets566: [3]s32 = .{0, 3, 4}
+    if !Check("\xea\xb0\x81\x20", offsets566[:]) { return false }
+    offsets567: [3]s32 = .{0, 5, 6}
+    if !Check("\xea\xb0\x81\xcc\x88\x20", offsets567[:]) { return false }
+    offsets568: [3]s32 = .{0, 3, 5}
+    if !Check("\xea\xb0\x81\xcd\xb8", offsets568[:]) { return false }
+    offsets569: [3]s32 = .{0, 5, 7}
+    if !Check("\xea\xb0\x81\xcc\x88\xcd\xb8", offsets569[:]) { return false }
+    offsets570: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa4\x95\x0d", offsets570[:]) { return false }
+    offsets571: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa4\x95\xcc\x88\x0d", offsets571[:]) { return false }
+    offsets572: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa4\x95\x0a", offsets572[:]) { return false }
+    offsets573: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa4\x95\xcc\x88\x0a", offsets573[:]) { return false }
+    offsets574: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa4\x95\x00", offsets574[:]) { return false }
+    offsets575: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa4\x95\xcc\x88\x00", offsets575[:]) { return false }
+    offsets576: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa4\x95\xe0\xa5\x8d", offsets576[:]) { return false }
+    offsets577: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xe0\xa5\x8d", offsets577[:]) { return false }
+    offsets578: [2]s32 = .{0, 5}
+    if !Check("\xe0\xa4\x95\xcc\x80", offsets578[:]) { return false }
+    offsets579: [2]s32 = .{0, 7}
+    if !Check("\xe0\xa4\x95\xcc\x88\xcc\x80", offsets579[:]) { return false }
+    offsets580: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa4\x95\xe2\x80\x8c", offsets580[:]) { return false }
+    offsets581: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xe2\x80\x8c", offsets581[:]) { return false }
+    offsets582: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa4\x95\xe2\x80\x8d", offsets582[:]) { return false }
+    offsets583: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xe2\x80\x8d", offsets583[:]) { return false }
+    offsets584: [3]s32 = .{0, 3, 7}
+    if !Check("\xe0\xa4\x95\xf0\x9f\x87\xa6", offsets584[:]) { return false }
+    offsets585: [3]s32 = .{0, 5, 9}
+    if !Check("\xe0\xa4\x95\xcc\x88\xf0\x9f\x87\xa6", offsets585[:]) { return false }
+    offsets586: [3]s32 = .{0, 3, 5}
+    if !Check("\xe0\xa4\x95\xdb\x9d", offsets586[:]) { return false }
+    offsets587: [3]s32 = .{0, 5, 7}
+    if !Check("\xe0\xa4\x95\xcc\x88\xdb\x9d", offsets587[:]) { return false }
+    offsets588: [2]s32 = .{0, 6}
+    if !Check("\xe0\xa4\x95\xe0\xa4\x83", offsets588[:]) { return false }
+    offsets589: [2]s32 = .{0, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xe0\xa4\x83", offsets589[:]) { return false }
+    offsets590: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x95\xe1\x84\x80", offsets590[:]) { return false }
+    offsets591: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xe1\x84\x80", offsets591[:]) { return false }
+    offsets592: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x95\xe1\x85\xa0", offsets592[:]) { return false }
+    offsets593: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xe1\x85\xa0", offsets593[:]) { return false }
+    offsets594: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x95\xe1\x86\xa8", offsets594[:]) { return false }
+    offsets595: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xe1\x86\xa8", offsets595[:]) { return false }
+    offsets596: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x95\xea\xb0\x80", offsets596[:]) { return false }
+    offsets597: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xea\xb0\x80", offsets597[:]) { return false }
+    offsets598: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x95\xea\xb0\x81", offsets598[:]) { return false }
+    offsets599: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xea\xb0\x81", offsets599[:]) { return false }
+    offsets600: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x95\xe0\xa4\x95", offsets600[:]) { return false }
+    offsets601: [3]s32 = .{0, 5, 8}
+    if !Check("\xe0\xa4\x95\xcc\x88\xe0\xa4\x95", offsets601[:]) { return false }
+    offsets602: [3]s32 = .{0, 3, 5}
+    if !Check("\xe0\xa4\x95\xc2\xa9", offsets602[:]) { return false }
+    offsets603: [3]s32 = .{0, 5, 7}
+    if !Check("\xe0\xa4\x95\xcc\x88\xc2\xa9", offsets603[:]) { return false }
+    offsets604: [3]s32 = .{0, 3, 4}
+    if !Check("\xe0\xa4\x95\x20", offsets604[:]) { return false }
+    offsets605: [3]s32 = .{0, 5, 6}
+    if !Check("\xe0\xa4\x95\xcc\x88\x20", offsets605[:]) { return false }
+    offsets606: [3]s32 = .{0, 3, 5}
+    if !Check("\xe0\xa4\x95\xcd\xb8", offsets606[:]) { return false }
+    offsets607: [3]s32 = .{0, 5, 7}
+    if !Check("\xe0\xa4\x95\xcc\x88\xcd\xb8", offsets607[:]) { return false }
+    offsets608: [3]s32 = .{0, 2, 3}
+    if !Check("\xc2\xa9\x0d", offsets608[:]) { return false }
+    offsets609: [3]s32 = .{0, 4, 5}
+    if !Check("\xc2\xa9\xcc\x88\x0d", offsets609[:]) { return false }
+    offsets610: [3]s32 = .{0, 2, 3}
+    if !Check("\xc2\xa9\x0a", offsets610[:]) { return false }
+    offsets611: [3]s32 = .{0, 4, 5}
+    if !Check("\xc2\xa9\xcc\x88\x0a", offsets611[:]) { return false }
+    offsets612: [3]s32 = .{0, 2, 3}
+    if !Check("\xc2\xa9\x00", offsets612[:]) { return false }
+    offsets613: [3]s32 = .{0, 4, 5}
+    if !Check("\xc2\xa9\xcc\x88\x00", offsets613[:]) { return false }
+    offsets614: [2]s32 = .{0, 5}
+    if !Check("\xc2\xa9\xe0\xa5\x8d", offsets614[:]) { return false }
+    offsets615: [2]s32 = .{0, 7}
+    if !Check("\xc2\xa9\xcc\x88\xe0\xa5\x8d", offsets615[:]) { return false }
+    offsets616: [2]s32 = .{0, 4}
+    if !Check("\xc2\xa9\xcc\x80", offsets616[:]) { return false }
+    offsets617: [2]s32 = .{0, 6}
+    if !Check("\xc2\xa9\xcc\x88\xcc\x80", offsets617[:]) { return false }
+    offsets618: [2]s32 = .{0, 5}
+    if !Check("\xc2\xa9\xe2\x80\x8c", offsets618[:]) { return false }
+    offsets619: [2]s32 = .{0, 7}
+    if !Check("\xc2\xa9\xcc\x88\xe2\x80\x8c", offsets619[:]) { return false }
+    offsets620: [2]s32 = .{0, 5}
+    if !Check("\xc2\xa9\xe2\x80\x8d", offsets620[:]) { return false }
+    offsets621: [2]s32 = .{0, 7}
+    if !Check("\xc2\xa9\xcc\x88\xe2\x80\x8d", offsets621[:]) { return false }
+    offsets622: [3]s32 = .{0, 2, 6}
+    if !Check("\xc2\xa9\xf0\x9f\x87\xa6", offsets622[:]) { return false }
+    offsets623: [3]s32 = .{0, 4, 8}
+    if !Check("\xc2\xa9\xcc\x88\xf0\x9f\x87\xa6", offsets623[:]) { return false }
+    offsets624: [3]s32 = .{0, 2, 4}
+    if !Check("\xc2\xa9\xdb\x9d", offsets624[:]) { return false }
+    offsets625: [3]s32 = .{0, 4, 6}
+    if !Check("\xc2\xa9\xcc\x88\xdb\x9d", offsets625[:]) { return false }
+    offsets626: [2]s32 = .{0, 5}
+    if !Check("\xc2\xa9\xe0\xa4\x83", offsets626[:]) { return false }
+    offsets627: [2]s32 = .{0, 7}
+    if !Check("\xc2\xa9\xcc\x88\xe0\xa4\x83", offsets627[:]) { return false }
+    offsets628: [3]s32 = .{0, 2, 5}
+    if !Check("\xc2\xa9\xe1\x84\x80", offsets628[:]) { return false }
+    offsets629: [3]s32 = .{0, 4, 7}
+    if !Check("\xc2\xa9\xcc\x88\xe1\x84\x80", offsets629[:]) { return false }
+    offsets630: [3]s32 = .{0, 2, 5}
+    if !Check("\xc2\xa9\xe1\x85\xa0", offsets630[:]) { return false }
+    offsets631: [3]s32 = .{0, 4, 7}
+    if !Check("\xc2\xa9\xcc\x88\xe1\x85\xa0", offsets631[:]) { return false }
+    offsets632: [3]s32 = .{0, 2, 5}
+    if !Check("\xc2\xa9\xe1\x86\xa8", offsets632[:]) { return false }
+    offsets633: [3]s32 = .{0, 4, 7}
+    if !Check("\xc2\xa9\xcc\x88\xe1\x86\xa8", offsets633[:]) { return false }
+    offsets634: [3]s32 = .{0, 2, 5}
+    if !Check("\xc2\xa9\xea\xb0\x80", offsets634[:]) { return false }
+    offsets635: [3]s32 = .{0, 4, 7}
+    if !Check("\xc2\xa9\xcc\x88\xea\xb0\x80", offsets635[:]) { return false }
+    offsets636: [3]s32 = .{0, 2, 5}
+    if !Check("\xc2\xa9\xea\xb0\x81", offsets636[:]) { return false }
+    offsets637: [3]s32 = .{0, 4, 7}
+    if !Check("\xc2\xa9\xcc\x88\xea\xb0\x81", offsets637[:]) { return false }
+    offsets638: [3]s32 = .{0, 2, 5}
+    if !Check("\xc2\xa9\xe0\xa4\x95", offsets638[:]) { return false }
+    offsets639: [3]s32 = .{0, 4, 7}
+    if !Check("\xc2\xa9\xcc\x88\xe0\xa4\x95", offsets639[:]) { return false }
+    return true
+}
+Cases8 :: () -> bool {
+    offsets640: [3]s32 = .{0, 2, 4}
+    if !Check("\xc2\xa9\xc2\xa9", offsets640[:]) { return false }
+    offsets641: [3]s32 = .{0, 4, 6}
+    if !Check("\xc2\xa9\xcc\x88\xc2\xa9", offsets641[:]) { return false }
+    offsets642: [3]s32 = .{0, 2, 3}
+    if !Check("\xc2\xa9\x20", offsets642[:]) { return false }
+    offsets643: [3]s32 = .{0, 4, 5}
+    if !Check("\xc2\xa9\xcc\x88\x20", offsets643[:]) { return false }
+    offsets644: [3]s32 = .{0, 2, 4}
+    if !Check("\xc2\xa9\xcd\xb8", offsets644[:]) { return false }
+    offsets645: [3]s32 = .{0, 4, 6}
+    if !Check("\xc2\xa9\xcc\x88\xcd\xb8", offsets645[:]) { return false }
+    offsets646: [3]s32 = .{0, 1, 2}
+    if !Check("\x20\x0d", offsets646[:]) { return false }
+    offsets647: [3]s32 = .{0, 3, 4}
+    if !Check("\x20\xcc\x88\x0d", offsets647[:]) { return false }
+    offsets648: [3]s32 = .{0, 1, 2}
+    if !Check("\x20\x0a", offsets648[:]) { return false }
+    offsets649: [3]s32 = .{0, 3, 4}
+    if !Check("\x20\xcc\x88\x0a", offsets649[:]) { return false }
+    offsets650: [3]s32 = .{0, 1, 2}
+    if !Check("\x20\x00", offsets650[:]) { return false }
+    offsets651: [3]s32 = .{0, 3, 4}
+    if !Check("\x20\xcc\x88\x00", offsets651[:]) { return false }
+    offsets652: [2]s32 = .{0, 4}
+    if !Check("\x20\xe0\xa5\x8d", offsets652[:]) { return false }
+    offsets653: [2]s32 = .{0, 6}
+    if !Check("\x20\xcc\x88\xe0\xa5\x8d", offsets653[:]) { return false }
+    offsets654: [2]s32 = .{0, 3}
+    if !Check("\x20\xcc\x80", offsets654[:]) { return false }
+    offsets655: [2]s32 = .{0, 5}
+    if !Check("\x20\xcc\x88\xcc\x80", offsets655[:]) { return false }
+    offsets656: [2]s32 = .{0, 4}
+    if !Check("\x20\xe2\x80\x8c", offsets656[:]) { return false }
+    offsets657: [2]s32 = .{0, 6}
+    if !Check("\x20\xcc\x88\xe2\x80\x8c", offsets657[:]) { return false }
+    offsets658: [2]s32 = .{0, 4}
+    if !Check("\x20\xe2\x80\x8d", offsets658[:]) { return false }
+    offsets659: [2]s32 = .{0, 6}
+    if !Check("\x20\xcc\x88\xe2\x80\x8d", offsets659[:]) { return false }
+    offsets660: [3]s32 = .{0, 1, 5}
+    if !Check("\x20\xf0\x9f\x87\xa6", offsets660[:]) { return false }
+    offsets661: [3]s32 = .{0, 3, 7}
+    if !Check("\x20\xcc\x88\xf0\x9f\x87\xa6", offsets661[:]) { return false }
+    offsets662: [3]s32 = .{0, 1, 3}
+    if !Check("\x20\xdb\x9d", offsets662[:]) { return false }
+    offsets663: [3]s32 = .{0, 3, 5}
+    if !Check("\x20\xcc\x88\xdb\x9d", offsets663[:]) { return false }
+    offsets664: [2]s32 = .{0, 4}
+    if !Check("\x20\xe0\xa4\x83", offsets664[:]) { return false }
+    offsets665: [2]s32 = .{0, 6}
+    if !Check("\x20\xcc\x88\xe0\xa4\x83", offsets665[:]) { return false }
+    offsets666: [3]s32 = .{0, 1, 4}
+    if !Check("\x20\xe1\x84\x80", offsets666[:]) { return false }
+    offsets667: [3]s32 = .{0, 3, 6}
+    if !Check("\x20\xcc\x88\xe1\x84\x80", offsets667[:]) { return false }
+    offsets668: [3]s32 = .{0, 1, 4}
+    if !Check("\x20\xe1\x85\xa0", offsets668[:]) { return false }
+    offsets669: [3]s32 = .{0, 3, 6}
+    if !Check("\x20\xcc\x88\xe1\x85\xa0", offsets669[:]) { return false }
+    offsets670: [3]s32 = .{0, 1, 4}
+    if !Check("\x20\xe1\x86\xa8", offsets670[:]) { return false }
+    offsets671: [3]s32 = .{0, 3, 6}
+    if !Check("\x20\xcc\x88\xe1\x86\xa8", offsets671[:]) { return false }
+    offsets672: [3]s32 = .{0, 1, 4}
+    if !Check("\x20\xea\xb0\x80", offsets672[:]) { return false }
+    offsets673: [3]s32 = .{0, 3, 6}
+    if !Check("\x20\xcc\x88\xea\xb0\x80", offsets673[:]) { return false }
+    offsets674: [3]s32 = .{0, 1, 4}
+    if !Check("\x20\xea\xb0\x81", offsets674[:]) { return false }
+    offsets675: [3]s32 = .{0, 3, 6}
+    if !Check("\x20\xcc\x88\xea\xb0\x81", offsets675[:]) { return false }
+    offsets676: [3]s32 = .{0, 1, 4}
+    if !Check("\x20\xe0\xa4\x95", offsets676[:]) { return false }
+    offsets677: [3]s32 = .{0, 3, 6}
+    if !Check("\x20\xcc\x88\xe0\xa4\x95", offsets677[:]) { return false }
+    offsets678: [3]s32 = .{0, 1, 3}
+    if !Check("\x20\xc2\xa9", offsets678[:]) { return false }
+    offsets679: [3]s32 = .{0, 3, 5}
+    if !Check("\x20\xcc\x88\xc2\xa9", offsets679[:]) { return false }
+    offsets680: [3]s32 = .{0, 1, 2}
+    if !Check("\x20\x20", offsets680[:]) { return false }
+    offsets681: [3]s32 = .{0, 3, 4}
+    if !Check("\x20\xcc\x88\x20", offsets681[:]) { return false }
+    offsets682: [3]s32 = .{0, 1, 3}
+    if !Check("\x20\xcd\xb8", offsets682[:]) { return false }
+    offsets683: [3]s32 = .{0, 3, 5}
+    if !Check("\x20\xcc\x88\xcd\xb8", offsets683[:]) { return false }
+    offsets684: [3]s32 = .{0, 2, 3}
+    if !Check("\xcd\xb8\x0d", offsets684[:]) { return false }
+    offsets685: [3]s32 = .{0, 4, 5}
+    if !Check("\xcd\xb8\xcc\x88\x0d", offsets685[:]) { return false }
+    offsets686: [3]s32 = .{0, 2, 3}
+    if !Check("\xcd\xb8\x0a", offsets686[:]) { return false }
+    offsets687: [3]s32 = .{0, 4, 5}
+    if !Check("\xcd\xb8\xcc\x88\x0a", offsets687[:]) { return false }
+    offsets688: [3]s32 = .{0, 2, 3}
+    if !Check("\xcd\xb8\x00", offsets688[:]) { return false }
+    offsets689: [3]s32 = .{0, 4, 5}
+    if !Check("\xcd\xb8\xcc\x88\x00", offsets689[:]) { return false }
+    offsets690: [2]s32 = .{0, 5}
+    if !Check("\xcd\xb8\xe0\xa5\x8d", offsets690[:]) { return false }
+    offsets691: [2]s32 = .{0, 7}
+    if !Check("\xcd\xb8\xcc\x88\xe0\xa5\x8d", offsets691[:]) { return false }
+    offsets692: [2]s32 = .{0, 4}
+    if !Check("\xcd\xb8\xcc\x80", offsets692[:]) { return false }
+    offsets693: [2]s32 = .{0, 6}
+    if !Check("\xcd\xb8\xcc\x88\xcc\x80", offsets693[:]) { return false }
+    offsets694: [2]s32 = .{0, 5}
+    if !Check("\xcd\xb8\xe2\x80\x8c", offsets694[:]) { return false }
+    offsets695: [2]s32 = .{0, 7}
+    if !Check("\xcd\xb8\xcc\x88\xe2\x80\x8c", offsets695[:]) { return false }
+    offsets696: [2]s32 = .{0, 5}
+    if !Check("\xcd\xb8\xe2\x80\x8d", offsets696[:]) { return false }
+    offsets697: [2]s32 = .{0, 7}
+    if !Check("\xcd\xb8\xcc\x88\xe2\x80\x8d", offsets697[:]) { return false }
+    offsets698: [3]s32 = .{0, 2, 6}
+    if !Check("\xcd\xb8\xf0\x9f\x87\xa6", offsets698[:]) { return false }
+    offsets699: [3]s32 = .{0, 4, 8}
+    if !Check("\xcd\xb8\xcc\x88\xf0\x9f\x87\xa6", offsets699[:]) { return false }
+    offsets700: [3]s32 = .{0, 2, 4}
+    if !Check("\xcd\xb8\xdb\x9d", offsets700[:]) { return false }
+    offsets701: [3]s32 = .{0, 4, 6}
+    if !Check("\xcd\xb8\xcc\x88\xdb\x9d", offsets701[:]) { return false }
+    offsets702: [2]s32 = .{0, 5}
+    if !Check("\xcd\xb8\xe0\xa4\x83", offsets702[:]) { return false }
+    offsets703: [2]s32 = .{0, 7}
+    if !Check("\xcd\xb8\xcc\x88\xe0\xa4\x83", offsets703[:]) { return false }
+    offsets704: [3]s32 = .{0, 2, 5}
+    if !Check("\xcd\xb8\xe1\x84\x80", offsets704[:]) { return false }
+    offsets705: [3]s32 = .{0, 4, 7}
+    if !Check("\xcd\xb8\xcc\x88\xe1\x84\x80", offsets705[:]) { return false }
+    offsets706: [3]s32 = .{0, 2, 5}
+    if !Check("\xcd\xb8\xe1\x85\xa0", offsets706[:]) { return false }
+    offsets707: [3]s32 = .{0, 4, 7}
+    if !Check("\xcd\xb8\xcc\x88\xe1\x85\xa0", offsets707[:]) { return false }
+    offsets708: [3]s32 = .{0, 2, 5}
+    if !Check("\xcd\xb8\xe1\x86\xa8", offsets708[:]) { return false }
+    offsets709: [3]s32 = .{0, 4, 7}
+    if !Check("\xcd\xb8\xcc\x88\xe1\x86\xa8", offsets709[:]) { return false }
+    offsets710: [3]s32 = .{0, 2, 5}
+    if !Check("\xcd\xb8\xea\xb0\x80", offsets710[:]) { return false }
+    offsets711: [3]s32 = .{0, 4, 7}
+    if !Check("\xcd\xb8\xcc\x88\xea\xb0\x80", offsets711[:]) { return false }
+    offsets712: [3]s32 = .{0, 2, 5}
+    if !Check("\xcd\xb8\xea\xb0\x81", offsets712[:]) { return false }
+    offsets713: [3]s32 = .{0, 4, 7}
+    if !Check("\xcd\xb8\xcc\x88\xea\xb0\x81", offsets713[:]) { return false }
+    offsets714: [3]s32 = .{0, 2, 5}
+    if !Check("\xcd\xb8\xe0\xa4\x95", offsets714[:]) { return false }
+    offsets715: [3]s32 = .{0, 4, 7}
+    if !Check("\xcd\xb8\xcc\x88\xe0\xa4\x95", offsets715[:]) { return false }
+    offsets716: [3]s32 = .{0, 2, 4}
+    if !Check("\xcd\xb8\xc2\xa9", offsets716[:]) { return false }
+    offsets717: [3]s32 = .{0, 4, 6}
+    if !Check("\xcd\xb8\xcc\x88\xc2\xa9", offsets717[:]) { return false }
+    offsets718: [3]s32 = .{0, 2, 3}
+    if !Check("\xcd\xb8\x20", offsets718[:]) { return false }
+    offsets719: [3]s32 = .{0, 4, 5}
+    if !Check("\xcd\xb8\xcc\x88\x20", offsets719[:]) { return false }
+    return true
+}
+Cases9 :: () -> bool {
+    offsets720: [3]s32 = .{0, 2, 4}
+    if !Check("\xcd\xb8\xcd\xb8", offsets720[:]) { return false }
+    offsets721: [3]s32 = .{0, 4, 6}
+    if !Check("\xcd\xb8\xcc\x88\xcd\xb8", offsets721[:]) { return false }
+    offsets722: [5]s32 = .{0, 2, 3, 4, 6}
+    if !Check("\x0d\x0a\x61\x0a\xcc\x88", offsets722[:]) { return false }
+    offsets723: [2]s32 = .{0, 3}
+    if !Check("\x61\xcc\x88", offsets723[:]) { return false }
+    offsets724: [3]s32 = .{0, 4, 6}
+    if !Check("\x20\xe2\x80\x8d\xd9\x86", offsets724[:]) { return false }
+    offsets725: [3]s32 = .{0, 5, 6}
+    if !Check("\xd9\x86\xe2\x80\x8d\x20", offsets725[:]) { return false }
+    offsets726: [2]s32 = .{0, 6}
+    if !Check("\xe1\x84\x80\xe1\x84\x80", offsets726[:]) { return false }
+    offsets727: [3]s32 = .{0, 6, 9}
+    if !Check("\xea\xb0\x80\xe1\x86\xa8\xe1\x84\x80", offsets727[:]) { return false }
+    offsets728: [3]s32 = .{0, 6, 9}
+    if !Check("\xea\xb0\x81\xe1\x86\xa8\xe1\x84\x80", offsets728[:]) { return false }
+    offsets729: [4]s32 = .{0, 8, 12, 13}
+    if !Check("\xf0\x9f\x87\xa6\xf0\x9f\x87\xa7\xf0\x9f\x87\xa8\x62", offsets729[:]) { return false }
+    offsets730: [5]s32 = .{0, 1, 9, 13, 14}
+    if !Check("\x61\xf0\x9f\x87\xa6\xf0\x9f\x87\xa7\xf0\x9f\x87\xa8\x62", offsets730[:]) { return false }
+    offsets731: [5]s32 = .{0, 1, 12, 16, 17}
+    if !Check("\x61\xf0\x9f\x87\xa6\xf0\x9f\x87\xa7\xe2\x80\x8d\xf0\x9f\x87\xa8\x62", offsets731[:]) { return false }
+    offsets732: [5]s32 = .{0, 1, 8, 16, 17}
+    if !Check("\x61\xf0\x9f\x87\xa6\xe2\x80\x8d\xf0\x9f\x87\xa7\xf0\x9f\x87\xa8\x62", offsets732[:]) { return false }
+    offsets733: [5]s32 = .{0, 1, 9, 17, 18}
+    if !Check("\x61\xf0\x9f\x87\xa6\xf0\x9f\x87\xa7\xf0\x9f\x87\xa8\xf0\x9f\x87\xa9\x62", offsets733[:]) { return false }
+    offsets734: [2]s32 = .{0, 4}
+    if !Check("\x61\xe2\x80\x8d", offsets734[:]) { return false }
+    offsets735: [3]s32 = .{0, 3, 4}
+    if !Check("\x61\xcc\x88\x62", offsets735[:]) { return false }
+    offsets736: [3]s32 = .{0, 4, 5}
+    if !Check("\x61\xe0\xa4\x83\x62", offsets736[:]) { return false }
+    offsets737: [3]s32 = .{0, 1, 4}
+    if !Check("\x61\xd8\x80\x62", offsets737[:]) { return false }
+    offsets738: [3]s32 = .{0, 8, 12}
+    if !Check("\xf0\x9f\x91\xb6\xf0\x9f\x8f\xbf\xf0\x9f\x91\xb6", offsets738[:]) { return false }
+    offsets739: [3]s32 = .{0, 5, 9}
+    if !Check("\x61\xf0\x9f\x8f\xbf\xf0\x9f\x91\xb6", offsets739[:]) { return false }
+    offsets740: [3]s32 = .{0, 5, 16}
+    if !Check("\x61\xf0\x9f\x8f\xbf\xf0\x9f\x91\xb6\xe2\x80\x8d\xf0\x9f\x9b\x91", offsets740[:]) { return false }
+    offsets741: [2]s32 = .{0, 21}
+    if !Check("\xf0\x9f\x91\xb6\xf0\x9f\x8f\xbf\xcc\x88\xe2\x80\x8d\xf0\x9f\x91\xb6\xf0\x9f\x8f\xbf", offsets741[:]) { return false }
+    offsets742: [2]s32 = .{0, 11}
+    if !Check("\xf0\x9f\x9b\x91\xe2\x80\x8d\xf0\x9f\x9b\x91", offsets742[:]) { return false }
+    offsets743: [3]s32 = .{0, 4, 8}
+    if !Check("\x61\xe2\x80\x8d\xf0\x9f\x9b\x91", offsets743[:]) { return false }
+    offsets744: [3]s32 = .{0, 6, 9}
+    if !Check("\xe2\x9c\x81\xe2\x80\x8d\xe2\x9c\x81", offsets744[:]) { return false }
+    offsets745: [3]s32 = .{0, 4, 7}
+    if !Check("\x61\xe2\x80\x8d\xe2\x9c\x81", offsets745[:]) { return false }
+    offsets746: [3]s32 = .{0, 3, 6}
+    if !Check("\xe0\xa4\x95\xe0\xa4\xa4", offsets746[:]) { return false }
+    offsets747: [2]s32 = .{0, 9}
+    if !Check("\xe0\xa4\x95\xe0\xa5\x8d\xe0\xa4\xa4", offsets747[:]) { return false }
+    offsets748: [2]s32 = .{0, 12}
+    if !Check("\xe0\xa4\x95\xe0\xa5\x8d\xe0\xa5\x8d\xe0\xa4\xa4", offsets748[:]) { return false }
+    offsets749: [2]s32 = .{0, 12}
+    if !Check("\xe0\xa4\x95\xe0\xa5\x8d\xe2\x80\x8d\xe0\xa4\xa4", offsets749[:]) { return false }
+    offsets750: [2]s32 = .{0, 15}
+    if !Check("\xe0\xa4\x95\xe0\xa4\xbc\xe2\x80\x8d\xe0\xa5\x8d\xe0\xa4\xa4", offsets750[:]) { return false }
+    offsets751: [2]s32 = .{0, 15}
+    if !Check("\xe0\xa4\x95\xe0\xa4\xbc\xe0\xa5\x8d\xe2\x80\x8d\xe0\xa4\xa4", offsets751[:]) { return false }
+    offsets752: [2]s32 = .{0, 15}
+    if !Check("\xe0\xa4\x95\xe0\xa5\x8d\xe0\xa4\xa4\xe0\xa5\x8d\xe0\xa4\xaf", offsets752[:]) { return false }
+    offsets753: [3]s32 = .{0, 6, 7}
+    if !Check("\xe0\xa4\x95\xe0\xa5\x8d\x61", offsets753[:]) { return false }
+    offsets754: [3]s32 = .{0, 4, 7}
+    if !Check("\x61\xe0\xa5\x8d\xe0\xa4\xa4", offsets754[:]) { return false }
+    offsets755: [3]s32 = .{0, 4, 7}
+    if !Check("\x3f\xe0\xa5\x8d\xe0\xa4\xa4", offsets755[:]) { return false }
+    offsets756: [2]s32 = .{0, 12}
+    if !Check("\xe0\xa4\x95\xe0\xa5\x8d\xe0\xa5\x8d\xe0\xa4\xa4", offsets756[:]) { return false }
+    offsets757: [2]s32 = .{0, 15}
+    if !Check("\xe0\xaa\xb8\xe0\xab\xbb\xe0\xab\x8d\xe0\xaa\xb8\xe0\xab\xbb", offsets757[:]) { return false }
+    offsets758: [3]s32 = .{0, 9, 15}
+    if !Check("\xe1\x80\x99\xe1\x80\xb9\xe1\x80\x98\xe1\x80\xac\xe1\x80\xb7", offsets758[:]) { return false }
+    offsets759: [2]s32 = .{0, 18}
+    if !Check("\xe1\x80\x84\xe1\x80\xba\xe1\x80\xb9\xe1\x80\x91\xe1\x80\xb9\xe1\x80\x91", offsets759[:]) { return false }
+    offsets760: [5]s32 = .{0, 6, 15, 30, 42}
+    if !Check("\xe1\xac\x92\xe1\xac\x81\xe1\xac\xb2\xe1\xad\x84\xe1\xac\xaf\xe1\xac\xb2\xe1\xad\x84\xe1\xac\xa2\xe1\xad\x84\xe1\xac\xac\xe1\xac\xb2\xe1\xad\x84\xe1\xac\xa2\xe1\xac\xb8", offsets760[:]) { return false }
+    offsets761: [2]s32 = .{0, 18}
+    if !Check("\xe1\x9e\x9f\xe1\x9f\x92\xe1\x9e\x8f\xe1\x9f\x92\xe1\x9e\x9a\xe1\x9e\xb8", offsets761[:]) { return false }
+    offsets762: [3]s32 = .{0, 3, 12}
+    if !Check("\xe1\xac\xa6\xe1\xac\x97\xe1\xad\x84\xe1\xac\x93", offsets762[:]) { return false }
+    offsets763: [4]s32 = .{0, 3, 12, 18}
+    if !Check("\xe1\xac\xa7\xe1\xac\x93\xe1\xad\x84\xe1\xac\x8b\xe1\xac\x8b\xe1\xac\x84", offsets763[:]) { return false }
+    offsets764: [3]s32 = .{0, 9, 12}
+    if !Check("\xe1\x9e\x95\xe1\x9f\x92\xe1\x9e\xaf\xe1\x9e\x98", offsets764[:]) { return false }
+    offsets765: [4]s32 = .{0, 9, 15, 18}
+    if !Check("\xe1\x9e\xa0\xe1\x9f\x92\xe1\x9e\xab\xe1\x9e\x91\xe1\x9f\x90\xe1\x9e\x99", offsets765[:]) { return false }
+    return true
+}
+#program_export
+NativeMain :: () -> s32 {
+    if !Cases0() { return 1 }
+    if !Cases1() { return 2 }
+    if !Cases2() { return 3 }
+    if !Cases3() { return 4 }
+    if !Cases4() { return 5 }
+    if !Cases5() { return 6 }
+    if !Cases6() { return 7 }
+    if !Cases7() { return 8 }
+    if !Cases8() { return 9 }
+    if !Cases9() { return 10 }
+    return 0
+}

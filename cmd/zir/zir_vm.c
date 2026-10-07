@@ -370,6 +370,8 @@ enum_value(const ZirType *type, int64_t integer)
 uint64_t
 integer_bits(Value value)
 {
+    if(value.kind != VALUE_INT && value.kind != VALUE_ENUM)
+        return 0;
     return value.unsigned64 ? value.bits : (uint64_t)value.integer;
 }
 
@@ -385,6 +387,8 @@ as_real(Value value)
 {
     if(value.kind == VALUE_REAL)
         return value.real;
+    if(value.kind != VALUE_INT && value.kind != VALUE_ENUM)
+        return 0.0;
     return value.unsigned64 ? (double)value.bits : (double)value.integer;
 }
 
@@ -505,12 +509,15 @@ allocate_record(Vm *vm, const ZirModule *owner,
 }
 
 /* Whether a value of this type can reach VM records, arrays, or owned text.
- * Numeric scalars, raw handles, enums, and procedure values cannot, so arrays
+ * Numeric scalars, enums, and procedure values cannot, so arrays
  * of them need no element walk when marking or copying. */
 static int
 type_holds_references(const ZirModule *module, const char *type)
 {
     if(!strcmp(type, "string")) return 1;
+    /* A pointer can be an opaque host handle or owned New(T) storage. Its
+     * type alone cannot rule out a live VM heap allocation. */
+    if(type[0] == '*') return 1;
     if(value_kind(type) != VALUE_INVALID)
         return 0;
     const ZirType *found = module != NULL ? FindType(module, type, NULL) : NULL;

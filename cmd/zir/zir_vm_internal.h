@@ -16,9 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* VM_MAX_PARAMS is at most 64: named arguments are tracked in a uint64_t.
- * Every value takes a whole Value slot, so a UI library's static tree and
- * paint storage needs some 300 MB here; the budgets leave room for it. */
+/* VM_MAX_PARAMS is at most 64: named arguments are tracked in a uint64_t. */
 enum { VM_MAX_PARAMS = 64, VM_MAX_GLOBALS = 4096,
        VM_MAX_DEPTH = 128,
        VM_MAX_FIELDS = 1024,
@@ -51,23 +49,30 @@ typedef struct StringLiteral StringLiteral;
 
 typedef struct Value {
     ValueKind kind;
-    int64_t integer;
-    uint64_t bits;
     int unsigned64;
-    double real;
-    const unsigned char *data;
-    size_t length;
-    StringLiteral *string_owner; /* snapshots and any ranges/copies of them */
-    size_t offset;
-    const ZirType *enumeration;
-    Record *record;
+    /* Only the payload selected by kind is live. Integers need both their
+     * signed value and unsigned bits; pointers need a target, call serial
+     * and both container references. Other kinds share those same words. */
+    union {
+        int64_t integer;
+        double real;
+        const unsigned char *data;
+        size_t offset;
+        const ZirType *slot_type;
+        struct Value *pointee;
+    };
+    union {
+        uint64_t bits;
+        size_t length;
+        const ZirModule *slot_module;
+    };
+    union {
+        StringLiteral *string_owner; /* snapshots and ranges/copies of them */
+        const ZirType *enumeration;
+        Record *record;
+        const ZirFunction *slot_function;
+    };
     Array *array;
-    const ZirType *slot_type;
-    const ZirModule *slot_module;
-    const ZirFunction *slot_function;
-    /* A pointer's target. `record` or `array` keeps its container alive,
-     * and `bits` names the call whose local it is, 0 otherwise. */
-    struct Value *pointee;
 } Value;
 
 /* Values held by an expression while another expression or call runs.

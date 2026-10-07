@@ -1,0 +1,69 @@
+{
+  "verified_at_utc": "2026-10-07T00:44:00.549161+00:00",
+  "source_parent": "c1a817271a2de96e33ccef8ccd81ea59e22fe108",
+  "scope": "Native package map publication and per-command graph selection. No application input latency or all-platform threading claim.",
+  "problem": "Concurrent package commands truncate and rewrite one module-map.tsv. Readers can observe an empty or partial file, and an earlier command can receive a later command's different graph.",
+  "change": [
+    "Publish files from exclusively owned private temporary files, synchronize and close them, then atomically rename into place. Failed publication removes only its own temporary.",
+    "Give every compiler invocation a SHA-256 content-specific map path. Identical graph content uses the same snapshot path. Different graphs cannot replace the path passed to another child.",
+    "Keep module-map.tsv as the latest complete map for local inspection. Compiler children use their content-specific snapshot."
+  ],
+  "before_regression": {
+    "valid_baseline_tests": 4,
+    "failures": 3,
+    "observed_empty_read": true,
+    "fixture_correction": "The initially incomplete fixture was corrected to provide its own empty standard-module root before comparing original and changed implementations."
+  },
+  "verification": {
+    "source_saved_c_cpp_variants": 4,
+    "tests_per_variant": 4,
+    "parallel_publications_per_variant": 32,
+    "total_parallel_publications": 128,
+    "same_graph_reuse": true,
+    "failed_publication_preserves_previous_map": true,
+    "owned_temporary_cleanup": true,
+    "package_integration": {
+      "command": "sh tests/packages.sh build/performance-package-map-20261006/matched/after-ziran",
+      "exit_code": 0,
+      "scope": "Existing package lock, aliases, two dependency revisions, templates, bootstrap launcher and compiler backend checks; only generated local Git fixtures are cloned. Canonical tool sources are used through overrides."
+    },
+    "actual_harmony_parallel_commands": {
+      "count": 16,
+      "workers": 8,
+      "passed": 16,
+      "scope": "Eight source checks and eight C generations using the actual Harmony dependency graph, with no GUI or installed runtime changes."
+    }
+  },
+  "matched_launcher": {
+    "method": "Original canonical generated launcher objects shared; add only PkgWriteAtomic and replace only PkgWriteMap. All unrelated current scanner/compiler edits are excluded.",
+    "shared_objects": 24,
+    "binaries": {
+      "before": {
+        "path": "/mnt/storage/Projects/ziranlang/ziran/build/performance-package-map-20261006/matched/before-ziran",
+        "sha256": "ba97bf7d6bd89d5137f2ea5827a54e8885e21d43014b6b019078b9c9dbc15127"
+      },
+      "after": {
+        "path": "/mnt/storage/Projects/ziranlang/ziran/build/performance-package-map-20261006/matched/after-ziran",
+        "sha256": "d0ca041341d9502094db97b2e3c4b027c234e2dbd87e36ef0baa2b139b7cd1b3"
+      }
+    }
+  },
+  "deployment": {
+    "performed": false,
+    "intended": "Install only the verified matched native package launcher, preserving all existing compiler siblings and ongoing processes."
+  },
+  "limitations": [
+    "This fixes concurrency correctness in package commands; it establishes no new Harmony responsiveness gain.",
+    "Graph snapshots are generated build-cache artifacts. Distinct graph contents create distinct files; normal build cleanup removes the cache.",
+    "Native C/C++ and Linux fixtures were executed. No new physical Android, Windows, macOS or Plan 9 execution in this change.",
+    "Other mutable package artifacts, such as the lock and option files, have separate lifecycles and still require a full concurrent-writer audit."
+  ],
+  "artifacts": {
+    "root": "build/performance-package-map-20261006",
+    "before_gate": "before-valid-tests.log",
+    "changed_gate": "all-variants.log",
+    "integration": "package-integration.log",
+    "actual_harmony": "/mnt/storage/Projects/waozixyz/harmony/build/performance-profile/package-map-20261006/runs.json"
+  },
+  "next_action": "Continue the terminal request path using output notifications and bounded persistent transport; do not infer runtime 10x progress from a package build concurrency repair."
+}

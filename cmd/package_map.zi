@@ -286,7 +286,15 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string
     if !builder.valid { return "" }
     directory: string = PkgJoin(root, "/build/.ziran")
     if !PkgMkdirs(directory) { return "" }
-    path: string = PkgJoin(directory, "/module-map.tsv")
-    if !PkgWrite(path, TextFromBytes(builder.bytes[0:builder.at])) { return "" }
-    return path
+    content := TextFromBytes(builder.bytes[0:builder.at])
+    digest := PkgDigest(content)
+    if digest == "" { return "" }
+    // Pin this invocation to its exact graph. A different concurrent graph
+    // must not replace the pathname passed to the compiler child.
+    snapshot := PkgJoin3(directory, "/module-map.", PkgJoin(digest, ".tsv"))
+    if !PkgWriteAtomic(snapshot, content) { return "" }
+    // Keep the latest complete map available for local inspection. Compiler
+    // invocations always receive their content-specific snapshot above.
+    if !PkgWriteAtomic(PkgJoin(directory, "/module-map.tsv"), content) { return "" }
+    return snapshot
 }

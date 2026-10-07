@@ -2,6 +2,7 @@
 set -eu
 
 ziran=$1
+unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -42,5 +43,17 @@ package main
 func main() { if JsonScanTest_NativeMain() != 0 { panic("JSON array positions differ") } }
 GO
     GO111MODULE=off go run "$output"/*.go
+    output="$work/$form-py"
+    "$ziran" build --target=py --exe --entry json_scan_test:NativeMain \
+        --root tests/spec --module-path std -o "$output" "$input"
+    python3 "$output"
+    if command -v cargo >/dev/null 2>&1; then
+        output="$work/$form-rust"
+        "$ziran" build --target=rust --exe --entry json_scan_test:NativeMain \
+            --root tests/spec --module-path std -o "$output" "$input"
+        CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --offline \
+            --manifest-path "$output/Cargo.toml"
+        "$work/rust-target/debug/ziran_generated"
+    fi
 done
-echo 'JSON scanning passed source, saved IR, portable VM and C/C++/Go execution'
+echo 'JSON scanning passed source, saved IR, portable VM and C/C++/Go/Python execution; Rust checked when cargo is installed'

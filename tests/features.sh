@@ -60,11 +60,30 @@ for index, feature in enumerate(manifest["features"]):
     (work / f"{index}-rejected.zi").write_text(feature["rejected_example"])
 PY
 
-for source in "$work"/*-accepted.zi; do
-    "$ziran" check --diagnostics=json --root "$work" \
-        --module-path "$repo/std" "$source" > "$work/accepted.out" \
-        2> "$work/accepted.err"
-done
+python3 - "$work/features.json" "$work" "$repo" "$ziran" <<'PY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+manifest = json.loads(Path(sys.argv[1]).read_text())
+work, repo = Path(sys.argv[2]), Path(sys.argv[3])
+ziran = sys.argv[4]
+for index, feature in enumerate(manifest['features']):
+    source = work / f'{index}-accepted.zi'
+    saved = work / f'ir-{index}'
+    options = ['--diagnostics=json', '--root', str(work), '--module-path', str(repo / 'std')]
+    subprocess.run([ziran, 'ir', *options, '-o', str(saved), str(source)], check=True)
+    modules = list(saved.glob('*.zir'))
+    assert modules, feature['id']
+    for target in feature['target_support']:
+        if target['status'] == 'unsupported':
+            continue
+        for form in (source, *modules):
+            result = subprocess.run([ziran, 'check', '--target=' + target['target'], *options,
+                                     str(form)], capture_output=True, text=True)
+            assert result.returncode == 0, (feature['id'], target['target'], form, result.stderr)
+PY
 for source in "$work"/*-rejected.zi; do
     if "$ziran" check --diagnostics=json --root "$work" \
         --module-path "$repo/std" "$source" \

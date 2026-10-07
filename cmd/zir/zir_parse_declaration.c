@@ -55,6 +55,19 @@ check_declaration_error(DeclarationError error, ZirSourceSpan span)
 }
 
 void
+parse_procedure_type_parameters(const char *args, char *output,
+                               size_t capacity, ZirSourceSpan span)
+{
+    ParameterRewrite result = compiler_declaration_RewriteProcedureTypeParameters(
+        declaration_text(args), (Slice){output, capacity > 0 ? (int64_t)capacity - 1 : 0},
+        ZIR_NAME_MAX);
+    check_declaration_error(result.error, span);
+    if((uint64_t)result.count >= capacity)
+        die_at(span, "procedure type parameters exceed size limit");
+    output[result.count] = '\0';
+}
+
+void
 parse_go_method(const char *line, ZirFunction *function, ZirSourceSpan span)
 {
     GoMethodDeclaration method = compiler_declaration_ParseGoMethod(

@@ -102,6 +102,10 @@ enum {
     DeclarationError_GoMethodDuplicate = 60,
     DeclarationError_GoMethodResults = 61,
     DeclarationError_GoMethodForeign = 62,
+    DeclarationError_ProcedureTypeCount = 63,
+    DeclarationError_ProcedureTypeName = 64,
+    DeclarationError_ProcedureTypeType = 65,
+    DeclarationError_ProcedureTypeDefault = 66,
 };
 
 struct GoMethodDeclaration {
@@ -247,6 +251,7 @@ GoMethodDeclaration compiler_declaration_ParseGoMethod(String source, int64_t na
 UsingFilter compiler_declaration_UsingModifierClause(String source, Slice output, int64_t name_limit);
 ExportDirective compiler_declaration_ProgramExport(String source, int64_t symbol_limit);
 ParameterRewrite compiler_declaration_RewriteParameters(String source, Slice output, bool strip_defaults, bool strip_using, int64_t name_limit);
+ParameterRewrite compiler_declaration_RewriteProcedureTypeParameters(String source, Slice output, int64_t name_limit);
 ModuleImport compiler_declaration_ImportDeclaration(String source, int64_t name_limit, int64_t path_limit);
 LibraryDeclaration compiler_declaration_SystemLibrary(String source, int64_t name_limit, int64_t path_limit);
 MethodSymbol compiler_declaration_ForeignMethod(String source, int64_t receiver_limit, int64_t method_limit, bool python);

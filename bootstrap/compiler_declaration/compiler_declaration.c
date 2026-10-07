@@ -205,6 +205,18 @@ compiler_declaration_ErrorText(DeclarationError error)
     if (error == DeclarationError_DefaultValue) {
         return StringLiteral("default parameter needs a value");
     }
+    if (error == DeclarationError_ProcedureTypeCount) {
+        return StringLiteral("invalid procedure type parameters");
+    }
+    if (error == DeclarationError_ProcedureTypeName) {
+        return StringLiteral("procedure type parameter needs a name");
+    }
+    if (error == DeclarationError_ProcedureTypeType) {
+        return StringLiteral("procedure type parameter needs a type");
+    }
+    if (error == DeclarationError_ProcedureTypeDefault) {
+        return StringLiteral("defaults on procedure type parameters are not supported");
+    }
     if (error == DeclarationError_UsingModifier) {
         return StringLiteral("using parameter modifiers are not supported");
     }
@@ -691,6 +703,82 @@ compiler_declaration_RewriteParameters(String source, Slice output, bool strip_d
             compiler_declaration_Put(output, &(result.count), StringLiteral(", "));
         }
         compiler_declaration_Put(output, &(result.count), part);
+        result.parameters = (int32_t)((uint32_t)(result.parameters) + 1u);
+        at = range.next;
+    }
+    return result;
+}
+
+ParameterRewrite
+compiler_declaration_RewriteProcedureTypeParameters(String source, Slice output, int64_t name_limit)
+{
+    ParameterRewrite result = {0};
+    int64_t value_0 = compiler_text_SkipSpace(source, 0LL, true);
+    int64_t value_1 = (int64_t)(source).length;
+    if (value_0 == value_1) {
+        return result;
+    }
+    int64_t at = 0LL;
+    while (at >= 0LL) {
+        if (result.parameters == 16) {
+            result.error = DeclarationError_ProcedureTypeCount;
+            return result;
+        }
+        SourcePart range = compiler_text_NextSourcePart(source, at);
+        String value_2 = source;
+        String part = compiler_declaration_Trim(StringRange(value_2, (int64_t)range.begin, (int64_t)range.end));
+        int64_t value_3 = compiler_text_TopLevelAssignment(part);
+        if (value_3 >= 0LL) {
+            result.error = DeclarationError_ProcedureTypeDefault;
+            return result;
+        }
+        int64_t colon = compiler_declaration_Find(part, StringLiteral(":"));
+        String type = part;
+        if (result.parameters > 0) {
+            compiler_declaration_Put(output, &(result.count), StringLiteral(", "));
+        }
+        if (colon >= 0LL) {
+            String value_4 = part;
+            String name = compiler_declaration_Trim(StringRange(value_4, (int64_t)0LL, (int64_t)colon));
+            int64_t value_5 = (int64_t)(name).length;
+            bool value_6 = value_5 >= name_limit;
+            if (!value_6) {
+                bool value_7 = compiler_source_IdentifierText(name, false);
+                value_6 = !value_7;
+            }
+            if (value_6) {
+                result.error = DeclarationError_ProcedureTypeName;
+                return result;
+            }
+            compiler_declaration_Put(output, &(result.count), name);
+            String value_8 = part;
+            type = compiler_declaration_Trim(StringRange(value_8, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)value_8.length));
+        } else {
+            compiler_declaration_Put(output, &(result.count), StringLiteral("arg"));
+            uint8_t digits[2] = {0};
+            int64_t length = 0LL;
+            if (result.parameters >= 10) {
+                ZIRAN_INDEX(digits, sizeof(digits) / sizeof(digits[0]), length) = 49;
+                length = (int64_t)((uint64_t)length + UINT64_C(1));
+            }
+            ZIRAN_INDEX(digits, sizeof(digits) / sizeof(digits[0]), length) = (uint8_t)(48u + (uint32_t)((result.parameters % 10)));
+            length = (int64_t)((uint64_t)length + UINT64_C(1));
+            Slice value_9 = {digits, 2};
+            Slice value_10 = SliceRange(value_9, (int64_t)0LL, (int64_t)length, sizeof(uint8_t));
+            compiler_declaration_Put(output, &(result.count), StringView((const char *)(value_10).data, (size_t)(value_10).length));
+        }
+        int64_t value_11 = (int64_t)(type).length;
+        bool value_12 = value_11 == 0LL;
+        if (!value_12) {
+            int64_t value_13 = compiler_declaration_Find(type, StringLiteral(":"));
+            value_12 = (value_13 >= 0LL);
+        }
+        if (value_12) {
+            result.error = DeclarationError_ProcedureTypeType;
+            return result;
+        }
+        compiler_declaration_Put(output, &(result.count), StringLiteral(": "));
+        compiler_declaration_Put(output, &(result.count), type);
         result.parameters = (int32_t)((uint32_t)(result.parameters) + 1u);
         at = range.next;
     }

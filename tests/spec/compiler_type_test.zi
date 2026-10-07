@@ -112,7 +112,9 @@ Targets :: () -> bool {
         Types.ForeignImportSupported(target, "c") != (target != "zib") ||
         Types.ForeignImportSupported(target, "go") != (target == "go") ||
         Types.ForeignImportSupported(target, "py") != (target == "py") ||
-        Types.ForeignImportSupported(target, "unknown") { return false }
+        Types.ForeignImportSupported(target, "unknown") ||
+        !Types.ProcedureTypeSupported(target, false) ||
+        Types.ProcedureTypeSupported(target, true) != (target != "go" && target != "zib") { return false }
     }
     if Types.ScalarByteWidth("s8") != 1 || Types.ScalarByteWidth("bool") != 1 ||
        Types.ScalarByteWidth("u16") != 2 || Types.ScalarByteWidth("float32") != 4 ||
@@ -120,6 +122,7 @@ Targets :: () -> bool {
        Types.ScalarByteWidth("[2]s8") != 0 { return false }
     return !Types.TargetKnown("") && !Types.TargetKnown("gpu") &&
         !Types.ForeignImportSupported("gpu", "host") &&
+        !Types.ProcedureTypeSupported("gpu", false) &&
         Types.ForeignTypeTarget("", false) == "" &&
         Types.ForeignTypeTarget("", true) == "go" &&
         Types.ForeignTypeTarget("go:time.Time", false) == "go" &&

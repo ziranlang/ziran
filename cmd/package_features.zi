@@ -262,9 +262,117 @@ Features :: (arguments: []string) -> s32 {
     widening_feature.rejection = "Narrowing, sign changes, and integer-to-float conversions need an explicit cast."
     widening_feature.evidence = "tests/implicit_widening.sh\n"
     widening_feature.targets = numeric_targets
-    features: [8]PkgFeature = .[
-        base_features[0], law_feature, output_feature, base_features[1],
-        widening_feature, base_features[2], base_features[3], base_features[4]
+    contract_targets: [7]PkgTargetSupport = .[
+        .{target = "c", status = "supported", limit = ""},
+        .{target = "cpp", status = "supported", limit = ""},
+        .{target = "go", status = "supported", limit = ""},
+        .{target = "rust", status = "supported", limit = ""},
+        .{target = "py", status = "supported", limit = ""},
+        .{target = "zib", status = "supported", limit = ""},
+        .{target = "plan9-c", status = "experimental", limit = "Not covered by these source/saved IR differential tests."},
+    ]
+    parallel_targets: [7]PkgTargetSupport = .[
+        .{target = "c", status = "supported", limit = "Forward CPU regions execute on threads."},
+        .{target = "cpp", status = "supported", limit = "Forward CPU regions execute on threads."},
+        .{target = "go", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
+        .{target = "rust", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
+        .{target = "py", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
+        .{target = "zib", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
+        .{target = "plan9-c", status = "experimental", limit = "CPU regions execute serially with a downgrade marker."},
+    ]
+    gpu_targets: [7]PkgTargetSupport = .[
+        .{target = "c", status = "supported", limit = "CPU fallback only; no GPU device backend."},
+        .{target = "cpp", status = "supported", limit = "CPU fallback only; no GPU device backend."},
+        .{target = "go", status = "supported", limit = "CPU fallback only; no GPU device backend."},
+        .{target = "rust", status = "supported", limit = "CPU fallback only; no GPU device backend."},
+        .{target = "py", status = "supported", limit = "CPU fallback only; no GPU device backend."},
+        .{target = "zib", status = "supported", limit = "CPU fallback only; no GPU device backend."},
+        .{target = "plan9-c", status = "experimental", limit = "CPU fallback only; no GPU device backend."},
+    ]
+    contracts: [7]PkgFeature = .[
+        .{
+            id = "compile.run",
+            syntax = "#run PURE_EXPRESSION",
+            limits = "Compile-time execution is bounded and effect-free. Supported scalars, strings, records, and arrays can be evaluated; general metaprogramming and runtime effects remain unsupported.",
+            accepted_example = "Double :: (value: s64) -> s64 { return value * 2 }\nVALUE :: #run Double(21);\n#program_export\nAnswer :: () -> s64 { return VALUE }\n",
+            rejected_example = "counter: s64;\nTouch :: () -> s64 { counter += 1; return counter }\nVALUE :: #run Touch();\n",
+            rejection = "Compile-time calls cannot mutate runtime storage.",
+            evidence = "tests/compile_run.sh\ntests/compile_values.sh\n",
+            status = "implemented",
+            targets = assert_targets
+        },
+        .{
+            id = "execution.cpu-parallel",
+            syntax = "#parallel for RANGE { BODY }",
+            limits = "Forward regions use CPU threads on C/C++. Other targets and reverse regions run serially with a downgrade marker. Iterations may write only iteration-local storage; reductions and nested regions are unsupported.",
+            accepted_example = "Square :: (value: s64) -> s64 { return value * value }\n#program_export\nAnswer :: () -> s64 {\n    #parallel for 0..3 {\n        local := Square(it)\n    }\n    return 42\n}\n",
+            rejected_example = "shared: s64;\nAnswer :: () {\n    #parallel for 0..3 {\n        shared += it\n    }\n}\n",
+            rejection = "Parallel iterations cannot mutate shared storage.",
+            evidence = "tests/parallel.sh\n",
+            status = "implemented",
+            targets = parallel_targets
+        },
+        .{
+            id = "execution.gpu-fallback",
+            syntax = "#parallel_gpu for RANGE { BODY }",
+            limits = "GPU-safe regions are checked, but execute on the CPU with an explicit downgrade marker. No GPU device backend exists. Pointer storage, pointer-bearing calls, and allocator-backed Vec mutation are rejected.",
+            accepted_example = "Square :: (value: s64) -> s64 { return value * value }\n#program_export\nAnswer :: () -> s64 {\n    #parallel_gpu for 0..3 {\n        local := Square(it)\n    }\n    return 42\n}\n",
+            rejected_example = "shared: s64;\nAnswer :: () {\n    #parallel_gpu for 0..3 {\n        shared += it\n    }\n}\n",
+            rejection = "GPU fallback retains the checked parallel-region effect rules.",
+            evidence = "tests/gpu.sh\ntests/capabilities.sh\n",
+            status = "implemented",
+            targets = gpu_targets
+        },
+        .{
+            id = "memory.heap-allocation",
+            syntax = "New(T) and free(pointer)",
+            limits = "New allocates a zeroed value and free ignores null. Types holding owned Vec storage are rejected. Native callers must release allocations once and preserve pointer lifetimes; Python and the portable VM reject direct reads after free and double frees.",
+            accepted_example = "#program_export\nAnswer :: () -> s32 {\n    pointer := New(s32)\n    if <<pointer != 0 { return 1 }\n    <<pointer = 42\n    value := <<pointer\n    free(pointer)\n    return value\n}\n",
+            rejected_example = "#import \"vec\"\nHolder :: struct { items: Vec(s32); }\nAnswer :: () { pointer := New(Holder); free(pointer) }\n",
+            rejection = "Heap allocation cannot bypass owned Vec cleanup.",
+            evidence = "tests/heap_new.sh\n",
+            status = "implemented",
+            targets = contract_targets
+        },
+        .{
+            id = "ownership.automatic-vec-cleanup",
+            syntax = "Vec(T) scope cleanup and moves",
+            limits = "Locals, parameters, and Vec fields in records/fixed arrays are dropped on scope exit. Moves invalidate their source. Globals are shared storage; indexed and pointer-backed field moves still have restrictions.",
+            accepted_example = "#import \"vec\"\n#program_export\nAnswer :: () -> s32 {\n    values: Vec(s32)\n    VecPush(values, 42)\n    return values[0]\n}\n",
+            rejected_example = "#import \"vec\"\nAnswer :: () -> s32 {\n    values: Vec(s32)\n    VecPush(values, 42)\n    moved := values\n    return values[0]\n}\n",
+            rejection = "Owned values cannot be read after moving.",
+            evidence = "tests/vec.sh\ntests/vec_move_expression.sh\ntests/aggregate_vec_safety.sh\n",
+            status = "implemented",
+            targets = contract_targets
+        },
+        .{
+            id = "procedures.defaults",
+            syntax = "Procedure :: (value: Type = expression, inferred := expression) -> Result",
+            limits = "Named procedures expand omitted defaults in declaration scope. Explicit arguments run before omitted defaults. Defaults on procedure-type parameters remain unsupported; generic defaults retain documented specialization limits.",
+            accepted_example = "Offset :: (base: s32 = 40, extra: s32 = 2) -> s32 { return base + extra }\n#program_export\nAnswer :: () -> s32 { return Offset() }\n",
+            rejected_example = "Required :: (value: s32) -> s32 { return value }\nAnswer :: () -> s32 { return Required() }\n",
+            rejection = "Required parameters without defaults cannot be omitted.",
+            evidence = "tests/default_arguments.sh\ntests/default_bounds.sh\n",
+            status = "implemented",
+            targets = contract_targets
+        },
+        .{
+            id = "procedures.values",
+            syntax = "Callback :: #type (value: Type) -> Result; named capture-free procedure values",
+            limits = "Named procedures can be passed, stored, returned, and called through checked procedure types. Local procedures cannot capture enclosing locals. Polymorphic procedures as values and defaults on procedure-type parameters remain unsupported; native callback ABI support depends on the target.",
+            accepted_example = "Callback :: #type (value: s32) -> s32;\nIncrement :: (value: s32) -> s32 { return value + 1 }\nApply :: (callback: Callback) -> s32 { return callback(41) }\n#program_export\nAnswer :: () -> s32 { return Apply(Increment) }\n",
+            rejected_example = "Callback :: #type (value: s32) -> s32;\nWrong :: (value: bool) -> s32 { return 0 }\nApply :: (callback: Callback) -> s32 { return callback(41) }\nAnswer :: () -> s32 { return Apply(Wrong) }\n",
+            rejection = "Procedure values must match their checked parameter and result signature.",
+            evidence = "tests/slots.sh\ntests/stored_slots.sh\ntests/slot_field_values.sh\n",
+            status = "implemented",
+            targets = contract_targets
+        },
+    ]
+    features: [15]PkgFeature = .[
+        base_features[0], law_feature, contracts[0], contracts[1], contracts[2],
+        output_feature, contracts[3], base_features[1], widening_feature,
+        base_features[2], contracts[4], base_features[3], base_features[4],
+        contracts[5], contracts[6]
     ]
 
     json: bool = false

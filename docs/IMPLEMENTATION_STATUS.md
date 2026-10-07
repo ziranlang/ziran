@@ -370,16 +370,33 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   differential matrix. Generated Rust keeps only the runtime a program
   uses and wraps a body in `unsafe` only when it touches raw pointers or
   globals.
+- Procedure-type parameter normalization is implemented in
+  `cmd/compiler_declaration.zi`, including named and unnamed parameters,
+  nested type applications, bounded output, and the 16-parameter limit.
+  Defaults on procedure-type parameters now fail with a direct syntax
+  diagnostic. The C parser retains declaration storage and source spans.
+  `tests/compiler_declaration.sh` checks source/saved IR on all six targets,
+  the C boundary, and reproducible bootstrap output.
+- Go enum lowering retains every enum declaration and member instead of
+  silently stopping at 32 types or 64 members. `tests/large_enums.sh` checks
+  a 96-member enum and 40 further enum types from source and saved IR on
+  C, C++, Go, Rust, Python, and `.zib`.
+- Bundle re-export lookup visits shared dependencies once per query instead
+  of repeatedly following every import path, and has no 32-hop cutoff.
+  `tests/bundle_global_reachability.sh` checks a 40-module graph with shared
+  imports, unused state, global mutation, and source/saved bundle agreement.
 - `ziran features` publishes a versioned, stable-ID feature registry with
   syntax, status, target support, limits, accepted and rejected examples,
-  rejection behavior, and evidence links. The initial registry covers
-  compile-time assertions, checked scalar `print`, named module imports,
-  integer width conformance, local `TextView` mutation checks, and plain
-  record-field `Vec` moves.
+  rejection behavior, and evidence links. Its 15 contracts cover compile-time
+  assertions, laws and execution, CPU parallelism and GPU fallback, printing,
+  heap allocation, named imports, integer width conformance and widening,
+  automatic vector cleanup, local `TextView` mutation checks, record-field
+  vector moves, procedure defaults, and procedure values.
   `docs/FEATURES.json`
   is byte-identical to `ziran features --json`; `tests/features.sh` checks
-  schema, sorted unique IDs, evidence, target entries, every accepted example,
-  and every explicit rejection.
+  schema, sorted unique IDs, evidence, target entries, every accepted example
+  from source and saved IR on each advertised target, and every explicit
+  rejection.
 - Source and saved-IR portable runs use the declared width for integer
   conversions between all eight `s8`, `u8`, `s16`, `u16`, `s32`, `u32`,
   `s64`, and `u64` forms. Signed overflow and unsigned wraparound follow the
@@ -459,9 +476,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   collector, and the portable runner keeps the storage alive while a pointer
   reaches it and stops cleanly on a read after free or a second free. A
   procedure or foreign procedure the program declares as `New` or `free`
-  (such as C's `free`) is called instead. Rust and Python report the
-  expression as unsupported. `tests/heap_new.sh` checks source and saved IR
-  on C, C++, Go, and `.zib`.
+  (such as C's `free`) is called instead. Rust uses aligned zeroed allocation
+  and matching deallocation, including zero-sized records. Python stores one
+  zeroed value in shared heap storage and invalidates direct pointer aliases
+  on free; direct reads after free and repeated frees fail. Native callers
+  remain responsible for raw pointer lifetimes. `tests/heap_new.sh` checks
+  source and saved IR on C, C++, Go, Rust, Python, and `.zib`, including
+  records with text, arrays, and pointers.
 - A procedure may declare procedures inside it. The parser hoists each to
   file scope under a private name (`zi_local_Outer_Name`, kept out of API
   listings) and renames its uses in the rest of the enclosing procedure; as

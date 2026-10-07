@@ -1,7 +1,7 @@
 #!/bin/sh
 # New(T) allocates a zeroed T and returns *T; free(p) releases it and
 # ignores null. A linked list built with New runs the same on C, C++, Go,
-# and .zib from source and saved IR. The portable runner stops cleanly on
+# Rust, Python, and .zib from source and saved IR. The portable runner stops cleanly on
 # a read after free and on a second free. A procedure or foreign procedure
 # of the program's own named New or free still wins over the built-in.
 set -eu
@@ -13,6 +13,8 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/app.zi" <<'ZI'
 Node :: struct { value: s32; next: *Node; }
+Empty :: struct {}
+Payload :: struct { text: string; values: [2]s64; flag: bool; }
 
 Push :: (head: *Node, value: s32) -> *Node {
     node := New(Node)
@@ -23,6 +25,15 @@ Push :: (head: *Node, value: s32) -> *Node {
 
 #program_export
 Answer :: () -> s32 {
+    empty := New(Empty)
+    free(empty)
+    payload := New(Payload)
+    if payload.text.count != 0 || payload.values[0] != 0 ||
+       payload.values[1] != 0 || payload.flag { return 1 }
+    payload.text = "ready"
+    payload.values[1] = 42
+    if payload.text != "ready" || payload.values[1] != 42 { return 1 }
+    free(payload)
     head: *Node
     i: s32 = 1
     while i <= 5 { head = Push(head, i); i += 1; }
@@ -61,7 +72,7 @@ run_fails() {
     grep -Fq 'portable execution failed' "$work/$name.out"
 }
 run_fails after_free <<'ZI'
-main :: () { p := New(s32); <<p = 1; free(p); print("%\n", <<p); }
+main :: () { p := New(s32); <<p = 1; alias := p; free(p); print("%\n", <<alias); }
 ZI
 run_fails twice <<'ZI'
 main :: () { p := New(s32); free(p); free(p); }
@@ -129,5 +140,29 @@ package main
 func main() { if App_Answer() != 42 { panic("wrong result") } }
 GO
     GO111MODULE=off go run "$output"/*.go
+    output="$work/py-$input"
+    "$ziran" build --target=py --exe --entry app:Answer --root "$root" -o "$output" "$module"
+    status=0
+    python3 "$output" || status=$?
+    test "$status" = 42
+    if command -v cargo >/dev/null 2>&1; then
+        output="$work/rust-$input"
+        "$ziran" build --target=rust --exe --entry app:Answer --root "$root" -o "$output" "$module"
+        CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --manifest-path "$output/Cargo.toml"
+        status=0
+        "$work/rust-target/debug/ziran_generated" || status=$?
+        test "$status" = 42
+    fi
 done
 cmp "$work/source.zib" "$work/saved.zib"
+
+# Python aliases share the allocation, so a freed scalar cannot be read or
+# freed a second time. Never run these invalid raw-pointer cases natively.
+for fixture in after_free twice; do
+    "$ziran" build --target=py --exe --entry "$fixture:main" --root "$work" \
+        -o "$work/py-$fixture" "$work/$fixture.zi"
+    if python3 "$work/py-$fixture" > "$work/py-$fixture.out" 2>&1; then
+        echo "$fixture: Python ran an invalid heap operation" >&2
+        exit 1
+    fi
+done

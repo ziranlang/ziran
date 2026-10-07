@@ -1493,6 +1493,19 @@ emit_call_with_buffers(RustEmitter *emitter, const ZirExpr *expression,
     buffers->arguments[0] = '\0';
     char element[ZIR_NAME_MAX];
     const ZirImport *foreign = rust_foreign_import(emitter, expression->name);
+    if(!strcmp(expression->name, "zi_new") && expression->type[0] == '*') {
+        if(!rust_type(emitter, expression->type + 1, element, sizeof(element))) {
+            unsupported_expression(emitter, expression);
+            return;
+        }
+        snprintf(output, size, "ZiranNew::<%s>()", element);
+        return;
+    }
+    if(!strcmp(expression->name, "zi_free") && expression->first_child >= 0) {
+        emit_expression(emitter, expression->first_child, buffers->child, sizeof(buffers->child));
+        snprintf(output, size, "unsafe { ZiranFree(%s) }", buffers->child);
+        return;
+    }
     if(!strcmp(expression->name, "VecPush") ||
        !strcmp(expression->name, "VecPop") ||
        !strcmp(expression->name, "VecGet") ||
@@ -3876,12 +3889,12 @@ static int rust_names(const char *text, size_t length, const char *name)
 static void rust_item_name(RustRuntimeItem *item)
 {
     const char *end = item->start + item->length;
-    const char *markers[] = {"pub struct ", "pub fn ", "pub const fn ",
-                             "    pub fn ", "    pub const fn "};
+    const char *markers[] = {"pub struct ", "pub fn ", "pub const fn ", "pub unsafe fn ",
+                             "    pub fn ", "    pub const fn ", "    pub unsafe fn "};
     for(const char *line = item->start; line < end;) {
         const char *next = memchr(line, '\n', (size_t)(end - line));
         size_t size = next != NULL ? (size_t)(next - line) : (size_t)(end - line);
-        for(int m = 0; m < 5; m++) {
+        for(size_t m = 0; m < sizeof(markers) / sizeof(markers[0]); m++) {
             size_t marker = strlen(markers[m]);
             if(size > marker && memcmp(line, markers[m], marker) == 0) {
                 size_t used = 0;
@@ -4278,6 +4291,18 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
     buffers->emitter.output = body;
     buffers->emitter.programs = programs;
     buffers->emitter.program_count = program_count;
+    fputs("pub fn ZiranNew<T>() -> *mut T {\n"
+          "    let layout = std::alloc::Layout::new::<T>();\n"
+          "    let layout = std::alloc::Layout::from_size_align(layout.size().max(1), layout.align()).unwrap();\n"
+          "    unsafe { std::alloc::alloc_zeroed(layout) as *mut T }\n"
+          "}\n\n"
+          "pub unsafe fn ZiranFree<T>(pointer: *mut T) {\n"
+          "    if !pointer.is_null() {\n"
+          "        let layout = std::alloc::Layout::new::<T>();\n"
+          "        let layout = std::alloc::Layout::from_size_align(layout.size().max(1), layout.align()).unwrap();\n"
+          "        std::alloc::dealloc(pointer as *mut u8, layout);\n"
+          "    }\n"
+          "}\n\n", runtime);
     fputs("#[repr(C)]\npub struct ZiranSlice<T> {\n"
           "    pub data: *mut T,\n    pub len: usize,\n}\n\n"
           "impl<T> Clone for ZiranSlice<T> {\n"

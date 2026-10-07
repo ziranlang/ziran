@@ -405,16 +405,26 @@ typedef struct {
 typedef struct {
     char go_type[ZIR_GO_NAME_MAX];
     char prefix[ZIR_GO_NAME_MAX];     /* enum-name prefix for Go const names */
-    ZirGoEnumMember members[64];
-    int count;
+    ZirGoEnumMember *members;
+    int count, capacity;
 } ZirGoEnum;
 
 /* Lowering is single-threaded and per-module sequential: one cached context. */
 static char g_guard[ZIR_GO_NAME_MAX];
 static ZirGoExtern g_externs[64];
 static int g_extern_count;
-static ZirGoEnum g_enums[32];
+static ZirGoEnum *g_enums;
 static int g_enum_count;
+
+static void
+clear_enum_context(void)
+{
+    for(int i = 0; i < g_enum_count; i++)
+        free(g_enums[i].members);
+    free(g_enums);
+    g_enums = NULL;
+    g_enum_count = 0;
+}
 
 static int
 go_extern_index(const char *name, size_t len)
@@ -738,8 +748,6 @@ parse_enum_with_buffers(const ZirModule *owner, const ZirType *t, ParseEnumBuffe
 {
     ZirGoEnum *e;
     const char *p = t->body;
-    if(g_enum_count >= 32)
-        return;
     e = &g_enums[g_enum_count++];
     memset(e, 0, sizeof(*e));
     if(t->native_name_mangled)
@@ -785,8 +793,18 @@ parse_enum_with_buffers(const ZirModule *owner, const ZirType *t, ParseEnumBuffe
             while(nn > 0 && (name[nn - 1] == ' ' || name[nn - 1] == '\t'))
                 name[--nn] = '\0';
         }
-        if(name[0] == '\0' || e->count >= 64)
+        if(name[0] == '\0')
             continue;
+        if(e->count == e->capacity) {
+            int capacity = e->capacity ? e->capacity * 2 : 16;
+            ZirGoEnumMember *members = realloc(e->members, (size_t)capacity * sizeof(*members));
+            if(members == NULL) {
+                DiagnosticOutOfMemory();
+                exit(1);
+            }
+            e->members = members;
+            e->capacity = capacity;
+        }
         ZirGoEnumMember *m = &e->members[e->count++];
         memset(m, 0, sizeof(*m));
         if(!NativeEnumMemberName(owner, t, name, m->go, sizeof(m->go))) {
@@ -826,7 +844,9 @@ go_set_module(const ZirModule *m, const char *guard)
 {
     snprintf(g_guard, sizeof(g_guard), "%s", guard);
     g_extern_count = 0;
-    g_enum_count = 0;
+    clear_enum_context();
+    if(m->type_count > 0)
+        g_enums = AllocateOrExit((size_t)m->type_count * sizeof(*g_enums));
     for(int i = 0; i < m->import_count; i++) {
         if(m->imports[i].kind == ZIR_IMPORT_EXTERN)
             parse_extern_import(&m->imports[i]);
@@ -2682,6 +2702,7 @@ go_lower(const ZirProgram *const *progs, int prog_count,
         AllocateOrExit(sizeof(*buffers));
     uint64_t profile_started = ProfileStart();
     int returned = go_lower_with_buffers(progs, prog_count, root, out_dir, pkg, no_main, buffers);
+    clear_enum_context();
     ProfileEnd("emit.go", profile_started);
     if(spare_count < 16)
         spares[spare_count++] = buffers;

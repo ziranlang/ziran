@@ -1998,10 +1998,12 @@ GeneratedOutputPrune(const char *out_dir, const char *marker)
     return failed ? -1 : 0;
 }
 
-int
-same_type_application(const ZirModule *target_owner, const ZirType *target,
-                      const ZirModule *source_owner, const ZirType *source)
+static int
+same_type_application_at_depth(const ZirModule *target_owner, const ZirType *target,
+                              const ZirModule *source_owner, const ZirType *source,
+                              int depth)
 {
+    if(depth > 16) return 0;
     if(target != NULL && source != NULL && target_owner != NULL &&
        source_owner != NULL && target->is_synthetic_application &&
        source->is_synthetic_application &&
@@ -2026,9 +2028,12 @@ same_type_application(const ZirModule *target_owner, const ZirType *target,
                 if(*target_scalar || *source_scalar)
                     same = strcmp(target_scalar, source_scalar) == 0;
                 else {
-                    const ZirType *a = FindType(target_owner, target_args[i], NULL);
-                    const ZirType *b = FindType(source_owner, source_args[i], NULL);
-                    same = a != NULL && a == b;
+                    const ZirModule *a_owner = NULL, *b_owner = NULL;
+                    const ZirType *a = FindType(target_owner, target_args[i], &a_owner);
+                    const ZirType *b = FindType(source_owner, source_args[i], &b_owner);
+                    same = a != NULL && b != NULL &&
+                           (a == b || same_type_application_at_depth(a_owner, a,
+                                         b_owner, b, depth + 1));
                 }
             }
             if(same)
@@ -2036,4 +2041,11 @@ same_type_application(const ZirModule *target_owner, const ZirType *target,
         }
     }
     return 0;
+}
+
+int
+same_type_application(const ZirModule *target_owner, const ZirType *target,
+                      const ZirModule *source_owner, const ZirType *source)
+{
+    return same_type_application_at_depth(target_owner, target, source_owner, source, 0);
 }

@@ -75,6 +75,34 @@ typedef struct Value {
     Array *array;
 } Value;
 
+/* Keep scalar construction visible to every evaluator part. Returning a
+ * whole Value through a separate function forces an extra stack copy on
+ * each construction, including the empty expression-root slots. */
+static inline Value
+int_value(int64_t integer)
+{
+    return (Value){.kind = VALUE_INT, .integer = integer,
+                   .bits = (uint64_t)integer};
+}
+
+static inline Value
+uint_value(uint64_t bits)
+{
+    return (Value){.kind = VALUE_INT, .bits = bits, .unsigned64 = 1};
+}
+
+static inline Value
+real_value(double real)
+{
+    return (Value){.kind = VALUE_REAL, .real = real};
+}
+
+static inline Value
+string_value(const unsigned char *data, size_t length)
+{
+    return (Value){.kind = VALUE_STRING, .data = data, .length = length};
+}
+
 /* Values held by an expression while another expression or call runs.
  * The nodes borrow stack or argument-buffer storage and are removed by the
  * evaluator before that storage goes away. */
@@ -253,10 +281,6 @@ int scalar_type(const char *type);
 int portable_union(const ZirModule *module, const ZirType *record);
 int portable_type(const ZirModule *module, const char *type);
 int host_type_at(const ZirModule *module, const char *type, int depth, int slice_parameter);
-Value int_value(int64_t integer);
-Value uint_value(uint64_t bits);
-Value real_value(double real);
-Value string_value(const unsigned char *data, size_t length);
 Value keep_string(Vm *vm, StringLiteral *item, const ZirExpr *expression, size_t bytes);
 Value literal_string(Vm *vm, const ZirExpr *expression);
 Value global_literal_string(Vm *vm, const char *source);

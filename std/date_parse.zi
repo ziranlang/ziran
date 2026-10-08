@@ -99,7 +99,7 @@ DateWriteDigits :: (output: []u8, at: s32, value: s32, digits: s32) -> s32 {
 
 #program_export
 WriteCompactUtc :: (timestamp: s64, output: []u8) -> s32 {
-    if output.count < 15 { return -1 }
+    if output.count < 14 { return -1 }
     value: UtcDate = CivilFromUnix(timestamp)
     at: s32 = DateWriteDigits(output, 0, value.year, 4)
     at = DateWriteDigits(output, at, value.month, 2)

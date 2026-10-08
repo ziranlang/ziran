@@ -33,6 +33,7 @@ FileMetadata :: struct {
 Report :: (message: string, path: string) -> s32 {
     if Diagnostics.IsJson() {
         if path == "" { Diagnostics.Emit("command.arguments", message, path) }
+        else if message == "unknown formatter option: " { Diagnostics.Emit("command.arguments", message, path) }
         else if message == "cannot replace: " { Diagnostics.Emit("format.output", message, path) }
         else if message == "would reformat " { Diagnostics.Emit("format.changed", message, path) }
         else if message == "out of memory: " { Diagnostics.Emit("compiler.memory", message, path) }
@@ -174,7 +175,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         else if argument == "--diagnostics=json" || argument == "--diagnostics=text" { }
         else if argument == "--" { first += 1; break }
         else if argument.count > 0 && argument[0] == #char "-" {
-            unused Report("unknown formatter option: ", "")
+            unused Report("unknown formatter option: ", argument)
             return 2
         } else { break }
         first += 1

@@ -214,3 +214,18 @@ ${CC:-cc} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$work/format-c" \
 cp "$work/source.zi" "$work/rebuilt.zi"
 "$work/zi-fmt" "$work/rebuilt.zi"
 cmp "$work/source.zi" "$work/rebuilt.zi"
+
+# An unknown option must name the offending flag in its diagnostic.
+if "$work/zi-fmt" --bogus "$work/source.zi" >"$work/option.out" 2>"$work/option.err"; then
+    echo 'unknown formatter option was accepted' >&2
+    exit 1
+fi
+test ! -s "$work/option.out"
+grep -Fq -- '--bogus' "$work/option.err"
+if "$work/zi-fmt" --diagnostics=json --bogus "$work/source.zi" \
+    >"$work/option-json.out" 2>"$work/option-json.err"; then
+    echo 'unknown formatter option was accepted in JSON mode' >&2
+    exit 1
+fi
+grep -Fq '"command.arguments"' "$work/option-json.err"
+grep -Fq -- '--bogus' "$work/option-json.err"

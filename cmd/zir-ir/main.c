@@ -164,6 +164,26 @@ main(int argc, char **argv)
         }
         defines[define_count++] = "PLAN9";
     }
+    /* Explicit native IR freezes the same adapters as a source build.
+     * Untargeted IR remains portable; cross-platform selectors opt out. */
+    int posix_threads = target != NULL &&
+        (!strcmp(target, "c") || !strcmp(target, "cpp"));
+    int threads_defined = 0;
+    for(int d = 0; d < define_count; d++) {
+        threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
+        if(!strcmp(defines[d], "_WIN32") ||
+           !strcmp(defines[d], "PLATFORM_WEB") ||
+           !strcmp(defines[d], "PLAN9"))
+            posix_threads = 0;
+    }
+    if(posix_threads && !threads_defined) {
+        if(define_count == 64) {
+            Diagnostic(Span("<command>", 1, 1), "command.arguments",
+                       "no define slot left for native thread capability");
+            return 1;
+        }
+        defines[define_count++] = "POSIX_THREADS";
+    }
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file),

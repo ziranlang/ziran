@@ -113,12 +113,14 @@ const PyRuntimeItem py_runtime_items[] = {
      "    return ZiranSlice(items, low, high - low)\n"},
     {"_assign_items", "",
      "def _assign_items(target, source):\n"
-     "    \"\"\"Overwrite an array of records or arrays in place.\"\"\"\n"
+     "    \"\"\"Overwrite nested arrays and records in place, copying scalar leaves.\"\"\"\n"
      "    for index, item in enumerate(source):\n"
      "        if type(item) is list:\n"
      "            _assign_items(target[index], item)\n"
+     "        elif hasattr(item, \"assign\"):\n"
+     "            target[index].assign(item)\n"
      "        else:\n"
-     "            target[index].assign(item)\n"},
+     "            target[index] = item\n"},
     {"ZiranSlice", "",
      "class ZiranSlice:\n"
      "    \"\"\"A []T: count items of base starting at low.\"\"\"\n"

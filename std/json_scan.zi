@@ -329,6 +329,9 @@ ReadNumber :: (text: string, at: s32) -> JsonNumber {
             exponent = exponent - 1
         }
     }
+    // JSON has no infinities; a magnitude that overflowed float64 in the
+    // digit or exponent loops is rejected rather than handed out as valid.
+    if result.value > 1.7976931348623157e308 { return result }
     if negative { result.value = -result.value }
     result.after = cursor
     result.valid = true

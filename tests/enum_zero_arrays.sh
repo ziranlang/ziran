@@ -2,7 +2,15 @@
 set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=${1:-"$repo/build/bin/ziran"}
-work=${ENUM_ZERO_ARRAY_BUILD:-"$repo/build/enum-zero-arrays"}
+work=${ENUM_ZERO_ARRAY_BUILD:-}
+if test -z "$work"; then
+    case "$ziran" in
+        "$repo"/build/*/bin/ziran)
+            tool_build=$(dirname -- "$(dirname -- "$ziran")")
+            work=$tool_build/enum-zero-arrays;;
+        *) work=$repo/build/enum-zero-arrays;;
+    esac
+fi
 mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 export GOCACHE="$work/go-cache"

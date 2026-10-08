@@ -760,6 +760,9 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             index = 0
             while index < locked.count {
                 if !locked.packages[index].source {
+                    // search is sized for the lock capacity plus std; refuse
+                    // instead of writing past it if that coupling breaks.
+                    if searches >= search.count { return PkgFail("python search path limit exceeded") }
                     search[searches] = locked.packages[index].path
                     searches += 1
                 }
@@ -776,7 +779,10 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             standard = PkgJoin(ParentDirectory(binary), "/../../std")
             if !DirectoryExists(standard) { standard = PkgJoin(ParentDirectory(binary), "/../../../std") }
         }
-        if DirectoryExists(standard) { search[searches] = standard; searches += 1 }
+        if DirectoryExists(standard) {
+            if searches >= search.count { return PkgFail("python search path limit exceeded") }
+            search[searches] = standard; searches += 1
+        }
         return PythonRun(filtered[0:count], binary, root, program_root, program_file,
             search[0:searches], map, libraries, PkgCacheRoot())
     }

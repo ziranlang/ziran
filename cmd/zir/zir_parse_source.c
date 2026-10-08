@@ -1,3 +1,4 @@
+#include "zir_files.h"
 #include "zir_parse_internal.h"
 /* Buffers parse_source keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -118,7 +119,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int foreign_library_file_private[32] = {0};
     int foreign_library_count = 0;
     int load_depth = 0;
-    char *canonical = realpath(path, NULL);
+    char *canonical = CanonicalPath(path);
     char *owned_source = NULL;
     if(canonical == NULL)
         canonical = strdup(path);
@@ -166,7 +167,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     if(module == NULL)
         die("out of memory");
     if(root != NULL) {
-        char *canonical_root = realpath(root, NULL);
+        char *canonical_root = CanonicalPath(root);
         copy_text(module->source_root, sizeof(module->source_root),
                   canonical_root != NULL ? canonical_root : root);
         free(canonical_root);
@@ -828,7 +829,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                    (size_t)(end - argument - 1));
             buffers->requested[end - argument - 1] = '\0';
             size_t length = strlen(buffers->requested);
-            if(buffers->requested[0] == '/' || length < 4 ||
+            if(PathIsAbsolute(buffers->requested) || length < 4 ||
                strcmp(buffers->requested + length - 3, ".zi") != 0 ||
                strchr(buffers->requested, '\\') != NULL)
                 die_at(Span(buffers->rel, line_no, 1),
@@ -842,7 +843,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     die_at(Span(buffers->rel, line_no, 1), "#load path is too long");
             } else
                 copy_text(buffers->candidate, sizeof(buffers->candidate), buffers->requested);
-            char *next_path = realpath(buffers->candidate, NULL);
+            char *next_path = CanonicalPath(buffers->candidate);
             if(next_path == NULL)
                 die_at(Span(buffers->rel, line_no, 1),
                        "cannot find loaded file: %s", buffers->requested);

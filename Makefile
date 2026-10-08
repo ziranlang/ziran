@@ -85,7 +85,7 @@ FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text
     cmd/zir/zir_proof_kernel.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
-    cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c
+    cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c cmd/zir/zir_files.c
 PORTABLE := cmd/zir/zir_bundle.c cmd/zir/zir_bundle_assets.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
@@ -192,13 +192,26 @@ $(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/
 
 # Large modules compile in parts, then merge into one object each; their
 # shared helpers are hidden and localized so they never leave it.
-merge = $(CC) -r -nostdlib -o $@ $^ && $(OBJCOPY) --localize-hidden $@
+merge = $(CC) -r -nostdlib -o $@ $(filter %.o,$^) && $(OBJCOPY) --localize-hidden $(if $(COFF_PRIVATE_SYMBOLS),--localize-symbols=$(COFF_PRIVATE_SYMBOLS)/$(basename $(notdir $@)).txt) $@
 PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c \
     _condition.c _discover.c _source.c)
 CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
     _function.c _link.c _program.c)
 EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c)
 VM_PARTS := $(addprefix cmd/zir/zir_vm,.c _verify.c _eval.c _run.c)
+
+# COFF does not retain ELF hidden visibility, but objcopy can localize the
+# same declarations explicitly after the group's objects have been merged.
+TARGET_MACHINE := $(shell $(CC) -dumpmachine 2>/dev/null)
+ifneq ($(or $(findstring mingw,$(TARGET_MACHINE)),$(findstring windows,$(TARGET_MACHINE))),)
+COFF_PRIVATE_SYMBOLS := $(BUILD_DIR)/private-symbols
+$(COFF_PRIVATE_SYMBOLS)/%.txt: cmd/zir/zir_%_internal.h scripts/private-symbols.py
+	python3 scripts/private-symbols.py $< $@
+$(BUILD_DIR)/obj/parse.o: $(COFF_PRIVATE_SYMBOLS)/parse.txt
+$(BUILD_DIR)/obj/check.o: $(COFF_PRIVATE_SYMBOLS)/check.txt
+$(BUILD_DIR)/obj/emit.o: $(COFF_PRIVATE_SYMBOLS)/emit.txt
+$(BUILD_DIR)/obj/vm.o: $(COFF_PRIVATE_SYMBOLS)/vm.txt
+endif
 
 # wasm objcopy cannot localize hidden symbols. Browser builds give each
 # group's private helpers distinct names through generated prefix headers.

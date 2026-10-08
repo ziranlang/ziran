@@ -1,3 +1,4 @@
+#include "zir_files.h"
 #include "zir_expr.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
@@ -100,18 +101,18 @@ CallerLocationLiteral(const ZirModule *module, ZirSourceSpan location,
     char candidate[ZIR_PATH_MAX * 2];
     char escaped[ZIR_TEXT_MAX];
     const char *path = SpanPath(location);
-    if(path[0] != '/' && module->source_root[0] != '\0') {
+    if(!PathIsAbsolute(path) && module->source_root[0] != '\0') {
         int written = snprintf(candidate, sizeof(candidate), "%s/%s",
                                module->source_root, path);
         if(written < 0 || (size_t)written >= sizeof(candidate))
             return 0;
         path = candidate;
     }
-    char *canonical = realpath(path, NULL);
+    char *canonical = CanonicalPath(path);
     if(canonical != NULL)
         path = canonical;
     size_t length = strlen(path);
-    if(path[0] != '/' || length >= ZIR_PATH_MAX) {
+    if(!PathIsAbsolute(path) || length >= ZIR_PATH_MAX) {
         free(canonical);
         return 0;
     }

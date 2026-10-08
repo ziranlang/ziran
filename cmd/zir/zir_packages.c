@@ -1,3 +1,4 @@
+#include "zir_files.h"
 #include "zir_packages.h"
 #include "zir_diagnostic.h"
 
@@ -99,7 +100,8 @@ ZirPackageMap *PackageMapLoad(const char *path)
     char *line = NULL;
     size_t capacity = 0;
     int okay = map != NULL;
-    while(okay && getline(&line, &capacity, file) >= 0) {
+    int read = 0;
+    while(okay && (read = ReadFileLine(file, &line, &capacity)) > 0) {
         char *cursor = line;
         char *kind = field(&cursor);
         if(cursor == NULL) { okay = 0; break; }
@@ -154,6 +156,7 @@ ZirPackageMap *PackageMapLoad(const char *path)
             okay = item->owner && item->visible && item->choices;
         } else okay = 0;
     }
+    if(read < 0) okay = 0;
     free(line);
     fclose(file);
     if(!okay) {

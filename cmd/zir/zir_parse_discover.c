@@ -1,3 +1,4 @@
+#include "zir_files.h"
 #include "zir_parse_internal.h"
 
 static void canonical_enum_values(ZirType *type);
@@ -721,7 +722,7 @@ discover_typed_global(const char *source, const char *path,
 static int
 remember_discovered_file(ZirDiscoveredFiles *files, const char *path)
 {
-    char *canonical = realpath(path, NULL);
+    char *canonical = CanonicalPath(path);
     if(canonical == NULL)
         canonical = strdup(path);
     if(canonical == NULL)
@@ -930,7 +931,7 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
                     if(length > 3 && length < sizeof(buffers->requested)) {
                         memcpy(buffers->requested, argument + 1, length);
                         buffers->requested[length] = '\0';
-                        if(buffers->requested[0] != '/' &&
+                        if(!PathIsAbsolute(buffers->requested) &&
                            !strcmp(buffers->requested + length - 3, ".zi") &&
                            strchr(buffers->requested, '\\') == NULL) {
                             const char *slash = strrchr(path, '/');
@@ -942,7 +943,7 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
                                          path, buffers->requested);
                             if(written > 0 &&
                                (size_t)written < sizeof(buffers->candidate)) {
-                                char *loaded_path = realpath(buffers->candidate, NULL);
+                                char *loaded_path = CanonicalPath(buffers->candidate);
                                 if(loaded_path != NULL) {
                                     copy_text(buffers->loaded_rel, sizeof(buffers->loaded_rel),
                                               relative_path(root, loaded_path));

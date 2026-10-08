@@ -1,3 +1,4 @@
+#include "zir_files.h"
 #include "zir_load.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
@@ -64,7 +65,7 @@ toolchain_directory(const char *name, const char *probe_file,
         return;
     }
     char executable[ZIR_PATH_MAX];
-    ssize_t length = readlink("/proc/self/exe", executable, sizeof(executable) - 1);
+    int length = ExecutablePath(executable, sizeof(executable));
     if(length > 0) {
         executable[length] = '\0';
         for(int up = 0; up < 2; up++) {
@@ -163,7 +164,7 @@ add_program_named(LoadContext *context, const char *path, const char *root,
                   const char *identity)
 {
     ProgramSet *set = context->set;
-    char *canonical = realpath(path, NULL);
+    char *canonical = CanonicalPath(path);
     char *lexical = NULL;
     ZirProgram *program;
     if(canonical == NULL) {
@@ -201,8 +202,8 @@ add_program_named(LoadContext *context, const char *path, const char *root,
     const char *slash = strrchr(path, '/');
     size_t parent_length = slash == NULL ? 0 : (size_t)(slash - path);
     char *parent_path = parent_length == 0 ? strdup(slash == path ? "/" : ".") :
-                        strndup(path, parent_length);
-    char *parent = parent_path == NULL ? NULL : realpath(parent_path, NULL);
+                        DuplicatePrefix(path, parent_length);
+    char *parent = parent_path == NULL ? NULL : CanonicalPath(parent_path);
     free(parent_path);
     if(parent != NULL) {
         const char *leaf = slash == NULL ? path : slash + 1;
@@ -336,7 +337,7 @@ static const char *
 input_root(const LoadContext *context, const char *input,
            const char *canonical_root)
 {
-    char *canonical = realpath(input, NULL);
+    char *canonical = CanonicalPath(input);
     const char *root = canonical_root;
     if(canonical == NULL || path_within(canonical, canonical_root)) {
         free(canonical);
@@ -507,7 +508,7 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         }
     }
     if(!prefer_ir && SpanPath(import->span)[0] != '\0') {
-        if(SpanPath(import->span)[0] == '/')
+        if(PathIsAbsolute(SpanPath(import->span)))
             owner_path = SpanPath(import->span);
         else if(stat(SpanPath(import->span), &owner_info) == 0 &&
                 S_ISREG(owner_info.st_mode))
@@ -550,7 +551,7 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
                        "cannot find imported file: %s", import->signature + 5);
             return 0;
         }
-        char *canonical = realpath(buffers->candidate, NULL);
+        char *canonical = CanonicalPath(buffers->candidate);
         if(canonical == NULL) {
             Diagnostic(import->span, "module.not_found",
                        "cannot find imported file: %s", import->signature + 5);
@@ -755,7 +756,7 @@ early_resolve_imports(void *opaque, ZirProgram *program,
 static int
 promote_input(ProgramSet *set, const char *path, int position)
 {
-    char *canonical = realpath(path, NULL);
+    char *canonical = CanonicalPath(path);
     if(canonical == NULL) return 0;
     for(int i = 0; i < set->count; i++) {
         if(strcmp(set->paths[i], canonical) != 0) continue;
@@ -799,7 +800,7 @@ ProgramsLoadWithDefines(ProgramSet *set, const char *root,
                         const char *const *inputs, int input_count)
 {
     uint64_t profile_started = ProfileStart();
-    char *canonical_root = realpath(root, NULL);
+    char *canonical_root = CanonicalPath(root);
     char **canonical_paths = NULL;
     char **path_names = NULL;
     LoadContext context = {.set = set};
@@ -822,11 +823,11 @@ ProgramsLoadWithDefines(ProgramSet *set, const char *root,
         if(equals != NULL && equals > directory &&
            memchr(directory, '/', (size_t)(equals - directory)) == NULL &&
            module_target_part(directory, (size_t)(equals - directory))) {
-            path_names[i] = strndup(directory, (size_t)(equals - directory));
+            path_names[i] = DuplicatePrefix(directory, (size_t)(equals - directory));
             if(path_names[i] == NULL) goto done;
             directory = equals + 1;
         }
-        canonical_paths[i] = realpath(directory, NULL);
+        canonical_paths[i] = CanonicalPath(directory);
         if(canonical_paths[i] == NULL) {
             Diagnostic(Span(module_paths[i], 1, 1), "module.path",
                        "module search path is unavailable");

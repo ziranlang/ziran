@@ -165,14 +165,13 @@ main(int argc, char **argv)
         defines[define_count++] = "PLAN9";
     }
     /* Explicit native IR freezes the same adapters as a source build.
-     * Untargeted IR remains portable; cross-platform selectors opt out. */
+     * Untargeted IR remains portable; web and Plan 9 selectors opt out. */
     int posix_threads = target != NULL &&
         (!strcmp(target, "c") || !strcmp(target, "cpp"));
     int threads_defined = 0;
     for(int d = 0; d < define_count; d++) {
         threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
-        if(!strcmp(defines[d], "_WIN32") ||
-           !strcmp(defines[d], "PLATFORM_WEB") ||
+        if(!strcmp(defines[d], "PLATFORM_WEB") ||
            !strcmp(defines[d], "PLAN9"))
             posix_threads = 0;
     }

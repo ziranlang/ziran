@@ -910,7 +910,8 @@ opens literal-IPv4 TCP sockets with bounded polling, cancellation, and I/O.
 interruptible sleeps; it does not expose wall-clock time.
 `std/thread_linux.zi` runs a procedure on a background thread that the
 starting thread can poll for completion without waiting, which suits a frame
-loop with a request in flight; it builds on pthreads, including Android's.
+loop with a request in flight; it builds on pthreads, including Android's
+and Windows winpthreads.
 `ThreadStart` also accepts an optional `ThreadNotification` containing a
 `procedure` and its `argument`.
 The worker calls that notification once after publishing completion, allowing
@@ -923,8 +924,11 @@ the submitting thread, then waits for every lane before returning. Keep the
 pool at one address, submit from one owner, and call `ParallelClose` before
 releasing it. Callbacks must write only their own range and keep shared inputs
 immutable. Four lanes run by default; `ZIRAN_PAR_THREADS` selects 1–64 lanes.
-Native C and C++ source builds define `POSIX_THREADS` automatically, except
-when `_WIN32`, `PLAN9` or `PLATFORM_WEB` identifies another platform. Libraries
+Native C and C++ source builds define `POSIX_THREADS` automatically, including
+Windows. Windows native worker builds require a pthread-capable toolchain,
+such as MinGW-w64 with winpthreads. `PLAN9` and `PLATFORM_WEB` opt out;
+untargeted IR stays portable. Explicit C/C++ IR freezes the same capability
+selection as source builds. Libraries
 can use that capability to parallelize their native adapters by default while
 keeping portable output independent of pthreads. This does not parallelize
 arbitrary program state or make shared mutable data safe.

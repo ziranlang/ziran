@@ -922,90 +922,95 @@ compiler_expression_StatementParts(String source, StatementKind kind)
             at = token.end;
         }
     } else if (kind == ((StatementKind)(10)) || kind == ((StatementKind)(14))) {
+        String keyword = StringLiteral("return");
+        if (kind == ((StatementKind)(14))) {
+            keyword = StringLiteral("unused");
+        }
         int64_t value_15 = (int64_t)(source).length;
-        if (value_15 >= 6LL) {
-            String value_16 = source;
-            result.value = StringRange(value_16, (int64_t)6LL, (int64_t)value_16.length);
+        int64_t value_16 = (int64_t)(keyword).length;
+        if (value_15 >= value_16) {
+            String value_17 = source;
+            result.value = StringRange(value_17, (int64_t)(int64_t)(keyword).length, (int64_t)value_17.length);
             result.has_value = true;
         }
     } else if (kind == ((StatementKind)(5))) {
         result.value = source;
         result.has_value = true;
     } else if (kind == ((StatementKind)(16))) {
-        int64_t value_17 = (int64_t)(source).length;
-        if (value_17 >= 2LL) {
-            String value_18 = source;
-            String condition = compiler_expression_SkipSpace(StringRange(value_18, (int64_t)2LL, (int64_t)value_18.length));
-            int64_t value_19 = (int64_t)(condition).length;
-            bool value_20 = value_19 > 9LL;
-            if (value_20) {
-                String value_21 = condition;
-                value_20 = (StringEqual(StringRange(value_21, (int64_t)0LL, (int64_t)9LL), StringLiteral("#complete")));
+        int64_t value_18 = (int64_t)(source).length;
+        if (value_18 >= 2LL) {
+            String value_19 = source;
+            String condition = compiler_expression_SkipSpace(StringRange(value_19, (int64_t)2LL, (int64_t)value_19.length));
+            int64_t value_20 = (int64_t)(condition).length;
+            bool value_21 = value_20 > 9LL;
+            if (value_21) {
+                String value_22 = condition;
+                value_21 = (StringEqual(StringRange(value_22, (int64_t)0LL, (int64_t)9LL), StringLiteral("#complete")));
             }
-            bool value_22 = value_20;
-            bool value_23 = value_22;
-            if (value_23) {
-                bool value_24 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(condition.data, condition.length, 9));
-                value_23 = value_24;
+            bool value_23 = value_21;
+            bool value_24 = value_23;
+            if (value_24) {
+                bool value_25 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(condition.data, condition.length, 9));
+                value_24 = value_25;
             }
-            if (value_23) {
-                String value_25 = condition;
-                condition = compiler_expression_SkipSpace(StringRange(value_25, (int64_t)9LL, (int64_t)value_25.length));
+            if (value_24) {
+                String value_26 = condition;
+                condition = compiler_expression_SkipSpace(StringRange(value_26, (int64_t)9LL, (int64_t)value_26.length));
             }
             int64_t equals = compiler_expression_FindPair(condition, StringLiteral("=="));
             if (equals >= 0LL) {
-                String value_26 = condition;
-                condition = compiler_expression_Trim(StringRange(value_26, (int64_t)0LL, (int64_t)equals));
+                String value_27 = condition;
+                condition = compiler_expression_Trim(StringRange(value_27, (int64_t)0LL, (int64_t)equals));
             }
             result.value = condition;
             result.has_value = true;
         }
     } else if (kind == ((StatementKind)(7)) || kind == ((StatementKind)(6))) {
-        String value_27 = source;
-        int64_t value_28 = compiler_text_BlockHeaderEnd(source);
-        String condition = StringRange(value_27, (int64_t)0LL, (int64_t)value_28);
-        int64_t value_29 = (int64_t)(condition).length;
-        bool value_30 = value_29 >= 4LL;
-        if (value_30) {
-            String value_31 = condition;
-            value_30 = (StringEqual(StringRange(value_31, (int64_t)0LL, (int64_t)4LL), StringLiteral("else")));
-        }
-        if (value_30) {
+        String value_28 = source;
+        int64_t value_29 = compiler_text_BlockHeaderEnd(source);
+        String condition = StringRange(value_28, (int64_t)0LL, (int64_t)value_29);
+        int64_t value_30 = (int64_t)(condition).length;
+        bool value_31 = value_30 >= 4LL;
+        if (value_31) {
             String value_32 = condition;
-            condition = compiler_expression_SkipSpace(StringRange(value_32, (int64_t)4LL, (int64_t)value_32.length));
+            value_31 = (StringEqual(StringRange(value_32, (int64_t)0LL, (int64_t)4LL), StringLiteral("else")));
+        }
+        if (value_31) {
+            String value_33 = condition;
+            condition = compiler_expression_SkipSpace(StringRange(value_33, (int64_t)4LL, (int64_t)value_33.length));
         }
         int64_t at = 0LL;
         while (true) {
-            int64_t value_33 = (int64_t)(condition).length;
-            bool value_34 = at < value_33;
-            if (value_34) {
-                bool value_35 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(condition.data, condition.length, at));
-                value_34 = !value_35;
+            int64_t value_34 = (int64_t)(condition).length;
+            bool value_35 = at < value_34;
+            if (value_35) {
+                bool value_36 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(condition.data, condition.length, at));
+                value_35 = !value_36;
             }
-            if (!(value_34 && (uint8_t)ZIRAN_INDEX(condition.data, condition.length, at) != 40)) { break; }
+            if (!(value_35 && (uint8_t)ZIRAN_INDEX(condition.data, condition.length, at) != 40)) { break; }
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
-        String value_36 = condition;
-        result.value = StringRange(value_36, (int64_t)at, (int64_t)value_36.length);
+        String value_37 = condition;
+        result.value = StringRange(value_37, (int64_t)at, (int64_t)value_37.length);
         result.has_value = true;
     }
-    bool value_37 = result.has_value;
-    if (value_37) {
-        bool value_38 = StringEqual(compiler_expression_SkipSpace(result.value), StringLiteral(";"));
-        value_37 = value_38;
+    bool value_38 = result.has_value;
+    if (value_38) {
+        bool value_39 = StringEqual(compiler_expression_SkipSpace(result.value), StringLiteral(";"));
+        value_38 = value_39;
     }
-    if (value_37) {
+    if (value_38) {
         result.has_value = false;
     }
-    bool value_39 = result.has_value && kind == ((StatementKind)(3));
-    if (value_39) {
-        int64_t value_40 = (int64_t)(result.type).length;
-        value_39 = (value_40 > 0LL);
+    bool value_40 = result.has_value && kind == ((StatementKind)(3));
+    if (value_40) {
+        int64_t value_41 = (int64_t)(result.type).length;
+        value_40 = (value_41 > 0LL);
     }
-    if (value_39 && (uint8_t)ZIRAN_INDEX(result.type.data, result.type.length, 0) == 91) {
+    if (value_40 && (uint8_t)ZIRAN_INDEX(result.type.data, result.type.length, 0) == 91) {
         String value = compiler_expression_SkipSpace(result.value);
-        int64_t value_41 = (int64_t)(value).length;
-        if (value_41 > 0LL && (uint8_t)ZIRAN_INDEX(value.data, value.length, 0) == 123) {
+        int64_t value_42 = (int64_t)(value).length;
+        if (value_42 > 0LL && (uint8_t)ZIRAN_INDEX(value.data, value.length, 0) == 123) {
             result.error = StatementExpressionError_ArrayLiteral;
         }
     }

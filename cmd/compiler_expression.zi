@@ -505,7 +505,9 @@ StatementParts :: (source: string, kind: Source.StatementKind) -> StatementExpre
             at = token.end
         }
     } else if kind == Source.StatementKind.Return || kind == Source.StatementKind.Unused {
-        if source.count >= 6 { result.value = source[6:]; result.has_value = true }
+        keyword: string = "return"
+        if kind == Source.StatementKind.Unused { keyword = "unused" }
+        if source.count >= keyword.count { result.value = source[keyword.count:]; result.has_value = true }
     } else if kind == Source.StatementKind.Expression {
         result.value = source
         result.has_value = true

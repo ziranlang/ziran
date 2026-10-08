@@ -118,8 +118,7 @@ main(int argc, char **argv)
     int threads_defined = 0;
     for(int d = 0; d < define_count; d++) {
         threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
-        if(strcmp(defines[d], "_WIN32") == 0 ||
-           strcmp(defines[d], "PLATFORM_WEB") == 0 ||
+        if(strcmp(defines[d], "PLATFORM_WEB") == 0 ||
            strcmp(defines[d], "PLAN9") == 0)
             posix_threads = 0;
     }

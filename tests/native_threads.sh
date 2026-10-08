@@ -31,11 +31,13 @@ for target in c cpp; do
     build_program "$target" "$work/native-ir-$target" "$work/native-saved-$target" "$work/native-ir-$target/capability.zir"
     test "$("$work/native-saved-$target/capability")" = 'POSIX threads'
     for platform in _WIN32 PLAN9 PLATFORM_WEB; do
+        expected=portable
+        if test "$platform" = _WIN32; then expected='POSIX threads'; fi
         build_program "$target" "$work" "$work/$target-$platform" "$work/capability.zi" --define "$platform"
-        test "$("$work/$target-$platform/capability")" = 'portable'
+        test "$("$work/$target-$platform/capability")" = "$expected"
         "$ziran" ir --target="$target" --define "$platform" --root "$work" -o "$work/ir-$target-$platform" "$work/capability.zi"
         build_program "$target" "$work/ir-$target-$platform" "$work/saved-$target-$platform" "$work/ir-$target-$platform/capability.zir"
-        test "$("$work/saved-$target-$platform/capability")" = 'portable'
+        test "$("$work/saved-$target-$platform/capability")" = "$expected"
     done
 done
 "$ziran" ir --root "$work" -o "$work/ir" "$work/capability.zi"

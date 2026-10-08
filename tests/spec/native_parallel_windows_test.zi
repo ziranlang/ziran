@@ -1,0 +1,46 @@
+Workers :: #import "std/parallel_linux";
+Checks :: #import "parallel_linux_test";
+libc :: #system_library "libc";
+#if #defined(_WIN32) {
+    IdentityRaw :: () -> u32 #foreign libc "GetCurrentThreadId";
+} else {
+    IdentityRaw :: () -> usize #foreign libc "pthread_self";
+}
+Data :: struct { identities: [513]usize; visits: [513]s32 }
+data: Data;
+pool: Workers.ParallelPool;
+Fill :: (start: s64, end: s64, argument: *void) {
+    target := cast(*Data)argument
+    for i: start..end - 1 {
+        target.identities[i] = cast(usize)IdentityRaw()
+        target.visits[i] += 1
+    }
+}
+// Prove the actual pool separately from the compiler's platform selector.
+#program_export
+WorkerProof :: () -> s32 {
+    if Checks.SelfTest() != 42 { return 10 }
+    callback: Workers.RangeProcedure = Fill
+    Workers.ParallelRun(*pool, 0, 513, callback, cast(*void)*data)
+    lanes := pool.workers + 1
+    identities: [64]usize; distinct: s32
+    for i: 0..512 {
+        if data.visits[i] != 1 || data.identities[i] == 0 { return 11 }
+        found: bool
+        for j: 0..distinct - 1 { if identities[j] == data.identities[i] { found = true } }
+        if !found { identities[distinct] = data.identities[i]; distinct += 1 }
+    }
+    Workers.ParallelClose(*pool)
+    if distinct != lanes || lanes != Workers.ParallelCount() { return 12 }
+    print("Range workers: % distinct identities; lifecycle and publication passed\n", distinct)
+    return 0
+}
+#program_export
+main :: () -> s32 {
+    #if #defined(POSIX_THREADS) {
+        return WorkerProof()
+    } else {
+        print("Native Windows worker capability is disabled\n")
+        return 1
+    }
+}

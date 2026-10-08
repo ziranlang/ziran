@@ -24,7 +24,7 @@ static const struct {
      "// floatToInt converts x to a w-bit integer, panicking when it does not fit.\n"
      "func floatToInt(x float64, w uint, signed bool) uint64 {\n"
      "\tbits := w\n\tif signed {\n\t\tbits--\n\t}\n"
-     "\tbound := float64(uint64(1) << bits)\n"
+     "\tbound := float64(uint64(1) << (bits - 1)) * 2\n"
      "\tlower := float64(0)\n\tif signed {\n\t\tlower = -bound\n\t}\n"
      "\tif !(x >= lower && x < bound) {\n\t\tpanic(\"float conversion out of range\")\n\t}\n"
      "\tif signed {\n\t\treturn uint64(int64(x))\n\t}\n\treturn uint64(x)\n}\n"},

@@ -1275,7 +1275,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
             fprintf(c, "%s%s%s %s%s = %s;\n",
                     zero ? "__extension__ " : "",
                     g->is_static ? "static " : "", buffers->base, name, suffix,
-                    buffers->initw[0] ? buffers->initw : zero ? "{}" : "{0}");
+                    buffers->initw[0] ? buffers->initw : "{}");
         }
     }
     for(i = 0; i < m->function_count; i++) {

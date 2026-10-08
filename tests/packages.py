@@ -64,6 +64,106 @@ def compile_app(ziran: str, app: Path, output: Path, compiler: Path,
     call(str(output / "app"), cwd=app, env=env)
 
 
+def check_transitive_add(ziran: str, root: Path, env: dict) -> None:
+    """Promotion preserves pins despite newer local overrides; failures roll back."""
+    # Only package metadata is queried; the miniature tool fixture has no compiler.
+    env = {**env, "ZIRAN_PINNED_LAUNCHER": "1"}
+    fixture = root / "promotion"
+    fixture.mkdir()
+    leaf, provider, independent, tool = [fixture / name for name in
+                                         ("library", "provider", "independent", "tool")]
+    for repo in (leaf, provider, independent, tool):
+        init(repo, env)
+        write(repo / "VERSION", "1\n")
+        if repo != tool:
+            name = {leaf: "Library", provider: "Provider", independent: "Independent"}[repo]
+            manifest = f'[package]\nname = "{name}"\nmodule_roots = ["src"]\n'
+            if repo == provider:
+                manifest += f'[dependencies.Library]\ngit = "{leaf.as_uri()}"\nref = "master"\n'
+            manifest += '[exports]\nValue = "src/Value.zi"\n'
+            write(repo / "ziran.toml", manifest)
+            write(repo / "src/Value.zi", "Value :: 1;\n")
+        commit(repo, env)
+    app = fixture / "app"
+    app.mkdir()
+    original = f'''[package]
+name = "Promotion"
+[toolchain]
+git = "{tool.as_uri()}"
+ref = "master"
+[dependencies.Provider]
+git = "{provider.as_uri()}"
+[dependencies.Independent]
+git = "{independent.as_uri()}"
+'''
+    write(app / "ziran.toml", original)
+    write(app / "ziran.local.toml", f'''[overrides]
+ziran = "{tool}"
+Library = "{leaf}"
+Provider = "{provider}"
+Independent = "{independent}"
+''')
+    call(ziran, "lock", cwd=app, env=env)
+    lock_bytes = (app / "ziran.lock").read_bytes()
+    before = json.loads(lock_bytes)
+    library_id = next(p["id"] for p in before["packages"] if p["name"] == "Library")
+    # These HEADs are deliberately newer than the saved pins.
+    for repo in (leaf, independent, tool):
+        write(repo / "VERSION", "2\n")
+        commit(repo, env)
+        call("git", "branch", "v2", cwd=repo, env=env)
+
+    def reset(manifest: str = original) -> None:
+        write(app / "ziran.toml", manifest)
+        (app / "ziran.lock").write_bytes(lock_bytes)
+
+    call(ziran, "add", leaf.as_uri(), "--name", "direct", cwd=app, env=env)
+    after = json.loads((app / "ziran.lock").read_text())
+    expected = json.loads(lock_bytes)
+    expected["root"]["dependencies"]["direct"] = library_id
+    assert after == expected, (before, after)
+    assert Path(call(ziran, "pkg", "path", "direct", cwd=app, env=env).strip()) == leaf
+    print("PASS: transitive promotion preserves every package and toolchain pin", flush=True)
+
+    # A failed atomic lock write must not fall back to refreshing overrides.
+    reset()
+    (app / "ziran.lock.tmp").mkdir()
+    failed = call(ziran, "add", leaf.as_uri(), "--name", "direct",
+                  cwd=app, env=env, succeed=False)
+    assert "cannot write ziran.lock" in failed, failed
+    assert (app / "ziran.toml").read_text() == original
+    assert (app / "ziran.lock").read_bytes() == lock_bytes
+    (app / "ziran.lock.tmp").rmdir()
+
+    # A source/normal-package conflict needs ordinary resolution and rollback.
+    reset()
+    call(ziran, "add", leaf.as_uri(), "--source", cwd=app, env=env, succeed=False)
+    assert (app / "ziran.toml").read_text() == original
+    assert (app / "ziran.lock").read_bytes() == lock_bytes
+
+    # A different revision is a new graph node, not the existing master pin.
+    reset()
+    overrides = (app / "ziran.local.toml").read_text()
+    # Let the fixture's distinct refs resolve instead of forcing both to HEAD.
+    write(app / "ziran.local.toml", overrides.replace(f'Library = "{leaf}"\n', ''))
+    call(ziran, "add", leaf.as_uri(), "--ref", "v2", cwd=app, env=env)
+    resolved = json.loads((app / "ziran.lock").read_text())
+    direct = next(p for p in resolved["packages"]
+                  if p["id"] == resolved["root"]["dependencies"]["library"])
+    assert direct["ref"] == "v2" and direct["id"] != library_id
+    assert resolved["toolchain"]["commit"] != before["toolchain"]["commit"]
+    write(app / "ziran.local.toml", overrides)
+
+    # Root identity/ref drift invalidates promotion and uses the resolver.
+    for manifest in (original.replace('name = "Promotion"', 'name = "Renamed"'),
+                     original + 'ref = "v2"\n'):
+        reset(manifest)
+        call(ziran, "add", leaf.as_uri(), cwd=app, env=env)
+        resolved = json.loads((app / "ziran.lock").read_text())
+        assert resolved["toolchain"]["commit"] != before["toolchain"]["commit"]
+    print("PASS: transitive add write/source failures roll back; ref/root drift resolves normally", flush=True)
+
+
 def main() -> None:
     ziran = str(Path(sys.argv[1]).resolve())
     # The compiler repository is the one holding this test, wherever the
@@ -79,6 +179,8 @@ def main() -> None:
         env["GIT_CONFIG_COUNT"] = "1"
         env["GIT_CONFIG_KEY_0"] = "protocol.file.allow"
         env["GIT_CONFIG_VALUE_0"] = "always"
+
+        check_transitive_add(ziran, root, env)
 
         library = root / "library"
         init(library, env)

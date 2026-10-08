@@ -5,6 +5,13 @@ FailNext :: () #foreign libc "directory_test_fail_next";
 UnknownNext :: () #foreign libc "directory_test_unknown_next";
 DirtyErrno :: () #foreign libc "directory_test_dirty_errno";
 
+// Emscripten's in-memory filesystem does not support FIFO nodes.
+#if #defined(PLATFORM_WEB) {
+    ExpectedEntryCount :: 5;
+} else {
+    ExpectedEntryCount :: 6;
+}
+
 #program_export
 main :: () -> s32 {
     cursor := OpenDirectory("entries")
@@ -28,19 +35,19 @@ main :: () -> s32 {
             if entry.kind != .Other { return 5 }
         } else { return 6 }
     }
-    if count != 6 || cursor.failed || !CloseDirectory(*cursor) ||
-        cursor.valid || CloseDirectory(*cursor) { return 7 }
+    if count != ExpectedEntryCount || cursor.failed || !CloseDirectory(*cursor) ||
+    cursor.valid || CloseDirectory(*cursor) { return 7 }
     cursor = OpenDirectory("entries")
     UnknownNext()
     entry := NextDirectoryEntry(*cursor)
     if !entry.valid || entry.kind != .Unknown || cursor.failed ||
-        !CloseDirectory(*cursor) { return 8 }
+    !CloseDirectory(*cursor) { return 8 }
     cursor = OpenDirectory("entries")
     FailNext()
     if NextDirectoryEntry(*cursor).valid || !cursor.failed ||
-        NextDirectoryEntry(*cursor).valid || !CloseDirectory(*cursor) { return 9 }
+    NextDirectoryEntry(*cursor).valid || !CloseDirectory(*cursor) { return 9 }
     malformed: DirectoryCursor = .{valid = true}
     if NextDirectoryEntry(*malformed).valid || !malformed.failed ||
-        OpenDirectory("missing").valid { return 10 }
+    OpenDirectory("missing").valid { return 10 }
     return 0
 }

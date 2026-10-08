@@ -9,7 +9,7 @@ libc :: #system_library "libc";
     ReadLinkRaw :: (path: *u8, output: *u8, capacity: usize) -> isize #foreign libc "readlink";
 }
 
-// The readdir64 record. Windows fills only the name and kind.
+// The 64-bit POSIX directory record. Windows fills only the name and kind.
 DirectoryMetadata :: struct {
     inode: u64
     offset: s64
@@ -114,7 +114,7 @@ DirectoryMetadata :: struct {
         if (flags & OpenDirectoryOnly) != 0 {
             found := AttributesRaw(*wide[0])
             if found == cast(u32)MissingAttributes ||
-                (found & cast(u32)AttributeDirectory) == 0 { return -1 }
+            (found & cast(u32)AttributeDirectory) == 0 { return -1 }
         }
         access: u32 = 0x80000000
         if (flags & 3) == OpenWriteOnly { access = 0x40000000 }
@@ -235,7 +235,7 @@ DirectoryMetadata :: struct {
         old_wide: [4096]u16
         new_wide: [4096]u16
         if !WidePath(source, old_wide[:]) ||
-            !WidePath(destination, new_wide[:]) { return -1 }
+        !WidePath(destination, new_wide[:]) { return -1 }
         return Status(HardLinkRaw(*new_wide[0], *old_wide[0], null))
     }
 
@@ -245,7 +245,7 @@ DirectoryMetadata :: struct {
         old_wide: [4096]u16
         new_wide: [4096]u16
         if !WidePath(source, old_wide[:]) ||
-            !WidePath(destination, new_wide[:]) { return -1 }
+        !WidePath(destination, new_wide[:]) { return -1 }
         flags: u32 = 8
         if replace { flags = 9 }
         return Status(MoveFileRaw(*old_wide[0], *new_wide[0], flags))
@@ -320,7 +320,13 @@ DirectoryMetadata :: struct {
     ReadRaw :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
     WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize #foreign libc "write";
     OpenDirectoryRaw :: (path: *u8) -> *void #foreign libc "opendir";
-    ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir64";
+    #if #defined(PLATFORM_WEB) {
+        // Emscripten's musl already uses 64-bit inode and offset fields;
+        // readdir64 is a C header alias, not a linker symbol.
+        ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir";
+    } else {
+        ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir64";
+    }
     CloseDirectoryRaw :: (directory: *void) -> s32 #foreign libc "closedir";
     #if #defined(ANDROID_BUILD) {
         DirectoryErrno :: () -> *s32 #foreign libc "__errno";
@@ -454,7 +460,7 @@ PathIsLink :: (path: string) -> bool {
         if !WidePath(*name[0], wide[:]) { return false }
         attributes := AttributesRaw(*wide[0])
         return attributes != cast(u32)MissingAttributes &&
-            (attributes & cast(u32)1024) != cast(u32)0
+        (attributes & cast(u32)1024) != cast(u32)0
     } else {
         byte: u8
         return ReadLinkRaw(*name[0], *byte, 1) > 0

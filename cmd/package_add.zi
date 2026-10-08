@@ -1,6 +1,7 @@
 #import "package_common"
 #import "package_manifest"
 #import "package_source"
+#import "package_lock"
 #import "byte_text_linux"
 #import "text"
 
@@ -35,6 +36,39 @@ PkgAliasFromRepository :: (repository: string) -> string {
 
 PkgAddUsage :: () -> s32 {
     return PkgFail("usage: ziran add URL|OWNER/REPO [--name NAME] [--ref REF] [--source]")
+}
+
+// A transitive package already has a resolved revision and dependency graph.
+// Adding its root alias must not refresh unrelated local overrides/toolchain.
+// Return 0 for normal resolution, 1 for promotion, -1 for a write failure.
+PkgAddLocked :: (root: string, current: *PkgManifest, alias: string,
+    url: string, reference: string, source: bool) -> s32 {
+    locked := PkgNewLock()
+    if locked == null { return -1 }
+    if !PkgReadLock(PkgJoin(root, "/ziran.lock"), locked) ||
+       current.name != locked.root_name ||
+       !PkgSameSource(current.tool_git, locked.tool_url) ||
+       current.tool_ref != locked.tool_ref ||
+       current.dependency_count != locked.root_edge_count ||
+       locked.root_edge_count >= 24 { return 0 }
+    index: s32 = 0
+    while index < current.dependency_count {
+        dependency := *current.dependencies[index]
+        id := PkgEdgeValue(*locked.root_edges[0], locked.root_edge_count,
+            dependency.alias)
+        target := PkgFindById(locked, id)
+        if target < 0 || !PkgSameSource(locked.packages[target].url, dependency.git) ||
+           locked.packages[target].ref != dependency.ref ||
+           locked.packages[target].source != dependency.source { return 0 }
+        index += 1
+    }
+    target := PkgFindBySource(locked, url, reference)
+    if target < 0 || locked.packages[target].source != source { return 0 }
+    locked.root_edges[locked.root_edge_count].name = alias
+    locked.root_edges[locked.root_edge_count].value = locked.packages[target].id
+    locked.root_edge_count += 1
+    if !PkgWriteLock(root, locked) { return -1 }
+    return 1
 }
 
 // `ziran add` accepts any spelling of a Git repository:
@@ -119,14 +153,21 @@ Add :: (launcher: string, arguments: []string) -> s32 {
     if !PkgWrite(manifest_path, PkgJoin(original.text, declaration)) {
         return PkgFail("ziran add: cannot update ziran.toml")
     }
-    command: [2]string
-    command[0] = launcher
-    command[1] = "lock"
-    locked: PkgProcessResult = PkgCapture(command[:], root)
-    if locked.code != 0 {
+    promotion := PkgAddLocked(root, current, alias, url, reference, source)
+    if promotion < 0 {
         PkgWrite(manifest_path, original.text)
-        PkgShowToolFailure(locked.text)
-        return PkgFail("ziran add: lock failed; ziran.toml restored")
+        return PkgFail("ziran add: cannot write ziran.lock; ziran.toml restored")
+    }
+    if promotion == 0 {
+        command: [2]string
+        command[0] = launcher
+        command[1] = "lock"
+        locked: PkgProcessResult = PkgCapture(command[:], root)
+        if locked.code != 0 {
+            PkgWrite(manifest_path, original.text)
+            PkgShowToolFailure(locked.text)
+            return PkgFail("ziran add: lock failed; ziran.toml restored")
+        }
     }
     PkgPrint(PkgJoin3("added ", alias, " from "), false)
     PkgPrint(PkgJoin3(url, " at ", reference), false)

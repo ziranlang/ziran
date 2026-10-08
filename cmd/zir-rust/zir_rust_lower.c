@@ -1241,6 +1241,25 @@ emit_typed_expression_with_buffers(RustEmitter *emitter, int index,
     const ZirExpr *expression = index >= 0 &&
         index < emitter->function->expr_count ?
             &emitter->function->exprs[index] : NULL;
+    if(expression != NULL && !strcmp(expression->type, "integer") && float_type(type)) {
+        if(expression->kind == ZIR_EXPR_INT) {
+            /* Rust has no hexadecimal float literals. Spell the checked
+             * integer magnitude in decimal before giving it a float suffix. */
+            snprintf(output, size, "%llu%s", strtoull(expression->text, NULL, 0),
+                     rust_scalar_type(type));
+            return;
+        }
+        if(expression->kind == ZIR_EXPR_UNARY &&
+           (!strcmp(expression->op, "-") || !strcmp(expression->op, "+"))) {
+            /* Apply the sign after coercion so a large negative literal does
+             * not first have to fit Rust's default i32. */
+            emit_typed_expression(emitter, expression->right, type,
+                                  buffers->value, sizeof(buffers->value));
+            snprintf(output, size, "(%s%s)",
+                     !strcmp(expression->op, "+") ? "" : expression->op, buffers->value);
+            return;
+        }
+    }
     emit_expression(emitter, index, buffers->value, sizeof(buffers->value));
     /* An untyped literal takes the type as a suffix: 2026i32. */
     if(expression != NULL && expression->kind == ZIR_EXPR_INT &&
@@ -2227,6 +2246,12 @@ emit_expression_with_buffers(RustEmitter *emitter, int index, char *output,
             const char *common = expression->left >= 0 && expression->right >= 0 ?
                 rust_common_integer(emitter->function->exprs[expression->left].type,
                                     emitter->function->exprs[expression->right].type) : NULL;
+            if(expression->left >= 0 && expression->right >= 0) {
+                const char *left = emitter->function->exprs[expression->left].type;
+                const char *right = emitter->function->exprs[expression->right].type;
+                if(float_type(left) && !strcmp(right, "integer")) common = left;
+                else if(!strcmp(left, "integer") && float_type(right)) common = right;
+            }
             if(common != NULL && integer_type(expression->type) &&
                strcmp(expression->type, "integer") != 0)
                 common = expression->type;
@@ -2290,7 +2315,8 @@ emit_expression_with_buffers(RustEmitter *emitter, int index, char *output,
         emit_expression(emitter, expression->right, buffers->right, sizeof(buffers->right));
         if(!strcmp(expression->op, "!") || !strcmp(expression->op, "-") ||
            !strcmp(expression->op, "+"))
-            snprintf(output, size, "(%s%s)", expression->op, buffers->right);
+            snprintf(output, size, "(%s%s)",
+                     !strcmp(expression->op, "+") ? "" : expression->op, buffers->right);
         else if(!strcmp(expression->op, "~"))
             snprintf(output, size, "(!%s)", buffers->right);
         else if(!strcmp(expression->op, "*"))

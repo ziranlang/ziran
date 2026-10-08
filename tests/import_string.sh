@@ -88,3 +88,16 @@ if "$ziran" check --root "$work/src" "$work/src/bad_escape.zi" \
     exit 1
 fi
 grep -Fq 'unsupported #import, string escape' "$work/bad_escape.err"
+
+# An import target longer than the name limit is rejected, not silently
+# truncated into a colliding alias.
+long_target=$(printf 'a%.0s' $(seq 1 130))
+cat > "$work/src/long_import.zi" <<ZI
+#import "$long_target"
+ZI
+if "$ziran" check --root "$work/src" "$work/src/long_import.zi" \
+    2> "$work/long_import.err"; then
+    echo 'over-long import target was accepted' >&2
+    exit 1
+fi
+grep -Fq 'exceeds the 127-byte limit' "$work/long_import.err"

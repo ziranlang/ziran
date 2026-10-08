@@ -256,6 +256,9 @@ compiler_declaration_ErrorText(DeclarationError error)
     if (error == DeclarationError_ImportAlias) {
         return StringLiteral("import alias must start with a letter or underscore");
     }
+    if (error == DeclarationError_ImportAliasLimit) {
+        return StringLiteral("import name exceeds the 127-byte limit; give it an explicit alias");
+    }
     if (error == DeclarationError_ImportTarget) {
         return StringLiteral("Jai #import requires a module identifier or PACKAGE/Module; use #import, file for paths");
     }
@@ -974,46 +977,46 @@ compiler_declaration_ImportDeclaration(String source, int64_t name_limit, int64_
             }
             int64_t value_50 = (int64_t)(result.name).length;
             if (value_50 >= name_limit) {
-                String value_51 = result.name;
-                result.name = StringRange(value_51, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)name_limit - UINT64_C(1))));
+                result.error = DeclarationError_ImportAliasLimit;
+                return result;
             }
         }
     }
-    bool value_52 = result.named;
-    if (value_52) {
-        String value_53 = result.name;
-        bool value_54 = compiler_source_IdentifierText(StringRange(value_53, (int64_t)0LL, (int64_t)1LL), false);
-        value_52 = !value_54;
+    bool value_51 = result.named;
+    if (value_51) {
+        String value_52 = result.name;
+        bool value_53 = compiler_source_IdentifierText(StringRange(value_52, (int64_t)0LL, (int64_t)1LL), false);
+        value_51 = !value_53;
     }
-    if (value_52) {
+    if (value_51) {
         result.error = DeclarationError_ImportAlias;
         return result;
     }
     int64_t slash = compiler_declaration_Find(result.target, StringLiteral("/"));
     if (slash < 0LL) {
-        bool value_55 = compiler_source_IdentifierText(result.target, false);
-        if (!value_55) {
+        bool value_54 = compiler_source_IdentifierText(result.target, false);
+        if (!value_54) {
             result.error = DeclarationError_ImportTarget;
             return result;
         }
     } else {
+        String value_55 = result.target;
+        String package = StringRange(value_55, (int64_t)0LL, (int64_t)slash);
         String value_56 = result.target;
-        String package = StringRange(value_56, (int64_t)0LL, (int64_t)slash);
-        String value_57 = result.target;
-        String module = StringRange(value_57, (int64_t)((int64_t)((uint64_t)slash + UINT64_C(1))), (int64_t)value_57.length);
+        String module = StringRange(value_56, (int64_t)((int64_t)((uint64_t)slash + UINT64_C(1))), (int64_t)value_56.length);
         int64_t next = compiler_declaration_Find(module, StringLiteral("/"));
         String first = module;
         if (next >= 0LL) {
-            String value_58 = module;
-            first = StringRange(value_58, (int64_t)0LL, (int64_t)next);
+            String value_57 = module;
+            first = StringRange(value_57, (int64_t)0LL, (int64_t)next);
         }
-        bool value_59 = compiler_source_IdentifierText(package, false);
-        bool value_60 = !value_59;
-        if (!value_60) {
-            bool value_61 = compiler_source_IdentifierText(first, false);
-            value_60 = !value_61;
+        bool value_58 = compiler_source_IdentifierText(package, false);
+        bool value_59 = !value_58;
+        if (!value_59) {
+            bool value_60 = compiler_source_IdentifierText(first, false);
+            value_59 = !value_60;
         }
-        if (value_60) {
+        if (value_59) {
             result.error = DeclarationError_ImportTarget;
             return result;
         }

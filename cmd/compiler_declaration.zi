@@ -8,7 +8,7 @@ DeclarationError :: enum s32 {
     None; ExportQuote; ExportName; Parameters; DefaultValue;
     UsingModifier; UsingType; UsingName; ImportQuote; ImportCharacter;
     ImportMode; ImportDirSyntax; ImportDirPath; ImportDirName;
-    ImportFileSyntax; ImportFilePath; ImportFileName; ImportAlias;
+    ImportFileSyntax; ImportFilePath; ImportFileName; ImportAlias; ImportAliasLimit;
     ImportTarget; ImportPackage; ImportUsing;
     LibraryQuote; LibraryEnd; LibraryCharacter;
     UsingKind; UsingList; UsingEntry; UsingMap;
@@ -156,6 +156,7 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .ImportFilePath { return "#import, file requires a relative .zi path" }
     if error == .ImportFileName { return "#import, file path needs an identifier filename" }
     if error == .ImportAlias { return "import alias must start with a letter or underscore" }
+    if error == .ImportAliasLimit { return "import name exceeds the 127-byte limit; give it an explicit alias" }
     if error == .ImportTarget { return "Jai #import requires a module identifier or PACKAGE/Module; use #import, file for paths" }
     if error == .ImportPackage { return "a package import has one '/', as in #import \"PACKAGE/Module\"" }
     if error == .ImportUsing { return "using #import requires a named module alias" }
@@ -479,7 +480,7 @@ ImportDeclaration :: (source: string, name_limit: s64, path_limit: s64) -> Modul
             slash := Find(result.target, "/")
             if slash < 0 { result.name = result.target }
             else { result.name = result.target[slash + 1:] }
-            if result.name.count >= name_limit { result.name = result.name[0:name_limit - 1] }
+            if result.name.count >= name_limit { result.error = .ImportAliasLimit; return result }
         }
     }
     if result.named && !Source.IdentifierText(result.name[0:1], false) { result.error = .ImportAlias; return result }

@@ -61,9 +61,13 @@ def main():
     args = parser.parse_args()
 
     repo = Path(__file__).resolve().parent.parent
-    seeds = [path.read_bytes() for pattern in ("site/examples/*.zi", "std/*.zi", "tests/fuzz/*.zi")
+    seeds = [path.read_bytes() for pattern in ("site/examples/*.zi", "cmd/*.zi", "std/*.zi",
+                                               "tests/fuzz/*.zi")
              for path in sorted(repo.glob(pattern)) if path.stat().st_size < 20000]
-    rng = random.Random(args.seed if args.seed is not None else time.time_ns())
+    seed = args.seed if args.seed is not None else time.time_ns()
+    rng = random.Random(seed)
+    # Print the effective seed so a CI crash reproduces with --seed <value>.
+    print(f"seed: {seed}")
     work = args.out / "work"
     work.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ)

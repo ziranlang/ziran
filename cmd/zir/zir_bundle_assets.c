@@ -1,3 +1,4 @@
+#include "zir_files.h"
 #include "zir_bundle.h"
 #include "zir_diagnostic.h"
 #include <dirent.h>
@@ -53,7 +54,7 @@ static int
 collect_path(ZibAssets *assets, const char *name, const char *path)
 {
     struct stat stat;
-    if(!asset_name(name) || lstat(path, &stat) != 0) return 0;
+    if(!asset_name(name) || FileStatusNoLinks(path, &stat) != 0) return 0;
     if(S_ISDIR(stat.st_mode)) {
         DIR *dir = opendir(path);
         if(dir == NULL) return 0;

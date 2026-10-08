@@ -1,0 +1,84 @@
+#import "date_parse"
+
+CheckCivil :: () -> bool {
+    if UtcSeconds(1970, 1, 1, 0, 0, 0) != 0 { return false }
+    if UtcSeconds(2026, 10, 8, 0, 0, 0) != 1791417600 { return false }
+    if UtcSeconds(2000, 2, 29, 12, 0, 0) != 951825600 { return false }
+    if UtcSeconds(2024, 2, 29, 23, 59, 59) != 1709251199 { return false }
+    if UtcSeconds(2100, 3, 1, 0, 0, 1) != 4107542401 { return false }
+    if !DateValid(2000, 2, 29) || !DateValid(2024, 2, 29) { return false }
+    if DateValid(1900, 2, 29) || DateValid(2023, 2, 29) || DateValid(2100, 2, 29) ||
+        DateValid(2026, 13, 1) || DateValid(2026, 0, 1) || DateValid(2026, 4, 31) ||
+        DateValid(2026, 2, 0) || DateValid(1969, 12, 31) { return false }
+    // Invalid or out-of-range inputs collapse to the zero timestamp.
+    if UtcSeconds(2023, 2, 29, 0, 0, 0) != 0 || UtcSeconds(2100, 2, 29, 0, 0, 0) != 0 ||
+        UtcSeconds(1969, 1, 1, 0, 0, 0) != 0 || UtcSeconds(2026, 10, 8, 24, 0, 0) != 0 ||
+        UtcSeconds(2026, 10, 8, 0, 60, 0) != 0 || UtcSeconds(2026, 10, 8, 0, 0, 60) != 0 { return false }
+    epoch: UtcDate = CivilFromUnix(0)
+    if epoch.year != 1970 || epoch.month != 1 || epoch.day != 1 ||
+        epoch.hour != 0 || epoch.minute != 0 || epoch.second != 0 { return false }
+    stamps: [5]s64 = .{0, 951825600, 1709251199, 1791417600, 4107542401}
+    for stamp: stamps {
+        civil := CivilFromUnix(stamp)
+        if UtcSeconds(civil.year, civil.month, civil.day, civil.hour,
+            civil.minute, civil.second) != stamp { return false }
+    }
+    return true
+}
+
+CheckNumbers :: () -> bool {
+    if DateNumber("2026", 0, 4) != 2026 || DateNumber("12", 0, 2) != 12 ||
+        DateNumber("20260926", 4, 4) != 926 { return false }
+    if DateNumber("1x", 0, 2) != -1 || DateNumber("9", 0, 0) != -1 ||
+        DateNumber("99", 1, 2) != -1 || DateNumber("", 0, 1) != -1 ||
+        DateNumber("5", -1, 1) != -1 { return false }
+    return true
+}
+
+CheckWriters :: () -> bool {
+    // WriteCompactUtc emits exactly 14 digits and must accept a 14-byte buffer.
+    compact: [14]u8
+    if WriteCompactUtc(1791417600, compact[:]) != 14 { return false }
+    expected: string = "20261008000000"
+    for index: 0..cast(s32)13 { if compact[index] != expected[index] { return false } }
+    iso: [10]u8
+    if WriteIsoDay(1791417600, iso[:]) != 10 { return false }
+    iso_expected: string = "2026-10-08"
+    for index: 0..cast(s32)9 { if iso[index] != iso_expected[index] { return false } }
+    short: [13]u8
+    if WriteCompactUtc(1791417600, short[:]) != -1 { return false }
+    tiny: [9]u8
+    if WriteIsoDay(1791417600, tiny[:]) != -1 { return false }
+    return true
+}
+
+CheckParsers :: () -> bool {
+    if ParseCompactUtc("20261008000000") != 1791417600 { return false }
+    if ParseCompactUtc("20261008T000000Z") != 1791417600 { return false }
+    if ParseCompactUtc("20000229120000") != 951825600 { return false }
+    if ParseCompactUtc("20260229120000") != 0 { return false }
+    if ParseCompactUtc("20260231") != 0 || ParseCompactUtc("20261301120000") != 0 ||
+        ParseCompactUtc("20261008T0000") != 0 || ParseCompactUtc("2026022912") != 0 { return false }
+    if ParseRfc822Utc("Sat, 26 Sep 2026 19:08:00 GMT") != 1790449680 { return false }
+    if ParseRfc822Utc("Sat, 26 Sep 2026 19:08:00 UTC") != 1790449680 { return false }
+    if ParseRfc822Utc("Tuesday, 6 Oct 2026 01:02:03 GMT") != 1791248523 { return false }
+    if ParseRfc822Utc("Sat, 26 Sep 2026 19:08:00 +0200") != 1790442480 { return false }
+    if ParseRfc822Utc("Sat, 26 Sep 2026 19:08:00 -0530") != 1790469480 { return false }
+    // Unknown zones and out-of-range offsets are rejected, not guessed.
+    if ParseRfc822Utc("Sat, 26 Sep 2026 19:08:00 PST") != 0 { return false }
+    if ParseRfc822Utc("Sat, 26 Sep 2026 19:08:00 +9900") != 0 { return false }
+    if ParseRfc822Utc("Sat, 26 Sep 2026 19:08:00 +0299") != 0 { return false }
+    if ParseRfc822Utc("Sat, 46 Sep 2026 19:08:00 GMT") != 0 { return false }
+    if ParseRfc822Utc("Sat, 26 Sep 2026 19:08 GMT") != 0 { return false }
+    if ParseRfc822Utc("") != 0 { return false }
+    return true
+}
+
+#program_export
+Check :: () -> s32 {
+    if !CheckCivil() { return 1 }
+    if !CheckNumbers() { return 2 }
+    if !CheckWriters() { return 3 }
+    if !CheckParsers() { return 4 }
+    return 0
+}

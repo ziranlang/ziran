@@ -11,7 +11,11 @@ import tempfile
 
 
 def run(args):
-    subprocess.run(args, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        subprocess.run(args, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as error:
+        sys.stderr.write(error.stderr.decode(errors='replace'))
+        raise
 
 
 def main():
@@ -20,7 +24,7 @@ def main():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     types = [(f'{sign}{width}', sign == 's', width)
              for width in (8, 16, 32, 64) for sign in ('s', 'u')]
-    signatures, branches, cases = [], [], []
+    signatures, branches, go_branches, cases = [], [], [], []
     for precision in (32, 64):
         for name, signed, width in types:
             function = f'Cast{precision}{name}'
@@ -29,6 +33,7 @@ def main():
             host_type, specifier = ('int64_t', 'PRId64') if signed else ('uint64_t', 'PRIu64')
             branches.append(f'if (!strcmp(argv[1], "{function}")) '
                             f'{{ printf("%" {specifier} "\\n", ({host_type}){function}(value)); return 0; }}')
+            go_branches.append(f'case "{function}": fmt.Println(Casts_{function}(float{precision}(value)))')
             upper = float(1 << (width - int(signed)))
             lower = -upper if signed else 0.0
             significand = 24 if precision == 32 else 53
@@ -77,7 +82,30 @@ def main():
                             form, target, function, value, expected, result.returncode,
                             result.stdout, result.stderr)
                     checked += 1
-        print(f'{checked} float32/float64 cast cases passed C/C++, source/saved IR and UBSan')
+            output = work / f'{form}-go'
+            run([ziran, 'build', '--target=go', '--pkg', 'main', '--root', str(root),
+                 '-o', str(output), str(module)])
+            (output / 'main.go').write_text(
+                'package main\nimport ("fmt"; "os"; "strconv")\n'
+                'func main() { if len(os.Args) != 3 { os.Exit(2) }; '
+                'value, err := strconv.ParseFloat(os.Args[2], 64); '
+                'if err != nil { panic(err) }; switch os.Args[1] {\n' +
+                '\n'.join(go_branches) + '\ndefault: os.Exit(3) } }\n')
+            executable = output / 'app'
+            run(['go', 'build', '-o', str(executable), *map(str, output.glob('*.go'))])
+            for function, value, expected in cases:
+                argument = 'NaN' if math.isnan(value) else repr(value)
+                result = subprocess.run([str(executable), function, argument],
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if expected is None:
+                    assert result.returncode != 0 and b'float conversion out of range' in result.stderr, (
+                        form, 'go', function, value, result.returncode, result.stderr)
+                else:
+                    assert result.returncode == 0 and int(result.stdout) == expected, (
+                        form, 'go', function, value, expected, result.returncode,
+                        result.stdout, result.stderr)
+                checked += 1
+        print(f'{checked} float32/float64 cast cases passed C/C++/Go, source/saved IR; C/C++ UBSan')
 
 
 if __name__ == '__main__':

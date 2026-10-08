@@ -212,5 +212,12 @@ ZI
         exit 1
     fi
     grep -Eq 'duplicate native Go export name|native Go export collides' "$work/rejected.log"
+    "$ziran" ir --root "$work" --module-path std -o "$work/rejected-ir" "$work/bad.zi"
+    if "$ziran" build --target=go --root "$work/rejected-ir" --module-path std \
+        -o "$work/rejected" "$work/rejected-ir/bad.zir" > "$work/rejected.log" 2>&1; then
+        echo "colliding native Go export accepted in saved IR: $mode" >&2
+        exit 1
+    fi
+    grep -Eq 'duplicate native Go export name|native Go export collides' "$work/rejected.log"
 done
 echo 'Typed named Go exports and native Go test discovery: passed'

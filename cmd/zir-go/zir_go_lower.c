@@ -263,7 +263,10 @@ go_validate_exports(const ZirProgram *const *programs, int count)
                 }
                 for(int t = 0; t < module->type_count; t++) {
                     NativeTypeName(module, &module->types[t], mapped, sizeof(mapped));
-                    if(!strcmp(symbol, mapped)) {
+                    // C/C++ collision repair may have renamed this type.
+                    // Explicit Go exports must still respect its public name.
+                    if(!strcmp(symbol, mapped) ||
+                       !strcmp(symbol, module->types[t].name)) {
                         Diagnostic(function->span, "zir_go.export",
                                    "native Go export collides with type: %s", symbol);
                         return 0;

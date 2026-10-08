@@ -403,6 +403,7 @@ target_top_name(const ZirModule *module, ZirTarget target, const char *name,
 typedef struct NativeValueName {
     char *name;
     int *collision;
+    int is_type;
     int next;
 } NativeValueName;
 
@@ -423,7 +424,8 @@ native_name_hash(const char *name)
 }
 
 static int
-native_names_add(NativeValueNames *names, const char *name, int *collision)
+native_names_add(NativeValueNames *names, const char *name, int *collision,
+                 int is_type)
 {
     if(names->count == names->capacity) {
         int capacity = names->capacity ? names->capacity * 2 : 256;
@@ -436,7 +438,7 @@ native_names_add(NativeValueNames *names, const char *name, int *collision)
     char *copy = strdup(name);
     if(copy == NULL) return 0;
     size_t bucket = native_name_hash(name) % (size_t)names->bucket_count;
-    names->items[names->count] = (NativeValueName){copy, collision,
+    names->items[names->count] = (NativeValueName){copy, collision, is_type,
                                                    names->buckets[bucket]};
     names->buckets[bucket] = names->count++;
     return 1;
@@ -473,6 +475,28 @@ native_names_mark_shared(const NativeValueNames *names)
                     *names->items[i].collision = *names->items[j].collision = 1;
 }
 
+/* C typedefs and C++ types share the ordinary identifier namespace with
+ * values. Rename the type when the final value name remains unchanged;
+ * duplicate values already have their own native names. Identical concrete
+ * types may share a name, so type/type ownership stays with CheckPrograms. */
+static void
+native_names_mark_type_values(const NativeValueNames *names)
+{
+    for(int bucket = 0; bucket < names->bucket_count; bucket++)
+        for(int i = names->buckets[bucket]; i >= 0; i = names->items[i].next) {
+            const NativeValueName *type = &names->items[i];
+            if(!type->is_type || *type->collision) continue;
+            for(int j = names->buckets[bucket]; j >= 0; j = names->items[j].next) {
+                const NativeValueName *value = &names->items[j];
+                if(!value->is_type && !*value->collision &&
+                   !strcmp(type->name, value->name)) {
+                    *type->collision = 1;
+                    break;
+                }
+            }
+        }
+}
+
 int
 MarkNativeNameCollisions(ZirProgram **programs, int count)
 {
@@ -483,7 +507,8 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
         native_programs[p] = programs[p];
         for(int m = 0; m < programs[p]->module_count; m++)
             values += programs[p]->modules[m].global_count +
-                      programs[p]->modules[m].define_count;
+                      programs[p]->modules[m].define_count +
+                      programs[p]->modules[m].type_count;
     }
     for(int t = 0; t < 3; t++) {
         names[t].bucket_count = values * 2 + 1;
@@ -506,19 +531,33 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                     char native[ZIR_NAME_MAX * 2];
                     target_top_name(module, t == 0 ? ZIR_C : t == 1 ? ZIR_CPP : ZIR_GO,
                                     name, is_global, native, sizeof(native));
-                    ok = native_names_add(&names[t], native, collision);
+                    ok = native_names_add(&names[t], native, collision, 0);
                 }
             }
         }
     for(int t = 0; ok && t < 3; t++)
         native_names_mark_shared(&names[t]);
     for(int p = 0; ok && p < count; p++)
+        for(int m = 0; ok && m < programs[p]->module_count; m++) {
+            ZirModule *module = &programs[p]->modules[m];
+            for(int t = 0; ok && t < module->type_count; t++) {
+                ZirType *type = &module->types[t];
+                if(type->is_record_template ||
+                   (type->is_extern && !type->foreign_target[0])) continue;
+                char native[ZIR_NAME_MAX * 2];
+                NativeTypeName(module, type, native, sizeof(native));
+                for(int target = 0; ok && target < 2; target++)
+                    ok = native_names_add(&names[target], native,
+                                          &type->native_name_mangled, 1);
+            }
+        }
+    for(int p = 0; ok && p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++) {
             const ZirModule *module = &programs[p]->modules[m];
             for(int f = 0; f < module->function_count; f++) {
                 const ZirFunction *function = &module->functions[f];
                 char native[ZIR_NAME_MAX * 2];
-                if(function->is_extern || function->is_template) continue;
+                if(function->is_template) continue;
                 NativeCFunctionName(module, function, native, sizeof(native));
                 native_names_mark(&names[0], native);
                 native_names_mark(&names[1], native);
@@ -528,7 +567,18 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                 if(function->export_symbol[0])
                     native_names_mark(&names[2], function->export_symbol);
             }
+            for(int i = 0; i < module->import_count; i++) {
+                const ZirImport *foreign = &module->imports[i];
+                if(foreign->kind != ZIR_IMPORT_EXTERN ||
+                   strncmp(foreign->target, "c.", 2)) continue;
+                char native[ZIR_NAME_MAX * 2];
+                NativeCForeignName(module, foreign, native, sizeof(native));
+                native_names_mark(&names[0], native);
+                native_names_mark(&names[1], native);
+            }
         }
+    for(int t = 0; ok && t < 2; t++)
+        native_names_mark_type_values(&names[t]);
     for(int t = 0; t < 3; t++)
         native_names_free(&names[t]);
     return ok;

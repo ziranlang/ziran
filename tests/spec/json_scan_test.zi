@@ -147,6 +147,18 @@ SelfTest :: () -> s32 {
         if ReadStringText(invalid, 0, decoded[:]) != -1 || decoded[0] != cast(u8)0 { return 29 }
     }
     if !CheckArrayRanges() { return 30 }
+    // Overflow to infinity is rejected; the largest finite double stays.
+    if ReadNumber("9e308", 0).valid || ReadNumber("-9e308", 0).valid ||
+       ReadNumber("1.8e308", 0).valid { return 31 }
+    // Values just under the double limit stay valid; repeated scaling keeps
+    // only loop-rounded precision, so compare magnitudes, not exact equality.
+    largest: JsonNumber = ReadNumber("1.7976931348623157e308", 0)
+    if !largest.valid || largest.value < 1.7e308 { return 32 }
+    deep: JsonNumber = ReadNumber("1e-308", 0)
+    if !deep.valid || deep.value <= 0.0 || deep.value >= 1e-307 { return 33 }
+    huge: [400]u8
+    for i: 0..cast(s32)399 { huge[i] = cast(u8)57 }
+    if ReadNumber(TextView(huge[:]), 0).valid { return 34 }
     return 42
 }
 

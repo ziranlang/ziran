@@ -123,8 +123,14 @@ main(int argc, char **argv)
            strcmp(defines[d], "PLAN9") == 0)
             posix_threads = 0;
     }
-    if(posix_threads && !threads_defined)
+    if(posix_threads && !threads_defined) {
+        if(define_count == 64) {
+            Diagnostic((ZirSourceSpan){0}, "command.arguments",
+                       "no define slot left for native thread capability");
+            return 1;
+        }
         defines[define_count++] = "POSIX_THREADS";
+    }
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file), argc - first_file))

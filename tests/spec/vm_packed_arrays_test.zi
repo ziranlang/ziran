@@ -50,7 +50,7 @@ Capacity :: () -> s32 {
     buffer: [1048576]u8
     last := *buffer[1048575]
     <<last = 255
-    if buffer[0] != 0 || buffer[1048575] != 255 || Measure() > 3145728 { return 1 }
+    if buffer[0] != 0 || buffer[1048575] != 255 || Measure() > 1572864 { return 1 }
     return 42
 }
 

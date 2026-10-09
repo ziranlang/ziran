@@ -371,7 +371,7 @@ truthy(Value value)
            integer_bits(value) != 0;
 }
 
-static const VmLayout *
+static VmLayout *
 parse_layout(VmLayout *layout, const ZirType *type)
 {
     ZirTypeField field;
@@ -399,6 +399,39 @@ parse_layout(VmLayout *layout, const ZirType *type)
     }
     layout->count = count;
     return layout;
+}
+
+size_t
+vm_field_hash(const char *name)
+{
+    size_t hash = 2166136261u;
+    for(const unsigned char *p = (const unsigned char *)name; *p; p++)
+        hash = (hash ^ *p) * 16777619u;
+    return hash;
+}
+
+/* Runtime type names and import scopes are immutable after verification.
+ * Keep the spelling on a miss, since some callers supply scratch buffers. */
+const ZirType *
+vm_find_type(Vm *vm, const ZirModule *module, const char *name,
+             const ZirModule **owner)
+{
+    enum { SLOTS = 2048 };
+    size_t slot = (vm_field_hash(name) ^ ((uintptr_t)module >> 4)) & (SLOTS - 1);
+    if(vm->type_sites == NULL)
+        vm->type_sites = calloc(SLOTS, sizeof(*vm->type_sites));
+    VmTypeSite *entry = vm->type_sites ? &vm->type_sites[slot] : NULL;
+    if(entry != NULL && entry->module == module && entry->name != NULL &&
+       strcmp(entry->name, name) == 0) {
+        if(owner != NULL) *owner = entry->owner;
+        return entry->resolved;
+    }
+    const ZirModule *resolved_owner = NULL;
+    const ZirType *resolved = FindType(module, name, &resolved_owner);
+    if(entry != NULL)
+        *entry = (VmTypeSite){module, resolved_owner, resolved, KeepText(name)};
+    if(owner != NULL) *owner = resolved_owner;
+    return resolved;
 }
 
 static size_t
@@ -437,14 +470,36 @@ record_layout(Vm *vm, const ZirType *type)
     }
     size_t slot = layout_slot(vm->layouts, vm->layout_slots, type);
     vm->layout_count++;
-    return parse_layout(&vm->layouts[slot], type);
+    VmLayout *layout = parse_layout(&vm->layouts[slot], type);
+    if(layout->count >= 0) {
+        size_t slots = 4;
+        while(slots < (size_t)layout->count * 2)
+            slots *= 2;
+        layout->field_slots = malloc(slots * sizeof(*layout->field_slots));
+        if(layout->field_slots == NULL) {
+            layout->count = -1;
+            return layout;
+        }
+        layout->field_slot_count = slots;
+        for(size_t i = 0; i < slots; i++)
+            layout->field_slots[i] = -1;
+        for(int i = 0; i < layout->count; i++) {
+            size_t position = vm_field_hash(layout->fields[i].name) & (slots - 1);
+            while(layout->field_slots[position] >= 0)
+                position = (position + 1) & (slots - 1);
+            layout->field_slots[position] = i;
+        }
+    }
+    return layout;
 }
 
 void
 free_layouts(Vm *vm)
 {
-    for(size_t i = 0; i < vm->layout_slots; i++)
+    for(size_t i = 0; i < vm->layout_slots; i++) {
         free(vm->layouts[i].fields);
+        free(vm->layouts[i].field_slots);
+    }
     free(vm->layouts);
     vm->layouts = NULL;
     vm->layout_slots = vm->layout_count = 0;
@@ -474,6 +529,14 @@ allocate_record(Vm *vm, const ZirModule *owner,
     record->owner = owner;
     record->type = type;
     record->field_count = count;
+    const VmLayout *layout = record_layout(vm, type);
+    if(layout == NULL || layout->count != count) {
+        free(record);
+        vm->failed = 1;
+        return NULL;
+    }
+    record->field_slots = layout->field_slots;
+    record->field_slot_count = layout->field_slot_count;
     vm->records = record;
     vm->record_bytes += bytes;
     vm->allocated_since_collection += bytes;
@@ -621,11 +684,13 @@ clone_value(Vm *vm, Value value, int depth)
                                    value.record->field_count);
     if(copy == NULL)
         return int_value(0);
-    for(int i = 0; i < copy->field_count && !vm->failed; i++) {
-        copy->fields[i].field = value.record->fields[i].field;
-        copy->fields[i].value = clone_value(vm,
-            value.record->fields[i].value, depth + 1);
-    }
+    memcpy(copy->fields, value.record->fields,
+           (size_t)copy->field_count * sizeof(*copy->fields));
+    for(int i = 0; i < copy->field_count && !vm->failed; i++)
+        if(copy->fields[i].value.kind == VALUE_RECORD ||
+           copy->fields[i].value.kind == VALUE_ARRAY)
+            copy->fields[i].value = clone_value(vm,
+                copy->fields[i].value, depth + 1);
     return (Value){.kind = VALUE_RECORD, .record = copy};
 }
 
@@ -667,7 +732,7 @@ default_value(Vm *vm, const ZirModule *module, const char *type, int depth)
         return (Value){.kind = VALUE_ARRAY, .array = array};
     }
     const ZirModule *owner = NULL;
-    const ZirType *record_type = FindType(module, type, &owner);
+    const ZirType *record_type = vm_find_type(vm, module, type, &owner);
     if(record_type != NULL && record_type->is_enum)
         return enum_value(record_type, 0);
     if(record_type != NULL && record_type->is_procedure_type)
@@ -734,6 +799,9 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
                 vm->failed = 1;
                 return int_value(0);
             }
+            if(!value.array->holds_references &&
+               array_element_matches(module, element, value.array))
+                return clone_value(vm, value, 0);
             Array *copy = allocate_array(vm, module, element, capacity);
             if(copy == NULL)
                 return int_value(0);
@@ -743,7 +811,7 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
             return (Value){.kind = VALUE_ARRAY, .array = copy};
         }
         const ZirModule *owner = NULL;
-        const ZirType *record = FindType(module, type, &owner);
+        const ZirType *record = vm_find_type(vm, module, type, &owner);
         if(record != NULL && record->is_procedure_type &&
            value.kind == VALUE_SLOT && value.slot_type == record)
             return value;
@@ -852,7 +920,7 @@ coerce_expression(Vm *vm, const ZirModule *module,
 {
     if(value.kind == VALUE_RECORD && value.record != NULL) {
         const ZirModule *owner = NULL;
-        const ZirType *record = FindType(module, type, &owner);
+        const ZirType *record = vm_find_type(vm, module, type, &owner);
         if(record != NULL && !record->is_enum && !record->is_procedure_type &&
            !record->is_extern && !record->is_map && same_record_type(owner, record, value.record))
             return value;

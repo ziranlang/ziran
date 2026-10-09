@@ -128,6 +128,8 @@ typedef struct VmLayout {
     const ZirType *type;
     int count;          /* -1 when the fields are malformed or too many */
     VmField *fields;
+    int *field_slots;
+    size_t field_slot_count;
 } VmLayout;
 
 typedef struct RecordField {
@@ -144,6 +146,8 @@ struct Record {
     const ZirModule *owner;
     const ZirType *type;
     int field_count;
+    const int *field_slots;
+    size_t field_slot_count;
     RecordField fields[];
 };
 
@@ -272,8 +276,10 @@ struct StringLiteral {
 };
 
 typedef struct Local {
-    char name[ZIR_NAME_MAX];
-    char type[ZIR_NAME_MAX];
+    /* Names and types belong to the checked statement or cached signature,
+     * which outlive this call. Only the value is mutable local storage. */
+    const char *name;
+    const char *type;
     Value value;
 } Local;
 
@@ -287,8 +293,11 @@ typedef struct GlobalSlot {
  * when they are outside the portable subset. */
 typedef struct VmSignature {
     const ZirModule *module;
-    const char *args; /* kept parameter text: one pointer per spelling */
+    const ZirFunction *function;
+    const char *extern_args; /* temporary foreign descriptors use kept text */
     int count;
+    int local_bound;
+    uint64_t read_only;
     Parameter parameters[];
 } VmSignature;
 
@@ -305,10 +314,21 @@ typedef struct VmCallSite {
     const ZirImport *external;
 } VmCallSite;
 
+typedef struct VmGlobalSite {
+    const ZirExpr *expression;
+    const ZirModule *module;
+    Value *value;
+} VmGlobalSite;
+
+typedef struct VmTypeSite {
+    const ZirModule *module, *owner;
+    const ZirType *resolved;
+    const char *name;
+} VmTypeSite;
+
 typedef struct Vm {
     const ZirProgram *program;
-    /* Signatures by module and parameter text, so a call does not parse
-     * and look up its parameter types again. */
+    /* Parameters and immutable call setup facts, once per function. */
     const VmSignature **signatures;
     size_t signature_count, signature_slots;
     int depth;
@@ -326,6 +346,7 @@ typedef struct Vm {
     size_t array_bytes;
     size_t string_bytes;
     size_t allocated_since_collection;
+    size_t collection_threshold;
     uint64_t allocation;
     uint64_t pin_generation;
     uint64_t retire_floor;
@@ -336,6 +357,8 @@ typedef struct Vm {
     int global_count;
     VmVecType *vec_types;
     VmCallSite *call_sites;
+    VmGlobalSite *global_sites;
+    VmTypeSite *type_sites;
     Frame *active_frame;
     VmRoots *evaluation_roots;
     VmHostCall host;
@@ -431,6 +454,9 @@ const ZirFunction *find_entry(const ZirProgram *program, const char *module_name
 int is_else_branch(const ZirStmt *statement);
 int statement_close(const ZirFunction *function, int begin, int end);
 Value *record_field(Record *record, const char *name);
+size_t vm_field_hash(const char *name);
+const ZirType *vm_find_type(Vm *vm, const ZirModule *module,
+                            const char *name, const ZirModule **owner);
 Value union_member_read(Vm *vm, Record *record, const char *field_type);
 int union_member_write(Vm *vm, Record *record, const char *field_type, Value value);
 Value *assignment_slot(Frame *frame, int index, int depth);

@@ -2,6 +2,7 @@
 #include "compiler_type.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 
 /* IR storage and C strings stay at this boundary. All spelling, field,
  * container, and foreign-symbol rules come from cmd/compiler_type.zi. */
@@ -33,6 +34,7 @@ static struct {
     RecordFields **slots, **ids;
     size_t slots_count, count, capacity;
 } record_fields;
+static atomic_flag record_fields_lock = ATOMIC_FLAG_INIT;
 enum { FIELD_CURSOR_BITS = 12, FIELD_CURSOR_MASK = (1 << FIELD_CURSOR_BITS) - 1 };
 
 static size_t field_slot(RecordFields **slots, size_t count, const char *body, int is_union)
@@ -130,14 +132,17 @@ int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
     if(record->is_enum || record->is_procedure_type) return -1;
     RecordFields *fields;
     size_t index = 0;
+    while(atomic_flag_test_and_set_explicit(&record_fields_lock, memory_order_acquire)) {}
     if(*cursor == 0) fields = fields_of(record);
     else {
         size_t id = *cursor >> FIELD_CURSOR_BITS;
-        if(id == 0 || id > record_fields.count) return -1;
-        fields = record_fields.ids[id - 1];
+        fields = id > 0 && id <= record_fields.count ? record_fields.ids[id - 1] : NULL;
         index = *cursor & FIELD_CURSOR_MASK;
         ProfileCount("record_fields_reuse");
     }
+    /* Snapshots never change after publication. Only their lookup tables can
+     * move, so field copying and cursor iteration need no retained lock. */
+    atomic_flag_clear_explicit(&record_fields_lock, memory_order_release);
     if(fields == NULL || fields->is_union != (record->is_union != 0) || index > fields->count)
         return -1;
     if(index == fields->count) return fields->terminal;

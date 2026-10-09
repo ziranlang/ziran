@@ -98,17 +98,31 @@ find_local(Frame *frame, const char *name)
 }
 
 static Value *
-find_global_value(Frame *frame, const char *name)
+find_global_value(Frame *frame, const ZirExpr *expression)
 {
+    enum { SLOTS = 4096 };
+    Vm *vm = frame->vm;
+    size_t index = (((uintptr_t)expression >> 4) * 11400714819323198485ull) & (SLOTS - 1);
+    if(vm->global_sites == NULL)
+        vm->global_sites = calloc(SLOTS, sizeof(*vm->global_sites));
+    if(vm->global_sites != NULL &&
+       vm->global_sites[index].expression == expression &&
+       vm->global_sites[index].module == frame->module)
+        return vm->global_sites[index].value;
     const ZirModule *owner = NULL;
     const ZirGlobal *declaration = NULL;
-    if(ResolveGlobalAt(frame->module, name, SpanPath(frame->function->span),
+    if(ResolveGlobalAt(frame->module, expression->name, SpanPath(frame->function->span),
                        &owner, &declaration) != 1)
         return NULL;
     for(int i = 0; i < frame->vm->global_count; i++) {
         GlobalSlot *slot = &frame->vm->globals[i];
-        if(slot->module == owner && slot->declaration == declaration)
+        if(slot->module == owner && slot->declaration == declaration) {
+            /* Global slots stay at the same address for the instance;
+             * cache the slot, never its mutable contents. */
+            if(vm->global_sites != NULL)
+                vm->global_sites[index] = (VmGlobalSite){expression, frame->module, &slot->value};
             return &slot->value;
+        }
     }
     return NULL;
 }
@@ -141,9 +155,13 @@ record_field(Record *record, const char *name)
 {
     if(record == NULL)
         return NULL;
-    for(int i = 0; i < record->field_count; i++)
-        if(strcmp(record->fields[i].field.name, name) == 0)
-            return &record->fields[i].value;
+    size_t position = vm_field_hash(name) & (record->field_slot_count - 1);
+    while(record->field_slots[position] >= 0) {
+        int index = record->field_slots[position];
+        if(strcmp(record->fields[index].field.name, name) == 0)
+            return &record->fields[index].value;
+        position = (position + 1) & (record->field_slot_count - 1);
+    }
     return NULL;
 }
 
@@ -318,7 +336,7 @@ owned_place(Frame *frame, int index, int depth)
     if(expression->kind == ZIR_EXPR_IDENT) {
         Local *local = find_local(frame, expression->name);
         return (Value){.kind = VALUE_POINTER,
-            .pointee = local != NULL ? &local->value : find_global_value(frame, expression->name),
+            .pointee = local != NULL ? &local->value : find_global_value(frame, expression),
             .bits = local != NULL ? frame->serial : 0};
     }
     if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*")) {
@@ -717,7 +735,7 @@ eval_expression(Frame *frame, int index, int depth)
             return coerce_expression(frame->vm, frame->module,
                                      stored, expression->type);
         }
-        Value *global = find_global_value(frame, expression->name);
+        Value *global = find_global_value(frame, expression);
         if(global != NULL)
             return coerce_expression(frame->vm, frame->module,
                                      *global, expression->type);
@@ -1430,7 +1448,7 @@ eval_expression(Frame *frame, int index, int depth)
             if(expression->name[0]) {
                 Local *binding = find_local(frame, expression->name);
                 Value *global = binding == NULL ?
-                    find_global_value(frame, expression->name) : NULL;
+                    find_global_value(frame, expression) : NULL;
                 callable = binding != NULL ? binding->value :
                     global != NULL ? *global : (Value){0};
             } else {

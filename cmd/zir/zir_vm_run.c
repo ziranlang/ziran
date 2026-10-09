@@ -28,7 +28,9 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
         /* Suspended expressions retain their partial values explicitly,
          * so nested calls can reclaim garbage at statement boundaries too.
          * Batch collection instead of walking globals after every helper. */
-        if(vm->allocated_since_collection >= 4 * 1024 * 1024)
+        size_t threshold = vm->collection_threshold ?
+            vm->collection_threshold : 4 * 1024 * 1024;
+        if(vm->allocated_since_collection >= threshold)
             collect_unreachable(vm);
         const ZirStmt *statement = &function->stmts[s];
         int close;
@@ -44,8 +46,8 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             if(vm->failed || frame->local_count >= frame->local_capacity)
                 return FLOW_ERROR;
             Local *local = &frame->locals[frame->local_count++];
-            copy_text(local->name, sizeof(local->name), statement->name);
-            copy_text(local->type, sizeof(local->type), statement->type);
+            local->name = statement->name;
+            local->type = statement->type;
             local->value = coerce(vm, frame->module, value, statement->type);
             break;
         }
@@ -602,8 +604,11 @@ pin_value(Vm *vm, Value value, int depth)
     if(value.kind == VALUE_RECORD && value.record != NULL &&
        value.record->pinned != vm->pin_generation) {
         value.record->pinned = vm->pin_generation;
-        for(int i = 0; i < value.record->field_count; i++)
-            pin_value(vm, value.record->fields[i].value, depth + 1);
+        for(int i = 0; i < value.record->field_count; i++) {
+            Value field = value.record->fields[i].value;
+            if(field.kind == VALUE_STRING || field.kind >= VALUE_RECORD)
+                pin_value(vm, field, depth + 1);
+        }
     } else if(value.kind == VALUE_ARRAY && value.array != NULL &&
               value.array->pinned != vm->pin_generation) {
         value.array->pinned = vm->pin_generation;
@@ -710,6 +715,14 @@ collect_unreachable(Vm *vm)
     vm->retire_floor = remaining_retired;
     release_call_strings(vm, 0, UINT64_MAX);
     vm->allocated_since_collection = 0;
+    /* A retained program may keep a large, mostly unchanged object graph.
+     * Give it allocation room proportional to that live graph instead of
+     * repeatedly marking it after every small batch of temporary values.
+     * Keep the batch bounded independently of the VM's storage limits. */
+    size_t threshold = (vm->record_bytes + vm->array_bytes + vm->string_bytes) / 2;
+    if(threshold < 4 * 1024 * 1024) threshold = 4 * 1024 * 1024;
+    if(threshold > 32 * 1024 * 1024) threshold = 32 * 1024 * 1024;
+    vm->collection_threshold = threshold;
 }
 
 /* Result coercion creates its own deep copy after before_result. Reclaim
@@ -758,14 +771,17 @@ release_call_arrays(Vm *vm, uint64_t entry, uint64_t before_result)
 /* Buffers run_function keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 static size_t
-signature_slot(const Vm *vm, const ZirModule *module, const char *args)
+signature_slot(const Vm *vm, const ZirModule *module,
+               const ZirFunction *function, const char *extern_args)
 {
-    size_t slot = (((uintptr_t)module >> 4) ^ ((uintptr_t)args >> 3)) *
+    size_t slot = (((uintptr_t)module >> 4) ^
+                   ((uintptr_t)(function ? (const void *)function : extern_args) >> 3)) *
                   11400714819323198485ull;
     slot &= vm->signature_slots - 1;
     while(vm->signatures[slot] != NULL &&
           (vm->signatures[slot]->module != module ||
-           vm->signatures[slot]->args != args))
+           vm->signatures[slot]->function != function ||
+           vm->signatures[slot]->extern_args != extern_args))
         slot = (slot + 1) & (vm->signature_slots - 1);
     return slot;
 }
@@ -773,7 +789,8 @@ signature_slot(const Vm *vm, const ZirModule *module, const char *args)
 const VmSignature *
 vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
 {
-    const char *args = KeepText(FunctionArgs(function));
+    const ZirFunction *key = function->is_extern ? NULL : function;
+    const char *extern_args = function->is_extern ? FunctionArgs(function) : NULL;
     if(vm->signature_count * 2 >= vm->signature_slots) {
         size_t old_slots = vm->signature_slots;
         const VmSignature **old = vm->signatures;
@@ -785,18 +802,26 @@ vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
         }
         for(size_t i = 0; i < old_slots; i++)
             if(old[i] != NULL)
-                vm->signatures[signature_slot(vm, old[i]->module, old[i]->args)] = old[i];
+                vm->signatures[signature_slot(vm, old[i]->module,
+                    old[i]->function, old[i]->extern_args)] = old[i];
         free(old);
     }
-    size_t slot = signature_slot(vm, module, args);
+    size_t slot = signature_slot(vm, module, key, extern_args);
     if(vm->signatures[slot] == NULL) {
         Parameter *parsed = AllocateOrExit(VM_MAX_PARAMS * sizeof(*parsed));
         int count = parse_parameters(module, function, parsed);
         VmSignature *signature = AllocateOrExit(sizeof(*signature) +
             (size_t)(count > 0 ? count : 0) * sizeof(signature->parameters[0]));
         signature->module = module;
-        signature->args = args;
+        signature->function = key;
+        signature->extern_args = extern_args;
         signature->count = count;
+        signature->local_bound = function_local_bound(function, count);
+        signature->read_only = 0;
+        for(int i = 0; !function->is_extern && i < count; i++)
+            if(!VecElementType(module, parsed[i].type, NULL, 0) &&
+               parameter_read_only(function, parsed[i].name))
+                signature->read_only |= UINT64_C(1) << i;
         if(count > 0)
             memcpy(signature->parameters, parsed, (size_t)count * sizeof(*parsed));
         free(parsed);
@@ -939,7 +964,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
         return host_return(vm, module, function->return_type,
                            &host_result, 0);
     }
-    int bound = function_local_bound(function, count);
+    int bound = signature->local_bound;
     if(buffers->local_capacity < bound) {
         Local *locals = realloc(buffers->locals, (size_t)bound * sizeof(*locals));
         if(locals == NULL) {
@@ -959,14 +984,13 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     buffers->frame.serial = ++vm->call_serial;
     vm->active_frame = &buffers->frame;
     for(int i = 0; i < count; i++) {
-        copy_text(buffers->frame.locals[i].name, sizeof(buffers->frame.locals[i].name),
-                  parameters[i].name);
-        copy_text(buffers->frame.locals[i].type, sizeof(buffers->frame.locals[i].type),
-                  parameters[i].type);
-        buffers->frame.locals[i].value = !VecElementType(module, parameters[i].type,
-                                                NULL, 0) &&
-                                parameter_read_only(function,
-                                                    parameters[i].name) ?
+        buffers->frame.locals[i].name = parameters[i].name;
+        buffers->frame.locals[i].type = parameters[i].type;
+        /* Scalars, strings and borrowed views never need the aggregate
+         * read-only analysis. Coercion copies those values identically. */
+        buffers->frame.locals[i].value =
+                                (args[i].kind == VALUE_RECORD || args[i].kind == VALUE_ARRAY) &&
+                                (signature->read_only & (UINT64_C(1) << i)) ?
             coerce_expression(vm, module, args[i], parameters[i].type) :
             coerce(vm, module, args[i], parameters[i].type);
     }
@@ -1402,6 +1426,8 @@ VmInstanceClose(VmInstance *instance)
     free_signatures(&instance->vm);
     free(instance->vm.vec_types);
     free(instance->vm.call_sites);
+    free(instance->vm.global_sites);
+    free(instance->vm.type_sites);
     free(instance->vm.globals);
     free(instance);
 }

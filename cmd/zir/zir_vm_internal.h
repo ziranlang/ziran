@@ -294,8 +294,14 @@ typedef struct GlobalSlot {
     Value value;
 } GlobalSlot;
 
-/* A function's parameters as parse_parameters reads them, or count -1
- * when they are outside the portable subset. */
+/* Verified parameter names and types use the same immutable interned text
+ * as checked expressions and local declarations. */
+typedef struct VmParameter {
+    const char *name;
+    const char *type;
+} VmParameter;
+
+/* A function's parameters, or count -1 outside the portable subset. */
 typedef struct VmSignature {
     const ZirModule *module;
     const ZirFunction *function;
@@ -303,7 +309,7 @@ typedef struct VmSignature {
     int count;
     int local_bound;
     uint64_t read_only;
-    Parameter parameters[];
+    VmParameter parameters[];
 } VmSignature;
 
 typedef struct VmVecType {

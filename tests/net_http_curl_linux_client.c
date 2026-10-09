@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 static String
 url(char *buffer, size_t capacity, const char *base, const char *path)
@@ -22,6 +23,27 @@ main(int argc, char **argv)
     HttpRequest request = {0};
     request.method = StringLiteral("GET");
     request.url = url(address, sizeof address, argv[1], "/ok");
+    if (getenv("ZIRAN_CURL_DIRECT_ONLY")) {
+        CurlResult direct = SendCurlDirectWithin(request, buffer, 1000);
+        assert(direct.code == 0 && direct.status == 200 && direct.length == 5);
+        assert(strcmp(output, "ready") == 0);
+        request.method = StringLiteral("HEAD");
+        direct = SendCurlDirectWithin(request, buffer, 1000);
+        assert(direct.code == 0 && direct.status == 200 && direct.length == 0);
+        request.method = StringLiteral("GET");
+        request.url = url(address, sizeof address, argv[1], "/redirect");
+        direct = SendCurlDirectWithin(request, buffer, 1000);
+        assert(direct.code == 0 && direct.status == 302 && direct.length == 0);
+        request.method = StringLiteral("PUT");
+        request.url = url(address, sizeof address, argv[1], "/binary");
+        const char binary[] = {0, (char)0xff, 0, 'a'};
+        request.body = StringView(binary, sizeof binary);
+        direct = SendCurlDirectWithin(request, buffer, 1000);
+        assert(direct.code == 0 && direct.status == 200 && direct.length == sizeof binary);
+        assert(memcmp(output, binary, sizeof binary) == 0);
+        puts("Ziran direct HTTP bypasses proxies, retains redirects, HEAD and binary bodies");
+        return 0;
+    }
     CurlResult result = SendCurl(request, buffer);
     assert(result.code == 0 && result.status == 200);
     assert(result.length == 5 && strcmp(output, "ready") == 0);

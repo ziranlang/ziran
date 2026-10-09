@@ -34,6 +34,9 @@ CurlPostSize :: 30120
 CurlTimeoutMs :: 155
 CurlConnectTimeoutMs :: 156
 CurlNoSignal :: 99
+CurlNoBody :: 44
+CurlProxy :: 10004
+CurlFollowLocation :: 52
 CurlResponseCode :: 2097154
 
 curl_once: s32 = 0;
@@ -242,6 +245,17 @@ SendCurl :: (request: HttpRequest, output: []u8) -> CurlResult {
 // model generation. Connecting still has 10 seconds.
 #program_export
 SendCurlWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) -> CurlResult {
+    return SendCurlConfigured(request, output, timeout_ms, false)
+}
+
+// Bypass inherited proxy settings and never follow redirects. Callers still
+// own URL authorization; this is useful for private local service transports.
+#program_export
+SendCurlDirectWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) -> CurlResult {
+    return SendCurlConfigured(request, output, timeout_ms, true)
+}
+
+SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, direct: bool) -> CurlResult {
     result: CurlResult
     result.code = -1
     if output.count == 0 { return result }
@@ -276,6 +290,15 @@ SendCurlWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) -> CurlR
     timeout_ms > 0 && SetCurlLong(handle, CurlTimeoutMs, timeout_ms) &&
     SetCurlLong(handle, CurlConnectTimeoutMs, 10000) &&
     SetCurlLong(handle, CurlNoSignal, 1)
+    if configured && direct {
+        proxy: [1]u8
+        proxy[0] = cast(u8)0
+        configured = curl_easy_setopt(handle, CurlProxy, *proxy[0]) == 0 &&
+            SetCurlLong(handle, CurlFollowLocation, 0)
+    }
+    if configured && request.method == "HEAD" {
+        configured = SetCurlLong(handle, CurlNoBody, 1)
+    }
     if configured {
         if size_of(type_of(handle)) == 8 {
             writer: CurlWriteCallback64 = CurlWrite64

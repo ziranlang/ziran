@@ -15,9 +15,24 @@ PosixThreadEntry :: #type (argument: *void) -> *void #c_call;
 PosixThreadCreate :: (thread: *usize, attributes: *void,
     entry: PosixThreadEntry, argument: *void) -> s32 #foreign libc "pthread_create";
 PosixThreadJoin :: (thread: usize, result: **void) -> s32 #foreign libc "pthread_join";
+// Completion polling must also wait for the notification and native thread
+// cleanup to finish, without blocking the polling thread on either of them.
+#if #defined(ANDROID_BUILD) || #defined(ANDROID) {
+    PosixThreadId :: (thread: usize) -> s32 #foreign libc "pthread_gettid_np";
+    PosixThreadTryJoin :: (thread: usize, result: **void) -> s32 {
+        // Bionic retains a joinable thread's record until its sole owner
+        // joins it. The kernel clears this tid after notifications and TLS
+        // cleanup have finished. Android has no pthread_tryjoin_np export.
+        if PosixThreadId(thread) != 0 { return 1 }
+        return PosixThreadJoin(thread, result)
+    }
+} else {
+    PosixThreadTryJoin :: (thread: usize, result: **void) -> s32 #foreign libc "pthread_tryjoin_np";
+}
 PosixMutexInit :: (mutex: *void, attributes: *void) -> s32 #foreign libc "pthread_mutex_init";
 PosixMutexDestroy :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_destroy";
 PosixMutexLock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_lock";
+PosixMutexTryLock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_trylock";
 PosixMutexUnlock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_unlock";
 
 ThreadNotification :: struct { procedure: ThreadProcedure; argument: *void }
@@ -86,11 +101,11 @@ ThreadRunning :: (thread: *Thread) -> bool {
 #program_export
 ThreadFinished :: (thread: *Thread) -> bool {
     if thread == null || !thread.running { return false }
-    unused PosixMutexLock(ThreadLock(thread))
+    if PosixMutexTryLock(ThreadLock(thread)) != 0 { return false }
     finished := thread.finished
     unused PosixMutexUnlock(ThreadLock(thread))
     if !finished { return false }
-    unused PosixThreadJoin(thread.handle, null)
+    if PosixThreadTryJoin(thread.handle, null) != 0 { return false }
     unused PosixMutexDestroy(ThreadLock(thread))
     thread.running = false
     return true

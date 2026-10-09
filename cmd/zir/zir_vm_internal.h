@@ -160,6 +160,7 @@ struct Array {
     Array *next;
     int retired;
     int address_taken; /* a pointer may reach an element; never retired early */
+    int borrowed; /* a slice has observed this storage; returns must copy it */
     int heap;  /* New(T) storage, which free releases */
     int freed; /* released by free; reading through a pointer fails */
     uint64_t pinned;
@@ -320,6 +321,12 @@ typedef struct VmGlobalSite {
     Value *value;
 } VmGlobalSite;
 
+typedef struct VmConstantSite {
+    const ZirExpr *expression;
+    const ZirModule *module;
+    Value value;
+} VmConstantSite;
+
 typedef struct VmTypeSite {
     const ZirModule *module, *owner;
     const ZirType *resolved;
@@ -359,6 +366,7 @@ typedef struct Vm {
     VmCallSite *call_sites;
     VmGlobalSite *global_sites;
     VmTypeSite *type_sites;
+    VmConstantSite *constant_sites;
     Frame *active_frame;
     VmRoots *evaluation_roots;
     VmHostCall host;
@@ -386,6 +394,7 @@ struct Frame {
     Local *locals;
     int local_capacity;
     int local_count;
+    int returned_local;
     int control_target;
     /* Set while a union member is the assignment destination. */
     Record *union_write_record;

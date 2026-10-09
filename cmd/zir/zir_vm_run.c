@@ -16,6 +16,25 @@ static void collect_unreachable(Vm *vm);
 static Flow
 execute_sequence(Frame *frame, int begin, int end, int depth, Value *result);
 
+static int return_storage_owned(Value value, int depth);
+
+/* A call or aggregate literal can hand fresh, unaliased storage directly to
+ * its destination. Reads of existing bindings still preserve value copying. */
+static Value
+coerce_storage_expression(Frame *frame, int expression, Value value,
+                          const char *type, uint64_t allocation_entry)
+{
+    if(expression >= 0 && value.kind == VALUE_RECORD && value.record != NULL &&
+       value.record->allocation > allocation_entry &&
+       (frame->function->exprs[expression].kind == ZIR_EXPR_CALL ||
+        frame->function->exprs[expression].kind == ZIR_EXPR_COMPOUND) &&
+       !vm_type_contains_vec(frame->vm, frame->module, type, 0) &&
+       return_storage_owned(value, 0))
+        return coerce_expression(frame->vm, frame->module, value, type);
+    return coerce(frame->vm, frame->module, value, type);
+}
+
+
 static Flow
 execute_sequence_body(Frame *frame, int begin, int end, int depth,
                       Value *result)
@@ -40,6 +59,7 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             return FLOW_ERROR;
         switch(statement->kind) {
         case ZIR_STMT_DECL: {
+            uint64_t allocation_entry = vm->allocation;
             Value value = statement->expr_root >= 0 ?
                 eval(frame, statement->expr_root, 0) :
                 default_value(vm, frame->module, statement->type, 0);
@@ -48,7 +68,8 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             Local *local = &frame->locals[frame->local_count++];
             local->name = statement->name;
             local->type = statement->type;
-            local->value = coerce(vm, frame->module, value, statement->type);
+            local->value = coerce_storage_expression(frame, statement->expr_root,
+                value, statement->type, allocation_entry);
             break;
         }
         case ZIR_STMT_ASSIGN: {
@@ -73,6 +94,7 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             held[1] = current;
             VmRoots roots = {vm->evaluation_roots, held, 2};
             vm->evaluation_roots = &roots;
+            uint64_t allocation_entry = vm->allocation;
             Value right = eval(frame, statement->expr_root, 0);
             if(vm->failed)
                 return FLOW_ERROR;
@@ -86,8 +108,8 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
                     function->exprs[statement->expr_root].type);
             }
             Value replacement = union_record != NULL ? right :
-                coerce(vm, frame->module, right,
-                       function->exprs[statement->lhs_root].type);
+                coerce_storage_expression(frame, statement->expr_root, right,
+                    function->exprs[statement->lhs_root].type, allocation_entry);
             if(vm->failed)
                 return FLOW_ERROR;
             if(union_record != NULL) {
@@ -127,6 +149,16 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
         case ZIR_STMT_RETURN:
             *result = statement->expr_root >= 0 ?
                 eval(frame, statement->expr_root, 0) : int_value(0);
+            if(statement->expr_root >= 0 && result->kind == VALUE_RECORD &&
+               function->exprs[statement->expr_root].kind == ZIR_EXPR_IDENT) {
+                const char *name = function->exprs[statement->expr_root].name;
+                for(int i = frame->local_count - 1; i >= 0; i--)
+                    if(!strcmp(frame->locals[i].name, name)) {
+                        frame->returned_local = frame->locals[i].value.kind == VALUE_RECORD &&
+                            frame->locals[i].value.record == result->record;
+                        break;
+                    }
+            }
             return vm->failed ? FLOW_ERROR : FLOW_RETURN;
         case ZIR_STMT_UNREACHABLE:
             Diagnostic(statement->span, "vm.unreachable", "unreachable code executed");
@@ -550,30 +582,25 @@ assignment_root_name(const ZirFunction *function, int index)
     return NULL;
 }
 
-static int
-function_uses_slots(const ZirFunction *function)
-{
-    for(int i = 0; i < function->expr_count; i++) {
-        if(function->exprs[i].is_function_value ||
-           function->exprs[i].slot_type[0])
-            return 1;
-    }
-    return 0;
-}
-
 /* A record or array parameter can share its caller's value only when the
  * callee cannot write through that parameter. Other storage paths still copy
  * values, so passing a parameter onward to a mutating function stays safe. */
 static int
 parameter_read_only(const ZirFunction *function, const char *name)
 {
-    if(function_uses_slots(function))
-        return 0;
     /* A pointer taken into the parameter could write through it later. */
     for(int i = 0; i < function->expr_count; i++) {
         const ZirExpr *expression = &function->exprs[i];
         if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "&")) {
             const char *root = assignment_root_name(function, expression->right);
+            if(root == NULL || strcmp(root, name) == 0)
+                return 0;
+        }
+        /* A mutable slice of a by-value array can be passed to another
+         * function or procedure. The array must belong to this call first. */
+        if(expression->kind == ZIR_EXPR_SLICE && expression->left >= 0 &&
+           ArrayElementType(function->exprs[expression->left].type, NULL, 0, NULL)) {
+            const char *root = assignment_root_name(function, expression->left);
             if(root == NULL || strcmp(root, name) == 0)
                 return 0;
         }
@@ -819,7 +846,7 @@ vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
         signature->local_bound = function_local_bound(function, count);
         signature->read_only = 0;
         for(int i = 0; !function->is_extern && i < count; i++)
-            if(!VecElementType(module, parsed[i].type, NULL, 0) &&
+            if(!vm_type_contains_vec(vm, module, parsed[i].type, 0) &&
                parameter_read_only(function, parsed[i].name))
                 signature->read_only |= UINT64_C(1) << i;
         if(count > 0)
@@ -875,6 +902,30 @@ give_setup(CallSetup **setup)
     else
         free(*setup);
     *setup = NULL;
+}
+
+/* A fresh local record can become the return value without a second deep
+ * copy. Borrowed fields or array elements can escape through pointers, so
+ * those records still materialize a separate value at the return boundary. */
+static int
+return_storage_owned(Value value, int depth)
+{
+    if(depth >= VM_MAX_DEPTH) return 0;
+    if(value.kind == VALUE_RECORD && value.record != NULL) {
+        if(value.record->address_taken) return 0;
+        for(int i = 0; i < value.record->field_count; i++) {
+            Value field = value.record->fields[i].value;
+            if((field.kind == VALUE_RECORD || field.kind == VALUE_ARRAY) &&
+               !return_storage_owned(field, depth + 1)) return 0;
+        }
+    } else if(value.kind == VALUE_ARRAY && value.array != NULL) {
+        if(value.array->address_taken || value.array->borrowed) return 0;
+        if(value.array->holds_references)
+            for(int i = 0; i < value.array->length; i++)
+                if(!return_storage_owned(array_get(value.array, (size_t)i), depth + 1))
+                    return 0;
+    }
+    return 1;
 }
 
 Value run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
@@ -1001,7 +1052,12 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
        (flow != FLOW_RETURN && strcmp(function->return_type, "void") != 0))
         vm->failed = 1;
     uint64_t allocation_before_result = vm->allocation;
-    Value returned = coerce(vm, module, result, function->return_type);
+    Value returned = buffers->frame.returned_local && result.record != NULL &&
+        result.record->allocation > allocation_entry &&
+        !vm_type_contains_vec(vm, module, function->return_type, 0) &&
+        return_storage_owned(result, 0) ?
+        coerce_expression(vm, module, result, function->return_type) :
+        coerce(vm, module, result, function->return_type);
     /* Nested return paths leave their locals in this frame. Materialize the
      * return value before releasing those bindings. */
     drop_owned_locals(&buffers->frame, 0);
@@ -1428,6 +1484,7 @@ VmInstanceClose(VmInstance *instance)
     free(instance->vm.call_sites);
     free(instance->vm.global_sites);
     free(instance->vm.type_sites);
+    free(instance->vm.constant_sites);
     free(instance->vm.globals);
     free(instance);
 }

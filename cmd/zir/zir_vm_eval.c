@@ -185,7 +185,7 @@ record_field_path(Record *record, const char *path)
 Value
 union_member_read(Vm *vm, Record *record, const char *field_type)
 {
-    const ZirType *enumeration = FindType(record->owner, field_type, NULL);
+    const ZirType *enumeration = vm_find_type(vm, record->owner, field_type, NULL);
     const char *backing = field_type;
     uint64_t bits;
     Value result = int_value(0);
@@ -234,7 +234,7 @@ union_member_read(Vm *vm, Record *record, const char *field_type)
 int
 union_member_write(Vm *vm, Record *record, const char *field_type, Value value)
 {
-    const ZirType *enumeration = FindType(record->owner, field_type, NULL);
+    const ZirType *enumeration = vm_find_type(vm, record->owner, field_type, NULL);
     const char *backing = field_type;
     uint64_t bits = 0;
     if(record->field_count < 1)
@@ -654,33 +654,41 @@ eval_expression(Frame *frame, int index, int depth)
         value = int_value((int64_t)size);
         break;
     }
-    case ZIR_EXPR_INT: {
+    case ZIR_EXPR_INT:
+    case ZIR_EXPR_FLOAT: {
+        /* Checked numeric literals are immutable. Parse and coerce once per
+         * instance; the cache contains only scalars and enum type pointers. */
+        enum { SLOTS = 4096 };
+        uintptr_t hash = (uintptr_t)expression;
+        hash ^= hash >> 17;
+        hash ^= hash >> 9;
+        size_t slot = (hash >> 4) & (SLOTS - 1);
+        Vm *vm = frame->vm;
+        if(vm->constant_sites == NULL)
+            vm->constant_sites = calloc(SLOTS, sizeof(*vm->constant_sites));
+        if(vm->constant_sites != NULL &&
+           vm->constant_sites[slot].expression == expression &&
+           vm->constant_sites[slot].module == frame->module)
+            return vm->constant_sites[slot].value;
         char *end;
         errno = 0;
-        if(expression->text[0] == '-') {
+        if(expression->kind == ZIR_EXPR_FLOAT)
+            value = real_value(strtod(expression->text, &end));
+        else if(expression->text[0] == '-')
             value = int_value(strtoll(expression->text, &end, 0));
-        } else {
+        else {
             unsigned long long bits = strtoull(expression->text, &end, 0);
             value = bits > INT64_MAX ? uint_value(bits) : int_value((int64_t)bits);
         }
-        if(errno || end == expression->text || *end)
-            frame->vm->failed = 1;
-        else {
-            const ZirType *enumeration = FindType(frame->module,
-                                                  expression->type, NULL);
-            if(enumeration != NULL && enumeration->is_enum)
-                value = coerce(frame->vm, frame->module, value,
-                               expression->type);
+        if(errno || end == expression->text || *end ||
+           (value.kind == VALUE_REAL && !isfinite(value.real))) {
+            vm->failed = 1;
+            break;
         }
-        break;
-    }
-    case ZIR_EXPR_FLOAT: {
-        char *end;
-        errno = 0;
-        value = real_value(strtod(expression->text, &end));
-        if(errno || end == expression->text || *end || !isfinite(value.real))
-            frame->vm->failed = 1;
-        break;
+        value = coerce_expression(vm, frame->module, value, expression->type);
+        if(!vm->failed && vm->constant_sites != NULL)
+            vm->constant_sites[slot] = (VmConstantSite){expression, frame->module, value};
+        return value;
     }
     case ZIR_EXPR_STRING:
         value = literal_string(frame->vm, expression);
@@ -691,8 +699,8 @@ eval_expression(Frame *frame, int index, int depth)
         if(expression->is_function_value) {
             const ZirModule *owner = NULL;
             const ZirFunction *function = NULL;
-            const ZirType *slot = FindType(frame->module,
-                                           expression->type, NULL);
+            const ZirType *slot = vm_find_type(frame->vm, frame->module,
+                                              expression->type, NULL);
             if(slot == NULL || !slot->is_procedure_type ||
                ResolveFunction(frame->module, expression->name,
                                &owner, &function) != 1 || function == NULL) {
@@ -980,6 +988,7 @@ eval_expression(Frame *frame, int index, int depth)
             frame->vm->failed = 1;
             break;
         }
+        if(backing != NULL) backing->borrowed = 1;
         value = (Value){.kind = VALUE_SLICE, .array = backing,
                         .offset = offset + (size_t)integer_bits(low),
                         .length = (size_t)(integer_bits(high) -
@@ -1225,7 +1234,7 @@ eval_expression(Frame *frame, int index, int depth)
                !strcmp(expression->name, "VecGet")) {
                 int get = !strcmp(expression->name, "VecGet");
                 const ZirModule *owner = NULL;
-                const ZirType *record_type = FindType(frame->module,
+                const ZirType *record_type = vm_find_type(frame->vm, frame->module,
                     expression->type, &owner);
                 Value *data = record_field(vec->record, "data");
                 Value *count = record_field(vec->record, "count");
@@ -1455,7 +1464,7 @@ eval_expression(Frame *frame, int index, int depth)
                 callable = eval(frame, expression->left, depth + 1);
             }
             if(frame->vm->failed || callable.kind != VALUE_SLOT ||
-               callable.slot_type != FindType(frame->module, expression->slot_type, NULL)) {
+               callable.slot_type != vm_find_type(frame->vm, frame->module, expression->slot_type, NULL)) {
                 frame->vm->failed = 1;
                 break;
             }

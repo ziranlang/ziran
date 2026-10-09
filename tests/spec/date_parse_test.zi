@@ -9,15 +9,19 @@ CheckCivil :: () -> bool {
     if !DateValid(2000, 2, 29) || !DateValid(2024, 2, 29) { return false }
     if DateValid(1900, 2, 29) || DateValid(2023, 2, 29) || DateValid(2100, 2, 29) ||
         DateValid(2026, 13, 1) || DateValid(2026, 0, 1) || DateValid(2026, 4, 31) ||
-        DateValid(2026, 2, 0) || DateValid(1969, 12, 31) { return false }
+        DateValid(2026, 2, 0) || DateValid(0, 12, 31) || DateValid(10000, 1, 1) { return false }
     // Invalid or out-of-range inputs collapse to the zero timestamp.
     if UtcSeconds(2023, 2, 29, 0, 0, 0) != 0 || UtcSeconds(2100, 2, 29, 0, 0, 0) != 0 ||
-        UtcSeconds(1969, 1, 1, 0, 0, 0) != 0 || UtcSeconds(2026, 10, 8, 24, 0, 0) != 0 ||
+        UtcSeconds(0, 1, 1, 0, 0, 0) != 0 || UtcSeconds(2026, 10, 8, 24, 0, 0) != 0 ||
         UtcSeconds(2026, 10, 8, 0, 60, 0) != 0 || UtcSeconds(2026, 10, 8, 0, 0, 60) != 0 { return false }
     epoch: UtcDate = CivilFromUnix(0)
     if epoch.year != 1970 || epoch.month != 1 || epoch.day != 1 ||
         epoch.hour != 0 || epoch.minute != 0 || epoch.second != 0 { return false }
-    stamps: [5]s64 = .{0, 951825600, 1709251199, 1791417600, 4107542401}
+    if !DateValid(1,1,1) || !DateValid(1600,2,29) || !DateValid(1969,12,31) || !DateValid(9999,12,31) { return false }
+    if DaysFromCivil(1969,12,31) != -1 || UtcSeconds(1969,12,31,23,59,59) != -1 { return false }
+    if UtcSeconds(1900,1,1,0,0,0) != -2208988800 || UtcSeconds(1,1,1,0,0,0) != -62135596800 { return false }
+    if CivilFromUnix(-62135596801).year != 0 || CivilFromUnix(253402300800).year != 0 { return false }
+    stamps: [12]s64 = .{-62135596800,-11670998400,-2208988800,-86401,-86400,-1,0,951825600,1709251199,1791417600,4107542401,253402300799}
     for stamp: stamps {
         civil := CivilFromUnix(stamp)
         if UtcSeconds(civil.year, civil.month, civil.day, civil.hour,
@@ -45,6 +49,13 @@ CheckWriters :: () -> bool {
     if WriteIsoDay(1791417600, iso[:]) != 10 { return false }
     iso_expected: string = "2026-10-08"
     for index: 0..cast(s32)9 { if iso[index] != iso_expected[index] { return false } }
+    if WriteIsoDay(-2208988800,iso[:]) != 10 { return false }
+    historic: string = "1900-01-01"
+    for index: 0..cast(s32)9 { if iso[index] != historic[index] { return false } }
+    if WriteCompactUtc(-1,compact[:]) != 14 { return false }
+    last: string = "19691231235959"
+    for index: 0..cast(s32)13 { if compact[index] != last[index] { return false } }
+    if WriteIsoDay(-62135596801,iso[:]) != -1 || WriteCompactUtc(253402300800,compact[:]) != -1 { return false }
     short: [13]u8
     if WriteCompactUtc(1791417600, short[:]) != -1 { return false }
     tiny: [9]u8
@@ -56,6 +67,8 @@ CheckParsers :: () -> bool {
     if ParseCompactUtc("20261008000000") != 1791417600 { return false }
     if ParseCompactUtc("20261008T000000Z") != 1791417600 { return false }
     if ParseCompactUtc("20000229120000") != 951825600 { return false }
+    if ParseCompactUtc("19000101000000") != -2208988800 || ParseCompactUtc("19691231T235959Z") != -1 { return false }
+    if ParseRfc822Utc("Mon, 01 Jan 1900 00:00:00 GMT") != -2208988800 { return false }
     if ParseCompactUtc("20260229120000") != 0 { return false }
     if ParseCompactUtc("20260231") != 0 || ParseCompactUtc("20261301120000") != 0 ||
         ParseCompactUtc("20261008T0000") != 0 || ParseCompactUtc("2026022912") != 0 { return false }

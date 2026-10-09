@@ -537,6 +537,8 @@ allocate_record(Vm *vm, const ZirModule *owner,
     }
     record->field_slots = layout->field_slots;
     record->field_slot_count = layout->field_slot_count;
+    if(vm->records != NULL)
+        vm->records->previous = record;
     vm->records = record;
     vm->record_bytes += bytes;
     vm->allocated_since_collection += bytes;
@@ -633,6 +635,8 @@ allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
     array->length = length;
     array->storage = storage;
     array->data_bytes = data_bytes;
+    if(vm->arrays != NULL)
+        vm->arrays->previous = array;
     vm->arrays = array;
     vm->array_bytes += bytes;
     vm->allocated_since_collection += bytes;
@@ -947,17 +951,19 @@ retire_value(Vm *vm, Value value, int depth)
     if(value.kind == VALUE_RECORD && value.record != NULL &&
        !value.record->retired && !value.record->address_taken) {
         value.record->retired = 1;
-        if(vm->retire_floor == 0 ||
-           value.record->allocation < vm->retire_floor)
-            vm->retire_floor = value.record->allocation;
+        value.record->retired_next = vm->retired_records;
+        if(vm->retired_records != NULL)
+            vm->retired_records->retired_previous = value.record;
+        vm->retired_records = value.record;
         for(int i = 0; i < value.record->field_count; i++)
             retire_value(vm, value.record->fields[i].value, depth + 1);
     } else if(value.kind == VALUE_ARRAY && value.array != NULL &&
               !value.array->retired && !value.array->address_taken) {
         value.array->retired = 1;
-        if(vm->retire_floor == 0 ||
-           value.array->allocation < vm->retire_floor)
-            vm->retire_floor = value.array->allocation;
+        value.array->retired_next = vm->retired_arrays;
+        if(vm->retired_arrays != NULL)
+            vm->retired_arrays->retired_previous = value.array;
+        vm->retired_arrays = value.array;
         if(value.array->holds_references)
             for(int i = 0; i < value.array->length; i++)
                 retire_value(vm, array_get(value.array, (size_t)i), depth + 1);
@@ -984,13 +990,56 @@ array_has_active_slice(Vm *vm, const Array *array)
     return 0;
 }
 
+/* Both collectors remove allocations from these lists. Keep retirement
+ * membership consistent when a general reachability sweep gets there first. */
+void
+release_record(Vm *vm, Record *record)
+{
+    if(record->previous != NULL)
+        record->previous->next = record->next;
+    else
+        vm->records = record->next;
+    if(record->next != NULL)
+        record->next->previous = record->previous;
+    if(record->retired) {
+        if(record->retired_previous != NULL)
+            record->retired_previous->retired_next = record->retired_next;
+        else
+            vm->retired_records = record->retired_next;
+        if(record->retired_next != NULL)
+            record->retired_next->retired_previous = record->retired_previous;
+    }
+    vm->record_bytes -= sizeof(Record) +
+        (size_t)record->field_count * sizeof(RecordField);
+    free(record);
+}
+
+void
+release_array(Vm *vm, Array *array)
+{
+    if(array->previous != NULL)
+        array->previous->next = array->next;
+    else
+        vm->arrays = array->next;
+    if(array->next != NULL)
+        array->next->previous = array->previous;
+    if(array->retired) {
+        if(array->retired_previous != NULL)
+            array->retired_previous->retired_next = array->retired_next;
+        else
+            vm->retired_arrays = array->retired_next;
+        if(array->retired_next != NULL)
+            array->retired_next->retired_previous = array->retired_previous;
+    }
+    vm->array_bytes -= array_size(array);
+    free(array);
+}
+
 void
 release_retired(Vm *vm)
 {
-    if(vm->retire_floor == 0)
+    if(vm->retired_records == NULL && vm->retired_arrays == NULL)
         return;
-    uint64_t floor = vm->retire_floor;
-    uint64_t remaining = 0;
     vm->pin_generation++;
     pin_evaluation_roots(vm);
     for(Frame *frame = vm->active_frame; frame != NULL;
@@ -999,38 +1048,20 @@ release_retired(Vm *vm)
             if(frame->locals[i].value.kind == VALUE_SLICE)
                 pin_value(vm, frame->locals[i].value, 0);
     }
-    Record **record = &vm->records;
-    while(*record != NULL && (*record)->allocation >= floor) {
-        if((*record)->retired &&
-           (*record)->pinned != vm->pin_generation) {
-            Record *dead = *record;
-            *record = dead->next;
-            vm->record_bytes -= sizeof(Record) +
-                (size_t)dead->field_count * sizeof(RecordField);
-            free(dead);
-        } else {
-            if((*record)->retired &&
-               (remaining == 0 || (*record)->allocation < remaining))
-                remaining = (*record)->allocation;
-            record = &(*record)->next;
-        }
+    // An old borrowed value must not cause each small assignment to scan
+    // every newer, still-live allocation. Visit only discarded storage.
+    for(Record *record = vm->retired_records; record != NULL;) {
+        Record *next = record->retired_next;
+        if(record->pinned != vm->pin_generation)
+            release_record(vm, record);
+        record = next;
     }
-    Array **array = &vm->arrays;
-    while(*array != NULL && (*array)->allocation >= floor) {
-        if((*array)->retired &&
-           (*array)->pinned != vm->pin_generation) {
-            Array *dead = *array;
-            *array = dead->next;
-            vm->array_bytes -= array_size(dead);
-            free(dead);
-        } else {
-            if((*array)->retired &&
-               (remaining == 0 || (*array)->allocation < remaining))
-                remaining = (*array)->allocation;
-            array = &(*array)->next;
-        }
+    for(Array *array = vm->retired_arrays; array != NULL;) {
+        Array *next = array->retired_next;
+        if(array->pinned != vm->pin_generation)
+            release_array(vm, array);
+        array = next;
     }
-    vm->retire_floor = remaining;
 }
 
 static int

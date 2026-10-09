@@ -139,6 +139,8 @@ typedef struct RecordField {
 
 struct Record {
     Record *next;
+    Record *previous;
+    Record *retired_next, *retired_previous;
     int retired;
     int address_taken; /* a pointer may reach a field; never retired early */
     uint64_t pinned;
@@ -158,6 +160,8 @@ typedef enum ArrayStorage {
 
 struct Array {
     Array *next;
+    Array *previous;
+    Array *retired_next, *retired_previous;
     int retired;
     int address_taken; /* a pointer may reach an element; never retired early */
     int borrowed; /* a slice has observed this storage; returns must copy it */
@@ -359,9 +363,10 @@ typedef struct Vm {
     size_t collection_threshold;
     uint64_t allocation;
     uint64_t pin_generation;
-    uint64_t retire_floor;
     Record *records;
     Array *arrays;
+    Record *retired_records;
+    Array *retired_arrays;
     StringLiteral *strings;
     GlobalSlot *globals;
     int global_count;
@@ -451,6 +456,8 @@ const VmSignature *vm_signature(Vm *vm, const ZirModule *module,
                                const ZirFunction *function);
 Value coerce_expression(Vm *vm, const ZirModule *module, Value value, const char *type);
 void retire_value(Vm *vm, Value value, int depth);
+void release_record(Vm *vm, Record *record);
+void release_array(Vm *vm, Array *array);
 int array_has_active_slice(Vm *vm, const Array *array);
 void release_retired(Vm *vm);
 int vm_type_contains_vec(Vm *vm, const ZirModule *module, const char *type, int depth);

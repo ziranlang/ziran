@@ -867,7 +867,6 @@ release_call_strings(Vm *vm, uint64_t entry, uint64_t before_result)
 static void
 collect_unreachable(Vm *vm)
 {
-    uint64_t remaining_retired = 0;
     vm->pin_generation++;
     pin_globals(vm);
     pin_active_frames(vm);
@@ -876,15 +875,8 @@ collect_unreachable(Vm *vm)
     while(*record != NULL) {
         Record *current = *record;
         if(current->pinned != vm->pin_generation) {
-            *record = current->next;
-            vm->record_bytes -= sizeof(Record) +
-                (size_t)current->field_count * sizeof(RecordField);
-            free(current);
+            release_record(vm, current);
         } else {
-            if(current->retired &&
-               (remaining_retired == 0 ||
-                current->allocation < remaining_retired))
-                remaining_retired = current->allocation;
             record = &current->next;
         }
     }
@@ -892,18 +884,11 @@ collect_unreachable(Vm *vm)
     while(*array != NULL) {
         Array *current = *array;
         if(current->pinned != vm->pin_generation) {
-            *array = current->next;
-            vm->array_bytes -= array_size(current);
-            free(current);
+            release_array(vm, current);
         } else {
-            if(current->retired &&
-               (remaining_retired == 0 ||
-                current->allocation < remaining_retired))
-                remaining_retired = current->allocation;
             array = &current->next;
         }
     }
-    vm->retire_floor = remaining_retired;
     release_call_strings(vm, 0, UINT64_MAX);
     vm->allocated_since_collection = 0;
     /* A retained program may keep a large, mostly unchanged object graph.
@@ -928,10 +913,7 @@ release_call_records(Vm *vm, uint64_t entry, uint64_t before_result)
         if(current->allocation > entry &&
            current->allocation <= before_result &&
            current->pinned != vm->pin_generation) {
-            *record = current->next;
-            vm->record_bytes -= sizeof(Record) +
-                (size_t)current->field_count * sizeof(RecordField);
-            free(current);
+            release_record(vm, current);
         } else {
             if(current->allocation <= entry)
                 break;
@@ -949,9 +931,7 @@ release_call_arrays(Vm *vm, uint64_t entry, uint64_t before_result)
         if(current->allocation > entry &&
            current->allocation <= before_result &&
            current->pinned != vm->pin_generation) {
-            *array = current->next;
-            vm->array_bytes -= array_size(current);
-            free(current);
+            release_array(vm, current);
         } else {
             if(current->allocation <= entry)
                 break;
@@ -1309,9 +1289,7 @@ void
 free_records(Vm *vm)
 {
     while(vm->records != NULL) {
-        Record *next = vm->records->next;
-        free(vm->records);
-        vm->records = next;
+        release_record(vm, vm->records);
     }
 }
 
@@ -1319,9 +1297,7 @@ void
 free_arrays(Vm *vm)
 {
     while(vm->arrays != NULL) {
-        Array *next = vm->arrays->next;
-        free(vm->arrays);
-        vm->arrays = next;
+        release_array(vm, vm->arrays);
     }
 }
 

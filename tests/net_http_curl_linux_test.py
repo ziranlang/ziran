@@ -46,8 +46,22 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path in ("/gzip", "/gzip-large"):
             assert 'gzip' in self.headers.get('Accept-Encoding', ''), 'Missing encoding negotiation'
             self.respond(200, b"ready" if self.path == "/gzip" else b"x" * 256, compressed=True)
+        elif self.path == "/redirect":
+            self.send_response(302)
+            self.send_header('Location', '/ok')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
         else:
             self.respond(404, b"missing")
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header('Content-Length', '5')
+        self.end_headers()
+
+    def do_PUT(self):
+        body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
+        self.respond(200, body)
 
     def do_POST(self):
         size = int(self.headers.get("Content-Length", "0"))
@@ -89,6 +103,12 @@ with tempfile.TemporaryDirectory(prefix="ziran-curl-") as temporary:
         environment = os.environ.copy()
         environment.pop("DISPLAY", None)
         environment.pop("WAYLAND_DISPLAY", None)
+        subprocess.run([
+            str(executable), f"http://127.0.0.1:{server.server_port}"
+        ], check=True, env=environment)
+        environment.update(ZIRAN_CURL_DIRECT_ONLY='1',http_proxy='http://127.0.0.1:1',
+                           HTTP_PROXY='http://127.0.0.1:1',all_proxy='http://127.0.0.1:1',
+                           ALL_PROXY='http://127.0.0.1:1',no_proxy='',NO_PROXY='')
         subprocess.run([
             str(executable), f"http://127.0.0.1:{server.server_port}"
         ], check=True, env=environment)

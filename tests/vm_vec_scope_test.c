@@ -42,8 +42,13 @@ main(int argc, char **argv)
     probe.instance = VmInstanceOpen(program, module, entry,
                                     host_call, &probe);
     assert(probe.instance != NULL);
-    assert(VmInstanceRun(probe.instance, &result, &has_result));
-    assert(has_result && result == 0 && probe.calls == 6);
+    /* A retained instance repeatedly revisits the same ownership shapes.
+     * Every run must release its vectors, including after cached decisions. */
+    for(int i = 0; i < 20; i++) {
+        probe.calls = 0;
+        assert(VmInstanceRun(probe.instance, &result, &has_result));
+        assert(has_result && result == 0 && probe.calls == 6);
+    }
     VmInstanceClose(probe.instance);
     ZibLawTableFree(&laws);
     ProgramFree(program);

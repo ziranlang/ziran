@@ -1400,6 +1400,8 @@ VmInstanceClose(VmInstance *instance)
     free_strings(&instance->vm);
     free_layouts(&instance->vm);
     free_signatures(&instance->vm);
+    free(instance->vm.vec_types);
+    free(instance->vm.call_sites);
     free(instance->vm.globals);
     free(instance);
 }

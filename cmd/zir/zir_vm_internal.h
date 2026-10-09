@@ -292,6 +292,19 @@ typedef struct VmSignature {
     Parameter parameters[];
 } VmSignature;
 
+typedef struct VmVecType {
+    const ZirModule *module;
+    const char *type;
+    int depth, contains;
+} VmVecType;
+
+typedef struct VmCallSite {
+    const ZirExpr *expression;
+    const ZirModule *module, *owner;
+    const ZirFunction *callee;
+    const ZirImport *external;
+} VmCallSite;
+
 typedef struct Vm {
     const ZirProgram *program;
     /* Signatures by module and parameter text, so a call does not parse
@@ -321,6 +334,8 @@ typedef struct Vm {
     StringLiteral *strings;
     GlobalSlot *globals;
     int global_count;
+    VmVecType *vec_types;
+    VmCallSite *call_sites;
     Frame *active_frame;
     VmRoots *evaluation_roots;
     VmHostCall host;
@@ -403,7 +418,7 @@ Value coerce_expression(Vm *vm, const ZirModule *module, Value value, const char
 void retire_value(Vm *vm, Value value, int depth);
 int array_has_active_slice(Vm *vm, const Array *array);
 void release_retired(Vm *vm);
-int vm_type_contains_vec(const ZirModule *module, const char *type, int depth);
+int vm_type_contains_vec(Vm *vm, const ZirModule *module, const char *type, int depth);
 void drop_owned_locals(Frame *frame, int first);
 int parse_parameters(const ZirModule *module, const ZirFunction *function, Parameter *parameters);
 const VmSignature *vm_signature(Vm *vm, const ZirModule *module,

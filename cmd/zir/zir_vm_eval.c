@@ -113,6 +113,29 @@ find_global_value(Frame *frame, const char *name)
     return NULL;
 }
 
+/* A direct call's import resolution cannot change within an instance.
+ * Procedure values still resolve their current binding on every call. */
+static VmCallSite
+resolve_call(Frame *frame, const ZirExpr *expression)
+{
+    enum { SLOTS = 4096 };
+    Vm *vm = frame->vm;
+    size_t slot = (((uintptr_t)expression >> 4) * 11400714819323198485ull) & (SLOTS - 1);
+    if(vm->call_sites == NULL)
+        vm->call_sites = calloc(SLOTS, sizeof(*vm->call_sites));
+    if(vm->call_sites != NULL &&
+       vm->call_sites[slot].expression == expression &&
+       vm->call_sites[slot].module == frame->module)
+        return vm->call_sites[slot];
+    VmCallSite result = {.expression = expression, .module = frame->module};
+    if(ResolveFunction(frame->module, expression->name,
+                       &result.owner, &result.callee) == 0)
+        result.external = host_import(frame->module, expression->name);
+    if(vm->call_sites != NULL)
+        vm->call_sites[slot] = result;
+    return result;
+}
+
 Value *
 record_field(Record *record, const char *name)
 {
@@ -675,7 +698,7 @@ eval_expression(Frame *frame, int index, int depth)
             Value stored = local->value;
             if(expression->is_move) {
                 if(stored.kind != VALUE_RECORD ||
-                   !vm_type_contains_vec(frame->module,
+                   !vm_type_contains_vec(frame->vm, frame->module,
                                          expression->type, 0)) {
                     frame->vm->failed = 1;
                     break;
@@ -1421,10 +1444,10 @@ eval_expression(Frame *frame, int index, int depth)
             owner = callable.slot_module;
             callee = callable.slot_function;
         } else {
-            int resolved = ResolveFunction(frame->module, expression->name,
-                                           &owner, &callee);
-            external = resolved == 0 ?
-                host_import(frame->module, expression->name) : NULL;
+            VmCallSite target = resolve_call(frame, expression);
+            owner = target.owner;
+            callee = target.callee;
+            external = target.external;
         }
         if((owner == NULL || callee == NULL) && external == NULL) {
             frame->vm->failed = 1;

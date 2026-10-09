@@ -66,7 +66,7 @@ array_element_matches(const ZirModule *module, const char *element,
 {
     if(array == NULL)
         return 0;
-    if(!strcmp(element, array->element_type) &&
+    if((element == array->element_type || !strcmp(element, array->element_type)) &&
        (module == array->owner || value_kind(element) != VALUE_INVALID))
         return 1;
     const ZirModule *wanted_owner = NULL, *stored_owner = NULL;
@@ -81,23 +81,30 @@ array_element_matches(const ZirModule *module, const char *element,
 ValueKind
 value_kind(const char *type)
 {
-    if(strcmp(type, "void") == 0)
-        return VALUE_VOID;
     /* Raw pointers are opaque host handles in portable bundles; null is the
      * empty handle. The checker still rejects dereferencing and arithmetic. */
-    if(type[0] == '*' || strcmp(type, "null") == 0)
+    if(type[0] == '*')
         return VALUE_INT;
-    if(strcmp(type, "s8") == 0 || strcmp(type, "s16") == 0 ||
-       strcmp(type, "s32") == 0 || strcmp(type, "s64") == 0 ||
-       strcmp(type, "u8") == 0 || strcmp(type, "u16") == 0 ||
-       strcmp(type, "u32") == 0 || strcmp(type, "u64") == 0 ||
-       strcmp(type, "integer") == 0 || strcmp(type, "bool") == 0)
-        return VALUE_INT;
-    if(strcmp(type, "float32") == 0 || strcmp(type, "float64") == 0 ||
-       strcmp(type, "real") == 0)
-        return VALUE_REAL;
-    if(strcmp(type, "string") == 0)
-        return VALUE_STRING;
+    switch(type[0]) {
+    case 's': case 'u':
+        if((type[1] == '8' && type[2] == '\0') ||
+           (type[1] == '1' && type[2] == '6' && type[3] == '\0') ||
+           (type[1] == '3' && type[2] == '2' && type[3] == '\0') ||
+           (type[1] == '6' && type[2] == '4' && type[3] == '\0'))
+            return VALUE_INT;
+        if(type[0] == 's' && !strcmp(type, "string"))
+            return VALUE_STRING;
+        break;
+    case 'f':
+        if(!strcmp(type, "float32") || !strcmp(type, "float64"))
+            return VALUE_REAL;
+        break;
+    case 'r': if(!strcmp(type, "real")) return VALUE_REAL; break;
+    case 'b': if(!strcmp(type, "bool")) return VALUE_INT; break;
+    case 'i': if(!strcmp(type, "integer")) return VALUE_INT; break;
+    case 'n': if(!strcmp(type, "null")) return VALUE_INT; break;
+    case 'v': if(!strcmp(type, "void")) return VALUE_VOID; break;
+    }
     return VALUE_INVALID;
 }
 
@@ -630,7 +637,7 @@ allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
     array->next = vm->arrays;
     array->allocation = ++vm->allocation;
     array->owner = owner;
-    copy_text(array->element_type, sizeof(array->element_type), element);
+    array->element_type = KeepName(element);
     array->holds_references = type_holds_references(owner, element);
     array->length = length;
     array->storage = storage;

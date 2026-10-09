@@ -1,0 +1,49 @@
+#import "std/vec"
+Tone :: enum { Dark :: -3; Light :: 7; }
+using Tone;
+Row :: struct { byte: u8; small: s8; wide: u64; real: float32; flag: bool; tone: Tone; handle: *Row; text: string; values: [3]s32 }
+Overlay :: union { bits: u32; real: float32 }
+s8Extra :: struct { value: s32 }
+float32Extra :: struct { value: s32 }
+stringExtra :: struct { value: s32 }
+row: Row;
+bytes: [3]u8;
+wide: [3]u64;
+flags: [3]bool;
+real: [3]float32;
+
+Set :: (target: *Row) {
+    target.byte=cast(u8)511; target.small=cast(s8)255; target.wide=cast(u64)18446744073709551615
+    target.real=cast(float32)16777217.0; target.flag=cast(bool)3; target.tone=cast(Tone)Dark
+    target.handle=target; target.text="stable"; target.values=s32.[11,12,13]
+}
+Read :: (target: *Row) -> bool {
+    return target.byte==255 && target.small == -1 && target.wide==cast(u64)18446744073709551615 &&
+        target.real==cast(float32)16777216.0 && target.flag && target.tone==cast(Tone)Dark &&
+        target.handle==target && target.text=="stable" && target.values[1]==12
+}
+#program_export
+main :: () -> s32 {
+    if row.byte!=0 || row.wide!=cast(u64)0 || row.real!=cast(float32)0 || row.flag || row.handle!=null { return 1 }
+    Set(*row)
+    if !Read(*row) || row.byte!=255 || row.small != -1 || row.wide!=cast(u64)18446744073709551615 ||
+        row.real!=cast(float32)16777216.0 || !row.flag || row.tone!=cast(Tone)Dark || row.text!="stable" { return 2 }
+    copy:=row; copy.values[1]=99
+    if row.values[1]!=12 || copy.values[1]!=99 { return 3 }
+    bytes[1]=cast(u8)511; bytes[1]+=cast(u8)2; wide[1]=cast(u64)18446744073709551615
+    flags[1]=cast(bool)3; real[1]=cast(float32)16777217.0
+    if bytes[1]!=1 || wide[1]!=cast(u64)18446744073709551615 || !flags[1] || real[1]!=cast(float32)16777216.0 { return 4 }
+    values: Vec(u8); VecPush(values,cast(u8)511)
+    {
+        view:=VecSlice(values,0,1); view[0]+=cast(u8)2
+        if view[0]!=1 || values[0]!=1 { return 5 }
+    }
+    VecFree(values)
+    bits: Overlay; bits.bits=1065353216
+    if bits.real!=cast(float32)1 { return 6 }
+    bits.real=cast(float32)-2
+    if bits.bits!=cast(u32)3221225472 { return 7 }
+    signed: s8Extra=.{41}; floating: float32Extra=.{42}; text: stringExtra=.{43}
+    if signed.value!=41 || floating.value!=42 || text.value!=43 { return 8 }
+    return 0
+}

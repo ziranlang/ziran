@@ -98,8 +98,8 @@ find_local(Frame *frame, const char *name)
     return NULL;
 }
 
-static Value *
-find_global_value(Frame *frame, const ZirExpr *expression)
+static GlobalSlot *
+find_global_slot(Frame *frame, const ZirExpr *expression)
 {
     enum { SLOTS = 4096 };
     Vm *vm = frame->vm;
@@ -109,7 +109,7 @@ find_global_value(Frame *frame, const ZirExpr *expression)
     if(vm->global_sites != NULL &&
        vm->global_sites[index].expression == expression &&
        vm->global_sites[index].module == frame->module)
-        return vm->global_sites[index].value;
+        return vm->global_sites[index].slot;
     const ZirModule *owner = NULL;
     const ZirGlobal *declaration = NULL;
     if(ResolveGlobalAt(frame->module, expression->name, SpanPath(frame->function->span),
@@ -121,11 +121,48 @@ find_global_value(Frame *frame, const ZirExpr *expression)
             /* Global slots stay at the same address for the instance;
              * cache the slot, never its mutable contents. */
             if(vm->global_sites != NULL)
-                vm->global_sites[index] = (VmGlobalSite){expression, frame->module, &slot->value};
-            return &slot->value;
+                vm->global_sites[index] = (VmGlobalSite){expression, frame->module, slot};
+            return slot;
         }
     }
     return NULL;
+}
+
+static Value *
+find_global_value(Frame *frame, const ZirExpr *expression)
+{
+    GlobalSlot *slot = find_global_slot(frame, expression);
+    return slot != NULL ? &slot->value : NULL;
+}
+
+/* These scalar storage reads cannot change kind or numeric width. Default
+ * u64 and opaque pointer fields may still hold a signed zero, so those
+ * values retain coercion until their storage carries unsigned bits. */
+static int
+normalized_scalar_read(Value value, const char *stored_type, const char *type)
+{
+    if(stored_type != type)
+        return 0;
+    if(value.kind == VALUE_POINTER)
+        return type[0] == '*';
+    if(value.kind == VALUE_STRING || value.kind == VALUE_REAL)
+        return value_kind(type) == value.kind;
+    if(value.kind != VALUE_INT)
+        return 0;
+    if(value_kind(type) != VALUE_INT)
+        return 0;
+    if(type[0] == '*' ||
+       (type[0] == 'u' && type[1] == '6' && type[2] == '4' && type[3] == '\0'))
+        return value.unsigned64;
+    return 1;
+}
+
+static int
+normalized_field_read(const Value *field, const char *type)
+{
+    const RecordField *entry = (const RecordField *)
+        ((const unsigned char *)field - offsetof(RecordField, value));
+    return normalized_scalar_read(*field, entry->field.type, type);
 }
 
 /* A direct call's import resolution cannot change within an instance.
@@ -751,10 +788,16 @@ eval_expression(Frame *frame, int index, int depth)
             return coerce_expression(frame->vm, frame->module,
                                      stored, expression->type);
         }
-        Value *global = find_global_value(frame, expression);
-        if(global != NULL)
+        GlobalSlot *global = find_global_slot(frame, expression);
+        if(global != NULL) {
+            /* Same-module aggregate storage is already typed. Imported
+             * spellings still resolve in the caller's scope below. */
+            if(global->module == frame->module && global->type == expression->type &&
+               (global->value.kind == VALUE_ARRAY || global->value.kind == VALUE_RECORD))
+                return global->value;
             return coerce_expression(frame->vm, frame->module,
-                                     *global, expression->type);
+                                     global->value, expression->type);
+        }
         frame->vm->failed = 1;
         break;
     }
@@ -887,6 +930,8 @@ eval_expression(Frame *frame, int index, int depth)
             frame->vm->failed = 1;
         else if(target.record->type != NULL && target.record->type->is_union)
             value = union_member_read(frame->vm, target.record, expression->type);
+        else if(normalized_field_read(field, expression->type))
+            return *field;
         else
             value = *field;
         break;
@@ -935,6 +980,8 @@ eval_expression(Frame *frame, int index, int depth)
         else if(left.record->type != NULL && left.record->type->is_union)
             value = union_member_read(frame->vm, left.record,
                                       expression->type);
+        else if(normalized_field_read(field, expression->type))
+            return *field;
         else
             value = *field;
         break;
@@ -1024,9 +1071,12 @@ eval_expression(Frame *frame, int index, int depth)
             value = int_value(left.data[integer_bits(right)]);
         else {
             Value element = indexed_element(left, integer_bits(right));
-            if(place_valid(element))
+            if(place_valid(element)) {
                 value = place_read(frame->vm, element);
-            else
+                if(!frame->vm->failed && normalized_scalar_read(value,
+                       element.array->element_type, expression->type))
+                    return value;
+            } else
                 frame->vm->failed = 1;
         }
         break;

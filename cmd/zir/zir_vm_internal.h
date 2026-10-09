@@ -170,7 +170,7 @@ struct Array {
     uint64_t pinned;
     uint64_t allocation;
     const ZirModule *owner;
-    char element_type[ZIR_NAME_MAX];
+    const char *element_type; /* shared immutable checked spelling */
     int holds_references; /* elements can reach records or arrays */
     int length;
     ArrayStorage storage;
@@ -291,6 +291,7 @@ typedef struct Local {
 typedef struct GlobalSlot {
     const ZirModule *module;
     const ZirGlobal *declaration;
+    const char *type;
     Value value;
 } GlobalSlot;
 
@@ -328,7 +329,7 @@ typedef struct VmCallSite {
 typedef struct VmGlobalSite {
     const ZirExpr *expression;
     const ZirModule *module;
-    Value *value;
+    GlobalSlot *slot;
 } VmGlobalSite;
 
 typedef struct VmConstantSite {

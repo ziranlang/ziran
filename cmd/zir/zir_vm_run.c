@@ -1474,6 +1474,7 @@ initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlo
             GlobalSlot *slot = &vm->globals[vm->global_count++];
             slot->module = module;
             slot->declaration = &module->globals[g];
+            slot->type = KeepName(slot->declaration->type);
             slot->value = default_value(vm, module,
                                         slot->declaration->type, 0);
             if(!vm->failed && slot->declaration->init[0]) {

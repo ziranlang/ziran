@@ -1,4 +1,4 @@
-// UTC calendar parsing for feeds and dated data sources.
+// UTC calendar parsing for feeds and dated data sources, years 1 through 9999.
 
 DateDigit :: (value: u8) -> s32 {
     if value < cast(u8)48 || value > cast(u8)57 { return -1 }
@@ -23,7 +23,7 @@ DateNumber :: (value: string, start: s32, count: s32) -> s32 {
 
 #program_export
 DaysFromCivil :: (year: s32, month: s32, day: s32) -> s64 {
-    if year < 1970 || month < 1 || month > 12 || day < 1 || day > 31 {
+    if year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31 {
         return -1
     }
     adjusted: s32 = year
@@ -39,7 +39,7 @@ DaysFromCivil :: (year: s32, month: s32, day: s32) -> s64 {
 
 DateValid :: (year: s32, month: s32, day: s32) -> bool {
     lengths: [12]s32 = .{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
-    if year < 1970 || month < 1 || month > 12 || day < 1 { return false }
+    if year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 { return false }
     limit: s32 = lengths[month - 1]
     if month == 2 && year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
         limit = 29
@@ -59,8 +59,11 @@ UtcDate :: struct {
 #program_export
 CivilFromUnix :: (timestamp: s64) -> UtcDate {
     result: UtcDate
-    if timestamp < 0 { return result }
-    days: s64 = timestamp / 86400 + 719468
+    if timestamp < -62135596800 || timestamp > 253402300799 { return result }
+    quotient := timestamp / 86400
+    remainder := timestamp % 86400
+    if remainder < 0 { quotient -= 1; remainder += 86400 }
+    days: s64 = quotient + 719468
     era: s64 = days / 146097
     doe: s64 = days - era * 146097
     yoe: s64 = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
@@ -74,9 +77,9 @@ CivilFromUnix :: (timestamp: s64) -> UtcDate {
     result.year = cast(s32)year
     result.month = cast(s32)month
     result.day = cast(s32)day
-    result.hour = cast(s32)((timestamp % 86400) / 3600)
-    result.minute = cast(s32)((timestamp % 3600) / 60)
-    result.second = cast(s32)(timestamp % 60)
+    result.hour = cast(s32)(remainder / 3600)
+    result.minute = cast(s32)((remainder % 3600) / 60)
+    result.second = cast(s32)(remainder % 60)
     return result
 }
 
@@ -101,6 +104,7 @@ DateWriteDigits :: (output: []u8, at: s32, value: s32, digits: s32) -> s32 {
 WriteCompactUtc :: (timestamp: s64, output: []u8) -> s32 {
     if output.count < 14 { return -1 }
     value: UtcDate = CivilFromUnix(timestamp)
+    if value.year < 1 { return -1 }
     at: s32 = DateWriteDigits(output, 0, value.year, 4)
     at = DateWriteDigits(output, at, value.month, 2)
     at = DateWriteDigits(output, at, value.day, 2)
@@ -114,6 +118,7 @@ WriteCompactUtc :: (timestamp: s64, output: []u8) -> s32 {
 WriteIsoDay :: (timestamp: s64, output: []u8) -> s32 {
     if output.count < 10 { return -1 }
     value: UtcDate = CivilFromUnix(timestamp)
+    if value.year < 1 { return -1 }
     DateWriteDigits(output, 0, value.year, 4)
     output[4] = cast(u8)45
     DateWriteDigits(output, 5, value.month, 2)

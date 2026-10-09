@@ -333,8 +333,11 @@ typedef struct VmTypeSite {
     const char *name;
 } VmTypeSite;
 
+typedef struct VmProfile VmProfile;
+
 typedef struct Vm {
     const ZirProgram *program;
+    VmProfile *profile; /* opt-in function costs; no values or arguments */
     /* Parameters and immutable call setup facts, once per function. */
     const VmSignature **signatures;
     size_t signature_count, signature_slots;

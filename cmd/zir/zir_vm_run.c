@@ -1,5 +1,165 @@
 #include "zir_emit.h"
 #include "zir_vm_internal.h"
+#include <stdatomic.h>
+#include <time.h>
+
+typedef struct VmFunctionProfile {
+    char module[ZIR_NAME_MAX], function[ZIR_NAME_MAX];
+    uint64_t calls, self_ticks, inclusive_ticks, self_allocations;
+} VmFunctionProfile;
+
+struct VmProfile {
+    FILE *output;
+    VmFunctionProfile **functions;
+    size_t slots, count;
+    uint64_t ticks, allocations, last_report, instance;
+};
+
+static atomic_uint profile_instance;
+static atomic_flag profile_writer = ATOMIC_FLAG_INIT;
+
+static uint64_t
+profile_clock(void)
+{
+    clock_t ticks = clock();
+    return ticks < 0 ? 0 : (uint64_t)ticks;
+}
+
+static size_t
+profile_slot(VmFunctionProfile **functions, size_t slots,
+             const char *module, const char *function)
+{
+    size_t slot = (vm_field_hash(module) ^ vm_field_hash(function)) & (slots - 1);
+    while(functions[slot] != NULL &&
+          (strcmp(functions[slot]->module, module) ||
+           strcmp(functions[slot]->function, function)))
+        slot = (slot + 1) & (slots - 1);
+    return slot;
+}
+
+static VmFunctionProfile *
+profile_function(VmProfile *profile, const ZirModule *module,
+                 const ZirFunction *function)
+{
+    if((profile->count + 1) * 2 >= profile->slots) {
+        size_t slots = profile->slots ? profile->slots * 2 : 256;
+        VmFunctionProfile **entries = calloc(slots, sizeof(*entries));
+        if(entries == NULL)
+            return NULL;
+        for(size_t i = 0; i < profile->slots; i++) {
+            VmFunctionProfile *entry = profile->functions[i];
+            if(entry != NULL)
+                entries[profile_slot(entries, slots, entry->module, entry->function)] = entry;
+        }
+        free(profile->functions);
+        profile->functions = entries;
+        profile->slots = slots;
+    }
+    size_t slot = profile_slot(profile->functions, profile->slots,
+                               module->name, function->name);
+    if(profile->functions[slot] == NULL) {
+        VmFunctionProfile *entry = calloc(1, sizeof(*entry));
+        if(entry == NULL)
+            return NULL;
+        /* Foreign descriptors can be temporary. Copy just their bounded
+         * names, without changing the compiler's shared intern tables. */
+        memcpy(entry->module, module->name, sizeof(entry->module));
+        memcpy(entry->function, function->name, sizeof(entry->function));
+        profile->functions[slot] = entry;
+        profile->count++;
+    }
+    return profile->functions[slot];
+}
+
+static void
+profile_text(FILE *output, const char *text)
+{
+    fputc('"', output);
+    for(const unsigned char *p = (const unsigned char *)text; *p; p++) {
+        if(*p == '"' || *p == '\\')
+            fputc('\\', output);
+        if(*p < 32)
+            fprintf(output, "\\u%04x", *p);
+        else
+            fputc(*p, output);
+    }
+    fputc('"', output);
+}
+
+static void
+profile_report(Vm *vm, int complete)
+{
+    VmProfile *profile = vm->profile;
+    if(profile == NULL)
+        return;
+    // Instances can report from different threads to the same append file.
+    // Flush one complete JSON record before another instance writes.
+    while(atomic_flag_test_and_set_explicit(&profile_writer, memory_order_acquire)) {}
+    fprintf(profile->output,
+            "{\"schema_version\":1,\"instance\":%llu,\"clock\":\"process_cpu\","
+            "\"complete\":%s,\"failed\":%s,\"live_value_bytes\":%llu,\"functions\":[",
+            (unsigned long long)profile->instance, complete ? "true" : "false",
+            vm->failed ? "true" : "false",
+            (unsigned long long)(vm->record_bytes + vm->array_bytes + vm->string_bytes));
+    int first = 1;
+    for(size_t i = 0; i < profile->slots; i++) {
+        VmFunctionProfile *entry = profile->functions[i];
+        if(entry == NULL)
+            continue;
+        if(!first) fputc(',', profile->output);
+        first = 0;
+        fputs("{\"module\":", profile->output);
+        profile_text(profile->output, entry->module);
+        fputs(",\"function\":", profile->output);
+        profile_text(profile->output, entry->function);
+        fprintf(profile->output,
+                ",\"calls\":%llu,\"self_cpu_ms\":%.6f,\"inclusive_cpu_ms\":%.6f,"
+                "\"self_allocations\":%llu}",
+                (unsigned long long)entry->calls,
+                entry->self_ticks * (1000.0 / CLOCKS_PER_SEC),
+                entry->inclusive_ticks * (1000.0 / CLOCKS_PER_SEC),
+                (unsigned long long)entry->self_allocations);
+    }
+    fputs("]}\n", profile->output);
+    fflush(profile->output);
+    atomic_flag_clear_explicit(&profile_writer, memory_order_release);
+    profile->last_report = profile_clock();
+}
+
+static void
+profile_open(Vm *vm)
+{
+    const char *path = getenv("ZIRAN_VM_PROFILE");
+    if(path == NULL || *path == '\0')
+        return;
+    VmProfile *profile = calloc(1, sizeof(*profile));
+    if(profile == NULL)
+        return;
+    profile->output = fopen(path, "ab");
+    if(profile->output == NULL) {
+        free(profile);
+        Diagnostic(Span("", 0, 0), "zib.profile", "cannot open runtime profile");
+        return;
+    }
+    profile->instance = atomic_fetch_add(&profile_instance, 1) + 1;
+    profile->last_report = profile_clock();
+    vm->profile = profile;
+}
+
+static void
+profile_close(Vm *vm)
+{
+    if(vm->profile == NULL)
+        return;
+    profile_report(vm, 1);
+    VmProfile *profile = vm->profile;
+    for(size_t i = 0; i < profile->slots; i++)
+        free(profile->functions[i]);
+    free(profile->functions);
+    fclose(profile->output);
+    free(profile);
+    vm->profile = NULL;
+}
 
 #if defined(__linux__) && !defined(__EMSCRIPTEN__)
 #include <pthread.h>
@@ -1098,6 +1258,15 @@ Value
 run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
              const Value *args, int arg_count)
 {
+    VmFunctionProfile *profile = vm->profile ?
+        profile_function(vm->profile, module, function) : NULL;
+    uint64_t started = 0, child_ticks = 0, allocation_entry = 0, child_allocations = 0;
+    if(profile != NULL) {
+        started = profile_clock();
+        child_ticks = vm->profile->ticks;
+        allocation_entry = vm->allocation;
+        child_allocations = vm->profile->allocations;
+    }
     static _Thread_local RunFunctionBuffers *spares[16];
     static _Thread_local int spare_count;
     RunFunctionBuffers *buffers;
@@ -1117,6 +1286,21 @@ run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
     else {
         free(buffers->locals);
         free(buffers);
+    }
+    if(profile != NULL) {
+        uint64_t finished = profile_clock();
+        uint64_t elapsed = finished >= started ? finished - started : 0;
+        uint64_t nested = vm->profile->ticks - child_ticks;
+        uint64_t self = elapsed >= nested ? elapsed - nested : 0;
+        uint64_t allocations = vm->allocation - allocation_entry;
+        uint64_t allocated_in_children = vm->profile->allocations - child_allocations;
+        uint64_t owned = allocations >= allocated_in_children ? allocations - allocated_in_children : 0;
+        profile->calls++;
+        profile->inclusive_ticks += elapsed;
+        profile->self_ticks += self;
+        profile->self_allocations += owned;
+        vm->profile->ticks += self;
+        vm->profile->allocations += owned;
     }
     return returned;
 }
@@ -1404,6 +1588,7 @@ VmInstanceOpen(const ZirProgram *program, const char *entry_module,
     instance->vm.program = program;
     instance->vm.host = host;
     instance->vm.host_context = context;
+    profile_open(&instance->vm);
     instance->entry = find_entry(program, entry_module, entry_function,
                                  &instance->module);
     if(instance->entry == NULL ||
@@ -1437,6 +1622,9 @@ VmInstanceRun(VmInstance *instance, long long *result, int *has_result)
 #endif
     Value value = run_function(vm, instance->module, instance->entry,
                                NULL, 0);
+    if(vm->profile != NULL &&
+       profile_clock() - vm->profile->last_report >= (uint64_t)CLOCKS_PER_SEC)
+        profile_report(vm, 0);
     *result = value.integer;
     *has_result = strcmp(instance->entry->return_type, "void") != 0;
     if(vm->failed) {
@@ -1479,6 +1667,7 @@ VmInstanceClose(VmInstance *instance)
 {
     if(instance == NULL)
         return;
+    profile_close(&instance->vm);
     free_records(&instance->vm);
     free_arrays(&instance->vm);
     free_strings(&instance->vm);

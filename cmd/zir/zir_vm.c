@@ -965,8 +965,8 @@ release_retired(Vm *vm)
     vm->retire_floor = remaining;
 }
 
-int
-vm_type_contains_vec(const ZirModule *module, const char *type, int depth)
+static int
+type_contains_vec(Vm *vm, const ZirModule *module, const char *type, int depth)
 {
     char element[ZIR_NAME_MAX];
     const ZirModule *owner = NULL;
@@ -976,7 +976,7 @@ vm_type_contains_vec(const ZirModule *module, const char *type, int depth)
     if(VecElementType(module, type, NULL, 0))
         return 1;
     if(ArrayElementType(type, element, sizeof(element), NULL))
-        return vm_type_contains_vec(module, element, depth + 1);
+        return vm_type_contains_vec(vm, module, element, depth + 1);
     record = FindType(module, type, &owner);
     if(record == NULL || record->is_enum || record->is_procedure_type ||
        record->is_record_template || record->is_extern)
@@ -984,10 +984,39 @@ vm_type_contains_vec(const ZirModule *module, const char *type, int depth)
     size_t offset = 0;
     ZirTypeField field;
     while(TypeNextField(record, &offset, &field) == 1)
-        if(vm_type_contains_vec(owner ? owner : module,
+        if(vm_type_contains_vec(vm, owner ? owner : module,
                                 field.type, depth + 1))
             return 1;
     return 0;
+}
+
+/* Type definitions are immutable for an instance. Scope exits and moves
+ * revisit the same aggregate shapes on every call; retain the ownership
+ * decision without reparsing all their fields. Depth stays in the key to
+ * preserve the bounded walk for recursive declarations. Collisions only
+ * replace a memoized result, and each instance owns its own table. */
+int
+vm_type_contains_vec(Vm *vm, const ZirModule *module, const char *type, int depth)
+{
+    enum { SLOTS = 2048 };
+    if(depth > 32 || module == NULL || type == NULL || !*type || *type == '*')
+        return 0;
+    size_t hash = ((uintptr_t)module >> 4) ^ (unsigned)depth;
+    for(const unsigned char *p = (const unsigned char *)type; *p; p++)
+        hash = hash * 33 ^ *p;
+    size_t slot = hash & (SLOTS - 1);
+    if(vm->vec_types == NULL)
+        vm->vec_types = calloc(SLOTS, sizeof(*vm->vec_types));
+    if(vm->vec_types != NULL) {
+        VmVecType *cached = &vm->vec_types[slot];
+        if(cached->module == module && cached->depth == depth &&
+           cached->type != NULL && !strcmp(cached->type, type))
+            return cached->contains;
+    }
+    int contains = type_contains_vec(vm, module, type, depth);
+    if(vm->vec_types != NULL)
+        vm->vec_types[slot] = (VmVecType){module, KeepText(type), depth, contains};
+    return contains;
 }
 
 /* An owned Vec or aggregate owns its reachable record and array storage.
@@ -999,7 +1028,7 @@ drop_owned_locals(Frame *frame, int first)
     int retired = 0;
     for(int i = frame->local_count - 1; i >= first; i--) {
         Local *local = &frame->locals[i];
-        if(vm_type_contains_vec(frame->module, local->type, 0) &&
+        if(vm_type_contains_vec(frame->vm, frame->module, local->type, 0) &&
            local->value.kind == VALUE_RECORD) {
             retire_value(frame->vm, local->value, 0);
             retired = 1;

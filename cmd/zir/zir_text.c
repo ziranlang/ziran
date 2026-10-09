@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdatomic.h>
 #include <string.h>
 
 /* C owns interned storage and the old frontend buffer ABI. Text rules come
@@ -113,6 +114,7 @@ static struct {
     const ZirParameters **lists;
     size_t count, slots;
 } parameter_lists;
+static atomic_flag parameter_lock = ATOMIC_FLAG_INIT;
 
 static size_t
 parameter_slot(const char *kept)
@@ -156,6 +158,7 @@ const ZirParameters *
 ParametersOf(const char *text)
 {
     const char *kept = KeepText(text);
+    while(atomic_flag_test_and_set_explicit(&parameter_lock, memory_order_acquire)) {}
     if(parameter_lists.count * 2 >= parameter_lists.slots) {
         size_t old_slots = parameter_lists.slots;
         const char **old_texts = parameter_lists.texts;
@@ -182,7 +185,9 @@ ParametersOf(const char *text)
         parameter_lists.lists[slot] = split_parameters(kept);
         parameter_lists.count++;
     }
-    return parameter_lists.lists[slot];
+    const ZirParameters *list = parameter_lists.lists[slot];
+    atomic_flag_clear_explicit(&parameter_lock, memory_order_release);
+    return list;
 }
 
 char *

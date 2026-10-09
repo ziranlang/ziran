@@ -1,6 +1,7 @@
 #include "zir_profile.h"
 #include "zir_diagnostic.h"
 #include <errno.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,12 +23,29 @@ typedef struct ProfileSample {
     uint64_t calls, elapsed_ns;
 } ProfileSample;
 static struct {
-    int initialized;
     FILE *output;
     uint64_t started, allocation_calls, allocation_bytes;
     ProfileSample phases[32], counters[32];
     size_t phase_count, counter_count;
 } profile;
+static atomic_flag profile_lock = ATOMIC_FLAG_INIT;
+/* 0: not initialized, 1: enabled, 2: disabled. Disabled profiling stays cheap. */
+static atomic_int profile_state;
+
+static void lock_profile(void)
+{
+    while(atomic_flag_test_and_set_explicit(&profile_lock, memory_order_acquire)) {}
+}
+
+static void unlock_profile(void)
+{
+    atomic_flag_clear_explicit(&profile_lock, memory_order_release);
+}
+
+static int disabled(void)
+{
+    return atomic_load_explicit(&profile_state, memory_order_acquire) == 2;
+}
 
 static uint64_t now(void)
 {
@@ -91,7 +109,8 @@ static int write_record(FILE *output, const char *record, int size)
 
 static void report(void)
 {
-    if(profile.output == NULL) return;
+    lock_profile();
+    if(profile.output == NULL) { unlock_profile(); return; }
     char record[8192];
     long rss = maximum_rss_kib();
     uint64_t finished = now();
@@ -120,35 +139,51 @@ static void report(void)
     }
     if(used > 0 && (size_t)used < sizeof(record))
         used += snprintf(record + used, sizeof(record) - (size_t)used, "}}\n");
+    int failed = 0;
     if(used > 0 && (size_t)used < sizeof(record)) {
         /* One append keeps concurrent compiler processes' JSON lines intact. */
         int written = write_record(profile.output, record, used);
-        if(written != used)
-            Diagnostic(Span("", 0, 0), "zir.output", "cannot finish compiler profile");
+        failed = written != used;
     }
     fclose(profile.output);
     profile.output = NULL;
+    atomic_store_explicit(&profile_state, 2, memory_order_release);
+    unlock_profile();
+    if(failed)
+        Diagnostic(Span("", 0, 0), "zir.output", "cannot finish compiler profile");
 }
 
+/* Called only with profile_lock held. */
 static int enabled(void)
 {
-    if(!profile.initialized) {
-        profile.initialized = 1;
+    if(atomic_load_explicit(&profile_state, memory_order_relaxed) == 0) {
         const char *path = getenv("ZIRAN_PROFILE");
         if(path != NULL && *path) {
             profile.output = fopen(path, "ab");
             if(profile.output == NULL) {
+                /* Reporting the failure can allocate a diagnostic buffer.
+                 * Disable first so that allocation cannot retry initialization. */
+                atomic_store_explicit(&profile_state, 2, memory_order_release);
+                unlock_profile();
                 Diagnostic(Span(path, 1, 1), "zir.output", "cannot open compiler profile");
                 exit(1);
             }
             profile.started = now();
             atexit(report);
         }
+        atomic_store_explicit(&profile_state, profile.output != NULL ? 1 : 2, memory_order_release);
     }
     return profile.output != NULL;
 }
 
-uint64_t ProfileStart(void) { return enabled() ? now() : 0; }
+uint64_t ProfileStart(void)
+{
+    if(disabled()) return 0;
+    lock_profile();
+    uint64_t started = enabled() ? now() : 0;
+    unlock_profile();
+    return started;
+}
 
 static ProfileSample *sample(ProfileSample *items, size_t *count, const char *name)
 {
@@ -162,25 +197,33 @@ static ProfileSample *sample(ProfileSample *items, size_t *count, const char *na
 
 void ProfileEnd(const char *phase, uint64_t started)
 {
-    if(started == 0 || !enabled()) return;
-    ProfileSample *value = sample(profile.phases, &profile.phase_count, phase);
+    if(started == 0 || disabled()) return;
+    lock_profile();
+    ProfileSample *value = enabled() ? sample(profile.phases, &profile.phase_count, phase) : NULL;
     if(value != NULL) {
         uint64_t finished = now();
         value->calls++;
         if(finished >= started) value->elapsed_ns += finished - started;
     }
+    unlock_profile();
 }
 
 void ProfileAllocation(size_t bytes)
 {
-    if(!enabled()) return;
-    profile.allocation_calls++;
-    profile.allocation_bytes += bytes;
+    if(disabled()) return;
+    lock_profile();
+    if(enabled()) {
+        profile.allocation_calls++;
+        profile.allocation_bytes += bytes;
+    }
+    unlock_profile();
 }
 
 void ProfileCount(const char *counter)
 {
-    if(!enabled()) return;
-    ProfileSample *value = sample(profile.counters, &profile.counter_count, counter);
+    if(disabled()) return;
+    lock_profile();
+    ProfileSample *value = enabled() ? sample(profile.counters, &profile.counter_count, counter) : NULL;
     if(value != NULL) value->calls++;
+    unlock_profile();
 }

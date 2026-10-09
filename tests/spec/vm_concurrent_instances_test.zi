@@ -1,0 +1,20 @@
+Cell :: struct { value: s32; values: [3]u8; text: string }
+cell: Cell;
+calls: s32;
+
+Read :: (value: Cell) -> s32 {
+    copy := value
+    copy.value += 100
+    copy.values[1] = 0
+    return value.value
+}
+
+#program_export
+Next :: () -> s32 {
+    calls += 1
+    cell.value = calls
+    cell.values[1] = cast(u8)511
+    cell.text = "independent instance"
+    if Read(cell) != calls || cell.values[1] != 255 || cell.text != "independent instance" { return -1 }
+    return calls + 41
+}

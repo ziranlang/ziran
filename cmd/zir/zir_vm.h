@@ -21,6 +21,10 @@ int VmRunBounded(const ZirProgram *program, const char *entry_module,
                  int max_steps, long long *result, int *has_result);
 
 typedef struct VmInstance VmInstance;
+/* Independent instances may execute concurrently over a program that remains
+ * immutable and alive until they close. Each instance and host callback context
+ * has one executing owner; concurrent runs of the same instance are unsupported.
+ * Load/check/rewrite/free the program outside those concurrent runs. */
 VmInstance *VmInstanceOpen(const ZirProgram *program,
                            const char *entry_module,
                            const char *entry_function,

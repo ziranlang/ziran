@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -808,11 +809,14 @@ static struct {
     unsigned long generation;
     int verify;
 } type_lookups = {NULL, 0, 0, 1, -1};
+static atomic_flag type_lookup_lock = ATOMIC_FLAG_INIT;
 
 void
 TypeLookupsChanged(void)
 {
+    while(atomic_flag_test_and_set_explicit(&type_lookup_lock, memory_order_acquire)) {}
     type_lookups.generation++;
+    atomic_flag_clear_explicit(&type_lookup_lock, memory_order_release);
 }
 
 static size_t
@@ -839,6 +843,7 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
             *owner = NULL;
         return NULL;
     }
+    while(atomic_flag_test_and_set_explicit(&type_lookup_lock, memory_order_acquire)) {}
     if(type_lookups.verify < 0) {
         const char *verify = getenv("ZIRAN_VERIFY_TYPE_LOOKUPS");
         type_lookups.verify = verify != NULL && !strcmp(verify, "1");
@@ -883,7 +888,9 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
         }
         if(owner)
             *owner = lookup->owner;
-        return lookup->type;
+        const ZirType *found = lookup->type;
+        atomic_flag_clear_explicit(&type_lookup_lock, memory_order_release);
+        return found;
     }
     const ZirModule *found_owner = NULL;
     const ZirType *found = find_type(module, name, &found_owner);
@@ -897,6 +904,7 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
     lookup->owner = found_owner;
     if(owner)
         *owner = found_owner;
+    atomic_flag_clear_explicit(&type_lookup_lock, memory_order_release);
     return found;
 }
 
@@ -1185,6 +1193,7 @@ static struct {
     size_t block_used;
     size_t block_size;
 } kept_texts;
+static atomic_flag kept_text_lock = ATOMIC_FLAG_INIT;
 
 static uint64_t
 text_hash(const char *text, size_t length)
@@ -1275,6 +1284,9 @@ KeepText(const char *text)
     if(text == NULL || *text == '\0')
         return "";
     size_t length = strlen(text);
+    /* VM instances share immutable spellings, but insertion and table growth
+     * still mutate the process-wide owner. Publish complete entries together. */
+    while(atomic_flag_test_and_set_explicit(&kept_text_lock, memory_order_acquire)) {}
     if(kept_texts.count * 2 >= kept_texts.slot_count) {
         size_t old_count = kept_texts.slot_count;
         const char **old_texts = kept_texts.texts;
@@ -1289,8 +1301,11 @@ KeepText(const char *text)
         free(old_texts);
     }
     size_t slot = kept_text_slot(text, length);
-    if(kept_texts.texts[slot] != NULL)
-        return kept_texts.texts[slot];
+    if(kept_texts.texts[slot] != NULL) {
+        const char *kept = kept_texts.texts[slot];
+        atomic_flag_clear_explicit(&kept_text_lock, memory_order_release);
+        return kept;
+    }
     if(kept_texts.block == NULL ||
        kept_texts.block_used + length + 1 > kept_texts.block_size) {
         kept_texts.block_size = length + 1 > 65536 ? length + 1 : 65536;
@@ -1305,6 +1320,7 @@ KeepText(const char *text)
     kept_texts.block_used += length + 1;
     kept_texts.texts[slot] = copy;
     kept_texts.count++;
+    atomic_flag_clear_explicit(&kept_text_lock, memory_order_release);
     return copy;
 }
 

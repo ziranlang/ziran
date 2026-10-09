@@ -14,9 +14,40 @@ Write :: (cell: Cell) -> s32 {
 Callback :: #type (cell: Cell) -> s32;
 current: Callback = Read;
 stored: Cell;
+Handle :: struct { slot: s32; epoch: u64 }
+epochs: [3]u64;
+handle: Handle;
+Valid :: (value: Handle) -> bool { return epochs[value.slot] == value.epoch }
+Index :: (value: Handle) -> s32 {
+    if Valid(value) { return value.slot }
+    return 0
+}
+Change :: (values: []u64) { values[1] += cast(u64)1 }
+Recursive :: (value: s32) -> s32 {
+    if value <= 0 { return 0 }
+    return Recursive(value - 1) + 1
+}
 
 #program_export
 main :: () -> s32 {
+    epochs[1] = cast(u64)7; handle.slot = 1; handle.epoch = cast(u64)7
+    for pass: 0..9 {
+        if !Valid(handle) || Index(handle) != 1 { return 8 }
+        Change(epochs[:])
+        if Valid(handle) || Index(handle) != 0 { return 9 }
+        handle.epoch += cast(u64)1
+        if !Valid(handle) || Index(handle) != 1 { return 10 }
+        address := *epochs[1]
+        address.* += cast(u64)1
+        if Valid(handle) || Index(handle) != 0 { return 11 }
+        handle.epoch += cast(u64)1
+        replacement := epochs
+        replacement[1] += cast(u64)1
+        epochs = replacement
+        if Valid(handle) || Index(handle) != 0 { return 12 }
+        handle.epoch += cast(u64)1
+        if Recursive(4) != 4 { return 13 }
+    }
     stored.value = 10; stored.values[0] = 20; stored.label = "retained"
     for i: 0..99 {
         // Identical parameter spellings must keep each function's own

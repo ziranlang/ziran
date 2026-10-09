@@ -993,8 +993,10 @@ vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
             if(!vm_type_contains_vec(vm, module, parsed[i].type, 0) &&
                parameter_read_only(function, parsed[i].name))
                 signature->read_only |= UINT64_C(1) << i;
-        if(count > 0)
-            memcpy(signature->parameters, parsed, (size_t)count * sizeof(*parsed));
+        for(int i = 0; i < count; i++) {
+            signature->parameters[i].name = KeepName(parsed[i].name);
+            signature->parameters[i].type = KeepName(parsed[i].type);
+        }
         free(parsed);
         vm->signatures[slot] = signature;
         vm->signature_count++;
@@ -1082,7 +1084,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
 {
     memset(&buffers->frame, 0, sizeof(buffers->frame));
     const VmSignature *signature = vm_signature(vm, module, function);
-    const Parameter *parameters = signature->parameters;
+    const VmParameter *parameters = signature->parameters;
     int count = signature->count;
     Value result = int_value(0);
     uint64_t allocation_entry = vm->allocation;

@@ -91,8 +91,9 @@ vm_print(Frame *frame, const ZirExpr *expression, int depth)
 static Local *
 find_local(Frame *frame, const char *name)
 {
+    /* Checked expressions, declarations and cached parameters share names. */
     for(int i = frame->local_count - 1; i >= 0; i--)
-        if(strcmp(frame->locals[i].name, name) == 0)
+        if(frame->locals[i].name == name)
             return &frame->locals[i];
     return NULL;
 }
@@ -158,7 +159,8 @@ record_field(Record *record, const char *name)
     size_t position = vm_field_hash(name) & (record->field_slot_count - 1);
     while(record->field_slots[position] >= 0) {
         int index = record->field_slots[position];
-        if(strcmp(record->fields[index].field.name, name) == 0)
+        if(record->fields[index].field.name == name ||
+           strcmp(record->fields[index].field.name, name) == 0)
             return &record->fields[index].value;
         position = (position + 1) & (record->field_slot_count - 1);
     }
@@ -740,6 +742,12 @@ eval_expression(Frame *frame, int index, int depth)
                     retire_value(frame->vm, stored, 0);
                 return moved;
             }
+            /* Declarations, assignments and call parameters already coerce
+             * storage. A read with the identical interned type needs no
+             * repeated parsing or conversion. Keep invalid moved storage
+             * and differently spelled types on the checked path. */
+            if(stored.kind != VALUE_INVALID && local->type == expression->type)
+                return stored;
             return coerce_expression(frame->vm, frame->module,
                                      stored, expression->type);
         }

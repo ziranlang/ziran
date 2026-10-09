@@ -1,0 +1,69 @@
+Tone :: enum {
+    ToneDark :: -3
+    ToneLight :: 7
+}
+using Tone;
+
+Row :: struct {
+    values: [3]s32
+    text: string
+}
+
+ReadRow :: (row: Row) -> s32 {
+    copy := row
+    copy.values[1] = 99
+    if row.values[1] != 12 || copy.values[1] != 99 || row.text != "stable" { return -1 }
+    return row.values[0] + row.values[1] + row.values[2]
+}
+
+Shadowed :: () -> s32 {
+    value: s32 = 7
+    total := value
+    {
+        value: s32 = 11
+        total += value
+        {
+            value: s32 = 13
+            total += value
+        }
+        total += value
+    }
+    for index: 0..9 {
+        value := cast(s32)index
+        total += value
+    }
+    return total + value
+}
+
+ReadScalars :: (byte: u8, small: s8, wide: u64, real: float32,
+    flag: bool, tone: Tone) -> bool {
+    return byte == 255 && small == -1 && wide == cast(u64)18446744073709551615 &&
+        real == cast(float32)16777216.0 && flag && tone == cast(Tone)ToneDark
+}
+
+Set :: (target: *s32) { target.* = 43 }
+SetByte :: (target: *u8) { target.* = cast(u8)511 }
+
+#program_export
+main :: () -> s32 {
+    byte := cast(u8)511
+    small := cast(s8)255
+    wide := cast(u64)18446744073709551615
+    real := cast(float32)16777217.0
+    flag := cast(bool)3
+    tone := cast(Tone)ToneDark
+    if !ReadScalars(byte, small, wide, real, flag, tone) { return 1 }
+    if Shadowed() != 94 { return 2 }
+    row: Row = .{values = s32.[11, 12, 13], text = "stable"}
+    if ReadRow(row) != 36 || row.values[1] != 12 { return 3 }
+    copy := row
+    copy.values[0] = 90
+    if row.values[0] != 11 || copy.values[0] != 90 { return 4 }
+    mutable: s32 = 42
+    Set(*mutable)
+    if mutable != 43 { return 5 }
+    SetByte(*byte)
+    byte += cast(u8)2
+    if byte != 1 || !ReadScalars(cast(u8)255, small, wide, real, flag, tone) { return 6 }
+    return 0
+}

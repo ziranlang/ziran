@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     printf("{\"valid\":%s,\"answer\":%lld,\"samples\":%u,\"peak_live_value_bytes\":%zu}\n",
            valid ? "true" : "false", answer, probe.samples, probe.peak);
     if(!strcmp(entry, "Capacity"))
-        valid = valid && probe.samples == 1 && probe.peak > 2097152 && probe.peak < 3145728;
+        valid = valid && probe.samples == 1 && probe.peak > 1048576 && probe.peak < 1572864;
     else
         valid = valid && probe.samples == 3 && probe.peak > 983040 && probe.peak < 2097152;
     VmInstanceClose(probe.instance);

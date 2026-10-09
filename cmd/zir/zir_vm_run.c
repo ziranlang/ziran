@@ -68,8 +68,12 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             Local *local = &frame->locals[frame->local_count++];
             local->name = statement->name;
             local->type = statement->type;
-            local->value = coerce_storage_expression(frame, statement->expr_root,
-                value, statement->type, allocation_entry);
+            /* A default was constructed exclusively for this local. There
+             * is no existing binding to isolate with another deep copy. */
+            local->value = statement->expr_root < 0 ?
+                coerce_expression(vm, frame->module, value, statement->type) :
+                coerce_storage_expression(frame, statement->expr_root,
+                    value, statement->type, allocation_entry);
             break;
         }
         case ZIR_STMT_ASSIGN: {

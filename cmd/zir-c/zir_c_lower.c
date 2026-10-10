@@ -289,19 +289,8 @@ rewrite_body2(const ZirModule *m, const ZirCModuleSyms *restab,
 
                 while(isalnum((unsigned char)*me) || *me == '_')
                     me++;
-                char qualified[ZIR_NAME_MAX], native[LOWER_NAME_MAX * 2];
-                int type_length = snprintf(qualified, sizeof(qualified),
-                                           "%.*s", (int)(me - p), p);
-                if(type_length >= 0 &&
-                   (size_t)type_length < sizeof(qualified) &&
-                   NativeTypeAtUse(m, qualified, native, sizeof(native))) {
-                    size_t length = strlen(native);
-                    if(n + length >= dst_size) return 0;
-                    memcpy(dst + n, native, length);
-                    n += length;
-                    p = me - 1;
-                    continue;
-                }
+                /* A call names the module's own procedure, even when a type of
+                 * the same name is visible through that module's using imports. */
                 if(*me == '(' && restab != NULL) {
                     char cname[LOWER_NAME_MAX * 3];
                     size_t clen = resolve_aliased_fn(m, restab, restab_count,
@@ -317,6 +306,19 @@ rewrite_body2(const ZirModule *m, const ZirCModuleSyms *restab,
                         p = me - 1;   /* loop's p++ lands on '(' */
                         continue;
                     }
+                }
+                char qualified[ZIR_NAME_MAX], native[LOWER_NAME_MAX * 2];
+                int type_length = snprintf(qualified, sizeof(qualified),
+                                           "%.*s", (int)(me - p), p);
+                if(type_length >= 0 &&
+                   (size_t)type_length < sizeof(qualified) &&
+                   NativeTypeAtUse(m, qualified, native, sizeof(native))) {
+                    size_t length = strlen(native);
+                    if(n + length >= dst_size) return 0;
+                    memcpy(dst + n, native, length);
+                    n += length;
+                    p = me - 1;
+                    continue;
                 }
                 p = e;   /* strip the alias; loop's p++ skips the '.' */
                 continue;

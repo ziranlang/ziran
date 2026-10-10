@@ -111,3 +111,40 @@ if "$ziran" check --root "$work" "$work/clash.zi" \
     exit 1
 fi
 rg -q 'ambiguous' "$work/clash.err"
+
+# A module's own procedure wins over a type of the same name that the module
+# opens with using, also when callers qualify it with the module alias.
+cat > "$work/maker.zi" <<'ZI'
+using Lib :: #import "lib";
+Point :: () -> s32 {
+    return MakePoint(9, 1).x
+}
+ZI
+cat > "$work/caller.zi" <<'ZI'
+Maker :: #import "maker";
+#program_export
+Answer :: () -> s32 {
+    return Maker.Point()
+}
+ZI
+"$ziran" bundle --root "$work" --entry caller:Answer \
+    -o "$work/caller.zib" "$work/caller.zi"
+test "$("$ziran" run "$work/caller.zib")" = 9
+"$ziran" build --target=c --entry caller:Answer --root "$work" \
+    -o "$work/caller-c" "$work/caller.zi"
+cat > "$work/caller-c/main.c" <<'C'
+#include "caller.h"
+int main(void) { return Answer() == 9 ? 0 : 1; }
+C
+"${CC:-cc}" -std=c99 -pedantic-errors -I"$repo/include" -I"$work/caller-c" \
+    "$work/caller-c"/*.c -o "$work/caller-c/app"
+"$work/caller-c/app"
+"$ziran" build --target=cpp --entry caller:Answer --root "$work" \
+    -o "$work/caller-cpp" "$work/caller.zi"
+cat > "$work/caller-cpp/main.cpp" <<'CPP'
+#include "caller.hpp"
+int main() { return Answer() == 9 ? 0 : 1; }
+CPP
+"${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$work/caller-cpp" \
+    "$work/caller-cpp"/*.cpp -o "$work/caller-cpp/app"
+"$work/caller-cpp/app"

@@ -120,7 +120,7 @@
 <div><code>WithTimeout :: (value: Context, duration: clock.Duration) -&gt; Cancellation</code></div>
 <div><code>Cancel :: (callback: CancelFunc)</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/context_go.zi">Source ↗</a></p></section>
-<section id="date_parse"><p class="eyebrow">12 / std/date_parse.zi</p><h2>date_parse</h2><p>UTC calendar parsing for feeds and dated data sources.</p><p>Import with <code>#import "date_parse"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
+<section id="date_parse"><p class="eyebrow">12 / std/date_parse.zi</p><h2>date_parse</h2><p>UTC calendar parsing for feeds and dated data sources, years 1 through 9999.</p><p>Import with <code>#import "date_parse"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>DateDigit :: (value: u8) -&gt; s32</code></div>
 <div><code>DateNumber :: (value: string, start: s32, count: s32) -&gt; s32</code></div>
 <div><code>DaysFromCivil :: (year: s32, month: s32, day: s32) -&gt; s64</code></div>
@@ -468,6 +468,9 @@
 <div><code>CurlTimeoutMs :: 155</code></div>
 <div><code>CurlConnectTimeoutMs :: 156</code></div>
 <div><code>CurlNoSignal :: 99</code></div>
+<div><code>CurlNoBody :: 44</code></div>
+<div><code>CurlProxy :: 10004</code></div>
+<div><code>CurlFollowLocation :: 52</code></div>
 <div><code>CurlResponseCode :: 2097154</code></div>
 <div><code>curl_once: s32</code></div>
 <div><code>curl_init_result: s32</code></div>
@@ -490,6 +493,8 @@
 <div><code>AddNamedHeader :: (headers: **void, name: string, value: string, buffer: []u8) -&gt; bool</code></div>
 <div><code>SendCurl :: (request: HttpRequest, output: []u8) -&gt; CurlResult</code><p>The caller owns output. It remains NUL terminated, including on failure. HTTP errors retain their status and body for protocol-level decisions.</p></div>
 <div><code>SendCurlWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) -&gt; CurlResult</code><p>The same request with its own total timeout, for slow services such as model generation. Connecting still has 10 seconds.</p></div>
+<div><code>SendCurlDirectWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) -&gt; CurlResult</code><p>Bypass inherited proxy settings and never follow redirects. Callers still own URL authorization; this is useful for private local service transports.</p></div>
+<div><code>SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, direct: bool) -&gt; CurlResult</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/net_http_curl_linux.zi">Source ↗</a></p></section>
 <section id="net_http_linux"><p class="eyebrow">45 / std/net_http_linux.zi</p><h2>net_http_linux</h2><p>Import with <code>#import "net_http_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>PostJson :: (url: string, body: string, output: []u8) -&gt; CaptureResult</code><p>Native HTTPS JSON transport. curl owns TLS and HTTP framing; Ziran owns the request arguments and caller-provided response buffer.</p></div>

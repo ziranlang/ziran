@@ -118,15 +118,9 @@ static int
 parse_import_parameters(const ZirModule *module, const ZirImport *import,
                         Parameter *parameters)
 {
-    static _Thread_local ParseImportParametersBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ParseImportParametersBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    ParseImportParametersBuffers *buffers = AllocateOrExit(sizeof(*buffers));
     int returned = parse_import_parameters_with_buffers(module, import, parameters, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
+    free(buffers);
     return returned;
 }
 
@@ -328,6 +322,9 @@ typedef struct VerifyExpressionBuffers {
     Parameter expected[VM_MAX_PARAMS];
     unsigned char seen[VM_MAX_FIELDS];
 } VerifyExpressionBuffers;
+
+static _Thread_local VerifyExpressionBuffers *expression_spares[16];
+static _Thread_local int expression_spare_count;
 
 static int verify_expression(const ZirModule *module, const ZirFunction *function,
                   const Parameter *bindings, int binding_count,
@@ -918,13 +915,11 @@ verify_expression(const ZirModule *module, const ZirFunction *function,
                   const Parameter *bindings, int binding_count,
                   int index, int depth)
 {
-    static _Thread_local VerifyExpressionBuffers *spares[16];
-    static _Thread_local int spare_count;
-    VerifyExpressionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+    VerifyExpressionBuffers *buffers = expression_spare_count > 0 ? expression_spares[--expression_spare_count] :
         AllocateOrExit(sizeof(*buffers));
     int returned = verify_expression_with_buffers(module, function, bindings, binding_count, index, depth, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
+    if(expression_spare_count < 16)
+        expression_spares[expression_spare_count++] = buffers;
     else
         free(buffers);
     return returned;
@@ -1129,6 +1124,9 @@ typedef struct VerifyGlobalAggregateBuffers {
     ZirFunction probe;
 } VerifyGlobalAggregateBuffers;
 
+static _Thread_local VerifyGlobalAggregateBuffers *aggregate_spares[16];
+static _Thread_local int aggregate_spare_count;
+
 static int verify_global_aggregate(const ZirModule *module, const ZirGlobal *global);
 
 static int
@@ -1156,13 +1154,11 @@ verify_global_aggregate_with_buffers(const ZirModule *module, const ZirGlobal *g
 static int
 verify_global_aggregate(const ZirModule *module, const ZirGlobal *global)
 {
-    static _Thread_local VerifyGlobalAggregateBuffers *spares[16];
-    static _Thread_local int spare_count;
-    VerifyGlobalAggregateBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+    VerifyGlobalAggregateBuffers *buffers = aggregate_spare_count > 0 ? aggregate_spares[--aggregate_spare_count] :
         AllocateOrExit(sizeof(*buffers));
     int returned = verify_global_aggregate_with_buffers(module, global, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
+    if(aggregate_spare_count < 16)
+        aggregate_spares[aggregate_spare_count++] = buffers;
     else
         free(buffers);
     return returned;
@@ -1176,6 +1172,9 @@ typedef struct VmVerifyBuffers {
     Parameter parameters[VM_MAX_PARAMS];
     char literal[ZIR_TEXT_MAX];
 } VmVerifyBuffers;
+
+static _Thread_local VmVerifyBuffers *verify_spares[16];
+static _Thread_local int verify_spare_count;
 
 int VmVerify(const ZirProgram *program, const char *entry_module,
             const char *entry_function);
@@ -1353,18 +1352,40 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
     return 1;
 }
 
+/* Verification scratch is useful within one verification, not after it.
+ * Release returned buffers on success and rejection so short-lived worker
+ * threads do not retain inaccessible thread-local allocations. */
+static void
+free_verification_buffers(void)
+{
+    while(expression_spare_count > 0) {
+        int slot = --expression_spare_count;
+        free(expression_spares[slot]);
+        expression_spares[slot] = NULL;
+    }
+    while(aggregate_spare_count > 0) {
+        int slot = --aggregate_spare_count;
+        free(aggregate_spares[slot]);
+        aggregate_spares[slot] = NULL;
+    }
+    while(verify_spare_count > 0) {
+        int slot = --verify_spare_count;
+        free(verify_spares[slot]);
+        verify_spares[slot] = NULL;
+    }
+}
+
 int
 VmVerify(const ZirProgram *program, const char *entry_module,
             const char *entry_function)
 {
-    static _Thread_local VmVerifyBuffers *spares[16];
-    static _Thread_local int spare_count;
-    VmVerifyBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+    VmVerifyBuffers *buffers = verify_spare_count > 0 ? verify_spares[--verify_spare_count] :
         AllocateOrExit(sizeof(*buffers));
     int returned = VmVerify_with_buffers(program, entry_module, entry_function, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
+    if(verify_spare_count < 16)
+        verify_spares[verify_spare_count++] = buffers;
     else
         free(buffers);
+    free_verification_buffers();
     return returned;
 }

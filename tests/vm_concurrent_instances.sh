@@ -11,7 +11,11 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS ZIRAN_PROFILE 
 source=$repo/tests/spec/vm_concurrent_instances_test.zi
 "$ziran" ir --root "$repo/tests/spec" -o "$work/ir" "$source"
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
-    "$repo/tests/vm_concurrent_instances_test.c" "$library" -lm -pthread -o "$work/test"
+    -I"$repo/bootstrap/compiler_text" \
+    -I"$repo/bootstrap/compiler_type" \
+    "$repo/tests/vm_concurrent_instances_test.c" "$repo"/cmd/zir/zir_vm*.c \
+    "$repo/cmd/zir/zir.c" "$repo/cmd/zir/zir_text.c" "$repo/cmd/zir/zir_diagnostic.c" \
+    "$library" -lm -pthread -o "$work/test"
 "$work/test" --metadata-only
 rm -f "$work/cold-profile.jsonl"
 ZIRAN_PROFILE="$work/cold-profile.jsonl" "$work/test" --metadata-only
@@ -38,6 +42,13 @@ assert phase['calls'] == 8 * 600
 assert record['workspace_allocation_calls'] >= 8 * 600
 PY
 done
+ZIRAN_DIAGNOSTICS=json "$work/test" "$work/source.zib" 2>"$work/diagnostics.jsonl"
+python3 - "$work/diagnostics.jsonl" <<'PY'
+import json, sys
+records = [json.loads(line) for line in open(sys.argv[1])]
+assert len(records) == 8
+assert all(record['code'] == 'zib.entry' and record['path'] == '<bundle>' for record in records)
+PY
 python3 - "$work/cold-profile.jsonl" <<'PY'
 import json, sys
 record, = [json.loads(line) for line in open(sys.argv[1])]

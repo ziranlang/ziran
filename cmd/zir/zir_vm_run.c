@@ -1167,37 +1167,34 @@ free_signatures(Vm *vm)
     vm->signature_count = vm->signature_slots = 0;
 }
 
-typedef struct RunFunctionBuffers {
+struct RunFunctionBuffers {
     Frame frame;
     /* The frame's locals; kept with the buffers for the next call. */
     Local *locals;
     int local_capacity;
-} RunFunctionBuffers;
+};
 
 /* What a call needs only while it calls the host. Taken from a pool and
  * returned before a body runs, so nested calls reuse one instead of each
  * holding kilobytes for their whole run. */
-typedef struct CallSetup {
+struct CallSetup {
     VmHostValue host_args[VM_MAX_PARAMS];
-} CallSetup;
-
-static _Thread_local CallSetup *setup_spares[16];
-static _Thread_local int setup_spare_count;
+};
 
 static CallSetup *
-take_setup(void)
+take_setup(Vm *vm)
 {
-    return setup_spare_count > 0 ? setup_spares[--setup_spare_count] :
+    return vm->setup_buffer_count > 0 ? vm->setup_buffers[--vm->setup_buffer_count] :
         AllocateOrExit(sizeof(CallSetup));
 }
 
 static void
-give_setup(CallSetup **setup)
+give_setup(Vm *vm, CallSetup **setup)
 {
     if(*setup == NULL)
         return;
-    if(setup_spare_count < 16)
-        setup_spares[setup_spare_count++] = *setup;
+    if(vm->setup_buffer_count < 16)
+        vm->setup_buffers[vm->setup_buffer_count++] = *setup;
     else
         free(*setup);
     *setup = NULL;
@@ -1345,7 +1342,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
             coerce(vm, module, args[i], parameters[i].type);
     }
     buffers->frame.local_count = count;
-    give_setup(setup);
+    give_setup(vm, setup);
     Flow flow = execute_sequence(&buffers->frame, 0, function->stmt_count, 0, &result);
     if(flow == FLOW_ERROR || flow == FLOW_BREAK || flow == FLOW_CONTINUE ||
        (flow != FLOW_RETURN && strcmp(function->return_type, "void") != 0))
@@ -1402,22 +1399,20 @@ run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
         allocation_entry = vm->allocation;
         child_allocations = vm->profile->allocations;
     }
-    static _Thread_local RunFunctionBuffers *spares[16];
-    static _Thread_local int spare_count;
     RunFunctionBuffers *buffers;
-    if(spare_count > 0)
-        buffers = spares[--spare_count];
+    if(vm->run_buffer_count > 0)
+        buffers = vm->run_buffers[--vm->run_buffer_count];
     else {
         buffers = AllocateOrExit(sizeof(*buffers));
         buffers->locals = NULL;
         buffers->local_capacity = 0;
     }
-    CallSetup *setup = take_setup();
+    CallSetup *setup = take_setup(vm);
     Value returned = run_function_with_buffers(vm, module, function, args, arg_count,
                                                buffers, &setup);
-    give_setup(&setup);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
+    give_setup(vm, &setup);
+    if(vm->run_buffer_count < 16)
+        vm->run_buffers[vm->run_buffer_count++] = buffers;
     else {
         free(buffers->locals);
         free(buffers);
@@ -1698,16 +1693,28 @@ initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlo
 static int
 initialize_globals(Vm *vm, const ZirProgram *program)
 {
-    static _Thread_local InitializeGlobalsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    InitializeGlobalsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    InitializeGlobalsBuffers *buffers = AllocateOrExit(sizeof(*buffers));
     int returned = initialize_globals_with_buffers(vm, program, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
+    free(buffers);
     return returned;
+}
+
+/* Cached call workspaces are instance-owned rather than thread-owned, so
+ * serial thread handoffs and close on a different worker release them too. */
+static void
+free_runtime_buffers(Vm *vm)
+{
+    while(vm->run_buffer_count > 0) {
+        int slot = --vm->run_buffer_count;
+        free(vm->run_buffers[slot]->locals);
+        free(vm->run_buffers[slot]);
+        vm->run_buffers[slot] = NULL;
+    }
+    while(vm->setup_buffer_count > 0) {
+        int slot = --vm->setup_buffer_count;
+        free(vm->setup_buffers[slot]);
+        vm->setup_buffers[slot] = NULL;
+    }
 }
 
 VmInstance *
@@ -1813,6 +1820,8 @@ VmInstanceClose(VmInstance *instance)
     free(instance->vm.type_sites);
     free(instance->vm.constant_sites);
     free(instance->vm.globals);
+    free_runtime_buffers(&instance->vm);
+    free_evaluation_buffers(&instance->vm);
     free(instance);
 }
 

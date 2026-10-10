@@ -240,13 +240,9 @@ print_format_pieces(const char *format, PrintPiece *pieces, int capacity,
 int
 PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity)
 {
-    static _Thread_local PrintFormatPiecesBuffers *spares[16];
-    static _Thread_local int spare_count;
-    PrintFormatPiecesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    PrintFormatPiecesBuffers *buffers = AllocateOrExit(sizeof(*buffers));
     int returned = print_format_pieces(format, pieces, capacity, buffers);
-    if(spare_count < 16) spares[spare_count++] = buffers;
-    else free(buffers);
+    free(buffers);
     return returned;
 }
 

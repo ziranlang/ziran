@@ -1,8 +1,10 @@
 #include "zir_diagnostic.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdatomic.h>
 
-static int diagnostic_json = -1;
+static atomic_int diagnostic_json = ATOMIC_VAR_INIT(-1);
+static atomic_flag diagnostic_lock = ATOMIC_FLAG_INIT;
 
 /* Paths and subprocess output may contain non-UTF-8 bytes. Preserve valid
  * UTF-8, but escape individual invalid bytes so each JSON line is decodable. */
@@ -75,7 +77,9 @@ DiagnosticJsonEnabled(void)
 {
     if(diagnostic_json < 0) {
         const char *environment = getenv("ZIRAN_DIAGNOSTICS");
-        diagnostic_json = environment != NULL && !strcmp(environment, "json");
+        int unset = -1;
+        atomic_compare_exchange_strong(&diagnostic_json, &unset,
+            environment != NULL && !strcmp(environment, "json"));
     }
     return diagnostic_json;
 }
@@ -90,8 +94,7 @@ DiagnosticOutOfMemory(void)
               "\"end_line\":0,\"end_column\":0}\n", stderr);
     else fputs("ziran: out of memory\n", stderr);
 }
-/* Buffers DiagnosticV keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
+/* Keep large messages off recursive stacks, releasing them after reporting. */
 typedef struct DiagnosticVBuffers {
     char message[ZIR_TEXT_MAX * 2];
 } DiagnosticVBuffers;
@@ -115,9 +118,10 @@ report(ZirSourceSpan span, const char *severity, const char *code,
        va_list args, DiagnosticVBuffers *buffers)
 {
     vsnprintf(buffers->message, sizeof(buffers->message), format, args);
-    DiagnosticJsonEnabled();
+    int json = DiagnosticJsonEnabled();
     int warning = strcmp(severity, "warning") == 0;
-    if(diagnostic_json) {
+    while(atomic_flag_test_and_set_explicit(&diagnostic_lock, memory_order_acquire)) {}
+    if(json) {
         fprintf(stderr, "{\"schema_version\":1,\"severity\":\"%s\",\"code\":", severity);
         json_string(stderr, code);
         fputs(",\"message\":", stderr);
@@ -174,11 +178,12 @@ report(ZirSourceSpan span, const char *severity, const char *code,
     } else {
         fprintf(stderr, "ziran: %s%s\n", warning ? "warning: " : "", buffers->message);
     }
-    if(!diagnostic_json && details != NULL && details->related_message != NULL &&
+    if(!json && details != NULL && details->related_message != NULL &&
        details->related_span.line > 0)
         fprintf(stderr, "%s:%d:%d: note: %s\n", SpanPath(details->related_span),
                 details->related_span.line, details->related_span.column,
                 details->related_message);
+    atomic_flag_clear_explicit(&diagnostic_lock, memory_order_release);
 }
 
 static void
@@ -190,15 +195,9 @@ DiagnosticV_with_buffers(ZirSourceSpan span, const char *code, const char *forma
 void
 DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args)
 {
-    static _Thread_local DiagnosticVBuffers *spares[16];
-    static _Thread_local int spare_count;
-    DiagnosticVBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
     DiagnosticV_with_buffers(span, code, format, args, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
+    free(buffers);
 }
 
 void

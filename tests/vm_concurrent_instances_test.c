@@ -17,6 +17,7 @@ typedef struct Worker {
     unsigned index;
     const char *shared;
     const ZirParameters *parameters;
+    VmInstance *instance;
 } Worker;
 
 static void *run_worker(void *context)
@@ -32,6 +33,12 @@ static void *run_worker(void *context)
         const char *kept = KeepText(text);
         assert(strcmp(kept, text) == 0);
         assert(KeepText(text) == kept);
+        ZirSourceSpan span = {.file = SourceFile(text)};
+        const char *path = SpanPath(span);
+        assert(span.file > 0 && strcmp(path, text) == 0);
+        assert(SourceFile(text) == span.file);
+        assert(SourceFile("shared concurrent path") ==
+               SourceFile("shared concurrent path"));
         worker->shared = KeepText("shared concurrent identity");
         worker->parameters = ParametersOf("value: s32, label: string");
         assert(worker->parameters->count == 2);
@@ -55,11 +62,12 @@ static void *run_worker(void *context)
         assert(strcmp(field.name, "values") == 0 && strcmp(field.type, "[3]u8") == 0);
         assert(TypeNextField(&record, &cursor, &field) == 0);
         assert(strcmp(kept, text) == 0 && strcmp(parsed->items[0].name, name) == 0);
+        assert(strcmp(path, text) == 0 && SpanPath(span) == path);
         ProfileEnd("concurrent_probe_phase", started);
     }
     pthread_barrier_wait(&ready);
     if(program == NULL) return NULL;
-    VmInstance *instance = VmInstanceOpen(program, module, entry, NULL, NULL);
+    VmInstance *instance = worker->instance;
     assert(instance != NULL);
     for(unsigned index = 0; index < RUNS; index++) {
         long long answer = 0;
@@ -68,6 +76,9 @@ static void *run_worker(void *context)
         assert(present && answer == (long long)index + 42);
     }
     VmInstanceClose(instance);
+    /* Rejected verification must also release its scratch before this worker
+     * exits; there is no later instance close to clean it up. */
+    assert(!VmVerify(program, module, "absent_leaf_entry"));
     return NULL;
 }
 
@@ -87,6 +98,13 @@ int main(int argc, char **argv)
     program = loaded;
     pthread_t threads[WORKERS];
     Worker workers[WORKERS] = {0};
+    /* Instances start on this thread, then run and close on their workers.
+     * Scratch ownership must follow the instance rather than its creator. */
+    if(program != NULL)
+        for(unsigned i = 0; i < WORKERS; i++) {
+            workers[i].instance = VmInstanceOpen(program, module, entry, NULL, NULL);
+            assert(workers[i].instance != NULL);
+        }
     assert(pthread_barrier_init(&ready, NULL, WORKERS) == 0);
     for(unsigned index = 0; index < WORKERS; index++) {
         workers[index].index = index;

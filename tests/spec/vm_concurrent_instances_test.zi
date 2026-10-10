@@ -12,6 +12,7 @@ Read :: (value: Cell) -> s32 {
 #program_export
 Next :: () -> s32 {
     calls += 1
+    if calls == 1 { print("VM worker\n") }
     cell.value = calls
     cell.values[1] = cast(u8)511
     cell.text = "independent instance"

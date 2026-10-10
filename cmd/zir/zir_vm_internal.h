@@ -386,6 +386,10 @@ typedef struct Vm {
      * (the web playground); zero means unbounded, as on native targets. */
     int steps;
     int max_steps;
+    /* Records returned by the host match their fields by name: extra host
+     * fields are ignored and missing ones take the field type's zero value.
+     * Off by default, where a record must match its declared layout. */
+    int match_fields_by_name;
     int failed;
     /* Calls may nest until the C stack reaches stack_floor, where the
      * thread's stack bounds are known; elsewhere VM_MAX_DEPTH calls.

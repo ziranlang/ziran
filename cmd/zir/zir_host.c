@@ -433,6 +433,13 @@ BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
 }
 
 void
+BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
+{
+    if(instance != NULL)
+        VmInstanceMatchFieldsByName(instance->vm, enabled);
+}
+
+void
 BundleInstanceClose(BundleInstance *instance)
 {
     if(instance == NULL)

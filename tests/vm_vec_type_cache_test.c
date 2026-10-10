@@ -73,6 +73,33 @@ main(void)
         check(instances[instance], first, "Absent", NULL);
         check(instances[instance], first, collision, "string");
         check(instances[instance], first, "Numbers", "s64");
+        /* Checked immutable spellings and mutable scratch must agree. A
+         * reused address must never retain its previous name or scope. */
+        check(instances[instance], first, KeepText("Numbers"), "s64");
+        check(instances[instance], second, KeepText("Numbers"), "u8");
+        check(instances[instance], first, KeepText("Other.Numbers"), "u8");
+        char scratch[ZIR_NAME_MAX];
+        const char *names[] = {"Numbers", "Absent", "Other.Numbers", "Malformed", collision};
+        const char *expected[] = {"s64", NULL, "u8", NULL, "string"};
+        for(int repeat = 0; repeat < 8; repeat++)
+            for(size_t i = 0; i < sizeof names / sizeof *names; i++) {
+                strcpy(scratch, names[i]);
+                check(instances[instance], first, scratch, expected[i]);
+                check(instances[instance], first, KeepText(scratch), expected[i]);
+            }
+        /* Churn beyond the bounded table, including cached misses. No
+         * cache lookup may confuse imported types, Vec metadata or owners. */
+        VmTypeSite *storage = instances[instance]->type_sites;
+        for(int i = 0; i < 4096; i++) {
+            snprintf(scratch, sizeof(scratch), "Absent%d", i);
+            const ZirModule *owner = first;
+            assert(vm_find_type(instances[instance], first, KeepText(scratch), &owner) == NULL);
+            assert(owner == NULL);
+        }
+        assert(instances[instance]->type_sites == storage);
+        check(instances[instance], first, KeepText("Numbers"), "s64");
+        check(instances[instance], second, KeepText("Numbers"), "u8");
+        check(instances[instance], first, KeepText("Other.Numbers"), "u8");
     }
     free(instances[0]->type_sites);
     free(instances[0]);

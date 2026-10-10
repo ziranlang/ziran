@@ -110,6 +110,7 @@ CCallback :: #type (value: s32) -> s32 #c_call;
 HolderBuilder :: #type (value: s32) -> Holder;
 Holder :: struct { callback: Callback; callbacks: [2]Callback; }
 EnumHolder :: struct { callback: EnumCallback; }
+NestedHolder :: struct { holder: Holder; c_callback: CCallback; }
 installed: Callback;
 empty: CCallback;
 AddOne :: (value: s32) -> s32 { return value + 1 }
@@ -151,6 +152,23 @@ main :: () -> s32 {
     if c_callback == null || null != CUnset() || c_callback(40) != 42 {
         return 5
     }
+    nested: NestedHolder
+    nested.holder = holder
+    nested.c_callback = c_callback
+    pointer := *nested
+    copied := pointer.*
+    copied.holder.callback = AddOne
+    copied_callback: Callback = copied.holder.callback
+    original_callback: Callback = nested.holder.callback
+    copied_c_callback: CCallback = copied.c_callback
+    if copied_callback(40) != 41 || original_callback(40) != 42 ||
+        copied_c_callback(40) != 42 { return 6 }
+    holders: [2]NestedHolder
+    holders[0] = pointer.*
+    holders[1] = pointer.*
+    first_callback: Callback = holders[0].holder.callback
+    second_callback: CCallback = holders[1].c_callback
+    if first_callback(40) != 42 || second_callback(40) != 42 { return 7 }
     return 0
 }
 ZI

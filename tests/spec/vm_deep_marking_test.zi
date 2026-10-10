@@ -1,0 +1,40 @@
+Node :: struct { value: s32; next: *Node; }
+head: *Node;
+
+Pressure :: () -> s64 {
+    total: s64
+    for index: 0..255 {
+        bytes: [4096]s64
+        bytes[0] = cast(s64)index
+        total += bytes[0]
+    }
+    return total
+}
+
+#program_export
+Answer :: () -> s32 {
+    for index: 0..255 {
+        node := New(Node)
+        if node == null { return 1 }
+        node.value = cast(s32)index
+        node.next = head
+        head = node
+    }
+    if Pressure() != 32640 { return 2 }
+    current := head
+    count: s32
+    total: s32
+    while current != null {
+        total += current.value
+        count += 1
+        if count > 256 { return 3 }
+        current = current.next
+    }
+    if count != 256 || total != 32640 { return 4 }
+    while head != null {
+        node := head
+        head = node.next
+        free(node)
+    }
+    return 42
+}

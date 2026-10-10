@@ -49,6 +49,7 @@ typedef struct StringLiteral StringLiteral;
 typedef struct VmPrintBuffers VmPrintBuffers;
 typedef struct RunFunctionBuffers RunFunctionBuffers;
 typedef struct CallSetup CallSetup;
+typedef struct VmScalarSite VmScalarSite;
 
 typedef struct Value {
     ValueKind kind;
@@ -410,6 +411,8 @@ typedef struct Vm {
     VmGlobalSite *global_sites;
     VmTypeSite *type_sites;
     VmConstantSite *constant_sites;
+    VmScalarSite *scalar_sites;
+    size_t scalar_site_count, scalar_site_slots;
     StringLiteral **literal_sites;
     Frame *active_frame;
     VmRoots *evaluation_roots;

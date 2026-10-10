@@ -7,6 +7,7 @@ struct VmPrintBuffers {
 };
 
 static void vm_print(Frame *frame, const ZirExpr *expression, int depth);
+static void free_scalar_plans(Vm *vm);
 
 static void
 vm_print_with_buffers(Frame *frame, const ZirExpr *expression, int depth, VmPrintBuffers *buffers)
@@ -90,6 +91,7 @@ vm_print(Frame *frame, const ZirExpr *expression, int depth)
 void
 free_evaluation_buffers(Vm *vm)
 {
+    free_scalar_plans(vm);
     while(vm->print_buffer_count > 0) {
         int slot = --vm->print_buffer_count;
         free(vm->print_buffers[slot]);
@@ -541,11 +543,10 @@ integer_operation_width(const char *type)
     return 32;
 }
 
-Value
-binary_value(Vm *vm, const char *op, Value left, Value right,
-             const char *left_type, const char *right_type)
+static Value
+binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
+                   int left_width, int right_width, int left_unsigned)
 {
-    BinaryOperation operation = binary_operation(op);
     int real = left.kind == VALUE_REAL || right.kind == VALUE_REAL;
     int shift = operation == BinaryShiftLeft || operation == BinaryShiftRight;
     if(vm->failed || operation == BinaryInvalid ||
@@ -598,9 +599,11 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
            (left.kind != VALUE_ENUM && left.kind != VALUE_INT) ||
            (right.kind != VALUE_ENUM && right.kind != VALUE_INT))
             goto failed;
-        Value result = binary_value(vm, op, int_value(left.integer),
-                                    int_value(right.integer),
-                                    flags->enum_backing, flags->enum_backing);
+        int width = integer_operation_width(flags->enum_backing);
+        Value result = binary_with_policy(vm, operation, int_value(left.integer),
+                                          int_value(right.integer), width,
+                                          shift ? 32 : width,
+                                          flags->enum_backing[0] == 'u');
         if(vm->failed || operation == BinaryEqual || operation == BinaryNotEqual)
             return result;
         result = coerce(vm, NULL, result, flags->enum_backing);
@@ -619,8 +622,6 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
     /* Text, enums and VM references above do not need integer type parsing.
      * Shift width comes only from the left operand; other numeric operations
      * use either operand's wide representation. */
-    int left_width = integer_operation_width(left_type);
-    int right_width = shift ? 32 : integer_operation_width(right_type);
     int unsigned64 = left_width == -64 || right_width == -64;
     int signed_wide = !unsigned64 && (left_width == 64 || right_width == 64);
     uint64_t left_bits = integer_bits(left);
@@ -700,7 +701,7 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         if(operation == BinaryShiftLeft)
             return int_value((a_bits << amount) & mask);
         uint32_t shifted = a_bits >> amount;
-        if(left_type[0] != 'u' &&
+        if(!left_unsigned &&
            (a_bits & (UINT32_C(1) << (width - 1))) != 0 && amount > 0)
             shifted |= mask ^ (mask >> amount);
         return int_value(shifted & mask);
@@ -742,6 +743,24 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
 failed:
     vm->failed = 1;
     return int_value(0);
+}
+
+Value
+binary_value(Vm *vm, const char *op, Value left, Value right,
+             const char *left_type, const char *right_type)
+{
+    BinaryOperation operation = binary_operation(op);
+    int left_width = 32, right_width = 32, left_unsigned = 0;
+    if(!vm->failed && operation != BinaryInvalid &&
+       (left.kind == VALUE_INT || left.kind == VALUE_REAL) &&
+       (right.kind == VALUE_INT || right.kind == VALUE_REAL)) {
+        left_width = integer_operation_width(left_type);
+        if(operation != BinaryShiftLeft && operation != BinaryShiftRight)
+            right_width = integer_operation_width(right_type);
+        left_unsigned = left_type[0] == 'u';
+    }
+    return binary_with_policy(vm, operation, left, right,
+                              left_width, right_width, left_unsigned);
 }
 /* Buffers eval keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -964,6 +983,402 @@ eval_leaf(Frame *frame, const ZirExpr *expression)
         break;
     }
     return coerce_expression(frame->vm, frame->module, value, expression->type);
+}
+
+/* Linear plans cover expressions without calls, moves or address-taking.
+ * They keep evaluation order and each node's coercion, but avoid recursively
+ * entering the evaluator and constructing temporary root chains per node.
+ * No plan instruction can collect storage or invoke another plan. Plans hold
+ * immutable IR only; every binding, field and index is read at execution. */
+enum { SCALAR_PLAN_SLOTS = 16384, SCALAR_PLAN_STEPS = 32 };
+
+typedef enum ScalarOp {
+    SCALAR_LEAF, SCALAR_MEMBER, SCALAR_POINTER_MEMBER, SCALAR_INDEX,
+    SCALAR_UNARY, SCALAR_BINARY, SCALAR_CAST, SCALAR_AND, SCALAR_OR,
+    SCALAR_FALSE, SCALAR_COPY, SCALAR_JUMP, SCALAR_TRUTH
+} ScalarOp;
+
+typedef enum ScalarConversion {
+    ScalarGeneric, ScalarInteger, ScalarBool,
+    ScalarS8, ScalarU8, ScalarS16, ScalarU16,
+    ScalarS32, ScalarU32, ScalarS64, ScalarU64,
+    ScalarF32, ScalarF64
+} ScalarConversion;
+
+static ScalarConversion
+scalar_conversion(const char *type)
+{
+    ValueKind kind = value_kind(type);
+    if(kind == VALUE_REAL)
+        return type[0] == 'f' && type[5] == '3' ? ScalarF32 : ScalarF64;
+    if(kind != VALUE_INT)
+        return ScalarGeneric;
+    if(type[0] == 'b') return ScalarBool;
+    if(type[0] == 'i') return ScalarInteger;
+    if(type[0] != 's' && type[0] != 'u') return ScalarGeneric;
+    int unsigned_type = type[0] == 'u';
+    switch(type[1]) {
+    case '8': return unsigned_type ? ScalarU8 : ScalarS8;
+    case '1': return unsigned_type ? ScalarU16 : ScalarS16;
+    case '6': return unsigned_type ? ScalarU64 : ScalarS64;
+    default: return unsigned_type ? ScalarU32 : ScalarS32;
+    }
+}
+
+/* The plan stores only checked primitive type facts. Real-to-integer range
+ * checks, aggregate borrows, enum validation and pointers keep the canonical
+ * conversion path; their current value is never cached in a plan. */
+static Value
+scalar_result(Frame *frame, Value value, const char *type,
+              ScalarConversion conversion)
+{
+    if(value.kind == VALUE_INT || value.kind == VALUE_REAL || value.kind == VALUE_ENUM) {
+        if(conversion == ScalarInteger) return value;
+        if(conversion == ScalarBool) return int_value(truthy(value));
+        if(conversion == ScalarF32) return real_value((float)as_real(value));
+        if(conversion == ScalarF64) return real_value(as_real(value));
+        if(value.kind != VALUE_REAL) {
+            uint64_t bits = integer_bits(value);
+            switch(conversion) {
+            case ScalarS8: return int_value((int8_t)(uint8_t)bits);
+            case ScalarU8: return int_value((uint8_t)bits);
+            case ScalarS16: return int_value((int16_t)(uint16_t)bits);
+            case ScalarU16: return int_value((uint16_t)bits);
+            case ScalarS32: return int_value((uint32_t)bits <= INT32_MAX ?
+                (int64_t)(uint32_t)bits : (int64_t)(uint32_t)bits - INT64_C(4294967296));
+            case ScalarU32: return int_value((uint32_t)bits);
+            case ScalarS64: return int_value(signed64(bits));
+            case ScalarU64: return uint_value(bits);
+            default: break;
+            }
+        }
+    }
+    return coerce_expression(frame->vm, frame->module, value, type);
+}
+
+typedef struct ScalarStep {
+    const ZirExpr *expression;
+    unsigned short operation;
+    unsigned char op, left, right, output, target, depth;
+    signed char left_width, right_width;
+    unsigned char left_unsigned, conversion, cast_conversion;
+} ScalarStep;
+
+typedef struct ScalarPlan {
+    unsigned char count, output;
+    ScalarStep steps[];
+} ScalarPlan;
+
+struct VmScalarSite {
+    const ZirExpr *expression;
+    const ZirModule *module;
+    ScalarPlan *plan;
+};
+
+typedef struct ScalarBuilder {
+    const ZirFunction *function;
+    int count;
+    ScalarStep steps[SCALAR_PLAN_STEPS];
+} ScalarBuilder;
+
+static int
+scalar_step(ScalarBuilder *builder, ScalarOp op, const ZirExpr *expression,
+            int left, int right, int depth)
+{
+    if(builder->count >= SCALAR_PLAN_STEPS)
+        return -1;
+    int index = builder->count++;
+    ScalarStep *step = &builder->steps[index];
+    *step = (ScalarStep){.expression = expression, .op = (unsigned char)op,
+        .left = (unsigned char)left, .right = (unsigned char)right,
+        .output = (unsigned char)index, .depth = (unsigned char)depth,
+        .conversion = (unsigned char)scalar_conversion(expression->type)};
+    if(op == SCALAR_CAST)
+        step->cast_conversion = (unsigned char)scalar_conversion(expression->name);
+    if(op == SCALAR_BINARY) {
+        step->operation = (unsigned short)binary_operation(expression->op);
+        const char *left_type = builder->function->exprs[expression->left].type;
+        step->left_width = (signed char)integer_operation_width(left_type);
+        step->right_width = (signed char)(step->operation == BinaryShiftLeft ||
+            step->operation == BinaryShiftRight ? 32 :
+            integer_operation_width(builder->function->exprs[expression->right].type));
+        step->left_unsigned = left_type[0] == 'u';
+    }
+    return index;
+}
+
+static int
+scalar_compile(ScalarBuilder *builder, int index, int depth)
+{
+    if(index < 0 || index >= builder->function->expr_count ||
+       depth >= SCALAR_PLAN_STEPS || builder->count >= SCALAR_PLAN_STEPS)
+        return -1;
+    const ZirExpr *expression = &builder->function->exprs[index];
+    if(expression->is_move || expression->is_function_value)
+        return -1;
+    int left = -1, right = -1;
+    ScalarOp op;
+    switch(expression->kind) {
+    case ZIR_EXPR_SIZE_OF:
+    case ZIR_EXPR_INT:
+    case ZIR_EXPR_FLOAT:
+    case ZIR_EXPR_STRING:
+    case ZIR_EXPR_COMPILE_TIME:
+    case ZIR_EXPR_IDENT:
+        return scalar_step(builder, SCALAR_LEAF, expression, 0, 0, depth);
+    case ZIR_EXPR_UNARY:
+        if(!strcmp(expression->op, "&"))
+            return -1;
+        right = scalar_compile(builder, expression->right, depth + 1);
+        if(right < 0) return -1;
+        return scalar_step(builder, SCALAR_UNARY, expression, 0, right, depth);
+    case ZIR_EXPR_CAST:
+        /* Aggregate casts can clone ownership trees. Keep those on the
+         * ordinary evaluator path rather than introducing plan ownership. */
+        if(value_kind(expression->name) != VALUE_INT &&
+           value_kind(expression->name) != VALUE_REAL && expression->name[0] != '*')
+            return -1;
+        right = scalar_compile(builder, expression->right, depth + 1);
+        if(right < 0) return -1;
+        return scalar_step(builder, SCALAR_CAST, expression, 0, right, depth);
+    case ZIR_EXPR_MEMBER:
+    case ZIR_EXPR_POINTER_MEMBER:
+        left = scalar_compile(builder, expression->left, depth + 1);
+        if(left < 0) return -1;
+        op = expression->kind == ZIR_EXPR_MEMBER ? SCALAR_MEMBER : SCALAR_POINTER_MEMBER;
+        return scalar_step(builder, op, expression, left, 0, depth);
+    case ZIR_EXPR_INDEX:
+    case ZIR_EXPR_BINARY:
+        left = scalar_compile(builder, expression->left, depth + 1);
+        if(left < 0) return -1;
+        if(expression->kind == ZIR_EXPR_BINARY &&
+           (!strcmp(expression->op, "&&") || !strcmp(expression->op, "||"))) {
+            op = !strcmp(expression->op, "&&") ? SCALAR_AND : SCALAR_OR;
+            int guard = scalar_step(builder, op, expression, left, 0, depth);
+            if(guard < 0) return -1;
+            right = scalar_compile(builder, expression->right, depth + 1);
+            if(right < 0) return -1;
+            int result = scalar_step(builder, SCALAR_TRUTH, expression, left, right, depth);
+            if(result < 0) return -1;
+            builder->steps[guard].output = (unsigned char)result;
+            builder->steps[guard].target = (unsigned char)(result + 1);
+            return result;
+        }
+        right = scalar_compile(builder, expression->right, depth + 1);
+        if(right < 0) return -1;
+        op = expression->kind == ZIR_EXPR_INDEX ? SCALAR_INDEX : SCALAR_BINARY;
+        return scalar_step(builder, op, expression, left, right, depth);
+    case ZIR_EXPR_CONDITIONAL: {
+        left = scalar_compile(builder, expression->left, depth + 1);
+        if(left < 0) return -1;
+        int guard = scalar_step(builder, SCALAR_FALSE, expression, left, 0, depth);
+        if(guard < 0) return -1;
+        right = scalar_compile(builder, expression->right, depth + 1);
+        if(right < 0) return -1;
+        int first = scalar_step(builder, SCALAR_COPY, expression, right, 0, depth);
+        int jump = scalar_step(builder, SCALAR_JUMP, expression, 0, 0, depth);
+        if(first < 0 || jump < 0) return -1;
+        builder->steps[guard].target = (unsigned char)builder->count;
+        right = scalar_compile(builder, expression->third, depth + 1);
+        if(right < 0) return -1;
+        int result = scalar_step(builder, SCALAR_COPY, expression, right, 0, depth);
+        if(result < 0) return -1;
+        builder->steps[first].output = (unsigned char)result;
+        builder->steps[jump].target = (unsigned char)(result + 1);
+        return result;
+    }
+    default:
+        return -1;
+    }
+}
+
+static const ScalarPlan *
+scalar_plan(Frame *frame, int index)
+{
+    const ZirExpr *expression = &frame->function->exprs[index];
+    Vm *vm = frame->vm;
+    if(vm->scalar_site_slots == 0 ||
+       (vm->scalar_site_count * 2 >= vm->scalar_site_slots &&
+        vm->scalar_site_slots < SCALAR_PLAN_SLOTS)) {
+        size_t slots = vm->scalar_site_slots ? vm->scalar_site_slots * 2 : 256;
+        VmScalarSite *sites = calloc(slots, sizeof(*sites));
+        if(sites == NULL) return NULL;
+        for(size_t i = 0; i < vm->scalar_site_slots; i++) {
+            VmScalarSite prior = vm->scalar_sites[i];
+            if(prior.expression == NULL) continue;
+            size_t position = vm_expression_slot(prior.expression, slots);
+            while(sites[position].expression != NULL)
+                position = (position + 1) & (slots - 1);
+            sites[position] = prior;
+        }
+        free(vm->scalar_sites);
+        vm->scalar_sites = sites;
+        vm->scalar_site_slots = slots;
+    }
+    size_t position = vm_expression_slot(expression, vm->scalar_site_slots);
+    while(vm->scalar_sites[position].expression != NULL &&
+          (vm->scalar_sites[position].expression != expression ||
+           vm->scalar_sites[position].module != frame->module))
+        position = (position + 1) & (vm->scalar_site_slots - 1);
+    VmScalarSite *site = &vm->scalar_sites[position];
+    if(site->expression != NULL)
+        return site->plan;
+    if(vm->scalar_site_count * 2 >= SCALAR_PLAN_SLOTS)
+        return NULL;
+    *site = (VmScalarSite){.expression = expression, .module = frame->module};
+    vm->scalar_site_count++;
+    ScalarBuilder builder = {.function = frame->function};
+    int output = scalar_compile(&builder, index, 0);
+    if(output < 0 || builder.count < 6)
+        return NULL;
+    ScalarPlan *plan = malloc(sizeof(*plan) + (size_t)builder.count * sizeof(*plan->steps));
+    if(plan == NULL)
+        return NULL;
+    plan->count = (unsigned char)builder.count;
+    plan->output = (unsigned char)output;
+    memcpy(plan->steps, builder.steps, (size_t)builder.count * sizeof(*plan->steps));
+    site->plan = plan;
+    return plan;
+}
+
+static void
+free_scalar_plans(Vm *vm)
+{
+    if(vm->scalar_sites == NULL)
+        return;
+    for(size_t i = 0; i < vm->scalar_site_slots; i++)
+        free(vm->scalar_sites[i].plan);
+    free(vm->scalar_sites);
+    vm->scalar_sites = NULL;
+    vm->scalar_site_count = vm->scalar_site_slots = 0;
+}
+
+static Value
+scalar_member(Frame *frame, const ZirExpr *expression, Value value, int pointer,
+              ScalarConversion conversion)
+{
+    if(pointer)
+        value = place_read(frame->vm, value);
+    else if(!strcmp(expression->name, "count")) {
+        if(value.kind == VALUE_STRING || value.kind == VALUE_SLICE)
+            return scalar_result(frame, int_value((int64_t)value.length), expression->type, conversion);
+        if(value.kind == VALUE_ARRAY && value.array != NULL)
+            return scalar_result(frame, int_value(value.array->length), expression->type, conversion);
+    } else if(value.kind == VALUE_ARRAY && value.array != NULL &&
+              value.array->length == 0 && !strcmp(expression->name, "data"))
+        return scalar_result(frame, int_value(0), expression->type, conversion);
+    Value *field = value.kind == VALUE_RECORD && value.record != NULL ?
+        record_field_path(value.record, expression->name) : NULL;
+    if(field == NULL) {
+        frame->vm->failed = 1;
+        return int_value(0);
+    }
+    if(value.record->type != NULL && value.record->type->is_union)
+        return scalar_result(frame, union_member_read(frame->vm, value.record, expression->type),
+                             expression->type, conversion);
+    if(normalized_field_read(field, expression->type))
+        return *field;
+    return scalar_result(frame, *field, expression->type, conversion);
+}
+
+static Value
+scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
+{
+    Value values[SCALAR_PLAN_STEPS];
+    for(int pc = 0; pc < plan->count && !frame->vm->failed; pc++) {
+        const ScalarStep *step = &plan->steps[pc];
+        const ZirExpr *expression = step->expression;
+        if(depth + step->depth >= VM_MAX_DEPTH) {
+            frame->vm->failed = 1;
+            break;
+        }
+        Value value;
+        switch(step->op) {
+        case SCALAR_LEAF:
+            values[step->output] = eval_leaf(frame, expression);
+            continue;
+        case SCALAR_AND:
+        case SCALAR_OR: {
+            int truth = truthy(values[step->left]);
+            if((step->op == SCALAR_AND && !truth) || (step->op == SCALAR_OR && truth)) {
+                values[step->output] = int_value(truth);
+                pc = step->target - 1;
+            }
+            continue;
+        }
+        case SCALAR_FALSE:
+            if(!truthy(values[step->left])) pc = step->target - 1;
+            continue;
+        case SCALAR_JUMP:
+            pc = step->target - 1;
+            continue;
+        case SCALAR_COPY:
+            value = values[step->left];
+            break;
+        case SCALAR_MEMBER:
+        case SCALAR_POINTER_MEMBER:
+            values[step->output] = scalar_member(frame, expression, values[step->left],
+                step->op == SCALAR_POINTER_MEMBER, (ScalarConversion)step->conversion);
+            continue;
+        case SCALAR_INDEX: {
+            Value left = values[step->left], right = values[step->right];
+            if(right.kind != VALUE_INT || (!right.unsigned64 && right.integer < 0)) {
+                frame->vm->failed = 1;
+                break;
+            }
+            if(left.kind == VALUE_STRING && integer_bits(right) < left.length)
+                value = int_value(left.data[integer_bits(right)]);
+            else {
+                Value element = indexed_element(frame->vm, left, integer_bits(right));
+                if(!place_valid(element)) {
+                    frame->vm->failed = 1;
+                    break;
+                }
+                value = place_read(frame->vm, element);
+                if(!frame->vm->failed && normalized_scalar_read(value,
+                       element.array->element_type, expression->type)) {
+                    values[step->output] = value;
+                    continue;
+                }
+            }
+            break;
+        }
+        case SCALAR_CAST:
+            value = scalar_result(frame, values[step->right], expression->name,
+                                  (ScalarConversion)step->cast_conversion);
+            break;
+        case SCALAR_UNARY: {
+            Value right = values[step->right];
+            if(!strcmp(expression->op, "*")) value = place_read(frame->vm, right);
+            else if(!strcmp(expression->op, "-"))
+                value = right.kind == VALUE_REAL ? real_value(-right.real) :
+                    right.unsigned64 && strcmp(expression->type, "integer") != 0 ?
+                    uint_value(UINT64_C(0) - right.bits) :
+                    int_value(signed64(UINT64_C(0) - integer_bits(right)));
+            else if(!strcmp(expression->op, "+")) value = right;
+            else if(!strcmp(expression->op, "!")) value = int_value(!truthy(right));
+            else if(!strcmp(expression->op, "~") && right.kind == VALUE_INT)
+                value = right.unsigned64 ? uint_value(~right.bits) : int_value(~right.integer);
+            else frame->vm->failed = 1;
+            break;
+        }
+        case SCALAR_TRUTH:
+            value = int_value(truthy(values[step->right]));
+            break;
+        case SCALAR_BINARY:
+            value = binary_with_policy(frame->vm, (BinaryOperation)step->operation,
+                values[step->left], values[step->right], step->left_width,
+                step->right_width, step->left_unsigned);
+            break;
+        default:
+            frame->vm->failed = 1;
+            break;
+        }
+        if(!frame->vm->failed)
+            values[step->output] = scalar_result(frame, value, expression->type,
+                                                 (ScalarConversion)step->conversion);
+    }
+    return frame->vm->failed ? int_value(0) : values[plan->output];
 }
 
 static Value
@@ -1807,6 +2222,11 @@ eval(Frame *frame, int index, int depth)
         return eval_leaf(frame, expression);
     default:
         break;
+    }
+    if(expression->kind == ZIR_EXPR_BINARY || expression->kind == ZIR_EXPR_CONDITIONAL) {
+        const ScalarPlan *plan = scalar_plan(frame, index);
+        if(plan != NULL)
+            return scalar_execute(frame, plan, depth);
     }
     VmRoots *previous = frame->vm->evaluation_roots;
     Value result = eval_expression(frame, index, depth);

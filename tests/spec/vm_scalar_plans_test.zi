@@ -1,0 +1,64 @@
+Row :: struct {
+    value: s32
+    byte: u8
+    real: float32
+    enabled: bool
+    values: [4]s32
+    narrow: s8
+    word: u16
+    wide: u64
+    signed_wide: s64
+}
+row: Row;
+epoch: s32;
+missing: *Row;
+
+Mutate :: () -> s32 { row.value += 1; return row.value }
+
+#program_export
+Answer :: () -> s32 {
+    epoch += 1
+    row.value = epoch
+    row.byte = 255
+    row.real = cast(float32)16777217.0
+    row.enabled = (epoch & 1) != 0
+    row.narrow = -128
+    row.word = 32769
+    row.wide = cast(u64)1 << cast(u64)63
+    row.signed_wide = -8
+    row.values = .{11, 12, 13, 14}
+    choose := row.enabled
+    far: s32 = 99
+    zero: s32
+    // A skipped branch must not read invalid storage or divide by zero.
+    if false && (missing.value + row.values[far] > zero) { return 1 }
+    if !(true || row.value / zero > 1) { return 2 }
+    selected := ifx choose then row.values[1] + row.value else row.values[2] - row.value
+    expected := ifx choose then 12 + epoch else 13 - epoch
+    if selected != expected { return 3 }
+    skipped := ifx row.value > 0 then row.value + row.values[0] else row.values[far]
+    if skipped != epoch + 11 { return 4 }
+    if cast(u8)(row.byte + cast(u8)2) != cast(u8)1 ||
+       row.real + cast(float32)1.0 != cast(float32)16777216.0 { return 5 }
+    if row.value + row.values[2] - row.values[0] != epoch + 2 { return 6 }
+    if (row.narrow >> cast(s8)(row.value - row.value + 1)) != cast(s8)-64 ||
+       (row.word << cast(u16)(row.value - row.value + 1)) != cast(u16)2 ||
+       (row.wide >> cast(u64)(row.value - row.value + 63)) != cast(u64)1 ||
+       (row.signed_wide >> cast(s64)(row.value - row.value + 2)) != cast(s64)-2 { return 12 }
+    // Plans retain IR, not the values from their first execution.
+    for pass: 0..63 {
+        row.values[1] = cast(s32)pass
+        if (row.values[1] + row.value) * 2 != (cast(s32)pass + epoch) * 2 { return 7 }
+        if (row.enabled && row.value > 0) != choose { return 8 }
+    }
+    // A call keeps the normal evaluator's left-to-right mutation semantics.
+    result := Mutate() + row.value
+    if result != (epoch + 1) * 2 { return 9 }
+    local := row
+    {
+        local := 21
+        if local + local != 42 { return 10 }
+    }
+    if local.value + local.value != (epoch + 1) * 2 { return 11 }
+    return 42
+}

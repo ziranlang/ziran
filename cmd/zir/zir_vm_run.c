@@ -781,62 +781,163 @@ parameter_read_only(const ZirFunction *function, const char *name)
     return 1;
 }
 
-/* Globals can receive values during a call. Keep every allocation reachable
- * from them when reclaiming completed call temporaries. */
+/* Heap pointer chains are not bounded by the call-depth limit. Traverse
+ * borrowed slots iteratively so a deep live graph cannot be partly marked. */
+typedef struct PinRange {
+    const unsigned char *values;
+    size_t count, stride;
+} PinRange;
+
+typedef struct PinWork {
+    PinRange *ranges;
+    size_t count, capacity;
+    PinRange local[32];
+} PinWork;
+
+/* If the small traversal stack cannot grow, retaining storage for this
+ * generation is safe. A later collection can reclaim it without losing roots. */
 static void
-pin_value_at(Vm *vm, const Value *value, int depth)
+pin_all(Vm *vm)
+{
+    for(Record *record = vm->records; record != NULL; record = record->next)
+        record->pinned = vm->pin_generation;
+    for(Array *array = vm->arrays; array != NULL; array = array->next)
+        array->pinned = vm->pin_generation;
+    for(StringLiteral *text = vm->strings; text != NULL; text = text->next)
+        text->pinned = vm->pin_generation;
+}
+
+static int
+pin_range(PinWork *work, const Value *values, size_t count, size_t stride)
+{
+    if(count == 0)
+        return 1;
+    if(work->count == work->capacity) {
+        if(work->capacity > SIZE_MAX / 2 / sizeof(*work->ranges))
+            return 0;
+        size_t capacity = work->capacity * 2;
+        PinRange *ranges;
+        if(work->ranges == work->local) {
+            ranges = malloc(capacity * sizeof(*ranges));
+            if(ranges != NULL)
+                memcpy(ranges, work->ranges, work->count * sizeof(*ranges));
+        } else {
+            ranges = realloc(work->ranges, capacity * sizeof(*ranges));
+        }
+        if(ranges == NULL)
+            return 0;
+        work->ranges = ranges;
+        work->capacity = capacity;
+    }
+    work->ranges[work->count++] = (PinRange){
+        (const unsigned char *)values, count, stride
+    };
+    return 1;
+}
+
+static int
+pin_slot(Vm *vm, const Value *value, int depth, PinWork *work);
+
+static int
+pin_slots(Vm *vm, const Value *values, size_t count, size_t stride,
+          int depth, PinWork *work)
+{
+    /* Finish shallow graphs directly, retaining the fast path for ordinary
+     * aggregates. Defer deeper ranges instead of stopping their traversal. */
+    if(depth >= 32)
+        return pin_range(work, values, count, stride);
+    const unsigned char *bytes = (const unsigned char *)values;
+    for(size_t i = 0; i < count; i++) {
+        const Value *slot = (const Value *)(bytes + i * stride);
+        if((slot->kind == VALUE_STRING || slot->kind >= VALUE_RECORD) &&
+           !pin_slot(vm, slot, depth + 1, work))
+            return 0;
+    }
+    return 1;
+}
+
+static int
+pin_slot(Vm *vm, const Value *value, int depth, PinWork *work)
 {
     if(value->kind == VALUE_STRING && value->string_owner != NULL) {
         value->string_owner->pinned = vm->pin_generation;
-        return;
+        return 1;
     }
-    if(depth >= VM_MAX_DEPTH)
-        return;
-    if(value->kind == VALUE_RECORD && value->record != NULL &&
-       value->record->pinned != vm->pin_generation) {
-        value->record->pinned = vm->pin_generation;
-        for(int i = 0; i < value->record->field_count; i++) {
-            const Value *field = &value->record->fields[i].value;
-            if(field->kind == VALUE_STRING || field->kind >= VALUE_RECORD)
-                pin_value_at(vm, field, depth + 1);
-        }
-    } else if(value->kind == VALUE_ARRAY && value->array != NULL &&
-              value->array->pinned != vm->pin_generation) {
-        Array *array = value->array;
+    Record *record = NULL;
+    Array *array = NULL;
+    if(value->kind == VALUE_RECORD || value->kind == VALUE_POINTER)
+        record = value->record;
+    if(value->kind == VALUE_ARRAY || value->kind == VALUE_SLICE ||
+       value->kind == VALUE_POINTER)
+        array = value->array;
+    if(record != NULL && record->pinned != vm->pin_generation) {
+        record->pinned = vm->pin_generation;
+        if(record->field_count > 0 &&
+           !pin_slots(vm, &record->fields[0].value,
+                      (size_t)record->field_count, sizeof(RecordField), depth, work))
+            return 0;
+    }
+    if(array != NULL && array->pinned != vm->pin_generation) {
         array->pinned = vm->pin_generation;
         if(array->holds_references) {
             if(array->storage == ARRAY_BOXED) {
-                const Value *items = (const Value *)array->data;
-                for(int i = 0; i < array->length; i++)
-                    if(items[i].kind == VALUE_STRING || items[i].kind >= VALUE_RECORD)
-                        pin_value_at(vm, &items[i], depth + 1);
+                if(!pin_slots(vm, (const Value *)array->data,
+                              (size_t)array->length, sizeof(Value), depth, work))
+                    return 0;
             } else {
                 for(int i = 0; i < array->length; i++) {
                     Value item = array_get(array, (size_t)i);
-                    pin_value_at(vm, &item, depth + 1);
+                    if(!pin_slot(vm, &item, depth + 1, work))
+                        return 0;
                 }
             }
         }
-    } else if(value->kind == VALUE_SLICE && value->array != NULL) {
-        Value backing = {.kind = VALUE_ARRAY, .array = value->array};
-        pin_value_at(vm, &backing, depth + 1);
-    } else if(value->kind == VALUE_POINTER) {
-        /* A pointer keeps its target's container alive. */
-        if(value->record != NULL) {
-            Value container = {.kind = VALUE_RECORD, .record = value->record};
-            pin_value_at(vm, &container, depth + 1);
-        }
-        if(value->array != NULL) {
-            Value container = {.kind = VALUE_ARRAY, .array = value->array};
-            pin_value_at(vm, &container, depth + 1);
-        }
     }
+    return 1;
+}
+
+static void
+pin_value_at(Vm *vm, const Value *value)
+{
+    if(value->kind == VALUE_STRING) {
+        if(value->string_owner != NULL)
+            value->string_owner->pinned = vm->pin_generation;
+        return;
+    }
+    if(value->kind != VALUE_RECORD && value->kind != VALUE_ARRAY &&
+       value->kind != VALUE_SLICE && value->kind != VALUE_POINTER)
+        return;
+    if(value->kind == VALUE_RECORD &&
+       (value->record == NULL || value->record->pinned == vm->pin_generation))
+        return;
+    if((value->kind == VALUE_ARRAY || value->kind == VALUE_SLICE) &&
+       (value->array == NULL || value->array->pinned == vm->pin_generation))
+        return;
+    if(value->kind == VALUE_POINTER &&
+       (value->record == NULL || value->record->pinned == vm->pin_generation) &&
+       (value->array == NULL || value->array->pinned == vm->pin_generation))
+        return;
+    PinWork work;
+    work.ranges = work.local;
+    work.count = 0;
+    work.capacity = sizeof(work.local) / sizeof(work.local[0]);
+    int complete = pin_slot(vm, value, 0, &work);
+    while(complete && work.count > 0) {
+        PinRange range = work.ranges[--work.count];
+        complete = pin_slots(vm, (const Value *)range.values,
+                             range.count, range.stride, 0, &work);
+    }
+    if(!complete)
+        pin_all(vm);
+    if(work.ranges != work.local)
+        free(work.ranges);
 }
 
 void
 pin_value(Vm *vm, Value value, int depth)
 {
-    pin_value_at(vm, &value, depth);
+    (void)depth;
+    pin_value_at(vm, &value);
 }
 
 void
@@ -845,14 +946,14 @@ pin_evaluation_roots(Vm *vm)
     for(VmRoots *roots = vm->evaluation_roots; roots != NULL;
         roots = roots->previous)
         for(int i = 0; i < roots->count; i++)
-            pin_value_at(vm, &roots->values[i], 0);
+            pin_value_at(vm, &roots->values[i]);
 }
 
 static void
 pin_globals(Vm *vm)
 {
     for(int i = 0; i < vm->global_count; i++)
-        pin_value_at(vm, &vm->globals[i].value, 0);
+        pin_value_at(vm, &vm->globals[i].value);
 }
 
 /* A callee may write through a slice borrowed from a caller. Its newly
@@ -864,7 +965,7 @@ pin_active_frames(Vm *vm)
     for(Frame *frame = vm->active_frame; frame != NULL;
         frame = frame->caller)
         for(int i = 0; i < frame->local_count; i++)
-            pin_value_at(vm, &frame->locals[i].value, 0);
+            pin_value_at(vm, &frame->locals[i].value);
 }
 
 static void

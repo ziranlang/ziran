@@ -117,6 +117,29 @@ Independent = "{independent}"
         write(app / "ziran.toml", manifest)
         (app / "ziran.lock").write_bytes(lock_bytes)
 
+    # Updating one tree must not adopt newer unrelated development overrides.
+    # Even an unrelated dirty manifest cannot change the selected lock graph.
+    independent_manifest = (independent / "ziran.toml").read_text()
+    write(independent / "ziran.toml", independent_manifest +
+          '[dependencies.Unrequested]\ngit = "https://example.invalid/unrequested.git"\n')
+    try:
+        call(ziran, "update", "Provider", cwd=app, env=env)
+    finally:
+        write(independent / "ziran.toml", independent_manifest)
+    targeted = json.loads((app / "ziran.lock").read_text())
+    prior_packages = {p["name"]: p for p in before["packages"]}
+    targeted_packages = {p["name"]: p for p in targeted["packages"]}
+    assert targeted["toolchain"] == before["toolchain"], targeted
+    assert targeted_packages["Independent"] == prior_packages["Independent"], targeted
+    assert targeted_packages["Library"]["commit"] == call(
+        "git", "rev-parse", "HEAD", cwd=leaf, env=env).strip(), targeted
+    assert targeted_packages["Library"]["commit"] != prior_packages["Library"]["commit"]
+    assert targeted_packages["Provider"]["dependencies"]["Library"] == \
+        targeted_packages["Library"]["id"], targeted
+    assert set(targeted_packages) == set(prior_packages), targeted
+    reset()
+    print("PASS: targeted update preserves unrelated overrides, manifests and toolchain pins", flush=True)
+
     call(ziran, "add", leaf.as_uri(), "--name", "direct", cwd=app, env=env)
     after = json.loads((app / "ziran.lock").read_text())
     expected = json.loads(lock_bytes)

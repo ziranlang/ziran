@@ -382,6 +382,7 @@ typedef struct Vm {
     VmGlobalSite *global_sites;
     VmTypeSite *type_sites;
     VmConstantSite *constant_sites;
+    StringLiteral **literal_sites;
     Frame *active_frame;
     VmRoots *evaluation_roots;
     VmHostCall host;

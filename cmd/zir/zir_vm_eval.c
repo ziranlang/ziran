@@ -743,6 +743,61 @@ vm_expression_calls(const ZirFunction *function, int index, int depth)
            vm_expression_calls(function, expression->third, depth + 1);
 }
 
+typedef enum Builtin {
+    BuiltinNamed, BuiltinTextView, BuiltinPrint, BuiltinNew, BuiltinFree,
+    BuiltinVecPush, BuiltinVecClear, BuiltinVecFree, BuiltinVecSwap,
+    BuiltinVecPop, BuiltinVecGet, BuiltinVecClone, BuiltinVecSlice,
+    BuiltinBuilderAppend, BuiltinBuilderFinish
+} Builtin;
+
+/* Most calls name ordinary functions. Exclude them by their first byte
+ * before comparing exact builtin spellings; prefixes remain ordinary names. */
+static Builtin
+builtin_call(const char *name)
+{
+    switch(name[0]) {
+    case 'T':
+        if(!strcmp(name, "TextView")) return BuiltinTextView;
+        break;
+    case 'p':
+        if(!strcmp(name, "print")) return BuiltinPrint;
+        break;
+    case 'z':
+        if(!strcmp(name, "zi_new")) return BuiltinNew;
+        if(!strcmp(name, "zi_free")) return BuiltinFree;
+        break;
+    case 'B':
+        if(!strcmp(name, "BuilderAppend")) return BuiltinBuilderAppend;
+        if(!strcmp(name, "BuilderFinish")) return BuiltinBuilderFinish;
+        break;
+    case 'V':
+        if(strncmp(name, "Vec", 3)) break;
+        name += 3;
+        switch(name[0]) {
+        case 'P':
+            if(!strcmp(name, "Push")) return BuiltinVecPush;
+            if(!strcmp(name, "Pop")) return BuiltinVecPop;
+            break;
+        case 'C':
+            if(!strcmp(name, "Clear")) return BuiltinVecClear;
+            if(!strcmp(name, "Clone")) return BuiltinVecClone;
+            break;
+        case 'F':
+            if(!strcmp(name, "Free")) return BuiltinVecFree;
+            break;
+        case 'G':
+            if(!strcmp(name, "Get")) return BuiltinVecGet;
+            break;
+        case 'S':
+            if(!strcmp(name, "Swap")) return BuiltinVecSwap;
+            if(!strcmp(name, "Slice")) return BuiltinVecSlice;
+            break;
+        }
+        break;
+    }
+    return BuiltinNamed;
+}
+
 static Value
 eval_expression(Frame *frame, int index, int depth)
 {
@@ -1164,7 +1219,8 @@ eval_expression(Frame *frame, int index, int depth)
                           expression->third, depth + 1);
         break;
     case ZIR_EXPR_CALL: {
-        if(!strcmp(expression->name, "TextView")) {
+        Builtin builtin = builtin_call(expression->name);
+        if(builtin == BuiltinTextView) {
             Value bytes = eval(frame, expression->first_child, depth + 1);
             if(frame->vm->failed || bytes.kind != VALUE_SLICE ||
                (bytes.length > 0 && bytes.array == NULL)) {
@@ -1192,12 +1248,12 @@ eval_expression(Frame *frame, int index, int depth)
             value = keep_string(frame->vm, item, NULL, sizeof(*item) + bytes.length + 1);
             break;
         }
-        if(!strcmp(expression->name, "print")) {
+        if(builtin == BuiltinPrint) {
             vm_print(frame, expression, depth);
             value.kind = VALUE_VOID;
             break;
         }
-        if(!strcmp(expression->name, "zi_new")) {
+        if(builtin == BuiltinNew) {
             /* New(T): one zeroed T in heap storage the pointer keeps alive. */
             const char *target = skip_ws(expression->type + 1);
             Array *storage = allocate_array_try(frame->vm, frame->module, target, 1, 1);
@@ -1209,7 +1265,7 @@ eval_expression(Frame *frame, int index, int depth)
             value = (Value){.kind = VALUE_POINTER, .indexed = 1, .array = storage};
             break;
         }
-        if(!strcmp(expression->name, "zi_free")) {
+        if(builtin == BuiltinFree) {
             Value pointer = eval(frame, expression->first_child, depth + 1);
             if(frame->vm->failed)
                 break;
@@ -1227,18 +1283,9 @@ eval_expression(Frame *frame, int index, int depth)
             value.kind = VALUE_VOID;
             break;
         }
-        if(!strcmp(expression->name, "VecPush") ||
-           !strcmp(expression->name, "VecClear") ||
-           !strcmp(expression->name, "VecFree") ||
-           !strcmp(expression->name, "VecSwap") ||
-           !strcmp(expression->name, "VecPop") ||
-           !strcmp(expression->name, "VecGet") ||
-           !strcmp(expression->name, "VecClone") ||
-           !strcmp(expression->name, "VecSlice") ||
-           !strcmp(expression->name, "BuilderAppend") ||
-           !strcmp(expression->name, "BuilderFinish")) {
+        if(builtin >= BuiltinVecPush && builtin <= BuiltinBuilderFinish) {
             int first = expression->first_child;
-            int push = !strcmp(expression->name, "VecPush");
+            int push = builtin == BuiltinVecPush;
             left = assignment_slot_root(frame, first, depth + 1);
             Value *vec = place_slot(left);
             char element[ZIR_NAME_MAX];
@@ -1250,7 +1297,7 @@ eval_expression(Frame *frame, int index, int depth)
                 break;
             }
             value = *vec;
-            if(!strcmp(expression->name, "VecSwap")) {
+            if(builtin == BuiltinVecSwap) {
                 int second = frame->function->exprs[first].next_sibling;
                 Value *other = assignment_slot(frame, second, depth + 1);
                 if(other == NULL || other->kind != VALUE_RECORD ||
@@ -1265,7 +1312,7 @@ eval_expression(Frame *frame, int index, int depth)
                 value = (Value){.kind = VALUE_VOID};
                 break;
             }
-            if(!strcmp(expression->name, "VecClone")) {
+            if(builtin == BuiltinVecClone) {
                 int second = frame->function->exprs[first].next_sibling;
                 Value *source = assignment_slot(frame, second, depth + 1);
                 Value *dest_data, *dest_count, *dest_capacity;
@@ -1328,7 +1375,7 @@ eval_expression(Frame *frame, int index, int depth)
                 value = int_value(1);
                 break;
             }
-            if(!strcmp(expression->name, "VecSlice")) {
+            if(builtin == BuiltinVecSlice) {
                 int second = frame->function->exprs[first].next_sibling;
                 int third = frame->function->exprs[second].next_sibling;
                 Value low = eval(frame, second, depth + 1);
@@ -1364,9 +1411,8 @@ eval_expression(Frame *frame, int index, int depth)
                                     .length = (size_t)(to - from)};
                 break;
             }
-            if(!strcmp(expression->name, "VecPop") ||
-               !strcmp(expression->name, "VecGet")) {
-                int get = !strcmp(expression->name, "VecGet");
+            if(builtin == BuiltinVecPop || builtin == BuiltinVecGet) {
+                int get = builtin == BuiltinVecGet;
                 const ZirModule *owner = NULL;
                 const ZirType *record_type = vm_find_type(frame->vm, frame->module,
                     expression->type, &owner);
@@ -1423,9 +1469,8 @@ eval_expression(Frame *frame, int index, int depth)
                 value = result;
                 break;
             }
-            if(!strcmp(expression->name, "BuilderAppend") ||
-               !strcmp(expression->name, "BuilderFinish")) {
-                int finish = !strcmp(expression->name, "BuilderFinish");
+            if(builtin == BuiltinBuilderAppend || builtin == BuiltinBuilderFinish) {
+                int finish = builtin == BuiltinBuilderFinish;
                 Value *data = record_field(vec->record, "data");
                 Value *count = record_field(vec->record, "count");
                 Value *capacity = record_field(vec->record, "capacity");
@@ -1572,7 +1617,7 @@ eval_expression(Frame *frame, int index, int depth)
                     }
                 }
                 *count = int_value(0);
-                if(!strcmp(expression->name, "VecFree")) {
+                if(builtin == BuiltinVecFree) {
                     retire_value(frame->vm, *data, 0);
                     *data = (Value){.kind = VALUE_ARRAY};
                     *capacity = int_value(0);

@@ -309,3 +309,31 @@ if "$ziran" check --root "$work" "$work/private.zi" \
     exit 1
 fi
 grep -Fq 'unresolved name: Lib.hidden' "$work/private.err"
+
+# An imported global array keeps its element type's module, so its elements
+# can be read, written and passed by pointer through the module alias.
+cat > "$work/store.zi" <<'ZI'
+Item :: struct { value: s32; }
+items: [4]Item;
+Read :: (item: *Item) -> s32 { return item.value }
+ZI
+cat > "$work/items.zi" <<'ZI'
+Store :: #import "store";
+#program_export
+Answer :: () -> s32 {
+    Store.items[1].value = 5
+    item := *Store.items[1]
+    item.value += 1
+    return Store.Read(item) + Store.items[1].value
+}
+ZI
+"$ziran" bundle --root "$work" --entry items:Answer -o "$work/items.zib" "$work/items.zi"
+test "$("$ziran" run "$work/items.zib")" = 12
+"$ziran" build --target=c --entry items:Answer --root "$work" -o "$work/items-c" "$work/items.zi"
+cat > "$work/items-c/main.c" <<'C'
+#include "items.h"
+int main(void) { return Answer() == 12 ? 0 : 1; }
+C
+"${CC:-cc}" -std=c99 -pedantic-errors -I"$repo/include" -I"$work/items-c" \
+    "$work/items-c"/*.c -o "$work/items-c/app"
+"$work/items-c/app"

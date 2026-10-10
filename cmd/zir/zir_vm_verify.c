@@ -1146,6 +1146,7 @@ verify_global_aggregate_with_buffers(const ZirModule *module, const ZirGlobal *g
     free_records(&scratch);
     free_arrays(&scratch);
     free_layouts(&scratch);
+    free(scratch.type_sites);
     free_strings(&scratch);
     return valid;
 }

@@ -298,12 +298,12 @@ union_member_write(Vm *vm, Record *record, const char *field_type, Value value)
 }
 
 static Value
-indexed_element(Value base, uint64_t index)
+indexed_element(Vm *vm, Value base, uint64_t index)
 {
     Array *array = NULL;
     size_t offset = 0;
     if(base.kind == VALUE_RECORD && base.record != NULL &&
-       VecElementType(base.record->owner, base.record->type->name, NULL, 0)) {
+       vm_vec_element_type(vm, base.record->owner, base.record->type->name, NULL, 0)) {
         Value *data = record_field(base.record, "data");
         Value *count = record_field(base.record, "count");
         if(data == NULL || count == NULL || count->kind != VALUE_INT ||
@@ -404,7 +404,7 @@ owned_place(Frame *frame, int index, int depth)
             frame->vm->failed = 1;
             return (Value){0};
         }
-        Value element = indexed_element(place_read(frame->vm, base), integer_bits(index_value));
+        Value element = indexed_element(frame->vm, place_read(frame->vm, base), integer_bits(index_value));
         if(!place_valid(element))
             frame->vm->failed = 1;
         return element;
@@ -982,7 +982,7 @@ eval_expression(Frame *frame, int index, int depth)
             Value *source = assignment_slot(frame, index, depth + 1);
             char element[ZIR_NAME_MAX];
             if(source == NULL ||
-               !VecElementType(frame->module, expression->type,
+               !vm_vec_element_type(frame->vm, frame->module, expression->type,
                                element, sizeof(element))) {
                 frame->vm->failed = 1;
                 break;
@@ -1098,7 +1098,7 @@ eval_expression(Frame *frame, int index, int depth)
         Value *stored = assignment_slot(frame, expression->left, depth + 1);
         left = stored != NULL &&
                (stored->kind == VALUE_ARRAY ||
-                VecElementType(frame->module,
+                vm_vec_element_type(frame->vm, frame->module,
                     frame->function->exprs[expression->left].type,
                     NULL, 0)) ?
                *stored : eval(frame, expression->left, depth + 1);
@@ -1111,7 +1111,7 @@ eval_expression(Frame *frame, int index, int depth)
         if(left.kind == VALUE_STRING && integer_bits(right) < left.length)
             value = int_value(left.data[integer_bits(right)]);
         else {
-            Value element = indexed_element(left, integer_bits(right));
+            Value element = indexed_element(frame->vm, left, integer_bits(right));
             if(place_valid(element)) {
                 value = place_read(frame->vm, element);
                 if(!frame->vm->failed && normalized_scalar_read(value,
@@ -1142,7 +1142,7 @@ eval_expression(Frame *frame, int index, int depth)
                 break;
             }
             for(size_t i = 0; i < bytes.length; i++) {
-                Value part = place_read(frame->vm, indexed_element(bytes, i));
+                Value part = place_read(frame->vm, indexed_element(frame->vm, bytes, i));
                 if(part.kind != VALUE_INT) {
                     frame->vm->failed = 1;
                     free(item);
@@ -1208,7 +1208,7 @@ eval_expression(Frame *frame, int index, int depth)
             Value *vec = place_slot(left);
             char element[ZIR_NAME_MAX];
             if(vec == NULL || vec->kind != VALUE_RECORD ||
-               !VecElementType(frame->module,
+               !vm_vec_element_type(frame->vm, frame->module,
                    frame->function->exprs[first].type,
                    element, sizeof(element))) {
                 frame->vm->failed = 1;
@@ -1630,7 +1630,7 @@ eval_expression(Frame *frame, int index, int depth)
                 (args[position].kind == VALUE_ARRAY &&
                  ArrayElementType(parameters->parameters[position].type,
                                   NULL, 0, NULL))) &&
-               !VecElementType(owner, parameters->parameters[position].type,
+               !vm_vec_element_type(frame->vm, owner, parameters->parameters[position].type,
                                NULL, 0)) {
                 for(int later = frame->function->exprs[child].next_sibling;
                     later >= 0;

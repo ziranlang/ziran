@@ -441,26 +441,76 @@ vm_field_hash(const char *name)
 
 /* Runtime type names and import scopes are immutable after verification.
  * Keep the spelling on a miss, since some callers supply scratch buffers. */
+enum { VM_TYPE_SLOTS = 2048 };
+
+static size_t
+type_site_slot(const ZirModule *module, const char *name)
+{
+    return (vm_field_hash(name) ^ ((uintptr_t)module >> 4)) & (VM_TYPE_SLOTS - 1);
+}
+
+static VmTypeSite *
+find_type_site(Vm *vm, const ZirModule *module, const char *name)
+{
+    size_t slot = type_site_slot(module, name);
+    if(vm->type_sites == NULL)
+        vm->type_sites = calloc(VM_TYPE_SLOTS, sizeof(*vm->type_sites));
+    VmTypeSite *entry = vm->type_sites ? &vm->type_sites[slot] : NULL;
+    if(entry == NULL)
+        return NULL;
+    if(entry->module == module && entry->name != NULL &&
+       strcmp(entry->name, name) == 0)
+        return entry;
+    const ZirModule *resolved_owner = NULL;
+    const ZirType *resolved = FindType(module, name, &resolved_owner);
+    *entry = (VmTypeSite){.module = module, .owner = resolved_owner,
+                         .resolved = resolved, .name = KeepText(name)};
+    return entry;
+}
+
 const ZirType *
 vm_find_type(Vm *vm, const ZirModule *module, const char *name,
              const ZirModule **owner)
 {
-    enum { SLOTS = 2048 };
-    size_t slot = (vm_field_hash(name) ^ ((uintptr_t)module >> 4)) & (SLOTS - 1);
-    if(vm->type_sites == NULL)
-        vm->type_sites = calloc(SLOTS, sizeof(*vm->type_sites));
-    VmTypeSite *entry = vm->type_sites ? &vm->type_sites[slot] : NULL;
-    if(entry != NULL && entry->module == module && entry->name != NULL &&
-       strcmp(entry->name, name) == 0) {
-        if(owner != NULL) *owner = entry->owner;
-        return entry->resolved;
+    VmTypeSite *site = find_type_site(vm, module, name);
+    if(site == NULL)
+        return FindType(module, name, owner);
+    if(owner != NULL)
+        *owner = site->owner;
+    return site->resolved;
+}
+
+/* Vec indexing and updates revisit the same immutable shape on every
+ * element. Share the type lookup's per-instance slot and retain the canonical
+ * classification, including misses. A too-small caller buffer must not turn
+ * a valid classification into a cached miss. */
+int
+vm_vec_element_type(Vm *vm, const ZirModule *module, const char *type,
+                    char *element, size_t element_size)
+{
+    if(module == NULL || type == NULL)
+        return 0;
+    VmTypeSite *site = find_type_site(vm, module, type);
+    if(site == NULL)
+        return VecElementType(module, type, element, element_size);
+    const char *item = site->vec_element;
+    if(item == NULL) {
+        const ZirType *record = site->resolved;
+        char parsed[ZIR_NAME_MAX];
+        int valid = record != NULL && record->is_owned_vec &&
+            VecElementType(module, type, parsed, sizeof(parsed));
+        item = valid ? KeepText(parsed) : "";
+        site->vec_element = item;
     }
-    const ZirModule *resolved_owner = NULL;
-    const ZirType *resolved = FindType(module, name, &resolved_owner);
-    if(entry != NULL)
-        *entry = (VmTypeSite){module, resolved_owner, resolved, KeepText(name)};
-    if(owner != NULL) *owner = resolved_owner;
-    return resolved;
+    if(item[0] == '\0')
+        return 0;
+    if(element != NULL) {
+        size_t length = strlen(item);
+        if(length >= element_size)
+            return 0;
+        memcpy(element, item, length + 1);
+    }
+    return 1;
 }
 
 static size_t
@@ -789,7 +839,7 @@ default_value(Vm *vm, const ZirModule *module, const char *type, int depth)
         return int_value(0);
     for(int i = 0; i < count && !vm->failed; i++) {
         record->fields[i].field = fields[i];
-        if(i == 0 && VecElementType(module, type, NULL, 0))
+        if(i == 0 && vm_vec_element_type(vm, module, type, NULL, 0))
             record->fields[i].value = (Value){.kind = VALUE_ARRAY};
         else
             record->fields[i].value = default_value(vm, owner,
@@ -857,7 +907,7 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
         if(record != NULL && !record->is_enum && !record->is_procedure_type &&
            !record->is_extern && !record->is_map && value.kind == VALUE_RECORD &&
            same_record_type(owner, record, value.record))
-            return VecElementType(module, type, NULL, 0) ?
+            return vm_vec_element_type(vm, module, type, NULL, 0) ?
                 value : clone_value(vm, value, 0);
         vm->failed = 1;
         return int_value(0);
@@ -1101,7 +1151,7 @@ type_contains_vec(Vm *vm, const ZirModule *module, const char *type, int depth)
     const ZirType *record = NULL;
     if(depth > 32 || module == NULL || type == NULL || !*type || *type == '*')
         return 0;
-    if(VecElementType(module, type, NULL, 0))
+    if(vm_vec_element_type(vm, module, type, NULL, 0))
         return 1;
     if(ArrayElementType(type, element, sizeof(element), NULL))
         return vm_type_contains_vec(vm, module, element, depth + 1);

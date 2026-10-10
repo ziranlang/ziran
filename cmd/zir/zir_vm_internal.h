@@ -342,6 +342,7 @@ typedef struct VmTypeSite {
     const ZirModule *module, *owner;
     const ZirType *resolved;
     const char *name;
+    const char *vec_element; /* NULL: unchecked; "": not an owned Vec */
 } VmTypeSite;
 
 typedef struct VmProfile VmProfile;
@@ -469,6 +470,8 @@ void release_array(Vm *vm, Array *array);
 int array_has_active_slice(Vm *vm, const Array *array);
 void release_retired(Vm *vm);
 int vm_type_contains_vec(Vm *vm, const ZirModule *module, const char *type, int depth);
+int vm_vec_element_type(Vm *vm, const ZirModule *module, const char *type,
+                        char *element, size_t element_size);
 void drop_owned_locals(Frame *frame, int first);
 int parse_parameters(const ZirModule *module, const ZirFunction *function, Parameter *parameters);
 const VmSignature *vm_signature(Vm *vm, const ZirModule *module,

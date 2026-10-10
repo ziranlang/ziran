@@ -17,3 +17,21 @@ EOF
     "$work/c/timer_linux.c" "$work/c/timer_linux_test.c" "$work/c/main.c" \
     -o "$work/test"
 env -u DISPLAY -u WAYLAND_DISPLAY "$work/test"
+
+# ClockValue is struct timespec. Its fields are long-sized, so 32-bit on
+# armeabi-v7a, where 64-bit fields read the clock as garbage.
+cat > "$work/layout.c" <<'EOF'
+#include <stddef.h>
+#include <time.h>
+#include "timer_linux.h"
+_Static_assert(sizeof(ClockValue) == sizeof(struct timespec), "ClockValue size");
+_Static_assert(offsetof(ClockValue, nanoseconds) == offsetof(struct timespec, tv_nsec), "ClockValue nanoseconds");
+EOF
+"${CC:-cc}" -std=c11 -Iinclude -I"$work/c" -c "$work/layout.c" -o "$work/layout.o"
+if test -n "${ZIRAN_THREAD_ANDROID_NDK:-}"; then
+    bin="$ZIRAN_THREAD_ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+    for triple in armv7a-linux-androideabi24 aarch64-linux-android24; do
+        "$bin/$triple-clang" -std=c11 -Iinclude -I"$work/c" \
+            -c "$work/layout.c" -o "$work/layout-$triple.o"
+    done
+fi

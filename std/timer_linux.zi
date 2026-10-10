@@ -2,9 +2,12 @@
 // Wall-clock time is intentionally unavailable from this module.
 libc :: #system_library "libc";
 
+// struct timespec: time_t seconds and long nanoseconds. Both are the size
+// of a pointer on Linux and Android, so 32-bit on armeabi-v7a; 64-bit fields
+// read the clock as garbage there.
 ClockValue :: struct {
-    seconds: s64
-    nanoseconds: s64
+    seconds: isize
+    nanoseconds: isize
 }
 
 ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
@@ -16,31 +19,33 @@ ClockSleepRaw :: (clock: s32, flags: s32, request: *ClockValue,
 #program_export
 MonotonicNanoseconds :: () -> s64 {
     value: ClockValue
-    if ClockGetTimeRaw(1, *value) != 0 || value.seconds < 0 ||
-       value.nanoseconds < 0 || value.nanoseconds > 999999999 ||
-       value.seconds > 9223372036 ||
-       (value.seconds == 9223372036 && value.nanoseconds > 854775807) { return -1 }
-    return value.seconds * 1000000000 + value.nanoseconds
+    if ClockGetTimeRaw(1, *value) != 0 { return -1 }
+    seconds := cast(s64)value.seconds; nanoseconds := cast(s64)value.nanoseconds
+    if seconds < 0 || nanoseconds < 0 || nanoseconds > 999999999 ||
+       seconds > 9223372036 ||
+       (seconds == 9223372036 && nanoseconds > 854775807) { return -1 }
+    return seconds * 1000000000 + nanoseconds
 }
 
 #program_export
 MonotonicMilliseconds :: () -> s64 {
     value: [1]ClockValue
     if ClockGetTimeRaw(1, *value[0]) != 0 { return -1 }
-    if value[0].nanoseconds < 0 || value[0].nanoseconds > 999999999 {
+    seconds := cast(s64)value[0].seconds; nanoseconds := cast(s64)value[0].nanoseconds
+    if nanoseconds < 0 || nanoseconds > 999999999 {
         return -1
     }
-    if value[0].seconds > 9223372036854775 || value[0].seconds < 0 {
+    if seconds > 9223372036854775 || seconds < 0 {
         return -1
     }
-    return value[0].seconds * 1000 + value[0].nanoseconds / 1000000
+    return seconds * 1000 + nanoseconds / 1000000
 }
 
 MakeClockValue :: (milliseconds: s64) -> ClockValue {
     value: ClockValue
     if milliseconds < 0 { return value }
-    value.seconds = milliseconds / 1000
-    value.nanoseconds = (milliseconds % 1000) * 1000000
+    value.seconds = cast(isize)(milliseconds / 1000)
+    value.nanoseconds = cast(isize)((milliseconds % 1000) * 1000000)
     return value
 }
 

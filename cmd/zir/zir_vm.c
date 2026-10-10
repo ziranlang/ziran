@@ -920,75 +920,79 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
         vm->failed = 1;
         return int_value(0);
     }
-    if(strcmp(type, "bool") == 0)
+    /* value_kind() already validated the scalar spelling. Select its
+     * numeric width directly rather than comparing every narrower type at
+     * each expression and storage boundary. */
+    if(type[0] == 'b')
         return int_value(truthy(value));
     if(type[0] == '*')
         return uint_value(integer_bits(value));
-    if(strcmp(type, "integer") == 0)
+    if(type[0] == 'i')
         return value;
     if(target == VALUE_REAL) {
         double number = as_real(value);
-        if(strcmp(type, "float32") == 0)
+        if(type[0] == 'f' && type[5] == '3')
             number = (float)number;
         return real_value(number);
     }
+    int unsigned_type = type[0] == 'u';
+    int width = 32;
+    if(type[0] == 's' || unsigned_type) {
+        switch(type[1]) {
+        case '8': width = 8; break;
+        case '1': width = 16; break;
+        case '6': width = 64; break;
+        }
+    }
     if(value.kind == VALUE_REAL) {
-        int unsigned_type = strcmp(type, "u32") == 0 ||
-                            strcmp(type, "u16") == 0 ||
-                            strcmp(type, "u8") == 0 ||
-                            strcmp(type, "u64") == 0;
         double lower = unsigned_type ? 0.0 :
-                       strcmp(type, "s64") == 0 ? -9223372036854775808.0 :
+                       width == 64 ? -9223372036854775808.0 :
+                       width == 16 ? -32768.0 :
+                       width == 8 ? -128.0 :
                        INT32_MIN;
-        double upper = strcmp(type, "u64") == 0 ?
-                       18446744073709551616.0 :
-                       strcmp(type, "s64") == 0 ?
-                       9223372036854775808.0 :
-                       strcmp(type, "u32") == 0 ?
-                       (double)UINT32_MAX + 1.0 :
-                       strcmp(type, "u16") == 0 ? 65536.0 :
-                       strcmp(type, "u8") == 0 ? 256.0 :
-                       strcmp(type, "s16") == 0 ? 32768.0 :
-                       strcmp(type, "s8") == 0 ? 128.0 :
-                       (double)INT32_MAX + 1.0;
-        if(strcmp(type, "s8") == 0) lower = -128.0;
-        if(strcmp(type, "s16") == 0) lower = -32768.0;
+        double upper;
+        switch(width) {
+        case 64:
+            upper = unsigned_type ? 18446744073709551616.0 :
+                                    9223372036854775808.0;
+            break;
+        case 16: upper = unsigned_type ? 65536.0 : 32768.0; break;
+        case 8: upper = unsigned_type ? 256.0 : 128.0; break;
+        default:
+            upper = unsigned_type ? (double)UINT32_MAX + 1.0 :
+                                    (double)INT32_MAX + 1.0;
+            break;
+        }
         if(!isfinite(value.real) || value.real < lower ||
            value.real >= upper) {
             vm->failed = 1;
             return int_value(0);
         }
-        if(strcmp(type, "u64") == 0)
-            return uint_value((uint64_t)value.real);
-        if(strcmp(type, "s64") == 0)
-            return int_value((int64_t)value.real);
-        if(strcmp(type, "u32") == 0)
-            return int_value((uint32_t)value.real);
-        if(strcmp(type, "u8") == 0)
-            return int_value((uint8_t)value.real);
-        if(strcmp(type, "u16") == 0)
-            return int_value((uint16_t)value.real);
-        if(strcmp(type, "s8") == 0)
-            return int_value((int8_t)value.real);
-        if(strcmp(type, "s16") == 0)
-            return int_value((int16_t)value.real);
-        return int_value((int32_t)value.real);
+        switch(width) {
+        case 64:
+            return unsigned_type ? uint_value((uint64_t)value.real) :
+                                   int_value((int64_t)value.real);
+        case 16:
+            return int_value(unsigned_type ? (uint16_t)value.real :
+                                             (int16_t)value.real);
+        case 8:
+            return int_value(unsigned_type ? (uint8_t)value.real :
+                                             (int8_t)value.real);
+        default:
+            return unsigned_type ? int_value((uint32_t)value.real) :
+                                   int_value((int32_t)value.real);
+        }
     }
-    if(strcmp(type, "u64") == 0)
-        return uint_value(integer_bits(value));
-    if(strcmp(type, "s64") == 0)
-        return int_value(signed64(integer_bits(value)));
+    if(width == 64)
+        return unsigned_type ? uint_value(integer_bits(value)) :
+                               int_value(signed64(integer_bits(value)));
     uint32_t bits = (uint32_t)integer_bits(value);
-    if(strcmp(type, "u32") == 0)
+    if(width == 32 && unsigned_type)
         return int_value(bits);
-    if(strcmp(type, "u8") == 0)
-        return int_value((uint8_t)bits);
-    if(strcmp(type, "u16") == 0)
-        return int_value((uint16_t)bits);
-    if(strcmp(type, "s8") == 0)
-        return int_value((int8_t)bits);
-    if(strcmp(type, "s16") == 0)
-        return int_value((int16_t)bits);
+    if(width == 8)
+        return int_value(unsigned_type ? (uint8_t)bits : (int8_t)bits);
+    if(width == 16)
+        return int_value(unsigned_type ? (uint16_t)bits : (int16_t)bits);
     return int_value(bits <= INT32_MAX ? (int64_t)bits :
                      (int64_t)bits - 4294967296LL);
 }

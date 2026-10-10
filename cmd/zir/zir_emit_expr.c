@@ -1331,8 +1331,9 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             emit_expr(e, expr->right, operand_type, out, size);
             return;
         }
-        if(enum_type(e->module, type))
-            type = "s32";
+        const ZirType *enumeration = FindType(e->module, type, NULL);
+        if(enumeration != NULL && enumeration->is_enum)
+            type = enumeration->enum_backing;
         if(e->fn->exprs[expr->right].kind == ZIR_EXPR_INT &&
            width(type) >= 32 && !signed_type(type))
             operand_type = type;

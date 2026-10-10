@@ -852,7 +852,7 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
            value.kind != VALUE_RECORD && value.kind != VALUE_VOID &&
            value.kind != VALUE_INVALID) {
             value = coerce(vm, module, value, record->enum_backing);
-            return enum_value(record, value.integer);
+            return enum_value(record, signed64(integer_bits(value)));
         }
         if(record != NULL && !record->is_enum && !record->is_procedure_type &&
            !record->is_extern && !record->is_map && value.kind == VALUE_RECORD &&

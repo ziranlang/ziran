@@ -552,7 +552,7 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         if(vm->failed || operation == BinaryEqual || operation == BinaryNotEqual)
             return result;
         result = coerce(vm, NULL, result, flags->enum_backing);
-        return enum_value(flags, result.integer);
+        return enum_value(flags, signed64(integer_bits(result)));
     }
     if(left.kind == VALUE_ENUM || right.kind == VALUE_ENUM) {
         if(left.kind != VALUE_ENUM || right.kind != VALUE_ENUM ||

@@ -32,6 +32,18 @@ main(void)
     assert(calculate(&vm, ">>", int_value(-128), int_value(1), "s8", "s32").integer == 192);
     assert(calculate(&vm, ">>", int_value(-8), int_value(2), "s64", "s32").integer == -2);
     assert(calculate(&vm, "<<", uint_value(1), int_value(63), "u64", "s32").bits == UINT64_C(0x8000000000000000));
+    assert(calculate(&vm, "<<", int_value(32769), int_value(1), "u16", "u64").integer == 2);
+    assert(calculate(&vm, ">>", int_value(-32768), int_value(1), "s16", "u64").integer == 49152);
+    assert(calculate(&vm, ">>", uint_value(UINT64_MAX), int_value(63), "u64", "s64").bits == 1);
+    assert(calculate(&vm, "==", uint_value(UINT64_MAX), uint_value(UINT64_MAX), "*Node", "null").integer == 1);
+    /* Do not truncate abstract/named values whose spelling shares a builtin
+     * prefix. A shift count's type must not widen the left operand either. */
+    const char *prefixes[] = {"s", "u", "s6", "u6", "s8Extra", "u8Extra", "s16Extra", "u16Extra", "s64Extra", "u64Extra", "nullExtra", "integer"};
+    for(size_t i = 0; i < sizeof prefixes / sizeof *prefixes; i++) {
+        assert(calculate(&vm, "<<", int_value(129), int_value(1), prefixes[i], "u64").integer == 258);
+        assert(calculate(&vm, ">>", int_value(-1), int_value(31), prefixes[i], "s64").integer ==
+               (prefixes[i][0] == 'u' ? 1 : UINT32_MAX));
+    }
 
     Value real = real_value(1.5);
     assert(calculate(&vm, "*", real, int_value(4), "float64", "s32").real == 6.0);

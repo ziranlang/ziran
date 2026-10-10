@@ -24,6 +24,10 @@ Read :: (target: *Row) -> bool {
 }
 #program_export
 main :: () -> s32 {
+    t: s32=41; f: s32=42; n: s32=43
+    trueExtra: s32=44; falseExtra: s32=45; nullExtra: s32=46
+    if t!=41 || f!=42 || n!=43 || trueExtra!=44 || falseExtra!=45 || nullExtra!=46 ||
+        !true || false || row.handle!=null { return 9 }
     if row.byte!=0 || row.wide!=cast(u64)0 || row.real!=cast(float32)0 || row.flag || row.handle!=null { return 1 }
     Set(*row)
     if !Read(*row) || row.byte!=255 || row.small != -1 || row.wide!=cast(u64)18446744073709551615 ||

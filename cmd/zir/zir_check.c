@@ -767,8 +767,7 @@ qualified_global_type(const ZirModule *module, const char *name,
                       const ZirModule *owner, const char *type,
                       char *output, size_t capacity)
 {
-    const char *base = type;
-    const char *pointer = "";
+    const char *base = skip_ws(type);
     const char *dot = strchr(name, '.');
     const char *alias = NULL;
     const ZirModule *type_owner = NULL;
@@ -776,11 +775,20 @@ qualified_global_type(const ZirModule *module, const char *name,
     int alias_length;
     if(owner == NULL || owner == module)
         return 0;
-    if(*base == '*') {
-        pointer = "*";
-        base = skip_ws(base + 1);
+    /* Pointer, array and slice prefixes keep their spelling; the element
+     * type is the one that needs the declaring module's alias. */
+    while(*base == '*' || *base == '[') {
+        if(*base == '*') {
+            base = skip_ws(base + 1);
+            continue;
+        }
+        const char *close = strchr(base, ']');
+        if(close == NULL)
+            return 0;
+        base = skip_ws(close + 1);
     }
-    if(BuiltinType(base) != NULL)
+    int prefix_length = (int)(base - type);
+    if(*ScalarType(base) || BuiltinType(base) != NULL)
         return 0;
     declared = FindType(owner, base, &type_owner);
     if(declared == NULL || FindType(module, base, NULL) == declared)
@@ -793,8 +801,8 @@ qualified_global_type(const ZirModule *module, const char *name,
         if(alias == NULL) return 0;
         alias_length = (int)strlen(alias);
     }
-    int length = snprintf(output, capacity, "%s%.*s.%s", pointer,
-                          alias_length, alias, base);
+    int length = snprintf(output, capacity, "%.*s%.*s.%s", prefix_length,
+                          type, alias_length, alias, base);
     return length >= 0 && (size_t)length < capacity ? 1 : -1;
 }
 

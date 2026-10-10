@@ -1306,6 +1306,8 @@ free_arrays(Vm *vm)
 void
 free_strings(Vm *vm)
 {
+    free(vm->literal_sites);
+    vm->literal_sites = NULL;
     while(vm->strings != NULL) {
         StringLiteral *next = vm->strings->next;
         vm->string_bytes -= vm->strings->bytes;

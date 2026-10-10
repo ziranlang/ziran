@@ -306,8 +306,27 @@ keep_string(Vm *vm, StringLiteral *item, const ZirExpr *expression, size_t bytes
 Value
 literal_string(Vm *vm, const ZirExpr *expression)
 {
+    /* Literal storage stays live until this instance closes. A small direct
+     * cache avoids walking runtime-created strings on every literal read;
+     * collisions and allocation failure retain the complete list lookup. */
+    enum { SLOTS = 512 };
+    uintptr_t hash = (uintptr_t)expression;
+    hash ^= hash >> 17;
+    hash ^= hash >> 9;
+    size_t slot = (hash >> 4) & (SLOTS - 1);
+    if(vm->literal_sites == NULL)
+        vm->literal_sites = calloc(SLOTS, sizeof(*vm->literal_sites));
+    if(vm->literal_sites != NULL && vm->literal_sites[slot] != NULL &&
+       vm->literal_sites[slot]->expression == expression) {
+        StringLiteral *item = vm->literal_sites[slot];
+        Value value = string_value(item->data, item->length);
+        value.string_owner = item;
+        return value;
+    }
     for(StringLiteral *item = vm->strings; item != NULL; item = item->next)
         if(item->expression == expression) {
+            if(vm->literal_sites != NULL)
+                vm->literal_sites[slot] = item;
             Value value = string_value(item->data, item->length);
             value.string_owner = item;
             return value;
@@ -320,7 +339,10 @@ literal_string(Vm *vm, const ZirExpr *expression)
         vm->failed = 1;
         return string_value((const unsigned char *)"", 0);
     }
-    return keep_string(vm, item, expression, sizeof(*item) + capacity + 1);
+    Value value = keep_string(vm, item, expression, sizeof(*item) + capacity + 1);
+    if(vm->literal_sites != NULL)
+        vm->literal_sites[slot] = item;
+    return value;
 }
 
 Value

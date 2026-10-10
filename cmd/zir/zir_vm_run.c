@@ -333,7 +333,7 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             Value unused = eval(frame, statement->expr_root, 0);
             if(!vm->failed && statement->expr_root >= 0 &&
                function->exprs[statement->expr_root].kind == ZIR_EXPR_CALL &&
-               VecElementType(frame->module,
+               vm_vec_element_type(vm, frame->module,
                    function->exprs[statement->expr_root].type, NULL, 0)) {
                 retire_value(vm, unused, 0);
                 release_retired(vm);

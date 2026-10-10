@@ -757,7 +757,7 @@
 <div><code>UTCISO :: () -&gt; string</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/time_py.zi">Source ↗</a></p></section>
 <section id="timer_linux"><p class="eyebrow">77 / std/timer_linux.zi</p><h2>timer_linux</h2><p>Monotonic timing and interruptible sleeps for native glibc Linux programs. Wall-clock time is intentionally unavailable from this module.</p><p>Import with <code>#import "timer_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
-<div><code>ClockValue :: struct { seconds: s64; nanoseconds: s64; }</code></div>
+<div><code>ClockValue :: struct { seconds: isize; nanoseconds: isize; }</code><p>struct timespec: time_t seconds and long nanoseconds. Both are the size of a pointer on Linux and Android, so 32-bit on armeabi-v7a; 64-bit fields read the clock as garbage there.</p></div>
 <div><code>MonotonicNanoseconds :: () -&gt; s64</code><p>Nanosecond resolution for profiling short operations. -1 reports a failed clock or a value outside the signed nanosecond range.</p></div>
 <div><code>MonotonicMilliseconds :: () -&gt; s64</code></div>
 <div><code>MakeClockValue :: (milliseconds: s64) -&gt; ClockValue</code></div>

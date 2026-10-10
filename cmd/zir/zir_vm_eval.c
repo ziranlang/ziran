@@ -439,12 +439,51 @@ assignment_slot_root(Frame *frame, int index, int depth)
     return owned_place(frame, index, depth);
 }
 
+/* Decode an exact, checked operator spelling once per calculation. The text
+ * stays the serialized representation; no program cache or extra allocation
+ * is needed. Unknown and extended spellings must not match valid prefixes. */
+typedef enum BinaryOperation {
+    BinaryInvalid = 0,
+    BinaryAdd = '+', BinarySubtract = '-', BinaryMultiply = '*',
+    BinaryDivide = '/', BinaryRemainder = '%',
+    BinaryAnd = '&', BinaryOr = '|', BinaryXor = '^',
+    BinaryLess = '<', BinaryGreater = '>',
+    BinaryEqual = '=' | ('=' << 8), BinaryNotEqual = '!' | ('=' << 8),
+    BinaryLessEqual = '<' | ('=' << 8), BinaryGreaterEqual = '>' | ('=' << 8),
+    BinaryShiftLeft = '<' | ('<' << 8), BinaryShiftRight = '>' | ('>' << 8)
+} BinaryOperation;
+
+static BinaryOperation
+binary_operation(const char *op)
+{
+    unsigned code = (unsigned char)op[0];
+    if(code == 0)
+        return BinaryInvalid;
+    if(op[1] != '\0') {
+        if(op[2] != '\0')
+            return BinaryInvalid;
+        code |= (unsigned)(unsigned char)op[1] << 8;
+    }
+    switch(code) {
+    case BinaryAdd: case BinarySubtract: case BinaryMultiply:
+    case BinaryDivide: case BinaryRemainder:
+    case BinaryAnd: case BinaryOr: case BinaryXor:
+    case BinaryLess: case BinaryGreater:
+    case BinaryEqual: case BinaryNotEqual: case BinaryLessEqual:
+    case BinaryGreaterEqual: case BinaryShiftLeft: case BinaryShiftRight:
+        return (BinaryOperation)code;
+    default:
+        return BinaryInvalid;
+    }
+}
+
 Value
 binary_value(Vm *vm, const char *op, Value left, Value right,
              const char *left_type, const char *right_type)
 {
+    BinaryOperation operation = binary_operation(op);
     int real = left.kind == VALUE_REAL || right.kind == VALUE_REAL;
-    int shift = strcmp(op, "<<") == 0 || strcmp(op, ">>") == 0;
+    int shift = operation == BinaryShiftLeft || operation == BinaryShiftRight;
     /* Host handles live in the unsigned bits; compare them by address. */
     int unsigned64 = strcmp(left_type, "u64") == 0 || left_type[0] == '*' ||
                      strcmp(left_type, "null") == 0 ||
@@ -457,7 +496,8 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
     uint64_t left_bits = integer_bits(left);
     uint64_t right_bits = integer_bits(right);
     double a = as_real(left), b = as_real(right);
-    if(vm->failed || left.kind == VALUE_VOID || right.kind == VALUE_VOID)
+    if(vm->failed || operation == BinaryInvalid ||
+       left.kind == VALUE_VOID || right.kind == VALUE_VOID)
         goto failed;
     if(left.kind == VALUE_SLOT || right.kind == VALUE_SLOT) {
         if((left.kind != VALUE_SLOT &&
@@ -469,8 +509,8 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         const ZirFunction *b_function = right.kind == VALUE_SLOT ? right.slot_function : NULL;
         int equal = a_function == b_function &&
             (a_function == NULL || left.slot_module == right.slot_module);
-        if(!strcmp(op, "==")) return int_value(equal);
-        if(!strcmp(op, "!=")) return int_value(!equal);
+        if(operation == BinaryEqual) return int_value(equal);
+        if(operation == BinaryNotEqual) return int_value(!equal);
         goto failed;
     }
     if(left.kind == VALUE_POINTER || right.kind == VALUE_POINTER) {
@@ -479,9 +519,9 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
             (left.indexed == right.indexed &&
              (left.indexed ? left.array == right.array && left.offset == right.offset :
               left.pointee == right.pointee)) : 0;
-        if(strcmp(op, "==") == 0)
+        if(operation == BinaryEqual)
             return int_value(equal);
-        if(strcmp(op, "!=") == 0)
+        if(operation == BinaryNotEqual)
             return int_value(!equal);
         goto failed;
     }
@@ -491,9 +531,9 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         int equal = left.length == right.length &&
                     (left.length == 0 ||
                      memcmp(left.data, right.data, left.length) == 0);
-        if(strcmp(op, "==") == 0)
+        if(operation == BinaryEqual)
             return int_value(equal);
-        if(strcmp(op, "!=") == 0)
+        if(operation == BinaryNotEqual)
             return int_value(!equal);
         goto failed;
     }
@@ -509,7 +549,7 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         Value result = binary_value(vm, op, int_value(left.integer),
                                     int_value(right.integer),
                                     flags->enum_backing, flags->enum_backing);
-        if(vm->failed || strcmp(op, "==") == 0 || strcmp(op, "!=") == 0)
+        if(vm->failed || operation == BinaryEqual || operation == BinaryNotEqual)
             return result;
         result = coerce(vm, NULL, result, flags->enum_backing);
         return enum_value(flags, result.integer);
@@ -518,57 +558,58 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         if(left.kind != VALUE_ENUM || right.kind != VALUE_ENUM ||
            left.enumeration != right.enumeration)
             goto failed;
-        if(strcmp(op, "==") == 0)
+        if(operation == BinaryEqual)
             return int_value(left.integer == right.integer);
-        if(strcmp(op, "!=") == 0)
+        if(operation == BinaryNotEqual)
             return int_value(left.integer != right.integer);
         goto failed;
     }
-    if(strcmp(op, "==") == 0)
+    if(operation == BinaryEqual)
         return int_value(real ? a == b :
                          unsigned64 ? left_bits == right_bits :
                          left.integer == right.integer);
-    if(strcmp(op, "!=") == 0)
+    if(operation == BinaryNotEqual)
         return int_value(real ? a != b :
                          unsigned64 ? left_bits != right_bits :
                          left.integer != right.integer);
-    if(strcmp(op, "<") == 0)
+    if(operation == BinaryLess)
         return int_value(real ? a < b :
                          unsigned64 ? left_bits < right_bits :
                          left.integer < right.integer);
-    if(strcmp(op, "<=") == 0)
+    if(operation == BinaryLessEqual)
         return int_value(real ? a <= b :
                          unsigned64 ? left_bits <= right_bits :
                          left.integer <= right.integer);
-    if(strcmp(op, ">") == 0)
+    if(operation == BinaryGreater)
         return int_value(real ? a > b :
                          unsigned64 ? left_bits > right_bits :
                          left.integer > right.integer);
-    if(strcmp(op, ">=") == 0)
+    if(operation == BinaryGreaterEqual)
         return int_value(real ? a >= b :
                          unsigned64 ? left_bits >= right_bits :
                          left.integer >= right.integer);
     if(real) {
-        if(strcmp(op, "+") == 0) return real_value(a + b);
-        if(strcmp(op, "-") == 0) return real_value(a - b);
-        if(strcmp(op, "*") == 0) return real_value(a * b);
-        if(strcmp(op, "/") == 0) return real_value(a / b);
+        if(operation == BinaryAdd) return real_value(a + b);
+        if(operation == BinarySubtract) return real_value(a - b);
+        if(operation == BinaryMultiply) return real_value(a * b);
+        if(operation == BinaryDivide) return real_value(a / b);
         goto failed;
     }
-    if(bitwise_operator(op)) {
+    if(operation == BinaryAnd || operation == BinaryOr || operation == BinaryXor ||
+       operation == BinaryShiftLeft || operation == BinaryShiftRight) {
         if(unsigned64 || signed_wide) {
-            if(strcmp(op, "&") == 0)
+            if(operation == BinaryAnd)
                 return unsigned64 ? uint_value(left_bits & right_bits) :
                                     int_value(signed64(left_bits & right_bits));
-            if(strcmp(op, "|") == 0)
+            if(operation == BinaryOr)
                 return unsigned64 ? uint_value(left_bits | right_bits) :
                                     int_value(signed64(left_bits | right_bits));
-            if(strcmp(op, "^") == 0)
+            if(operation == BinaryXor)
                 return unsigned64 ? uint_value(left_bits ^ right_bits) :
                                     int_value(signed64(left_bits ^ right_bits));
             if((!right.unsigned64 && right.integer < 0) || right_bits >= 64)
                 goto failed;
-            if(strcmp(op, "<<") == 0)
+            if(operation == BinaryShiftLeft)
                 return unsigned64 ? uint_value(left_bits << right_bits) :
                                     int_value(signed64(left_bits << right_bits));
             if(unsigned64)
@@ -581,11 +622,11 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         }
         uint32_t a_bits = (uint32_t)left_bits;
         uint32_t b_bits = (uint32_t)right_bits;
-        if(strcmp(op, "&") == 0)
+        if(operation == BinaryAnd)
             return int_value(a_bits & b_bits);
-        if(strcmp(op, "|") == 0)
+        if(operation == BinaryOr)
             return int_value(a_bits | b_bits);
-        if(strcmp(op, "^") == 0)
+        if(operation == BinaryXor)
             return int_value(a_bits ^ b_bits);
         unsigned width = !strcmp(left_type, "u8") ||
                          !strcmp(left_type, "s8") ? 8 :
@@ -597,7 +638,7 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         uint32_t mask = width == 32 ? UINT32_MAX :
                         (UINT32_C(1) << width) - 1;
         a_bits &= mask;
-        if(strcmp(op, "<<") == 0)
+        if(operation == BinaryShiftLeft)
             return int_value((a_bits << amount) & mask);
         uint32_t shifted = a_bits >> amount;
         if(left_type[0] != 'u' &&
@@ -606,38 +647,38 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         return int_value(shifted & mask);
     }
     if(unsigned64) {
-        if(strcmp(op, "+") == 0) return uint_value(left_bits + right_bits);
-        if(strcmp(op, "-") == 0) return uint_value(left_bits - right_bits);
-        if(strcmp(op, "*") == 0) return uint_value(left_bits * right_bits);
-        if(strcmp(op, "/") == 0 && right_bits != 0)
+        if(operation == BinaryAdd) return uint_value(left_bits + right_bits);
+        if(operation == BinarySubtract) return uint_value(left_bits - right_bits);
+        if(operation == BinaryMultiply) return uint_value(left_bits * right_bits);
+        if(operation == BinaryDivide && right_bits != 0)
             return uint_value(left_bits / right_bits);
-        if(strcmp(op, "%") == 0 && right_bits != 0)
+        if(operation == BinaryRemainder && right_bits != 0)
             return uint_value(left_bits % right_bits);
         goto failed;
     }
     if(signed_wide) {
-        if(strcmp(op, "+") == 0)
+        if(operation == BinaryAdd)
             return int_value(signed64(left_bits + right_bits));
-        if(strcmp(op, "-") == 0)
+        if(operation == BinarySubtract)
             return int_value(signed64(left_bits - right_bits));
-        if(strcmp(op, "*") == 0)
+        if(operation == BinaryMultiply)
             return int_value(signed64(left_bits * right_bits));
         if(right.integer == 0)
             goto failed;
         if(left.integer == INT64_MIN && right.integer == -1)
-            return int_value(strcmp(op, "/") == 0 ? INT64_MIN : 0);
-        if(strcmp(op, "/") == 0)
+            return int_value(operation == BinaryDivide ? INT64_MIN : 0);
+        if(operation == BinaryDivide)
             return int_value(left.integer / right.integer);
-        if(strcmp(op, "%") == 0)
+        if(operation == BinaryRemainder)
             return int_value(left.integer % right.integer);
         goto failed;
     }
-    if(strcmp(op, "+") == 0) return int_value(left.integer + right.integer);
-    if(strcmp(op, "-") == 0) return int_value(left.integer - right.integer);
-    if(strcmp(op, "*") == 0) return int_value(left.integer * right.integer);
-    if(strcmp(op, "/") == 0 && right.integer != 0)
+    if(operation == BinaryAdd) return int_value(left.integer + right.integer);
+    if(operation == BinarySubtract) return int_value(left.integer - right.integer);
+    if(operation == BinaryMultiply) return int_value(left.integer * right.integer);
+    if(operation == BinaryDivide && right.integer != 0)
         return int_value(left.integer / right.integer);
-    if(strcmp(op, "%") == 0 && right.integer != 0)
+    if(operation == BinaryRemainder && right.integer != 0)
         return int_value(left.integer % right.integer);
 failed:
     vm->failed = 1;

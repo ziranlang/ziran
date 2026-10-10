@@ -1,0 +1,40 @@
+Mask :: enum_flags u64 { Low :: 1; Four :: 4; }
+Number :: enum u64 { One :: 1; Five :: 5; }
+Signed :: enum s64 { Minimum :: -9223372036854775808; }
+Tiny :: enum u8 { Low :: 1; High :: 255; }
+global_mask: Mask;
+Pass :: (value: Number) -> Number { return value }
+#program_export
+main :: () -> s32 {
+    number := cast(Number)cast(u64)5
+    if cast(u64)number != cast(u64)5 || Pass(number) != Number.Five { return 1 }
+    flags := Mask.Low | Mask.Four
+    if cast(u64)flags != cast(u64)5 { return 2 }
+    top: u64 = 9223372036854775808
+    high := cast(Mask)top
+    flags |= high
+    if cast(u64)flags != cast(u64)9223372036854775813 { return 3 }
+    global_mask = flags
+    values: [2]Mask = .{flags, Mask.Four}
+    if cast(u64)global_mask != cast(u64)flags || cast(u64)values[0] != cast(u64)flags { return 4 }
+    flags ^= high
+    if cast(u64)flags != cast(u64)5 { return 5 }
+    flags &= Mask.Four
+    if cast(u64)flags != cast(u64)4 { return 6 }
+    flags = high
+    if cast(u64)flags != cast(u64)9223372036854775808 { return 7 }
+    raw: u64 = cast(u64)flags
+    raw >>= 63
+    flags = cast(Mask)raw
+    if cast(u64)flags != cast(u64)1 { return 8 }
+    flags = cast(Mask)cast(u64)18446744073709551615
+    flags += Mask.Low
+    if cast(u64)flags != cast(u64)0 { return 9 }
+    minimum: s64 = -9223372036854775808
+    signed := cast(Signed)minimum
+    if signed != Signed.Minimum || cast(s64)signed != minimum { return 10 }
+    byte_value: u64 = 511
+    tiny := cast(Tiny)byte_value
+    if tiny != Tiny.High || cast(u8)tiny != 255 { return 11 }
+    return 0
+}

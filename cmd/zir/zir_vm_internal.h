@@ -128,7 +128,7 @@ typedef struct VmLayout {
     const ZirType *type;
     int count;          /* -1 when the fields are malformed or too many */
     VmField *fields;
-    int *field_slots;
+    int *field_slots; /* hash slots, then reference count and field indices */
     size_t field_slot_count;
 } VmLayout;
 

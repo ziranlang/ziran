@@ -1,6 +1,62 @@
 #include "zir_vm_internal.h"
 #include <assert.h>
 
+static void
+borrowed_graph(Vm *vm)
+{
+    ZirType node = {0};
+    strcpy(node.name, "Node");
+    strcpy(node.body, "name: string; next: *Node; data: []u8; links: [3]*Node;");
+    Record *root = allocate_record(vm, NULL, &node, 4);
+    Record *child = allocate_record(vm, NULL, &node, 4);
+    Record *discarded = allocate_record(vm, NULL, &node, 4);
+    Array *bytes = allocate_array_try(vm, NULL, "u8", 4, 1);
+    Array *links = allocate_array_try(vm, NULL, "*Node", 3, 1);
+    assert(root != NULL && child != NULL && discarded != NULL);
+    assert(bytes != NULL && links != NULL && !vm->failed);
+    StringLiteral *text = malloc(sizeof(*text) + 4);
+    assert(text != NULL);
+    text->length = 4;
+    memcpy(text->data, "kept", 4);
+    Value name = keep_string(vm, text, NULL, sizeof(*text) + 4);
+    root->fields[0].value = name;
+    root->fields[1].value = (Value){.kind = VALUE_POINTER, .record = child,
+                                  .pointee = &child->fields[0].value};
+    root->fields[2].value = (Value){.kind = VALUE_SLICE, .array = bytes, .length = 4};
+    root->fields[3].value = (Value){.kind = VALUE_ARRAY, .array = links};
+    child->fields[1].value = (Value){.kind = VALUE_POINTER, .record = root,
+                                   .pointee = &root->fields[0].value};
+    array_set(bytes, 0, int_value(97));
+    array_set(links, 0, (Value){.kind = VALUE_POINTER, .record = child,
+                              .pointee = &child->fields[0].value});
+    array_set(links, 1, (Value){.kind = VALUE_POINTER, .array = bytes,
+                              .offset = 0, .indexed = 1});
+    /* Popped slots may still have inactive payload bits. They cannot retain
+     * a discarded allocation just because a record pointer remains there. */
+    array_set(links, 2, (Value){.kind = VALUE_INVALID, .record = discarded});
+    Value borrowed = {.kind = VALUE_RECORD, .record = root};
+    VmRoots roots = {NULL, &borrowed, 1};
+    vm->evaluation_roots = &roots;
+    retire_value(vm, borrowed, 0);
+    retire_value(vm, (Value){.kind = VALUE_RECORD, .record = child}, 0);
+    retire_value(vm, (Value){.kind = VALUE_RECORD, .record = discarded}, 0);
+    retire_value(vm, (Value){.kind = VALUE_ARRAY, .array = bytes}, 0);
+    release_retired(vm);
+    assert(root->pinned == vm->pin_generation);
+    assert(child->pinned == vm->pin_generation);
+    assert(bytes->pinned == vm->pin_generation && links->pinned == vm->pin_generation);
+    assert(text->pinned == vm->pin_generation);
+    assert(root->fields[0].value.length == 4);
+    assert(memcmp(root->fields[0].value.data, "kept", 4) == 0);
+    assert(array_get(bytes, 0).integer == 97);
+    assert(vm->record_bytes == 2 * (sizeof(Record) + 4 * sizeof(RecordField)));
+    vm->evaluation_roots = NULL;
+    release_retired(vm);
+    assert(vm->record_bytes == 0 && vm->array_bytes == 0);
+    free_strings(vm);
+    assert(vm->string_bytes == 0);
+}
+
 /* Discarded values can still be borrowed by an expression. Reclaim them only
  * after that expression releases its roots, even while other collectors run. */
 int
@@ -71,6 +127,7 @@ main(void)
     retire_value(&vm, (Value){.kind = VALUE_RECORD, .record = record}, 0);
     release_retired(&vm);
     assert(vm.record_bytes == 0);
+    borrowed_graph(&vm);
     free_layouts(&vm);
     return 0;
 }

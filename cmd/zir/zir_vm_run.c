@@ -783,41 +783,60 @@ parameter_read_only(const ZirFunction *function, const char *name)
 
 /* Globals can receive values during a call. Keep every allocation reachable
  * from them when reclaiming completed call temporaries. */
-void
-pin_value(Vm *vm, Value value, int depth)
+static void
+pin_value_at(Vm *vm, const Value *value, int depth)
 {
-    if(value.kind == VALUE_STRING && value.string_owner != NULL) {
-        value.string_owner->pinned = vm->pin_generation;
+    if(value->kind == VALUE_STRING && value->string_owner != NULL) {
+        value->string_owner->pinned = vm->pin_generation;
         return;
     }
     if(depth >= VM_MAX_DEPTH)
         return;
-    if(value.kind == VALUE_RECORD && value.record != NULL &&
-       value.record->pinned != vm->pin_generation) {
-        value.record->pinned = vm->pin_generation;
-        for(int i = 0; i < value.record->field_count; i++) {
-            Value field = value.record->fields[i].value;
-            if(field.kind == VALUE_STRING || field.kind >= VALUE_RECORD)
-                pin_value(vm, field, depth + 1);
+    if(value->kind == VALUE_RECORD && value->record != NULL &&
+       value->record->pinned != vm->pin_generation) {
+        value->record->pinned = vm->pin_generation;
+        for(int i = 0; i < value->record->field_count; i++) {
+            const Value *field = &value->record->fields[i].value;
+            if(field->kind == VALUE_STRING || field->kind >= VALUE_RECORD)
+                pin_value_at(vm, field, depth + 1);
         }
-    } else if(value.kind == VALUE_ARRAY && value.array != NULL &&
-              value.array->pinned != vm->pin_generation) {
-        value.array->pinned = vm->pin_generation;
-        if(value.array->holds_references)
-            for(int i = 0; i < value.array->length; i++)
-                pin_value(vm, array_get(value.array, (size_t)i), depth + 1);
-    } else if(value.kind == VALUE_SLICE && value.array != NULL) {
-        pin_value(vm, (Value){.kind = VALUE_ARRAY, .array = value.array},
-                  depth + 1);
-    } else if(value.kind == VALUE_POINTER) {
+    } else if(value->kind == VALUE_ARRAY && value->array != NULL &&
+              value->array->pinned != vm->pin_generation) {
+        Array *array = value->array;
+        array->pinned = vm->pin_generation;
+        if(array->holds_references) {
+            if(array->storage == ARRAY_BOXED) {
+                const Value *items = (const Value *)array->data;
+                for(int i = 0; i < array->length; i++)
+                    if(items[i].kind == VALUE_STRING || items[i].kind >= VALUE_RECORD)
+                        pin_value_at(vm, &items[i], depth + 1);
+            } else {
+                for(int i = 0; i < array->length; i++) {
+                    Value item = array_get(array, (size_t)i);
+                    pin_value_at(vm, &item, depth + 1);
+                }
+            }
+        }
+    } else if(value->kind == VALUE_SLICE && value->array != NULL) {
+        Value backing = {.kind = VALUE_ARRAY, .array = value->array};
+        pin_value_at(vm, &backing, depth + 1);
+    } else if(value->kind == VALUE_POINTER) {
         /* A pointer keeps its target's container alive. */
-        if(value.record != NULL)
-            pin_value(vm, (Value){.kind = VALUE_RECORD, .record = value.record},
-                      depth + 1);
-        if(value.array != NULL)
-            pin_value(vm, (Value){.kind = VALUE_ARRAY, .array = value.array},
-                      depth + 1);
+        if(value->record != NULL) {
+            Value container = {.kind = VALUE_RECORD, .record = value->record};
+            pin_value_at(vm, &container, depth + 1);
+        }
+        if(value->array != NULL) {
+            Value container = {.kind = VALUE_ARRAY, .array = value->array};
+            pin_value_at(vm, &container, depth + 1);
+        }
     }
+}
+
+void
+pin_value(Vm *vm, Value value, int depth)
+{
+    pin_value_at(vm, &value, depth);
 }
 
 void
@@ -826,14 +845,14 @@ pin_evaluation_roots(Vm *vm)
     for(VmRoots *roots = vm->evaluation_roots; roots != NULL;
         roots = roots->previous)
         for(int i = 0; i < roots->count; i++)
-            pin_value(vm, roots->values[i], 0);
+            pin_value_at(vm, &roots->values[i], 0);
 }
 
 static void
 pin_globals(Vm *vm)
 {
     for(int i = 0; i < vm->global_count; i++)
-        pin_value(vm, vm->globals[i].value, 0);
+        pin_value_at(vm, &vm->globals[i].value, 0);
 }
 
 /* A callee may write through a slice borrowed from a caller. Its newly
@@ -845,7 +864,7 @@ pin_active_frames(Vm *vm)
     for(Frame *frame = vm->active_frame; frame != NULL;
         frame = frame->caller)
         for(int i = 0; i < frame->local_count; i++)
-            pin_value(vm, frame->locals[i].value, 0);
+            pin_value_at(vm, &frame->locals[i].value, 0);
 }
 
 static void

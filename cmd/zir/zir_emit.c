@@ -297,6 +297,47 @@ function_mentions(const ZirFunction *fn, const char *name)
     return 0;
 }
 
+/* Globals are emitted under their own names, so a local or parameter
+ * named like a global the function reads would hide it: `count :=
+ * Media.count + 1` read the new, uninitialized local. Such a binding takes
+ * another name. The globals each function reads are listed once, since
+ * every use of a local asks for its name. */
+static int
+function_reads_global(const ZirFunction *fn, const char *name)
+{
+    static _Thread_local const ZirFunction *function;
+    static _Thread_local const ZirExpr *exprs;
+    static _Thread_local int expr_count;
+    static _Thread_local const char **globals;
+    static _Thread_local int global_count, global_capacity;
+    if(function != fn || exprs != fn->exprs || expr_count != fn->expr_count) {
+        function = fn;
+        exprs = fn->exprs;
+        expr_count = fn->expr_count;
+        global_count = 0;
+        for(int i = 0; i < fn->expr_count; i++) {
+            const ZirExpr *expr = &fn->exprs[i];
+            if(!expr->is_global_value || expr->name == NULL)
+                continue;
+            if(global_count == global_capacity) {
+                int capacity = global_capacity ? global_capacity * 2 : 16;
+                const char **grown = AllocateOrExit(sizeof(*grown) * (size_t)capacity);
+                if(global_count)
+                    memcpy(grown, globals, sizeof(*grown) * (size_t)global_count);
+                free(globals);
+                globals = grown;
+                global_capacity = capacity;
+            }
+            const char *bare = strrchr(expr->name, '.');
+            globals[global_count++] = bare ? bare + 1 : expr->name;
+        }
+    }
+    for(int i = 0; i < global_count; i++)
+        if(!strcmp(globals[i], name))
+            return 1;
+    return 0;
+}
+
 void
 TargetBindingName(const ZirFunction *fn, ZirTarget target,
                   const char *name, char *out, size_t size)
@@ -341,13 +382,13 @@ TargetBindingName(const ZirFunction *fn, ZirTarget target,
         for(const char *const *word = lists[2]; *word; word++)
             reserved |= strcmp(name, *word) == 0;
     }
-    if(!reserved) {
+    if(!reserved && (fn == NULL || !function_reads_global(fn, name))) {
         copy_text(out, size, name);
         return;
     }
     for(int serial = 0; ; serial++) {
-        format(out, size, "ziran_keyword_%s_%d", name, serial);
-        if(fn == NULL || !function_mentions(fn, out))
+        format(out, size, reserved ? "ziran_keyword_%s_%d" : "ziran_local_%s_%d", name, serial);
+        if(fn == NULL || (!function_mentions(fn, out) && !function_reads_global(fn, out)))
             return;
     }
 }

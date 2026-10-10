@@ -337,3 +337,67 @@ C
 "${CC:-cc}" -std=c99 -pedantic-errors -I"$repo/include" -I"$work/items-c" \
     "$work/items-c"/*.c -o "$work/items-c/app"
 "$work/items-c/app"
+
+# Globals keep their own names in generated code, so a local or parameter
+# named like an imported global must not hide it: `count := Counter.count`
+# read the new local and `names := Counter.names[0]` did not compile in C.
+cat > "$work/counter.zi" <<'ZI'
+count: s64;
+names: [4]s64;
+ZI
+cat > "$work/local_shadow.zi" <<'ZI'
+Counter :: #import "counter";
+Add :: (count: s64) -> s64 { return Counter.count + count }
+#program_export
+Answer :: () -> s64 {
+    Counter.count = 10
+    Counter.names[0] = 7
+    count := Counter.count + 1
+    names := Counter.names[0]
+    Counter.count = 20
+    return count + names + Add(4)
+}
+ZI
+"$ziran" ir --root "$work" -o "$work/local-shadow-ir" "$work/local_shadow.zi"
+for input in source saved; do
+    if test "$input" = source; then
+        root=$work
+        file=$work/local_shadow.zi
+    else
+        root=$work/local-shadow-ir
+        file=$work/local-shadow-ir/local_shadow.zir
+    fi
+    "$ziran" bundle --root "$root" --entry local_shadow:Answer \
+        -o "$work/local-shadow-$input.zib" "$file"
+    test "$("$ziran" run "$work/local-shadow-$input.zib")" = 42
+    for target in c cpp go; do
+        out="$work/local-shadow-$target-$input"
+        "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"
+        if test "$target" = go; then
+            cat > "$out/main_test.go" <<'GO'
+package ziran
+import "testing"
+func TestLocalShadow(t *testing.T) {
+    if LocalShadow_Answer() != 42 { t.Fatal("local named like an imported global") }
+}
+GO
+            GO111MODULE=off go test "$out"/*.go
+        elif test "$target" = c; then
+            cat > "$out/main.c" <<'C'
+#include "local_shadow.h"
+int main(void) { return Answer() == 42 ? 0 : 1; }
+C
+            "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
+                -I"$out" "$out"/*.c -o "$out/app"
+            "$out/app"
+        else
+            cat > "$out/main.cpp" <<'CPP'
+#include "local_shadow.hpp"
+int main() { return Answer() == 42 ? 0 : 1; }
+CPP
+            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" \
+                -I"$out" "$out"/*.cpp -o "$out/app"
+            "$out/app"
+        fi
+    done
+done

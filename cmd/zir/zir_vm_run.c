@@ -13,7 +13,23 @@ struct VmProfile {
     VmFunctionProfile **functions;
     size_t slots, count;
     uint64_t ticks, allocations, last_report, instance;
+    uint64_t cache_hits[VM_CACHE_COUNT], cache_misses[VM_CACHE_COUNT];
+    uint64_t cache_collisions[VM_CACHE_COUNT];
 };
+
+void
+profile_cache_access(Vm *vm, int cache, int event)
+{
+    if(vm->profile == NULL || cache < 0 || cache >= VM_CACHE_COUNT)
+        return;
+    if(event == VM_CACHE_HIT)
+        vm->profile->cache_hits[cache]++;
+    else {
+        vm->profile->cache_misses[cache]++;
+        if(event == VM_CACHE_COLLISION)
+            vm->profile->cache_collisions[cache]++;
+    }
+}
 
 static atomic_uint profile_instance;
 static atomic_flag profile_writer = ATOMIC_FLAG_INIT;
@@ -97,10 +113,19 @@ profile_report(Vm *vm, int complete)
     while(atomic_flag_test_and_set_explicit(&profile_writer, memory_order_acquire)) {}
     fprintf(profile->output,
             "{\"schema_version\":1,\"instance\":%llu,\"clock\":\"process_cpu\","
-            "\"complete\":%s,\"failed\":%s,\"live_value_bytes\":%llu,\"functions\":[",
+            "\"complete\":%s,\"failed\":%s,\"live_value_bytes\":%llu,",
             (unsigned long long)profile->instance, complete ? "true" : "false",
             vm->failed ? "true" : "false",
             (unsigned long long)(vm->record_bytes + vm->array_bytes + vm->string_bytes));
+    fprintf(profile->output,
+            "\"metadata_caches\":{\"call\":{\"hits\":%llu,\"misses\":%llu,\"collisions\":%llu},"
+            "\"global\":{\"hits\":%llu,\"misses\":%llu,\"collisions\":%llu}},\"functions\":[",
+            (unsigned long long)profile->cache_hits[VM_CACHE_CALL],
+            (unsigned long long)profile->cache_misses[VM_CACHE_CALL],
+            (unsigned long long)profile->cache_collisions[VM_CACHE_CALL],
+            (unsigned long long)profile->cache_hits[VM_CACHE_GLOBAL],
+            (unsigned long long)profile->cache_misses[VM_CACHE_GLOBAL],
+            (unsigned long long)profile->cache_collisions[VM_CACHE_GLOBAL]);
     int first = 1;
     for(size_t i = 0; i < profile->slots; i++) {
         VmFunctionProfile *entry = profile->functions[i];

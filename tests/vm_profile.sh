@@ -7,16 +7,20 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS ZIRAN_VM_PROFILE
 cat > "$work/app.zi" <<'ZI'
 Cell :: struct { value: s32; label: string }
+counter: s32;
 Leaf :: (value: s32, secret: string) -> Cell { return .{value,secret} }
 Child :: (value: s32, secret: string) -> s32 {
     result := Leaf(value,secret)
-    return result.value
+    return result.value + counter
 }
 #program_export
 main :: () -> s32 {
     total: s32
-    for i: 0..999 { total += Child(cast(s32)i,"arguments-must-never-enter-a-profile") }
-    return ifx total == 499500 then 0 else 1
+    for i: 0..999 {
+        counter = cast(s32)i
+        total += Child(cast(s32)i,"arguments-must-never-enter-a-profile")
+    }
+    return ifx total == 999000 then 0 else 1
 }
 ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
@@ -40,6 +44,10 @@ assert len(reports)==2
 for report in reports:
     assert report['complete'] and not report['failed']
     assert report['clock']=='process_cpu' and report['live_value_bytes']>=0
+    caches=report['metadata_caches']
+    assert caches['call']['hits']>0 and caches['call']['misses']>0
+    assert caches['global']['hits']>0 and caches['global']['misses']>0
+    assert all(0<=item['collisions']<=item['misses'] for item in caches.values())
     rows={row['function']:row for row in report['functions'] if row['module']=='app'}
     assert rows['main']['calls']==1
     assert rows['Child']['calls']==1000 and rows['Leaf']['calls']==1000

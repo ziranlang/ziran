@@ -346,6 +346,30 @@ typedef struct VmTypeSite {
 } VmTypeSite;
 
 typedef struct VmProfile VmProfile;
+enum { VM_CACHE_CALL, VM_CACHE_GLOBAL, VM_CACHE_COUNT };
+enum { VM_CACHE_MISS, VM_CACHE_HIT, VM_CACHE_COLLISION };
+
+/* Expression arrays repeat allocator alignment and strides. Mix all address
+ * bits before selecting a bounded cache slot, including on 32-bit hosts. */
+static inline size_t
+vm_expression_slot(const ZirExpr *expression, size_t slots)
+{
+    uintptr_t hash = (uintptr_t)expression;
+#if UINTPTR_MAX > UINT32_MAX
+    hash ^= hash >> 33;
+    hash *= UINT64_C(0xff51afd7ed558ccd);
+    hash ^= hash >> 33;
+    hash *= UINT64_C(0xc4ceb9fe1a85ec53);
+    hash ^= hash >> 33;
+#else
+    hash ^= hash >> 16;
+    hash *= UINT32_C(0x7feb352d);
+    hash ^= hash >> 15;
+    hash *= UINT32_C(0x846ca68b);
+    hash ^= hash >> 16;
+#endif
+    return (size_t)hash & (slots - 1);
+}
 
 typedef struct Vm {
     const ZirProgram *program;
@@ -498,6 +522,7 @@ void place_write(Vm *vm, Value place, Value value);
 Value binary_value(Vm *vm, const char *op, Value left, Value right, const char *left_type, const char *right_type);
 Value eval(Frame *frame, int index, int depth);
 void pin_value(Vm *vm, Value value, int depth);
+void profile_cache_access(Vm *vm, int cache, int event);
 void pin_evaluation_roots(Vm *vm);
 Value run_function(Vm *vm, const ZirModule *module, const ZirFunction *function, const Value *args, int arg_count);
 const VmLayout *record_layout(Vm *vm, const ZirType *type);

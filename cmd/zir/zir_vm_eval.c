@@ -103,29 +103,48 @@ find_global_slot(Frame *frame, const ZirExpr *expression)
 {
     enum { SLOTS = 4096 };
     Vm *vm = frame->vm;
-    size_t index = (((uintptr_t)expression >> 4) * 11400714819323198485ull) & (SLOTS - 1);
+    size_t index = vm_expression_slot(expression, SLOTS / 2) * 2;
     if(vm->global_sites == NULL)
         vm->global_sites = calloc(SLOTS, sizeof(*vm->global_sites));
-    if(vm->global_sites != NULL &&
-       vm->global_sites[index].expression == expression &&
-       vm->global_sites[index].module == frame->module)
-        return vm->global_sites[index].slot;
-    const ZirModule *owner = NULL;
-    const ZirGlobal *declaration = NULL;
-    if(ResolveGlobalAt(frame->module, expression->name, SpanPath(frame->function->span),
-                       &owner, &declaration) != 1)
-        return NULL;
-    for(int i = 0; i < frame->vm->global_count; i++) {
-        GlobalSlot *slot = &frame->vm->globals[i];
-        if(slot->module == owner && slot->declaration == declaration) {
-            /* Global slots stay at the same address for the instance;
-             * cache the slot, never its mutable contents. */
-            if(vm->global_sites != NULL)
-                vm->global_sites[index] = (VmGlobalSite){expression, frame->module, slot};
-            return slot;
+    if(vm->global_sites != NULL) {
+        for(size_t way = 0; way < 2; way++) {
+            VmGlobalSite cached = vm->global_sites[index + way];
+            if(cached.expression != expression || cached.module != frame->module)
+                continue;
+            if(way != 0) {
+                vm->global_sites[index + 1] = vm->global_sites[index];
+                vm->global_sites[index] = cached;
+            }
+            if(vm->profile != NULL)
+                profile_cache_access(vm, VM_CACHE_GLOBAL, VM_CACHE_HIT);
+            return cached.slot;
         }
     }
-    return NULL;
+    if(vm->profile != NULL)
+        profile_cache_access(vm, VM_CACHE_GLOBAL,
+            vm->global_sites != NULL && vm->global_sites[index + 1].expression != NULL ?
+            VM_CACHE_COLLISION : VM_CACHE_MISS);
+    const ZirModule *owner = NULL;
+    const ZirGlobal *declaration = NULL;
+    GlobalSlot *result = NULL;
+    if(ResolveGlobalAt(frame->module, expression->name, SpanPath(frame->function->span),
+                       &owner, &declaration) == 1) {
+        for(int i = 0; i < frame->vm->global_count; i++) {
+            GlobalSlot *slot = &frame->vm->globals[i];
+            if(slot->module == owner && slot->declaration == declaration) {
+                result = slot;
+                break;
+            }
+        }
+    }
+    /* Resolution, including an absent global, cannot change in an instance.
+     * Retain locations and metadata only; mutable contents are always read
+     * from their original slot. Two ways protect reused colliding sites. */
+    if(vm->global_sites != NULL) {
+        vm->global_sites[index + 1] = vm->global_sites[index];
+        vm->global_sites[index] = (VmGlobalSite){expression, frame->module, result};
+    }
+    return result;
 }
 
 static Value *
@@ -172,19 +191,35 @@ resolve_call(Frame *frame, const ZirExpr *expression)
 {
     enum { SLOTS = 4096 };
     Vm *vm = frame->vm;
-    size_t slot = (((uintptr_t)expression >> 4) * 11400714819323198485ull) & (SLOTS - 1);
+    size_t slot = vm_expression_slot(expression, SLOTS / 2) * 2;
     if(vm->call_sites == NULL)
         vm->call_sites = calloc(SLOTS, sizeof(*vm->call_sites));
-    if(vm->call_sites != NULL &&
-       vm->call_sites[slot].expression == expression &&
-       vm->call_sites[slot].module == frame->module)
-        return vm->call_sites[slot];
+    if(vm->call_sites != NULL) {
+        for(size_t way = 0; way < 2; way++) {
+            VmCallSite cached = vm->call_sites[slot + way];
+            if(cached.expression != expression || cached.module != frame->module)
+                continue;
+            if(way != 0) {
+                vm->call_sites[slot + 1] = vm->call_sites[slot];
+                vm->call_sites[slot] = cached;
+            }
+            if(vm->profile != NULL)
+                profile_cache_access(vm, VM_CACHE_CALL, VM_CACHE_HIT);
+            return cached;
+        }
+    }
+    if(vm->profile != NULL)
+        profile_cache_access(vm, VM_CACHE_CALL,
+            vm->call_sites != NULL && vm->call_sites[slot + 1].expression != NULL ?
+            VM_CACHE_COLLISION : VM_CACHE_MISS);
     VmCallSite result = {.expression = expression, .module = frame->module};
     if(ResolveFunction(frame->module, expression->name,
                        &result.owner, &result.callee) == 0)
         result.external = host_import(frame->module, expression->name);
-    if(vm->call_sites != NULL)
+    if(vm->call_sites != NULL) {
+        vm->call_sites[slot + 1] = vm->call_sites[slot];
         vm->call_sites[slot] = result;
+    }
     return result;
 }
 

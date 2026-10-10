@@ -770,7 +770,8 @@ static int rust_copyable_type(RustEmitter *emitter, const char *type)
     if(type[0] == '*' && type[1] != '\0')
         return 1;
     if(rust_scalar_type(type) != NULL || !strcmp(type, "string") ||
-       rust_enum_type(emitter, type, &owner, &record))
+       rust_enum_type(emitter, type, &owner, &record) ||
+       rust_procedure_type(emitter, type, &owner, &record))
         return 1;
     if(rust_owned_vec_type(emitter, type, NULL, NULL, NULL, 0) ||
        rust_option_type(emitter, type, NULL, NULL, NULL, 0))

@@ -522,6 +522,17 @@ layout_slot(const VmLayout *layouts, size_t slots, const ZirType *type)
     return slot;
 }
 
+static int
+type_has_references(const char *type)
+{
+    ValueKind kind = value_kind(type);
+    /* Unsized integer coercion preserves a VM pointer's representation.
+     * Keep its ownership path even though ordinary fixed-width numbers
+     * cannot retain storage. */
+    return kind == VALUE_INVALID || kind == VALUE_STRING || type[0] == '*' ||
+           (kind == VALUE_INT && type[0] == 'i');
+}
+
 /* Record allocation happens for every record value the VM builds, so the
  * field list is parsed from the type text once and reused. */
 const VmLayout *
@@ -554,12 +565,22 @@ record_layout(Vm *vm, const ZirType *type)
         size_t slots = 4;
         while(slots < (size_t)layout->count * 2)
             slots *= 2;
-        layout->field_slots = malloc(slots * sizeof(*layout->field_slots));
+        /* The hash slots retain their existing layout. Their stable shared
+         * allocation also holds the count and indices needed by marking;
+         * scalar-only fields cannot retain heap storage. Unknown named types
+         * and typed pointers are included conservatively. */
+        int references = 0;
+        for(int i = 0; i < layout->count; i++)
+            references += type_has_references(layout->fields[i].type);
+        layout->field_slots = malloc((slots + 1 + (size_t)references) *
+                                    sizeof(*layout->field_slots));
         if(layout->field_slots == NULL) {
             layout->count = -1;
             return layout;
         }
         layout->field_slot_count = slots;
+        layout->field_slots[slots] = references;
+        int reference = 0;
         for(size_t i = 0; i < slots; i++)
             layout->field_slots[i] = -1;
         for(int i = 0; i < layout->count; i++) {
@@ -567,6 +588,8 @@ record_layout(Vm *vm, const ZirType *type)
             while(layout->field_slots[position] >= 0)
                 position = (position + 1) & (slots - 1);
             layout->field_slots[position] = i;
+            if(type_has_references(layout->fields[i].type))
+                layout->field_slots[slots + 1 + (size_t)reference++] = i;
         }
     }
     return layout;

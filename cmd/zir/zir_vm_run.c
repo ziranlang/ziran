@@ -811,6 +811,7 @@ parameter_read_only(const ZirFunction *function, const char *name)
 typedef struct PinRange {
     const unsigned char *values;
     size_t count, stride;
+    const int *indices;
 } PinRange;
 
 typedef struct PinWork {
@@ -833,7 +834,8 @@ pin_all(Vm *vm)
 }
 
 static int
-pin_range(PinWork *work, const Value *values, size_t count, size_t stride)
+pin_range(PinWork *work, const Value *values, size_t count, size_t stride,
+          const int *indices)
 {
     if(count == 0)
         return 1;
@@ -855,7 +857,7 @@ pin_range(PinWork *work, const Value *values, size_t count, size_t stride)
         work->capacity = capacity;
     }
     work->ranges[work->count++] = (PinRange){
-        (const unsigned char *)values, count, stride
+        (const unsigned char *)values, count, stride, indices
     };
     return 1;
 }
@@ -865,15 +867,16 @@ pin_slot(Vm *vm, const Value *value, int depth, PinWork *work);
 
 static int
 pin_slots(Vm *vm, const Value *values, size_t count, size_t stride,
-          int depth, PinWork *work)
+          const int *indices, int depth, PinWork *work)
 {
     /* Finish shallow graphs directly, retaining the fast path for ordinary
      * aggregates. Defer deeper ranges instead of stopping their traversal. */
     if(depth >= 32)
-        return pin_range(work, values, count, stride);
+        return pin_range(work, values, count, stride, indices);
     const unsigned char *bytes = (const unsigned char *)values;
     for(size_t i = 0; i < count; i++) {
-        const Value *slot = (const Value *)(bytes + i * stride);
+        size_t index = indices != NULL ? (size_t)indices[i] : i;
+        const Value *slot = (const Value *)(bytes + index * stride);
         if((slot->kind == VALUE_STRING || slot->kind >= VALUE_RECORD) &&
            !pin_slot(vm, slot, depth + 1, work))
             return 0;
@@ -897,9 +900,14 @@ pin_slot(Vm *vm, const Value *value, int depth, PinWork *work)
         array = value->array;
     if(record != NULL && record->pinned != vm->pin_generation) {
         record->pinned = vm->pin_generation;
-        if(record->field_count > 0 &&
+        const int *references = record->field_slots != NULL ?
+            record->field_slots + record->field_slot_count : NULL;
+        size_t count = references != NULL ? (size_t)references[0] :
+                                           (size_t)record->field_count;
+        if(record->field_count > 0 && count > 0 &&
            !pin_slots(vm, &record->fields[0].value,
-                      (size_t)record->field_count, sizeof(RecordField), depth, work))
+                      count, sizeof(RecordField),
+                      references != NULL ? references + 1 : NULL, depth, work))
             return 0;
     }
     if(array != NULL && array->pinned != vm->pin_generation) {
@@ -907,7 +915,7 @@ pin_slot(Vm *vm, const Value *value, int depth, PinWork *work)
         if(array->holds_references) {
             if(array->storage == ARRAY_BOXED) {
                 if(!pin_slots(vm, (const Value *)array->data,
-                              (size_t)array->length, sizeof(Value), depth, work))
+                              (size_t)array->length, sizeof(Value), NULL, depth, work))
                     return 0;
             } else {
                 for(int i = 0; i < array->length; i++) {
@@ -950,7 +958,7 @@ pin_value_at(Vm *vm, const Value *value)
     while(complete && work.count > 0) {
         PinRange range = work.ranges[--work.count];
         complete = pin_slots(vm, (const Value *)range.values,
-                             range.count, range.stride, 0, &work);
+                             range.count, range.stride, range.indices, 0, &work);
     }
     if(!complete)
         pin_all(vm);

@@ -512,6 +512,26 @@ binary_operation(const char *op)
     }
 }
 
+/* Width policy for checked integer operations. A negative width denotes an
+ * unsigned 64-bit value or opaque host handle. Named types and abstract
+ * integers retain the existing 32-bit operation policy. Match the complete
+ * spelling so names such as s8Extra never acquire a builtin width. */
+static int
+integer_operation_width(const char *type)
+{
+    if(type[0] == '*' || (type[0] == 'n' && !strcmp(type, "null")))
+        return -64;
+    if(type[0] != 's' && type[0] != 'u')
+        return 32;
+    if(type[1] == '6' && type[2] == '4' && type[3] == '\0')
+        return type[0] == 'u' ? -64 : 64;
+    if(type[1] == '8' && type[2] == '\0')
+        return 8;
+    if(type[1] == '1' && type[2] == '6' && type[3] == '\0')
+        return 16;
+    return 32;
+}
+
 Value
 binary_value(Vm *vm, const char *op, Value left, Value right,
              const char *left_type, const char *right_type)
@@ -519,18 +539,6 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
     BinaryOperation operation = binary_operation(op);
     int real = left.kind == VALUE_REAL || right.kind == VALUE_REAL;
     int shift = operation == BinaryShiftLeft || operation == BinaryShiftRight;
-    /* Host handles live in the unsigned bits; compare them by address. */
-    int unsigned64 = strcmp(left_type, "u64") == 0 || left_type[0] == '*' ||
-                     strcmp(left_type, "null") == 0 ||
-                     (!shift && (strcmp(right_type, "u64") == 0 ||
-                                 right_type[0] == '*' ||
-                                 strcmp(right_type, "null") == 0));
-    int signed_wide = !unsigned64 &&
-        (strcmp(left_type, "s64") == 0 ||
-         (!shift && strcmp(right_type, "s64") == 0));
-    uint64_t left_bits = integer_bits(left);
-    uint64_t right_bits = integer_bits(right);
-    double a = as_real(left), b = as_real(right);
     if(vm->failed || operation == BinaryInvalid ||
        left.kind == VALUE_VOID || right.kind == VALUE_VOID)
         goto failed;
@@ -599,6 +607,16 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
             return int_value(left.integer != right.integer);
         goto failed;
     }
+    /* Text, enums and VM references above do not need integer type parsing.
+     * Shift width comes only from the left operand; other numeric operations
+     * use either operand's wide representation. */
+    int left_width = integer_operation_width(left_type);
+    int right_width = shift ? 32 : integer_operation_width(right_type);
+    int unsigned64 = left_width == -64 || right_width == -64;
+    int signed_wide = !unsigned64 && (left_width == 64 || right_width == 64);
+    uint64_t left_bits = integer_bits(left);
+    uint64_t right_bits = integer_bits(right);
+    double a = as_real(left), b = as_real(right);
     if(operation == BinaryEqual)
         return int_value(real ? a == b :
                          unsigned64 ? left_bits == right_bits :
@@ -663,10 +681,7 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
             return int_value(a_bits | b_bits);
         if(operation == BinaryXor)
             return int_value(a_bits ^ b_bits);
-        unsigned width = !strcmp(left_type, "u8") ||
-                         !strcmp(left_type, "s8") ? 8 :
-                         !strcmp(left_type, "u16") ||
-                         !strcmp(left_type, "s16") ? 16 : 32;
+        unsigned width = (unsigned)left_width;
         if((!right.unsigned64 && right.integer < 0) || right_bits >= width)
             goto failed;
         unsigned amount = (unsigned)right_bits;
@@ -883,12 +898,22 @@ eval_expression(Frame *frame, int index, int depth)
             value.slot_function = function;
             break;
         }
-        if(strcmp(expression->name, "true") == 0)
-            return int_value(1);
-        if(strcmp(expression->name, "false") == 0)
-            return int_value(0);
-        if(strcmp(expression->name, "null") == 0)
-            return uint_value(0);
+        /* Most bindings cannot be a keyword. Preserve exact matching for
+         * identifiers sharing a keyword's initial byte. */
+        switch(expression->name[0]) {
+        case 't':
+            if(strcmp(expression->name, "true") == 0)
+                return int_value(1);
+            break;
+        case 'f':
+            if(strcmp(expression->name, "false") == 0)
+                return int_value(0);
+            break;
+        case 'n':
+            if(strcmp(expression->name, "null") == 0)
+                return uint_value(0);
+            break;
+        }
         Local *local = find_local(frame, expression->name);
         if(local != NULL) {
             Value stored = local->value;

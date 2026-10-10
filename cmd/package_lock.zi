@@ -461,6 +461,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
     if !PkgParseManifest(PkgJoin(root, "/ziran.toml"), current) ||
        !PkgParseOverrides(PkgJoin(root, "/ziran.local.toml"), overrides) { return false }
     PkgReadLock(PkgJoin(root, "/ziran.lock"), old)
+    targeted: bool = refresh != "" && refresh != "*" && refresh != "ziran"
     if refresh == "ziran" {
         if !old.valid || current.name != old.root_name ||
            !PkgSameSource(current.tool_git, old.tool_url) ||
@@ -542,11 +543,16 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             item.url = next.url
             item.ref = next.ref
             override: string = PkgFindOverride(overrides, next.alias, root)
-            if override.count > 0 {
+            previous: s32 = PkgFindBySource(old, next.url, next.ref)
+            // A targeted update reads an unrelated package's pinned manifest,
+            // even when its development override has newer or dirty inputs.
+            if targeted && old.valid && previous >= 0 && !next.refresh {
+                item.commit = old.packages[previous].commit
+                item.path = PkgCheckout(next.url, item.commit, false)
+            } else if override.count > 0 {
                 item.commit = PkgGitHead(override)
                 item.path = override
             } else {
-                previous: s32 = PkgFindBySource(old, next.url, next.ref)
                 if previous >= 0 && !next.refresh {
                     item.commit = old.packages[previous].commit
                 } else {
@@ -613,7 +619,10 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
     resolved.tool_url = current.tool_git
     resolved.tool_ref = current.tool_ref
     tool_override: string = PkgFindOverride(overrides, "ziran", root)
-    if tool_override.count > 0 {
+    if targeted && old.valid && PkgSameSource(old.tool_url, resolved.tool_url) &&
+       old.tool_ref == resolved.tool_ref {
+        resolved.tool_commit = old.tool_commit
+    } else if tool_override.count > 0 {
         resolved.tool_commit = PkgGitHead(tool_override)
     } else if old.valid && PkgSameSource(old.tool_url, resolved.tool_url) &&
         old.tool_ref == resolved.tool_ref && refresh != "*" &&

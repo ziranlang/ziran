@@ -65,6 +65,7 @@ RawBundleInstanceRun :: (instance: *void, result: *s64,
     has_result: *s32) -> s32 #foreign runtime "BundleInstanceRun";
 RawBundleInstanceClose :: (instance: *void) #foreign runtime "BundleInstanceClose";
 RawBundleInstanceLimitSteps :: (instance: *void, max_steps: s32) #foreign runtime "BundleInstanceLimitSteps";
+RawBundleInstanceMatchFieldsByName :: (instance: *void, enabled: s32) #foreign runtime "BundleInstanceMatchFieldsByName";
 
 #scope_export
 #program_export
@@ -178,4 +179,11 @@ CloseBundleInstance :: (instance: *void) { RawBundleInstanceClose(instance) }
 #program_export
 LimitBundleSteps :: (instance: *void, max_steps: s32) {
     RawBundleInstanceLimitSteps(instance, max_steps)
+}
+
+// Records returned to the instance match fields by name, so a bundle built
+// against an older or newer record layout still runs.
+#program_export
+MatchBundleFieldsByName :: (instance: *void, enabled: bool) {
+    RawBundleInstanceMatchFieldsByName(instance, ifx enabled then 1 else 0)
 }

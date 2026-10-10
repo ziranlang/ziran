@@ -160,6 +160,14 @@ void BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
     assert(instance == (BundleInstance *)&token && max_steps == 19);
 }
 
+static int matched_by_name;
+
+void BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
+{
+    assert(instance == (BundleInstance *)&token && (enabled == 0 || enabled == 1));
+    matched_by_name = enabled;
+}
+
 int main(void)
 {
     expected_size = 37;
@@ -186,6 +194,10 @@ int main(void)
     assert(RunBundleInstance(instance, &result, &has_result) == 1);
     assert(result == 42 && has_result == 1);
     LimitBundleSteps(instance, 19);
+    MatchBundleFieldsByName(instance, true);
+    assert(matched_by_name == 1);
+    MatchBundleFieldsByName(instance, false);
+    assert(matched_by_name == 0);
     CloseBundleInstance(instance);
     CloseBundle(bundle);
 

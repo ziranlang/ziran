@@ -586,6 +586,43 @@ host_argument(const ZirModule *module, const char *type, Value value,
            value.kind == VALUE_REAL || value.kind == VALUE_STRING;
 }
 
+static Value host_return(Vm *vm, const ZirModule *module, const char *type,
+                         const VmHostValue *input, int depth);
+
+/* A host built against an older or newer layout of the record may lack a
+ * field or carry one this module does not declare. Each declared field takes
+ * the host field of the same name, or its zero value when there is none. */
+static Value
+host_return_by_name(Vm *vm, const ZirModule *owner, const ZirType *declared,
+                    const VmLayout *layout, const VmHostValue *input,
+                    int depth)
+{
+    Value result = int_value(0);
+    int count = layout->count;
+    Record *record = allocate_record(vm, owner, declared, count);
+    if(record == NULL)
+        return result;
+    for(int i = 0; i < count && !vm->failed; i++) {
+        record->fields[i].field = layout->fields[i];
+        const char *name = record->fields[i].field.name;
+        const VmHostValue *found = NULL;
+        for(size_t j = 0; j < input->field_count; j++) {
+            if(input->fields[j].name != NULL &&
+               strcmp(input->fields[j].name, name) == 0) {
+                found = &input->fields[j].value;
+                break;
+            }
+        }
+        if(found == NULL)
+            record->fields[i].value = default_value(vm, owner,
+                record->fields[i].field.type, depth + 1);
+        else
+            record->fields[i].value = host_return(vm, owner,
+                record->fields[i].field.type, found, depth + 1);
+    }
+    return (Value){.kind = VALUE_RECORD, .record = record};
+}
+
 static Value
 host_return(Vm *vm, const ZirModule *module, const char *type,
             const VmHostValue *input, int depth)
@@ -626,6 +663,9 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
             return result;
         }
         const VmLayout *layout = record_layout(vm, declared);
+        if(layout != NULL && vm->match_fields_by_name)
+            return host_return_by_name(vm, owner, declared, layout, input,
+                                       depth);
         if(layout == NULL || layout->count != (int)input->field_count) {
             vm->failed = 1;
             return result;
@@ -1794,6 +1834,13 @@ VmInstanceLimitSteps(VmInstance *instance, int max_steps)
 {
     if(instance != NULL)
         instance->vm.max_steps = max_steps > 0 ? max_steps : 0;
+}
+
+void
+VmInstanceMatchFieldsByName(VmInstance *instance, int enabled)
+{
+    if(instance != NULL)
+        instance->vm.match_fields_by_name = enabled != 0;
 }
 
 size_t

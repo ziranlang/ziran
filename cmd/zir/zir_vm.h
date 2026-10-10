@@ -32,6 +32,8 @@ VmInstance *VmInstanceOpen(const ZirProgram *program,
 int VmInstanceRun(VmInstance *instance, long long *result, int *has_result);
 /* Bounds later runs to MAX_STEPS statements; zero removes the bound. */
 void VmInstanceLimitSteps(VmInstance *instance, int max_steps);
+/* Lets host records omit or add fields; see Vm.match_fields_by_name. */
+void VmInstanceMatchFieldsByName(VmInstance *instance, int enabled);
 /* Live portable value storage, including text snapshots, excluding module IR. */
 size_t VmInstanceLiveValueBytes(const VmInstance *instance);
 void VmInstanceClose(VmInstance *instance);

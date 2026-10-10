@@ -122,6 +122,10 @@ int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);
 /* Bound each subsequent run to max_steps statements; zero is unbounded. */
 void BundleInstanceLimitSteps(BundleInstance *instance, int max_steps);
+/* Let records the host returns to this instance omit fields the bundle
+ * declares (they take zero values) or carry fields it does not (ignored),
+ * so a bundle and its host may be built against different layouts. */
+void BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled);
 void BundleInstanceClose(BundleInstance *instance);
 
 #ifdef __cplusplus

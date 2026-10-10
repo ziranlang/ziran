@@ -1112,6 +1112,7 @@ static struct {
     int *slots; /* open addressing over path numbers; 0 is an empty slot */
     size_t slot_count;
 } source_files;
+static atomic_flag source_file_lock = ATOMIC_FLAG_INIT;
 
 static size_t
 source_file_slot(const char *path)
@@ -1133,6 +1134,7 @@ SourceFile(const char *path)
 {
     if(path == NULL || *path == '\0')
         return 0;
+    while(atomic_flag_test_and_set_explicit(&source_file_lock, memory_order_acquire)) {}
     if((size_t)source_files.count * 2 >= source_files.slot_count) {
         size_t old_count = source_files.slot_count;
         int *old_slots = source_files.slots;
@@ -1151,8 +1153,11 @@ SourceFile(const char *path)
     if(source_files.count == 0)
         source_files.count = 1;
     size_t slot = source_file_slot(path);
-    if(source_files.slots[slot] != 0)
-        return source_files.slots[slot];
+    if(source_files.slots[slot] != 0) {
+        int file = source_files.slots[slot];
+        atomic_flag_clear_explicit(&source_file_lock, memory_order_release);
+        return file;
+    }
     if(source_files.count >= source_files.capacity) {
         int capacity = source_files.capacity ? source_files.capacity * 2 : 64;
         char **paths = realloc(source_files.paths, (size_t)capacity * sizeof(*paths));
@@ -1170,15 +1175,20 @@ SourceFile(const char *path)
     }
     source_files.paths[source_files.count] = copy;
     source_files.slots[slot] = source_files.count;
-    return source_files.count++;
+    int file = source_files.count++;
+    atomic_flag_clear_explicit(&source_file_lock, memory_order_release);
+    return file;
 }
 
 const char *
 SpanPath(ZirSourceSpan span)
 {
-    if(span.file <= 0 || span.file >= source_files.count)
-        return "";
-    return source_files.paths[span.file];
+    while(atomic_flag_test_and_set_explicit(&source_file_lock, memory_order_acquire)) {}
+    const char *path = span.file > 0 && span.file < source_files.count ?
+        source_files.paths[span.file] : "";
+    atomic_flag_clear_explicit(&source_file_lock, memory_order_release);
+    /* Interned path bytes are immutable and remain valid after table growth. */
+    return path;
 }
 
 /* Statement and expression text is immutable and shared. Each distinct

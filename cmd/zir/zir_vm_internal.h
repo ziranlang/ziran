@@ -46,6 +46,9 @@ typedef struct Record Record;
 typedef struct Array Array;
 typedef struct Frame Frame;
 typedef struct StringLiteral StringLiteral;
+typedef struct VmPrintBuffers VmPrintBuffers;
+typedef struct RunFunctionBuffers RunFunctionBuffers;
+typedef struct CallSetup CallSetup;
 
 typedef struct Value {
     ValueKind kind;
@@ -410,6 +413,14 @@ typedef struct Vm {
     StringLiteral **literal_sites;
     Frame *active_frame;
     VmRoots *evaluation_roots;
+    /* Reusable workspaces belong to the instance, including after a serial
+     * handoff to another worker. Closing it releases every cached buffer. */
+    RunFunctionBuffers *run_buffers[16];
+    int run_buffer_count;
+    CallSetup *setup_buffers[16];
+    int setup_buffer_count;
+    VmPrintBuffers *print_buffers[16];
+    int print_buffer_count;
     VmHostCall host;
     void *host_context;
     uint64_t call_serial;
@@ -530,6 +541,7 @@ void free_records(Vm *vm);
 void free_layouts(Vm *vm);
 void free_arrays(Vm *vm);
 void free_strings(Vm *vm);
+void free_evaluation_buffers(Vm *vm);
 int fold_global_element(Vm *vm, const ZirModule *module, const ZirFunction *probe, int index, Value *target, const char *type, ZirSourceSpan span);
 #pragma GCC visibility pop
 

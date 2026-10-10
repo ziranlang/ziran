@@ -1,10 +1,10 @@
 #include "zir_vm_internal.h"
 /* Buffers vm_print keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
-typedef struct VmPrintBuffers {
+struct VmPrintBuffers {
     Value values[PRINT_PIECES_MAX];
     unsigned char bytes[ZIR_TEXT_MAX];
-} VmPrintBuffers;
+};
 
 static void vm_print(Frame *frame, const ZirExpr *expression, int depth);
 
@@ -77,15 +77,24 @@ vm_print_with_buffers(Frame *frame, const ZirExpr *expression, int depth, VmPrin
 static void
 vm_print(Frame *frame, const ZirExpr *expression, int depth)
 {
-    static _Thread_local VmPrintBuffers *spares[16];
-    static _Thread_local int spare_count;
-    VmPrintBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
+    Vm *vm = frame->vm;
+    VmPrintBuffers *buffers = vm->print_buffer_count > 0 ? vm->print_buffers[--vm->print_buffer_count] :
         AllocateOrExit(sizeof(*buffers));
     vm_print_with_buffers(frame, expression, depth, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
+    if(vm->print_buffer_count < 16)
+        vm->print_buffers[vm->print_buffer_count++] = buffers;
     else
         free(buffers);
+}
+
+void
+free_evaluation_buffers(Vm *vm)
+{
+    while(vm->print_buffer_count > 0) {
+        int slot = --vm->print_buffer_count;
+        free(vm->print_buffers[slot]);
+        vm->print_buffers[slot] = NULL;
+    }
 }
 
 static Local *
@@ -813,21 +822,14 @@ builtin_call(const char *name)
     return BuiltinNamed;
 }
 
+/* Leaves can allocate literal or coercion storage, but cannot execute a
+ * function or trigger VM collection. Their caller stores the returned value
+ * before evaluating another operand. Keep the full temporary root chain for
+ * compound expressions and calls, without constructing it for these reads. */
 static Value
-eval_expression(Frame *frame, int index, int depth)
+eval_leaf(Frame *frame, const ZirExpr *expression)
 {
-    const ZirExpr *expression;
-    Value value = int_value(0), left = int_value(0), right = int_value(0);
-    if(frame->vm->failed || index < 0 || index >= frame->function->expr_count ||
-       depth >= VM_MAX_DEPTH) {
-        frame->vm->failed = 1;
-        return value;
-    }
-    VmRoots value_root = {frame->vm->evaluation_roots, &value, 1};
-    VmRoots left_root = {&value_root, &left, 1};
-    VmRoots right_root = {&left_root, &right, 1};
-    frame->vm->evaluation_roots = &right_root;
-    expression = &frame->function->exprs[index];
+    Value value = int_value(0);
     switch(expression->kind) {
     case ZIR_EXPR_SIZE_OF: {
         size_t size, alignment;
@@ -957,6 +959,23 @@ eval_expression(Frame *frame, int index, int depth)
         frame->vm->failed = 1;
         break;
     }
+    default:
+        frame->vm->failed = 1;
+        break;
+    }
+    return coerce_expression(frame->vm, frame->module, value, expression->type);
+}
+
+static Value
+eval_expression(Frame *frame, int index, int depth)
+{
+    const ZirExpr *expression = &frame->function->exprs[index];
+    Value value = int_value(0), left = int_value(0), right = int_value(0);
+    VmRoots value_root = {frame->vm->evaluation_roots, &value, 1};
+    VmRoots left_root = {&value_root, &left, 1};
+    VmRoots right_root = {&left_root, &right, 1};
+    frame->vm->evaluation_roots = &right_root;
+    switch(expression->kind) {
     case ZIR_EXPR_UNARY:
         if(strcmp(expression->op, "&") == 0) {
             /* *place: a pointer at the storage the place names. */
@@ -1772,6 +1791,23 @@ eval_expression(Frame *frame, int index, int depth)
 Value
 eval(Frame *frame, int index, int depth)
 {
+    if(frame->vm->failed || index < 0 || index >= frame->function->expr_count ||
+       depth >= VM_MAX_DEPTH) {
+        frame->vm->failed = 1;
+        return int_value(0);
+    }
+    const ZirExpr *expression = &frame->function->exprs[index];
+    switch(expression->kind) {
+    case ZIR_EXPR_SIZE_OF:
+    case ZIR_EXPR_INT:
+    case ZIR_EXPR_FLOAT:
+    case ZIR_EXPR_STRING:
+    case ZIR_EXPR_COMPILE_TIME:
+    case ZIR_EXPR_IDENT:
+        return eval_leaf(frame, expression);
+    default:
+        break;
+    }
     VmRoots *previous = frame->vm->evaluation_roots;
     Value result = eval_expression(frame, index, depth);
     frame->vm->evaluation_roots = previous;

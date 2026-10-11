@@ -604,6 +604,16 @@ Backend = "src/Backend.zi"
         invalid = call(ziran, "lock", cwd=app, env=env, succeed=False)
         assert "cannot resolve" in invalid
         write(app / "ziran.toml", sourced)
+        # An override inside another checkout, such as an uninitialized
+        # submodule, has no commit of its own; the lock must not pin the
+        # enclosing repository's HEAD.
+        saved_lock = (app / "ziran.lock").read_bytes()
+        write(app / "ziran.local.toml",
+              f'[overrides]\nziran = "{compiler}"\nnative = "{library / "src"}"\n')
+        nested = call(ziran, "update", "native", cwd=app, env=env, succeed=False)
+        assert "override is not the top of a Git checkout" in nested, nested
+        assert (app / "ziran.lock").read_bytes() == saved_lock
+        write(app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
 
         # Overrides may name a dependency by its alias; lock and fetch agree.
         write(app / "ziran.toml", sourced +

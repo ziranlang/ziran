@@ -237,6 +237,11 @@ kryon = "../../kryonlabs/kryon"
 ziran = "../../ziranlang/ziran"
 ```
 
+Each override is the top of its own Git checkout: `ziran lock` records the
+commit checked out there. A directory inside another repository, such as an
+uninitialized submodule, is refused, because its HEAD would be the enclosing
+repository's commit.
+
 Production builds omit overrides and use the locked Git commits. A host module
 that calls into the application can use an explicit reverse bridge:
 

@@ -184,14 +184,19 @@ PkgValidCommit :: (commit: string) -> bool {
     return true
 }
 
+// The commit checked out at directory, or "" unless directory is the top
+// of its own checkout: inside another repository, such as an uninitialized
+// submodule, HEAD is the enclosing repository's commit. --show-prefix is
+// empty only at the top, so the trimmed output is then the commit alone.
 PkgGitHead :: (directory: string) -> string {
     args: [6]string
     args[0] = "git"
     args[1] = "-C"
     args[2] = directory
     args[3] = "rev-parse"
-    args[4] = "HEAD"
-    result: PkgProcessResult = PkgCapture(args[0:5], "")
+    args[4] = "--show-prefix"
+    args[5] = "HEAD"
+    result: PkgProcessResult = PkgCapture(args[0:6], "")
     if result.code != 0 || !PkgValidCommit(result.text) { return "" }
     return PkgJoin("", result.text)
 }
@@ -552,6 +557,10 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             } else if override.count > 0 {
                 item.commit = PkgGitHead(override)
                 item.path = override
+                if item.commit.count == 0 {
+                    unused PkgFail(PkgJoin("override is not the top of a Git checkout: ", override))
+                    return false
+                }
             } else {
                 if previous >= 0 && !next.refresh {
                     item.commit = old.packages[previous].commit
@@ -624,6 +633,10 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
         resolved.tool_commit = old.tool_commit
     } else if tool_override.count > 0 {
         resolved.tool_commit = PkgGitHead(tool_override)
+        if resolved.tool_commit.count == 0 {
+            unused PkgFail(PkgJoin("override is not the top of a Git checkout: ", tool_override))
+            return false
+        }
     } else if old.valid && PkgSameSource(old.tool_url, resolved.tool_url) &&
         old.tool_ref == resolved.tool_ref && refresh != "*" &&
         refresh != "ziran" {

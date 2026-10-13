@@ -127,4 +127,26 @@ for input in source saved; do
         TZ='EST5EDT,M3.2.0/2,M11.1.0/2' "$work/program"
     done
 done
+# ClockValue is struct timespec and the seconds are time_t: both are
+# long-sized, so 32-bit on armeabi-v7a, where 64-bit fields read garbage.
+cat > "$work/layout.c" <<'C'
+#define ZIRAN_DATE_TIME_LINUX_H_PRIVATE 1
+#include <stddef.h>
+#include <stdint.h>
+#include <time.h>
+#include "date_time_linux.h"
+_Static_assert(sizeof(ClockValue) == sizeof(struct timespec), "ClockValue size");
+_Static_assert(offsetof(ClockValue, nanoseconds) == offsetof(struct timespec, tv_nsec), "ClockValue nanoseconds");
+_Static_assert(sizeof(intptr_t) == sizeof(time_t), "time_t is pointer-sized");
+_Static_assert(offsetof(TimeFields, utc_offset) == offsetof(struct tm, tm_gmtoff), "struct tm offset");
+_Static_assert(sizeof(TimeFields) == sizeof(struct tm), "struct tm size");
+C
+layout=$work/source-c
+"${CC:-cc}" -std=c11 -D_DEFAULT_SOURCE -I"$repo/include" -I"$layout" -c "$work/layout.c" -o "$work/layout.o"
+if test -n "${ZIRAN_THREAD_ANDROID_NDK:-}"; then
+    bin="$ZIRAN_THREAD_ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+    for triple in armv7a-linux-androideabi24 aarch64-linux-android24; do
+        "$bin/$triple-clang" -std=c11 -I"$repo/include" -I"$layout" -c "$work/layout.c" -o "$work/layout-$triple.o"
+    done
+fi
 echo 'date-time-linux-test-ok: UTC, DST, post-2038, failed conversions, concurrent readings, portable host, C/C++ source and saved IR'

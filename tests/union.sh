@@ -193,3 +193,24 @@ if "$ziran" bundle --root "$work" --entry badunion:Bad \
 fi
 grep -Fq 'portable unions support scalar fields only' \
     "$work/badunion.err"
+
+# Native C keeps unions with pointer fields, also when an entry selects the
+# functions that are linked.
+cat > "$work/pointerunion.zi" <<'ZI'
+PointerUnion :: union {
+    reference: *void
+    value: s64
+}
+#program_export
+main :: () -> s32 {
+    u: PointerUnion
+    u.value = 42
+    return cast(s32)(u.value - 42)
+}
+ZI
+mkdir -p "$work/pointerunion-c"
+"$ziran" build --target=c --root "$work" --entry pointerunion:main \
+    -o "$work/pointerunion-c" "$work/pointerunion.zi"
+"${CC:-cc}" -std=c11 -I"$repo/include" -I"$work/pointerunion-c" \
+    "$work"/pointerunion-c/*.c -o "$work/pointerunion"
+"$work/pointerunion"

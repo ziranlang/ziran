@@ -2050,7 +2050,9 @@ resolve_reachability:
         for(int t = 0; t < source->type_count; t++) {
             if(!keep_types[m][t])
                 continue;
-            if(source->types[t].is_union &&
+            /* Only the portable VM limits union fields; native C keeps
+             * pointer fields, and Go checks its own unions. */
+            if(!native && source->types[t].is_union &&
                !bundle_portable_union(source, &source->types[t])) {
                 DiagnosticTarget(source->types[t].span, "zib.union", "zib", "unions.scalar",
                            "portable unions support scalar fields only");

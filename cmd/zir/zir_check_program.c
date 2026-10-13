@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include "zir_check_internal.h"
 /* Buffers CheckPrograms keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -183,12 +184,12 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                     ZirDefine *definition = &module->defines[d];
                     if(!starts_word(definition->value, "#run")) continue;
                     pending++;
-                    long value = 0;
+                    int64_t value = 0;
                     const char *expression = skip_ws(definition->value + 4);
                     if(EvaluateCompileExpression(module, expression,
                                                  definition->span, 1, &value)) {
                         snprintf(definition->value,
-                                 sizeof(definition->value), "%ld", value);
+                                 sizeof(definition->value), "%" PRId64, value);
                     } else {
                         if(!EvaluateCompileLiteral(module, expression,
                                                    definition->span, 1, buffers->literal,
@@ -229,7 +230,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             ZirModule *module = &programs[p]->modules[m];
             for(int a = 0; a < module->assert_count; a++) {
                 ZirAssert *assertion = &module->asserts[a];
-                long value = 0;
+                int64_t value = 0;
                 if(!EvaluateCompileExpression(module,
                         assertion->condition, assertion->span, 0, &value)) {
                     if(!EvaluateCompileLiteral(module,
@@ -815,7 +816,7 @@ lint_character(const ZirFunction *fn, int index)
        number->text == NULL)
         return 0;
     char *end = NULL;
-    long value = strtol(number->text, &end, 10);
+    int64_t value = strtoll(number->text, &end, 10);
     if(end == number->text || *end != '\0' || value < 32 || value > 126 ||
        !holds_number_token(compare->text, number->text))
         return 0;
@@ -824,7 +825,7 @@ lint_character(const ZirFunction *fn, int index)
         snprintf(spelled, sizeof(spelled), "\\%c", (int)value);
     else
         snprintf(spelled, sizeof(spelled), "%c", (int)value);
-    Warning(compare->span, "lint.char", "compare with #char \"%s\" rather than %ld",
+    Warning(compare->span, "lint.char", "compare with #char \"%s\" rather than %" PRId64,
             spelled, value);
     return 1;
 }

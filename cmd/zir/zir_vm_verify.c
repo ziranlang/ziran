@@ -1272,8 +1272,8 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                 return 0;
             }
             if(global->init[0]) {
-                long value = 0;
-                long folded = 0;
+                int64_t value = 0;
+                int64_t folded = 0;
                 const char *init = skip_ws(global->init);
                 int literal_ok =
                     EvaluateCompileExpression(module, global->init,

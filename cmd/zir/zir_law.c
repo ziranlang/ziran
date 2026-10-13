@@ -1,5 +1,6 @@
 /* Named law obligations (LANGUAGE_DIRECTION.md): evaluation, gate, and the
  * machine-readable result schema shared by `ziran check` and bundles. */
+#include <inttypes.h>
 #include "zir.h"
 #include "zir_parse.h"
 #include "zir_diagnostic.h"
@@ -91,8 +92,8 @@ evaluate_bounds_law_with_buffers(const ZirModule *module, const ZirLaw *law,
             if(op == NULL)
                 continue;
             char wanted_text[ZIR_NAME_MAX];
-            long wanted = 0;
-            long bound = 0;
+            int64_t wanted = 0;
+            int64_t bound = 0;
             size_t length = (size_t)(op - law->payload);
             if(length == 0 || length >= sizeof(buffers->type))
                 break;
@@ -152,7 +153,7 @@ evaluate_bounds_law_with_buffers(const ZirModule *module, const ZirLaw *law,
             {
                 int holds = o == 0 ? bound == wanted :
                              o == 1 ? bound >= wanted : bound <= wanted;
-                snprintf(detail, size, "%s bound %ld %s %ld", buffers->type, bound,
+                snprintf(detail, size, "%s bound %" PRId64 " %s %" PRId64, buffers->type, bound,
                          ops[o], wanted);
                 return holds ? LAW_PROVED : LAW_DISPROVED;
             }
@@ -192,7 +193,7 @@ evaluate_bounds_law_with_buffers(const ZirModule *module, const ZirLaw *law,
     {
         const char *close = strchr(resolved, ']');
         char bound[ZIR_NAME_MAX];
-        long value = 0;
+        int64_t value = 0;
         size_t length;
         if(close == NULL || (length = (size_t)(close - resolved - 1)) == 0 ||
             length >= sizeof(bound)) {
@@ -205,11 +206,11 @@ evaluate_bounds_law_with_buffers(const ZirModule *module, const ZirLaw *law,
         trim_in_place(bound);
         if(EvaluateCompileExpression(module, bound, law->span, 0, &value)) {
             if(value > 0) {
-                snprintf(detail, size, "%s folds its bound to %ld",
+                snprintf(detail, size, "%s folds its bound to %" PRId64,
                          law->payload, value);
                 return LAW_PROVED;
             }
-            snprintf(detail, size, "%s folds its bound to %ld",
+            snprintf(detail, size, "%s folds its bound to %" PRId64,
                      law->payload, value);
             return LAW_DISPROVED;
         }
@@ -471,7 +472,7 @@ evaluate_size_law(const ZirModule *module, const ZirLaw *law,
         const char *op = strstr(law->payload, ops[o]);
         char type[ZIR_TEXT_MAX], wanted_text[ZIR_NAME_MAX];
         size_t bytes = 0, alignment = 0;
-        long wanted = 0;
+        int64_t wanted = 0;
         size_t length;
         if(op == NULL)
             continue;
@@ -498,7 +499,7 @@ evaluate_size_law(const ZirModule *module, const ZirLaw *law,
             int holds = o == 0 ? bytes == (size_t)wanted :
                          o == 1 ? bytes >= (size_t)wanted :
                                   bytes <= (size_t)wanted;
-            snprintf(detail, size, "%s lays out as %zu bytes %s %ld", type,
+            snprintf(detail, size, "%s lays out as %zu bytes %s %" PRId64, type,
                      bytes, ops[o], wanted);
             return holds ? LAW_PROVED : LAW_DISPROVED;
         }
@@ -538,7 +539,7 @@ typedef struct ForallBuffers {
     char types[FORALL_MAX_VARIABLES][ZIR_NAME_MAX];
     char head[ZIR_TEXT_MAX];
     char parts[FORALL_MAX_VARIABLES][ZIR_TEXT_MAX];
-    long members[FORALL_MAX_VARIABLES][FORALL_ENUM_MAX];
+    int64_t members[FORALL_MAX_VARIABLES][FORALL_ENUM_MAX];
     char exprs[FORALL_MAX_VARIABLES][ZIR_NAME_MAX];
 } ForallBuffers;
 
@@ -559,7 +560,7 @@ evaluate_forall_law(const ZirModule *module, const ZirLaw *law,
 
 /* Collect the values of every member of an enum, in declaration order. */
 static int
-forall_enum_members(const ZirType *type, long *values, int max)
+forall_enum_members(const ZirType *type, int64_t *values, int max)
 {
     const char *cursor = type->body;
     int count = 0;
@@ -580,7 +581,7 @@ forall_enum_members(const ZirType *type, long *values, int max)
         if(length == 0 || count >= max ||
            !EnumMemberValue(type, member, &value))
             return -1;
-        values[count++] = (long)value;
+        values[count++] = (int64_t)value;
     }
     return count;
 }
@@ -596,14 +597,14 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
     char (*types)[ZIR_NAME_MAX] = buffers->types;
     char *head = buffers->head;
     char (*parts)[ZIR_TEXT_MAX] = buffers->parts;
-    long low[FORALL_MAX_VARIABLES], span_count[FORALL_MAX_VARIABLES];
-    long index[FORALL_MAX_VARIABLES], values[FORALL_MAX_VARIABLES];
-    long element_span[FORALL_MAX_VARIABLES];
+    int64_t low[FORALL_MAX_VARIABLES], span_count[FORALL_MAX_VARIABLES];
+    int64_t index[FORALL_MAX_VARIABLES], values[FORALL_MAX_VARIABLES];
+    int64_t element_span[FORALL_MAX_VARIABLES];
     int is_enum[FORALL_MAX_VARIABLES], array_length[FORALL_MAX_VARIABLES];
     char (*exprs)[ZIR_NAME_MAX] = buffers->exprs;
     const char *arrow = strstr(law->payload, "=>");
     const char *body;
-    long total = 1, checked = 0;
+    int64_t total = 1, checked = 0;
     int count;
     if(arrow == NULL) {
         snprintf(detail, size, "forall laws need `NAME: LO..HI => condition`");
@@ -654,7 +655,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
             const char *close = strchr(open, ']');
             char length_text[ZIR_NAME_MAX], lo_text[ZIR_NAME_MAX];
             char hi_text[ZIR_NAME_MAX];
-            long length = 0, high = 0, cases = 1;
+            int64_t length = 0, high = 0, cases = 1;
             if(close == NULL || close > dots ||
                (size_t)(close - open - 1) >= sizeof(length_text)) {
                 snprintf(detail, size, "%s needs `[N]LO..HI`", names[v]);
@@ -689,9 +690,9 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
             if(distance >= FORALL_BUDGET || low[v] < INT32_MIN || high > INT32_MAX) {
                 snprintf(detail, size, "sequence domain exceeds evaluator width or budget"); return LAW_UNKNOWN;
             }
-            element_span[v] = (long)distance + 1;
+            element_span[v] = (int64_t)distance + 1;
             array_length[v] = (int)length;
-            for(long e = 0; e < length; e++) {
+            for(int64_t e = 0; e < length; e++) {
                 if(cases > FORALL_BUDGET / element_span[v]) {
                     snprintf(detail, size,
                              "domain exceeds the budget of %ld cases",
@@ -701,7 +702,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                 cases *= element_span[v];
             }
             span_count[v] = cases;
-            snprintf(types[v], ZIR_NAME_MAX, "[%ld]s32", length);
+            snprintf(types[v], ZIR_NAME_MAX, "[%" PRId64 "]s32", length);
         } else if(dots == NULL) {
             const ZirType *type;
             char type_name[ZIR_NAME_MAX];
@@ -727,7 +728,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
             span_count[v] = members;
         } else {
             char lo_text[ZIR_NAME_MAX], hi_text[ZIR_NAME_MAX];
-            long high = 0;
+            int64_t high = 0;
             snprintf(lo_text, sizeof(lo_text), "%.*s",
                      (int)(dots - colon - 1), colon + 1);
             snprintf(hi_text, sizeof(hi_text), "%s", dots + 2);
@@ -749,7 +750,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
             if(distance >= FORALL_BUDGET) {
                 snprintf(detail, size, "domain exceeds the budget of %ld cases", FORALL_BUDGET); return LAW_UNKNOWN;
             }
-            span_count[v] = (long)distance + 1;
+            span_count[v] = (int64_t)distance + 1;
         }
         if(span_count[v] > FORALL_BUDGET ||
            total > FORALL_BUDGET / span_count[v]) {
@@ -768,7 +769,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                         low[v] + index[v];
             if(array_length[v] > 0) {
                 /* Digits of the case number, most significant first. */
-                long digits[16], rest = index[v];
+                int64_t digits[16], rest = index[v];
                 size_t used = (size_t)snprintf(exprs[v], ZIR_NAME_MAX, "s32.[");
                 for(int e = array_length[v] - 1; e >= 0; e--) {
                     digits[e] = low[v] + rest % element_span[v];
@@ -776,7 +777,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                 }
                 for(int e = 0; e < array_length[v] && used < ZIR_NAME_MAX; e++)
                     used += (size_t)snprintf(exprs[v] + used,
-                                             ZIR_NAME_MAX - used, "%s%ld",
+                                             ZIR_NAME_MAX - used, "%s%" PRId64,
                                              e ? ", " : "", digits[e]);
                 if(used + 2 < ZIR_NAME_MAX)
                     snprintf(exprs[v] + used, ZIR_NAME_MAX - used, "]");
@@ -790,7 +791,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
             size_t used = (size_t)snprintf(detail, size,
                 "condition is outside the compile-time evaluator at");
             for(int v = 0; v < count && used < size; v++)
-                used += (size_t)snprintf(detail + used, size - used, "%s%s=%ld",
+                used += (size_t)snprintf(detail + used, size - used, "%s%s=%" PRId64,
                                          v ? ", " : " ", names[v], values[v]);
             return LAW_UNKNOWN;
         }
@@ -805,7 +806,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                             "%s\"%s\":\"%s\"", v ? "," : "", names[v], exprs[v]);
                     else
                         used += (size_t)snprintf(out + used, ZIR_TEXT_MAX - used,
-                            "%s\"%s\":%ld", v ? "," : "", names[v], values[v]);
+                            "%s\"%s\":%" PRId64, v ? "," : "", names[v], values[v]);
                 }
                 if(used < ZIR_TEXT_MAX) snprintf(out + used, ZIR_TEXT_MAX - used, "}");
             }
@@ -817,7 +818,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                                              names[v], exprs[v]);
                 else
                     used += (size_t)snprintf(detail + used, size - used,
-                                             "%s%s=%ld", v ? ", " : " ",
+                                             "%s%s=%" PRId64, v ? ", " : " ",
                                              names[v], values[v]);
             }
             return LAW_DISPROVED;
@@ -833,7 +834,7 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
             index[v]++;
         }
     }
-    snprintf(detail, size, "held for all %ld cases", checked);
+    snprintf(detail, size, "held for all %" PRId64 " cases", checked);
     return LAW_PROVED;
 }
 

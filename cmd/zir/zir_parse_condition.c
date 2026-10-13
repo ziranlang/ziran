@@ -239,7 +239,7 @@ select_compile_condition(ZirModule *module, const ZirConsts *consts,
 {
     ZirModule *source_module = module;
     char expanded[ZIR_TEXT_MAX];
-    long value = 0;
+    int64_t value = 0;
     int known;
     ZirConsts visible = visible_compile_constants(consts,
         context != NULL ? context->future_constants : NULL);
@@ -431,7 +431,7 @@ replace_compile_ifx_with_buffers(char *source, size_t capacity, const ZirFunctio
                     const ZirConsts *consts,
                     ZirSourceSpan span, int allow_deferred, ReplaceCompileIfxBuffers *buffers)
 {
-    long value = 0;
+    int64_t value = 0;
     char *at;
     const char *selected;
     int written;
@@ -793,7 +793,7 @@ parse_compile_check_with_buffers(ZirModule *module, const char *path, int line_n
         copy_text(buffers->raw, sizeof(buffers->raw), trim(body));
         expand_compile_expr(buffers->cond, sizeof(buffers->cond), consts, buffers->raw, path);
         {
-            long value = 0;
+            int64_t value = 0;
             int known = strstr(buffers->cond, "size_of") == NULL &&
                 (eval_const_condition(buffers->cond, &value, module, consts,
                                       path, line_no, 0) ||

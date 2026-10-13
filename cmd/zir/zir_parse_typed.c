@@ -1,9 +1,10 @@
+#include <inttypes.h>
 #include "zir_parse_internal.h"
 
 /* Text of the qualified enum member holding `value`, so a bound enum value
  * keeps its enum type after textual expansion. */
 static int
-enum_member_text(const ZirModule *module, const char *type, long value,
+enum_member_text(const ZirModule *module, const char *type, int64_t value,
                  char *out, size_t size)
 {
     const ZirType *enumeration = type[0] ? FindType(module, type, NULL) : NULL;
@@ -193,7 +194,7 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         if(!TypeLayout(module, expression->name, &size, &alignment) ||
            size > LONG_MAX) return 0;
         result->kind = COMPILE_INTEGER;
-        result->integer = (long)size;
+        result->integer = (int64_t)size;
         return compile_value_literal(result);
     }
     case ZIR_EXPR_UNARY: {
@@ -366,7 +367,7 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                EnumMemberValue(enumeration, expression->name,
                                &member_value)) {
                 result->kind = COMPILE_INTEGER;
-                result->integer = (long)member_value;
+                result->integer = (int64_t)member_value;
                 copy_text(result->type, sizeof(result->type),
                           enumeration->name);
                 return compile_value_literal(result);
@@ -381,7 +382,7 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
             if(!DecodeStringLiteral(left.literal, buffers->bytes, sizeof(buffers->bytes),
                                      &length) || length > LONG_MAX) return 0;
             result->kind = COMPILE_INTEGER;
-            result->integer = (long)length;
+            result->integer = (int64_t)length;
             return compile_value_literal(result);
         }
         if(left.kind == COMPILE_COMPOUND) {
@@ -431,7 +432,7 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
            result->kind == COMPILE_REAL) {
             if(result->real < (double)LONG_MIN ||
                result->real >= -(double)LONG_MIN) return 0;
-            result->integer = (long)result->real;
+            result->integer = (int64_t)result->real;
             result->kind = COMPILE_INTEGER;
         }
         return compile_type_value(expression->name, result);
@@ -610,7 +611,7 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
 {
     ZirConsts empty = {0};
     memset(&buffers->probe, 0, sizeof(buffers->probe));
-    long integer;
+    int64_t integer;
     int root, ok;
     const char *path = SpanPath(span);
     if(depth > 32 || source == NULL || --*fuel < 0) return 0;
@@ -791,13 +792,13 @@ zero_array_literal(const char *type, char *out, size_t size)
 
 /* Replace element `index` of a canonical array literal `T.[a, b, c]`. */
 static int
-store_array_element(const char *literal, long index, const char *replacement,
+store_array_element(const char *literal, int64_t index, const char *replacement,
                     char *out, size_t size)
 {
     const char *open = strstr(literal, ".[");
     const char *cursor;
     size_t used;
-    long ordinal = 0;
+    int64_t ordinal = 0;
     int depth = 0;
     if(open == NULL || index < 0) return 0;
     cursor = open + 2;
@@ -1512,15 +1513,15 @@ typedef struct EvaluateTypedIntegerFunctionBuffers {
 } EvaluateTypedIntegerFunctionBuffers;
 
 int evaluate_typed_integer_function(ZirEval *ev, const char *name,
-                                const long *values,
+                                const int64_t *values,
                                 const char argument_names[][ZIR_NAME_MAX],
-                                int argument_count, long *result);
+                                int argument_count, int64_t *result);
 
 static int
 evaluate_typed_integer_function_with_buffers(ZirEval *ev, const char *name,
-                                const long *values,
+                                const int64_t *values,
                                 const char argument_names[][ZIR_NAME_MAX],
-                                int argument_count, long *result, EvaluateTypedIntegerFunctionBuffers *buffers)
+                                int argument_count, int64_t *result, EvaluateTypedIntegerFunctionBuffers *buffers)
 {
     CompileValue value;
     compile_value_clear(&value);
@@ -1547,9 +1548,9 @@ evaluate_typed_integer_function_with_buffers(ZirEval *ev, const char *name,
 
 int
 evaluate_typed_integer_function(ZirEval *ev, const char *name,
-                                const long *values,
+                                const int64_t *values,
                                 const char argument_names[][ZIR_NAME_MAX],
-                                int argument_count, long *result)
+                                int argument_count, int64_t *result)
 {
     static _Thread_local EvaluateTypedIntegerFunctionBuffers *spares[16];
     static _Thread_local int spare_count;
@@ -1566,7 +1567,7 @@ evaluate_typed_integer_function(ZirEval *ev, const char *name,
 int
 eval_typed_condition(const char *source, const ZirModule *module,
                      const ZirConsts *names, ZirSourceSpan span,
-                     long *result)
+                     int64_t *result)
 {
     int fuel = 10000, truth;
     CompileValue value;
@@ -1580,7 +1581,7 @@ eval_typed_condition(const char *source, const ZirModule *module,
 
 int
 EvaluateCompileExpression(const ZirModule *module, const char *source,
-                          ZirSourceSpan span, int executing, long *value)
+                          ZirSourceSpan span, int executing, int64_t *value)
 {
     ZirConsts constants = {0};
     char expanded[ZIR_TEXT_MAX];
@@ -1659,7 +1660,7 @@ EvaluateCompileConditionBound(const ZirModule *module, const char *source,
                               ZirSourceSpan span, const char names[][ZIR_NAME_MAX],
                               const char types[][ZIR_NAME_MAX],
                               const char exprs[][ZIR_NAME_MAX],
-                              const long *values, int count, int *truth)
+                              const int64_t *values, int count, int *truth)
 {
     ZirConsts constants = {0};
     CompileValue value;
@@ -1687,7 +1688,7 @@ EvaluateCompileConditionBound(const ZirModule *module, const char *source,
         copy_text(constant->name, sizeof(constant->name), names[i]);
         copy_text(constant->type, sizeof(constant->type),
                   types[i][0] ? types[i] : "s64");
-        snprintf(constant->expr, sizeof(constant->expr), "%ld", values[i]);
+        snprintf(constant->expr, sizeof(constant->expr), "%" PRId64, values[i]);
         if(exprs[i][0])
             copy_text(constant->expr, sizeof(constant->expr), exprs[i]);
         else

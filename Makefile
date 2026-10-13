@@ -214,7 +214,14 @@ $(BUILD_DIR)/obj/vm.o: $(COFF_PRIVATE_SYMBOLS)/vm.txt
 endif
 
 # wasm objcopy cannot localize hidden symbols. Browser builds give each
-# group's private helpers distinct names through generated prefix headers.
+# group's private helpers distinct names through generated prefix headers,
+# made here from the same lists as COFF's unless the caller supplies them.
+ifneq ($(findstring wasm32,$(TARGET_MACHINE)),)
+WASM_PRIVATE_HEADERS ?= $(BUILD_DIR)/wasm-private
+$(WASM_PRIVATE_HEADERS)/%.h: cmd/zir/zir_%_internal.h scripts/private-symbols.py
+	python3 scripts/private-symbols.py $< $(basename $@).txt
+	sed 's/.*/#define & private_$*_&/' $(basename $@).txt > $@
+endif
 ifneq ($(WASM_PRIVATE_HEADERS),)
 $(call obj,$(PARSE_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/parse.h
 $(call obj,$(PARSE_PARTS)): $(WASM_PRIVATE_HEADERS)/parse.h

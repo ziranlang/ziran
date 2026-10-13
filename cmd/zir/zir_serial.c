@@ -27,12 +27,71 @@ typedef struct Field {
     FieldKind kind;
 } Field;
 
+/* IR moves through a private block buffer. Every stdio call locks its
+ * stream, and Android hosts read and rewrite each bundle's IR at launch, so
+ * one call per field cost seconds on slow phones. */
+enum { SERIAL_BLOCK = 64 * 1024 };
+
 typedef struct Reader {
     FILE *in;
     const char *path;
     const char *problem;
     size_t budget;
+    unsigned char *block;
+    size_t start, end;
 } Reader;
+
+typedef struct Writer {
+    FILE *out;
+    unsigned char *block;
+    size_t used;
+} Writer;
+
+static int
+read_bytes(Reader *reader, void *output, size_t count)
+{
+    unsigned char *to = output;
+    while(count > 0) {
+        if(reader->start == reader->end) {
+            if(count >= SERIAL_BLOCK)
+                return fread(to, 1, count, reader->in) == count;
+            reader->start = 0;
+            reader->end = fread(reader->block, 1, SERIAL_BLOCK, reader->in);
+            if(reader->end == 0)
+                return 0;
+        }
+        size_t amount = reader->end - reader->start;
+        if(amount > count)
+            amount = count;
+        memcpy(to, reader->block + reader->start, amount);
+        reader->start += amount;
+        to += amount;
+        count -= amount;
+    }
+    return 1;
+}
+
+static int
+flush_writer(Writer *writer)
+{
+    size_t used = writer->used;
+    writer->used = 0;
+    return used == 0 || fwrite(writer->block, 1, used, writer->out) == used;
+}
+
+static int
+write_bytes(Writer *writer, const void *data, size_t count)
+{
+    if(count > SERIAL_BLOCK - writer->used) {
+        if(!flush_writer(writer))
+            return 0;
+        if(count >= SERIAL_BLOCK)
+            return fwrite(data, 1, count, writer->out) == count;
+    }
+    memcpy(writer->block + writer->used, data, count);
+    writer->used += count;
+    return 1;
+}
 
 #define STRING_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_STRING}
@@ -254,34 +313,30 @@ static const Field module_fields[] = {
 };
 
 static int
-write_u32(FILE *out, uint32_t value)
+write_u32(Writer *out, uint32_t value)
 {
-    for(int i = 0; i < 4; i++) {
-        if(fputc((int)(value & 255u), out) == EOF)
-            return 0;
-        value >>= 8;
-    }
-    return 1;
+    unsigned char bytes[4] = {
+        (unsigned char)value, (unsigned char)(value >> 8),
+        (unsigned char)(value >> 16), (unsigned char)(value >> 24)
+    };
+    return write_bytes(out, bytes, sizeof(bytes));
 }
 
 static int
 read_u32(Reader *reader, uint32_t *value)
 {
-    uint32_t result = 0;
-    for(int i = 0; i < 4; i++) {
-        int byte = fgetc(reader->in);
-        if(byte == EOF) {
-            reader->problem = "truncated integer";
-            return 0;
-        }
-        result |= (uint32_t)(unsigned char)byte << (8 * i);
+    unsigned char bytes[4];
+    if(!read_bytes(reader, bytes, sizeof(bytes))) {
+        reader->problem = "truncated integer";
+        return 0;
     }
-    *value = result;
+    *value = (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 |
+             (uint32_t)bytes[2] << 16 | (uint32_t)bytes[3] << 24;
     return 1;
 }
 
 static int
-write_u64(FILE *out, uint64_t value)
+write_u64(Writer *out, uint64_t value)
 {
     return write_u32(out, (uint32_t)value) &&
            write_u32(out, (uint32_t)(value >> 32));
@@ -297,13 +352,13 @@ read_u64(Reader *reader, uint64_t *value)
 }
 
 static int
-write_string(FILE *out, const char *value, size_t capacity)
+write_string(Writer *out, const char *value, size_t capacity)
 {
     size_t length = strnlen(value, capacity);
     if(length == capacity || length > UINT32_MAX)
         return 0;
     return write_u32(out, (uint32_t)length) &&
-           fwrite(value, 1, length, out) == length;
+           write_bytes(out, value, length);
 }
 
 static int read_string_body(Reader *reader, char *value, uint32_t length);
@@ -325,7 +380,7 @@ read_string(Reader *reader, char *value, size_t capacity)
 static int
 read_string_body(Reader *reader, char *value, uint32_t length)
 {
-    if(fread(value, 1, length, reader->in) != length) {
+    if(!read_bytes(reader, value, length)) {
         reader->problem = "truncated string";
         return 0;
     }
@@ -338,7 +393,7 @@ read_string_body(Reader *reader, char *value, uint32_t length)
 }
 
 static int
-write_span(FILE *out, const ZirSourceSpan *span)
+write_span(Writer *out, const ZirSourceSpan *span)
 {
     return write_string(out, SpanPath(*span), ZIR_PATH_MAX) &&
            write_u32(out, (uint32_t)span->line) &&
@@ -372,7 +427,7 @@ read_span(Reader *reader, ZirSourceSpan *span)
 }
 
 static int
-write_fields(FILE *out, const void *record, const Field *fields, size_t count)
+write_fields(Writer *out, const void *record, const Field *fields, size_t count)
 {
     for(size_t i = 0; i < count; i++) {
         const char *value = (const char *)record + fields[i].offset;
@@ -447,7 +502,7 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
 }
 
 static int
-write_records(FILE *out, const void *records, int count, size_t size,
+write_records(Writer *out, const void *records, int count, size_t size,
               const Field *fields, size_t field_count)
 {
     if(count < 0 || (count > 0 && records == NULL) ||
@@ -502,7 +557,7 @@ read_records(Reader *reader, int *count, size_t size,
 } while(0)
 
 static int
-write_function(FILE *out, const ZirFunction *function)
+write_function(Writer *out, const ZirFunction *function)
 {
     if(!write_fields(out, function, function_fields, FIELD_COUNT(function_fields)))
         return 0;
@@ -524,7 +579,7 @@ read_function(Reader *reader, ZirFunction *function)
 }
 
 static int
-write_law_graphs(FILE *out, const ZirModule *module)
+write_law_graphs(Writer *out, const ZirModule *module)
 {
     for(int l = 0; l < module->law_count; l++) {
         const ZirFunction *claim = module->laws[l].claim;
@@ -570,7 +625,7 @@ read_law_graphs(Reader *reader, ZirModule *module)
 }
 
 static int
-write_module(FILE *out, const ZirModule *module)
+write_module(Writer *out, const ZirModule *module)
 {
     if(!write_fields(out, module, module_fields, FIELD_COUNT(module_fields)) ||
        !WRITE_ARRAY(out, module, globals, global_count, global_fields) ||
@@ -892,25 +947,28 @@ validate_program(const ZirProgram *program)
 }
 
 static int
-write_program(const ZirProgram *program, FILE *out)
+write_program(const ZirProgram *program, Writer *out)
 {
     static const unsigned char magic[4] = {'Z', 'I', 'R', 0};
     if(program == NULL || out == NULL || !validate_program(program) ||
-       fwrite(magic, 1, sizeof(magic), out) != sizeof(magic) ||
+       !write_bytes(out, magic, sizeof(magic)) ||
        !write_u32(out, ZIR_FORMAT_VERSION) ||
        !write_u32(out, (uint32_t)program->module_count))
         return 0;
     for(int i = 0; i < program->module_count; i++)
         if(!write_module(out, &program->modules[i]))
             return 0;
-    return fflush(out) == 0;
+    return flush_writer(out) && fflush(out->out) == 0;
 }
 
 int
 ProgramWrite(const ZirProgram *program, FILE *out)
 {
     uint64_t started = ProfileStart();
-    int result = write_program(program, out);
+    Writer writer = {out, malloc(SERIAL_BLOCK), 0};
+    int result = writer.block != NULL && out != NULL &&
+                 write_program(program, &writer);
+    free(writer.block);
     ProfileEnd("ir.write", started);
     return result;
 }
@@ -920,11 +978,16 @@ ProgramRead(FILE *in, const char *path)
 {
     unsigned char magic[4];
     uint32_t version, count;
-    Reader reader = {in, path, NULL, 256u * 1024u * 1024u};
+    Reader reader = {in, path, NULL, 256u * 1024u * 1024u, NULL, 0, 0};
     ZirProgram *program = NULL;
     if(in == NULL || path == NULL)
         return NULL;
-    if(fread(magic, 1, sizeof(magic), in) != sizeof(magic) ||
+    reader.block = malloc(SERIAL_BLOCK);
+    if(reader.block == NULL) {
+        reader.problem = "out of memory reading IR";
+        goto failed;
+    }
+    if(!read_bytes(&reader, magic, sizeof(magic)) ||
        memcmp(magic, "ZIR\0", sizeof(magic)) != 0) {
         reader.problem = "invalid ZIR signature";
         goto failed;
@@ -956,7 +1019,7 @@ ProgramRead(FILE *in, const char *path)
     for(uint32_t i = 0; i < count; i++)
         if(!read_module(&reader, &program->modules[i]))
             goto failed;
-    if(fgetc(in) != EOF || ferror(in)) {
+    if(reader.start != reader.end || fgetc(in) != EOF || ferror(in)) {
         reader.problem = "trailing or unreadable ZIR data";
         goto failed;
     }
@@ -964,10 +1027,12 @@ ProgramRead(FILE *in, const char *path)
         reader.problem = "invalid checked IR structure";
         goto failed;
     }
+    free(reader.block);
     return program;
 failed:
     Diagnostic(Span(path, 1, 1), "zir.invalid", "%s",
                   reader.problem ? reader.problem : "truncated ZIR data");
+    free(reader.block);
     ProgramFree(program);
     return NULL;
 }

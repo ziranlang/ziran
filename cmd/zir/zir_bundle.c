@@ -226,25 +226,21 @@ count_capabilities(const ZirProgram *program)
 static int
 write_u32(FILE *out, uint32_t value)
 {
-    for(int i = 0; i < 4; i++) {
-        if(fputc((int)(value & 255u), out) == EOF)
-            return 0;
-        value >>= 8;
-    }
-    return 1;
+    unsigned char bytes[4] = {
+        (unsigned char)value, (unsigned char)(value >> 8),
+        (unsigned char)(value >> 16), (unsigned char)(value >> 24)
+    };
+    return fwrite(bytes, 1, sizeof(bytes), out) == sizeof(bytes);
 }
 
 static int
 read_u32(FILE *in, uint32_t *value)
 {
-    uint32_t result = 0;
-    for(int i = 0; i < 4; i++) {
-        int byte = fgetc(in);
-        if(byte == EOF)
-            return 0;
-        result |= (uint32_t)(unsigned char)byte << (8 * i);
-    }
-    *value = result;
+    unsigned char bytes[4];
+    if(fread(bytes, 1, sizeof(bytes), in) != sizeof(bytes))
+        return 0;
+    *value = (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 |
+             (uint32_t)bytes[2] << 16 | (uint32_t)bytes[3] << 24;
     return 1;
 }
 

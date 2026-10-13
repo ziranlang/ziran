@@ -745,6 +745,7 @@ typedef struct FieldUse {
     unsigned char *fields;
     int count;
     int shared; /* fields belong to an earlier copy of the same application */
+    int complete; /* every field is kept, and so are the records they reach */
 } FieldUse;
 
 static FieldUse *
@@ -812,16 +813,18 @@ mark_all_fields(const ZirModule *module, const char *name,
     }
     const ZirType *type = FindType(module, record_name(name), &owner);
     FieldUse *use = find_field_use(uses, use_count, type);
-    if(use == NULL)
+    if(use == NULL || use->complete)
         return;
+    /* A member access may already keep a field without the record behind
+     * it, such as env.functions before a C callback names the whole table.
+     * A complete layout still keeps that record whole. */
+    use->complete = 1;
     size_t offset = 0;
     ZirTypeField field;
     int index = 0;
     while(TypeNextField(type, &offset, &field) == 1 && index < use->count) {
-        if(!use->fields[index]) {
-            use->fields[index] = 1;
-            mark_all_fields(owner, field.type, uses, use_count);
-        }
+        use->fields[index] = 1;
+        mark_all_fields(owner, field.type, uses, use_count);
         index++;
     }
 }

@@ -1,6 +1,6 @@
 #include "zir_parse_internal.h"
 
-static long eval_or(ZirEval *ev);
+static int64_t eval_or(ZirEval *ev);
 
 static void
 expand_compile_expr_depth(char *dst, size_t dst_size, const ZirConsts *consts,
@@ -186,7 +186,7 @@ eval_skip(ZirEval *ev)
 }
 
 int
-eval_integer_type(const char *type, long value)
+eval_integer_type(const char *type, int64_t value)
 {
     if(!strcmp(type, "s8"))
         return value >= INT8_MIN && value <= INT8_MAX;
@@ -264,7 +264,7 @@ find_imported_define(const ZirModule *module, const char *lookup_path,
 
 static int
 eval_imported_integer_define(ZirEval *ev, const char *name, size_t length,
-                             long *value)
+                             int64_t *value)
 {
     const ZirModule *owner = NULL;
     const ZirDefine *definition;
@@ -303,11 +303,11 @@ eval_imported_integer_define(ZirEval *ev, const char *name, size_t length,
     return known;
 }
 
-static long
+static int64_t
 eval_primary(ZirEval *ev)
 {
     char *end;
-    long value;
+    int64_t value;
 
     if(ev->fuel != NULL && --*ev->fuel < 0) {
         ev->known = 0;
@@ -333,7 +333,7 @@ eval_primary(ZirEval *ev)
     }
     if(isdigit((unsigned char)*ev->p)) {
         errno = 0;
-        value = strtol(ev->p, &end, 0);
+        value = strtoll(ev->p, &end, 0);
         if(end == ev->p || errno == ERANGE) {
             ev->known = 0;
             return 0;
@@ -411,7 +411,7 @@ eval_primary(ZirEval *ev)
         if(ev->module != NULL) {
             const char *after_name = ev->p;
             const char *call_end = after_name;
-            long arguments[16];
+            int64_t arguments[16];
             char argument_names[16][ZIR_NAME_MAX] = {{0}};
             int count = 0;
             char name[ZIR_NAME_MAX];
@@ -516,26 +516,26 @@ eval_primary(ZirEval *ev)
     return 0;
 }
 
-static long
+static int64_t
 eval_unary(ZirEval *ev)
 {
     eval_skip(ev);
     if(*ev->p == '!') {
-        long v;
+        int64_t v;
 
         ev->p++;
         v = eval_unary(ev);
         return ev->known ? !v : 0;
     }
     if(*ev->p == '-') {
-        long value;
+        int64_t value;
         if(strncmp(ev->p + 1, "9223372036854775808", 19) == 0) {
             ev->p += 20;
-            return LONG_MIN;
+            return INT64_MIN;
         }
         ev->p++;
         value = eval_unary(ev);
-        if(value == LONG_MIN) { ev->known = 0; return 0; }
+        if(value == INT64_MIN) { ev->known = 0; return 0; }
         return -value;
     }
     if(*ev->p == '+') {
@@ -546,51 +546,51 @@ eval_unary(ZirEval *ev)
 }
 
 int
-checked_add_long(long left, long right, long *result)
+checked_add_long(int64_t left, int64_t right, int64_t *result)
 {
-    /* For a negative right, LONG_MIN + right would itself overflow and
-     * wrap, rejecting every such sum; the bound is LONG_MIN - right. */
-    if((right > 0 && left > LONG_MAX - right) ||
-       (right < 0 && left < LONG_MIN - right))
+    /* For a negative right, INT64_MIN + right would itself overflow and
+     * wrap, rejecting every such sum; the bound is INT64_MIN - right. */
+    if((right > 0 && left > INT64_MAX - right) ||
+       (right < 0 && left < INT64_MIN - right))
         return 0;
     *result = left + right;
     return 1;
 }
 
 int
-checked_sub_long(long left, long right, long *result)
+checked_sub_long(int64_t left, int64_t right, int64_t *result)
 {
-    if((right < 0 && left > LONG_MAX + right) ||
-       (right > 0 && left < LONG_MIN + right))
+    if((right < 0 && left > INT64_MAX + right) ||
+       (right > 0 && left < INT64_MIN + right))
         return 0;
     *result = left - right;
     return 1;
 }
 
 int
-checked_mul_long(long left, long right, long *result)
+checked_mul_long(int64_t left, int64_t right, int64_t *result)
 {
     if(left > 0) {
-        if((right > 0 && left > LONG_MAX / right) ||
-           (right < 0 && right < LONG_MIN / left))
+        if((right > 0 && left > INT64_MAX / right) ||
+           (right < 0 && right < INT64_MIN / left))
             return 0;
     } else if(left < 0) {
-        if((right > 0 && left < LONG_MIN / right) ||
-           (right < 0 && left < LONG_MAX / right))
+        if((right > 0 && left < INT64_MIN / right) ||
+           (right < 0 && left < INT64_MAX / right))
             return 0;
     }
     *result = left * right;
     return 1;
 }
 
-static long
+static int64_t
 eval_mul(ZirEval *ev)
 {
-    long left = eval_unary(ev);
+    int64_t left = eval_unary(ev);
 
     while(1) {
         char op;
-        long right;
+        int64_t right;
         int left_known;
 
         eval_skip(ev);
@@ -602,8 +602,8 @@ eval_mul(ZirEval *ev)
         if(!left_known || !ev->known || (right == 0 && op != '*')) {
             ev->known = 0;
             left = 0;
-        } else if(left == LONG_MIN && right == -1) {
-            left = op == '*' || op == '/' ? LONG_MIN : 0;
+        } else if(left == INT64_MIN && right == -1) {
+            left = op == '*' || op == '/' ? INT64_MIN : 0;
         } else if(op == '*') {
             if(!checked_mul_long(left, right, &left)) {
                 ev->known = 0;
@@ -617,14 +617,14 @@ eval_mul(ZirEval *ev)
     }
 }
 
-static long
+static int64_t
 eval_add(ZirEval *ev)
 {
-    long left = eval_mul(ev);
+    int64_t left = eval_mul(ev);
 
     while(1) {
         char op;
-        long right;
+        int64_t right;
         int left_known;
 
         eval_skip(ev);
@@ -650,14 +650,14 @@ eval_add(ZirEval *ev)
     }
 }
 
-static long
+static int64_t
 eval_rel(ZirEval *ev)
 {
-    long left = eval_add(ev);
+    int64_t left = eval_add(ev);
 
     while(1) {
         const char *op = NULL;
-        long right;
+        int64_t right;
         int left_known;
 
         eval_skip(ev);
@@ -684,14 +684,14 @@ eval_rel(ZirEval *ev)
     }
 }
 
-static long
+static int64_t
 eval_eq(ZirEval *ev)
 {
-    long left = eval_rel(ev);
+    int64_t left = eval_rel(ev);
 
     while(1) {
         int neq = 0;
-        long right;
+        int64_t right;
         int left_known;
 
         eval_skip(ev);
@@ -714,15 +714,15 @@ eval_eq(ZirEval *ev)
     }
 }
 
-static long
+static int64_t
 eval_and(ZirEval *ev)
 {
-    long left = eval_eq(ev);
+    int64_t left = eval_eq(ev);
 
     while(1) {
-        long right;
+        int64_t right;
         int left_known;
-        long left_value;
+        int64_t left_value;
 
         eval_skip(ev);
         if(strncmp(ev->p, "&&", 2) != 0)
@@ -743,15 +743,15 @@ eval_and(ZirEval *ev)
     }
 }
 
-static long
+static int64_t
 eval_or(ZirEval *ev)
 {
-    long left = eval_and(ev);
+    int64_t left = eval_and(ev);
 
     while(1) {
-        long right;
+        int64_t right;
         int left_known;
-        long left_value;
+        int64_t left_value;
 
         eval_skip(ev);
         if(strncmp(ev->p, "||", 2) != 0)
@@ -786,7 +786,7 @@ contains_compile_time_directive(const char *source, const char *path)
 }
 
 int
-eval_const_condition_with_fuel(const char *src, long *value,
+eval_const_condition_with_fuel(const char *src, int64_t *value,
                      const ZirModule *module, const ZirConsts *consts,
                      const char *lookup_path, int line, int depth, int *fuel)
 {
@@ -812,7 +812,7 @@ eval_const_condition_with_fuel(const char *src, long *value,
 }
 
 int
-eval_const_condition(const char *src, long *value,
+eval_const_condition(const char *src, int64_t *value,
                      const ZirModule *module, const ZirConsts *consts,
                      const char *lookup_path, int line, int depth)
 {
@@ -1134,12 +1134,12 @@ typedef struct CompileCompoundIndexBuffers {
     ZirFunction probe;
 } CompileCompoundIndexBuffers;
 
-int compile_compound_index(const CompileValue *compound, long index,
+int compile_compound_index(const CompileValue *compound, int64_t index,
                        const ZirModule *module, const char *path, int depth,
                        int *fuel, CompileValue *result);
 
 static int
-compile_compound_index_with_buffers(const CompileValue *compound, long index,
+compile_compound_index_with_buffers(const CompileValue *compound, int64_t index,
                        const ZirModule *module, const char *path, int depth,
                        int *fuel, CompileValue *result, CompileCompoundIndexBuffers *buffers)
 {
@@ -1169,7 +1169,7 @@ compile_compound_index_with_buffers(const CompileValue *compound, long index,
 }
 
 int
-compile_compound_index(const CompileValue *compound, long index,
+compile_compound_index(const CompileValue *compound, int64_t index,
                        const ZirModule *module, const char *path, int depth,
                        int *fuel, CompileValue *result)
 {

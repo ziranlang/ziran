@@ -118,7 +118,7 @@ typedef struct {
 typedef struct ZirEval {
     const char *p;
     int known;
-    long value;
+    int64_t value;
     const ZirModule *module;
     const ZirConsts *consts;
     const char *lookup_path;
@@ -279,13 +279,13 @@ int parse_cond_start(char *line, char **condition);
 int line_starts_compile_condition(const char *line);
 void expand_compile_expr(char *dst, size_t dst_size, const ZirConsts *consts, const char *src, const char *lookup_path);
 char *find_top_comma(char *s);
-int eval_integer_type(const char *type, long value);
+int eval_integer_type(const char *type, int64_t value);
 int eval_close(const ZirFunction *fn, int opening, int stop);
-int checked_add_long(long left, long right, long *result);
-int checked_sub_long(long left, long right, long *result);
-int checked_mul_long(long left, long right, long *result);
-int eval_const_condition_with_fuel(const char *src, long *value, const ZirModule *module, const ZirConsts *consts, const char *lookup_path, int line, int depth, int *fuel);
-int eval_const_condition(const char *src, long *value, const ZirModule *module, const ZirConsts *consts, const char *lookup_path, int line, int depth);
+int checked_add_long(int64_t left, int64_t right, int64_t *result);
+int checked_sub_long(int64_t left, int64_t right, int64_t *result);
+int checked_mul_long(int64_t left, int64_t right, int64_t *result);
+int eval_const_condition_with_fuel(const char *src, int64_t *value, const ZirModule *module, const ZirConsts *consts, const char *lookup_path, int line, int depth, int *fuel);
+int eval_const_condition(const char *src, int64_t *value, const ZirModule *module, const ZirConsts *consts, const char *lookup_path, int line, int depth);
 int compile_value_literal(CompileValue *value);
 int compile_truth(const CompileValue *value, int *truth);
 int compile_type_value(const char *type, CompileValue *value);
@@ -293,7 +293,7 @@ int wrap_compile_integer(const char *type, int64_t *value);
 int compile_values_equal(const CompileValue *left, const CompileValue *right, int *equal);
 int compile_compound_value(const ZirFunction *probe, const ZirExpr *expression, const ZirModule *module, const char *path, int depth, int *fuel, CompileValue *result);
 int compile_compound_member(const CompileValue *compound, const char *member, const ZirModule *module, const char *path, int depth, int *fuel, CompileValue *result);
-int compile_compound_index(const CompileValue *compound, long index, const ZirModule *module, const char *path, int depth, int *fuel, CompileValue *result);
+int compile_compound_index(const CompileValue *compound, int64_t index, const ZirModule *module, const char *path, int depth, int *fuel, CompileValue *result);
 int evaluate_imported_typed_define(const ZirModule *module, const char *path, const char *name, int depth, int *fuel, CompileValue *result);
 int evaluate_typed_node(const ZirFunction *probe, int index, const ZirModule *module, const char *path, int depth, int *fuel, CompileValue *result);
 /* Compile-time evaluation parses the same expression text many times, once
@@ -304,8 +304,8 @@ int CachedParse(const ZirModule *module, const char *text, ZirSourceSpan span,
                 ZirFunction *scratch, const ZirFunction **probe);
 void CachedParseDone(const ZirFunction *probe, ZirFunction *scratch);
 int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names, const char *source, ZirSourceSpan span, int depth, int *fuel, CompileValue *result);
-int evaluate_typed_integer_function(ZirEval *ev, const char *name, const long *values, const char argument_names[][ZIR_NAME_MAX], int argument_count, long *result);
-int eval_typed_condition(const char *source, const ZirModule *module, const ZirConsts *names, ZirSourceSpan span, long *result);
+int evaluate_typed_integer_function(ZirEval *ev, const char *name, const int64_t *values, const char argument_names[][ZIR_NAME_MAX], int argument_count, int64_t *result);
+int eval_typed_condition(const char *source, const ZirModule *module, const ZirConsts *names, ZirSourceSpan span, int64_t *result);
 ZirConsts visible_compile_constants(const ZirConsts *parsed, const ZirConsts *future);
 ZirModule visible_compile_module(const ZirModule *parsed, const CompileParseContext *context, const ZirConsts *constants);
 void free_visible_compile_module(ZirModule *visible);

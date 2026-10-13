@@ -1271,7 +1271,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         consts.capacity = capacity;
                     }
                     if(starts_word(expr, "#run")) {
-                        long value = 0;
+                        int64_t value = 0;
                         int folded;
                         ZirConsts visible = visible_compile_constants(
                             &consts, &future_constants);

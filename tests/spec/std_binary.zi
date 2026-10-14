@@ -1,0 +1,56 @@
+#import "binary"
+#import "math"
+#import "std/text"
+
+// Little-endian fields read back from bytes written by hand, and float
+// values decoded from known bit patterns, in the portable VM and natively.
+#program_export
+SelfTest :: () -> s32 {
+    bytes: [12]u8
+    // 1.0f, then -2.5f, then 0x0102 and 0xfffffffe.
+    bytes[0] = cast(u8)0
+    bytes[1] = cast(u8)0
+    bytes[2] = cast(u8)128
+    bytes[3] = cast(u8)63
+    bytes[4] = cast(u8)0
+    bytes[5] = cast(u8)0
+    bytes[6] = cast(u8)32
+    bytes[7] = cast(u8)192
+    bytes[8] = cast(u8)2
+    bytes[9] = cast(u8)1
+    bytes[10] = cast(u8)254
+    bytes[11] = cast(u8)255
+    text := TextView(bytes[:])
+    if ReadF32LE(text, 0) != 1.0 || ReadF32LE(text, 4) != -2.5 {
+        return 1
+    }
+    if ReadU16LE(text, 8) != cast(u32)258 || ReadU32LE(text, 8) != cast(u32)4294836482 {
+        return 2
+    }
+    if ReadS32LE(text, 4) != cast(s32)-1071644672 {
+        return 3
+    }
+    // Fields that run past the end, or start before it, read as zero.
+    if ReadU32LE(text, 9) != cast(u32)0 || ReadF32LE(text, -1) != 0.0 || ReadU16LE(text, 11) != cast(u32)0 {
+        return 4
+    }
+    // The smallest subnormal single, the largest finite single, infinity
+    // and a quiet NaN.
+    if Float32FromBits(cast(u32)1) != ScaleByPowerOfTwo(1.0, -149) ||
+        Float32FromBits(cast(u32)2139095039) != 340282346638528859811704183484516925440.0 ||
+        Float32FromBits(cast(u32)2139095040) != Infinity() {
+        return 5
+    }
+    nan := Float32FromBits(cast(u32)2143289344)
+    if nan == nan {
+        return 6
+    }
+    // Doubles: 2.0, -0.1, the smallest subnormal and negative infinity.
+    if Float64FromBits(cast(u64)4611686018427387904) != 2.0 ||
+        Float64FromBits(cast(u64)13815242216921733530) != -0.1 ||
+        Float64FromBits(cast(u64)1) != ScaleByPowerOfTwo(1.0, -1074) ||
+        Float64FromBits(cast(u64)18442240474082181120) != 0.0 - Infinity() {
+        return 7
+    }
+    return 42
+}

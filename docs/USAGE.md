@@ -848,6 +848,18 @@ file from borrowed byte slices, including mapped files. The caller controls
 file creation and publication. Its test checks the output with Python's ZIP
 reader as well as Ziran's reader.
 
+### Binary fields
+
+`std/binary.zi` reads little-endian numbers from byte text such as file or
+asset contents: `ReadU16LE`, `ReadU32LE`, `ReadS32LE` and `ReadF32LE` take
+the text and a byte offset, and a field that does not fit reads as zero.
+`Float32FromBits` and `Float64FromBits` turn IEEE 754 bit patterns into
+values with exact arithmetic, including subnormals, signed zeros, infinities
+and NaN, so native targets and portable bundles agree without reinterpreting
+memory. Run `sh tests/std_binary.sh build/bin/ziran`, which also compares the
+decoding with the C compiler's over a million random patterns.
+`std/binary_linux.zi` keeps 64-bit fields for native Linux programs.
+
 ### HTTP and process capabilities
 
 `std/net_http.zi` defines an explicit request/response host capability. A

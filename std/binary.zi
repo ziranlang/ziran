@@ -1,0 +1,82 @@
+// Little-endian numbers in byte text, such as file or asset contents, read
+// the same way on every native target and in the portable VM. Floats are
+// decoded from their IEEE 754 bits with exact arithmetic, so no target
+// reinterprets memory. An offset that does not leave room for the field
+// reads as zero.
+#import "math"
+
+#scope_export
+// The value of an IEEE 754 single from its bits.
+#program_export
+Float32FromBits :: (bits: u32) -> float64 {
+    exponent := cast(s32)((bits >> cast(u32)23) & cast(u32)255)
+    mantissa := cast(float64)(bits & cast(u32)8388607)
+    negative := (bits & cast(u32)2147483648) != cast(u32)0
+    value: float64 = 0.0
+    if exponent == 255 {
+        value = ifx mantissa == 0.0 then Infinity() else NotANumber()
+    } else if exponent == 0 {
+        value = ScaleByPowerOfTwo(mantissa, -149)
+    } else {
+        value = ScaleByPowerOfTwo(mantissa + 8388608.0, exponent - 150)
+    }
+    if negative {
+        return -value
+    }
+    return value
+}
+
+// The value of an IEEE 754 double from its bits.
+#program_export
+Float64FromBits :: (bits: u64) -> float64 {
+    exponent := cast(s32)((bits >> cast(u64)52) & cast(u64)2047)
+    mantissa := cast(float64)(bits & cast(u64)4503599627370495)
+    negative := (bits >> cast(u64)63) != cast(u64)0
+    value: float64 = 0.0
+    if exponent == 2047 {
+        value = ifx mantissa == 0.0 then Infinity() else NotANumber()
+    } else if exponent == 0 {
+        value = ScaleByPowerOfTwo(mantissa, -1074)
+    } else {
+        value = ScaleByPowerOfTwo(mantissa + 4503599627370496.0, exponent - 1075)
+    }
+    if negative {
+        return -value
+    }
+    return value
+}
+
+#program_export
+ReadU16LE :: (bytes: string, at: s32) -> u32 {
+    if at < 0 || at + 2 > cast(s32)bytes.count {
+        return 0
+    }
+    return cast(u32)bytes[at] | (cast(u32)bytes[at + 1] << cast(u32)8)
+}
+
+#program_export
+ReadU32LE :: (bytes: string, at: s32) -> u32 {
+    if at < 0 || at + 4 > cast(s32)bytes.count {
+        return 0
+    }
+    value: u32 = 0
+    index: s32 = 3
+    while index >= 0 {
+        value = (value << cast(u32)8) | cast(u32)bytes[at + index]
+        index -= 1
+    }
+    return value
+}
+
+#program_export
+ReadS32LE :: (bytes: string, at: s32) -> s32 {
+    return cast(s32)ReadU32LE(bytes, at)
+}
+
+#program_export
+ReadF32LE :: (bytes: string, at: s32) -> float64 {
+    if at < 0 || at + 4 > cast(s32)bytes.count {
+        return 0.0
+    }
+    return Float32FromBits(ReadU32LE(bytes, at))
+}

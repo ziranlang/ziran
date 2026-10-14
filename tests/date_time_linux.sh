@@ -149,4 +149,118 @@ if test -n "${ZIRAN_THREAD_ANDROID_NDK:-}"; then
         "$bin/$triple-clang" -std=c11 -I"$repo/include" -I"$layout" -c "$work/layout.c" -o "$work/layout-$triple.o"
     done
 fi
+# Emscripten's time_t is 64-bit on wasm32 while long stays 32-bit. A 32-bit
+# time() binding there is a signature mismatch that traps on the first call,
+# so link with fatal linker warnings and run the clocks under node.
+emcc=${EMCC:-emcc}
+if ! command -v "$emcc" >/dev/null 2>&1 && test -x "$HOME/emsdk/upstream/emscripten/emcc"; then
+    emcc=$HOME/emsdk/upstream/emscripten/emcc
+fi
+if command -v "$emcc" >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+    cat > "$work/web_time.zi" <<'ZI'
+#import "date_time_linux"
+#import "timer_linux"
+#import "calendar"
+#program_export
+CheckWebTime :: () -> s32 {
+    output: [64]u8
+    if FormatDateTime(UtcAt(0), "%F %T", output[:]) != "1970-01-01 00:00:00" ||
+        FormatDateTime(UtcAt(-1), "%F %T", output[:]) != "1969-12-31 23:59:59" ||
+        FormatDateTime(UtcAt(cast(s64)2147483648), "%F %T", output[:]) != "2038-01-19 03:14:08" { return 1 }
+    if UnixNow() < 1700000000 || !DateTimeValid(LocalNow()) || !DateTimeValid(LocalAt(UnixNow())) { return 2 }
+    if LocalAt(cast(s64)9223372036854775807).valid { return 3 }
+    before := UnixNow()
+    milliseconds := UnixMilliseconds()
+    after := UnixNow()
+    if milliseconds < (before - 1) * 1000 || milliseconds >= (after + 2) * 1000 { return 4 }
+    // Monotonic milliseconds keep sub-second precision.
+    first := MonotonicMilliseconds()
+    if first < 0 { return 5 }
+    tries: s32 = 0
+    while tries < 2000000 {
+        now := MonotonicMilliseconds()
+        if now < first { return 6 }
+        if now % 1000 != 0 && now != first { return 0 }
+        tries += 1
+    }
+    return 7
+}
+ZI
+    # Each module's private timespec and struct tm layouts, checked against
+    # Emscripten's time.h in a build that imports only that module.
+    printf '#import "date_time_linux"\n#program_export\nWebDateTimeLayout :: () -> s64 { return UnixNow() }\n' > "$work/web_layout_date.zi"
+    printf '#import "timer_linux"\n#program_export\nWebTimerLayout :: () -> s64 { return MonotonicMilliseconds() }\n' > "$work/web_layout_timer.zi"
+    cat > "$work/web_layout_date.c" <<'C'
+#define _DEFAULT_SOURCE 1
+#define ZIRAN_DATE_TIME_LINUX_H_PRIVATE 1
+#include <stddef.h>
+#include <time.h>
+#include "date_time_linux.h"
+_Static_assert(sizeof(time_t) == 8, "Emscripten time_t is 64-bit");
+_Static_assert(sizeof(ClockValue) == sizeof(struct timespec), "ClockValue size");
+_Static_assert(offsetof(ClockValue, nanoseconds) == offsetof(struct timespec, tv_nsec), "ClockValue nanoseconds");
+_Static_assert(offsetof(TimeFields, utc_offset) == offsetof(struct tm, tm_gmtoff), "struct tm offset");
+_Static_assert(sizeof(TimeFields) == sizeof(struct tm), "struct tm size");
+C
+    cat > "$work/web_layout_timer.c" <<'C'
+#define _DEFAULT_SOURCE 1
+#define ZIRAN_TIMER_LINUX_H_PRIVATE 1
+#include <stddef.h>
+#include <time.h>
+#include "timer_linux.h"
+_Static_assert(sizeof(ClockValue) == sizeof(struct timespec), "timer ClockValue size");
+_Static_assert(offsetof(ClockValue, nanoseconds) == offsetof(struct timespec, tv_nsec), "timer ClockValue nanoseconds");
+C
+    for module in date timer; do
+        "$ziran" build --target=c --define PLATFORM_WEB --no-main --root "$work" \
+            --module-path "$repo/std" -o "$work/web-layout-$module" "$work/web_layout_$module.zi"
+        "$emcc" -std=c11 -I"$repo/include" -I"$work/web-layout-$module" -c "$work/web_layout_$module.c" \
+            -o "$work/web-layout-$module.o"
+    done
+    cat > "$work/web_entry.c" <<'C'
+#define _DEFAULT_SOURCE 1
+#include <stddef.h>
+#include <stdio.h>
+#include <time.h>
+#ifdef __cplusplus
+#include "web_time.hpp"
+#include "date_time_linux.hpp"
+#else
+#include "web_time.h"
+#include "date_time_linux.h"
+#endif
+int main(void)
+{
+    int result = CheckWebTime();
+    if (result != 0) { fprintf(stderr, "web time check %d failed\n", result); return result; }
+    const time_t cases[] = {0, -1, 951782400, 1593604800, 2147483648LL, 4107542400LL, 13574649522LL};
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+        struct tm local, utc;
+        if (localtime_r(&cases[i], &local) == NULL || gmtime_r(&cases[i], &utc) == NULL) return 20;
+        LocalDateTime got = LocalAt(cases[i]);
+        LocalDateTime want = UtcAt(cases[i]);
+        if (!got.valid || got.year != local.tm_year + 1900 || got.month != local.tm_mon + 1 ||
+            got.day != local.tm_mday || got.hour != local.tm_hour || got.minute != local.tm_min ||
+            got.second != local.tm_sec) return 21;
+        if (!want.valid || want.year != utc.tm_year + 1900 || want.day != utc.tm_mday ||
+            want.hour != utc.tm_hour || want.second != utc.tm_sec) return 22;
+    }
+    return 0;
+}
+C
+    for target in c cpp; do
+        out=$work/web-$target
+        "$ziran" build --target="$target" --define PLATFORM_WEB --no-main --root "$work" \
+            --module-path "$repo/std" -o "$out" "$work/web_time.zi"
+        compiler=$emcc; extension=c; standard=c11
+        if test "$target" = cpp; then compiler=${emcc%emcc}em++; extension=cpp; standard=c++17; fi
+        cp "$work/web_entry.c" "$out/web_entry.$extension"
+        "$compiler" -std=$standard -Wall -Wextra -Wno-unused-function -Werror -I"$repo/include" -I"$out" \
+            "$out"/*."$extension" -Wl,--fatal-warnings -sENVIRONMENT=node -sEXIT_RUNTIME=1 -o "$out/test.js"
+        node "$out/test.js"
+    done
+    printf 'web date-time checks passed: 64-bit time_t, timespec and struct tm layouts, libc agreement, sub-second monotonic clock\n'
+else
+    printf 'Emscripten or node unavailable; web date-time checks skipped.\n'
+fi
 echo 'date-time-linux-test-ok: UTC, DST, post-2038, failed conversions, concurrent readings, portable host, C/C++ source and saved IR'

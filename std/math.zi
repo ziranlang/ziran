@@ -42,3 +42,616 @@ SineDegrees :: (degrees: float32) -> float32 {
 CosineDegrees :: (degrees: float32) -> float32 {
     return SineDegrees(degrees + 90.0)
 }
+
+// Double-precision elementary functions in portable Ziran, so native and
+// bundled programs compute the same results without libm. The polynomial
+// coefficients and argument reductions follow fdlibm (Copyright (C) 1993
+// Sun Microsystems; permission to use, copy, modify and distribute is
+// freely granted, provided that this notice is preserved). Without access
+// to a float's bits, exponents are found and applied with exact
+// multiplications by powers of two.
+
+#scope_file
+MathParts :: struct {
+    mantissa: float64
+    exponent: s32
+}
+
+MathReduced :: struct {
+    quadrant: s32
+    head: float64
+    tail: float64
+}
+
+#scope_export
+NotANumber :: () -> float64 {
+    zero: float64 = 0.0
+    return zero / zero
+}
+
+Infinity :: () -> float64 {
+    huge: float64 = 1.0e308
+    return huge * 10.0
+}
+
+#program_export
+Finite64 :: (value: float64) -> bool {
+    return value == value && value <= 1.7976931348623157e308 && value >= -1.7976931348623157e308
+}
+
+#scope_file
+// 2^exponent for |exponent| <= 64, exactly.
+SmallPowerOfTwo :: (exponent: s32) -> float64 {
+    result: float64 = 1.0
+    count := exponent
+    if count < 0 {
+        count = 0 - count
+    }
+    factor: float64 = ifx exponent < 0 then 0.5 else 2.0
+    while count > 0 {
+        result *= factor
+        count -= 1
+    }
+    return result
+}
+
+#scope_export
+// value × 2^exponent, applied in exact steps.
+#program_export
+ScaleByPowerOfTwo :: (value: float64, exponent: s32) -> float64 {
+    step: float64 = 18446744073709551616.0
+    back: float64 = 5.42101086242752217003726400434970855712890625e-20
+    while exponent > 64 && value != 0.0 && Finite64(value) {
+        value *= step
+        exponent -= 64
+    }
+    while exponent < -64 && value != 0.0 {
+        value *= back
+        exponent += 64
+    }
+    return value * SmallPowerOfTwo(exponent)
+}
+
+#scope_file
+// A finite positive value as mantissa in [1, 2) times 2^exponent.
+MathSplit :: (value: float64) -> MathParts {
+    step: float64 = 18446744073709551616.0
+    back: float64 = 5.42101086242752217003726400434970855712890625e-20
+    exponent: s32 = 0
+    while value >= step {
+        value *= back
+        exponent += 64
+    }
+    while value < 1.0 {
+        value *= step
+        exponent -= 64
+    }
+    width: s32 = 32
+    while width >= 1 {
+        power := SmallPowerOfTwo(width)
+        if value >= power {
+            value /= power
+            exponent += width
+        }
+        width /= 2
+    }
+    return MathParts.{.mantissa = value, .exponent = exponent}
+}
+
+#scope_export
+// The integer nearest to value, halves away from zero; value must fit s64.
+RoundToInteger :: (value: float64) -> s64 {
+    if value < 0.0 {
+        return cast(s64)(value - 0.5)
+    }
+    return cast(s64)(value + 0.5)
+}
+
+#program_export
+Sqrt :: (value: float64) -> float64 {
+    if value < 0.0 {
+        return NotANumber()
+    }
+    if value == 0.0 || !Finite64(value) {
+        return value
+    }
+    parts := MathSplit(value)
+    mantissa := parts.mantissa
+    exponent := parts.exponent
+    if exponent % 2 != 0 {
+        mantissa *= 2.0
+        exponent -= 1
+    }
+    // mantissa in [1, 4): Newton steps from a linear first guess.
+    root: float64 = 0.5 + 0.5 * mantissa * 0.5 + 0.25
+    step: s32 = 0
+    while step < 6 {
+        root = 0.5 * (root + mantissa / root)
+        step += 1
+    }
+    // Round to the nearer of the neighbouring results.
+    low := root * (1.0 - 1.1102230246251565e-16)
+    if (low * low - mantissa) * (low * low - mantissa) < (root * root - mantissa) * (root * root - mantissa) {
+        root = low
+    }
+    return ScaleByPowerOfTwo(root, exponent / 2)
+}
+
+#program_export
+Exp :: (value: float64) -> float64 {
+    if value != value {
+        return value
+    }
+    if value > 709.782712893384 {
+        return Infinity()
+    }
+    if value < -745.1332191019412 {
+        return 0.0
+    }
+    if value < 3.725290298461914e-09 && value > -3.725290298461914e-09 {
+        return 1.0 + value
+    }
+    ln2_high: float64 = 6.93147180369123816490e-01
+    ln2_low: float64 = 1.90821492927058770002e-10
+    inverse_ln2: float64 = 1.44269504088896338700e+00
+    p1: float64 = 1.66666666666666019037e-01
+    p2: float64 = -2.77777777770155933842e-03
+    p3: float64 = 6.61375632143793436117e-05
+    p4: float64 = -1.65339022054652515390e-06
+    p5: float64 = 4.13813679705723846039e-08
+    whole := cast(s32)RoundToInteger(value * inverse_ln2)
+    k := cast(float64)whole
+    high := value - k * ln2_high
+    low := k * ln2_low
+    reduced := high - low
+    square := reduced * reduced
+    c := reduced - square * (p1 + square * (p2 + square * (p3 + square * (p4 + square * p5))))
+    result := 1.0 - ((low - (reduced * c) / (2.0 - c)) - high)
+    return ScaleByPowerOfTwo(result, whole)
+}
+
+// e^value − 1, accurate near zero: Kahan's correction divides out the
+// rounding of e^value.
+#program_export
+Expm1 :: (value: float64) -> float64 {
+    if value > 0.5 || value < -0.5 || value != value {
+        return Exp(value) - 1.0
+    }
+    if value < 1.0e-10 && value > -1.0e-10 {
+        return value + 0.5 * value * value
+    }
+    u := Exp(value)
+    if u == 1.0 {
+        return value
+    }
+    return (u - 1.0) * value / Log(u)
+}
+
+#program_export
+Log :: (value: float64) -> float64 {
+    if value != value || value < 0.0 {
+        return NotANumber()
+    }
+    if value == 0.0 {
+        return 0.0 - Infinity()
+    }
+    if !Finite64(value) {
+        return value
+    }
+    ln2_high: float64 = 6.93147180369123816490e-01
+    ln2_low: float64 = 1.90821492927058770002e-10
+    lg1: float64 = 6.666666666666735130e-01
+    lg2: float64 = 3.999999999940941908e-01
+    lg3: float64 = 2.857142874366239149e-01
+    lg4: float64 = 2.222219843214978396e-01
+    lg5: float64 = 1.818357216161805012e-01
+    lg6: float64 = 1.531383769920937332e-01
+    lg7: float64 = 1.479819860511658591e-01
+    parts := MathSplit(value)
+    mantissa := parts.mantissa
+    exponent := parts.exponent
+    if mantissa > 1.4142135623730951 {
+        mantissa *= 0.5
+        exponent += 1
+    }
+    f := mantissa - 1.0
+    s := f / (2.0 + f)
+    z := s * s
+    w := z * z
+    t1 := w * (lg2 + w * (lg4 + w * lg6))
+    t2 := z * (lg1 + w * (lg3 + w * (lg5 + w * lg7)))
+    r := t2 + t1
+    half_square := 0.5 * f * f
+    k := cast(float64)exponent
+    return k * ln2_high - ((half_square - (s * (half_square + r) + k * ln2_low)) - f)
+}
+
+// ln(1 + value), accurate near zero.
+#program_export
+Log1p :: (value: float64) -> float64 {
+    if value < -1.0 || value != value {
+        return NotANumber()
+    }
+    if value < 1.0e-4 && value > -1.0e-4 {
+        return value * (1.0 - value * (0.5 - value * (1.0 / 3.0 - value * 0.25)))
+    }
+    u := 1.0 + value
+    if u == 1.0 {
+        return value
+    }
+    return Log(u) - ((u - 1.0) - value) / u
+}
+
+#program_export
+Log10 :: (value: float64) -> float64 {
+    return Log(value) * 0.43429448190325182765
+}
+
+#program_export
+Log2 :: (value: float64) -> float64 {
+    return Log(value) * 1.44269504088896338700
+}
+
+#scope_file
+// value reduced by the nearest multiple of pi/2, as head + tail.
+MathReduce :: (value: float64) -> MathReduced {
+    inverse_half_pi: float64 = 6.36619772367581382433e-01
+    pio2_1: float64 = 1.57079632673412561417e+00
+    pio2_2: float64 = 6.07710050630396597660e-11
+    pio2_2t: float64 = 2.02226624879595063154e-21
+    n := RoundToInteger(value * inverse_half_pi)
+    fn := cast(float64)n
+    r := value - fn * pio2_1
+    w := fn * pio2_2
+    t := r
+    r = t - w
+    w = fn * pio2_2t - ((t - r) - w)
+    head := r - w
+    tail := (r - head) - w
+    quadrant := cast(s32)(n % 4)
+    if quadrant < 0 {
+        quadrant += 4
+    }
+    return MathReduced.{.quadrant = quadrant, .head = head, .tail = tail}
+}
+
+SineKernel :: (x: float64, y: float64) -> float64 {
+    s1: float64 = -1.66666666666666324348e-01
+    s2: float64 = 8.33333333332248946124e-03
+    s3: float64 = -1.98412698298579493134e-04
+    s4: float64 = 2.75573137070700676789e-06
+    s5: float64 = -2.50507602534068634195e-08
+    s6: float64 = 1.58969099521155010221e-10
+    z := x * x
+    w := z * z
+    r := s2 + z * (s3 + z * s4) + z * w * (s5 + z * s6)
+    v := z * x
+    return x - ((z * (0.5 * y - v * r) - y) - v * s1)
+}
+
+CosineKernel :: (x: float64, y: float64) -> float64 {
+    c1: float64 = 4.16666666666666019037e-02
+    c2: float64 = -1.38888888888741095749e-03
+    c3: float64 = 2.48015872894767294178e-05
+    c4: float64 = -2.75573143513906633035e-07
+    c5: float64 = 2.08757232129817482790e-09
+    c6: float64 = -1.13596475577881948265e-11
+    z := x * x
+    w := z * z
+    r := z * (c1 + z * (c2 + z * c3)) + w * w * (c4 + z * (c5 + z * c6))
+    half := 0.5 * z
+    w = 1.0 - half
+    return w + (((1.0 - w) - half) + (z * r - x * y))
+}
+
+#scope_export
+#program_export
+Sin :: (value: float64) -> float64 {
+    if !Finite64(value) {
+        return NotANumber()
+    }
+    if value < 0.7853981633974483 && value > -0.7853981633974483 {
+        return SineKernel(value, 0.0)
+    }
+    reduced := MathReduce(value)
+    if reduced.quadrant == 0 {
+        return SineKernel(reduced.head, reduced.tail)
+    }
+    if reduced.quadrant == 1 {
+        return CosineKernel(reduced.head, reduced.tail)
+    }
+    if reduced.quadrant == 2 {
+        return 0.0 - SineKernel(reduced.head, reduced.tail)
+    }
+    return 0.0 - CosineKernel(reduced.head, reduced.tail)
+}
+
+#program_export
+Cos :: (value: float64) -> float64 {
+    if !Finite64(value) {
+        return NotANumber()
+    }
+    if value < 0.7853981633974483 && value > -0.7853981633974483 {
+        return CosineKernel(value, 0.0)
+    }
+    reduced := MathReduce(value)
+    if reduced.quadrant == 0 {
+        return CosineKernel(reduced.head, reduced.tail)
+    }
+    if reduced.quadrant == 1 {
+        return 0.0 - SineKernel(reduced.head, reduced.tail)
+    }
+    if reduced.quadrant == 2 {
+        return 0.0 - CosineKernel(reduced.head, reduced.tail)
+    }
+    return SineKernel(reduced.head, reduced.tail)
+}
+
+#program_export
+Tan :: (value: float64) -> float64 {
+    if !Finite64(value) {
+        return NotANumber()
+    }
+    if value < 0.7853981633974483 && value > -0.7853981633974483 {
+        return SineKernel(value, 0.0) / CosineKernel(value, 0.0)
+    }
+    reduced := MathReduce(value)
+    sine := SineKernel(reduced.head, reduced.tail)
+    cosine := CosineKernel(reduced.head, reduced.tail)
+    if reduced.quadrant % 2 == 0 {
+        return sine / cosine
+    }
+    return 0.0 - cosine / sine
+}
+
+#program_export
+Atan :: (value: float64) -> float64 {
+    if value != value {
+        return value
+    }
+    high: [4]float64 = .[4.63647609000806093515e-01, 7.85398163397448278999e-01,
+    9.82793723247329054082e-01, 1.57079632679489655800e+00]
+    low: [4]float64 = .[2.26987774529616870924e-17, 3.06161699786838301793e-17,
+    1.39033110312309984516e-17, 6.12323399573676603587e-17]
+    a0: float64 = 3.33333333333329318027e-01
+    a1: float64 = -1.99999999998764832476e-01
+    a2: float64 = 1.42857142725034663711e-01
+    a3: float64 = -1.11111104054623557880e-01
+    a4: float64 = 9.09088713343650656196e-02
+    a5: float64 = -7.69187620504482999495e-02
+    a6: float64 = 6.66107313738753120669e-02
+    a7: float64 = -5.83357013379057348645e-02
+    a8: float64 = 4.97687799461593236017e-02
+    a9: float64 = -3.65315727442169155270e-02
+    a10: float64 = 1.62858201153657823623e-02
+    negative := value < 0.0
+    x := ifx negative then 0.0 - value else value
+    if x >= 7.378697629483821e19 {
+        result := high[3] + low[3]
+        return ifx negative then 0.0 - result else result
+    }
+    id: s32 = -1
+    if x < 0.4375 {
+        if x < 7.450580596923828e-09 {
+            return value
+        }
+    } else if x < 1.1875 {
+        if x < 0.6875 {
+            id = 0
+            x = (2.0 * x - 1.0) / (2.0 + x)
+        } else {
+            id = 1
+            x = (x - 1.0) / (x + 1.0)
+        }
+    } else if x < 2.4375 {
+        id = 2
+        x = (x - 1.5) / (1.0 + 1.5 * x)
+    } else {
+        id = 3
+        x = -1.0 / x
+    }
+    z := x * x
+    w := z * z
+    s1 := z * (a0 + w * (a2 + w * (a4 + w * (a6 + w * (a8 + w * a10)))))
+    s2 := w * (a1 + w * (a3 + w * (a5 + w * (a7 + w * a9))))
+    if id < 0 {
+        result := x - x * (s1 + s2)
+        return ifx negative then 0.0 - result else result
+    }
+    result := high[id] - ((x * (s1 + s2) - low[id]) - x)
+    return ifx negative then 0.0 - result else result
+}
+
+#program_export
+Atan2 :: (y: float64, x: float64) -> float64 {
+    if x != x || y != y {
+        return NotANumber()
+    }
+    pi_high: float64 = 3.1415926535897931160e+00
+    pi_low: float64 = 1.2246467991473531772e-16
+    if x == 0.0 {
+        if y > 0.0 {
+            return 1.5707963267948966
+        }
+        if y < 0.0 {
+            return -1.5707963267948966
+        }
+        return 0.0
+    }
+    angle := Atan(y / x)
+    if x > 0.0 {
+        return angle
+    }
+    if y < 0.0 {
+        return angle - pi_high - pi_low
+    }
+    return angle + pi_high + pi_low
+}
+
+#program_export
+Asin :: (value: float64) -> float64 {
+    if value > 1.0 || value < -1.0 || value != value {
+        return NotANumber()
+    }
+    return Atan2(value, Sqrt((1.0 - value) * (1.0 + value)))
+}
+
+#program_export
+Acos :: (value: float64) -> float64 {
+    if value > 1.0 || value < -1.0 || value != value {
+        return NotANumber()
+    }
+    return Atan2(Sqrt((1.0 - value) * (1.0 + value)), value)
+}
+
+#program_export
+Sinh :: (value: float64) -> float64 {
+    negative := value < 0.0
+    x := ifx negative then 0.0 - value else value
+    result: float64 = 0.0
+    if x < 22.0 {
+        t := Expm1(x)
+        result = 0.5 * (t + t / (t + 1.0))
+    } else if x < 709.0 {
+        result = 0.5 * Exp(x)
+    } else {
+        half := Exp(0.5 * x)
+        result = 0.5 * half * half
+    }
+    return ifx negative then 0.0 - result else result
+}
+
+#program_export
+Cosh :: (value: float64) -> float64 {
+    x := ifx value < 0.0 then 0.0 - value else value
+    if x < 0.5 {
+        t := Expm1(x)
+        return 1.0 + t * t / (2.0 * (1.0 + t))
+    }
+    if x < 22.0 {
+        t := Exp(x)
+        return 0.5 * t + 0.5 / t
+    }
+    if x < 709.0 {
+        return 0.5 * Exp(x)
+    }
+    half := Exp(0.5 * x)
+    return 0.5 * half * half
+}
+
+#program_export
+Tanh :: (value: float64) -> float64 {
+    if value != value {
+        return value
+    }
+    negative := value < 0.0
+    x := ifx negative then 0.0 - value else value
+    result: float64 = 1.0
+    if x < 22.0 {
+        t := Expm1(2.0 * x)
+        result = t / (t + 2.0)
+    }
+    return ifx negative then 0.0 - result else result
+}
+
+#program_export
+Asinh :: (value: float64) -> float64 {
+    negative := value < 0.0
+    x := ifx negative then 0.0 - value else value
+    result: float64 = 0.0
+    if x > 268435456.0 {
+        result = Log(x) + 6.93147180559945286227e-01
+    } else {
+        result = Log1p(x + x * x / (1.0 + Sqrt(1.0 + x * x)))
+    }
+    return ifx negative then 0.0 - result else result
+}
+
+#program_export
+Acosh :: (value: float64) -> float64 {
+    if value < 1.0 || value != value {
+        return NotANumber()
+    }
+    if value > 268435456.0 {
+        return Log(value) + 6.93147180559945286227e-01
+    }
+    t := value - 1.0
+    return Log1p(t + Sqrt(2.0 * t + t * t))
+}
+
+#program_export
+Atanh :: (value: float64) -> float64 {
+    if value > 1.0 || value < -1.0 || value != value {
+        return NotANumber()
+    }
+    if value == 1.0 {
+        return Infinity()
+    }
+    if value == -1.0 {
+        return 0.0 - Infinity()
+    }
+    // Odd: compute for the magnitude, where log1p's argument is positive.
+    x := ifx value < 0.0 then 0.0 - value else value
+    result := 0.5 * Log1p(2.0 * x / (1.0 - x))
+    return ifx value < 0.0 then 0.0 - result else result
+}
+
+// base^exponent: whole exponents multiply exactly; a negative base needs a
+// whole exponent. Other exponents go through e^(exponent·ln base), which
+// loses about |exponent·ln base| units in the last place.
+#program_export
+Pow :: (base: float64, exponent: float64) -> float64 {
+    if base != base || exponent != exponent {
+        return NotANumber()
+    }
+    if exponent == 0.0 {
+        return 1.0
+    }
+    whole := exponent < 9.007199254740992e15 && exponent > -9.007199254740992e15 &&
+    cast(float64)cast(s64)exponent == exponent
+    if whole && exponent < 1025.0 && exponent > -1025.0 {
+        count := cast(s64)exponent
+        negative := count < 0
+        if negative {
+            count = 0 - count
+        }
+        result: float64 = 1.0
+        factor := base
+        while count > 0 {
+            if count % 2 == 1 {
+                result *= factor
+            }
+            factor *= factor
+            count /= 2
+        }
+        return ifx negative then 1.0 / result else result
+    }
+    if base == 0.0 {
+        return ifx exponent > 0.0 then 0.0 else Infinity()
+    }
+    if base < 0.0 {
+        if !whole {
+            return NotANumber()
+        }
+        odd := cast(s64)(exponent * 0.5) * 2 != cast(s64)exponent
+        magnitude := Exp(exponent * Log(0.0 - base))
+        return ifx odd then 0.0 - magnitude else magnitude
+    }
+    return Exp(exponent * Log(base))
+}
+
+#program_export
+Cbrt :: (value: float64) -> float64 {
+    if value == 0.0 || !Finite64(value) {
+        return value
+    }
+    negative := value < 0.0
+    x := ifx negative then 0.0 - value else value
+    root := Exp(Log(x) / 3.0)
+    step: s32 = 0
+    while step < 2 {
+        root = root - (root * root * root - x) / (3.0 * root * root)
+        step += 1
+    }
+    return ifx negative then 0.0 - root else root
+}

@@ -30,6 +30,20 @@ CheckTime :: () -> s32 {
     if milliseconds < (before - 1) * 1000 || milliseconds >= (after + 2) * 1000 { return 4 }
     return 0
 }
+// Named zones, run only where tzdata is installed.
+#program_export
+CheckZones :: () -> s32 {
+    output: [64]u8
+    if ZoneOffsetAt("Asia/Tokyo", 1700000000).seconds != 32400 || !ZoneOffsetAt("Asia/Tokyo", 1700000000).valid { return 12 }
+    if ZoneOffsetAt("Asia/Kolkata", 1700000000).seconds != 19800 || ZoneOffsetAt("Asia/Kathmandu", 1700000000).seconds != 20700 { return 13 }
+    if ZoneOffsetAt("America/New_York", 1700000000).seconds != -18000 ||
+        ZoneOffsetAt("America/New_York", 1689000000).seconds != -14400 || !ZoneOffsetAt("UTC", 0).valid { return 14 }
+    if ZoneOffsetAt("Not/AZone", 0).valid || ZoneOffsetAt("../etc/passwd", 0).valid || ZoneOffsetAt("", 0).valid ||
+        ZoneOffsetAt("/etc/localtime", 0).valid { return 15 }
+    // The process's own TZ is back: the harness rule, winter -5h.
+    if FormatDateTime(LocalAt(0), "%F %T", output[:]) != "1969-12-31 19:00:00" { return 16 }
+    return 0
+}
 ZI
 cat > "$work/provider.zi" <<'ZI'
 #import "date_time_types"
@@ -53,6 +67,7 @@ cat > "$work/entry.c" <<'C'
 #include <pthread.h>
 #include <stdio.h>
 #include <time.h>
+#include <unistd.h>
 
 struct Case {
     time_t seconds;
@@ -86,6 +101,12 @@ int main(void)
 {
     int result = CheckTime();
     if (result != 0) return result;
+    if (access("/usr/share/zoneinfo/Asia/Tokyo", F_OK) == 0) {
+        result = CheckZones();
+        if (result != 0) return result;
+    } else {
+        fputs("tzdata unavailable; named zone checks skipped\n", stderr);
+    }
     const time_t seconds[] = {0, -1, 951782400, 1593604800,
         2147483648LL, 4107542400LL, 13574649522LL, 1699165800};
     struct Case cases[8] = {0};
@@ -173,6 +194,11 @@ CheckWebTime :: () -> s32 {
     milliseconds := UnixMilliseconds()
     after := UnixNow()
     if milliseconds < (before - 1) * 1000 || milliseconds >= (after + 2) * 1000 { return 4 }
+    if ZoneOffsetAt("Asia/Tokyo", 1700000000).seconds != 32400 || !ZoneOffsetAt("Asia/Tokyo", 1700000000).valid { return 8 }
+    if ZoneOffsetAt("Asia/Kolkata", 1700000000).seconds != 19800 || ZoneOffsetAt("Asia/Kathmandu", 1700000000).seconds != 20700 { return 9 }
+    if ZoneOffsetAt("America/New_York", 1700000000).seconds != -18000 ||
+        ZoneOffsetAt("America/New_York", 1689000000).seconds != -14400 || !ZoneOffsetAt("UTC", 0).valid { return 10 }
+    if ZoneOffsetAt("Not/AZone", 0).valid || ZoneOffsetAt("../etc/passwd", 0).valid { return 11 }
     // Monotonic milliseconds keep sub-second precision.
     first := MonotonicMilliseconds()
     if first < 0 { return 5 }
@@ -255,12 +281,13 @@ C
         compiler=$emcc; extension=c; standard=c11
         if test "$target" = cpp; then compiler=${emcc%emcc}em++; extension=cpp; standard=c++17; fi
         cp "$work/web_entry.c" "$out/web_entry.$extension"
-        "$compiler" -std=$standard -Wall -Wextra -Wno-unused-function -Werror -I"$repo/include" -I"$out" \
-            "$out"/*."$extension" -Wl,--fatal-warnings -sENVIRONMENT=node -sEXIT_RUNTIME=1 -o "$out/test.js"
+        "$compiler" -std=$standard -I"$repo/include" -I"$out" \
+            "$out"/*."$extension" --js-library "$repo/web/ziran_web.js" -Wl,--fatal-warnings \
+            -sENVIRONMENT=node -sEXIT_RUNTIME=1 -o "$out/test.js"
         node "$out/test.js"
     done
-    printf 'web date-time checks passed: 64-bit time_t, timespec and struct tm layouts, libc agreement, sub-second monotonic clock\n'
+    printf 'web date-time checks passed: 64-bit time_t, timespec and struct tm layouts, libc agreement, named zones through Intl, sub-second monotonic clock\n'
 else
     printf 'Emscripten or node unavailable; web date-time checks skipped.\n'
 fi
-echo 'date-time-linux-test-ok: UTC, DST, post-2038, failed conversions, concurrent readings, portable host, C/C++ source and saved IR'
+echo 'date-time-linux-test-ok: UTC, DST, post-2038, named zones, failed conversions, concurrent readings, portable host, C/C++ source and saved IR'

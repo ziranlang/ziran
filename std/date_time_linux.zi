@@ -19,6 +19,14 @@ libc :: #system_library "libc";
     ClockValue :: struct { seconds: isize; nanoseconds: isize; }
 }
 ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
+SetEnvironmentRaw :: (name: *u8, value: *u8, overwrite: s32) -> s32 #foreign libc "setenv";
+UnsetEnvironmentRaw :: (name: *u8) -> s32 #foreign libc "unsetenv";
+GetEnvironmentRaw :: (name: *u8) -> *u8 #foreign libc "getenv";
+TimeZoneSetRaw :: () #foreign libc "tzset";
+AccessRaw :: (path: *u8, mode: s32) -> s32 #foreign libc "access";
+#if #defined(PLATFORM_WEB) {
+    #import "web"
+}
 
 TimeFields :: struct {
     second: s32
@@ -100,3 +108,163 @@ UtcAt :: (seconds: s64) -> LocalDateTime {
 }
 
 LocalNow :: () -> LocalDateTime { return LocalAt(UnixNow()) }
+
+#scope_file
+// An IANA name such as "Asia/Tokyo" or "UTC": letters, digits, '/', '_',
+// '-' and '+', never a path that leaves the zone database.
+ZoneNameValid :: (zone: string) -> bool {
+    if zone.count == 0 || zone.count > 63 || zone[0] == cast(u8)47 {
+        return false
+    }
+    index: s64 = 0
+    while index < zone.count {
+        byte := zone[index]
+        letter := byte >= cast(u8)65 && byte <= cast(u8)90 || byte >= cast(u8)97 && byte <= cast(u8)122
+        digit := byte >= cast(u8)48 && byte <= cast(u8)57
+        if !letter && !digit && byte != cast(u8)47 && byte != cast(u8)95 && byte != cast(u8)45 && byte != cast(u8)43 {
+            return false
+        }
+        index += 1
+    }
+    return true
+}
+
+// Copies text and a NUL into output; false when it does not fit.
+CopyName :: (text: string, output: []u8) -> bool {
+    if text.count + 1 > output.count {
+        return false
+    }
+    index: s64 = 0
+    while index < text.count {
+        output[index] = text[index]
+        index += 1
+    }
+    output[text.count] = cast(u8)0
+    return true
+}
+
+#if #defined(PLATFORM_WEB) {
+    // "GMT", "GMT+05:30" or "GMT-03:00" from Intl's longOffset name.
+    ParseOffsetName :: (text: string) -> ZoneOffset {
+        result: ZoneOffset
+        if text == "GMT" || text == "UTC" {
+            result.valid = true
+            return result
+        }
+        if text.count != 9 || text[0:3] != "GMT" && text[0:3] != "UTC" {
+            return result
+        }
+        sign: s32 = ifx text[3] == cast(u8)45 then -1 else 1
+        hours := cast(s32)(text[4] - cast(u8)48) * 10 + cast(s32)(text[5] - cast(u8)48)
+        minutes := cast(s32)(text[7] - cast(u8)48) * 10 + cast(s32)(text[8] - cast(u8)48)
+        if text[3] != cast(u8)43 && text[3] != cast(u8)45 || text[6] != cast(u8)58 || hours > 18 || minutes > 59 {
+            return result
+        }
+        result.seconds = sign * (hours * 3600 + minutes * 60)
+        result.valid = true
+        return result
+    }
+
+    // The browser's time zone data, through Intl.DateTimeFormat.
+    WebZoneOffsetAt :: (zone: string, seconds: s64) -> ZoneOffset {
+        result: ZoneOffset
+        mark := WebScope()
+        intl := WebGetObject(WebGlobal, WebName("Intl"))
+        options := WebNewObject()
+        WebSet(options, WebName("timeZone"), WebText(zone))
+        WebSet(options, WebName("timeZoneName"), WebText("longOffset"))
+        format := WebNew2(WebGetObject(intl, WebName("DateTimeFormat")), WebText("en-US"), WebObject(options))
+        if format != 0 && !WebFailed() {
+            date := WebNew1(WebGetObject(WebGlobal, WebName("Date")), WebNumber(cast(float64)seconds * 1000.0))
+            parts := WebAsObject(WebCall1(format, WebName("formatToParts"), WebObject(date)))
+            count := cast(s32)WebGetNumber(parts, WebName("length"))
+            index: s32 = 0
+            while index < count && !WebFailed() {
+                part := WebAsObject(WebAt(parts, index))
+                kind: [32]u8
+                length := WebCopyString(WebAsObject(WebGet(part, WebName("type"))), kind[:])
+                if length > 0 && TextView(kind[0:length]) == "timeZoneName" {
+                    value: [32]u8
+                    used := WebCopyString(WebAsObject(WebGet(part, WebName("value"))), value[:])
+                    if used > 0 && used < 32 {
+                        result = ParseOffsetName(TextView(value[0:used]))
+                    }
+                    break
+                }
+                index += 1
+            }
+        }
+        WebEnd(mark)
+        return result
+    }
+}
+
+#scope_export
+// The UTC offset of an IANA time zone, such as "Asia/Tokyo", at seconds
+// since the epoch. Native builds switch libc's TZ for the reading and
+// restore it; web builds ask the browser's Intl. valid is false for a zone
+// the system does not know.
+#program_export
+ZoneOffsetAt :: (zone: string, seconds: s64) -> ZoneOffset {
+    if !ZoneNameValid(zone) {
+        return ZoneOffset.{}
+    }
+    #if #defined(PLATFORM_WEB) {
+        return WebZoneOffsetAt(zone, seconds)
+    }
+    #if #defined(PLATFORM_WEB) == false {
+        name: [80]u8
+        if !CopyName(zone, name[:]) {
+            return ZoneOffset.{}
+        }
+        // glibc falls back to UTC for a missing zone; refuse it instead.
+        #if #defined(ANDROID_BUILD) == false && #defined(ANDROID) == false {
+            database: [32]u8
+            path: [128]u8
+            unused CopyName("/usr/share/zoneinfo", database[:])
+            if AccessRaw(*database[0], 0) == 0 {
+                unused CopyName("/usr/share/zoneinfo/", path[:])
+                index: s64 = 0
+                while index < zone.count {
+                    path[20 + index] = zone[index]
+                    index += 1
+                }
+                path[20 + zone.count] = cast(u8)0
+                if AccessRaw(*path[0], 0) != 0 {
+                    return ZoneOffset.{}
+                }
+            }
+        }
+        variable: [4]u8
+        unused CopyName("TZ", variable[:])
+        previous: [256]u8
+        had_previous := false
+        old := GetEnvironmentRaw(*variable[0])
+        if old != null {
+            length: s32 = 0
+            while length < 255 && old[length] != cast(u8)0 {
+                previous[length] = old[length]
+                length += 1
+            }
+            previous[length] = cast(u8)0
+            had_previous = true
+        }
+        unused SetEnvironmentRaw(*variable[0], *name[0], 1)
+        TimeZoneSetRaw()
+        fields: TimeFields
+        valid := false
+        offset: s64 = 0
+        value := cast(isize)seconds
+        if cast(s64)value == seconds && LocalTimeRaw(*value, *fields) != null {
+            offset = cast(s64)fields.utc_offset
+            valid = true
+        }
+        if had_previous {
+            unused SetEnvironmentRaw(*variable[0], *previous[0], 1)
+        } else {
+            unused UnsetEnvironmentRaw(*variable[0])
+        }
+        TimeZoneSetRaw()
+        return ZoneOffset.{.seconds = cast(s32)offset, .valid = valid}
+    }
+}

@@ -1,14 +1,23 @@
 #import "date_time_types"
 
 // time_t and long are the size of a pointer on Linux and Android, so 32-bit
-// on armeabi-v7a; 64-bit fields read the clock as garbage there. Keep
-// libc's struct tm layout private and copy each reentrant reading.
+// on armeabi-v7a; 64-bit fields read the clock as garbage there. Emscripten
+// differs: its time_t is 64-bit on wasm32 while long stays 32-bit, and a
+// 32-bit time() binding traps there. Keep libc's struct tm layout private
+// and copy each reentrant reading.
 #scope_file
 libc :: #system_library "libc";
-TimeRaw :: (result: *isize) -> isize #foreign libc "time";
-LocalTimeRaw :: (seconds: *isize, fields: *TimeFields) -> *TimeFields #foreign libc "localtime_r";
-UtcTimeRaw :: (seconds: *isize, fields: *TimeFields) -> *TimeFields #foreign libc "gmtime_r";
-ClockValue :: struct { seconds: isize; nanoseconds: isize; }
+#if #defined(PLATFORM_WEB) {
+    TimeRaw :: (result: *s64) -> s64 #foreign libc "time";
+    LocalTimeRaw :: (seconds: *s64, fields: *TimeFields) -> *TimeFields #foreign libc "localtime_r";
+    UtcTimeRaw :: (seconds: *s64, fields: *TimeFields) -> *TimeFields #foreign libc "gmtime_r";
+    ClockValue :: struct { seconds: s64; nanoseconds: s32; padding: s32; }
+} else {
+    TimeRaw :: (result: *isize) -> isize #foreign libc "time";
+    LocalTimeRaw :: (seconds: *isize, fields: *TimeFields) -> *TimeFields #foreign libc "localtime_r";
+    UtcTimeRaw :: (seconds: *isize, fields: *TimeFields) -> *TimeFields #foreign libc "gmtime_r";
+    ClockValue :: struct { seconds: isize; nanoseconds: isize; }
+}
 ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
 
 TimeFields :: struct {
@@ -59,23 +68,35 @@ UnixMilliseconds :: () -> s64 {
 #program_export
 LocalAt :: (seconds: s64) -> LocalDateTime {
     fields: TimeFields
-    value := cast(isize)seconds
-    // A 32-bit time_t cannot name every second.
-    if cast(s64)value != seconds {
-        return LocalDateTime.{}
+    #if #defined(PLATFORM_WEB) {
+        wide := seconds
+        return Reading(LocalTimeRaw(*wide, *fields))
     }
-    return Reading(LocalTimeRaw(*value, *fields))
+    #if #defined(PLATFORM_WEB) == false {
+        value := cast(isize)seconds
+        // A 32-bit time_t cannot name every second.
+        if cast(s64)value != seconds {
+            return LocalDateTime.{}
+        }
+        return Reading(LocalTimeRaw(*value, *fields))
+    }
 }
 
 #program_export
 UtcAt :: (seconds: s64) -> LocalDateTime {
     fields: TimeFields
-    value := cast(isize)seconds
-    // A 32-bit time_t cannot name every second.
-    if cast(s64)value != seconds {
-        return LocalDateTime.{}
+    #if #defined(PLATFORM_WEB) {
+        wide := seconds
+        return Reading(UtcTimeRaw(*wide, *fields))
     }
-    return Reading(UtcTimeRaw(*value, *fields))
+    #if #defined(PLATFORM_WEB) == false {
+        value := cast(isize)seconds
+        // A 32-bit time_t cannot name every second.
+        if cast(s64)value != seconds {
+            return LocalDateTime.{}
+        }
+        return Reading(UtcTimeRaw(*value, *fields))
+    }
 }
 
 LocalNow :: () -> LocalDateTime { return LocalAt(UnixNow()) }

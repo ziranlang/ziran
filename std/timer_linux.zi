@@ -4,10 +4,20 @@ libc :: #system_library "libc";
 
 // struct timespec: time_t seconds and long nanoseconds. Both are the size
 // of a pointer on Linux and Android, so 32-bit on armeabi-v7a; 64-bit fields
-// read the clock as garbage there.
-ClockValue :: struct {
-    seconds: isize
-    nanoseconds: isize
+// read the clock as garbage there. Emscripten's time_t is 64-bit on wasm32
+// while long stays 32-bit, so its timespec is 64-bit seconds, 32-bit
+// nanoseconds and padding.
+#if #defined(PLATFORM_WEB) {
+    ClockValue :: struct {
+        seconds: s64
+        nanoseconds: s32
+        padding: s32
+    }
+} else {
+    ClockValue :: struct {
+        seconds: isize
+        nanoseconds: isize
+    }
 }
 
 ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
@@ -22,8 +32,8 @@ MonotonicNanoseconds :: () -> s64 {
     if ClockGetTimeRaw(1, *value) != 0 { return -1 }
     seconds := cast(s64)value.seconds; nanoseconds := cast(s64)value.nanoseconds
     if seconds < 0 || nanoseconds < 0 || nanoseconds > 999999999 ||
-       seconds > 9223372036 ||
-       (seconds == 9223372036 && nanoseconds > 854775807) { return -1 }
+    seconds > 9223372036 ||
+    (seconds == 9223372036 && nanoseconds > 854775807) { return -1 }
     return seconds * 1000000000 + nanoseconds
 }
 
@@ -44,8 +54,14 @@ MonotonicMilliseconds :: () -> s64 {
 MakeClockValue :: (milliseconds: s64) -> ClockValue {
     value: ClockValue
     if milliseconds < 0 { return value }
-    value.seconds = cast(isize)(milliseconds / 1000)
-    value.nanoseconds = cast(isize)((milliseconds % 1000) * 1000000)
+    #if #defined(PLATFORM_WEB) {
+        value.seconds = milliseconds / 1000
+        value.nanoseconds = cast(s32)((milliseconds % 1000) * 1000000)
+    }
+    #if #defined(PLATFORM_WEB) == false {
+        value.seconds = cast(isize)(milliseconds / 1000)
+        value.nanoseconds = cast(isize)((milliseconds % 1000) * 1000000)
+    }
     return value
 }
 

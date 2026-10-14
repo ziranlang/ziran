@@ -10,3 +10,9 @@ LocalDateTime :: struct {
     second: s32
     valid: bool
 }
+
+// A time zone's offset from UTC in seconds at one moment, east positive.
+ZoneOffset :: struct {
+    seconds: s32
+    valid: bool
+}

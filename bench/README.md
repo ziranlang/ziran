@@ -1,5 +1,31 @@
 # Runtime and compiler benchmarks
 
+## CPU-selected assembly
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/cpu_features.py \
+  --out build/benchmarks/cpu-features
+```
+
+This dependent xorshift/popcount workload supplies x86_64 `popcnt` and AArch64
+`simd` assembly loops with an optimized portable Ziran population count. The
+harness compares CPU selection, forced Ziran fallback, handwritten C with CPU
+selection, and handwritten C fallback. Each input is checked against a Python
+integer/bit-count oracle, including negative and zero iteration counts. The
+small case also runs in the VM. Source and saved IR must emit identical C and
+bundles. The metadata records whether the host has the requested feature;
+native runs can legitimately select their portable implementation.
+
+The default large input is twenty million iterations to reduce startup's share
+of runtime. Loop assembly and optimized C can have different scheduling, so
+these numbers do not isolate instruction cost or establish a language ranking.
+Results retain commands, source/tool/artifact hashes, warmups, shuffled runtime
+order, CPU time, peak RSS and raw samples. Timings include process startup and
+the GNU/BusyBox time launcher when available. They measure one host with warm
+caches and no CPU isolation; cross-compilation is not hardware performance
+evidence. Reuse the stable output directory after preserving required receipts
+and removing inactive outputs.
+
 ## Bundle startup and real-package checks
 
 `bench/vm_startup.py` compares two preserved compiler/runtime builds. Before

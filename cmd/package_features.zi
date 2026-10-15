@@ -369,8 +369,8 @@ Features :: (arguments: []string) -> s32 {
         },
     ]
     assembly_targets: [7]PkgTargetSupport = .[
-        .{target = "c", status = "supported", limit = "GNU extended assembly with architecture selection; runtime CPU feature dispatch is not implemented."},
-        .{target = "cpp", status = "supported", limit = "GNU extended assembly with architecture selection; runtime CPU feature dispatch is not implemented."},
+        .{target = "c", status = "supported", limit = "GNU extended assembly with architecture selection and isolated CPU-feature variants on x86 and Linux/Android AArch64; unsupported platforms use the portable body."},
+        .{target = "cpp", status = "supported", limit = "GNU extended assembly with architecture selection and isolated CPU-feature variants on x86 and Linux/Android AArch64; unsupported platforms use the portable body."},
         .{target = "go", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
         .{target = "rust", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
         .{target = "py", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
@@ -380,12 +380,12 @@ Features :: (arguments: []string) -> s32 {
     assembly_feature: PkgFeature
     assembly_feature.id = "native.assembly"
     assembly_feature.status = "implemented"
-    assembly_feature.syntax = "Function :: (parameters) -> Result #asm(\"architecture\", \"template\", \"outputs\", \"inputs\", \"clobbers\", \"options\") { portable body }"
-    assembly_feature.limits = "Function variants require a portable body, named scalar/pointer parameters, and scalar/pointer or flat record results. At most 30 input/output operands; output constraints begin with = and read/write values use tied inputs. Generic procedures, statement blocks, asm goto, naked functions and standalone assembler files are not yet supported. Native assembly/fallback equivalence remains the author's obligation."
-    assembly_feature.accepted_example = "Increment :: (value: s64) -> s64 #asm(\"x86_64\", \"leaq 1(%[value]), %[out]\", \"=r\", \"r\", \"\", \"\") { return value + 1 }\n#program_export\nAnswer :: () -> s64 { return Increment(41) }\n"
+    assembly_feature.syntax = "Function :: (parameters) -> Result #asm(\"architecture[+feature...]\", \"template\", \"outputs\", \"inputs\", \"clobbers\", \"options\") { portable body }"
+    assembly_feature.limits = "Function variants require a portable body, named scalar/pointer parameters, and scalar/pointer or flat record results. At most 30 input/output operands; output constraints begin with = and read/write values use tied inputs. CPU feature selection is supported on x86 GCC/Clang GNU-ABI drivers and Linux/Android AArch64; unsupported platforms use the checked body. Required features are combined with + and variants are tried in source order; duplicate/shadowed variants are rejected. Generic procedures, statement blocks, asm goto, naked functions and standalone assembler files are not yet supported. Native assembly/fallback equivalence remains the author's obligation."
+    assembly_feature.accepted_example = "Count :: (value: u64) -> s64 #asm(\"x86_64+popcnt\", \"popcnt %[value], %[out]\", \"=r\", \"r\", \"cc\", \"\") {\n    bits := value\n    total: s64\n    while bits != 0 { total += cast(s64)(bits & 1); bits >>= 1 }\n    return total\n}\n#program_export\nAnswer :: () -> s64 { return Count(4398046511103) }\n"
     assembly_feature.rejected_example = "Wrong :: (value: s64) -> s64 #asm(\"x86_64\", \"\", \"=r\", \"\", \"\", \"\") { return value }\n"
     assembly_feature.rejection = "Input and output constraint counts must match parameters and results."
-    assembly_feature.evidence = "tests/assembly.sh\nbench/assembly.py\ncheck.assembly\n"
+    assembly_feature.evidence = "tests/assembly.sh\ntests/assembly_features.sh\nbench/assembly.py\nbench/cpu_features.py\ncheck.assembly\n"
     assembly_feature.targets = assembly_targets
     features: [16]PkgFeature = .[
         base_features[0], law_feature, contracts[0], contracts[1], contracts[2],

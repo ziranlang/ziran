@@ -1305,6 +1305,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
                                m, restab, restab_count});
         BodySymbols symbols = {m, restab, restab_count};
         EmitSlotWrappers(c, m, fn, ZIR_CPP, resolve_body_symbol, &symbols);
+        EmitAssemblyHelpers(c, m, fn, ZIR_CPP, cret, buffers->cargs);
         int cpp_main = strcmp(cname, "main") == 0;
         if(cpp_main)
             fputs("}\n", c);
@@ -1314,9 +1315,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         else
             fprintf(c, "[[maybe_unused]] static %s\n%s(%s)\n{\n",
                     cret[0] ? cret : "void", cname, buffers->cargs);
-        int assembly = EmitAssembly(c, m, fn, ZIR_CPP, cret);
+        EmitAssembly(c, m, fn, ZIR_CPP, cret);
         lower_body(c, m, restab, restab_count, fn);
-        if(assembly) fputs("#endif\n", c);
         if(NativeMainReturnsStatus(fn))
             fputs("    return 0;\n", c);
         fprintf(c, "}\n");

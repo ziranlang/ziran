@@ -3,8 +3,10 @@
 #include "zir.h"
 
 typedef enum ZirTarget { ZIR_C, ZIR_CPP, ZIR_GO } ZirTarget;
-/* Opens architecture alternatives; caller emits the portable body and #endif. */
-int EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *function,
+void EmitAssemblyHelpers(FILE *out, const ZirModule *module, const ZirFunction *function,
+                         ZirTarget target, const char *result_type, const char *args);
+/* Emits guarded native returns before the ordinary portable body. */
+void EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *function,
                  ZirTarget target, const char *result_type);
 /* Resolve target symbol spelling and call ABI. Input contains identifiers and
  * captured argument names only, never a source expression to reinterpret. */

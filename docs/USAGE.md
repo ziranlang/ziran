@@ -44,17 +44,52 @@ for register lifetimes, early clobbers, matching constraints, flags and memory.
 Architecture names are `x86_64`, `x86`, `aarch64`, `arm`, `riscv64`, `riscv32`,
 `powerpc64`, `powerpc`, `s390x`, and `loongarch64`. Selection uses the native
 compiler's target macros, so cross-compilation selects the destination
-architecture. This does not detect optional CPU extensions at runtime: use
-only instructions guaranteed by the selected build target. Assembly and the
-fallback must implement the same behavior; checking the fallback does not
-prove their equivalence. These variants do not yet provide inline statement
+architecture. Append required CPU features with `+`, for example
+`"x86_64+popcnt"`, `"x86_64+avx2+bmi2"`, or `"aarch64+crc32"`.
+
+```zi
+Count :: (value: u64) -> s64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=r", "r", "cc", "") {
+    bits := value
+    total: s64
+    while bits != 0 { total += cast(s64)(bits & 1); bits >>= 1 }
+    return total
+}
+```
+
+Feature variants use isolated functions compiled for the requested ISA. The
+ordinary caller keeps the build's baseline ISA, checks CPU availability once,
+and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers
+use the compiler's CPU detection; Linux/Android AArch64 uses the kernel's
+hardware-capability information. Other platforms or unavailable capabilities
+use the next eligible variant or the checked Ziran body. `ZIRAN_NO_ASM` forces
+the portable body. Build the caller for the oldest CPU you intend to support;
+globally enabling `-march=native` or extra ISA options can also affect its
+ordinary generated code.
+
+x86 and x86_64 features are `popcnt`, `sse2`, `ssse3`, `sse4.1`, `sse4.2`,
+`avx`, `avx2`, `avx512f`, `bmi`, `bmi2`, `lzcnt`, `fma`, `aes`, and `pclmul`.
+AArch64 features are `aes`, `crc32`, `pmull`, `sha2`, `atomics`, and `simd`.
+Other architecture/feature combinations are rejected. Feature combinations
+require every listed feature. Variants are considered in source order; put
+more demanding variants first and an architecture-only variant last. Duplicate
+or shadowed variants are rejected. Baseline variants must use instructions
+guaranteed by the selected build target. See
+[GCC CPU detection](https://gcc.gnu.org/onlinedocs/gcc/x86-Built-in-Functions.html),
+[function target attributes](https://clang.llvm.org/docs/AttributeReference.html#target),
+and [ARM64 hardware capabilities](https://www.kernel.org/doc/html/latest/arch/arm64/elf_hwcaps.html).
+
+Assembly and the fallback must implement the same behavior; checking the
+fallback does not prove their equivalence. These variants do not yet provide inline statement
 blocks, `asm goto`, naked functions, standalone assembler files, or native
 assembly emission from Go/Rust. Saved IR preserves the variants; `.zib`
 executes only portable code. Rebuild older IR/bundles with the current compiler.
 
 Run `tests/assembly.sh build/bin/ziran` for source/saved IR execution and
-rejection checks. `bench/assembly.py` measures this path against its forced
-fallback and handwritten C/Go with independent result validation. Use assembly
+rejection checks, and `tests/assembly_features.sh` for CPU selection,
+concurrent calls, unavailable features and isolated helpers. `bench/assembly.py`
+measures baseline assembly against its forced fallback and handwritten C/Go;
+`bench/cpu_features.py` measures CPU-selected loop kernels against an optimized
+Ziran body and handwritten C, with independent result validation. Use assembly
 where measurements or access to a specific instruction justify it; compilers
 already recognize many byte swaps and arithmetic patterns.
 

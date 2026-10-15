@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const createPlayground = require('../site/assets/playground-runtime.js');
+const createPlayground = require(process.env.ZIRAN_PLAYGROUND_RUNTIME || '../site/assets/playground-runtime.js');
 
 async function main() {
   let output = [], diagnostics = [], stages = [];
@@ -30,6 +30,17 @@ async function main() {
     assert.deepEqual(result.stages, ['check', 'build', 'run']);
   }
   assert.equal(run('Answer :: () -> s64 { return 9007199254740993; }').output, '9007199254740993');
+  for (const [type, value] of [['s8', '-128'], ['s16', '-32768'], ['s32', '-2147483648'],
+      ['s64', '-9223372036854775808'], ['u8', '255'], ['u16', '65535'],
+      ['u32', '4294967295'], ['u64', '18446744073709551615']]) {
+    const result = run(`Answer :: () -> ${type} { return ${value}; }`);
+    assert.equal(result.status, 0, type + ': ' + result.diagnostics);
+    assert.equal(result.output, value, type);
+  }
+  assert.equal(run('Answer :: () -> u64 { return (cast(u64)1 << 63) | cast(u64)123; }').output,
+      '9223372036854775931');
+  assert.equal(run('main :: () -> u64 { return 18446744073709551615; }').output,
+      '18446744073709551615');
   assert.equal(run('VALUE :: #run 1099511627776;\nAnswer :: () -> s64 { return VALUE; }').output, '1099511627776');
   assert.equal(run('main :: () { print("自然\\n"); }').output, '自然');
   assert.equal(run('main :: () { print("%\\n", 3.14159); }').output, '3.14159');

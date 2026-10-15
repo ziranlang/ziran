@@ -87,6 +87,24 @@ and removing inactive outputs.
 
 ## Bundle startup and real-package checks
 
+For the public embedding API, compare one checked `BundleOpen` followed by
+independent `BundleInstantiate`/run/close operations:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/bundle_instances.py \
+  --before-dir build/bundle-runtime/before --out build/benchmarks/bundle-instances
+```
+
+The preserved directory contains `zi2zib` and `libziran.a`. Scalar, 256-member
+enum and 64-module fixtures use independent Python integer oracles. Both
+compilers must produce identical bundle bytes. Nine interleaved process samples
+per version follow a process warmup; each process measures 49 fresh instances
+after an instance warmup. The receipt separates load, instantiation, execution
+and close CPU/wall times, and first-instance costs. Small phases include clock
+overhead; whole-process wall time includes startup. These synthetic results on
+one shared host do not establish general execution speed or memory savings.
+The raw-IR runner below always verifies a caller-owned program on instance open.
+
 `bench/enum_values.py` generates enum-heavy fixtures with independent integer
 sum oracles, verifies source/saved bundle identity, and runs the comparison
 below. For example:

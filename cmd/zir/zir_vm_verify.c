@@ -1,4 +1,5 @@
 #include "zir_vm_internal.h"
+#include "zir_scalar.h"
 
 /* Set when the last parse_parameters or verify_sequence failed on one of
  * the VM's fixed limits, so the diagnostic can name the limit. */
@@ -1190,8 +1191,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
     entry = find_entry(program, entry_module, entry_function, &entry_owner);
     if(entry == NULL || entry->is_extern ||
        parse_parameters(entry_owner, entry, buffers->bindings) != 0 ||
-       (strcmp(entry->return_type, "s32") != 0 &&
-        strcmp(entry->return_type, "s64") != 0 &&
+       (ScalarWidth(entry->return_type) == 0 &&
         strcmp(entry->return_type, "bool") != 0 &&
         strcmp(entry->return_type, "void") != 0)) {
         Diagnostic(Span("<bundle>", 1, 1), "zib.entry",

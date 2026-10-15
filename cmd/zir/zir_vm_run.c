@@ -1758,11 +1758,9 @@ free_runtime_buffers(Vm *vm)
 }
 
 VmInstance *
-VmInstanceOpen(const ZirProgram *program, const char *entry_module,
-               const char *entry_function, VmHostCall host, void *context)
+VmInstanceOpenVerified(const ZirProgram *program, const ZirModule *module,
+                       const ZirFunction *entry, VmHostCall host, void *context)
 {
-    if(!VmVerify(program, entry_module, entry_function))
-        return NULL;
     VmInstance *instance = calloc(1, sizeof(*instance));
     if(instance == NULL)
         return NULL;
@@ -1770,14 +1768,25 @@ VmInstanceOpen(const ZirProgram *program, const char *entry_module,
     instance->vm.host = host;
     instance->vm.host_context = context;
     profile_open(&instance->vm);
-    instance->entry = find_entry(program, entry_module, entry_function,
-                                 &instance->module);
-    if(instance->entry == NULL ||
-       !initialize_globals(&instance->vm, program)) {
+    instance->entry = entry;
+    instance->module = module;
+    if(!initialize_globals(&instance->vm, program)) {
         VmInstanceClose(instance);
         return NULL;
     }
     return instance;
+}
+
+VmInstance *
+VmInstanceOpen(const ZirProgram *program, const char *entry_module,
+               const char *entry_function, VmHostCall host, void *context)
+{
+    if(!VmVerify(program, entry_module, entry_function))
+        return NULL;
+    const ZirModule *module = NULL;
+    const ZirFunction *entry = find_entry(program, entry_module, entry_function,
+                                         &module);
+    return VmInstanceOpenVerified(program, module, entry, host, context);
 }
 
 int
@@ -1806,7 +1815,7 @@ VmInstanceRun(VmInstance *instance, long long *result, int *has_result)
     if(vm->profile != NULL &&
        profile_clock() - vm->profile->last_report >= (uint64_t)CLOCKS_PER_SEC)
         profile_report(vm, 0);
-    *result = value.integer;
+    *result = signed64(integer_bits(value));
     *has_result = strcmp(instance->entry->return_type, "void") != 0;
     if(vm->failed) {
         if(vm->max_steps > 0 && vm->steps > vm->max_steps)

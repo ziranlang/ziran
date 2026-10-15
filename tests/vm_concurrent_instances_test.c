@@ -10,6 +10,7 @@
 enum { WORKERS = 8, INSERTIONS = 600, RUNS = 60 };
 static pthread_barrier_t ready;
 static const ZirProgram *program;
+static Bundle *bundle;
 static const ZirModule empty_module = {0};
 static char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
 
@@ -18,6 +19,7 @@ typedef struct Worker {
     const char *shared;
     const ZirParameters *parameters;
     VmInstance *instance;
+    BundleInstance *bundled;
 } Worker;
 
 static void *run_worker(void *context)
@@ -66,28 +68,40 @@ static void *run_worker(void *context)
         ProfileEnd("concurrent_probe_phase", started);
     }
     pthread_barrier_wait(&ready);
-    if(program == NULL) return NULL;
+    if(program == NULL && bundle == NULL) return NULL;
+    /* Opaque bundles also instantiate on a fresh worker, where no portable
+     * verification has populated thread-local scratch. */
+    if(bundle != NULL && worker->bundled == NULL) {
+        worker->bundled = BundleInstantiate(bundle, NULL, 0);
+        assert(worker->bundled != NULL);
+    }
     VmInstance *instance = worker->instance;
-    assert(instance != NULL);
+    assert(instance != NULL || worker->bundled != NULL);
     for(unsigned index = 0; index < RUNS; index++) {
         long long answer = 0;
         int present = 0;
-        assert(VmInstanceRun(instance, &answer, &present));
+        assert(worker->bundled != NULL ?
+            BundleInstanceRun(worker->bundled, &answer, &present) :
+            VmInstanceRun(instance, &answer, &present));
         assert(present && answer == (long long)index + 42);
     }
-    VmInstanceClose(instance);
+    if(worker->bundled != NULL) BundleInstanceClose(worker->bundled);
+    else VmInstanceClose(instance);
     /* Rejected verification must also release its scratch before this worker
      * exits; there is no later instance close to clean it up. */
-    assert(!VmVerify(program, module, "absent_leaf_entry"));
+    if(program != NULL) assert(!VmVerify(program, module, "absent_leaf_entry"));
     return NULL;
 }
 
 int main(int argc, char **argv)
 {
-    assert(argc == 2);
+    assert(argc == 2 || (argc == 3 && strcmp(argv[2], "--bundle") == 0));
     ZibLawTable laws = {0};
     ZirProgram *loaded = NULL;
-    if(strcmp(argv[1], "--metadata-only") != 0) {
+    if(argc == 3) {
+        bundle = BundleOpen(argv[1]);
+        assert(bundle != NULL);
+    } else if(strcmp(argv[1], "--metadata-only") != 0) {
         FILE *input = fopen(argv[1], "rb");
         assert(input != NULL);
         loaded = BundleRead(input, argv[1], module, sizeof(module), entry,
@@ -105,6 +119,11 @@ int main(int argc, char **argv)
             workers[i].instance = VmInstanceOpen(program, module, entry, NULL, NULL);
             assert(workers[i].instance != NULL);
         }
+    if(bundle != NULL)
+        for(unsigned i = 0; i < WORKERS; i += 2) {
+            workers[i].bundled = BundleInstantiate(bundle, NULL, 0);
+            assert(workers[i].bundled != NULL);
+        }
     assert(pthread_barrier_init(&ready, NULL, WORKERS) == 0);
     for(unsigned index = 0; index < WORKERS; index++) {
         workers[index].index = index;
@@ -118,6 +137,7 @@ int main(int argc, char **argv)
     pthread_barrier_destroy(&ready);
     ZibLawTableFree(&laws);
     if(loaded != NULL) ProgramFree(loaded);
+    if(bundle != NULL) BundleClose(bundle);
     puts("Concurrent immutable metadata growth and independent portable VM state passed");
     return 0;
 }

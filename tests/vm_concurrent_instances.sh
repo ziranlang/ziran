@@ -29,6 +29,7 @@ for form in source saved; do
     "$ziran" bundle --root "$root" --entry vm_concurrent_instances_test:Next \
         -o "$work/$form.zib" "$input"
     "$work/test" "$work/$form.zib"
+    "$work/test" "$work/$form.zib" --bundle
     rm -f "$work/$form-profile.jsonl"
     ZIRAN_PROFILE="$work/$form-profile.jsonl" "$work/test" "$work/$form.zib"
     python3 - "$work/$form-profile.jsonl" <<'PY'

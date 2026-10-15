@@ -96,7 +96,8 @@ const unsigned char *BundleAssetData(const Bundle *bundle, size_t index);
 size_t BundleAssetSize(const Bundle *bundle, size_t index);
 
 /* Every required capability must have exactly one binding before execution.
- * Integer/bool entry results are returned in result; void sets has_result=0. */
+ * Integer/bool entry results are returned in result; void sets has_result=0.
+ * For u64, cast result to uint64_t to recover all 64 unsigned bits. */
 int BundleRun(const Bundle *bundle, const HostBinding *bindings,
               size_t binding_count, long long *result, int *has_result);
 
@@ -112,6 +113,9 @@ const char *BundleLawWaiverName(const Bundle *bundle, size_t index);
 const char *BundleLawWaiverReason(const Bundle *bundle, size_t index);
 
 /* An instance preserves module globals across runs of the bundle entry.
+ * The bundle's immutable code is verified once when opened; instantiation
+ * validates bindings and initializes independent state without rechecking IR.
+ * Separate instances may execute concurrently over the same live Bundle.
  * Keep the Bundle and any binding contexts alive until the instance closes.
  * Binding names and the binding array are copied during instantiation.
  * A runtime failure makes the instance unusable. */

@@ -30,6 +30,7 @@ int RunSource(void)
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
     const char *entry = NULL;
+    int unsigned_result = 0;
     long long value;
     int has_result, status = 1;
 
@@ -59,10 +60,13 @@ int RunSource(void)
             const char *name = module->functions[f].name;
             if(strcmp(name, "main") == 0) {
                 entry = "main";
+                unsigned_result = module->functions[f].return_type[0] == 'u';
                 break;
             }
-            if(strcmp(name, "Answer") == 0)
+            if(strcmp(name, "Answer") == 0) {
                 entry = "Answer";
+                unsigned_result = module->functions[f].return_type[0] == 'u';
+            }
         }
     }
     if(entry == NULL) {
@@ -81,8 +85,12 @@ int RunSource(void)
     if(!VmRunBounded(linked, "playground", entry, NULL, NULL, 1000000,
                      &value, &has_result))
         goto done;
-    if(has_result)
-        printf("%lld\n", value);
+    if(has_result) {
+        if(unsigned_result)
+            printf("%llu\n", (unsigned long long)value);
+        else
+            printf("%lld\n", value);
+    }
     status = 0;
 done:
     fflush(NULL);

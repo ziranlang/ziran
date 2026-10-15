@@ -29,6 +29,12 @@ VmInstance *VmInstanceOpen(const ZirProgram *program,
                            const char *entry_module,
                            const char *entry_function,
                            VmHostCall host, void *context);
+/* Internal opaque-bundle path only: the final immutable program, entry and
+ * owner must already have passed VmVerify together. Raw IR uses Open above. */
+VmInstance *VmInstanceOpenVerified(const ZirProgram *program,
+                                  const ZirModule *module,
+                                  const ZirFunction *entry,
+                                  VmHostCall host, void *context);
 int VmInstanceRun(VmInstance *instance, long long *result, int *has_result);
 /* Bounds later runs to MAX_STEPS statements; zero removes the bound. */
 void VmInstanceLimitSteps(VmInstance *instance, int max_steps);

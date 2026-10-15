@@ -73,5 +73,6 @@ ZirProgram *BundleReadInContext(FILE *in, const char *path,
                           int *own_module_count);
 typedef struct Bundle Bundle;
 const ZirProgram *BundleProgram(const Bundle *bundle);
+const ZirFunction *BundleEntry(const Bundle *bundle);
 
 #endif

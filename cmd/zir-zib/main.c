@@ -341,8 +341,12 @@ run_command(int argc, char **argv)
 #endif
     if(!ran_on_thread)
         run_job(&job);
-    if(job.ok && job.has_result)
-        printf("%lld\n", job.result);
+    if(job.ok && job.has_result) {
+        if(BundleEntry(job.bundle)->return_type[0] == 'u')
+            printf("%llu\n", (unsigned long long)job.result);
+        else
+            printf("%lld\n", job.result);
+    }
     BundleClose(job.bundle);
     return job.ok ? 0 : 1;
 }

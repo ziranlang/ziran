@@ -12,8 +12,8 @@
 
 struct Bundle {
     ZirProgram *program;
-    char entry_module[ZIR_NAME_MAX];
-    char entry_function[ZIR_NAME_MAX];
+    const ZirModule *entry_owner;
+    const ZirFunction *entry;
     ZibLawTable laws;
     ZibAssets assets;
     int own_module_count;
@@ -28,6 +28,12 @@ const ZirProgram *
 BundleProgram(const Bundle *bundle)
 {
     return bundle != NULL ? bundle->program : NULL;
+}
+
+const ZirFunction *
+BundleEntry(const Bundle *bundle)
+{
+    return bundle != NULL ? bundle->entry : NULL;
 }
 
 static int
@@ -135,6 +141,7 @@ static Bundle *
 open_bundle_stream(FILE *file, const char *name,
                    Bundle *const *libraries, size_t count)
 {
+    char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
     Bundle *bundle = calloc(1, sizeof(*bundle));
     if(bundle == NULL)
         return NULL;
@@ -160,20 +167,29 @@ open_bundle_stream(FILE *file, const char *name,
         bundle->libraries[bundle->library_count++] = libraries[i];
         programs[i] = libraries[i]->program;
     }
-    bundle->program = BundleReadInContext(file, name, bundle->entry_module,
-                                 sizeof(bundle->entry_module),
-                                 bundle->entry_function,
-                                 sizeof(bundle->entry_function),
+    bundle->program = BundleReadInContext(file, name, entry_module,
+                                 sizeof(entry_module), entry_function,
+                                 sizeof(entry_function),
                                  &bundle->laws, &bundle->assets, programs,
                                  count, &bundle->own_module_count);
     bundle->own_asset_count = bundle->assets.count;
-    if(bundle->program == NULL ||
-       !VmVerify(bundle->program, bundle->entry_module,
-                 bundle->entry_function)) {
+    if(bundle->program == NULL || !share_library_modules(bundle) ||
+       !share_library_assets(bundle) ||
+       !VmVerify(bundle->program, entry_module, entry_function)) {
         BundleClose(bundle);
         return NULL;
     }
-    if(!share_library_modules(bundle) || !share_library_assets(bundle)) {
+    for(int m = 0; m < bundle->program->module_count; m++) {
+        const ZirModule *module = &bundle->program->modules[m];
+        if(strcmp(module->name, entry_module) != 0)
+            continue;
+        for(int f = 0; f < module->function_count; f++)
+            if(strcmp(module->functions[f].name, entry_function) == 0) {
+                bundle->entry_owner = module;
+                bundle->entry = &module->functions[f];
+            }
+    }
+    if(bundle->entry == NULL) {
         BundleClose(bundle);
         return NULL;
     }
@@ -407,9 +423,8 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
         }
     }
     instance->set.bindings = instance->owned_bindings;
-    instance->vm = VmInstanceOpen(bundle->program, bundle->entry_module,
-                                   bundle->entry_function,
-                                   dispatch, &instance->set);
+    instance->vm = VmInstanceOpenVerified(bundle->program, bundle->entry_owner,
+                                           bundle->entry, dispatch, &instance->set);
     if(instance->vm == NULL) {
         BundleInstanceClose(instance);
         return NULL;

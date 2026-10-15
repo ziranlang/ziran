@@ -9,7 +9,11 @@ See [Implementation status](IMPLEMENTATION_STATUS.md) for the remaining work.
 loads explicit inputs and their extensionless imports, then links reachable
 modules. `zi2zib run FILE` validates and executes
 zero-argument integer, bool, or void entry functions on a portable interpreter.
-Called functions can use the IR scalar types `s32`, `s64`, `u8`, `u32`, `u64`,
+Integer entries support `s8`, `s16`, `s32`, `s64`, `u8`, `u16`, `u32`, and `u64`;
+the command prints unsigned results over their full range. C hosts recover a
+`u64` entry result by casting the returned `long long` to `uint64_t`.
+Pointer-sized `isize` and `usize` remain outside the portable execution subset.
+Called functions can use these integer types,
 `bool`, `float32`, and `float64`, plus
 immutable `string` values, enums, and plain records with scalar, enum, string,
 or nested record fields. Strings support UTF-8 literals, byte length and
@@ -24,7 +28,7 @@ or `-`; other constant expressions remain outside this subset. The bundle is
 `ZIB` plus a zero byte, a little-endian version, length-prefixed entry module
 and function names, a host capability count and its required module/function
 names, and a
-length-prefixed version 48 `.zir` payload. Named law and waiver tables precede
+length-prefixed version 57 `.zir` payload. Named law and waiver tables precede
 that payload; each law includes its method, declared domain, concrete case
 count, counterexample, and waiver state. The loader rechecks embedded theorem
 certificates and compares the outer tables against the checked IR. Verification
@@ -90,6 +94,11 @@ across `BundleInstanceRun` calls. Checked runtime global initializers run once
 when an instance opens, after imported modules initialize. Native pointer
 casts and callbacks across the host boundary remain unsupported; required
 capabilities must use the portable signatures described above.
+
+Opening a bundle verifies its final linked code, including shared libraries.
+Each fresh instance validates its host bindings and creates independent globals;
+it reuses verification of the immutable bundle. Separate instances can execute
+concurrently while the bundle and their binding contexts remain alive.
 
 Local slices may borrow fixed arrays or other slices, cross ordinary Ziran
 function calls, return views of permitted backing storage, and read or write

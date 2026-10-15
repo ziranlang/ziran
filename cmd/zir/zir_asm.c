@@ -797,6 +797,16 @@ block_helper_name(const ZirModule *module, const ZirFunction *fn, ZirTarget targ
     }
 }
 
+/* Register-only scalar outputs can use the native return register. Memory
+ * constraints retain the caller's actual storage, including pointer aliases. */
+static int
+block_returns_register(const BlockBindings *bindings)
+{
+    return bindings->outputs == 1 &&
+        (!strcmp(bindings->items[0].constraint, "=r") ||
+         !strcmp(bindings->items[0].constraint, "=&r"));
+}
+
 static void
 block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
                     const Assembly *assembly, const BlockBindings *bindings, int helper)
@@ -812,7 +822,8 @@ block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
             const BlockBinding *binding = &bindings->items[position];
             if(i) fputs(", ", out);
             fprintf(out, "[%s] ", binding->alias); assembly_string(out, binding->constraint);
-            if(helper) fprintf(out, " (%sziran_operand_%d)", direction ? "" : "*", position);
+            if(helper && !direction && block_returns_register(bindings)) fputs(" (ziran_result)", out);
+            else if(helper) fprintf(out, " (%sziran_operand_%d)", direction ? "" : "*", position);
             else {
                 char native[ZIR_NAME_MAX * 4];
                 TargetBindingName(fn, target, binding->name, native, sizeof(native));
@@ -883,17 +894,24 @@ EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
                     fputs(assembly.architecture == ASM_AARCH64 ? cpu_features[i].aarch64 : cpu_features[i].x86, out);
                     first = 0;
                 }
-                fprintf(out, "\"))) static void\n%s(", name);
-                for(int i = 0; i < bindings.outputs + bindings.inputs; i++) {
+                char returned[ZIR_NAME_MAX * 4] = "void";
+                int first_argument = block_returns_register(&bindings);
+                if(first_argument)
+                    block_native_type(module, block_binding_type(fn, statement, bindings.items[0].name),
+                                      target, returned, sizeof(returned), st->span);
+                fprintf(out, "\"))) static %s\n%s(", returned, name);
+                for(int i = first_argument; i < bindings.outputs + bindings.inputs; i++) {
                     const char *type = block_binding_type(fn, statement, bindings.items[i].name);
                     char native[ZIR_NAME_MAX * 4];
                     block_native_type(module, type, target, native, sizeof(native), st->span);
-                    fprintf(out, "%s%s%sziran_operand_%d", i ? ", " : "", native,
+                    fprintf(out, "%s%s%sziran_operand_%d", i > first_argument ? ", " : "", native,
                             i < bindings.outputs ? " *" : " ", i);
                 }
-                if(!bindings.outputs && !bindings.inputs) fputs("void", out);
+                if(first_argument == bindings.outputs + bindings.inputs) fputs("void", out);
                 fputs(")\n{\n", out);
+                if(first_argument) fprintf(out, "    %s ziran_result;\n", returned);
                 block_assembly_body(out, fn, target, &assembly, &bindings, 1);
+                if(first_argument) fputs("    return ziran_result;\n", out);
                 fputs("}\n#endif\n", out);
             }
             variant++;
@@ -962,11 +980,18 @@ EmitAssemblyBlock(FILE *out, const ZirModule *module, const ZirFunction *fn,
         if(assembly.features) {
             char helper[ZIR_NAME_MAX];
             block_helper_name(module, fn, target, statement, variant, helper, sizeof(helper));
-            fprintf(out, "            %s(", helper);
-            for(int i = 0; i < bindings.outputs + bindings.inputs; i++) {
+            int first_argument = block_returns_register(&bindings);
+            fputs("            ", out);
+            if(first_argument) {
+                char name[ZIR_NAME_MAX * 4];
+                TargetBindingName(fn, target, bindings.items[0].name, name, sizeof(name));
+                fprintf(out, "%s = ", name);
+            }
+            fprintf(out, "%s(", helper);
+            for(int i = first_argument; i < bindings.outputs + bindings.inputs; i++) {
                 char name[ZIR_NAME_MAX * 4];
                 TargetBindingName(fn, target, bindings.items[i].name, name, sizeof(name));
-                fprintf(out, "%s%s%s", i ? ", " : "", i < bindings.outputs ? "&" : "", name);
+                fprintf(out, "%s%s%s", i > first_argument ? ", " : "", i < bindings.outputs ? "&" : "", name);
             }
             fputs(");\n", out);
         } else block_assembly_body(out, fn, target, &assembly, &bindings, 0);

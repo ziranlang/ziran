@@ -122,7 +122,8 @@ pass a pointer when assembly needs to access other storage, and declare the
 memory and register clobbers required by the GNU contract.
 
 Architecture-only blocks emit inline assembly. CPU-feature blocks use isolated
-helpers that receive output addresses and input values. Selection is cached
+helpers that receive input values and return a single `=r`/`=&r` output directly;
+other or multiple outputs use each binding's actual address. Selection is cached
 atomically per block. Their portable body is always checked, runs on unsupported
 targets or with `ZIRAN_NO_ASM`, and must fall through to the following statement.
 It may contain local loops and their loop control, but cannot return or break

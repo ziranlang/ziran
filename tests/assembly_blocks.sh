@@ -33,7 +33,7 @@ Count :: (value: u64) -> s64 {
 #program_export
 Add :: (value: s64) -> s64 {
     total: s64 = 7
-    #asm("x86_64", "addq %[value], %[total]", "=r:total", "0:old=total;r:value", "cc", "") {
+    #asm("x86_64+popcnt", "addq %[value], %[total]", "=r:total", "0:old=total;r:value", "cc", "") #asm("x86_64", "addq %[value], %[total]", "=r:total", "0:old=total;r:value", "cc", "") {
         total += value
     }
     #asm("x86_64", "addq $1, %[total]", "=r:total", "0:old=total", "cc", "") { total += 1 }
@@ -73,6 +73,16 @@ Pick :: () -> s64 {
     return result
 }
 #program_export
+Memory :: (value: s64) -> s64 {
+    result: s64
+    alias := *result
+    #asm("x86_64+popcnt", "movq %[value], %[out]\n\tmovq (%[alias]), %%rax\n\taddq %%rax, %[out]", "=m:out=result", "r:value;r:alias", "rax;cc;memory", "volatile") {
+        result = value
+        result += alias.*
+    }
+    return result
+}
+#program_export
 Pointer :: (value: *Cell) -> *Cell {
     result: *Cell
     #asm("x86_64+popcnt", "movq %[value], %[result]", "=r:result", "r:value", "", "") #asm("aarch64+simd", "mov %[result], %[value]", "=r:result", "r:value", "", "") { result = value }
@@ -86,6 +96,7 @@ Answer :: () -> s64 {
     if value != 1 { return 2 }
     cell: Cell
     if Pointer(*cell) != *cell { return 3 }
+    if Pair(21, 7) != 42 || Memory(21) != 42 { return 4 }
     return Count(4398046511103)
 }
 ZI
@@ -122,6 +133,7 @@ int main(void) {
         assert(Increment(value)==value+1 && Add(value)==value+8);
         assert(Count(state)==count(state));
         assert(Pair(value,7)==value*2);
+        assert(Memory(value)==value*2);
         assert(Double((double)i*0.5)==i);
         Store(&value);assert(value==(int64_t)(state&INT64_C(0x7fffffff))+1);
     }

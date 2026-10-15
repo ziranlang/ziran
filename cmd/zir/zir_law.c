@@ -1445,6 +1445,28 @@ check_parallel_region(const ZirProgram *program, const ZirModule *module,
                        "#parallel regions cannot nest");
             return 0;
         }
+        if(StatementHasAssembly(st) && is_body) {
+            const char *names[30], *types[30];
+            int outputs = 0;
+            int operands = AssemblyBlockOperands(fn, s, names, types, 30, &outputs);
+            if(operands < 0) return 0;
+            for(int operand = 0; operand < operands; operand++) {
+                if(operand < outputs &&
+                   !region_declares(fn, scan, close + 1, names[operand])) {
+                    Diagnostic(st->span, "parallel.memory",
+                               "#parallel assembly outputs need an iteration-local binding: %s",
+                               names[operand]);
+                    return 0;
+                }
+                if(fn->stmts[while_index].is_gpu &&
+                   gpu_type_holds_pointer(module, types[operand], 0)) {
+                    Diagnostic(st->span, "gpu.pointer",
+                               "#parallel_gpu assembly operands cannot hold pointers: %s",
+                               names[operand]);
+                    return 0;
+                }
+            }
+        }
         if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 && is_body) {
             if(!destination_identifier(fn, st->lhs_root, name, sizeof(name),
                                        &through_pointer)) {

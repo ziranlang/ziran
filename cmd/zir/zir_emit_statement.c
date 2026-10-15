@@ -147,6 +147,27 @@ parallel_region_captures(const ZirModule *module, const ZirFunction *fn,
             declared_count++;
         }
     }
+    for(int i = region->body_begin; i < region->body_end; i++) {
+        if(!StatementHasAssembly(&fn->stmts[i])) continue;
+        const char *names[30], *types[30];
+        int count = AssemblyBlockOperands(fn, i, names, types, 30, NULL);
+        if(count < 0) exit(1);
+        for(int operand = 0; operand < count; operand++) {
+            const char *name = names[operand];
+            if(name_in_list(declared, declared_count, name) ||
+               name_in_list(region->captures, region->capture_count, name) ||
+               !strcmp(name, region->first) || !strcmp(name, region->last) ||
+               !strcmp(name, region->cursor)) continue;
+            if(region->capture_count == 16) {
+                Diagnostic(fn->stmts[i].span, "emit.parallel",
+                           "native parallel region exceeds 16 captured bindings");
+                exit(1);
+            }
+            copy_text(region->captures[region->capture_count], sizeof(region->captures[0]), name);
+            copy_text(region->capture_types[region->capture_count], sizeof(region->capture_types[0]), types[operand]);
+            region->capture_count++;
+        }
+    }
     for(int i = region->body_begin; i < region->body_end &&
         region->capture_count < 16; i++) {
         const ZirStmt *st = &fn->stmts[i];
@@ -257,8 +278,11 @@ parallel_region_dispatch_with_buffers(Emitter *e, const ParallelRegion *region, 
         parallel_region_at(e->fn, region->while_index, &full);
         parallel_region_captures(e->module, e->fn, &full);
         for(int c = 0; c < full.capture_count; c++)
-            line(e, "%s.%s = %s;", ctx, full.captures[c],
-                 full.captures[c]);
+        {
+            char captured[ZIR_NAME_MAX * 4];
+            TargetBindingName(e->fn, e->target, full.captures[c], captured, sizeof(captured));
+            line(e, "%s.capture_%s = %s;", ctx, captured, captured);
+        }
     }
     line(e, "ziran_parallel_run(%s_worker, %s.start, %s.end, &%s);",
          region->worker, ctx, ctx, ctx);
@@ -291,11 +315,38 @@ FunctionHasParallelRegions(const ZirFunction *fn)
 }
 
 static void
+parallel_capture_type(Emitter *e, const char *type, char *out, size_t size)
+{
+    int pointers = 0;
+    while(*type == '*') {
+        pointers++;
+        type = skip_ws(type + 1);
+    }
+    const char *scalar = TargetType(type, e->target);
+    if(scalar)
+        copy_text(out, size, scalar);
+    else
+        e->resolve(e->context, type, out, size);
+    size_t used = strlen(out);
+    if(used + (size_t)pointers + 1 > size) exit(1);
+    while(pointers--) out[used++] = '*';
+    out[used] = '\0';
+}
+
+static void
 emit_parallel_worker(Emitter *e, const ZirFunction *fn,
                      ParallelRegion *region, int ordinal)
 {
     char function_name[ZIR_NAME_MAX];
     char mapped[ZIR_NAME_MAX * 2];
+    char low[ZIR_NAME_MAX], high[ZIR_NAME_MAX], opaque[ZIR_NAME_MAX];
+    char context[ZIR_NAME_MAX], cursor[ZIR_NAME_MAX], binder[ZIR_NAME_MAX * 4];
+    ArrayAbiName(fn, 8000000 + ordinal * 5, low, sizeof(low));
+    ArrayAbiName(fn, 8000001 + ordinal * 5, high, sizeof(high));
+    ArrayAbiName(fn, 8000002 + ordinal * 5, opaque, sizeof(opaque));
+    ArrayAbiName(fn, 8000003 + ordinal * 5, context, sizeof(context));
+    ArrayAbiName(fn, 8000004 + ordinal * 5, cursor, sizeof(cursor));
+    TargetBindingName(fn, e->target, region->binder, binder, sizeof(binder));
     const char *scalar = TargetType("s64", e->target);
     TargetBindingName(fn, e->target, fn->name, function_name,
                       sizeof(function_name));
@@ -305,42 +356,36 @@ emit_parallel_worker(Emitter *e, const ZirFunction *fn,
     fprintf(e->out, "    int64_t start;\n    int64_t end;\n");
     for(int c = 0; c < region->capture_count; c++) {
         char type_mapped[ZIR_NAME_MAX * 2];
-        const char *cap = TargetType(region->capture_types[c], e->target);
-        if(cap != NULL)
-            copy_text(type_mapped, sizeof(type_mapped), cap);
-        else
-            e->resolve(e->context, region->capture_types[c], type_mapped,
-                       sizeof(type_mapped));
-        fprintf(e->out, "    %s %s;\n", type_mapped,
-                region->captures[c]);
+        parallel_capture_type(e, region->capture_types[c], type_mapped,
+                              sizeof(type_mapped));
+        char captured[ZIR_NAME_MAX * 4];
+        TargetBindingName(fn, e->target, region->captures[c], captured, sizeof(captured));
+        fprintf(e->out, "    %s capture_%s;\n", type_mapped, captured);
     }
     fprintf(e->out, "};\n\n");
     fprintf(e->out,
-            "static void %s_worker(int64_t low, int64_t high, "
-            "void *opaque)\n{\n", region->worker);
+            "static void %s_worker(int64_t %s, int64_t %s, "
+            "void *%s)\n{\n", region->worker, low, high, opaque);
     e->indent = 1;
-    fprintf(e->out, "    struct %s_ctx *ziran_ctx = "
-            "(struct %s_ctx *)opaque;\n", region->worker,
-            region->worker);
+    fprintf(e->out, "    struct %s_ctx *%s = "
+            "(struct %s_ctx *)%s;\n", region->worker, context,
+            region->worker, opaque);
     copy_text(mapped, sizeof(mapped), scalar ? scalar : "int64_t");
-    line(e, "%s %s = ziran_ctx->start;", mapped, region->first);
-    line(e, "%s %s = ziran_ctx->end;", mapped, region->last);
+    line(e, "%s %s = %s->start;", mapped, region->first, context);
+    line(e, "%s %s = %s->end;", mapped, region->last, context);
     for(int c = 0; c < region->capture_count; c++) {
         char type_mapped[ZIR_NAME_MAX * 2];
-        const char *cap = TargetType(region->capture_types[c], e->target);
-        if(cap != NULL)
-            copy_text(type_mapped, sizeof(type_mapped), cap);
-        else
-            e->resolve(e->context, region->capture_types[c], type_mapped,
-                       sizeof(type_mapped));
-        line(e, "%s %s = ziran_ctx->%s;", type_mapped,
-             region->captures[c], region->captures[c]);
+        parallel_capture_type(e, region->capture_types[c], type_mapped,
+                              sizeof(type_mapped));
+        char captured[ZIR_NAME_MAX * 4];
+        TargetBindingName(fn, e->target, region->captures[c], captured, sizeof(captured));
+        line(e, "%s %s = %s->capture_%s;", type_mapped, captured, context, captured);
     }
-    line(e, "for (int64_t ziran_i = low; ziran_i <= high; "
-            "ziran_i += 1) {");
+    line(e, "for (int64_t %s = %s; %s <= %s; "
+            "%s += 1) {", cursor, low, cursor, high, cursor);
     e->indent++;
-    line(e, "%s %s = ziran_i;", mapped, region->binder);
-    line(e, "%s it_index = ziran_i - %s;", mapped, region->first);
+    line(e, "%s %s = %s;", mapped, binder, cursor);
+    line(e, "%s it_index = %s - %s;", mapped, cursor, region->first);
     emit_sequence(e, region->body_begin, region->body_end);
     e->indent--;
     line(e, "}");

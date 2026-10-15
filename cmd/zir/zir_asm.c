@@ -398,6 +398,29 @@ CheckAssemblyBlock(const ZirFunction *fn, int statement,
     return variants > 0;
 }
 
+int
+AssemblyBlockOperands(const ZirFunction *fn, int statement,
+                       const char **names, const char **types, int capacity,
+                       int *outputs)
+{
+    const ZirStmt *st = &fn->stmts[statement];
+    if(outputs) *outputs = 0;
+    if(!StatementHasAssembly(st)) return 0;
+    const char *cursor = st->assembly_text;
+    Assembly assembly;
+    BlockBindings bindings = {0};
+    if(!read_assembly(&cursor, &assembly, st->span) ||
+       !block_bindings(&assembly, &bindings, st->span)) return -1;
+    int count = bindings.inputs + bindings.outputs;
+    if(count > capacity) return -1;
+    if(outputs) *outputs = bindings.outputs;
+    for(int i = 0; i < count; i++) {
+        names[i] = bindings.items[i].name;
+        types[i] = block_binding_type(fn, statement, names[i]);
+    }
+    return count;
+}
+
 static int
 assembly_outputs(const ZirModule *module, const ZirFunction *fn, AssemblyOutputs *out)
 {

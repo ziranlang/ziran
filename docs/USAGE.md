@@ -131,7 +131,12 @@ out of the assembly block. Native instructions must preserve that fallthrough,
 stack discipline and the declared side effects as well as result values;
 checking cannot prove this equivalence. Generic procedures remain unsupported. Run
 `tests/assembly_blocks.sh` for source/saved IR, native/portable, concurrent
-selection, typed operands and malformed-metadata checks.
+selection, typed operands and malformed-metadata checks. Inside a native
+`#parallel` loop, operand bindings from the enclosing scope are captured even
+when only the assembly template uses them; the portable body retains the same
+loop bindings. Assembly outputs must remain iteration-local, and GPU regions
+reject pointer operands. Native parallel regions currently support up to 16
+captured bindings.
 
 ## Build and test
 

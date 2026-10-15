@@ -89,6 +89,17 @@ Pointer :: (value: *Cell) -> *Cell {
     return result
 }
 #program_export
+Parallel :: (class: s64, low: s64, high: s64, opaque: s64, ziran_ctx: s64, ziran_i: s64, pointer: *Cell) -> s64 {
+    #parallel for 0..2 {
+        result: s64
+        #asm("x86_64+popcnt", "leaq 10(%[a], %[index]), %[result]\n\taddq %[b], %[result]\n\taddq %[c], %[result]\n\taddq %[d], %[result]\n\taddq %[e], %[result]\n\taddq %[f], %[result]\n\taddq (%[g]), %[result]", "=&r:result", "r:a=class;r:b=low;r:c=high;r:d=opaque;r:e=ziran_ctx;r:f=ziran_i;r:g=pointer;r:index=it", "cc;memory", "") #asm("aarch64+simd", "add %[result], %[a], #10\n\tadd %[result], %[result], %[index]\n\tadd %[result], %[result], %[b]\n\tadd %[result], %[result], %[c]\n\tadd %[result], %[result], %[d]\n\tadd %[result], %[result], %[e]\n\tadd %[result], %[result], %[f]\n\tldr x9, [%[g]]\n\tadd %[result], %[result], x9", "=&r:result", "r:a=class;r:b=low;r:c=high;r:d=opaque;r:e=ziran_ctx;r:f=ziran_i;r:g=pointer;r:index=it", "x9;memory", "") {
+            result = 42 + it
+        }
+        if result != 42 + it { unreachable }
+    }
+    return 42
+}
+#program_export
 Answer :: () -> s64 {
     if Increment(41) != 42 || Add(34) != 42 || Double(1.5) != 3.0 { return 1 }
     value: s64 = 0
@@ -97,6 +108,7 @@ Answer :: () -> s64 {
     cell: Cell
     if Pointer(*cell) != *cell { return 3 }
     if Pair(21, 7) != 42 || Memory(21) != 42 { return 4 }
+    if Parallel(17, 1, 2, 3, 4, 5, *cell) != 42 { return 5 }
     return Count(4398046511103)
 }
 ZI
@@ -272,4 +284,44 @@ ZI
 reject 'ordinary procedure scope' <<'ZI'
 F :: (x: $T) { #asm("x86_64", "", "", "", "", "") {} }
 ZI
+reject 'assembly outputs need an iteration-local binding' <<'ZI'
+F :: (value: s64) {
+    #parallel for 0..2 {
+        #asm("x86_64", "", "=r:value", "", "", "") {}
+    }
+}
+ZI
+reject 'assembly operands cannot hold pointers' <<'ZI'
+F :: (value: *s64) {
+    #parallel_gpu for 0..2 {
+        #asm("x86_64", "", "", "r:value", "", "") {}
+    }
+}
+ZI
+
+# The native worker's existing capture bound must produce a diagnostic,
+# rather than emitting a worker with undeclared operand references.
+python3 - "$work/limit.zi" <<'PY'
+from pathlib import Path
+import sys
+parameters=', '.join(f'arg{i}:s64' for i in range(17))
+operands=';'.join(f'r:arg{i}' for i in range(17))
+Path(sys.argv[1]).write_text(f'''F :: ({parameters}) {{
+    #parallel for 0..2 {{
+        #asm("x86_64", "", "", "{operands}", "", "") {{}}
+    }}
+}}
+''')
+PY
+"$ziran" ir --root "$work" -o "$work/limit-ir" "$work/limit.zi"
+for form in source saved; do
+    root=$work; input=$work/limit.zi
+    if test "$form" = saved; then root=$work/limit-ir; input=$root/limit.zir; fi
+    for target in c cpp; do
+        if "$ziran" build --target="$target" --root "$root" -o "$work/limit-$target" "$input" > "$work/limit.log" 2>&1; then
+            echo 'native parallel capture limit was ignored' >&2;exit 1
+        fi
+        grep -Fq 'exceeds 16 captured bindings' "$work/limit.log"
+    done
+done
 echo 'Assembly blocks preserve typed local operands, CPU selection and portable fallbacks'

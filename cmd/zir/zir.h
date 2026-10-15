@@ -553,5 +553,9 @@ const char *AssemblyBlockText(const char *header, ZirSourceSpan span);
 typedef const char *(*ZirAssemblyBinding)(void *context, const char *name);
 int CheckAssemblyBlock(const ZirFunction *function, int statement,
                        ZirAssemblyBinding binding, void *context);
+/* Checked storage references, including native-only operand uses. */
+int AssemblyBlockOperands(const ZirFunction *function, int statement,
+                           const char **names, const char **types, int capacity,
+                           int *outputs);
 
 #endif /* ZIRAN_ZIR_H */

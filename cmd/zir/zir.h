@@ -114,6 +114,7 @@ typedef struct ZirStmt {
     int is_parallel; /* `#parallel for` region; serial lowering, checked rules */
     int is_gpu; /* `#parallel_gpu for` region; pointers rejected pre-offload */
     const char *text; /* shared and immutable: assign KeepText(...) */
+    const char *assembly_text; /* optional checked #asm block variants */
     int is_else;        /* checked branch role; source text is diagnostic only */
     int loop_id;        /* checked loop identity for named control flow */
     int target_id;      /* target loop for named break/continue; zero means innermost */
@@ -539,5 +540,9 @@ int GeneratedOutputReplace(const char *temp, const char *path);
 /* Assembly variants supplement an ordinary checked, portable body. */
 const char *ExtractAssemblyModifiers(char *header, ZirSourceSpan span);
 int CheckAssembly(const ZirModule *module, const ZirFunction *function);
+const char *AssemblyBlockText(const char *header, ZirSourceSpan span);
+typedef const char *(*ZirAssemblyBinding)(void *context, const char *name);
+int CheckAssemblyBlock(const ZirFunction *function, int statement,
+                       ZirAssemblyBinding binding, void *context);
 
 #endif /* ZIRAN_ZIR_H */

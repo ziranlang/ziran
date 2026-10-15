@@ -184,6 +184,32 @@ ExtractAssemblyModifiers(char *header, ZirSourceSpan span)
 
 enum { ASSEMBLY_OPERANDS = 30 };
 
+const char *
+AssemblyBlockText(const char *header, ZirSourceSpan span)
+{
+    const char *start = skip_ws(header), *at = start;
+    int count = 0;
+    while(!strncmp(at, "#asm", 4) && !is_ident_char(at[4])) {
+        Assembly assembly;
+        if(!read_assembly(&at, &assembly, span)) return NULL;
+        count++;
+        at = skip_ws(at);
+    }
+    if(!count || *at != '{' || *skip_ws(at + 1)) {
+        assembly_error(span, "#asm block requires variants followed by a portable body");
+        return NULL;
+    }
+    size_t length = (size_t)(at - start);
+    while(length && isspace((unsigned char)start[length - 1])) length--;
+    char text[ZIR_TEXT_MAX];
+    if(length >= sizeof(text)) {
+        assembly_error(span, "#asm block variants exceed size limit");
+        return NULL;
+    }
+    memcpy(text, start, length); text[length] = 0;
+    return KeepText(text);
+}
+
 static int
 operand_list(const char *text, const char **items)
 {
@@ -220,6 +246,158 @@ operand_type(const char *type)
            strcmp(scalar, "string");
 }
 
+typedef struct BlockBinding {
+    const char *constraint, *alias, *name;
+} BlockBinding;
+
+typedef struct BlockBindings {
+    int outputs, inputs;
+    BlockBinding items[ASSEMBLY_OPERANDS];
+} BlockBindings;
+
+static int
+assembly_identifier(const char *name)
+{
+    if(!isalpha((unsigned char)*name) && *name != '_') return 0;
+    for(const char *at = name + 1; *at; at++)
+        if(!isalnum((unsigned char)*at) && *at != '_') return 0;
+    return strcmp(name, "_") != 0;
+}
+
+static int
+block_bindings(const Assembly *assembly, BlockBindings *bindings, ZirSourceSpan span)
+{
+    const char *parts[ASSEMBLY_OPERANDS];
+    int outputs = operand_list(assembly->part[2], parts);
+    int inputs = operand_list(assembly->part[3], parts);
+    if(outputs < 0 || inputs < 0 || outputs + inputs > ASSEMBLY_OPERANDS ||
+       operand_list(assembly->part[4], parts) < 0)
+        return assembly_error(span, "#asm block permits at most 30 operands separated by semicolons");
+    bindings->outputs = outputs; bindings->inputs = inputs;
+    for(int direction = 0; direction < 2; direction++) {
+        int count = operand_list(assembly->part[direction + 2], parts);
+        for(int i = 0; i < count; i++) {
+            char text[ZIR_NAME_MAX];
+            strcpy(text, parts[i]);
+            char *separator = strchr(text, ':');
+            if(separator == NULL)
+                return assembly_error(span, "#asm block operands require constraint:alias=binding (or constraint:binding)");
+            *separator++ = 0;
+            char *constraint = trim_in_place(text);
+            char *alias = trim_in_place(separator), *name = strchr(alias, '=');
+            if(name) { *name++ = 0; name = trim_in_place(name); alias = trim_in_place(alias); }
+            else name = alias;
+            if(!*constraint || !assembly_identifier(alias) || !assembly_identifier(name) ||
+               (!direction && (constraint[0] != '=' || !constraint[1])) ||
+               (direction && (strchr(constraint, '=') || strchr(constraint, '+'))))
+                return assembly_error(span, "invalid #asm block binding or constraint; use = outputs and tied inputs");
+            int position = direction ? outputs + i : i;
+            for(int previous = 0; previous < position; previous++)
+                if(!strcmp(bindings->items[previous].alias, alias))
+                    return assembly_error(span, "duplicate #asm block operand alias");
+            bindings->items[position] = (BlockBinding){KeepText(constraint), KeepName(alias), KeepName(name)};
+        }
+    }
+    return 1;
+}
+
+/* Resolve only real lexical storage. Closed scopes cannot contribute a
+ * binding, and native helpers must use the same declaration as the checker. */
+static const char *
+block_binding_type(const ZirFunction *fn, int statement, const char *name)
+{
+    int closed = 0;
+    for(int i = statement - 1; i >= 0; i--) {
+        const ZirStmt *st = &fn->stmts[i];
+        if(st->kind == ZIR_STMT_BLOCK_CLOSE) closed++;
+        else if(st->kind == ZIR_STMT_BLOCK_OPEN || st->kind == ZIR_STMT_IF ||
+                st->kind == ZIR_STMT_WHILE || st->kind == ZIR_STMT_FOR) {
+            if(closed) closed--;
+        } else if(!closed && st->kind == ZIR_STMT_DECL && !strcmp(st->name, name))
+            return st->type;
+    }
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    for(int i = 0; i < parameters->count; i++)
+        if(parameters->items[i].name && !strcmp(parameters->items[i].name, name))
+            return parameters->items[i].type;
+    return NULL;
+}
+
+int
+CheckAssemblyBlock(const ZirFunction *fn, int statement,
+                   ZirAssemblyBinding binding, void *context)
+{
+    const ZirStmt *st = &fn->stmts[statement];
+    int spelled = !strncmp(st->text, "#asm", 4) && !is_ident_char(st->text[4]);
+    if(!st->assembly_text || !*st->assembly_text)
+        return !spelled || assembly_error(st->span, "missing #asm block metadata");
+    if(st->kind != ZIR_STMT_BLOCK_OPEN || fn->is_template || fn->is_specialization)
+        return assembly_error(st->span, "#asm blocks require an ordinary procedure scope");
+    if(st->expr_root != -1 || st->lhs_root != -1 || *st->name || *st->type ||
+       *st->assignment_op || st->is_using || st->is_else || st->is_parallel || st->is_gpu)
+        return assembly_error(st->span, "invalid #asm block statement metadata");
+    const char *canonical = AssemblyBlockText(st->text, st->span);
+    if(canonical == NULL || strcmp(canonical, st->assembly_text))
+        return assembly_error(st->span, "#asm block metadata does not match its source");
+    const char *cursor = st->assembly_text;
+    int architectures_seen[ASSEMBLY_OPERANDS], variants = 0;
+    uint64_t features_seen[ASSEMBLY_OPERANDS];
+    BlockBindings first = {0};
+    while(*skip_ws(cursor)) {
+        Assembly assembly;
+        BlockBindings current = {0};
+        if(!read_assembly(&cursor, &assembly, st->span) ||
+           !block_bindings(&assembly, &current, st->span)) return 0;
+        if(variants == ASSEMBLY_OPERANDS)
+            return assembly_error(st->span, "too many #asm block variants");
+        for(int i = 0; i < variants; i++)
+            if(architectures_seen[i] == assembly.architecture &&
+               (features_seen[i] & assembly.features) == features_seen[i])
+                return assembly_error(st->span, "duplicate or shadowed #asm block variant");
+        architectures_seen[variants] = assembly.architecture;
+        features_seen[variants] = assembly.features;
+        if(!variants) first = current;
+        if(first.inputs != current.inputs || first.outputs != current.outputs)
+            return assembly_error(st->span, "#asm block variants must bind the same operands in the same order");
+        for(int i = 0; i < current.inputs + current.outputs; i++) {
+            const BlockBinding *operand = &current.items[i];
+            if(strcmp(first.items[i].alias, operand->alias) || strcmp(first.items[i].name, operand->name))
+                return assembly_error(st->span, "#asm block variants must bind the same operands in the same order");
+            const char *type = binding ? binding(context, operand->name) :
+                block_binding_type(fn, statement, operand->name);
+            if(!operand_type(type))
+                return assembly_error(st->span, "#asm block bindings must be scalar/pointer locals or parameters");
+        }
+        variants++;
+    }
+    /* Native assembly falls through. Its portable replacement must do so
+     * too; control inside a loop wholly contained in the block is fine. */
+    int depth = 1;
+    for(int i = statement + 1; i < fn->stmt_count; i++) {
+        const ZirStmt *body = &fn->stmts[i];
+        if(body->kind == ZIR_STMT_BLOCK_CLOSE && --depth == 0) break;
+        if(body->kind == ZIR_STMT_BLOCK_OPEN || body->kind == ZIR_STMT_IF ||
+           body->kind == ZIR_STMT_WHILE || body->kind == ZIR_STMT_FOR) depth++;
+        if(body->kind == ZIR_STMT_RETURN || body->kind == ZIR_STMT_UNREACHABLE)
+            return assembly_error(body->span, "#asm portable block must fall through");
+        if(body->kind == ZIR_STMT_BREAK || body->kind == ZIR_STMT_CONTINUE) {
+            int closed = 0, local_loop = 0;
+            for(int j = i - 1; j > statement; j--) {
+                const ZirStmt *scope = &fn->stmts[j];
+                if(scope->kind == ZIR_STMT_BLOCK_CLOSE) closed++;
+                else if(scope->kind == ZIR_STMT_BLOCK_OPEN || scope->kind == ZIR_STMT_IF ||
+                        scope->kind == ZIR_STMT_WHILE || scope->kind == ZIR_STMT_FOR) {
+                    if(closed) closed--;
+                    else if(scope->kind == ZIR_STMT_WHILE &&
+                            (!body->target_id || scope->loop_id == body->target_id)) { local_loop = 1; break; }
+                }
+            }
+            if(!local_loop) return assembly_error(body->span, "#asm portable block cannot leave its scope");
+        }
+    }
+    return variants > 0;
+}
+
 static int
 assembly_outputs(const ZirModule *module, const ZirFunction *fn, AssemblyOutputs *out)
 {
@@ -247,6 +425,10 @@ assembly_outputs(const ZirModule *module, const ZirFunction *fn, AssemblyOutputs
 int
 CheckAssembly(const ZirModule *module, const ZirFunction *fn)
 {
+    if(fn->is_template || fn->is_specialization)
+        for(int i = 0; i < fn->stmt_count; i++)
+            if(fn->stmts[i].assembly_text && *fn->stmts[i].assembly_text)
+                return assembly_error(fn->stmts[i].span, "#asm blocks require an ordinary procedure scope");
     if(!fn->assembly_text || !*fn->assembly_text) return 1;
     if(fn->is_extern || fn->is_template || fn->is_specialization ||
        fn->is_global_initializer)
@@ -594,4 +776,203 @@ EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarge
         fputs("    }\n#endif\n", out);
     }
     free(outputs);
+}
+
+static _Thread_local int portable_blocks;
+
+void
+EmitUsePortableAssembly(int enabled)
+{
+    portable_blocks = enabled;
+}
+
+static void
+block_helper_name(const ZirModule *module, const ZirFunction *fn, ZirTarget target,
+                  int statement, int variant, char *name, size_t size)
+{
+    int function = (int)(fn - module->functions);
+    for(int serial = 0;; serial++) {
+        snprintf(name, size, "ziran_assembly_block_%d_%d_%d_%d", function, statement, variant, serial);
+        if(!assembly_name_used(module, target, name)) return;
+    }
+}
+
+static void
+block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
+                    const Assembly *assembly, const BlockBindings *bindings, int helper)
+{
+    fputs("        __asm__", out);
+    if(*assembly->part[5]) fputs(" __volatile__", out);
+    fputc('(', out); assembly_string(out, assembly->part[1]);
+    for(int direction = 0; direction < 2; direction++) {
+        fputs("\n            : ", out);
+        int count = direction ? bindings->inputs : bindings->outputs;
+        for(int i = 0; i < count; i++) {
+            int position = direction ? bindings->outputs + i : i;
+            const BlockBinding *binding = &bindings->items[position];
+            if(i) fputs(", ", out);
+            fprintf(out, "[%s] ", binding->alias); assembly_string(out, binding->constraint);
+            if(helper) fprintf(out, " (%sziran_operand_%d)", direction ? "" : "*", position);
+            else {
+                char native[ZIR_NAME_MAX * 4];
+                TargetBindingName(fn, target, binding->name, native, sizeof(native));
+                fprintf(out, " (%s)", native);
+            }
+        }
+    }
+    const char *clobbers[ASSEMBLY_OPERANDS];
+    int count = operand_list(assembly->part[4], clobbers);
+    fputs("\n            : ", out);
+    for(int i = 0; i < count; i++) {
+        if(i) fputs(", ", out);
+        assembly_string(out, clobbers[i]);
+    }
+    fputs(");\n", out);
+}
+
+static void
+block_native_type(const ZirModule *module, const char *type, ZirTarget target,
+                  char *out, size_t size, ZirSourceSpan span)
+{
+    int pointers = 0;
+    while(type && *type == '*') { pointers++; type = skip_ws(type + 1); }
+    const char *scalar = type ? TargetType(ScalarType(type), target) : NULL;
+    if(scalar) snprintf(out, size, "%s", scalar);
+    else {
+        const ZirModule *owner = NULL;
+        const ZirType *declared = type ? FindType(module, type, &owner) : NULL;
+        if(declared == NULL) {
+            assembly_error(span, "cannot lower #asm block binding type");
+            exit(1);
+        }
+        NativeTypeName(owner, declared, out, size);
+    }
+    size_t used = strlen(out);
+    if(used + (size_t)pointers + 1 > size) exit(1);
+    while(pointers--) out[used++] = '*';
+    out[used] = 0;
+}
+
+void
+EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
+                         const ZirFunction *fn, ZirTarget target)
+{
+    for(int statement = 0; statement < fn->stmt_count; statement++) {
+        const ZirStmt *st = &fn->stmts[statement];
+        if(!st->assembly_text || !*st->assembly_text) continue;
+        if(!CheckAssemblyBlock(fn, statement, NULL, NULL)) exit(1);
+        const char *cursor = st->assembly_text;
+        int variant = 0;
+        while(*skip_ws(cursor)) {
+            Assembly assembly;
+            BlockBindings bindings = {0};
+            if(!read_assembly(&cursor, &assembly, st->span) ||
+               !block_bindings(&assembly, &bindings, st->span)) exit(1);
+            if(assembly.features) {
+                if(assembly.architecture == ASM_AARCH64)
+                    fputs("#if !defined(ZIRAN_NO_ASM) && defined(__linux__) && defined(__aarch64__)\n"
+                          "#include <sys/auxv.h>\n#include <asm/hwcap.h>\n#endif\n", out);
+                fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
+                char name[ZIR_NAME_MAX];
+                block_helper_name(module, fn, target, statement, variant, name, sizeof(name));
+                fputs("__attribute__((noinline, unused, target(\"", out);
+                int first = 1;
+                for(size_t i = 0; i < CPU_FEATURES; i++) {
+                    if(!(assembly.features & (UINT64_C(1) << i))) continue;
+                    if(!first) fputc(',', out);
+                    fputs(assembly.architecture == ASM_AARCH64 ? cpu_features[i].aarch64 : cpu_features[i].x86, out);
+                    first = 0;
+                }
+                fprintf(out, "\"))) static void\n%s(", name);
+                for(int i = 0; i < bindings.outputs + bindings.inputs; i++) {
+                    const char *type = block_binding_type(fn, statement, bindings.items[i].name);
+                    char native[ZIR_NAME_MAX * 4];
+                    block_native_type(module, type, target, native, sizeof(native), st->span);
+                    fprintf(out, "%s%s%sziran_operand_%d", i ? ", " : "", native,
+                            i < bindings.outputs ? " *" : " ", i);
+                }
+                if(!bindings.outputs && !bindings.inputs) fputs("void", out);
+                fputs(")\n{\n", out);
+                block_assembly_body(out, fn, target, &assembly, &bindings, 1);
+                fputs("}\n#endif\n", out);
+            }
+            variant++;
+        }
+    }
+}
+
+int
+EmitAssemblyBlock(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                  int statement, ZirTarget target)
+{
+    if((portable_blocks && target == ZIR_C) || (target != ZIR_C && target != ZIR_CPP)) return 0;
+    const ZirStmt *st = &fn->stmts[statement];
+    if(!st->assembly_text || !*st->assembly_text) return 0;
+    if(!CheckAssemblyBlock(fn, statement, NULL, NULL)) exit(1);
+    const char *cursor = st->assembly_text;
+    int features = 0;
+    while(*skip_ws(cursor)) {
+        Assembly assembly;
+        if(!read_assembly(&cursor, &assembly, st->span)) exit(1);
+        features |= assembly.features != 0;
+    }
+    char done[ZIR_NAME_MAX], state[ZIR_NAME_MAX], selected[ZIR_NAME_MAX];
+    ArrayAbiName(fn, 1000 + statement * 3, done, sizeof(done));
+    ArrayAbiName(fn, 1001 + statement * 3, state, sizeof(state));
+    ArrayAbiName(fn, 1002 + statement * 3, selected, sizeof(selected));
+    fprintf(out, "    {\n        int %s = 0;\n", done);
+    if(features) {
+        cursor = st->assembly_text;
+        int guards = 0;
+        while(*skip_ws(cursor)) {
+            Assembly assembly;
+            if(!read_assembly(&cursor, &assembly, st->span)) exit(1);
+            fputs(guards++ ? " || (" : "#if (", out);
+            assembly_guard(out, &assembly); fputc(')', out);
+        }
+        fprintf(out, "\n        static int %s;\n"
+                     "        int %s = __atomic_load_n(&%s, __ATOMIC_ACQUIRE);\n"
+                     "        if(%s == 0) {\n            %s = 1;\n",
+                     state, selected, state, selected, selected);
+        fputs("#if (defined(__x86_64__) || defined(__i386__)) && !defined(_MSC_VER)\n"
+              "            __builtin_cpu_init();\n#endif\n", out);
+        cursor = st->assembly_text;
+        int variant = 0;
+        while(*skip_ws(cursor)) {
+            Assembly assembly;
+            if(!read_assembly(&cursor, &assembly, st->span)) exit(1);
+            fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
+            fprintf(out, "            if(%s == 1", selected);
+            if(assembly.features) { fputs(" && (", out); assembly_predicate(out, &assembly); fputc(')', out); }
+            fprintf(out, ") %s = %d;\n#endif\n", selected, variant + 2);
+            variant++;
+        }
+        fprintf(out, "            __atomic_store_n(&%s, %s, __ATOMIC_RELEASE);\n        }\n#endif\n", state, selected);
+    }
+    cursor = st->assembly_text;
+    int variant = 0;
+    while(*skip_ws(cursor)) {
+        Assembly assembly;
+        BlockBindings bindings = {0};
+        if(!read_assembly(&cursor, &assembly, st->span) ||
+           !block_bindings(&assembly, &bindings, st->span)) exit(1);
+        fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
+        if(features) fprintf(out, "        if(%s == %d) {\n", selected, variant + 2);
+        else fprintf(out, "        if(!%s) {\n", done);
+        if(assembly.features) {
+            char helper[ZIR_NAME_MAX];
+            block_helper_name(module, fn, target, statement, variant, helper, sizeof(helper));
+            fprintf(out, "            %s(", helper);
+            for(int i = 0; i < bindings.outputs + bindings.inputs; i++) {
+                char name[ZIR_NAME_MAX * 4];
+                TargetBindingName(fn, target, bindings.items[i].name, name, sizeof(name));
+                fprintf(out, "%s%s%s", i ? ", " : "", i < bindings.outputs ? "&" : "", name);
+            }
+            fputs(");\n", out);
+        } else block_assembly_body(out, fn, target, &assembly, &bindings, 0);
+        fprintf(out, "            %s = 1;\n        }\n#endif\n", done);
+        variant++;
+    }
+    fprintf(out, "        if(!%s) {\n", done);
+    return 1;
 }

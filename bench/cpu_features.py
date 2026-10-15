@@ -69,13 +69,13 @@ def oracle(n):
     return total & MASK
 
 
-def source(small):
+def source(small, assembly_form='function'):
     modifiers = []
     for arch, template, clobbers in [('x86_64+popcnt', X86, 'cc;rcx;rdx;r8'),
                                      ('aarch64+simd', ARM, 'cc;x9;x10;x11;v0')]:
         modifiers.append('#asm('+', '.join(json.dumps(s) for s in
                          [arch, template, '=&r', 'r;r', clobbers, ''])+')')
-    return '''Count :: (value: u64) -> u64 {
+    program = '''Count :: (value: u64) -> u64 {
     bits := value - ((value >> 1) & 0x5555555555555555)
     bits = (bits & 0x3333333333333333) + ((bits >> 2) & 0x3333333333333333)
     return (((bits + (bits >> 4)) & 0x0f0f0f0f0f0f0f0f) * 0x0101010101010101) >> 56
@@ -96,7 +96,33 @@ Kernel :: (rounds: s64, seed: u64) -> u64 MODIFIERS {
 }
 #program_export
 Answer :: () -> s64 { return cast(s64)Kernel(SMALL, SEED) }
-'''.replace('MODIFIERS', ' '.join(modifiers)).replace('SMALL', str(small)).replace('SEED', str(SEED))
+'''.replace('SMALL', str(small)).replace('SEED', str(SEED))
+    if assembly_form == 'function':
+        return program.replace('MODIFIERS', ' '.join(modifiers))
+    program = program.replace('MODIFIERS', '')
+    if assembly_form == 'block':
+        modifiers = []
+        for arch, template, clobbers in [('x86_64+popcnt', X86, 'cc;rcx;rdx;r8'),
+                                         ('aarch64+simd', ARM, 'cc;x9;x10;x11;v0')]:
+            modifiers.append('#asm('+', '.join(json.dumps(s) for s in
+                [arch, template, '=&r:out=total', 'r:rounds;r:seed', clobbers, ''])+')')
+        program = program.replace('    value := seed\n    total: u64\n',
+            '    total: u64\n    '+' '.join(modifiers)+' {\n    value := seed\n')
+        return program.replace('    return total\n}\n#program_export',
+                               '    }\n    return total\n}\n#program_export', 1)
+    if assembly_form != 'operation-block':
+        raise ValueError('unknown assembly form')
+    modifiers = []
+    arm = 'fmov d0, %[value]\n\tcnt v0.8b, v0.8b\n\taddv b0, v0.8b\n\tumov %w[out], v0.b[0]'
+    for arch, template, clobbers in [('x86_64+popcnt', 'popcnt %[value], %[out]', 'cc'),
+                                     ('aarch64+simd', arm, 'v0')]:
+        modifiers.append('#asm('+', '.join(json.dumps(s) for s in
+            [arch, template, '=r:out=total', 'r:value', clobbers, ''])+')')
+    program = program.replace('Count :: (value: u64) -> u64 {\n',
+        'Count :: (value: u64) -> u64 {\n    total: u64\n    '+' '.join(modifiers)+' {\n', 1)
+    program = program.replace('    return (((bits', '    total = (((bits', 1)
+    return program.replace('}\n#program_export',
+                           '    }\n    return total\n}\n#program_export', 1)
 
 
 def main():
@@ -107,6 +133,7 @@ def main():
     parser.add_argument('--run-repetitions', type=int, default=9)
     parser.add_argument('--small', type=int, default=1000)
     parser.add_argument('--large', type=int, default=20000000)
+    parser.add_argument('--assembly-form', choices=['function', 'block', 'operation-block'], default='function')
     args = parser.parse_args()
     if min(args.small, args.compile_repetitions, args.run_repetitions) < 1 or not args.small < args.large <= 50000000:
         parser.error('positive repetitions and 0 < small < large <= 50000000 required')
@@ -133,13 +160,14 @@ def main():
         platform=platform.platform(), machine=platform.machine(),
         created_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         compiler=subprocess.check_output([cc, '--version'], text=True), measurement_launcher=launcher,
-        input=dict(seed=SEED, small=args.small, large=args.large), discarded_warmups=1,
+        input=dict(seed=SEED, small=args.small, large=args.large, assembly_form=args.assembly_form), discarded_warmups=1,
         compile_repetitions=args.compile_repetitions, run_repetitions=args.run_repetitions,
         tools={name: digest(binaries/name) for name in ['zi2zir', 'zi2c', 'zi2zib']},
         source_hashes={str(p.relative_to(ROOT)): digest(p) for directory in ['cmd', 'std', 'include']
                        for p in (ROOT/directory).rglob('*') if p.is_file() and p.suffix in ['.c', '.h', '.zi']},
         caveats=['One dependent xorshift/popcount workload; not a language ranking.',
                  'Assembly loops and compiler-optimized loops may differ; every result uses a separate Python oracle.',
+                 'Operation blocks pay cached selection and helper-call costs for each iteration; loop blocks amortize those costs.',
                  'Native timings include process startup and the measurement launcher when available.',
                  'Peak RSS is whole-process memory, not live allocations; without a launcher it can include inherited Python memory.',
                  'No CPU/frequency isolation; other host activity can affect samples.',
@@ -175,7 +203,7 @@ def main():
         for repetition in range(args.compile_repetitions + 1):
             invoke(command, 'compile', case, warmup=repetition == 0)
 
-    entry = output/'counts.zi'; entry.write_text(source(args.small))
+    entry = output/'counts.zi'; entry.write_text(source(args.small, args.assembly_form))
     repeated([binaries/'zi2zir', '--check-only', '--root', output, entry], 'Ziran check')
     repeated([binaries/'zi2zir', '--root', output, '-o', output/'ir', entry], 'Ziran save IR')
     native = []

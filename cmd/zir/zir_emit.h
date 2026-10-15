@@ -8,6 +8,13 @@ void EmitAssemblyHelpers(FILE *out, const ZirModule *module, const ZirFunction *
 /* Emits guarded native returns before the ordinary portable body. */
 void EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *function,
                  ZirTarget target, const char *result_type);
+void EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
+                              const ZirFunction *function, ZirTarget target);
+/* Opens a native block plus its conditional portable body; caller closes
+ * the two scopes when this returns nonzero. */
+int EmitAssemblyBlock(FILE *out, const ZirModule *module,
+                      const ZirFunction *function, int statement, ZirTarget target);
+void EmitUsePortableAssembly(int enabled);
 /* Resolve target symbol spelling and call ABI. Input contains identifiers and
  * captured argument names only, never a source expression to reinterpret. */
 typedef void (*ZirResolveTarget)(void *context, const char *text, char *out, size_t size);

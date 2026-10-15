@@ -17,6 +17,8 @@ typedef enum FieldKind {
     FIELD_NAME, /* const char * kept with KeepName, or KeepParameters when the
                  * limit is ZIR_TEXT_MAX; a string under that limit */
     FIELD_INTEGER,
+    FIELD_STATEMENT_KIND, /* high flag bit announces optional block metadata */
+    FIELD_ASSEMBLY_TEXT,
     FIELD_U64,
     FIELD_SPAN
 } FieldKind;
@@ -108,7 +110,8 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 56u
+#define ZIR_FORMAT_VERSION 57u
+enum { ASSEMBLY_BLOCK_FLAG = 1u << 30 };
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -129,7 +132,9 @@ static const Field import_fields[] = {
     SPAN_FIELD(ZirImport, span)
 };
 static const Field statement_fields[] = {
-    INTEGER_FIELD(ZirStmt, kind), TEXT_FIELD(ZirStmt, text),
+    {offsetof(ZirStmt, kind), sizeof(ZirStmtKind), FIELD_STATEMENT_KIND},
+    TEXT_FIELD(ZirStmt, text),
+    {offsetof(ZirStmt, assembly_text), ZIR_TEXT_MAX, FIELD_ASSEMBLY_TEXT},
     INTEGER_FIELD(ZirStmt, is_else), INTEGER_FIELD(ZirStmt, is_using),
     INTEGER_FIELD(ZirStmt, loop_id), INTEGER_FIELD(ZirStmt, target_id),
     INTEGER_FIELD(ZirStmt, for_form), INTEGER_FIELD(ZirStmt, for_step),
@@ -439,11 +444,22 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
             const char *name = *(const char *const *)value;
             if(!write_string(out, name ? name : "", fields[i].size))
                 return 0;
-        } else if(fields[i].kind == FIELD_TEXT) {
+        } else if(fields[i].kind == FIELD_TEXT || fields[i].kind == FIELD_ASSEMBLY_TEXT) {
             /* Source text has no field limit: a long literal keeps it all. */
             const char *text = *(const char *const *)value;
-            if(!write_string(out, text ? text : "", ZIR_KEPT_TEXT_MAX))
+            if(fields[i].kind == FIELD_ASSEMBLY_TEXT && (text == NULL || !*text))
+                continue;
+            size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : ZIR_KEPT_TEXT_MAX;
+            if(!write_string(out, text ? text : "", limit))
                 return 0;
+        } else if(fields[i].kind == FIELD_STATEMENT_KIND) {
+            const ZirStmt *statement = record;
+            uint32_t kind = (uint32_t)statement->kind;
+            if(statement->assembly_text && *statement->assembly_text) {
+                if(statement->kind != ZIR_STMT_BLOCK_OPEN) return 0;
+                kind |= ASSEMBLY_BLOCK_FLAG;
+            }
+            if(!write_u32(out, kind)) return 0;
         } else if(fields[i].kind == FIELD_INTEGER) {
             if(!write_u32(out, (uint32_t)*(const int *)value))
                 return 0;
@@ -460,6 +476,7 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
 static int
 read_fields(Reader *reader, void *record, const Field *fields, size_t count)
 {
+    int assembly_block = 0;
     for(size_t i = 0; i < count; i++) {
         char *value = (char *)record + fields[i].offset;
         if(fields[i].kind == FIELD_STRING) {
@@ -470,13 +487,18 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
             if(!read_string(reader, name, fields[i].size))
                 return 0;
             *(const char **)value = KeepText(name);
-        } else if(fields[i].kind == FIELD_TEXT) {
+        } else if(fields[i].kind == FIELD_TEXT || fields[i].kind == FIELD_ASSEMBLY_TEXT) {
+            if(fields[i].kind == FIELD_ASSEMBLY_TEXT && !assembly_block) {
+                *(const char **)value = "";
+                continue;
+            }
             char small[ZIR_TEXT_MAX];
             uint32_t length;
             if(!read_u32(reader, &length))
                 return 0;
-            if(length >= ZIR_KEPT_TEXT_MAX) {
-                reader->problem = "string exceeds field limit";
+            size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : ZIR_KEPT_TEXT_MAX;
+            if(length >= limit || (fields[i].kind == FIELD_ASSEMBLY_TEXT && length == 0)) {
+                reader->problem = length == 0 ? "empty assembly block metadata" : "string exceeds field limit";
                 return 0;
             }
             char *text = length < sizeof(small) ? small : malloc((size_t)length + 1);
@@ -487,6 +509,16 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
             }
             *(const char **)value = KeepText(text);
             if(text != small) free(text);
+        } else if(fields[i].kind == FIELD_STATEMENT_KIND) {
+            uint32_t kind;
+            if(!read_u32(reader, &kind)) return 0;
+            assembly_block = (kind & ASSEMBLY_BLOCK_FLAG) != 0;
+            kind &= ~(uint32_t)ASSEMBLY_BLOCK_FLAG;
+            if(assembly_block && kind != ZIR_STMT_BLOCK_OPEN) {
+                reader->problem = "assembly metadata requires a block statement";
+                return 0;
+            }
+            *(int *)value = (int)(int32_t)kind;
         } else if(fields[i].kind == FIELD_INTEGER) {
             uint32_t number;
             if(!read_u32(reader, &number))
@@ -888,6 +920,8 @@ validate_program(const ZirProgram *program)
                 if(statement->kind <= ZIR_STMT_UNKNOWN ||
                    statement->kind > ZIR_STMT_IF_CASE ||
                    statement->kind == ZIR_STMT_IF_CASE ||
+                   (statement->assembly_text && *statement->assembly_text &&
+                    statement->kind != ZIR_STMT_BLOCK_OPEN) ||
                    (statement->is_else != 0 && statement->is_else != 1) ||
                    (statement->is_using != 0 && statement->is_using != 1) ||
                    (statement->is_using &&

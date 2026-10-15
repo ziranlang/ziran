@@ -1333,6 +1333,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         BodySymbols symbols = {m, restab, restab_count};
         EmitSlotWrappers(c, m, fn, ZIR_C, resolve_body_symbol, &symbols);
         if(!c_plan9_enabled()) EmitAssemblyHelpers(c, m, fn, ZIR_C, cret, buffers->cargs);
+        if(!c_plan9_enabled()) EmitAssemblyBlockHelpers(c, m, fn, ZIR_C);
         if(fn->is_public)
             fprintf(c, "%s\n%s(%s)\n{\n", cret[0] ? cret : "void",
                     cname, buffers->cargs);

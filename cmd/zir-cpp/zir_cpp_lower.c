@@ -1306,6 +1306,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         BodySymbols symbols = {m, restab, restab_count};
         EmitSlotWrappers(c, m, fn, ZIR_CPP, resolve_body_symbol, &symbols);
         EmitAssemblyHelpers(c, m, fn, ZIR_CPP, cret, buffers->cargs);
+        EmitAssemblyBlockHelpers(c, m, fn, ZIR_CPP);
         int cpp_main = strcmp(cname, "main") == 0;
         if(cpp_main)
             fputs("}\n", c);

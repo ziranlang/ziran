@@ -166,6 +166,18 @@ check_go_method(Checker *c, ZirFunction *fn)
     return c->errors == errors_before;
 }
 
+static const char *
+assembly_block_binding(void *context, const char *name)
+{
+    Checker *c = context;
+    for(int i = c->count - 1; i >= 0; i--)
+        if(!c->bindings[i].is_using_namespace && !strcmp(c->bindings[i].name, name)) {
+            c->bindings[i].touched = 1;
+            return c->bindings[i].type;
+        }
+    return NULL;
+}
+
 static int
 check_function_with_buffers(Checker *c, ZirFunction *fn, CheckFunctionBuffers *buffers)
 {
@@ -317,6 +329,13 @@ restart:
             st->type = resolved ? KeepName(declared) : "";
         }
         st = &c->fn->stmts[i];
+        if((st->assembly_text && *st->assembly_text) ||
+           (st->text[0] == '#' && starts_word(st->text, "#asm"))) {
+            if(!CheckAssemblyBlock(fn, i, assembly_block_binding, c)) {
+                c->errors++;
+                c->failed = 1;
+            }
+        }
         if(st->kind == ZIR_STMT_ASSIGN && strcmp(st->assignment_op, "=") &&
            (!fn->from_ir || fn->is_specialization))
             compound_operator_assignment(c, st);

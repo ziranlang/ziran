@@ -18,6 +18,10 @@ SameRewrite :: (source: string, expected: string) -> bool {
 }
 
 StatementChecks :: () -> bool {
+    assembly := "#asm(\"x86_64\", \"{instruction}\", \"\", \"\", \"\", \"\") { unused value }"
+    block := SplitControlBlock(assembly)
+    if ClassifyStatement(assembly) != .BlockOpen || !block.valid || block.open ||
+    assembly[block.body_begin:block.body_end] != " unused value " { return false }
     if ClassifyStatement("}") != .BlockClose || ClassifyStatement("{") != .BlockOpen ||
     ClassifyStatement("if true {") != .If || ClassifyStatement("else {") != .If ||
     ClassifyStatement("while true {") != .While || ClassifyStatement("for x: xs {") != .For ||

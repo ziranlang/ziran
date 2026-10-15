@@ -143,6 +143,7 @@ LooksLikeLabel :: (source: string) -> bool {
 ClassifyStatement :: (source: string) -> StatementKind {
     if Byte(source, 0) == #char "}" { return .BlockClose }
     if source == "{" { return .BlockOpen }
+    if StartsWord(source, "#asm") { return .BlockOpen }
     if StartsWord(source, "if") || StartsWord(source, "else") { return .If }
     if StartsWord(source, "while") { return .While }
     if StartsWord(source, "for") { return .For }
@@ -401,7 +402,8 @@ SplitControlBlock :: (source: string) -> ControlBlock {
     while end < source.count && SourceIdentifier(source[end]) && end - control < 15 { end += 1 }
     word := source[control:end]
     if word != "if" && word != "else" && word != "while" && word != "for" &&
-    word != "defer" && word != "switch" && word != "case" && word != "guard" && word != "do" {
+    word != "defer" && word != "switch" && word != "case" && word != "guard" && word != "do" &&
+    !StartsWord(source, "#asm") {
         return result
     }
     at: s64 = 0

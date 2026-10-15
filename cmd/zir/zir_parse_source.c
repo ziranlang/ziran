@@ -1615,6 +1615,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 depth += net_block_braces(t);
             } else if(t[0] == '#' && strcmp(t, "#through") != 0 &&
                       strcmp(t, "#through;") != 0 &&
+                      !starts_word(t, "#asm") &&
                       !starts_word(t, "#parallel")) {
                 die_at(Span(buffers->rel, line_no, 1),
                        "unknown function-body directive: %s", t);

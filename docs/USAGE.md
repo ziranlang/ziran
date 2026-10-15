@@ -79,8 +79,8 @@ guaranteed by the selected build target. See
 and [ARM64 hardware capabilities](https://www.kernel.org/doc/html/latest/arch/arm64/elf_hwcaps.html).
 
 Assembly and the fallback must implement the same behavior; checking the
-fallback does not prove their equivalence. These variants do not yet provide inline statement
-blocks, `asm goto`, naked functions, standalone assembler files, or native
+fallback does not prove their equivalence. These variants do not yet provide
+`asm goto`, naked functions, standalone assembler files, or native
 assembly emission from Go/Rust. Saved IR preserves the variants; `.zib`
 executes only portable code. Rebuild older IR/bundles with the current compiler.
 
@@ -92,6 +92,45 @@ measures baseline assembly against its forced fallback and handwritten C/Go;
 Ziran body and handwritten C, with independent result validation. Use assembly
 where measurements or access to a specific instruction justify it; compilers
 already recognize many byte swaps and arithmetic patterns.
+
+### Local assembly blocks
+
+A block can read and write scalar or pointer locals and parameters inside an
+ordinary procedure. Its six strings use the same architecture, template,
+clobber and option rules. Each output/input item is `constraint:binding`, or
+`constraint:alias=binding` when the assembly operand needs a different name.
+The template refers to the alias, while the binding names existing lexical
+storage. Every variant must bind the same operands in the same order.
+
+```zi
+Answer :: () -> s64 {
+    value: s64 = 41
+    result: s64
+    #asm("x86_64", "leaq 1(%[value]), %[result]", "=r:result", "r:value", "", "") {
+        result = value + 1
+    }
+    return result
+}
+```
+
+For a read/write value, use output `"=r:total"` with an input such as
+`"0:old=total;r:value"`; the first input initializes the output register and
+`value` supplies another operand. Aliases must be distinct across all inputs
+and outputs. Multiple outputs and zero-operand blocks are supported. Bindings
+cannot be global names, constants, members, indexed expressions or aggregates;
+pass a pointer when assembly needs to access other storage, and declare the
+memory and register clobbers required by the GNU contract.
+
+Architecture-only blocks emit inline assembly. CPU-feature blocks use isolated
+helpers that receive output addresses and input values. Selection is cached
+atomically per block. Their portable body is always checked, runs on unsupported
+targets or with `ZIRAN_NO_ASM`, and must fall through to the following statement.
+It may contain local loops and their loop control, but cannot return or break
+out of the assembly block. Native instructions must preserve that fallthrough,
+stack discipline and the declared side effects as well as result values;
+checking cannot prove this equivalence. Generic procedures remain unsupported. Run
+`tests/assembly_blocks.sh` for source/saved IR, native/portable, concurrent
+selection, typed operands and malformed-metadata checks.
 
 ## Build and test
 

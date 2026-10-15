@@ -39,6 +39,13 @@ small case also runs in the VM. Source and saved IR must emit identical C and
 bundles. The metadata records whether the host has the requested feature;
 native runs can legitimately select their portable implementation.
 
+Use `--assembly-form block` for a local block around the complete loop, or
+`--assembly-form operation-block` for a local population-count block called
+in every iteration. The default remains `function`. Use separate stable
+outputs for each form. CPU-feature blocks pay selection and helper-call costs
+at each block execution; comparing both granularities shows when those costs
+outweigh a specialized instruction. A whole-loop block amortizes them.
+
 The default large input is twenty million iterations to reduce startup's share
 of runtime. Loop assembly and optimized C can have different scheduling, so
 these numbers do not isolate instruction cost or establish a language ranking.

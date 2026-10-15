@@ -1,5 +1,29 @@
 # Runtime and compiler benchmarks
 
+## Assembly and portable fallback
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/assembly.py \
+  --out build/benchmarks/assembly
+```
+
+The byte-swap recurrence compares source and saved IR with native assembly,
+forced Ziran fallback, handwritten C and Go, and the `.zib` fallback. Every
+sample is checked against a separate Python oracle; emitted source and bundles
+must agree between source and saved IR. On x86_64 the harness also checks for
+a `bswap` instruction in the native binary. The fixture includes an AArch64
+variant, but measurements prove only the recorded host's behavior.
+
+Raw samples include wall time, user/system CPU time, process peak RSS, discarded
+warmups, commands, and output. Metadata contains tool versions, compiler and
+fixture hashes, and limitations. When GNU time is available, a small launcher
+avoids counting Python's inherited high-water mark as the native program's
+memory. Metadata identifies the fallback to raw `wait4` otherwise. RSS is not
+live allocated bytes, and wall/CPU times include that launcher. Runtime order is shuffled. Go build
+timings use a warm cache after the warmup. Compile phases are separate; these
+are not end-to-end build measurements or a language ranking. Reuse the stable
+output path after preserving needed receipts and removing inactive outputs.
+
 For compiler scaling, module graphs, generic specialization, and source/saved
 IR validation, run:
 

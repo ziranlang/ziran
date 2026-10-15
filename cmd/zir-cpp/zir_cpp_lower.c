@@ -1314,7 +1314,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         else
             fprintf(c, "[[maybe_unused]] static %s\n%s(%s)\n{\n",
                     cret[0] ? cret : "void", cname, buffers->cargs);
+        int assembly = EmitAssembly(c, m, fn, ZIR_CPP, cret);
         lower_body(c, m, restab, restab_count, fn);
+        if(assembly) fputs("#endif\n", c);
         if(NativeMainReturnsStatus(fn))
             fputs("    return 0;\n", c);
         fprintf(c, "}\n");

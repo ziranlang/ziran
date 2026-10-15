@@ -838,7 +838,8 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
 {
     /* Scalars, pointers, arrays, and slices are never declared types, and
      * they are most lookups; skip searching every imported module. */
-    if(*name == '*' || *name == '[' || BuiltinTypeName(name)) {
+    if(module == NULL || name == NULL || !*name ||
+       *name == '*' || *name == '[' || BuiltinTypeName(name)) {
         if(owner)
             *owner = NULL;
         return NULL;

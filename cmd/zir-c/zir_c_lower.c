@@ -1343,7 +1343,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
          * initializer itself may use already initialized earlier globals. */
         if(c_plan9_enabled() && needs_startup && fn->exported)
             fprintf(c, "    if(%s_state == 0) %s();\n", init_name, init_name);
+        int assembly = !c_plan9_enabled() && EmitAssembly(c, m, fn, ZIR_C, cret);
         lower_body(c, m, restab, restab_count, fn);
+        if(assembly) fputs("#endif\n", c);
         if(NativeMainReturnsStatus(fn))
             fputs("    return 0;\n", c);
         fprintf(c, "}\n");

@@ -108,7 +108,7 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 55u
+#define ZIR_FORMAT_VERSION 56u
 
 static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, kind), INTEGER_FIELD(ZirImport, extern_kind),
@@ -172,7 +172,8 @@ static const Field function_fields[] = {
     STRING_FIELD(ZirFunction, overload_name),
     INTEGER_FIELD(ZirFunction, checked),
     INTEGER_FIELD(ZirFunction, uses_host), STRING_FIELD(ZirFunction, extern_target),
-    STRING_FIELD(ZirFunction, extern_symbol), SPAN_FIELD(ZirFunction, span)
+    STRING_FIELD(ZirFunction, extern_symbol), SPAN_FIELD(ZirFunction, span),
+    TEXT_FIELD(ZirFunction, assembly_text)
 };
 static const Field global_fields[] = {
     STRING_FIELD(ZirGlobal, name), STRING_FIELD(ZirGlobal, type),

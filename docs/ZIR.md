@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 55 now exists for
+This is the target contract. An experimental binary version 56 now exists for
 the tested C/C++/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -27,6 +27,13 @@ serialization. Earlier internal `i32`/`i64`/`f32`/`f64` names are not accepted.
 It has no widget kind, `#ui` flag, DOM attribute cache, KSS node, or implicit
 Kryon module. A Kryon widget call has the same representation as a call to an
 unrelated imported function with the same type shape.
+
+Version 56 retains optional architecture-specific `#asm` variants alongside
+each function's checked portable body. C/C++ may select a matching variant;
+other targets and the portable VM execute the checked body. The variants are
+explicit native metadata, never recovered from diagnostic statement text.
+Earlier binary versions are rejected; regenerate saved IR and bundles from
+source. See [assembly](USAGE.md#assembly-with-a-portable-body).
 
 `.zir` is the compiler interchange and cache format. Portable distribution
 uses a linked `.zib`, not an unlinked `.zir`. See [Bundle format](ZIB.md).

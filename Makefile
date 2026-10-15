@@ -79,7 +79,7 @@ STATEMENT_C := $(BUILD_DIR)/compiler-statement
 STATEMENT_READY := $(STATEMENT_C)/.generated
 endif
 override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C)
-FRONTEND := cmd/zir/zir.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
+FRONTEND := cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
     cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
     cmd/zir/zir_proof_kernel.c \
@@ -135,8 +135,11 @@ install-user: all
 quote = '$(subst ','"'"',$(1))'
 $(BUILD_DIR)/.compiler-flags: force-compiler-flags
 	@mkdir -p $(BUILD_DIR)
+# Dependency files name their exact object target. Changing BUILD_DIR's
+# spelling (absolute versus relative) must rebuild before trusting those files.
 	@printf '%s\n' $(call quote,$(CC)) $(call quote,$(CFLAGS)) \
-		$(call quote,$(FRAMEFLAGS)) $(call quote,$(OBJCOPY)) > $@.tmp
+		$(call quote,$(FRAMEFLAGS)) $(call quote,$(OBJCOPY)) \
+		$(call quote,$(BUILD_DIR)) > $@.tmp
 	@if cmp -s $@.tmp $@; then rm $@.tmp; else mv $@.tmp $@; fi
 
 force-compiler-flags:

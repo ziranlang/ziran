@@ -177,6 +177,7 @@ check_function_with_buffers(Checker *c, ZirFunction *fn, CheckFunctionBuffers *b
     if(contains_vec(c->module, fn->return_type, 0) && fn->is_extern)
         error(c, fn->span, "Vec cannot cross an extern signature", fn->name);
     select_lookup_file(c->module, fn->span);
+    if(!CheckAssembly(c->module, fn)) return 0;
     const ZirType *return_slot = FindType(c->module, c->fn->return_type, NULL);
     if(return_slot != NULL && return_slot->is_record_template) {
         Diagnostic(c->fn->span, "check.specialize",

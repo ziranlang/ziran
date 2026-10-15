@@ -155,6 +155,7 @@ typedef struct ZirFunction {
     uint64_t using_parameters; /* template parameter namespace flags */
     char return_type[ZIR_NAME_MAX];
     int must_use; /* #must requires callers to keep the result */
+    const char *assembly_text; /* optional #asm variants; immutable kept text */
     int is_conversion; /* `Name :: #as (source: Type) -> Result` */
     char go_method[ZIR_NAME_MAX]; /* native receiver adapter; first parameter is the receiver */
     int go_method_results; /* flatten the result record into Go multiple results */
@@ -528,5 +529,9 @@ int GeneratedOutputPrune(const char *out_dir, const char *marker);
  * keeps its timestamp and build tools recompile only what changed. */
 FILE *GeneratedOutputOpen(const char *path, char *temp, size_t size);
 int GeneratedOutputReplace(const char *temp, const char *path);
+
+/* Assembly variants supplement an ordinary checked, portable body. */
+const char *ExtractAssemblyModifiers(char *header, ZirSourceSpan span);
+int CheckAssembly(const ZirModule *module, const ZirFunction *function);
 
 #endif /* ZIRAN_ZIR_H */

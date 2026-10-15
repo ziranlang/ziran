@@ -635,7 +635,8 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                 return 0;
             }
             if(buffers->c.module->functions[f].is_template) {
-                if(!check_template_declaration(&buffers->c,
+                if(!CheckAssembly(buffers->c.module, &buffers->c.module->functions[f]) ||
+                   !check_template_declaration(&buffers->c,
                         &buffers->c.module->functions[f])) {
                     free(buffers->c.bindings);
                     free(buffers->c.specializations);

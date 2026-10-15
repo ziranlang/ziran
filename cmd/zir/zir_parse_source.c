@@ -589,6 +589,12 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             rename_local_procedures(t, SOURCE_LINE_MAX * 4, local_names, local_count,
                                     Span(buffers->rel, line_no, 1));
         char *string_source = NULL;
+        const char *assembly_text = NULL;
+        if(mode == TOP && looks_like_function_header(t))
+            assembly_text = ExtractAssemblyModifiers(t, Span(buffers->rel, line_no, 1));
+        if(assembly_text && contains_source_directive(t, "#foreign"))
+            die_at(Span(buffers->rel, line_no, 1),
+                   "#asm requires an ordinary procedure with a portable body");
         if(mode != FUNCTION &&
            contains_source_directive(t, "#procedure_name") &&
            !(mode == TOP && looks_like_function_header(t)))
@@ -1106,6 +1112,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 }
                 fn = ModuleAddFunction(module, name, buffers->args, ret, 0,
                                           Span(buffers->rel, line_no, 1));
+                fn->assembly_text = assembly_text;
                 copy_text(fn->overload_name, sizeof(fn->overload_name), overload_name);
                 if(conversion) {
                     int count = *skip_ws(buffers->args) ?

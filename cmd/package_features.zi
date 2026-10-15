@@ -368,9 +368,28 @@ Features :: (arguments: []string) -> s32 {
             targets = contract_targets
         },
     ]
-    features: [15]PkgFeature = .[
+    assembly_targets: [7]PkgTargetSupport = .[
+        .{target = "c", status = "supported", limit = "GNU extended assembly with architecture selection; runtime CPU feature dispatch is not implemented."},
+        .{target = "cpp", status = "supported", limit = "GNU extended assembly with architecture selection; runtime CPU feature dispatch is not implemented."},
+        .{target = "go", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
+        .{target = "rust", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
+        .{target = "py", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
+        .{target = "zib", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
+        .{target = "plan9-c", status = "experimental", limit = "Executes the checked portable body; no native assembly emission."},
+    ]
+    assembly_feature: PkgFeature
+    assembly_feature.id = "native.assembly"
+    assembly_feature.status = "implemented"
+    assembly_feature.syntax = "Function :: (parameters) -> Result #asm(\"architecture\", \"template\", \"outputs\", \"inputs\", \"clobbers\", \"options\") { portable body }"
+    assembly_feature.limits = "Function variants require a portable body, named scalar/pointer parameters, and scalar/pointer or flat record results. At most 30 input/output operands; output constraints begin with = and read/write values use tied inputs. Generic procedures, statement blocks, asm goto, naked functions and standalone assembler files are not yet supported. Native assembly/fallback equivalence remains the author's obligation."
+    assembly_feature.accepted_example = "Increment :: (value: s64) -> s64 #asm(\"x86_64\", \"leaq 1(%[value]), %[out]\", \"=r\", \"r\", \"\", \"\") { return value + 1 }\n#program_export\nAnswer :: () -> s64 { return Increment(41) }\n"
+    assembly_feature.rejected_example = "Wrong :: (value: s64) -> s64 #asm(\"x86_64\", \"\", \"=r\", \"\", \"\", \"\") { return value }\n"
+    assembly_feature.rejection = "Input and output constraint counts must match parameters and results."
+    assembly_feature.evidence = "tests/assembly.sh\nbench/assembly.py\ncheck.assembly\n"
+    assembly_feature.targets = assembly_targets
+    features: [16]PkgFeature = .[
         base_features[0], law_feature, contracts[0], contracts[1], contracts[2],
-        output_feature, contracts[3], base_features[1], widening_feature,
+        output_feature, contracts[3], base_features[1], assembly_feature, widening_feature,
         base_features[2], contracts[4], base_features[3], base_features[4],
         contracts[5], contracts[6]
     ]

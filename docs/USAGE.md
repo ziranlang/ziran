@@ -2,6 +2,62 @@
 
 [Back to the README](../README.md) · [Implementation status](IMPLEMENTATION_STATUS.md)
 
+## Assembly with a portable body
+
+An ordinary procedure can supply architecture-specific assembly and a required
+Ziran implementation. C/C++ output selects assembly when built by GCC or Clang
+for that architecture. Other compilers, Plan 9 C, Go, Rust, Python, and `.zib`
+use the checked Ziran body. Define `ZIRAN_NO_ASM` when compiling generated C/C++
+to force the same fallback for differential testing.
+
+```zi
+Increment :: (value: s64) -> s64 #asm("x86_64", "leaq 1(%[value]), %[out]", "=r", "r", "", "") #asm("aarch64", "add %[out], %[value], #1", "=r", "r", "", "") {
+    return value + 1
+}
+```
+
+Each `#asm` takes exactly six literal strings: architecture, assembly template,
+output constraints, input constraints, clobbers, and options. Use semicolons to
+separate constraints and clobbers; commas remain available for the assembler's
+constraint alternatives. Options are `""` or `"volatile"`. Templates use GNU
+extended assembly syntax, including named operands, register modifiers,
+multiple instructions, escaped newlines, and assembler directives. Templates
+are quoted as data in generated source. The native compiler and assembler
+validate instruction syntax and machine-specific constraints.
+
+Input operands follow parameter order and use the parameter names. Parameters
+must be scalars or pointers. A scalar or pointer result has operand name
+`out`; a record result has one operand named `out_FIELD` per declared field,
+in field order. Result fields must be named scalars or pointers. Void results
+have no output constraints. Outputs require `=` constraints, including
+early-clobber `=&r`; use an input constraint such as `"0"` to initialize a tied
+read/write output. Output and input operand names must be distinct. The limit
+is 30 combined input/output operands. Generic procedures are not yet supported.
+
+For example, a two-field record can use output constraints `"=a;=d"` to capture
+two registers. A pointer parameter can give assembly access to memory; declare
+`"memory"` in the clobbers when accessing memory beyond named operands, and
+use `"volatile"` when the operation must survive dead-result elimination.
+Follow the [GNU extended assembly contract](https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html)
+for register lifetimes, early clobbers, matching constraints, flags and memory.
+
+Architecture names are `x86_64`, `x86`, `aarch64`, `arm`, `riscv64`, `riscv32`,
+`powerpc64`, `powerpc`, `s390x`, and `loongarch64`. Selection uses the native
+compiler's target macros, so cross-compilation selects the destination
+architecture. This does not detect optional CPU extensions at runtime: use
+only instructions guaranteed by the selected build target. Assembly and the
+fallback must implement the same behavior; checking the fallback does not
+prove their equivalence. These variants do not yet provide inline statement
+blocks, `asm goto`, naked functions, standalone assembler files, or native
+assembly emission from Go/Rust. Saved IR preserves the variants; `.zib`
+executes only portable code. Rebuild older IR/bundles with the current compiler.
+
+Run `tests/assembly.sh build/bin/ziran` for source/saved IR execution and
+rejection checks. `bench/assembly.py` measures this path against its forced
+fallback and handwritten C/Go with independent result validation. Use assembly
+where measurements or access to a specific instruction justify it; compilers
+already recognize many byte swaps and arithmetic patterns.
+
 ## Build and test
 
 Run `make` to build the current toolchain and `make check` for its language,

@@ -909,21 +909,6 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
     return found;
 }
 
-static int
-direct_record_field(const ZirType *record, const char *name,
-                    ZirTypeField *found)
-{
-    size_t offset = 0;
-    ZirTypeField field;
-    int status;
-    while((status = TypeNextField(record, &offset, &field)) == 1)
-        if(strcmp(field.name, name) == 0) {
-            *found = field;
-            return 1;
-        }
-    return status < 0 ? -1 : 0;
-}
-
 static const ZirType *
 using_field_record(const ZirModule *owner, const char *type,
                    const ZirModule **next_owner)
@@ -946,7 +931,7 @@ resolve_record_field(const ZirModule *owner, const ZirType *record,
 {
     if(depth > 16 || record == NULL) return -1;
     ZirTypeField direct;
-    int status = direct_record_field(record, name, &direct);
+    int status = TypeFindField(record, name, &direct);
     if(status != 0) {
         if(status < 0 || strlen(name) >= path_size ||
            strlen(direct.type) >= type_size)
@@ -1006,7 +991,7 @@ RecordFieldPathType(const ZirModule *owner, const ZirType *record,
     memcpy(name, path, length);
     name[length] = '\0';
     ZirTypeField field;
-    if(direct_record_field(record, name, &field) != 1) return 0;
+    if(TypeFindField(record, name, &field) != 1) return 0;
     if(dot == NULL) {
         if(strlen(field.type) >= type_size) return 0;
         copy_text(type, type_size, field.type);

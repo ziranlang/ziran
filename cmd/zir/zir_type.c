@@ -26,9 +26,11 @@ static int copy_part(char *output, size_t capacity, String part)
  * KeepText owns source identity, so copied/reallocated ZirTypes are safe. */
 typedef struct RecordFields {
     const char *body;
-    int is_union, terminal;
+    int is_union, terminal, primitive_fields;
     size_t id, count, capacity;
     ZirTypeField *items;
+    size_t field_slot_count;
+    int *field_slots;
 } RecordFields;
 static struct {
     RecordFields **slots, **ids;
@@ -49,11 +51,25 @@ static void free_record_fields(void)
 {
     for(size_t i = 0; i < record_fields.count; i++) {
         free(record_fields.ids[i]->items);
+        free(record_fields.ids[i]->field_slots);
         free(record_fields.ids[i]);
     }
     free(record_fields.ids);
     free(record_fields.slots);
     memset(&record_fields, 0, sizeof(record_fields));
+}
+
+static size_t
+named_field_slot(const RecordFields *fields, const char *name)
+{
+    size_t hash = 2166136261u;
+    for(const unsigned char *at = (const unsigned char *)name; *at; at++)
+        hash = (hash ^ *at) * 16777619u;
+    size_t slot = hash & (fields->field_slot_count - 1);
+    while(fields->field_slots[slot] &&
+          strcmp(fields->items[fields->field_slots[slot] - 1].name, name))
+        slot = (slot + 1) & (fields->field_slot_count - 1);
+    return slot;
 }
 
 static RecordFields *fields_of(const ZirType *record)
@@ -93,6 +109,7 @@ static RecordFields *fields_of(const ZirType *record)
     memset(result, 0, sizeof(*result));
     result->body = body;
     result->is_union = is_union;
+    result->primitive_fields = 1;
     result->id = record_fields.count + 1;
     size_t offset = 0;
     unsigned char tags[sizeof(((ZirTypeField *)0)->go_tag)];
@@ -120,8 +137,23 @@ static RecordFields *fields_of(const ZirType *record)
         copy_part(field->type, sizeof(field->type), parsed.type);
         copy_part(field->go_tag, sizeof(field->go_tag), parsed.tag);
         field->is_using = parsed.is_using;
+        if(field->type[0] != '*' && !BuiltinTypeName(field->type))
+            result->primitive_fields = 0;
     }
     record_fields.ids[record_fields.count++] = result;
+    if(result->count > 0) {
+        size_t slots = 8;
+        while(slots < result->count * 2) slots *= 2;
+        result->field_slots = AllocateOrExit(slots * sizeof(*result->field_slots));
+        memset(result->field_slots, 0, slots * sizeof(*result->field_slots));
+        result->field_slot_count = slots;
+        for(size_t i = 0; i < result->count; i++) {
+            size_t at = named_field_slot(result, result->items[i].name);
+            /* The existing field walk resolves the first matching field.
+             * Declaration checking separately rejects duplicate names. */
+            if(!result->field_slots[at]) result->field_slots[at] = (int)i + 1;
+        }
+    }
     record_fields.slots[slot] = result;
     return result;
 }
@@ -149,6 +181,43 @@ int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
     *field = fields->items[index];
     *cursor = (fields->id << FIELD_CURSOR_BITS) | (index + 1);
     return 1;
+}
+
+int
+TypeFindField(const ZirType *record, const char *name, ZirTypeField *field)
+{
+    if(record == NULL || name == NULL || record->is_enum || record->is_procedure_type) {
+        memset(field, 0, sizeof(*field));
+        return -1;
+    }
+    while(atomic_flag_test_and_set_explicit(&record_fields_lock, memory_order_acquire)) {}
+    RecordFields *fields = fields_of(record);
+    atomic_flag_clear_explicit(&record_fields_lock, memory_order_release);
+    /* Both the parsed fields and their name index are immutable. A rewrite
+     * or relocation of a record is resolved by its interned body, just as
+     * a fresh TypeNextField cursor is. */
+    if(fields != NULL && fields->field_slot_count) {
+        int index = fields->field_slots[named_field_slot(fields, name)];
+        if(index) {
+            *field = fields->items[index - 1];
+            ProfileCount("record_field_lookup");
+            return 1;
+        }
+    }
+    memset(field, 0, sizeof(*field));
+    return fields == NULL || fields->terminal < 0 ? -1 : 0;
+}
+
+int
+TypeHasOnlyPrimitiveFields(const ZirType *record)
+{
+    if(record == NULL || record->is_enum || record->is_procedure_type) return 0;
+    while(atomic_flag_test_and_set_explicit(&record_fields_lock, memory_order_acquire)) {}
+    RecordFields *fields = fields_of(record);
+    atomic_flag_clear_explicit(&record_fields_lock, memory_order_release);
+    /* This fact depends on source spelling only. Named types, arrays and
+     * generic applications still require resolution in their owning scope. */
+    return fields != NULL && fields->terminal == 0 && fields->primitive_fields;
 }
 
 int SliceElementType(const char *type, char *element, size_t element_size)

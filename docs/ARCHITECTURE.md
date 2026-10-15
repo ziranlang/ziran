@@ -57,6 +57,13 @@ pointer. Parameter lists are split once into names and types
 changes (`TypeLookupsChanged`; `make sanitize` checks each kept answer
 against a fresh lookup).
 
+Record bodies share immutable parsed field snapshots. Field lookup uses an
+index over that snapshot, and ownership checking can reuse the fact that every
+field is a built-in value or pointer. This shortcut never assumes facts about
+named types, arrays, or generic applications: those still resolve in their
+owning scope. Rewriting a body selects a new snapshot, so copied or relocated
+record declarations cannot retain stale field names or ownership facts.
+
 Every backend consumes the same checked `.zir` model. Native output may bind
 declared platform libraries. `.zib` contains portable executable content and
 cannot depend on arbitrary target-specific C, C++, or Go source fragments.

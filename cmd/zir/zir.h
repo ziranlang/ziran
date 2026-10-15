@@ -334,6 +334,12 @@ typedef struct ZirTypeField {
  * reset the cursor after any rewrite. Fields come from one immutable parsed
  * snapshot. Names/types are trimmed without truncating source tokens. */
 int TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field);
+/* Same first-match and malformed-prefix semantics as a TypeNextField walk,
+ * using the immutable snapshot's field-name index. Clears FIELD on a miss. */
+int TypeFindField(const ZirType *record, const char *name, ZirTypeField *field);
+/* Conservative snapshot fact: every field is a builtin value or pointer.
+ * Named/aggregate fields and malformed bodies return false. */
+int TypeHasOnlyPrimitiveFields(const ZirType *record);
 int EnumMemberValue(const ZirType *type, const char *name, int64_t *value);
 
 /* Parse a fixed-capacity array type text "[N]element". Returns 1 with the

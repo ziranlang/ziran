@@ -353,7 +353,7 @@ ScalarType(const char *type)
 int
 contains_vec(const ZirModule *module, const char *type, int depth)
 {
-    if(depth > 32 || type == NULL || !*type || *type == '*')
+    if(depth > 32 || type == NULL || !*type || *type == '*' || BuiltinTypeName(type))
         return 0;
     if(VecElementType(module, type, NULL, 0))
         return 1;
@@ -365,6 +365,7 @@ contains_vec(const ZirModule *module, const char *type, int depth)
     if(record == NULL || record->is_enum || record->is_procedure_type ||
        record->is_record_template || record->is_extern)
         return 0;
+    if(TypeHasOnlyPrimitiveFields(record)) return 0;
     size_t offset = 0;
     ZirTypeField field;
     while(TypeNextField(record, &offset, &field) == 1)

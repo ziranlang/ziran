@@ -100,6 +100,71 @@ static void fields(void)
     free(record);
 }
 
+static void indexed_fields(void)
+{
+    ZirType *record = calloc(1, sizeof(*record));
+    assert(record != NULL);
+    size_t used = 0;
+    for(int i = 0; i < 128; i++) {
+        int count = snprintf(record->body + used, sizeof(record->body) - used,
+            "field_%03d: s64 #go_tag \"json:\\\"field_%03d\\\"\";\n", i, i);
+        assert(count > 0 && (size_t)count < sizeof(record->body) - used);
+        used += (size_t)count;
+    }
+    /* Compare indexed lookup against an ordered walk, including enough names
+     * to exercise collisions and late fields. Names must match in full. */
+    size_t offset = 0;
+    ZirTypeField expected, actual;
+    int count = 0;
+    while(TypeNextField(record, &offset, &expected) == 1) {
+        assert(TypeFindField(record, expected.name, &actual) == 1);
+        assert(!strcmp(expected.name, actual.name));
+        assert(!strcmp(expected.type, actual.type));
+        assert(!strcmp(expected.go_tag, actual.go_tag));
+        assert(expected.is_using == actual.is_using);
+        count++;
+    }
+    assert(count == 128);
+    assert(TypeHasOnlyPrimitiveFields(record));
+    for(int repeat = 0; repeat < 3; repeat++) {
+        assert(TypeFindField(record, "field_127", &actual) == 1);
+        assert(!strcmp(actual.type, "s64") && !strcmp(actual.go_tag, "\"json:\\\"field_127\\\"\""));
+        assert(TypeFindField(record, "field_127_suffix", &actual) == 0 && !actual.name[0]);
+        assert(TypeFindField(record, "field_12", &actual) == 0);
+    }
+    ZirType *copy = malloc(sizeof(*copy));
+    assert(copy != NULL);
+    *copy = *record;
+    strcpy(record->body, "field_127: bool; malformed");
+    assert(!TypeHasOnlyPrimitiveFields(record));
+    assert(TypeFindField(record, "field_127", &actual) == 1 && !strcmp(actual.type, "bool"));
+    assert(TypeFindField(record, "absent", &actual) == -1 && !actual.name[0]);
+    assert(TypeFindField(copy, "field_127", &actual) == 1 && !strcmp(actual.type, "s64"));
+    assert(TypeHasOnlyPrimitiveFields(copy));
+    strcpy(record->body, "pointer: *Vec(s32); text: string; value: s32");
+    assert(TypeHasOnlyPrimitiveFields(record));
+    strcpy(record->body, "items: Vec(s32)");
+    assert(!TypeHasOnlyPrimitiveFields(record));
+    strcpy(record->body, "item: Nested");
+    assert(!TypeHasOnlyPrimitiveFields(record));
+    strcpy(record->body, "items: [4]s32");
+    assert(!TypeHasOnlyPrimitiveFields(record));
+    strcpy(record->body, "item: s32; item: s64");
+    assert(TypeFindField(record, "item", &actual) == 1 && !strcmp(actual.type, "s32"));
+    record->is_enum = 1;
+    assert(TypeFindField(record, "item", &actual) == -1);
+    record->is_enum = 0;
+    record->is_procedure_type = 1;
+    assert(TypeFindField(record, "item", &actual) == -1);
+    record->is_procedure_type = 0;
+    strcpy(record->body, "");
+    assert(TypeFindField(record, "absent", &actual) == 0);
+    memset(record->body, 'x', sizeof(record->body));
+    assert(TypeFindField(record, "absent", &actual) == -1);
+    free(copy);
+    free(record);
+}
+
 static void containers(void)
 {
     char element[4] = "old";
@@ -167,6 +232,7 @@ static void foreign_symbols(void)
 int main(void)
 {
     fields();
+    indexed_fields();
     containers();
     foreign_symbols();
     assert(compiler_type_ProcedureTypeSupported(text("rust"), true));

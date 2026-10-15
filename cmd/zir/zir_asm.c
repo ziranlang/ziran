@@ -1,4 +1,5 @@
 #include "zir.h"
+#include "zir_asm.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
@@ -182,7 +183,6 @@ ExtractAssemblyModifiers(char *header, ZirSourceSpan span)
     return KeepText(kept);
 }
 
-enum { ASSEMBLY_OPERANDS = 30 };
 
 const char *
 AssemblyBlockText(const char *header, ZirSourceSpan span)
@@ -443,6 +443,58 @@ assembly_outputs(const ZirModule *module, const ZirFunction *fn, AssemblyOutputs
         snprintf(out->names[out->count++], sizeof(out->names[0]), "out_%s", field.name);
     }
     return status == 0 && out->count > 0;
+}
+
+int
+AssemblyVariantNext(const ZirModule *module, const ZirFunction *fn,
+                     int statement, const char **cursor, AssemblyVariant *variant)
+{
+    if(cursor == NULL || *cursor == NULL || !*skip_ws(*cursor))
+        return 0;
+    ZirSourceSpan span = statement < 0 ? fn->span : fn->stmts[statement].span;
+    Assembly assembly;
+    if(!read_assembly(cursor, &assembly, span))
+        return -1;
+    memset(variant, 0, sizeof(*variant));
+    variant->target = assembly.part[0];
+    variant->text = assembly.part[1];
+    variant->clobbers = assembly.part[4];
+    variant->options = assembly.part[5];
+    if(statement >= 0) {
+        BlockBindings bindings = {0};
+        if(!block_bindings(&assembly, &bindings, span)) return -1;
+        variant->outputs = bindings.outputs;
+        variant->inputs = bindings.inputs;
+        for(int i = 0; i < bindings.outputs + bindings.inputs; i++) {
+            const char *type = block_binding_type(fn, statement, bindings.items[i].name);
+            if(type == NULL) return -1;
+            variant->operands[i] = (AssemblyOperand){bindings.items[i].constraint,
+                bindings.items[i].alias, bindings.items[i].name, type};
+        }
+    } else {
+        AssemblyOutputs *outputs = calloc(1, sizeof(*outputs));
+        if(outputs == NULL) return -1;
+        const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+        const char *out[ASSEMBLY_OPERANDS], *in[ASSEMBLY_OPERANDS];
+        int valid = assembly_outputs(module, fn, outputs);
+        int no = operand_list(assembly.part[2], out), ni = operand_list(assembly.part[3], in);
+        if(!valid || no != outputs->count || ni != parameters->count || no + ni > ASSEMBLY_OPERANDS) {
+            free(outputs);
+            return -1;
+        }
+        variant->outputs = no;
+        variant->inputs = ni;
+        variant->record = outputs->record;
+        for(int i = 0; i < no; i++)
+            variant->operands[i] = (AssemblyOperand){out[i], KeepText(outputs->names[i]),
+                outputs->record ? KeepText(outputs->fields[i].name) : "out",
+                outputs->record ? KeepText(outputs->fields[i].type) : fn->return_type};
+        for(int i = 0; i < ni; i++)
+            variant->operands[no + i] = (AssemblyOperand){in[i], parameters->items[i].name,
+                parameters->items[i].name, parameters->items[i].type};
+        free(outputs);
+    }
+    return 1;
 }
 
 int

@@ -537,16 +537,20 @@ CopyProcedureText :: (source: string, output: []u8, normalize_type: bool) -> s64
     return used
 }
 
-BraceOutsideLiterals :: (source: string) -> bool {
+OpeningBraceOutsideLiterals :: (source: string) -> s64 {
     at: s64 = 0
     while at < source.count {
         byte := source[at]
         if byte == #char "\\" { at += 1; if at < source.count { at += 1 } }
         else if byte == #char "\"" || byte == #char "'" { at = AfterQuote(source, at) }
-        else if byte == #char "{" { return true }
+        else if byte == #char "{" { return at }
         else { at += 1 }
     }
-    return false
+    return -1
+}
+
+BraceOutsideLiterals :: (source: string) -> bool {
+    return OpeningBraceOutsideLiterals(source) >= 0
 }
 
 LooksLikeProcedureHeader :: (source: string) -> bool {
@@ -584,7 +588,7 @@ LooksLikeProcedureHeader :: (source: string) -> bool {
 
 SplitProcedureBody :: (source: string) -> ControlBlock {
     block: ControlBlock
-    opening := Find(source, "{")
+    opening := OpeningBraceOutsideLiterals(source)
     if opening < 0 || Byte(source, source.count - 1) != #char "}" ||
     !LooksLikeProcedureHeader(source) { return block }
     depth: s32 = 0

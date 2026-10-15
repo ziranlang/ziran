@@ -6,9 +6,10 @@
 
 An ordinary procedure can supply architecture-specific assembly and a required
 Ziran implementation. C/C++ output selects assembly when built by GCC or Clang
-for that architecture. Other compilers, Plan 9 C, Go, Rust, Python, and `.zib`
-use the checked Ziran body. Define `ZIRAN_NO_ASM` when compiling generated C/C++
-to force the same fallback for differential testing.
+for that architecture. Rust translates supported operands and templates to
+`core::arch::asm!`. Other compilers, Plan 9 C, Go, Python, and `.zib` use the
+checked Ziran body. Define `ZIRAN_NO_ASM` when compiling generated C/C++, or
+set `RUSTFLAGS="--cfg ziran_no_asm"` for Cargo, to force the portable body.
 
 ```zi
 Increment :: (value: s64) -> s64 #asm("x86_64", "leaq 1(%[value]), %[out]", "=r", "r", "", "") #asm("aarch64", "add %[out], %[value], #1", "=r", "r", "", "") {
@@ -43,7 +44,7 @@ for register lifetimes, early clobbers, matching constraints, flags and memory.
 
 Architecture names are `x86_64`, `x86`, `aarch64`, `arm`, `riscv64`, `riscv32`,
 `powerpc64`, `powerpc`, `s390x`, and `loongarch64`. Selection uses the native
-compiler's target macros, so cross-compilation selects the destination
+compiler's target macros or Rust's `target_arch` configuration, so cross-compilation selects the destination
 architecture. Append required CPU features with `+`, for example
 `"x86_64+popcnt"`, `"x86_64+avx2+bmi2"`, or `"aarch64+crc32"`.
 
@@ -59,7 +60,7 @@ Count :: (value: u64) -> s64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=
 Feature variants use isolated functions compiled for the requested ISA. The
 ordinary caller keeps the build's baseline ISA, checks CPU availability once,
 and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers
-use the compiler's CPU detection; Linux/Android AArch64 uses the kernel's
+use the compiler's CPU detection; Linux/Android AArch64 C/C++ uses the kernel's
 hardware-capability information. Other platforms or unavailable capabilities
 use the next eligible variant or the checked Ziran body. `ZIRAN_NO_ASM` forces
 the portable body. Build the caller for the oldest CPU you intend to support;
@@ -81,17 +82,34 @@ and [ARM64 hardware capabilities](https://www.kernel.org/doc/html/latest/arch/ar
 Assembly and the fallback must implement the same behavior; checking the
 fallback does not prove their equivalence. These variants do not yet provide
 `asm goto`, naked functions, standalone assembler files, or native
-assembly emission from Go/Rust. Saved IR preserves the variants; `.zib`
+assembly emission from Go. Saved IR preserves the variants; `.zib`
 executes only portable code. Rebuild older IR/bundles with the current compiler.
+
+Rust supports typed general/floating-point registers, fixed x86 registers,
+matching inputs, early clobbers, record results, and memory operands. Memory
+operands in local blocks retain the actual caller storage, including aliases.
+Numeric local labels are renamed consistently to avoid LLVM's restricted
+labels. Rust retains conservative memory and flag effects. CPU-feature helpers
+use `target_feature` and the standard library's runtime detection; available
+architectures and features depend on the Rust compiler and target. GNU
+constraint alternatives, reserved Rust registers, `%=` unique labels, and
+unsupported operand modifiers use the checked body for that variant, with a
+comment in generated Rust explaining the limitation. These are portability
+fallbacks, not full GNU assembly coverage.
 
 Run `tests/assembly.sh build/bin/ziran` for source/saved IR execution and
 rejection checks, and `tests/assembly_features.sh` for CPU selection,
-concurrent calls, unavailable features and isolated helpers. `bench/assembly.py`
+concurrent calls, unavailable features and isolated helpers.
+`tests/rust_assembly.sh` checks native Rust and forced fallback at two
+optimization levels from source and saved IR. `bench/assembly.py`
 measures baseline assembly against its forced fallback and handwritten C/Go;
 `bench/cpu_features.py` measures CPU-selected loop kernels against an optimized
 Ziran body and handwritten C, with independent result validation. Use assembly
 where measurements or access to a specific instruction justify it; compilers
 already recognize many byte swaps and arithmetic patterns.
+`bench/rust_assembly.py` compares Rust whole-loop and per-call assembly with
+forced fallback, an optional previous compiler, generated C and handwritten
+Rust/C controls. It validates every sample against an independent integer oracle.
 
 ### Local assembly blocks
 
@@ -122,9 +140,10 @@ pass a pointer when assembly needs to access other storage, and declare the
 memory and register clobbers required by the GNU contract.
 
 Architecture-only blocks emit inline assembly. CPU-feature blocks use isolated
-helpers that receive input values and return a single `=r`/`=&r` output directly;
+helpers. C/C++ helpers receive input values and return a single `=r`/`=&r` output directly;
 other or multiple outputs use each binding's actual address. Selection is cached
-atomically per block. Their portable body is always checked, runs on unsupported
+atomically per block. Rust helpers return register outputs and take addresses
+for memory operands. Their portable body is always checked, runs on unsupported
 targets or with `ZIRAN_NO_ASM`, and must fall through to the following statement.
 It may contain local loops and their loop control, but cannot return or break
 out of the assembly block. Native instructions must preserve that fallthrough,

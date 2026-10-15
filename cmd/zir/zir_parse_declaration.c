@@ -634,6 +634,13 @@ brace_outside_literals(const char *text)
     return compiler_source_BraceOutsideLiterals(declaration_text(text));
 }
 
+const char *
+opening_brace_outside_literals(const char *text)
+{
+    int64_t at = compiler_source_OpeningBraceOutsideLiterals(declaration_text(text));
+    return at < 0 ? NULL : text + at;
+}
+
 int
 looks_like_function_header(const char *line)
 {

@@ -13,6 +13,7 @@ Bump :: (value: s64) -> s64 #asm("x86_64", "leaq 1(%[value]), %[out]", "=r", "r"
 Tied :: (value: s64) -> s64 #asm("x86_64", "addq $1, %[out]", "=r", "0", "cc", "") {
     return value + 1
 }
+Dialect :: (value: s64) -> s64 #asm("x86_64", "mov{q %[value], %[out]| %[out], %[value]}", "=r", "r", "", "") { return value }
 Parts :: (value: u64) -> Pair #asm("x86_64", "movq %[value], %[out_low]\n\tmovq %[value], %[out_high]\n\tshrq $32, %[out_high]", "=&r;=&r", "r", "cc", "") {
     return Pair.{low = value, high = value >> 32}
 }
@@ -32,6 +33,7 @@ Barrier :: () #asm("x86_64", "# { #asm \"quoted\" };\n", "", "", "memory", "vola
 }
 #program_export
 Answer :: () -> s64 {
+    if Dialect(42) != 42 { return 5 }
     pair := Parts(8589934595)
     if pair.low != 8589934595 || pair.high != 2 { return 1 }
     value: s64 = 10

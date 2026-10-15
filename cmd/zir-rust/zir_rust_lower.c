@@ -2,6 +2,7 @@
  * zir_rust_lower.c - checked ZIR to Rust backend.
  */
 #include "zir_rust_lower.h"
+#include "zir_rust_asm.h"
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
 #include "zir_text.h"
@@ -475,8 +476,9 @@ static const char *rust_scalar_type(const char *type)
     if(!strcmp(type, "u8")) return "u8";
     if(!strcmp(type, "u16")) return "u16";
     if(!strcmp(type, "u32")) return "u32";
-    if(!strcmp(type, "u64") || !strcmp(type, "usize")) return "u64";
-    if(!strcmp(type, "isize")) return "i64";
+    if(!strcmp(type, "u64")) return "u64";
+    if(!strcmp(type, "usize")) return "usize";
+    if(!strcmp(type, "isize")) return "isize";
     if(!strcmp(type, "float32")) return "f32";
     if(!strcmp(type, "float64") || !strcmp(type, "real")) return "f64";
     if(!strcmp(type, "void")) return "";
@@ -852,6 +854,33 @@ static void rust_field_name(const ZirType *record, const char *source,
     }
 }
 
+static void rust_assembly_name(void *context, const char *source, char *output, size_t size)
+{
+    snprintf(output, size, "%s", local_name(context, source));
+}
+
+static void rust_assembly_type(void *context, const char *source, char *output, size_t size)
+{
+    RustEmitter *emitter = context;
+    require_rust_type(emitter, emitter->function->span, source, output, size);
+}
+
+static void rust_assembly_field(void *context, const char *source, char *output, size_t size)
+{
+    RustEmitter *emitter = context;
+    const ZirModule *owner = NULL;
+    const ZirType *record = NULL;
+    rust_record_type(emitter, emitter->function->return_type, &owner, &record);
+    rust_field_name(record, source, output, size);
+}
+
+static int emit_rust_assembly(RustEmitter *emitter, int statement)
+{
+    RustAssemblyTarget target = {emitter, rust_assembly_name, rust_assembly_type, rust_assembly_field};
+    return RustEmitAssembly(emitter->output, emitter->module, emitter->function,
+                            statement, emitter->indent, &target);
+}
+
 static void function_symbol(RustEmitter *emitter, const ZirModule *module,
                             const ZirFunction *function, char *output,
                             size_t size)
@@ -1150,6 +1179,30 @@ static int rust_text_needs_unsafe(const char *text, size_t size)
         "std::ptr::", "std::alloc::", "core::mem::zeroed", NULL};
     int depth = 0, inline_depth = -1;
     for(size_t index = 0; index < size; index++) {
+        /* Assembly templates and source strings can contain braces and
+         * apparent operations. They are data, not Rust lexical scopes. */
+        if(text[index] == '"') {
+            while(++index < size) {
+                if(text[index] == '\\' && index + 1 < size) index++;
+                else if(text[index] == '"') break;
+            }
+            continue;
+        }
+        if(index + 1 < size && text[index] == '/' && text[index + 1] == '/') {
+            while(index + 1 < size && text[index + 1] != '\n') index++;
+            continue;
+        }
+        if(index + 1 < size && text[index] == '/' && text[index + 1] == '*') {
+            int comments = 1;
+            index += 2;
+            while(index + 1 < size && comments) {
+                if(text[index] == '/' && text[index + 1] == '*') { comments++; index += 2; }
+                else if(text[index] == '*' && text[index + 1] == '/') { comments--; index += 2; }
+                else index++;
+            }
+            if(index > 0) index--;
+            continue;
+        }
         if(inline_depth < 0 && index + 8 <= size && !strncmp(text + index, "unsafe {", 8)) {
             inline_depth = depth;
             depth++;
@@ -2687,6 +2740,13 @@ static int rust_name_mutable(const ZirFunction *function, const char *name,
         return 1;
     for(int index = 0; index < function->stmt_count; index++) {
         const ZirStmt *statement = &function->stmts[index];
+        if(StatementHasAssembly(statement)) {
+            const char *names[30], *types[30];
+            int outputs = 0;
+            if(AssemblyBlockOperands(function, index, names, types, 30, &outputs) >= 0)
+                for(int output = 0; output < outputs; output++)
+                    if(!strcmp(names[output], name)) return 1;
+        }
         const char *base;
         if(index != declaration && statement->kind == ZIR_STMT_DECL &&
            !strcmp(statement->name, name))
@@ -2905,6 +2965,15 @@ emit_sequence_with_buffers(RustEmitter *emitter, int begin, int end, EmitSequenc
         }
         case ZIR_STMT_BLOCK_OPEN: {
             int close = block_end(emitter->function, index, end);
+            if(StatementHasAssembly(statement) && emit_rust_assembly(emitter, index)) {
+                emitter->indent += 2;
+                emit_sequence(emitter, index + 1, close);
+                emitter->indent -= 2;
+                write_line(emitter, "    }");
+                write_line(emitter, "}");
+                index = close;
+                break;
+            }
             if(emit_native_for(emitter, index, close)) {
                 index = close;
                 break;
@@ -3334,6 +3403,7 @@ lower_function_with_buffers(RustEmitter *emitter, const ZirModule *module,
         emitter->output = body;
         emitter->indent = 2;
         emit_slot_wrappers(emitter, module, function);
+        emit_rust_assembly(emitter, -1);
         emit_sequence(emitter, 0, function->stmt_count);
         fclose(body);
         emitter->output = function_output;
@@ -4288,6 +4358,7 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
     FILE *build_script = open_output(programs[0]->modules[0].span,
                                     output_directory, "build.rs");
     fputs("fn main() {\n", build_script);
+    fputs("    println!(\"cargo:rustc-check-cfg=cfg(ziran_no_asm)\");\n", build_script);
     const char *link_flags[] = {getenv("LDFLAGS"), getenv("LDLIBS")};
     for(int i = 0; i < 2; i++) {
         if(link_flags[i] == NULL) continue;

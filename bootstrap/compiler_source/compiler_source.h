@@ -100,6 +100,7 @@ int64_t compiler_source_ClosingParenthesis(String source);
 ProcedureHeader compiler_source_ProcedureHeaderParts(String source);
 int64_t compiler_source_NormalizeTypeSpacing(String source, Slice output);
 int64_t compiler_source_CopyProcedureText(String source, Slice output, bool normalize_type);
+int64_t compiler_source_OpeningBraceOutsideLiterals(String source);
 bool compiler_source_BraceOutsideLiterals(String source);
 bool compiler_source_LooksLikeProcedureHeader(String source);
 ControlBlock compiler_source_SplitProcedureBody(String source);

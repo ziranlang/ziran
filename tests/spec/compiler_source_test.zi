@@ -105,6 +105,10 @@ ProcedureChecks :: () -> bool {
     if !block.valid || source[0:block.head_end] != "Read :: () -> s32 {" ||
     source[block.body_begin:block.body_end] != " if true { Call(\"}\", '}'); } return 42 " ||
     block.tail_begin != source.count { return false }
+    source = "Read :: () -> s32 #asm(\"x86_64\", \"mov{q|} { \\\" }\", \"=r\", \"\", \"\", \"\") { return 42 }"
+    block = SplitProcedureBody(source)
+    if !block.valid || source[block.body_begin:block.body_end] != " return 42 " ||
+    OpeningBraceOutsideLiterals(source) != block.head_end - 1 { return false }
     if SplitProcedureBody("Read :: () { } Other :: () { }").valid ||
     SplitProcedureBody("Record :: struct { x: s32 }").valid ||
     SplitProcedureBody("Read :: () { \"unfinished\\").valid ||

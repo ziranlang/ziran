@@ -884,7 +884,7 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
             const char *closing = function_overflow ? NULL :
                 closing_parenthesis(strchr(buffers->function_source, '('));
             if(closing != NULL &&
-               (strchr(closing + 1, '{') != NULL ||
+               (opening_brace_outside_literals(closing + 1) != NULL ||
                 strstr(closing + 1, "#foreign") != NULL)) {
                 int previous = future_functions->count;
                 discover_function_header(buffers->function_source, path, rel,
@@ -892,7 +892,7 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
                                          function_scope_public,
                                          function_scope_file,
                                          future_functions);
-                const char *open = strchr(closing + 1, '{');
+                const char *open = opening_brace_outside_literals(closing + 1);
                 if(open != NULL && future_functions->count > previous) {
                     simple_body_index = previous;
                     simple_body_overflow = 0;

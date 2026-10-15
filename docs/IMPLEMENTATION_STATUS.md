@@ -5,6 +5,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Rust emits native function and local-block assembly for supported GNU-style
+  operands, with isolated CPU-feature helpers and cached runtime selection.
+  `tests/rust_assembly.sh` covers tied/fixed registers, scalar widths, record
+  outputs, memory aliases, numeric labels, checked fallback and source/saved IR.
+  GNU alternatives, unique labels and reserved registers still fall back;
+  generic assembly, native Go assembly and full platform parity remain open.
+
 - Opt-in compiler process profiles record inclusive loading, parsing, checking,
   native emission, and IR writing, with record-field parsing counts and
   workspace allocation requests. `tests/compiler_profile.sh` checks the

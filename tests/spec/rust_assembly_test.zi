@@ -1,0 +1,88 @@
+Pair :: struct { low: u64; high: u64; }
+Keywords :: struct { type: u64; ziran_keyword_type_0: u64; }
+#program_export
+Count :: (value: u64) -> u64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=r", "r", "cc", "") #asm("aarch64+simd", "fmov d0, %[value]\n\tcnt v0.8b, v0.8b\n\taddv b0, v0.8b\n\tumov %w[out], v0.b[0]", "=r", "r", "v0", "") {
+    bits := value
+    total: u64
+    while bits != 0 { total += bits & 1; bits >>= 1 }
+    return total
+}
+#program_export
+Count32 :: (value: u32) -> u32 #asm("x86+popcnt", "popcnt %[value], %[out]", "=r", "r", "cc", "") #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=r", "r", "cc", "") {
+    bits := value
+    total: u32
+    while bits != 0 { total += bits & 1; bits >>= 1 }
+    return total
+}
+#program_export
+Byte :: (value: s8) -> s8 #asm("x86_64", "movb %[value], %[out]", "=r", "r", "", "") { return value }
+#program_export
+Narrow :: (value: u64) -> u32 #asm("x86_64", "movl %k[value], %[out]", "=r", "r", "", "") { return cast(u32)value }
+#program_export
+FixedDestination :: (value: u64) -> u32 #asm("x86_64", "movl %k[value], %[out]", "=r", "D", "", "") { return cast(u32)value }
+#program_export
+Odd :: (value: u64) -> bool #asm("x86_64", "testb $1, %b[value]\n\tsetnz %[out]", "=r", "r", "cc", "") { return (value & 1) != 0 }
+#program_export
+BoolValue :: (value: bool) -> u32 #asm("x86_64", "movzbl %b[value], %[out]", "=r", "r", "", "") { return cast(u32)value }
+#program_export
+Add :: (value: s64) -> s64 #asm("x86_64", "addq $7, %[out]", "=r", "0", "cc", "") { return value + 7 }
+#program_export
+NamedTie :: (value: s64) -> s64 #asm("x86_64", "addq $7, %[out]", "=r", "[out]", "cc", "") { return value + 7 }
+#program_export
+Parts :: (value: u64) -> Pair #asm("x86_64", "movq %[value], %[out_low]\n\tmovq %[value], %[out_high]\n\tshrq $32, %[out_high]", "=&r;=r", "r", "cc", "") { return Pair.{value, value >> 32} }
+#program_export
+DivParts :: (value: u64, divisor: u64) -> Pair #asm("x86_64", "xorq %%rdx, %%rdx\n\tdivq %[divisor]", "=a;=&d", "0;r", "cc", "") { return Pair.{value / divisor, value % divisor} }
+#program_export
+MemParts :: (value: u64) -> Pair #asm("x86_64", "movq %[value], %[out_low]\n\tmovq %[value], %[out_high]\n\tshrq $32, %[out_high]", "=m;=m", "r", "cc", "") { return Pair.{value, value >> 32} }
+#program_export
+MemInput :: (value: u64) -> u64 #asm("x86_64", "movq %[value], %[out]", "=r", "m", "", "") { return value }
+#program_export
+KeywordFields :: (value: u64) -> Keywords #asm("x86_64", "movq %[value], %[out_type]\n\tmovq %[value], %[out_ziran_keyword_type_0]", "=&r;=r", "r", "", "") { return Keywords.{value, value} }
+#program_export
+Word :: (value: usize) -> usize #asm("x86_64", "leaq 1(%[value]), %[out]", "=r", "r", "", "") #asm("x86", "leal 1(%[value]), %[out]", "=r", "r", "", "") #asm("aarch64", "add %[out], %[value], #1", "=r", "r", "", "") #asm("arm", "add %[out], %[value], #1", "=r", "r", "cc", "") { return value + 1 }
+#program_export
+SignedWord :: (value: isize) -> isize { return value }
+#program_export
+FloatAdd :: (left: float64, right: float64) -> float64 #asm("x86_64", "addsd %[right], %[out]", "=x", "0;x", "", "") #asm("aarch64", "fadd %d[out], %d[left], %d[right]", "=w", "0;w", "", "") { return left + right }
+#program_export
+Memory :: (value: s64) -> s64 {
+    result: s64
+    alias := *result
+    #asm("x86_64", "movq %[value], %[out]\n\tmovq (%[alias]), %%rax\n\taddq %%rax, %[out]", "=m:out=result", "r:value;r:alias", "rax;cc;memory", "volatile") { result = value; result += alias.* }
+    return result
+}
+#program_export
+Mixed :: (value: u64) -> u64 {
+    memory: u64
+    register: u64
+    #asm("x86_64", "movq %[value], %[memory]\n\tmovq %[value], %[register]", "=m:memory;=&r:register", "r:value", "", "") { memory = value; register = value }
+    return memory ^ register
+}
+#program_export
+BlockOdd :: (value: u64) -> bool {
+    result: bool
+    #asm("x86_64", "testb $1, %b[value]\n\tsetnz %[result]", "=r:result", "r:value", "cc", "") { result = (value & 1) != 0 }
+    return result
+}
+#program_export
+Shadow :: (__ZIR_ASM_0_0_SELECT: s64, __zir_asm_0_0_a1: s64) -> s64 #asm("x86_64", "movq %[__ZIR_ASM_0_0_SELECT], %[out]\n\taddq %[__zir_asm_0_0_a1], %[out]", "=&r", "r;r", "cc", "") { return __ZIR_ASM_0_0_SELECT + __zir_asm_0_0_a1 }
+#program_export
+Dialect :: (value: s64) -> s64 #asm("x86_64", "mov{q %[value], %[out]| %[out], %[value]}", "=r", "r", "", "") { return value }
+#program_export
+DialectSuffix :: (value: s64) -> s64 #asm("x86_64", "mov{q} %[value], %[out]", "=r", "r", "", "") { return value }
+#program_export
+Labels :: (count: u64) -> u64 #asm("x86_64", "xorq %[out], %[out]\n\tmovq %[count], %%rcx\n\ttestq %%rcx, %%rcx\n\tjz 1f\n0:\n\taddq %%rcx, %[out]\n\tdecq %%rcx\n\tjnz 0b\n1:", "=&r", "r", "rcx;cc", "") {
+    result: u64
+    current := count
+    while current != 0 { result += current; current -= 1 }
+    return result
+}
+#program_export
+LabelData :: () -> u64 #asm("x86_64", "jmp 1f\n0: .ascii \"0b\"\n1: movzbq 0b(%%rip), %[out]", "=r", "", "", "") { return 48 }
+// Different markers prove dispatch. Production variants must match the body.
+#program_export
+Marker :: () -> s32 #asm("x86_64+popcnt", "movl $11, %[out]", "=r", "", "", "") #asm("x86_64", "movl $7, %[out]", "=r", "", "", "") #asm("aarch64", "mov %w[out], #7", "=r", "", "", "") #asm("x86", "movl $7, %[out]", "=r", "", "", "") { return 3 }
+#program_export
+Store :: (value: *s64) #asm("x86_64", "addq $1, (%[value])", "", "r", "cc;memory", "volatile") #asm("aarch64", "ldr x9, [%[value]]\n\tadd x9, x9, #1\n\tstr x9, [%[value]]", "", "r", "x9;memory", "volatile") { value.* += 1 }
+#program_export
+Barrier :: () #asm("x86_64", "# { unbalanced brace and \" quotes\n", "", "", "memory", "volatile") {}

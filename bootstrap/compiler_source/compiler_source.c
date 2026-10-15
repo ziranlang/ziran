@@ -1246,8 +1246,8 @@ compiler_source_CopyProcedureText(String source, Slice output, bool normalize_ty
     return used;
 }
 
-bool
-compiler_source_BraceOutsideLiterals(String source)
+int64_t
+compiler_source_OpeningBraceOutsideLiterals(String source)
 {
     int64_t at = 0LL;
     while (true) {
@@ -1263,12 +1263,19 @@ compiler_source_BraceOutsideLiterals(String source)
         } else if (byte == 34 || byte == 39) {
             at = compiler_source_AfterQuote(source, at);
         } else if (byte == 123) {
-            return true;
+            return at;
         } else {
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }
-    return false;
+    return -1LL;
+}
+
+bool
+compiler_source_BraceOutsideLiterals(String source)
+{
+    int64_t value_0 = compiler_source_OpeningBraceOutsideLiterals(source);
+    return value_0 >= 0LL;
 }
 
 bool
@@ -1413,7 +1420,7 @@ ControlBlock
 compiler_source_SplitProcedureBody(String source)
 {
     ControlBlock block = {0};
-    int64_t opening = compiler_source_Find(source, StringLiteral("{"));
+    int64_t opening = compiler_source_OpeningBraceOutsideLiterals(source);
     bool value_0 = opening < 0LL;
     if (!value_0) {
         bool value_1 = compiler_source_Byte(source, (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1))) != 125;

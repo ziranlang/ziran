@@ -271,6 +271,7 @@ int parse_import_line(ZirModule *module, const char *path, int line_no, const ch
 int parse_foreign_library_line(const char *path, int line_no, const char *line, char names[][ZIR_NAME_MAX], char targets[][ZIR_PATH_MAX], int *count);
 int parse_foreign_line(ZirModule *module, const char *path, int line_no, const char *line, int scope_public, char names[][ZIR_NAME_MAX], char targets[][ZIR_PATH_MAX], char paths[][SOURCE_PATH_MAX], const int *file_private, int count);
 int brace_outside_literals(const char *text);
+const char *opening_brace_outside_literals(const char *text);
 int looks_like_function_header(const char *line);
 int split_oneline_function(const char *line, char *head, size_t head_size, char *body, size_t body_size);
 void split_jai_control_line(char *line, size_t capacity, char queue[16][SOURCE_LINE_MAX * 2], int *count, ZirSourceSpan span);

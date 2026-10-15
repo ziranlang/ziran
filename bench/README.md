@@ -167,6 +167,14 @@ subset, not total allocations or currently live bytes. Nested phase times
 overlap and must not be summed into a claimed build duration; the harness
 measures whole commands separately.
 
+Profiles also count `kept_text_pointer`, `kept_text_compare` and
+`kept_text_lookup`. A small per-thread cache recognizes canonical immutable
+pointers directly. Other input addresses are hints: their current bytes,
+including the terminator, must match the immutable saved copy before reuse.
+The cache has 128 entries (3 KiB per thread on 64-bit hosts). Saved bundles and generated source retain
+the same contents. Use `tests/kept_text.sh` to check mutable buffers, substring
+identity, truncation, table growth and concurrent reuse.
+
 The October 3 field-snapshot comparison used module/generic sizes 8 and 32,
 three measured repetitions, and checks of the real Kryon and Terminal packages
 (162 validated measured samples per run). Kryon's field-parser calls fell

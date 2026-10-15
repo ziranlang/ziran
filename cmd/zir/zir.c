@@ -1190,6 +1190,52 @@ static struct {
     size_t block_size;
 } kept_texts;
 static atomic_flag kept_text_lock = ATOMIC_FLAG_INIT;
+static const char empty_text[] = "";
+
+/* Canonical return pointers remain immutable and alive after table growth or
+ * program destruction. Other input addresses are hints only: compare current
+ * bytes with the kept copy before reusing it. Keep addresses as integers so a
+ * caller can free/reuse a buffer without leaving an expired pointer value. */
+typedef struct KeptText {
+    uintptr_t input;
+    const char *text;
+    size_t length;
+} KeptText;
+enum { KEPT_TEXT_CACHE_SIZE = 128 };
+static _Thread_local KeptText kept_text_cache[KEPT_TEXT_CACHE_SIZE];
+
+static KeptText *
+kept_text_cache_slot(const char *text)
+{
+    uintptr_t hash = (uintptr_t)text;
+    hash ^= hash >> 7;
+    hash ^= hash >> 13;
+    return &kept_text_cache[hash & (KEPT_TEXT_CACHE_SIZE - 1)];
+}
+
+static const char *
+kept_text_cached(const char *text, size_t capacity)
+{
+    KeptText *entry = kept_text_cache_slot(text);
+    if(entry->input != (uintptr_t)text || !entry->text || entry->length >= capacity)
+        return NULL;
+    if(entry->text == text) {
+        ProfileCount("kept_text_pointer");
+        return entry->text;
+    }
+    /* Include the terminator and respect the bounded KeepName/Parameters
+     * input contract, including buffers with no terminator within capacity. */
+    if(strncmp(entry->text, text, entry->length + 1)) return NULL;
+    ProfileCount("kept_text_compare");
+    return entry->text;
+}
+
+static void
+remember_kept_text(const char *input, const char *text, size_t length)
+{
+    *kept_text_cache_slot(text) = (KeptText){(uintptr_t)text, text, length};
+    *kept_text_cache_slot(input) = (KeptText){(uintptr_t)input, text, length};
+}
 
 static uint64_t
 text_hash(const char *text, size_t length)
@@ -1235,18 +1281,22 @@ kept_text_failed(void)
 }
 
 /* TEXT kept, cut to fit a CAPACITY-byte buffer as copy_text would. */
+static const char *keep_text(const char *text, size_t length);
+
 static const char *
 keep_cut(const char *text, size_t capacity)
 {
-    if(text == NULL)
-        return "";
+    if(text == NULL || *text == '\0')
+        return empty_text;
+    const char *cached = kept_text_cached(text, capacity);
+    if(cached) return cached;
     size_t length = strnlen(text, capacity);
     if(length < capacity)
-        return KeepText(text);
+        return keep_text(text, length);
     char *cut = AllocateOrExit(capacity);
     memcpy(cut, text, capacity - 1);
     cut[capacity - 1] = '\0';
-    const char *kept = KeepText(cut);
+    const char *kept = keep_text(cut, capacity - 1);
     free(cut);
     return kept;
 }
@@ -1274,12 +1324,10 @@ KeepNameFormat(const char *format, ...)
     return KeepText(name);
 }
 
-const char *
-KeepText(const char *text)
+static const char *
+keep_text(const char *text, size_t length)
 {
-    if(text == NULL || *text == '\0')
-        return "";
-    size_t length = strlen(text);
+    ProfileCount("kept_text_lookup");
     /* VM instances share immutable spellings, but insertion and table growth
      * still mutate the process-wide owner. Publish complete entries together. */
     while(atomic_flag_test_and_set_explicit(&kept_text_lock, memory_order_acquire)) {}
@@ -1300,6 +1348,7 @@ KeepText(const char *text)
     if(kept_texts.texts[slot] != NULL) {
         const char *kept = kept_texts.texts[slot];
         atomic_flag_clear_explicit(&kept_text_lock, memory_order_release);
+        remember_kept_text(text, kept, length);
         return kept;
     }
     if(kept_texts.block == NULL ||
@@ -1317,7 +1366,17 @@ KeepText(const char *text)
     kept_texts.texts[slot] = copy;
     kept_texts.count++;
     atomic_flag_clear_explicit(&kept_text_lock, memory_order_release);
+    remember_kept_text(text, copy, length);
     return copy;
+}
+
+const char *
+KeepText(const char *text)
+{
+    if(text == NULL || *text == '\0') return empty_text;
+    const char *cached = kept_text_cached(text, SIZE_MAX);
+    if(cached) return cached;
+    return keep_text(text, strlen(text));
 }
 
 ZirSourceSpan

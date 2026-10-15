@@ -11,6 +11,7 @@
 #include "zir_load.h"
 #include "zir_bundle.h"
 #include "zir_c_lower.h"
+#include "zir_c_build.h"
 #include "zir_c_plan9.h"
 
 #include "zir_emit.h"
@@ -47,6 +48,15 @@ valid_define(const char *name)
 }
 
 static int
+lock_output(const char *directory)
+{
+    int fd = c_build_lock(directory);
+    if(fd < 0)
+        Diagnostic((ZirSourceSpan){0}, "zir_c.global", "cannot prepare output directory: %s", directory);
+    return fd;
+}
+
+static int
 split_entry(const char *text, char *module, char *function)
 {
     const char *separator = text ? strrchr(text, ':') : NULL;
@@ -60,35 +70,6 @@ split_entry(const char *text, char *module, char *function)
     module[length] = 0;
     strcpy(function, separator + 1);
     return 1;
-}
-
-enum { EXE_MAX_ARGS = 1024 };
-
-/* Split a space-separated flag variable such as CC or CFLAGS onto args. */
-static int
-append_words(const char *text, char **args, int count)
-{
-    if(text == NULL)
-        return count;
-    char *copy = strdup(text);
-    if(copy == NULL)
-        return -1;
-    for(char *word = strtok(copy, " \t"); word != NULL; word = strtok(NULL, " \t")) {
-        if(count >= EXE_MAX_ARGS - 1 || (args[count] = strdup(word)) == NULL) {
-            free(copy);
-            return -1;
-        }
-        count++;
-    }
-    free(copy);
-    return count;
-}
-
-static int
-generated_c_name(const struct dirent *entry)
-{
-    size_t length = strlen(entry->d_name);
-    return length > 2 && strcmp(entry->d_name + length - 2, ".c") == 0;
 }
 
 /* The C main that runs the entry procedure, unless the entry is itself an
@@ -145,114 +126,6 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
     return 1;
 }
 
-/* Compile every generated C file in OUT_DIR, with the toolchain's headers,
- * into OUT_DIR/NAME. CC, CFLAGS, LDFLAGS, and LDLIBS apply as in make. */
-static int
-compile_executable(const char *out_dir, const char *name, int posix_threads)
-{
-    char **args = calloc(EXE_MAX_ARGS, sizeof(*args));
-    char output[ZIR_PATH_MAX];
-    struct dirent **entries = NULL;
-    int count = 0, files = 0, status = -1, ok = 0;
-    char log[ZIR_TEXT_MAX] = {0};
-    size_t used = 0;
-    int truncated = 0;
-    if(args == NULL) {
-        DiagnosticOutOfMemory();
-        return 0;
-    }
-    const char *include = ToolchainIncludeDirectory();
-    if(snprintf(output, sizeof(output), "%s/%s", out_dir, name) >= (int)sizeof(output))
-        goto done;
-    count = append_words(getenv("CC") && *getenv("CC") ? getenv("CC") : "cc", args, count);
-    if(count >= 0)
-        count = append_words(getenv("CFLAGS") ? getenv("CFLAGS") : "-O2", args, count);
-    files = scandir(out_dir, &entries, generated_c_name, alphasort);
-    if(count < 0 || files < 0 || count + files + 12 >= EXE_MAX_ARGS)
-        goto done;
-    args[count++] = strdup("-I");
-    args[count++] = strdup(out_dir);
-    if(posix_threads)
-        args[count++] = strdup("-pthread");
-    if(include != NULL) {
-        args[count++] = strdup("-I");
-        args[count++] = strdup(include);
-    }
-    for(int i = 0; i < files; i++) {
-        char path[ZIR_PATH_MAX];
-        snprintf(path, sizeof(path), "%s/%s", out_dir, entries[i]->d_name);
-        args[count++] = strdup(path);
-    }
-    args[count++] = strdup("-o");
-    args[count++] = strdup(output);
-    count = append_words(getenv("LDFLAGS"), args, count);
-    if(count >= 0)
-        count = append_words(getenv("LDLIBS"), args, count);
-    if(count < 0 || count >= EXE_MAX_ARGS - 2)
-        goto done;
-    args[count++] = strdup("-lm");
-    for(int i = 0; i < count; i++)
-        if(args[i] == NULL) goto done;
-    int capture = DiagnosticJsonEnabled(), pipes[2] = {-1, -1};
-    if(capture && pipe(pipes) != 0) goto done;
-    fflush(NULL);
-    pid_t child = fork();
-    if(child == 0) {
-        if(capture) {
-            close(pipes[0]);
-            if(dup2(pipes[1], STDOUT_FILENO) < 0 ||
-               dup2(pipes[1], STDERR_FILENO) < 0) _exit(127);
-            if(pipes[1] != STDOUT_FILENO && pipes[1] != STDERR_FILENO) close(pipes[1]);
-        }
-        execvp(args[0], args);
-        /* Captured by the parent in JSON mode. */
-        dprintf(STDERR_FILENO, "cannot run %s: %s\n", args[0], strerror(errno));
-        _exit(127);
-    }
-    if(capture) {
-        close(pipes[1]);
-        if(child > 0) {
-            char chunk[4096];
-            ssize_t bytes;
-            while((bytes = read(pipes[0], chunk, sizeof(chunk))) != 0) {
-                if(bytes < 0) {
-                    if(errno == EINTR) continue;
-                    break;
-                }
-                size_t copied = (size_t)bytes;
-                if(copied > sizeof(log) - 1 - used) {
-                    copied = sizeof(log) - 1 - used;
-                    truncated = 1;
-                }
-                for(size_t i = 0; i < copied; i++)
-                    log[used++] = chunk[i] != 0 ? chunk[i] : '?';
-            }
-        }
-        close(pipes[0]);
-    }
-    pid_t waited;
-    do { waited = child > 0 ? waitpid(child, &status, 0) : -1; }
-    while(waited < 0 && errno == EINTR && child > 0);
-    if(waited == child && child > 0 &&
-       WIFEXITED(status) && WEXITSTATUS(status) == 0)
-        ok = 1;
-    if(ok && used > 0)
-        Warning((ZirSourceSpan){0}, "zir_c.toolchain", "%s%s", log,
-                truncated ? " [output truncated]" : "");
-done:
-    if(!ok)
-        DiagnosticTarget((ZirSourceSpan){0}, "zir_c.toolchain", "c", "toolchain.native",
-                         "compiling %s failed%s%s%s", out_dir,
-                         used > 0 ? ": " : "", used > 0 ? log : "",
-                         truncated ? " [output truncated]" : "");
-    for(int i = 0; i < EXE_MAX_ARGS; i++)
-        free(args[i]);
-    free(args);
-    for(int i = 0; i < files; i++)
-        free(entries[i]);
-    free(entries);
-    return ok;
-}
 
 int
 main(int argc, char **argv)
@@ -264,6 +137,7 @@ main(int argc, char **argv)
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
     int no_main = 0;
     int exe = 0;
+    int output_lock = -1;
     int check_ok;
     int plan9 = 0;
     int unresolved = 0;
@@ -390,6 +264,10 @@ main(int argc, char **argv)
         linked = NativeLink(&merged, entry_module, entry_function);
         if(linked == NULL)
             goto done;
+        if(!CheckTargetCapabilities(linked, plan9 ? "plan9-c" : "c"))
+            goto done;
+        output_lock = lock_output(out_dir);
+        if(output_lock < 0) goto done;
         syms = calloc((size_t)linked->module_count, sizeof(*syms));
         if(syms == NULL)
             goto done;
@@ -427,6 +305,8 @@ main(int argc, char **argv)
                 goto done;
         }
     } else {
+        output_lock = lock_output(out_dir);
+        if(output_lock < 0) goto done;
         for(i = 0; i < file_count; i++)
             symbol_count += progs[i]->module_count;
         syms = calloc((size_t)symbol_count, sizeof(*syms));
@@ -457,18 +337,20 @@ done:
     free(syms);
     ProgramFree(linked);
     free(merged.modules);
-    if(result != 0)
-        return result;
+    if(result != 0) goto finish;
     if(prune_stale &&
        GeneratedOutputPrune(out_dir, "/* Generated by zi2c from ") != 0) {
         Diagnostic((ZirSourceSpan){0}, "zir.output", "cannot remove stale generated files in %s",
                 out_dir);
-        return 1;
+        result = 1;
+        goto finish;
     }
     if(exe) {
         const char *name = strrchr(entry_module, '/');
-        if(!compile_executable(out_dir, name != NULL ? name + 1 : entry_module, posix_threads))
-            return 1;
+        if(!c_compile_executable(out_dir, name != NULL ? name + 1 : entry_module, posix_threads)) {
+            result = 1;
+            goto finish;
+        }
     }
     unresolved = c_plan9_unresolved();
     if(plan9 && unresolved > 0) {
@@ -480,5 +362,7 @@ done:
                 "(guarded code compiles out; the rest must be resolvable)",
                 unresolved);
     }
-    return 0;
+finish:
+    if(output_lock >= 0) close(output_lock);
+    return result;
 }

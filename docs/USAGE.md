@@ -174,7 +174,15 @@ Use `ziran build --target=c` for C99 output. Add `--exe --entry
 module:function` to also compile it into `DIR/module`, a program that runs
 that procedure and exits with its integer result; the entry takes nothing or
 `(argc: s32, argv: **u8)`, and an exported `main` is used as it is. `CC`,
-`CFLAGS` (default `-O2`), `LDFLAGS`, and `LDLIBS` apply as in make. Use
+`CFLAGS` (default `-O2`), `LDFLAGS`, and `LDLIBS` apply as in make.
+
+Native C executable builds compile up to four source files concurrently, then
+link and replace the executable only after success. The output directory has
+a writer lock and keeps intermediate objects under `.objects`; unchanged
+builds currently still compile every source file. Nested generated modules
+and manually supplied root-level C hosts participate in the link.
+
+Use
 `ziran build --target=py --exe --entry module:function -o DIR` for Python 3.10
 source that `python3 DIR` runs; it needs only the standard library. Its C
 foreign functions resolve in the running Python process, and `LDLIBS` names

@@ -536,6 +536,8 @@ int MapKeyComparable(const ZirModule *module, const char *type, int depth);
  * so a reused directory never links code from an earlier build. Files
  * without the marker are never touched. */
 void GeneratedOutputRecord(const char *path);
+/* Full paths recorded by this invocation, or NULL at the end. */
+const char *GeneratedOutputPath(int index);
 int GeneratedOutputPrune(const char *out_dir, const char *marker);
 
 /* Backends write each file through a hidden temporary next to it.

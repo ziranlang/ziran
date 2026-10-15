@@ -1949,7 +1949,7 @@ path_base_name(const char *path)
 void
 GeneratedOutputRecord(const char *path)
 {
-    const char *name = path_base_name(path);
+    const char *name = path;
     for(int i = 0; i < generated_output_count; i++)
         if(strcmp(generated_outputs[i], name) == 0) return;
     if(generated_output_count == generated_output_capacity) {
@@ -1966,6 +1966,12 @@ GeneratedOutputRecord(const char *path)
     if(copy == NULL) return;
     memcpy(copy, name, length + 1);
     generated_outputs[generated_output_count++] = copy;
+}
+
+const char *
+GeneratedOutputPath(int index)
+{
+    return index >= 0 && index < generated_output_count ? generated_outputs[index] : NULL;
 }
 
 FILE *
@@ -2055,13 +2061,13 @@ GeneratedOutputPrune(const char *out_dir, const char *marker)
     while((entry = readdir(directory)) != NULL) {
         const char *name = entry->d_name;
         if(name[0] == '.') continue;
-        int written = 0;
-        for(int i = 0; i < generated_output_count && !written; i++)
-            written = strcmp(generated_outputs[i], name) == 0;
-        if(written) continue;
         char path[4096];
         int size = snprintf(path, sizeof(path), "%s/%s", out_dir, name);
         if(size < 0 || (size_t)size >= sizeof(path)) continue;
+        int written = 0;
+        for(int i = 0; i < generated_output_count && !written; i++)
+            written = strcmp(generated_outputs[i], path) == 0;
+        if(written) continue;
         if(starts_with_marker(path, marker) && remove(path) != 0)
             failed = 1;
     }

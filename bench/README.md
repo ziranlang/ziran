@@ -1,5 +1,34 @@
 # Runtime and compiler benchmarks
 
+## Complete native builds
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/native_builds.py \
+  --out build/benchmarks/native-builds
+```
+
+Equivalent modular Ziran, C and Go programs produce an independently computed
+64-bit recurrence. Every build runs a small checksum oracle; runtime samples
+run about twenty million module calls. The default matrix uses 1, 16 and 64
+modules, five build samples and nine runtime samples after warmups.
+
+`fresh` removes fixture build outputs and changes comments in every application
+source to miss Go application caches while preserving standard-library/toolchain
+caches. `unchanged` preserves inputs and outputs. `leaf-edit` changes one leaf
+body; `shared-edit` changes an imported constant used by all modules. Each edit
+uses a new value. C uses Make dependency files; Go uses `-p=4`/`GOMAXPROCS=4`;
+Ziran uses the ordinary native `--exe` driver. The Go cache is private to the
+benchmark and its first toolchain warmup is recorded separately.
+
+This measures whole build commands rather than adding separate phase times.
+Source/command/tool hashes, raw samples, CPU time, artifact size and peak child
+RSS are retained. Peak RSS is not the sum of concurrent compiler memory.
+C's dynamic system libraries and Go's normal linked runtime have different
+packaging costs. Results describe these kernels on one shared host with warm
+filesystem caches, not a general language ranking or cold-machine build claim.
+Reuse the stable output after archiving needed receipts and checking that its
+outputs are inactive.
+
 ## Repeated portable execution
 
 Before changing the runtime, preserve `zi2zir`, `zi2zib` and `libziran.a` together

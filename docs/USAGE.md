@@ -179,8 +179,16 @@ that procedure and exits with its integer result; the entry takes nothing or
 Native C executable builds compile up to four source files concurrently, then
 link and replace the executable only after success. The output directory has
 a writer lock and keeps intermediate objects under `.objects`; unchanged
-builds currently still compile every source file. Nested generated modules
-and manually supplied root-level C hosts participate in the link.
+objects can be reused with supported GCC/Clang invocations. Reuse checks source
+and header contents (including system headers), compiler executables and their
+reported subtools, command flags, the environment and header search locations.
+New headers that shadow an earlier dependency invalidate reuse too. The driver
+always links again, so changed libraries reach the executable.
+
+Compiler wrappers, unsupported flags, time macros, nonliteral header probes and
+assembly includes use ordinary compilation. Missing or damaged cache files
+are rebuilt. Nested generated modules and manually supplied root-level C hosts
+participate in the link.
 
 Use
 `ziran build --target=py --exe --entry module:function -o DIR` for Python 3.10

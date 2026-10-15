@@ -1,4 +1,5 @@
 #include "zir_c_build.h"
+#include "zir_c_cache.h"
 #include "zir.h"
 #include "zir_diagnostic.h"
 #include "zir_load.h"
@@ -172,6 +173,7 @@ static int finish(Job *jobs, int count, ToolLog *log)
 int c_compile_executable(const char *out, const char *name, int threads)
 {
     Files files = {0};
+    CBuildCache *cache = NULL;
     ToolLog *log = calloc(1, sizeof(*log));
     char **base = calloc(MAX_ARGS, sizeof(*base)), **objects = NULL;
     char **tail = calloc(MAX_ARGS, sizeof(*tail));
@@ -203,7 +205,7 @@ int c_compile_executable(const char *out, const char *name, int threads)
         }
     }
     closedir(dir);
-    if(!listed || !files.count || count + files.count + tail_count + 12 >= MAX_ARGS) goto done;
+    if(!listed || !files.count || count + files.count + tail_count + 24 >= MAX_ARGS) goto done;
     qsort(files.items, (size_t)files.count, sizeof(*files.items), compare_paths);
     if(snprintf(object_dir, sizeof(object_dir), "%s/.objects", out) >= (int)sizeof(object_dir) || !directory(object_dir)) goto done;
     objects = calloc((size_t)files.count, sizeof(*objects));
@@ -222,22 +224,37 @@ int c_compile_executable(const char *out, const char *name, int threads)
     }
     long cpus = sysconf(_SC_NPROCESSORS_ONLN);
     int workers = cpus <= 0 ? 1 : cpus < MAX_JOBS ? (int)cpus : MAX_JOBS;
-    for(int first = 0; first < files.count; first += workers) {
+    cache = c_cache_open(base, count, out, name);
+    for(int first = 0; first < files.count;) {
         Job jobs[MAX_JOBS];
-        int amount = files.count - first < workers ? files.count - first : workers;
-        for(int j = 0; j < amount; j++) {
-            int i = first + j;
+        int indices[MAX_JOBS], tracked[MAX_JOBS], amount = 0;
+        while(first < files.count && amount < workers) {
+            int i = first++;
+            if(c_cache_hit(cache, objects[i])) continue;
+            indices[amount] = i;
             char *args[MAX_ARGS];
+            char dependencies[ZIR_PATH_MAX], stamp[ZIR_PATH_MAX];
             memcpy(args, base, (size_t)count * sizeof(*args));
             int n = count;
+            int collect = cache && snprintf(dependencies, sizeof(dependencies), "%s.d", objects[i]) < (int)sizeof(dependencies);
+            if(collect && unlink(dependencies) != 0 && errno != ENOENT) collect = 0;
+            if(collect) {
+                args[n++] = "-MD"; args[n++] = "-MF"; args[n++] = dependencies;
+                args[n++] = "-MT"; args[n++] = "ziran-cache";
+            }
+            if(snprintf(stamp, sizeof(stamp), "%s.inputs", objects[i]) < (int)sizeof(stamp)) (void)unlink(stamp);
+            tracked[amount] = collect;
             args[n++] = "-c"; args[n++] = files.items[i]; args[n++] = "-o"; args[n++] = objects[i]; args[n] = NULL;
-            if(unlink(objects[i]) != 0 && errno != ENOENT) jobs[j] = (Job){-1, -1};
-            else jobs[j] = start(args, DiagnosticJsonEnabled());
+            if(unlink(objects[i]) != 0 && errno != ENOENT) jobs[amount] = (Job){-1, -1};
+            else jobs[amount] = start(args, DiagnosticJsonEnabled());
+            amount++;
         }
         if(!finish(jobs, amount, log)) goto done;
         for(int j = 0; j < amount; j++) {
             struct stat info;
-            if(stat(objects[first + j], &info) != 0 || !S_ISREG(info.st_mode) || !info.st_size) goto done;
+            int i = indices[j];
+            if(stat(objects[i], &info) != 0 || !S_ISREG(info.st_mode) || !info.st_size) goto done;
+            if(tracked[j]) c_cache_record(cache, objects[i], files.items[i]);
         }
     }
     if(snprintf(output, sizeof(output), "%s/%s", out, name) >= (int)sizeof(output) ||
@@ -261,6 +278,7 @@ int c_compile_executable(const char *out, const char *name, int threads)
        executable.st_size && (executable.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) &&
        rename(temporary, output) == 0) { temporary[0] = 0; ok = 1; }
 done:
+    c_cache_close(cache);
     if(temporary[0]) unlink(temporary);
     if(ok && log && log->used) Warning((ZirSourceSpan){0}, "zir_c.toolchain", "%s%s", log->text,
                                      log->truncated ? " [output truncated]" : "");

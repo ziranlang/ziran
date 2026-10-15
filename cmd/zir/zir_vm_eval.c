@@ -619,45 +619,49 @@ binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
             return int_value(left.integer != right.integer);
         goto failed;
     }
-    /* Text, enums and VM references above do not need integer type parsing.
-     * Shift width comes only from the left operand; other numeric operations
+    /* Integer arithmetic never needs floating conversion. Keep conversion
+     * and real comparisons together so integer loops do not construct two
+     * doubles for every arithmetic, bitwise or comparison operation. */
+    if(real) {
+        double a = as_real(left), b = as_real(right);
+        switch(operation) {
+        case BinaryEqual: return int_value(a == b);
+        case BinaryNotEqual: return int_value(a != b);
+        case BinaryLess: return int_value(a < b);
+        case BinaryLessEqual: return int_value(a <= b);
+        case BinaryGreater: return int_value(a > b);
+        case BinaryGreaterEqual: return int_value(a >= b);
+        case BinaryAdd: return real_value(a + b);
+        case BinarySubtract: return real_value(a - b);
+        case BinaryMultiply: return real_value(a * b);
+        case BinaryDivide: return real_value(a / b);
+        default: goto failed;
+        }
+    }
+    /* Shift width comes only from the left operand; other numeric operations
      * use either operand's wide representation. */
     int unsigned64 = left_width == -64 || right_width == -64;
     int signed_wide = !unsigned64 && (left_width == 64 || right_width == 64);
     uint64_t left_bits = integer_bits(left);
     uint64_t right_bits = integer_bits(right);
-    double a = as_real(left), b = as_real(right);
     if(operation == BinaryEqual)
-        return int_value(real ? a == b :
-                         unsigned64 ? left_bits == right_bits :
+        return int_value(unsigned64 ? left_bits == right_bits :
                          left.integer == right.integer);
     if(operation == BinaryNotEqual)
-        return int_value(real ? a != b :
-                         unsigned64 ? left_bits != right_bits :
+        return int_value(unsigned64 ? left_bits != right_bits :
                          left.integer != right.integer);
     if(operation == BinaryLess)
-        return int_value(real ? a < b :
-                         unsigned64 ? left_bits < right_bits :
+        return int_value(unsigned64 ? left_bits < right_bits :
                          left.integer < right.integer);
     if(operation == BinaryLessEqual)
-        return int_value(real ? a <= b :
-                         unsigned64 ? left_bits <= right_bits :
+        return int_value(unsigned64 ? left_bits <= right_bits :
                          left.integer <= right.integer);
     if(operation == BinaryGreater)
-        return int_value(real ? a > b :
-                         unsigned64 ? left_bits > right_bits :
+        return int_value(unsigned64 ? left_bits > right_bits :
                          left.integer > right.integer);
     if(operation == BinaryGreaterEqual)
-        return int_value(real ? a >= b :
-                         unsigned64 ? left_bits >= right_bits :
+        return int_value(unsigned64 ? left_bits >= right_bits :
                          left.integer >= right.integer);
-    if(real) {
-        if(operation == BinaryAdd) return real_value(a + b);
-        if(operation == BinarySubtract) return real_value(a - b);
-        if(operation == BinaryMultiply) return real_value(a * b);
-        if(operation == BinaryDivide) return real_value(a / b);
-        goto failed;
-    }
     if(operation == BinaryAnd || operation == BinaryOr || operation == BinaryXor ||
        operation == BinaryShiftLeft || operation == BinaryShiftRight) {
         if(unsigned64 || signed_wide) {

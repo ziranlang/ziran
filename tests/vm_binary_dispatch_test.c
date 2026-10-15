@@ -49,6 +49,26 @@ main(void)
     assert(calculate(&vm, "*", real, int_value(4), "float64", "s32").real == 6.0);
     assert(calculate(&vm, "<=", real, real_value(1.5), "float64", "float64").integer == 1);
     assert(calculate(&vm, ">=", real, real_value(2.0), "float64", "float64").integer == 0);
+    /* Integer comparison must keep low bits beyond double's exact range;
+     * mixed real/integer operations deliberately use floating conversion. */
+    Value exact = uint_value(UINT64_C(9007199254740993));
+    Value rounded = uint_value(UINT64_C(9007199254740992));
+    assert(calculate(&vm, "==", exact, rounded, "u64", "u64").integer == 0);
+    assert(calculate(&vm, ">", exact, rounded, "u64", "u64").integer == 1);
+    assert(calculate(&vm, "==", exact, real_value(9007199254740992.0), "u64", "float64").integer == 1);
+    assert(calculate(&vm, "+", int_value(4), real, "s32", "float64").real == 5.5);
+    const double numbers[] = {NAN, INFINITY, -INFINITY, -0.0, 0.0, 1.5};
+    const char *comparisons[] = {"==", "!=", "<", "<=", ">", ">="};
+    for(size_t i = 0; i < sizeof numbers / sizeof *numbers; i++) {
+        for(size_t j = 0; j < sizeof numbers / sizeof *numbers; j++) {
+            double left = numbers[i], right = numbers[j];
+            const int answers[] = {left == right, left != right, left < right,
+                                   left <= right, left > right, left >= right};
+            for(size_t k = 0; k < sizeof answers / sizeof *answers; k++)
+                assert(calculate(&vm, comparisons[k], real_value(left), real_value(right),
+                                 "float64", "float64").integer == answers[k]);
+        }
+    }
     static const unsigned char text[] = {'a', 0, 'b'};
     static const unsigned char other[] = {'a', 0, 'c'};
     Value string = string_value(text, sizeof text);

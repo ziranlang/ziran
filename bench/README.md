@@ -1,5 +1,28 @@
 # Runtime and compiler benchmarks
 
+## Repeated portable execution
+
+Before changing the runtime, preserve `zi2zir`, `zi2zib` and `libziran.a` together
+in a stable baseline directory. Then run:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vm_execution.py \
+  --before-dir build/vm-execution/before --out build/benchmarks/vm-execution
+```
+
+This suite generates integer arithmetic, mixed signed/unsigned comparisons,
+floating-point arithmetic, record calls over an array, and population-count
+workloads. Each uses a separate Python result calculation. Source and saved IR
+must create identical bundles, and both runtime versions must recreate the
+source bundle before timing. Every first and repeated run must match the oracle.
+The default uses ten thousand numeric iterations and nine repeated executions
+per instance, within the runner's million-statement limit. Results separate
+checked loading, instance opening, first execution, repeated execution and closing
+through `vm_startup.py`; its measurement and memory limitations below apply.
+These are synthetic VM comparisons on the recorded host, not native C/Go or
+whole-application performance claims. Fixture manifests retain the generator
+hashes and expected results alongside the existing raw timing receipts.
+
 ## CPU-selected assembly
 
 ```sh

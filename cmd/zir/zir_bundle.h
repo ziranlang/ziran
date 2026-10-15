@@ -65,12 +65,13 @@ ZirProgram *BundleRead(FILE *in, const char *path,
                           char *entry_module, size_t module_size,
                           char *entry_function, size_t function_size,
                           ZibLawTable *laws, ZibAssets *assets);
+/* Optional counts describe the validated payload before libraries are appended. */
 ZirProgram *BundleReadInContext(FILE *in, const char *path,
                           char *entry_module, size_t module_size,
                           char *entry_function, size_t function_size,
                           ZibLawTable *laws, ZibAssets *assets,
                           const ZirProgram *const *libraries, size_t count,
-                          int *own_module_count);
+                          int *own_module_count, size_t *own_capability_count);
 typedef struct Bundle Bundle;
 const ZirProgram *BundleProgram(const Bundle *bundle);
 const ZirFunction *BundleEntry(const Bundle *bundle);

@@ -209,10 +209,10 @@ import_is_called(const ZirModule *module, const ZirImport *import)
 }
 
 static int
-count_capabilities(const ZirProgram *program)
+count_capabilities(const ZirProgram *program, int module_count)
 {
     int count = 0;
-    for(int m = 0; m < program->module_count; m++)
+    for(int m = 0; m < module_count; m++)
         for(int i = 0; i < program->modules[m].import_count; i++)
             count += program->modules[m].imports[i].kind == ZIR_IMPORT_EXTERN &&
                      (program->modules[m].imports[i].extern_kind != ZIR_EXTERN_HOST ||
@@ -2288,7 +2288,7 @@ BundleWriteInContext(FILE *out, const ZirProgram *program,
     length = ok ? ftell(payload) : -1;
     if(length <= 0 || length > ZIB_MAX_IR_BYTES || fseek(payload, 0, SEEK_SET))
         ok = 0;
-    int capabilities = count_capabilities(program);
+    int capabilities = count_capabilities(program, program->module_count);
     if(capabilities > ZIB_MAX_CAPABILITIES)
         ok = 0;
     if(ok) {
@@ -2440,7 +2440,7 @@ BundleReadInContext(FILE *in, const char *path,
            char *entry_function, size_t function_size,
            ZibLawTable *laws, ZibAssets *assets,
            const ZirProgram *const *libraries, size_t library_count,
-           int *own_module_count)
+           int *own_module_count, size_t *own_capability_count)
 {
     unsigned char signature[4];
     uint32_t version, capability_count, length;
@@ -2543,12 +2543,26 @@ BundleReadInContext(FILE *in, const char *path,
         problem = "invalid embedded ZIR";
         goto failed;
     }
-    if(capability_count != (uint32_t)count_capabilities(program)) {
+    own_modules = program->module_count;
+    for(size_t i = 0; i < library_count; i++) {
+        if(!append_library(program, libraries[i])) {
+            problem = "missing or conflicting bundle library";
+            goto failed;
+        }
+    }
+    if(!CheckCanonicalPrograms(&program, 1, NULL)) {
+        problem = "embedded ZIR failed semantic checking";
+        goto failed;
+    }
+    /* Canonical checking can materialize generic specializations. Validate
+     * requirements against the final payload before reusing its count. The
+     * separately verified libraries retain their own capability lists. */
+    if(capability_count != (uint32_t)count_capabilities(program, own_modules)) {
         problem = "bundle capability list differs from linked IR";
         goto failed;
     }
     uint32_t next_capability = 0;
-    for(int m = 0; m < program->module_count; m++)
+    for(int m = 0; m < own_modules; m++)
         for(int i = 0; i < program->modules[m].import_count; i++)
             if(program->modules[m].imports[i].kind == ZIR_IMPORT_EXTERN &&
                (program->modules[m].imports[i].extern_kind != ZIR_EXTERN_HOST ||
@@ -2565,17 +2579,6 @@ BundleReadInContext(FILE *in, const char *path,
                 }
                 next_capability++;
             }
-    own_modules = program->module_count;
-    for(size_t i = 0; i < library_count; i++) {
-        if(!append_library(program, libraries[i])) {
-            problem = "missing or conflicting bundle library";
-            goto failed;
-        }
-    }
-    if(!CheckCanonicalPrograms(&program, 1, NULL)) {
-        problem = "embedded ZIR failed semantic checking";
-        goto failed;
-    }
     if(laws) {
         int next = 0, next_waiver = 0;
         for(int m = 0; m < own_modules; m++) {
@@ -2615,6 +2618,7 @@ BundleReadInContext(FILE *in, const char *path,
     if(discard_laws) ZibLawTableFree(&discarded);
     if(discard_assets) ZibAssetsFree(&discarded_assets);
     if(own_module_count != NULL) *own_module_count = own_modules;
+    if(own_capability_count != NULL) *own_capability_count = capability_count;
     return program;
 failed:
     Diagnostic(Span(path, 1, 1), "zib.invalid", "%s", problem);
@@ -2635,5 +2639,5 @@ BundleRead(FILE *in, const char *path,
            ZibLawTable *laws, ZibAssets *assets)
 {
     return BundleReadInContext(in, path, entry_module, module_size,
-        entry_function, function_size, laws, assets, NULL, 0, NULL);
+        entry_function, function_size, laws, assets, NULL, 0, NULL, NULL);
 }

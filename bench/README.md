@@ -87,6 +87,23 @@ and removing inactive outputs.
 
 ## Bundle startup and real-package checks
 
+Host embedding has a separate capability-scaling benchmark:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/host_capabilities.py \
+  --before-dir build/host-capabilities/before --out build/benchmarks/host-capabilities
+```
+
+Preserve `zi2zib` and `libziran.a` before changing the runtime. The default uses
+1, 16, 64 and 256 host capabilities, nine paired process samples and nine fresh
+instances after discarded process/instance warmups. Each instance executes 32
+rounds of every capability. Callbacks check their names, contexts, arguments and
+order; results must match a separate Python integer recurrence. Both compilers
+must generate identical bundle bytes. Receipts separate checked load, capability
+enumeration, binding/initialization, execution and close CPU/wall times. Optional
+glibc allocator in-use deltas are affected by caching and are not total live
+memory or RSS. Results cover these synthetic fixtures on one shared host.
+
 For the public embedding API, compare one checked `BundleOpen` followed by
 independent `BundleInstantiate`/run/close operations:
 

@@ -99,6 +99,10 @@ Opening a bundle verifies its final linked code, including shared libraries.
 Each fresh instance validates its host bindings and creates independent globals;
 it reuses verification of the immutable bundle. Separate instances can execute
 concurrently while the bundle and their binding contexts remain alive.
+Capability enumeration reuses the final code's immutable list, including library
+requirements. Instantiation copies binding names into compact storage and indexes
+them by module/function, so caller order does not affect dispatch. Missing or
+duplicate bindings fail before any global initializer or entry executes.
 
 Local slices may borrow fixed arrays or other slices, cross ordinary Ziran
 function calls, return views of permitted backing storage, and read or write

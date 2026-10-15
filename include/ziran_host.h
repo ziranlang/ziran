@@ -84,6 +84,8 @@ Bundle *BundleOpenWithLibraries(const char *path,
 Bundle *BundleOpenBytesWithLibraries(const unsigned char *data, size_t size,
                                     Bundle *const *libraries, size_t count);
 void BundleClose(Bundle *bundle);
+/* Required capability names are borrowed until BundleClose. Enumeration covers
+ * the final linked code, including retained libraries, and is cached on open. */
 size_t BundleCapabilityCount(const Bundle *bundle);
 const char *BundleCapabilityModule(const Bundle *bundle, size_t index);
 const char *BundleCapabilityFunction(const Bundle *bundle, size_t index);
@@ -118,6 +120,7 @@ const char *BundleLawWaiverReason(const Bundle *bundle, size_t index);
  * Separate instances may execute concurrently over the same live Bundle.
  * Keep the Bundle and any binding contexts alive until the instance closes.
  * Binding names and the binding array are copied during instantiation.
+ * Caller order is preserved; callbacks are matched by module/function names.
  * A runtime failure makes the instance unusable. */
 BundleInstance *BundleInstantiate(const Bundle *bundle,
                                    const HostBinding *bindings,

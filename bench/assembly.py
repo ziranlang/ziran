@@ -53,11 +53,17 @@ def main():
     env['GOCACHE'] = str(output / 'go-cache')
     env['GO111MODULE'] = 'off'
     samples = []
+    time_launcher = []
     time_tool = shutil.which('time')
     if time_tool:
         version = subprocess.run([time_tool, '--version'], capture_output=True, text=True)
-        if version.returncode or 'GNU' not in version.stdout:
-            time_tool = None
+        if version.returncode == 0 and 'GNU' in version.stdout + version.stderr:
+            time_launcher = [time_tool]
+    if not time_launcher and (busybox := shutil.which('busybox')):
+        help_result = subprocess.run([busybox, 'time', '--help'], capture_output=True, text=True)
+        help_text = help_result.stdout + help_result.stderr
+        if '-f FMT' in help_text and '-o FILE' in help_text:
+            time_launcher = [busybox, 'time']
 
     def digest(path):
         return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -76,9 +82,10 @@ def main():
                                    for folder in ['cmd', 'std', 'include']
                                    for path in (ROOT / folder).rglob('*')
                                    if path.is_file() and path.suffix in ['.c', '.h', '.zi']},
-                    rss_measurement='GNU time child peak RSS' if time_tool else 'wait4 peak RSS including inherited high-water marks',
+                    rss_measurement='time child peak RSS' if time_launcher else 'wait4 peak RSS including inherited high-water marks',
+                    measurement_launcher=time_launcher,
                     caveats=['One byte-swap recurrence on this host; not a language ranking.',
-                             'Whole-process times include startup and, when available, a GNU time launcher for reliable child RSS.',
+                             'Whole-process times include startup and, when available, a GNU/BusyBox time launcher for reliable child RSS.',
                              'User/system CPU includes the measurement launcher; peak RSS is not live allocated bytes.',
                              'Go compilation uses a warm standard-library build cache after a discarded warmup.',
                              'Source-to-native total times below sum separately measured phases, not a single build.',
@@ -92,8 +99,8 @@ def main():
         argv = [str(part) for part in command]
         measured_argv = argv
         resources = output / 'resource-rss.txt'
-        if time_tool:
-            measured_argv = [time_tool, '-f', '%M', '-o', str(resources), *argv]
+        if time_launcher:
+            measured_argv = [*time_launcher, '-f', '%M', '-o', str(resources), *argv]
         with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
             started = time.perf_counter_ns()
             child = subprocess.Popen(measured_argv, cwd=ROOT, env=env, stdout=stdout, stderr=stderr)
@@ -104,7 +111,7 @@ def main():
             result = stdout.read().decode(errors='replace').strip()
             errors = stderr.read().decode(errors='replace')
         rss = usage.ru_maxrss / 1024 if platform.system() == 'Darwin' else usage.ru_maxrss
-        if time_tool and child.returncode == 0:
+        if time_launcher and child.returncode == 0:
             rss = int(resources.read_text().strip())
         record = dict(phase=phase, case=case, argv=argv, warmup=warmup,
                       elapsed_ms=elapsed, user_s=usage.ru_utime, system_s=usage.ru_stime,

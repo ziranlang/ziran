@@ -16,7 +16,7 @@ variant, but measurements prove only the recorded host's behavior.
 
 Raw samples include wall time, user/system CPU time, process peak RSS, discarded
 warmups, commands, and output. Metadata contains tool versions, compiler and
-fixture hashes, and limitations. When GNU time is available, a small launcher
+fixture hashes, and limitations. When GNU time or BusyBox time is available, a small launcher
 avoids counting Python's inherited high-water mark as the native program's
 memory. Metadata identifies the fallback to raw `wait4` otherwise. RSS is not
 live allocated bytes, and wall/CPU times include that launcher. Runtime order is shuffled. Go build

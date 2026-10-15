@@ -90,9 +90,9 @@ if rg -n '__asm__' "$work/generated"/*.c "$work/generated"/*.h; then
 fi
 rg -q -F '    return close(descriptor);' "$work/generated/main.h"
 
-rg -q '^int32_t ziran_plan9_main\(void\);$' "$work/generated/main.h"
+rg -q '^int32_t zir_main_[0-9a-f]+\(void\);$' "$work/generated/main.h"
 rg -q '^void main\(void\);$' "$work/generated/main.h"
-rg -q '^ziran_plan9_main\(void\)$' "$work/generated/main.c"
+rg -q '^zir_main_[0-9a-f]+\(void\)$' "$work/generated/main.c"
 rg -q -F '    exits(status_text);' "$work/generated/main.c"
 
 if rg -n 'plan9-c' "$work/generated"/*.c "$work/generated"/*.h; then
@@ -183,7 +183,7 @@ for input in source saved; do
     output=$work/arguments-$input
     "$ziran" build --target=plan9-c --root "$root" -o "$output" "$entry"
     rg -q '^void main\(int argc, char\*\* argv\);$' "$output/arguments.h"
-    rg -q -F 'status = ziran_plan9_main((int32_t)argc, (int8_t**)argv);' "$output/arguments.c"
+    rg -q 'status = \(int32_t\)zir_main_[0-9a-f]+\(\(int32_t\)argc, \(int8_t\*\*\)argv\);' "$output/arguments.c"
     "${CC:-cc}" -std=c99 -Dmain=NativeEntry -I"$work/plan9-include" -I"$output" \
         "$output"/arguments.c "$work/arguments-host.c" -o "$output/run"
     "$output/run" good 'space'"'"'s $value; document'
@@ -256,7 +256,7 @@ EOF
 "$ziran" build --target=plan9-c --root "$work/src" \
     --module-path "$repo/std" -o "$work/generated-status" \
     "$work/src/status_main.zi"
-rg -q '^int32_t ziran_plan9_main\(void\);' \
+rg -q '^int32_t zir_main_[0-9a-f]+\(void\);' \
     "$work/generated-status/status_main.h"
 if rg -n '^#include <string\.h>' "$work/generated-status"/*.c; then
     echo 'plan9-c c_string output retained hosted string header' >&2
@@ -297,6 +297,73 @@ EOF
     -I"$work/generated-status" "$work/generated-status"/*.c \
     "$work/fake-plan9-exits.c" -o "$work/plan9-status-runner"
 "$work/plan9-status-runner"
+
+# Named entries keep their full typed result and unsigned argument bytes;
+# only the native boundary converts the result to a Plan 9 status string.
+mkdir "$work/wide-entry-src"
+cat > "$work/wide-entry-src/arguments.zi" <<'EOF'
+#program_export "main"
+Launch :: (count: s32, words: **u8) -> u64 {
+    if count != 3 || words[2][0] != 207 || words[2][1] != 128 { return 99 }
+    return 4294967338
+}
+EOF
+"$ziran" ir --root "$work/wide-entry-src" -o "$work/wide-entry-ir" "$work/wide-entry-src/arguments.zi"
+for form in source saved; do
+    root=$work/wide-entry-src
+    input=$root/arguments.zi
+    if test "$form" = saved; then root=$work/wide-entry-ir; input=$root/arguments.zir; fi
+    output=$work/wide-entry-$form
+    "$ziran" build --target=plan9-c --root "$root" -o "$output" "$input"
+    rg -q '^uint64_t zir_main_[0-9a-f]+\(' "$output/arguments.h"
+    "${CC:-cc}" -std=c99 -Dmain=NativeEntry -I"$work/plan9-include" -I"$output" \
+        "$output/arguments.c" "$work/arguments-host.c" -o "$output/run"
+    status=0
+    "$output/run" alpha 'π' || status=$?
+    test "$status" = 42
+done
+cat > "$work/src/void_entry.zi" <<'EOF'
+#program_export "main"
+Launch :: () { return }
+EOF
+"$ziran" ir --root "$work/src" -o "$work/void-entry-ir" "$work/src/void_entry.zi"
+for form in source saved; do
+    root=$work/src
+    input=$root/void_entry.zi
+    if test "$form" = saved; then root=$work/void-entry-ir; input=$root/void_entry.zir; fi
+    output=$work/void-entry-$form
+    "$ziran" build --target=plan9-c --root "$root" -o "$output" "$input"
+    rg -q '^void zir_main_[0-9a-f]+\(void\);$' "$output/void_entry.h"
+    "${CC:-cc}" -std=c99 -I"$work/plan9-include" -I"$output" \
+        "$output/void_entry.c" "$work/fake-plan9-exits.c" -o "$output/run"
+    "$output/run"
+done
+mkdir "$work/implicit-entry-src"
+cat > "$work/implicit-entry-src/main.zi" <<'EOF'
+Initializations: s32 = 0;
+Read :: () -> s32 { Initializations += 1; return 42 }
+Value: s32 = Read();
+main :: (count: s32, words: **u8) -> s32 {
+    unused count
+    unused words
+    if Initializations != 1 { return 99 }
+    return Value
+}
+EOF
+sed 's/"arguments.h"/"main.h"/' "$work/arguments-host.c" > "$work/implicit-host.c"
+"$ziran" ir --root "$work/implicit-entry-src" -o "$work/implicit-entry-ir" "$work/implicit-entry-src/main.zi"
+for form in source saved; do
+    root=$work/implicit-entry-src
+    input=$root/main.zi
+    if test "$form" = saved; then root=$work/implicit-entry-ir; input=$root/main.zir; fi
+    output=$work/implicit-entry-$form
+    "$ziran" build --target=plan9-c --root "$root" -o "$output" "$input"
+    "${CC:-cc}" -std=c99 -Dmain=NativeEntry -I"$work/plan9-include" -I"$output" \
+        "$output/main.c" "$work/implicit-host.c" -o "$output/run"
+    status=0
+    "$output/run" || status=$?
+    test "$status" = 42
+done
 
 cat > "$work/src/vec_main.zi" <<'EOF'
 #import "vec"

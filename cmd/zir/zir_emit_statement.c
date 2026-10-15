@@ -1000,8 +1000,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     /* value is a captured true array; output is an ABI pointer. */
                     line(e, "memmove(%s, %s, sizeof(%s));", output, buffers->value, buffers->value);
                     drop_locals(e, 0);
-                    line(e, e->target != ZIR_GO && NativeMainReturnsStatus(e->fn) ?
-                         "return 0;" : "return;");
+                    line(e, "return;");
                 } else {
                     if(has_owned_locals(e)) {
                         char returned[ZIR_NAME_MAX];
@@ -1016,8 +1015,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             }
             else {
                 drop_locals(e, 0);
-                line(e,e->target==ZIR_GO?"return":
-                       NativeMainReturnsStatus(e->fn)?"return 0;":"return;");
+                line(e,e->target==ZIR_GO?"return":"return;");
             }
             e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
         case ZIR_STMT_UNREACHABLE:

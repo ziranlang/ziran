@@ -669,7 +669,6 @@ assembly_body(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarg
     }
     fputs(");\n        return", out);
     if(outputs->count) fprintf(out, " %s", result_name);
-    else if(NativeMainReturnsStatus(fn)) fputs(" 0", out);
     fputs(";\n", out);
 }
 
@@ -776,14 +775,14 @@ EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarge
                 assembly_helper_name(module, fn, target, ordinal, helper, sizeof(helper));
                 fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
                 fprintf(out, "        if(%s == %d) { ", selected, ordinal + 2);
-                if(outputs->count || NativeMainReturnsStatus(fn)) fputs("return ", out);
+                if(outputs->count) fputs("return ", out);
                 fprintf(out, "%s(", helper);
                 for(int i = 0; i < parameters->count; i++) {
                     char name[ZIR_NAME_MAX * 4];
                     TargetBindingName(fn, target, parameters->items[i].name, name, sizeof(name));
                     fprintf(out, "%s%s", i ? ", " : "", name);
                 }
-                fprintf(out, ");%s }\n#endif\n", outputs->count || NativeMainReturnsStatus(fn) ? "" : " return;");
+                fprintf(out, ");%s }\n#endif\n", outputs->count ? "" : " return;");
             }
             ordinal++;
         }

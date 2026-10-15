@@ -1135,23 +1135,15 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
-        if(NativeMainReturnsStatus(fn))
-            copy_text(cret, sizeof(cret), "int32_t");
-        if(strcmp(cname, "main") == 0) {
-            /* The C++ runtime expects main with C++ language linkage. */
-            fprintf(h, "}\nextern \"C++\" {\n%s %s(%s);\n"
-                      "}\nextern \"C\" {\n",
-                    cret[0] ? cret : "void", cname, buffers->cargs);
-            continue;
-        }
         fprintf(h, "%s %s(%s)", cret[0] ? cret : "void", cname, buffers->cargs);
-        if(fn->exported) {
+        if(fn->exported && !NativeProgramMain(m, fn)) {
             const char *symbol = fn->export_symbol[0] ?
                 fn->export_symbol : fn->name;
             if(strcmp(cname, symbol))
                 fprintf(h, " __asm__(\"%s\")", symbol);
         }
         fputs(";\n", h);
+        if(NativeProgramMain(m, fn)) EmitNativeMainDeclaration(h, ZIR_CPP);
     }
     fprintf(h, "\n#ifdef __cplusplus\n}\n#endif\n");
     fprintf(h, "\n#endif /* %s */\n", buffers->guard);
@@ -1226,8 +1218,6 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
-        if(NativeMainReturnsStatus(fn))
-            copy_text(cret, sizeof(cret), "int32_t");
         fprintf(c, "[[maybe_unused]] static %s %s(%s);\n",
                 cret[0] ? cret : "void", cname, buffers->cargs);
     }
@@ -1290,8 +1280,6 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
-        if(NativeMainReturnsStatus(fn))
-            copy_text(cret, sizeof(cret), "int32_t");
         if(fn->is_extern) {
             /* extern: prototype only, no body */
             fprintf(c, "\n");
@@ -1307,9 +1295,6 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         BodySymbols symbols = {m, restab, restab_count};
         EmitSlotWrappers(c, m, fn, ZIR_CPP, resolve_body_symbol, &symbols);
         EmitAssemblyHelpers(c, m, fn, ZIR_CPP, cret, buffers->cargs);
-        int cpp_main = strcmp(cname, "main") == 0;
-        if(cpp_main)
-            fputs("}\n", c);
         if(fn->is_public)
             fprintf(c, "%s\n%s(%s)\n{\n", cret[0] ? cret : "void",
                     cname, buffers->cargs);
@@ -1318,11 +1303,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
                     cret[0] ? cret : "void", cname, buffers->cargs);
         EmitAssembly(c, m, fn, ZIR_CPP, cret);
         lower_body(c, m, restab, restab_count, fn);
-        if(NativeMainReturnsStatus(fn))
-            fputs("    return 0;\n", c);
         fprintf(c, "}\n");
-        if(cpp_main)
-            fputs("extern \"C\" {\n", c);
+        if(NativeProgramMain(m, fn)) EmitNativeMain(c, m, fn, ZIR_CPP);
     }
     int startup_count = 0;
     for(i = 0; i < m->function_count; i++)
@@ -1420,6 +1402,12 @@ cpp_lower(const ZirProgram *program, const char *root, const char *out_dir, cons
         return 0;
     if(!CheckTargetCapabilities(program, "cpp"))
         return 0;
+    for(i = 0; i < program->module_count; i++)
+        for(int f = 0; f < program->modules[i].function_count; f++) {
+            const ZirFunction *fn = &program->modules[i].functions[f];
+            if(!fn->is_template && NativeProgramMain(&program->modules[i], fn) &&
+               !CheckNativeEntry(fn, "cpp")) return 0;
+        }
     for(i = 0; i < program->module_count; i++)
         if(!lower_module(&program->modules[i], restab, restab_count,
                          out_dir))

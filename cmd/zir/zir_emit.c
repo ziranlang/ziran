@@ -1,4 +1,5 @@
 #include "zir_emit_internal.h"
+#include "zir_scalar.h"
 
 static void readable_module_name(const char *name, char *out, size_t size, int upper);
 
@@ -602,6 +603,10 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                 NativeCFunctionName(module, function, native, sizeof(native));
                 native_names_mark(&names[0], native);
                 native_names_mark(&names[1], native);
+                if(NativeProgramMain(module, function)) {
+                    native_names_mark(&names[0], "main");
+                    native_names_mark(&names[1], "main");
+                }
                 NativeGoFunctionName(native_programs, count, module, function,
                                      native, sizeof(native));
                 native_names_mark(&names[2], native);
@@ -949,6 +954,17 @@ void
 NativeCFunctionName(const ZirModule *module, const ZirFunction *fn,
                     char *out, size_t size)
 {
+    if(NativeProgramMain(module, fn)) {
+        uint64_t hash = UINT64_C(14695981039346656037);
+        for(const unsigned char *p = (const unsigned char *)module->name; *p; p++)
+            hash = (hash ^ *p) * UINT64_C(1099511628211);
+        hash *= UINT64_C(1099511628211);
+        for(const unsigned char *p = (const unsigned char *)fn->name; *p; p++)
+            hash = (hash ^ *p) * UINT64_C(1099511628211);
+        /* A long source export name must fit every backend symbol buffer. */
+        format(out, size, "zir_main_%016llx", (unsigned long long)hash);
+        return;
+    }
     if(fn->exported) {
         NativeExportName(module, fn, out, size);
         return;
@@ -1714,12 +1730,75 @@ EmitGoPrintSupport(FILE *out)
           "}\n\n", out);
 }
 
-/* An exported void main is the C program entry: it returns status 0. */
 int
-NativeMainReturnsStatus(const ZirFunction *fn)
+NativeProgramMain(const ZirModule *module, const ZirFunction *fn)
 {
-    return fn->exported && !strcmp(fn->name, "main") &&
-           (!fn->return_type[0] || !strcmp(fn->return_type, "void"));
+    if(fn->exported)
+        return !strcmp(fn->export_symbol[0] ? fn->export_symbol : fn->name, "main");
+    return !strcmp(module->name, "main") && !strcmp(fn->name, "main");
+}
+
+static void
+native_entry_error(const ZirFunction *fn, const char *target, const char *reason)
+{
+    if(!strcmp(target, "cpp"))
+        DiagnosticTarget(fn->span, "zir_cpp.entry", target, "entry.signature",
+                         "native entry %s %s", fn->name, reason);
+    else
+        DiagnosticTarget(fn->span, "zir_c.entry", target, "entry.signature",
+                         "native entry %s %s", fn->name, reason);
+}
+
+int
+CheckNativeEntry(const ZirFunction *fn, const char *target)
+{
+    int integer_result = ScalarWidth(fn->return_type) || !strcmp(fn->return_type, "isize") || !strcmp(fn->return_type, "usize");
+    if(fn->return_type[0] && strcmp(fn->return_type, "void") && !integer_result) {
+        native_entry_error(fn, target, "must return nothing or an integer");
+        return 0;
+    }
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    const char *count_type = parameters->count && parameters->items[0].type ? parameters->items[0].type : "";
+    int integer_count = ScalarWidth(count_type) || !strcmp(count_type, "isize") || !strcmp(count_type, "usize");
+    if(parameters->count && (parameters->count != 2 || !parameters->items[0].type ||
+       !integer_count || !parameters->items[1].type ||
+       (strcmp(parameters->items[1].type, "**u8") && strcmp(parameters->items[1].type, "**s8")))) {
+        native_entry_error(fn, target, "takes nothing or (argc: integer, argv: **u8 or **s8)");
+        return 0;
+    }
+    return 1;
+}
+
+void
+EmitNativeMainDeclaration(FILE *out, ZirTarget target)
+{
+    if(target == ZIR_C) fputs("#ifdef __cplusplus\n", out);
+    fputs("}\nextern \"C++\" {\n", out);
+    if(target == ZIR_C) fputs("#endif\n", out);
+    fputs("int main(int argc, char **argv);\n", out);
+    if(target == ZIR_C) fputs("#ifdef __cplusplus\n", out);
+    fputs("}\nextern \"C\" {\n", out);
+    if(target == ZIR_C) fputs("#endif\n", out);
+}
+
+void
+EmitNativeMain(FILE *out, const ZirModule *module, const ZirFunction *fn,
+               ZirTarget target)
+{
+    char body[ZIR_NAME_MAX * 2];
+    NativeCFunctionName(module, fn, body, sizeof(body));
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    if(target == ZIR_CPP) fputs("}\nextern \"C++\" {\n", out);
+    fputs("\nint\nmain(int argc, char **argv)\n{\n    (void)argc;\n    (void)argv;\n", out);
+    int returns_value = fn->return_type[0] && strcmp(fn->return_type, "void");
+    fprintf(out, "    %s%s(", returns_value ? "return (int)" : "", body);
+    if(parameters->count == 2)
+        fprintf(out, "(%s)argc, (%s)argv", TargetType(parameters->items[0].type, target),
+                !strcmp(parameters->items[1].type, "**s8") ? "int8_t **" : "uint8_t **");
+    fputs(");\n", out);
+    if(!returns_value) fputs("    return 0;\n", out);
+    fputs("}\n", out);
+    if(target == ZIR_CPP) fputs("}\nextern \"C\" {\n", out);
 }
 
 /* C numeric helpers, named for what they do. IntegerOp reads signed

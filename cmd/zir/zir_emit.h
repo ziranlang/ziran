@@ -98,7 +98,13 @@ int EmitResolveNumberHelpers(const char *path);
 void EmitGoPrintSupport(FILE *out);
 /* Appends each Go numeric helper that text calls and *written lacks. */
 void EmitGoNumberHelpers(FILE *out, const char *text, unsigned *written);
-int NativeMainReturnsStatus(const ZirFunction *fn);
+/* A native program entry has a typed Ziran body plus a standard main adapter. */
+int NativeProgramMain(const ZirModule *module, const ZirFunction *fn);
+int CheckNativeEntry(const ZirFunction *fn, const char *target);
+void EmitNativeMainDeclaration(FILE *out, ZirTarget target);
+/* C++ callers emit inside the module's open extern "C" block. */
+void EmitNativeMain(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                    ZirTarget target);
 int FoldIntegerOperation(const char *op, const char *type, uint64_t a, uint64_t b,
                          uint64_t *result);
 void EmitStringType(FILE *out);

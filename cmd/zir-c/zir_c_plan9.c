@@ -21,6 +21,7 @@
 #include "zir.h"
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
+#include "zir_text.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -1950,67 +1951,27 @@ c_plan9_rewrite_file(const char *path)
     return 0;
 }
 
-static int
-plan9_main_arguments(const char *line, char *parameters, size_t capacity,
-                     int *prototype)
+void
+c_plan9_main(FILE *out, const ZirModule *module, const ZirFunction *fn,
+              int declaration)
 {
-    const char *name = line;
-    const char *end;
-    char count[128], arguments[128];
-    int consumed = 0;
-    size_t length;
-
-    *prototype = strncmp(name, "int32_t ", 8) == 0;
-    if(*prototype) name += 8;
-    if(strncmp(name, "main(", 5) != 0) return 0;
-    end = strchr(name + 5, ')');
-    if(end == NULL || strcmp(end + 1, *prototype ? ";\n" : "\n")) return 0;
-    length = (size_t)(end - name - 5);
-    if(length >= capacity) return 0;
-    memcpy(parameters, name + 5, length);
-    parameters[length] = '\0';
-    return sscanf(parameters, "int32_t %127[a-zA-Z0-9_], int8_t** %127[a-zA-Z0-9_]%n",
-                  count, arguments, &consumed) == 2 &&
-           parameters[consumed] == '\0';
-}
-
-static char *
-append_plan9_main_wrapper(const char *text, int arguments)
-{
-    const char *header = arguments ?
-        "\nvoid\nmain(int argc, char** argv)\n{\n" :
-        "\nvoid\nmain(void)\n{\n";
-    const char *call = arguments ?
-        "    status = ziran_plan9_main((int32_t)argc, (int8_t**)argv);\n" :
-        "    status = ziran_plan9_main();\n";
-    static const char locals[] =
-"    int32_t status;\n"
-"    char status_text[32];\n";
-    static const char finish[] =
-"    if(status == 0)\n"
-"        exits(0);\n"
-"    if(snprint(status_text, sizeof(status_text), \"%d\",\n"
-"               (int)status) <= 0)\n"
-"        exits(\"ziran: invalid exit status\");\n"
-"    exits(status_text);\n"
-"}\n";
-    size_t length = strlen(text);
-    char *result;
-
-    if(length > 0 && text[length - 1] != '\n')
-        length++;
-    result = malloc(length + strlen(header) + strlen(call) + sizeof(locals) + sizeof(finish));
-    if(result == NULL)
-        return NULL;
-    memcpy(result, text, strlen(text));
-    result[strlen(text)] = '\0';
-    if(strlen(text) == 0 || text[strlen(text) - 1] != '\n')
-        strcat(result, "\n");
-    strcat(result, header);
-    strcat(result, locals);
-    strcat(result, call);
-    strcat(result, finish);
-    return result;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    const char *args = parameters->count ? "int argc, char** argv" : "void";
+    if(declaration) { fprintf(out, "void main(%s);\n", args); return; }
+    char body[ZIR_NAME_MAX * 2];
+    NativeCFunctionName(module, fn, body, sizeof(body));
+    fprintf(out, "\nvoid\nmain(%s)\n{\n    int32_t status;\n    char status_text[32];\n", args);
+    int returns_value = fn->return_type[0] && strcmp(fn->return_type, "void");
+    fprintf(out, "    %s%s(", returns_value ? "status = (int32_t)" : "", body);
+    if(parameters->count == 2)
+        fprintf(out, "(%s)argc, (%s)argv", TargetType(parameters->items[0].type, ZIR_C),
+                !strcmp(parameters->items[1].type, "**s8") ? "int8_t**" : "uint8_t**");
+    fputs(");\n", out);
+    if(!returns_value) fputs("    status = 0;\n", out);
+    fputs("    if(status == 0)\n        exits(0);\n"
+          "    if(snprint(status_text, sizeof(status_text), \"%d\", (int)status) <= 0)\n"
+          "        exits(\"ziran: invalid exit status\");\n"
+          "    exits(status_text);\n}\n", out);
 }
 
 char *c_plan9_rewrite_once(const char *text);
@@ -2034,15 +1995,7 @@ c_plan9_rewrite(const char *text)
         if(next == NULL)
             return current;
         if(strcmp(next, current) == 0) {
-            char *with_main;
-
             free(next);
-            int arguments = strstr(current, "\nziran_plan9_main(int32_t ") != NULL;
-            if(strstr(current, "ziran_plan9_main(void)\n{") != NULL || arguments) {
-                with_main = append_plan9_main_wrapper(current, arguments);
-                free(current);
-                return with_main;
-            }
             return current;
         }
         free(current);
@@ -2477,30 +2430,6 @@ c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *bu
             pending_count--;
             if(buf_printf(&out, "%s}\n", indent) < 0)
                 goto fail;
-        }
-        if(strcmp(buffers->current, "int32_t main(void);\n") == 0) {
-            if(buf_puts(&out,
-                        "int32_t ziran_plan9_main(void);\n"
-                        "void main(void);\n") < 0)
-                goto fail;
-            continue;
-        }
-        if(strcmp(buffers->current, "main(void)\n") == 0) {
-            if(buf_puts(&out, "ziran_plan9_main(void)\n") < 0)
-                goto fail;
-            continue;
-        }
-        {
-            char parameters[512];
-            int prototype;
-
-            if(plan9_main_arguments(buffers->current, parameters, sizeof(parameters), &prototype)) {
-                if(buf_printf(&out, prototype ?
-                              "int32_t ziran_plan9_main(%s);\nvoid main(int argc, char** argv);\n" :
-                              "ziran_plan9_main(%s)\n", parameters) < 0)
-                    goto fail;
-                continue;
-            }
         }
         if(strcmp(buffers->current, "#include \"zir_plan9_runtime.h\"\n") == 0) {
             if(runtime_include == 0) {

@@ -15,7 +15,6 @@
 #include "zir_c_plan9.h"
 
 #include "zir_emit.h"
-#include "zir_scalar.h"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -79,27 +78,9 @@ static int
 write_entry_main(const ZirModule *module, const ZirFunction *fn,
                  const char *out_dir, const char *path)
 {
-    char native[ZIR_NAME_MAX * 2];
-    NativeCFunctionName(module, fn, native, sizeof(native));
-    if(!strcmp(native, "main"))
+    if(!CheckNativeEntry(fn, "c")) return 0;
+    if(NativeProgramMain(module, fn))
         return 1;
-    const char *result = fn->return_type;
-    int returns_integer = ScalarWidth(result) != 0;
-    if(strcmp(result, "void") && !returns_integer) {
-        DiagnosticTarget(fn->span, "zir_c.entry", "c", "entry.signature",
-                "--exe entry %s must return nothing or an integer",
-                fn->name);
-        return 0;
-    }
-    char parameters[ZIR_TEXT_MAX];
-    copy_text(parameters, sizeof(parameters), FunctionArgs(fn));
-    int arguments = parameters[0] != '\0';
-    if(arguments && (strstr(parameters, "**") == NULL || strchr(parameters, ',') == NULL)) {
-        DiagnosticTarget(fn->span, "zir_c.entry", "c", "entry.signature",
-                "--exe entry %s takes nothing or (argc: s32, argv: **u8)",
-                fn->name);
-        return 0;
-    }
     char stem[ZIR_PATH_MAX];
     copy_text(stem, sizeof(stem), module->source_path);
     size_t length = strlen(stem);
@@ -111,13 +92,8 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
         return 0;
     }
     fprintf(out, "/* zi2c --exe: runs %s:%s as the program. */\n", module->name, fn->name);
-    fprintf(out, "#include \"%s.h\"\n\nint\nmain(int argc, char **argv)\n{\n", stem);
-    fprintf(out, "    (void)argc;\n    (void)argv;\n");
-    const char *call_arguments = arguments ? "argc, (void *)argv" : "";
-    if(returns_integer)
-        fprintf(out, "    return (int)%s(%s);\n}\n", native, call_arguments);
-    else
-        fprintf(out, "    %s(%s);\n    return 0;\n}\n", native, call_arguments);
+    fprintf(out, "#include \"%s.h\"\n", stem);
+    EmitNativeMain(out, module, fn, ZIR_C);
     (void)out_dir;
     if(fclose(out) != 0) {
         Diagnostic(fn->span, "zir.output", "cannot finish %s: %s", path, strerror(errno));

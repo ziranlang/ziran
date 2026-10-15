@@ -173,8 +173,15 @@ compiler, downstream toolchains, and validated runtime cases separately.
 Use `ziran build --target=c` for C99 output. Add `--exe --entry
 module:function` to also compile it into `DIR/module`, a program that runs
 that procedure and exits with its integer result; the entry takes nothing or
-`(argc: s32, argv: **u8)`, and an exported `main` is used as it is. `CC`,
+`(argc: s32, argv: **u8)` (signed byte pointers are also accepted). `CC`,
 `CFLAGS` (default `-O2`), `LDFLAGS`, and `LDLIBS` apply as in make.
+
+C and C++ program entries use a standard `int main(int, char **)` adapter.
+The Ziran procedure keeps its declared parameter and result types for ordinary
+calls and function values. The adapter converts its integer result to a process
+status; a procedure returning nothing exits successfully. This also applies to
+a procedure exported under the symbol `main` through `#program_export "main"`.
+Plan 9 entries keep their native `void main` and `exits` status convention.
 
 Native C executable builds compile up to four source files concurrently, then
 link and replace the executable only after success. The output directory has

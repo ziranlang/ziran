@@ -1,5 +1,6 @@
 #ifndef ZIR_C_PLAN9_H
 #define ZIR_C_PLAN9_H
+#include "zir.h"
 
 /* Post-lowering pass that makes zir_c output safe for the native Plan 9
  * compilers (8c has no __auto_type, no multi-designator compound
@@ -33,5 +34,8 @@ int c_plan9_rewrite_file(const char *path);
  * c_plan9_rewrite call (reported once per run by main). */
 int c_plan9_unresolved(void);
 int c_plan9_write_runtime(const char *out_dir);
+/* Typed entry bodies use Plan 9's void main/exits boundary. */
+void c_plan9_main(FILE *out, const ZirModule *module, const ZirFunction *function,
+                  int declaration);
 
 #endif

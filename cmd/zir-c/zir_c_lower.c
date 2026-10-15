@@ -1150,16 +1150,18 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
-        if(NativeMainReturnsStatus(fn))
-            copy_text(cret, sizeof(cret), "int32_t");
         fprintf(h, "%s %s(%s)", cret[0] ? cret : "void", cname, buffers->cargs);
-        if(fn->exported) {
+        if(fn->exported && !NativeProgramMain(m, fn)) {
             const char *symbol = fn->export_symbol[0] ?
                 fn->export_symbol : fn->name;
             if(strcmp(cname, symbol))
                 fprintf(h, " __asm__(\"%s\")", symbol);
         }
         fputs(";\n", h);
+        if(NativeProgramMain(m, fn)) {
+            if(c_plan9_enabled()) c_plan9_main(h, m, fn, 1);
+            else EmitNativeMainDeclaration(h, ZIR_C);
+        }
     }
     fprintf(h, "\n#ifdef __cplusplus\n}\n#endif\n\n#endif /* %s */\n", buffers->guard);
     if(ferror(h) != 0 || fclose(h) != 0) {
@@ -1249,8 +1251,6 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
-        if(NativeMainReturnsStatus(fn))
-            copy_text(cret, sizeof(cret), "int32_t");
         fprintf(c, "static %s %s(%s);\n",
                 cret[0] ? cret : "void", cname, buffers->cargs);
     }
@@ -1317,8 +1317,6 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
-        if(NativeMainReturnsStatus(fn))
-            copy_text(cret, sizeof(cret), "int32_t");
         if(fn->is_extern) {
             /* extern: prototype only, no body */
             fprintf(c, "\n");
@@ -1340,16 +1338,18 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         else
             fprintf(c, "static %s\n%s(%s)\n{\n",
                     cret[0] ? cret : "void", cname, buffers->cargs);
-        /* Native Plan 9 has no ELF constructor attributes. Exported entry
+        /* Native Plan 9 has no ELF constructor attributes. Native and exported entry
          * points initialize their dependency graph once. Calls made by an
          * initializer itself may use already initialized earlier globals. */
-        if(c_plan9_enabled() && needs_startup && fn->exported)
+        if(c_plan9_enabled() && needs_startup && (fn->exported || NativeProgramMain(m, fn)))
             fprintf(c, "    if(%s_state == 0) %s();\n", init_name, init_name);
         if(!c_plan9_enabled()) EmitAssembly(c, m, fn, ZIR_C, cret);
         lower_body(c, m, restab, restab_count, fn);
-        if(NativeMainReturnsStatus(fn))
-            fputs("    return 0;\n", c);
         fprintf(c, "}\n");
+        if(NativeProgramMain(m, fn)) {
+            if(c_plan9_enabled()) c_plan9_main(c, m, fn, 0);
+            else EmitNativeMain(c, m, fn, ZIR_C);
+        }
     }
     int startup_count = 0;
     for(i = 0; i < m->function_count; i++)
@@ -1448,6 +1448,12 @@ c_lower(const ZirProgram *program, const char *root, const char *out_dir,
         return 0;
     if(!CheckTargetCapabilities(program, c_plan9_enabled() ? "plan9-c" : "c"))
         return 0;
+    for(i = 0; i < program->module_count; i++)
+        for(int f = 0; f < program->modules[i].function_count; f++) {
+            const ZirFunction *fn = &program->modules[i].functions[f];
+            if(!fn->is_template && NativeProgramMain(&program->modules[i], fn) &&
+               !CheckNativeEntry(fn, c_plan9_enabled() ? "plan9-c" : "c")) return 0;
+        }
     for(i = 0; i < program->module_count; i++)
         if(!lower_module(&program->modules[i], restab, restab_count,
                          out_dir, linked))

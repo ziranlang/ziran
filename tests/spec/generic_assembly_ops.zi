@@ -1,0 +1,39 @@
+// The caller defines a different Pair; specialization must preserve its identity.
+Pair :: struct { low: u32; high: u32; }
+Copy :: (value: $T) -> T #asm("x86_64", "mov %[value], %[out]", "=r", "r", "", "") #asm("aarch64", "mov %[out], %[value]", "=r", "r", "", "") { return value }
+Increment :: (value: $T) -> T #asm("x86_64", "add $1, %[out]", "=r", "0", "cc", "") #asm("aarch64", "add %[out], %[value], #1", "=r", "r", "", "") { return value + 1 }
+FloatCopy :: (value: $T) -> T #asm("x86_64", "movaps %[value], %[out]", "=x", "x", "", "") { return value }
+Count :: (value: $T) -> T #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=r", "r", "cc", "") {
+    bits := value
+    total: T
+    while bits != 0 { total += bits & 1; bits >>= 1 }
+    return total
+}
+Double :: (value: $T) -> T {
+    result := value
+    #asm("x86_64+popcnt", "add %[value], %[result]", "=r:result", "0:old=result;r:value", "cc", "") #asm("x86_64", "add %[value], %[result]", "=r:result", "0:old=result;r:value", "cc", "") #asm("aarch64", "add %[result], %[old], %[value]", "=r:result", "0:old=result;r:value", "", "") { result += value }
+    return result
+}
+Alias :: (value: $T) -> T {
+    result: T
+    temporary: T
+    alias := *result
+    #asm("x86_64", "mov %[value], %[result]\n\tmov (%[alias]), %[temporary]\n\tadd %[temporary], %[result]", "=m:result;=&r:temporary", "r:value;r:alias", "cc;memory", "volatile") { result = value; temporary = alias.*; result += temporary }
+    return result + temporary
+}
+Load :: (value: *$T) -> T #asm("x86_64", "movq 0(%[value]), %[out_low]\n\tmovq 8(%[value]), %[out_high]", "=&r;=r", "r", "memory", "") #asm("aarch64", "ldp %[out_low], %[out_high], [%[value]]", "=&r;=r", "r", "memory", "") { return value.* }
+Fixed :: (value: *$T) -> Pair #asm("x86_64", "movl 0(%[value]), %[out_low]\n\tmovl 8(%[value]), %[out_high]", "=&r;=r", "r", "memory", "") { return Pair.{low = cast(u32)value.*.low, high = cast(u32)value.*.high} }
+Mix :: (value: *$T, known: *Pair) -> u32 #asm("x86_64", "movl 0(%[value]), %[out]\n\taddl 0(%[known]), %[out]", "=&r", "r;r", "cc;memory", "") { return cast(u32)value.*.low + known.*.low }
+Values :: (value: $T) -> T, T #asm("x86_64", "mov %[value], %[out_value_0]\n\tmov %[value], %[out_value_1]", "=&r;=r", "r", "", "") { return value, value }
+Wrapped :: (value: $T) -> T { return value }
+TypeFromValue :: (Pair: *$T) -> T {
+    result: type_of(Pair.*) = Pair.*
+    #asm("x86_64", "", "", "", "memory", "volatile") {}
+    return result
+}
+
+// A private generic dependency must retain its native variant when imported.
+#scope_file
+PrivateIncrement :: (value: $T) -> T #asm("x86_64", "add $1, %[out]", "=r", "0", "cc", "") { return value + 1 }
+#scope_export
+Nested :: (value: $T) -> T { return PrivateIncrement(Copy(value)) }

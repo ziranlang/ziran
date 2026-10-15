@@ -12,7 +12,7 @@ checked Ziran body. Define `ZIRAN_NO_ASM` when compiling generated C/C++, or
 set `RUSTFLAGS="--cfg ziran_no_asm"` for Cargo, to force the portable body.
 
 ```zi
-Increment :: (value: s64) -> s64 #asm("x86_64", "leaq 1(%[value]), %[out]", "=r", "r", "", "") #asm("aarch64", "add %[out], %[value], #1", "=r", "r", "", "") {
+Increment :: (value: $T) -> T #asm("x86_64", "add $1, %[out]", "=r", "0", "cc", "") #asm("aarch64", "add %[out], %[value], #1", "=r", "r", "", "") {
     return value + 1
 }
 ```
@@ -33,7 +33,17 @@ in field order. Result fields must be named scalars or pointers. Void results
 have no output constraints. Outputs require `=` constraints, including
 early-clobber `=&r`; use an input constraint such as `"0"` to initialize a tied
 read/write output. Output and input operand names must be distinct. The limit
-is 30 combined input/output operands. Generic procedures are not yet supported.
+is 30 combined input/output operands.
+
+Generic procedures retain their variants through specialization, including
+from separately saved libraries. Declarations check syntax, input counts and
+known operand types; every concrete instance checks all scalar/pointer inputs,
+result fields, local bindings and its portable body. A type-dependent result
+must match the declared output constraints at each call. Aggregate inputs are
+rejected even when the current target would execute the portable body.
+Generic local blocks follow the same rules. `tests/generic_assembly.sh` checks
+integer widths, floating-point copies, tied outputs, memory aliases, caller-owned
+record types and multiple results across native and portable targets.
 
 For example, a two-field record can use output constraints `"=a;=d"` to capture
 two registers. A pointer parameter can give assembly access to memory; declare
@@ -110,6 +120,8 @@ already recognize many byte swaps and arithmetic patterns.
 `bench/rust_assembly.py` compares Rust whole-loop and per-call assembly with
 forced fallback, an optional previous compiler, generated C and handwritten
 Rust/C controls. It validates every sample against an independent integer oracle.
+Use `--generic` to instantiate those kernels through type parameters; both
+whole-loop and per-call cases also verify their portable `.zib` result.
 
 ### Local assembly blocks
 
@@ -148,7 +160,7 @@ targets or with `ZIRAN_NO_ASM`, and must fall through to the following statement
 It may contain local loops and their loop control, but cannot return or break
 out of the assembly block. Native instructions must preserve that fallthrough,
 stack discipline and the declared side effects as well as result values;
-checking cannot prove this equivalence. Generic procedures remain unsupported. Run
+checking cannot prove this equivalence. Run
 `tests/assembly_blocks.sh` for source/saved IR, native/portable, concurrent
 selection, typed operands and malformed-metadata checks. Inside a native
 `#parallel` loop, operand bindings from the enclosing scope are captured even

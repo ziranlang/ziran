@@ -13,6 +13,31 @@ typedef struct ExpressionTypeBuffers {
 
 const char *expression_type(Checker *c, int index);
 
+/* Inference can bind T to *Record, []Record, or [N]Record. A wrapper does
+ * not make the caller's record visible in the template module. Compare
+ * resolved identities too: equally named records can belong to each side. */
+static int
+specialization_needs_caller(const ZirModule *caller, const ZirModule *owner,
+                            const char *type)
+{
+    char storage[ZIR_NAME_MAX];
+    copy_text(storage, sizeof(storage), type);
+    const char *base = storage;
+    for(;;) {
+        if(*base == '*') { base = skip_ws(base + 1); continue; }
+        char element[ZIR_NAME_MAX];
+        if(SliceElementType(base, element, sizeof(element)) ||
+           ArrayElementType(base, element, sizeof(element), NULL)) {
+            copy_text(storage, sizeof(storage), element);
+            base = storage;
+            continue;
+        }
+        break;
+    }
+    const ZirType *local = FindType(caller, base, NULL);
+    return local != NULL && local != FindType(owner, base, NULL);
+}
+
 static int
 fit_bits(const char *type)
 {
@@ -2172,14 +2197,17 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 error(c, e->span, "cannot infer polymorphic type", e->name);
                 break;
             }
-            if(!replace_template_type(buffers->specialized_args, sizeof(buffers->specialized_args),
-                                      FunctionArgs(callee), callee->template_param, concrete) ||
+            const char *template_args = FunctionArgs(callee);
+            copy_text(specialized_return, sizeof(specialized_return), callee->return_type);
+            if(!template_parameters_at_use(c->module, owner, callee, e->name, &template_args) ||
+               !template_type_at_use(c->module, owner, callee, e->name,
+                                     specialized_return, sizeof(specialized_return)) ||
+               !replace_template_type(buffers->specialized_args, sizeof(buffers->specialized_args),
+                                      template_args, callee->template_param, concrete) ||
                !replace_template_type(specialized_return,
                                       sizeof(specialized_return),
-                                      callee->return_type,
-                                      callee->template_param, concrete) ||
-               !results_type_at_use(c->module, owner, e->name,
-                                    specialized_return, sizeof(specialized_return))) {
+                                      KeepText(specialized_return),
+                                      callee->template_param, concrete)) {
                 error(c, e->span, "specialized signature is too long", e->name);
                 break;
             }
@@ -2208,8 +2236,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 if(types == NULL) { c->failed = 1; break; }
                 int type_count = split_top_level(concrete, types[0], 16, sizeof(types[0]));
                 for(int i = 0; i < type_count; i++)
-                    if(FindType(owner, types[i], NULL) == NULL &&
-                       FindType(c->module, types[i], NULL) != NULL)
+                    if(specialization_needs_caller(c->module, owner, types[i]))
                         instance_owner = c->module;
                 free(types);
             }
@@ -2228,6 +2255,8 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 }
                 e->name = KeepName(qualified);
             } else e->name = KeepName(name);
+            /* Both fixed names and inferred names now use the caller's scope. */
+            callee_owner = c->module;
         }
         if(callee != NULL && callee->is_extern && callee->extern_kind == ZIR_EXTERN_HOST)
             c->fn->uses_host = 1;

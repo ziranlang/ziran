@@ -781,6 +781,12 @@ check_template_declaration(Checker *c, ZirFunction *fn)
                        "unsupported expression in polymorphic procedure");
             return 0;
         }
+    /* Operand existence and portable control flow do not depend on the
+     * inferred type. Concrete scalar/record checks run on every instance. */
+    for(int i = 0; i < fn->stmt_count; i++)
+        if((StatementHasAssembly(&fn->stmts[i]) ||
+            (fn->stmts[i].text[0] == '#' && starts_word(fn->stmts[i].text, "#asm"))) &&
+           !CheckAssemblyBlock(fn, i, NULL, NULL)) return 0;
     return validate_loop_targets(c, fn);
 }
 /* Buffers normalize_function_arrays keeps on the heap so deep nesting fits the stack;

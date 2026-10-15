@@ -10,13 +10,20 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/rust_assembly.sh` covers tied/fixed registers, scalar widths, record
   outputs, memory aliases, numeric labels, checked fallback and source/saved IR.
   GNU alternatives, unique labels and reserved registers still fall back;
-  generic assembly, native Go assembly and full platform parity remain open.
+  native Go assembly and full platform parity remain open.
+
+- Generic functions and local blocks retain assembly through concrete
+  specialization, including saved-library imports. Each instance validates
+  operands and its portable body. Caller-owned pointer/array types retain
+  their identity, while fixed library types remain in the defining scope.
+  `tests/generic_assembly.sh` checks C/C++/Rust assembly and forced fallback,
+  Go/Python/VM fallback, flat records, multiple results and invalid instances.
 
 - Opt-in compiler process profiles record inclusive loading, parsing, checking,
   native emission, and IR writing, with record-field parsing counts and
   workspace allocation requests. `tests/compiler_profile.sh` checks the
   schema, separate output, and failure reporting. `bench/compiler_scaling.py`
-  validates module graphs and generic specializations from source and saved
+  validates module graphs and local/imported generic specializations from source and saved
   IR on native C and `.zib`, retains phase profiles and whole-command samples,
   and can check real package entries. These are measured workloads, not a
   claim about every application or target.

@@ -606,30 +606,73 @@ record_field_type_at_use(const ZirModule *module,
     return 1;
 }
 
+/* Qualify the template's fixed type names before inserting caller-owned
+ * bindings. Qualifying afterwards could reinterpret T=Pair as the library's
+ * different Pair. Tokens in generic applications need the same treatment. */
 int
-results_type_at_use(const ZirModule *module, const ZirModule *owner,
-                    const char *callee, char *type, size_t size)
+template_type_at_use(const ZirModule *module, const ZirModule *owner,
+                     const ZirFunction *fn, const char *callee,
+                     char *type, size_t size)
+{
+    if(module == owner || !*type) return 1;
+    /* type_of contains a value expression, not type-name tokens. Its locals
+     * are resolved against the instantiated parameters by the checker. */
+    char operand[ZIR_NAME_MAX];
+    if(TypeOfOperand(type, operand, sizeof(operand))) return 1;
+    char *mapped = AllocateOrExit(size);
+    size_t used = 0;
+    for(const char *at = type; *at;) {
+        const char *start = at;
+        if(isalpha((unsigned char)*at) || *at == '_') {
+            do { at++; } while(is_ident_char(*at) ||
+                (*at == '.' && (isalpha((unsigned char)at[1]) || at[1] == '_')));
+        } else at++;
+        size_t length = (size_t)(at - start);
+        char word[ZIR_NAME_MAX];
+        const char *piece = start;
+        size_t count = length;
+        if((isalpha((unsigned char)*start) || *start == '_') &&
+           TemplateParameterIndex(fn->template_param, start, length) < 0) {
+            if(length >= sizeof(word)) { free(mapped); return 0; }
+            memcpy(word, start, length); word[length] = 0;
+            if(!record_field_type_at_use(module, owner, callee, word, sizeof(word))) {
+                free(mapped); return 0;
+            }
+            piece = word; count = strlen(word);
+        }
+        if(used + count >= size) { free(mapped); return 0; }
+        memcpy(mapped + used, piece, count); used += count;
+    }
+    mapped[used] = 0;
+    memcpy(type, mapped, used + 1);
+    free(mapped);
+    return 1;
+}
+
+int
+template_parameters_at_use(const ZirModule *module, const ZirModule *owner,
+                           const ZirFunction *fn, const char *callee,
+                           const char **args)
 {
     if(module == owner) return 1;
-    const char *arguments = strchr(type, '(');
-    size_t length = arguments ? (size_t)(arguments - type) : strlen(type);
-    char base[ZIR_NAME_MAX];
-    if(length >= sizeof(base)) return 0;
-    memcpy(base, type, length);
-    base[length] = '\0';
-    trim_in_place(base);
-    const ZirType *record = FindType(owner, base, NULL);
-    if(record == NULL || !record->is_results) return 1;
-    /* Qualify the declaring template, keeping its concrete arguments in the
-     * caller's scope. A caller-owned record may have no name in OWNER. */
-    if(!record_field_type_at_use(module, owner, callee, base, sizeof(base)))
-        return 0;
-    char qualified[ZIR_NAME_MAX];
-    int written = snprintf(qualified, sizeof(qualified), "%s%s",
-                           base, arguments ? arguments : "");
-    if(written < 0 || (size_t)written >= sizeof(qualified) ||
-       (size_t)written >= size) return 0;
-    copy_text(type, size, qualified);
+    const ZirParameters *parameters = ParametersOf(*args);
+    char *mapped = AllocateOrExit(ZIR_TEXT_MAX);
+    size_t used = 0;
+    for(int i = 0; i < parameters->count; i++) {
+        char type[ZIR_NAME_MAX];
+        if(parameters->items[i].name == NULL) { free(mapped); return 0; }
+        copy_text(type, sizeof(type), parameters->items[i].type);
+        if(!template_type_at_use(module, owner, fn, callee, type, sizeof(type))) {
+            free(mapped); return 0;
+        }
+        int wrote = snprintf(mapped + used, ZIR_TEXT_MAX - used, "%s%s: %s",
+            i ? ", " : "", parameters->items[i].name, type);
+        if(wrote < 0 || (size_t)wrote >= ZIR_TEXT_MAX - used) { free(mapped); return 0; }
+        used += (size_t)wrote;
+    }
+    mapped[used] = 0;
+    *args = KeepText(mapped);
+    free(mapped);
     return 1;
 }
 

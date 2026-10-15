@@ -1433,14 +1433,16 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
         const char *parameter = buffers->original.template_param;
         const char *concrete = request->type;
         /* A second check of saved IR must see the same array signature. */
-        if(!substitute_parameters(&instance->args_text, parameter, concrete) ||
+        if(!template_parameters_at_use(owner, template_owner, &buffers->original, "",
+                                      &instance->args_text) ||
+           !template_type_at_use(owner, template_owner, &buffers->original, "",
+                                 instance->return_type, sizeof(instance->return_type)) ||
+           !substitute_parameters(&instance->args_text, parameter, concrete) ||
            !substitute_parameters(&instance->default_args_text,
                                   parameter, concrete) ||
            !substitute_field(instance->return_type,
                              sizeof(instance->return_type),
                              parameter, concrete) ||
-           !results_type_at_use(owner, template_owner, "",
-                                instance->return_type, sizeof(instance->return_type)) ||
            !normalize_function_arrays(owner, instance)) return 0;
         if(!canonical_parameters(owner, &instance->args_text, instance->span) ||
            !canonical_field(owner, instance->return_type, sizeof(instance->return_type),
@@ -1448,7 +1450,8 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
         for(int s = 0; s < instance->stmt_count; s++) {
             char type[ZIR_NAME_MAX];
             copy_text(type, sizeof(type), instance->stmts[s].type);
-            if(!substitute_field(type, sizeof(type), parameter, concrete) ||
+            if(!template_type_at_use(owner, template_owner, &buffers->original, "", type, sizeof(type)) ||
+               !substitute_field(type, sizeof(type), parameter, concrete) ||
                !canonical_field(owner, type, sizeof(type),
                                 instance->stmts[s].span)) return 0;
             instance->stmts[s].type = KeepName(type);
@@ -1458,7 +1461,9 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
             char type[ZIR_NAME_MAX], slot_type[ZIR_NAME_MAX];
             copy_text(type, sizeof(type), expression->type);
             copy_text(slot_type, sizeof(slot_type), expression->slot_type);
-            if(!substitute_field(type, sizeof(type), parameter, concrete) ||
+            if(!template_type_at_use(owner, template_owner, &buffers->original, "", type, sizeof(type)) ||
+               !template_type_at_use(owner, template_owner, &buffers->original, "", slot_type, sizeof(slot_type)) ||
+               !substitute_field(type, sizeof(type), parameter, concrete) ||
                !substitute_field(slot_type, sizeof(slot_type),
                                  parameter, concrete) ||
                !canonical_field(owner, type, sizeof(type),
@@ -1471,7 +1476,9 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
                expression->kind == ZIR_EXPR_CALL) {
                 char name[ZIR_NAME_MAX];
                 copy_text(name, sizeof(name), expression->name);
-                if(!substitute_field(name, sizeof(name), parameter, concrete) ||
+                if((expression->kind != ZIR_EXPR_CALL &&
+                    !template_type_at_use(owner, template_owner, &buffers->original, "", name, sizeof(name))) ||
+                   !substitute_field(name, sizeof(name), parameter, concrete) ||
                    (expression->kind != ZIR_EXPR_CALL &&
                     !canonical_field(owner, name, sizeof(name),
                                      expression->span))) return 0;

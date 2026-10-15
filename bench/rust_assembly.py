@@ -21,10 +21,13 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--bin-dir', type=Path, default=ROOT / 'build/bin')
     parser.add_argument('--baseline-bin-dir', type=Path)
+    parser.add_argument('--generic', action='store_true', help='instantiate assembly kernels through type parameters')
     parser.add_argument('--small', type=int, default=1000)
     parser.add_argument('--large', type=int, default=20000000)
     parser.add_argument('--repetitions', type=int, default=9)
     args = parser.parse_args()
+    if args.generic and args.baseline_bin_dir:
+        parser.error('use separate concrete and generic runs; older compilers can reject generic assembly')
     if platform.machine() not in ('x86_64', 'aarch64'):
         parser.error('requires an x86_64 or aarch64 host')
     if not 0 < args.small < args.large or args.repetitions < 1:
@@ -101,6 +104,12 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
                 ['x86_64+popcnt', 'popcnt %[value], %[out]', '=r', 'r', 'cc', ''],
                 ['aarch64+simd', 'fmov d0, %[value]\n\tcnt v0.8b, v0.8b\n\taddv b0, v0.8b\n\tumov %w[out], v0.b[0]', '=r', 'r', 'v0', '']])
             program = program.replace('Count :: (value: u64) -> u64 {', 'Count :: (value: u64) -> u64 ' + modifiers + ' {')
+        if args.generic:
+            program = program.replace('Count :: (value: u64) -> u64', 'Count :: (value: $T) -> T')
+            program = program.replace('#program_export\nKernel :: (rounds: s64, seed: u64) -> u64',
+                                      'GenericKernel :: (rounds: $N, seed: $T) -> T')
+            program = program.replace('total: u64', 'total: T').replace('i: s64', 'i: N')
+            program += '\n#program_export\nKernel :: (rounds: s64, seed: u64) -> u64 { return GenericKernel(rounds, seed) }\n'
         entry = work / 'kernel.zi'; entry.write_text(program)
         for compiler, bin_dir in [('current', args.bin_dir), ('before', args.baseline_bin_dir)]:
             if bin_dir is None: continue
@@ -123,6 +132,9 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
             name=form+'-c-'+mode; binary=work/name
             build(['cc',*c_flags,*(['-DZIRAN_NO_ASM'] if mode=='fallback' else []),'-I'+str(ROOT/'include'),'-I'+str(c_out),c_out/'kernel.c',c_out/'host.c','-o',binary],name)
             cases.append((name,binary))
+        bundle = work / 'portable.zib'
+        build([args.bin_dir.resolve()/'ziran','bundle','--root',work,'--entry','kernel:Answer','-o',bundle,entry],form+'-vm-bundle')
+        invoke([args.bin_dir.resolve()/'ziran','run',bundle],expected=oracle(args.small))
     for language, text in [('rust',rust_control),('c',c_control)]:
         entry=out/('control.rs' if language=='rust' else 'control.c');entry.write_text(text)
         binary=out/(language+'-control')
@@ -150,7 +162,7 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
             compilers[name] = {tool: hashlib.sha256((folder / tool).read_bytes()).hexdigest()
                                for tool in ('ziran', 'zi2rust')}
     metadata = dict(
-        platform=platform.platform(), machine=platform.machine(), expected=expected,
+        platform=platform.platform(), machine=platform.machine(), expected=expected, generic=args.generic,
         rustc=subprocess.check_output(['rustc', '--version'], text=True).strip(),
         cargo=subprocess.check_output(['cargo', '--version'], text=True).strip(),
         cc=subprocess.check_output(['cc', '--version'], text=True).splitlines()[0],

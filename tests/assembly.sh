@@ -148,8 +148,9 @@ reject '#asm requires an ordinary procedure with a portable body' <<'ZI'
 libc :: #system_library "libc";
 F :: (value: s32) -> s32 #asm("x86_64", "", "=r", "r", "", "") #foreign libc "abs";
 ZI
-reject '#asm requires an ordinary procedure with a portable body' <<'ZI'
+reject '#asm parameters must be named scalars or pointers' <<'ZI'
 F :: (value: $T) -> s64 #asm("x86_64", "", "=r", "r", "", "") { return 0 }
+Answer :: () -> s64 { text: string = "aggregate"; return F(text) }
 ZI
 # A valid native implementation cannot mask a broken fallback.
 reject 'not_a_binding' <<'ZI'

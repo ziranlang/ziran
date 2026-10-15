@@ -1,0 +1,41 @@
+ops :: #import "generic_assembly_ops"
+Pair :: struct { low: u64; high: u64; }
+#program_export
+Answer :: () -> s64 {
+    small: s8 = -100
+    half: s16 = -20000
+    word: s32 = -1234567
+    wide: s64 = -123456789012345
+    unsigned: u64 = 18446744073709551615
+    middle: u32 = 4294967295
+    if ops.Copy(small) != small || ops.Copy(half) != half || ops.Copy(word) != word || ops.Copy(wide) != wide { return 1 }
+    if ops.Copy(unsigned) != unsigned || ops.Copy(middle) != middle { return 2 }
+    if ops.Increment(small) != -99 || ops.Increment(half) != -19999 || ops.Increment(word) != word + 1 { return 3 }
+    if ops.Increment(wide) != wide + 1 || ops.Increment(unsigned) != 0 || ops.Increment(middle) != 0 { return 4 }
+    if ops.Double(small) != 56 || ops.Double(word) != word * 2 || ops.Double(wide) != wide * 2 { return 5 }
+    if ops.Double(unsigned) != unsigned - 1 || ops.Double(middle) != middle - 1 { return 6 }
+    if ops.Alias(word) != word * 3 || ops.Alias(wide) != wide * 3 || ops.Alias(unsigned) != unsigned - 2 { return 7 }
+    if ops.Count(unsigned) != 64 || ops.Count(middle) != 32 { return 8 }
+    fraction: float32 = 1.25
+    real: float64 = -1234.5
+    if ops.FloatCopy(fraction) != fraction || ops.FloatCopy(real) != real { return 9 }
+    pair: Pair = .{low = 8589934595, high = 18446744073709551615}
+    loaded := ops.Load(*pair)
+    if loaded.low != pair.low || loaded.high != pair.high { return 10 }
+    pointer := ops.Copy(*pair)
+    if pointer.*.high != pair.high { return 11 }
+    if ops.Nested(word) != word + 1 || ops.Nested(wide) != wide + 1 { return 12 }
+    fixed := ops.Fixed(*pair)
+    if fixed.low != 3 || fixed.high != 4294967295 { return 13 }
+    known: ops.Pair = .{low = 20, high = 22}
+    if ops.Mix(*pair, *known) != 23 { return 14 }
+    first, second := ops.Values(wide)
+    if first != wide || second != wide { return 15 }
+    array: [1]Pair = .[pair]
+    copied := ops.Wrapped(array)
+    view := ops.Wrapped(copied[:])
+    if view[0].low != pair.low || view[0].high != pair.high { return 16 }
+    from_value := ops.TypeFromValue(*pair)
+    if from_value.low != pair.low || from_value.high != pair.high { return 17 }
+    return 42
+}

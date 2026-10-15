@@ -108,7 +108,12 @@ def main():
             records = '\n'.join(f'R{index} :: struct {{ item: s64; }}' for index in range(size))
             uses = '\n'.join(f'value_{index}: R{index}; value_{index}.item = {index}; total += Pick(value_{index});'
                              for index in range(size))
-            text = f'{records}\nPick :: (value: $T) -> s64 {{ return value.item; }}\n#program_export\nAnswer :: () -> s64 {{\ntotal: s64 = 0;\n{uses}\nreturn total;\n}}\n'
+            declaration = 'Pick :: (value: $T) -> s64 { return value.item; }'
+            if kind == 'imported-generics':
+                (source / 'library.zi').write_text(declaration + '\n')
+                declaration = 'Library :: #import "library";'
+                uses = uses.replace('Pick(', 'Library.Pick(')
+            text = f'{declaration}\n{records}\n#program_export\nAnswer :: () -> s64 {{\ntotal: s64 = 0;\n{uses}\nreturn total;\n}}\n'
             oracle = size * (size - 1) // 2
         entry = source / 'program.zi'
         entry.write_text(text)
@@ -132,7 +137,7 @@ def main():
         (directory / 'fixture-hashes.json').write_text(json.dumps(
             {str(path.relative_to(directory)): digest(path) for path in source.glob('*.zi')}, indent=2) + '\n')
     for size in args.sizes:
-        for kind in ['modules', 'generics']:
+        for kind in ['modules', 'generics', 'imported-generics']:
             workload(kind, size)
     for entry in args.project:
         entry = entry.resolve()

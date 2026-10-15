@@ -31,7 +31,8 @@ unrelated imported function with the same type shape.
 Version 57 retains optional architecture-specific `#asm` variants alongside
 each function's checked portable body and local block bodies. Block metadata
 binds named scalar/pointer locals or parameters, and checking validates every
-binding in its lexical scope. C/C++ may select a matching variant;
+binding in its lexical scope. Concrete generic instances retain these variants
+and validate their operand types and portable bodies. C/C++ and Rust may select a matching variant;
 other targets and the portable VM execute the checked body. The variants are
 explicit native metadata, never recovered from diagnostic statement text.
 Only annotated blocks carry the optional metadata payload; ordinary statements

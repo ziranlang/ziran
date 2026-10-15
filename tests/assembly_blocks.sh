@@ -281,8 +281,8 @@ reject 'scalar/pointer locals' <<'ZI'
 x:s64;
 F :: () { #asm("x86_64", "", "=r:x", "", "", "") {} }
 ZI
-reject 'ordinary procedure scope' <<'ZI'
-F :: (x: $T) { #asm("x86_64", "", "", "", "", "") {} }
+reject 'portable block must fall through' <<'ZI'
+F :: (x: $T) { #asm("x86_64", "", "", "", "", "") { return } }
 ZI
 reject 'assembly outputs need an iteration-local binding' <<'ZI'
 F :: (value: s64) {

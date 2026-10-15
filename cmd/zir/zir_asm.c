@@ -3,6 +3,7 @@
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_emit.h"
+#include "zir_parse.h"
 #include "zir_text.h"
 
 #include <ctype.h>
@@ -246,6 +247,32 @@ operand_type(const char *type)
            strcmp(scalar, "string");
 }
 
+/* A declaration can bind a scalar or a record. Resolve that choice at each
+ * specialization; known aggregates still cannot be input/block operands. */
+static int
+template_operand_type(const ZirFunction *fn, const char *type)
+{
+    if(operand_type(type)) return 1;
+    if(!fn->is_template || type == NULL) return 0;
+    if(*type == '$') type++;
+    return TemplateParameterIndex(fn->template_param, type, strlen(type)) >= 0;
+}
+
+static int
+template_result_type(const ZirFunction *fn)
+{
+    if(!fn->is_template) return 0;
+    for(const char *at = fn->return_type; *at;) {
+        if(!is_ident_char(*at)) { at++; continue; }
+        const char *start = at++;
+        while(is_ident_char(*at) ||
+              (*at == '.' && (isalpha((unsigned char)at[1]) || at[1] == '_'))) at++;
+        if(TemplateParameterIndex(fn->template_param, start, (size_t)(at - start)) >= 0)
+            return 1;
+    }
+    return 0;
+}
+
 typedef struct BlockBinding {
     const char *constraint, *alias, *name;
 } BlockBinding;
@@ -331,7 +358,7 @@ CheckAssemblyBlock(const ZirFunction *fn, int statement,
     int spelled = !strncmp(st->text, "#asm", 4) && !is_ident_char(st->text[4]);
     if(!StatementHasAssembly(st))
         return !spelled || assembly_error(st->span, "missing #asm block metadata");
-    if(st->kind != ZIR_STMT_BLOCK_OPEN || fn->is_template || fn->is_specialization)
+    if(st->kind != ZIR_STMT_BLOCK_OPEN || fn->is_extern || fn->is_global_initializer)
         return assembly_error(st->span, "#asm blocks require an ordinary procedure scope");
     if(st->expr_root != -1 || st->lhs_root != -1 || *st->type ||
        *st->assignment_op || st->is_using || st->is_else || st->is_parallel || st->is_gpu)
@@ -365,7 +392,8 @@ CheckAssemblyBlock(const ZirFunction *fn, int statement,
                 return assembly_error(st->span, "#asm block variants must bind the same operands in the same order");
             const char *type = binding ? binding(context, operand->name) :
                 block_binding_type(fn, statement, operand->name);
-            if(!operand_type(type))
+            if(!(fn->is_template && type != NULL && !*type) &&
+               !template_operand_type(fn, type))
                 return assembly_error(st->span, "#asm block bindings must be scalar/pointer locals or parameters");
         }
         variants++;
@@ -500,24 +528,20 @@ AssemblyVariantNext(const ZirModule *module, const ZirFunction *fn,
 int
 CheckAssembly(const ZirModule *module, const ZirFunction *fn)
 {
-    if(fn->is_template || fn->is_specialization)
-        for(int i = 0; i < fn->stmt_count; i++)
-            if(StatementHasAssembly(&fn->stmts[i]))
-                return assembly_error(fn->stmts[i].span, "#asm blocks require an ordinary procedure scope");
     if(!fn->assembly_text || !*fn->assembly_text) return 1;
-    if(fn->is_extern || fn->is_template || fn->is_specialization ||
-       fn->is_global_initializer)
+    if(fn->is_extern || fn->is_global_initializer)
         return assembly_error(fn->span, "#asm requires an ordinary procedure with a portable body");
     AssemblyOutputs *outputs = calloc(1, sizeof(*outputs));
     if(!outputs) return assembly_error(fn->span, "out of memory checking #asm");
-    int valid_outputs = assembly_outputs(module, fn, outputs);
+    int deferred_outputs = template_result_type(fn);
+    int valid_outputs = deferred_outputs || assembly_outputs(module, fn, outputs);
     const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
     if(!valid_outputs || parameters->count + outputs->count > ASSEMBLY_OPERANDS) {
         free(outputs);
         return assembly_error(fn->span, "#asm needs scalar/pointer operands or a record of scalar/pointer results (at most 30 operands)");
     }
     for(int i = 0; i < parameters->count; i++) {
-        if(!parameters->items[i].name || !operand_type(parameters->items[i].type)) {
+        if(!parameters->items[i].name || !template_operand_type(fn, parameters->items[i].type)) {
             free(outputs);
             return assembly_error(fn->span, "#asm parameters must be named scalars or pointers");
         }
@@ -552,7 +576,9 @@ CheckAssembly(const ZirModule *module, const ZirFunction *fn)
         int no = operand_list(assembly.part[2], out);
         int ni = operand_list(assembly.part[3], in);
         int nc = operand_list(assembly.part[4], clobber);
-        if(no != outputs->count || ni != parameters->count || nc < 0) {
+        if(no < 0 || ni < 0 || no + ni > ASSEMBLY_OPERANDS || nc < 0 ||
+           (!deferred_outputs && no != outputs->count) ||
+           ni != parameters->count) {
             ok = assembly_error(fn->span, "#asm constraint counts must match results and parameters; separate items with semicolons");
             break;
         }

@@ -301,8 +301,14 @@ package-objects: $(PACKAGE_OBJECTS)
 # list is only correct in a fresh make started after generation. That sub-make
 # both compiles and links; linking in this recipe would miss the generated
 # objects on a clean build.
-package-link: $(PACKAGE_OBJECTS)
-	$(CC) $(CFLAGS) -o $(BIN_DIR)/ziran $(PACKAGE_OBJECTS) -lcrypto -lm
+package-link: $(PACKAGE_OBJECTS) | $(BIN_DIR)
+	@set -e; \
+	linked_bin=$$(mktemp "$(BIN_DIR)/.ziran.XXXXXX"); \
+	trap 'rm -f "$$linked_bin"' EXIT; \
+	trap 'exit 1' HUP INT TERM; \
+	$(CC) $(CFLAGS) -o "$$linked_bin" $(PACKAGE_OBJECTS) -lcrypto -lm; \
+	chmod u+x "$$linked_bin"; \
+	mv -f "$$linked_bin" "$(BIN_DIR)/ziran"
 
 $(BIN_DIR)/ziran: $(PACKAGE_C)/.generated $(HEADERS) | $(BIN_DIR)
 	+$(MAKE) --no-print-directory package-link

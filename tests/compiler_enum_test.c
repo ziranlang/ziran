@@ -1,12 +1,39 @@
 #include "compiler_enum.h"
 #include "zir.h"
 #include <assert.h>
+#include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static String text(const char *source)
 {
     return StringView(source, strlen(source));
+}
+
+static void *concurrent_values(void *argument)
+{
+    intptr_t lane = (intptr_t)argument;
+    ZirType *type = calloc(1, sizeof(*type));
+    assert(type);
+    type->is_enum = 1;
+    for(int i = 0; i < 1024; i++) {
+        int64_t base = lane * 61 + i % 64;
+        snprintf(type->body, sizeof(type->body), "A = %lld, B = A + 2, C = B * 2",
+                 (long long)base);
+        strcpy(type->enum_backing, "s64");
+        int64_t value = -1;
+        assert(EnumMemberValue(type, "C", &value) && value == (base + 2) * 2);
+        strcpy(type->enum_backing, "u8");
+        int valid = (base + 2) * 2 <= 255;
+        value = -1;
+        assert(EnumMemberValue(type, "C", &value) == valid);
+        assert(value == (valid ? (base + 2) * 2 : -1));
+        /* Invalid later members must also invalidate a requested prefix. */
+        assert(EnumMemberValue(type, "A", NULL) == valid);
+    }
+    free(type);
+    return NULL;
 }
 
 int main(void)
@@ -45,9 +72,27 @@ int main(void)
     strcpy(type->enum_backing, "u8");
     strcpy(type->body, "A = 256");
     assert(!EnumMemberValue(type, NULL, NULL));
+    strcpy(type->enum_backing, "s64");
+    strcpy(type->body, "A = 255, B");
+    assert(EnumMemberValue(type, "B", &value) && value == 256);
+    strcpy(type->enum_backing, "u8");
+    assert(!EnumMemberValue(type, "A", &value) && value == 256);
+    strcpy(type->enum_backing, "s64");
+    assert(EnumMemberValue(type, "B", &value) && value == 256);
+    ZirType *relocated = malloc(sizeof(*relocated));
+    assert(relocated);
+    *relocated = *type;
+    memset(type->body, 'X', sizeof(type->body));
+    assert(!EnumMemberValue(type, "A", &value) && value == 256);
+    assert(EnumMemberValue(relocated, "B", &value) && value == 256);
+    free(relocated);
     type->is_enum = 0;
     strcpy(type->body, "A = 1");
     assert(!EnumMemberValue(type, NULL, NULL));
     free(type);
+    pthread_t workers[8];
+    for(intptr_t i = 0; i < 8; i++)
+        assert(!pthread_create(&workers[i], NULL, concurrent_values, (void *)i));
+    for(int i = 0; i < 8; i++) assert(!pthread_join(workers[i], NULL));
     return 0;
 }

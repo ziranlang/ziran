@@ -58,6 +58,23 @@ and removing inactive outputs.
 
 ## Bundle startup and real-package checks
 
+`bench/enum_values.py` generates enum-heavy fixtures with independent integer
+sum oracles, verifies source/saved bundle identity, and runs the comparison
+below. For example:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/enum_values.py \
+  --before-dir build/compiler-check/before --out build/benchmarks/enum-values
+```
+
+Use `--project NAME ROOT ENTRY` to include real package checks. Compiler profiles
+count `enum_value_parse` and `enum_values_reuse`. The runtime reuses immutable
+evaluated bodies keyed by body text and backing type, including invalid bodies;
+each lookup still requires the complete enum to be valid. Snapshots live until
+process exit and add retained metadata, so fewer evaluations do not by themselves
+prove a memory reduction. Reuse the stable output after preserving receipts
+and checking that old outputs are inactive.
+
 `bench/vm_startup.py` compares two preserved compiler/runtime builds. Before
 changing the compiler, keep its `zi2zir`, `zi2zib`, optional `ziran` launcher,
 and `libziran.a` in a stable baseline directory. Do not replace that baseline

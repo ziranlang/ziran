@@ -10,6 +10,11 @@ ziran, work = (Path(arg).resolve() for arg in sys.argv[1:])
 repo = Path(__file__).resolve().parents[1]
 compilers = {'c': shutil.which(os.environ.get('CC', 'cc')),
              'cpp': shutil.which(os.environ.get('CXX', 'c++'))}
+# Match web_bridge.sh: the installed SDK need not be on PATH.
+emcc = Path(os.environ.get('EMCC', Path.home()/'emsdk/upstream/emscripten/emcc'))
+web_c = str(emcc) if emcc.is_file() and os.access(emcc, os.X_OK) else shutil.which('emcc')
+emxx = Path(web_c).with_name('em++') if web_c else None
+web_compilers = {'c': web_c, 'cpp': str(emxx) if emxx and emxx.is_file() and os.access(emxx, os.X_OK) else shutil.which('em++')}
 
 def run(command, *, answer=0, text=None):
     result = subprocess.run([str(part) for part in command], capture_output=True, text=True, timeout=30)
@@ -89,7 +94,7 @@ main :: () #asm("x86_64+popcnt", "", "", "", "memory", "volatile") {
 }
 ''', 0, ''),
 }
-compiled = 0
+compiled = cross_linked = web_executed = 0
 cases['longentry'] = ('#program_export "main"\nLaunch_'+('a'*180)+' :: () -> s32 { return 42 }\n', 42, '')
 for name, (source, answer, output) in cases.items():
     folder = work/name
@@ -130,13 +135,15 @@ for name, (source, answer, output) in cases.items():
                                'x86_64-linux-android24', 'i686-linux-android24']:
                     cross = tools/(triple+('-clang' if target == 'c' else '-clang++'))
                     run([cross, *flags, generated, '-o', out/(triple+'.elf')])
+                    cross_linked += 1
             if form == 'source' and name in ['unsigned', 'assembly']:
-                web = shutil.which('emcc' if target == 'c' else 'em++')
+                web = web_compilers[target]
                 node = shutil.which('node')
                 if web and node:
                     run([web, *flags, '-sENVIRONMENT=node', '-sWASM_ASYNC_COMPILATION=0',
                          '-sEXIT_RUNTIME=1', generated, '-o', out/'web.js'])
                     run([node, out/'web.js', 'alpha', 'π'], answer=answer, text=output)
+                    web_executed += 1
             if name == 'assembly':
                 run([compiler, *flags, '-DZIRAN_NO_ASM', generated, '-o', out/'fallback'])
                 run([out/'fallback'], answer=0)
@@ -173,4 +180,4 @@ for index, text in enumerate(bad_cases):
         assert result.returncode != 0, result.stdout
         items = [json.loads(line) for line in result.stderr.splitlines()]
         assert any(item['capability'] == 'entry.signature' for item in items), items
-print(f'Native C/C++ entries preserve typed bodies, argument bytes, status, exports, assembly fallback and saved IR ({compiled} executables)')
+print(f'Native C/C++ entries preserve typed bodies, argument bytes, status, exports, assembly fallback and saved IR ({compiled} executables, {cross_linked} Android cross-links, {web_executed} WebAssembly executions)')

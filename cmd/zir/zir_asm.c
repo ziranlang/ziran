@@ -329,11 +329,11 @@ CheckAssemblyBlock(const ZirFunction *fn, int statement,
 {
     const ZirStmt *st = &fn->stmts[statement];
     int spelled = !strncmp(st->text, "#asm", 4) && !is_ident_char(st->text[4]);
-    if(!st->assembly_text || !*st->assembly_text)
+    if(!StatementHasAssembly(st))
         return !spelled || assembly_error(st->span, "missing #asm block metadata");
     if(st->kind != ZIR_STMT_BLOCK_OPEN || fn->is_template || fn->is_specialization)
         return assembly_error(st->span, "#asm blocks require an ordinary procedure scope");
-    if(st->expr_root != -1 || st->lhs_root != -1 || *st->name || *st->type ||
+    if(st->expr_root != -1 || st->lhs_root != -1 || *st->type ||
        *st->assignment_op || st->is_using || st->is_else || st->is_parallel || st->is_gpu)
         return assembly_error(st->span, "invalid #asm block statement metadata");
     const char *canonical = AssemblyBlockText(st->text, st->span);
@@ -427,7 +427,7 @@ CheckAssembly(const ZirModule *module, const ZirFunction *fn)
 {
     if(fn->is_template || fn->is_specialization)
         for(int i = 0; i < fn->stmt_count; i++)
-            if(fn->stmts[i].assembly_text && *fn->stmts[i].assembly_text)
+            if(StatementHasAssembly(&fn->stmts[i]))
                 return assembly_error(fn->stmts[i].span, "#asm blocks require an ordinary procedure scope");
     if(!fn->assembly_text || !*fn->assembly_text) return 1;
     if(fn->is_extern || fn->is_template || fn->is_specialization ||
@@ -870,7 +870,7 @@ EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
 {
     for(int statement = 0; statement < fn->stmt_count; statement++) {
         const ZirStmt *st = &fn->stmts[statement];
-        if(!st->assembly_text || !*st->assembly_text) continue;
+        if(!StatementHasAssembly(st)) continue;
         if(!CheckAssemblyBlock(fn, statement, NULL, NULL)) exit(1);
         const char *cursor = st->assembly_text;
         int variant = 0;
@@ -925,7 +925,7 @@ EmitAssemblyBlock(FILE *out, const ZirModule *module, const ZirFunction *fn,
 {
     if((portable_blocks && target == ZIR_C) || (target != ZIR_C && target != ZIR_CPP)) return 0;
     const ZirStmt *st = &fn->stmts[statement];
-    if(!st->assembly_text || !*st->assembly_text) return 0;
+    if(!StatementHasAssembly(st)) return 0;
     if(!CheckAssemblyBlock(fn, statement, NULL, NULL)) exit(1);
     const char *cursor = st->assembly_text;
     int features = 0;

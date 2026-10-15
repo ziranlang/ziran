@@ -114,7 +114,6 @@ typedef struct ZirStmt {
     int is_parallel; /* `#parallel for` region; serial lowering, checked rules */
     int is_gpu; /* `#parallel_gpu for` region; pointers rejected pre-offload */
     const char *text; /* shared and immutable: assign KeepText(...) */
-    const char *assembly_text; /* optional checked #asm block variants */
     int is_else;        /* checked branch role; source text is diagnostic only */
     int loop_id;        /* checked loop identity for named control flow */
     int target_id;      /* target loop for named break/continue; zero means innermost */
@@ -122,11 +121,21 @@ typedef struct ZirStmt {
     int for_step;       /* on a counting loop's step: that loop's loop_id */
     int expr_root;      /* index into enclosing function exprs, or -1 */
     int lhs_root;       /* structured assignment destination, or -1 */
-    const char *name; /* declaration binding; KeepName */
+    union {
+        const char *name; /* declaration binding; KeepName */
+        const char *assembly_text; /* BLOCK_OPEN: optional #asm variants; KeepText */
+    };
     const char *type; /* declared or inferred type; KeepName */
     char assignment_op[4];
     ZirSourceSpan span;
 } ZirStmt;
+
+static inline int
+StatementHasAssembly(const ZirStmt *statement)
+{
+    return statement->kind == ZIR_STMT_BLOCK_OPEN &&
+        statement->assembly_text && *statement->assembly_text;
+}
 
 typedef struct ZirExpr {
     ZirExprKind kind;

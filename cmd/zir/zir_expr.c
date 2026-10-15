@@ -799,7 +799,7 @@ StructureFunction(ZirFunction *fn, const ZirModule *module)
     for(int i = 0; i < fn->stmt_count; i++) {
         ZirStmt *st = &fn->stmts[i];
         st->expr_root = st->lhs_root = -1;
-        st->assembly_text = NULL;
+        if(st->kind == ZIR_STMT_BLOCK_OPEN) st->assembly_text = "";
         if(st->kind == ZIR_STMT_BLOCK_OPEN && !strncmp(st->text, "#asm", 4) &&
            !is_ident_char(st->text[4])) {
             st->assembly_text = AssemblyBlockText(st->text, st->span);

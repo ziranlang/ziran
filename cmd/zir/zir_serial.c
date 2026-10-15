@@ -18,6 +18,7 @@ typedef enum FieldKind {
                  * limit is ZIR_TEXT_MAX; a string under that limit */
     FIELD_INTEGER,
     FIELD_STATEMENT_KIND, /* high flag bit announces optional block metadata */
+    FIELD_STATEMENT_NAME, /* shares storage with optional block annotation */
     FIELD_ASSEMBLY_TEXT,
     FIELD_U64,
     FIELD_SPAN
@@ -139,7 +140,8 @@ static const Field statement_fields[] = {
     INTEGER_FIELD(ZirStmt, loop_id), INTEGER_FIELD(ZirStmt, target_id),
     INTEGER_FIELD(ZirStmt, for_form), INTEGER_FIELD(ZirStmt, for_step),
     INTEGER_FIELD(ZirStmt, expr_root),
-    INTEGER_FIELD(ZirStmt, lhs_root), NAME_FIELD(ZirStmt, name),
+    INTEGER_FIELD(ZirStmt, lhs_root),
+    {offsetof(ZirStmt, name), ZIR_NAME_MAX, FIELD_STATEMENT_NAME},
     NAME_FIELD(ZirStmt, type), STRING_FIELD(ZirStmt, assignment_op),
     INTEGER_FIELD(ZirStmt, is_parallel), INTEGER_FIELD(ZirStmt, is_gpu),
     SPAN_FIELD(ZirStmt, span)
@@ -440,14 +442,16 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
         if(fields[i].kind == FIELD_STRING) {
             if(!write_string(out, value, fields[i].size))
                 return 0;
-        } else if(fields[i].kind == FIELD_NAME) {
+        } else if(fields[i].kind == FIELD_NAME || fields[i].kind == FIELD_STATEMENT_NAME) {
             const char *name = *(const char *const *)value;
+            if(fields[i].kind == FIELD_STATEMENT_NAME &&
+               ((const ZirStmt *)record)->kind == ZIR_STMT_BLOCK_OPEN) name = "";
             if(!write_string(out, name ? name : "", fields[i].size))
                 return 0;
         } else if(fields[i].kind == FIELD_TEXT || fields[i].kind == FIELD_ASSEMBLY_TEXT) {
             /* Source text has no field limit: a long literal keeps it all. */
             const char *text = *(const char *const *)value;
-            if(fields[i].kind == FIELD_ASSEMBLY_TEXT && (text == NULL || !*text))
+            if(fields[i].kind == FIELD_ASSEMBLY_TEXT && !StatementHasAssembly(record))
                 continue;
             size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : ZIR_KEPT_TEXT_MAX;
             if(!write_string(out, text ? text : "", limit))
@@ -455,8 +459,7 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
         } else if(fields[i].kind == FIELD_STATEMENT_KIND) {
             const ZirStmt *statement = record;
             uint32_t kind = (uint32_t)statement->kind;
-            if(statement->assembly_text && *statement->assembly_text) {
-                if(statement->kind != ZIR_STMT_BLOCK_OPEN) return 0;
+            if(StatementHasAssembly(statement)) {
                 kind |= ASSEMBLY_BLOCK_FLAG;
             }
             if(!write_u32(out, kind)) return 0;
@@ -482,11 +485,14 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
         if(fields[i].kind == FIELD_STRING) {
             if(!read_string(reader, value, fields[i].size))
                 return 0;
-        } else if(fields[i].kind == FIELD_NAME) {
+        } else if(fields[i].kind == FIELD_NAME || fields[i].kind == FIELD_STATEMENT_NAME) {
             char name[ZIR_TEXT_MAX];
             if(!read_string(reader, name, fields[i].size))
                 return 0;
-            *(const char **)value = KeepText(name);
+            if(fields[i].kind == FIELD_STATEMENT_NAME &&
+               ((ZirStmt *)record)->kind == ZIR_STMT_BLOCK_OPEN) {
+                if(*name) { reader->problem = "unexpected block binding name"; return 0; }
+            } else *(const char **)value = KeepText(name);
         } else if(fields[i].kind == FIELD_TEXT || fields[i].kind == FIELD_ASSEMBLY_TEXT) {
             if(fields[i].kind == FIELD_ASSEMBLY_TEXT && !assembly_block) {
                 *(const char **)value = "";
@@ -920,8 +926,6 @@ validate_program(const ZirProgram *program)
                 if(statement->kind <= ZIR_STMT_UNKNOWN ||
                    statement->kind > ZIR_STMT_IF_CASE ||
                    statement->kind == ZIR_STMT_IF_CASE ||
-                   (statement->assembly_text && *statement->assembly_text &&
-                    statement->kind != ZIR_STMT_BLOCK_OPEN) ||
                    (statement->is_else != 0 && statement->is_else != 1) ||
                    (statement->is_using != 0 && statement->is_using != 1) ||
                    (statement->is_using &&

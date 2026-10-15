@@ -314,16 +314,22 @@ compiler_source_ClassifyStatement(String source)
     if (StringEqual(source, StringLiteral("{"))) {
         return StatementKind_BlockOpen;
     }
-    if (compiler_source_StartsWord(source, StringLiteral("#asm"))) {
-        return StatementKind_BlockOpen;
-    }
-    bool value_0 = compiler_source_StartsWord(source, StringLiteral("if"));
+    bool value_0 = compiler_source_Byte(source, 0LL) == 35;
     bool value_1 = value_0;
-    if (!value_1) {
-        bool value_2 = compiler_source_StartsWord(source, StringLiteral("else"));
+    if (value_1) {
+        bool value_2 = compiler_source_StartsWord(source, StringLiteral("#asm"));
         value_1 = value_2;
     }
     if (value_1) {
+        return StatementKind_BlockOpen;
+    }
+    bool value_3 = compiler_source_StartsWord(source, StringLiteral("if"));
+    bool value_4 = value_3;
+    if (!value_4) {
+        bool value_5 = compiler_source_StartsWord(source, StringLiteral("else"));
+        value_4 = value_5;
+    }
+    if (value_4) {
         return StatementKind_If;
     }
     if (compiler_source_StartsWord(source, StringLiteral("while"))) {
@@ -332,23 +338,23 @@ compiler_source_ClassifyStatement(String source)
     if (compiler_source_StartsWord(source, StringLiteral("for"))) {
         return StatementKind_For;
     }
-    bool value_3 = compiler_source_StartsWord(source, StringLiteral("case"));
-    if (value_3 || StringEqual(source, StringLiteral("case;"))) {
+    bool value_6 = compiler_source_StartsWord(source, StringLiteral("case"));
+    if (value_6 || StringEqual(source, StringLiteral("case;"))) {
         return StatementKind_Case;
     }
-    bool value_4 = compiler_source_StartsWord(source, StringLiteral("return"));
-    if (value_4 || StringEqual(source, StringLiteral("return;"))) {
+    bool value_7 = compiler_source_StartsWord(source, StringLiteral("return"));
+    if (value_7 || StringEqual(source, StringLiteral("return;"))) {
         return StatementKind_Return;
     }
     if (StringEqual(source, StringLiteral("unreachable")) || StringEqual(source, StringLiteral("unreachable;"))) {
         return StatementKind_Unreachable;
     }
-    bool value_5 = compiler_source_StartsWord(source, StringLiteral("break"));
-    if (value_5 || StringEqual(source, StringLiteral("break;"))) {
+    bool value_8 = compiler_source_StartsWord(source, StringLiteral("break"));
+    if (value_8 || StringEqual(source, StringLiteral("break;"))) {
         return StatementKind_Break;
     }
-    bool value_6 = compiler_source_StartsWord(source, StringLiteral("continue"));
-    if (value_6 || StringEqual(source, StringLiteral("continue;"))) {
+    bool value_9 = compiler_source_StartsWord(source, StringLiteral("continue"));
+    if (value_9 || StringEqual(source, StringLiteral("continue;"))) {
         return StatementKind_Continue;
     }
     if (compiler_source_StartsWord(source, StringLiteral("defer"))) {
@@ -361,13 +367,13 @@ compiler_source_ClassifyStatement(String source)
     if (colon < 0LL) {
         colon = compiler_source_Find(source, StringLiteral(": ["));
     }
-    bool value_7 = colon > 0LL;
-    if (value_7) {
-        String value_8 = source;
-        bool value_9 = compiler_source_IdentifierText(StringRange(value_8, (int64_t)0LL, (int64_t)colon), false);
-        value_7 = value_9;
+    bool value_10 = colon > 0LL;
+    if (value_10) {
+        String value_11 = source;
+        bool value_12 = compiler_source_IdentifierText(StringRange(value_11, (int64_t)0LL, (int64_t)colon), false);
+        value_10 = value_12;
     }
-    if (value_7) {
+    if (value_10) {
         return StatementKind_Declaration;
     }
     String rejected[11] = {StringLiteral("s8 "), StringLiteral("s16 "), StringLiteral("s32 "), StringLiteral("s64 "), StringLiteral("float32 "), StringLiteral("float64 "), StringLiteral("bool "), StringLiteral("unsigned "), StringLiteral("long "), StringLiteral("const "), StringLiteral("struct ")};
@@ -380,8 +386,8 @@ compiler_source_ClassifyStatement(String source)
     int64_t at = 0LL;
     int32_t depth = 0;
     while (true) {
-        int64_t value_10 = (int64_t)(source).length;
-        if (!(at < value_10)) { break; }
+        int64_t value_13 = (int64_t)(source).length;
+        if (!(at < value_13)) { break; }
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         if (byte == 34 || byte == 39) {
             at = compiler_source_AfterQuote(source, at);
@@ -394,12 +400,12 @@ compiler_source_ClassifyStatement(String source)
                 depth = (int32_t)((uint32_t)depth - 1u);
             }
         } else {
-            bool value_11 = depth == 0;
-            if (value_11) {
-                bool value_12 = compiler_source_Matches(source, at, StringLiteral(":="));
-                value_11 = value_12;
+            bool value_14 = depth == 0;
+            if (value_14) {
+                bool value_15 = compiler_source_Matches(source, at, StringLiteral(":="));
+                value_14 = value_15;
             }
-            if (value_11) {
+            if (value_14) {
                 return StatementKind_Declaration;
             } else if (byte == 61 && depth == 0) {
                 return StatementKind_Assignment;
@@ -407,18 +413,18 @@ compiler_source_ClassifyStatement(String source)
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    int64_t value_13 = compiler_source_Find(source, StringLiteral("("));
-    bool value_14 = value_13 >= 0LL;
-    if (!value_14) {
-        int64_t value_15 = compiler_source_Find(source, StringLiteral("+"));
-        value_14 = (value_15 >= 0LL);
+    int64_t value_16 = compiler_source_Find(source, StringLiteral("("));
+    bool value_17 = value_16 >= 0LL;
+    if (!value_17) {
+        int64_t value_18 = compiler_source_Find(source, StringLiteral("+"));
+        value_17 = (value_18 >= 0LL);
     }
-    bool value_16 = value_14;
-    if (!value_16) {
-        int64_t value_17 = compiler_source_Find(source, StringLiteral("-"));
-        value_16 = (value_17 >= 0LL);
+    bool value_19 = value_17;
+    if (!value_19) {
+        int64_t value_20 = compiler_source_Find(source, StringLiteral("-"));
+        value_19 = (value_20 >= 0LL);
     }
-    if (value_16) {
+    if (value_19) {
         return StatementKind_Expression;
     }
     return StatementKind_Unknown;
@@ -891,8 +897,13 @@ compiler_source_SplitControlBlock(String source)
     bool value_11 = value_10 && !StringEqual(word, StringLiteral("guard")) && !StringEqual(word, StringLiteral("do"));
     bool value_12 = value_11;
     if (value_12) {
-        bool value_13 = compiler_source_StartsWord(source, StringLiteral("#asm"));
-        value_12 = !value_13;
+        bool value_13 = (uint8_t)ZIRAN_INDEX(source.data, source.length, 0) == 35;
+        bool value_14 = value_13;
+        if (value_14) {
+            bool value_15 = compiler_source_StartsWord(source, StringLiteral("#asm"));
+            value_14 = value_15;
+        }
+        value_12 = !value_14;
     }
     if (value_12) {
         return result;
@@ -902,8 +913,8 @@ compiler_source_SplitControlBlock(String source)
     int32_t expressions = 0;
     int64_t opening = 0LL;
     while (true) {
-        int64_t value_14 = (int64_t)(source).length;
-        if (!(at < value_14)) { break; }
+        int64_t value_16 = (int64_t)(source).length;
+        if (!(at < value_16)) { break; }
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         if (byte == 34 || byte == 39) {
             at = compiler_source_AfterQuote(source, at);
@@ -916,33 +927,33 @@ compiler_source_SplitControlBlock(String source)
         } else if (byte == 123 && parentheses == 0) {
             int64_t before = at;
             while (true) {
-                bool value_15 = before > 0LL;
-                if (value_15) {
-                    bool value_16 = compiler_source_Space((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(1)))));
-                    value_15 = value_16;
+                bool value_17 = before > 0LL;
+                if (value_17) {
+                    bool value_18 = compiler_source_Space((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(1)))));
+                    value_17 = value_18;
                 }
-                if (!value_15) { break; }
+                if (!value_17) { break; }
                 before = (int64_t)((uint64_t)before - UINT64_C(1));
             }
-            bool value_17 = expressions > 0;
-            if (!value_17) {
-                bool value_18 = before > 0LL;
-                if (value_18) {
-                    bool value_19 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(1)))) == 46;
-                    value_18 = value_19;
-                }
-                bool value_20 = value_18;
+            bool value_19 = expressions > 0;
+            if (!value_19) {
+                bool value_20 = before > 0LL;
                 if (value_20) {
-                    bool value_21 = before < 2LL;
-                    if (!value_21) {
-                        bool value_22 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(2)))) != 46;
-                        value_21 = value_22;
-                    }
+                    bool value_21 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(1)))) == 46;
                     value_20 = value_21;
                 }
-                value_17 = value_20;
+                bool value_22 = value_20;
+                if (value_22) {
+                    bool value_23 = before < 2LL;
+                    if (!value_23) {
+                        bool value_24 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(2)))) != 46;
+                        value_23 = value_24;
+                    }
+                    value_22 = value_23;
+                }
+                value_19 = value_22;
             }
-            if (value_17) {
+            if (value_19) {
                 expressions = (int32_t)((uint32_t)expressions + 1u);
             } else {
                 opening = at;
@@ -959,8 +970,8 @@ compiler_source_SplitControlBlock(String source)
     int32_t depth = 1;
     at = (int64_t)((uint64_t)opening + UINT64_C(1));
     while (true) {
-        int64_t value_23 = (int64_t)(source).length;
-        if (!(at < value_23)) { break; }
+        int64_t value_25 = (int64_t)(source).length;
+        if (!(at < value_25)) { break; }
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         if (byte == 34 || byte == 39) {
             at = compiler_source_ClosedQuote(source, at);
@@ -979,11 +990,11 @@ compiler_source_SplitControlBlock(String source)
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    int64_t value_24 = (int64_t)(source).length;
-    if (at >= value_24) {
-        int64_t value_25 = compiler_source_SkipSpace(source, (int64_t)((uint64_t)opening + UINT64_C(1)));
-        int64_t value_26 = (int64_t)(source).length;
-        if (value_25 >= value_26) {
+    int64_t value_26 = (int64_t)(source).length;
+    if (at >= value_26) {
+        int64_t value_27 = compiler_source_SkipSpace(source, (int64_t)((uint64_t)opening + UINT64_C(1)));
+        int64_t value_28 = (int64_t)(source).length;
+        if (value_27 >= value_28) {
             return result;
         }
         return (ControlBlock){.valid = true, .head_end = (int64_t)((uint64_t)opening + UINT64_C(1)), .body_begin = (int64_t)((uint64_t)opening + UINT64_C(1)), .body_end = (int64_t)(source).length, .tail_begin = (int64_t)(source).length, .open = true};
@@ -992,19 +1003,19 @@ compiler_source_SplitControlBlock(String source)
     if (compiler_source_Byte(source, tail) == 59) {
         tail = compiler_source_SkipSpace(source, (int64_t)((uint64_t)tail + UINT64_C(1)));
     }
-    int64_t value_27 = (int64_t)(source).length;
-    bool value_28 = tail < value_27;
-    if (value_28) {
-        bool value_29 = StringEqual(word, StringLiteral("do")) || StringEqual(word, StringLiteral("case")) || StringEqual(word, StringLiteral("guard"));
-        bool value_30 = value_29;
-        if (!value_30) {
-            String value_31 = source;
-            bool value_32 = compiler_source_StartsWord(StringRange(value_31, (int64_t)tail, (int64_t)value_31.length), StringLiteral("else"));
-            value_30 = (value_32 && !StringEqual(word, StringLiteral("if")) && !StringEqual(word, StringLiteral("else")));
+    int64_t value_29 = (int64_t)(source).length;
+    bool value_30 = tail < value_29;
+    if (value_30) {
+        bool value_31 = StringEqual(word, StringLiteral("do")) || StringEqual(word, StringLiteral("case")) || StringEqual(word, StringLiteral("guard"));
+        bool value_32 = value_31;
+        if (!value_32) {
+            String value_33 = source;
+            bool value_34 = compiler_source_StartsWord(StringRange(value_33, (int64_t)tail, (int64_t)value_33.length), StringLiteral("else"));
+            value_32 = (value_34 && !StringEqual(word, StringLiteral("if")) && !StringEqual(word, StringLiteral("else")));
         }
-        value_28 = value_30;
+        value_30 = value_32;
     }
-    if (value_28) {
+    if (value_30) {
         return result;
     }
     return (ControlBlock){.valid = true, .head_end = (int64_t)((uint64_t)opening + UINT64_C(1)), .body_begin = (int64_t)((uint64_t)opening + UINT64_C(1)), .body_end = at, .tail_begin = tail, .open = false};

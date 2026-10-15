@@ -329,7 +329,7 @@ restart:
             st->type = resolved ? KeepName(declared) : "";
         }
         st = &c->fn->stmts[i];
-        if((st->assembly_text && *st->assembly_text) ||
+        if(StatementHasAssembly(st) ||
            (st->text[0] == '#' && starts_word(st->text, "#asm"))) {
             if(!CheckAssemblyBlock(fn, i, assembly_block_binding, c)) {
                 c->errors++;

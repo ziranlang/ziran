@@ -1071,7 +1071,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
         }
         case ZIR_STMT_BLOCK_OPEN: {
             int close=block_end(e->fn,i,end);
-            if(st->assembly_text && *st->assembly_text &&
+            if(StatementHasAssembly(st) &&
                EmitAssemblyBlock(e->out, e->module, e->fn, i, e->target)) {
                 e->indent += 2;
                 emit_sequence(e, i + 1, close);

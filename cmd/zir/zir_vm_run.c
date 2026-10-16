@@ -196,8 +196,6 @@ profile_close(Vm *vm)
  * call checks again. */
 enum { VM_STACK_MARGIN = 1024 * 1024 };
 
-static void collect_unreachable(Vm *vm);
-
 static Flow
 execute_sequence(Frame *frame, int begin, int end, int depth, Value *result);
 
@@ -1100,7 +1098,7 @@ release_call_strings(Vm *vm, uint64_t entry, uint64_t before_result)
     }
 }
 
-static void
+void
 collect_unreachable(Vm *vm)
 {
     vm->pin_generation++;
@@ -1348,7 +1346,6 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
             }
             return run_function(vm, provider_module, provider, args, arg_count);
         }
-        memset((*setup)->host_args, 0, sizeof((*setup)->host_args));
         VmHostValue host_result = {0};
         if(vm->host == NULL) {
             Diagnostic(function->span, "zib.capability",
@@ -1357,6 +1354,8 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
             vm->failed = 1;
             return result;
         }
+        if(*setup == NULL) *setup = take_setup(vm);
+        memset((*setup)->host_args, 0, sizeof((*setup)->host_args));
         for(int i = 0; i < count && !vm->failed; i++) {
             if(args[i].kind != VALUE_SLICE || args[i].length == 0)
                 continue;
@@ -1432,8 +1431,8 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     }
     buffers->frame.local_count = count;
     give_setup(vm, setup);
-    /* A scalar procedure allocates no VM values. Collect pending work once
-     * before its instruction stream, as the first ordinary statement would. */
+    /* Collect before the first statement. Plans with calls retain collection
+     * boundaries throughout their stream as well. */
     size_t threshold = vm->collection_threshold ? vm->collection_threshold : 4 * 1024 * 1024;
     if(vm->allocated_since_collection >= threshold)
         collect_unreachable(vm);
@@ -1504,7 +1503,7 @@ run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
         buffers->locals = NULL;
         buffers->local_capacity = 0;
     }
-    CallSetup *setup = take_setup(vm);
+    CallSetup *setup = NULL;
     Value returned = run_function_with_buffers(vm, module, function, args, arg_count,
                                                buffers, &setup);
     give_setup(vm, &setup);

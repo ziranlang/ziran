@@ -1373,9 +1373,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   literals retain their checked values; inputs and selected branches are read
   anew on every call. The stream shares the numeric operation and conversion
   rules with expression plans, preserves statement/loop step limits and scope
-  depth, and allocates no VM values while it runs. Per-instance call metadata
-  owns these plans with an 8 MiB instruction budget. Procedures with calls,
-  globals, address-taking or mutable container operations retain ordinary execution;
+  depth. Primitive instructions allocate no VM values. Per-instance call metadata
+  owns these plans with an 8 MiB instruction budget. Procedures with globals,
+  address-taking or mutable container operations outside calls retain ordinary execution;
   rejected or oversized plans execute no partial instructions.
   `tests/vm_function_plans.sh` compares dynamic inputs, numeric errors, scoped
   and named control flow, wide jump targets, and every statement-budget
@@ -1385,8 +1385,19 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   checked byte indexing and equality without adding string-kind tests to
   numeric operations or stores. Bounds errors, NUL/UTF-8 bytes, changing
   arguments, string returns and short-circuit paths match canonical execution
-  at every tested statement budget. String literals, slicing, calls, mutable
+  at every tested statement budget. String literals, slicing, mutable
   aggregates and other unrepresented operations retain ordinary execution.
+  Calls returning primitive values, strings or void can suspend the instruction
+  stream in the ordinary checked evaluator. Argument order, mutable aliases,
+  current procedure bindings, host capabilities, recursion and failures retain
+  their existing behavior. These plans snapshot local reads and root temporary
+  registers across calls, clearing only the registers they use at source
+  statement collection boundaries. Procedures without calls retain a separate
+  borrowing and numeric fast path. Ordinary Ziran calls allocate no host
+  argument buffer; host calls take that buffer only when needed.
+  The procedure corpus also compares calls that mutate their caller, named and
+  indirect calls, recursion, allocated string results, forced collection and
+  all tested step limits, with source/saved C/C++/Go controls.
 - Fresh record and fixed-array results can transfer their storage through
   local returns, direct calls, literals, initializers, and assignments. The VM
   retains the value-copy rules for existing bindings and globals. This transfer

@@ -42,15 +42,21 @@ execute(VmInstance *instance, const ZirFunction *function, const Value *args,
         locals[i].value = coerce(vm, instance->module, args[i], locals[i].type);
     }
     vm->active_frame = &frame;
+    VmRoots *roots = vm->evaluation_roots;
     Flow flow;
     *result = int_value(0);
     if(compiled) {
         uint64_t allocation = vm->allocation;
         assert(execute_scalar_function(&frame, signature, result, &flow));
-        assert(vm->allocation == allocation);
         assert(signature->scalar_plan != NULL);
+        assert(signature->scalar_plan->output > 0 &&
+               signature->scalar_plan->output <= SCALAR_PLAN_STEPS + 1);
+        if(signature->scalar_plan->calls) {
+            assert(!strncmp(function->name, "Call", 4) || !strncmp(function->name, "TextCall", 8));
+        } else assert(vm->allocation == allocation);
         if(!strcmp(function->name, "Large")) assert(signature->scalar_plan->count > 255);
     } else flow = execute_sequence(&frame, 0, function->stmt_count, 0, result);
+    assert(vm->evaluation_roots == roots);
     if(flow == FLOW_ERROR) vm->failed = 1;
     vm->active_frame = NULL;
     free(locals);
@@ -73,8 +79,11 @@ main(int argc, char **argv)
     VmInstance *compiled = VmInstanceOpen(program, module, entry, NULL, NULL);
     assert(canonical != NULL && compiled != NULL);
     const char *names[] = {"Kernel", "Named", "Numeric", "Skipped", "Failure", "RealFailure", "Large",
-        "TextScan", "TextFailure", "TextCopy", "TextCompare"};
+        "TextScan", "TextFailure", "TextCopy", "TextCompare",
+        "CallOrdering", "CallErrors", "CallRecursive", "CallSlot", "TextCalls", "TextCallScan",
+        "TextCallMutation"};
     unsigned char bytes[] = {0, 'a', 255, 'b', 0xc3, 0xa9, 0, 13, 'z'};
+    canonical->vm.collection_threshold = compiled->vm.collection_threshold = 1;
     const int limits[] = {-1, 0, 1, 2, 7, 16, 23, 64};
     for(size_t n = 0; n < sizeof names / sizeof *names; n++) {
         const ZirModule *owner = NULL;
@@ -98,6 +107,14 @@ main(int argc, char **argv)
                 int count = canonical->vm.steps;
                 Flow b = execute(compiled, function, args, 100000, 1, &actual);
                 assert(a == b && canonical->vm.failed == compiled->vm.failed);
+                if(!strncmp(function->name, "Call", 4) || !strncmp(function->name, "TextCall", 8)) {
+                    VmSignature *calls = vm_signature(&compiled->vm, compiled->module, function);
+                    assert(calls->scalar_plan != NULL && calls->scalar_plan->calls);
+                    int found = 0;
+                    for(int i = 0; i < calls->scalar_plan->count; i++)
+                        found |= calls->scalar_plan->steps[i].op == SCALAR_CALL;
+                    assert(found);
+                }
                 assert(count == compiled->vm.steps);
                 if(a == FLOW_RETURN) same_value(expected, actual);
                 /* Every budget boundary must stop at the same source step.
@@ -117,6 +134,7 @@ main(int argc, char **argv)
         }
     }
     VmInstanceClose(canonical);
+    assert(compiled->vm.setup_buffer_count == 0);
     VmInstanceLimitSteps(compiled, 100000);
     compiled->vm.collection_threshold = 1;
     for(int run = 0; run < 3; run++) {

@@ -1,3 +1,6 @@
+#import "std/vec"
+#import "std/option"
+
 Kernel :: (seed: s64, limit: s32, choose: bool) -> s64 {
     total := seed
     i: s32
@@ -112,6 +115,87 @@ TextCompare :: (text: string, limit: s32, choose: bool) -> s64 {
     return result
 }
 
+CallSet :: (target: *s64, value: s64) -> s64 { <<target = value; return 5 }
+CallVoid :: (target: *s64, value: s64) { <<target = value }
+CallPair :: (left: s64, right: s64) -> s64 { return left * 10 + right }
+CallDivide :: (seed: s64, limit: s32) -> s64 { return seed / cast(s64)limit }
+CallShift :: (seed: s64, limit: s32) -> s64 { return seed << limit }
+CallRecurse :: (seed: s64, depth: s32) -> s64 {
+    if depth <= 0 { return seed }
+    return CallRecurse(seed + 1, depth - 1)
+}
+CallOrdering :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    total := seed
+    first := total + CallSet(*total, cast(s64)limit) + total
+    total += CallSet(*total, 17)
+    CallVoid(*total, total + 1)
+    if choose && CallSet(*total, 23) > 0 { total += 1 }
+    if false && CallDivide(seed, 0) > 0 { return 91 }
+    if true || CallDivide(seed, 0) > 0 { total += 0 }
+    pair := CallPair(right = CallSet(*total, 3), left = total)
+    return first + total + pair
+}
+CallErrors :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    return ifx choose then CallDivide(seed, limit) else CallShift(seed, limit)
+}
+CallRecursive :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    depth := ifx limit > 16 then 16 else limit
+    result := CallRecurse(seed, depth)
+    if choose { result += CallPair(right = 2, left = 3) }
+    return result
+}
+Callback :: #type (value: s64) -> s64;
+callback: Callback;
+CallPlus :: (value: s64) -> s64 { return value + 3 }
+CallMinus :: (value: s64) -> s64 { return value - 3 }
+CallChoose :: (choose: bool) {
+    if choose { callback = CallPlus }
+    else { callback = CallMinus }
+}
+CallSlot :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    CallChoose(choose)
+    first := callback(seed)
+    CallChoose(!choose)
+    return first + callback(cast(s64)limit)
+}
+FreshText :: (text: string) -> string {
+    builder: Vec(u8)
+    unused BuilderAppend(builder, text)
+    return BuilderFinish(builder)
+}
+TextCalls :: (text: string, limit: s32, choose: bool) -> string {
+    first := FreshText(text)
+    second := FreshText(first)
+    {
+        temporary := FreshText(second)
+        if choose { second = FreshText(temporary) }
+    }
+    replaced := FreshText(first)
+    if limit < 0 { return FreshText(second) }
+    return replaced
+}
+TextCallScan :: (text: string, limit: s32, choose: bool) -> s64 {
+    total := cast(s64)(FreshText(text) == FreshText(text))
+    copied := ifx choose then FreshText(text) else FreshText(text)
+    i: s32
+    while i < limit && i < cast(s32)copied.count {
+        total += cast(s64)FreshText(copied)[i]
+        i += 1
+    }
+    return total
+}
+TextReplace :: (target: *string, replacement: string) -> string {
+    <<target = FreshText(replacement)
+    return FreshText(replacement)
+}
+TextCallMutation :: (text: string, limit: s32, choose: bool) -> s64 {
+    saved := FreshText(text)
+    empty: string
+    same := saved == TextReplace(*saved, empty)
+    if choose { return cast(s64)same }
+    return cast(s64)saved.count + cast(s64)(limit == 0)
+}
+
 state: s32;
 Bump :: () -> s32 { state = 10; return 5 }
 Fallback :: () -> s32 {
@@ -125,6 +209,10 @@ Answer :: () -> s64 {
     if Fallback() != 6 { return 1 }
     if TextScan("ab", 0, false) != 195 || TextFailure("xy", 1, true) != 121 { return 3 }
     if TextCopy("ab", 0, true) != "ab" || TextCompare("ab", 1, true) != 99 { return 4 }
+    if CallOrdering(3, 7, true) != 53 || CallErrors(9, 2, true) != 4 ||
+       CallRecursive(3, 7, true) != 42 || CallSlot(35, 7, true) != 42 { return 5 }
+    if TextCalls("ab", 1, true) != "ab" || TextCallScan("ab", 2, false) != 196 { return 6 }
+    if TextCallMutation("ab", 1, true) != 0 { return 7 }
     result := Kernel(3, 7, true) + Named(1, 6, false) + Numeric(7, 11, true)
     result += Skipped(2, 3, false) + Failure(9, 2, true) + RealFailure(3, 2, false)
     result += Large(5, 3, false)

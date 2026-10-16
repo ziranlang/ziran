@@ -1946,33 +1946,17 @@ native_runtime_includes(const char *text)
     return includes;
 }
 
-/* Replace the include mark in a written native file, and its numeric helper
- * mark if present. Use the same read/rewrite for both kinds of dependency. */
+/* Resolve both dependency marks before writing the final native text. */
 int
-EmitResolveNativeHelpers(const char *path)
+EmitNativeHelpers(FILE *file, const char *text)
 {
-    FILE *file = fopen(path, "rb");
-    char *text = NULL, *mark, *numbers;
-    long length;
+    const char *mark, *numbers;
     int needed[sizeof(c_number_helpers) / sizeof(c_number_helpers[0])] = {0};
-    int any = 0, status = 0;
-    if(file == NULL)
-        return -1;
-    if(fseek(file, 0, SEEK_END) != 0 || (length = ftell(file)) < 0 ||
-       fseek(file, 0, SEEK_SET) != 0 || (text = malloc((size_t)length + 1)) == NULL ||
-       fread(text, 1, (size_t)length, file) != (size_t)length) {
-        fclose(file);
-        free(text);
-        return -1;
-    }
-    fclose(file);
-    text[length] = '\0';
+    int any = 0;
     mark = strstr(text, RUNTIME_INCLUDES_MARK);
     numbers = strstr(text, NUMBER_HELPERS_MARK);
-    if(mark == NULL || (numbers != NULL && numbers < mark)) {
-        free(text);
+    if(mark == NULL || (numbers != NULL && numbers < mark))
         return -1;
-    }
     for(size_t i = 0; numbers && i < sizeof(needed) / sizeof(needed[0]); i++) {
         char call[32];
         format(call, sizeof(call), "%s(", c_number_helpers[i].name);
@@ -1983,11 +1967,6 @@ EmitResolveNativeHelpers(const char *path)
         any |= needed[i];
     unsigned includes = native_runtime_includes(text);
     if(any) includes |= NATIVE_STDLIB;
-    file = fopen(path, "wb");
-    if(file == NULL) {
-        free(text);
-        return -1;
-    }
     fwrite(text, 1, (size_t)(mark - text), file);
     if(includes & NATIVE_BOUNDS) fputs("#include \"zir_bounds.h\"\n", file);
     if(includes & NATIVE_STRING) fputs("#include \"zir_string.h\"\n", file);
@@ -2005,7 +1984,37 @@ EmitResolveNativeHelpers(const char *path)
         if(needed[i])
             fprintf(file, "%s%s", written++ ? "\n" : "", c_number_helpers[i].definition);
     fputs(numbers ? numbers + strlen(NUMBER_HELPERS_MARK) : mark, file);
-    status = ferror(file) ? -1 : 0;
+    return ferror(file) ? -1 : 0;
+}
+
+/* C++ transformations still operate on a completed file. Reuse the same
+ * helper resolution without imposing another disk pass on memory emitters. */
+int
+EmitResolveNativeHelpers(const char *path)
+{
+    FILE *file = fopen(path, "rb");
+    char *text = NULL;
+    long length;
+    if(file == NULL)
+        return -1;
+    if(fseek(file, 0, SEEK_END) != 0 || (length = ftell(file)) < 0 ||
+       fseek(file, 0, SEEK_SET) != 0 || (text = malloc((size_t)length + 1)) == NULL ||
+       fread(text, 1, (size_t)length, file) != (size_t)length) {
+        fclose(file);
+        free(text);
+        return -1;
+    }
+    fclose(file);
+    text[length] = '\0';
+    const char *mark = strstr(text, RUNTIME_INCLUDES_MARK);
+    const char *numbers = strstr(text, NUMBER_HELPERS_MARK);
+    if(mark == NULL || (numbers != NULL && numbers < mark)) {
+        free(text);
+        return -1;
+    }
+    file = fopen(path, "wb");
+    if(file == NULL) { free(text); return -1; }
+    int status = EmitNativeHelpers(file, text);
     if(fclose(file) != 0)
         status = -1;
     free(text);

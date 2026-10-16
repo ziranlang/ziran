@@ -6,6 +6,10 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+    "$repo/tests/native_helpers_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
+    -lm -pthread -o "$work/helpers"
+"$work/helpers" "$work/invalid.c"
 
 cat > "$work/plain.zi" <<'ZI'
 #program_export
@@ -128,6 +132,7 @@ for p in headers: os.utime(p, ns=(1000000000, 1000000000))
 subprocess.run([root/'copy', root/'copied', root/'copied/use.c'], check=True)
 assert all(p.stat().st_mtime_ns == 1000000000 for p in headers)
 PY
+python3 "$repo/tests/native_c_large_output_test.py" "$ziran" "$work/large-output"
 "${CC:-cc}" -std=c11 -Werror=implicit-function-declaration "$work/copied/use.c" -o "$work/copied/program"
 "$work/copied/program"
 echo 'Standalone native runtime headers: source, saved IR, C and C++ passed'

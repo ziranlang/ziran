@@ -113,9 +113,10 @@ void EmitParallelWorkers(FILE *out, const ZirModule *module,
                          const ZirFunction *fn, ZirTarget target,
                          ZirResolveTarget resolve, void *context);
 void EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target);
-/* Resolve runtime includes and numeric helpers after a native file is written. */
+/* Resolve runtime includes and numeric helpers in generated native text. */
 #define RUNTIME_INCLUDES_MARK "/* ziran runtime includes */\n"
 #define NUMBER_HELPERS_MARK "/* ziran numeric helpers */\n"
+int EmitNativeHelpers(FILE *out, const char *text);
 int EmitResolveNativeHelpers(const char *path);
 void EmitGoPrintSupport(FILE *out);
 /* Appends each Go numeric helper that text calls and *written lacks. */

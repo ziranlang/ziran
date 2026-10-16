@@ -33,6 +33,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/native_runtime_headers.sh` checks source and saved IR, exported ABI
   values, standalone C/C++ builds and stable copied-header timestamps.
 
+- C emission collects a module in a memory stream where supported (a temporary
+  stream elsewhere) and resolves runtime includes and numeric helpers while
+  writing its final temporary output. Memory streams avoid writing and rereading
+  an intermediate C file. Identical generated files keep
+  their timestamps; large source and saved-IR modules are executed by
+  `tests/native_runtime_headers.sh`.
+
 - Native C compilation uses up to sixteen available CPU workers, bounded by
   the source count and by the process's CPU affinity on Linux. It refills each
   slot independently,

@@ -30,6 +30,9 @@ void ZibAssetsFree(ZibAssets *assets);
 int ZibAssetsCollect(ZibAssets *assets, const char *spec);
 int ZibAssetsWrite(FILE *out, const ZibAssets *assets);
 int ZibAssetsRead(FILE *in, ZibAssets *assets);
+/* Serialize an immutable checked program's portable view directly to OUT.
+ * Native templates stay in the source graph; no seeking or temporary payload
+ * stream is needed. The program must remain unchanged during measurement/write. */
 int BundleWrite(FILE *out, const ZirProgram *program,
                 const char *entry_module, const char *entry_function,
                 const ZibAssets *assets);

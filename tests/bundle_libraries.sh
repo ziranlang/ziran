@@ -8,10 +8,13 @@ mkdir -p "$work/shared"
 printf 'one shared asset' > "$work/shared/message.txt"
 cat > "$work/common.zi" <<'ZI'
 count: s32 = 40;
+Copy :: (value: s32) -> s32 #asm("x86_64", "# LIBRARY_NATIVE_FN\nmov %[value], %[out]", "=r", "r", "", "") { return value }
 #program_export
 Next :: () -> s32 {
-    count += 1
-    return count
+    value := count
+    #asm("x86_64", "# LIBRARY_NATIVE_BLOCK\naddl $1, %[value]", "=r:value", "0:old=value", "cc", "") { value += 1 }
+    count = value
+    return Copy(count)
 }
 #program_export
 main :: () -> s32 {
@@ -31,6 +34,13 @@ ZI
     -o "$work/thin.zib" "$work/app.zi"
 "$ziran" bundle --root "$work" --entry app:main --include-library "$work/common.zib" \
     -o "$work/standalone.zib" "$work/app.zi"
+python3 - "$work" <<'PY'
+from pathlib import Path
+import sys
+for name in ('common', 'thin', 'standalone'):
+    data=(Path(sys.argv[1])/(name+'.zib')).read_bytes()
+    assert b'LIBRARY_NATIVE_FN' not in data and b'LIBRARY_NATIVE_BLOCK' not in data
+PY
 mkdir -p "$work/wrong"
 cat > "$work/wrong/common.zi" <<'ZI'
 #program_export

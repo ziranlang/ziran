@@ -5,6 +5,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Portable bundle writing omits native assembly templates while retaining the
+  checked bodies and full native `.zir` data. It measures the payload and writes
+  directly to files or pipes without a temporary payload file.
+  `tests/zib_portable_write.sh` checks graph immutability, binary assets,
+  certificates, persistent state, append streams and write failures;
+  `tests/bundle_libraries.sh` covers shared and included code.
+  `bench/zib_metadata.py` compares bundle size, packing and fresh-host loading
+  with a preserved compiler, including a reader/writer crossover and ordinary
+  bundles without assembly. Its large comment annotations are a stress case.
+
 - Rust emits native function and local-block assembly for supported GNU-style
   operands, with isolated CPU-feature helpers and cached runtime selection.
   `tests/rust_assembly.sh` covers tied/fixed registers, scalar widths, record

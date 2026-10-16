@@ -278,42 +278,6 @@ static int read_text(FILE *in, char *text, size_t capacity)
     text[length] = 0;
     return 1;
 }
-/* Buffers copy_bytes keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct CopyBytesBuffers {
-    unsigned char buffer[8192];
-} CopyBytesBuffers;
-
-static int copy_bytes(FILE *in, FILE *out, uint32_t count);
-
-static int
-copy_bytes_with_buffers(FILE *in, FILE *out, uint32_t count, CopyBytesBuffers *buffers)
-{
-    while(count > 0) {
-        size_t amount = count < sizeof(buffers->buffer) ? count : sizeof(buffers->buffer);
-        if(fread(buffers->buffer, 1, amount, in) != amount ||
-           fwrite(buffers->buffer, 1, amount, out) != amount)
-            return 0;
-        count -= (uint32_t)amount;
-    }
-    return 1;
-}
-
-static int
-copy_bytes(FILE *in, FILE *out, uint32_t count)
-{
-    static _Thread_local CopyBytesBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CopyBytesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
-    int returned = copy_bytes_with_buffers(in, out, count, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
-        free(buffers);
-    return returned;
-}
-
 static int
 copy_function(ZirFunction *target, const ZirFunction *source)
 {
@@ -2275,18 +2239,13 @@ BundleWriteInContext(FILE *out, const ZirProgram *program,
                const char *entry_module, const char *entry_function,
                const ZibAssets *assets)
 {
-    FILE *payload;
-    long length;
+    size_t length = 0;
     int ok;
     if(out == NULL || program == NULL || entry_module == NULL ||
        entry_function == NULL)
         return 0;
-    payload = tmpfile();
-    if(payload == NULL)
-        return 0;
-    ok = ProgramWrite(program, payload);
-    length = ok ? ftell(payload) : -1;
-    if(length <= 0 || length > ZIB_MAX_IR_BYTES || fseek(payload, 0, SEEK_SET))
+    ok = ProgramMeasurePortable(program, &length);
+    if(length == 0 || length > ZIB_MAX_IR_BYTES)
         ok = 0;
     int capabilities = count_capabilities(program, program->module_count);
     if(capabilities > ZIB_MAX_CAPABILITIES)
@@ -2347,11 +2306,11 @@ BundleWriteInContext(FILE *out, const ZirProgram *program,
                          write_name(out, waiver->reason);
                 }
         }
+        size_t written = 0;
         ok = ok && write_u32(out, (uint32_t)length) &&
-             copy_bytes(payload, out, (uint32_t)length) &&
+             ProgramWritePortable(program, out, &written) && written == length &&
              ZibAssetsWrite(out, assets) && fflush(out) == 0;
     }
-    fclose(payload);
     return ok;
 }
 

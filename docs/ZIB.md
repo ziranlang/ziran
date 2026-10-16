@@ -39,7 +39,20 @@ function calls from the entry, keeps record and enum declarations used by
 those functions (including types from imported modules and nested record
 fields), and retains imported startup paths even when no symbol from them is
 called. It removes other unreachable functions, modules, types, and imports before
-writing the payload. Compile-time definitions and imported modules needed by
+writing the payload. Bundle serialization omits native `#asm` variants and
+writes their checked local bodies as ordinary blocks. Typed expression graphs,
+source locations, certificates, capabilities and assets remain intact. Source
+and saved `.zir` keep their native variants for native builds; their encoding
+and the bundle version are unchanged.
+
+The bundle writer first validates and measures the portable payload, then
+streams it directly to the destination. It needs neither a temporary payload
+file nor destination seeking, including for pipes and append streams. The
+input graph remains immutable. This performs a second field traversal but
+avoids a whole-payload buffer or temporary-file copy. Output failures are
+reported by the writer.
+
+Compile-time definitions and imported modules needed by
 array bound expressions remain available when the bundle rechecks saved IR. Enum
 member references keep their declaration even when
 the expression uses the member as an integer without an explicit enum cast.

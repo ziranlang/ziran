@@ -19,6 +19,8 @@ typedef enum FieldKind {
     FIELD_INTEGER,
     FIELD_STATEMENT_KIND, /* high flag bit announces optional block metadata */
     FIELD_STATEMENT_NAME, /* shares storage with optional block annotation */
+    FIELD_STATEMENT_TEXT, /* portable output normalizes native blocks to { */
+    FIELD_FUNCTION_ASSEMBLY, /* portable output omits procedure variants */
     FIELD_ASSEMBLY_TEXT,
     FIELD_U64,
     FIELD_SPAN
@@ -48,6 +50,8 @@ typedef struct Writer {
     FILE *out;
     unsigned char *block;
     size_t used;
+    size_t bytes;
+    int portable, measure;
 } Writer;
 
 static int
@@ -79,17 +83,31 @@ flush_writer(Writer *writer)
 {
     size_t used = writer->used;
     writer->used = 0;
-    return used == 0 || fwrite(writer->block, 1, used, writer->out) == used;
+    if(used > SIZE_MAX - writer->bytes ||
+       (used != 0 && fwrite(writer->block, 1, used, writer->out) != used))
+        return 0;
+    writer->bytes += used;
+    return 1;
 }
 
 static int
 write_bytes(Writer *writer, const void *data, size_t count)
 {
+    if(writer->measure) {
+        if(count > SIZE_MAX - writer->bytes) return 0;
+        writer->bytes += count;
+        return 1;
+    }
     if(count > SERIAL_BLOCK - writer->used) {
         if(!flush_writer(writer))
             return 0;
-        if(count >= SERIAL_BLOCK)
-            return fwrite(data, 1, count, writer->out) == count;
+        if(count >= SERIAL_BLOCK) {
+            if(count > SIZE_MAX - writer->bytes ||
+               fwrite(data, 1, count, writer->out) != count)
+                return 0;
+            writer->bytes += count;
+            return 1;
+        }
     }
     memcpy(writer->block + writer->used, data, count);
     writer->used += count;
@@ -134,7 +152,7 @@ static const Field import_fields[] = {
 };
 static const Field statement_fields[] = {
     {offsetof(ZirStmt, kind), sizeof(ZirStmtKind), FIELD_STATEMENT_KIND},
-    TEXT_FIELD(ZirStmt, text),
+    {offsetof(ZirStmt, text), ZIR_TEXT_MAX, FIELD_STATEMENT_TEXT},
     {offsetof(ZirStmt, assembly_text), ZIR_TEXT_MAX, FIELD_ASSEMBLY_TEXT},
     INTEGER_FIELD(ZirStmt, is_else), INTEGER_FIELD(ZirStmt, is_using),
     INTEGER_FIELD(ZirStmt, loop_id), INTEGER_FIELD(ZirStmt, target_id),
@@ -180,7 +198,7 @@ static const Field function_fields[] = {
     INTEGER_FIELD(ZirFunction, checked),
     INTEGER_FIELD(ZirFunction, uses_host), STRING_FIELD(ZirFunction, extern_target),
     STRING_FIELD(ZirFunction, extern_symbol), SPAN_FIELD(ZirFunction, span),
-    TEXT_FIELD(ZirFunction, assembly_text)
+    {offsetof(ZirFunction, assembly_text), ZIR_TEXT_MAX, FIELD_FUNCTION_ASSEMBLY}
 };
 static const Field global_fields[] = {
     STRING_FIELD(ZirGlobal, name), STRING_FIELD(ZirGlobal, type),
@@ -448,18 +466,22 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
                ((const ZirStmt *)record)->kind == ZIR_STMT_BLOCK_OPEN) name = "";
             if(!write_string(out, name ? name : "", fields[i].size))
                 return 0;
-        } else if(fields[i].kind == FIELD_TEXT || fields[i].kind == FIELD_ASSEMBLY_TEXT) {
+        } else if(fields[i].kind == FIELD_TEXT || fields[i].kind == FIELD_ASSEMBLY_TEXT ||
+                  fields[i].kind == FIELD_STATEMENT_TEXT || fields[i].kind == FIELD_FUNCTION_ASSEMBLY) {
             /* Source text has no field limit: a long literal keeps it all. */
             const char *text = *(const char *const *)value;
-            if(fields[i].kind == FIELD_ASSEMBLY_TEXT && !StatementHasAssembly(record))
+            if(fields[i].kind == FIELD_ASSEMBLY_TEXT &&
+               (out->portable || !StatementHasAssembly(record)))
                 continue;
+            if(out->portable && fields[i].kind == FIELD_FUNCTION_ASSEMBLY) text = "";
+            if(out->portable && fields[i].kind == FIELD_STATEMENT_TEXT && StatementHasAssembly(record)) text = "{";
             size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : ZIR_KEPT_TEXT_MAX;
             if(!write_string(out, text ? text : "", limit))
                 return 0;
         } else if(fields[i].kind == FIELD_STATEMENT_KIND) {
             const ZirStmt *statement = record;
             uint32_t kind = (uint32_t)statement->kind;
-            if(StatementHasAssembly(statement)) {
+            if(!out->portable && StatementHasAssembly(statement)) {
                 kind |= ASSEMBLY_BLOCK_FLAG;
             }
             if(!write_u32(out, kind)) return 0;
@@ -493,7 +515,8 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
                ((ZirStmt *)record)->kind == ZIR_STMT_BLOCK_OPEN) {
                 if(*name) { reader->problem = "unexpected block binding name"; return 0; }
             } else *(const char **)value = KeepText(name);
-        } else if(fields[i].kind == FIELD_TEXT || fields[i].kind == FIELD_ASSEMBLY_TEXT) {
+        } else if(fields[i].kind == FIELD_TEXT || fields[i].kind == FIELD_ASSEMBLY_TEXT ||
+                  fields[i].kind == FIELD_STATEMENT_TEXT || fields[i].kind == FIELD_FUNCTION_ASSEMBLY) {
             if(fields[i].kind == FIELD_ASSEMBLY_TEXT && !assembly_block) {
                 *(const char **)value = "";
                 continue;
@@ -986,10 +1009,10 @@ validate_program(const ZirProgram *program)
 }
 
 static int
-write_program(const ZirProgram *program, Writer *out)
+write_program(const ZirProgram *program, Writer *out, int validate)
 {
     static const unsigned char magic[4] = {'Z', 'I', 'R', 0};
-    if(program == NULL || out == NULL || !validate_program(program) ||
+    if(program == NULL || out == NULL || (validate && !validate_program(program)) ||
        !write_bytes(out, magic, sizeof(magic)) ||
        !write_u32(out, ZIR_FORMAT_VERSION) ||
        !write_u32(out, (uint32_t)program->module_count))
@@ -997,18 +1020,46 @@ write_program(const ZirProgram *program, Writer *out)
     for(int i = 0; i < program->module_count; i++)
         if(!write_module(out, &program->modules[i]))
             return 0;
-    return flush_writer(out) && fflush(out->out) == 0;
+    return out->measure || (flush_writer(out) && fflush(out->out) == 0);
 }
 
 int
 ProgramWrite(const ZirProgram *program, FILE *out)
 {
     uint64_t started = ProfileStart();
-    Writer writer = {out, malloc(SERIAL_BLOCK), 0};
+    Writer writer = {.out = out, .block = malloc(SERIAL_BLOCK)};
     int result = writer.block != NULL && out != NULL &&
-                 write_program(program, &writer);
+                 write_program(program, &writer, 1);
     free(writer.block);
     ProfileEnd("ir.write", started);
+    return result;
+}
+
+int
+ProgramMeasurePortable(const ZirProgram *program, size_t *size)
+{
+    if(size == NULL) return 0;
+    *size = 0;
+    Writer writer = {.portable = 1, .measure = 1};
+    uint64_t started = ProfileStart();
+    int result = write_program(program, &writer, 1);
+    ProfileEnd("ir.measure.portable", started);
+    if(result) *size = writer.bytes;
+    return result;
+}
+
+int
+ProgramWritePortable(const ZirProgram *program, FILE *out, size_t *size)
+{
+    if(size == NULL || out == NULL) return 0;
+    *size = 0;
+    Writer writer = {.out = out, .block = malloc(SERIAL_BLOCK), .portable = 1};
+    /* Bundle writing has just measured and validated this immutable graph. */
+    uint64_t started = ProfileStart();
+    int result = writer.block != NULL && write_program(program, &writer, 0);
+    ProfileEnd("ir.write", started);
+    if(result) *size = writer.bytes;
+    free(writer.block);
     return result;
 }
 

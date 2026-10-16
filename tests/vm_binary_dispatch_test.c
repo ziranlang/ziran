@@ -22,6 +22,8 @@ main(void)
         assert(calculate(&vm, arithmetic[i], a, b, "s64", "s64").integer == expected[i]);
     assert(calculate(&vm, "/", int_value(INT64_MIN), int_value(-1), "s64", "s64").integer == INT64_MIN);
     assert(calculate(&vm, "%", int_value(INT64_MIN), int_value(-1), "s64", "s64").integer == 0);
+    assert(calculate(&vm, "/", int_value(INT64_MIN), int_value(-1), "integer", "integer").integer == INT64_MIN);
+    assert(calculate(&vm, "%", int_value(INT64_MIN), int_value(-1), "integer", "integer").integer == 0);
     assert(calculate(&vm, "+", uint_value(UINT64_MAX), uint_value(1), "u64", "u64").bits == 0);
     assert(calculate(&vm, "+", int_value(INT64_MAX), int_value(1), "integer", "integer").integer == INT64_MIN);
     assert(calculate(&vm, "-", int_value(INT64_MIN), int_value(1), "integer", "integer").integer == INT64_MAX);

@@ -56,6 +56,8 @@ static void check_short_plans(void)
         {">", "u64", "u64", "bool", uint_value(UINT64_C(9007199254740993)),
             uint_value(UINT64_C(9007199254740992)), int_value(1), 0},
         {"/", "s64", "s64", "s64", int_value(INT64_MIN), int_value(-1), int_value(INT64_MIN), 0},
+        {"/", "integer", "integer", "integer", int_value(INT64_MIN), int_value(-1), int_value(INT64_MIN), 0},
+        {"%", "integer", "integer", "integer", int_value(INT64_MIN), int_value(-1), int_value(0), 0},
         {"+", "float32", "float32", "float32", real_value(16777216.0), real_value(1.0),
             real_value(16777216.0), 0},
         {"/", "s64", "s64", "s64", int_value(9), int_value(0), int_value(0), 1},

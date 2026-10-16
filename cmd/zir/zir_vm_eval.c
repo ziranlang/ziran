@@ -746,9 +746,13 @@ binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
         return int_value(signed64((uint64_t)left.integer - (uint64_t)right.integer));
     if(operation == BinaryMultiply)
         return int_value(signed64((uint64_t)left.integer * (uint64_t)right.integer));
-    if(operation == BinaryDivide && right.integer != 0)
+    if(right.integer == 0)
+        goto failed;
+    if(left.integer == INT64_MIN && right.integer == -1)
+        return int_value(operation == BinaryDivide ? INT64_MIN : 0);
+    if(operation == BinaryDivide)
         return int_value(left.integer / right.integer);
-    if(operation == BinaryRemainder && right.integer != 0)
+    if(operation == BinaryRemainder)
         return int_value(left.integer % right.integer);
 failed:
     vm->failed = 1;

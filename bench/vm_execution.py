@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -135,6 +136,43 @@ Answer :: () -> s64 {
 
     yield 'popcount', cpu_features.source(iterations), cpu_features.oracle(iterations)
 
+    # Exercise the actual standard-library parser, including nested values,
+    # raw UTF-8, escaped strings and surrogate pairs. Python independently
+    # decodes the serialized documents and supplies the numeric/byte checksum.
+    records = [dict(id=1000+i, weight=(-1)**i*(97*i+0.25),
+                    label='café 日本語 Ω😀 "row"\\\n'+str(i),
+                    meta=dict(active=i % 2 == 0, values=[None, i, 'nested']))
+               for i in range(8)]
+    documents = [json.dumps(records, ensure_ascii=ascii_only, separators=(',', ':'))
+                 for ascii_only in (False, True)]
+    rounds = max(1, iterations // 10000)
+    checksum = sum(int(row['id']) + int(row['weight']) + sum(row['label'].encode())
+                   for document in documents for row in json.loads(document))
+    yield 'json-parser', '''#import "json_scan"
+#program_export
+Answer :: () -> s64 {
+    documents: [2]string = .{DOCUMENTS}
+    positions: [8]s32
+    decoded: [128]u8
+    total: s64
+    for round: 0..cast(s32)(ROUNDS - 1) {
+        for document: documents {
+            if ArrayPositions(document, 0, positions[:]) != 8 { return -1 }
+            for at: positions {
+                id := ReadNumber(document, FieldAt(document, at, "id"))
+                weight := ReadNumber(document, FieldAt(document, at, "weight"))
+                length := ReadStringText(document, FieldAt(document, at, "label"), decoded[:])
+                if !id.valid || !weight.valid || length < 0 { return -2 }
+                total += cast(s64)id.value + cast(s64)weight.value
+                for byte: decoded[:length] { total += cast(s64)byte }
+            }
+        }
+    }
+    return total
+}
+'''.replace('DOCUMENTS', ', '.join(json.dumps(d, ensure_ascii=False) for d in documents)).replace(
+        'ROUNDS', str(rounds)), checksum * rounds
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -169,15 +207,15 @@ def main():
         path = fixtures/f'{module}.zi'
         path.write_text(source)
         bundle = fixtures/f'{module}.zib'
-        base = ['--root', fixtures, '--entry', module+':Answer']
+        base = ['--root', fixtures, '--module-path', ROOT/'std', '--entry', module+':Answer']
         subprocess.run([str(p) for p in [before/'zi2zib', 'bundle', *base, '-o', bundle, path]],
                        cwd=ROOT, env=env, check=True)
         ir = output/'ir'/module
-        subprocess.run([str(p) for p in [after/'zi2zir', '--root', fixtures, '-o', ir, path]],
+        subprocess.run([str(p) for p in [after/'zi2zir', '--root', fixtures, '--module-path', ROOT/'std', '-o', ir, path]],
                        cwd=ROOT, env=env, check=True)
         saved = fixtures/f'{module}-saved.zib'
         subprocess.run([str(p) for p in [after/'zi2zib', 'bundle', '--root', ir,
-                       '--entry', module+':Answer', '-o', saved, ir/f'{module}.zir']],
+                       '--module-path', ROOT/'std', '--entry', module+':Answer', '-o', saved, ir/f'{module}.zir']],
                        cwd=ROOT, env=env, check=True)
         if saved.read_bytes() != bundle.read_bytes():
             raise AssertionError(f'{name}: source/saved bundle mismatch')

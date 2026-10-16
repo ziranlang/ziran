@@ -368,38 +368,6 @@ enum_value(const ZirType *type, int64_t integer)
     return value;
 }
 
-uint64_t
-integer_bits(Value value)
-{
-    if(value.kind != VALUE_INT && value.kind != VALUE_ENUM)
-        return 0;
-    return value.unsigned64 ? value.bits : (uint64_t)value.integer;
-}
-
-int64_t
-signed64(uint64_t bits)
-{
-    return bits <= INT64_MAX ? (int64_t)bits :
-           -1 - (int64_t)(UINT64_MAX - bits);
-}
-
-double
-as_real(Value value)
-{
-    if(value.kind == VALUE_REAL)
-        return value.real;
-    if(value.kind != VALUE_INT && value.kind != VALUE_ENUM)
-        return 0.0;
-    return value.unsigned64 ? (double)value.bits : (double)value.integer;
-}
-
-int
-truthy(Value value)
-{
-    return value.kind == VALUE_REAL ? value.real != 0.0 :
-           integer_bits(value) != 0;
-}
-
 static VmLayout *
 parse_layout(VmLayout *layout, const ZirType *type)
 {

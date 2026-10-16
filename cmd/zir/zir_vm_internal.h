@@ -110,6 +110,40 @@ string_value(const unsigned char *data, size_t length)
     return (Value){.kind = VALUE_STRING, .data = data, .length = length};
 }
 
+/* Keep payload reads visible across evaluator parts, avoiding whole-Value
+ * argument copies and calls for a selected word or a simple conversion. */
+static inline uint64_t
+integer_bits(Value value)
+{
+    if(value.kind != VALUE_INT && value.kind != VALUE_ENUM)
+        return 0;
+    return value.unsigned64 ? value.bits : (uint64_t)value.integer;
+}
+
+static inline int64_t
+signed64(uint64_t bits)
+{
+    return bits <= INT64_MAX ? (int64_t)bits :
+           -1 - (int64_t)(UINT64_MAX - bits);
+}
+
+static inline double
+as_real(Value value)
+{
+    if(value.kind == VALUE_REAL)
+        return value.real;
+    if(value.kind != VALUE_INT && value.kind != VALUE_ENUM)
+        return 0.0;
+    return value.unsigned64 ? (double)value.bits : (double)value.integer;
+}
+
+static inline int
+truthy(Value value)
+{
+    return value.kind == VALUE_REAL ? value.real != 0.0 :
+           integer_bits(value) != 0;
+}
+
 /* Values held by an expression while another expression or call runs.
  * The nodes borrow stack or argument-buffer storage and are removed by the
  * evaluator before that storage goes away. */
@@ -494,10 +528,6 @@ Value keep_string(Vm *vm, StringLiteral *item, const ZirExpr *expression, size_t
 Value literal_string(Vm *vm, const ZirExpr *expression);
 Value global_literal_string(Vm *vm, const char *source);
 Value enum_value(const ZirType *type, int64_t integer);
-uint64_t integer_bits(Value value);
-int64_t signed64(uint64_t bits);
-double as_real(Value value);
-int truthy(Value value);
 Record *allocate_record(Vm *vm, const ZirModule *owner, const ZirType *type, int count);
 int array_length_fits(const char *element, size_t length);
 Array *allocate_array_try(Vm *vm, const ZirModule *owner, const char *element, int length, int fail_hard);

@@ -86,15 +86,20 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vm_execution.py \
   --before-dir build/vm-execution/before --out build/benchmarks/vm-execution
 ```
 
-This suite generates integer arithmetic, mixed signed/unsigned comparisons,
+This suite exercises integer arithmetic, mixed signed/unsigned comparisons,
 floating-point arithmetic, record calls over an array, fixed-array returns,
-and population-count workloads. The array case passes a 4,096-element value
-through two functions and checks untouched zero elements as well as both ends.
+population count, and the standard-library JSON parser. The array case passes
+a 4,096-element value through two functions and checks untouched zero elements
+as well as both ends.
+The JSON case scans nested records, reads signed fractional numbers, and decodes
+raw UTF-8 and escaped strings, including surrogate pairs. Its checksum comes
+from independently decoded Python JSON values and their UTF-8 bytes.
 Each uses a separate Python result calculation. Source and saved IR
 must create identical bundles, and both runtime versions must recreate the
 source bundle before timing. Every first and repeated run must match the oracle.
-The default uses ten thousand numeric iterations and nine repeated executions
-per instance, within the runner's million-statement limit. Results separate
+The default uses ten thousand numeric iterations, one JSON corpus pass, and
+nine repeated executions per instance, within the runner's million-statement
+limit. Results separate
 checked loading, instance opening, first execution, repeated execution and closing
 through `vm_startup.py`; its measurement and memory limitations below apply.
 These are synthetic VM comparisons on the recorded host, not native C/Go or

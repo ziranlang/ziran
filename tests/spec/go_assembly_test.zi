@@ -1,0 +1,39 @@
+// Distinct test markers prove dispatch. Production variants must match their body.
+Marker :: () -> s32 #asm("x86_64", "movl $7, %[out]", "=r", "", "", "") #asm("x86", "movl $7, %[out]", "=r", "", "", "") #asm("aarch64", "mov %w[out], #7", "=r", "", "", "") #asm("arm", "mov %[out], #7", "=r", "", "", "") #asm("riscv64", "li %[out], 7", "=r", "", "", "") #asm("riscv32", "li %[out], 7", "=r", "", "", "") #asm("powerpc64", "li %[out], 7", "=r", "", "", "") #asm("powerpc", "li %[out], 7", "=r", "", "", "") #asm("s390x", "lhi %[out], 7", "=r", "", "", "") #asm("loongarch64", "addi.w %[out], $r0, 7", "=r", "", "", "") { return 3 }
+startup_count: s32;
+Initialize :: () -> s32 { startup_count += 1; return Marker() }
+startup: s32 = Initialize();
+Startup :: () -> s32 { return startup }
+
+BlockMarker :: () -> s32 {
+    result: s32
+    #asm("x86_64", "movl $9, %[out]", "=r:out=result", "", "", "") #asm("x86", "movl $9, %[out]", "=r:out=result", "", "", "") #asm("aarch64", "mov %w[out], #9", "=r:out=result", "", "", "") #asm("arm", "mov %[out], #9", "=r:out=result", "", "", "") #asm("riscv64", "li %[out], 9", "=r:out=result", "", "", "") #asm("riscv32", "li %[out], 9", "=r:out=result", "", "", "") #asm("powerpc64", "li %[out], 9", "=r:out=result", "", "", "") #asm("powerpc", "li %[out], 9", "=r:out=result", "", "", "") #asm("s390x", "lhi %[out], 9", "=r:out=result", "", "", "") #asm("loongarch64", "addi.w %[out], $r0, 9", "=r:out=result", "", "", "") { result = 3 }
+    return result
+}
+
+// An isolated feature helper must read the original cell after its alias writes.
+InputAlias :: (value: s64) -> s64 {
+    cell := value
+    alias := *cell
+    result: s64
+    #asm("x86_64+popcnt", "movq $9, (%[alias])\n\tmovq %[cell], %[out]", "=r:out=result", "m:cell;r:alias", "memory", "volatile") #asm("aarch64+simd", "mov x9, #9\n\tstr x9, [%[alias]]\n\tldr %[out], %[cell]", "=r:out=result", "m:cell;r:alias", "x9;memory", "volatile") { cell = 9; result = cell }
+    return result + cell
+}
+
+Store :: (value: *s32) #asm("x86_64", "addl $1, (%[value])", "", "r", "cc;memory", "volatile") #asm("aarch64", "ldr w9, [%[value]]\n\tadd w9, w9, #1\n\tstr w9, [%[value]]", "", "r", "x9;memory", "volatile") #asm("arm", "ldr r3, [%[value]]\n\tadd r3, r3, #1\n\tstr r3, [%[value]]", "", "r", "r3;cc;memory", "volatile") { value.* += 1 }
+Pointer :: (value: *s32) -> *s32 #asm("x86_64", "movq %[value], %[out]", "=r", "r", "", "") #asm("aarch64", "mov %[out], %[value]", "=r", "r", "", "") #asm("arm", "mov %[out], %[value]", "=r", "r", "", "") { return value }
+
+PairPointer :: struct { first: s64; second: u32; pointer: *s32 }
+Pair :: (value: s64, pointer: *s32) -> PairPointer #asm("x86_64", "movq %[value], %[out_first]\n\tmovl $7, %[out_second]\n\tmovq %[pointer], %[out_pointer]", "=&r;=&r;=&r", "r;r", "", "") #asm("aarch64", "mov %[out_first], %[value]\n\tmov %w[out_second], #7\n\tmov %[out_pointer], %[pointer]", "=&r;=&r;=&r", "r;r", "", "") { return PairPointer.{value, 7, pointer} }
+
+Link :: struct { value: s32; next: *Link }
+// Go pointer-bearing storage stays on the checked path, with cgocheck intact.
+Graph :: (value: *Link) -> s32 #asm("x86_64", "movl $99, %[out]", "=r", "r", "", "") { return value.value }
+PointerBlock :: (value: *s32) -> *s32 {
+    result: *s32
+    #asm("x86_64", "xorq %[out], %[out]", "=r:out=result", "r:value", "", "") { result = value }
+    return result
+}
+Comment :: () #asm("x86_64", "# */ and \" quotes stay in the C header\n", "", "", "memory", "volatile") {}
+
+Shadow :: (__ziranAssembly0_0_0: s32) -> s32 #asm("x86_64", "movl %[__ziranAssembly0_0_0], %[out]", "=r", "r", "", "") { return __ziranAssembly0_0_0 }

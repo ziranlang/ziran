@@ -29,5 +29,8 @@ typedef struct AssemblyVariant {
  * -1=invalid metadata. The frontend remains responsible for semantic checks. */
 int AssemblyVariantNext(const ZirModule *module, const ZirFunction *function,
                          int statement, const char **cursor, AssemblyVariant *variant);
+/* Inputs with a possible memory alternative must retain their storage when
+ * an isolated feature helper is called. Unknown target classes are cautious. */
+int AssemblyInputNeedsStorage(const char *constraint);
 
 #endif

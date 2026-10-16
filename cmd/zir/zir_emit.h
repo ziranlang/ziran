@@ -8,6 +8,24 @@ void EmitAssemblyHelpers(FILE *out, const ZirModule *module, const ZirFunction *
 /* Emits guarded native returns before the ordinary portable body. */
 void EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *function,
                  ZirTarget target, const char *result_type);
+/* Native-only bridge: set *available when a variant executes. The caller
+ * adds that pointer to args and retains responsibility for portable fallback. */
+void EmitAssemblyTryHelpers(FILE *out, const ZirModule *module, const ZirFunction *function,
+                            ZirTarget target, const char *result_type, const char *args,
+                            const char *available);
+void EmitAssemblyTry(FILE *out, const ZirModule *module, const ZirFunction *function,
+                     ZirTarget target, const char *result_type, const char *available);
+/* A C availability predicate, without executing any author-supplied template. */
+void EmitAssemblyAvailable(FILE *out, const ZirFunction *function, int statement);
+void EmitAssemblyBlockHelpersAt(FILE *out, const ZirModule *module,
+                                const ZirFunction *function, int statement);
+int EmitAssemblyBlockTry(FILE *out, const ZirModule *module,
+                         const ZirFunction *function, int statement);
+typedef void (*ZirAssemblyOperandResolver)(void *context, int operand,
+                                           char *out, size_t size);
+int EmitAssemblyBlockMapped(FILE *out, const ZirModule *module,
+                            const ZirFunction *function, int statement,
+                            ZirAssemblyOperandResolver resolve, void *context);
 void EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
                               const ZirFunction *function, ZirTarget target);
 /* Opens a native block plus its conditional portable body; caller closes
@@ -18,6 +36,9 @@ void EmitUsePortableAssembly(int enabled);
 /* Resolve target symbol spelling and call ABI. Input contains identifiers and
  * captured argument names only, never a source expression to reinterpret. */
 typedef void (*ZirResolveTarget)(void *context, const char *text, char *out, size_t size);
+typedef int (*ZirAssemblyBlockEmitter)(FILE *out, const ZirModule *module,
+                                      const ZirFunction *function, int statement,
+                                      void *context);
 const char *TargetType(const char *type, ZirTarget target);
 void NativeTypeName(const ZirModule *owner, const ZirType *type,
                     char *out, size_t size);
@@ -116,7 +137,8 @@ void EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
 void EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
                      ZirResolveTarget resolve_type, void *context);
 int EmitBody(FILE *out, const ZirModule *module, const ZirFunction *fn,
-                ZirTarget target, ZirResolveTarget resolve, void *context);
+                ZirTarget target, ZirResolveTarget resolve, void *context,
+                ZirAssemblyBlockEmitter assembly, void *assembly_context);
 /* Dense-output switch for the Go target: remove the inlined-expression length
  * bound so single-use temporaries fold without a readability cap. Default off. */
 void EmitUseMinifiedOutput(int enabled);

@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
 from pathlib import Path
+import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -93,6 +95,19 @@ def main():
     for key in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS"):
         env.pop(key, None)
     env["ZIRAN_LIB"] = str(bin_dir.parent / "libziran.a")
+    # Package builds select cgo/nocgo companions automatically. Preserve the
+    # older checks' explicit file lists while applying the same Go constraints.
+    go = env.get("ZIRAN_TEST_GO_REAL") or shutil.which("go")
+    if go:
+        helpers = log_dir / "tools"
+        helpers.mkdir(exist_ok=True)
+        wrapper = helpers / "go"
+        wrapper.write_text("#!/bin/sh\nexec " + shlex.quote(sys.executable) + " " +
+                           shlex.quote(str(repo / "tests/go_tool.py")) + " --go " +
+                           shlex.quote(go) + ' "$@"\n')
+        wrapper.chmod(0o755)
+        env["ZIRAN_TEST_GO_REAL"] = go
+        env["PATH"] = str(helpers) + os.pathsep + env.get("PATH", "")
 
     print(f"Running {len(checks)} checks with {min(args.jobs, len(checks))} jobs", flush=True)
     failed = 0

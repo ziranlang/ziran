@@ -369,7 +369,7 @@ TargetBindingName(const ZirFunction *fn, ZirTarget target,
         "else", "fallthrough", "for", "func", "go", "goto", "if", "import",
         "interface", "map", "package", "range", "return", "select",
         "struct", "switch", "type", "var", "fmt", "strconv", "math",
-        "formatFloat", NULL
+        "formatFloat", "unsafe", "zirGoAssemblyEnabled", NULL
     };
     const char *const *lists[] = {c_keywords, cpp_keywords, go_keywords};
     int reserved = 0;

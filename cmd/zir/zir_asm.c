@@ -742,7 +742,8 @@ assembly_helper_name(const ZirModule *module, const ZirFunction *fn, ZirTarget t
 
 static void
 assembly_body(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarget target,
-              const char *result_type, const Assembly *assembly, const AssemblyOutputs *outputs)
+              const char *result_type, const Assembly *assembly, const AssemblyOutputs *outputs,
+              const char *available)
 {
     const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
     const char *names[ASSEMBLY_OPERANDS];
@@ -751,6 +752,7 @@ assembly_body(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarg
     char result_name[ZIR_NAME_MAX];
     ArrayAbiName(fn, -1, result_name, sizeof(result_name));
     if(outputs->count) fprintf(out, "        %s %s;\n", result_type, result_name);
+    if(available) fprintf(out, "        *%s = 1;\n", available);
     fputs("        __asm__", out);
     if(*assembly->part[5]) fputs(" __volatile__", out);
     fputc('(', out);
@@ -790,9 +792,10 @@ assembly_body(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarg
     fputs(";\n", out);
 }
 
-void
-EmitAssemblyHelpers(FILE *out, const ZirModule *module, const ZirFunction *fn,
-                    ZirTarget target, const char *result_type, const char *args)
+static void
+assembly_helpers(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                 ZirTarget target, const char *result_type, const char *args,
+                 const char *available)
 {
     if(!fn->assembly_text || !*fn->assembly_text) return;
     AssemblyOutputs *outputs = calloc(1, sizeof(*outputs));
@@ -818,7 +821,7 @@ EmitAssemblyHelpers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                 first = 0;
             }
             fprintf(out, "\"))) static %s\n%s(%s)\n{\n", result_type, helper, args);
-            assembly_body(out, module, fn, target, result_type, &assembly, outputs);
+            assembly_body(out, module, fn, target, result_type, &assembly, outputs, available);
             fputs("}\n#endif\n", out);
         }
         ordinal++;
@@ -840,9 +843,9 @@ assembly_predicate(FILE *out, const Assembly *assembly)
     }
 }
 
-void
-EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarget target,
-             const char *result_type)
+static void
+assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarget target,
+                  const char *result_type, const char *available)
 {
     if(!fn->assembly_text || !*fn->assembly_text) return;
     AssemblyOutputs *outputs = calloc(1, sizeof(*outputs));
@@ -900,6 +903,7 @@ EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarge
                     TargetBindingName(fn, target, parameters->items[i].name, name, sizeof(name));
                     fprintf(out, "%s%s", i ? ", " : "", name);
                 }
+                if(available) fprintf(out, "%s%s", parameters->count ? ", " : "", available);
                 fprintf(out, ");%s }\n#endif\n", outputs->count ? "" : " return;");
             }
             ordinal++;
@@ -912,10 +916,67 @@ EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarge
         if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
         if(assembly.features) continue;
         fputs("#if ", out); assembly_guard(out, &assembly); fputs("\n    {\n", out);
-        assembly_body(out, module, fn, target, result_type, &assembly, outputs);
+        assembly_body(out, module, fn, target, result_type, &assembly, outputs, available);
         fputs("    }\n#endif\n", out);
     }
     free(outputs);
+}
+
+void
+EmitAssemblyHelpers(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                    ZirTarget target, const char *result_type, const char *args)
+{
+    assembly_helpers(out, module, fn, target, result_type, args, NULL);
+}
+
+void
+EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *fn,
+             ZirTarget target, const char *result_type)
+{
+    assembly_function(out, module, fn, target, result_type, NULL);
+}
+
+void
+EmitAssemblyTryHelpers(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                       ZirTarget target, const char *result_type, const char *args,
+                       const char *available)
+{
+    assembly_helpers(out, module, fn, target, result_type, args, available);
+}
+
+void
+EmitAssemblyTry(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                ZirTarget target, const char *result_type, const char *available)
+{
+    assembly_function(out, module, fn, target, result_type, available);
+}
+
+void
+EmitAssemblyAvailable(FILE *out, const ZirFunction *fn, int statement)
+{
+    const char *cursor = statement < 0 ? fn->assembly_text : fn->stmts[statement].assembly_text;
+    while(cursor && *skip_ws(cursor)) {
+        Assembly assembly;
+        if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
+        fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
+        if(assembly.features) {
+            if(assembly.architecture == ASM_X86 || assembly.architecture == ASM_X86_64)
+                fputs("    __builtin_cpu_init();\n", out);
+            fputs("    if(", out); assembly_predicate(out, &assembly); fputs(") return 1;\n", out);
+        } else fputs("    return 1;\n", out);
+        fputs("#endif\n", out);
+    }
+    fputs("    return 0;\n", out);
+}
+
+int
+AssemblyInputNeedsStorage(const char *constraint)
+{
+    for(const char *p = constraint; *p; p++) {
+        if(*p == '[') { while(p[1] && *p != ']') p++; if(*p != ']') return 1; }
+        else if(strchr("0123456789,=+&%!*#? rfvxwabcdqSDAt", *p) == NULL) return 1;
+    }
+    return 0;
 }
 
 static _Thread_local int portable_blocks;
@@ -949,7 +1010,8 @@ block_returns_register(const BlockBindings *bindings)
 
 static void
 block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
-                    const Assembly *assembly, const BlockBindings *bindings, int helper)
+                    const Assembly *assembly, const BlockBindings *bindings, int helper,
+                    ZirAssemblyOperandResolver resolver, void *context)
 {
     const char *names[ASSEMBLY_OPERANDS];
     for(int i = 0; i < bindings->outputs + bindings->inputs; i++) names[i] = bindings->items[i].alias;
@@ -965,10 +1027,12 @@ block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
             if(i) fputs(", ", out);
             assembly_operand_text(out, binding->constraint, names, bindings->outputs, 0);
             if(helper && !direction && block_returns_register(bindings)) fputs(" (ziran_result)", out);
-            else if(helper) fprintf(out, " (%sziran_operand_%d)", direction ? "" : "*", position);
+            else if(helper) fprintf(out, " (%sziran_operand_%d)",
+                !direction || AssemblyInputNeedsStorage(binding->constraint) ? "*" : "", position);
             else {
                 char native[ZIR_NAME_MAX * 4];
-                TargetBindingName(fn, target, binding->name, native, sizeof(native));
+                if(resolver) resolver(context, position, native, sizeof(native));
+                else TargetBindingName(fn, target, binding->name, native, sizeof(native));
                 fprintf(out, " (%s)", native);
             }
         }
@@ -1006,11 +1070,11 @@ block_native_type(const ZirModule *module, const char *type, ZirTarget target,
     out[used] = 0;
 }
 
-void
-EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
-                         const ZirFunction *fn, ZirTarget target)
+static void
+assembly_block_helpers(FILE *out, const ZirModule *module,
+                       const ZirFunction *fn, ZirTarget target, int begin, int end)
 {
-    for(int statement = 0; statement < fn->stmt_count; statement++) {
+    for(int statement = begin; statement < end; statement++) {
         const ZirStmt *st = &fn->stmts[statement];
         if(!StatementHasAssembly(st)) continue;
         if(!CheckAssemblyBlock(fn, statement, NULL, NULL)) exit(1);
@@ -1047,12 +1111,13 @@ EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
                     char native[ZIR_NAME_MAX * 4];
                     block_native_type(module, type, target, native, sizeof(native), st->span);
                     fprintf(out, "%s%s%sziran_operand_%d", i > first_argument ? ", " : "", native,
-                            i < bindings.outputs ? " *" : " ", i);
+                            i < bindings.outputs ? " *" :
+                            AssemblyInputNeedsStorage(bindings.items[i].constraint) ? " const *" : " ", i);
                 }
                 if(first_argument == bindings.outputs + bindings.inputs) fputs("void", out);
                 fputs(")\n{\n", out);
                 if(first_argument) fprintf(out, "    %s ziran_result;\n", returned);
-                block_assembly_body(out, fn, target, &assembly, &bindings, 1);
+                block_assembly_body(out, fn, target, &assembly, &bindings, 1, NULL, NULL);
                 if(first_argument) fputs("    return ziran_result;\n", out);
                 fputs("}\n#endif\n", out);
             }
@@ -1061,11 +1126,12 @@ EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
     }
 }
 
-int
-EmitAssemblyBlock(FILE *out, const ZirModule *module, const ZirFunction *fn,
-                  int statement, ZirTarget target)
+static int
+assembly_block(FILE *out, const ZirModule *module, const ZirFunction *fn,
+               int statement, ZirTarget target, int force,
+               ZirAssemblyOperandResolver resolver, void *context)
 {
-    if((portable_blocks && target == ZIR_C) || (target != ZIR_C && target != ZIR_CPP)) return 0;
+    if((!force && portable_blocks && target == ZIR_C) || (target != ZIR_C && target != ZIR_CPP)) return 0;
     const ZirStmt *st = &fn->stmts[statement];
     if(!StatementHasAssembly(st)) return 0;
     if(!CheckAssemblyBlock(fn, statement, NULL, NULL)) exit(1);
@@ -1126,20 +1192,56 @@ EmitAssemblyBlock(FILE *out, const ZirModule *module, const ZirFunction *fn,
             fputs("            ", out);
             if(first_argument) {
                 char name[ZIR_NAME_MAX * 4];
-                TargetBindingName(fn, target, bindings.items[0].name, name, sizeof(name));
+                if(resolver) resolver(context, 0, name, sizeof(name));
+                else TargetBindingName(fn, target, bindings.items[0].name, name, sizeof(name));
                 fprintf(out, "%s = ", name);
             }
             fprintf(out, "%s(", helper);
             for(int i = first_argument; i < bindings.outputs + bindings.inputs; i++) {
                 char name[ZIR_NAME_MAX * 4];
-                TargetBindingName(fn, target, bindings.items[i].name, name, sizeof(name));
-                fprintf(out, "%s%s%s", i > first_argument ? ", " : "", i < bindings.outputs ? "&" : "", name);
+                if(resolver) resolver(context, i, name, sizeof(name));
+                else TargetBindingName(fn, target, bindings.items[i].name, name, sizeof(name));
+                fprintf(out, "%s%s%s", i > first_argument ? ", " : "", i < bindings.outputs || AssemblyInputNeedsStorage(bindings.items[i].constraint) ? "&" : "", name);
             }
             fputs(");\n", out);
-        } else block_assembly_body(out, fn, target, &assembly, &bindings, 0);
+        } else block_assembly_body(out, fn, target, &assembly, &bindings, 0, resolver, context);
         fprintf(out, "            %s = 1;\n        }\n#endif\n", done);
         variant++;
     }
     fprintf(out, "        if(!%s) {\n", done);
     return 1;
+}
+
+void
+EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
+                         const ZirFunction *fn, ZirTarget target)
+{
+    assembly_block_helpers(out, module, fn, target, 0, fn->stmt_count);
+}
+
+void
+EmitAssemblyBlockHelpersAt(FILE *out, const ZirModule *module,
+                           const ZirFunction *fn, int statement)
+{
+    assembly_block_helpers(out, module, fn, ZIR_C, statement, statement + 1);
+}
+
+int
+EmitAssemblyBlock(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                  int statement, ZirTarget target)
+{
+    return assembly_block(out, module, fn, statement, target, 0, NULL, NULL);
+}
+
+int
+EmitAssemblyBlockTry(FILE *out, const ZirModule *module, const ZirFunction *fn, int statement)
+{
+    return assembly_block(out, module, fn, statement, ZIR_C, 1, NULL, NULL);
+}
+
+int
+EmitAssemblyBlockMapped(FILE *out, const ZirModule *module, const ZirFunction *fn,
+                        int statement, ZirAssemblyOperandResolver resolver, void *context)
+{
+    return assembly_block(out, module, fn, statement, ZIR_C, 1, resolver, context);
 }

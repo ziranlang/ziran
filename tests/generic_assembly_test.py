@@ -16,8 +16,8 @@ ENV.update(GO111MODULE='off', CARGO_TARGET_DIR=str(WORK / 'cargo-target'))
 WORK.mkdir(parents=True, exist_ok=True)
 
 
-def run(args, *, env=ENV, expected=None, ok=True):
-    result = subprocess.run(list(map(str, args)), env=env, cwd=ROOT,
+def run(args, *, env=ENV, expected=None, ok=True, cwd=ROOT):
+    result = subprocess.run(list(map(str, args)), env=env, cwd=cwd,
                             capture_output=True, text=True, timeout=180)
     if ok and result.returncode:
         raise RuntimeError(f'{args}\n{result.stdout}{result.stderr}')
@@ -79,8 +79,10 @@ def main():
             elif target == 'go':
                 if not shutil.which('go'): continue
                 (output / 'main.go').write_text('package main\nfunc main(){if GenericAssemblyTest_Answer()!=42{panic("generic assembly fallback")}}\n')
-                run(['go', 'build', '-o', output / 'run', *sorted(output.glob('*.go'))]); run([output / 'run'])
-                records.append(dict(form=form, target=target))
+                for mode, enabled, flags in [('native','1','-O2 -g'), ('portable','0','-O2 -g'), ('forced','1','-O2 -g -DZIRAN_NO_ASM')]:
+                    selected = dict(ENV, CGO_ENABLED=enabled, CGO_CFLAGS=flags, GOFLAGS='-tags=ziran_asm' if mode != 'portable' else '')
+                    run(['go', 'build', '-o', output / 'run', '.'], env=selected, cwd=output); run([output / 'run'])
+                    records.append(dict(form=form, target=target, mode=mode))
             else:
                 run(['python3', '-c', 'import runpy; assert runpy.run_path(' + repr(str(output / '__init__.py')) + ')["Answer"]()==42'])
                 records.append(dict(form=form, target=target))

@@ -7,7 +7,8 @@
 An ordinary procedure can supply architecture-specific assembly and a required
 Ziran implementation. C/C++ output selects assembly when built by GCC or Clang
 for that architecture. Rust translates supported operands and templates to
-`core::arch::asm!`. Other compilers, Plan 9 C, Go, Python, and `.zib` use the
+`core::arch::asm!`. Go can opt into native assembly through cgo as described
+below. Other compilers, Plan 9 C, Python, and `.zib` use the
 checked Ziran body. Define `ZIRAN_NO_ASM` when compiling generated C/C++, or
 set `RUSTFLAGS="--cfg ziran_no_asm"` for Cargo, to force the portable body.
 
@@ -93,9 +94,33 @@ and [ARM64 hardware capabilities](https://www.kernel.org/doc/html/latest/arch/ar
 
 Assembly and the fallback must implement the same behavior; checking the
 fallback does not prove their equivalence. These variants do not yet provide
-`asm goto`, naked functions, standalone assembler files, or native
-assembly emission from Go. Saved IR preserves the variants; `.zib`
+`asm goto`, naked functions, standalone assembler files, or direct Go ABI
+assembler output. Saved IR preserves the variants; `.zib`
 executes only portable code. Rebuild older IR/bundles with the current compiler.
+
+Generated Go packages use their checked Go implementation by default. Enable
+the native bridge with `CGO_ENABLED=1 go build -tags=ziran_asm .` in the
+generated package. Build packages rather than explicit filename lists so Go
+applies companion-file build constraints. A working C cross-compiler is
+required when cross-compiling with cgo. The bridge reuses the C assembly
+emitter, including GNU constraints, labels, architecture selection and CPU
+feature guards; it does not translate templates into Go assembler syntax.
+`CGO_ENABLED=0` always uses the checked body. To force that body while testing
+the native build configuration, set
+`CGO_CFLAGS="-O2 -g -DZIRAN_NO_ASM"` together with the build tag.
+
+Go bridge signatures carry scalars and pointers to storage containing no Go
+pointers. Flat record results are reconstructed from primitive result fields.
+Pointer-bearing objects, pointer-valued local-block outputs or memory inputs,
+and local-block pointers to arrays retain the checked body. Standard cgo
+pointer checks remain enabled. Assembly must not retain Go pointers after the
+call or create pointers that violate Go's pointer rules. Unavailable variants
+leave their Go dispatch unset, including before Ziran startup code executes.
+
+Each bridge invocation pays a cgo transition. A whole-loop assembly kernel can
+amortize that cost; calling the bridge for every small operation can be much
+slower than the Go body. Measure the intended call granularity before enabling
+the tag. Default builds retain a compile-time-disabled native branch.
 
 Rust supports typed general/floating-point registers, fixed x86 registers,
 matching inputs, early clobbers, record results, and memory operands. Memory
@@ -122,6 +147,10 @@ backslash input/output paths.
 Run `tests/assembly.sh build/bin/ziran` for source/saved IR execution and
 rejection checks, and `tests/assembly_features.sh` for CPU selection,
 concurrent calls, unavailable features and isolated helpers.
+`tests/go_assembly.sh` checks native and default Go builds, forced fallback,
+strict cgo pointer checking, startup dispatch, memory aliases, concurrency and
+source/saved IR. `bench/go_assembly.py` compares whole-loop and per-operation
+bridges with checked Go bodies, a preserved compiler and native C controls.
 `tests/rust_assembly.sh` checks native Rust and forced fallback at two
 optimization levels from source and saved IR. `bench/assembly.py`
 measures baseline assembly against its forced fallback and handwritten C/Go;

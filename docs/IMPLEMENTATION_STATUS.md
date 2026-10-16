@@ -70,7 +70,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   and backward references, including mixed numeric labels and generic/block
   instances. Literal unique IDs, nonlocal or ambiguous labels, assembler
   control/macro directives and reserved registers without a usable alternative
-  retain fallback. Native Go assembly and full platform parity remain open.
+  retain fallback. Direct Go ABI assembly and full platform parity remain open.
   Rust output buffering also supports hosts without Unix memory streams and
   write-only callback streams; Windows builds use native directory creation
   and accept backslash input paths. `tests/text_stream.sh` covers empty and
@@ -82,12 +82,24 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   independent oracle; these single-workload results do not establish overall
   C/Go parity or Android compilation speed.
 
+- Go output optionally uses the shared GNU assembly emitter through cgo when
+  built with `-tags=ziran_asm` and `CGO_ENABLED=1`. Ordinary builds retain the
+  checked Go body behind a compile-time-disabled branch. Native function and
+  local-block bridges preserve CPU guards, GNU constraints, labels and caller
+  memory aliases. Flat record results cross as primitive fields; pointer-bearing
+  objects and unsupported local pointer operands keep their checked bodies.
+  `tests/go_assembly.sh` covers source/saved IR, package startup, concurrency,
+  native test modules, output pruning and strict cgo pointer checking.
+  `bench/go_assembly.py` measures whole-loop and per-operation placements:
+  cgo transitions can dominate small operations, so native execution is opt-in.
+  This is a cgo bridge, not direct Go ABI assembler generation.
+
 - Generic functions and local blocks retain assembly through concrete
   specialization, including saved-library imports. Each instance validates
   operands and its portable body. Caller-owned pointer/array types retain
   their identity, while fixed library types remain in the defining scope.
-  `tests/generic_assembly.sh` checks C/C++/Rust assembly and forced fallback,
-  Go/Python/VM fallback, flat records, multiple results and invalid instances.
+  `tests/generic_assembly.sh` checks C/C++/Rust/Go assembly and forced fallback,
+  Python/VM fallback, flat records, multiple results and invalid instances.
 
 - Opt-in compiler process profiles record inclusive loading, parsing, checking,
   native emission, and IR writing, with record-field parsing counts and

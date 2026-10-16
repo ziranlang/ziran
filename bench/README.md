@@ -172,6 +172,34 @@ caches and no CPU isolation; cross-compilation is not hardware performance
 evidence. Reuse the stable output directory after preserving required receipts
 and removing inactive outputs.
 
+## Native Go assembly bridges
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/go_assembly.py \
+  --before-bin-dir build/go-assembly/before/bin \
+  --out build/go-assembly/benchmark
+```
+
+Preserve the prior compiler binaries before rebuilding the modified emitter.
+This harness measures the same dependent xorshift/popcount workload as
+`cpu_features.py`, using function and block assembly around the whole loop,
+then a local assembly block per operation. It compares the prior emitter,
+current default Go, current `CGO_ENABLED=0` Go, native cgo with
+`-tags=ziran_asm`, and generated native/forced-portable C. Source and saved IR
+must produce identical Go companions. A runtime field records whether the Go
+native dispatcher was installed; every result is checked with the independent
+integer oracle.
+
+The native bridge is opt-in because per-call cgo overhead can outweigh the
+instruction savings. Compare all three placements before choosing a native
+build. Kernel timers exclude startup; CPU time covers the kernel and peak
+child RSS includes the runtime. Keep raw shuffled samples and warmups,
+commands, tool/artifact/source hashes and individual build observations.
+These warm-cache, shared-host synthetic measurements do not establish whole
+application speed, Go compilation parity or universal memory improvements.
+Reuse the stable output only after preserving needed receipts and confirming
+that its binaries and build outputs are inactive.
+
 ## Bundle startup and real-package checks
 
 Host embedding has a separate capability-scaling benchmark:

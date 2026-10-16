@@ -694,7 +694,7 @@ lower_body(FILE *out, const ZirModule *module, const ZirCppModuleSyms *symbols,
     BodySymbols context = {module, symbols, symbol_count,
                            SpanPath(function->span)};
     if(!EmitBody(out, module, function, ZIR_CPP,
-                 resolve_body_symbol, &context)) {
+                 resolve_body_symbol, &context, NULL, NULL)) {
         Diagnostic(function->span, "zir_cpp.body",
                    "function has no checked typed body: %s", function->name);
         exit(1);

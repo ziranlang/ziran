@@ -80,6 +80,8 @@ typedef struct Emitter {
     ZirTarget target;
     ZirResolveTarget resolve;
     void *context;
+    ZirAssemblyBlockEmitter assembly;
+    void *assembly_context;
     int indent, serial, depth, local_count;
     Local *locals;
     int loop_count;

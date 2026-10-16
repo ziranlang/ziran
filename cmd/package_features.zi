@@ -371,7 +371,7 @@ Features :: (arguments: []string) -> s32 {
     assembly_targets: [7]PkgTargetSupport = .[
         .{target = "c", status = "supported", limit = "GNU extended assembly in functions and local blocks, with isolated CPU-feature variants on x86 and Linux/Android AArch64; unsupported platforms use the portable body."},
         .{target = "cpp", status = "supported", limit = "GNU extended assembly in functions and local blocks, with isolated CPU-feature variants on x86 and Linux/Android AArch64; unsupported platforms use the portable body."},
-        .{target = "go", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
+        .{target = "go", status = "supported", limit = "Checked Go body by default; -tags=ziran_asm with CGO_ENABLED=1 enables GNU function/block assembly through cgo. Pointer-bearing objects and unsupported local pointer operands retain fallback. Cgo call costs can dominate small operations; direct Go ABI assembler output is not implemented."},
         .{target = "rust", status = "supported", limit = "Native function/block assembly with CPU detection, typed registers and memory operands; GNU constraint alternatives, unique-label placeholders and reserved Rust registers use the checked body with an output comment. Available architectures/features depend on rustc."},
         .{target = "py", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
         .{target = "zib", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
@@ -385,7 +385,7 @@ Features :: (arguments: []string) -> s32 {
     assembly_feature.accepted_example = "#program_export\nAnswer :: () -> s64 {\n    value: s64 = 41\n    result: s64\n    #asm(\"x86_64\", \"leaq 1(%[value]), %[result]\", \"=r:result\", \"r:value\", \"\", \"\") {\n        result = value + 1\n    }\n    return result\n}\n"
     assembly_feature.rejected_example = "Wrong :: (value: s64) -> s64 #asm(\"x86_64\", \"\", \"=r\", \"\", \"\", \"\") { return value }\n"
     assembly_feature.rejection = "Input and output constraint counts must match parameters and results."
-    assembly_feature.evidence = "tests/assembly.sh\ntests/assembly_features.sh\ntests/assembly_blocks.sh\ntests/rust_assembly.sh\ntests/generic_assembly.sh\nbench/assembly.py\nbench/cpu_features.py\nbench/rust_assembly.py\ncheck.assembly\n"
+    assembly_feature.evidence = "tests/assembly.sh\ntests/assembly_features.sh\ntests/assembly_blocks.sh\ntests/rust_assembly.sh\ntests/go_assembly.sh\ntests/generic_assembly.sh\nbench/assembly.py\nbench/cpu_features.py\nbench/rust_assembly.py\nbench/go_assembly.py\ncheck.assembly\n"
     assembly_feature.targets = assembly_targets
     features: [16]PkgFeature = .[
         base_features[0], law_feature, contracts[0], contracts[1], contracts[2],

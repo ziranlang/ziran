@@ -341,7 +341,7 @@ $(BIN_DIR)/zi2c: $(call obj,cmd/zir-c/main.c cmd/zir-c/zir_c_build.c cmd/zir-c/z
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
-$(BIN_DIR)/zi2go: $(call obj,cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
+$(BIN_DIR)/zi2go: $(call obj,cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c cmd/zir-go/zir_go_asm.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2cpp: $(call obj,cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c) \

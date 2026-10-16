@@ -2,6 +2,7 @@
  * zir_go_lower.c - ZIR to Go backend. See zir_go_lower.h for scope.
  */
 #include "zir_go_lower.h"
+#include "zir_go_asm.h"
 #include "zir_text.h"
 #include "zir_emit.h"
 #include "zir_check.h"
@@ -221,7 +222,7 @@ go_validate_exports(const ZirProgram *const *programs, int count)
         "clear", "close", "complex", "copy", "delete", "imag", "len", "make",
         "max", "min", "new", "panic", "print", "println", "real", "recover",
         "unsafe", "signedBits", "wrapAdd", "wrapSub", "wrapMul", "floatToInt",
-        "integerOp", NULL
+        "integerOp", "zirGoCgoEnabled", "zirGoAssemblyEnabled", NULL
     };
     for(int i = 0; i < g_function_count; i++) {
         const ZirFunction *function = g_functions[i].declaration;
@@ -1407,11 +1408,11 @@ typedef struct LowerFunctionBuffers {
 } LowerFunctionBuffers;
 
 static void lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
-               const char *guard);
+               const char *guard, GoAssembly *assembly);
 
 static void
 lower_function_with_buffers(FILE *f, const ZirModule *m, const ZirFunction *fn,
-               const char *guard, LowerFunctionBuffers *buffers)
+               const char *guard, GoAssembly *assembly, LowerFunctionBuffers *buffers)
 {
     char ret[ZIR_GO_NAME_MAX];
     int saved_local_count = zir_go_local_count;
@@ -1441,8 +1442,9 @@ lower_function_with_buffers(FILE *f, const ZirModule *m, const ZirFunction *fn,
             fprintf(f, " %s", ret);
         fprintf(f, " {\n");
     }
+    GoAssemblyFunction(f, assembly, fn);
     GoBodySymbols symbols = {m, SpanPath(fn->span)};
-    if(!EmitBody(f, m, fn, ZIR_GO, resolve_body_symbol, &symbols)) {
+    if(!EmitBody(f, m, fn, ZIR_GO, resolve_body_symbol, &symbols, GoAssemblyBlock, assembly)) {
         Diagnostic(fn->span, "zir_go.body",
                    "function has no checked typed body: %s", fn->name);
         exit(1);
@@ -1469,13 +1471,13 @@ lower_function_with_buffers(FILE *f, const ZirModule *m, const ZirFunction *fn,
 
 static void
 lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
-               const char *guard)
+               const char *guard, GoAssembly *assembly)
 {
     static _Thread_local LowerFunctionBuffers *spares[16];
     static _Thread_local int spare_count;
     LowerFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
         AllocateOrExit(sizeof(*buffers));
-    lower_function_with_buffers(f, m, fn, guard, buffers);
+    lower_function_with_buffers(f, m, fn, guard, assembly, buffers);
     if(spare_count < 16)
         spares[spare_count++] = buffers;
     else
@@ -2175,6 +2177,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
           int no_main, GoLowerBuffers *buffers)
 {
     unsigned number_helpers = 0;
+    int assembly_present = 0;
     go_build_global_functions(progs, prog_count);
     if(!go_validate_exports(progs, prog_count)) return 1;
     for(int pi = 0; pi < prog_count; pi++) {
@@ -2215,7 +2218,14 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
             fprintf(f, "package %s\n\n", pkg);
             int header_module = go_module_has_headers(m);
             if(!header_module) emit_go_c_preamble(f, m);
-            int pointer_index = 0;
+            int assembly_unsafe = 0;
+            for(int fi = 0; fi < m->function_count; fi++) {
+                const ZirFunction *fn = &m->functions[fi];
+                assembly_unsafe |= fn->assembly_text && fn->assembly_text[0];
+                for(int si = 0; si < fn->stmt_count; si++) assembly_unsafe |= StatementHasAssembly(&fn->stmts[si]);
+            }
+            assembly_present |= assembly_unsafe;
+            int pointer_index = assembly_unsafe;
             for(int fi = 0; fi < m->function_count && !pointer_index; fi++) {
                 const ZirFunction *fn = &m->functions[fi];
                 for(int ei = 0; ei < fn->expr_count; ei++) {
@@ -2334,7 +2344,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     fprintf(f, "\t%s\n", buffers->imports[i]);
                 fputs(")\n\n", f);
             }
-            if(go_has_c_foreigns() && !header_module)
+            if(assembly_unsafe || (go_has_c_foreigns() && !header_module))
                 fputs("var _ unsafe.Pointer\n\n", f);
             if(pi == 0 && mi == 0 && go_uses_caller_location(progs, prog_count))
                 fputs("type Source_Code_Location struct {\n"
@@ -2585,12 +2595,13 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 } else
                     fprintf(f, "var %s %s\n", gname, gt);
             }
+            GoAssembly *assembly = GoAssemblyOpen(progs, prog_count, m);
             /* functions ('#foreign' prototypes have no body: they lower to
              * Host interface methods, not Go functions) */
             for(int i = 0; i < m->function_count; i++) {
                 if(m->functions[i].is_extern || m->functions[i].is_template)
                     continue;
-                lower_function(f, m, &m->functions[i], guard);
+                lower_function(f, m, &m->functions[i], guard, assembly);
                 emit_go_method(f, m, &m->functions[i], guard);
             }
             int startup_count = 0;
@@ -2633,7 +2644,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 if(text == NULL) {
                     Diagnostic(m->span, "zir_go.global", "out of memory writing %s", buffers->path);
                     fclose(f);
-                    return 1;
+                    GoAssemblyClose(assembly); return 1;
                 }
                 rewind(f);
                 text[fread(text, 1, (size_t)length, f)] = '\0';
@@ -2657,7 +2668,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 Diagnostic(m->span, "zir_go.global",
                            "cannot create Go output: %s", buffers->path);
                 fclose(f);
-                return 1;
+                GoAssemblyClose(assembly); return 1;
             }
             size_t bytes;
             int failed = 0;
@@ -2676,12 +2687,17 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
             if(failed) {
                 Diagnostic(m->span, "zir_go.global",
                            "cannot finish Go output: %s", buffers->path);
-                return 1;
+                GoAssemblyClose(assembly); return 1;
             }
-            if(emit_go_c_header_stub(progs, pi, mi, m, buffers->path, pkg)) return 1;
-            if(emit_go_c_header_implementation(progs, pi, mi, m, buffers->path, pkg)) return 1;
+            if(emit_go_c_header_stub(progs, pi, mi, m, buffers->path, pkg)) { GoAssemblyClose(assembly); return 1; }
+            if(emit_go_c_header_implementation(progs, pi, mi, m, buffers->path, pkg)) { GoAssemblyClose(assembly); return 1; }
+            int assembly_failed = GoAssemblyWrite(assembly, buffers->path, pkg);
+            GoAssemblyClose(assembly);
+            if(assembly_failed) return 1;
         }
     }
+    if(assembly_present && prog_count && progs[0]->module_count &&
+       GoAssemblyAvailability(out_dir, pkg, progs[0]->modules[0].span)) return 1;
     for(int pi = 0; pi < prog_count; pi++) {
         for(int mi = 0; mi < progs[pi]->module_count; mi++) {
             const ZirModule *module = &progs[pi]->modules[mi];

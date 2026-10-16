@@ -1115,7 +1115,8 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
         case ZIR_STMT_BLOCK_OPEN: {
             int close=block_end(e->fn,i,end);
             if(StatementHasAssembly(st) &&
-               EmitAssemblyBlock(e->out, e->module, e->fn, i, e->target)) {
+               (e->assembly ? e->assembly(e->out, e->module, e->fn, i, e->assembly_context) :
+                EmitAssemblyBlock(e->out, e->module, e->fn, i, e->target))) {
                 e->indent += 2;
                 emit_sequence(e, i + 1, close);
                 e->indent -= 2;
@@ -1195,16 +1196,19 @@ typedef struct EmitBodyBuffers {
 } EmitBodyBuffers;
 
 int EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
-            ZirResolveTarget resolver,void *context);
+            ZirResolveTarget resolver,void *context,
+            ZirAssemblyBlockEmitter assembly,void *assembly_context);
 
 static int
 EmitBody_with_buffers(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
-            ZirResolveTarget resolver,void *context, EmitBodyBuffers *buffers)
+            ZirResolveTarget resolver,void *context,
+            ZirAssemblyBlockEmitter assembly,void *assembly_context, EmitBodyBuffers *buffers)
 {
     Emitter e={0};int count;
     if(!CanEmitBody(module, fn))return 0;
     e.out=out;e.module=module;e.fn=fn;e.target=target;e.resolve=resolver;e.context=context;e.indent=1;
     e.minify = zir_minify_output;
+    e.assembly=assembly;e.assembly_context=assembly_context;
     e.locals=calloc((size_t)fn->stmt_count+65,sizeof(*e.locals));
     if(!e.locals) {
         Diagnostic(fn->span, "emit.expression",
@@ -1236,13 +1240,14 @@ EmitBody_with_buffers(FILE *out,const ZirModule *module,const ZirFunction *fn,Zi
 
 int
 EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
-            ZirResolveTarget resolver,void *context)
+            ZirResolveTarget resolver,void *context,
+            ZirAssemblyBlockEmitter assembly,void *assembly_context)
 {
     static _Thread_local EmitBodyBuffers *spares[16];
     static _Thread_local int spare_count;
     EmitBodyBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
         AllocateOrExit(sizeof(*buffers));
-    int returned = EmitBody_with_buffers(out, module, fn, target, resolver, context, buffers);
+    int returned = EmitBody_with_buffers(out, module, fn, target, resolver, context, assembly, assembly_context, buffers);
     if(spare_count < 16)
         spares[spare_count++] = buffers;
     else

@@ -243,6 +243,22 @@ if assembler and 'End of search list.\n' in lines:
     build(51, set())
     probe_text.write_text(''.join([*lines[:early], assembler, *lines[early:]]))
     build(51, set())
+
+    # cc1 emits its compiler prefix separately from its math-library versions.
+    # The assembler's whole banner may arrive between those writes, within
+    # the compiler line. Retain every version byte and every derived option.
+    prefix = '\tcompiled by GNU C version 99.0.0, '
+    libraries = 'GMP version 6.3.0, MPFR version 4.2.1, MPC version 1.3.1, isl version 0.27\n'
+    banner = 'GNU assembler version 2.44 (target) using BFD version 2.44\n'
+    probe_text.write_text(probe + prefix + libraries + banner)
+    build(51)
+    probe_text.write_text(probe + prefix + banner + libraries)
+    build(51, set())
+    probe_text.write_text(probe + prefix + libraries + banner)
+    build(51, set())
+    probe_text.write_text(probe + prefix + libraries.replace('6.3.0', '7.0.0') + banner)
+    assert len(build(51)) == len(objects())
+    build(51, set())
     env.pop('CACHE_PROBE_TEXT')
 
 # A compiler's configuration can change its derived options without changing

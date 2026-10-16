@@ -431,8 +431,35 @@ static int supported_arguments(char *const *args,int count)
     return 1;
 }
 
+/* cc1 writes its compiler prefix separately from its math-library versions.
+ * A whole assembler banner can arrive between those writes. Reconstruct
+ * only that recognized pair of records, retaining every version byte. */
+static int join_probe_versions(char **lines,size_t count)
+{
+    const char *prefix="\tcompiled by GNU C version ";
+    size_t prefix_length=strlen(prefix);
+    for(size_t i=0;i+1<count;i++) {
+        char *line=lines[i],*next=lines[i+1];
+        if(strncmp(line,prefix,prefix_length) || strncmp(next,"GMP version ",12)) continue;
+        char *banner=strstr(line+prefix_length,"GNU assembler version ");
+        if(!banner || banner<=line+prefix_length || banner[-2]!=',' || banner[-1]!=' ' ||
+           !strstr(banner," using BFD version ")) continue;
+        size_t banner_size=strlen(banner)+1,tail_size=strlen(next)+1;
+        char *saved=malloc(banner_size);
+        if(!saved) return 0;
+        memcpy(saved,banner,banner_size);
+        /* Adjacent physical lines occupy the same total bytes in either
+         * order. Their terminating NULs replace the original newlines. */
+        memmove(banner,next,tail_size);
+        memcpy(banner+tail_size,saved,banner_size);
+        lines[i+1]=banner+tail_size;
+        free(saved);
+    }
+    return 1;
+}
+
 /* cc1 and as can report independent metadata in either order when piped.
- * Preserve each complete line, including the option order within a command;
+ * Preserve complete records, including the option order within a command;
  * include-search precedence is fingerprinted separately while parsing it. */
 static int hash_probe_output(Hash *hash,const char *text)
 {
@@ -445,6 +472,7 @@ static int hash_probe_output(Hash *hash,const char *text)
     size_t used=0;
     lines[used++]=copy;
     for(char *p=copy;*p;p++) if(*p=='\n') { *p=0;lines[used++]=p+1; }
+    if(!join_probe_versions(lines,used)) { free(lines);free(copy);return 0; }
     qsort(lines,used,sizeof(*lines),compare_names);
     hash_integer(hash,used);
     for(size_t i=0;i<used;i++) hash_text(hash,lines[i]);
@@ -527,7 +555,7 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     if(!text) goto fail;
     /* A fixed piped probe has no random assembly pathname. Include all its
      * derived options in the identity, including installed specs changes.
-     * Interleaved diagnostics can cause a conservative miss, never a hit. */
+     * Unrecognized interleaved diagnostics remain conservative misses. */
     if(piped && !hash_probe_output(&hash,text)) { free(text);goto fail; }
     int required_tools=piped && !(strstr(text,"clang version") &&
         strstr(text,"-emit-obj")) ? 2 : 1;

@@ -71,6 +71,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   the assembler's verbose command across the compiler's search diagnostics
   does not invalidate otherwise reusable objects. The cache checks reproduce
   both output schedules with the same options and include-root precedence.
+  When a complete GNU assembler/BFD version banner splits cc1's compiler
+  prefix from its GMP library versions, the fingerprint reconstructs those
+  two records without dropping their contents. Checks cover the actual
+  unchanged-build path, changed versions and ordered options, CRLF and
+  incomplete or unfamiliar records; unrecognized interleaving remains a
+  conservative miss.
   Profiles separate cache lookup and recording from the overall object stage.
   Dependency-name lists retain insertion order, grow geometrically and index
   exact duplicates once a list reaches 32 items. Sorting or canonicalizing

@@ -101,6 +101,16 @@ startup are outside the internal timer. Report this container timing
 separately from whole builds; process RSS also includes benchmark inputs.
 Both harnesses save raw samples, tool/source hashes and actual CPU affinity.
 
+`bench/native_probe.py --before-bin-dir DIR --out
+build/benchmarks/native-probe` measures the five-object cache regression
+fixture with stable messages, alternating within-line version interleaving,
+and changed GMP versions. It reuses the regression's native compiler shim and
+serves saved real diagnostics plus controlled version records. Real object
+compilation and linking are timed, with runtime oracles and native byte
+identity checks. The ordinary probe subprocess cost and real-world frequency
+of interleaving are outside this experiment; pair it with ordinary build
+controls before drawing a general compilation-speed conclusion.
+
 Entry-scope symbol resolution profiles report `type_lookup_hit`,
 `type_lookup_miss`, `function_lookup_hit` and `function_lookup_miss`.
 Misses include uncached ambiguous or absent results; repeated results count

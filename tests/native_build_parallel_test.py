@@ -45,17 +45,37 @@ import fcntl,json,os,subprocess,sys,time
 from pathlib import Path
 work=Path(os.environ['BUILD_TEST_DIR'])
 compiling='-c' in sys.argv
+source_path=next((a for a in sys.argv[1:] if a.endswith('.c')), '')
+source=Path(source_path).name
 with (work/'state.lock').open('w') as lock:
  fcntl.flock(lock,fcntl.LOCK_EX)
  state=json.loads((work/'state.json').read_text())
  if compiling:
   state['active']+=1;state['peak']=max(state['peak'],state['active']);state['started']+=1
+  state['sources'].append(source_path)
+  (work/('started-'+source)).write_text(str(os.getpid()))
  (work/'state.json').write_text(json.dumps(state))
 if compiling:
  deadline=time.monotonic()+30
  while not (work/'compile.release').exists():
   if time.monotonic()>deadline:raise SystemExit(91)
   time.sleep(.01)
+ if source==os.environ.get('BUILD_FAIL_SOURCE'):
+  with (work/'state.lock').open('w') as lock:
+   fcntl.flock(lock,fcntl.LOCK_EX)
+   state=json.loads((work/'state.json').read_text());state['active']-=1
+   (work/'state.json').write_text(json.dumps(state))
+  (work/'failed').write_text(str(os.getpid()))
+  os.write(2,b'forced compiler failure\\n')
+  raise SystemExit(3)
+ if os.environ.get('BUILD_MESSAGES')=='1':os.write(2,('scheduled '+source+'\\n').encode())
+ if source==os.environ.get('BUILD_HOLD_SOURCE') or os.environ.get('BUILD_HOLD_OTHERS')=='1':
+  if os.environ.get('BUILD_NOISE')=='1':
+   for _ in range(32):os.write(2,b'compiler diagnostic bytes '*1024)
+  (work/'hold.waiting').touch()
+  while not (work/'hold.release').exists():
+   if time.monotonic()>deadline:raise SystemExit(93)
+   time.sleep(.01)
 else:
  (work/'link.ready').touch()
  deadline=time.monotonic()+30
@@ -77,9 +97,10 @@ wrapper.chmod(0o755)
 env.update(CC=str(wrapper), REAL_CC=real_cc, BUILD_TEST_DIR=str(work))
 children = []
 
-def start(fail=False):
+def start(fail=False, *, mode='json', extra=None):
     log = (work/f'build-{len(children)}.log').open('wb')
-    child = subprocess.Popen(command, env={**env, 'BUILD_FAIL_LINK': str(int(fail))},
+    selected = [part if part != '--diagnostics=json' else '--diagnostics='+mode for part in command]
+    child = subprocess.Popen(selected, env={**env, 'BUILD_FAIL_LINK': str(int(fail)), **(extra or {})},
                              stdout=log, stderr=log, start_new_session=True)
     log.close()
     children.append(child)
@@ -97,9 +118,10 @@ def state():
         return json.loads((work/'state.json').read_text())
 
 def reset():
-    (work/'state.json').write_text(json.dumps(dict(active=0, peak=0, started=0)))
-    for name in ['compile.release', 'link.release', 'link.ready']:
+    (work/'state.json').write_text(json.dumps(dict(active=0, peak=0, started=0, sources=[])))
+    for name in ['compile.release', 'link.release', 'link.ready', 'hold.release', 'hold.waiting', 'failed']:
         (work/name).unlink(missing_ok=True)
+    for path in work.glob('started-*'): path.unlink()
 
 try:
     program(1)
@@ -133,6 +155,73 @@ try:
     if (os.cpu_count() or 1) > 1: assert state()['peak'] > 1
     assert subprocess.run([str(out/'app')]).returncode == 43
     assert not list(out.glob('.app.*'))
+    # A blocked first worker must not hold up the next source after another
+    # worker finishes. Run both captured and inherited-output paths. The gate
+    # is a causal scheduling check, not a performance timing threshold.
+    for number, mode in enumerate(['json', 'text'], 2):
+        if (os.cpu_count() or 1) < 2: break
+        program(number)
+        reset()
+        index = len(children)
+        profile = work/f'profile-{mode}.jsonl'
+        first = start(mode=mode, extra={'BUILD_HOLD_SOURCE':'m0.c', 'BUILD_MESSAGES':'1', 'ZIRAN_PROFILE':str(profile)})
+        until(lambda: state()['active'] >= min(4, os.cpu_count() or 1))
+        (work/'compile.release').touch()
+        until(lambda: (work/'hold.waiting').exists())
+        until(lambda: (work/'started-m4.c').exists())
+        assert not (work/'hold.release').exists() and not (work/'link.ready').exists()
+        assert 1 <= state()['peak'] <= 4
+        assert subprocess.run([str(out/'app')]).returncode == 41 + number
+        (work/'hold.release').touch()
+        until(lambda: (work/'link.ready').exists())
+        (work/'link.release').touch()
+        assert first.wait(timeout=30) == 0
+        assert subprocess.run([str(out/'app')]).returncode == 42 + number
+        sample, = [json.loads(line) for line in profile.read_text().splitlines()]
+        assert {'native.toolchain','native.objects','native.link'} <= {p['name'] for p in sample['phases']}
+        assert sample['counters']['native_object_compile'] == len(state()['sources'])
+        counters = sample['counters']
+        assert counters.get('native_process_event',0)+counters.get('native_process_poll',0)==len(state()['sources'])+1
+        if mode == 'json':
+            import re
+            records = [json.loads(line) for line in (work/f'build-{index}.log').read_text().splitlines()]
+            names = re.findall(r'scheduled ([A-Za-z0-9_]+\.c)', '\n'.join(r['message'] for r in records))
+            assert names == [Path(p).name for p in sorted(state()['sources'])], names
+    # Drain a live worker's output after its bounded diagnostic buffer fills,
+    # while the queue continues past the held worker.
+    if (os.cpu_count() or 1) > 1:
+        reset()
+        index = len(children)
+        first = start(extra={'BUILD_HOLD_SOURCE':'m0.c', 'BUILD_NOISE':'1'})
+        (work/'compile.release').touch()
+        until(lambda: (work/'hold.waiting').exists() and (work/'started-m4.c').exists())
+        assert not (work/'link.ready').exists()
+        (work/'hold.release').touch()
+        until(lambda: (work/'link.ready').exists())
+        (work/'link.release').touch()
+        assert first.wait(timeout=30) == 0
+        records = [json.loads(line) for line in (work/f'build-{index}.log').read_text().splitlines()]
+        assert any('output truncated' in r['message'] for r in records), records
+    if (os.cpu_count() or 1) > 1 and Path('/proc/self/stat').is_file():
+        # Hold every other worker while one fails. Once that PID has been
+        # reaped, no further compilation may start; all already-started
+        # workers must still be drained and reaped before failure returns.
+        program(4)
+        reset()
+        first = start(extra={'BUILD_FAIL_SOURCE':'m0.c', 'BUILD_HOLD_OTHERS':'1'})
+        workers = min(4, os.cpu_count() or 1)
+        until(lambda: state()['active'] >= workers)
+        (work/'compile.release').touch()
+        until(lambda: (work/'failed').exists() and (work/'failed').read_text().strip())
+        failed_pid = int((work/'failed').read_text())
+        until(lambda: not Path('/proc',str(failed_pid)).exists())
+        assert state()['started'] == workers
+        assert not (work/'link.ready').exists()
+        (work/'hold.release').touch()
+        assert first.wait(timeout=30) != 0
+        assert state()['started'] == workers and state()['active'] == 0
+        assert not (work/'link.ready').exists()
+        assert subprocess.run([str(out/'app')]).returncode == 45
     print('Parallel native builds preserve flags, nested modules, output locks and atomic replacement')
 finally:
     for child in children:

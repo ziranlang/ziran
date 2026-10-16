@@ -5,6 +5,18 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Native C compilation refills each of its four worker slots independently,
+  including when another file is slow. Linux child-completion descriptors
+  avoid periodic wakeups when available; other systems retain an owned-PID
+  wait path. JSON compiler logs remain in source order, failed builds drain
+  started jobs and retain the existing executable, and unrelated children
+  remain waitable by their caller. `tests/native_build_parallel.sh` checks
+  both output modes, blocked workers, truncation, failure and fallback;
+  the native object-cache tests cover incremental reuse and changed inputs.
+  Profiles separate native toolchain preparation, objects and linking and
+  count compilation attempts and reuse. `bench/native_builds.py` can pair a
+  preserved compiler with the current one alongside C and Go.
+
 - Body eligibility checks reuse immutable primitive-record layout facts and
   check each reached typed expression once per pass, including shared graphs.
   Answers remain local to that pass, so rewritten bodies and other lookup

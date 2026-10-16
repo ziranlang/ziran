@@ -3,6 +3,7 @@
 #include "zir.h"
 #include "zir_diagnostic.h"
 #include "zir_load.h"
+#include "zir_profile.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -14,9 +15,12 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#ifdef __linux__
+#include <sys/syscall.h>
+#endif
 
 enum { MAX_ARGS = 1024, MAX_JOBS = 4 };
-typedef struct Job { pid_t pid; int fd; } Job;
+typedef struct Job { pid_t pid; int fd, completion, reaped, ok; } Job;
 typedef struct ToolLog { char text[ZIR_TEXT_MAX]; size_t used; int truncated; } ToolLog;
 typedef struct Files { char **items; int count; } Files;
 
@@ -28,6 +32,15 @@ static void append_log(ToolLog *log, const char *bytes, size_t length)
         log->truncated = 1;
     }
     for(size_t i = 0; i < copied; i++) log->text[log->used++] = bytes[i] ? bytes[i] : '?';
+    log->text[log->used] = 0;
+}
+
+static void merge_log(ToolLog *target, const ToolLog *source)
+{
+    if(target->used && source->used && target->text[target->used - 1] != '\n')
+        append_log(target, "\n", 1);
+    append_log(target, source->text, source->used);
+    target->truncated |= source->truncated;
 }
 
 static int directory(const char *path)
@@ -97,7 +110,7 @@ static int compare_paths(const void *a, const void *b) { return strcmp(*(char *c
 static Job start(char **args, int capture)
 {
     int pipes[2] = {-1, -1};
-    if(capture && pipe(pipes) != 0) return (Job){-1, -1};
+    if(capture && pipe(pipes) != 0) return (Job){.pid = -1, .fd = -1, .completion = -1, .reaped = 1};
     if(capture) {
         fcntl(pipes[0], F_SETFD, FD_CLOEXEC);
         fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
@@ -118,55 +131,163 @@ static Job start(char **args, int capture)
         close(pipes[1]);
         if(pid < 0) close(pipes[0]);
     }
-    return (Job){pid, pid > 0 ? pipes[0] : -1};
+    int completion = -1;
+#if defined(__linux__) && defined(SYS_pidfd_open)
+    /* A close-on-exec completion descriptor avoids periodic wakeups. Only
+     * our own unreaped child is opened; unsupported kernels use waitpid. */
+    if(pid > 0) completion = (int)syscall(SYS_pidfd_open, pid, 0);
+#endif
+    if(pid > 0) ProfileCount(completion >= 0 ? "native_process_event" : "native_process_poll");
+    return (Job){.pid = pid, .fd = pid > 0 ? pipes[0] : -1,
+                 .completion = completion, .reaped = pid < 0};
 }
 
-static int finish(Job *jobs, int count, ToolLog *log)
+static int read_output(Job *job, ToolLog *log)
 {
-    int ok = 1, pending;
-    int capture = 0;
-    for(int i = 0; i < count; i++) capture |= jobs[i].fd >= 0;
-    ToolLog *outputs = capture ? calloc((size_t)count, sizeof(*outputs)) : NULL;
-    if(capture && !outputs) ok = 0;
-    /* Drain every pipe, even after truncating the displayed log. A compiler
-     * must never block on stderr while another job is being waited for. */
-    do {
-        struct pollfd pollers[MAX_JOBS];
-        pending = 0;
-        for(int i = 0; i < count; i++) {
-            pollers[i] = (struct pollfd){jobs[i].fd, POLLIN, 0};
-            pending += jobs[i].fd >= 0;
-        }
-        if(!pending) break;
-        int ready;
-        do { ready = poll(pollers, (nfds_t)count, -1); } while(ready < 0 && errno == EINTR);
-        if(ready < 0) { ok = 0; break; }
-        for(int i = 0; i < count; i++) {
-            if(jobs[i].fd < 0 || !pollers[i].revents) continue;
-            char bytes[4096];
-            ssize_t length;
-            do { length = read(jobs[i].fd, bytes, sizeof(bytes)); } while(length < 0 && errno == EINTR);
-            if(length <= 0) {
-                if(length < 0) ok = 0;
-                close(jobs[i].fd); jobs[i].fd = -1; continue;
-            }
-            if(outputs) append_log(&outputs[i], bytes, (size_t)length);
-        }
-    } while(pending);
-    for(int i = 0; i < count; i++) {
-        if(outputs && outputs[i].used) {
-            if(log->used && log->text[log->used - 1] != '\n') append_log(log, "\n", 1);
-            append_log(log, outputs[i].text, outputs[i].used);
-            log->truncated |= outputs[i].truncated;
-        }
-        if(jobs[i].fd >= 0) close(jobs[i].fd);
-        int status = 0;
-        pid_t waited;
-        do { waited = jobs[i].pid > 0 ? waitpid(jobs[i].pid, &status, 0) : -1; }
-        while(waited < 0 && errno == EINTR);
-        if(waited <= 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) ok = 0;
+    char bytes[4096];
+    ssize_t length;
+    do { length = read(job->fd, bytes, sizeof(bytes)); } while(length < 0 && errno == EINTR);
+    if(length <= 0) { close(job->fd); job->fd = -1; return length == 0; }
+    append_log(log, bytes, (size_t)length);
+    return 1;
+}
+
+static void reap(Job *job, int flags)
+{
+    if(job->reaped) return;
+    int status = 0;
+    pid_t waited;
+    /* Reap only this build's children, including on failure. */
+    do { waited = waitpid(job->pid, &status, flags); } while(waited < 0 && errno == EINTR);
+    if(waited != 0) {
+        job->reaped = 1;
+        job->ok = waited == job->pid && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+        if(job->completion >= 0) { close(job->completion); job->completion = -1; }
     }
-    free(outputs);
+}
+
+static int finish(Job *job, ToolLog *log)
+{
+    int ok = 1;
+    while(job->fd >= 0) {
+        struct pollfd poller = {job->fd, POLLIN, 0};
+        int ready;
+        do { ready = poll(&poller, 1, -1); } while(ready < 0 && errno == EINTR);
+        if(ready < 0) { close(job->fd); job->fd = -1; ok = 0; break; }
+        if(!read_output(job, log)) ok = 0;
+    }
+    reap(job, 0);
+    return ok && job->ok;
+}
+
+typedef struct CompileSlot {
+    Job job;
+    int index, tracked;
+} CompileSlot;
+
+static int compile_objects(const Files *files, char **objects, char **base,
+                            int count, CBuildCache *cache, int workers, ToolLog *log)
+{
+    CompileSlot *slots = calloc((size_t)workers, sizeof(*slots));
+    int capture = DiagnosticJsonEnabled();
+    /* Empty compiler output needs no per-file buffer. Nonempty logs retain
+     * their input order even when workers complete in a different order. */
+    ToolLog **outputs = capture ? calloc((size_t)files->count, sizeof(*outputs)) : NULL;
+    ToolLog *scratch = capture ? calloc(1, sizeof(*scratch)) : NULL;
+    if(!slots || (capture && (!outputs || !scratch))) { free(slots); free(outputs); free(scratch); return 0; }
+    for(int s = 0; s < workers; s++) { slots[s].index = -1; slots[s].job.fd = -1; }
+    int next = 0, active = 0, ok = 1;
+    while(active || (ok && next < files->count)) {
+        for(int s = 0; ok && s < workers && next < files->count; s++) {
+            CompileSlot *slot = &slots[s];
+            if(slot->index >= 0) continue;
+            int i = next++;
+            while(c_cache_hit(cache, objects[i])) {
+                ProfileCount("native_object_reuse");
+                if(next == files->count) { i = -1; break; }
+                i = next++;
+            }
+            if(i < 0) break;
+            ProfileCount("native_object_compile");
+            char *args[MAX_ARGS], dependencies[ZIR_PATH_MAX], stamp[ZIR_PATH_MAX];
+            memcpy(args, base, (size_t)count * sizeof(*args));
+            int n = count;
+            int collect = cache && snprintf(dependencies, sizeof(dependencies), "%s.d", objects[i]) < (int)sizeof(dependencies);
+            if(collect && unlink(dependencies) != 0 && errno != ENOENT) collect = 0;
+            if(collect) {
+                args[n++] = "-MD"; args[n++] = "-MF"; args[n++] = dependencies;
+                args[n++] = "-MT"; args[n++] = "ziran-cache";
+            }
+            if(snprintf(stamp, sizeof(stamp), "%s.inputs", objects[i]) < (int)sizeof(stamp)) (void)unlink(stamp);
+            args[n++] = "-c"; args[n++] = files->items[i]; args[n++] = "-o"; args[n++] = objects[i]; args[n] = NULL;
+            slot->index = i; slot->tracked = collect;
+            if(unlink(objects[i]) != 0 && errno != ENOENT)
+                slot->job = (Job){.pid = -1, .fd = -1, .completion = -1, .reaped = 1};
+            else slot->job = start(args, capture);
+            active++;
+            if(slot->job.pid < 0) ok = 0;
+        }
+        if(!active) break;
+        int draining = !ok || next == files->count, output_pending = 0;
+        for(int s = 0; s < workers; s++)
+            output_pending |= slots[s].index >= 0 && slots[s].job.fd >= 0;
+        /* With no more work to launch and no captured output to drain,
+         * blocking on these owned children avoids a final polling delay. */
+        if(draining && !output_pending)
+            for(int s = 0; s < workers; s++) if(slots[s].index >= 0) reap(&slots[s].job, 0);
+        struct pollfd pollers[MAX_JOBS * 2];
+        int timeout = -1, all_reaped = 1;
+        for(int s = 0; s < workers; s++) {
+            Job *job = &slots[s].job;
+            int active_slot = slots[s].index >= 0;
+            pollers[s * 2] = (struct pollfd){active_slot ? job->fd : -1, POLLIN, 0};
+            pollers[s * 2 + 1] = (struct pollfd){active_slot ? job->completion : -1, POLLIN, 0};
+            if(active_slot && !job->reaped) {
+                all_reaped = 0;
+                if(job->completion < 0) timeout = 1;
+            }
+        }
+        if(all_reaped && !output_pending) timeout = 0;
+        /* Platforms without completion descriptors inspect only our own
+         * PIDs after a short bounded wait, never waitpid(-1). */
+        int ready;
+        do { ready = poll(pollers, (nfds_t)(workers * 2), timeout); } while(ready < 0 && errno == EINTR);
+        if(ready < 0) {
+            ok = 0;
+            for(int s = 0; s < workers; s++) if(slots[s].index >= 0) {
+                if(slots[s].job.fd >= 0) { close(slots[s].job.fd); slots[s].job.fd = -1; }
+                reap(&slots[s].job, 0);
+            }
+        }
+        for(int s = 0; s < workers; s++) {
+            CompileSlot *slot = &slots[s];
+            if(slot->index < 0) continue;
+            int i = slot->index;
+            if(slot->job.fd >= 0 && pollers[s * 2].revents) {
+                ToolLog *output = outputs[i];
+                if(!output) { scratch->used = 0; scratch->truncated = 0; scratch->text[0] = 0; output = scratch; }
+                if(!read_output(&slot->job, output)) ok = 0;
+                if(!outputs[i] && (scratch->used || scratch->truncated)) {
+                    outputs[i] = malloc(sizeof(*outputs[i]));
+                    if(outputs[i]) *outputs[i] = *scratch;
+                    else ok = 0;
+                }
+            }
+            reap(&slot->job, WNOHANG);
+            if(slot->job.reaped && !slot->job.ok) ok = 0;
+            if(!slot->job.reaped || slot->job.fd >= 0) continue;
+            struct stat info;
+            if(slot->job.ok) {
+                if(stat(objects[i], &info) != 0 || !S_ISREG(info.st_mode) || !info.st_size) ok = 0;
+                else if(slot->tracked) c_cache_record(cache, objects[i], files->items[i]);
+            }
+            slot->index = -1; active--;
+        }
+    }
+    if(outputs) for(int i = 0; i < files->count; i++) {
+        if(outputs[i]) { merge_log(log, outputs[i]); free(outputs[i]); }
+    }
+    free(outputs); free(slots); free(scratch);
     return ok;
 }
 
@@ -178,6 +299,7 @@ int c_compile_executable(const char *out, const char *name, int threads)
     char **base = calloc(MAX_ARGS, sizeof(*base)), **objects = NULL;
     char **tail = calloc(MAX_ARGS, sizeof(*tail));
     char object_dir[ZIR_PATH_MAX], output[ZIR_PATH_MAX], temporary[ZIR_PATH_MAX] = {0};
+    uint64_t link_started = 0;
     int count = 0, ok = 0;
     if(!base || !log || !tail) goto done;
     count = words(getenv("CC") && *getenv("CC") ? getenv("CC") : "cc", base, count);
@@ -224,39 +346,14 @@ int c_compile_executable(const char *out, const char *name, int threads)
     }
     long cpus = sysconf(_SC_NPROCESSORS_ONLN);
     int workers = cpus <= 0 ? 1 : cpus < MAX_JOBS ? (int)cpus : MAX_JOBS;
+    uint64_t stage_started = ProfileStart();
     cache = c_cache_open(base, count, out, name);
-    for(int first = 0; first < files.count;) {
-        Job jobs[MAX_JOBS];
-        int indices[MAX_JOBS], tracked[MAX_JOBS], amount = 0;
-        while(first < files.count && amount < workers) {
-            int i = first++;
-            if(c_cache_hit(cache, objects[i])) continue;
-            indices[amount] = i;
-            char *args[MAX_ARGS];
-            char dependencies[ZIR_PATH_MAX], stamp[ZIR_PATH_MAX];
-            memcpy(args, base, (size_t)count * sizeof(*args));
-            int n = count;
-            int collect = cache && snprintf(dependencies, sizeof(dependencies), "%s.d", objects[i]) < (int)sizeof(dependencies);
-            if(collect && unlink(dependencies) != 0 && errno != ENOENT) collect = 0;
-            if(collect) {
-                args[n++] = "-MD"; args[n++] = "-MF"; args[n++] = dependencies;
-                args[n++] = "-MT"; args[n++] = "ziran-cache";
-            }
-            if(snprintf(stamp, sizeof(stamp), "%s.inputs", objects[i]) < (int)sizeof(stamp)) (void)unlink(stamp);
-            tracked[amount] = collect;
-            args[n++] = "-c"; args[n++] = files.items[i]; args[n++] = "-o"; args[n++] = objects[i]; args[n] = NULL;
-            if(unlink(objects[i]) != 0 && errno != ENOENT) jobs[amount] = (Job){-1, -1};
-            else jobs[amount] = start(args, DiagnosticJsonEnabled());
-            amount++;
-        }
-        if(!finish(jobs, amount, log)) goto done;
-        for(int j = 0; j < amount; j++) {
-            struct stat info;
-            int i = indices[j];
-            if(stat(objects[i], &info) != 0 || !S_ISREG(info.st_mode) || !info.st_size) goto done;
-            if(tracked[j]) c_cache_record(cache, objects[i], files.items[i]);
-        }
-    }
+    ProfileEnd("native.toolchain", stage_started);
+    stage_started = ProfileStart();
+    int compiled = compile_objects(&files, objects, base, count, cache, workers, log);
+    ProfileEnd("native.objects", stage_started);
+    if(!compiled) goto done;
+    link_started = ProfileStart();
     if(snprintf(output, sizeof(output), "%s/%s", out, name) >= (int)sizeof(output) ||
        snprintf(temporary, sizeof(temporary), "%s/.%s.XXXXXX", out, name) >= (int)sizeof(temporary)) goto done;
     int temp = mkstemp(temporary);
@@ -271,13 +368,19 @@ int c_compile_executable(const char *out, const char *name, int threads)
     args[n++] = "-o"; args[n++] = temporary;
     for(int i = 0; i < tail_count; i++) args[n++] = tail[i];
     args[n++] = "-lm"; args[n] = NULL;
-    Job link = start(args, DiagnosticJsonEnabled());
-    int linked = finish(&link, 1, log);
+    int capture = DiagnosticJsonEnabled();
+    Job link = start(args, capture);
+    ToolLog *link_log = capture ? calloc(1, sizeof(*link_log)) : NULL;
+    /* Even an allocation failure must drain and reap the child we started. */
+    int linked = finish(&link, link_log ? link_log : log);
+    if(link_log) { merge_log(log, link_log); free(link_log); }
+    else if(capture) linked = 0;
     struct stat executable;
     if(linked && stat(temporary, &executable) == 0 && S_ISREG(executable.st_mode) &&
        executable.st_size && (executable.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) &&
        rename(temporary, output) == 0) { temporary[0] = 0; ok = 1; }
 done:
+    ProfileEnd("native.link", link_started);
     c_cache_close(cache);
     if(temporary[0]) unlink(temporary);
     if(ok && log && log->used) Warning((ZirSourceSpan){0}, "zir_c.toolchain", "%s%s", log->text,

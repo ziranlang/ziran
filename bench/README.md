@@ -29,6 +29,20 @@ filesystem caches, not a general language ranking or cold-machine build claim.
 Reuse the stable output after archiving needed receipts and checking that its
 outputs are inactive.
 
+Add `--before-bin-dir DIR` to include a preserved `ziran` launcher and `zi2c`
+compiler as `ziran-before`. Both Ziran variants use the same source files and
+flags, separate output directories, and shuffled build/run order alongside C
+and Go. The metadata records generated-C and executable byte identity without
+requiring it for comparisons that intentionally change generated code.
+
+Opt-in compiler profiles for native `--exe` builds include
+`native.toolchain` (compiler identity and cache preparation), `native.objects`
+(cache validation, compiler workers and dependency recording), and `native.link`
+(linking and atomic executable replacement). Counters record compilation
+attempts, reused objects and event/poll completion paths. Collect profiles
+separately from timings; profiler counters add work and the profile environment
+is part of the native object-cache identity.
+
 ## Paired checking and body eligibility
 
 Preserve `ziran`, `zi2zir`, `zi2c` and `zi2zib` together before changing the

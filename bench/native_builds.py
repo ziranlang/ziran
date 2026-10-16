@@ -34,6 +34,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--bin-dir', type=Path, default=ROOT/'build/bin')
+    parser.add_argument('--before-bin-dir', type=Path,
+                        help='also measure a preserved Ziran launcher/compiler on the same sources')
     parser.add_argument('--sizes', type=int, nargs='+', default=[1, 16, 64])
     parser.add_argument('--build-repetitions', type=int, default=5)
     parser.add_argument('--run-repetitions', type=int, default=9)
@@ -52,6 +54,9 @@ def main():
     binary = args.bin_dir.resolve()
     if not (binary/'ziran').is_file() or not (binary/'zi2c').is_file():
         parser.error('build the native Ziran tools first')
+    before_binary = args.before_bin_dir.resolve() if args.before_bin_dir else None
+    if before_binary and any(not (before_binary/name).is_file() for name in ('ziran','zi2c')):
+        parser.error('preserve both ziran and zi2c for the before variant')
     output.mkdir(parents=True)
     env = dict(os.environ)
     for name in ['DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS',
@@ -87,6 +92,9 @@ def main():
                              'Peak RSS is the maximum reported child/process RSS, not the sum of concurrent compiler memory.',
                              'C uses dynamic system libraries; Go uses its normal static runtime. Binary sizes are not equivalent packaging costs.',
                              'Every built binary runs an independently calculated small oracle. Runtime samples include startup.'])
+    if before_binary:
+        metadata['before_binaries'] = {name:digest(before_binary/name) for name in ('ziran','zi2c')}
+        metadata['caveats'].append('Ziran before/after share source files and flags, use separate output directories, and are interleaved with C and Go. Output identity is recorded, not required for general compiler comparisons.')
     (output/'metadata.json').write_text(json.dumps(metadata, indent=2)+'\n')
     samples = []
 
@@ -120,6 +128,8 @@ def main():
         folder = output/f'modules-{size}'
         roots = {name: folder/name for name in ['ziran', 'c', 'go']}
         for p in roots.values(): p.mkdir(parents=True)
+        if before_binary: roots['ziran-before'] = roots['ziran']
+        build_dirs = {name: path/('build-before' if name=='ziran-before' else 'build') for name,path in roots.items()}
         go_root = roots['go']
         (go_root/'go.mod').write_text('module example.invalid/nativebench\ngo 1.20\n')
         (go_root/'settings').mkdir()
@@ -130,7 +140,10 @@ def main():
             'c': [tools['make'], '--no-print-directory', '-s', f'-j{args.jobs}'],
             'go': [tools['go'], 'build', f'-p={args.jobs}', '-o', 'build/app', '.'],
         }
-        executables = {n: p/'build/app' for n, p in roots.items()}
+        if before_binary:
+            commands['ziran-before'] = [before_binary/'ziran', *commands['ziran'][1:]]
+            commands['ziran-before'][commands['ziran-before'].index('-o')+1] = build_dirs['ziran-before']
+        executables = {name: path/'app' for name,path in build_dirs.items()}
         c_calls = ''.join(f'value=step_{i}(value);' for i in range(size))
         zi_calls = '\n'.join(f'value = M{i}.Step(value)' for i in range(size))
         go_calls = ''.join(f'value=m{i}.Step(value);' for i in range(size))
@@ -189,7 +202,7 @@ def main():
                 rng.shuffle(languages)
                 expected = oracle(size, small, leaf, shared)
                 for language in languages:
-                    if phase=='fresh' and (roots[language]/'build').exists(): shutil.rmtree(roots[language]/'build')
+                    if phase=='fresh' and build_dirs[language].exists(): shutil.rmtree(build_dirs[language])
                     invoke(commands[language], size, language, phase, repetition, roots[language])
                     invoke([executables[language], small], size, language, 'validate', -1, roots[language], expected)
             print(f'validated modules{size}/{phase}', flush=True)
@@ -199,10 +212,16 @@ def main():
             rng.shuffle(languages)
             for language in languages:
                 invoke([executables[language], large], size, language, 'run', repetition, roots[language], expected_large)
+        identity = {}
+        if before_binary:
+            generated = lambda directory: {str(p.relative_to(directory)):p.read_bytes() for p in directory.rglob('*') if p.suffix in ('.c','.h')}
+            identity = dict(generated_c=generated(build_dirs['ziran-before'])==generated(build_dirs['ziran']),
+                            executable=executables['ziran-before'].read_bytes()==executables['ziran'].read_bytes())
         metadata['cases'].append(dict(modules=size,small=small,large=large,expected_large=expected_large,
                                       binary_bytes={n:p.stat().st_size for n,p in executables.items()},
-                                      fixture_hashes={str(p.relative_to(folder)):digest(p) for r in roots.values() for p in r.rglob('*')
-                                                      if p.is_file() and 'build' not in p.relative_to(r).parts}))
+                                      ziran_output_identity=identity,
+                                      fixture_hashes={str(p.relative_to(folder)):digest(p) for r in dict.fromkeys(roots.values()) for p in r.rglob('*')
+                                                      if p.is_file() and not {'build','build-before'} & set(p.relative_to(r).parts)}))
     groups = {}
     for row in samples: groups.setdefault((row['case'],row['language'],row['phase']),[]).append(row)
     summary = [dict(modules=key[0],language=key[1],phase=key[2],samples=len(rows),

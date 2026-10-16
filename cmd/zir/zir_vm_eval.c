@@ -1085,7 +1085,9 @@ enum { SCALAR_PLAN_SLOTS = 16384, SCALAR_PLAN_STEPS = 32 };
 typedef enum ScalarOp {
     SCALAR_LEAF, SCALAR_MEMBER, SCALAR_POINTER_MEMBER, SCALAR_INDEX,
     SCALAR_UNARY, SCALAR_BINARY, SCALAR_CAST, SCALAR_AND, SCALAR_OR,
-    SCALAR_FALSE, SCALAR_COPY, SCALAR_JUMP, SCALAR_TRUTH
+    SCALAR_FALSE, SCALAR_COPY, SCALAR_JUMP, SCALAR_TRUTH,
+    SCALAR_LOCAL, SCALAR_INT, SCALAR_UINT, SCALAR_REAL,
+    SCALAR_TICK, SCALAR_SCOPE, SCALAR_DECLARE, SCALAR_STORE, SCALAR_RETURN
 } ScalarOp;
 
 typedef enum ScalarConversion {
@@ -1170,15 +1172,21 @@ scalar_result(Frame *frame, const Value *input, const char *type,
 }
 
 typedef struct ScalarStep {
-    const ZirExpr *expression;
-    unsigned short operation;
-    unsigned char op, left, right, output, target, depth;
+    union {
+        const ZirExpr *expression;
+        const ZirStmt *statement;
+        uint64_t literal_bits;
+        double literal_real;
+    };
+    unsigned short operation, target, local;
+    unsigned char op, left, right, output, depth;
     signed char left_width, right_width;
     unsigned char left_unsigned, conversion, cast_conversion;
 } ScalarStep;
 
 typedef struct ScalarPlan {
-    unsigned char count, output;
+    unsigned short count;
+    unsigned char output;
     ScalarStep steps[];
 } ScalarPlan;
 
@@ -1274,7 +1282,7 @@ scalar_compile(ScalarBuilder *builder, int index, int depth)
             int result = scalar_step(builder, SCALAR_TRUTH, expression, left, right, depth);
             if(result < 0) return -1;
             builder->steps[guard].output = (unsigned char)result;
-            builder->steps[guard].target = (unsigned char)(result + 1);
+            builder->steps[guard].target = (unsigned short)(result + 1);
             return result;
         }
         right = scalar_compile(builder, expression->right, depth + 1);
@@ -1291,13 +1299,13 @@ scalar_compile(ScalarBuilder *builder, int index, int depth)
         int first = scalar_step(builder, SCALAR_COPY, expression, right, 0, depth);
         int jump = scalar_step(builder, SCALAR_JUMP, expression, 0, 0, depth);
         if(first < 0 || jump < 0) return -1;
-        builder->steps[guard].target = (unsigned char)builder->count;
+        builder->steps[guard].target = (unsigned short)builder->count;
         right = scalar_compile(builder, expression->third, depth + 1);
         if(right < 0) return -1;
         int result = scalar_step(builder, SCALAR_COPY, expression, right, 0, depth);
         if(result < 0) return -1;
         builder->steps[first].output = (unsigned char)result;
-        builder->steps[jump].target = (unsigned char)(result + 1);
+        builder->steps[jump].target = (unsigned short)(result + 1);
         return result;
     }
     default:
@@ -1349,18 +1357,328 @@ scalar_plan(Frame *frame, int index)
     ScalarPlan *plan = malloc(sizeof(*plan) + (size_t)builder.count * sizeof(*plan->steps));
     if(plan == NULL)
         return NULL;
-    plan->count = (unsigned char)builder.count;
+    plan->count = (unsigned short)builder.count;
     plan->output = (unsigned char)output;
     memcpy(plan->steps, builder.steps, (size_t)builder.count * sizeof(*plan->steps));
     site->plan = plan;
     return plan;
 }
 
+/* Whole numeric procedures reuse the expression instructions, with explicit
+ * local slots and control flow. Compilation reads checked IR only: it never
+ * executes a call, touches a global, or caches a binding's current value. */
+enum { SCALAR_FUNCTION_STEPS = 8192,
+       SCALAR_FUNCTION_BYTES = 8 * 1024 * 1024 };
+
+typedef struct ScalarLoop {
+    struct ScalarLoop *outer;
+    int id, locals, condition;
+    int breaks;
+} ScalarLoop;
+
+typedef struct ScalarFunctionBuilder {
+    Frame *frame;
+    Frame literal_frame;
+    Vm literal_vm;
+    VmParameter *locals;
+    int local_count, local_capacity;
+    ScalarStep *steps;
+    int count, capacity;
+} ScalarFunctionBuilder;
+
+static int
+function_step(ScalarFunctionBuilder *builder, ScalarStep step)
+{
+    if(builder->count >= SCALAR_FUNCTION_STEPS)
+        return -1;
+    if(builder->count == builder->capacity) {
+        int capacity = builder->capacity ? builder->capacity * 2 : 64;
+        ScalarStep *steps = realloc(builder->steps, (size_t)capacity * sizeof(*steps));
+        if(steps == NULL) return -1;
+        builder->steps = steps;
+        builder->capacity = capacity;
+    }
+    builder->steps[builder->count] = step;
+    return builder->count++;
+}
+
+static int
+function_local(ScalarFunctionBuilder *builder, const char *name)
+{
+    for(int i = builder->local_count - 1; i >= 0; i--)
+        if(builder->locals[i].name == name)
+            return i;
+    return -1;
+}
+
+static int
+function_type(const char *type)
+{
+    return scalar_conversion(type) != ScalarGeneric;
+}
+
+static int
+function_expression(ScalarFunctionBuilder *builder, int index)
+{
+    ScalarBuilder expression = {.function = builder->frame->function};
+    int output = scalar_compile(&expression, index, 0);
+    if(output < 0) return -1;
+    int base = builder->count;
+    for(int i = 0; i < expression.count; i++) {
+        ScalarStep step = expression.steps[i];
+        const ZirExpr *node = step.expression;
+        if(!function_type(node->type)) return -1;
+        if(step.op == SCALAR_LEAF) {
+            if(node->kind == ZIR_EXPR_IDENT &&
+               (!strcmp(node->name, "true") || !strcmp(node->name, "false"))) {
+                step.op = SCALAR_INT;
+                step.literal_bits = !strcmp(node->name, "true");
+            } else if(node->kind == ZIR_EXPR_IDENT) {
+                int local = function_local(builder, node->name);
+                if(local < 0 || builder->locals[local].type != node->type)
+                    return -1;
+                step.op = SCALAR_LOCAL;
+                step.local = (unsigned short)local;
+            } else if(node->kind == ZIR_EXPR_INT || node->kind == ZIR_EXPR_FLOAT) {
+                Value storage;
+                const Value *value = numeric_literal(&builder->literal_frame, node, &storage);
+                if(builder->literal_vm.failed) return -1;
+                if(value->kind == VALUE_REAL) {
+                    step.op = SCALAR_REAL;
+                    step.literal_real = value->real;
+                } else if(value->kind == VALUE_INT) {
+                    step.op = value->unsigned64 ? SCALAR_UINT : SCALAR_INT;
+                    step.literal_bits = integer_bits(*value);
+                } else return -1;
+            } else return -1;
+        } else if(step.op == SCALAR_MEMBER || step.op == SCALAR_POINTER_MEMBER ||
+                  step.op == SCALAR_INDEX ||
+                  (step.op == SCALAR_UNARY && !strcmp(node->op, "*")) ||
+                  (step.op == SCALAR_CAST && !function_type(node->name)))
+            return -1;
+        if(step.op == SCALAR_AND || step.op == SCALAR_OR ||
+           step.op == SCALAR_FALSE || step.op == SCALAR_JUMP)
+            step.target = (unsigned short)(base + step.target);
+        if(function_step(builder, step) < 0) return -1;
+    }
+    return output;
+}
+
+static int
+function_sequence(ScalarFunctionBuilder *builder, int begin, int end,
+                   int depth, ScalarLoop *loop)
+{
+    const ZirFunction *function = builder->frame->function;
+    if(depth >= VM_MAX_DEPTH) return 0;
+    /* Even an empty entered block performs the canonical nesting check. */
+    if(function_step(builder, (ScalarStep){.op = SCALAR_SCOPE,
+        .local = (unsigned short)builder->local_count, .depth = (unsigned char)depth}) < 0)
+        return 0;
+    for(int s = begin; s < end; s++) {
+        const ZirStmt *statement = &function->stmts[s];
+        if(function_step(builder, (ScalarStep){.op = SCALAR_TICK,
+            .depth = (unsigned char)depth}) < 0) return 0;
+        int output, local, close;
+        switch(statement->kind) {
+        case ZIR_STMT_DECL:
+            if(!function_type(statement->type) ||
+               builder->local_count >= builder->local_capacity) return 0;
+            output = statement->expr_root >= 0 ?
+                function_expression(builder, statement->expr_root) :
+                function_step(builder, (ScalarStep){.op = SCALAR_INT, .output = 0});
+            if(output < 0) return 0;
+            if(statement->expr_root < 0) output = 0;
+            local = builder->local_count++;
+            builder->locals[local] = (VmParameter){statement->name, statement->type};
+            if(function_step(builder, (ScalarStep){.op = SCALAR_DECLARE,
+                .statement = statement, .local = (unsigned short)local,
+                .left = (unsigned char)output,
+                .conversion = (unsigned char)scalar_conversion(statement->type)}) < 0) return 0;
+            break;
+        case ZIR_STMT_ASSIGN: {
+            const ZirExpr *left = &function->exprs[statement->lhs_root];
+            if(left->kind != ZIR_EXPR_IDENT || left->is_move ||
+               !function_type(left->type) ||
+               (local = function_local(builder, left->name)) < 0 ||
+               builder->locals[local].type != left->type) return 0;
+            int compound = strcmp(statement->assignment_op, "=") != 0;
+            if(compound && function_step(builder, (ScalarStep){.op = SCALAR_LOCAL,
+                .expression = left, .local = (unsigned short)local,
+                .output = SCALAR_PLAN_STEPS}) < 0) return 0;
+            output = function_expression(builder, statement->expr_root);
+            if(output < 0) return 0;
+            if(compound) {
+                const char *op = assignment_binary_operator(statement->assignment_op);
+                if(op == NULL) return 0;
+                BinaryOperation operation = binary_operation(op);
+                ScalarStep step = {.op = SCALAR_BINARY, .expression = left,
+                    .left = SCALAR_PLAN_STEPS, .right = (unsigned char)output,
+                    .output = 0, .operation = (unsigned short)operation,
+                    .left_width = (signed char)integer_operation_width(left->type),
+                    .right_width = (signed char)(operation == BinaryShiftLeft ||
+                        operation == BinaryShiftRight ? 32 :
+                        integer_operation_width(function->exprs[statement->expr_root].type)),
+                    .left_unsigned = left->type[0] == 'u',
+                    /* Compound arithmetic narrows at the store, once. */
+                    .conversion = ScalarInteger};
+                if(function_step(builder, step) < 0) return 0;
+                output = 0;
+            }
+            if(function_step(builder, (ScalarStep){.op = SCALAR_STORE,
+                .expression = left, .local = (unsigned short)local,
+                .left = (unsigned char)output,
+                .conversion = (unsigned char)scalar_conversion(left->type)}) < 0) return 0;
+            break;
+        }
+        case ZIR_STMT_RETURN:
+            output = statement->expr_root >= 0 ?
+                function_expression(builder, statement->expr_root) :
+                function_step(builder, (ScalarStep){.op = SCALAR_INT, .output = 0});
+            if(output < 0) return 0;
+            if(statement->expr_root < 0) output = 0;
+            if(function_step(builder, (ScalarStep){.op = SCALAR_RETURN,
+                .left = (unsigned char)output}) < 0) return 0;
+            break;
+        case ZIR_STMT_EXPR:
+        case ZIR_STMT_UNUSED:
+            if(function_expression(builder, statement->expr_root) < 0) return 0;
+            break;
+        case ZIR_STMT_IF: {
+            int branch = s, exits = -1;
+            do {
+                const ZirStmt *head = &function->stmts[branch];
+                close = statement_close(function, branch, end);
+                if(close < 0) return 0;
+                int guard = -1;
+                if(head->expr_root >= 0) {
+                    output = function_expression(builder, head->expr_root);
+                    if(output < 0) return 0;
+                    guard = function_step(builder, (ScalarStep){.op = SCALAR_FALSE,
+                        .left = (unsigned char)output});
+                    if(guard < 0) return 0;
+                }
+                int saved = builder->local_count;
+                if(!function_sequence(builder, branch + 1, close, depth + 1, loop)) return 0;
+                builder->local_count = saved;
+                int exit = function_step(builder, (ScalarStep){.op = SCALAR_SCOPE,
+                    .local = (unsigned short)saved});
+                if(exit < 0) return 0;
+                exit = function_step(builder, (ScalarStep){.op = SCALAR_JUMP,
+                    .target = (unsigned short)(exits + 1)});
+                if(exit < 0) return 0;
+                exits = exit;
+                if(guard >= 0) builder->steps[guard].target = (unsigned short)builder->count;
+                branch = close + 1;
+            } while(branch < end && is_else_branch(&function->stmts[branch]));
+            while(exits >= 0) {
+                int next = (int)builder->steps[exits].target - 1;
+                builder->steps[exits].target = (unsigned short)builder->count;
+                exits = next;
+            }
+            s = branch - 1;
+            break;
+        }
+        case ZIR_STMT_WHILE: {
+            close = statement_close(function, s, end);
+            if(close < 0) return 0;
+            ScalarLoop current = {.outer = loop, .id = statement->loop_id,
+                .locals = builder->local_count, .condition = builder->count, .breaks = -1};
+            if(function_step(builder, (ScalarStep){.op = SCALAR_TICK,
+                .depth = (unsigned char)depth}) < 0) return 0;
+            output = function_expression(builder, statement->expr_root);
+            if(output < 0) return 0;
+            int guard = function_step(builder, (ScalarStep){.op = SCALAR_FALSE,
+                .left = (unsigned char)output});
+            if(guard < 0 || !function_sequence(builder, s + 1, close, depth + 1, &current))
+                return 0;
+            builder->local_count = current.locals;
+            if(function_step(builder, (ScalarStep){.op = SCALAR_SCOPE,
+                .local = (unsigned short)current.locals}) < 0 ||
+               function_step(builder, (ScalarStep){.op = SCALAR_JUMP,
+                .target = (unsigned short)current.condition}) < 0) return 0;
+            builder->steps[guard].target = (unsigned short)builder->count;
+            while(current.breaks >= 0) {
+                int next = (int)builder->steps[current.breaks].target - 1;
+                builder->steps[current.breaks].target = (unsigned short)builder->count;
+                current.breaks = next;
+            }
+            s = close;
+            break;
+        }
+        case ZIR_STMT_BLOCK_OPEN: {
+            close = statement_close(function, s, end);
+            int saved = builder->local_count;
+            if(close < 0 || !function_sequence(builder, s + 1, close, depth + 1, loop)) return 0;
+            builder->local_count = saved;
+            if(function_step(builder, (ScalarStep){.op = SCALAR_SCOPE,
+                .local = (unsigned short)saved}) < 0) return 0;
+            s = close;
+            break;
+        }
+        case ZIR_STMT_BREAK:
+        case ZIR_STMT_CONTINUE: {
+            ScalarLoop *target = loop;
+            while(target != NULL && statement->target_id != 0 && target->id != statement->target_id)
+                target = target->outer;
+            if(target == NULL || function_step(builder, (ScalarStep){.op = SCALAR_SCOPE,
+                .local = (unsigned short)target->locals}) < 0) return 0;
+            int jump = function_step(builder, (ScalarStep){.op = SCALAR_JUMP,
+                .target = (unsigned short)(statement->kind == ZIR_STMT_BREAK ?
+                    target->breaks + 1 : target->condition)});
+            if(jump < 0) return 0;
+            if(statement->kind == ZIR_STMT_BREAK) target->breaks = jump;
+            break;
+        }
+        default: return 0;
+        }
+    }
+    return 1;
+}
+
+static const ScalarPlan *
+scalar_function_plan(Frame *frame, VmSignature *signature)
+{
+    Vm *vm = frame->vm;
+    if(signature->scalar_checked) return signature->scalar_plan;
+    signature->scalar_checked = 1;
+    if((strcmp(frame->function->return_type, "void") && !function_type(frame->function->return_type)) ||
+       signature->count < 0 || signature->local_bound > UINT16_MAX ||
+       frame->function->stmt_count > SCALAR_FUNCTION_STEPS ||
+       vm->scalar_function_bytes >= SCALAR_FUNCTION_BYTES) return NULL;
+    for(int i = 0; i < signature->count; i++)
+        if(!function_type(signature->parameters[i].type)) return NULL;
+    ScalarFunctionBuilder builder = {.frame = frame,
+        .local_count = signature->count, .local_capacity = signature->local_bound};
+    builder.locals = calloc(signature->local_bound ? (size_t)signature->local_bound : 1,
+                            sizeof(*builder.locals));
+    if(builder.locals == NULL) return NULL;
+    memcpy(builder.locals, signature->parameters, (size_t)signature->count * sizeof(*builder.locals));
+    /* Share only immutable scalar-literal cache storage. A rejected plan's
+     * speculative parse must not fail the actual run of an untaken branch. */
+    builder.literal_vm.constant_sites = vm->constant_sites;
+    builder.literal_frame = (Frame){.vm = &builder.literal_vm,
+        .module = frame->module, .function = frame->function};
+    int valid = function_sequence(&builder, 0, frame->function->stmt_count, 0, NULL);
+    vm->constant_sites = builder.literal_vm.constant_sites;
+    size_t bytes = sizeof(ScalarPlan) + (size_t)builder.count * sizeof(ScalarStep);
+    if(valid && builder.count >= 8 && bytes <= SCALAR_FUNCTION_BYTES - vm->scalar_function_bytes) {
+        ScalarPlan *plan = malloc(bytes);
+        if(plan != NULL) {
+            plan->count = (unsigned short)builder.count;
+            plan->output = 0;
+            memcpy(plan->steps, builder.steps, (size_t)builder.count * sizeof(*builder.steps));
+            signature->scalar_plan = plan;
+            vm->scalar_function_bytes += bytes;
+        }
+    }
+    free(builder.locals);
+    free(builder.steps);
+    return signature->scalar_plan;
+}
+
 static void
 free_scalar_plans(Vm *vm)
 {
-    if(vm->scalar_sites == NULL)
-        return;
     for(size_t i = 0; i < vm->scalar_site_slots; i++)
         free(vm->scalar_sites[i].plan);
     free(vm->scalar_sites);
@@ -1556,6 +1874,148 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
         }
     }
     return frame->vm->failed ? int_value(0) : *values[plan->output];
+}
+
+/* Procedure instructions operate only on checked primitive values. Keeping
+ * this dispatch separate leaves the general expression evaluator's hot loop
+ * unchanged for records, strings, pointers and indexing. */
+static Value
+scalar_execute_function(Frame *frame, const ScalarPlan *plan, Flow *flow)
+{
+    Value storage[SCALAR_PLAN_STEPS + 1];
+    const Value *values[SCALAR_PLAN_STEPS + 1];
+    Vm *vm = frame->vm;
+    for(int pc = 0; pc < plan->count && !vm->failed; pc++) {
+        const ScalarStep *step = &plan->steps[pc];
+        Value *output = &storage[step->output];
+        if(step->depth >= VM_MAX_DEPTH) {
+            vm->failed = 1;
+            break;
+        }
+        switch(step->op) {
+        case SCALAR_LOCAL:
+            if(step->local >= frame->local_count ||
+               frame->locals[step->local].value.kind == VALUE_INVALID) {
+                vm->failed = 1;
+                break;
+            }
+            values[step->output] = &frame->locals[step->local].value;
+            continue;
+        case SCALAR_INT:
+            values[step->output] = int_result(output, signed64(step->literal_bits));
+            continue;
+        case SCALAR_UINT:
+            values[step->output] = uint_result(output, step->literal_bits);
+            continue;
+        case SCALAR_REAL:
+            values[step->output] = real_result(output, step->literal_real);
+            continue;
+        case SCALAR_TICK:
+            if(vm->max_steps > 0 && ++vm->steps > vm->max_steps)
+                vm->failed = 1;
+            continue;
+        case SCALAR_SCOPE:
+            frame->local_count = step->local;
+            continue;
+        case SCALAR_DECLARE:
+        case SCALAR_STORE: {
+            Local *local = &frame->locals[step->local];
+            if(step->op == SCALAR_DECLARE) {
+                local->name = step->statement->name;
+                local->type = step->statement->type;
+                frame->local_count = step->local + 1;
+            }
+            Value converted;
+            const Value *source = scalar_coerce(frame, values[step->left], local->type,
+                (ScalarConversion)step->conversion, &converted);
+            /* Read the live payload before replacing an aliased local. */
+            local->value = source->kind == VALUE_REAL ? real_value(source->real) :
+                source->unsigned64 ? uint_value(source->bits) : int_value(source->integer);
+            continue;
+        }
+        case SCALAR_RETURN:
+            *flow = FLOW_RETURN;
+            return *values[step->left];
+        case SCALAR_AND:
+        case SCALAR_OR: {
+            int truth = truthy(*values[step->left]);
+            if((step->op == SCALAR_AND && !truth) || (step->op == SCALAR_OR && truth)) {
+                values[step->output] = int_result(output, truth);
+                pc = step->target - 1;
+            }
+            continue;
+        }
+        case SCALAR_FALSE:
+            if(!truthy(*values[step->left])) pc = step->target - 1;
+            continue;
+        case SCALAR_JUMP:
+            pc = step->target - 1;
+            continue;
+        case SCALAR_COPY:
+            values[step->output] = scalar_coerce(frame, values[step->left],
+                step->expression->type, (ScalarConversion)step->conversion, output);
+            continue;
+        case SCALAR_CAST: {
+            const Value *cast = scalar_coerce(frame, values[step->right], step->expression->name,
+                (ScalarConversion)step->cast_conversion, output);
+            if(!vm->failed)
+                values[step->output] = scalar_coerce(frame, cast, step->expression->type,
+                    (ScalarConversion)step->conversion, output);
+            continue;
+        }
+        case SCALAR_UNARY: {
+            const ZirExpr *expression = step->expression;
+            Value right = *values[step->right], value = int_value(0);
+            if(!strcmp(expression->op, "-"))
+                value = right.kind == VALUE_REAL ? real_value(-right.real) :
+                    right.unsigned64 && strcmp(expression->type, "integer") != 0 ?
+                    uint_value(UINT64_C(0) - right.bits) :
+                    int_value(signed64(UINT64_C(0) - integer_bits(right)));
+            else if(!strcmp(expression->op, "+")) value = right;
+            else if(!strcmp(expression->op, "!")) value = int_value(!truthy(right));
+            else if(!strcmp(expression->op, "~") && right.kind == VALUE_INT)
+                value = right.unsigned64 ? uint_value(~right.bits) : int_value(~right.integer);
+            else vm->failed = 1;
+            *output = value;
+            if(!vm->failed)
+                values[step->output] = scalar_coerce(frame, output, expression->type,
+                    (ScalarConversion)step->conversion, output);
+            continue;
+        }
+        case SCALAR_TRUTH:
+            int_result(output, truthy(*values[step->right]));
+            values[step->output] = scalar_coerce(frame, output, step->expression->type,
+                (ScalarConversion)step->conversion, output);
+            continue;
+        case SCALAR_BINARY:
+            binary_numeric(vm, (BinaryOperation)step->operation,
+                values[step->left], values[step->right], step->left_width,
+                step->right_width, step->left_unsigned, output);
+            if(!vm->failed)
+                values[step->output] = scalar_coerce(frame, output, step->expression->type,
+                    (ScalarConversion)step->conversion, output);
+            continue;
+        default:
+            vm->failed = 1;
+            break;
+        }
+    }
+    *flow = vm->failed ? FLOW_ERROR : FLOW_NEXT;
+    return int_value(0);
+}
+
+int
+execute_scalar_function(Frame *frame, VmSignature *signature, Value *result, Flow *flow)
+{
+    const ScalarPlan *plan = scalar_function_plan(frame, signature);
+    if(plan == NULL) return 0;
+    /* Abstract numeric storage can retain an enum or pointer supplied through
+     * a conversion. Those values need the canonical dispatch rules. */
+    for(int i = 0; i < signature->count; i++)
+        if(frame->locals[i].value.kind != VALUE_INT && frame->locals[i].value.kind != VALUE_REAL)
+            return 0;
+    *result = scalar_execute_function(frame, plan, flow);
+    return 1;
 }
 
 static Value

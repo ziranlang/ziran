@@ -1167,14 +1167,14 @@ signature_slot(const Vm *vm, const ZirModule *module,
     return slot;
 }
 
-const VmSignature *
+VmSignature *
 vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
 {
     const ZirFunction *key = function->is_extern ? NULL : function;
     const char *extern_args = function->is_extern ? FunctionArgs(function) : NULL;
     if(vm->signature_count * 2 >= vm->signature_slots) {
         size_t old_slots = vm->signature_slots;
-        const VmSignature **old = vm->signatures;
+        VmSignature **old = vm->signatures;
         vm->signature_slots = old_slots ? old_slots * 2 : 256;
         vm->signatures = calloc(vm->signature_slots, sizeof(*vm->signatures));
         if(vm->signatures == NULL) {
@@ -1199,6 +1199,8 @@ vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
         signature->count = count;
         signature->local_bound = function_local_bound(function, count);
         signature->read_only = 0;
+        signature->scalar_plan = NULL;
+        signature->scalar_checked = 0;
         for(int i = 0; !function->is_extern && i < count; i++)
             if(!vm_type_contains_vec(vm, module, parsed[i].type, 0) &&
                parameter_read_only(function, parsed[i].name))
@@ -1217,11 +1219,15 @@ vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
 void
 free_signatures(Vm *vm)
 {
-    for(size_t i = 0; i < vm->signature_slots; i++)
-        free((void *)vm->signatures[i]);
+    for(size_t i = 0; i < vm->signature_slots; i++) {
+        if(vm->signatures[i] != NULL)
+            free(vm->signatures[i]->scalar_plan);
+        free(vm->signatures[i]);
+    }
     free(vm->signatures);
     vm->signatures = NULL;
     vm->signature_count = vm->signature_slots = 0;
+    vm->scalar_function_bytes = 0;
 }
 
 struct RunFunctionBuffers {
@@ -1290,7 +1296,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
              CallSetup **setup)
 {
     memset(&buffers->frame, 0, sizeof(buffers->frame));
-    const VmSignature *signature = vm_signature(vm, module, function);
+    VmSignature *signature = vm_signature(vm, module, function);
     const VmParameter *parameters = signature->parameters;
     int count = signature->count;
     Value result = int_value(0);
@@ -1400,7 +1406,15 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     }
     buffers->frame.local_count = count;
     give_setup(vm, setup);
-    Flow flow = execute_sequence(&buffers->frame, 0, function->stmt_count, 0, &result);
+    /* A scalar procedure allocates no VM values. Collect pending work once
+     * before its instruction stream, as the first ordinary statement would. */
+    size_t threshold = vm->collection_threshold ? vm->collection_threshold : 4 * 1024 * 1024;
+    if(vm->allocated_since_collection >= threshold)
+        collect_unreachable(vm);
+    Flow flow;
+    if((signature->scalar_checked && signature->scalar_plan == NULL) ||
+       !execute_scalar_function(&buffers->frame, signature, &result, &flow))
+        flow = execute_sequence(&buffers->frame, 0, function->stmt_count, 0, &result);
     if(flow == FLOW_ERROR || flow == FLOW_BREAK || flow == FLOW_CONTINUE ||
        (flow != FLOW_RETURN && strcmp(function->return_type, "void") != 0))
         vm->failed = 1;

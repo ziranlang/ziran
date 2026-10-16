@@ -1,0 +1,90 @@
+Kernel :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    total := seed
+    i: s32
+    while i < limit {
+        i += 1
+        if i % 5 == 0 { continue }
+        local := total + cast(s64)i
+        {
+            local := cast(s64)i * 3
+            total += local
+        }
+        if choose && i % 3 == 0 { total ^= local }
+        else if !choose || i % 7 == 0 { total -= local / 7 }
+        else { total += local & 255 }
+        selected := ifx choose then total + seed else total - seed
+        total = selected ^ (total >> 3)
+        if i > 19 { break }
+    }
+    return total
+}
+
+Named :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    total := seed
+    for outer: 0..limit {
+        saved := total
+        for inner: 0..9 {
+            local := cast(s64)inner
+            if inner == 1 && choose { continue outer }
+            if outer > 5 && inner == 2 { break outer }
+            if inner == 7 { break }
+            total += local + saved
+        }
+        total += 1
+    }
+    return total
+}
+
+Numeric :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    wide: u64 = 18446744073709551615
+    narrow: s8 = -128
+    real: float32 = cast(float32)16777217.0
+    total := seed
+    for i: 0..limit {
+        wide ^= wide >> cast(u64)7
+        wide ^= wide << cast(u64)13
+        narrow += cast(s8)i
+        real = real * cast(float32)0.5 + cast(float32)(i % 13)
+        total += cast(s64)(wide & 255) + cast(s64)narrow + cast(s64)real
+        if choose && wide > 9007199254740992 { total += 1 }
+    }
+    return total
+}
+
+Skipped :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    zero: s64
+    if choose && false && seed / zero > 0 { return 91 }
+    if true || seed / zero > 0 { seed += 1 }
+    selected := ifx choose then seed + cast(s64)limit else seed - cast(s64)limit
+    return selected
+}
+
+Failure :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    if choose { return seed / cast(s64)limit }
+    return seed << limit
+}
+
+RealFailure :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    number: float64 = 1.0 / cast(float64)limit
+    if choose { number = -number }
+    return cast(s64)number + seed
+}
+
+state: s32;
+Bump :: () -> s32 { state = 10; return 5 }
+Fallback :: () -> s32 {
+    state = 1
+    state += Bump()
+    return state
+}
+
+#program_export
+Answer :: () -> s64 {
+    if Fallback() != 6 { return 1 }
+    result := Kernel(3, 7, true) + Named(1, 6, false) + Numeric(7, 11, true)
+    result += Skipped(2, 3, false) + Failure(9, 2, true) + RealFailure(3, 2, false)
+    result += Large(5, 3, false)
+    // The C driver compares dynamic arguments and every step boundary.
+    if result == 0 { return 2 }
+    return 42
+}

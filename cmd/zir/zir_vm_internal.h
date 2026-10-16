@@ -348,6 +348,8 @@ typedef struct VmSignature {
     int count;
     int local_bound;
     uint64_t read_only;
+    struct ScalarPlan *scalar_plan;
+    int scalar_checked;
     VmParameter parameters[];
 } VmSignature;
 
@@ -413,7 +415,7 @@ typedef struct Vm {
     const ZirProgram *program;
     VmProfile *profile; /* opt-in function costs; no values or arguments */
     /* Parameters and immutable call setup facts, once per function. */
-    const VmSignature **signatures;
+    VmSignature **signatures;
     size_t signature_count, signature_slots;
     int depth;
     /* Statements run so far, counted only when max_steps bounds the run
@@ -451,6 +453,7 @@ typedef struct Vm {
     VmConstantSite *constant_sites;
     VmScalarSite *scalar_sites;
     size_t scalar_site_count, scalar_site_slots;
+    size_t scalar_function_bytes;
     StringLiteral **literal_sites;
     Frame *active_frame;
     VmRoots *evaluation_roots;
@@ -533,7 +536,7 @@ int array_length_fits(const char *element, size_t length);
 Array *allocate_array_try(Vm *vm, const ZirModule *owner, const char *element, int length, int fail_hard);
 Value default_value(Vm *vm, const ZirModule *module, const char *type, int depth);
 Value coerce(Vm *vm, const ZirModule *module, Value value, const char *type);
-const VmSignature *vm_signature(Vm *vm, const ZirModule *module,
+VmSignature *vm_signature(Vm *vm, const ZirModule *module,
                                const ZirFunction *function);
 Value coerce_expression(Vm *vm, const ZirModule *module, Value value, const char *type);
 void retire_value(Vm *vm, Value value, int depth);
@@ -546,7 +549,7 @@ int vm_vec_element_type(Vm *vm, const ZirModule *module, const char *type,
                         char *element, size_t element_size);
 void drop_owned_locals(Frame *frame, int first);
 int parse_parameters(const ZirModule *module, const ZirFunction *function, Parameter *parameters);
-const VmSignature *vm_signature(Vm *vm, const ZirModule *module,
+VmSignature *vm_signature(Vm *vm, const ZirModule *module,
                                 const ZirFunction *function);
 void free_signatures(Vm *vm);
 int function_local_bound(const ZirFunction *function, int parameters);
@@ -570,6 +573,8 @@ void place_write(Vm *vm, Value place, Value value);
 void binary_value(Vm *vm, const char *op, const Value *left, const Value *right,
                   const char *left_type, const char *right_type, Value *output);
 Value eval(Frame *frame, int index, int depth);
+int execute_scalar_function(Frame *frame, VmSignature *signature,
+                             Value *result, Flow *flow);
 void pin_value(Vm *vm, Value value, int depth);
 void profile_cache_access(Vm *vm, int cache, int event);
 void pin_evaluation_roots(Vm *vm);

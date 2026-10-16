@@ -17,13 +17,28 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #ifdef __linux__
+#include <sched.h>
 #include <sys/syscall.h>
 #endif
 
-enum { MAX_ARGS = 1024, MAX_JOBS = 4 };
+enum { MAX_ARGS = 1024, MAX_JOBS = 16 };
 typedef struct Job { pid_t pid; int fd, completion, reaped, ok; } Job;
 typedef struct ToolLog { char text[ZIR_TEXT_MAX]; size_t used; int truncated; } ToolLog;
 typedef struct Files { char **items; int count; } Files;
+
+static int worker_limit(void)
+{
+    long cpus = sysconf(_SC_NPROCESSORS_ONLN);
+#ifdef __linux__
+    cpu_set_t affinity;
+    CPU_ZERO(&affinity);
+    if(sched_getaffinity(0, sizeof(affinity), &affinity) == 0) {
+        int available = CPU_COUNT(&affinity);
+        if(available > 0 && (cpus <= 0 || available < cpus)) cpus = available;
+    }
+#endif
+    return cpus <= 0 ? 1 : cpus < MAX_JOBS ? (int)cpus : MAX_JOBS;
+}
 
 static void append_log(ToolLog *log, const char *bytes, size_t length)
 {
@@ -338,8 +353,9 @@ int c_compile_executable(const char *out, const char *name, int threads)
         *slash = '/'; objects[i] = strdup(path);
         if(!objects[i]) goto done;
     }
-    long cpus = sysconf(_SC_NPROCESSORS_ONLN);
-    int workers = cpus <= 0 ? 1 : cpus < MAX_JOBS ? (int)cpus : MAX_JOBS;
+    int workers = worker_limit();
+    if(workers > files.count) workers = files.count;
+    for(int i = 0; i < workers; i++) ProfileCount("native_worker_slots");
     uint64_t stage_started = ProfileStart();
     cache = c_cache_open(base, count, out, name);
     ProfileEnd("native.toolchain", stage_started);

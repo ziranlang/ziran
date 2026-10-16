@@ -33,7 +33,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/native_runtime_headers.sh` checks source and saved IR, exported ABI
   values, standalone C/C++ builds and stable copied-header timestamps.
 
-- Native C compilation refills each of its four worker slots independently,
+- Native C compilation uses up to sixteen available CPU workers, bounded by
+  the source count and by the process's CPU affinity on Linux. It refills each
+  slot independently,
   including when another file is slow. Linux child-completion descriptors
   avoid periodic wakeups when available; other systems retain an owned-PID
   wait path. JSON compiler logs remain in source order, failed builds drain

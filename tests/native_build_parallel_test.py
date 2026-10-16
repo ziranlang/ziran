@@ -10,21 +10,23 @@ import time
 
 ziran, work = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
 real_cc = shutil.which(os.environ.get('CC', 'cc'))
+available_cpus = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else (os.cpu_count() or 1)
+workers = min(16, available_cpus)
 out = work/'out with spaces'
 out.mkdir()
 (work/'group').mkdir()
 (work/'sub').mkdir()
-for i in range(8): (work/f'group/m{i}.zi').write_text('Read :: () -> s32 { return 1 }\n')
-imports = ''.join(f'M{i} :: #import "group/m{i}";\n' for i in range(8))
+for i in range(16): (work/f'group/m{i:02d}.zi').write_text('Read :: () -> s32 { return 1 }\n')
+imports = ''.join(f'M{i} :: #import "group/m{i:02d}";\n' for i in range(16))
 source = work/'sub/app.zi'
 
 def program(extra):
     source.write_text(imports+'host :: #system_library "host";\n'
                       'Helper :: () -> s32 #foreign host "helper";\n'
                       '#program_export\nAnswer :: () -> s32 {\n'
-                      'return Helper() + '+ ' + '.join(f'M{i}.Read()' for i in range(8))+f' + {extra}\n}}\n')
+                      'return Helper() + '+ ' + '.join(f'M{i}.Read()' for i in range(16))+f' + {extra}\n}}\n')
 
-(work/'base.c').write_text('int base(void) { return 34; }\n')
+(work/'base.c').write_text('int base(void) { return 26; }\n')
 subprocess.run([real_cc, '-c', str(work/'base.c'), '-o', str(work/'base.o')], check=True)
 subprocess.run(['ar', 'rcs', str(work/'libbase.a'), str(work/'base.o')], check=True)
 (out/'host.c').write_text('extern int base(void); int helper(void) { return base() + BUMP; }\n')
@@ -98,11 +100,12 @@ wrapper.chmod(0o755)
 env.update(CC=str(wrapper), REAL_CC=real_cc, BUILD_TEST_DIR=str(work))
 children = []
 
-def start(fail=False, *, mode='json', extra=None):
+def start(fail=False, *, mode='json', extra=None, affinity=None):
     log = (work/f'build-{len(children)}.log').open('wb')
     selected = [part if part != '--diagnostics=json' else '--diagnostics='+mode for part in command]
     child = subprocess.Popen(selected, env={**env, 'BUILD_FAIL_LINK': str(int(fail)), **(extra or {})},
-                             stdout=log, stderr=log, start_new_session=True)
+                             stdout=log, stderr=log, start_new_session=True,
+                             preexec_fn=(lambda: os.sched_setaffinity(0, affinity)) if affinity is not None else None)
     log.close()
     children.append(child)
     return child
@@ -128,7 +131,7 @@ try:
     program(1)
     reset()
     first = start(fail=True)
-    until(lambda: state()['active'] >= min(4, os.cpu_count() or 1))
+    until(lambda: state()['active'] >= workers)
     assert subprocess.run([str(out/'app')]).returncode == 42
     with (out/'.build.lock').open('r') as lock:
         try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -146,32 +149,32 @@ try:
         assert json.loads(line)['code'] == 'zir_c.toolchain'
     reset()
     first, second = start(), start()
-    until(lambda: state()['active'] >= min(4, os.cpu_count() or 1))
+    until(lambda: state()['active'] >= workers)
     (work/'compile.release').touch()
     until(lambda: (work/'link.ready').exists())
     assert subprocess.run([str(out/'app')]).returncode == 42
     (work/'link.release').touch()
     assert first.wait(timeout=30) == second.wait(timeout=30) == 0
-    assert 1 <= state()['peak'] <= 4
-    if (os.cpu_count() or 1) > 1: assert state()['peak'] > 1
+    assert 1 <= state()['peak'] <= workers
+    if available_cpus > 1: assert state()['peak'] > 1
     assert subprocess.run([str(out/'app')]).returncode == 43
     assert not list(out.glob('.app.*'))
     # A blocked first worker must not hold up the next source after another
     # worker finishes. Run both captured and inherited-output paths. The gate
     # is a causal scheduling check, not a performance timing threshold.
     for number, mode in enumerate(['json', 'text'], 2):
-        if (os.cpu_count() or 1) < 2: break
+        if available_cpus < 2: break
         program(number)
         reset()
         index = len(children)
         profile = work/f'profile-{mode}.jsonl'
-        first = start(mode=mode, extra={'BUILD_HOLD_SOURCE':'m0.c', 'BUILD_MESSAGES':'1', 'ZIRAN_PROFILE':str(profile)})
-        until(lambda: state()['active'] >= min(4, os.cpu_count() or 1))
+        first = start(mode=mode, extra={'BUILD_HOLD_SOURCE':'m00.c', 'BUILD_MESSAGES':'1', 'ZIRAN_PROFILE':str(profile)})
+        until(lambda: state()['active'] >= workers)
         (work/'compile.release').touch()
         until(lambda: (work/'hold.waiting').exists())
-        until(lambda: (work/'started-m4.c').exists())
+        until(lambda: (work/'started-m15.c').exists())
         assert not (work/'hold.release').exists() and not (work/'link.ready').exists()
-        assert 1 <= state()['peak'] <= 4
+        assert 1 <= state()['peak'] <= workers
         assert subprocess.run([str(out/'app')]).returncode == 41 + number
         (work/'hold.release').touch()
         until(lambda: (work/'link.ready').exists())
@@ -191,12 +194,12 @@ try:
             assert names == [Path(p).name for p in sorted(state()['sources'])], names
     # Drain a live worker's output after its bounded diagnostic buffer fills,
     # while the queue continues past the held worker.
-    if (os.cpu_count() or 1) > 1:
+    if available_cpus > 1:
         reset()
         index = len(children)
-        first = start(extra={'BUILD_HOLD_SOURCE':'m0.c', 'BUILD_NOISE':'1'})
+        first = start(extra={'BUILD_HOLD_SOURCE':'m00.c', 'BUILD_NOISE':'1'})
         (work/'compile.release').touch()
-        until(lambda: (work/'hold.waiting').exists() and (work/'started-m4.c').exists())
+        until(lambda: (work/'hold.waiting').exists() and (work/'started-m15.c').exists())
         assert not (work/'link.ready').exists()
         (work/'hold.release').touch()
         until(lambda: (work/'link.ready').exists())
@@ -204,14 +207,13 @@ try:
         assert first.wait(timeout=30) == 0
         records = [json.loads(line) for line in (work/f'build-{index}.log').read_text().splitlines()]
         assert any('output truncated' in r['message'] for r in records), records
-    if (os.cpu_count() or 1) > 1 and Path('/proc/self/stat').is_file():
+    if available_cpus > 1 and Path('/proc/self/stat').is_file():
         # Hold every other worker while one fails. Once that PID has been
         # reaped, no further compilation may start; all already-started
         # workers must still be drained and reaped before failure returns.
         program(4)
         reset()
-        first = start(extra={'BUILD_FAIL_SOURCE':'m0.c', 'BUILD_HOLD_OTHERS':'1'})
-        workers = min(4, os.cpu_count() or 1)
+        first = start(extra={'BUILD_FAIL_SOURCE':'m00.c', 'BUILD_HOLD_OTHERS':'1'})
         until(lambda: state()['active'] >= workers)
         (work/'compile.release').touch()
         until(lambda: (work/'failed').exists() and (work/'failed').read_text().strip())
@@ -230,7 +232,7 @@ try:
         program(4)
         reset()
         first = start()
-        until(lambda: state()['active'] >= min(4, os.cpu_count() or 1))
+        until(lambda: state()['active'] >= workers)
         parents = set(state()['parents'])
         assert len(parents) == 1
         parent, = parents
@@ -257,6 +259,22 @@ try:
     sample, = map(json.loads, fallback_profile.read_text().splitlines())
     assert sample['counters'].get('native_process_spawn',0)+sample['counters'].get('native_process_fork',0)>0
     assert subprocess.run([str(out/'app')]).returncode == 46
+    last_result = 46
+    if hasattr(os, 'sched_setaffinity'):
+        program(5)
+        reset()
+        profile = work/'profile-affinity.jsonl'
+        first = start(extra={'ZIRAN_PROFILE': str(profile)}, affinity={min(os.sched_getaffinity(0))})
+        until(lambda: state()['active'] >= 1)
+        (work/'compile.release').touch()
+        until(lambda: (work/'link.ready').exists())
+        (work/'link.release').touch()
+        assert first.wait(timeout=30) == 0
+        sample, = map(json.loads, profile.read_text().splitlines())
+        assert sample['counters']['native_worker_slots'] == 1
+        assert state()['peak'] == 1 and state()['active'] == 0
+        assert subprocess.run([str(out/'app')]).returncode == 47
+        last_result = 47
     # Missing compilers must still produce one bounded JSON diagnostic and
     # leave the last complete executable intact.
     failed = subprocess.run(command, env=dict(env, CC=str(work/'absent-cc')), capture_output=True, text=True)
@@ -264,7 +282,7 @@ try:
     records = list(map(json.loads, failed.stderr.splitlines()))
     assert len(records) == 1 and records[0]['code'] == 'zir_c.toolchain', records
     assert 'cannot run' in records[0]['message'] and 'absent-cc' in records[0]['message']
-    assert subprocess.run([str(out/'app')]).returncode == 46
+    assert subprocess.run([str(out/'app')]).returncode == last_result
     print('Parallel native builds preserve flags, nested modules, output locks and atomic replacement')
 finally:
     for child in children:

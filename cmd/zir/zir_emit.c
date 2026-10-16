@@ -1914,15 +1914,19 @@ enum {
 static unsigned
 native_runtime_includes(const char *text)
 {
-    static const struct { const char *name; unsigned include; } uses[] = {
-        {"BoundsCheck", NATIVE_BOUNDS}, {"EmptyArrayIndex", NATIVE_BOUNDS},
-        {"ZIRAN_INDEX", NATIVE_BOUNDS}, {"ZIRAN_EMPTY_INDEX", NATIVE_BOUNDS},
-        {"StringRange", NATIVE_STRING}, {"StringEqual", NATIVE_STRING},
-        {"print_float", NATIVE_STRING},
-        {"printf", NATIVE_STDIO}, {"fwrite", NATIVE_STDIO}, {"stdout", NATIVE_STDIO},
-        {"calloc", NATIVE_STDLIB}, {"free", NATIVE_STDLIB}, {"abort", NATIVE_STDLIB},
-        {"memcpy", NATIVE_MEMORY}, {"memmove", NATIVE_MEMORY}
+    /* Each emitted identifier is compared against these literal names. Keep
+     * their lengths with the table rather than calling strlen per token. */
+#define RUNTIME_USE(name, include) {name, sizeof(name) - 1, include}
+    static const struct { const char *name; size_t length; unsigned include; } uses[] = {
+        RUNTIME_USE("BoundsCheck", NATIVE_BOUNDS), RUNTIME_USE("EmptyArrayIndex", NATIVE_BOUNDS),
+        RUNTIME_USE("ZIRAN_INDEX", NATIVE_BOUNDS), RUNTIME_USE("ZIRAN_EMPTY_INDEX", NATIVE_BOUNDS),
+        RUNTIME_USE("StringRange", NATIVE_STRING), RUNTIME_USE("StringEqual", NATIVE_STRING),
+        RUNTIME_USE("print_float", NATIVE_STRING),
+        RUNTIME_USE("printf", NATIVE_STDIO), RUNTIME_USE("fwrite", NATIVE_STDIO), RUNTIME_USE("stdout", NATIVE_STDIO),
+        RUNTIME_USE("calloc", NATIVE_STDLIB), RUNTIME_USE("free", NATIVE_STDLIB), RUNTIME_USE("abort", NATIVE_STDLIB),
+        RUNTIME_USE("memcpy", NATIVE_MEMORY), RUNTIME_USE("memmove", NATIVE_MEMORY)
     };
+#undef RUNTIME_USE
     unsigned includes = 0;
     for(const char *p = text; *p;) {
         if(!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || *p == '_')) {
@@ -1934,7 +1938,8 @@ native_runtime_includes(const char *text)
               (*p >= '0' && *p <= '9') || *p == '_') p++;
         size_t length = (size_t)(p - start);
         for(size_t i = 0; i < sizeof(uses) / sizeof(uses[0]); i++)
-            if(!(includes & uses[i].include) && strlen(uses[i].name) == length &&
+            if(!(includes & uses[i].include) && uses[i].length == length &&
+               *start == *uses[i].name &&
                !memcmp(start, uses[i].name, length))
                 includes |= uses[i].include;
     }

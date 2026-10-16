@@ -46,7 +46,9 @@ def build(answer, changed=None, fail=False):
     assert (result.returncode != 0) == fail, result.stderr
     if result.stderr:
         for line in result.stderr.splitlines(): assert json.loads(line)['code'] == 'zir_c.toolchain', line
-    if answer is not None: assert subprocess.run([str(out/'app')]).returncode == answer
+    if answer is not None:
+        actual = subprocess.run([str(out/'app')]).returncode
+        assert actual == answer, (actual, answer)
     after = objects()
     updates = {name for name, value in after.items() if before.get(name) != value}
     if changed is not None: assert updates == changed, (updates, changed, result.stderr)
@@ -133,6 +135,7 @@ proxy = work/'gcc'
 proxy_source = work/'proxy.c'
 proxy_source.write_text(r'''
 #include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
@@ -142,10 +145,46 @@ int main(int argc, char **argv) {
     (void)revision;
     int gated = 0;
     for(int i=1;i<argc;i++) if(strstr(argv[i], "/host.c")) gated=1;
-    argv[0] = REAL_CC;
-    if(!gated || !getenv("CACHE_GATE")) { execv(REAL_CC, argv); return 127; }
+    char option[64];
+    char **command = calloc((size_t)argc + 2, sizeof(*command));
+    if(!command) return 1;
+    int count = 0, piped = 0, compile = 0, null_input = 0;
+    command[count++] = REAL_CC;
+    if(getenv("CACHE_CONFIG")) {
+        FILE *file = fopen(getenv("CACHE_CONFIG"), "r");
+        int value;
+        if(!file || fscanf(file, "%d", &value) != 1 || fclose(file) != 0) return 1;
+        snprintf(option, sizeof(option), "-DCACHE_ADDEND=%d", value);
+        command[count++] = option;
+    }
+    for(int i=1;i<argc;i++) {
+        command[count++] = argv[i];
+        piped |= !strcmp(argv[i], "-pipe");
+        compile |= !strcmp(argv[i], "-c");
+        null_input |= !strcmp(argv[i], "/dev/null");
+    }
+    if(null_input && getenv("CACHE_PROBE_LOG")) {
+        FILE *file = fopen(getenv("CACHE_PROBE_LOG"), "a");
+        if(!file) return 1;
+        fprintf(file, "%s\n", piped ? "pipe" : compile ? "compile" : "other");
+        if(fclose(file) != 0) return 1;
+    }
+    if(null_input && getenv("CACHE_FAIL_PROBE")) return 1;
+    if(null_input && getenv("CACHE_EMPTY_PROBE")) return 0;
+    if(null_input && getenv("CACHE_BINARY_PROBE")) fputc(0, stderr);
+    if(null_input && getenv("CACHE_LARGE_PROBE"))
+        for(int i=0;i<70000;i++) fputc('x', stderr);
+    if(null_input && getenv("CACHE_AMBIGUOUS_PROBE"))
+        fputs("#include <...> search starts here:\nambiguous interleaved output\nEnd of search list.\n", stderr);
+    if(null_input && getenv("CACHE_VERSION_CONFIG")) {
+        FILE *file = fopen(getenv("CACHE_VERSION_CONFIG"), "r");
+        int value;
+        if(!file || fscanf(file, "%d", &value) != 1 || fclose(file) != 0) return 1;
+        fprintf(stderr, "Test math library version %d\n", value);
+    }
+    if(!gated || !getenv("CACHE_GATE")) { execv(REAL_CC, command); return 127; }
     pid_t child=fork();
-    if(child==0) { execv(REAL_CC, argv); _exit(127); }
+    if(child==0) { execv(REAL_CC, command); _exit(127); }
     int status;
     if(child<0 || waitpid(child,&status,0)!=child || !WIFEXITED(status) || WEXITSTATUS(status)) return 1;
     close(open(getenv("CACHE_READY"), O_WRONLY|O_CREAT, 0600));
@@ -169,6 +208,73 @@ os.utime(proxy, ns=(saved.st_atime_ns, saved.st_mtime_ns))
 assert len(build(51)) == len(objects())
 build(51, set())
 
+# A compiler's configuration can change its derived options without changing
+# its executable, the requested flags or the environment. Model an installed
+# specs file using this test's own native driver and retain the old mtime.
+config = work/'compiler-config'
+config.write_text('0\n')
+env['CACHE_CONFIG'] = str(config)
+host.write_text('#include "config #$ space.h"\nint host(void) { return CONFIG + 24 + CACHE_ADDEND; }\n')
+build(51)
+build(51, set())
+saved = config.stat()
+config.write_text('1\n')
+os.utime(config, ns=(saved.st_atime_ns, saved.st_mtime_ns))
+assert len(build(52)) == len(objects())
+build(52, set())
+
+# A native compiler copied or hardlinked as cc needs the same identity checks.
+alias = work/'cc'
+shutil.copy2(proxy, alias)
+env['CC'] = str(alias)
+config.write_text('0\n')
+build(51)
+build(51, set())
+config.write_text('1\n')
+assert len(build(52)) == len(objects())
+build(52, set())
+env['CC'] = str(proxy)
+
+# The GCC probe uses a pipe while keeping the compiler and assembler version
+# checks. Missing or ambiguous discovery disables reuse while ordinary
+# compilation still works.
+probe_log = work/'probe.log'
+env['CACHE_PROBE_LOG'] = str(probe_log)
+build(52)
+probe_log.write_text('')
+build(52, set())
+assert probe_log.read_text().splitlines() == ['pipe']
+profile = work/'probe-profile.jsonl'
+env['ZIRAN_PROFILE'] = str(profile)
+build(52)
+build(52, set())
+counters = json.loads(profile.read_text().splitlines()[-1])['counters']
+assert counters['native_probe_pipe'] == 1
+assert counters.get('native_probe_compile', 0) == 0
+assert counters['native_object_reuse'] == len(objects())
+del env['ZIRAN_PROFILE']
+# Retain the version information from the original compile probe, including
+# the versions of libraries used by the compiler itself.
+version_config = work/'compiler-version'
+version_config.write_text('1\n')
+env['CACHE_VERSION_CONFIG'] = str(version_config)
+build(52)
+build(52, set())
+old_version = version_config.stat()
+version_config.write_text('2\n')
+os.utime(version_config, ns=(old_version.st_atime_ns, old_version.st_mtime_ns))
+assert len(build(52)) == len(objects())
+build(52, set())
+del env['CACHE_VERSION_CONFIG']
+for option in ('CACHE_FAIL_PROBE', 'CACHE_EMPTY_PROBE', 'CACHE_BINARY_PROBE', 'CACHE_AMBIGUOUS_PROBE', 'CACHE_LARGE_PROBE'):
+    env[option] = '1'
+    assert len(build(52)) == len(objects())
+    assert len(build(52)) == len(objects())
+    del env[option]
+del env['CACHE_CONFIG']
+del env['CACHE_PROBE_LOG']
+host.write_text('#include "config #$ space.h"\nint host(void) { return CONFIG + 24; }\n')
+
 # A header changed after the compiler read it must not stamp the new bytes
 # as inputs to the old object. Retain the old program, then rebuild next time.
 env.update(CACHE_GATE='1', CACHE_READY=str(work/'ready'), CACHE_RELEASE=str(work/'release'))
@@ -188,4 +294,20 @@ assert subprocess.run([str(out/'app')]).returncode == 51
 assert not (out/'.objects/host.c.o.inputs').exists()
 build(52, {'host.c.o'})
 build(52, set())
-print('Native object reuse validates contents, include lookup, compiler identity, flags, environment and concurrent edits')
+
+# Clang keeps its single compile probe: a second driver invocation costs more
+# than compiling an empty file on hosts with shared LLVM libraries.
+clang = shutil.which('clang') or shutil.which('clang-19')
+if clang:
+    env['CC'] = clang
+    for option in ('CACHE_GATE', 'CACHE_READY', 'CACHE_RELEASE'):
+        env.pop(option, None)
+    profile = work/'clang-profile.jsonl'
+    env['ZIRAN_PROFILE'] = str(profile)
+    build(52)
+    build(52, set())
+    counters = json.loads(profile.read_text().splitlines()[-1])['counters']
+    assert counters['native_probe_compile'] == 1
+    assert counters.get('native_probe_pipe', 0) == 0
+    assert counters['native_object_reuse'] == len(objects())
+print('Native object reuse validates contents, include lookup, compiler options and identity, flags, environment, probe failures and concurrent edits')

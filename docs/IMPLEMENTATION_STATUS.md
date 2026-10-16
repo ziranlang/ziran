@@ -5,6 +5,17 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- GCC object-cache preparation pipes the empty compile probe, allowing its
+  compiler and assembler to overlap without a temporary assembly file. It keeps
+  the previous compiler, math-library, assembler and checksum information and
+  fingerprints the complete derived command options, including installed specs
+  changes. Clang retains its ordinary single compile probe. Failed, incomplete,
+  ambiguous or oversized probe output falls back to normal compilation.
+  `tests/native_build_cache.sh` covers changed compiler configuration and library
+  versions, both probe paths and failure fallback; process profiles count the
+  probe operations. Runtime-include scanning keeps literal token lengths in its
+  table rather than computing them for every emitted identifier.
+
 - Generated C and C++ public headers carry lightweight string value and caller
   location definitions. Sources include string operations, bounds checks and
   standard-library helpers when their emitted code uses them, reducing the

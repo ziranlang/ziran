@@ -1,5 +1,6 @@
 #include "zir_c_cache.h"
 #include "zir.h"
+#include "zir_profile.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -352,14 +353,38 @@ static int supported_arguments(char *const *args,int count)
     return 1;
 }
 
-static char *probe(char *const *base,int count)
+/* cc1 and as can report independent metadata in either order when piped.
+ * Preserve each complete line, including the option order within a command;
+ * include-search precedence is fingerprinted separately while parsing it. */
+static int hash_probe_output(Hash *hash,const char *text)
 {
-    char **args=calloc((size_t)count+9,sizeof(*args));
+    size_t count=1;
+    for(const char *p=text;*p;p++) count+=*p=='\n';
+    if(count>MAX_ITEMS) return 0;
+    char *copy=strdup(text);
+    char **lines=malloc(count*sizeof(*lines));
+    if(!copy || !lines) { free(copy);free(lines);return 0; }
+    size_t used=0;
+    lines[used++]=copy;
+    for(char *p=copy;*p;p++) if(*p=='\n') { *p=0;lines[used++]=p+1; }
+    qsort(lines,used,sizeof(*lines),compare_names);
+    hash_integer(hash,used);
+    for(size_t i=0;i<used;i++) hash_text(hash,lines[i]);
+    free(lines);free(copy);return 1;
+}
+
+static char *probe(char *const *base,int count,int piped)
+{
+    char **args=calloc((size_t)count+10,sizeof(*args));
     char *output=malloc(PROBE_LIMIT+1);
     int pipes[2];
     if(!args || !output || pipe(pipes)!=0) { free(args);free(output);return NULL; }
     memcpy(args,base,(size_t)count*sizeof(*args));
-    args[count++]="-v";args[count++]="-x";args[count++]="c";args[count++]="-c";args[count++]="/dev/null";
+    /* Pipes remove the temporary assembly file and let cc1 and as overlap.
+     * Keep the real compile probe's compiler/library/checksum diagnostics. */
+    if(piped) args[count++]="-pipe";
+    args[count++]="-v";args[count++]="-x";args[count++]="c";
+    args[count++]="-c";args[count++]="/dev/null";
     args[count++]="-o";args[count]="/dev/null";
     fflush(NULL);
     pid_t pid=fork();
@@ -370,6 +395,7 @@ static char *probe(char *const *base,int count)
         execvp(args[0],args);_exit(127);
     }
     close(pipes[1]);
+    if(pid>0) ProfileCount(piped ? "native_probe_pipe" : "native_probe_compile");
     size_t used=0;
     int ok=pid>0;
     if(pid>0) {
@@ -384,7 +410,9 @@ static char *probe(char *const *base,int count)
     int status=0;pid_t waited;
     do { waited=pid>0 ? waitpid(pid,&status,0) : -1; } while(waited<0 && errno==EINTR);
     if(waited<=0 || !WIFEXITED(status) || WEXITSTATUS(status)!=0) ok=0;
-    free(args);output[used]=0;
+    free(args);
+    if(memchr(output,0,used)) ok=0;
+    output[used]=0;
     if(!ok) { free(output);return NULL; }
     return output;
 }
@@ -396,6 +424,8 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     if(!compiler) return NULL;
     const char *name=strrchr(compiler,'/');name=name?name+1:compiler;
     if((!strstr(name,"gcc") && !strstr(name,"clang") && strcmp(name,"cc")) || !native_executable(compiler)) { free(compiler);return NULL; }
+    /* A native cc alias may be GCC even when its file is not named gcc. */
+    int piped=strstr(name,"clang")==NULL;
     CBuildCache *cache=calloc(1,sizeof(*cache));
     if(!cache) { free(compiler);return NULL; }
     cache->slots=calloc(MEMO_SLOTS,sizeof(*cache->slots));
@@ -419,8 +449,14 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     struct stat info;
     if(stat(compiler,&info)!=0) goto fail;
     hash_text(&hash,compiler);hash_stat(&hash,&info);free(compiler);compiler=NULL;
-    char *text=probe(args,count);
+    char *text=probe(args,count,piped);
     if(!text) goto fail;
+    /* A fixed piped probe has no random assembly pathname. Include all its
+     * derived options in the identity, including installed specs changes.
+     * Interleaved diagnostics can cause a conservative miss, never a hit. */
+    if(piped && !hash_probe_output(&hash,text)) { free(text);goto fail; }
+    int required_tools=piped && !(strstr(text,"clang version") &&
+        strstr(text,"-emit-obj")) ? 2 : 1;
     int searching=0,ended=0,tools=0,ok=1;
     char *line=text;
     while(line && ok) {
@@ -435,7 +471,12 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
         else if(searching && *line==' ') {
             char *path=line+1;
             char *framework=strstr(path," (framework directory)");if(framework) *framework=0;
-            ok=add_name(&cache->roots,path);hash_text(&hash,path);
+            struct stat directory;
+            if(piped && (stat(path,&directory)!=0 || !S_ISDIR(directory.st_mode))) ok=0;
+            if(ok) { ok=add_name(&cache->roots,path);hash_text(&hash,path); }
+        } else if(searching && piped) {
+            /* Concurrent verbose output must not hide a search root. */
+            ok=0;
         } else if(!strncmp(line,"ignoring nonexistent directory \"",32)) {
             char *path=strchr(line,'"')+1,*end=strrchr(path,'"');
             if(end) { *end=0;ok=add_name(&cache->roots,path);hash_text(&hash,path); }
@@ -453,11 +494,11 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
                 }
                 *end=saved;
             }
-        } else if(!strncmp(line,"Compiler executable checksum:",29) || strstr(line," version ")) hash_text(&hash,line);
+        } else if(!piped && (!strncmp(line,"Compiler executable checksum:",29) || strstr(line," version "))) hash_text(&hash,line);
         line=next;
     }
     free(text);
-    if(!ok || !ended || !tools || !add_name(&cache->roots,cache->output)) goto fail;
+    if(!ok || !ended || tools<required_tools || !add_name(&cache->roots,cache->output)) goto fail;
     for(int i=0;i<cache->roots.count;i++) {
         char *resolved=realpath(cache->roots.items[i],NULL);
         if(resolved) { free(cache->roots.items[i]);cache->roots.items[i]=resolved; }

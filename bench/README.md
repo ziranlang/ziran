@@ -43,6 +43,11 @@ attempts, reused objects and event/poll completion paths. Collect profiles
 separately from timings; profiler counters add work and the profile environment
 is part of the native object-cache identity.
 
+The `native_probe_pipe` and `native_probe_compile` counters distinguish GCC's
+piped empty-input probe from the ordinary compile probe retained for Clang and
+other eligible drivers. These probes run even when all objects are reusable;
+examine `native.toolchain` separately from object validation and linking.
+
 ## Paired checking and body eligibility
 
 Preserve `ziran`, `zi2zir`, `zi2c` and `zi2zib` together before changing the

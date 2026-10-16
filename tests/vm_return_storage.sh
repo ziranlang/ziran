@@ -20,8 +20,8 @@ import json, sys
 sample = json.loads(open(sys.argv[1]).read().splitlines()[-1])
 assert sample['complete'] and not sample['failed']
 functions = {f['function']: f for f in sample['functions']}
-for name, per_call in {'MakeRecord': 1, 'MakeArray': 1, 'MakeArrayLiteral': 1,
-                       'RelayRecord': 0, 'RelayArray': 0, 'GuardedRecord': 2,
+for name, per_call in {'MakeRecord': 0, 'MakeArray': 1, 'MakeArrayLiteral': 1,
+                       'RelayRecord': 0, 'RelayArray': 0, 'GuardedRecord': 0,
                        'GuardedArray': 2, 'GuardedPointerArray': 2,
                        'GuardedNested': 4}.items():
     f = functions[name]

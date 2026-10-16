@@ -553,12 +553,13 @@ host_argument(const ZirModule *module, const char *type, Value value,
     const ZirModule *owner = NULL;
     const ZirType *record = FindType(module, type, &owner);
     if(record != NULL && !record->is_enum) {
-        if(value.kind != VALUE_RECORD || value.record == NULL ||
-           !same_record_type(owner, record, value.record) ||
-           value.record->field_count < 0 ||
-           value.record->field_count > VM_MAX_FIELDS)
-            return 0;
-        int count = value.record->field_count;
+        const InlineRecord *shape=value.kind==VALUE_INLINE_RECORD ? value.inline_record : NULL;
+        if(shape!=NULL) {
+            if(record!=shape->type && !same_type_application(owner,record,shape->owner,shape->type)) return 0;
+        } else if(value.kind != VALUE_RECORD || value.record == NULL ||
+                  !same_record_type(owner, record, value.record) ||
+                  value.record->field_count < 0 || value.record->field_count > VM_MAX_FIELDS) return 0;
+        int count = shape!=NULL ? shape->count : value.record->field_count;
         VmHostField *fields = calloc(count ? (size_t)count : 1,
                                      sizeof(*fields));
         if(fields == NULL)
@@ -567,10 +568,11 @@ host_argument(const ZirModule *module, const char *type, Value value,
         out->fields = fields;
         out->field_count = (size_t)count;
         for(int i = 0; i < count; i++) {
-            fields[i].name = value.record->fields[i].field.name;
+            const VmField *field=shape!=NULL ? &shape->fields[i] : &value.record->fields[i].field;
+            fields[i].name = field->name;
             if(!host_argument(owner,
-                              value.record->fields[i].field.type,
-                              value.record->fields[i].value,
+                              field->type,
+                              shape!=NULL ? inline_record_get(&value,(unsigned)i) : value.record->fields[i].value,
                               &fields[i].value, depth + 1))
                 return 0;
         }
@@ -616,6 +618,18 @@ host_return_by_name(Vm *vm, const ZirModule *owner, const ZirType *declared,
 {
     Value result = int_value(0);
     int count = layout->count;
+    const InlineRecord *shape=inline_record_shape(vm,owner,declared);
+    if(shape!=NULL) {
+        Value compact=inline_record_zero(shape);
+        for(int i=0;i<count && !vm->failed;i++) {
+            for(size_t j=0;j<input->field_count;j++)
+                if(input->fields[j].name!=NULL && !strcmp(input->fields[j].name,shape->fields[i].name)) {
+                    inline_record_set(&compact,(unsigned)i,host_return(vm,owner,
+                        shape->fields[i].type,&input->fields[j].value,depth+1));break;
+                }
+        }
+        return compact;
+    }
     Record *record = allocate_record(vm, owner, declared, count);
     if(record == NULL)
         return result;
@@ -689,6 +703,18 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
         }
         int count = layout->count;
         const VmField *fields = layout->fields;
+        const InlineRecord *shape=inline_record_shape(vm,owner,declared);
+        if(shape!=NULL) {
+            Value compact=inline_record_zero(shape);
+            for(int i=0;i<count && !vm->failed;i++) {
+                if(input->fields[i].name==NULL || strcmp(input->fields[i].name,fields[i].name)) {
+                    vm->failed=1;break;
+                }
+                inline_record_set(&compact,(unsigned)i,host_return(vm,owner,fields[i].type,
+                    &input->fields[i].value,depth+1));
+            }
+            return compact;
+        }
         Record *record = allocate_record(vm, owner, declared, count);
         if(record == NULL)
             return result;
@@ -714,7 +740,7 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
         Array *owned;
         if(input->kind != VM_HOST_SLICE ||
            (input->length > 0 && input->elements == NULL) ||
-           !array_length_fits(slice_element, input->length) ||
+           !array_length_fits(module, slice_element, input->length) ||
            input->field_count != 0 || input->fields != NULL) {
             vm->failed = 1;
             return result;
@@ -1546,7 +1572,7 @@ fold_global_element_in_scope(Vm *vm, const ZirModule *module,
                              ZirSourceSpan span)
 {
     const ZirExpr *expr = &probe->exprs[index];
-    if((target->kind == VALUE_ARRAY || target->kind == VALUE_RECORD) &&
+    if((target->kind == VALUE_ARRAY || target->kind == VALUE_RECORD || target->kind == VALUE_INLINE_RECORD) &&
        expr->kind != ZIR_EXPR_COMPOUND)
         return 0;
     if(expr->kind == ZIR_EXPR_COMPOUND && target->kind == VALUE_ARRAY) {
@@ -1565,6 +1591,19 @@ fold_global_element_in_scope(Vm *vm, const ZirModule *module,
                 return 0;
             array_set(target->array, (size_t)position, item);
             position++;
+        }
+        return 1;
+    }
+    if(expr->kind==ZIR_EXPR_COMPOUND && target->kind==VALUE_INLINE_RECORD) {
+        const InlineRecord *shape=target->inline_record;
+        for(int child=expr->first_child;child>=0;child=probe->exprs[child].next_sibling) {
+            const ZirExpr *entry=&probe->exprs[child];
+            int field=inline_record_field(shape,entry->name,UINT16_MAX);
+            if(field<0 || entry->right<0) return 0;
+            Value item=inline_record_get(target,(unsigned)field);
+            if(!fold_global_element_in_scope(vm,module,shape->owner,probe,entry->right,
+                &item,shape->fields[field].type,span)) return 0;
+            inline_record_set(target,(unsigned)field,item);
         }
         return 1;
     }
@@ -1702,6 +1741,7 @@ initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlo
                 const char *init = skip_ws(slot->declaration->init);
                 if(slot->value.kind == VALUE_ARRAY ||
                    slot->value.kind == VALUE_RECORD ||
+                   slot->value.kind == VALUE_INLINE_RECORD ||
                    slot->value.kind == VALUE_SLOT) {
                     memset(&buffers->probe, 0, sizeof(buffers->probe));
                     int root = ParseExprTyped(&buffers->probe, module,

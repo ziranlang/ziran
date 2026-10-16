@@ -1,0 +1,111 @@
+#import "std/vec"
+#import "std/option"
+Point :: struct { x: s64; y: s64 }
+Pixel :: struct { byte: s8; word: u16; number: u32; flag: bool; real: float32 }
+Doubles :: struct { x: float64; y: float64 }
+Wide :: struct { x: u64; y: u64 }
+Large :: struct { x: s64; y: s64; z: s64 }
+Wrapper :: struct { point: Point; label: string }
+Overlay :: union { bits: u64; number: float64 }
+global: Point = .{.x = 40, .y = 2};
+
+Make :: (seed: s64) -> Point { return Point.{seed, seed + 1} }
+MakeArray :: (seed: s64) -> [32]Point {
+    points: [32]Point
+    points[0] = Make(seed)
+    points[31] = Make(seed + 31)
+    return points
+}
+Set :: (target: *s64, value: s64) { <<target = value }
+Observe :: (point: Point, ignored: s64) -> s64 { return point.x }
+Mutate :: (point: *Point) -> s64 { point.x = 99; return 0 }
+Escape :: () -> *s64 { local := Make(1); return *local.y }
+borrowed: *Vec(Point);
+Pop :: () { unused VecPop(<<borrowed) }
+Grow :: () { unused VecPush(<<borrowed, Make(8)) }
+
+#program_export
+Dangling :: () -> s64 { pointer := Escape(); return <<pointer }
+#program_export
+Freed :: () -> s64 {
+    point := New(Point); pointer := *point.y; free(point); return <<pointer
+}
+#program_export
+Popped :: () -> s64 {
+    points: Vec(Point); unused VecPush(points, Make(1)); borrowed = *points
+    view := VecSlice(points, 0, 1); pointer := *view[0].x
+    Pop(); return <<pointer
+}
+#program_export
+Moved :: () -> s64 {
+    points: Vec(Point)
+    for i: 0..7 { unused VecPush(points, Make(i)) }
+    borrowed = *points
+    view := VecSlice(points, 0, 8)
+    Grow()
+    view[7] = Make(77)
+    if view[7].x != 77 { return 0 }
+    return view[0].x
+}
+
+#program_export
+Answer :: () -> s32 {
+    if global.x != 40 || global.y != 2 { return 1 }
+    local := Make(10); xp := *local.x; yp := *local.y
+    local = Make(20)
+    if <<xp != 20 || <<yp != 21 || xp == yp || xp != *local.x { return 2 }
+    Set(yp, 42)
+    if local.y != 42 { return 3 }
+    copy := local; copy.x = 7
+    if local.x != 20 || Observe(local, Mutate(*local)) != 20 || local.x != 99 { return 4 }
+    global_copy := global; global_copy.x = 0
+    if global.x != 40 { return 5 }
+    gp := *global.y; global = Make(30)
+    if <<gp != 31 { return 6 }
+    global = Point.{40, 2}
+
+    points: [32]Point
+    pointer := *points[31].y
+    points = MakeArray(10)
+    if <<pointer != 42 || pointer != *points[31].y || points[1].x != 0 { return 7 }
+    view := points[:]; Set(*view[0].x, 50)
+    view[31] = Make(60)
+    if points[0].x != 50 || <<pointer != 61 { return 8 }
+    copied := points; copied[31].y = 0
+    if <<pointer != 61 || copied[31].y != 0 { return 9 }
+    wrapper: Wrapper; wrapper.point = Make(5); wrapper.label = "nested"
+    Set(*wrapper.point.y, 17)
+    wrapped_copy := wrapper; wrapped_copy.point.x = 9
+    if wrapper.point.x != 5 || wrapper.point.y != 17 || wrapper.label != "nested" { return 10 }
+    heap := New(Point); heap.x = 4; hp := *heap.y; Set(hp, 8)
+    if heap.y != 8 || <<hp != 8 { free(heap); return 11 }
+    heap_copy := <<heap; heap_copy.y = 0
+    if heap.y != 8 { free(heap); return 12 }
+    free(heap)
+
+    pixel: Pixel = .{-128, 65535, 4294967295, true, -1.25}
+    pixels: [2]Pixel; pixels[1] = pixel
+    pixels[1].word += 1; pixels[1].byte -= 1
+    if pixels[1].word != 0 || pixels[1].byte != 127 || pixel.word != 65535 ||
+       !pixels[1].flag || pixels[1].number != 4294967295 || pixels[1].real != -1.25 { return 13 }
+    wide: [2]Wide; wide[1] = Wide.{18446744073709551615, 9223372036854775808}
+    if wide[1].x != 18446744073709551615 || wide[1].y != 9223372036854775808 { return 14 }
+    decimals: [2]Doubles; decimals[1] = Doubles.{-2.5, 1.25}
+    if decimals[1].x != -2.5 || decimals[1].y != 1.25 { return 15 }
+    large: Large; large.x = 1; large.y = 2; large.z = 42
+    overlay: Overlay; overlay.number = 1.0
+    if large.x != 1 || large.y != 2 || large.z != 42 || overlay.bits != 4607182418800017408 { return 16 }
+
+    vector: Vec(Point)
+    for index: 0..39 { if !VecPush(vector, Make(index)) { return 17 } }
+    if VecGet(vector, 39).value.y != 40 || VecGet(vector, 40).has_value { return 18 }
+    vc: Vec(Point)
+    if !VecClone(vc, vector) { return 19 }
+    popped := VecPop(vector)
+    if !popped.has_value || popped.value.x != 39 || vector.count != 39 || vc.count != 40 { return 20 }
+    vector[0].x = 99
+    if vc[0].x != 0 { return 21 }
+    VecClear(vector)
+    if VecPop(vector).has_value || !VecPush(vector, Make(41)) || vector[0].y != 42 { return 22 }
+    return 42
+}

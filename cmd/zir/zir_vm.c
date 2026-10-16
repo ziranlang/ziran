@@ -173,7 +173,7 @@ portable_type_at(const ZirModule *module, const char *type, int depth,
     }
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
         return capacity >= 0 &&
-               array_length_fits(element, (size_t)capacity) &&
+               array_length_fits(module, element, (size_t)capacity) &&
                portable_type_at(module, element, depth + 1, path);
     }
     record = FindType(module, type, &owner);
@@ -264,7 +264,7 @@ host_type_at(const ZirModule *module, const char *type, int depth,
         return 0;
     if(ArrayElementType(type, element, sizeof(element), &capacity))
         return capacity >= 0 &&
-               array_length_fits(element, (size_t)capacity) &&
+               array_length_fits(module, element, (size_t)capacity) &&
                host_type_at(module, element, depth + 1, 0);
     if(SliceElementType(type, element, sizeof(element)))
         return element[0] != '[' && element[0] != '\0' &&
@@ -569,6 +569,7 @@ free_layouts(Vm *vm)
     for(size_t i = 0; i < vm->layout_slots; i++) {
         free(vm->layouts[i].fields);
         free(vm->layouts[i].field_slots);
+        free(vm->layouts[i].inline_record);
     }
     free(vm->layouts);
     vm->layouts = NULL;
@@ -659,11 +660,67 @@ array_width(ArrayStorage storage)
     }
 }
 
+/* This is VM value storage, independent of the native ABI's padding.
+ * Only fixed primitive fields are eligible; pointers, owned values, unions
+ * and abstract integers retain the ordinary record representation. */
+static size_t inline_record_size(const ZirType *type)
+{
+    if(type == NULL || type->is_enum || type->is_union || type->is_procedure_type ||
+       type->is_record_template || type->is_extern || type->is_map || type->is_owned_vec)
+        return 0;
+    size_t cursor=0, bytes=0; int count=0, status; ZirTypeField field;
+    while((status=TypeNextField(type,&cursor,&field))==1) {
+        ArrayStorage storage=array_storage(field.type);
+        if(storage==ARRAY_BOXED || ++count>16) return 0;
+        bytes+=array_width(storage);
+        if(bytes>16) return 0;
+    }
+    return status==0 ? bytes : 0;
+}
+
+const InlineRecord *inline_record_shape(Vm *vm, const ZirModule *owner, const ZirType *type)
+{
+    if(type == NULL || type->is_enum || type->is_union || type->is_procedure_type ||
+       type->is_record_template || type->is_extern || type->is_map || type->is_owned_vec)
+        return NULL;
+    VmLayout *layout=(VmLayout *)record_layout(vm,type);
+    if(layout==NULL || layout->count<0) return NULL;
+    if(layout->inline_checked) return layout->inline_record;
+    layout->inline_checked=1;
+    size_t bytes=0;
+    if(layout->count==0 || layout->count>16) return NULL;
+    for(int i=0;i<layout->count;i++) {
+        ArrayStorage storage=array_storage(layout->fields[i].type);
+        if(storage==ARRAY_BOXED) return NULL;
+        bytes+=array_width(storage);
+        if(bytes>16) return NULL;
+    }
+    InlineRecord *shape=calloc(1,sizeof(*shape));
+    if(shape==NULL) return NULL;
+    shape->type=type;shape->owner=owner;shape->fields=layout->fields;
+    shape->count=(unsigned char)layout->count;
+    for(int i=0;i<layout->count;i++) {
+        ArrayStorage storage=array_storage(layout->fields[i].type);
+        shape->offsets[i]=shape->size;shape->storage[i]=(unsigned char)storage;
+        shape->size+=(unsigned char)array_width(storage);
+    }
+    layout->inline_record=shape;
+    return shape;
+}
+
+static size_t element_inline_size(const ZirModule *module,const char *element)
+{
+    return module!=NULL ? inline_record_size(FindType(module,element,NULL)) : 0;
+}
+
 int
-array_length_fits(const char *element, size_t length)
+array_length_fits(const ZirModule *module, const char *element, size_t length)
 {
     ArrayStorage storage = array_storage(element);
     size_t width = array_width(storage);
+    if(storage==ARRAY_BOXED && (width=element_inline_size(module,element))!=0)
+        storage=ARRAY_INLINE_RECORD;
+    else width=array_width(storage);
     if(length > INT_MAX || length > (VM_MAX_ARRAY_BYTES - sizeof(Array)) / width)
         return 0;
     size_t payload = length * width;
@@ -677,7 +734,14 @@ allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
 {
     ArrayStorage storage = array_storage(element);
     size_t width = array_width(storage);
-    if(length < 0 || !array_length_fits(element, (size_t)length)) {
+    const InlineRecord *shape=NULL;
+    if(storage==ARRAY_BOXED && owner!=NULL) {
+        const ZirModule *record_owner=NULL;
+        const ZirType *type=vm_find_type(vm,owner,element,&record_owner);
+        shape=inline_record_shape(vm,record_owner,type);
+        if(shape!=NULL) {storage=ARRAY_INLINE_RECORD;width=shape->size;}
+    }
+    if(length < 0 || (size_t)length>(VM_MAX_ARRAY_BYTES-sizeof(Array))/width) {
         if(fail_hard) vm->failed = 1;
         return NULL;
     }
@@ -702,9 +766,11 @@ allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
     array->owner = owner;
     array->element_type = KeepName(element);
     array->holds_references = type_holds_references(owner, element);
+    if(shape!=NULL) array->holds_references=0;
     array->length = length;
     array->storage = storage;
     array->data_bytes = data_bytes;
+    array->inline_record=shape;
     if(vm->arrays != NULL)
         vm->arrays->previous = array;
     vm->arrays = array;
@@ -822,6 +888,8 @@ default_value(Vm *vm, const ZirModule *module, const char *type, int depth)
         vm->failed = 1;
         return int_value(0);
     }
+    const InlineRecord *shape=inline_record_shape(vm,owner,record_type);
+    if(shape!=NULL) return inline_record_zero(shape);
     /* Nested defaults can grow the layout table; its field arrays stay put. */
     int count = layout->count;
     const VmField *fields = layout->fields;
@@ -886,11 +954,15 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
         }
         const ZirModule *owner = NULL;
         const ZirType *record = vm_find_type(vm, module, type, &owner);
+        if(record!=NULL && value.kind==VALUE_INLINE_RECORD &&
+           (record==value.inline_record->type || same_type_application(owner,record,
+                value.inline_record->owner,value.inline_record->type)))
+            return value;
         if(record != NULL && record->is_procedure_type &&
            value.kind == VALUE_SLOT && value.slot_type == record)
             return value;
         if(record != NULL && record->is_enum &&
-           value.kind != VALUE_RECORD && value.kind != VALUE_VOID &&
+           value.kind != VALUE_RECORD && value.kind != VALUE_INLINE_RECORD && value.kind != VALUE_VOID &&
            value.kind != VALUE_INVALID) {
             value = coerce(vm, module, value, record->enum_backing);
             return enum_value(record, signed64(integer_bits(value)));
@@ -898,12 +970,19 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
         if(record != NULL && !record->is_enum && !record->is_procedure_type &&
            !record->is_extern && !record->is_map && value.kind == VALUE_RECORD &&
            same_record_type(owner, record, value.record))
-            return vm_vec_element_type(vm, module, type, NULL, 0) ?
-                value : clone_value(vm, value, 0);
+        {
+            const InlineRecord *shape=inline_record_shape(vm,owner,record);
+            if(shape!=NULL) {
+                Value compact=inline_record_zero(shape);
+                for(int i=0;i<shape->count;i++) inline_record_set(&compact,(unsigned)i,value.record->fields[i].value);
+                return compact;
+            }
+            return vm_vec_element_type(vm, module, type, NULL, 0) ? value : clone_value(vm, value, 0);
+        }
         vm->failed = 1;
         return int_value(0);
     }
-    if(value.kind == VALUE_STRING || value.kind == VALUE_RECORD ||
+    if(value.kind == VALUE_STRING || value.kind == VALUE_RECORD || value.kind == VALUE_INLINE_RECORD ||
        value.kind == VALUE_ARRAY || value.kind == VALUE_SLICE ||
        value.kind == VALUE_SLOT ||
        value.kind == VALUE_VOID ||

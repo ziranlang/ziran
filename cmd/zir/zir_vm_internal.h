@@ -39,7 +39,8 @@ typedef enum ValueKind {
     VALUE_ARRAY,
     VALUE_SLICE,
     VALUE_SLOT,
-    VALUE_POINTER /* pointee: storage in a frame, global, record, or array */
+    VALUE_POINTER, /* pointee: storage in a frame, global, record, or array */
+    VALUE_INLINE_RECORD
 } ValueKind;
 
 typedef struct Record Record;
@@ -50,12 +51,13 @@ typedef struct VmPrintBuffers VmPrintBuffers;
 typedef struct RunFunctionBuffers RunFunctionBuffers;
 typedef struct CallSetup CallSetup;
 typedef struct VmScalarSite VmScalarSite;
+typedef struct InlineRecord InlineRecord;
 
 typedef struct Value {
     ValueKind kind;
     union {
         int unsigned64;
-        int indexed; /* VALUE_POINTER: array plus logical element offset */
+        int indexed; /* pointer: bit 0 array, bit 1 inline field, then field index */
     };
     /* Only the payload selected by kind is live. Integers need both their
      * signed value and unsigned bits; pointers need a target, call serial
@@ -78,9 +80,13 @@ typedef struct Value {
         const ZirType *enumeration;
         Record *record;
         const ZirFunction *slot_function;
+        const InlineRecord *inline_record;
     };
     Array *array;
 } Value;
+
+_Static_assert(offsetof(Value,bits)==offsetof(Value,integer)+8,
+               "inline record payload words must be contiguous");
 
 /* Keep scalar construction visible to every evaluator part. Returning a
  * whole Value through a separate function forces an extra stack copy on
@@ -168,7 +174,19 @@ typedef struct VmLayout {
     VmField *fields;
     int *field_slots; /* hash slots, then reference count and field indices */
     size_t field_slot_count;
+    int inline_checked;
+    InlineRecord *inline_record;
 } VmLayout;
+
+/* At most sixteen bytes of primitive fields fit in the existing Value
+ * payload. Metadata is shared and stable for the instance's lifetime. */
+struct InlineRecord {
+    const ZirType *type;
+    const ZirModule *owner;
+    const VmField *fields;
+    unsigned char count, size;
+    unsigned char offsets[16], storage[16];
+};
 
 typedef struct RecordField {
     VmField field;
@@ -193,8 +211,67 @@ struct Record {
 
 typedef enum ArrayStorage {
     ARRAY_BOXED, ARRAY_S8, ARRAY_U8, ARRAY_S16, ARRAY_U16,
-    ARRAY_S32, ARRAY_U32, ARRAY_S64, ARRAY_U64, ARRAY_F32, ARRAY_F64
+    ARRAY_S32, ARRAY_U32, ARRAY_S64, ARRAY_U64, ARRAY_F32, ARRAY_F64,
+    ARRAY_INLINE_RECORD
 } ArrayStorage;
+
+static inline Value packed_value(ArrayStorage storage, const unsigned char *data)
+{
+    switch(storage) {
+    case ARRAY_S8: { int8_t x; memcpy(&x,data,1); return int_value(x); }
+    case ARRAY_U8: return int_value(*data);
+    case ARRAY_S16: { int16_t x; memcpy(&x,data,2); return int_value(x); }
+    case ARRAY_U16: { uint16_t x; memcpy(&x,data,2); return int_value(x); }
+    case ARRAY_S32: { int32_t x; memcpy(&x,data,4); return int_value(x); }
+    case ARRAY_U32: { uint32_t x; memcpy(&x,data,4); return int_value(x); }
+    case ARRAY_S64: { int64_t x; memcpy(&x,data,8); return int_value(x); }
+    case ARRAY_U64: { uint64_t x; memcpy(&x,data,8); return uint_value(x); }
+    case ARRAY_F32: { float x; memcpy(&x,data,4); return real_value(x); }
+    case ARRAY_F64: { double x; memcpy(&x,data,8); return real_value(x); }
+    default: return (Value){0};
+    }
+}
+
+static inline void packed_store(ArrayStorage storage, unsigned char *data, Value value)
+{
+    uint64_t bits = integer_bits(value);
+    switch(storage) {
+    case ARRAY_S8: case ARRAY_U8: { uint8_t x=(uint8_t)bits; memcpy(data,&x,1); break; }
+    case ARRAY_S16: case ARRAY_U16: { uint16_t x=(uint16_t)bits; memcpy(data,&x,2); break; }
+    case ARRAY_S32: case ARRAY_U32: { uint32_t x=(uint32_t)bits; memcpy(data,&x,4); break; }
+    case ARRAY_S64: case ARRAY_U64: memcpy(data,&bits,8); break;
+    case ARRAY_F32: { float x=(float)value.real; memcpy(data,&x,4); break; }
+    case ARRAY_F64: memcpy(data,&value.real,8); break;
+    default: break;
+    }
+}
+
+static inline Value inline_record_zero(const InlineRecord *shape)
+{
+    return (Value){.kind=VALUE_INLINE_RECORD,.inline_record=shape};
+}
+
+static inline Value inline_record_get(const Value *value, unsigned index)
+{
+    const InlineRecord *shape=value->inline_record;
+    return packed_value((ArrayStorage)shape->storage[index],
+        (const unsigned char *)value+offsetof(Value,integer)+shape->offsets[index]);
+}
+
+static inline void inline_record_set(Value *value, unsigned index, Value field)
+{
+    const InlineRecord *shape=value->inline_record;
+    packed_store((ArrayStorage)shape->storage[index],
+        (unsigned char *)value+offsetof(Value,integer)+shape->offsets[index],field);
+}
+
+static inline int inline_record_field(const InlineRecord *shape, const char *name, unsigned hint)
+{
+    if(hint<shape->count && shape->fields[hint].name==name) return (int)hint;
+    for(int i=0;i<shape->count;i++)
+        if(shape->fields[i].name==name || !strcmp(shape->fields[i].name,name)) return i;
+    return -1;
+}
 
 struct Array {
     Array *next;
@@ -213,6 +290,7 @@ struct Array {
     int length;
     ArrayStorage storage;
     size_t data_bytes;
+    const InlineRecord *inline_record;
     /* Stable logical locations let pointers and slices borrow typed storage.
      * Packed slots have one validity bit so popped/moved Vec slots retain
      * their invalid state, including writes through older slices. */
@@ -242,6 +320,12 @@ array_get(const Array *array, size_t index)
         return ((const Value *)array->data)[index];
     if(!(array->data[array->data_bytes + index / 8] & (1u << (index % 8))))
         return (Value){0};
+    if(array->storage == ARRAY_INLINE_RECORD) {
+        Value value=inline_record_zero(array->inline_record);
+        memcpy((unsigned char *)&value+offsetof(Value,integer),
+               array->data+index*array->inline_record->size,array->inline_record->size);
+        return value;
+    }
     switch(array->storage) {
     case ARRAY_S8: return int_value(((const int8_t *)array->data)[index]);
     case ARRAY_U8: return int_value(array->data[index]);
@@ -272,6 +356,20 @@ array_set(Array *array, size_t index, Value value)
         return;
     }
     *valid |= bit;
+    if(array->storage == ARRAY_INLINE_RECORD) {
+        if(value.kind == VALUE_INLINE_RECORD)
+            memcpy(array->data+index*array->inline_record->size,
+                   (const unsigned char *)&value+offsetof(Value,integer),array->inline_record->size);
+        else if(value.kind == VALUE_RECORD && value.record != NULL &&
+                value.record->field_count == array->inline_record->count) {
+            Value copy=inline_record_zero(array->inline_record);
+            for(int i=0;i<array->inline_record->count;i++)
+                inline_record_set(&copy,(unsigned)i,value.record->fields[i].value);
+            memcpy(array->data+index*array->inline_record->size,
+                   (const unsigned char *)&copy+offsetof(Value,integer),array->inline_record->size);
+        } else *valid &= (unsigned char)~bit;
+        return;
+    }
     /* Storage boundaries already coerce to the declared element type. */
     uint64_t bits = value.kind == VALUE_INT || value.kind == VALUE_ENUM ?
         (value.unsigned64 ? value.bits : (uint64_t)value.integer) : 0;
@@ -298,14 +396,15 @@ static inline int
 place_valid(Value place)
 {
     return place.kind == VALUE_POINTER &&
-        (place.indexed ? place.array != NULL &&
+        ((place.indexed & 1) ? place.array != NULL &&
          place.offset < (size_t)place.array->length : place.pointee != NULL);
 }
 
 static inline Value *
 place_slot(Value place)
 {
-    return place.indexed ? array_boxed_slot(place.array, place.offset) :
+    if(place.indexed & 2) return NULL;
+    return (place.indexed & 1) ? array_boxed_slot(place.array, place.offset) :
         place.pointee;
 }
 
@@ -532,7 +631,8 @@ Value literal_string(Vm *vm, const ZirExpr *expression);
 Value global_literal_string(Vm *vm, const char *source);
 Value enum_value(const ZirType *type, int64_t integer);
 Record *allocate_record(Vm *vm, const ZirModule *owner, const ZirType *type, int count);
-int array_length_fits(const char *element, size_t length);
+int array_length_fits(const ZirModule *module, const char *element, size_t length);
+const InlineRecord *inline_record_shape(Vm *vm, const ZirModule *owner, const ZirType *type);
 Array *allocate_array_try(Vm *vm, const ZirModule *owner, const char *element, int length, int fail_hard);
 Value default_value(Vm *vm, const ZirModule *module, const char *type, int depth);
 Value coerce(Vm *vm, const ZirModule *module, Value value, const char *type);

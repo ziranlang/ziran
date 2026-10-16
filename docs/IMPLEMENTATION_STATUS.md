@@ -1315,6 +1315,18 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   record and array storage is reclaimed after a value copy; the portable VM
   currently allows up to 1 GiB each of tracked record and array allocations
   so large checked parsers such as Kryon's KSS parser can execute.
+- Small records whose fixed-width primitive fields occupy at most sixteen
+  bytes use the existing VM value payload. Arrays of these records store
+  packed field bytes and slot-validity bits, avoiding a separate allocation
+  and tagged value for every field. Shared instance metadata describes field
+  names and widths; host record calls still marshal declared named fields.
+  Field pointers retain logical locations in locals, globals, nested records
+  and packed arrays. Value copies, replacement of borrowed arrays, vector
+  growth and expired pointers retain their checked behavior. Unions, records
+  containing references, abstract integers and larger records keep ordinary
+  record storage. `tests/vm_inline_records.sh` checks the actual representation,
+  integer boundaries, floating-point bits, layout-table growth, aggressive
+  collection, source/saved IR and C/C++/Go results.
 - Portable scalar plans retain checked operations and coercion policies for
   short binary expressions as well as larger expression trees. Repeated
   execution still reads current bindings and preserves branch selection,

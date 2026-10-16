@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+ulimit -c 0
+ziran=${1:?pass the ziran command}
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+library=${ZIRAN_LIB:-"$(dirname "$ziran")/../libziran.a"}
+build=$(CDPATH= cd -- "$(dirname -- "$library")" && pwd)
+work=$build/tests/vm-inline-records
+mkdir -p "$work"
+unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
+source=$repo/tests/spec/vm_inline_records_test.zi
+"$ziran" ir --root "$repo/tests/spec" --module-path "$repo/std" -o "$work/ir" "$source"
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+    "$repo/tests/vm_inline_records_test.c" "$repo/cmd/zir/zir_vm.c" \
+    "$repo/cmd/zir/zir_vm_eval.c" "$repo/cmd/zir/zir_vm_run.c" \
+    "$repo/cmd/zir/zir_vm_verify.c" "$library" -lm -pthread -o "$work/test"
+for form in source saved; do
+    input=$source; root=$repo/tests/spec
+    if test "$form" = saved; then input=$work/ir/vm_inline_records_test.zir; root=$work/ir; fi
+    "$ziran" bundle --root "$root" --module-path "$repo/std" --entry vm_inline_records_test:Answer \
+        -o "$work/$form.zib" "$input"
+    "$work/test" "$work/$form.zib"
+    for entry in Dangling Freed Popped Moved; do
+        "$ziran" bundle --root "$root" --module-path "$repo/std" --entry "vm_inline_records_test:$entry" \
+            -o "$work/$form-$entry.zib" "$input"
+        if "$ziran" run "$work/$form-$entry.zib" > "$work/$form-$entry.out" 2>&1; then
+            echo "read expired record storage: $form $entry" >&2
+            exit 1
+        fi
+        grep -q 'portable execution failed' "$work/$form-$entry.out"
+    done
+    for target in c cpp go; do
+        output=$work/$target-$form
+        "$ziran" build --target="$target" --root "$root" --module-path "$repo/std" -o "$output" "$input"
+        if test "$target" = go; then
+            cat > "$output/inline_test.go" <<'GO'
+package ziran
+import "testing"
+func TestInlineRecords(t *testing.T) {
+    if result := VmInlineRecordsTest_Answer(); result != 42 { t.Fatal(result) }
+}
+GO
+            GO111MODULE=off go test "$output"/*.go
+        else
+            if test "$target" = c; then compiler=${CC:-cc}; ext=c; header=h; standard=c11
+            else compiler=${CXX:-c++}; ext=cpp; header=hpp; standard=c++17; fi
+            printf '#include "vm_inline_records_test.%s"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' "$header" > "$output/host.$ext"
+            "$compiler" -std="$standard" -I"$output" -I"$repo/include" "$output"/*."$ext" -o "$output/app"
+            "$output/app"
+        fi
+    done
+done
+cmp "$work/source.zib" "$work/saved.zib"

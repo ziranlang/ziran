@@ -396,7 +396,17 @@ place_read(Vm *vm, Value place)
 {
     if(!pointer_target(vm, place))
         return (Value){0};
-    return place.indexed ? array_get(place.array, place.offset) : *place.pointee;
+    /* Ordinary scalar locations need no whole-record temporary. */
+    if(!(place.indexed & 2))
+        return place.indexed ? array_get(place.array, place.offset) : *place.pointee;
+    Value value = (place.indexed & 1) ? array_get(place.array, place.offset) : *place.pointee;
+    unsigned field = (unsigned)place.indexed >> 2;
+    if(value.kind == VALUE_INLINE_RECORD && field < value.inline_record->count)
+        return inline_record_get(&value, field);
+    if(value.kind == VALUE_RECORD && value.record != NULL && field < (unsigned)value.record->field_count)
+        return value.record->fields[field].value;
+    vm->failed = 1;
+    return (Value){0};
 }
 
 void
@@ -404,10 +414,83 @@ place_write(Vm *vm, Value place, Value value)
 {
     if(!pointer_target(vm, place))
         return;
-    if(place.indexed)
+    if(place.indexed & 2) {
+        Value record=(place.indexed & 1) ? array_get(place.array,place.offset) : *place.pointee;
+        unsigned field=(unsigned)place.indexed>>2;
+        if(record.kind==VALUE_INLINE_RECORD && field<record.inline_record->count) {
+            inline_record_set(&record,field,value);
+            if(place.indexed & 1) array_set(place.array,place.offset,record);
+            else *place.pointee=record;
+        } else if(record.kind==VALUE_RECORD && record.record!=NULL && field<(unsigned)record.record->field_count)
+            record.record->fields[field].value=value;
+        else vm->failed=1;
+    } else if(place.indexed & 1)
         array_set(place.array, place.offset, value);
     else
         *place.pointee = value;
+}
+
+static Value member_place(Frame *frame, Value place, const char *path,
+                           const char *type, int union_write)
+{
+    for(;;) {
+        Value base=place_read(frame->vm,place);
+        if(frame->vm->failed) return (Value){0};
+        const char *dot=strchr(path,'.');char name[ZIR_NAME_MAX];
+        if(dot!=NULL) {
+            size_t length=(size_t)(dot-path);
+            if(!length || length>=sizeof(name)) return (Value){0};
+            memcpy(name,path,length);name[length]=0;
+        }
+        const char *part=dot!=NULL ? name : path;
+        if(base.kind==VALUE_INLINE_RECORD) {
+            int field=inline_record_field(base.inline_record,part,UINT16_MAX);
+            if(field<0 || dot!=NULL) return (Value){0};
+            place.indexed=(place.indexed & 1)|2|(field<<2);
+            return place;
+        }
+        if(base.kind!=VALUE_RECORD || base.record==NULL) return (Value){0};
+        if(dot==NULL && union_write && base.record->type!=NULL && base.record->type->is_union) {
+            frame->union_write_record=base.record;frame->union_write_type=type;
+            return (Value){.kind=VALUE_POINTER,.record=base.record,.pointee=&base.record->fields[0].value};
+        }
+        Value *field=record_field(base.record,part);
+        if(field==NULL) return (Value){0};
+        place=(Value){.kind=VALUE_POINTER,.record=base.record,.pointee=field};
+        if(dot==NULL) return place;
+        path=dot+1;
+    }
+}
+
+static Value inline_member(Vm *vm, Value value, const char *name, unsigned hint)
+{
+    int index=inline_record_field(value.inline_record,name,hint);
+    if(index<0) {vm->failed=1;return int_value(0);}
+    return inline_record_get(&value,(unsigned)index);
+}
+
+static Value record_path_value(Vm *vm,Value value,const char *path,const char *type)
+{
+    for(;;) {
+        const char *dot=strchr(path,'.');char name[ZIR_NAME_MAX];
+        if(dot!=NULL) {
+            size_t length=(size_t)(dot-path);
+            if(!length || length>=sizeof(name)) break;
+            memcpy(name,path,length);name[length]=0;
+        }
+        const char *part=dot!=NULL ? name : path;
+        if(value.kind==VALUE_INLINE_RECORD) {
+            value=inline_member(vm,value,part,UINT16_MAX);
+        } else if(value.kind==VALUE_RECORD && value.record!=NULL) {
+            Value *field=record_field(value.record,part);
+            if(field==NULL) break;
+            value=dot==NULL && value.record->type!=NULL && value.record->type->is_union ?
+                union_member_read(vm,value.record,type) : *field;
+        } else break;
+        if(dot==NULL) return value;
+        path=dot+1;
+    }
+    vm->failed=1;return int_value(0);
 }
 
 /* A location names a stable slot or an array and logical index. Taking a
@@ -430,13 +513,7 @@ owned_place(Frame *frame, int index, int depth)
     }
     if(expression->kind == ZIR_EXPR_POINTER_MEMBER) {
         Value pointer = eval(frame, expression->left, depth + 1);
-        Value target = place_read(frame->vm, pointer);
-        if(target.kind != VALUE_RECORD || target.record == NULL) {
-            frame->vm->failed = 1;
-            return (Value){0};
-        }
-        return (Value){.kind = VALUE_POINTER, .record = target.record,
-                      .pointee = record_field_path(target.record, expression->name)};
+        return member_place(frame,pointer,expression->name,expression->type,0);
     }
     if(expression->kind == ZIR_EXPR_INDEX) {
         Value base = owned_place(frame, expression->left, depth + 1);
@@ -460,17 +537,7 @@ owned_place(Frame *frame, int index, int depth)
     Value base_place = owned_place(frame, expression->left, depth + 1);
     if(!place_valid(base_place))
         return (Value){0};
-    Value base = place_read(frame->vm, base_place);
-    if(base.kind != VALUE_RECORD || base.record == NULL)
-        return (Value){0};
-    if(base.record->type != NULL && base.record->type->is_union) {
-        frame->union_write_record = base.record;
-        frame->union_write_type = expression->type;
-        return (Value){.kind = VALUE_POINTER, .record = base.record,
-                      .pointee = &base.record->fields[0].value};
-    }
-    return (Value){.kind = VALUE_POINTER, .record = base.record,
-                  .pointee = record_field_path(base.record, expression->name)};
+    return member_place(frame,base_place,expression->name,expression->type,1);
 }
 
 Value *
@@ -753,7 +820,7 @@ binary_with_policy(Vm *vm, BinaryOperation operation, const Value *left_value,
         /* Indexed pointers compare by container and logical slot. */
         int equal = left_value->kind == VALUE_POINTER && right_value->kind == VALUE_POINTER ?
             (left_value->indexed == right_value->indexed &&
-             (left_value->indexed ? left_value->array == right_value->array && left_value->offset == right_value->offset :
+             ((left_value->indexed & 1) ? left_value->array == right_value->array && left_value->offset == right_value->offset :
               left_value->pointee == right_value->pointee)) : 0;
         if(operation == BinaryEqual)
             return int_value(equal);
@@ -1060,7 +1127,7 @@ eval_leaf(Frame *frame, const ZirExpr *expression)
             /* Same-module aggregate storage is already typed. Imported
              * spellings still resolve in the caller's scope below. */
             if(global->module == frame->module && global->type == expression->type &&
-               (global->value.kind == VALUE_ARRAY || global->value.kind == VALUE_RECORD))
+               (global->value.kind == VALUE_ARRAY || global->value.kind == VALUE_RECORD || global->value.kind == VALUE_INLINE_RECORD))
                 return global->value;
             return coerce_expression(frame->vm, frame->module,
                                      global->value, expression->type);
@@ -1743,6 +1810,10 @@ scalar_member(Frame *frame, const ZirExpr *expression, Value value, int pointer,
         value = int_value(0);
         return scalar_result(frame, &value, expression->type, conversion);
     }
+    if(value.kind==VALUE_INLINE_RECORD) {
+        Value field=inline_member(frame->vm,value,expression->name,field_index);
+        return scalar_result(frame,&field,expression->type,conversion);
+    }
     Value *field = NULL;
     if(value.kind == VALUE_RECORD && value.record != NULL) {
         /* An imported or differently instantiated shape can use another
@@ -1755,8 +1826,8 @@ scalar_member(Frame *frame, const ZirExpr *expression, Value value, int pointer,
             field = record_field_path(value.record, expression->name);
     }
     if(field == NULL) {
-        frame->vm->failed = 1;
-        return int_value(0);
+        Value nested=record_path_value(frame->vm,value,expression->name,expression->type);
+        return scalar_result(frame,&nested,expression->type,conversion);
     }
     if(value.record->type != NULL && value.record->type->is_union) {
         value = union_member_read(frame->vm, value.record, expression->type);
@@ -2211,6 +2282,24 @@ eval_expression(Frame *frame, int index, int depth)
             }
             break;
         }
+        if(value.kind==VALUE_INLINE_RECORD) {
+            const InlineRecord *shape=value.inline_record;
+            int count=0;
+            for(int child=expression->first_child;child>=0 && !frame->vm->failed;
+                child=frame->function->exprs[child].next_sibling) {
+                if(child>=frame->function->expr_count || ++count>VM_MAX_FIELDS) {
+                    frame->vm->failed=1;
+                    break;
+                }
+                const ZirExpr *item=&frame->function->exprs[child];
+                int field=inline_record_field(shape,item->name,UINT16_MAX);
+                if(field<0) {frame->vm->failed=1;break;}
+                Value initialized=eval(frame,item->right,depth+1);
+                inline_record_set(&value,(unsigned)field,coerce(frame->vm,shape->owner,
+                    initialized,shape->fields[field].type));
+            }
+            break;
+        }
         if(value.kind != VALUE_RECORD) {
             frame->vm->failed = 1;
             break;
@@ -2248,10 +2337,14 @@ eval_expression(Frame *frame, int index, int depth)
         /* p.field reads a field of the record p points at. */
         left = eval(frame, expression->left, depth + 1);
         Value target = frame->vm->failed ? (Value){0} : place_read(frame->vm, left);
+        if(target.kind==VALUE_INLINE_RECORD) {
+            value=inline_member(frame->vm,target,expression->name,UINT16_MAX);
+            break;
+        }
         Value *field = target.kind == VALUE_RECORD && target.record != NULL ?
                        record_field_path(target.record, expression->name) : NULL;
         if(field == NULL)
-            frame->vm->failed = 1;
+            value=record_path_value(frame->vm,target,expression->name,expression->type);
         else if(target.record->type != NULL && target.record->type->is_union)
             value = union_member_read(frame->vm, target.record, expression->type);
         else if(normalized_field_read(field, expression->type))
@@ -2276,6 +2369,10 @@ eval_expression(Frame *frame, int index, int depth)
                                      expression->type);
         }
         left = eval(frame, expression->left, depth + 1);
+        if(left.kind==VALUE_INLINE_RECORD) {
+            value=inline_member(frame->vm,left,expression->name,UINT16_MAX);
+            break;
+        }
         if(left.kind == VALUE_STRING &&
            strcmp(expression->name, "count") == 0) {
             value = int_value((int64_t)left.length);
@@ -2300,7 +2397,7 @@ eval_expression(Frame *frame, int index, int depth)
         Value *field = left.kind == VALUE_RECORD ?
                        record_field_path(left.record, expression->name) : NULL;
         if(field == NULL)
-            frame->vm->failed = 1;
+            value=record_path_value(frame->vm,left,expression->name,expression->type);
         else if(left.record->type != NULL && left.record->type->is_union)
             value = union_member_read(frame->vm, left.record,
                                       expression->type);
@@ -2468,7 +2565,7 @@ eval_expression(Frame *frame, int index, int depth)
                 break;
             }
             if(pointer.kind != VALUE_POINTER || pointer.array == NULL ||
-               !pointer.array->heap || pointer.array->freed) {
+               pointer.indexed!=1 || pointer.offset!=0 || !pointer.array->heap || pointer.array->freed) {
                 frame->vm->failed = 1;
                 break;
             }
@@ -2612,7 +2709,8 @@ eval_expression(Frame *frame, int index, int depth)
                 Value *data = record_field(vec->record, "data");
                 Value *count = record_field(vec->record, "count");
                 Value result;
-                Value *has_value, *item;
+                Value *has_value=NULL, *item=NULL;
+                int has_index=-1, item_index=-1;
                 int64_t at = -1;
                 if(record_type == NULL || data == NULL || count == NULL ||
                    count->kind != VALUE_INT || count->integer < 0) {
@@ -2632,9 +2730,15 @@ eval_expression(Frame *frame, int index, int depth)
                 result = default_value(frame->vm, owner, expression->type, 0);
                 if(frame->vm->failed)
                     break;
-                has_value = record_field(result.record, "has_value");
-                item = record_field(result.record, "value");
-                if(has_value == NULL || item == NULL) {
+                if(result.kind==VALUE_INLINE_RECORD) {
+                    has_index=inline_record_field(result.inline_record,"has_value",UINT16_MAX);
+                    item_index=inline_record_field(result.inline_record,"value",UINT16_MAX);
+                } else if(result.kind==VALUE_RECORD) {
+                    has_value = record_field(result.record, "has_value");
+                    item = record_field(result.record, "value");
+                }
+                if(result.kind==VALUE_INLINE_RECORD ? has_index<0 || item_index<0 :
+                   has_value == NULL || item == NULL) {
                     frame->vm->failed = 1;
                     break;
                 }
@@ -2647,17 +2751,20 @@ eval_expression(Frame *frame, int index, int depth)
                         frame->vm->failed = 1;
                         break;
                     }
-                    if(get)
-                        *item = coerce(frame->vm, frame->module, source,
-                                       element);
-                    else {
-                        *item = source;
+                    Value selected=get ? coerce(frame->vm, frame->module, source,element) : source;
+                    if(!get) {
                         array_set(data->array, position, (Value){0});
                         count->integer--;
                     }
                     if(frame->vm->failed)
                         break;
-                    *has_value = int_value(1);
+                    if(result.kind==VALUE_INLINE_RECORD) {
+                        inline_record_set(&result,(unsigned)item_index,selected);
+                        inline_record_set(&result,(unsigned)has_index,int_value(1));
+                    } else {
+                        *item=selected;
+                        *has_value=int_value(1);
+                    }
                 }
                 value = result;
                 break;

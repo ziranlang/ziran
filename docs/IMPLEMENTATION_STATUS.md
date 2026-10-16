@@ -1302,6 +1302,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   same canonical arithmetic and conversion rules. `bench/vm_native.py` adds
   matched generated C/Go controls with checked bodies and batch checksums,
   exposing the remaining interpreter gap without claiming full native parity.
+  Plan registers can borrow normalized locals and identity conversions for
+  the duration of a plan. Shared numeric operations write their live scalar
+  fields directly into destination slots, leaving inactive container words
+  untouched. Numeric literals snapshot their live fields before another
+  literal can replace the same cache entry. Calls, mutation and collection
+  remain outside plans; source/saved checks also exercise aliased coercion
+  destinations and forced literal-cache eviction.
 - Fresh record and fixed-array results can transfer their storage through
   local returns, direct calls, literals, initializers, and assignments. The VM
   retains the value-copy rules for existing bindings and globals. This transfer

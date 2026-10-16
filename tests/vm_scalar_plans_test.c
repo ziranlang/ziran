@@ -20,21 +20,73 @@ static void check_conversions(void)
             Vm canonical = {0}, cached = {0};
             Frame frame = {.vm = &cached};
             Value expected = coerce_expression(&canonical, NULL, values[value], types[type]);
-            Value actual = scalar_result(&frame, &values[value], types[type], scalar_conversion(types[type]));
-            assert(canonical.failed == cached.failed);
-            if(canonical.failed) continue;
-            assert(expected.kind == actual.kind);
-            if(expected.kind == VALUE_REAL) {
-                uint64_t a, b;
-                memcpy(&a, &expected.real, sizeof(a));
-                memcpy(&b, &actual.real, sizeof(b));
-                assert(a == b);
-            } else if(expected.kind == VALUE_INT) {
-                assert(expected.unsigned64 == actual.unsigned64);
-                assert(integer_bits(expected) == integer_bits(actual));
+            for(int mode = 0; mode < 3; mode++) {
+                cached.failed = 0;
+                Value input = values[value], output;
+                memset(&output, 0xa5, sizeof(output));
+                Value actual = mode == 0 ?
+                    scalar_result(&frame, &input, types[type], scalar_conversion(types[type])) :
+                    *scalar_coerce(&frame, &input, types[type], scalar_conversion(types[type]),
+                                     mode == 1 ? &output : &input);
+                assert(canonical.failed == cached.failed);
+                if(canonical.failed) continue;
+                assert(expected.kind == actual.kind);
+                if(expected.kind == VALUE_REAL) {
+                    uint64_t a, b;
+                    memcpy(&a, &expected.real, sizeof(a));
+                    memcpy(&b, &actual.real, sizeof(b));
+                    assert(a == b);
+                } else if(expected.kind == VALUE_INT) {
+                    assert(expected.unsigned64 == actual.unsigned64);
+                    assert(integer_bits(expected) == integer_bits(actual));
+                }
             }
         }
     }
+}
+
+static void check_literal_eviction(void)
+{
+    /* Two operands that replace the same numeric cache entry must retain
+     * their own values until the operation consumes both. */
+    enum { SLOTS = 4096, COUNT = SLOTS + 2 };
+    ZirExpr *expressions = calloc(COUNT, sizeof(*expressions));
+    int *seen = malloc(SLOTS * sizeof(*seen));
+    assert(expressions != NULL && seen != NULL);
+    for(int i = 0; i < SLOTS; i++) seen[i] = -1;
+    int left = -1, right = -1;
+    size_t collided = 0;
+    for(int i = 0; i < COUNT - 1; i++) {
+        uintptr_t hash = (uintptr_t)&expressions[i];
+        hash ^= hash >> 17;
+        hash ^= hash >> 9;
+        size_t slot = (hash >> 4) & (SLOTS - 1);
+        if(seen[slot] >= 0) {
+            left = seen[slot]; right = i; collided = slot; break;
+        }
+        seen[slot] = i;
+    }
+    assert(left >= 0 && right >= 0);
+    expressions[left] = (ZirExpr){.kind = ZIR_EXPR_INT, .text = "11", .type = "s64"};
+    expressions[right] = (ZirExpr){.kind = ZIR_EXPR_INT, .text = "31", .type = "s64"};
+    int root = COUNT - 1;
+    expressions[root] = (ZirExpr){.kind = ZIR_EXPR_BINARY, .left = left,
+                                 .right = right, .type = "s64"};
+    strcpy(expressions[root].op, "+");
+    ZirFunction function = {.exprs = expressions, .expr_count = COUNT};
+    VmInstance *instance = calloc(1, sizeof(*instance));
+    assert(instance != NULL);
+    Frame frame = {.vm = &instance->vm, .function = &function};
+    const ScalarPlan *plan = scalar_plan(&frame, root);
+    assert(plan != NULL && plan->count == 3);
+    for(int run = 0; run < 100; run++) {
+        Value result = eval(&frame, root, 0);
+        assert(!instance->vm.failed && result.kind == VALUE_INT && result.integer == 42);
+        assert(instance->vm.constant_sites[collided].expression == &expressions[right]);
+    }
+    VmInstanceClose(instance);
+    free(seen);
+    free(expressions);
 }
 
 static void check_short_plans(void)
@@ -105,6 +157,7 @@ int main(int argc, char **argv)
     assert(argc == 2);
     check_conversions();
     check_short_plans();
+    check_literal_eviction();
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
     ZibLawTable laws = {0};
     FILE *input = fopen(argv[1], "rb");

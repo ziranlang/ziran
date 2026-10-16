@@ -543,6 +543,187 @@ integer_operation_width(const char *type)
     return 32;
 }
 
+/* Plan registers need only the live scalar words. Container references are
+ * inactive for integers/reals and are never inspected or rooted for them. */
+static Value *
+int_result(Value *output, int64_t integer)
+{
+    output->kind = VALUE_INT;
+    output->unsigned64 = 0;
+    output->integer = integer;
+    output->bits = (uint64_t)integer;
+    return output;
+}
+
+static Value *
+uint_result(Value *output, uint64_t bits)
+{
+    output->kind = VALUE_INT;
+    output->unsigned64 = 1;
+    output->integer = 0;
+    output->bits = bits;
+    return output;
+}
+
+static Value *
+real_result(Value *output, double real)
+{
+    output->kind = VALUE_REAL;
+    output->unsigned64 = 0;
+    output->real = real;
+    return output;
+}
+
+/* Shared numeric rules for the canonical evaluator and scalar plans. Write
+ * to the caller's slot, without returning a whole aggregate through the ABI. */
+static Value *
+binary_numeric(Vm *vm, BinaryOperation operation, const Value *left_value,
+               const Value *right_value, int left_width, int right_width,
+               int left_unsigned, Value *output)
+{
+    int real = left_value->kind == VALUE_REAL || right_value->kind == VALUE_REAL;
+    if(vm->failed || operation == BinaryInvalid)
+        goto failed;
+    /* Integer arithmetic never needs floating conversion. Keep conversion
+     * and real comparisons together so integer loops do not construct two
+     * doubles for every arithmetic, bitwise or comparison operation. */
+    if(real) {
+        double a = as_real(*left_value), b = as_real(*right_value);
+        switch(operation) {
+        case BinaryEqual: return int_result(output, a == b);
+        case BinaryNotEqual: return int_result(output, a != b);
+        case BinaryLess: return int_result(output, a < b);
+        case BinaryLessEqual: return int_result(output, a <= b);
+        case BinaryGreater: return int_result(output, a > b);
+        case BinaryGreaterEqual: return int_result(output, a >= b);
+        case BinaryAdd: return real_result(output, a + b);
+        case BinarySubtract: return real_result(output, a - b);
+        case BinaryMultiply: return real_result(output, a * b);
+        case BinaryDivide: return real_result(output, a / b);
+        default: goto failed;
+        }
+    }
+    /* Shift width comes only from the left operand; other numeric operations
+     * use either operand's wide representation. */
+    int unsigned64 = left_width == -64 || right_width == -64;
+    int signed_wide = !unsigned64 && (left_width == 64 || right_width == 64);
+    uint64_t left_bits = integer_bits(*left_value);
+    uint64_t right_bits = integer_bits(*right_value);
+    if(operation == BinaryEqual)
+        return int_result(output, unsigned64 ? left_bits == right_bits :
+                         left_value->integer == right_value->integer);
+    if(operation == BinaryNotEqual)
+        return int_result(output, unsigned64 ? left_bits != right_bits :
+                         left_value->integer != right_value->integer);
+    if(operation == BinaryLess)
+        return int_result(output, unsigned64 ? left_bits < right_bits :
+                         left_value->integer < right_value->integer);
+    if(operation == BinaryLessEqual)
+        return int_result(output, unsigned64 ? left_bits <= right_bits :
+                         left_value->integer <= right_value->integer);
+    if(operation == BinaryGreater)
+        return int_result(output, unsigned64 ? left_bits > right_bits :
+                         left_value->integer > right_value->integer);
+    if(operation == BinaryGreaterEqual)
+        return int_result(output, unsigned64 ? left_bits >= right_bits :
+                         left_value->integer >= right_value->integer);
+    if(operation == BinaryAnd || operation == BinaryOr || operation == BinaryXor ||
+       operation == BinaryShiftLeft || operation == BinaryShiftRight) {
+        if(unsigned64 || signed_wide) {
+            if(operation == BinaryAnd)
+                return unsigned64 ? uint_result(output, left_bits & right_bits) :
+                                    int_result(output, signed64(left_bits & right_bits));
+            if(operation == BinaryOr)
+                return unsigned64 ? uint_result(output, left_bits | right_bits) :
+                                    int_result(output, signed64(left_bits | right_bits));
+            if(operation == BinaryXor)
+                return unsigned64 ? uint_result(output, left_bits ^ right_bits) :
+                                    int_result(output, signed64(left_bits ^ right_bits));
+            if((!right_value->unsigned64 && right_value->integer < 0) || right_bits >= 64)
+                goto failed;
+            if(operation == BinaryShiftLeft)
+                return unsigned64 ? uint_result(output, left_bits << right_bits) :
+                                    int_result(output, signed64(left_bits << right_bits));
+            if(unsigned64)
+                return uint_result(output, left_bits >> right_bits);
+            uint64_t shifted = left_bits >> right_bits;
+            if((left_bits & UINT64_C(0x8000000000000000)) != 0 &&
+               right_bits > 0)
+                shifted |= UINT64_MAX << (64 - right_bits);
+            return int_result(output, signed64(shifted));
+        }
+        uint32_t a_bits = (uint32_t)left_bits;
+        uint32_t b_bits = (uint32_t)right_bits;
+        if(operation == BinaryAnd)
+            return int_result(output, a_bits & b_bits);
+        if(operation == BinaryOr)
+            return int_result(output, a_bits | b_bits);
+        if(operation == BinaryXor)
+            return int_result(output, a_bits ^ b_bits);
+        unsigned width = (unsigned)left_width;
+        if((!right_value->unsigned64 && right_value->integer < 0) || right_bits >= width)
+            goto failed;
+        unsigned amount = (unsigned)right_bits;
+        uint32_t mask = width == 32 ? UINT32_MAX :
+                        (UINT32_C(1) << width) - 1;
+        a_bits &= mask;
+        if(operation == BinaryShiftLeft)
+            return int_result(output, (a_bits << amount) & mask);
+        uint32_t shifted = a_bits >> amount;
+        if(!left_unsigned &&
+           (a_bits & (UINT32_C(1) << (width - 1))) != 0 && amount > 0)
+            shifted |= mask ^ (mask >> amount);
+        return int_result(output, shifted & mask);
+    }
+    if(unsigned64) {
+        if(operation == BinaryAdd) return uint_result(output, left_bits + right_bits);
+        if(operation == BinarySubtract) return uint_result(output, left_bits - right_bits);
+        if(operation == BinaryMultiply) return uint_result(output, left_bits * right_bits);
+        if(operation == BinaryDivide && right_bits != 0)
+            return uint_result(output, left_bits / right_bits);
+        if(operation == BinaryRemainder && right_bits != 0)
+            return uint_result(output, left_bits % right_bits);
+        goto failed;
+    }
+    if(signed_wide) {
+        if(operation == BinaryAdd)
+            return int_result(output, signed64(left_bits + right_bits));
+        if(operation == BinarySubtract)
+            return int_result(output, signed64(left_bits - right_bits));
+        if(operation == BinaryMultiply)
+            return int_result(output, signed64(left_bits * right_bits));
+        if(right_value->integer == 0)
+            goto failed;
+        if(left_value->integer == INT64_MIN && right_value->integer == -1)
+            return int_result(output, operation == BinaryDivide ? INT64_MIN : 0);
+        if(operation == BinaryDivide)
+            return int_result(output, left_value->integer / right_value->integer);
+        if(operation == BinaryRemainder)
+            return int_result(output, left_value->integer % right_value->integer);
+        goto failed;
+    }
+    /* A u32 product can exceed INT64_MAX before its result is narrowed.
+     * Use defined unsigned intermediates for wrapping integer arithmetic,
+     * including abstract integer operands on this operation-width path. */
+    if(operation == BinaryAdd)
+        return int_result(output, signed64((uint64_t)left_value->integer + (uint64_t)right_value->integer));
+    if(operation == BinarySubtract)
+        return int_result(output, signed64((uint64_t)left_value->integer - (uint64_t)right_value->integer));
+    if(operation == BinaryMultiply)
+        return int_result(output, signed64((uint64_t)left_value->integer * (uint64_t)right_value->integer));
+    if(right_value->integer == 0)
+        goto failed;
+    if(left_value->integer == INT64_MIN && right_value->integer == -1)
+        return int_result(output, operation == BinaryDivide ? INT64_MIN : 0);
+    if(operation == BinaryDivide)
+        return int_result(output, left_value->integer / right_value->integer);
+    if(operation == BinaryRemainder)
+        return int_result(output, left_value->integer % right_value->integer);
+failed:
+    vm->failed = 1;
+    return int_result(output, 0);
+}
+
 /* Plan operands already live in stable slots for this calculation. Borrow
  * them so the C ABI need not copy two whole tagged Values into arguments. */
 static Value
@@ -550,7 +731,6 @@ binary_with_policy(Vm *vm, BinaryOperation operation, const Value *left_value,
                    const Value *right_value,
                    int left_width, int right_width, int left_unsigned)
 {
-    int real = left_value->kind == VALUE_REAL || right_value->kind == VALUE_REAL;
     int shift = operation == BinaryShiftLeft || operation == BinaryShiftRight;
     if(vm->failed || operation == BinaryInvalid ||
        left_value->kind == VALUE_VOID || right_value->kind == VALUE_VOID)
@@ -622,141 +802,10 @@ binary_with_policy(Vm *vm, BinaryOperation operation, const Value *left_value,
             return int_value(left_value->integer != right_value->integer);
         goto failed;
     }
-    /* Integer arithmetic never needs floating conversion. Keep conversion
-     * and real comparisons together so integer loops do not construct two
-     * doubles for every arithmetic, bitwise or comparison operation. */
-    if(real) {
-        double a = as_real(*left_value), b = as_real(*right_value);
-        switch(operation) {
-        case BinaryEqual: return int_value(a == b);
-        case BinaryNotEqual: return int_value(a != b);
-        case BinaryLess: return int_value(a < b);
-        case BinaryLessEqual: return int_value(a <= b);
-        case BinaryGreater: return int_value(a > b);
-        case BinaryGreaterEqual: return int_value(a >= b);
-        case BinaryAdd: return real_value(a + b);
-        case BinarySubtract: return real_value(a - b);
-        case BinaryMultiply: return real_value(a * b);
-        case BinaryDivide: return real_value(a / b);
-        default: goto failed;
-        }
-    }
-    /* Shift width comes only from the left operand; other numeric operations
-     * use either operand's wide representation. */
-    int unsigned64 = left_width == -64 || right_width == -64;
-    int signed_wide = !unsigned64 && (left_width == 64 || right_width == 64);
-    uint64_t left_bits = integer_bits(*left_value);
-    uint64_t right_bits = integer_bits(*right_value);
-    if(operation == BinaryEqual)
-        return int_value(unsigned64 ? left_bits == right_bits :
-                         left_value->integer == right_value->integer);
-    if(operation == BinaryNotEqual)
-        return int_value(unsigned64 ? left_bits != right_bits :
-                         left_value->integer != right_value->integer);
-    if(operation == BinaryLess)
-        return int_value(unsigned64 ? left_bits < right_bits :
-                         left_value->integer < right_value->integer);
-    if(operation == BinaryLessEqual)
-        return int_value(unsigned64 ? left_bits <= right_bits :
-                         left_value->integer <= right_value->integer);
-    if(operation == BinaryGreater)
-        return int_value(unsigned64 ? left_bits > right_bits :
-                         left_value->integer > right_value->integer);
-    if(operation == BinaryGreaterEqual)
-        return int_value(unsigned64 ? left_bits >= right_bits :
-                         left_value->integer >= right_value->integer);
-    if(operation == BinaryAnd || operation == BinaryOr || operation == BinaryXor ||
-       operation == BinaryShiftLeft || operation == BinaryShiftRight) {
-        if(unsigned64 || signed_wide) {
-            if(operation == BinaryAnd)
-                return unsigned64 ? uint_value(left_bits & right_bits) :
-                                    int_value(signed64(left_bits & right_bits));
-            if(operation == BinaryOr)
-                return unsigned64 ? uint_value(left_bits | right_bits) :
-                                    int_value(signed64(left_bits | right_bits));
-            if(operation == BinaryXor)
-                return unsigned64 ? uint_value(left_bits ^ right_bits) :
-                                    int_value(signed64(left_bits ^ right_bits));
-            if((!right_value->unsigned64 && right_value->integer < 0) || right_bits >= 64)
-                goto failed;
-            if(operation == BinaryShiftLeft)
-                return unsigned64 ? uint_value(left_bits << right_bits) :
-                                    int_value(signed64(left_bits << right_bits));
-            if(unsigned64)
-                return uint_value(left_bits >> right_bits);
-            uint64_t shifted = left_bits >> right_bits;
-            if((left_bits & UINT64_C(0x8000000000000000)) != 0 &&
-               right_bits > 0)
-                shifted |= UINT64_MAX << (64 - right_bits);
-            return int_value(signed64(shifted));
-        }
-        uint32_t a_bits = (uint32_t)left_bits;
-        uint32_t b_bits = (uint32_t)right_bits;
-        if(operation == BinaryAnd)
-            return int_value(a_bits & b_bits);
-        if(operation == BinaryOr)
-            return int_value(a_bits | b_bits);
-        if(operation == BinaryXor)
-            return int_value(a_bits ^ b_bits);
-        unsigned width = (unsigned)left_width;
-        if((!right_value->unsigned64 && right_value->integer < 0) || right_bits >= width)
-            goto failed;
-        unsigned amount = (unsigned)right_bits;
-        uint32_t mask = width == 32 ? UINT32_MAX :
-                        (UINT32_C(1) << width) - 1;
-        a_bits &= mask;
-        if(operation == BinaryShiftLeft)
-            return int_value((a_bits << amount) & mask);
-        uint32_t shifted = a_bits >> amount;
-        if(!left_unsigned &&
-           (a_bits & (UINT32_C(1) << (width - 1))) != 0 && amount > 0)
-            shifted |= mask ^ (mask >> amount);
-        return int_value(shifted & mask);
-    }
-    if(unsigned64) {
-        if(operation == BinaryAdd) return uint_value(left_bits + right_bits);
-        if(operation == BinarySubtract) return uint_value(left_bits - right_bits);
-        if(operation == BinaryMultiply) return uint_value(left_bits * right_bits);
-        if(operation == BinaryDivide && right_bits != 0)
-            return uint_value(left_bits / right_bits);
-        if(operation == BinaryRemainder && right_bits != 0)
-            return uint_value(left_bits % right_bits);
-        goto failed;
-    }
-    if(signed_wide) {
-        if(operation == BinaryAdd)
-            return int_value(signed64(left_bits + right_bits));
-        if(operation == BinarySubtract)
-            return int_value(signed64(left_bits - right_bits));
-        if(operation == BinaryMultiply)
-            return int_value(signed64(left_bits * right_bits));
-        if(right_value->integer == 0)
-            goto failed;
-        if(left_value->integer == INT64_MIN && right_value->integer == -1)
-            return int_value(operation == BinaryDivide ? INT64_MIN : 0);
-        if(operation == BinaryDivide)
-            return int_value(left_value->integer / right_value->integer);
-        if(operation == BinaryRemainder)
-            return int_value(left_value->integer % right_value->integer);
-        goto failed;
-    }
-    /* A u32 product can exceed INT64_MAX before its result is narrowed.
-     * Use defined unsigned intermediates for wrapping integer arithmetic,
-     * including abstract integer operands on this operation-width path. */
-    if(operation == BinaryAdd)
-        return int_value(signed64((uint64_t)left_value->integer + (uint64_t)right_value->integer));
-    if(operation == BinarySubtract)
-        return int_value(signed64((uint64_t)left_value->integer - (uint64_t)right_value->integer));
-    if(operation == BinaryMultiply)
-        return int_value(signed64((uint64_t)left_value->integer * (uint64_t)right_value->integer));
-    if(right_value->integer == 0)
-        goto failed;
-    if(left_value->integer == INT64_MIN && right_value->integer == -1)
-        return int_value(operation == BinaryDivide ? INT64_MIN : 0);
-    if(operation == BinaryDivide)
-        return int_value(left_value->integer / right_value->integer);
-    if(operation == BinaryRemainder)
-        return int_value(left_value->integer % right_value->integer);
+    Value result = {0};
+    binary_numeric(vm, operation, left_value, right_value,
+                   left_width, right_width, left_unsigned, &result);
+    return result;
 failed:
     vm->failed = 1;
     return int_value(0);
@@ -858,6 +907,49 @@ builtin_call(const char *name)
     return BuiltinNamed;
 }
 
+/* Cache entries may be replaced by another literal. Borrow only until the
+ * caller snapshots the live numeric words or returns its Value copy. */
+static const Value *
+numeric_literal(Frame *frame, const ZirExpr *expression, Value *output)
+{
+    Value value = int_value(0);
+    /* Checked numeric literals are immutable. Parse and coerce once per
+     * instance; the cache contains only scalars and enum type pointers. */
+    enum { SLOTS = 4096 };
+    uintptr_t hash = (uintptr_t)expression;
+    hash ^= hash >> 17;
+    hash ^= hash >> 9;
+    size_t slot = (hash >> 4) & (SLOTS - 1);
+    Vm *vm = frame->vm;
+    if(vm->constant_sites == NULL)
+        vm->constant_sites = calloc(SLOTS, sizeof(*vm->constant_sites));
+    if(vm->constant_sites != NULL &&
+       vm->constant_sites[slot].expression == expression &&
+       vm->constant_sites[slot].module == frame->module)
+        return &vm->constant_sites[slot].value;
+    char *end;
+    errno = 0;
+    if(expression->kind == ZIR_EXPR_FLOAT)
+        value = real_value(strtod(expression->text, &end));
+    else if(expression->text[0] == '-')
+        value = int_value(strtoll(expression->text, &end, 0));
+    else {
+        unsigned long long bits = strtoull(expression->text, &end, 0);
+        value = bits > INT64_MAX ? uint_value(bits) : int_value((int64_t)bits);
+    }
+    if(errno || end == expression->text || *end ||
+       (value.kind == VALUE_REAL && !isfinite(value.real))) {
+        vm->failed = 1;
+        *output = coerce_expression(vm, frame->module, value, expression->type);
+        return output;
+    }
+    value = coerce_expression(vm, frame->module, value, expression->type);
+    *output = value;
+    if(!vm->failed && vm->constant_sites != NULL)
+        vm->constant_sites[slot] = (VmConstantSite){expression, frame->module, value};
+    return output;
+}
+
 /* Leaves can allocate literal or coercion storage, but cannot execute a
  * function or trigger VM collection. Their caller stores the returned value
  * before evaluating another operand. Keep the full temporary root chain for
@@ -879,39 +971,8 @@ eval_leaf(Frame *frame, const ZirExpr *expression)
     }
     case ZIR_EXPR_INT:
     case ZIR_EXPR_FLOAT: {
-        /* Checked numeric literals are immutable. Parse and coerce once per
-         * instance; the cache contains only scalars and enum type pointers. */
-        enum { SLOTS = 4096 };
-        uintptr_t hash = (uintptr_t)expression;
-        hash ^= hash >> 17;
-        hash ^= hash >> 9;
-        size_t slot = (hash >> 4) & (SLOTS - 1);
-        Vm *vm = frame->vm;
-        if(vm->constant_sites == NULL)
-            vm->constant_sites = calloc(SLOTS, sizeof(*vm->constant_sites));
-        if(vm->constant_sites != NULL &&
-           vm->constant_sites[slot].expression == expression &&
-           vm->constant_sites[slot].module == frame->module)
-            return vm->constant_sites[slot].value;
-        char *end;
-        errno = 0;
-        if(expression->kind == ZIR_EXPR_FLOAT)
-            value = real_value(strtod(expression->text, &end));
-        else if(expression->text[0] == '-')
-            value = int_value(strtoll(expression->text, &end, 0));
-        else {
-            unsigned long long bits = strtoull(expression->text, &end, 0);
-            value = bits > INT64_MAX ? uint_value(bits) : int_value((int64_t)bits);
-        }
-        if(errno || end == expression->text || *end ||
-           (value.kind == VALUE_REAL && !isfinite(value.real))) {
-            vm->failed = 1;
-            break;
-        }
-        value = coerce_expression(vm, frame->module, value, expression->type);
-        if(!vm->failed && vm->constant_sites != NULL)
-            vm->constant_sites[slot] = (VmConstantSite){expression, frame->module, value};
-        return value;
+        Value literal;
+        return *numeric_literal(frame, expression, &literal);
     }
     case ZIR_EXPR_STRING:
         value = literal_string(frame->vm, expression);
@@ -1046,32 +1107,54 @@ scalar_conversion(const char *type)
  * checks, aggregate borrows, enum validation and pointers keep the canonical
  * conversion path; their current value is never cached in a plan. Borrow the
  * input slot rather than passing the whole tagged Value through the ABI. */
-static Value
-scalar_result(Frame *frame, const Value *input, const char *type,
-              ScalarConversion conversion)
+static const Value *
+scalar_integer_result(const Value *input, Value *output, int64_t integer)
+{
+    if(input->kind == VALUE_INT && !input->unsigned64 &&
+       input->integer == integer && input->bits == (uint64_t)integer)
+        return input;
+    return int_result(output, integer);
+}
+
+static const Value *
+scalar_coerce(Frame *frame, const Value *input, const char *type,
+              ScalarConversion conversion, Value *output)
 {
     if(input->kind == VALUE_INT || input->kind == VALUE_REAL || input->kind == VALUE_ENUM) {
-        if(conversion == ScalarInteger) return *input;
-        if(conversion == ScalarBool) return int_value(truthy(*input));
-        if(conversion == ScalarF32) return real_value((float)as_real(*input));
-        if(conversion == ScalarF64) return real_value(as_real(*input));
+        if(conversion == ScalarInteger) return input;
+        if(conversion == ScalarBool)
+            return scalar_integer_result(input, output, truthy(*input));
+        if(conversion == ScalarF32) return real_result(output, (float)as_real(*input));
+        if(conversion == ScalarF64)
+            return input->kind == VALUE_REAL ? input : real_result(output, as_real(*input));
         if(input->kind != VALUE_REAL) {
             uint64_t bits = integer_bits(*input);
             switch(conversion) {
-            case ScalarS8: return int_value((int8_t)(uint8_t)bits);
-            case ScalarU8: return int_value((uint8_t)bits);
-            case ScalarS16: return int_value((int16_t)(uint16_t)bits);
-            case ScalarU16: return int_value((uint16_t)bits);
-            case ScalarS32: return int_value((uint32_t)bits <= INT32_MAX ?
+            case ScalarS8: return scalar_integer_result(input, output, (int8_t)(uint8_t)bits);
+            case ScalarU8: return scalar_integer_result(input, output, (uint8_t)bits);
+            case ScalarS16: return scalar_integer_result(input, output, (int16_t)(uint16_t)bits);
+            case ScalarU16: return scalar_integer_result(input, output, (uint16_t)bits);
+            case ScalarS32: return scalar_integer_result(input, output, (uint32_t)bits <= INT32_MAX ?
                 (int64_t)(uint32_t)bits : (int64_t)(uint32_t)bits - INT64_C(4294967296));
-            case ScalarU32: return int_value((uint32_t)bits);
-            case ScalarS64: return int_value(signed64(bits));
-            case ScalarU64: return uint_value(bits);
+            case ScalarU32: return scalar_integer_result(input, output, (uint32_t)bits);
+            case ScalarS64: return scalar_integer_result(input, output, signed64(bits));
+            case ScalarU64:
+                return input->kind == VALUE_INT && input->unsigned64 && input->integer == 0 ?
+                    input : uint_result(output, bits);
             default: break;
             }
         }
     }
-    return coerce_expression(frame->vm, frame->module, *input, type);
+    *output = coerce_expression(frame->vm, frame->module, *input, type);
+    return output;
+}
+
+static Value
+scalar_result(Frame *frame, const Value *input, const char *type,
+              ScalarConversion conversion)
+{
+    Value output = {0};
+    return *scalar_coerce(frame, input, type, conversion, &output);
 }
 
 typedef struct ScalarStep {
@@ -1311,7 +1394,12 @@ scalar_member(Frame *frame, const ZirExpr *expression, Value value, int pointer,
 static Value
 scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
 {
-    Value values[SCALAR_PLAN_STEPS];
+    /* A plan cannot mutate bindings, call functions or collect storage.
+     * Borrow normalized local slots and completed registers until it ends.
+     * Every materialized result has its own stable destination; inactive
+     * container words of numeric results need not be initialized or copied. */
+    Value storage[SCALAR_PLAN_STEPS];
+    const Value *values[SCALAR_PLAN_STEPS];
     for(int pc = 0; pc < plan->count && !frame->vm->failed; pc++) {
         const ScalarStep *step = &plan->steps[pc];
         const ZirExpr *expression = step->expression;
@@ -1319,36 +1407,67 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
             frame->vm->failed = 1;
             break;
         }
+        Value *output = &storage[step->output];
         Value value;
         switch(step->op) {
-        case SCALAR_LEAF:
-            values[step->output] = eval_leaf(frame, expression);
+        case SCALAR_LEAF: {
+            const char *name = expression->name;
+            Local *local = expression->kind == ZIR_EXPR_IDENT &&
+                !(name[0] == 't' && !strcmp(name, "true")) &&
+                !(name[0] == 'f' && !strcmp(name, "false")) &&
+                !(name[0] == 'n' && !strcmp(name, "null")) ?
+                find_local(frame, name) : NULL;
+            if(local != NULL && local->value.kind != VALUE_INVALID &&
+               local->type == expression->type)
+                values[step->output] = &local->value;
+            else if(expression->kind == ZIR_EXPR_INT || expression->kind == ZIR_EXPR_FLOAT) {
+                const Value *literal = numeric_literal(frame, expression, output);
+                /* A later literal can evict this cache entry. Snapshot its
+                 * live words before evaluating the next operand. */
+                if(literal != output) {
+                    if(literal->kind == VALUE_REAL)
+                        real_result(output, literal->real);
+                    else if(literal->kind == VALUE_INT && literal->unsigned64)
+                        uint_result(output, literal->bits);
+                    else if(literal->kind == VALUE_INT)
+                        int_result(output, literal->integer);
+                    else
+                        *output = *literal;
+                }
+                values[step->output] = output;
+            } else {
+                *output = eval_leaf(frame, expression);
+                values[step->output] = output;
+            }
             continue;
+        }
         case SCALAR_AND:
         case SCALAR_OR: {
-            int truth = truthy(values[step->left]);
+            int truth = truthy(*values[step->left]);
             if((step->op == SCALAR_AND && !truth) || (step->op == SCALAR_OR && truth)) {
-                values[step->output] = int_value(truth);
+                values[step->output] = int_result(output, truth);
                 pc = step->target - 1;
             }
             continue;
         }
         case SCALAR_FALSE:
-            if(!truthy(values[step->left])) pc = step->target - 1;
+            if(!truthy(*values[step->left])) pc = step->target - 1;
             continue;
         case SCALAR_JUMP:
             pc = step->target - 1;
             continue;
         case SCALAR_COPY:
-            value = values[step->left];
-            break;
+            values[step->output] = scalar_coerce(frame, values[step->left],
+                expression->type, (ScalarConversion)step->conversion, output);
+            continue;
         case SCALAR_MEMBER:
         case SCALAR_POINTER_MEMBER:
-            values[step->output] = scalar_member(frame, expression, values[step->left],
+            *output = scalar_member(frame, expression, *values[step->left],
                 step->op == SCALAR_POINTER_MEMBER, (ScalarConversion)step->conversion);
+            values[step->output] = output;
             continue;
         case SCALAR_INDEX: {
-            Value left = values[step->left], right = values[step->right];
+            Value left = *values[step->left], right = *values[step->right];
             if(right.kind != VALUE_INT || (!right.unsigned64 && right.integer < 0)) {
                 frame->vm->failed = 1;
                 break;
@@ -1364,18 +1483,23 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
                 value = place_read(frame->vm, element);
                 if(!frame->vm->failed && normalized_scalar_read(value,
                        element.array->element_type, expression->type)) {
-                    values[step->output] = value;
+                    *output = value;
+                    values[step->output] = output;
                     continue;
                 }
             }
             break;
         }
-        case SCALAR_CAST:
-            value = scalar_result(frame, &values[step->right], expression->name,
-                                  (ScalarConversion)step->cast_conversion);
-            break;
+        case SCALAR_CAST: {
+            const Value *cast = scalar_coerce(frame, values[step->right], expression->name,
+                                              (ScalarConversion)step->cast_conversion, output);
+            if(!frame->vm->failed)
+                values[step->output] = scalar_coerce(frame, cast, expression->type,
+                    (ScalarConversion)step->conversion, output);
+            continue;
+        }
         case SCALAR_UNARY: {
-            Value right = values[step->right];
+            Value right = *values[step->right];
             if(!strcmp(expression->op, "*")) value = place_read(frame->vm, right);
             else if(!strcmp(expression->op, "-"))
                 value = right.kind == VALUE_REAL ? real_value(-right.real) :
@@ -1390,22 +1514,36 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
             break;
         }
         case SCALAR_TRUTH:
-            value = int_value(truthy(values[step->right]));
-            break;
+            int_result(output, truthy(*values[step->right]));
+            values[step->output] = scalar_coerce(frame, output, expression->type,
+                (ScalarConversion)step->conversion, output);
+            continue;
         case SCALAR_BINARY:
+            if((values[step->left]->kind == VALUE_INT || values[step->left]->kind == VALUE_REAL) &&
+               (values[step->right]->kind == VALUE_INT || values[step->right]->kind == VALUE_REAL)) {
+                binary_numeric(frame->vm, (BinaryOperation)step->operation,
+                    values[step->left], values[step->right], step->left_width,
+                    step->right_width, step->left_unsigned, output);
+                if(!frame->vm->failed)
+                    values[step->output] = scalar_coerce(frame, output, expression->type,
+                        (ScalarConversion)step->conversion, output);
+                continue;
+            }
             value = binary_with_policy(frame->vm, (BinaryOperation)step->operation,
-                &values[step->left], &values[step->right], step->left_width,
+                values[step->left], values[step->right], step->left_width,
                 step->right_width, step->left_unsigned);
             break;
         default:
             frame->vm->failed = 1;
             break;
         }
-        if(!frame->vm->failed)
-            values[step->output] = scalar_result(frame, &value, expression->type,
-                                                 (ScalarConversion)step->conversion);
+        if(!frame->vm->failed) {
+            *output = value;
+            values[step->output] = scalar_coerce(frame, output, expression->type,
+                (ScalarConversion)step->conversion, output);
+        }
     }
-    return frame->vm->failed ? int_value(0) : values[plan->output];
+    return frame->vm->failed ? int_value(0) : *values[plan->output];
 }
 
 static Value

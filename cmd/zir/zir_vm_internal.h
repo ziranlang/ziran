@@ -453,7 +453,7 @@ struct Frame {
     Local *locals;
     int local_capacity;
     int local_count;
-    int returned_local;
+    int returned_owned;
     int control_target;
     /* Set while a union member is the assignment destination. */
     Record *union_write_record;

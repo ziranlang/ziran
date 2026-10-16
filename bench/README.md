@@ -87,8 +87,10 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vm_execution.py \
 ```
 
 This suite generates integer arithmetic, mixed signed/unsigned comparisons,
-floating-point arithmetic, record calls over an array, and population-count
-workloads. Each uses a separate Python result calculation. Source and saved IR
+floating-point arithmetic, record calls over an array, fixed-array returns,
+and population-count workloads. The array case passes a 4,096-element value
+through two functions and checks untouched zero elements as well as both ends.
+Each uses a separate Python result calculation. Source and saved IR
 must create identical bundles, and both runtime versions must recreate the
 source bundle before timing. Every first and repeated run must match the oracle.
 The default uses ten thousand numeric iterations and nine repeated executions

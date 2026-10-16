@@ -112,6 +112,27 @@ Answer :: () -> s64 {
 }
 '''.replace('ROUNDS', str(max(1, iterations // 32))), total
 
+    rounds = max(1, iterations // 128)
+    yield 'array-returns', '''Make :: (seed: s64) -> [4096]s64 {
+    values: [4096]s64
+    values[0] = seed
+    values[4095] = seed + 1
+    return values
+}
+Relay :: (seed: s64) -> [4096]s64 { return Make(seed) }
+#program_export
+Answer :: () -> s64 {
+    total: s64
+    round: s32
+    while round < ROUNDS {
+        values := Relay(cast(s64)round)
+        total += values[0] + values[17] + values[4095]
+        round += 1
+    }
+    return total
+}
+'''.replace('ROUNDS', str(rounds)), sum(i + i + 1 for i in range(rounds))
+
     yield 'popcount', cpu_features.source(iterations), cpu_features.oracle(iterations)
 
 

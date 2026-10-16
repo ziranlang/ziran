@@ -203,14 +203,23 @@ execute_sequence(Frame *frame, int begin, int end, int depth, Value *result);
 
 static int return_storage_owned(Value value, int depth);
 
+static uint64_t
+storage_allocation(Value value)
+{
+    if(value.kind == VALUE_RECORD && value.record != NULL)
+        return value.record->allocation;
+    if(value.kind == VALUE_ARRAY && value.array != NULL)
+        return value.array->allocation;
+    return 0;
+}
+
 /* A call or aggregate literal can hand fresh, unaliased storage directly to
  * its destination. Reads of existing bindings still preserve value copying. */
 static Value
 coerce_storage_expression(Frame *frame, int expression, Value value,
                           const char *type, uint64_t allocation_entry)
 {
-    if(expression >= 0 && value.kind == VALUE_RECORD && value.record != NULL &&
-       value.record->allocation > allocation_entry &&
+    if(expression >= 0 && storage_allocation(value) > allocation_entry &&
        (frame->function->exprs[expression].kind == ZIR_EXPR_CALL ||
         frame->function->exprs[expression].kind == ZIR_EXPR_COMPOUND) &&
        !vm_type_contains_vec(frame->vm, frame->module, type, 0) &&
@@ -335,20 +344,29 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             vm->evaluation_roots = roots.previous;
             break;
         }
-        case ZIR_STMT_RETURN:
+        case ZIR_STMT_RETURN: {
+            uint64_t allocation_entry = vm->allocation;
             *result = statement->expr_root >= 0 ?
                 eval(frame, statement->expr_root, 0) : int_value(0);
-            if(statement->expr_root >= 0 && result->kind == VALUE_RECORD &&
-               function->exprs[statement->expr_root].kind == ZIR_EXPR_IDENT) {
-                const char *name = function->exprs[statement->expr_root].name;
-                for(int i = frame->local_count - 1; i >= 0; i--)
-                    if(!strcmp(frame->locals[i].name, name)) {
-                        frame->returned_local = frame->locals[i].value.kind == VALUE_RECORD &&
-                            frame->locals[i].value.record == result->record;
-                        break;
-                    }
+            if(statement->expr_root >= 0 &&
+               (result->kind == VALUE_RECORD || result->kind == VALUE_ARRAY)) {
+                const ZirExpr *expression = &function->exprs[statement->expr_root];
+                frame->returned_owned = storage_allocation(*result) > allocation_entry &&
+                    (expression->kind == ZIR_EXPR_CALL || expression->kind == ZIR_EXPR_COMPOUND);
+                const char *name = expression->name;
+                if(expression->kind == ZIR_EXPR_IDENT) {
+                    for(int i = frame->local_count - 1; i >= 0; i--)
+                        if(!strcmp(frame->locals[i].name, name)) {
+                            Value local = frame->locals[i].value;
+                            frame->returned_owned = local.kind == result->kind &&
+                                (local.kind == VALUE_RECORD ? local.record == result->record :
+                                                             local.array == result->array);
+                            break;
+                        }
+                }
             }
             return vm->failed ? FLOW_ERROR : FLOW_RETURN;
+        }
         case ZIR_STMT_UNREACHABLE:
             Diagnostic(statement->span, "vm.unreachable", "unreachable code executed");
             vm->failed = 1;
@@ -1240,9 +1258,9 @@ give_setup(Vm *vm, CallSetup **setup)
     *setup = NULL;
 }
 
-/* A fresh local record can become the return value without a second deep
- * copy. Borrowed fields or array elements can escape through pointers, so
- * those records still materialize a separate value at the return boundary. */
+/* Fresh local, call and literal aggregates can become the return value without
+ * a second deep copy. Borrowed fields or array elements can escape through
+ * pointers, so those aggregates still materialize a separate value. */
 static int
 return_storage_owned(Value value, int depth)
 {
@@ -1388,8 +1406,8 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
        (flow != FLOW_RETURN && strcmp(function->return_type, "void") != 0))
         vm->failed = 1;
     uint64_t allocation_before_result = vm->allocation;
-    Value returned = buffers->frame.returned_local && result.record != NULL &&
-        result.record->allocation > allocation_entry &&
+    Value returned = buffers->frame.returned_owned &&
+        storage_allocation(result) > allocation_entry &&
         !vm_type_contains_vec(vm, module, function->return_type, 0) &&
         return_storage_owned(result, 0) ?
         coerce_expression(vm, module, result, function->return_type) :

@@ -1,0 +1,114 @@
+Point :: struct { x: s32; y: s32; }
+Packet :: struct { values: [4]s32; text: string; }
+saved_point: Point;
+saved_array: [4]s32;
+heap: *Point;
+
+MakeRecord :: (seed: s32) -> Point { return Point.{seed, seed + 1} }
+RelayRecord :: (seed: s32) -> Point { return MakeRecord(seed) }
+MakeArray :: (seed: s32) -> [4]s32 {
+    values: [4]s32
+    values[0] = seed
+    values[3] = seed + 1
+    return values
+}
+RelayArray :: (seed: s32) -> [4]s32 { return MakeArray(seed) }
+MakeArrayLiteral :: (seed: s32) -> [4]s32 {
+    return s32.[seed, 0, 0, seed + 1]
+}
+GuardedRecord :: () -> Point {
+    value: Point
+    pointer := *value.x
+    <<pointer = 42
+    return value
+}
+GuardedArray :: () -> [4]s32 {
+    values: [4]s32
+    view := values[:]
+    view[0] = 42
+    return values
+}
+GuardedPointerArray :: () -> [4]s32 {
+    values: [4]s32
+    pointer := *values[0]
+    <<pointer = 42
+    return values
+}
+GuardedNested :: () -> Packet {
+    value: Packet
+    view := value.values[:]
+    view[0] = 42
+    return value
+}
+GlobalRecord :: () -> Point {
+    saved_point = MakeRecord(40)
+    return saved_point
+}
+GlobalArray :: () -> [4]s32 {
+    saved_array = MakeArray(40)
+    return saved_array
+}
+HeapRecord :: () -> Point { return <<heap }
+MakePacket :: () -> Packet {
+    return Packet.{values = RelayArray(40), text = "a\x00z"}
+}
+NestedReturn :: () -> [4]s32 {
+    if true {
+        values := RelayArray(40)
+        return values
+    }
+    return MakeArrayLiteral(0)
+}
+Choose :: (fresh: bool) -> Point {
+    if fresh { return RelayRecord(40) }
+    return saved_point
+}
+
+#program_export
+Answer :: () -> s32 {
+    point := RelayRecord(40)
+    point.x += 2
+    if point.x != 42 || point.y != 41 { return 1 }
+    values := RelayArray(40)
+    if values[0] != 40 || values[1] != 0 || values[3] != 41 { return 2 }
+    copy := values
+    copy[0] = 99
+    if values[0] != 40 { return 3 }
+    view := values[:]
+    pointer := *values[3]
+    values = RelayArray(50)
+    if view[0] != 50 || <<pointer != 51 { return 4 }
+    values = MakeArrayLiteral(60)
+    if view[0] != 60 || <<pointer != 61 || values[2] != 0 { return 5 }
+    copied_point := GlobalRecord()
+    copied_point.x = 99
+    if saved_point.x != 40 { return 6 }
+    copied_array := GlobalArray()
+    copied_array[0] = 99
+    if saved_array[0] != 40 { return 7 }
+    heap = New(Point)
+    heap.x = 40
+    copied_heap := HeapRecord()
+    copied_heap.x = 99
+    if heap.x != 40 { free(heap); return 8 }
+    free(heap)
+    heap = null
+    packet := MakePacket()
+    packet_copy := packet
+    packet_copy.values[0] = 99
+    if packet.values[0] != 40 || packet.text.count != 3 ||
+       packet.text[1] != cast(u8)0 { return 9 }
+    nested := NestedReturn()
+    if nested[0] != 40 || nested[3] != 41 { return 10 }
+    guarded := GuardedRecord()
+    guarded_array := GuardedArray()
+    guarded_pointer := GuardedPointerArray()
+    guarded_nested := GuardedNested()
+    if guarded.x != 42 || guarded_array[0] != 42 ||
+       guarded_pointer[0] != 42 || guarded_nested.values[0] != 42 { return 11 }
+    selected := Choose(true)
+    stored := Choose(false)
+    stored.x = 99
+    if selected.x != 40 || saved_point.x != 40 { return 12 }
+    return 42
+}

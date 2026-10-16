@@ -1242,6 +1242,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   record and array storage is reclaimed after a value copy; the portable VM
   currently allows up to 256 MiB each of tracked record and array allocations
   so large checked parsers such as Kryon's KSS parser can execute.
+- Fresh record and fixed-array results can transfer their storage through
+  local returns, direct calls, literals, initializers, and assignments. The VM
+  retains the value-copy rules for existing bindings and globals. This transfer
+  path excludes aggregates containing owned vectors and storage reached by
+  pointers or borrowed array views.
+  `tests/vm_return_storage.sh` checks allocation counts and value isolation,
+  including replacement through existing views, nested fields, heap and global
+  reads, and source/saved-IR agreement with native C and C++.
 - The portable runner has pointers to its own storage: `*place` takes the
   address of a local, global, record field, or array element; `<<p` and
   `p.*` read and write through it; `p.field` reaches a pointed-to record; and

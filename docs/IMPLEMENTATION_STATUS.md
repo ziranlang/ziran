@@ -1309,6 +1309,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   literal can replace the same cache entry. Calls, mutation and collection
   remain outside plans; source/saved checks also exercise aliased coercion
   destinations and forced literal-cache eviction.
+  Ordinary numeric operations, including compound assignments, enter the
+  same numeric worker directly after checking their operand kinds and width
+  policy. Other values retain the general dispatcher.
 - Fresh record and fixed-array results can transfer their storage through
   local returns, direct calls, literals, initializers, and assignments. The VM
   retains the value-copy rules for existing bindings and globals. This transfer

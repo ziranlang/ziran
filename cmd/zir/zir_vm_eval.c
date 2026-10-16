@@ -824,6 +824,10 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
         if(operation != BinaryShiftLeft && operation != BinaryShiftRight)
             right_width = integer_operation_width(right_type);
         left_unsigned = left_type[0] == 'u';
+        Value result = {0};
+        binary_numeric(vm, operation, &left, &right,
+                       left_width, right_width, left_unsigned, &result);
+        return result;
     }
     return binary_with_policy(vm, operation, &left, &right,
                               left_width, right_width, left_unsigned);

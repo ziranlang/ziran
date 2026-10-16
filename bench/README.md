@@ -196,6 +196,33 @@ and peak RSS includes startup/runtime memory. ARMv7 uses the checked body for
 this fixture's x86_64/AArch64 assembly variants. Cross-build observations do
 not establish Go-like compilation speed on Android.
 
+To compare the same seven portable workloads across saved VM libraries:
+
+```sh
+python3 bench/vm_android.py prepare \
+  --vm-results build/benchmarks/vm-execution \
+  --out build/benchmarks/vm-json/android \
+  --ndk "$ANDROID_NDK_HOME" --abi armeabi-v7a \
+  --library before PATH/TO/BASELINE/libziran.a \
+  --library after build/bundle-runtime/android-armeabi-v7a/libziran.a
+python3 bench/vm_android.py run \
+  --out build/benchmarks/vm-json/android --serial DEVICE_SERIAL --cpu 0
+```
+
+Libraries must match the selected ABI and current VM API. Add another
+`--library LABEL PATH` to retain an earlier reference alongside a recent
+baseline. Preparation verifies fixture sources and expected results against
+the independent generator and records library, runner and bundle hashes.
+The device stage runs every variant consecutively for each case/repetition,
+with shuffled groups and rotated variant orders that balance positions across
+repetitions. It discards process warmups.
+It saves each sample immediately, refuses to overwrite results, checks
+transferred files, and verifies removal of its own remote directory.
+`--cpu` pins only the test child; omit it to retain normal scheduling.
+Record affinity with the results: neither mode controls device frequency,
+temperature or background activity, and a result on one core or ABI does not
+establish gains on another.
+
 ## CPU-selected assembly
 
 ```sh

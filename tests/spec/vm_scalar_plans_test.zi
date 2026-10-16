@@ -14,9 +14,11 @@ epoch: s32;
 missing: *Row;
 
 Mutate :: () -> s32 { row.value += 1; return row.value }
+Multiply32 :: (left: u32, right: u32) -> u32 { return left * right }
 
 #program_export
 Answer :: () -> s32 {
+    if Multiply32(4294967295, 4294967295) != cast(u32)1 { return 13 }
     epoch += 1
     row.value = epoch
     row.byte = 255

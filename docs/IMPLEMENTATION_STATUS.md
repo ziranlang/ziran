@@ -1256,8 +1256,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   copied results. A repeated nested call over a 4,096-record array checks
   value isolation without exhausting the VM's allocation limit. Replaced
   record and array storage is reclaimed after a value copy; the portable VM
-  currently allows up to 256 MiB each of tracked record and array allocations
+  currently allows up to 1 GiB each of tracked record and array allocations
   so large checked parsers such as Kryon's KSS parser can execute.
+- Portable scalar plans retain checked operations and coercion policies for
+  short binary expressions as well as larger expression trees. Repeated
+  execution still reads current bindings and preserves branch selection,
+  numeric widths, and depth checks. Integer arithmetic uses unsigned
+  intermediates before narrowing, including `u32` products that exceed the
+  signed 64-bit range. `tests/vm_scalar_plans.sh` checks cold and cached plans,
+  numeric boundaries, rejected divisors and shifts, source/saved IR, and
+  independent instance lifetimes.
 - Fresh record and fixed-array results can transfer their storage through
   local returns, direct calls, literals, initializers, and assignments. The VM
   retains the value-copy rules for existing bindings and globals. This transfer

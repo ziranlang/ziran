@@ -737,9 +737,15 @@ binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
             return int_value(left.integer % right.integer);
         goto failed;
     }
-    if(operation == BinaryAdd) return int_value(left.integer + right.integer);
-    if(operation == BinarySubtract) return int_value(left.integer - right.integer);
-    if(operation == BinaryMultiply) return int_value(left.integer * right.integer);
+    /* A u32 product can exceed INT64_MAX before its result is narrowed.
+     * Use defined unsigned intermediates for wrapping integer arithmetic,
+     * including abstract integer operands on this operation-width path. */
+    if(operation == BinaryAdd)
+        return int_value(signed64((uint64_t)left.integer + (uint64_t)right.integer));
+    if(operation == BinarySubtract)
+        return int_value(signed64((uint64_t)left.integer - (uint64_t)right.integer));
+    if(operation == BinaryMultiply)
+        return int_value(signed64((uint64_t)left.integer * (uint64_t)right.integer));
     if(operation == BinaryDivide && right.integer != 0)
         return int_value(left.integer / right.integer);
     if(operation == BinaryRemainder && right.integer != 0)
@@ -1233,7 +1239,9 @@ scalar_plan(Frame *frame, int index)
     vm->scalar_site_count++;
     ScalarBuilder builder = {.function = frame->function};
     int output = scalar_compile(&builder, index, 0);
-    if(output < 0 || builder.count < 6)
+    /* Even a binary operation on two leaves benefits from retaining its
+     * checked operation and coercion policy across repeated execution. */
+    if(output < 0 || builder.count < 3)
         return NULL;
     ScalarPlan *plan = malloc(sizeof(*plan) + (size_t)builder.count * sizeof(*plan->steps));
     if(plan == NULL)

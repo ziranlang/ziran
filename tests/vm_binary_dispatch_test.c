@@ -23,6 +23,9 @@ main(void)
     assert(calculate(&vm, "/", int_value(INT64_MIN), int_value(-1), "s64", "s64").integer == INT64_MIN);
     assert(calculate(&vm, "%", int_value(INT64_MIN), int_value(-1), "s64", "s64").integer == 0);
     assert(calculate(&vm, "+", uint_value(UINT64_MAX), uint_value(1), "u64", "u64").bits == 0);
+    assert(calculate(&vm, "+", int_value(INT64_MAX), int_value(1), "integer", "integer").integer == INT64_MIN);
+    assert(calculate(&vm, "-", int_value(INT64_MIN), int_value(1), "integer", "integer").integer == INT64_MAX);
+    assert(calculate(&vm, "*", int_value(UINT32_MAX), int_value(UINT32_MAX), "u32", "u32").integer == -INT64_C(8589934591));
     assert(calculate(&vm, ">", uint_value(UINT64_MAX), int_value(5), "u64", "s64").integer == 1);
     assert(calculate(&vm, "/", uint_value(UINT64_MAX), uint_value(3), "u64", "u64").bits == UINT64_MAX / 3);
     assert(calculate(&vm, "&", int_value(13), int_value(6), "s32", "s32").integer == 4);

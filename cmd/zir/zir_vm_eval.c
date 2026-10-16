@@ -543,65 +543,68 @@ integer_operation_width(const char *type)
     return 32;
 }
 
+/* Plan operands already live in stable slots for this calculation. Borrow
+ * them so the C ABI need not copy two whole tagged Values into arguments. */
 static Value
-binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
+binary_with_policy(Vm *vm, BinaryOperation operation, const Value *left_value,
+                   const Value *right_value,
                    int left_width, int right_width, int left_unsigned)
 {
-    int real = left.kind == VALUE_REAL || right.kind == VALUE_REAL;
+    int real = left_value->kind == VALUE_REAL || right_value->kind == VALUE_REAL;
     int shift = operation == BinaryShiftLeft || operation == BinaryShiftRight;
     if(vm->failed || operation == BinaryInvalid ||
-       left.kind == VALUE_VOID || right.kind == VALUE_VOID)
+       left_value->kind == VALUE_VOID || right_value->kind == VALUE_VOID)
         goto failed;
-    if(left.kind == VALUE_SLOT || right.kind == VALUE_SLOT) {
-        if((left.kind != VALUE_SLOT &&
-            (left.kind != VALUE_INT || integer_bits(left) != 0)) ||
-           (right.kind != VALUE_SLOT &&
-            (right.kind != VALUE_INT || integer_bits(right) != 0)))
+    if(left_value->kind == VALUE_SLOT || right_value->kind == VALUE_SLOT) {
+        if((left_value->kind != VALUE_SLOT &&
+            (left_value->kind != VALUE_INT || integer_bits(*left_value) != 0)) ||
+           (right_value->kind != VALUE_SLOT &&
+            (right_value->kind != VALUE_INT || integer_bits(*right_value) != 0)))
             goto failed;
-        const ZirFunction *a_function = left.kind == VALUE_SLOT ? left.slot_function : NULL;
-        const ZirFunction *b_function = right.kind == VALUE_SLOT ? right.slot_function : NULL;
+        const ZirFunction *a_function = left_value->kind == VALUE_SLOT ? left_value->slot_function : NULL;
+        const ZirFunction *b_function = right_value->kind == VALUE_SLOT ? right_value->slot_function : NULL;
         int equal = a_function == b_function &&
-            (a_function == NULL || left.slot_module == right.slot_module);
+            (a_function == NULL || left_value->slot_module == right_value->slot_module);
         if(operation == BinaryEqual) return int_value(equal);
         if(operation == BinaryNotEqual) return int_value(!equal);
         goto failed;
     }
-    if(left.kind == VALUE_POINTER || right.kind == VALUE_POINTER) {
+    if(left_value->kind == VALUE_POINTER || right_value->kind == VALUE_POINTER) {
         /* Indexed pointers compare by container and logical slot. */
-        int equal = left.kind == VALUE_POINTER && right.kind == VALUE_POINTER ?
-            (left.indexed == right.indexed &&
-             (left.indexed ? left.array == right.array && left.offset == right.offset :
-              left.pointee == right.pointee)) : 0;
+        int equal = left_value->kind == VALUE_POINTER && right_value->kind == VALUE_POINTER ?
+            (left_value->indexed == right_value->indexed &&
+             (left_value->indexed ? left_value->array == right_value->array && left_value->offset == right_value->offset :
+              left_value->pointee == right_value->pointee)) : 0;
         if(operation == BinaryEqual)
             return int_value(equal);
         if(operation == BinaryNotEqual)
             return int_value(!equal);
         goto failed;
     }
-    if(left.kind == VALUE_STRING || right.kind == VALUE_STRING) {
-        if(left.kind != VALUE_STRING || right.kind != VALUE_STRING)
+    if(left_value->kind == VALUE_STRING || right_value->kind == VALUE_STRING) {
+        if(left_value->kind != VALUE_STRING || right_value->kind != VALUE_STRING)
             goto failed;
-        int equal = left.length == right.length &&
-                    (left.length == 0 ||
-                     memcmp(left.data, right.data, left.length) == 0);
+        int equal = left_value->length == right_value->length &&
+                    (left_value->length == 0 ||
+                     memcmp(left_value->data, right_value->data, left_value->length) == 0);
         if(operation == BinaryEqual)
             return int_value(equal);
         if(operation == BinaryNotEqual)
             return int_value(!equal);
         goto failed;
     }
-    if((left.kind == VALUE_ENUM && left.enumeration->is_enum_flags) ||
-       (right.kind == VALUE_ENUM && right.enumeration->is_enum_flags)) {
-        const ZirType *flags = left.kind == VALUE_ENUM ? left.enumeration :
-                               right.enumeration;
-        if((left.kind == VALUE_ENUM && left.enumeration != flags) ||
-           (right.kind == VALUE_ENUM && right.enumeration != flags) ||
-           (left.kind != VALUE_ENUM && left.kind != VALUE_INT) ||
-           (right.kind != VALUE_ENUM && right.kind != VALUE_INT))
+    if((left_value->kind == VALUE_ENUM && left_value->enumeration->is_enum_flags) ||
+       (right_value->kind == VALUE_ENUM && right_value->enumeration->is_enum_flags)) {
+        const ZirType *flags = left_value->kind == VALUE_ENUM ? left_value->enumeration :
+                               right_value->enumeration;
+        if((left_value->kind == VALUE_ENUM && left_value->enumeration != flags) ||
+           (right_value->kind == VALUE_ENUM && right_value->enumeration != flags) ||
+           (left_value->kind != VALUE_ENUM && left_value->kind != VALUE_INT) ||
+           (right_value->kind != VALUE_ENUM && right_value->kind != VALUE_INT))
             goto failed;
         int width = integer_operation_width(flags->enum_backing);
-        Value result = binary_with_policy(vm, operation, int_value(left.integer),
-                                          int_value(right.integer), width,
+        Value a = int_value(left_value->integer), b = int_value(right_value->integer);
+        Value result = binary_with_policy(vm, operation, &a, &b, width,
                                           shift ? 32 : width,
                                           flags->enum_backing[0] == 'u');
         if(vm->failed || operation == BinaryEqual || operation == BinaryNotEqual)
@@ -609,21 +612,21 @@ binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
         result = coerce(vm, NULL, result, flags->enum_backing);
         return enum_value(flags, signed64(integer_bits(result)));
     }
-    if(left.kind == VALUE_ENUM || right.kind == VALUE_ENUM) {
-        if(left.kind != VALUE_ENUM || right.kind != VALUE_ENUM ||
-           left.enumeration != right.enumeration)
+    if(left_value->kind == VALUE_ENUM || right_value->kind == VALUE_ENUM) {
+        if(left_value->kind != VALUE_ENUM || right_value->kind != VALUE_ENUM ||
+           left_value->enumeration != right_value->enumeration)
             goto failed;
         if(operation == BinaryEqual)
-            return int_value(left.integer == right.integer);
+            return int_value(left_value->integer == right_value->integer);
         if(operation == BinaryNotEqual)
-            return int_value(left.integer != right.integer);
+            return int_value(left_value->integer != right_value->integer);
         goto failed;
     }
     /* Integer arithmetic never needs floating conversion. Keep conversion
      * and real comparisons together so integer loops do not construct two
      * doubles for every arithmetic, bitwise or comparison operation. */
     if(real) {
-        double a = as_real(left), b = as_real(right);
+        double a = as_real(*left_value), b = as_real(*right_value);
         switch(operation) {
         case BinaryEqual: return int_value(a == b);
         case BinaryNotEqual: return int_value(a != b);
@@ -642,26 +645,26 @@ binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
      * use either operand's wide representation. */
     int unsigned64 = left_width == -64 || right_width == -64;
     int signed_wide = !unsigned64 && (left_width == 64 || right_width == 64);
-    uint64_t left_bits = integer_bits(left);
-    uint64_t right_bits = integer_bits(right);
+    uint64_t left_bits = integer_bits(*left_value);
+    uint64_t right_bits = integer_bits(*right_value);
     if(operation == BinaryEqual)
         return int_value(unsigned64 ? left_bits == right_bits :
-                         left.integer == right.integer);
+                         left_value->integer == right_value->integer);
     if(operation == BinaryNotEqual)
         return int_value(unsigned64 ? left_bits != right_bits :
-                         left.integer != right.integer);
+                         left_value->integer != right_value->integer);
     if(operation == BinaryLess)
         return int_value(unsigned64 ? left_bits < right_bits :
-                         left.integer < right.integer);
+                         left_value->integer < right_value->integer);
     if(operation == BinaryLessEqual)
         return int_value(unsigned64 ? left_bits <= right_bits :
-                         left.integer <= right.integer);
+                         left_value->integer <= right_value->integer);
     if(operation == BinaryGreater)
         return int_value(unsigned64 ? left_bits > right_bits :
-                         left.integer > right.integer);
+                         left_value->integer > right_value->integer);
     if(operation == BinaryGreaterEqual)
         return int_value(unsigned64 ? left_bits >= right_bits :
-                         left.integer >= right.integer);
+                         left_value->integer >= right_value->integer);
     if(operation == BinaryAnd || operation == BinaryOr || operation == BinaryXor ||
        operation == BinaryShiftLeft || operation == BinaryShiftRight) {
         if(unsigned64 || signed_wide) {
@@ -674,7 +677,7 @@ binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
             if(operation == BinaryXor)
                 return unsigned64 ? uint_value(left_bits ^ right_bits) :
                                     int_value(signed64(left_bits ^ right_bits));
-            if((!right.unsigned64 && right.integer < 0) || right_bits >= 64)
+            if((!right_value->unsigned64 && right_value->integer < 0) || right_bits >= 64)
                 goto failed;
             if(operation == BinaryShiftLeft)
                 return unsigned64 ? uint_value(left_bits << right_bits) :
@@ -696,7 +699,7 @@ binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
         if(operation == BinaryXor)
             return int_value(a_bits ^ b_bits);
         unsigned width = (unsigned)left_width;
-        if((!right.unsigned64 && right.integer < 0) || right_bits >= width)
+        if((!right_value->unsigned64 && right_value->integer < 0) || right_bits >= width)
             goto failed;
         unsigned amount = (unsigned)right_bits;
         uint32_t mask = width == 32 ? UINT32_MAX :
@@ -727,33 +730,33 @@ binary_with_policy(Vm *vm, BinaryOperation operation, Value left, Value right,
             return int_value(signed64(left_bits - right_bits));
         if(operation == BinaryMultiply)
             return int_value(signed64(left_bits * right_bits));
-        if(right.integer == 0)
+        if(right_value->integer == 0)
             goto failed;
-        if(left.integer == INT64_MIN && right.integer == -1)
+        if(left_value->integer == INT64_MIN && right_value->integer == -1)
             return int_value(operation == BinaryDivide ? INT64_MIN : 0);
         if(operation == BinaryDivide)
-            return int_value(left.integer / right.integer);
+            return int_value(left_value->integer / right_value->integer);
         if(operation == BinaryRemainder)
-            return int_value(left.integer % right.integer);
+            return int_value(left_value->integer % right_value->integer);
         goto failed;
     }
     /* A u32 product can exceed INT64_MAX before its result is narrowed.
      * Use defined unsigned intermediates for wrapping integer arithmetic,
      * including abstract integer operands on this operation-width path. */
     if(operation == BinaryAdd)
-        return int_value(signed64((uint64_t)left.integer + (uint64_t)right.integer));
+        return int_value(signed64((uint64_t)left_value->integer + (uint64_t)right_value->integer));
     if(operation == BinarySubtract)
-        return int_value(signed64((uint64_t)left.integer - (uint64_t)right.integer));
+        return int_value(signed64((uint64_t)left_value->integer - (uint64_t)right_value->integer));
     if(operation == BinaryMultiply)
-        return int_value(signed64((uint64_t)left.integer * (uint64_t)right.integer));
-    if(right.integer == 0)
+        return int_value(signed64((uint64_t)left_value->integer * (uint64_t)right_value->integer));
+    if(right_value->integer == 0)
         goto failed;
-    if(left.integer == INT64_MIN && right.integer == -1)
+    if(left_value->integer == INT64_MIN && right_value->integer == -1)
         return int_value(operation == BinaryDivide ? INT64_MIN : 0);
     if(operation == BinaryDivide)
-        return int_value(left.integer / right.integer);
+        return int_value(left_value->integer / right_value->integer);
     if(operation == BinaryRemainder)
-        return int_value(left.integer % right.integer);
+        return int_value(left_value->integer % right_value->integer);
 failed:
     vm->failed = 1;
     return int_value(0);
@@ -773,7 +776,7 @@ binary_value(Vm *vm, const char *op, Value left, Value right,
             right_width = integer_operation_width(right_type);
         left_unsigned = left_type[0] == 'u';
     }
-    return binary_with_policy(vm, operation, left, right,
+    return binary_with_policy(vm, operation, &left, &right,
                               left_width, right_width, left_unsigned);
 }
 /* Buffers eval keeps on the heap so deep nesting fits the stack;
@@ -1041,18 +1044,19 @@ scalar_conversion(const char *type)
 
 /* The plan stores only checked primitive type facts. Real-to-integer range
  * checks, aggregate borrows, enum validation and pointers keep the canonical
- * conversion path; their current value is never cached in a plan. */
+ * conversion path; their current value is never cached in a plan. Borrow the
+ * input slot rather than passing the whole tagged Value through the ABI. */
 static Value
-scalar_result(Frame *frame, Value value, const char *type,
+scalar_result(Frame *frame, const Value *input, const char *type,
               ScalarConversion conversion)
 {
-    if(value.kind == VALUE_INT || value.kind == VALUE_REAL || value.kind == VALUE_ENUM) {
-        if(conversion == ScalarInteger) return value;
-        if(conversion == ScalarBool) return int_value(truthy(value));
-        if(conversion == ScalarF32) return real_value((float)as_real(value));
-        if(conversion == ScalarF64) return real_value(as_real(value));
-        if(value.kind != VALUE_REAL) {
-            uint64_t bits = integer_bits(value);
+    if(input->kind == VALUE_INT || input->kind == VALUE_REAL || input->kind == VALUE_ENUM) {
+        if(conversion == ScalarInteger) return *input;
+        if(conversion == ScalarBool) return int_value(truthy(*input));
+        if(conversion == ScalarF32) return real_value((float)as_real(*input));
+        if(conversion == ScalarF64) return real_value(as_real(*input));
+        if(input->kind != VALUE_REAL) {
+            uint64_t bits = integer_bits(*input);
             switch(conversion) {
             case ScalarS8: return int_value((int8_t)(uint8_t)bits);
             case ScalarU8: return int_value((uint8_t)bits);
@@ -1067,7 +1071,7 @@ scalar_result(Frame *frame, Value value, const char *type,
             }
         }
     }
-    return coerce_expression(frame->vm, frame->module, value, type);
+    return coerce_expression(frame->vm, frame->module, *input, type);
 }
 
 typedef struct ScalarStep {
@@ -1276,25 +1280,32 @@ scalar_member(Frame *frame, const ZirExpr *expression, Value value, int pointer,
     if(pointer)
         value = place_read(frame->vm, value);
     else if(!strcmp(expression->name, "count")) {
-        if(value.kind == VALUE_STRING || value.kind == VALUE_SLICE)
-            return scalar_result(frame, int_value((int64_t)value.length), expression->type, conversion);
-        if(value.kind == VALUE_ARRAY && value.array != NULL)
-            return scalar_result(frame, int_value(value.array->length), expression->type, conversion);
+        if(value.kind == VALUE_STRING || value.kind == VALUE_SLICE) {
+            value = int_value((int64_t)value.length);
+            return scalar_result(frame, &value, expression->type, conversion);
+        }
+        if(value.kind == VALUE_ARRAY && value.array != NULL) {
+            value = int_value(value.array->length);
+            return scalar_result(frame, &value, expression->type, conversion);
+        }
     } else if(value.kind == VALUE_ARRAY && value.array != NULL &&
-              value.array->length == 0 && !strcmp(expression->name, "data"))
-        return scalar_result(frame, int_value(0), expression->type, conversion);
+              value.array->length == 0 && !strcmp(expression->name, "data")) {
+        value = int_value(0);
+        return scalar_result(frame, &value, expression->type, conversion);
+    }
     Value *field = value.kind == VALUE_RECORD && value.record != NULL ?
         record_field_path(value.record, expression->name) : NULL;
     if(field == NULL) {
         frame->vm->failed = 1;
         return int_value(0);
     }
-    if(value.record->type != NULL && value.record->type->is_union)
-        return scalar_result(frame, union_member_read(frame->vm, value.record, expression->type),
-                             expression->type, conversion);
+    if(value.record->type != NULL && value.record->type->is_union) {
+        value = union_member_read(frame->vm, value.record, expression->type);
+        return scalar_result(frame, &value, expression->type, conversion);
+    }
     if(normalized_field_read(field, expression->type))
         return *field;
-    return scalar_result(frame, *field, expression->type, conversion);
+    return scalar_result(frame, field, expression->type, conversion);
 }
 
 static Value
@@ -1360,7 +1371,7 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
             break;
         }
         case SCALAR_CAST:
-            value = scalar_result(frame, values[step->right], expression->name,
+            value = scalar_result(frame, &values[step->right], expression->name,
                                   (ScalarConversion)step->cast_conversion);
             break;
         case SCALAR_UNARY: {
@@ -1383,7 +1394,7 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
             break;
         case SCALAR_BINARY:
             value = binary_with_policy(frame->vm, (BinaryOperation)step->operation,
-                values[step->left], values[step->right], step->left_width,
+                &values[step->left], &values[step->right], step->left_width,
                 step->right_width, step->left_unsigned);
             break;
         default:
@@ -1391,7 +1402,7 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
             break;
         }
         if(!frame->vm->failed)
-            values[step->output] = scalar_result(frame, value, expression->type,
+            values[step->output] = scalar_result(frame, &value, expression->type,
                                                  (ScalarConversion)step->conversion);
     }
     return frame->vm->failed ? int_value(0) : values[plan->output];

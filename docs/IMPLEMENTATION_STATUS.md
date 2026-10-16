@@ -1283,6 +1283,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   units. Abstract integer division and remainder preserve wrapping at the
   signed minimum divided by negative one. The execution benchmark also covers
   the standard-library JSON parser with an independently decoded Python oracle.
+  Arithmetic dispatch and scalar-plan conversion borrow their existing operand
+  slots internally, avoiding whole-value argument copies while retaining the
+  same canonical arithmetic and conversion rules. `bench/vm_native.py` adds
+  matched generated C/Go controls with checked bodies and batch checksums,
+  exposing the remaining interpreter gap without claiming full native parity.
 - Fresh record and fixed-array results can transfer their storage through
   local returns, direct calls, literals, initializers, and assignments. The VM
   retains the value-copy rules for existing bindings and globals. This transfer

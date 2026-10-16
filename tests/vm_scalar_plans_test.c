@@ -20,7 +20,7 @@ static void check_conversions(void)
             Vm canonical = {0}, cached = {0};
             Frame frame = {.vm = &cached};
             Value expected = coerce_expression(&canonical, NULL, values[value], types[type]);
-            Value actual = scalar_result(&frame, values[value], types[type], scalar_conversion(types[type]));
+            Value actual = scalar_result(&frame, &values[value], types[type], scalar_conversion(types[type]));
             assert(canonical.failed == cached.failed);
             if(canonical.failed) continue;
             assert(expected.kind == actual.kind);

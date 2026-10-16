@@ -106,6 +106,31 @@ These are synthetic VM comparisons on the recorded host, not native C/Go or
 whole-application performance claims. Fixture manifests retain the generator
 hashes and expected results alongside the existing raw timing receipts.
 
+To calibrate these same workloads against generated native C and Go:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vm_native.py \
+  --vm-results build/benchmarks/vm-execution \
+  --out build/benchmarks/vm-native
+```
+
+The harness regenerates each workload and its independent oracle, requires
+identical native output from source and saved IR, and verifies both forms.
+C defines `ZIRAN_NO_ASM`; Go uses `CGO_ENABLED=0` and `GOMAXPROCS=1`, retaining
+ordinary garbage collection. Both controls therefore execute the checked body.
+Native timers cover a batch of 128 calls by default, including the call and
+checksum loop; per-call medians are compared with the recorded VM steady
+medians. Increase `--runs` when short batches quantize CPU usage to zero;
+`--runs 4096` gives longer CPU samples for this suite. Every sample checks the
+complete batch checksum. Child peak RSS is
+measured separately from the driver process. Keep the raw samples, generated
+sources, commands, build observations and source/tool/artifact hashes.
+
+These are matched generated backends, rather than independent handwritten
+implementations. Native batches and repeated VM instances differ in scheduling
+and memory management. Their ratios expose remaining interpreter overhead on
+the measured workloads; they do not establish whole-application C/Go parity.
+
 ## Android device execution
 
 Prepare matched Ziran source/saved-IR C and Go programs, handwritten C/Go

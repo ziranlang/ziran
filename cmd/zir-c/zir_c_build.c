@@ -190,6 +190,15 @@ typedef struct CompileSlot {
     int index, tracked;
 } CompileSlot;
 
+static int reuse_object(CBuildCache *cache, const char *object)
+{
+    if(!cache) return 0;
+    uint64_t started = ProfileStart();
+    int hit = c_cache_hit(cache, object);
+    ProfileEnd("native.cache.lookup", started);
+    return hit;
+}
+
 static int compile_objects(const Files *files, char **objects, char **base,
                             int count, CBuildCache *cache, int workers, ToolLog *log)
 {
@@ -209,7 +218,7 @@ static int compile_objects(const Files *files, char **objects, char **base,
             CompileSlot *slot = &slots[s];
             if(slot->index >= 0) continue;
             int i = next++;
-            while(c_cache_hit(cache, objects[i])) {
+            while(reuse_object(cache, objects[i])) {
                 ProfileCount("native_object_reuse");
                 if(next == files->count) { i = -1; break; }
                 i = next++;
@@ -288,7 +297,11 @@ static int compile_objects(const Files *files, char **objects, char **base,
             struct stat info;
             if(slot->job.ok) {
                 if(stat(objects[i], &info) != 0 || !S_ISREG(info.st_mode) || !info.st_size) ok = 0;
-                else if(slot->tracked) c_cache_record(cache, objects[i], files->items[i]);
+                else if(slot->tracked) {
+                    uint64_t started = ProfileStart();
+                    c_cache_record(cache, objects[i], files->items[i]);
+                    ProfileEnd("native.cache.record", started);
+                }
             }
             slot->index = -1; active--;
         }

@@ -19,7 +19,12 @@
  * Missing/unsupported inputs always fall back to the regular compiler. */
 enum { MAX_ITEMS = 16384, MEMO_SLOTS = 32768, PROBE_LIMIT = 65536 };
 typedef struct Hash { uint32_t h[8]; uint64_t size; unsigned char block[64]; size_t used; } Hash;
-typedef struct Names { char **items; int count; } Names;
+typedef struct Names {
+    char **items;
+    int count, capacity;
+    uint32_t *slots;
+    int slot_count;
+} Names;
 typedef struct Fingerprint {
     char *path;
     char *parent;
@@ -135,18 +140,69 @@ static void hash_stat(Hash *hash, const struct stat *info)
     hash_integer(hash,changed(info).tv_sec);hash_integer(hash,changed(info).tv_nsec);
 }
 static int compare_names(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
+static size_t memo_slot(const char *path, int directory);
+
+static size_t name_slot(const Names *names, const char *name)
+{
+    size_t slot = memo_slot(name, 0) & (size_t)(names->slot_count - 1);
+    while(names->slots[slot] && strcmp(names->items[names->slots[slot] - 1], name))
+        slot = (slot + 1) & (size_t)(names->slot_count - 1);
+    return slot;
+}
+
+static int index_names(Names *names, int count)
+{
+    int capacity = names->slot_count ? names->slot_count : 64;
+    while(count > capacity * 3 / 4) capacity *= 2;
+    if(capacity == names->slot_count) return 1;
+    uint32_t *slots = calloc((size_t)capacity, sizeof(*slots));
+    if(!slots) return 0;
+    free(names->slots);
+    names->slots = slots; names->slot_count = capacity;
+    for(int i = 0; i < names->count; i++)
+        names->slots[name_slot(names, names->items[i])] = (uint32_t)i + 1;
+    return 1;
+}
+
+static void clear_name_index(Names *names)
+{
+    free(names->slots); names->slots = NULL; names->slot_count = 0;
+}
+
+static void sort_names(Names *names)
+{
+    if(names->count > 1) qsort(names->items, (size_t)names->count, sizeof(*names->items), compare_names);
+    clear_name_index(names);
+}
+
 static int add_name(Names *names, const char *name)
 {
-    for(int i = 0; i < names->count; i++) if(!strcmp(names->items[i], name)) return 1;
+    int indexed = names->count >= 32;
+    size_t slot = 0;
+    if(indexed) {
+        if(!index_names(names, names->count)) return 0;
+        slot = name_slot(names, name);
+        if(names->slots[slot]) return 1;
+    } else for(int i = 0; i < names->count; i++)
+        if(!strcmp(names->items[i], name)) return 1;
     if(names->count >= MAX_ITEMS) return 0;
-    char **grown = realloc(names->items, (size_t)(names->count + 1) * sizeof(*grown));
-    if(!grown) return 0;
-    names->items = grown;
+    if(indexed) {
+        int previous = names->slot_count;
+        if(!index_names(names, names->count + 1)) return 0;
+        if(previous != names->slot_count) slot = name_slot(names, name);
+    }
+    if(names->count == names->capacity) {
+        int capacity = names->capacity ? names->capacity * 2 : 8;
+        char **grown = realloc(names->items, (size_t)capacity * sizeof(*grown));
+        if(!grown) return 0;
+        names->items = grown; names->capacity = capacity;
+    }
     if(!(names->items[names->count] = strdup(name))) return 0;
+    if(indexed) names->slots[slot] = (uint32_t)names->count + 1;
     names->count++;
     return 1;
 }
-static void free_names(Names *names) { for(int i=0;i<names->count;i++) free(names->items[i]); free(names->items); }
+static void free_names(Names *names) { for(int i=0;i<names->count;i++) free(names->items[i]); free(names->items); free(names->slots); }
 static int parent(const char *path, char directory[ZIR_PATH_MAX])
 {
     if(strlen(path) >= ZIR_PATH_MAX) return 0;
@@ -165,8 +221,10 @@ static int suffix_path(const char *path, const char *suffix, char result[ZIR_PAT
 
 static size_t memo_slot(const char *path,int directory)
 {
-    uint64_t value=UINT64_C(14695981039346656037) ^ (unsigned)directory;
-    for(const unsigned char *p=(const unsigned char *)path;*p;p++) { value^=*p;value*=UINT64_C(1099511628211); }
+    /* Only low bucket bits are observed. Keep the existing FNV-64 buckets
+     * without wide multiplies on 32-bit compiler hosts. */
+    uint32_t value=UINT32_C(0x84222325) ^ (unsigned)directory;
+    for(const unsigned char *p=(const unsigned char *)path;*p;p++) { value^=*p;value*=UINT32_C(0x1b3); }
     return (size_t)value & (MEMO_SLOTS-1);
 }
 static Fingerprint *find_fingerprint(CBuildCache *cache,const char *path,int directory)
@@ -518,12 +576,13 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     /* Driver/assembler commands can arrive on either side of cc1's search
      * diagnostics. Keep tool identities independent of that scheduling, while
      * preserving include-root precedence in the hash and roots list above. */
-    qsort(programs.items,(size_t)programs.count,sizeof(*programs.items),compare_names);
+    sort_names(&programs);
     hash_integer(&hash,(uint64_t)programs.count);
     for(int i=0;i<programs.count;i++) {
         if(stat(programs.items[i],&info)!=0) goto fail;
         hash_text(&hash,programs.items[i]);hash_stat(&hash,&info);
     }
+    clear_name_index(&cache->roots);
     for(int i=0;i<cache->roots.count;i++) {
         char *resolved=realpath(cache->roots.items[i],NULL);
         if(resolved) { free(cache->roots.items[i]);cache->roots.items[i]=resolved; }
@@ -566,8 +625,8 @@ static int lookup_digest(CBuildCache *cache,Names *dependencies,unsigned char di
         }
         ok=input && input->parent && add_name(&roots,input->parent) && add_name(&parents,input->parent);
     }
-    if(roots.count>1) qsort(roots.items,(size_t)roots.count,sizeof(*roots.items),compare_names);
-    if(parents.count>1) qsort(parents.items,(size_t)parents.count,sizeof(*parents.items),compare_names);
+    sort_names(&roots);
+    sort_names(&parents);
     Hash key_hash=hash_new();unsigned char key_bytes[32];char key[65];
     for(int i=0;i<parents.count;i++) hash_text(&key_hash,parents.items[i]);
     hash_finish(&key_hash,key_bytes);

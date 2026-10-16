@@ -42,6 +42,8 @@ Opt-in compiler profiles for native `--exe` builds include
 attempts, reused objects and event/poll completion paths. Collect profiles
 separately from timings; profiler counters add work and the profile environment
 is part of the native object-cache identity.
+`native.cache.lookup` and `native.cache.record` separate validation from
+dependency recording within the object stage.
 
 `native_process_spawn` and `native_process_fork` count the tool-launch paths,
 including compiler probes. Native builds prefer `posix_spawnp` with the same
@@ -78,6 +80,26 @@ for both compiler versions. The metadata retains all source/tool hashes and
 profiles. A large change on many small modules need not improve this application
 by the same amount; report both results and retain the warm-cache/shared-host
 limitations.
+
+For a large shared header graph, use `bench/native_header_graphs.py` with
+`--before-bin-dir DIR --out build/benchmarks/native-header-graphs` and optional
+`--repetitions N`. It builds source and saved IR with 512 leaf records and 32
+consumers. A foreign signature retains the complete record ABI; C static
+assertions check its size and final field offset. Every build runs two dynamic
+input oracles, and the final generated C and executable bytes must match.
+Dependency metadata must contain at least 512 inputs per consumer. Fresh and
+unchanged samples share warm machine caches and identical source inputs.
+This compares two compiler versions, without a Go or C language baseline.
+
+`bench/native_cache_names.py --before-ref REVISION
+--out build/benchmarks/native-cache-names` isolates ordered-name collection at
+16, 256, 2,048 and 8,192 names. It compiles the earlier cache source from Git
+through compiler standard input and compares it with the current source.
+Each sample inserts unique names, repeats duplicates, checks order and an
+independent checksum, then frees the collection. Input preparation and process
+startup are outside the internal timer. Report this container timing
+separately from whole builds; process RSS also includes benchmark inputs.
+Both harnesses save raw samples, tool/source hashes and actual CPU affinity.
 
 Entry-scope symbol resolution profiles report `type_lookup_hit`,
 `type_lookup_miss`, `function_lookup_hit` and `function_lookup_miss`.

@@ -71,6 +71,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   the assembler's verbose command across the compiler's search diagnostics
   does not invalidate otherwise reusable objects. The cache checks reproduce
   both output schedules with the same options and include-root precedence.
+  Profiles separate cache lookup and recording from the overall object stage.
+  Dependency-name lists retain insertion order, grow geometrically and index
+  exact duplicates once a list reaches 32 items. Sorting or canonicalizing
+  names discards that index. The cache retains its existing content hashes,
+  search-order validation and metadata format; hash buckets use equivalent
+  32-bit arithmetic to avoid wide multiplies on 32-bit compiler hosts.
 
 - Body eligibility checks reuse immutable primitive-record layout facts and
   check each reached typed expression once per pass, including shared graphs.

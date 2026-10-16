@@ -66,8 +66,15 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   GNU alternatives select one complete representable operand column, retaining
   matching inputs and per-alternative early clobbers. C/C++ translates operand
   aliases to positional references, including aliases that are host keywords.
-  Unique labels and reserved registers without a usable alternative still
-  fall back; native Go assembly and full platform parity remain open.
+  Self-contained GNU `.L…%=` labels become numeric locals with resolved forward
+  and backward references, including mixed numeric labels and generic/block
+  instances. Literal unique IDs, nonlocal or ambiguous labels, assembler
+  control/macro directives and reserved registers without a usable alternative
+  retain fallback. Native Go assembly and full platform parity remain open.
+  Rust output buffering also supports hosts without Unix memory streams and
+  write-only callback streams; Windows builds use native directory creation
+  and accept backslash input paths. `tests/text_stream.sh` covers empty and
+  binary output, positions, write errors and temporary-file fallback.
 
 - Generic functions and local blocks retain assembly through concrete
   specialization, including saved-library imports. Each instance validates

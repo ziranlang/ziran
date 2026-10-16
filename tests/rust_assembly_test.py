@@ -91,6 +91,14 @@ int main(void) {
         assert(KeywordParameter(state) == state);
         assert(KeywordTie(state) == state + 7);
         KeywordComment(state);
+        unsigned count = i & 31;
+        assert(UniqueLabels(count) == count * (count + 1) / 2);
+        assert(UniqueMixed(count) == count * (count + 1) / 2);
+        assert(UniqueCopies(count) == (count + 1) * (count + 1));
+        assert(UniqueSuffix() == 48 && UniqueWhitespace() == 42);
+        assert(UniqueImmediate() == 1);
+        assert(UniqueBlock(state) == state && UniqueGeneric() == 42);
+        UniqueMark(); UniqueMark();
         Pair parts = AlternativePair(state);
         assert(parts.low == state && parts.high == (state >> 32));
     }
@@ -109,7 +117,7 @@ int main(void) {
     bad = WORK / 'bad.zi'
     arch = {'x86_64': 'x86_64', 'aarch64': 'aarch64', 'i686': 'x86'}.get(platform.machine())
     if arch:
-        bad.write_text(f'#program_export\nBad :: () #asm("{arch}", "ziran_invalid_opcode", "", "", "", "volatile") {{}}\n')
+        bad.write_text(f'#program_export\nBad :: () #asm("{arch}", ".Lbad%=:\\nziran_invalid_opcode", "", "", "", "volatile") {{}}\n')
         output = WORK / 'bad'
         run([ZIRAN, 'build', '--target=rust', '--root', WORK, '-o', output, bad], env)
         selected = dict(env, RUSTFLAGS='-Dwarnings')
@@ -126,16 +134,38 @@ MismatchedAlternatives :: (value: s64) -> s64 #asm("x86_64", "movq %[value], %[o
 #program_export
 Reserved :: (value: s64) -> s64 #asm("x86_64", "movq %[value], %[out]", "=b", "r", "", "") { return value }
 #program_export
-Unique :: () #asm("x86_64", ".Llabel%=: ", "", "", "", "volatile") {}
+Unique :: () #asm("x86_64", ".long %=", "", "", "", "volatile") {}
+#program_export
+MissingUnique :: () #asm("x86_64", "jmp .Lmissing%=", "", "", "", "volatile") {}
+#program_export
+DuplicateUnique :: () #asm("x86_64", ".Lduplicate%=:\n.Lduplicate%=:", "", "", "", "volatile") {}
+#program_export
+GlobalUnique :: () #asm("x86_64", ".globl .Lexport%=\n.Lexport%=:", "", "", "", "volatile") {}
+#program_export
+StringUnique :: () #asm("x86_64", ".ascii \\".Ldata%=\\"", "", "", "", "volatile") {}
+#program_export
+ConditionalUnique :: () #asm("x86_64", ".if 0\n.Lconditional%=:\n.endif\njmp .Lconditional%=", "", "", "", "volatile") {}
+#program_export
+RepeatedUnique :: () #asm("x86_64", ".rept 2\n.Lrepeated%=:\n.endr", "", "", "", "volatile") {}
+#program_export
+DirectiveUnique :: () #asm("x86_64", ".set .Lalias%=, 1", "", "", "", "volatile") {}
+#program_export
+NonlocalUnique :: () #asm("x86_64", "external%=:", "", "", "", "volatile") {}
 ''')
     output = WORK / 'unsupported'
     run([ZIRAN, 'build', '--target=rust', '--root', WORK, '-o', output, unsupported], env)
-    assert (output / 'src/lib.rs').read_text().count('portable body for this variant') == 4
-    (output / 'src/main.rs').write_text('fn main() { assert_eq!(ziran_generated::UnavailableAlternatives(42),42); assert_eq!(ziran_generated::MismatchedAlternatives(42),42); assert_eq!(ziran_generated::Reserved(42),42); ziran_generated::Unique(); }\n')
+    unsupported_rust = (output / 'src/lib.rs').read_text()
+    assert unsupported_rust.count('portable body for this variant') == 12
+    assert 'requires one definition in its template' in unsupported_rust
+    assert 'assembler control or symbol directives' in unsupported_rust
+    assert 'unique symbol in assembler directive' in unsupported_rust
+    (output / 'src/main.rs').write_text('fn main() { assert_eq!(ziran_generated::UnavailableAlternatives(42),42); assert_eq!(ziran_generated::MismatchedAlternatives(42),42); assert_eq!(ziran_generated::Reserved(42),42); ziran_generated::Unique(); ziran_generated::MissingUnique(); ziran_generated::DuplicateUnique(); ziran_generated::GlobalUnique(); ziran_generated::StringUnique(); ziran_generated::ConditionalUnique(); ziran_generated::RepeatedUnique(); ziran_generated::DirectiveUnique(); ziran_generated::NonlocalUnique(); }\n')
     run(['cargo', 'run', '--quiet', '--offline', '--manifest-path', output / 'Cargo.toml'], dict(env, RUSTFLAGS='-Dwarnings'))
     (WORK / 'verification.json').write_text(json.dumps(dict(
         records=records, generated_sha256=hashlib.sha256((WORK / 'native-source.rs').read_bytes()).hexdigest(),
-        source_sha256=hashlib.sha256(source.read_bytes()).hexdigest()), indent=2) + '\n')
+        source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+        source_saved_bundle_identical=True, unsupported_variant_notices=12,
+        invalid_opcode_with_unique_label_rejected=bool(arch)), indent=2) + '\n')
     print('Native Rust function/block assembly, typed operands, memory aliases, CPU selection and forced fallback passed')
 
 

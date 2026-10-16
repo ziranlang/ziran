@@ -83,6 +83,17 @@ fn main() {
         assert_eq!(api::KeywordParameter(state), state);
         assert_eq!(api::KeywordTie(state), state.wrapping_add(7));
         api::KeywordComment(state);
+        let count = i & 31;
+        assert_eq!(api::UniqueLabels(count), count * (count + 1) / 2);
+        assert_eq!(api::UniqueMixed(count), count * (count + 1) / 2);
+        assert_eq!(api::UniqueCopies(count), (count + 1) * (count + 1));
+        assert_eq!(api::UniqueSuffix(), 48);
+        assert_eq!(api::UniqueImmediate(), 1);
+        assert_eq!(api::UniqueWhitespace(), 42);
+        assert_eq!(api::UniqueBlock(state), state);
+        assert_eq!(api::UniqueGeneric(), 42);
+        api::UniqueMark();
+        api::UniqueMark();
         let mut value = i as i64;
         api::Store(&mut value);
         assert_eq!(value, i as i64 + 1);

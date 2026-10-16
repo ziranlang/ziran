@@ -125,6 +125,36 @@ KeywordTie :: (value: u64) -> u64 {
 #program_export
 KeywordComment :: (value: u64) #asm("x86_64", "# %%[register] %[value]\n", "", "r", "memory", "volatile") { unused value }
 #program_export
+UniqueLabels :: (count: u64) -> u64 #asm("x86_64", "xorq %[out], %[out]\n\tmovq %[count], %%rcx\n\ttestq %%rcx, %%rcx\n\tjz .Ldone%=\n.Lloop%=:\n\taddq %%rcx, %[out]\n\tdecq %%rcx\n\tjnz .Lloop%=\n.Ldone%=:", "=&r", "r", "rcx;cc", "") #asm("aarch64", "mov %[out], xzr\n\tmov x9, %[count]\n\tcbz x9, .Ldone%=\n.Lloop%=:\n\tadd %[out], %[out], x9\n\tsub x9, x9, #1\n\tcbnz x9, .Lloop%=\n.Ldone%=:", "=&r", "r", "x9", "") {
+    result: u64
+    current := count
+    while current != 0 { result += current; current -= 1 }
+    return result
+}
+#program_export
+UniqueMixed :: (count: u64) -> u64 #asm("x86_64", "xorq %[out], %[out]\n\tmovq %[count], %%rcx\n\ttestq %%rcx, %%rcx\n\tjz .Ldone%=\n20:\n.Lloop%=:\n\taddq %%rcx, %[out]\n\tdecq %%rcx\n\tjnz 20b\n.Ldone%=:", "=&r", "r", "rcx;cc", "") {
+    return UniqueLabels(count)
+}
+#program_export
+UniqueSuffix :: () -> u64 #asm("x86_64", "jmp .Lafter%=_end\n.Ldata%=_bytes: .ascii \"0b\"\n.Lafter%=_end:\n\tmovzbq .Ldata%=_bytes(%%rip), %[out]", "=r", "", "", "") { return 48 }
+#program_export
+UniqueImmediate :: () -> u64 #asm("x86_64", "jmp .Lend%=\n.Lstart%=: .byte 0\n.Lend%=:\n\tmovq $.Lend%=-.Lstart%=, %[out]", "=r", "", "", "") { return 1 }
+#program_export
+UniqueMark :: () #asm("x86_64", ".Lmark%=:", "", "", "", "volatile") {}
+#program_export
+UniqueCopies :: (count: u64) -> u64 { return UniqueLabels(count) + UniqueLabels(count + 1) }
+#program_export
+UniqueWhitespace :: () -> u64 #asm("x86_64", "jmp .Lnext%=\n.Lnext%= \t:\n\tmovq $42, %[out]", "=r", "", "", "") { return 42 }
+#program_export
+UniqueBlock :: (value: u64) -> u64 {
+    result: u64
+    #asm("x86_64", "jmp .Lblock%=\n.Lblock%=:\n\tmovq %[value], %[out]", "=r:out=result", "r:value", "", "") { result = value }
+    return result
+}
+GenericUnique :: (value: $T) -> T #asm("x86_64", "jmp .Lgeneric%=\n.Lgeneric%=:\n\tmov %[value], %[out]", "=b,r", "r,r", "", "") { return value }
+#program_export
+UniqueGeneric :: () -> u64 { return GenericUnique(cast(u64)20) + cast(u64)GenericUnique(cast(u32)22) }
+#program_export
 Answer :: () -> u64 {
     value: u64 = 8589934595
     pair := AlternativePair(value)
@@ -136,5 +166,10 @@ Answer :: () -> u64 {
        AlternativeBlock(value) != value || AlternativeCommutative(value, 7) != (value ^ 7) ||
        KeywordParameter(value) != value || KeywordTie(value) != value + 7 { return 2 }
     KeywordComment(value)
+    UniqueMark()
+    UniqueMark()
+    if UniqueLabels(7) != 28 || UniqueMixed(7) != 28 || UniqueSuffix() != 48 ||
+       UniqueCopies(7) != 64 || UniqueWhitespace() != 42 ||
+       UniqueBlock(value) != value || UniqueGeneric() != 42 || UniqueImmediate() != 1 { return 3 }
     return AlternativeGeneric()
 }

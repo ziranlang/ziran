@@ -9,6 +9,7 @@
 #include "zir_scalar.h"
 #include "zir_check.h"
 #include "zir_parse.h"
+#include "zir_stream.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -18,6 +19,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#if defined(_WIN32)
+#include <direct.h>
+#endif
 
 #define ZIR_RUST_TEXT_MAX 65536
 #define ZIR_RUST_NAME_MAX 256
@@ -452,18 +456,32 @@ static void write_line(RustEmitter *emitter, const char *format, ...)
     fputc('\n', emitter->output);
 }
 
+static void make_directory(const char *path)
+{
+#if defined(_WIN32)
+    _mkdir(path);
+#else
+    mkdir(path, 0755);
+#endif
+}
+
 static void make_directories(const char *path)
 {
     char temporary[1024];
     snprintf(temporary, sizeof(temporary), "%s", path);
     for(size_t index = 1; index < strlen(temporary); index++) {
-        if(temporary[index] != '/')
+        if(temporary[index] != '/'
+#if defined(_WIN32)
+           && temporary[index] != '\\'
+#endif
+        )
             continue;
+        char separator = temporary[index];
         temporary[index] = '\0';
-        mkdir(temporary, 0755);
-        temporary[index] = '/';
+        make_directory(temporary);
+        temporary[index] = separator;
     }
-    mkdir(path, 0755);
+    make_directory(path);
 }
 
 static const char *rust_scalar_type(const char *type)
@@ -3395,7 +3413,8 @@ lower_function_with_buffers(RustEmitter *emitter, const ZirModule *module,
         FILE *function_output = emitter->output;
         char *body_text = NULL;
         size_t body_size = 0;
-        FILE *body = open_memstream(&body_text, &body_size);
+        TextStream stream;
+        FILE *body = TextStreamOpen(&stream, &body_text, &body_size);
         if(body == NULL) {
             Diagnostic(function->span, "zir_rust.output", "cannot buffer Rust output");
             exit(1);
@@ -3405,7 +3424,10 @@ lower_function_with_buffers(RustEmitter *emitter, const ZirModule *module,
         emit_slot_wrappers(emitter, module, function);
         emit_rust_assembly(emitter, -1);
         emit_sequence(emitter, 0, function->stmt_count);
-        fclose(body);
+        if(TextStreamClose(&stream) != 0) {
+            Diagnostic(function->span, "zir_rust.output", "cannot finish buffered Rust output");
+            exit(1);
+        }
         emitter->output = function_output;
         if(rust_function_needs_unsafe(module, function) ||
            rust_text_needs_unsafe(body_text, body_size)) {
@@ -4379,9 +4401,14 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
     fclose(build_script);
     char *runtime_text = NULL, *body_text = NULL;
     size_t runtime_size = 0, body_size = 0;
-    FILE *runtime = open_memstream(&runtime_text, &runtime_size);
-    FILE *body = open_memstream(&body_text, &body_size);
+    TextStream runtime_stream, body_stream;
+    FILE *runtime = TextStreamOpen(&runtime_stream, &runtime_text, &runtime_size);
+    FILE *body = TextStreamOpen(&body_stream, &body_text, &body_size);
     if(runtime == NULL || body == NULL) {
+        if(runtime != NULL) TextStreamClose(&runtime_stream);
+        if(body != NULL) TextStreamClose(&body_stream);
+        free(runtime_text);
+        free(body_text);
         Diagnostic(Span(output_directory, 1, 1), "zir_rust.output",
                    "cannot buffer Rust output");
         return 1;
@@ -4492,10 +4519,15 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
     }
     char *kept_text = NULL;
     size_t kept_size = 0;
-    FILE *kept = open_memstream(&kept_text, &kept_size);
-    if(kept == NULL || fclose(runtime) != 0 || fclose(body) != 0 ||
-       !write_used_runtime(kept, runtime_text, runtime_size, body_text, body_size) ||
-       fclose(kept) != 0) {
+    TextStream kept_stream;
+    FILE *kept = TextStreamOpen(&kept_stream, &kept_text, &kept_size);
+    int buffer_failed = kept == NULL;
+    if(TextStreamClose(&runtime_stream) != 0) buffer_failed = 1;
+    if(TextStreamClose(&body_stream) != 0) buffer_failed = 1;
+    if(!buffer_failed && !write_used_runtime(kept, runtime_text, runtime_size, body_text, body_size))
+        buffer_failed = 1;
+    if(kept != NULL && TextStreamClose(&kept_stream) != 0) buffer_failed = 1;
+    if(buffer_failed) {
         free(runtime_text);
         free(body_text);
         free(kept_text);

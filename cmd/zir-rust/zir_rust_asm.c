@@ -2,6 +2,7 @@
 #include "zir_asm.h"
 #include "zir_check.h"
 #include "zir_scalar.h"
+#include "zir_stream.h"
 #include "zir_text.h"
 
 #include <ctype.h>
@@ -20,10 +21,17 @@ typedef struct RustOperand {
     int tied_to, tied_input, early, memory;
 } RustOperand;
 
-typedef struct NumericLabel {
+typedef struct RustLabel {
     const char *text;
     size_t length;
-} NumericLabel;
+    size_t definition;
+    int unique, definitions;
+} RustLabel;
+
+typedef struct LabelReference {
+    size_t direction;
+    int label;
+} LabelReference;
 
 typedef struct RustVariant {
     AssemblyVariant source;
@@ -33,8 +41,10 @@ typedef struct RustVariant {
     int clobber_count, x86, bits;
     const char *unsupported;
     char *text;
-    NumericLabel *labels;
+    RustLabel *labels;
     size_t label_count, label_capacity;
+    LabelReference *references;
+    size_t reference_count, reference_capacity;
 } RustVariant;
 
 typedef struct RustAssembly {
@@ -329,6 +339,7 @@ static void prepare(RustAssembly *assembly, RustVariant *variant)
         if(!variant->unsupported) return;
         free(variant->text); variant->text = NULL;
         variant->label_count = 0;
+        variant->reference_count = 0;
     }
 }
 
@@ -405,24 +416,74 @@ static int label_number(RustVariant *variant, const char *text, size_t length)
         if(variant->labels[i].length == length && !strncmp(variant->labels[i].text, text, length)) return (int)i + 20;
     if(variant->label_count == variant->label_capacity) {
         size_t capacity = variant->label_capacity ? variant->label_capacity * 2 : 16;
-        NumericLabel *items = realloc(variant->labels, capacity * sizeof(*items));
+        RustLabel *items = realloc(variant->labels, capacity * sizeof(*items));
         if(items == NULL) return -1;
         variant->labels = items; variant->label_capacity = capacity;
     }
-    variant->labels[variant->label_count++] = (NumericLabel){text, length};
+    variant->labels[variant->label_count++] = (RustLabel){.text = text, .length = length};
     return (int)variant->label_count + 19;
 }
 
 static int identifier(int byte) { return isalnum((unsigned char)byte) || byte == '_' || byte == '.'; }
 
+static int label_start(const RustVariant *variant, const char *start, const char *text)
+{
+    if(text == start) return 1;
+    if(identifier(text[-1])) return 0;
+    if(text[-1] != '$') return 1;
+    /* '$' starts an AT&T immediate, but can also occur inside symbol names. */
+    return variant->x86 && (text == start + 1 ||
+        (!identifier(text[-2]) && text[-2] != '$'));
+}
+
+static int data_directive(const char *text)
+{
+    static const char *names[] = {".ascii", ".asciz", ".string", ".byte", ".short",
+        ".word", ".hword", ".long", ".int", ".quad", ".dword", ".octa",
+        ".1byte", ".2byte", ".4byte", ".8byte", ".space", ".skip", ".zero",
+        ".fill", ".align", ".balign", ".p2align", ".inst"};
+    size_t length = 0;
+    while(identifier(text[length])) length++;
+    for(size_t i = 0; i < sizeof(names) / sizeof(*names); i++)
+        if(strlen(names[i]) == length && !strncmp(text, names[i], length)) return 1;
+    return 0;
+}
+
+static const char *unique_label(const char *text)
+{
+    if(text[0] != '.' || text[1] != 'L') return NULL;
+    int unique = 0;
+    const char *end = text + 2;
+    while(*end) {
+        if(identifier(*end) || *end == '$') end++;
+        else if(end[0] == '%' && end[1] == '=') { unique = 1; end += 2; }
+        else break;
+    }
+    return unique ? end : NULL;
+}
+
+static int label_reference(RustVariant *variant, int label, size_t direction)
+{
+    if(variant->reference_count == variant->reference_capacity) {
+        size_t capacity = variant->reference_capacity ? variant->reference_capacity * 2 : 16;
+        LabelReference *items = realloc(variant->references, capacity * sizeof(*items));
+        if(items == NULL) return 0;
+        variant->references = items; variant->reference_capacity = capacity;
+    }
+    variant->references[variant->reference_count++] = (LabelReference){direction, label};
+    return 1;
+}
+
 static void translate(RustVariant *variant)
 {
     if(variant->unsupported) return;
     size_t size = 0;
-    FILE *out = open_memstream(&variant->text, &size);
+    TextStream stream;
+    FILE *out = TextStreamOpen(&stream, &variant->text, &size);
     if(out == NULL) { variant->unsupported = "template allocation"; return; }
     const char *start = variant->source.text, *p = start;
     int quoted = 0, comment = 0, block_comment = 0, dialect = 0;
+    int statement_start = 1, directive = 0, complex_directives = 0;
     while(*p) {
         if(*p == '%') {
             p++;
@@ -464,6 +525,37 @@ static void translate(RustVariant *variant)
             if(!end) { variant->unsupported = "assembler dialect alternative"; break; }
             dialect = 0; p = end + 1; continue;
         }
+        if(!quoted && !comment && !block_comment && label_start(variant, start, p)) {
+            const char *end = unique_label(p);
+            if(end) {
+                const char *after = end;
+                while(*after == ' ' || *after == '\t') after++;
+                int definition = *after == ':';
+                if(!definition && directive) {
+                    variant->unsupported = "GNU unique symbol in assembler directive"; break;
+                }
+                int number = label_number(variant, p, (size_t)(end - p));
+                size_t position = 0;
+                if(number < 0 || TextStreamPosition(&stream, &position) != 0) {
+                    variant->unsupported = "unique label allocation or position"; break;
+                }
+                RustLabel *label = &variant->labels[number - 20];
+                label->unique = 1;
+                if(definition) {
+                    label->definitions++;
+                    label->definition = position;
+                }
+                fprintf(out, "%d", number);
+                if(!definition) {
+                    if(TextStreamPosition(&stream, &position) != 0 ||
+                       !label_reference(variant, number - 20, position)) {
+                        variant->unsupported = "unique label reference allocation or position"; break;
+                    }
+                    fputc('f', out);
+                }
+                statement_start = 0; p = end; continue;
+            }
+        }
         if(!quoted && !comment && !block_comment && isdigit((unsigned char)*p) &&
            (p == start || !identifier(p[-1]))) {
             const char *end = p;
@@ -487,6 +579,14 @@ static void translate(RustVariant *variant)
         }
         if(!quoted && !block_comment && ((*p == '#' && strcmp(variant->arch, "aarch64")) ||
            (*p == '@' && !strcmp(variant->arch, "arm")) || (p[0] == '/' && p[1] == '/'))) comment = 1;
+        if(!quoted && !comment && !block_comment && statement_start &&
+           !isspace((unsigned char)*p)) {
+            directive = *p == '.'; statement_start = 0;
+            if(directive && !data_directive(p)) complex_directives = 1;
+        }
+        if(!quoted && !block_comment && (*p == '\n' || (!comment && (*p == ';' || *p == ':')))) {
+            directive = 0; statement_start = 1;
+        }
         if(*p == '\n') comment = 0;
         if(*p == '{' || *p == '}') fputc(*p, out);
         fputc(*p++, out);
@@ -498,7 +598,24 @@ static void translate(RustVariant *variant)
                 if(!placeholder(out, variant, i, 0)) variant->unsupported = "register template format";
         fputs(" */", out);
     }
-    if(fclose(out) != 0) variant->unsupported = "template output";
+    if(TextStreamClose(&stream) != 0) variant->unsupported = "template output";
+    if(!variant->unsupported) {
+        for(size_t i = 0; i < variant->label_count; i++)
+            if(variant->labels[i].unique && variant->labels[i].definitions != 1) {
+                variant->unsupported = "GNU unique label requires one definition in its template"; break;
+            } else if(variant->labels[i].unique && complex_directives) {
+                variant->unsupported = "GNU unique labels with assembler control or symbol directives"; break;
+            }
+    }
+    if(!variant->unsupported)
+        for(size_t i = 0; i < variant->reference_count; i++) {
+            const LabelReference *reference = &variant->references[i];
+            if(reference->direction >= size) {
+                variant->unsupported = "unique label reference position"; break;
+            }
+            variant->text[reference->direction] =
+                variant->labels[reference->label].definition < reference->direction ? 'b' : 'f';
+        }
 }
 
 static void return_type(RustAssembly *assembly, const RustVariant *variant)
@@ -693,7 +810,7 @@ int RustEmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *func
         prepare(assembly, variant);
         if(variant->unsupported) {
             line(assembly, "// Rust uses the checked portable body for this variant: %s.", variant->unsupported);
-            free(variant->labels); free(variant->text); free(variant); continue;
+            free(variant->references); free(variant->labels); free(variant->text); free(variant); continue;
         }
         if(assembly->count == assembly->capacity) {
             int capacity = assembly->capacity ? assembly->capacity * 2 : 8;
@@ -778,7 +895,8 @@ int RustEmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *func
 done:
     status = status && assembly->count > 0;
     for(int i = 0; i < assembly->count; i++) {
-        free(assembly->variants[i]->labels); free(assembly->variants[i]->text); free(assembly->variants[i]);
+        free(assembly->variants[i]->references); free(assembly->variants[i]->labels);
+        free(assembly->variants[i]->text); free(assembly->variants[i]);
     }
     free(assembly->variants);
     free(assembly);

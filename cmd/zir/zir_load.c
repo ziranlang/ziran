@@ -200,7 +200,14 @@ add_program_named(LoadContext *context, const char *path, const char *root,
      * component. This gives relative and absolute inputs the same module
      * identity while allowing a project to link a shared .zi file by name. */
     const char *slash = strrchr(path, '/');
+#if defined(_WIN32)
+    const char *backslash = strrchr(path, '\\');
+    if(backslash != NULL && (slash == NULL || backslash > slash)) slash = backslash;
+#endif
     size_t parent_length = slash == NULL ? 0 : (size_t)(slash - path);
+#if defined(_WIN32)
+    if(parent_length > 0 && path[parent_length - 1] == ':') parent_length++;
+#endif
     char *parent_path = parent_length == 0 ? strdup(slash == path ? "/" : ".") :
                         DuplicatePrefix(path, parent_length);
     char *parent = parent_path == NULL ? NULL : CanonicalPath(parent_path);

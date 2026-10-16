@@ -44,7 +44,7 @@ def main():
     if platform.machine() == 'x86_64':
         native_flags += ['-Ctarget-cpu=x86-64', '-Ctarget-feature=-popcnt,-avx,-bmi2']
         c_flags += ['-march=x86-64', '-mno-popcnt', '-mno-avx', '-mno-bmi2']
-    samples, builds, artifacts = [], [], []
+    samples, builds, artifacts, lowering = [], [], [], []
     timer = []
     if executable := shutil.which('time'):
         version = subprocess.run([executable, '--version'], capture_output=True, text=True)
@@ -94,9 +94,6 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
     for form in ('loop', 'calls'):
         work = out / form; work.mkdir()
         program = source(args.small)
-        # Numeric local labels survive inlining without GNU's %= extension.
-        for label, number, direction in [('done', 2, 'f'), ('loop', 3, 'b')]:
-            program = program.replace(f'.L{label}%=:', f'{number}:').replace(f'.L{label}%=', f'{number}{direction}')
         if form == 'calls':
             start = program.index(' MODIFIERS') if ' MODIFIERS' in program else program.index(' #asm(', program.index('Kernel ::'))
             end = program.index(' {', start)
@@ -125,9 +122,12 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
             build([bin_dir.resolve() / 'ziran', 'build', '--target=rust', '--root', work, '-o', project, entry], form+'-'+compiler+'-emit')
             (project / 'src/main.rs').write_text(rust_host)
             native = (project / 'src/lib.rs').read_text()
+            lowering.append(dict(form=form, compiler=compiler,
+                                 assembly_blocks=native.count('core::arch::asm!'),
+                                 portable_variant_notices=native.count('portable body for this variant')))
             if compiler == 'current':
                 assert 'core::arch::asm!' in native and 'portable body for this variant' not in native
-            for mode in (['native', 'fallback'] if compiler == 'current' else ['portable']):
+            for mode in (['native', 'fallback'] if compiler == 'current' else ['baseline']):
                 selected = dict(env, CARGO_TARGET_DIR=str(work/'cargo-target'), RUSTFLAGS=' '.join(native_flags + (['--cfg ziran_no_asm'] if mode == 'fallback' else [])))
                 name = form+'-rust-'+compiler+'-'+mode
                 build(['cargo','build','--release','--quiet','--offline','--manifest-path',project/'Cargo.toml'],name,selected)
@@ -172,6 +172,7 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
     metadata = dict(
         platform=platform.platform(), machine=platform.machine(), expected=expected, generic=args.generic,
         alternatives=args.alternatives,
+        lowering=lowering,
         rustc=subprocess.check_output(['rustc', '--version'], text=True).strip(),
         cargo=subprocess.check_output(['cargo', '--version'], text=True).strip(),
         cc=subprocess.check_output(['cc', '--version'], text=True).splitlines()[0],
@@ -184,7 +185,7 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
             'One xorshift/popcount workload on this host, without CPU isolation.',
             'Whole-process wall/CPU time includes startup and the measurement launcher; peak RSS is not live allocated memory.',
             'Builds are single observations with warmed toolchains; they are not a compiler-speed ranking.',
-            'The before compiler emits the portable body for Rust. Native asm can lose to optimized portable code, especially with per-call dispatch.',
+            'The before compiler uses its supported lowering; recorded assembly counts identify native/fallback differences. Native asm can lose to optimized portable code, especially with per-call dispatch.',
             'Rust includes its standard library in each executable; C controls link libc dynamically. Artifact sizes are not pure kernel code sizes.'],
         sources={str(p.relative_to(out)): hashlib.sha256(p.read_bytes()).hexdigest()
                  for p in out.rglob('*') if p.is_file() and p.suffix in ('.zi', '.rs', '.c') and 'cargo-target' not in p.parts})

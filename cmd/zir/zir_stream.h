@@ -133,4 +133,77 @@ ZirWriteMemory(unsigned char **data, size_t *size)
 }
 #endif
 
+/* Append-only text output. Publish a NUL-terminated buffer on close, including
+ * for empty output. Position works with write-only funopen streams too.
+ * Hosts without memory stdio use the same temporary-file path as readers. */
+typedef struct TextStream {
+    FILE *file;
+    unsigned char *data;
+    size_t length;
+    char **text;
+    size_t *size;
+} TextStream;
+
+static inline FILE *
+TextStreamOpen(TextStream *stream, char **text, size_t *size)
+{
+    *text = NULL;
+    *size = 0;
+    *stream = (TextStream){.text = text, .size = size};
+#if defined(ZIR_MEMORY_STREAMS)
+    stream->file = ZirWriteMemory(&stream->data, &stream->length);
+#else
+    stream->file = tmpfile();
+#endif
+    return stream->file;
+}
+
+static inline int
+TextStreamPosition(TextStream *stream, size_t *position)
+{
+    if(stream->file == NULL) { errno = EINVAL; return -1; }
+    if(ferror(stream->file)) return -1;
+    long offset = ftell(stream->file);
+    if(offset >= 0) { *position = (size_t)offset; return 0; }
+#if defined(ZIR_MEMORY_STREAMS)
+    if(fflush(stream->file) != 0) return -1;
+    *position = stream->length;
+    return 0;
+#else
+    return -1;
+#endif
+}
+
+static inline int
+TextStreamClose(TextStream *stream)
+{
+    if(stream->file == NULL) { errno = EINVAL; return -1; }
+    int failed = ferror(stream->file) != 0;
+#if defined(ZIR_MEMORY_STREAMS)
+    if(fclose(stream->file) != 0) failed = 1;
+    if(!failed && stream->data == NULL) {
+        stream->data = calloc(1, 1);
+        failed = stream->data == NULL;
+    }
+#else
+    failed = fflush(stream->file) != 0 || TextStreamPosition(stream, &stream->length) != 0;
+    if(!failed && stream->length == SIZE_MAX) { errno = EOVERFLOW; failed = 1; }
+    if(!failed) {
+        stream->data = malloc(stream->length + 1);
+        failed = stream->data == NULL || fseek(stream->file, 0, SEEK_SET) != 0;
+    }
+    if(!failed) {
+        failed = fread(stream->data, 1, stream->length, stream->file) != stream->length || ferror(stream->file);
+        stream->data[stream->length] = 0;
+    }
+    if(fclose(stream->file) != 0) failed = 1;
+#endif
+    stream->file = NULL;
+    if(failed) { free(stream->data); stream->data = NULL; return -1; }
+    *stream->text = (char *)stream->data;
+    *stream->size = stream->length;
+    stream->data = NULL;
+    return 0;
+}
+
 #endif

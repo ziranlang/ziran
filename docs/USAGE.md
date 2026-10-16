@@ -107,11 +107,17 @@ architectures and features depend on the Rust compiler and target. For GNU
 constraint alternatives, Rust selects the first complete column whose operands
 and template it can represent; every operand must have the same number of
 columns. Ties and per-column early clobbers remain intact. This selects a valid
-form rather than reproducing GCC's allocation-cost decisions. Reserved Rust
-registers, `%=` unique labels, and
-unsupported operand modifiers use the checked body for that variant, with a
+form rather than reproducing GCC's allocation-cost decisions. Self-contained
+`.L…%=` labels become numeric locals, with forward/backward references resolved
+within each template. They remain safe when the compiler duplicates assembly
+through inlining or generic specialization. Each such label must have one
+definition. Unique IDs used as literal data, nonlocal/exported symbols, or in
+assembler control/macro directives retain fallback. Reserved Rust registers and
+unsupported operand modifiers also use the checked body for that variant, with a
 comment in generated Rust explaining the limitation. These are portability
 fallbacks, not full GNU assembly coverage.
+Rust-output compiler builds also support Windows-hosted generation and native
+backslash input/output paths.
 
 Run `tests/assembly.sh build/bin/ziran` for source/saved IR execution and
 rejection checks, and `tests/assembly_features.sh` for CPU selection,
@@ -130,6 +136,8 @@ Use `--generic` to instantiate those kernels through type parameters; both
 whole-loop and per-call cases also verify their portable `.zib` result.
 Use `--alternatives` to benchmark paired register constraints against forced
 fallback and an optional preserved compiler that falls back for alternatives.
+The loop templates retain their original GNU `%=` labels. Baseline lowering
+counts record whether the preserved compiler emitted assembly or fallback.
 
 ### Local assembly blocks
 

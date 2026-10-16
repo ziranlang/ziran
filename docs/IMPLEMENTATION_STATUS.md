@@ -75,6 +75,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   write-only callback streams; Windows builds use native directory creation
   and accept backslash input paths. `tests/text_stream.sh` covers empty and
   binary output, positions, write errors and temporary-file fallback.
+  The ARMv7 Rust-output compiler has also executed on Android 9 from source
+  and saved IR, producing the same Rust as Linux. Portable ownership and
+  assembly-fallback fixtures pass on that device. `bench/android_execution.py`
+  prepares matched C/Go controls and checks device timings against an
+  independent oracle; these single-workload results do not establish overall
+  C/Go parity or Android compilation speed.
 
 - Generic functions and local blocks retain assembly through concrete
   specialization, including saved-library imports. Each instance validates

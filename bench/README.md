@@ -101,6 +101,39 @@ These are synthetic VM comparisons on the recorded host, not native C/Go or
 whole-application performance claims. Fixture manifests retain the generator
 hashes and expected results alongside the existing raw timing receipts.
 
+## Android device execution
+
+Prepare matched Ziran source/saved-IR C and Go programs, handwritten C/Go
+controls, and a portable VM fixture for one Android ABI:
+
+```sh
+python3 bench/android_execution.py prepare \
+  --out build/benchmarks/android-device/execution \
+  --ndk "$ANDROID_NDK_HOME" --abi armeabi-v7a
+```
+
+Run the measurement stage on the host that owns the device's ADB connection,
+passing its exact serial:
+
+```sh
+python3 bench/android_execution.py run \
+  --out build/benchmarks/android-device/execution --serial DEVICE_SERIAL
+```
+
+The script verifies transferred hashes, checks every checksum against an
+independent Python calculation, shuffles native trials, discards process
+warmups, and records internal kernel time and peak process RSS. Go uses one
+logical processor. The VM runs the small input and separates checked loading,
+instance preparation and repeated execution. A fresh directory under
+`/data/local/tmp` holds each attempt's files and is removed afterward; the
+result file records failures and cleanup status and protects existing results.
+
+These are single-workload device measurements. Clocks, temperature and
+background activity remain uncontrolled, short CPU samples can round to zero,
+and peak RSS includes startup/runtime memory. ARMv7 uses the checked body for
+this fixture's x86_64/AArch64 assembly variants. Cross-build observations do
+not establish Go-like compilation speed on Android.
+
 ## CPU-selected assembly
 
 ```sh

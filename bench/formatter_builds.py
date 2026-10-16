@@ -21,12 +21,13 @@ def main():
     parser.add_argument('--before-bin-dir', type=Path, required=True)
     parser.add_argument('--bin-dir', type=Path, default=ROOT/'build/bin')
     parser.add_argument('--repetitions', type=int, default=9)
+    parser.add_argument('--cflags', default='-O2 -std=c11 -D_GNU_SOURCE')
     args = parser.parse_args()
     if args.repetitions < 1: parser.error('repetitions must be positive')
     out, before, current = args.out.resolve(), args.before_bin_dir.resolve(), args.bin_dir.resolve()
     if out.exists(): parser.error('preserve receipts and remove inactive outputs before reuse')
     out.mkdir(parents=True)
-    env = dict(os.environ,CC=shutil.which('cc'),CFLAGS='-O2 -std=c11 -D_GNU_SOURCE',LDFLAGS='',LDLIBS='')
+    env = dict(os.environ,CC=shutil.which('cc'),CFLAGS=args.cflags,LDFLAGS='',LDLIBS='')
     for key in ('DISPLAY','WAYLAND_DISPLAY','XAUTHORITY','DBUS_SESSION_BUS_ADDRESS',
                 'ZIRAN_PROFILE','ZIRAN_VM_PROFILE','MAKEFLAGS','MFLAGS'):
         env.pop(key,None)
@@ -41,6 +42,7 @@ def main():
     if not launcher: parser.error('GNU or BusyBox time is required for child RSS')
     if not env['CC'] or not hasattr(os,'wait4'):parser.error('requires cc and POSIX wait4')
     metadata=dict(schema=1,platform=platform.platform(),repetitions=args.repetitions,discarded_warmups=1,
+                  cpu_affinity=sorted(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else None,
                   flags={k:env[k] for k in ('CC','CFLAGS','LDFLAGS','LDLIBS')},
                   versions=dict(cc=subprocess.check_output([env['CC'],'--version'],text=True)),
                   tool_hashes={label:{name:digest(directory/name) for name in ('ziran','zi2c')}

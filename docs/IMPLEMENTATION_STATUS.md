@@ -22,6 +22,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   Cache identities include this compile policy, and profiles count piped
   object attempts. The native-cache test observes actual native-driver
   arguments, unchanged-object reuse, explicit flags and failed-probe fallback.
+  Linker selection/pass-through flags (`-fuse-ld=`, `-Wl,`, `-Xlinker`) and
+  tool prefixes (`-B`) also retain object reuse. The probe fingerprints the
+  selected compiler/assembler and include roots; changed prefix tools invalidate
+  their objects. Linking runs on every build, regenerates requested maps and
+  checks current library inputs. Source/saved-IR tests cover these options,
+  prefix-tool replacement, option values and missing-library failure.
 
 - Generated C and C++ public headers carry lightweight string value and caller
   location definitions. Sources include string operations, bounds checks and

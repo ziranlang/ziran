@@ -41,6 +41,7 @@ def main():
     parser.add_argument('--run-repetitions', type=int, default=9)
     parser.add_argument('--work', type=int, default=20000000, help='approximately this many module calls per large run')
     parser.add_argument('--jobs', type=int, default=4, help='C make/Go concurrency cap; Ziran uses its own driver behavior')
+    parser.add_argument('--cflags', default='-O2 -std=c11', help='same C compiler flags for Ziran and C controls')
     args = parser.parse_args()
     if (not args.sizes or len(set(args.sizes)) != len(args.sizes) or
             any(n < 1 or n > 128 for n in args.sizes) or
@@ -62,7 +63,7 @@ def main():
     for name in ['DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS',
                  'ZIRAN_PROFILE', 'ZIRAN_VM_PROFILE', 'MAKEFLAGS', 'MFLAGS']:
         env.pop(name, None)
-    env.update(CC=tools['cc'], CFLAGS='-O2 -std=c11', LDFLAGS='', LDLIBS='',
+    env.update(CC=tools['cc'], CFLAGS=args.cflags, LDFLAGS='', LDLIBS='',
                GOCACHE=str(output/'go-cache'), GOTOOLCHAIN='local', GOPROXY='off',
                GOSUMDB='off', GOWORK='off', GOFLAGS='', CGO_ENABLED='0', GOMAXPROCS=str(args.jobs))
     launcher = []
@@ -77,6 +78,8 @@ def main():
     metadata = dict(schema_version=1, created_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                     head=git('rev-parse', 'HEAD'), status=git('status', '--short'),
                     platform=platform.platform(), machine=platform.machine(), jobs=args.jobs,
+                    cflags=args.cflags,
+                    cpu_affinity=sorted(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else None,
                     versions={n: subprocess.check_output([p, '--version' if n != 'go' else 'version'], text=True)
                               for n, p in tools.items()},
                     binaries={name: digest(binary/name) for name in ['ziran', 'zi2c']},

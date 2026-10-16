@@ -325,7 +325,7 @@ static int native_executable(const char *path)
 }
 static int argument_value(const char *arg)
 {
-    const char *paired[]={"-I","-isystem","-iquote","-idirafter","-include","-imacros","-isysroot","--sysroot","-target","--target","-x","-D","-U"};
+    const char *paired[]={"-I","-isystem","-iquote","-idirafter","-include","-imacros","-isysroot","--sysroot","-target","--target","-x","-D","-U","-B","-Xlinker"};
     for(size_t i=0;i<sizeof(paired)/sizeof(*paired);i++)
         if(!strcmp(arg,paired[i])) return 1;
     return 0;
@@ -351,6 +351,11 @@ static int supported_arguments(char *const *args,int count)
         if(argument_value(arg)) { if(++i==count || (!strcmp(arg,"-x") && strcmp(args[i],"c"))) return 0; continue; }
         if(!strncmp(arg,"-D",2) || !strncmp(arg,"-U",2) || !strncmp(arg,"-I",2) || !strncmp(arg,"-std=",5) ||
            !strncmp(arg,"--sysroot=",10) || !strncmp(arg,"--target=",9)) continue;
+        /* Link-only options do not add object inputs: linking still runs on
+         * every build. A tool prefix also affects compilation, so retain the
+         * ordinary probe's resolved compiler/assembler and include identities. */
+        if(!strncmp(arg,"-Wl,",4) || (!strncmp(arg,"-fuse-ld=",9) && arg[9]) ||
+           (!strncmp(arg,"-B",2) && arg[2])) continue;
         if(!strncmp(arg,"-W",2) && strncmp(arg,"-Wa,",4) && strncmp(arg,"-Wp,",4) && strncmp(arg,"-Wl,",4)) continue;
         if(!strncmp(arg,"-g",2) && strncmp(arg,"-gsplit",7)) continue;
         if(!strcmp(arg,"-O0") || !strcmp(arg,"-O1") || !strcmp(arg,"-O2") || !strcmp(arg,"-O3") ||

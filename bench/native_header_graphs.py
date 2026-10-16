@@ -17,7 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 GROUPS, WIDTH, CONSUMERS = 8, 64, 32
 
 
-def generate(source):
+def generate(source, groups=GROUPS, width=WIDTH, consumers=CONSUMERS, read_last=False):
+    GROUPS, WIDTH, CONSUMERS = groups, width, consumers
     source.mkdir(parents=True)
     for number in range(GROUPS * WIDTH):
         (source/f'leaf{number:04d}.zi').write_text(f'#scope_export\nLeaf{number:04d} :: struct {{ value: u32 }}\n')
@@ -28,10 +29,11 @@ def generate(source):
     text = '#scope_export\n'+''.join(f'G{i} :: #import "group{i:02d}";\n' for i in range(GROUPS))
     text += 'Bundle :: struct {\n'+''.join(f'g{i}: G{i}.Group{i:02d};\n' for i in range(GROUPS))+'}\n'
     (source/'common.zi').write_text(text)
+    field = f'g{GROUPS - 1}.l{WIDTH - 1}' if read_last else 'g0.l0'
     for number in range(CONSUMERS):
         (source/f'consumer{number:02d}.zi').write_text('#scope_export\nCommon :: #import "common";\n'
             'Read :: (value: *Common.Bundle) -> s64 {\nif value == null { return 0 }\n'
-            f'return cast(s64)(value.g0.l0.value) * {number + 1}\n}}\n')
+            f'return cast(s64)(value.{field}.value) * {number + 1}\n}}\n')
     text = '#scope_export\nCommon :: #import "common";\n'+''.join(f'C{i} :: #import "consumer{i:02d}";\n' for i in range(CONSUMERS))
     text += ('lib :: #system_library "c";\nhost :: #system_library "host";\n'
              'Parse :: (text: *u8) -> s32 #foreign lib "atoi";\n'
@@ -44,7 +46,8 @@ def generate(source):
     (source/'app.zi').write_text(text)
 
 
-def host_source():
+def host_source(groups=GROUPS, width=WIDTH):
+    GROUPS, WIDTH = groups, width
     size = GROUPS * WIDTH * 4
     return ('#include "common.h"\n'
             f'_Static_assert(sizeof(Bundle) == {size}, "full foreign ABI");\n'
@@ -59,8 +62,12 @@ def main():
     parser.add_argument('--before-bin-dir', type=Path, required=True)
     parser.add_argument('--bin-dir', type=Path, default=ROOT/'build/bin')
     parser.add_argument('--repetitions', type=int, default=15)
+    parser.add_argument('--groups', type=int, default=GROUPS)
+    parser.add_argument('--width', type=int, default=WIDTH)
+    parser.add_argument('--read-last', action='store_true', help='read the final nested field, requiring late-module qualification')
     args = parser.parse_args()
-    if args.repetitions < 1: parser.error('repetitions must be positive')
+    if args.repetitions < 1 or not 1 <= args.groups <= 8 or not 1 <= args.width <= 64:
+        parser.error('positive repetitions, groups 1..8 and width 1..64 required')
     out, before, current = args.out.resolve(), args.before_bin_dir.resolve(), args.bin_dir.resolve()
     if out.exists(): parser.error('archive records and remove inactive outputs before reuse')
     out.mkdir(parents=True)
@@ -75,18 +82,19 @@ def main():
         if '-f FMT' in probe.stdout+probe.stderr and '-o FILE' in probe.stdout+probe.stderr: timer = [tool,'time']
     if not timer or not env['CC']: parser.error('requires cc and GNU or BusyBox time')
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
-    source = out/'source'; generate(source)
+    source = out/'source'; generate(source,args.groups,args.width,CONSUMERS,args.read_last)
+    host = host_source(args.groups,args.width)
     def plain(argv): return subprocess.run(list(map(str,argv)),env=env,cwd=ROOT,capture_output=True,text=True,check=True,timeout=180)
     plain([current/'ziran','ir','--root',source,'-o',out/'ir',source/'app.zi'])
-    metadata = dict(schema=1,platform=platform.platform(),repetitions=args.repetitions,groups=GROUPS,width=WIDTH,consumers=CONSUMERS,measurement_launcher=timer,
+    metadata = dict(schema=1,platform=platform.platform(),repetitions=args.repetitions,groups=args.groups,width=args.width,consumers=CONSUMERS,read_last=args.read_last,measurement_launcher=timer,
                     cpu_affinity=sorted(os.sched_getaffinity(0)) if hasattr(os,'sched_getaffinity') else None,
                     flags={k:env[k] for k in ('CC','CFLAGS','LDFLAGS','LDLIBS')},
                     tool_hashes={label:{name:sha(folder/name) for name in ('ziran','zi2c')} for label,folder in [('before',before),('current',current)]},
                     source_hashes={str(p.relative_to(ROOT)):sha(p) for folder in ('cmd','std','include') for p in (ROOT/folder).rglob('*') if p.is_file() and p.suffix in ('.c','.h','.zi')},
                     generator_sha256=sha(Path(__file__)),output_identity=[],dependency_counts=[],
-                    fixture_hashes={str(p.relative_to(source)):sha(p) for p in source.iterdir()},host_sha256=hashlib.sha256(host_source().encode()).hexdigest(),
-                    caveats=['One generated Ziran/C-interop program with 512 leaf records; warm shared-host filesystem/toolchain caches.',
-                             'Foreign signature and C static assertions retain the complete 2048-byte layout and final field offset.',
+                    fixture_hashes={str(p.relative_to(source)):sha(p) for p in source.iterdir()},host_sha256=hashlib.sha256(host.encode()).hexdigest(),
+                    caveats=[f'One generated Ziran/C-interop program with {args.groups * args.width} leaf records; warm shared-host filesystem/toolchain caches.',
+                             f'Foreign signature and C static assertions retain the complete {args.groups * args.width * 4}-byte layout and final field offset.',
                              'Fresh samples remove owned generated output; source inputs stay identical, so this is not a cold-machine benchmark.',
                              'Before/after are interleaved with identical compiler flags; this is not a Go or C language ranking.',
                              'Peak RSS is the maximum child/process, not summed concurrent memory.'])
@@ -100,11 +108,12 @@ def main():
             return [tools/'ziran','build','--target=c','--exe','--entry','app:main','--root',source_root,'-o',outputs[label],entry]
         def prepare(label):
             outputs[label].mkdir(parents=True,exist_ok=True)
-            (outputs[label]/'host.c').write_text(host_source())
+            (outputs[label]/'host.c').write_text(host)
         def validate(label):
             for seed in (7,9):
                 result=plain([outputs[label]/'app',seed])
-                assert result.stdout==f'{seed * CONSUMERS * (CONSUMERS + 1) // 2 + seed + 3}\n',result.stdout
+                value = seed + 3 if args.read_last or args.groups * args.width == 1 else seed
+                assert result.stdout==f'{value * CONSUMERS * (CONSUMERS + 1) // 2 + seed + 3}\n',result.stdout
         for label in outputs: prepare(label);plain(command(label));validate(label)
         for phase in ('fresh','unchanged'):
             for repetition in range(args.repetitions+1):
@@ -127,7 +136,7 @@ def main():
         for label in outputs:
             stamps=list((outputs[label]/'.objects').glob('consumer*.c.o.inputs'))
             counts=[struct.unpack_from('<I',p.read_bytes(),112)[0] for p in stamps]
-            assert len(counts)==CONSUMERS and min(counts)>=GROUPS*WIDTH,counts
+            assert len(counts)==CONSUMERS and min(counts)>=args.groups*args.width,counts
             metadata['dependency_counts'].append(dict(form=form,variant=label,minimum=min(counts),maximum=max(counts)))
         generated=lambda folder:{str(p.relative_to(folder)):sha(p) for p in folder.rglob('*') if p.suffix in ('.c','.h')}
         identity=dict(form=form,generated_c=generated(outputs['before'])==generated(outputs['current']),executable=sha(outputs['before']/'app')==sha(outputs['current']/'app'))

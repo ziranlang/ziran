@@ -100,6 +100,22 @@ independent checksum, then frees the collection. Input preparation and process
 startup are outside the internal timer. Report this container timing
 separately from whole builds; process RSS also includes benchmark inputs.
 Both harnesses save raw samples, tool/source hashes and actual CPU affinity.
+For a before/after comparison that reaches late record types within the former
+512-module limit, add `--groups 4 --read-last` to the header-graph benchmark.
+`--groups` and `--width` control the shared record graph; defaults retain the
+original 512-leaf first-field workload. Static ABI assertions and runtime
+oracles follow the selected dimensions and field.
+
+`bench/reachable_types.py --before-lib DIR/libziran.a --out
+build/benchmarks/reachable-types` measures two qualified lookups per round in
+wide, deep and shared import graphs. Graph creation and process startup are
+outside its internal CPU/wall timers. Cold samples invalidate entry-scope
+answers; cached samples retain them. Every sample records correctness.
+The previous implementation fails positive lookups beyond 512 modules, so
+those rows are explicitly labeled as incorrect and excluded from equivalent
+work comparisons. Peak process RSS includes graph construction and storage;
+it does not isolate traversal scratch memory. Symbol verification and both
+profilers are removed from timed environments.
 
 `bench/native_probe.py --before-bin-dir DIR --out
 build/benchmarks/native-probe` measures the five-object cache regression

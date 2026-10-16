@@ -84,6 +84,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   search-order validation and metadata format; hash buckets use equivalent
   32-bit arithmetic to avoid wide multiplies on 32-bit compiler hosts.
 
+- Qualified field types traverse reachable imports with an indexed visited
+  set and an explicit, growing depth-first stack. The former 512-module
+  cutoff is removed, while the caller's type visibility checks and symbol
+  generation invalidation remain in place. Checks cover 2,049-module wide
+  graphs, a 4,096-module cycle on a 256 KiB thread stack, and first/last fields
+  in a 554-module program from source, saved IR and bundles. Native foreign
+  layout checks retain the full 2,048-byte record ABI.
+
 - Body eligibility checks reuse immutable primitive-record layout facts and
   check each reached typed expression once per pass, including shared graphs.
   Answers remain local to that pass, so rewritten bodies and other lookup

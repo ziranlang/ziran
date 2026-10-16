@@ -560,29 +560,95 @@ BuiltinType(const char *name)
     return strcmp(name, location.name) == 0 ? &location : NULL;
 }
 
+typedef struct ModuleVisits {
+    const ZirModule *small[64];
+    const ZirModule **slots;
+    size_t count, capacity;
+} ModuleVisits;
+
+static size_t
+module_visit_slot(const ZirModule *const *slots, size_t capacity,
+                  const ZirModule *module)
+{
+    size_t hash = (uintptr_t)module >> 3;
+    hash ^= hash >> 16;
+    hash *= UINT32_C(0x85ebca6b);
+    hash ^= hash >> 13;
+    size_t slot = hash & (capacity - 1);
+    while(slots[slot] != NULL && slots[slot] != module)
+        slot = (slot + 1) & (capacity - 1);
+    return slot;
+}
+
+static int
+visit_module(ModuleVisits *visits, const ZirModule *module)
+{
+    size_t slot = module_visit_slot(visits->slots, visits->capacity, module);
+    if(visits->slots[slot] != NULL) return 0;
+    if(visits->count == visits->capacity / 2) {
+        if(visits->capacity > SIZE_MAX / 2 / sizeof(*visits->slots)) {
+            DiagnosticOutOfMemory(); exit(1);
+        }
+        size_t capacity = visits->capacity * 2;
+        const ZirModule **slots = AllocateOrExit(capacity * sizeof(*slots));
+        memset(slots, 0, capacity * sizeof(*slots));
+        for(size_t i = 0; i < visits->capacity; i++)
+            if(visits->slots[i] != NULL)
+                slots[module_visit_slot(slots, capacity, visits->slots[i])] = visits->slots[i];
+        if(visits->slots != visits->small) free(visits->slots);
+        visits->slots = slots; visits->capacity = capacity;
+        slot = module_visit_slot(slots, capacity, module);
+    }
+    visits->slots[slot] = module;
+    visits->count++;
+    return 1;
+}
+
 /* Finds the module named `name` among those `module` reaches through its
  * imports. A type written as `module_name.Type` names a type that is visible
  * to its user only through another module, such as the type of a field of an
- * imported record. Package modules carry unique internal names. */
+ * imported record. Package modules carry unique internal names. Preserve
+ * depth-first import order, with indexed visits and a heap-grown stack for
+ * large or deep graphs. Small walks need no heap scratch storage. */
 static const ZirModule *
-reachable_module(const ZirModule *module, const char *name, size_t length,
-                 const ZirModule **seen, int *seen_count, int capacity)
+reachable_module(const ZirModule *module, const char *name, size_t length)
 {
-    for(int s = 0; s < *seen_count; s++)
-        if(seen[s] == module) return NULL;
-    if(*seen_count >= capacity) return NULL;
-    seen[(*seen_count)++] = module;
     if(strlen(module->name) == length &&
        strncmp(module->name, name, length) == 0)
         return module;
-    for(int i = 0; i < module->import_count; i++) {
-        const ZirModule *target = module->imports[i].resolved_module;
+    typedef struct ModuleFrame { const ZirModule *module; int next; } ModuleFrame;
+    ModuleFrame small[16], *frames = small;
+    size_t count = 1, capacity = sizeof(small) / sizeof(*small);
+    frames[0] = (ModuleFrame){.module = module};
+    ModuleVisits visits = {0};
+    visits.slots = visits.small;
+    visits.capacity = sizeof(visits.small) / sizeof(*visits.small);
+    visit_module(&visits, module);
+    const ZirModule *found = NULL;
+    while(count) {
+        ModuleFrame *frame = &frames[count - 1];
+        if(frame->next >= frame->module->import_count) { count--; continue; }
+        const ZirModule *target = frame->module->imports[frame->next++].resolved_module;
         if(target == NULL) continue;
-        const ZirModule *found = reachable_module(target, name, length,
-                                                  seen, seen_count, capacity);
-        if(found != NULL) return found;
+        if(strlen(target->name) == length && !strncmp(target->name, name, length)) {
+            found = target; break;
+        }
+        if(!visit_module(&visits, target)) continue;
+        if(count == capacity) {
+            if(capacity > SIZE_MAX / 2 / sizeof(*frames)) {
+                DiagnosticOutOfMemory(); exit(1);
+            }
+            capacity *= 2;
+            ModuleFrame *grown = AllocateOrExit(capacity * sizeof(*grown));
+            memcpy(grown, frames, count * sizeof(*grown));
+            if(frames != small) free(frames);
+            frames = grown;
+        }
+        frames[count++] = (ModuleFrame){.module = target};
     }
-    return NULL;
+    if(visits.slots != visits.small) free(visits.slots);
+    if(frames != small) free(frames);
+    return found;
 }
 
 typedef struct TypeVisit {
@@ -647,11 +713,8 @@ find_type_uncached(const ZirModule *module, const char *name,
             }
         }
         if(found == NULL) {
-            const ZirModule *seen[512];
-            int seen_count = 0;
             const ZirModule *target = reachable_module(module, name,
-                                                       alias_length, seen,
-                                                       &seen_count, 512);
+                                                       alias_length);
             for(int t = 0; target != NULL && t < target->type_count; t++) {
                 const ZirType *candidate = &target->types[t];
                 if(candidate->is_public && !candidate->is_file_private &&

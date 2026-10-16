@@ -105,4 +105,5 @@ CPP
         fi
     done
 done
+python3 "$repo/tests/reachable_types_test.py" "$ziran" "$work/large"
 echo 'indirect record types: checker, VM, C, C++, and Go passed'

@@ -12,4 +12,7 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
     "$repo/tests/symbol_lookup_test.c" \
     "$library" -lm -pthread -o "$work/test"
 ZIRAN_VERIFY_SYMBOL_LOOKUPS=1 "$work/test"
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+    "$repo/tests/reachable_types_test.c" "$library" -lm -pthread -o "$work/reachable"
+ZIRAN_VERIFY_SYMBOL_LOOKUPS=1 "$work/reachable"
 echo 'Type and procedure resolution preserve file scopes, imports, ambiguity, mutation and independent concurrent programs'

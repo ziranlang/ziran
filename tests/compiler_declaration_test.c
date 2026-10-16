@@ -1,3 +1,4 @@
+#include "zir_string.h"
 #include "compiler_declaration.h"
 #include <assert.h>
 #include <string.h>

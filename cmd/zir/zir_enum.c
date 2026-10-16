@@ -1,4 +1,5 @@
 #include "zir.h"
+#include "zir_string.h"
 #include "compiler_enum.h"
 #include "zir_profile.h"
 

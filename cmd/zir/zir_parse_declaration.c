@@ -1,4 +1,5 @@
 #include "zir_parse_internal.h"
+#include "zir_string.h"
 
 #include "compiler_source.h"
 #include "compiler_declaration.h"

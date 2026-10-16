@@ -5,8 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "zir_bounds.h"
-#include "zir_string.h"
+#include "zir_string_types.h"
 #include "compiler_scan.h"
 #include "compiler_source.h"
 #include "compiler_text.h"

@@ -2443,9 +2443,11 @@ c_plan9_rewrite_once_with_buffers(const char *text, CPlan9RewriteOnceBuffers *bu
         if(strstr(buffers->current, "#include <stdint.h>") != NULL ||
            strstr(buffers->current, "#include <stddef.h>") != NULL ||
            strstr(buffers->current, "#include <stdbool.h>") != NULL ||
+           strstr(buffers->current, "#include <stdio.h>") != NULL ||
            strstr(buffers->current, "#include <stdlib.h>") != NULL ||
            strstr(buffers->current, "#include <string.h>") != NULL ||
            strstr(buffers->current, "#include \"zir_bounds.h\"") != NULL ||
+           strstr(buffers->current, "#include \"zir_string_types.h\"") != NULL ||
            strstr(buffers->current, "#include \"zir_string.h\"") != NULL ||
            strstr(buffers->current, "#include \"zir_slice.h\"") != NULL ||
            strstr(buffers->current, "#include \"zir_vec.h\"") != NULL) {

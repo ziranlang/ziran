@@ -5,6 +5,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Generated C and C++ public headers carry lightweight string value and caller
+  location definitions. Sources include string operations, bounds checks and
+  standard-library helpers when their emitted code uses them, reducing the
+  preprocessing needed by numeric modules. Runtime headers bring their own
+  dependencies into the output directory, so generated code remains directly
+  buildable without Ziran's include directory. Native string representation,
+  embedded NUL bytes, checked bounds and float formatting remain the same.
+  `tests/native_runtime_headers.sh` checks source and saved IR, exported ABI
+  values, standalone C/C++ builds and stable copied-header timestamps.
+
 - Native C compilation refills each of its four worker slots independently,
   including when another file is slow. Linux child-completion descriptors
   avoid periodic wakeups when available; other systems retain an owned-PID

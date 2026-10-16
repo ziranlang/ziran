@@ -9,8 +9,8 @@ typedef struct ZirRuntimeHeader {
 
 extern const ZirRuntimeHeader ZirRuntimeHeaders[];
 
-/* Copy each runtime header the generated file includes into out_dir, so
- * the output builds without Ziran's include directory. */
+/* Copy runtime headers and their dependencies into out_dir, so the generated
+ * output builds without Ziran's include directory. */
 int EmitRuntimeHeaders(const char *out_dir, const char *generated_path);
 
 #endif

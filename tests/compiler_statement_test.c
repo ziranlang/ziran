@@ -1,3 +1,4 @@
+#include "zir_string.h"
 #include "compiler_statement.h"
 #include "zir_cleanup.h"
 #include "zir_parse.h"

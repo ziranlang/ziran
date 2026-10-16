@@ -1,4 +1,5 @@
 #include "zir.h"
+#include "zir_string.h"
 #include "zir_parse.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"

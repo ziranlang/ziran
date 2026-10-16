@@ -1488,7 +1488,7 @@ emit_field_path(const ZirModule *module, ZirTarget target,
 void
 EmitStringType(FILE *out)
 {
-    fputs("#include \"zir_string.h\"\n", out);
+    fputs("#include \"zir_string_types.h\"\n", out);
 }
 
 const char *
@@ -1745,7 +1745,7 @@ number_prefix(const ZirModule *module, char *out, size_t size)
 }
 
 /* C and C++ sources mark where numeric helpers go. Once the module is
- * written, EmitResolveNumberHelpers puts in the ones its code calls. */
+ * written, EmitResolveNativeHelpers puts in the ones its code calls. */
 void
 EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target)
 {
@@ -1903,13 +1903,51 @@ static const struct {
      "}\n"},
 };
 
-/* Replaces the helper mark in a written C or C++ source with the numeric
- * helpers its code calls, or with nothing. Returns 0 on success. */
+enum {
+    NATIVE_BOUNDS = 1, NATIVE_STRING = 2, NATIVE_STDIO = 4,
+    NATIVE_STDLIB = 8, NATIVE_MEMORY = 16
+};
+
+/* Scan whole identifier tokens, including those in literals and comments.
+ * False positives only add an include; emitted runtime calls cannot be missed
+ * through line length or mistaken for a suffix in a user's mangled name. */
+static unsigned
+native_runtime_includes(const char *text)
+{
+    static const struct { const char *name; unsigned include; } uses[] = {
+        {"BoundsCheck", NATIVE_BOUNDS}, {"EmptyArrayIndex", NATIVE_BOUNDS},
+        {"ZIRAN_INDEX", NATIVE_BOUNDS}, {"ZIRAN_EMPTY_INDEX", NATIVE_BOUNDS},
+        {"StringRange", NATIVE_STRING}, {"StringEqual", NATIVE_STRING},
+        {"print_float", NATIVE_STRING},
+        {"printf", NATIVE_STDIO}, {"fwrite", NATIVE_STDIO}, {"stdout", NATIVE_STDIO},
+        {"calloc", NATIVE_STDLIB}, {"free", NATIVE_STDLIB}, {"abort", NATIVE_STDLIB},
+        {"memcpy", NATIVE_MEMORY}, {"memmove", NATIVE_MEMORY}
+    };
+    unsigned includes = 0;
+    for(const char *p = text; *p;) {
+        if(!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || *p == '_')) {
+            p++;
+            continue;
+        }
+        const char *start = p++;
+        while((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+              (*p >= '0' && *p <= '9') || *p == '_') p++;
+        size_t length = (size_t)(p - start);
+        for(size_t i = 0; i < sizeof(uses) / sizeof(uses[0]); i++)
+            if(!(includes & uses[i].include) && strlen(uses[i].name) == length &&
+               !memcmp(start, uses[i].name, length))
+                includes |= uses[i].include;
+    }
+    return includes;
+}
+
+/* Replace the include mark in a written native file, and its numeric helper
+ * mark if present. Use the same read/rewrite for both kinds of dependency. */
 int
-EmitResolveNumberHelpers(const char *path)
+EmitResolveNativeHelpers(const char *path)
 {
     FILE *file = fopen(path, "rb");
-    char *text = NULL, *mark;
+    char *text = NULL, *mark, *numbers;
     long length;
     int needed[sizeof(c_number_helpers) / sizeof(c_number_helpers[0])] = {0};
     int any = 0, status = 0;
@@ -1924,12 +1962,13 @@ EmitResolveNumberHelpers(const char *path)
     }
     fclose(file);
     text[length] = '\0';
-    mark = strstr(text, NUMBER_HELPERS_MARK);
-    if(mark == NULL) {
+    mark = strstr(text, RUNTIME_INCLUDES_MARK);
+    numbers = strstr(text, NUMBER_HELPERS_MARK);
+    if(mark == NULL || (numbers != NULL && numbers < mark)) {
         free(text);
-        return 0;
+        return -1;
     }
-    for(size_t i = 0; i < sizeof(needed) / sizeof(needed[0]); i++) {
+    for(size_t i = 0; numbers && i < sizeof(needed) / sizeof(needed[0]); i++) {
         char call[32];
         format(call, sizeof(call), "%s(", c_number_helpers[i].name);
         needed[i] = strstr(text, call) != NULL;
@@ -1937,18 +1976,30 @@ EmitResolveNumberHelpers(const char *path)
     needed[0] |= needed[1];
     for(size_t i = 0; i < sizeof(needed) / sizeof(needed[0]); i++)
         any |= needed[i];
+    unsigned includes = native_runtime_includes(text);
+    if(any) includes |= NATIVE_STDLIB;
     file = fopen(path, "wb");
     if(file == NULL) {
         free(text);
         return -1;
     }
     fwrite(text, 1, (size_t)(mark - text), file);
-    if(any)
-        fputs("#include <stdint.h>\n#include <stdlib.h>\n\n", file);
+    if(includes & NATIVE_BOUNDS) fputs("#include \"zir_bounds.h\"\n", file);
+    if(includes & NATIVE_STRING) fputs("#include \"zir_string.h\"\n", file);
+    if(!(includes & NATIVE_STRING)) {
+        if((includes & NATIVE_STDIO) && !(includes & NATIVE_BOUNDS))
+            fputs("#include <stdio.h>\n", file);
+        if((includes & NATIVE_STDLIB) && !(includes & NATIVE_BOUNDS))
+            fputs("#include <stdlib.h>\n", file);
+        if(includes & NATIVE_MEMORY) fputs("#include <string.h>\n", file);
+    }
+    mark += strlen(RUNTIME_INCLUDES_MARK);
+    if(numbers != NULL)
+        fwrite(mark, 1, (size_t)(numbers - mark), file);
     for(size_t i = 0, written = 0; i < sizeof(needed) / sizeof(needed[0]); i++)
         if(needed[i])
             fprintf(file, "%s%s", written++ ? "\n" : "", c_number_helpers[i].definition);
-    fputs(mark + strlen(NUMBER_HELPERS_MARK), file);
+    fputs(numbers ? numbers + strlen(NUMBER_HELPERS_MARK) : mark, file);
     status = ferror(file) ? -1 : 0;
     if(fclose(file) != 0)
         status = -1;

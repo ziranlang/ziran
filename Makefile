@@ -330,7 +330,7 @@ $(BIN_DIR)/zi-api: $(call obj,cmd/zir-api/main.c) $(FRONTEND_OBJECTS) | $(BIN_DI
 $(BIN_DIR)/zi-inspect: $(call obj,cmd/zir-inspect/main.c) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
-RUNTIME_HEADERS := include/zir_bounds.h include/zir_string.h include/zir_slice.h \
+RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_string.h include/zir_slice.h \
     include/zir_vec.h include/ziran_parallel.h
 
 $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS)

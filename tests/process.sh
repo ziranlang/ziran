@@ -60,6 +60,7 @@ GO
             --module-path "$root/std" -o "$output" \
             "$root/tests/spec/process_test.zi"
         cat > "$output/main.c" <<'C'
+#include "zir_string.h"
 #include "process_test.h"
 #include <assert.h>
 static int calls;
@@ -87,6 +88,7 @@ C
             --module-path "$root/std" -o "$output" \
             "$root/tests/spec/process_test.zi"
         cat > "$output/main.cpp" <<'CPP'
+#include "zir_string.h"
 #include "process_test.hpp"
 #include <cassert>
 static int calls;

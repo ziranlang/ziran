@@ -194,23 +194,6 @@ static const char *fixed_x86(char letter, int width, int bits)
     return NULL;
 }
 
-static int tie(const AssemblyVariant *source, const char *constraint)
-{
-    if(isdigit((unsigned char)*constraint)) {
-        char *end;
-        long index = strtol(constraint, &end, 10);
-        return *end == 0 && index >= 0 && index < source->outputs ? (int)index : -1;
-    }
-    if(*constraint == '[') {
-        size_t length = strlen(constraint);
-        if(length > 2 && constraint[length - 1] == ']')
-            for(int i = 0; i < source->outputs; i++)
-                if(strlen(source->operands[i].alias) == length - 2 &&
-                   !strncmp(source->operands[i].alias, constraint + 1, length - 2)) return i;
-    }
-    return -1;
-}
-
 static int register_operand(RustVariant *variant, int index, const char *constraint)
 {
     RustOperand *operand = &variant->operands[index];
@@ -221,7 +204,7 @@ static int register_operand(RustVariant *variant, int index, const char *constra
         constraint++;
     }
     if(index >= variant->source.outputs) {
-        int output = tie(&variant->source, constraint);
+        int output = AssemblyTiedOutput(&variant->source, constraint);
         if(output >= 0) {
             RustOperand *destination = &variant->operands[output];
             if(destination->memory || destination->tied_input >= 0 || destination->width != operand->width) return 0;
@@ -266,33 +249,6 @@ static int register_operand(RustVariant *variant, int index, const char *constra
 
 /* GNU alternatives are columns across every operand, not independent choices.
  * '=' and '%' apply to the whole constraint; '&' belongs to one alternative. */
-static int alternative_count(const AssemblyVariant *source)
-{
-    int count = 0;
-    for(int i = 0; i < source->outputs + source->inputs; i++) {
-        int alternatives = 1;
-        for(const char *p = source->operands[i].constraint; *p; p++)
-            alternatives += *p == ',';
-        if(count && count != alternatives) return 0;
-        count = alternatives;
-    }
-    return count ? count : 1;
-}
-
-static const char *alternative(const char *constraint, int index)
-{
-    /* Direction is already known; commutativity permits but does not require
-     * swapping the inputs. Keep their declared order in Rust. */
-    while(*constraint == '=' || *constraint == '%') constraint++;
-    while(index--) constraint = strchr(constraint, ',') + 1;
-    const char *end = strchr(constraint, ',');
-    size_t length = end ? (size_t)(end - constraint) : strlen(constraint);
-    char word[ZIR_NAME_MAX];
-    if(length >= sizeof(word)) return "";
-    memcpy(word, constraint, length); word[length] = 0;
-    return KeepText(word);
-}
-
 static void translate(RustVariant *variant);
 
 static void prepare(RustAssembly *assembly, RustVariant *variant)
@@ -321,7 +277,7 @@ static void prepare(RustAssembly *assembly, RustVariant *variant)
         if(reserved(variant, name)) { variant->unsupported = "reserved Rust register"; return; }
     }
     if(!utf8(variant->source.text)) { variant->unsupported = "non-UTF-8 assembler text"; return; }
-    int alternatives = alternative_count(&variant->source);
+    int alternatives = AssemblyAlternativeCount(&variant->source);
     if(!alternatives) { variant->unsupported = "inconsistent GNU constraint alternatives"; return; }
     for(int selected = 0; selected < alternatives; selected++) {
         memset(variant->operands, 0, sizeof(variant->operands));
@@ -329,7 +285,7 @@ static void prepare(RustAssembly *assembly, RustVariant *variant)
         for(int i = 0; i < count; i++) {
             RustOperand *operand = &variant->operands[i];
             operand->type = !strcmp(variant->source.operands[i].type, "bool") ? "u8" : types[i];
-            if(!register_operand(variant, i, alternative(variant->source.operands[i].constraint, selected))) {
+            if(!register_operand(variant, i, AssemblyConstraintAlternative(variant->source.operands[i].constraint, selected))) {
                 variant->unsupported = "register constraint or tied operand width";
                 break;
             }

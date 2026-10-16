@@ -1,0 +1,40 @@
+// Distinct markers are deliberate dispatch probes, not production variants.
+Marker :: () -> s32 #asm("x86_64", "movl $7, %[out]", "=r", "", "", "") { return 3 }
+Unknown :: () -> s32 #asm("x86_64", "stc\n\tmovl $99, %[out]", "=r", "", "cc", "") { return 3 }
+Priority :: () -> s32 #asm("x86_64+sse2", "stc\n\tmovl $99, %[out]", "=r", "", "cc", "") #asm("x86_64", "movl $7, %[out]", "=r", "", "", "") { return 3 }
+Reserved :: () -> s32 #asm("x86_64", "xorq %%r14, %%r14\n\tmovl $99, %[out]", "=r", "", "r14;cc", "") { return 3 }
+Stack :: () -> s32 #asm("x86_64", "pushq %%rax\n\tpopq %%rax\n\tmovl $99, %[out]", "=r", "", "rax", "") { return 3 }
+
+Compare :: (left: s64, right: s64) -> bool #asm("x86_64", "cmpq %[right], %[left]\n\tsetl %[out]", "=r", "r;r", "cc", "") { return left < right }
+Subtract :: (left: s64, right: s64) -> s64 #asm("x86_64", "sub %[right], %[out]", "=r", "0;r", "cc", "") { return left - right }
+Multiply :: (left: s64, right: s64) -> s64 #asm("x86_64", "imul %[right], %[out]", "=r", "0;r", "cc", "") { return left * right }
+Labels :: (count: u64) -> u64 #asm("x86_64", "# %%rbp is only a comment; 1:\n\txorq %[out], %[out]\n\tmovq %[count], %%rcx\n\ttestq %%rcx, %%rcx\n\tjz 1f\n0:\n\taddq %%rcx, %[out]\n\tdecq %%rcx\n\tjnz 0b\n1:", "=&r", "r", "rcx;cc", "") {
+    total: u64
+    while count > 0 { total += count; count -= 1 }
+    return total
+}
+
+Packed :: struct { byte: u8; word: u16; integer: u32; wide: u64; flag: bool; single: float32; real: float64 }
+Copy :: (byte: u8, word: u16, integer: u32, wide: u64, flag: bool, single: float32, real: float64) -> Packed #asm("x86_64", "movb %[byte], %[out_byte]\n\tmovw %[word], %[out_word]\n\tmovl %[integer], %[out_integer]\n\tmovq %[wide], %[out_wide]\n\tmovb %[flag], %[out_flag]\n\tmovss %[single], %[out_single]\n\tmovsd %[real], %[out_real]", "=&r;=&r;=&r;=&r;=&r;=x;=x", "r;r;r;r;r;x;x", "", "") {
+    return Packed.{byte, word, integer, wide, flag, single, real}
+}
+
+Signed :: struct { byte: s8; word: s16; integer: s32; wide: s64 }
+CopySigned :: (byte: s8, word: s16, integer: s32, wide: s64) -> Signed #asm("x86_64", "movb %[byte], %[out_byte]\n\tmovw %[word], %[out_word]\n\tmovl %[integer], %[out_integer]\n\tmovq %[wide], %[out_wide]", "=&r;=&r;=&r;=&r", "r;r;r;r", "", "") { return Signed.{byte, word, integer, wide} }
+
+Retained :: (value: s64) -> s64 {
+    result: s64
+    #asm("x86_64", "movq %[value], %[out]", "=r:out=result", "rm:value", "", "") { result = value }
+    return result
+}
+
+// Fixed registers, tied inputs and multiple outputs share the GNU constraints.
+Pair :: struct { low: u64; high: u64 }
+Divide :: (value: u64, divisor: u64) -> Pair #asm("x86_64", "xorq %%rdx, %%rdx\n\tdivq %[divisor]", "=a;=&d", "0;r", "cc", "") { return Pair.{value / divisor, value % divisor} }
+Alternative :: (value: u64) -> u64 #asm("x86_64", "addq $7, %[out]", "=m,&r", "m,0", "cc", "") { return value + 7 }
+
+Feature :: (value: u64) -> u64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=r", "r", "cc", "") {
+    total: u64
+    for bit: 0..63 { total += (value >> cast(u64)bit) & 1 }
+    return total
+}

@@ -1245,3 +1245,54 @@ EmitAssemblyBlockMapped(FILE *out, const ZirModule *module, const ZirFunction *f
 {
     return assembly_block(out, module, fn, statement, ZIR_C, 1, resolver, context);
 }
+
+int
+AssemblyTiedOutput(const AssemblyVariant *source, const char *constraint)
+{
+    if(isdigit((unsigned char)*constraint)) {
+        char *end;
+        long index = strtol(constraint, &end, 10);
+        return *end == 0 && index >= 0 && index < source->outputs ? (int)index : -1;
+    }
+    if(*constraint == '[') {
+        size_t length = strlen(constraint);
+        if(length > 2 && constraint[length - 1] == ']')
+            for(int i = 0; i < source->outputs; i++)
+                if(strlen(source->operands[i].alias) == length - 2 &&
+                   !strncmp(source->operands[i].alias, constraint + 1, length - 2)) return i;
+    }
+    return -1;
+}
+
+int
+AssemblyAlternativeCount(const AssemblyVariant *source)
+{
+    int count = 0;
+    for(int i = 0; i < source->outputs + source->inputs; i++) {
+        int alternatives = 1;
+        for(const char *p = source->operands[i].constraint; *p; p++)
+            alternatives += *p == ',';
+        if(count && count != alternatives) return 0;
+        count = alternatives;
+    }
+    return count ? count : 1;
+}
+
+const char *
+AssemblyConstraintAlternative(const char *constraint, int index)
+{
+    /* Direction is already known; commutativity permits but does not require
+     * swapping the inputs. Keep their declared order in native emitters. */
+    while(*constraint == '=' || *constraint == '%') constraint++;
+    while(index--) {
+        const char *comma = strchr(constraint, ',');
+        if(comma == NULL) return "";
+        constraint = comma + 1;
+    }
+    const char *end = strchr(constraint, ',');
+    size_t length = end ? (size_t)(end - constraint) : strlen(constraint);
+    char word[ZIR_NAME_MAX];
+    if(length >= sizeof(word)) return "";
+    memcpy(word, constraint, length); word[length] = 0;
+    return KeepText(word);
+}

@@ -54,7 +54,7 @@ def main():
                                  for label,directory in [('before',before),('current',tools)]},
                     caveats=['One synthetic workload in three assembly placements on one shared host.',
                              'Kernel timers exclude process startup and parsing; peak RSS includes runtime/startup.',
-                             'Short CPU samples can quantize to zero; Go native mode includes cgo transitions.',
+                             'Short CPU samples can quantize to zero; native mode uses cgo, direct mode uses leaf Go ABI0 assembly where representable.',
                              'Native availability is read after package initialization and recorded per Go sample.',
                              'Build times are individual warm-toolchain observations, not a compilation-speed ranking.',
                              'C controls use the same generated algorithm, not an independently optimized parser or application.'])
@@ -80,10 +80,10 @@ def main():
             invoke([compiler/'ziran','build','--target=go','--pkg','main','--root',input_file.parent,
                     '-o',target,input_file])
             generated[label]=target
-        names={p.name for p in generated['source'].glob('*') if p.suffix in ('.go','.h')}
-        assert names=={p.name for p in generated['saved'].glob('*') if p.suffix in ('.go','.h')}
+        names={p.name for p in generated['source'].glob('*') if p.suffix in ('.go','.h','.s')}
+        assert names=={p.name for p in generated['saved'].glob('*') if p.suffix in ('.go','.h','.s')}
         assert all((generated['source']/n).read_bytes()==(generated['saved']/n).read_bytes() for n in names)
-        for mode,label,cgo in [('before','before','0'),('portable','source','0'),('default','source','1'),('native','source','1')]:
+        for mode,label,cgo in [('before','before','0'),('portable','source','0'),('default','source','1'),('native','source','1'),('direct','source','0')]:
             target=generated[label]
             dispatch='false'
             if label=='source':
@@ -95,7 +95,7 @@ def main():
             (target/'main.go').write_text(host)
             binary=directory/('run-'+mode)
             selected=dict(env,CGO_ENABLED=cgo,CGO_CFLAGS=' '.join(flags))
-            build(['go','build','-trimpath',*(['-tags=ziran_asm'] if mode=='native' else []),'-o',binary,'.'],form+'/'+mode,selected,target)
+            build(['go','build','-trimpath',*(['-tags=ziran_asm'] if mode in ('native','direct') else []),'-o',binary,'.'],form+'/'+mode,selected,target)
             cases.append(dict(form=form,mode=mode,binary=binary))
         target=directory/'c'
         invoke([tools/'ziran','build','--target=c','--root',fixture,'-o',target,entry])
@@ -109,7 +109,7 @@ def main():
         p=case['binary'];metadata['artifacts'].append(dict(form=case['form'],mode=case['mode'],
                   path=str(p.relative_to(out)),bytes=p.stat().st_size,sha256=hashlib.sha256(p.read_bytes()).hexdigest()))
     for p in out.rglob('*'):
-        if p.is_file() and p.suffix in ('.zi','.zir','.go','.c','.h') and 'go-cache' not in p.parts:
+        if p.is_file() and p.suffix in ('.zi','.zir','.go','.c','.h','.s') and 'go-cache' not in p.parts:
             metadata['source_hashes'][str(p.relative_to(out))]=hashlib.sha256(p.read_bytes()).hexdigest()
     metadata['source_saved_identical']=True
     timer=[]

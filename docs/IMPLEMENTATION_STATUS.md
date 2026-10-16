@@ -77,7 +77,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   and backward references, including mixed numeric labels and generic/block
   instances. Literal unique IDs, nonlocal or ambiguous labels, assembler
   control/macro directives and reserved registers without a usable alternative
-  retain fallback. Direct Go ABI assembly and full platform parity remain open.
+  retain fallback. Further direct Go architecture/instruction coverage and full
+  platform parity remain open.
   Rust output buffering also supports hosts without Unix memory streams and
   write-only callback streams; Windows builds use native directory creation
   and accept backslash input paths. `tests/text_stream.sh` covers empty and
@@ -99,7 +100,25 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   native test modules, output pruning and strict cgo pointer checking.
   `bench/go_assembly.py` measures whole-loop and per-operation placements:
   cgo transitions can dominate small operations, so native execution is opt-in.
-  This is a cgo bridge, not direct Go ABI assembler generation.
+  With `CGO_ENABLED=0`, the same `-tags=ziran_asm` opt-in now emits direct AMD64
+  [Go ABI0 assembly](https://go.dev/doc/asm) for represented numeric functions
+  and register-result blocks. GNU alternative columns and tied operands share
+  their interpretation with Rust. Fixed registers, integer/float widths, flat
+  result records, local labels and AT&T dialect alternatives retain their
+  checked bindings. Generated Go declarations describe the argument/result
+  layout; leaf instructions preserve the stack, frame and goroutine registers.
+  CPU selection is cached from CPUID and checks OS-enabled extended register
+  state before AVX variants. An available but unrepresented earlier variant
+  retains the checked body instead of selecting a later variant out of order.
+  Pointer results, pointer operands, memory-result blocks, stack-changing
+  instructions, external calls/data and other unrepresented GNU forms keep the
+  checked Go body in this path. Existing cgo builds retain their native bridge.
+  On the tested Go 1.24 toolchain, long direct assembly loops can delay Go
+  scheduling and garbage collection; the cgo path remains available.
+  Native Go assembly uses package builds (`go build -tags=ziran_asm .`), where
+  Go also compiles the generated `.s` companions. `tests/go_direct_assembly.sh`
+  checks mixed ABI layouts, CPU predicates against the C compiler, native
+  dispatch, unsupported variants, GC/stack stress and cross compilation.
 
 - Generic functions and local blocks retain assembly through concrete
   specialization, including saved-library imports. Each instance validates

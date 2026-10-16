@@ -32,5 +32,10 @@ int AssemblyVariantNext(const ZirModule *module, const ZirFunction *function,
 /* Inputs with a possible memory alternative must retain their storage when
  * an isolated feature helper is called. Unknown target classes are cautious. */
 int AssemblyInputNeedsStorage(const char *constraint);
+/* GNU alternatives select one column across every operand. Direction and
+ * commutativity apply to the whole constraint; early clobbers stay local. */
+int AssemblyAlternativeCount(const AssemblyVariant *variant);
+const char *AssemblyConstraintAlternative(const char *constraint, int column);
+int AssemblyTiedOutput(const AssemblyVariant *variant, const char *constraint);
 
 #endif

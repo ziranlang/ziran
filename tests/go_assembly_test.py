@@ -2,8 +2,10 @@
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import shutil
+import re
 import subprocess
 import sys
 
@@ -82,15 +84,21 @@ def main():
         out = WORK/form
         run([ZIRAN,'build','--target=go','--pkg','main','--root',root,'--prune-stale','-o',out,*entry])
         assert list(out.glob('*.assembly.go')) and list(out.glob('*.assembly.h'))
-        for mode in ('portable', 'ordinary', 'native', 'forced', 'checked'):
-            selected = dict(ENV, CGO_ENABLED='0' if mode == 'portable' else '1')
-            if mode in ('native','forced','checked'): selected['GOFLAGS'] = '-tags=ziran_asm'
+        for mode in ('portable', 'ordinary', 'native', 'forced', 'checked', 'direct', 'direct-forced'):
+            selected = dict(ENV, CGO_ENABLED='0' if mode in ('portable','direct','direct-forced') else '1')
+            if mode in ('native','forced','checked','direct','direct-forced'): selected['GOFLAGS'] = '-tags=ziran_asm'
             if mode == 'forced': selected['CGO_CFLAGS'] = '-O2 -g -DZIRAN_NO_ASM'
             if mode == 'checked': selected['GOEXPERIMENT'] = 'cgocheck2'
-            marker = 3 if mode in ('portable','ordinary','forced') else 7
+            marker = 3 if mode in ('portable','ordinary','forced','direct-forced') or (mode == 'direct' and platform.machine() != 'x86_64') else 7
+            if mode == 'direct-forced':
+                names=re.findall(r'^var (\w+) func\(', '\n'.join(p.read_text() for p in out.glob('*.assembly_dispatch.go')),re.M)
+                (out/'direct_override.go').write_text('package main\nfunc init(){'+''.join(n+' = nil; ' for n in names)+'}\n')
             (out/'main.go').write_text(HOST.replace('EXPECTED',str(marker)))
             run(['go','build','-o',out/'run','.'],cwd=out,env=selected)
             run([out/'run'],env=selected,expected=f'{marker} {3 if marker == 3 else 9}')
+            if mode == 'direct' and platform.machine() == 'x86_64':
+                run(['go','vet','-asmdecl','.'],cwd=out,env=selected)
+            (out/'direct_override.go').unlink(missing_ok=True)
             records.append(dict(form=form,mode=mode,marker=marker))
         # Legacy checks pass filenames. Their adapter must select the same
         # generated companions as a package build, including explicit tags.
@@ -129,9 +137,9 @@ Check :: (test: *Test) { if Boxed().value != Marker() { Fatal(test, "native test
 ''')
     run([ZIRAN,'build','--target=go','--pkg','suite','--root',suite,'-o',WORK/'suite-go',suite/'suite_test.zi'])
     assert (WORK/'suite-go/suite_test.go').is_file()
-    for cgo in ('0','1'):
-        run(['go','test','.'],cwd=WORK/'suite-go',env=dict(ENV,CGO_ENABLED=cgo,GOFLAGS='-tags=ziran_asm' if cgo == '1' else ''))
-        records.append(dict(native_test_module=True,cgo=cgo))
+    for cgo,tags in (('0',''),('0','-tags=ziran_asm'),('1','-tags=ziran_asm')):
+        run(['go','test','.'],cwd=WORK/'suite-go',env=dict(ENV,CGO_ENABLED=cgo,GOFLAGS=tags))
+        records.append(dict(native_test_module=True,cgo=cgo,tags=tags))
     collision = WORK/'collision'; collision.mkdir(exist_ok=True)
     (collision/'collision.zi').write_text('''F :: (__ziranAssembly0_0_0: s32) -> s32 #asm("x86_64", "movl %[__ziranAssembly0_0_0], %[out]", "=r", "r", "", "") { return __ziranAssembly0_0_0 }
 G :: (zirGoAssemblyEnabled: s32, unsafe: *s32) -> s32 #asm("x86_64", "movl (%[unsafe]), %[out]\\n\\taddl %[zirGoAssemblyEnabled], %[out]", "=&r", "r;r", "memory", "") { return zirGoAssemblyEnabled + unsafe.* }
@@ -161,7 +169,7 @@ H :: (zirGoAssemblyEnabled: s32, unsafe: *s32) -> s32 {
     records.append(dict(owned_companions_pruned=True))
     (WORK/'verification.json').write_text(json.dumps(dict(records=records,
         sources={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}),indent=2)+'\n')
-    print('Go assembly passed native/portable dispatch, strict cgo pointer checks, aliases, source/saved IR and concurrent calls')
+    print('Go assembly passed cgo/direct/portable dispatch, strict pointer checks, aliases, ABI offsets, source/saved IR and concurrent calls')
 
 
 if __name__ == '__main__': main()

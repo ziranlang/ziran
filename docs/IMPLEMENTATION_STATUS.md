@@ -1348,7 +1348,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   snapshot captured before the right side runs, preserving mutation order.
   Destinations may alias either operand; numeric, string, enum and error-path
   checks cover this behavior. Other values retain the general dispatcher.
-  Numeric procedures can also retain one instruction stream for local
+  Numeric and immutable-string procedures can also retain one instruction stream for local
   declarations and assignments, nested branches, blocks, loops, named
   break/continue, and returns. Local references use lexical slots and numeric
   literals retain their checked values; inputs and selected branches are read
@@ -1356,11 +1356,18 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   rules with expression plans, preserves statement/loop step limits and scope
   depth, and allocates no VM values while it runs. Per-instance call metadata
   owns these plans with an 8 MiB instruction budget. Procedures with calls,
-  globals, address-taking or container operations retain ordinary execution;
+  globals, address-taking or mutable container operations retain ordinary execution;
   rejected or oversized plans execute no partial instructions.
   `tests/vm_function_plans.sh` compares dynamic inputs, numeric errors, scoped
   and named control flow, wide jump targets, and every statement-budget
   boundary against canonical execution from source and saved IR.
+  String parameters and locals retain current immutable views, including
+  their storage owner. Dedicated instructions handle empty strings, length,
+  checked byte indexing and equality without adding string-kind tests to
+  numeric operations or stores. Bounds errors, NUL/UTF-8 bytes, changing
+  arguments, string returns and short-circuit paths match canonical execution
+  at every tested statement budget. String literals, slicing, calls, mutable
+  aggregates and other unrepresented operations retain ordinary execution.
 - Fresh record and fixed-array results can transfer their storage through
   local returns, direct calls, literals, initializers, and assignments. The VM
   retains the value-copy rules for existing bindings and globals. This transfer

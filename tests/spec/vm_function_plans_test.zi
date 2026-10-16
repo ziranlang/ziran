@@ -70,6 +70,48 @@ RealFailure :: (seed: s64, limit: s32, choose: bool) -> s64 {
     return cast(s64)number + seed
 }
 
+TextScan :: (text: string, limit: s32, choose: bool) -> s64 {
+    selected := text
+    {
+        selected: string
+        if choose { selected = text }
+        if selected.count > text.count { return -1 }
+    }
+    total: s64
+    i := limit
+    while i >= 0 && i < cast(s32)selected.count {
+        byte := selected[i]
+        i += 1
+        if choose && byte == cast(u8)0 { continue }
+        total += cast(s64)byte
+        if byte == cast(u8)255 { break }
+    }
+    return total
+}
+
+TextFailure :: (text: string, limit: s32, choose: bool) -> s64 {
+    length := cast(s64)text.count
+    return ifx choose then cast(s64)text[limit] else length
+}
+
+TextCopy :: (text: string, limit: s32, choose: bool) -> string {
+    first := text
+    second: string
+    if choose { second = first; first = second }
+    else { first = second }
+    return ifx limit < 0 then text else first
+}
+
+TextCompare :: (text: string, limit: s32, choose: bool) -> s64 {
+    empty: string
+    selected := ifx choose then text else empty
+    result := cast(s64)(selected == text) + cast(s64)(selected != empty)
+    if limit > 0 && selected.count > 0 {
+        result += cast(s64)selected[0]
+    }
+    return result
+}
+
 state: s32;
 Bump :: () -> s32 { state = 10; return 5 }
 Fallback :: () -> s32 {
@@ -81,6 +123,8 @@ Fallback :: () -> s32 {
 #program_export
 Answer :: () -> s64 {
     if Fallback() != 6 { return 1 }
+    if TextScan("ab", 0, false) != 195 || TextFailure("xy", 1, true) != 121 { return 3 }
+    if TextCopy("ab", 0, true) != "ab" || TextCompare("ab", 1, true) != 99 { return 4 }
     result := Kernel(3, 7, true) + Named(1, 6, false) + Numeric(7, 11, true)
     result += Skipped(2, 3, false) + Failure(9, 2, true) + RealFailure(3, 2, false)
     result += Large(5, 3, false)

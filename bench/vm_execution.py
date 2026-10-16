@@ -136,6 +136,36 @@ Answer :: () -> s64 {
 
     yield 'popcount', cpu_features.source(iterations), cpu_features.oracle(iterations)
 
+    # Byte scans use explicit lengths, including raw UTF-8 and controls.
+    # Python scores the encoded bytes independently of either runtime.
+    texts = [' \t café 世界\n', 'alpha\\beta"quoted', 'Ω😀1234567890', '']
+    rounds = max(1, iterations // 128)
+    score = sum(sum(byte * (at + 1) for at, byte in enumerate(text.encode())
+                    if at >= start and (at - start) % stride == 0)
+                for text in texts for start, stride in [(0, 1), (1, 2)])
+    yield 'string-scan', '''Score :: (text: string, start: s32, stride: s32) -> s64 {
+    total: s64
+    at := start
+    while at >= 0 && at < cast(s32)text.count {
+        total += cast(s64)text[at] * cast(s64)(at + 1)
+        at += stride
+    }
+    return total
+}
+#program_export
+Answer :: () -> s64 {
+    texts: [4]string = .{TEXTS}
+    total: s64
+    for round: 0..ROUNDS - 1 {
+        for text: texts {
+            total += Score(text, 0, 1) + Score(text, 1, 2)
+        }
+    }
+    return total
+}
+'''.replace('TEXTS', ', '.join(json.dumps(text, ensure_ascii=False) for text in texts)).replace(
+        'ROUNDS', str(rounds)), score * rounds
+
     # Exercise the actual standard-library parser, including nested values,
     # raw UTF-8, escaped strings and surrogate pairs. Python independently
     # decodes the serialized documents and supplies the numeric/byte checksum.

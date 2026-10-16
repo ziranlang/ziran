@@ -9,7 +9,10 @@ static void
 same_value(Value left, Value right)
 {
     assert(left.kind == right.kind);
-    if(left.kind == VALUE_REAL) {
+    if(left.kind == VALUE_STRING) {
+        assert(left.length == right.length);
+        assert(left.length == 0 || !memcmp(left.data, right.data, left.length));
+    } else if(left.kind == VALUE_REAL) {
         uint64_t a, b;
         memcpy(&a, &left.real, sizeof(a));
         memcpy(&b, &right.real, sizeof(b));
@@ -42,7 +45,9 @@ execute(VmInstance *instance, const ZirFunction *function, const Value *args,
     Flow flow;
     *result = int_value(0);
     if(compiled) {
+        uint64_t allocation = vm->allocation;
         assert(execute_scalar_function(&frame, signature, result, &flow));
+        assert(vm->allocation == allocation);
         assert(signature->scalar_plan != NULL);
         if(!strcmp(function->name, "Large")) assert(signature->scalar_plan->count > 255);
     } else flow = execute_sequence(&frame, 0, function->stmt_count, 0, result);
@@ -67,7 +72,9 @@ main(int argc, char **argv)
     VmInstance *canonical = VmInstanceOpen(program, module, entry, NULL, NULL);
     VmInstance *compiled = VmInstanceOpen(program, module, entry, NULL, NULL);
     assert(canonical != NULL && compiled != NULL);
-    const char *names[] = {"Kernel", "Named", "Numeric", "Skipped", "Failure", "RealFailure", "Large"};
+    const char *names[] = {"Kernel", "Named", "Numeric", "Skipped", "Failure", "RealFailure", "Large",
+        "TextScan", "TextFailure", "TextCopy", "TextCompare"};
+    unsigned char bytes[] = {0, 'a', 255, 'b', 0xc3, 0xa9, 0, 13, 'z'};
     const int limits[] = {-1, 0, 1, 2, 7, 16, 23, 64};
     for(size_t n = 0; n < sizeof names / sizeof *names; n++) {
         const ZirModule *owner = NULL;
@@ -80,6 +87,12 @@ main(int argc, char **argv)
             if(!strcmp(names[n], "Large") && limits[l] > 2) continue;
             for(int choose = 0; choose < 2; choose++) {
                 Value args[] = {int_value((int64_t)l * 17 - 200), int_value(limits[l]), int_value(choose)};
+                if(!strncmp(function->name, "Text", 4)) {
+                    /* The same data address changes between calls; retain
+                     * current bytes, explicit lengths, NULs and UTF-8. */
+                    bytes[1] = (unsigned char)(l + choose * 128);
+                    args[0] = string_value(bytes, l % 3 ? sizeof(bytes) : 0);
+                }
                 Value expected, actual;
                 Flow a = execute(canonical, function, args, 100000, 0, &expected);
                 int count = canonical->vm.steps;
@@ -105,6 +118,7 @@ main(int argc, char **argv)
     }
     VmInstanceClose(canonical);
     VmInstanceLimitSteps(compiled, 100000);
+    compiled->vm.collection_threshold = 1;
     for(int run = 0; run < 3; run++) {
         long long result = 0;
         int present = 0;

@@ -1087,20 +1087,23 @@ typedef enum ScalarOp {
     SCALAR_UNARY, SCALAR_BINARY, SCALAR_CAST, SCALAR_AND, SCALAR_OR,
     SCALAR_FALSE, SCALAR_COPY, SCALAR_JUMP, SCALAR_TRUTH,
     SCALAR_LOCAL, SCALAR_INT, SCALAR_UINT, SCALAR_REAL,
-    SCALAR_TICK, SCALAR_SCOPE, SCALAR_DECLARE, SCALAR_STORE, SCALAR_RETURN
+    SCALAR_TICK, SCALAR_SCOPE, SCALAR_DECLARE, SCALAR_STORE, SCALAR_RETURN,
+    SCALAR_EMPTY_STRING, SCALAR_STRING_COUNT, SCALAR_STRING_BINARY,
+    SCALAR_STRING_DECLARE, SCALAR_STRING_STORE
 } ScalarOp;
 
 typedef enum ScalarConversion {
     ScalarGeneric, ScalarInteger, ScalarBool,
     ScalarS8, ScalarU8, ScalarS16, ScalarU16,
     ScalarS32, ScalarU32, ScalarS64, ScalarU64,
-    ScalarF32, ScalarF64
+    ScalarF32, ScalarF64, ScalarString
 } ScalarConversion;
 
 static ScalarConversion
 scalar_conversion(const char *type)
 {
     ValueKind kind = value_kind(type);
+    if(kind == VALUE_STRING) return ScalarString;
     if(kind == VALUE_REAL)
         return type[0] == 'f' && type[5] == '3' ? ScalarF32 : ScalarF64;
     if(kind != VALUE_INT)
@@ -1159,6 +1162,7 @@ scalar_coerce(Frame *frame, const Value *input, const char *type,
             }
         }
     }
+    if(conversion == ScalarString && input->kind == VALUE_STRING) return input;
     *output = coerce_expression(frame->vm, frame->module, *input, type);
     return output;
 }
@@ -1364,7 +1368,7 @@ scalar_plan(Frame *frame, int index)
     return plan;
 }
 
-/* Whole numeric procedures reuse the expression instructions, with explicit
+/* Whole primitive procedures reuse the expression instructions, with explicit
  * local slots and control flow. Compilation reads checked IR only: it never
  * executes a call, touches a global, or caches a binding's current value. */
 enum { SCALAR_FUNCTION_STEPS = 8192,
@@ -1451,11 +1455,20 @@ function_expression(ScalarFunctionBuilder *builder, int index)
                     step.literal_bits = integer_bits(*value);
                 } else return -1;
             } else return -1;
-        } else if(step.op == SCALAR_MEMBER || step.op == SCALAR_POINTER_MEMBER ||
-                  step.op == SCALAR_INDEX ||
+        } else if((step.op == SCALAR_MEMBER &&
+                   (strcmp(node->name, "count") ||
+                    strcmp(builder->frame->function->exprs[node->left].type, "string"))) ||
+                  step.op == SCALAR_POINTER_MEMBER ||
+                  (step.op == SCALAR_INDEX &&
+                   strcmp(builder->frame->function->exprs[node->left].type, "string")) ||
                   (step.op == SCALAR_UNARY && !strcmp(node->op, "*")) ||
                   (step.op == SCALAR_CAST && !function_type(node->name)))
             return -1;
+        if(step.op == SCALAR_MEMBER) step.op = SCALAR_STRING_COUNT;
+        if(step.op == SCALAR_BINARY &&
+           (!strcmp(builder->frame->function->exprs[node->left].type, "string") ||
+            !strcmp(builder->frame->function->exprs[node->right].type, "string")))
+            step.op = SCALAR_STRING_BINARY;
         if(step.op == SCALAR_AND || step.op == SCALAR_OR ||
            step.op == SCALAR_FALSE || step.op == SCALAR_JUMP)
             step.target = (unsigned short)(base + step.target);
@@ -1485,12 +1498,15 @@ function_sequence(ScalarFunctionBuilder *builder, int begin, int end,
                builder->local_count >= builder->local_capacity) return 0;
             output = statement->expr_root >= 0 ?
                 function_expression(builder, statement->expr_root) :
-                function_step(builder, (ScalarStep){.op = SCALAR_INT, .output = 0});
+                function_step(builder, (ScalarStep){.op =
+                    !strcmp(statement->type, "string") ? SCALAR_EMPTY_STRING : SCALAR_INT,
+                    .output = 0});
             if(output < 0) return 0;
             if(statement->expr_root < 0) output = 0;
             local = builder->local_count++;
             builder->locals[local] = (VmParameter){statement->name, statement->type};
-            if(function_step(builder, (ScalarStep){.op = SCALAR_DECLARE,
+            if(function_step(builder, (ScalarStep){.op = !strcmp(statement->type, "string") ?
+                SCALAR_STRING_DECLARE : SCALAR_DECLARE,
                 .statement = statement, .local = (unsigned short)local,
                 .left = (unsigned char)output,
                 .conversion = (unsigned char)scalar_conversion(statement->type)}) < 0) return 0;
@@ -1524,7 +1540,8 @@ function_sequence(ScalarFunctionBuilder *builder, int begin, int end,
                 if(function_step(builder, step) < 0) return 0;
                 output = 0;
             }
-            if(function_step(builder, (ScalarStep){.op = SCALAR_STORE,
+            if(function_step(builder, (ScalarStep){.op = !strcmp(left->type, "string") ?
+                SCALAR_STRING_STORE : SCALAR_STORE,
                 .expression = left, .local = (unsigned short)local,
                 .left = (unsigned char)output,
                 .conversion = (unsigned char)scalar_conversion(left->type)}) < 0) return 0;
@@ -1876,7 +1893,9 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
     return frame->vm->failed ? int_value(0) : *values[plan->output];
 }
 
-/* Procedure instructions operate only on checked primitive values. Keeping
+/* Procedure instructions operate only on checked primitive values. Strings
+ * remain immutable views rooted by the ordinary frame; these instructions
+ * allocate no value storage or trigger collection. Keeping
  * this dispatch separate leaves the general expression evaluator's hot loop
  * unchanged for records, strings, pointers and indexing. */
 static Value
@@ -1910,6 +1929,10 @@ scalar_execute_function(Frame *frame, const ScalarPlan *plan, Flow *flow)
         case SCALAR_REAL:
             values[step->output] = real_result(output, step->literal_real);
             continue;
+        case SCALAR_EMPTY_STRING:
+            *output = string_value((const unsigned char *)"", 0);
+            values[step->output] = output;
+            continue;
         case SCALAR_TICK:
             if(vm->max_steps > 0 && ++vm->steps > vm->max_steps)
                 vm->failed = 1;
@@ -1931,6 +1954,18 @@ scalar_execute_function(Frame *frame, const ScalarPlan *plan, Flow *flow)
             /* Read the live payload before replacing an aliased local. */
             local->value = source->kind == VALUE_REAL ? real_value(source->real) :
                 source->unsigned64 ? uint_value(source->bits) : int_value(source->integer);
+            continue;
+        }
+        case SCALAR_STRING_DECLARE:
+        case SCALAR_STRING_STORE: {
+            Local *local = &frame->locals[step->local];
+            if(step->op == SCALAR_STRING_DECLARE) {
+                local->name = step->statement->name;
+                local->type = step->statement->type;
+                frame->local_count = step->local + 1;
+            }
+            if(values[step->left]->kind != VALUE_STRING) vm->failed = 1;
+            else local->value = *values[step->left];
             continue;
         }
         case SCALAR_RETURN:
@@ -1955,6 +1990,28 @@ scalar_execute_function(Frame *frame, const ScalarPlan *plan, Flow *flow)
             values[step->output] = scalar_coerce(frame, values[step->left],
                 step->expression->type, (ScalarConversion)step->conversion, output);
             continue;
+        case SCALAR_STRING_COUNT:
+            if(values[step->left]->kind != VALUE_STRING) {
+                vm->failed = 1;
+                continue;
+            }
+            int_result(output, (int64_t)values[step->left]->length);
+            values[step->output] = scalar_coerce(frame, output, step->expression->type,
+                (ScalarConversion)step->conversion, output);
+            continue;
+        case SCALAR_INDEX: {
+            const Value *left = values[step->left], *right = values[step->right];
+            if(left->kind != VALUE_STRING || right->kind != VALUE_INT ||
+               (!right->unsigned64 && right->integer < 0) ||
+               integer_bits(*right) >= left->length) {
+                vm->failed = 1;
+                continue;
+            }
+            int_result(output, left->data[integer_bits(*right)]);
+            values[step->output] = scalar_coerce(frame, output, step->expression->type,
+                (ScalarConversion)step->conversion, output);
+            continue;
+        }
         case SCALAR_CAST: {
             const Value *cast = scalar_coerce(frame, values[step->right], step->expression->name,
                 (ScalarConversion)step->cast_conversion, output);
@@ -1987,6 +2044,14 @@ scalar_execute_function(Frame *frame, const ScalarPlan *plan, Flow *flow)
             values[step->output] = scalar_coerce(frame, output, step->expression->type,
                 (ScalarConversion)step->conversion, output);
             continue;
+        case SCALAR_STRING_BINARY:
+            *output = binary_with_policy(vm, (BinaryOperation)step->operation,
+                values[step->left], values[step->right], step->left_width,
+                step->right_width, step->left_unsigned);
+            if(!vm->failed)
+                values[step->output] = scalar_coerce(frame, output, step->expression->type,
+                    (ScalarConversion)step->conversion, output);
+            continue;
         case SCALAR_BINARY:
             binary_numeric(vm, (BinaryOperation)step->operation,
                 values[step->left], values[step->right], step->left_width,
@@ -2012,7 +2077,9 @@ execute_scalar_function(Frame *frame, VmSignature *signature, Value *result, Flo
     /* Abstract numeric storage can retain an enum or pointer supplied through
      * a conversion. Those values need the canonical dispatch rules. */
     for(int i = 0; i < signature->count; i++)
-        if(frame->locals[i].value.kind != VALUE_INT && frame->locals[i].value.kind != VALUE_REAL)
+        if(!strcmp(signature->parameters[i].type, "string") ?
+           frame->locals[i].value.kind != VALUE_STRING :
+           (frame->locals[i].value.kind != VALUE_INT && frame->locals[i].value.kind != VALUE_REAL))
             return 0;
     *result = scalar_execute_function(frame, plan, flow);
     return 1;

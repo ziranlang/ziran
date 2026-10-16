@@ -127,12 +127,14 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vm_execution.py \
 
 This suite exercises integer arithmetic, mixed signed/unsigned comparisons,
 floating-point arithmetic, record calls over an array, fixed-array returns,
-population count, and the standard-library JSON parser. The array case passes
+population count, immutable string-byte scans, and the standard-library JSON parser. The array case passes
 a 4,096-element value through two functions and checks untouched zero elements
 as well as both ends.
 The JSON case scans nested records, reads signed fractional numbers, and decodes
 raw UTF-8 and escaped strings, including surrogate pairs. Its checksum comes
 from independently decoded Python JSON values and their UTF-8 bytes.
+The string case weights UTF-8 bytes at two traversal strides, with an
+independent Python checksum and an empty input among the documents.
 Each uses a separate Python result calculation. Source and saved IR
 must create identical bundles, and both runtime versions must recreate the
 source bundle before timing. Every first and repeated run must match the oracle.

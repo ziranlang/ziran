@@ -40,6 +40,17 @@ def main():
         assert 'portable body for this variant' not in native
         assert 'options(pure' not in native and 'preserves_flags' not in native
         assert 'MaybeUninit' in native and 'addr_of_mut!' in native
+        bundle = WORK / (form + '.zib')
+        run([ZIRAN, 'bundle', '--root', root, '--entry', 'asmcases:Answer', '-o', bundle, entry], env)
+        assert run([ZIRAN, 'run', bundle], env).stdout.strip() == '42'
+        def body(name):
+            return native.split('pub extern "C" fn ' + name + '(', 1)[1].split('\n#[no_mangle]', 1)[0]
+        assert 'lateout(reg)' in body('AlternativeLate')
+        assert 'op0 = out(reg)' in body('AlternativeEarly')
+        assert 'op0 = out(reg)' in body('AlternativeEarlySuffix')
+        assert 'op0 = inout(reg)' in body('AlternativeTied')
+        assert 'core::ptr::addr_of!(value)' in body('AlternativeColumns')
+        assert 'MaybeUninit::<u64>' in body('AlternativeMemory')
         for optimization in [0, 2]:
             for mode in ['native', 'fallback']:
                 selected = dict(env)
@@ -53,6 +64,46 @@ def main():
             (WORK / 'native-source.rs').write_text(native)
         else:
             assert native == (WORK / 'native-source.rs').read_text()
+        # The same alternatives must obey GNU's contract on native C/C++ too.
+        for target, compiler, extension, header, standard in [
+                ('c', os.environ.get('CC', 'cc'), 'c', 'h', 'c11'),
+                ('cpp', os.environ.get('CXX', 'c++'), 'cpp', 'hpp', 'c++17')]:
+            generated = WORK / (form + '-' + target)
+            run([ZIRAN, 'build', '--target=' + target, '--root', root, '-o', generated, entry], env)
+            host = generated / ('host.' + extension)
+            host.write_text('''#include "asmcases.HEADER"
+#include <assert.h>
+int main(void) {
+    unsigned long long state = 0x123456789abcdefULL;
+    assert(AlternativeGeneric() == 42);
+    assert(Answer() == 42);
+    for (unsigned i = 0; i < 200; i++) {
+        state = state * 6364136223846793005ULL + 1;
+        assert(Alternatives(state) == state);
+        assert(AlternativeLate(state) == state);
+        assert(AlternativeMemory(state) == state);
+        assert(AlternativeColumns(state) == state);
+        assert(AlternativeTied(state) == state + 7);
+        assert(AlternativeEarly(state) == state);
+        assert(AlternativeEarlySuffix(state) == state);
+        assert(AlternativeCommutative(state, i) == (state ^ i));
+        assert(AlternativeBlock(state) == state);
+        assert(KeywordParameter(state) == state);
+        assert(KeywordTie(state) == state + 7);
+        KeywordComment(state);
+        Pair parts = AlternativePair(state);
+        assert(parts.low == state && parts.high == (state >> 32));
+    }
+    return 0;
+}
+'''.replace('HEADER', header))
+            for optimization in [0, 2]:
+                for mode in ['native', 'fallback']:
+                    command = [compiler, '-std=' + standard, '-O' + str(optimization)]
+                    if mode == 'fallback': command.append('-DZIRAN_NO_ASM')
+                    run([*command, *generated.glob('*.' + extension), '-o', generated / 'check'], env)
+                    run([generated / 'check'], env)
+    assert (WORK / 'source.zib').read_bytes() == (WORK / 'saved.zib').read_bytes()
     # A real native assembler must reject a bad opcode. Forced fallback still
     # compiles the checked body, including when there are no operands.
     bad = WORK / 'bad.zi'
@@ -69,7 +120,9 @@ def main():
         run(['cargo', 'build', '--quiet', '--offline', '--manifest-path', output / 'Cargo.toml'], selected)
     unsupported = WORK / 'unsupported.zi'
     unsupported.write_text('''#program_export
-Alternatives :: (value: s64) -> s64 #asm("x86_64", "movq %[value], %[out]", "=r,r", "r,r", "", "") { return value }
+UnavailableAlternatives :: (value: s64) -> s64 #asm("x86_64", "movq %[value], %[out]", "=b,b", "r,r", "", "") { return value }
+#program_export
+MismatchedAlternatives :: (value: s64) -> s64 #asm("x86_64", "movq %[value], %[out]", "=r,r", "r", "", "") { return value }
 #program_export
 Reserved :: (value: s64) -> s64 #asm("x86_64", "movq %[value], %[out]", "=b", "r", "", "") { return value }
 #program_export
@@ -77,8 +130,8 @@ Unique :: () #asm("x86_64", ".Llabel%=: ", "", "", "", "volatile") {}
 ''')
     output = WORK / 'unsupported'
     run([ZIRAN, 'build', '--target=rust', '--root', WORK, '-o', output, unsupported], env)
-    assert (output / 'src/lib.rs').read_text().count('portable body for this variant') == 3
-    (output / 'src/main.rs').write_text('fn main() { assert_eq!(ziran_generated::Alternatives(42),42); assert_eq!(ziran_generated::Reserved(42),42); ziran_generated::Unique(); }\n')
+    assert (output / 'src/lib.rs').read_text().count('portable body for this variant') == 4
+    (output / 'src/main.rs').write_text('fn main() { assert_eq!(ziran_generated::UnavailableAlternatives(42),42); assert_eq!(ziran_generated::MismatchedAlternatives(42),42); assert_eq!(ziran_generated::Reserved(42),42); ziran_generated::Unique(); }\n')
     run(['cargo', 'run', '--quiet', '--offline', '--manifest-path', output / 'Cargo.toml'], dict(env, RUSTFLAGS='-Dwarnings'))
     (WORK / 'verification.json').write_text(json.dumps(dict(
         records=records, generated_sha256=hashlib.sha256((WORK / 'native-source.rs').read_bytes()).hexdigest(),

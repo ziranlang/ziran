@@ -25,6 +25,8 @@ extended assembly syntax, including named operands, register modifiers,
 multiple instructions, escaped newlines, and assembler directives. Templates
 are quoted as data in generated source. The native compiler and assembler
 validate instruction syntax and machine-specific constraints.
+Generated C/C++ uses positional operands internally, so source operand aliases
+may also be C or C++ keywords. Named matching inputs retain the same binding.
 
 Input operands follow parameter order and use the parameter names. Parameters
 must be scalars or pointers. A scalar or pointer result has operand name
@@ -101,8 +103,12 @@ operands in local blocks retain the actual caller storage, including aliases.
 Numeric local labels are renamed consistently to avoid LLVM's restricted
 labels. Rust retains conservative memory and flag effects. CPU-feature helpers
 use `target_feature` and the standard library's runtime detection; available
-architectures and features depend on the Rust compiler and target. GNU
-constraint alternatives, reserved Rust registers, `%=` unique labels, and
+architectures and features depend on the Rust compiler and target. For GNU
+constraint alternatives, Rust selects the first complete column whose operands
+and template it can represent; every operand must have the same number of
+columns. Ties and per-column early clobbers remain intact. This selects a valid
+form rather than reproducing GCC's allocation-cost decisions. Reserved Rust
+registers, `%=` unique labels, and
 unsupported operand modifiers use the checked body for that variant, with a
 comment in generated Rust explaining the limitation. These are portability
 fallbacks, not full GNU assembly coverage.
@@ -122,6 +128,8 @@ forced fallback, an optional previous compiler, generated C and handwritten
 Rust/C controls. It validates every sample against an independent integer oracle.
 Use `--generic` to instantiate those kernels through type parameters; both
 whole-loop and per-call cases also verify their portable `.zib` result.
+Use `--alternatives` to benchmark paired register constraints against forced
+fallback and an optional preserved compiler that falls back for alternatives.
 
 ### Local assembly blocks
 

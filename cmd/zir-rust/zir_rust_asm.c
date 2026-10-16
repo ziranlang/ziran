@@ -201,12 +201,15 @@ static int tie(const AssemblyVariant *source, const char *constraint)
     return -1;
 }
 
-static int register_operand(RustVariant *variant, int index)
+static int register_operand(RustVariant *variant, int index, const char *constraint)
 {
     RustOperand *operand = &variant->operands[index];
-    const char *constraint = variant->source.operands[index].constraint;
     operand->tied_to = operand->tied_input = -1;
+    operand->early = strchr(constraint, '&') != NULL;
     operand->width = word_width(variant->source.operands[index].type, variant->bits);
+    while(*constraint && strchr("=&%!*?", *constraint)) {
+        constraint++;
+    }
     if(index >= variant->source.outputs) {
         int output = tie(&variant->source, constraint);
         if(output >= 0) {
@@ -219,11 +222,6 @@ static int register_operand(RustVariant *variant, int index)
             return 1;
         }
     }
-    while(*constraint && strchr("=&%!*?", *constraint)) {
-        if(*constraint == '&') operand->early = 1;
-        constraint++;
-    }
-    if(strchr(constraint, ',')) return 0;
     if(!strcmp(constraint, "m") || !strcmp(constraint, "o")) {
         operand->memory = 1;
         operand->width = variant->bits;
@@ -256,6 +254,37 @@ static int register_operand(RustVariant *variant, int index)
     return operand->reg != NULL;
 }
 
+/* GNU alternatives are columns across every operand, not independent choices.
+ * '=' and '%' apply to the whole constraint; '&' belongs to one alternative. */
+static int alternative_count(const AssemblyVariant *source)
+{
+    int count = 0;
+    for(int i = 0; i < source->outputs + source->inputs; i++) {
+        int alternatives = 1;
+        for(const char *p = source->operands[i].constraint; *p; p++)
+            alternatives += *p == ',';
+        if(count && count != alternatives) return 0;
+        count = alternatives;
+    }
+    return count ? count : 1;
+}
+
+static const char *alternative(const char *constraint, int index)
+{
+    /* Direction is already known; commutativity permits but does not require
+     * swapping the inputs. Keep their declared order in Rust. */
+    while(*constraint == '=' || *constraint == '%') constraint++;
+    while(index--) constraint = strchr(constraint, ',') + 1;
+    const char *end = strchr(constraint, ',');
+    size_t length = end ? (size_t)(end - constraint) : strlen(constraint);
+    char word[ZIR_NAME_MAX];
+    if(length >= sizeof(word)) return "";
+    memcpy(word, constraint, length); word[length] = 0;
+    return KeepText(word);
+}
+
+static void translate(RustVariant *variant);
+
 static void prepare(RustAssembly *assembly, RustVariant *variant)
 {
     const char *plus = strchr(variant->source.target, '+');
@@ -265,17 +294,14 @@ static void prepare(RustAssembly *assembly, RustVariant *variant)
     variant->x86 = !strcmp(variant->arch, "x86") || !strcmp(variant->arch, "x86_64");
     variant->bits = strstr(variant->arch, "64") || !strcmp(variant->arch, "s390x") ? 64 : 32;
     features(variant);
+    if(variant->unsupported) return;
     int count = variant->source.outputs + variant->source.inputs;
+    const char *types[ASSEMBLY_OPERANDS];
     for(int i = 0; i < count; i++) {
         char type[ZIR_NAME_MAX * 2];
         const char *source_type = variant->source.operands[i].type;
         assembly->target->type(assembly->target->context, source_type, type, sizeof(type));
-        variant->operands[i].type = !strcmp(source_type, "bool") ? "u8" : KeepText(type);
-        if(!register_operand(variant, i)) {
-            variant->unsupported = "register constraint or tied operand width";
-            return;
-        }
-        if(variant->operands[i].memory) variant->operands[i].type = KeepText(type);
+        types[i] = KeepText(type);
     }
     variant->clobber_count = list(variant->source.clobbers, variant->clobbers);
     if(variant->clobber_count < 0) { variant->unsupported = "clobber list"; return; }
@@ -284,7 +310,26 @@ static void prepare(RustAssembly *assembly, RustVariant *variant)
         if(!strcmp(name, "memory") || !strcmp(name, "cc")) continue;
         if(reserved(variant, name)) { variant->unsupported = "reserved Rust register"; return; }
     }
-    if(!utf8(variant->source.text)) variant->unsupported = "non-UTF-8 assembler text";
+    if(!utf8(variant->source.text)) { variant->unsupported = "non-UTF-8 assembler text"; return; }
+    int alternatives = alternative_count(&variant->source);
+    if(!alternatives) { variant->unsupported = "inconsistent GNU constraint alternatives"; return; }
+    for(int selected = 0; selected < alternatives; selected++) {
+        memset(variant->operands, 0, sizeof(variant->operands));
+        variant->unsupported = NULL;
+        for(int i = 0; i < count; i++) {
+            RustOperand *operand = &variant->operands[i];
+            operand->type = !strcmp(variant->source.operands[i].type, "bool") ? "u8" : types[i];
+            if(!register_operand(variant, i, alternative(variant->source.operands[i].constraint, selected))) {
+                variant->unsupported = "register constraint or tied operand width";
+                break;
+            }
+            if(operand->memory) operand->type = types[i];
+        }
+        if(!variant->unsupported) translate(variant);
+        if(!variant->unsupported) return;
+        free(variant->text); variant->text = NULL;
+        variant->label_count = 0;
+    }
 }
 
 static int operand_index(const AssemblyVariant *source, const char *name, size_t length)
@@ -646,7 +691,6 @@ int RustEmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *func
             free(variant); status = 0; break;
         }
         prepare(assembly, variant);
-        translate(variant);
         if(variant->unsupported) {
             line(assembly, "// Rust uses the checked portable body for this variant: %s.", variant->unsupported);
             free(variant->labels); free(variant->text); free(variant); continue;

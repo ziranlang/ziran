@@ -36,6 +36,8 @@ fn main() {
         for worker in workers { worker.join().unwrap(); }
     }
     assert_eq!(api::Marker(), expected);
+    assert_eq!(api::AlternativeGeneric(), 42);
+    assert_eq!(api::Answer(), 42);
     let mut state = 0x123456789abcdefu64;
     for i in 0..200u64 {
         state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
@@ -67,6 +69,20 @@ fn main() {
         assert_eq!(api::DialectSuffix(i as i64), i as i64);
         assert_eq!(api::Labels(i & 31), (i & 31) * ((i & 31) + 1) / 2);
         assert_eq!(api::LabelData(), 48);
+        assert_eq!(api::Alternatives(state), state);
+        assert_eq!(api::AlternativeLate(state), state);
+        assert_eq!(api::AlternativeMemory(state), state);
+        assert_eq!(api::AlternativeColumns(state), state);
+        assert_eq!(api::AlternativeTied(state), state.wrapping_add(7));
+        assert_eq!(api::AlternativeEarly(state), state);
+        assert_eq!(api::AlternativeEarlySuffix(state), state);
+        assert_eq!(api::AlternativeCommutative(state, i), state ^ i);
+        let parts = api::AlternativePair(state);
+        assert_eq!((parts.low, parts.high), (state, state >> 32));
+        assert_eq!(api::AlternativeBlock(state), state);
+        assert_eq!(api::KeywordParameter(state), state);
+        assert_eq!(api::KeywordTie(state), state.wrapping_add(7));
+        api::KeywordComment(state);
         let mut value = i as i64;
         api::Store(&mut value);
         assert_eq!(value, i as i64 + 1);

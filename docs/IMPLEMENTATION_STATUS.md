@@ -63,8 +63,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   operands, with isolated CPU-feature helpers and cached runtime selection.
   `tests/rust_assembly.sh` covers tied/fixed registers, scalar widths, record
   outputs, memory aliases, numeric labels, checked fallback and source/saved IR.
-  GNU alternatives, unique labels and reserved registers still fall back;
-  native Go assembly and full platform parity remain open.
+  GNU alternatives select one complete representable operand column, retaining
+  matching inputs and per-alternative early clobbers. C/C++ translates operand
+  aliases to positional references, including aliases that are host keywords.
+  Unique labels and reserved registers without a usable alternative still
+  fall back; native Go assembly and full platform parity remain open.
 
 - Generic functions and local blocks retain assembly through concrete
   specialization, including saved-library imports. Each instance validates

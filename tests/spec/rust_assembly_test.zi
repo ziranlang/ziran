@@ -86,3 +86,55 @@ Marker :: () -> s32 #asm("x86_64+popcnt", "movl $11, %[out]", "=r", "", "", "") 
 Store :: (value: *s64) #asm("x86_64", "addq $1, (%[value])", "", "r", "cc;memory", "volatile") #asm("aarch64", "ldr x9, [%[value]]\n\tadd x9, x9, #1\n\tstr x9, [%[value]]", "", "r", "x9;memory", "volatile") { value.* += 1 }
 #program_export
 Barrier :: () #asm("x86_64", "# { unbalanced brace and \" quotes\n", "", "", "memory", "volatile") {}
+
+#program_export
+Alternatives :: (value: u64) -> u64 #asm("x86_64", "movq %[value], %[out]", "=r,m", "r,r", "", "") { return value }
+#program_export
+AlternativeLate :: (value: u64) -> u64 #asm("x86_64", "movq %[value], %[out]", "=&b,r", "r,r", "", "") { return value }
+#program_export
+AlternativeMemory :: (value: u64) -> u64 #asm("x86_64", "movq %[value], %[out]", "=b,m", "r,r", "", "") { return value }
+#program_export
+AlternativeColumns :: (value: u64) -> u64 #asm("x86_64", "movq %[value], %[out]", "=b,r", "r,m", "", "") { return value }
+#program_export
+AlternativeTied :: (value: u64) -> u64 #asm("x86_64", "addq $7, %[out]", "=b,&r", "0,0", "cc", "") { return value + 7 }
+#program_export
+AlternativeEarly :: (value: u64) -> u64 #asm("x86_64", "xorq %[out], %[out]\n\taddq %[value], %[out]", "=b,&r", "r,r", "cc", "") { return value }
+#program_export
+AlternativeEarlySuffix :: (value: u64) -> u64 #asm("x86_64", "xorq %[out], %[out]\n\taddq %[value], %[out]", "=b,r&", "r,r", "cc", "") { return value }
+#program_export
+AlternativeCommutative :: (left: u64, right: u64) -> u64 #asm("x86_64", "xorq %[right], %[out]", "=r,r", "%0,0;r,r", "cc", "") { return left ^ right }
+#program_export
+AlternativePair :: (value: u64) -> Pair #asm("x86_64", "movq %[value], %[out_low]\n\tmovq %[value], %[out_high]\n\tshrq $32, %[out_high]", "=b,m;=&r,&r", "r,r", "cc", "") { return Pair.{value, value >> 32} }
+#program_export
+AlternativeBlock :: (value: u64) -> u64 {
+    result: u64
+    #asm("x86_64", "movq %[value], %[out]", "=b,m:out=result", "r,r:value", "", "") { result = value }
+    return result
+}
+GenericAlternative :: (value: $T) -> T #asm("x86_64", "add $1, %[out]", "=b,&r", "0,0", "cc", "") { return value + 1 }
+#program_export
+AlternativeGeneric :: () -> u64 { return GenericAlternative(cast(u64)20) + cast(u64)GenericAlternative(cast(u32)20) }
+#program_export
+KeywordParameter :: (class: u64) -> u64 #asm("x86_64", "movq %[class], %[out]", "=r", "r", "", "") { return class }
+#program_export
+KeywordTie :: (value: u64) -> u64 {
+    result := value
+    #asm("x86_64", "addq $7, %[register]", "=r:register=result", "[register]:old=result", "cc", "") { result += 7 }
+    return result
+}
+#program_export
+KeywordComment :: (value: u64) #asm("x86_64", "# %%[register] %[value]\n", "", "r", "memory", "volatile") { unused value }
+#program_export
+Answer :: () -> u64 {
+    value: u64 = 8589934595
+    pair := AlternativePair(value)
+    if pair.low != value || pair.high != 2 { return 1 }
+    if Alternatives(value) != value || AlternativeLate(value) != value ||
+       AlternativeMemory(value) != value || AlternativeColumns(value) != value ||
+       AlternativeTied(value) != value + 7 || AlternativeEarly(value) != value ||
+       AlternativeEarlySuffix(value) != value ||
+       AlternativeBlock(value) != value || AlternativeCommutative(value, 7) != (value ^ 7) ||
+       KeywordParameter(value) != value || KeywordTie(value) != value + 7 { return 2 }
+    KeywordComment(value)
+    return AlternativeGeneric()
+}

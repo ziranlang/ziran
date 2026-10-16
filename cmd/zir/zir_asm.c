@@ -597,13 +597,52 @@ CheckAssembly(const ZirModule *module, const ZirFunction *fn)
 
 /* Quote decoded bytes, never interpolate them as host-language source. */
 static void
+assembly_byte(FILE *out, unsigned char byte)
+{
+    if(byte == '"' || byte == '\\') fprintf(out, "\\%c", byte);
+    else if(byte < 32 || byte >= 127) fprintf(out, "\\%03o", byte);
+    else fputc(byte, out);
+}
+
+static void
 assembly_string(FILE *out, const char *text)
 {
     fputc('"', out);
-    for(const unsigned char *at = (const unsigned char *)text; *at; at++) {
-        if(*at == '"' || *at == '\\') fprintf(out, "\\%c", *at);
-        else if(*at < 32 || *at >= 127) fprintf(out, "\\%03o", *at);
-        else fputc(*at, out);
+    for(const unsigned char *at = (const unsigned char *)text; *at; at++)
+        assembly_byte(out, *at);
+    fputc('"', out);
+}
+
+/* GNU operand aliases are C/C++ identifiers too. Emit positional references
+ * so a legal Ziran alias such as 'register' never becomes a host keyword.
+ * Keep escaped percent signs, modifiers, unknown names and literal data. */
+static void
+assembly_operand_text(FILE *out, const char *text, const char **names, int count,
+                      int template)
+{
+    fputc('"', out);
+    for(const char *at = text; *at;) {
+        if(template && at[0] == '%' && at[1] == '%') {
+            fputs("%%", out); at += 2; continue;
+        }
+        const char *name = at;
+        if(template && *name == '%') {
+            name++;
+            while(isalpha((unsigned char)*name)) name++;
+        } else if(template) name = NULL;
+        const char *end = name && *name == '[' ? strchr(name + 1, ']') : NULL;
+        int index = -1;
+        if(end)
+            for(int i = 0; i < count; i++)
+                if(strlen(names[i]) == (size_t)(end - name - 1) &&
+                   !strncmp(names[i], name + 1, (size_t)(end - name - 1))) {
+                    index = i; break;
+                }
+        if(index >= 0) {
+            while(at < name) assembly_byte(out, (unsigned char)*at++);
+            fprintf(out, "%d", index);
+            at = end + 1;
+        } else assembly_byte(out, (unsigned char)*at++);
     }
     fputc('"', out);
 }
@@ -706,19 +745,21 @@ assembly_body(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarg
               const char *result_type, const Assembly *assembly, const AssemblyOutputs *outputs)
 {
     const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    const char *names[ASSEMBLY_OPERANDS];
+    for(int i = 0; i < outputs->count; i++) names[i] = outputs->names[i];
+    for(int i = 0; i < parameters->count; i++) names[outputs->count + i] = parameters->items[i].name;
     char result_name[ZIR_NAME_MAX];
     ArrayAbiName(fn, -1, result_name, sizeof(result_name));
     if(outputs->count) fprintf(out, "        %s %s;\n", result_type, result_name);
     fputs("        __asm__", out);
     if(*assembly->part[5]) fputs(" __volatile__", out);
     fputc('(', out);
-    assembly_string(out, assembly->part[1]);
+    assembly_operand_text(out, assembly->part[1], names, outputs->count + parameters->count, 1);
     const char *constraints[ASSEMBLY_OPERANDS];
     operand_list(assembly->part[2], constraints);
     fputs("\n            : ", out);
     for(int i = 0; i < outputs->count; i++) {
         if(i) fputs(", ", out);
-        fprintf(out, "[%s] ", outputs->names[i]);
         assembly_string(out, constraints[i]);
         fprintf(out, " (%s", result_name);
         if(outputs->record) {
@@ -735,8 +776,7 @@ assembly_body(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarg
         char name[ZIR_NAME_MAX * 4];
         TargetBindingName(fn, target, parameters->items[i].name, name, sizeof(name));
         if(i) fputs(", ", out);
-        fprintf(out, "[%s] ", parameters->items[i].name);
-        assembly_string(out, constraints[i]);
+        assembly_operand_text(out, constraints[i], names, outputs->count, 0);
         fprintf(out, " (%s)", name);
     }
     int nc = operand_list(assembly->part[4], constraints);
@@ -911,9 +951,11 @@ static void
 block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
                     const Assembly *assembly, const BlockBindings *bindings, int helper)
 {
+    const char *names[ASSEMBLY_OPERANDS];
+    for(int i = 0; i < bindings->outputs + bindings->inputs; i++) names[i] = bindings->items[i].alias;
     fputs("        __asm__", out);
     if(*assembly->part[5]) fputs(" __volatile__", out);
-    fputc('(', out); assembly_string(out, assembly->part[1]);
+    fputc('(', out); assembly_operand_text(out, assembly->part[1], names, bindings->outputs + bindings->inputs, 1);
     for(int direction = 0; direction < 2; direction++) {
         fputs("\n            : ", out);
         int count = direction ? bindings->inputs : bindings->outputs;
@@ -921,7 +963,7 @@ block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
             int position = direction ? bindings->outputs + i : i;
             const BlockBinding *binding = &bindings->items[position];
             if(i) fputs(", ", out);
-            fprintf(out, "[%s] ", binding->alias); assembly_string(out, binding->constraint);
+            assembly_operand_text(out, binding->constraint, names, bindings->outputs, 0);
             if(helper && !direction && block_returns_register(bindings)) fputs(" (ziran_result)", out);
             else if(helper) fprintf(out, " (%sziran_operand_%d)", direction ? "" : "*", position);
             else {

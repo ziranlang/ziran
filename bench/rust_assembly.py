@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--bin-dir', type=Path, default=ROOT / 'build/bin')
     parser.add_argument('--baseline-bin-dir', type=Path)
     parser.add_argument('--generic', action='store_true', help='instantiate assembly kernels through type parameters')
+    parser.add_argument('--alternatives', action='store_true', help='use paired GNU register-constraint alternatives')
     parser.add_argument('--small', type=int, default=1000)
     parser.add_argument('--large', type=int, default=20000000)
     parser.add_argument('--repetitions', type=int, default=9)
@@ -110,6 +111,13 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
                                       'GenericKernel :: (rounds: $N, seed: $T) -> T')
             program = program.replace('total: u64', 'total: T').replace('i: s64', 'i: N')
             program += '\n#program_export\nKernel :: (rounds: s64, seed: u64) -> u64 { return GenericKernel(rounds, seed) }\n'
+        if args.alternatives:
+            # Both arms permit the same registers. This isolates the effect of
+            # translating alternatives from instruction and allocation changes.
+            previous = program
+            program = program.replace(', "=&r", "r;r",', ', "=&r,&r", "r,r;r,r",')
+            program = program.replace(', "=r", "r",', ', "=r,r", "r,r",')
+            assert program != previous, 'assembly constraint shape changed'
         entry = work / 'kernel.zi'; entry.write_text(program)
         for compiler, bin_dir in [('current', args.bin_dir), ('before', args.baseline_bin_dir)]:
             if bin_dir is None: continue
@@ -163,6 +171,7 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
                                for tool in ('ziran', 'zi2rust')}
     metadata = dict(
         platform=platform.platform(), machine=platform.machine(), expected=expected, generic=args.generic,
+        alternatives=args.alternatives,
         rustc=subprocess.check_output(['rustc', '--version'], text=True).strip(),
         cargo=subprocess.check_output(['cargo', '--version'], text=True).strip(),
         cc=subprocess.check_output(['cc', '--version'], text=True).splitlines()[0],

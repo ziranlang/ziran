@@ -15,6 +15,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   versions, both probe paths and failure fallback; process profiles count the
   probe operations. Runtime-include scanning keeps literal token lengths in its
   table rather than computing them for every emitted identifier.
+  A successful piped identity probe also enables piped object compilation,
+  overlapping compiler and assembler stages for each generated translation
+  unit. Existing explicit flags are retained without adding a duplicate
+  object-compile flag; unsupported or failed probes keep ordinary compilation.
+  Cache identities include this compile policy, and profiles count piped
+  object attempts. The native-cache test observes actual native-driver
+  arguments, unchanged-object reuse, explicit flags and failed-probe fallback.
 
 - Generated C and C++ public headers carry lightweight string value and caller
   location definitions. Sources include string operations, bounds checks and

@@ -40,9 +40,9 @@ def objects():
     return {str(path.relative_to(out/'.objects')): (path.stat().st_mtime_ns, path.stat().st_ino)
             for path in (out/'.objects').rglob('*.o')}
 
-def build(answer, changed=None, fail=False):
+def build(answer, changed=None, fail=False, cwd=None):
     before = objects()
-    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=30)
+    result = subprocess.run(command, env=env, cwd=cwd, capture_output=True, text=True, timeout=30)
     assert (result.returncode != 0) == fail, result.stderr
     if result.stderr:
         for line in result.stderr.splitlines(): assert json.loads(line)['code'] == 'zir_c.toolchain', line
@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
     }
     for(int i=1;i<argc;i++) {
         command[count++] = argv[i];
-        piped |= !strcmp(argv[i], "-pipe");
+        piped += !strcmp(argv[i], "-pipe");
         compile |= !strcmp(argv[i], "-c");
         null_input |= !strcmp(argv[i], "/dev/null");
     }
@@ -167,6 +167,12 @@ int main(int argc, char **argv) {
         FILE *file = fopen(getenv("CACHE_PROBE_LOG"), "a");
         if(!file) return 1;
         fprintf(file, "%s\n", piped ? "pipe" : compile ? "compile" : "other");
+        if(fclose(file) != 0) return 1;
+    }
+    if(compile && !null_input && getenv("CACHE_COMPILE_LOG")) {
+        FILE *file = fopen(getenv("CACHE_COMPILE_LOG"), "a");
+        if(!file) return 1;
+        fprintf(file, "%d\n", piped);
         if(fclose(file) != 0) return 1;
     }
     if(null_input && getenv("CACHE_FAIL_PROBE")) return 1;
@@ -235,6 +241,35 @@ assert len(build(52)) == len(objects())
 build(52, set())
 env['CC'] = str(proxy)
 
+# The successful GCC probe enables the same piped object compile. Observe the
+# real native driver's arguments, including explicit flags and probe failure.
+compile_log = work/'compile-flags.log'
+env['CACHE_COMPILE_LOG'] = str(compile_log)
+original_flags = env['CFLAGS']
+build(52)
+assert compile_log.read_text().splitlines() == ['1'] * len(objects())
+previous_lines = compile_log.read_text()
+build(52, set())
+assert compile_log.read_text() == previous_lines
+env['CFLAGS'] += ' -pipe'
+compile_log.unlink()
+build(52)
+assert compile_log.read_text().splitlines() == ['1'] * len(objects())
+env['CFLAGS'] = original_flags
+# A header called -pipe is an option value, not an explicit pipe flag.
+(work/'-pipe').write_text('#define PIPE_FLAG_INPUT 1\n')
+env['CFLAGS'] += ' -include -pipe'
+compile_log.unlink()
+build(52, cwd=work)
+assert compile_log.read_text().splitlines() == ['2'] * len(objects())
+env['CFLAGS'] = original_flags
+env['CACHE_FAIL_PROBE'] = '1'
+compile_log.unlink()
+build(52)
+assert compile_log.read_text().splitlines() == ['0'] * len(objects())
+del env['CACHE_FAIL_PROBE']
+del env['CACHE_COMPILE_LOG']
+
 # The GCC probe uses a pipe while keeping the compiler and assembler version
 # checks. Missing or ambiguous discovery disables reuse while ordinary
 # compilation still works.
@@ -252,6 +287,8 @@ counters = json.loads(profile.read_text().splitlines()[-1])['counters']
 assert counters['native_probe_pipe'] == 1
 assert counters.get('native_probe_compile', 0) == 0
 assert counters['native_object_reuse'] == len(objects())
+compiled = json.loads(profile.read_text().splitlines()[0])['counters']
+assert compiled['native_object_pipe'] == compiled['native_object_compile'] == len(objects())
 del env['ZIRAN_PROFILE']
 # Retain the version information from the original compile probe, including
 # the versions of libraries used by the compiler itself.
@@ -310,4 +347,7 @@ if clang:
     assert counters['native_probe_compile'] == 1
     assert counters.get('native_probe_pipe', 0) == 0
     assert counters['native_object_reuse'] == len(objects())
+    compiled = json.loads(profile.read_text().splitlines()[0])['counters']
+    assert compiled['native_object_compile'] == len(objects())
+    assert compiled.get('native_object_pipe', 0) == 0
 print('Native object reuse validates contents, include lookup, compiler options and identity, flags, environment, probe failures and concurrent edits')

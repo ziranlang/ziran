@@ -38,7 +38,7 @@ struct CBuildCache {
     Fingerprint *files, *directories, *lookups;
     Fingerprint **slots;
     uint64_t epoch;
-    int fingerprints;
+    int fingerprints, piped;
 };
 
 static uint32_t rotate(uint32_t value, int amount) { return (value >> amount) | (value << (32 - amount)); }
@@ -322,6 +322,23 @@ static int native_executable(const char *path)
     return ok && (!memcmp(magic,"\177ELF",4) || !memcmp(magic,"\xcf\xfa\xed\xfe",4) ||
                   !memcmp(magic,"\xfe\xed\xfa\xcf",4) || !memcmp(magic,"\xca\xfe\xba\xbe",4));
 }
+static int argument_value(const char *arg)
+{
+    const char *paired[]={"-I","-isystem","-iquote","-idirafter","-include","-imacros","-isysroot","--sysroot","-target","--target","-x","-D","-U"};
+    for(size_t i=0;i<sizeof(paired)/sizeof(*paired);i++)
+        if(!strcmp(arg,paired[i])) return 1;
+    return 0;
+}
+
+int c_cache_requested_pipe(char *const *args,int count)
+{
+    for(int i=1;i<count;i++) {
+        if(argument_value(args[i])) { i++;continue; }
+        if(!strcmp(args[i],"-pipe")) return 1;
+    }
+    return 0;
+}
+
 static int supported_arguments(char *const *args,int count)
 {
     const char *effects[]={"DEPENDENCIES_OUTPUT","SUNPRO_DEPENDENCIES","GCC_DIAGNOSTICS_LOG","GCC_COMPARE_DEBUG","GCC_EXTRA_DIAGNOSTIC_OUTPUT","EXPERIMENTAL_SARIF_SOCKET"};
@@ -330,10 +347,7 @@ static int supported_arguments(char *const *args,int count)
         strstr(args[i],"__has_include") || !strcmp(args[i],"-march=native") || !strcmp(args[i],"-mcpu=native") || !strcmp(args[i],"-mtune=native")) return 0;
     for(int i=1;i<count;i++) {
         const char *arg=args[i];
-        const char *paired[]={"-I","-isystem","-iquote","-idirafter","-include","-imacros","-isysroot","--sysroot","-target","--target","-x","-D","-U"};
-        int pair=0;
-        for(size_t j=0;j<sizeof(paired)/sizeof(*paired);j++) pair|=!strcmp(arg,paired[j]);
-        if(pair) { if(++i==count || (!strcmp(arg,"-x") && strcmp(args[i],"c"))) return 0; continue; }
+        if(argument_value(arg)) { if(++i==count || (!strcmp(arg,"-x") && strcmp(args[i],"c"))) return 0; continue; }
         if(!strncmp(arg,"-D",2) || !strncmp(arg,"-U",2) || !strncmp(arg,"-I",2) || !strncmp(arg,"-std=",5) ||
            !strncmp(arg,"--sysroot=",10) || !strncmp(arg,"--target=",9)) continue;
         if(!strncmp(arg,"-W",2) && strncmp(arg,"-Wa,",4) && strncmp(arg,"-Wp,",4) && strncmp(arg,"-Wl,",4)) continue;
@@ -382,7 +396,7 @@ static char *probe(char *const *base,int count,int piped)
     memcpy(args,base,(size_t)count*sizeof(*args));
     /* Pipes remove the temporary assembly file and let cc1 and as overlap.
      * Keep the real compile probe's compiler/library/checksum diagnostics. */
-    if(piped) args[count++]="-pipe";
+    if(piped && !c_cache_requested_pipe(base,count)) args[count++]="-pipe";
     args[count++]="-v";args[count++]="-x";args[count++]="c";
     args[count++]="-c";args[count++]="/dev/null";
     args[count++]="-o";args[count]="/dev/null";
@@ -428,11 +442,13 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     int piped=strstr(name,"clang")==NULL;
     CBuildCache *cache=calloc(1,sizeof(*cache));
     if(!cache) { free(compiler);return NULL; }
+    cache->piped=piped;
     cache->slots=calloc(MEMO_SLOTS,sizeof(*cache->slots));
     cache->output=realpath(output,NULL);cache->executable=strdup(executable);
     if(!cache->slots || !cache->output || !cache->executable || clock_gettime(CLOCK_REALTIME,&cache->started)!=0) goto fail;
     Hash hash=hash_new();
-    hash_text(&hash,"Ziran native object cache 1");
+    hash_text(&hash,"Ziran native object cache 2");
+    hash_integer(&hash,(uint64_t)piped);
     char *cwd=getcwd(NULL,0);
     if(!cwd) goto fail;
     hash_text(&hash,cwd);free(cwd);
@@ -507,6 +523,11 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     return cache;
 fail:
     free(compiler);c_cache_close(cache);return NULL;
+}
+
+int c_cache_piped(const CBuildCache *cache)
+{
+    return cache != NULL && cache->piped;
 }
 
 static int read_integer(FILE *file,uint32_t *value)

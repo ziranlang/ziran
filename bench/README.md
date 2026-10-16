@@ -47,6 +47,30 @@ The `native_probe_pipe` and `native_probe_compile` counters distinguish GCC's
 piped empty-input probe from the ordinary compile probe retained for Clang and
 other eligible drivers. These probes run even when all objects are reusable;
 examine `native.toolchain` separately from object validation and linking.
+Successful piped probes also enable piped object compilation. The
+`native_object_pipe` counter records object attempts with that flag, including
+an explicit `-pipe` in `CFLAGS`; reused objects do not increment it. Compilers
+whose probe is unsupported or unsuccessful retain ordinary compilation.
+This uses GCC's documented [pipe between compilation stages](https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html),
+while retaining separate translation units and the existing worker limit.
+
+For a complete build of the formatter application itself:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/formatter_builds.py \
+  --before-bin-dir PATH/TO/PRESERVED/bin \
+  --out build/benchmarks/native-programs/formatter
+```
+
+This compares fresh and unchanged source/saved-IR builds with the same flags.
+Each executable formats an unformatted fixture containing a Unicode comment
+and a record, and checks the canonical result against the existing formatter.
+Before/after generated C and executable bytes must match. Profiles are
+collected separately from timings; the current checker prepares the saved IR
+for both compiler versions. The metadata retains all source/tool hashes and
+profiles. A large change on many small modules need not improve this application
+by the same amount; report both results and retain the warm-cache/shared-host
+limitations.
 
 ## Paired checking and body eligibility
 

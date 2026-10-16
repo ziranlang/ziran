@@ -196,6 +196,8 @@ static int compile_objects(const Files *files, char **objects, char **base,
     ToolLog *scratch = capture ? calloc(1, sizeof(*scratch)) : NULL;
     if(!slots || (capture && (!outputs || !scratch))) { free(slots); free(outputs); free(scratch); return 0; }
     for(int s = 0; s < workers; s++) { slots[s].index = -1; slots[s].job.fd = -1; }
+    int requested_pipe = c_cache_requested_pipe(base, count);
+    int add_pipe = c_cache_piped(cache) && !requested_pipe;
     int next = 0, active = 0, ok = 1;
     while(active || (ok && next < files->count)) {
         for(int s = 0; ok && s < workers && next < files->count; s++) {
@@ -212,6 +214,8 @@ static int compile_objects(const Files *files, char **objects, char **base,
             char *args[MAX_ARGS], dependencies[ZIR_PATH_MAX], stamp[ZIR_PATH_MAX];
             memcpy(args, base, (size_t)count * sizeof(*args));
             int n = count;
+            if(add_pipe) args[n++] = "-pipe";
+            if(add_pipe || requested_pipe) ProfileCount("native_object_pipe");
             int collect = cache && snprintf(dependencies, sizeof(dependencies), "%s.d", objects[i]) < (int)sizeof(dependencies);
             if(collect && unlink(dependencies) != 0 && errno != ENOENT) collect = 0;
             if(collect) {

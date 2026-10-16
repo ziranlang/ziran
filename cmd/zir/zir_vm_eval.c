@@ -1201,6 +1201,7 @@ struct VmScalarSite {
 };
 
 typedef struct ScalarBuilder {
+    Frame *frame;
     const ZirFunction *function;
     int count;
     ScalarStep steps[SCALAR_PLAN_STEPS];
@@ -1218,6 +1219,25 @@ scalar_step(ScalarBuilder *builder, ScalarOp op, const ZirExpr *expression,
         .left = (unsigned char)left, .right = (unsigned char)right,
         .output = (unsigned char)index, .depth = (unsigned char)depth,
         .conversion = (unsigned char)scalar_conversion(expression->type)};
+    if(op == SCALAR_MEMBER || op == SCALAR_POINTER_MEMBER) {
+        step->local = UINT16_MAX;
+        if(builder->frame != NULL && builder->frame->module != NULL &&
+           expression->left >= 0 && expression->left < builder->function->expr_count &&
+           strchr(expression->name, '.') == NULL) {
+            const char *name = builder->function->exprs[expression->left].type;
+            if(op == SCALAR_POINTER_MEMBER && name[0] == '*') name++;
+            if(value_kind(name) == VALUE_INVALID) {
+                const ZirType *type = vm_find_type(builder->frame->vm,
+                    builder->frame->module, name, NULL);
+                const VmLayout *layout = type != NULL ? record_layout(builder->frame->vm, type) : NULL;
+                for(int i = 0; layout != NULL && i < layout->count; i++)
+                    if(!strcmp(layout->fields[i].name, expression->name)) {
+                        step->local = (unsigned short)i;
+                        break;
+                    }
+            }
+        }
+    }
     if(op == SCALAR_CAST)
         step->cast_conversion = (unsigned char)scalar_conversion(expression->name);
     if(op == SCALAR_BINARY) {
@@ -1352,11 +1372,11 @@ scalar_plan(Frame *frame, int index)
         return NULL;
     *site = (VmScalarSite){.expression = expression, .module = frame->module};
     vm->scalar_site_count++;
-    ScalarBuilder builder = {.function = frame->function};
+    ScalarBuilder builder = {.frame = frame, .function = frame->function};
     int output = scalar_compile(&builder, index, 0);
-    /* Even a binary operation on two leaves benefits from retaining its
-     * checked operation and coercion policy across repeated execution. */
-    if(output < 0 || builder.count < 3)
+    /* Retain two-step field reads as well as binary operations: their
+     * checked position and coercion policy survive repeated execution. */
+    if(output < 0 || builder.count < 2)
         return NULL;
     ScalarPlan *plan = malloc(sizeof(*plan) + (size_t)builder.count * sizeof(*plan->steps));
     if(plan == NULL)
@@ -1424,7 +1444,7 @@ function_type(const char *type)
 static int
 function_expression(ScalarFunctionBuilder *builder, int index)
 {
-    ScalarBuilder expression = {.function = builder->frame->function};
+    ScalarBuilder expression = {.frame = builder->frame, .function = builder->frame->function};
     int output = scalar_compile(&expression, index, 0);
     if(output < 0) return -1;
     int base = builder->count;
@@ -1705,7 +1725,7 @@ free_scalar_plans(Vm *vm)
 
 static Value
 scalar_member(Frame *frame, const ZirExpr *expression, Value value, int pointer,
-              ScalarConversion conversion)
+              ScalarConversion conversion, unsigned field_index)
 {
     if(pointer)
         value = place_read(frame->vm, value);
@@ -1723,8 +1743,17 @@ scalar_member(Frame *frame, const ZirExpr *expression, Value value, int pointer,
         value = int_value(0);
         return scalar_result(frame, &value, expression->type, conversion);
     }
-    Value *field = value.kind == VALUE_RECORD && value.record != NULL ?
-        record_field_path(value.record, expression->name) : NULL;
+    Value *field = NULL;
+    if(value.kind == VALUE_RECORD && value.record != NULL) {
+        /* An imported or differently instantiated shape can use another
+         * field order. A name-guarded index is exactly the ordinary lookup;
+         * otherwise retain the complete path/shape lookup. */
+        if(field_index < (unsigned)value.record->field_count &&
+           value.record->fields[field_index].field.name == expression->name)
+            field = &value.record->fields[field_index].value;
+        else
+            field = record_field_path(value.record, expression->name);
+    }
     if(field == NULL) {
         frame->vm->failed = 1;
         return int_value(0);
@@ -1810,7 +1839,8 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
         case SCALAR_MEMBER:
         case SCALAR_POINTER_MEMBER:
             *output = scalar_member(frame, expression, *values[step->left],
-                step->op == SCALAR_POINTER_MEMBER, (ScalarConversion)step->conversion);
+                step->op == SCALAR_POINTER_MEMBER, (ScalarConversion)step->conversion,
+                step->local);
             values[step->output] = output;
             continue;
         case SCALAR_INDEX: {
@@ -2927,7 +2957,9 @@ eval(Frame *frame, int index, int depth)
     default:
         break;
     }
-    if(expression->kind == ZIR_EXPR_BINARY || expression->kind == ZIR_EXPR_CONDITIONAL) {
+    if(expression->kind == ZIR_EXPR_BINARY || expression->kind == ZIR_EXPR_CONDITIONAL ||
+       expression->kind == ZIR_EXPR_MEMBER || expression->kind == ZIR_EXPR_POINTER_MEMBER ||
+       expression->kind == ZIR_EXPR_INDEX) {
         const ScalarPlan *plan = scalar_plan(frame, index);
         if(plan != NULL)
             return scalar_execute(frame, plan, depth);

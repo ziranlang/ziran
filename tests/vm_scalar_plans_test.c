@@ -152,6 +152,32 @@ static void check_short_plans(void)
     }
 }
 
+static void check_member_hints(VmInstance *instance)
+{
+    Vm *vm = &instance->vm;
+    Frame frame = {.vm = vm, .module = instance->module};
+    Value row = default_value(vm, instance->module, "Row", 0);
+    assert(row.kind == VALUE_RECORD && !vm->failed);
+    Value *byte = record_field(row.record, "byte");
+    assert(byte != NULL);
+    *byte = int_value(255);
+    ZirExpr field = {.kind = ZIR_EXPR_MEMBER, .name = "byte", .type = "u8"};
+    field.name = KeepText(field.name);
+    unsigned hints[] = {0, 1, UINT16_MAX};
+    for(size_t i = 0; i < sizeof hints / sizeof *hints; i++) {
+        Value result = scalar_member(&frame, &field, row, 0, ScalarU8, hints[i]);
+        assert(!vm->failed && result.kind == VALUE_INT && result.integer == 255);
+    }
+    Value overlay = default_value(vm, instance->module, "Overlay", 0);
+    assert(overlay.kind == VALUE_RECORD && !vm->failed);
+    assert(union_member_write(vm, overlay.record, "u64", uint_value(513)));
+    field.name = KeepText("narrow");
+    for(size_t i = 0; i < sizeof hints / sizeof *hints; i++) {
+        Value result = scalar_member(&frame, &field, overlay, 0, ScalarU8, hints[i]);
+        assert(!vm->failed && result.kind == VALUE_INT && result.integer == 1);
+    }
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 2);
@@ -169,6 +195,7 @@ int main(int argc, char **argv)
     VmInstance *first = VmInstanceOpen(program, module, entry, NULL, NULL);
     VmInstance *second = VmInstanceOpen(program, module, entry, NULL, NULL);
     assert(first != NULL && second != NULL);
+    check_member_hints(first);
     for(int run = 0; run < 8; run++) {
         for(int which = 0; which < 2; which++) {
             VmInstance *instance = which ? second : first;
@@ -177,10 +204,14 @@ int main(int argc, char **argv)
             assert(VmInstanceRun(instance, &answer, &present) && present && answer == 42);
             assert(instance->vm.scalar_sites != NULL);
             int plans = 0, branches = 0, indices = 0, conversions = 0, operations = 0, short_plans = 0;
+            int field_positions = 0, member_roots = 0, index_roots = 0;
             for(size_t i = 0; i < instance->vm.scalar_site_slots; i++) {
                 const ScalarPlan *plan = instance->vm.scalar_sites[i].plan;
                 if(plan == NULL) continue;
                 plans++;
+                const ZirExpr *root = instance->vm.scalar_sites[i].expression;
+                member_roots += plan->count == 2 && root->kind == ZIR_EXPR_MEMBER;
+                index_roots += root->kind == ZIR_EXPR_INDEX;
                 short_plans += plan->count == 3 && plan->steps[2].op == SCALAR_BINARY;
                 for(int step = 0; step < plan->count; step++) {
                     branches += plan->steps[step].op == SCALAR_FALSE ||
@@ -188,10 +219,14 @@ int main(int argc, char **argv)
                     indices += plan->steps[step].op == SCALAR_INDEX;
                     conversions += plan->steps[step].conversion != ScalarGeneric;
                     operations += plan->steps[step].operation != BinaryInvalid;
+                    field_positions += (plan->steps[step].op == SCALAR_MEMBER ||
+                        plan->steps[step].op == SCALAR_POINTER_MEMBER) &&
+                        plan->steps[step].local != UINT16_MAX;
                 }
             }
             assert(plans >= 4 && branches >= 2 && indices >= 2 && conversions >= 4 && operations >= 4);
             assert(short_plans > 0);
+            assert(field_positions > 0 && member_roots > 0 && index_roots > 0);
         }
     }
     VmInstanceClose(first);

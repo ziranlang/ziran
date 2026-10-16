@@ -1201,8 +1201,8 @@ drop_owned_locals(Frame *frame, int first)
     int retired = 0;
     for(int i = frame->local_count - 1; i >= first; i--) {
         Local *local = &frame->locals[i];
-        if(vm_type_contains_vec(frame->vm, frame->module, local->type, 0) &&
-           local->value.kind == VALUE_RECORD) {
+        if(local->value.kind == VALUE_RECORD &&
+           vm_type_contains_vec(frame->vm, frame->module, local->type, 0)) {
             retire_value(frame->vm, local->value, 0);
             retired = 1;
         }

@@ -1348,6 +1348,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   snapshot captured before the right side runs, preserving mutation order.
   Destinations may alias either operand; numeric, string, enum and error-path
   checks cover this behavior. Other values retain the general dispatcher.
+  Standalone field and index reads use the same expression plans. Direct
+  fields retain a checked position, guarded against the current field name
+  and count; other shapes and nested paths retain ordinary lookup. Union
+  reads still reinterpret their shared storage. Plans retain metadata and
+  read current values on every execution. Scope cleanup checks a binding's
+  value kind before classifying owned record types, avoiding ownership
+  lookups for scalar, string and slice locals.
   Numeric and immutable-string procedures can also retain one instruction stream for local
   declarations and assignments, nested branches, blocks, loops, named
   break/continue, and returns. Local references use lexical slots and numeric

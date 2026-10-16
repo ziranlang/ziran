@@ -9,6 +9,7 @@ Row :: struct {
     wide: u64
     signed_wide: s64
 }
+Overlay :: union { narrow: u8; wide: u64; }
 row: Row;
 epoch: s32;
 missing: *Row;
@@ -62,5 +63,12 @@ Answer :: () -> s32 {
         if local + local != 42 { return 10 }
     }
     if local.value + local.value != (epoch + 1) * 2 { return 11 }
+    direct_value := local.value
+    direct_index := local.values[1]
+    if direct_value != epoch + 1 || direct_index != 63 { return 14 }
+    overlay: Overlay
+    overlay.wide = cast(u64)513
+    narrow := overlay.narrow
+    if narrow != cast(u8)1 { return 15 }
     return 42
 }

@@ -6,7 +6,8 @@ calculate(Vm *vm, const char *operation, Value left, Value right,
           const char *left_type, const char *right_type)
 {
     vm->failed = 0;
-    Value result = binary_value(vm, operation, left, right, left_type, right_type);
+    Value result;
+    binary_value(vm, operation, &left, &right, left_type, right_type, &result);
     assert(!vm->failed);
     return result;
 }
@@ -16,10 +17,25 @@ main(void)
 {
     Vm vm = {0};
     Value a = int_value(-17), b = int_value(5);
+    Value alias;
+    binary_value(&vm, "+", &a, &a, "s64", "s64", &alias);
+    assert(!vm.failed && alias.kind == VALUE_INT && alias.integer == -34);
+    assert(a.integer == -17 && integer_bits(a) == (uint64_t)-17);
+    Value inplace = a;
+    binary_value(&vm, "*", &inplace, &inplace, "s64", "s64", &inplace);
+    assert(!vm.failed && inplace.kind == VALUE_INT && inplace.integer == 289);
     const char *arithmetic[] = {"+", "-", "*", "/", "%"};
     const int64_t expected[] = {-12, -22, -85, -3, -2};
-    for(size_t i = 0; i < sizeof expected / sizeof *expected; i++)
+    for(size_t i = 0; i < sizeof expected / sizeof *expected; i++) {
         assert(calculate(&vm, arithmetic[i], a, b, "s64", "s64").integer == expected[i]);
+        for(int side = 0; side < 2; side++) {
+            Value left = a, right = b;
+            Value *output = side ? &right : &left;
+            binary_value(&vm, arithmetic[i], &left, &right, "s64", "s64", output);
+            assert(!vm.failed && output->kind == VALUE_INT && output->integer == expected[i]);
+            assert((side ? left : right).integer == (side ? a : b).integer);
+        }
+    }
     assert(calculate(&vm, "/", int_value(INT64_MIN), int_value(-1), "s64", "s64").integer == INT64_MIN);
     assert(calculate(&vm, "%", int_value(INT64_MIN), int_value(-1), "s64", "s64").integer == 0);
     assert(calculate(&vm, "/", int_value(INT64_MIN), int_value(-1), "integer", "integer").integer == INT64_MIN);
@@ -79,6 +95,9 @@ main(void)
     Value string = string_value(text, sizeof text);
     assert(calculate(&vm, "==", string, string, "string", "string").integer == 1);
     assert(calculate(&vm, "!=", string, string_value(other, sizeof other), "string", "string").integer == 1);
+    Value string_alias = string;
+    binary_value(&vm, "==", &string_alias, &string_alias, "string", "string", &string_alias);
+    assert(!vm.failed && string_alias.kind == VALUE_INT && string_alias.integer == 1);
 
     Value pointer = {.kind = VALUE_POINTER, .pointee = &a};
     Value second_pointer = {.kind = VALUE_POINTER, .pointee = &b};
@@ -92,6 +111,10 @@ main(void)
     Value enumeration = enum_value(&tone, 3);
     assert(calculate(&vm, "==", enumeration, enumeration, "Tone", "Tone").integer == 1);
     assert(calculate(&vm, "|", enum_value(&flags, 1), enum_value(&flags, 4), "Flags", "Flags").integer == 5);
+    Value flag_alias = enum_value(&flags, 1), flag_right = enum_value(&flags, 4);
+    binary_value(&vm, "|", &flag_alias, &flag_right, "Flags", "Flags", &flag_alias);
+    assert(!vm.failed && flag_alias.kind == VALUE_ENUM && flag_alias.enumeration == &flags && flag_alias.integer == 5);
+    assert(flag_right.kind == VALUE_ENUM && flag_right.integer == 4);
     Value slot = {.kind = VALUE_SLOT};
     assert(calculate(&vm, "==", slot, int_value(0), "Handler", "null").integer == 1);
 
@@ -103,21 +126,25 @@ main(void)
     for(size_t i = 0; i < sizeof invalid / sizeof *invalid; i++) {
         for(size_t j = 0; j < sizeof values / sizeof *values; j++) {
             vm.failed = 0;
-            (void)binary_value(&vm, invalid[i], values[j], values[j], types[j], types[j]);
+            binary_value(&vm, invalid[i], &values[j], &values[j], types[j], types[j], &alias);
             assert(vm.failed);
         }
     }
     const char *divide[] = {"/", "%"};
+    Value zero = int_value(0), one = uint_value(1), wide_shift = int_value(64), negative_shift = int_value(-1);
     for(size_t i = 0; i < sizeof divide / sizeof *divide; i++) {
         vm.failed = 0;
-        (void)binary_value(&vm, divide[i], a, int_value(0), "s64", "s64");
+        binary_value(&vm, divide[i], &a, &zero, "s64", "s64", &alias);
         assert(vm.failed);
     }
     vm.failed = 0;
-    (void)binary_value(&vm, "<<", uint_value(1), int_value(64), "u64", "s32");
+    binary_value(&vm, "<<", &one, &wide_shift, "u64", "s32", &alias);
     assert(vm.failed);
     vm.failed = 0;
-    (void)binary_value(&vm, ">>", a, int_value(-1), "s64", "s32");
+    binary_value(&vm, ">>", &a, &negative_shift, "s64", "s32", &alias);
     assert(vm.failed);
+    vm.failed = 0;
+    binary_value(&vm, "<<", &one, &wide_shift, "u64", "s32", &one);
+    assert(vm.failed && one.kind == VALUE_INT && one.integer == 0);
     return 0;
 }

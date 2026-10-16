@@ -567,7 +567,8 @@ Value assignment_slot_root(Frame *frame, int index, int depth);
 int pointer_target(Vm *vm, Value pointer);
 Value place_read(Vm *vm, Value place);
 void place_write(Vm *vm, Value place, Value value);
-Value binary_value(Vm *vm, const char *op, Value left, Value right, const char *left_type, const char *right_type);
+void binary_value(Vm *vm, const char *op, const Value *left, const Value *right,
+                  const char *left_type, const char *right_type, Value *output);
 Value eval(Frame *frame, int index, int depth);
 void pin_value(Vm *vm, Value value, int depth);
 void profile_cache_access(Vm *vm, int cache, int event);

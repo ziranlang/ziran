@@ -1311,7 +1311,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   destinations and forced literal-cache eviction.
   Ordinary numeric operations, including compound assignments, enter the
   same numeric worker directly after checking their operand kinds and width
-  policy. Other values retain the general dispatcher.
+  policy. They borrow completed operand snapshots and write into an explicit
+  destination instead of passing and returning whole tagged values across
+  the private C call boundary. Compound assignments reuse the rooted target
+  snapshot captured before the right side runs, preserving mutation order.
+  Destinations may alias either operand; numeric, string, enum and error-path
+  checks cover this behavior. Other values retain the general dispatcher.
 - Fresh record and fixed-array results can transfer their storage through
   local returns, direct calls, literals, initializers, and assignments. The VM
   retains the value-copy rules for existing bindings and globals. This transfer

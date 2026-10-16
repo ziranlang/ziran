@@ -811,26 +811,34 @@ failed:
     return int_value(0);
 }
 
-Value
-binary_value(Vm *vm, const char *op, Value left, Value right,
-             const char *left_type, const char *right_type)
+/* Borrow the caller's completed operand snapshots. Their lifetimes cover the
+ * call, including a compound target captured before a mutating right side.
+ * OUTPUT may alias either operand; compute before replacing its live words. */
+void
+binary_value(Vm *vm, const char *op, const Value *left, const Value *right,
+             const char *left_type, const char *right_type, Value *output)
 {
     BinaryOperation operation = binary_operation(op);
     int left_width = 32, right_width = 32, left_unsigned = 0;
     if(!vm->failed && operation != BinaryInvalid &&
-       (left.kind == VALUE_INT || left.kind == VALUE_REAL) &&
-       (right.kind == VALUE_INT || right.kind == VALUE_REAL)) {
+       (left->kind == VALUE_INT || left->kind == VALUE_REAL) &&
+       (right->kind == VALUE_INT || right->kind == VALUE_REAL)) {
         left_width = integer_operation_width(left_type);
         if(operation != BinaryShiftLeft && operation != BinaryShiftRight)
             right_width = integer_operation_width(right_type);
         left_unsigned = left_type[0] == 'u';
-        Value result = {0};
-        binary_numeric(vm, operation, &left, &right,
-                       left_width, right_width, left_unsigned, &result);
-        return result;
+        binary_numeric(vm, operation, left, right,
+                       left_width, right_width, left_unsigned, output);
+        /* The private kernel writes only live fields. Complete the ordinary
+         * Value after it has finished reading possibly aliased operands. */
+        output->record = NULL;
+        output->array = NULL;
+        if(output->kind == VALUE_REAL)
+            output->bits = 0;
+        return;
     }
-    return binary_with_policy(vm, operation, &left, &right,
-                              left_width, right_width, left_unsigned);
+    *output = binary_with_policy(vm, operation, left, right,
+                                  left_width, right_width, left_unsigned);
 }
 /* Buffers eval keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -1613,9 +1621,9 @@ eval_expression(Frame *frame, int index, int depth)
         else if(strcmp(expression->op, "||") == 0)
             value = int_value(truthy(left) || truthy(right));
         else
-            value = binary_value(frame->vm, expression->op, left, right,
+            binary_value(frame->vm, expression->op, &left, &right,
                 frame->function->exprs[expression->left].type,
-                frame->function->exprs[expression->right].type);
+                frame->function->exprs[expression->right].type, &value);
         break;
     case ZIR_EXPR_CAST:
         value = coerce(frame->vm, frame->module,

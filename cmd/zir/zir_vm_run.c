@@ -285,11 +285,10 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             /* A compound assignment reads its target before the right side
              * runs, as native targets do: x += Bump() adds to the old x. */
             int compound = strcmp(statement->assignment_op, "=") != 0;
-            Value current = {0};
+            held[1] = (Value){0};
             if(compound)
-                current = union_record != NULL ?
+                held[1] = union_record != NULL ?
                     union_member_read(vm, union_record, union_type) : place_read(vm, held[0]);
-            held[1] = current;
             VmRoots roots = {vm->evaluation_roots, held, 2};
             vm->evaluation_roots = &roots;
             uint64_t allocation_entry = vm->allocation;
@@ -301,9 +300,9 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
                     statement->assignment_op);
                 if(operation == NULL)
                     return FLOW_ERROR;
-                right = binary_value(vm, operation, current, right,
+                binary_value(vm, operation, &held[1], &right,
                     function->exprs[statement->lhs_root].type,
-                    function->exprs[statement->expr_root].type);
+                    function->exprs[statement->expr_root].type, &right);
             }
             Value replacement = union_record != NULL ? right :
                 coerce_storage_expression(frame, statement->expr_root, right,

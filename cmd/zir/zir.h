@@ -447,13 +447,15 @@ void copy_text(char *dst, size_t dst_size, const char *src);
 ZirSourceSpan Span(const char *path, int line, int column);
 int SourceFile(const char *path);
 const char *KeepText(const char *text);
-/* FindType keeps its answers until this is called. Call it after changing
- * anything a type lookup reads outside ModuleAddType, ModuleAddImport and
- * ProgramAddModule: a module's types or imports (names, visibility,
- * resolved_module), or freeing or moving modules. With the environment
- * variable ZIRAN_VERIFY_TYPE_LOOKUPS=1 every kept answer is checked
+/* FindType and ResolveFunctionAt keep entry-scope answers until this is
+ * called. Call it after changing anything they read outside ModuleAddType,
+ * ModuleAddFunction, ModuleAddImport and ProgramAddModule: a module's types,
+ * procedures or imports (names, visibility, spans, resolved_module), or
+ * freeing or moving modules. Lookup file spellings are part of the key.
+ * With the environment
+ * variable ZIRAN_VERIFY_SYMBOL_LOOKUPS=1 every kept answer is checked
  * against a fresh lookup, and a difference stops the compiler. */
-void TypeLookupsChanged(void);
+void SymbolLookupsChanged(void);
 /* A name kept like KeepText and cut to ZIR_NAME_MAX - 1 bytes, as the
  * fixed name buffers it replaces were. Kept names are never NULL once a
  * node is made: "" means none. */

@@ -60,7 +60,7 @@ LinkImports(ZirProgram **programs, int count)
             for(int i = 0; i < module->import_count; i++) {
                 ZirImport *import = &module->imports[i];
                 import->resolved_module = NULL;
-                TypeLookupsChanged();
+                SymbolLookupsChanged();
                 if(import->kind == ZIR_IMPORT_MODULE)
                     for(int previous = 0; previous < i; previous++)
                         if(module->imports[previous].kind == ZIR_IMPORT_MODULE &&
@@ -106,7 +106,7 @@ LinkImports(ZirProgram **programs, int count)
                             return 0;
                         }
                         import->resolved_module = candidate;
-                        TypeLookupsChanged();
+                        SymbolLookupsChanged();
                     }
                 }
                 if(import->resolved_module == NULL) {
@@ -803,6 +803,7 @@ name_private_functions(ZirModule *module)
         copy_text(renames[i].function->name,
                   sizeof(renames[i].function->name),
                   renames[i].internal);
+    SymbolLookupsChanged();
     free(renames);
     return 1;
 }

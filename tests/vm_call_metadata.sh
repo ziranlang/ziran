@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
     return 0;
 }
 C
-"${CC:-cc}" -std=c11 -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" -I"$repo/cmd/zir" \
     "$work/budget.c" "$library" -lm -o "$work/budget"
 for form in source saved; do
     module="$work/app.zi"; root=$work

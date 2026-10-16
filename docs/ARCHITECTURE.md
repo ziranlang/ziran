@@ -53,9 +53,11 @@ Inside the compiler, names in that model are interned: an expression's or
 statement's name and type, and a function's parameter list, are shared
 immutable strings (`KeepName`, `KeepParameters`), so equal spellings are one
 pointer. Parameter lists are split once into names and types
-(`ParametersOf`), and `FindType` keeps its answers until something it reads
-changes (`TypeLookupsChanged`; `make sanitize` checks each kept answer
-against a fresh lookup).
+(`ParametersOf`). Type and procedure resolution keep entry-scope answers,
+including misses and ambiguity, until declarations or imports change
+(`SymbolLookupsChanged`). Lookup file spellings remain part of each key;
+recursive import walks retain separate cycle state. `make sanitize` checks
+each kept answer against a fresh lookup.
 
 Record bodies share immutable parsed field snapshots. Field lookup uses an
 index over that snapshot, and ownership checking can reuse the fact that every

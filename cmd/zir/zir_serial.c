@@ -1204,12 +1204,12 @@ write_original_checked_program(const ZirProgram *program,
             module->types[t] = *type;
         }
     }
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     written = ProgramWrite(&original, out);
 done:
     for(int m = 0; m < program->module_count; m++) free(original.modules[m].types);
     free(original.modules);
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     return written;
 }
 

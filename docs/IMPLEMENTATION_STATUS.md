@@ -543,11 +543,18 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   statement names and types and function parameter lists are kept text:
   an expression node is 120 bytes (was 600), a statement 96 (336), and a
   function 1,168 (9,344). Parameter lists are split once and shared
-  (`ParametersOf`), the portable runner keeps each signature it parses, and
-  `FindType` keeps its answers until types, imports, modules, or lookup files
-  change. Checking Inbe went from 3.9 s and 466 MB to 2.9 s and 222 MB with
-  byte-identical IR and generated C for Inbe, Workbook, Kryon, and KSS.
-  `make sanitize` also compares every kept type lookup with a fresh one.
+  (`ParametersOf`), and the portable runner keeps each signature it parses.
+  `FindType` and procedure resolution keep entry-scope answers, including
+  misses and ambiguous procedure results, until types, procedures, imports,
+  or modules change. Names and lookup file spellings are immutable keys;
+  declaration growth, private-procedure renaming, linking and program cleanup
+  invalidate answers before their stored pointers can be reused.
+  `tests/symbol_lookup.sh` covers file scopes, aliases, cyclic diamonds,
+  ambiguity, visibility changes, relocation and independent concurrent programs.
+  The earlier name/type changes reduced checking Inbe from 3.9 s and 466 MB
+  to 2.9 s and 222 MB with byte-identical IR and generated C for Inbe,
+  Workbook, Kryon, and KSS. `make sanitize` compares every kept type and
+  procedure answer with a fresh lookup.
 - Record fields are parsed into immutable snapshots shared by identical field
   bodies. `TypeNextField` cursors index those snapshots, so checking, all native
   emitters, and the portable verifier/runner reuse the same fields without

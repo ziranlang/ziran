@@ -365,7 +365,7 @@ copy_program(const ZirProgram *source)
         to->usings = NULL; to->using_count = to->using_cap = 0;
         to->types = NULL; to->type_count = to->type_cap = 0;
         to->imports = NULL; to->import_count = to->import_cap = 0;
-        TypeLookupsChanged();
+        SymbolLookupsChanged();
         to->functions = NULL; to->function_count = to->function_cap = 0;
         to->laws = NULL; to->law_count = to->law_cap = 0;
         to->law_waivers = NULL; to->law_waiver_count = to->law_waiver_cap = 0;
@@ -2035,7 +2035,7 @@ resolve_reachability:
         target->usings = NULL; target->using_count = target->using_cap = 0;
         target->types = NULL; target->type_count = target->type_cap = 0;
         target->imports = NULL; target->import_count = target->import_cap = 0;
-        TypeLookupsChanged();
+        SymbolLookupsChanged();
         target->functions = NULL;
         target->function_count = target->function_cap = 0;
         target->laws = NULL; target->law_count = target->law_cap = 0;
@@ -2081,7 +2081,7 @@ resolve_reachability:
                     goto failed;
         }
         if(kept_types > 0) {
-            TypeLookupsChanged();
+            SymbolLookupsChanged();
             target->types = calloc((size_t)kept_types, sizeof(*target->types));
             if(target->types == NULL)
                 goto failed;
@@ -2376,7 +2376,7 @@ append_library(ZirProgram *program, const ZirProgram *library)
     program->module_cap = program->module_count;
     free(copy->modules);
     free(copy);
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     return 1;
 }
 

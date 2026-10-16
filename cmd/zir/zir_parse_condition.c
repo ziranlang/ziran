@@ -94,7 +94,7 @@ add_visible_compile_imports(ZirModule *visible, const ZirModule *parsed,
                             const ZirImports *future)
 {
     int extra = future != NULL ? future->count : 0;
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     visible->imports = calloc((size_t)parsed->import_count +
                               (size_t)extra + 1,
                               sizeof(*visible->imports));
@@ -122,7 +122,7 @@ add_visible_compile_types(ZirModule *visible, const ZirModule *parsed,
                           const ZirTypes *future)
 {
     int extra = future != NULL ? future->count : 0;
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     visible->types = calloc((size_t)parsed->type_count + (size_t)extra + 1,
                             sizeof(*visible->types));
     if(visible->types == NULL)
@@ -222,7 +222,7 @@ visible_compile_module(const ZirModule *parsed,
 void
 free_visible_compile_module(ZirModule *visible)
 {
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     free(visible->usings);
     free(visible->defines);
     free(visible->imports);
@@ -291,7 +291,7 @@ select_compile_condition(ZirModule *module, const ZirConsts *consts,
                 if(candidate != source_module &&
                    strcmp(candidate->name, import->target) == 0) {
                     import->resolved_module = candidate;
-                    TypeLookupsChanged();
+                    SymbolLookupsChanged();
                     break;
                 }
             }
@@ -710,7 +710,7 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
         char before[ZIR_TEXT_MAX];
         copy_text(module->lookup_path, sizeof(module->lookup_path),
                   SpanPath(definition->span));
-        TypeLookupsChanged();
+        SymbolLookupsChanged();
         copy_text(before, sizeof(before), definition->value);
         if(find_unquoted_text(definition->value, "#ifx") != NULL)
             lower_compile_ifx_value(definition->value,
@@ -732,7 +732,7 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
         char before[ZIR_TEXT_MAX];
         copy_text(module->lookup_path, sizeof(module->lookup_path),
                   SpanPath(global->span));
-        TypeLookupsChanged();
+        SymbolLookupsChanged();
         copy_text(before, sizeof(before), global->init);
         if(find_unquoted_text(global->init, "#ifx") != NULL)
             lower_compile_ifx_value(global->init, sizeof(global->init),
@@ -748,7 +748,7 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
         ZirFunction *fn = &module->functions[i];
         copy_text(module->lookup_path, sizeof(module->lookup_path),
                   SpanPath(fn->span));
-        TypeLookupsChanged();
+        SymbolLookupsChanged();
         if(function_has_compile_ifx(fn)) {
             if(lower_compile_ifx_function(fn, module, &constants,
                                           allow_deferred)) progress++;
@@ -756,7 +756,7 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
     }
     copy_text(module->lookup_path, sizeof(module->lookup_path),
               saved_lookup_path);
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     free(constants.items);
     return progress;
 }

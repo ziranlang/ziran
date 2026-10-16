@@ -9,7 +9,7 @@ add_type(ZirModule *module, const char *name, const char *body, int owned)
     strcpy(type->body, body);
     type->is_owned_vec = owned;
     type->is_public = 1;
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
 }
 
 static void
@@ -50,7 +50,7 @@ main(void)
                                        "", 0, Span("first.zi", 1, 1));
     assert(import != NULL);
     import->resolved_module = second;
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
 
     /* Direct cache collisions must replace metadata without mixing types. */
     char collision[ZIR_NAME_MAX];

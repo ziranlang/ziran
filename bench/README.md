@@ -72,6 +72,14 @@ profiles. A large change on many small modules need not improve this application
 by the same amount; report both results and retain the warm-cache/shared-host
 limitations.
 
+Entry-scope symbol resolution profiles report `type_lookup_hit`,
+`type_lookup_miss`, `function_lookup_hit` and `function_lookup_miss`.
+Misses include uncached ambiguous or absent results; repeated results count
+as hits until declarations or imports change. Set
+`ZIRAN_VERIFY_SYMBOL_LOOKUPS=1` for correctness checks against fresh searches,
+and leave it unset when measuring performance. Import-free scopes with at
+most four procedures scan directly without cache or graph-visit storage.
+
 ## Paired checking and body eligibility
 
 Preserve `ziran`, `zi2zir`, `zi2c` and `zi2zib` together before changing the

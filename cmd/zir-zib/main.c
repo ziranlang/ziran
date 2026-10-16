@@ -281,7 +281,7 @@ done:
     ZibAssetsFree(&assets);
     free(thin.modules);
     free(context.modules);
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     for(int i = 0; i < library_count; i++)
         BundleClose(libraries[i]);
     free(merged.modules);

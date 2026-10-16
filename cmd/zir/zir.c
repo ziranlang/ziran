@@ -410,8 +410,8 @@ resolve_function_depth(const ZirModule *module, const char *name,
     return visit->status;
 }
 
-int
-ResolveFunctionAt(const ZirModule *module, const char *name,
+static int
+resolve_function_at(const ZirModule *module, const char *name,
                   const char *source_path, const ZirModule **owner,
                   const ZirFunction **function)
 {
@@ -792,46 +792,155 @@ find_type(const ZirModule *module, const char *name, const ZirModule **owner)
 
 static void kept_text_failed(void);
 
-/* FindType's answers by module, name and lookup file. Names and paths are
- * kept text, so their pointers identify them. An answer holds until the
- * generation changes (TypeLookupsChanged). */
-typedef struct TypeLookup {
+/* Keep entry-scope type and procedure answers, including misses and
+ * ambiguity. Recursive import walks keep their own cycle/visit state; a
+ * nested answer is not interchangeable with an entry-scope answer. Names
+ * and paths are kept text, so their pointers identify immutable spellings. */
+typedef enum LookupKind { LOOKUP_TYPE, LOOKUP_FUNCTION } LookupKind;
+typedef struct SymbolLookup {
     const ZirModule *module;
     const char *name;
     const char *path;
     unsigned long generation;
-    const ZirType *type;
+    LookupKind kind;
+    int status;
+    const void *symbol;
     const ZirModule *owner;
-} TypeLookup;
+} SymbolLookup;
 
 static struct {
-    TypeLookup *items;
+    SymbolLookup *items;
     size_t count, slots;
     unsigned long generation;
     int verify;
-} type_lookups = {NULL, 0, 0, 1, -1};
-static atomic_flag type_lookup_lock = ATOMIC_FLAG_INIT;
+} symbol_lookups = {NULL, 0, 0, 1, -1};
+static atomic_flag symbol_lookup_lock = ATOMIC_FLAG_INIT;
 
 void
-TypeLookupsChanged(void)
+SymbolLookupsChanged(void)
 {
-    while(atomic_flag_test_and_set_explicit(&type_lookup_lock, memory_order_acquire)) {}
-    type_lookups.generation++;
-    atomic_flag_clear_explicit(&type_lookup_lock, memory_order_release);
+    while(atomic_flag_test_and_set_explicit(&symbol_lookup_lock, memory_order_acquire)) {}
+    if(++symbol_lookups.generation == 0) {
+        if(symbol_lookups.slots)
+            memset(symbol_lookups.items, 0,
+                   symbol_lookups.slots * sizeof(*symbol_lookups.items));
+        symbol_lookups.count = 0;
+        symbol_lookups.generation = 1;
+    }
+    atomic_flag_clear_explicit(&symbol_lookup_lock, memory_order_release);
 }
 
 static size_t
-type_lookup_slot(const TypeLookup *items, size_t slots, const ZirModule *module,
-                 const char *name, const char *path)
+symbol_lookup_slot(const SymbolLookup *items, size_t slots, const ZirModule *module,
+                   const char *name, const char *path, LookupKind kind)
 {
     size_t slot = (((uintptr_t)module >> 4) * 31 + ((uintptr_t)name >> 3) * 17 +
-                   ((uintptr_t)path >> 3)) * 11400714819323198485ull;
+                   ((uintptr_t)path >> 3) + (unsigned)kind) * 11400714819323198485ull;
     slot &= slots - 1;
     while(items[slot].name != NULL &&
           (items[slot].module != module || items[slot].name != name ||
-           items[slot].path != path))
+           items[slot].path != path || items[slot].kind != kind))
         slot = (slot + 1) & (slots - 1);
     return slot;
+}
+
+static SymbolLookup
+fresh_symbol_lookup(const ZirModule *module, const char *name,
+                    const char *path, LookupKind kind)
+{
+    SymbolLookup answer = {.module = module, .name = name, .path = path,
+        .generation = symbol_lookups.generation, .kind = kind};
+    if(kind == LOOKUP_TYPE) {
+        answer.symbol = find_type(module, name, &answer.owner);
+        answer.status = answer.symbol != NULL;
+    } else {
+        const ZirFunction *function = NULL;
+        answer.status = resolve_function_at(module, name, path,
+                                             &answer.owner, &function);
+        answer.symbol = function;
+    }
+    return answer;
+}
+
+static const void *
+lookup_symbol(const ZirModule *module, const char *name,
+              const char *path, LookupKind kind,
+              const ZirModule **owner, int *status)
+{
+    while(atomic_flag_test_and_set_explicit(&symbol_lookup_lock, memory_order_acquire)) {}
+    if(symbol_lookups.verify < 0) {
+        const char *verify = getenv("ZIRAN_VERIFY_SYMBOL_LOOKUPS");
+        symbol_lookups.verify = verify != NULL && !strcmp(verify, "1");
+    }
+    if(symbol_lookups.count * 2 >= symbol_lookups.slots) {
+        /* Grow, keeping only answers from the current generation. */
+        size_t old_slots = symbol_lookups.slots;
+        SymbolLookup *old = symbol_lookups.items;
+        size_t live = 0;
+        for(size_t i = 0; i < old_slots; i++)
+            live += old[i].name != NULL && old[i].generation == symbol_lookups.generation;
+        size_t slots = 256;
+        while(slots < live * 4)
+            slots *= 2;
+        symbol_lookups.items = calloc(slots, sizeof(*symbol_lookups.items));
+        if(symbol_lookups.items == NULL)
+            kept_text_failed();
+        symbol_lookups.slots = slots;
+        symbol_lookups.count = 0;
+        for(size_t i = 0; i < old_slots; i++)
+            if(old[i].name != NULL && old[i].generation == symbol_lookups.generation) {
+                symbol_lookups.items[symbol_lookup_slot(symbol_lookups.items, slots,
+                    old[i].module, old[i].name, old[i].path, old[i].kind)] = old[i];
+                symbol_lookups.count++;
+            }
+        free(old);
+    }
+    const char *kept_name = KeepText(name);
+    const char *kept_path = KeepText(path == NULL ? "" : path);
+    size_t slot = symbol_lookup_slot(symbol_lookups.items, symbol_lookups.slots,
+                                     module, kept_name, kept_path, kind);
+    SymbolLookup *lookup = &symbol_lookups.items[slot];
+    if(lookup->name != NULL && lookup->generation == symbol_lookups.generation) {
+        ProfileCount(kind == LOOKUP_TYPE ? "type_lookup_hit" : "function_lookup_hit");
+        if(symbol_lookups.verify) {
+            SymbolLookup fresh = fresh_symbol_lookup(module, name, path, kind);
+            if(fresh.symbol != lookup->symbol || fresh.owner != lookup->owner ||
+               fresh.status != lookup->status) {
+                Diagnostic(module->span, "compiler.internal",
+                        "kept %s lookup of %s in %s is stale",
+                        kind == LOOKUP_TYPE ? "type" : "procedure", name, module->name);
+                abort();
+            }
+        }
+    } else {
+        ProfileCount(kind == LOOKUP_TYPE ? "type_lookup_miss" : "function_lookup_miss");
+        if(lookup->name == NULL)
+            symbol_lookups.count++;
+        *lookup = fresh_symbol_lookup(module, kept_name, kept_path, kind);
+    }
+    const void *symbol = lookup->symbol;
+    if(owner)
+        *owner = lookup->owner;
+    if(status)
+        *status = lookup->status;
+    atomic_flag_clear_explicit(&symbol_lookup_lock, memory_order_release);
+    return symbol;
+}
+
+int
+ResolveFunctionAt(const ZirModule *module, const char *name,
+                  const char *source_path, const ZirModule **owner,
+                  const ZirFunction **function)
+{
+    /* Tiny import-free scopes are cheaper to scan directly. They cannot
+     * recurse, so no import-graph visit storage is needed either. */
+    if(module->import_count == 0 && module->function_count <= 4)
+        return resolve_function_uncached(module, name, source_path,
+                                          owner, function, 0, NULL);
+    int status;
+    *function = lookup_symbol(module, name, source_path, LOOKUP_FUNCTION,
+                               owner, &status);
+    return status;
 }
 
 const ZirType *
@@ -845,69 +954,8 @@ FindType(const ZirModule *module, const char *name, const ZirModule **owner)
             *owner = NULL;
         return NULL;
     }
-    while(atomic_flag_test_and_set_explicit(&type_lookup_lock, memory_order_acquire)) {}
-    if(type_lookups.verify < 0) {
-        const char *verify = getenv("ZIRAN_VERIFY_TYPE_LOOKUPS");
-        type_lookups.verify = verify != NULL && !strcmp(verify, "1");
-    }
-    if(type_lookups.count * 2 >= type_lookups.slots) {
-        /* Grow, keeping only answers from the current generation. */
-        size_t old_slots = type_lookups.slots;
-        TypeLookup *old = type_lookups.items;
-        size_t live = 0;
-        for(size_t i = 0; i < old_slots; i++)
-            live += old[i].name != NULL && old[i].generation == type_lookups.generation;
-        size_t slots = 4096;
-        while(slots < live * 4)
-            slots *= 2;
-        type_lookups.items = calloc(slots, sizeof(*type_lookups.items));
-        if(type_lookups.items == NULL)
-            kept_text_failed();
-        type_lookups.slots = slots;
-        type_lookups.count = 0;
-        for(size_t i = 0; i < old_slots; i++)
-            if(old[i].name != NULL && old[i].generation == type_lookups.generation) {
-                type_lookups.items[type_lookup_slot(type_lookups.items, slots,
-                    old[i].module, old[i].name, old[i].path)] = old[i];
-                type_lookups.count++;
-            }
-        free(old);
-    }
-    const char *kept_name = KeepText(name);
-    const char *kept_path = KeepText(module->lookup_path);
-    size_t slot = type_lookup_slot(type_lookups.items, type_lookups.slots,
-                                   module, kept_name, kept_path);
-    TypeLookup *lookup = &type_lookups.items[slot];
-    if(lookup->name != NULL && lookup->generation == type_lookups.generation) {
-        if(type_lookups.verify) {
-            const ZirModule *fresh_owner = NULL;
-            const ZirType *fresh = find_type(module, name, &fresh_owner);
-            if(fresh != lookup->type || fresh_owner != lookup->owner) {
-                Diagnostic(module->span, "compiler.internal", "kept type lookup of %s in %s is stale",
-                        name, module->name);
-                abort();
-            }
-        }
-        if(owner)
-            *owner = lookup->owner;
-        const ZirType *found = lookup->type;
-        atomic_flag_clear_explicit(&type_lookup_lock, memory_order_release);
-        return found;
-    }
-    const ZirModule *found_owner = NULL;
-    const ZirType *found = find_type(module, name, &found_owner);
-    if(lookup->name == NULL)
-        type_lookups.count++;
-    lookup->module = module;
-    lookup->name = kept_name;
-    lookup->path = kept_path;
-    lookup->generation = type_lookups.generation;
-    lookup->type = found;
-    lookup->owner = found_owner;
-    if(owner)
-        *owner = found_owner;
-    atomic_flag_clear_explicit(&type_lookup_lock, memory_order_release);
-    return found;
+    return lookup_symbol(module, name, module->lookup_path, LOOKUP_TYPE,
+                          owner, NULL);
 }
 
 static const ZirType *
@@ -1053,7 +1101,7 @@ ProgramFree(ZirProgram *program)
 
     if(program == NULL)
         return;
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     for(i = 0; i < program->module_count; i++) {
         ZirModule *m = &program->modules[i];
         int j;
@@ -1409,7 +1457,7 @@ ProgramAddModule(ZirProgram *program, const char *name,
 
     if(program == NULL)
         return NULL;
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     modules = realloc_array(program->modules, &program->module_cap,
                                 program->module_count, sizeof(ZirModule));
     if(modules == NULL)
@@ -1433,7 +1481,7 @@ ModuleAddImport(ZirModule *module, ZirImportKind kind, const char *name,
 
     if(module == NULL)
         return NULL;
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     imports = realloc_array(module->imports, &module->import_cap,
                                 module->import_count, sizeof(ZirImport));
     if(imports == NULL)
@@ -1459,6 +1507,7 @@ ModuleAddFunction(ZirModule *module, const char *name, const char *args,
 
     if(module == NULL)
         return NULL;
+    SymbolLookupsChanged();
     functions = realloc_array(module->functions, &module->function_cap,
                                   module->function_count, sizeof(ZirFunction));
     if(functions == NULL)
@@ -1682,7 +1731,7 @@ ModuleAddType(ZirModule *module, const char *name, ZirSourceSpan span)
 
     if(module == NULL)
         return NULL;
-    TypeLookupsChanged();
+    SymbolLookupsChanged();
     types = realloc_array(module->types, &module->type_cap,
                               module->type_count, sizeof(ZirType));
     if(types == NULL)

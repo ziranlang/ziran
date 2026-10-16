@@ -149,6 +149,11 @@ static void indexed_fields(void)
     assert(!TypeHasOnlyPrimitiveFields(record));
     strcpy(record->body, "items: [4]s32");
     assert(!TypeHasOnlyPrimitiveFields(record));
+    const char *nonvalues[] = {"item: void", "item: Type", "item: any", "item: int", "item: float"};
+    for(size_t i = 0; i < sizeof(nonvalues) / sizeof(*nonvalues); i++) {
+        strcpy(record->body, nonvalues[i]);
+        assert(!TypeHasOnlyPrimitiveFields(record));
+    }
     strcpy(record->body, "item: s32; item: s64");
     assert(TypeFindField(record, "item", &actual) == 1 && !strcmp(actual.type, "s32"));
     record->is_enum = 1;
@@ -158,6 +163,7 @@ static void indexed_fields(void)
     assert(TypeFindField(record, "item", &actual) == -1);
     record->is_procedure_type = 0;
     strcpy(record->body, "");
+    assert(!TypeHasOnlyPrimitiveFields(record));
     assert(TypeFindField(record, "absent", &actual) == 0);
     memset(record->body, 'x', sizeof(record->body));
     assert(TypeFindField(record, "absent", &actual) == -1);

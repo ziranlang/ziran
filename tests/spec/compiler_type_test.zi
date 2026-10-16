@@ -100,6 +100,11 @@ Names :: () -> bool {
     for name: builtin { if !Types.BuiltinName(name) { return false } }
     invalid: [6]string = .{"", "integer", "s64junk", "type", "String", "float128"}
     for name: invalid { if Types.BuiltinName(name) { return false } }
+    values: [15]string = .{"bool", "s8", "u8", "s16", "u16", "s32", "u32", "s64", "u64",
+        "isize", "usize", "float32", "float64", "string", "integer"}
+    for name: values { if !Types.BuiltinValueName(name) { return false } }
+    nonvalues: [10]string = .{"", "void", "Type", "any", "int", "float", "Record", "*s64", "[]s64", "[2]s64"}
+    for name: nonvalues { if Types.BuiltinValueName(name) { return false } }
     primitives: [9]string = .{"MapInit", "MapSet", "MapGet", "MapContains", "MapDelete", "MapClear", "MapCount", "MapKeys", "MapLookup"}
     for name: primitives { if !Types.MapPrimitive(name) { return false } }
     return !Types.MapPrimitive("Map") && !Types.MapPrimitive("MapSetX")

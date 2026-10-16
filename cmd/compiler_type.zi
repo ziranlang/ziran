@@ -140,6 +140,13 @@ BuiltinName :: (name: string) -> bool {
     name == "float" || name == "Type" || name == "any"
 }
 
+// Concrete values that need no declaration or recursive layout walk.
+// void and compile-time-only names cannot be record field values.
+BuiltinValueName :: (name: string) -> bool {
+    return name == "string" || name == "isize" || name == "usize" ||
+        ScalarByteWidth(name) > 0
+}
+
 MapPrimitive :: (name: string) -> bool {
     return name == "MapInit" || name == "MapSet" || name == "MapGet" ||
     name == "MapContains" || name == "MapDelete" || name == "MapClear" ||

@@ -347,8 +347,9 @@ int TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field);
 /* Same first-match and malformed-prefix semantics as a TypeNextField walk,
  * using the immutable snapshot's field-name index. Clears FIELD on a miss. */
 int TypeFindField(const ZirType *record, const char *name, ZirTypeField *field);
-/* Conservative snapshot fact: every field is a builtin value or pointer.
- * Named/aggregate fields and malformed bodies return false. */
+/* Conservative snapshot fact: a nonempty record of builtin values or
+ * pointers. Void/compile-time-only, named/aggregate fields, empty records
+ * and malformed bodies return false. */
 int TypeHasOnlyPrimitiveFields(const ZirType *record);
 int EnumMemberValue(const ZirType *type, const char *name, int64_t *value);
 

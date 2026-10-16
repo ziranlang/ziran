@@ -137,7 +137,7 @@ static RecordFields *fields_of(const ZirType *record)
         copy_part(field->type, sizeof(field->type), parsed.type);
         copy_part(field->go_tag, sizeof(field->go_tag), parsed.tag);
         field->is_using = parsed.is_using;
-        if(field->type[0] != '*' && !BuiltinTypeName(field->type))
+        if(field->type[0] != '*' && !compiler_type_BuiltinValueName(type_text(field->type)))
             result->primitive_fields = 0;
     }
     record_fields.ids[record_fields.count++] = result;
@@ -217,7 +217,7 @@ TypeHasOnlyPrimitiveFields(const ZirType *record)
     atomic_flag_clear_explicit(&record_fields_lock, memory_order_release);
     /* This fact depends on source spelling only. Named types, arrays and
      * generic applications still require resolution in their owning scope. */
-    return fields != NULL && fields->terminal == 0 && fields->primitive_fields;
+    return fields != NULL && fields->terminal == 0 && fields->count > 0 && fields->primitive_fields;
 }
 
 int SliceElementType(const char *type, char *element, size_t element_size)

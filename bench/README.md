@@ -29,6 +29,34 @@ filesystem caches, not a general language ranking or cold-machine build claim.
 Reuse the stable output after archiving needed receipts and checking that its
 outputs are inactive.
 
+## Paired checking and body eligibility
+
+Preserve `ziran`, `zi2zir`, `zi2c` and `zi2zib` together before changing the
+compiler, then run:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/body_eligibility.py \
+  --before-bin-dir build/body-eligibility/before \
+  --out build/benchmarks/body-eligibility
+```
+
+This reuses `compiler_scaling.py`'s module and generic generators. Defaults
+cover 8, 32 and 128 modules with 16 and 64 fields, plus local and imported
+generic specializations. Both compiler versions must produce identical saved
+IR, emitted C and bundles. Identical C is compiled once per source/saved form;
+native and both portable runtimes must match independent arithmetic oracles.
+Nine shuffled pairs measure whole checking, C emission and bundle construction
+commands. Validation runs and a separately profiled warmup precede timings;
+profiles retain body-expression and record-field counters without adding
+profiling overhead to timing samples. CPU time and peak child RSS are retained.
+
+Use `--project NAME ROOT ENTRY` for an offline package check with its existing
+lock and local overrides. Keep both compiler variants under the overridden
+Ziran root so the package launcher uses each variant's sibling tools. Project
+sources and manifests are hashed and checked for changes. These workloads
+measure compiler work on one shared host, not full native build times or
+general Go/C performance parity.
+
 ## Repeated portable execution
 
 Before changing the runtime, preserve `zi2zir`, `zi2zib` and `libziran.a` together

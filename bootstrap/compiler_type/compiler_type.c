@@ -356,6 +356,18 @@ compiler_type_BuiltinName(String name)
 }
 
 bool
+compiler_type_BuiltinValueName(String name)
+{
+    bool value_0 = StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize")) || StringEqual(name, StringLiteral("usize"));
+    bool value_1 = value_0;
+    if (!value_1) {
+        bool value_2 = compiler_type_ScalarByteWidth(name) > 0;
+        value_1 = value_2;
+    }
+    return value_1;
+}
+
+bool
 compiler_type_MapPrimitive(String name)
 {
     bool value_0 = StringEqual(name, StringLiteral("MapInit")) || StringEqual(name, StringLiteral("MapSet")) || StringEqual(name, StringLiteral("MapGet"));

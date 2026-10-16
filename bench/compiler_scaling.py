@@ -18,6 +18,39 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def write_workload(directory, kind, size, fields):
+    """Create one shared fixture for checking, emission and runtime comparisons."""
+    source = directory / 'source'
+    source.mkdir(parents=True)
+    if kind == 'modules':
+        for index in range(size):
+            members = '\n'.join(f'field_{field}: s64' for field in range(fields))
+            writes = '\n'.join(f'value.field_{field} = {index};' for field in range(fields))
+            result = ' + '.join(f'value.field_{field}' for field in range(fields))
+            (source / f'm_{index}.zi').write_text(
+                f'Record :: struct {{\n{members}\n}}\nRead :: () -> s64 {{\nvalue: Record;\n{writes}\nreturn {result};\n}}\n')
+        imports = '\n'.join(f'M{index} :: #import "m_{index}";' for index in range(size))
+        result = ' + '.join(f'M{index}.Read()' for index in range(size))
+        text = f'{imports}\n#program_export\nAnswer :: () -> s64 {{ return {result}; }}\n'
+        oracle = size * (size - 1) // 2 * fields
+    elif kind in ('generics', 'imported-generics'):
+        records = '\n'.join(f'R{index} :: struct {{ item: s64; }}' for index in range(size))
+        uses = '\n'.join(f'value_{index}: R{index}; value_{index}.item = {index}; total += Pick(value_{index});'
+                         for index in range(size))
+        declaration = 'Pick :: (value: $T) -> s64 { return value.item; }'
+        if kind == 'imported-generics':
+            (source / 'library.zi').write_text(declaration + '\n')
+            declaration = 'Library :: #import "library";'
+            uses = uses.replace('Pick(', 'Library.Pick(')
+        text = f'{declaration}\n{records}\n#program_export\nAnswer :: () -> s64 {{\ntotal: s64 = 0;\n{uses}\nreturn total;\n}}\n'
+        oracle = size * (size - 1) // 2
+    else:
+        raise ValueError(f'unknown workload: {kind}')
+    entry = source / 'program.zi'
+    entry.write_text(text)
+    return source, entry, oracle
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True, help='new result directory')
@@ -91,32 +124,7 @@ def main():
         print(f'{case}: {phase}', flush=True)
     def workload(kind, size):
         directory = output / f'{kind}-{size}'
-        source = directory / 'source'
-        source.mkdir(parents=True)
-        if kind == 'modules':
-            for index in range(size):
-                fields = '\n'.join(f'field_{field}: s64' for field in range(args.fields))
-                writes = '\n'.join(f'value.field_{field} = {index};' for field in range(args.fields))
-                result = ' + '.join(f'value.field_{field}' for field in range(args.fields))
-                (source / f'm_{index}.zi').write_text(
-                    f'Record :: struct {{\n{fields}\n}}\nRead :: () -> s64 {{\nvalue: Record;\n{writes}\nreturn {result};\n}}\n')
-            imports = '\n'.join(f'M{index} :: #import "m_{index}";' for index in range(size))
-            result = ' + '.join(f'M{index}.Read()' for index in range(size))
-            text = f'{imports}\n#program_export\nAnswer :: () -> s64 {{ return {result}; }}\n'
-            oracle = size * (size - 1) // 2 * args.fields
-        else:
-            records = '\n'.join(f'R{index} :: struct {{ item: s64; }}' for index in range(size))
-            uses = '\n'.join(f'value_{index}: R{index}; value_{index}.item = {index}; total += Pick(value_{index});'
-                             for index in range(size))
-            declaration = 'Pick :: (value: $T) -> s64 { return value.item; }'
-            if kind == 'imported-generics':
-                (source / 'library.zi').write_text(declaration + '\n')
-                declaration = 'Library :: #import "library";'
-                uses = uses.replace('Pick(', 'Library.Pick(')
-            text = f'{declaration}\n{records}\n#program_export\nAnswer :: () -> s64 {{\ntotal: s64 = 0;\n{uses}\nreturn total;\n}}\n'
-            oracle = size * (size - 1) // 2
-        entry = source / 'program.zi'
-        entry.write_text(text)
+        source, entry, oracle = write_workload(directory, kind, size, args.fields)
         case = f'{kind}/{size}'
         run([binaries/'zi2zir', '--root', source, '-o', directory/'ir', entry], case, 'save-ir')
         for form, root, entry in [('source', source, entry),

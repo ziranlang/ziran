@@ -47,6 +47,7 @@ RecordField compiler_type_NextField(String body, int64_t at, bool union_record, 
 ElementType compiler_type_SliceElement(String type);
 ElementType compiler_type_ArrayElement(String type);
 bool compiler_type_BuiltinName(String name);
+bool compiler_type_BuiltinValueName(String name);
 bool compiler_type_MapPrimitive(String name);
 ForeignCall compiler_type_GoCall(String target, int64_t receiver_limit);
 bool compiler_type_GoTypeTarget(String target);

@@ -1566,6 +1566,7 @@ portable_type_path_with_buffers(const ZirModule *module, const char *type, const
             return 0;
     }
     TypePath current = {record, path};
+    if(TypeHasOnlyPrimitiveFields(record)) return 1;
     while((status = TypeNextField(record, &offset, &field)) == 1) {
         if(!portable_type_path(owner, field.type, &current) || !strcmp(field.type, "void"))
             return 0;
@@ -1595,11 +1596,14 @@ portable_type(const ZirModule *module, const char *type)
     return portable_type_path(module, type, NULL);
 }
 
+static int supported_expression(const ZirModule *module, const ZirFunction *fn,
+                                int index, unsigned char *support);
+
 static int
-supported_expression(const ZirModule *module, const ZirFunction *fn, int index)
+supported_expression_node(const ZirModule *module, const ZirFunction *fn,
+                          int index, unsigned char *support)
 {
     const ZirExpr *e;
-    if(index < 0) return 1;
     e = &fn->exprs[index];
     if(!portable_type(module, e->type)) return 0;
     switch(e->kind) {
@@ -1628,16 +1632,39 @@ supported_expression(const ZirModule *module, const ZirFunction *fn, int index)
         break;
     default: return 0;
     }
-    if(!supported_expression(module, fn, e->left) || !supported_expression(module, fn, e->right) ||
-       !supported_expression(module, fn, e->third)) return 0;
+    if(!supported_expression(module, fn, e->left, support) ||
+       !supported_expression(module, fn, e->right, support) ||
+       !supported_expression(module, fn, e->third, support)) return 0;
     for(int child = e->first_child; child >= 0; child = fn->exprs[child].next_sibling)
-        if(!supported_expression(module, fn, child)) return 0;
+        if(!supported_expression(module, fn, child, support)) return 0;
+    return 1;
+}
+
+static int
+supported_expression(const ZirModule *module, const ZirFunction *fn,
+                     int index, unsigned char *support)
+{
+    if(index < 0) return 1;
+    if(index >= fn->expr_count) return 0;
+    /* A typed expression graph can share nodes. Each eligibility pass owns
+     * its answers, so later body rewrites or another scope cannot reuse them.
+     * State 1 also stops a malformed cycle before it recurses indefinitely. */
+    if(support[index]) {
+        ProfileCount("body_expression_reuse");
+        return support[index] == 2;
+    }
+    support[index] = 1;
+    ProfileCount("body_expression_check");
+    if(!supported_expression_node(module, fn, index, support)) return 0;
+    support[index] = 2;
     return 1;
 }
 /* Buffers CanEmitBody keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct CanEmitBodyBuffers {
     char params[64][ZIR_TEXT_MAX];
+    unsigned char *expression_support;
+    size_t expression_capacity;
 } CanEmitBodyBuffers;
 
 int CanEmitBody(const ZirModule *module, const ZirFunction *fn);
@@ -1646,10 +1673,17 @@ static int
 CanEmitBody_with_buffers(const ZirModule *module, const ZirFunction *fn, CanEmitBodyBuffers *buffers)
 {
     int count;
-    int result;
     /* Eligibility follows the typed function body and its operations.
      * Host calls and unsupported composition fail the same checks. */
-    if(!fn->checked || fn->is_extern || !portable_type(module, fn->return_type)) return 0;
+    if(!fn->checked || fn->is_extern || fn->expr_count < 0 ||
+       !portable_type(module, fn->return_type)) return 0;
+    if((size_t)fn->expr_count > buffers->expression_capacity) {
+        free(buffers->expression_support);
+        buffers->expression_support = AllocateOrExit((size_t)fn->expr_count);
+        buffers->expression_capacity = (size_t)fn->expr_count;
+    }
+    if(fn->expr_count > 0)
+        memset(buffers->expression_support, 0, (size_t)fn->expr_count);
     count = *skip_ws(FunctionArgs(fn)) ? split_top_level(FunctionArgs(fn), buffers->params[0], 64, sizeof(buffers->params[0])) : 0;
     for(int i = 0; i < count; i++) {
         char *colon = strchr(buffers->params[i], ':');
@@ -1674,7 +1708,8 @@ CanEmitBody_with_buffers(const ZirModule *module, const ZirFunction *fn, CanEmit
         case ZIR_STMT_UNREACHABLE: break;
         default: return 0;
         }
-        if(!supported_expression(module, fn, st->expr_root) || !supported_expression(module, fn, st->lhs_root)) return 0;
+        if(!supported_expression(module, fn, st->expr_root, buffers->expression_support) ||
+           !supported_expression(module, fn, st->lhs_root, buffers->expression_support)) return 0;
     }
     return 1;
 }
@@ -1684,13 +1719,20 @@ CanEmitBody(const ZirModule *module, const ZirFunction *fn)
 {
     static _Thread_local CanEmitBodyBuffers *spares[16];
     static _Thread_local int spare_count;
-    CanEmitBodyBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    CanEmitBodyBuffers *buffers;
+    if(spare_count > 0) buffers = spares[--spare_count];
+    else {
+        buffers = AllocateOrExit(sizeof(*buffers));
+        buffers->expression_support = NULL;
+        buffers->expression_capacity = 0;
+    }
     int returned = CanEmitBody_with_buffers(module, fn, buffers);
     if(spare_count < 16)
         spares[spare_count++] = buffers;
-    else
+    else {
+        free(buffers->expression_support);
         free(buffers);
+    }
     return returned;
 }
 

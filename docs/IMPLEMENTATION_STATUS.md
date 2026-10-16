@@ -5,6 +5,17 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- Body eligibility checks reuse immutable primitive-record layout facts and
+  check each reached typed expression once per pass, including shared graphs.
+  Answers remain local to that pass, so rewritten bodies and other lookup
+  scopes are checked again. `tests/body_eligibility.sh` covers shared nodes,
+  malformed backedges, record rewrites and distinct same-named declarations;
+  the compiler type matrix checks concrete builtin value classification.
+  `bench/body_eligibility.py` measures paired checking, C emission and bundle
+  construction from source and saved IR, requiring unchanged output bytes
+  and independent native/VM arithmetic results. It can include offline real
+  package checks. This does not establish general Go/C performance parity.
+
 - Portable bundle writing omits native assembly templates while retaining the
   checked bodies and full native `.zir` data. It measures the payload and writes
   directly to files or pipes without a temporary payload file.

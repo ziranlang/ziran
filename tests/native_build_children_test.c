@@ -3,11 +3,22 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #ifdef __linux__
 #include <errno.h>
 #include <sys/syscall.h>
+/* The regular scheduler checks use spawn. This executable also checks the
+ * unchanged fork/exec path on a host whose spawn operation is unavailable. */
+int __wrap_posix_spawnp(pid_t *pid, const char *file,
+                       const posix_spawn_file_actions_t *actions,
+                       const posix_spawnattr_t *attributes,
+                       char *const argv[], char *const envp[])
+{
+    (void)pid; (void)file; (void)actions; (void)attributes; (void)argv; (void)envp;
+    return ENOSYS;
+}
 #ifdef SYS_pidfd_open
 /* GNU ld wraps only this test executable's syscall references. Model an
  * older kernel while exercising the same scheduler and child ownership. */

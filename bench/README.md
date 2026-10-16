@@ -43,6 +43,13 @@ attempts, reused objects and event/poll completion paths. Collect profiles
 separately from timings; profiler counters add work and the profile environment
 is part of the native object-cache identity.
 
+`native_process_spawn` and `native_process_fork` count the tool-launch paths,
+including compiler probes. Native builds prefer `posix_spawnp` with the same
+capture-pipe actions and inherited output lock. A failed spawn uses the
+existing fork/exec path, which also preserves executable shell scripts without
+a shebang. These counters identify the path taken; they do not imply a build
+speed improvement on every host or workload.
+
 The `native_probe_pipe` and `native_probe_compile` counters distinguish GCC's
 piped empty-input probe from the ordinary compile probe retained for Clang and
 other eligible drivers. These probes run even when all objects are reusable;

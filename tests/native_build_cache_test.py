@@ -176,6 +176,14 @@ int main(int argc, char **argv) {
         if(fclose(file) != 0) return 1;
     }
     if(null_input && getenv("CACHE_FAIL_PROBE")) return 1;
+    if(null_input && getenv("CACHE_PROBE_TEXT")) {
+        FILE *file = fopen(getenv("CACHE_PROBE_TEXT"), "r");
+        if(!file) return 1;
+        char bytes[4096]; size_t length;
+        while((length=fread(bytes, 1, sizeof(bytes), file)))
+            if(fwrite(bytes, 1, length, stderr) != length) return 1;
+        return ferror(file) || fclose(file) != 0;
+    }
     if(null_input && getenv("CACHE_EMPTY_PROBE")) return 0;
     if(null_input && getenv("CACHE_BINARY_PROBE")) fputc(0, stderr);
     if(null_input && getenv("CACHE_LARGE_PROBE"))
@@ -213,6 +221,29 @@ proxy_build(1)
 os.utime(proxy, ns=(saved.st_atime_ns, saved.st_mtime_ns))
 assert len(build(51)) == len(objects())
 build(51, set())
+
+# Piped GCC may print its assembler command before or after cc1's include
+# search list. The complete option records are the same; independent tool
+# discovery must not change the identity when only that scheduling changes.
+probe = subprocess.run([compiler, *env['CFLAGS'].split(), '-I', str(out), '-pipe',
+                        '-v', '-x', 'c', '-c', '/dev/null', '-o', '/dev/null'],
+                       env=env, capture_output=True, text=True, check=True).stderr
+lines = probe.splitlines(keepends=True)
+assembler = next((line for line in lines if line.startswith(' ') and line.split() and
+                  Path(line.split()[0]).name.endswith('as')), None)
+if assembler and 'End of search list.\n' in lines:
+    lines.remove(assembler)
+    early = next(i for i, line in enumerate(lines) if line.startswith(('ignoring nonexistent directory', '#include ')))
+    late = lines.index('End of search list.\n') + 1
+    probe_text = work/'compiler-probe.txt'
+    env['CACHE_PROBE_TEXT'] = str(probe_text)
+    probe_text.write_text(''.join([*lines[:early], assembler, *lines[early:]]))
+    build(51)
+    probe_text.write_text(''.join([*lines[:late], assembler, *lines[late:]]))
+    build(51, set())
+    probe_text.write_text(''.join([*lines[:early], assembler, *lines[early:]]))
+    build(51, set())
+    env.pop('CACHE_PROBE_TEXT')
 
 # A compiler's configuration can change its derived options without changing
 # its executable, the requested flags or the environment. Model an installed

@@ -1,6 +1,7 @@
 #include "zir_c_cache.h"
 #include "zir.h"
 #include "zir_profile.h"
+#include "zir_c_process.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -400,14 +401,7 @@ static char *probe(char *const *base,int count,int piped)
     args[count++]="-v";args[count++]="-x";args[count++]="c";
     args[count++]="-c";args[count++]="/dev/null";
     args[count++]="-o";args[count]="/dev/null";
-    fflush(NULL);
-    pid_t pid=fork();
-    if(pid==0) {
-        close(pipes[0]);
-        if(dup2(pipes[1],STDOUT_FILENO)<0 || dup2(pipes[1],STDERR_FILENO)<0) _exit(127);
-        if(pipes[1]>STDERR_FILENO) close(pipes[1]);
-        execvp(args[0],args);_exit(127);
-    }
+    pid_t pid=c_start_process(args,pipes[0],pipes[1],0);
     close(pipes[1]);
     if(pid>0) ProfileCount(piped ? "native_probe_pipe" : "native_probe_compile");
     size_t used=0;
@@ -440,6 +434,7 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     if((!strstr(name,"gcc") && !strstr(name,"clang") && strcmp(name,"cc")) || !native_executable(compiler)) { free(compiler);return NULL; }
     /* A native cc alias may be GCC even when its file is not named gcc. */
     int piped=strstr(name,"clang")==NULL;
+    Names programs={0};
     CBuildCache *cache=calloc(1,sizeof(*cache));
     if(!cache) { free(compiler);return NULL; }
     cache->piped=piped;
@@ -447,7 +442,7 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     cache->output=realpath(output,NULL);cache->executable=strdup(executable);
     if(!cache->slots || !cache->output || !cache->executable || clock_gettime(CLOCK_REALTIME,&cache->started)!=0) goto fail;
     Hash hash=hash_new();
-    hash_text(&hash,"Ziran native object cache 2");
+    hash_text(&hash,"Ziran native object cache 3");
     hash_integer(&hash,(uint64_t)piped);
     char *cwd=getcwd(NULL,0);
     if(!cwd) goto fail;
@@ -480,7 +475,7 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
         if(!strncmp(line,"COLLECT_GCC=",12)) {
             char *driver=executable_path(line+12);
             if(!driver || stat(driver,&info)!=0) ok=0;
-            else { hash_text(&hash,driver);hash_stat(&hash,&info); }
+            else ok=add_name(&programs,driver);
             free(driver);
         } else if(!strncmp(line,"#include ",9)) searching=1;
         else if(!strcmp(line,"End of search list.")) { searching=0;ended=1; }
@@ -505,7 +500,7 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
                 char *tool=executable_path(token);
                 if(tool) {
                     if(!native_executable(tool) || stat(tool,&info)!=0) ok=0;
-                    else { hash_text(&hash,tool);hash_stat(&hash,&info);tools++; }
+                    else { ok=add_name(&programs,tool);tools++; }
                     free(tool);
                 }
                 *end=saved;
@@ -515,14 +510,24 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     }
     free(text);
     if(!ok || !ended || tools<required_tools || !add_name(&cache->roots,cache->output)) goto fail;
+    /* Driver/assembler commands can arrive on either side of cc1's search
+     * diagnostics. Keep tool identities independent of that scheduling, while
+     * preserving include-root precedence in the hash and roots list above. */
+    qsort(programs.items,(size_t)programs.count,sizeof(*programs.items),compare_names);
+    hash_integer(&hash,(uint64_t)programs.count);
+    for(int i=0;i<programs.count;i++) {
+        if(stat(programs.items[i],&info)!=0) goto fail;
+        hash_text(&hash,programs.items[i]);hash_stat(&hash,&info);
+    }
     for(int i=0;i<cache->roots.count;i++) {
         char *resolved=realpath(cache->roots.items[i],NULL);
         if(resolved) { free(cache->roots.items[i]);cache->roots.items[i]=resolved; }
     }
     hash_finish(&hash,cache->identity);
+    free_names(&programs);
     return cache;
 fail:
-    free(compiler);c_cache_close(cache);return NULL;
+    free_names(&programs);free(compiler);c_cache_close(cache);return NULL;
 }
 
 int c_cache_piped(const CBuildCache *cache)

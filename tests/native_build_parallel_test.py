@@ -53,6 +53,7 @@ with (work/'state.lock').open('w') as lock:
  if compiling:
   state['active']+=1;state['peak']=max(state['peak'],state['active']);state['started']+=1
   state['sources'].append(source_path)
+  state['parents'].append(os.getppid())
   (work/('started-'+source)).write_text(str(os.getpid()))
  (work/'state.json').write_text(json.dumps(state))
 if compiling:
@@ -118,7 +119,7 @@ def state():
         return json.loads((work/'state.json').read_text())
 
 def reset():
-    (work/'state.json').write_text(json.dumps(dict(active=0, peak=0, started=0, sources=[])))
+    (work/'state.json').write_text(json.dumps(dict(active=0, peak=0, started=0, sources=[], parents=[])))
     for name in ['compile.release', 'link.release', 'link.ready', 'hold.release', 'hold.waiting', 'failed']:
         (work/name).unlink(missing_ok=True)
     for path in work.glob('started-*'): path.unlink()
@@ -182,6 +183,7 @@ try:
         assert sample['counters']['native_object_compile'] == len(state()['sources'])
         counters = sample['counters']
         assert counters.get('native_process_event',0)+counters.get('native_process_poll',0)==len(state()['sources'])+1
+        assert counters.get('native_process_spawn',0)+counters.get('native_process_fork',0)==len(state()['sources'])+1
         if mode == 'json':
             import re
             records = [json.loads(line) for line in (work/f'build-{index}.log').read_text().splitlines()]
@@ -222,6 +224,47 @@ try:
         assert state()['started'] == workers and state()['active'] == 0
         assert not (work/'link.ready').exists()
         assert subprocess.run([str(out/'app')]).returncode == 45
+    if Path('/proc/self/stat').is_file():
+        # Compiler children must retain the output lock after their owned
+        # builder dies, so a later build cannot race unfinished object writes.
+        program(4)
+        reset()
+        first = start()
+        until(lambda: state()['active'] >= min(4, os.cpu_count() or 1))
+        parents = set(state()['parents'])
+        assert len(parents) == 1
+        parent, = parents
+        executable = Path('/proc', str(parent), 'cmdline').read_bytes().split(b'\0')[0]
+        assert Path(os.fsdecode(executable)).name == 'zi2c', executable
+        os.kill(parent, signal.SIGKILL)
+        assert first.wait(timeout=30) != 0
+        with (out/'.build.lock').open('r') as lock:
+            try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError: pass
+            else: raise AssertionError('compiler children lost the output lock')
+        (work/'compile.release').touch()
+        (work/'link.release').touch()
+        until(lambda: state()['active'] == 0)
+    # execvp accepts executable text without a shebang through /bin/sh.
+    # posix_spawnp can reject that file with ENOEXEC; preserve the old behavior.
+    program(4)
+    shell_cc = work/'shell-cc'
+    shell_cc.write_text('exec "$REAL_CC" "$@"\n')
+    shell_cc.chmod(0o700)
+    fallback_profile = work/'profile-shell.jsonl'
+    selected = dict(env, CC=str(shell_cc), ZIRAN_PROFILE=str(fallback_profile))
+    subprocess.run(command, env=selected, check=True, capture_output=True)
+    sample, = map(json.loads, fallback_profile.read_text().splitlines())
+    assert sample['counters'].get('native_process_spawn',0)+sample['counters'].get('native_process_fork',0)>0
+    assert subprocess.run([str(out/'app')]).returncode == 46
+    # Missing compilers must still produce one bounded JSON diagnostic and
+    # leave the last complete executable intact.
+    failed = subprocess.run(command, env=dict(env, CC=str(work/'absent-cc')), capture_output=True, text=True)
+    assert failed.returncode != 0
+    records = list(map(json.loads, failed.stderr.splitlines()))
+    assert len(records) == 1 and records[0]['code'] == 'zir_c.toolchain', records
+    assert 'cannot run' in records[0]['message'] and 'absent-cc' in records[0]['message']
+    assert subprocess.run([str(out/'app')]).returncode == 46
     print('Parallel native builds preserve flags, nested modules, output locks and atomic replacement')
 finally:
     for child in children:

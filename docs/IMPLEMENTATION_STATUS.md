@@ -44,6 +44,18 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   Profiles separate native toolchain preparation, objects and linking and
   count compilation attempts and reuse. `bench/native_builds.py` can pair a
   preserved compiler with the current one alongside C and Go.
+  Tool probes, compiler workers and the linker prefer `posix_spawnp`, with
+  fork/exec retained when spawning fails. Capture pipes, inherited build locks
+  and owned-child waits keep the same behavior. The parallel-build checks also
+  cover missing tools, executable scripts without a shebang, forced spawn
+  unavailability and child-held locks after their builder exits. Profiles count
+  spawn and fork launches separately; gains depend on the host and workload.
+  Android hosts below API 28 keep fork/exec without references to unavailable
+  spawn symbols; optional NDK checks link both paths for all four Android ABIs.
+  Tool identities are sorted separately from ordered include roots, so moving
+  the assembler's verbose command across the compiler's search diagnostics
+  does not invalidate otherwise reusable objects. The cache checks reproduce
+  both output schedules with the same options and include-root precedence.
 
 - Body eligibility checks reuse immutable primitive-record layout facts and
   check each reached typed expression once per pass, including shared graphs.

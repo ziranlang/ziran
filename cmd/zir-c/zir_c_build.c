@@ -1,5 +1,6 @@
 #include "zir_c_build.h"
 #include "zir_c_cache.h"
+#include "zir_c_process.h"
 #include "zir.h"
 #include "zir_diagnostic.h"
 #include "zir_load.h"
@@ -115,18 +116,7 @@ static Job start(char **args, int capture)
         fcntl(pipes[0], F_SETFD, FD_CLOEXEC);
         fcntl(pipes[1], F_SETFD, FD_CLOEXEC);
     }
-    fflush(NULL);
-    pid_t pid = fork();
-    if(pid == 0) {
-        if(capture) {
-            close(pipes[0]);
-            if(dup2(pipes[1], STDOUT_FILENO) < 0 || dup2(pipes[1], STDERR_FILENO) < 0) _exit(127);
-            if(pipes[1] > STDERR_FILENO) close(pipes[1]);
-        }
-        execvp(args[0], args);
-        dprintf(STDERR_FILENO, "cannot run %s: %s\n", args[0], strerror(errno));
-        _exit(127);
-    }
+    pid_t pid = c_start_process(args, pipes[0], pipes[1], 1);
     if(capture) {
         close(pipes[1]);
         if(pid < 0) close(pipes[0]);

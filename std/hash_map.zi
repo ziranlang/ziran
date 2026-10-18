@@ -15,6 +15,7 @@ HashMap :: struct($K: Type, $V: Type) {
     values: Vec(V)
     states: Vec(u8) // 0 empty, 1 in use, 2 removed
     count: s64
+    removed: s64
 }
 
 // FNV-1a over the key's bytes.
@@ -65,18 +66,23 @@ HashMapGet :: (map: *HashMap($K, $V), key: K, value: *V) -> bool {
 
 HashMapSet :: (map: *HashMap($K, $V), key: K, value: V) {
     if (map.count + 1) * 2 > map.states.count { HashMapGrow(map) }
+    else if map.removed > map.count && map.removed * 2 >= map.states.count {
+        HashMapRehash(map, map.states.count)
+    }
     mask: s64 = map.states.count - 1
     slot: s64 = cast(s64)(HashKey(key) & cast(u64) mask)
     free_slot: s64 = -1
-    while map.states[slot] != 0 {
+    probes: s64 = 0
+    while map.states[slot] != 0 && probes < map.states.count {
         if map.states[slot] == 1 && map.keys[slot] == key {
             map.values[slot] = value
             return
         }
         if map.states[slot] == 2 && free_slot < 0 { free_slot = slot }
         slot = (slot + 1) & mask
+        probes += 1
     }
-    if free_slot >= 0 { slot = free_slot }
+    if free_slot >= 0 { slot = free_slot; map.removed -= 1; }
     map.keys[slot] = key
     map.values[slot] = value
     map.states[slot] = 1
@@ -89,6 +95,7 @@ HashMapRemove :: (map: *HashMap($K, $V), key: K) -> bool {
     if slot < 0 { return false }
     map.states[slot] = 2
     map.count -= 1
+    map.removed += 1
     return true
 }
 
@@ -97,18 +104,24 @@ HashMapFree :: (map: *HashMap($K, $V)) {
     VecFree(map.values)
     VecFree(map.states)
     map.count = 0
+    map.removed = 0
 }
 
 // Doubles the table, to at least 8 slots, and reinserts every entry.
 HashMapGrow :: (map: *HashMap($K, $V)) {
+    capacity := map.states.count * 2
+    if capacity < 8 { capacity = 8 }
+    HashMapRehash(map, capacity)
+}
+
+// Rebuild live entries, discarding deleted slots without growing the table.
+HashMapRehash :: (map: *HashMap($K, $V), capacity: s64) {
     old_keys: Vec(K)
     old_values: Vec(V)
     old_states: Vec(u8)
     VecSwap(old_keys, map.keys)
     VecSwap(old_values, map.values)
     VecSwap(old_states, map.states)
-    capacity: s64 = old_states.count * 2
-    if capacity < 8 { capacity = 8 }
     empty_key: K
     empty_value: V
     i: s64 = 0
@@ -119,6 +132,7 @@ HashMapGrow :: (map: *HashMap($K, $V)) {
         i += 1
     }
     map.count = 0
+    map.removed = 0
     i = 0
     while i < old_states.count {
         if old_states[i] == 1 { HashMapSet(map, old_keys[i], old_values[i]) }

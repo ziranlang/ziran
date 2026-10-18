@@ -57,17 +57,86 @@ Points :: () -> s32 {
     return 0
 }
 
+// A sparse map must keep accepting writes after every initial bucket has
+// held a deleted key. Its live count never justifies growing the table.
+Churn :: () -> s32 {
+    map: HashMap(s64, s64)
+    round: s64 = 0
+    while round < 256 {
+        bucket := round % 8
+        key: s64 = 0
+        while (HashKey(key) & cast(u64)7) != cast(u64)bucket { key += 1 }
+        HashMapSet(*map, key, round)
+        value: s64 = -1
+        if !HashMapGet(*map, key, *value) || value != round { return 8 }
+        // Updating an existing key must not create a second entry.
+        HashMapSet(*map, key, round + 1)
+        if map.count != 1 || !HashMapRemove(*map, key) { return 9 }
+        if map.count != 0 || HashMapHas(*map, key) { return 10 }
+        if map.states.count != 8 { return 11 }
+        round += 1
+    }
+    HashMapSet(*map, 99, 42)
+    value: s64
+    if !HashMapGet(*map, 99, *value) || value != 42 { return 12 }
+    HashMapFree(*map)
+    if map.count != 0 || map.removed != 0 { return 13 }
+    return 0
+}
+
+// Compare a deterministic operation history with an independent array model.
+History :: () -> s32 {
+    map: HashMap(s64, s64)
+    present: [32]bool
+    values: [32]s64
+    state: u32 = 12345
+    step: s64 = 0
+    while step < 2048 {
+        state = state * cast(u32)1664525 + cast(u32)1013904223
+        key := cast(s64)((state >> 16) % cast(u32)32)
+        operation := (state >> 8) % cast(u32)3
+        if operation == 0 {
+            removed := HashMapRemove(*map, key)
+            if removed != present[key] { return 14 }
+            present[key] = false
+        } else {
+            HashMapSet(*map, key, step)
+            present[key] = true
+            values[key] = step
+        }
+        count: s64 = 0
+        i: s64 = 0
+        while i < 32 {
+            actual: s64 = -1
+            if HashMapGet(*map, cast(s64)i, *actual) != present[i] { return 15 }
+            if present[i] {
+                if actual != values[i] { return 16 }
+                count += 1
+            }
+            i += 1
+        }
+        if map.count != count { return 17 }
+        step += 1
+    }
+    HashMapFree(*map)
+    return 0
+}
+
 #program_export
 Answer :: () -> s32 {
     failed := Names()
     if failed == 0 { failed = Squares() }
     if failed == 0 { failed = Points() }
+    if failed == 0 { failed = Churn() }
+    if failed == 0 { failed = History() }
     if failed != 0 {
         print("failed %\n", failed)
         return failed
     }
     return 42
 }
+
+Run :: () { print("%\n", Answer()) }
 ZI
 
 "$ziran" check --root "$work" "$work/app.zi"
@@ -102,5 +171,13 @@ package main
 func main() { if App_Answer() != 42 { panic("wrong result") } }
 GO
     GO111MODULE=off go run "$output"/*.go
+    output=$work/py-$input
+    "$ziran" build --target=py --exe --entry app:Run --root "$root" -o "$output" "$module"
+    test "$(python3 "$output")" = 42
+    if command -v cargo >/dev/null 2>&1; then
+        output=$work/rust-$input
+        "$ziran" build --target=rust --exe --entry app:Run --root "$root" -o "$output" "$module"
+        test "$(CARGO_TARGET_DIR="$work/rust-target" cargo run --quiet --offline --manifest-path "$output/Cargo.toml")" = 42
+    fi
 done
 cmp "$work/source.zib" "$work/saved.zib"

@@ -1589,6 +1589,16 @@ EmitNativeMainDeclaration(FILE *out, ZirTarget target)
 }
 
 void
+EmitSymbolDeclaration(FILE *out, const char *result, const char *name,
+                      const char *parameters, const char *symbol)
+{
+    fprintf(out, "#ifdef __APPLE__\n%s %s(%s) __asm__(\"_%s\");\n#else\n",
+            result, name, parameters, symbol);
+    fprintf(out, "%s %s(%s) __asm__(\"%s\");\n#endif\n",
+            result, name, parameters, symbol);
+}
+
+void
 EmitNativeMain(FILE *out, const ZirModule *module, const ZirFunction *fn,
                ZirTarget target)
 {

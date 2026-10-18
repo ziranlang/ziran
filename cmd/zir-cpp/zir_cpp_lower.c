@@ -853,8 +853,8 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
         snprintf(foreign_name, sizeof(foreign_name), "zir_foreign_%s", local_name);
         fprintf(c, "#ifndef ZIR_FOREIGN_%s_%08x\n#define ZIR_FOREIGN_%s_%08x\n",
                 local_name, (unsigned)binding, local_name, (unsigned)binding);
-        fprintf(c, "%s %s(%s) __asm__(\"%s\");\n",
-                ret[0] ? ret : "void", foreign_name, buffers->conv, symbol);
+        EmitSymbolDeclaration(c, ret[0] ? ret : "void", foreign_name,
+                              buffers->conv, symbol);
         if(imp->is_varargs) {
             /* A C variadic argument list cannot be forwarded by a
              * regular wrapper. Let the call target the ABI symbol. */
@@ -1139,14 +1139,19 @@ lower_module_with_buffers(const ZirModule *m, const ZirCppModuleSyms *restab, in
         convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
-        fprintf(h, "%s %s(%s)", cret[0] ? cret : "void", cname, buffers->cargs);
+        const char *symbol = NULL;
         if(fn->exported && !NativeProgramMain(m, fn)) {
-            const char *symbol = fn->export_symbol[0] ?
-                fn->export_symbol : fn->name;
-            if(strcmp(cname, symbol))
-                fprintf(h, " __asm__(\"%s\")", symbol);
+            symbol = fn->export_symbol[0] ? fn->export_symbol : fn->name;
+            if(!strcmp(cname, symbol)) symbol = NULL;
         }
-        fputs(";\n", h);
+        if(symbol != NULL)
+            EmitSymbolDeclaration(h, cret[0] ? cret : "void", cname,
+                                  buffers->cargs, symbol);
+        else {
+            fprintf(h, "%s %s(%s)", cret[0] ? cret : "void", cname, buffers->cargs);
+            if(symbol != NULL) fprintf(h, " __asm__(\"%s\")", symbol);
+            fputs(";\n", h);
+        }
         if(NativeProgramMain(m, fn)) EmitNativeMainDeclaration(h, ZIR_CPP);
     }
     fprintf(h, "\n#ifdef __cplusplus\n}\n#endif\n");

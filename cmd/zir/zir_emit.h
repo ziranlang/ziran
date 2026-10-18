@@ -124,6 +124,10 @@ void EmitGoNumberHelpers(FILE *out, const char *text, unsigned *written);
 int NativeProgramMain(const ZirModule *module, const ZirFunction *fn);
 int CheckNativeEntry(const ZirFunction *fn, const char *target);
 void EmitNativeMainDeclaration(FILE *out, ZirTarget target);
+/* Declares a function bound to SYMBOL. Mach-O spells C symbols with a
+ * leading underscore, which an assembler label must name explicitly. */
+void EmitSymbolDeclaration(FILE *out, const char *result, const char *name,
+                           const char *parameters, const char *symbol);
 /* C++ callers emit inside the module's open extern "C" block. */
 void EmitNativeMain(FILE *out, const ZirModule *module, const ZirFunction *fn,
                     ZirTarget target);

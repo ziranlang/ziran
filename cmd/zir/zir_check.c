@@ -545,6 +545,11 @@ layout_type_with_buffers(const ZirModule *module, const char *source, int depth,
             return layout_type(definition_owner, definition->value,
                                depth + 1, size, alignment);
     }
+    /* A #c_call procedure type is a plain native function pointer. */
+    if(record != NULL && record->is_procedure_type && record->is_c_call) {
+        *size = *alignment = 8;
+        return 1;
+    }
     if(record == NULL || record->is_procedure_type || record->is_extern || record->is_map ||
        record->is_record_template || record->is_type_instance)
         return 0;

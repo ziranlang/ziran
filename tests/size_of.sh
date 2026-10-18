@@ -173,6 +173,39 @@ EOF
     fi
 done
 
+# Native callback types are plain function pointers inside records.
+cat > "$work/callbacks.zi" <<'EOF'
+Callback :: #type (value: s32) -> s32 #c_call;
+Callbacks :: struct {
+    context: *void
+    call: Callback
+}
+#assert size_of(Callback) == 8
+#assert size_of(Callbacks) == 16
+#program_export
+CallbacksSize :: () -> s32 { return cast(s32)size_of(Callbacks) }
+EOF
+for target in c cpp; do
+    out="$work/callbacks-$target"
+    "$ziran" build "--target=$target" --root "$work" -o "$out" "$work/callbacks.zi"
+    if test "$target" = c; then
+        cat > "$out/main.c" <<'EOF'
+#include "callbacks.h"
+_Static_assert(sizeof(Callbacks) == 16, "size_of disagrees with C callback layout");
+int main(void) { return CallbacksSize() == 16 ? 0 : 1; }
+EOF
+        ${CC:-cc} -Iinclude -I"$out" "$out/callbacks.c" "$out/main.c" -o "$out/app"
+    else
+        cat > "$out/main.cpp" <<'EOF'
+#include "callbacks.hpp"
+static_assert(sizeof(Callbacks) == 16, "size_of disagrees with C++ callback layout");
+int main() { return CallbacksSize() == 16 ? 0 : 1; }
+EOF
+        ${CXX:-c++} -Iinclude -I"$out" "$out/callbacks.cpp" "$out/main.cpp" -o "$out/app"
+    fi
+    "$out/app"
+done
+
 cat > "$work/old_sizeof.zi" <<'EOF'
 Answer :: () -> s32 { return sizeof(s32) }
 EOF

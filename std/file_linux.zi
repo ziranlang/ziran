@@ -9,13 +9,21 @@ libc :: #system_library "libc";
     ReadLinkRaw :: (path: *u8, output: *u8, capacity: usize) -> isize #foreign libc "readlink";
 }
 
-// The 64-bit POSIX directory record. Windows fills only the name and kind.
+// Native 64-bit directory records. Darwin includes a name length before
+// the kind; Linux places kind immediately after the record length.
 DirectoryMetadata :: struct {
     inode: u64
     offset: s64
     record_length: u16
+    #if #defined(__APPLE__) {
+        name_length: u16
+    }
     kind: u8
-    name: [256]u8
+    #if #defined(__APPLE__) {
+        name: [1024]u8
+    } else {
+        name: [256]u8
+    }
 }
 
 #if #defined(_WIN32) {
@@ -319,17 +327,81 @@ DirectoryMetadata :: struct {
     CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
     ReadRaw :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
     WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize #foreign libc "write";
-    OpenDirectoryRaw :: (path: *u8) -> *void #foreign libc "opendir";
-    #if #defined(PLATFORM_WEB) {
-        // Emscripten's musl already uses 64-bit inode and offset fields;
-        // readdir64 is a C header alias, not a linker symbol.
-        ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir";
+    #if #defined(__APPLE__) {
+        // Intel Darwin versions its 64-bit directory symbols; Apple Silicon
+        // uses their plain names. Resolve the matching ABI once per cursor.
+        DarwinOpenDirectory :: #type (path: *u8) -> *void #c_call;
+        DarwinReadDirectory :: #type (directory: *void) -> *DirectoryMetadata #c_call;
+        DarwinCloseDirectory :: #type (directory: *void) -> s32 #c_call;
+        DarwinDirectory :: struct {
+            library: *void
+            directory: *void
+            open: DarwinOpenDirectory
+            read: DarwinReadDirectory
+            close: DarwinCloseDirectory
+        }
+        DarwinLibrary :: (path: *u8, flags: s32) -> *void #foreign libc "dlopen";
+        DarwinSymbol :: (library: *void, name: *u8) -> *void #foreign libc "dlsym";
+        DarwinLibraryClose :: (library: *void) -> s32 #foreign libc "dlclose";
+        DarwinAllocate :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+        DarwinFree :: (value: *void) #foreign libc "free";
+        DarwinCopy :: (output: *void, value: *void, count: usize) -> *void #foreign libc "memcpy";
+        DarwinResolve :: (library: *void, name: string, slot: *void) -> bool {
+            bytes: [64]u8
+            if !CopyCString(name, bytes[:]) { return false }
+            symbol := DarwinSymbol(library, *bytes[0])
+            if symbol == null { return false }
+            unused DarwinCopy(slot, cast(*void)(*symbol), size_of(*void))
+            return true
+        }
+        OpenDirectoryRaw :: (path: *u8) -> *void {
+            search := cast(*DarwinDirectory)DarwinAllocate(1, size_of(DarwinDirectory))
+            if search == null { return null }
+            search.library = DarwinLibrary(null, 2)
+            valid := search.library != null
+            if valid {
+                #if #defined(__x86_64__) {
+                    valid = DarwinResolve(search.library, "opendir$INODE64", cast(*void)(*search.open)) &&
+                        DarwinResolve(search.library, "readdir$INODE64", cast(*void)(*search.read))
+                } else {
+                    valid = DarwinResolve(search.library, "opendir", cast(*void)(*search.open)) &&
+                        DarwinResolve(search.library, "readdir", cast(*void)(*search.read))
+                }
+                valid = valid && DarwinResolve(search.library, "closedir", cast(*void)(*search.close))
+            }
+            if valid { search.directory = search.open(path); valid = search.directory != null }
+            if !valid {
+                if search.library != null { unused DarwinLibraryClose(search.library) }
+                DarwinFree(cast(*void)search)
+                return null
+            }
+            return cast(*void)search
+        }
+        ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata {
+            search := cast(*DarwinDirectory)directory
+            return search.read(search.directory)
+        }
+        CloseDirectoryRaw :: (directory: *void) -> s32 {
+            search := cast(*DarwinDirectory)directory
+            status := search.close(search.directory)
+            unused DarwinLibraryClose(search.library)
+            DarwinFree(cast(*void)search)
+            return status
+        }
     } else {
-        ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir64";
+        OpenDirectoryRaw :: (path: *u8) -> *void #foreign libc "opendir";
+        #if #defined(PLATFORM_WEB) {
+            // Emscripten's musl uses the ordinary 64-bit directory ABI.
+            ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir";
+        } else {
+            ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir64";
+        }
+        CloseDirectoryRaw :: (directory: *void) -> s32 #foreign libc "closedir";
     }
-    CloseDirectoryRaw :: (directory: *void) -> s32 #foreign libc "closedir";
     #if #defined(ANDROID_BUILD) {
         DirectoryErrno :: () -> *s32 #foreign libc "__errno";
+    } else #if #defined(__APPLE__) {
+        DirectoryErrno :: () -> *s32 #foreign libc "__error";
     } else {
         DirectoryErrno :: () -> *s32 #foreign libc "__errno_location";
     }
@@ -369,7 +441,10 @@ DirectoryMetadata :: struct {
             RenameAt2Number :: 316;
         }
     }
-    #if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
+    #if #defined(__APPLE__) {
+        RenameAt2Raw :: (old_directory: s32, source: *u8,
+            new_directory: s32, destination: *u8, flags: u32) -> s32 #foreign libc "renameatx_np";
+    } else #if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
         RenameAt2Raw :: (old_directory: s32, source: *u8,
             new_directory: s32, destination: *u8, flags: u32) -> s32 #foreign libc "renameat2";
     }
@@ -400,6 +475,17 @@ DirectoryEntry :: struct {
 
 #scope_file
 OpenPath :: (path: *u8, flags: s32, mode: s32) -> s32 {
+    #if #defined(__APPLE__) {
+        // Internal flags match the other providers; map them to Darwin's
+        // fcntl.h values at the native call boundary.
+        native_flags := flags & 3
+        if (flags & 64) != 0 { native_flags |= 512 }
+        if (flags & 128) != 0 { native_flags |= 2048 }
+        if (flags & 512) != 0 { native_flags |= 1024 }
+        if (flags & 65536) != 0 { native_flags |= 1048576 }
+        if (flags & 2097152) != 0 { native_flags |= 32768 }
+        return OpenRaw(path, native_flags, mode)
+    }
     return OpenRaw(path, flags, mode)
 }
 
@@ -491,6 +577,9 @@ RenamePath :: (source: string, destination: string) -> bool {
     new_name: [4096]u8
     if !CopyCString(source, old_name[:]) ||
     !CopyCString(destination, new_name[:]) { return false }
+    #if #defined(__APPLE__) {
+        return RenameAtRaw(-2, *old_name[0], -2, *new_name[0]) == 0
+    }
     return RenameAtRaw(-100, *old_name[0], -100, *new_name[0]) == 0
 }
 
@@ -511,7 +600,9 @@ RenameNoReplace :: (source: string, destination: string) -> bool {
         if PathExists(destination) { return false }
         return RenameAtRaw(-100, *old_name[0], -100, *new_name[0]) == 0
     }
-    #if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
+    #if #defined(__APPLE__) {
+        return RenameAt2Raw(-2, *old_name[0], -2, *new_name[0], 4) == 0
+    } else #if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
         return RenameAt2Raw(-100, *old_name[0], -100, *new_name[0], 1) == 0
     }
 }

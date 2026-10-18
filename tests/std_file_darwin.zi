@@ -1,0 +1,30 @@
+#import "std/file"
+
+#program_export
+main :: () -> s32 {
+    if !CreatePrivateDirectory("private") || !DirectoryExists("private") { return 1 }
+    if !WriteEntireFile("private/source", "first") { return 2 }
+    if !WriteEntireFile("private/source", "replacement") { return 3 }
+    first := OpenExclusivePrivate("private/unique")
+    if !first.valid || !CloseFile(first) { return 4 }
+    second := OpenExclusivePrivate("private/unique")
+    if second.valid { unused CloseFile(second); return 5 }
+    if RenameNoReplace("private/source", "private/unique") { return 6 }
+    if !RenameNoReplace("private/source", "private/moved") { return 7 }
+    text, found := ReadEntireFile("private/moved")
+    if !found || text != "replacement" || PathExists("private/source") { return 8 }
+    if !RenamePath("private/moved", "private/unique") { return 9 }
+    if DirectoryExists("private/unique") || !PathExists("private/unique") { return 10 }
+    entries := OpenDirectory("private")
+    if !entries.valid { return 11 }
+    regular: s32
+    while true {
+        entry := NextDirectoryEntry(*entries)
+        if !entry.valid { break }
+        if entry.kind == .Regular { regular += 1 }
+    }
+    failed := entries.failed
+    if !CloseDirectory(*entries) || failed || regular != 1 { return 12 }
+    if !RemoveFile("private/unique") { return 13 }
+    return 0
+}

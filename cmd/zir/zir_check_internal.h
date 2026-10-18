@@ -5,7 +5,7 @@
 #include "zir_borrow.h"
 #include "zir_law.h"
 #include "zir_text.h"
-#include "zir_emit.h"
+#include "zir_native.h"
 #include "zir_expr.h"
 #include "zir_token.h"
 #include "zir_parse.h"

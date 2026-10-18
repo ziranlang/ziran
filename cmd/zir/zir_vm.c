@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_vm_internal.h"
 #include <limits.h>
 

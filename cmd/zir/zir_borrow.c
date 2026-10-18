@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_borrow.h"
 #include "zir_diagnostic.h"
 #include "zir_text.h"

@@ -1,3 +1,9 @@
+static void free_scratch_CPlan9RewriteOnceBuffers(void *pointer);
+static void free_scratch_RewritePlan9PrintBuffers(void *pointer);
+static void free_scratch_ExprTypeBuffers(void *pointer);
+static void free_scratch_RewriteLineCompoundBuffers(void *pointer);
+static void free_scratch_EmitCompoundTempBuffers(void *pointer);
+static void free_scratch_ProtoAddFileBuffers(void *pointer);
 /*
  * zir_c_plan9.c - 8c-safe post-pass for generated C.
  *
@@ -466,14 +472,17 @@ proto_add_file_with_buffers(const char *path, int allow_c, ProtoAddFileBuffers *
 static void
 proto_add_file(const char *path, int allow_c)
 {
-    static _Thread_local ProtoAddFileBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ProtoAddFileBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ProtoAddFileBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ProtoAddFileBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     proto_add_file_with_buffers(path, allow_c, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -914,14 +923,17 @@ static int
 emit_compound_temp(Buf *out, const char *indent, const char *type,
                    const char *body, int body_len, const char *temp)
 {
-    static _Thread_local EmitCompoundTempBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitCompoundTempBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitCompoundTempBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitCompoundTempBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = emit_compound_temp_with_buffers(out, indent, type, body, body_len, temp, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1077,14 +1089,17 @@ rewrite_line_compound_with_buffers(Buf *out, const char *line, int lineno, int *
 static int
 rewrite_line_compound(Buf *out, const char *line, int lineno, int *rewrote)
 {
-    static _Thread_local RewriteLineCompoundBuffers *spares[16];
-    static _Thread_local int spare_count;
-    RewriteLineCompoundBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewriteLineCompoundBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    RewriteLineCompoundBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = rewrite_line_compound_with_buffers(out, line, lineno, rewrote, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1264,14 +1279,17 @@ expr_type_with_buffers(const char *expr, size_t len, char *type, size_t type_siz
 static int
 expr_type(const char *expr, size_t len, char *type, size_t type_size)
 {
-    static _Thread_local ExprTypeBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ExprTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ExprTypeBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ExprTypeBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = expr_type_with_buffers(expr, len, type, type_size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -2308,14 +2326,17 @@ rewrite_plan9_print_with_buffers(char *line, size_t size, RewritePlan9PrintBuffe
 static void
 rewrite_plan9_print(char *line, size_t size)
 {
-    static _Thread_local RewritePlan9PrintBuffers *spares[16];
-    static _Thread_local int spare_count;
-    RewritePlan9PrintBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewritePlan9PrintBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    RewritePlan9PrintBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     rewrite_plan9_print_with_buffers(line, size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 /* Buffers c_plan9_rewrite_once keeps on the heap so deep nesting fits the stack;
@@ -2663,14 +2684,53 @@ fail:
 char *
 c_plan9_rewrite_once(const char *text)
 {
-    static _Thread_local CPlan9RewriteOnceBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CPlan9RewriteOnceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CPlan9RewriteOnceBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CPlan9RewriteOnceBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     char *returned = c_plan9_rewrite_once_with_buffers(text, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
+}
+
+static void free_scratch_CPlan9RewriteOnceBuffers(void *pointer)
+{
+    CPlan9RewriteOnceBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_RewritePlan9PrintBuffers(void *pointer)
+{
+    RewritePlan9PrintBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_ExprTypeBuffers(void *pointer)
+{
+    ExprTypeBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_RewriteLineCompoundBuffers(void *pointer)
+{
+    RewriteLineCompoundBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_EmitCompoundTempBuffers(void *pointer)
+{
+    EmitCompoundTempBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_ProtoAddFileBuffers(void *pointer)
+{
+    ProtoAddFileBuffers *buffers = pointer;
+    free(buffers);
 }

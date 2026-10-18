@@ -1,3 +1,5 @@
+#include "zir_memory.h"
+static void free_scratch_LoadImportBuffers(void *pointer);
 #include "zir_files.h"
 #include "zir_load.h"
 #include "zir_check.h"
@@ -124,6 +126,7 @@ ProgramsFree(ProgramSet *set)
     free(set->programs);
     free(set->paths);
     free(set->roots);
+    if(set->owns_context) CompilerContextDispose(set->context);
     *set = (ProgramSet){0};
 }
 
@@ -622,14 +625,17 @@ static int
 load_import(LoadContext *context, const char *owner_source,
             const char *owner_root, ZirImport *import)
 {
-    static _Thread_local LoadImportBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LoadImportBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LoadImportBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    LoadImportBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = load_import_with_buffers(context, owner_source, owner_root, import, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -800,8 +806,8 @@ ProgramsLoad(ProgramSet *set, const char *root,
                                    inputs, input_count);
 }
 
-int
-ProgramsLoadWithDefines(ProgramSet *set, const char *root,
+static int
+ProgramsLoadWithDefines_in_context(ProgramSet *set, const char *root,
                         const char *const *module_paths, int module_path_count,
                         const char *const *defines, int define_count,
                         const char *const *inputs, int input_count)
@@ -887,4 +893,27 @@ done:
         ProgramsFree(set);
     ProfileEnd("load", profile_started);
     return ok;
+}
+
+int ProgramsLoadWithDefines(ProgramSet *set, const char *root,
+                            const char *const *module_paths, int module_path_count,
+                            const char *const *defines, int define_count,
+                            const char *const *inputs, int input_count)
+{
+    CompilerContext *previous = CompilerContextCurrent();
+    CompilerContext *owner = previous ? previous : CompilerContextOpen();
+    if(!owner) { DiagnosticOutOfMemory(); return 0; }
+    CompilerContextSelect(owner);
+    int result = ProgramsLoadWithDefines_in_context(set, root, module_paths,
+        module_path_count, defines, define_count, inputs, input_count);
+    CompilerContextSelect(previous);
+    if(result) { set->context = owner; set->owns_context = !previous; }
+    else if(!previous) CompilerContextClose(owner);
+    return result;
+}
+
+static void free_scratch_LoadImportBuffers(void *pointer)
+{
+    LoadImportBuffers *buffers = pointer;
+    free(buffers);
 }

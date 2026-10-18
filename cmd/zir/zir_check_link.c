@@ -1,7 +1,15 @@
+#include "zir_memory.h"
+static void free_scratch_InstantiateSpecializationsBuffers(void *pointer);
+static void free_scratch_RewritePrivateReferenceBuffers(void *pointer);
+static void free_scratch_JaiParameterTypesBuffers(void *pointer);
+static void free_scratch_OrderLocalTypesBuffers(void *pointer);
+static void free_scratch_NormalizeTypeApplicationsBuffers(void *pointer);
+static void free_scratch_RewriteFunctionTypeApplicationsBuffers(void *pointer);
+static void free_scratch_RewriteTypeApplicationsBuffers(void *pointer);
 #include "zir_check_internal.h"
 
-int
-LinkImports(ZirProgram **programs, int count)
+static int
+LinkImports_in_context(ZirProgram **programs, int count)
 {
     /* Open imports have no source alias, but checked types need a stable
      * qualifier when the consumer declares a type with the same name. */
@@ -333,14 +341,17 @@ rewrite_type_applications(ZirModule *module, const char *source,
                           char *output, size_t capacity,
                           ZirSourceSpan span, int recursion)
 {
-    static _Thread_local RewriteTypeApplicationsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    RewriteTypeApplicationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewriteTypeApplicationsBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    RewriteTypeApplicationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = rewrite_type_applications_with_buffers(module, source, output, capacity, span, recursion, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -398,14 +409,17 @@ rewrite_function_type_applications_with_buffers(ZirModule *module, ZirFunction *
 static int
 rewrite_function_type_applications(ZirModule *module, ZirFunction *fn)
 {
-    static _Thread_local RewriteFunctionTypeApplicationsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    RewriteFunctionTypeApplicationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewriteFunctionTypeApplicationsBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    RewriteFunctionTypeApplicationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = rewrite_function_type_applications_with_buffers(module, fn, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -474,14 +488,17 @@ normalize_type_applications_with_buffers(ZirModule *module, NormalizeTypeApplica
 int
 normalize_type_applications(ZirModule *module)
 {
-    static _Thread_local NormalizeTypeApplicationsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    NormalizeTypeApplicationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_NormalizeTypeApplicationsBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    NormalizeTypeApplicationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = normalize_type_applications_with_buffers(module, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -533,14 +550,17 @@ order_local_types_with_buffers(ZirModule *module, OrderLocalTypesBuffers *buffer
 int
 order_local_types(ZirModule *module)
 {
-    static _Thread_local OrderLocalTypesBuffers *spares[16];
-    static _Thread_local int spare_count;
-    OrderLocalTypesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_OrderLocalTypesBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    OrderLocalTypesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = order_local_types_with_buffers(module, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -629,14 +649,17 @@ jai_parameter_types_with_buffers(ZirSourceSpan span, const char *args, JaiParame
 static int
 jai_parameter_types(ZirSourceSpan span, const char *args)
 {
-    static _Thread_local JaiParameterTypesBuffers *spares[16];
-    static _Thread_local int spare_count;
-    JaiParameterTypesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_JaiParameterTypesBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    JaiParameterTypesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = jai_parameter_types_with_buffers(span, args, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -886,14 +909,17 @@ rewrite_private_reference(char *source, size_t capacity,
                           ZirSourceSpan span, const char *original,
                           const char *internal)
 {
-    static _Thread_local RewritePrivateReferenceBuffers *spares[16];
-    static _Thread_local int spare_count;
-    RewritePrivateReferenceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewritePrivateReferenceBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    RewritePrivateReferenceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = rewrite_private_reference_with_buffers(source, capacity, span, original, internal, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1528,14 +1554,67 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
 int
 instantiate_specializations(Checker *checker)
 {
-    static _Thread_local InstantiateSpecializationsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    InstantiateSpecializationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_InstantiateSpecializationsBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    InstantiateSpecializationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = instantiate_specializations_with_buffers(checker, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
+}
+
+static void free_scratch_InstantiateSpecializationsBuffers(void *pointer)
+{
+    InstantiateSpecializationsBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_RewritePrivateReferenceBuffers(void *pointer)
+{
+    RewritePrivateReferenceBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_JaiParameterTypesBuffers(void *pointer)
+{
+    JaiParameterTypesBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_OrderLocalTypesBuffers(void *pointer)
+{
+    OrderLocalTypesBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_NormalizeTypeApplicationsBuffers(void *pointer)
+{
+    NormalizeTypeApplicationsBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_RewriteFunctionTypeApplicationsBuffers(void *pointer)
+{
+    RewriteFunctionTypeApplicationsBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_RewriteTypeApplicationsBuffers(void *pointer)
+{
+    RewriteTypeApplicationsBuffers *buffers = pointer;
+    free(buffers);
+}
+
+int LinkImports(ZirProgram **programs, int count)
+{
+    CompilerContext *previous = CompilerContextSelect(count > 0 && programs && programs[0] ? programs[0]->context : CompilerContextCurrent());
+    int result = LinkImports_in_context(programs, count);
+    CompilerContextSelect(previous);
+    return result;
 }

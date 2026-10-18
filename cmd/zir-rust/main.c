@@ -50,6 +50,7 @@ main(int argc, char **argv)
     int no_main = 0;
     int check_ok;
     ProgramSet set = {0};
+    CompilerContext *command_context = NULL, *previous_context = NULL;
     const char *module_paths[64];
     int module_path_count = 0;
     const char *bindings[64];
@@ -105,6 +106,9 @@ main(int argc, char **argv)
         return 1;
     }
 
+    command_context = CompilerContextOpen();
+    if(command_context == NULL) { DiagnosticOutOfMemory(); goto done; }
+    previous_context = CompilerContextSelect(command_context);
     if(!ProgramsLoad(&set, root, module_paths, module_path_count,
                      (const char *const *)(argv + first_file),
                      argc - first_file))
@@ -118,6 +122,7 @@ main(int argc, char **argv)
     if(entry != NULL) {
         for(int index = 0; index < file_count; index++)
             merged.module_count += programs[index]->module_count;
+        merged.context = set.context;
         merged.modules = calloc((size_t)merged.module_count,
                                 sizeof(*merged.modules));
         if(merged.modules == NULL)
@@ -156,5 +161,10 @@ done:
     ProgramsFree(&set);
     ProgramFree(linked);
     free(merged.modules);
+    CompilerContextSelect(previous_context);
+    if(command_context && !CompilerContextClose(command_context)) {
+        Diagnostic((ZirSourceSpan){0}, "compiler.context", "compiler operation retained live programs");
+        result = 1;
+    }
     return result;
 }

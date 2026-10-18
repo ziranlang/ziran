@@ -1,3 +1,5 @@
+#include "zir_memory.h"
+static void free_scratch_EvaluateBoundsLawBuffers(void *pointer);
 /* Named law obligations (LANGUAGE_DIRECTION.md): evaluation, gate, and the
  * machine-readable result schema shared by `ziran check` and bundles. */
 #include <inttypes.h>
@@ -228,14 +230,17 @@ static LawStatus
 evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
                     char *detail, size_t size)
 {
-    static _Thread_local EvaluateBoundsLawBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EvaluateBoundsLawBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EvaluateBoundsLawBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EvaluateBoundsLawBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     LawStatus returned = evaluate_bounds_law_with_buffers(module, law, detail, size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1558,4 +1563,10 @@ CheckParallelRegions(ZirProgram **programs, int count)
             }
         }
     return 1;
+}
+
+static void free_scratch_EvaluateBoundsLawBuffers(void *pointer)
+{
+    EvaluateBoundsLawBuffers *buffers = pointer;
+    free(buffers);
 }

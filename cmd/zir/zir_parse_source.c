@@ -1,3 +1,5 @@
+#include "zir_memory.h"
+static void free_scratch_ParseSourceBuffers(void *pointer);
 #include "zir_files.h"
 #include "zir_parse_internal.h"
 /* Buffers parse_source keeps on the heap so deep nesting fits the stack;
@@ -1963,16 +1965,19 @@ parse_source(const char *path, const char *root, const char *source,
              ZirCompileImportResolver resolver, void *resolver_context,
              const char *const *defines, int define_count)
 {
-    static _Thread_local ParseSourceBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ParseSourceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ParseSourceBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ParseSourceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     uint64_t profile_started = ProfileStart();
     ZirProgram *returned = parse_source_with_buffers(path, root, source, resolver, resolver_context, defines, define_count, buffers);
     ProfileEnd("parse", profile_started);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1985,18 +1990,88 @@ parse_file_with_imports(const char *path, const char *root,
                                            NULL, 0);
 }
 
+typedef struct ImportResolver {
+    ZirCompileImportResolver resolve;
+    void *context;
+} ImportResolver;
+static int resolve_imports_outside_operation(void *opaque, ZirProgram *program,
+    ZirModule *module, const char *source_path, const char *root, const char *condition)
+{
+    ImportResolver *resolver = opaque;
+    CompilerMemory *memory = CompilerMemoryPause();
+    int result = resolver->resolve(resolver->context, program, module, source_path, root, condition);
+    CompilerMemoryResume(memory);
+    return result;
+}
+
+/* Recovery is local to this thread and nests across import callbacks. Every
+ * parser temporary and open source stream is rolled back on failure. Shared
+ * immutable caches are published outside that transaction. */
+static ZirProgram *
+parse_operation(const char *path, const char *root, const char *source,
+                ZirCompileImportResolver resolver, void *context,
+                const char *const *defines, int define_count)
+{
+    CompilerContext *previous = CompilerContextCurrent();
+    CompilerContext *owner = previous ? previous : CompilerContextOpen();
+    if(!owner) { DiagnosticOutOfMemory(); return NULL; }
+    CompilerContextSelect(owner);
+    ParseRecovery *recovery = calloc(1, sizeof(*recovery));
+    if(!recovery) {
+        CompilerContextSelect(previous);
+        if(!previous) CompilerContextClose(owner);
+        DiagnosticOutOfMemory(); return NULL;
+    }
+    recovery->previous = ZirParseRecovery;
+    recovery->arrays = ZirSourceUsesResizableArrays;
+    recovery->law = ZirLawEvaluation;
+    recovery->defaults = ZirDefaultExpansionDepth;
+    recovery->expression_cache = ParseCacheEnter();
+    if(!recovery->expression_cache) {
+        free(recovery); CompilerContextSelect(previous);
+        if(!previous) CompilerContextClose(owner);
+        DiagnosticOutOfMemory(); return NULL;
+    }
+    recovery->memory = CompilerMemoryBegin();
+    if(!recovery->memory) {
+        ParseCacheLeave(recovery->expression_cache);
+        free(recovery); CompilerContextSelect(previous);
+        if(!previous) CompilerContextClose(owner);
+        DiagnosticOutOfMemory(); return NULL;
+    }
+    ZirParseRecovery = recovery;
+    ZirProgram *program = NULL;
+    ImportResolver imports = {resolver, context};
+    if(setjmp(recovery->jump) == 0) {
+        char *lowered = source ? lower_jai_multiline_strings(source, path) : read_lowered_source(path);
+        program = parse_source(path, root, lowered, resolver ? resolve_imports_outside_operation : NULL, &imports, defines, define_count);
+        free(lowered);
+    }
+    ParseCacheLeave(recovery->expression_cache);
+    ZirParseRecovery = recovery->previous;
+    ZirSourceUsesResizableArrays = recovery->arrays;
+    ZirLawEvaluation = recovery->law;
+    ZirDefaultExpansionDepth = recovery->defaults;
+    CompilerMemoryEnd(recovery->memory, program != NULL);
+    free(recovery);
+    SymbolLookupsChanged();
+    if(program && !program->context_retained) {
+        CompilerContextRetain(owner);
+        program->context_retained = 1;
+    }
+    if(program && !previous) program->owns_context = 1;
+    CompilerContextSelect(previous);
+    if(!program && !previous) CompilerContextClose(owner);
+    return program;
+}
+
 ZirProgram *
 parse_file_with_imports_defined(const char *path, const char *root,
                                 ZirCompileImportResolver resolver,
                                 void *context, const char *const *defines,
                                 int define_count)
 {
-    char *lowered = read_lowered_source(path);
-    ZirProgram *program = parse_source(path, root, lowered,
-                                       resolver, context,
-                                       defines, define_count);
-    free(lowered);
-    return program;
+    return parse_operation(path, root, NULL, resolver, context, defines, define_count);
 }
 
 ZirProgram *
@@ -2008,9 +2083,11 @@ parse_file(const char *path, const char *root)
 ZirProgram *
 parse_source_text(const char *path, const char *source)
 {
-    char *lowered = lower_jai_multiline_strings(source, path);
-    ZirProgram *program = parse_source(path, ".", lowered, NULL, NULL,
-                                       NULL, 0);
-    free(lowered);
-    return program;
+    return parse_operation(path, ".", source, NULL, NULL, NULL, 0);
+}
+
+static void free_scratch_ParseSourceBuffers(void *pointer)
+{
+    ParseSourceBuffers *buffers = pointer;
+    free(buffers);
 }

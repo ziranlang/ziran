@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "zir_profile.h"
+#include "zir_context.h"
 
 enum {
     ZIR_PATH_MAX = 1024,
@@ -76,6 +77,7 @@ typedef enum ZirExprKind {
 } ZirExprKind;
 
 typedef struct ZirSourceSpan {
+    CompilerContext *context; /* in-memory owner of the source-file number */
     int file; /* SourceFile number of the path; read it with SpanPath */
     int line;
     int column;
@@ -356,6 +358,7 @@ int EnumMemberValue(const ZirType *type, const char *name, int64_t *value);
 /* Parse a fixed-capacity array type text "[N]element". Returns 1 with the
  * element type copied out and the capacity stored, 0 for any other type. */
 int SliceElementType(const char *type, char *element, size_t element_size);
+int ArrayValueType(const char *type);
 int ArrayElementType(const char *type, char *element, size_t element_size,
                         int *capacity);
 struct ZirModule;
@@ -364,6 +367,7 @@ int VecElementType(const struct ZirModule *module, const char *type,
                    char *element, size_t element_size);
 
 typedef struct ZirModule {
+    CompilerContext *context; /* lookup/cache owner; distinct from source origin */
     char name[ZIR_NAME_MAX];
     char source_path[ZIR_PATH_MAX];
     char source_root[ZIR_PATH_MAX]; /* source-only path for call-site defaults */
@@ -406,6 +410,10 @@ int same_type_application(const ZirModule *target_owner, const ZirType *target,
                           const ZirModule *source_owner, const ZirType *source);
 
 typedef struct ZirProgram {
+    CompilerContext *context;
+    int context_retained, owns_context;
+    CompilerContext **retained_contexts;
+    int retained_context_count;
     ZirModule *modules;
     int module_count;
     int module_cap;
@@ -443,6 +451,7 @@ int RecordFieldPathType(const ZirModule *owner, const ZirType *record,
 
 ZirProgram *ProgramNew(void);
 void ProgramFree(ZirProgram *program);
+int ProgramInheritContexts(ZirProgram *target, const ZirProgram *source);
 void copy_text(char *dst, size_t dst_size, const char *src);
 ZirSourceSpan Span(const char *path, int line, int column);
 int SourceFile(const char *path);

@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_vm_internal.h"
 /* Buffers vm_print keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -99,12 +100,18 @@ free_evaluation_buffers(Vm *vm)
     }
 }
 
+static int vm_spelling_equal(const char *left, const char *right)
+{
+    return left == right || (left && right && !strcmp(left, right));
+}
+
 static Local *
 find_local(Frame *frame, const char *name)
 {
-    /* Checked expressions, declarations and cached parameters share names. */
+    /* Interned names usually share pointers. Retained library code can come
+     * from another context, where equal spellings have distinct storage. */
     for(int i = frame->local_count - 1; i >= 0; i--)
-        if(frame->locals[i].name == name)
+        if(vm_spelling_equal(frame->locals[i].name, name))
             return &frame->locals[i];
     return NULL;
 }
@@ -171,7 +178,7 @@ find_global_value(Frame *frame, const ZirExpr *expression)
 static int
 normalized_scalar_read(Value value, const char *stored_type, const char *type)
 {
-    if(stored_type != type)
+    if(!vm_spelling_equal(stored_type, type))
         return 0;
     if(value.kind == VALUE_POINTER)
         return type[0] == '*';
@@ -1117,7 +1124,7 @@ eval_leaf(Frame *frame, const ZirExpr *expression)
              * storage. A read with the identical interned type needs no
              * repeated parsing or conversion. Keep invalid moved storage
              * and differently spelled types on the checked path. */
-            if(stored.kind != VALUE_INVALID && local->type == expression->type)
+            if(stored.kind != VALUE_INVALID && vm_spelling_equal(local->type, expression->type))
                 return stored;
             return coerce_expression(frame->vm, frame->module,
                                      stored, expression->type);
@@ -1126,7 +1133,7 @@ eval_leaf(Frame *frame, const ZirExpr *expression)
         if(global != NULL) {
             /* Same-module aggregate storage is already typed. Imported
              * spellings still resolve in the caller's scope below. */
-            if(global->module == frame->module && global->type == expression->type &&
+            if(global->module == frame->module && vm_spelling_equal(global->type, expression->type) &&
                (global->value.kind == VALUE_ARRAY || global->value.kind == VALUE_RECORD || global->value.kind == VALUE_INLINE_RECORD))
                 return global->value;
             return coerce_expression(frame->vm, frame->module,
@@ -1507,7 +1514,7 @@ static int
 function_local(ScalarFunctionBuilder *builder, const char *name)
 {
     for(int i = builder->local_count - 1; i >= 0; i--)
-        if(builder->locals[i].name == name)
+        if(vm_spelling_equal(builder->locals[i].name, name))
             return i;
     return -1;
 }
@@ -1539,7 +1546,7 @@ function_expression(ScalarFunctionBuilder *builder, int index)
                 step.literal_bits = !strcmp(node->name, "true");
             } else if(node->kind == ZIR_EXPR_IDENT) {
                 int local = function_local(builder, node->name);
-                if(local < 0 || builder->locals[local].type != node->type)
+                if(local < 0 || !vm_spelling_equal(builder->locals[local].type, node->type))
                     return -1;
                 step.op = SCALAR_LOCAL;
                 step.local = (unsigned short)local;
@@ -1617,7 +1624,7 @@ function_sequence(ScalarFunctionBuilder *builder, int begin, int end,
             if(left->kind != ZIR_EXPR_IDENT || left->is_move ||
                !function_type(left->type) ||
                (local = function_local(builder, left->name)) < 0 ||
-               builder->locals[local].type != left->type) return 0;
+               !vm_spelling_equal(builder->locals[local].type, left->type)) return 0;
             int compound = strcmp(statement->assignment_op, "=") != 0;
             int snapshot = compound ? function_step(builder, (ScalarStep){.op = SCALAR_LOCAL,
                 .expression = left, .local = (unsigned short)local,
@@ -1887,7 +1894,7 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
                 !(name[0] == 'n' && !strcmp(name, "null")) ?
                 find_local(frame, name) : NULL;
             if(local != NULL && local->value.kind != VALUE_INVALID &&
-               local->type == expression->type)
+               vm_spelling_equal(local->type, expression->type))
                 values[step->output] = &local->value;
             else if(expression->kind == ZIR_EXPR_INT || expression->kind == ZIR_EXPR_FLOAT) {
                 const Value *literal = numeric_literal(frame, expression, output);

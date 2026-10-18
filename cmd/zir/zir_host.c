@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "ziran_host.h"
 #include "zir_bundle.h"
 #include "zir_diagnostic.h"
@@ -74,6 +75,7 @@ share_library_modules(Bundle *bundle)
         discard->modules[0].imports = NULL;
         discard->modules[0].import_count = 0;
         *module = *shared;
+        module->context = bundle->program->context;
         module->imports = imports;
         ProgramFree(discard);
         bundle->shared_module_count++;

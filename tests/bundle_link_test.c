@@ -195,7 +195,9 @@ main(void)
     ZirProgram *private_set[] = {private_program};
     assert(CheckPrograms(private_set, 1));
     assert(private_program->modules[0].functions[0].is_file_private);
-    private_program->modules[0].functions[1].span.file = SourceFile("other.zi");
+    ZirSourceSpan *private_span = &private_program->modules[0].functions[1].span;
+    *private_span = SpanEnd("other.zi", private_span->line, private_span->column,
+                            private_span->end_line, private_span->end_column);
     saved = tmpfile();
     assert(saved != NULL && ProgramWrite(private_program, saved));
     rewind(saved);

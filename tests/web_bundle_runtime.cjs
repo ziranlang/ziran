@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const createPlayground = require('../site/assets/playground-runtime.js');
+const createPlayground = require(process.env.ZIRAN_PLAYGROUND_RUNTIME || '../site/assets/playground-runtime.js');
 
 async function main() {
   let diagnostics = [];

@@ -1,3 +1,6 @@
+#include "zir_memory.h"
+static void free_scratch_EmitExprBuffers(void *pointer);
+static void free_scratch_EmitVecCallBuffers(void *pointer);
 #include "zir_emit_internal.h"
 
 static int sized_string_literals;
@@ -394,14 +397,17 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
 static void
 emit_vec_call(Emitter *e, const ZirExpr *expr, char *out, size_t size)
 {
-    static _Thread_local EmitVecCallBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitVecCallBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitVecCallBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitVecCallBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_vec_call_with_buffers(e, expr, out, size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -1463,13 +1469,28 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
 void
 emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
 {
-    static _Thread_local EmitExprBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitExprBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitExprBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitExprBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_expr_with_buffers(e, index, expected, out, size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
+}
+
+static void free_scratch_EmitExprBuffers(void *pointer)
+{
+    EmitExprBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_EmitVecCallBuffers(void *pointer)
+{
+    EmitVecCallBuffers *buffers = pointer;
+    free(buffers);
 }

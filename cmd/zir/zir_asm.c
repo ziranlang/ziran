@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir.h"
 #include "zir_asm.h"
 #include "zir_check.h"

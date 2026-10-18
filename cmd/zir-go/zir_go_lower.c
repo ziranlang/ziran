@@ -1,3 +1,9 @@
+static void free_scratch_GoLowerBuffers(void *pointer);
+static void free_scratch_LowerFunctionBuffers(void *pointer);
+static void free_scratch_TxExprBuffers(void *pointer);
+static void free_scratch_TxGroupBuffers(void *pointer);
+static void free_scratch_ParseEnumBuffers(void *pointer);
+static void free_scratch_ParseExternImportBuffers(void *pointer);
 /*
  * zir_go_lower.c - ZIR to Go backend. See zir_go_lower.h for scope.
  */
@@ -729,14 +735,17 @@ parse_extern_import_with_buffers(const ZirImport *imp, ParseExternImportBuffers 
 static void
 parse_extern_import(const ZirImport *imp)
 {
-    static _Thread_local ParseExternImportBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ParseExternImportBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ParseExternImportBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ParseExternImportBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     parse_extern_import_with_buffers(imp, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 /* Buffers parse_enum keeps on the heap so deep nesting fits the stack;
@@ -830,14 +839,17 @@ parse_enum_with_buffers(const ZirModule *owner, const ZirType *t, ParseEnumBuffe
 static void
 parse_enum(const ZirModule *owner, const ZirType *t)
 {
-    static _Thread_local ParseEnumBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ParseEnumBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ParseEnumBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ParseEnumBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     parse_enum_with_buffers(owner, t, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -946,14 +958,17 @@ static const char *
 tx_group(const ZirModule *m, const char *src, char *dst, size_t *dn,
          char open, char close)
 {
-    static _Thread_local TxGroupBuffers *spares[16];
-    static _Thread_local int spare_count;
-    TxGroupBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_TxGroupBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    TxGroupBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     const char *returned = tx_group_with_buffers(m, src, dst, dn, open, close, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1365,14 +1380,17 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
 static void
 tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
 {
-    static _Thread_local TxExprBuffers *spares[16];
-    static _Thread_local int spare_count;
-    TxExprBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_TxExprBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    TxExprBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     tx_expr_with_buffers(m, src, dst, dst_size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -1473,14 +1491,17 @@ static void
 lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
                const char *guard, GoAssembly *assembly)
 {
-    static _Thread_local LowerFunctionBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LowerFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerFunctionBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    LowerFunctionBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     lower_function_with_buffers(f, m, fn, guard, assembly, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -2711,21 +2732,68 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
 }
 
 int
-go_lower(const ZirProgram *const *progs, int prog_count,
+go_lower_in_context(const ZirProgram *const *progs, int prog_count,
           const char *root, const char *out_dir, const char *pkg,
           int no_main)
 {
-    static _Thread_local GoLowerBuffers *spares[16];
-    static _Thread_local int spare_count;
-    GoLowerBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_GoLowerBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    GoLowerBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     uint64_t profile_started = ProfileStart();
     int returned = go_lower_with_buffers(progs, prog_count, root, out_dir, pkg, no_main, buffers);
     clear_enum_context();
     ProfileEnd("emit.go", profile_started);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
+}
+
+int go_lower(const ZirProgram *const *progs, int prog_count, const char *root, const char *out_dir, const char *pkg, int no_main)
+{
+    CompilerContext *previous = CompilerContextSelect(prog_count > 0 && progs && progs[0] ? progs[0]->context : NULL);
+    int result = go_lower_in_context(progs, prog_count, root, out_dir, pkg, no_main);
+    CompilerContextSelect(previous);
+    return result;
+}
+
+static void free_scratch_GoLowerBuffers(void *pointer)
+{
+    GoLowerBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_LowerFunctionBuffers(void *pointer)
+{
+    LowerFunctionBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_TxExprBuffers(void *pointer)
+{
+    TxExprBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_TxGroupBuffers(void *pointer)
+{
+    TxGroupBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_ParseEnumBuffers(void *pointer)
+{
+    ParseEnumBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_ParseExternImportBuffers(void *pointer)
+{
+    ParseExternImportBuffers *buffers = pointer;
+    free(buffers);
 }

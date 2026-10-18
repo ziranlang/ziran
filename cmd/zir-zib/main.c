@@ -184,7 +184,8 @@ bundle_command(int argc, char **argv)
        !CheckCanonicalPrograms(programs, count,
                                (const char *const *)set.paths))
         goto done;
-    merged.modules = calloc((size_t)merged.module_count, sizeof(*merged.modules));
+    merged.context = set.context;
+        merged.modules = calloc((size_t)merged.module_count, sizeof(*merged.modules));
     if(merged.modules == NULL)
         goto done;
     int position = 0;
@@ -220,6 +221,8 @@ bundle_command(int argc, char **argv)
                 goto done;
             }
         }
+        thin.context = linked->context;
+        context.context = linked->context;
         thin.modules = calloc((size_t)linked->module_count, sizeof(*thin.modules));
         context.modules = calloc((size_t)total, sizeof(*context.modules));
         if(thin.modules == NULL || context.modules == NULL)

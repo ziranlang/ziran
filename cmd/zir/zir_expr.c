@@ -1,3 +1,5 @@
+#include "zir_memory.h"
+static void free_scratch_AppendDefaultArgumentsBuffers(void *pointer);
 #include "zir_files.h"
 #include "zir_expr.h"
 #include "zir_check.h"
@@ -92,7 +94,7 @@ static int parse_expr(ZirFunction *fn, const ZirModule *module,
                       const char *expected_type, int stmt_index,
                       int expand_defaults);
 
-static int default_expansion_depth;
+_Thread_local int ZirDefaultExpansionDepth;
 
 int
 CallerLocationLiteral(const ZirModule *module, ZirSourceSpan location,
@@ -230,7 +232,7 @@ append_default_arguments_with_buffers(ExprParser *p, int callee,
         target = qualified;
     }
     if(!*target || call_name_shadowed(p, target) ||
-       default_expansion_depth >= 32 || p->module == NULL)
+       ZirDefaultExpansionDepth >= 32 || p->module == NULL)
         return;
     const ZirModule *owner = NULL;
     const ZirFunction *function = NULL;
@@ -323,10 +325,10 @@ append_default_arguments_with_buffers(ExprParser *p, int callee,
                 value = buffers->qualified_default;
             }
         }
-        default_expansion_depth++;
+        ZirDefaultExpansionDepth++;
         int child = parse_expr(p->fn, p->module, value, p->span,
                                NULL, p->stmt_index, p->expand_defaults);
-        default_expansion_depth--;
+        ZirDefaultExpansionDepth--;
         if(child < 0) { p->failed = 1; break; }
         p->fn->exprs[child].argument_name = KeepName(parameter_name);
         if(*last >= 0) p->fn->exprs[*last].next_sibling = child;
@@ -342,14 +344,17 @@ static void
 append_default_arguments(ExprParser *p, int callee,
                          const char *name, int *first, int *last)
 {
-    static _Thread_local AppendDefaultArgumentsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    AppendDefaultArgumentsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_AppendDefaultArgumentsBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    AppendDefaultArgumentsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     append_default_arguments_with_buffers(p, callee, name, first, last, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -843,4 +848,10 @@ StructureFunction(ZirFunction *fn, const ZirModule *module)
             free(value);
         }
     }
+}
+
+static void free_scratch_AppendDefaultArgumentsBuffers(void *pointer)
+{
+    AppendDefaultArgumentsBuffers *buffers = pointer;
+    free(buffers);
 }

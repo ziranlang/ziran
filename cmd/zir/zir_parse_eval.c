@@ -1,3 +1,7 @@
+#include "zir_memory.h"
+static void free_scratch_CompileCompoundIndexBuffers(void *pointer);
+static void free_scratch_CompileCompoundMemberBuffers(void *pointer);
+static void free_scratch_CompileValuesEqualBuffers(void *pointer);
 #include "zir_parse_internal.h"
 
 static int64_t eval_or(ZirEval *ev);
@@ -972,14 +976,17 @@ int
 compile_values_equal(const CompileValue *left, const CompileValue *right,
                      int *equal)
 {
-    static _Thread_local CompileValuesEqualBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CompileValuesEqualBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CompileValuesEqualBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CompileValuesEqualBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = compile_values_equal_with_buffers(left, right, equal, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1117,14 +1124,17 @@ compile_compound_member(const CompileValue *compound, const char *member,
                         const ZirModule *module, const char *path, int depth,
                         int *fuel, CompileValue *result)
 {
-    static _Thread_local CompileCompoundMemberBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CompileCompoundMemberBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CompileCompoundMemberBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CompileCompoundMemberBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = compile_compound_member_with_buffers(compound, member, module, path, depth, fuel, result, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1173,14 +1183,17 @@ compile_compound_index(const CompileValue *compound, int64_t index,
                        const ZirModule *module, const char *path, int depth,
                        int *fuel, CompileValue *result)
 {
-    static _Thread_local CompileCompoundIndexBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CompileCompoundIndexBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CompileCompoundIndexBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CompileCompoundIndexBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = compile_compound_index_with_buffers(compound, index, module, path, depth, fuel, result, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1271,4 +1284,22 @@ evaluate_imported_typed_define(const ZirModule *module, const char *path,
                                    fuel, result);
     free(names.items);
     return ok;
+}
+
+static void free_scratch_CompileCompoundIndexBuffers(void *pointer)
+{
+    CompileCompoundIndexBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_CompileCompoundMemberBuffers(void *pointer)
+{
+    CompileCompoundMemberBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_CompileValuesEqualBuffers(void *pointer)
+{
+    CompileValuesEqualBuffers *buffers = pointer;
+    free(buffers);
 }

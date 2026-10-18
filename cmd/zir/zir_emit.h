@@ -1,8 +1,9 @@
 #ifndef ZIR_EMIT_H
 #define ZIR_EMIT_H
 #include "zir.h"
+#include "zir_native.h"
+#include "zir_body.h"
 
-typedef enum ZirTarget { ZIR_C, ZIR_CPP, ZIR_GO } ZirTarget;
 void EmitAssemblyHelpers(FILE *out, const ZirModule *module, const ZirFunction *function,
                          ZirTarget target, const char *result_type, const char *args);
 /* Emits guarded native returns before the ordinary portable body. */
@@ -39,7 +40,6 @@ typedef void (*ZirResolveTarget)(void *context, const char *text, char *out, siz
 typedef int (*ZirAssemblyBlockEmitter)(FILE *out, const ZirModule *module,
                                       const ZirFunction *function, int statement,
                                       void *context);
-const char *TargetType(const char *type, ZirTarget target);
 void NativeTypeName(const ZirModule *owner, const ZirType *type,
                     char *out, size_t size);
 int NativeTypeAtUse(const ZirModule *module, const char *type,
@@ -58,6 +58,7 @@ void NativeCForeignName(const ZirModule *module, const ZirImport *foreign,
                         char *out, size_t size);
 void NativeCModuleInitName(const ZirModule *module, char *out, size_t size);
 int ModuleNeedsStartup(const ZirModule *module);
+void NativeNamesReset(void);
 void NativeGoModuleIdentity(const ZirProgram *const *programs, int count,
                             const ZirModule *module, char *file_stem,
                             size_t file_size, char *guard, size_t guard_size);
@@ -87,7 +88,6 @@ void EmitGlobalSlotWrappers(FILE *out, const ZirModule *module,
                             const ZirGlobal *global, ZirTarget target,
                             ZirResolveTarget resolver, void *context);
 /* C/C++ private ABI names and source-shaped arguments for array values. */
-int ArrayValueType(const char *type);
 int ModuleUsesSlices(const ZirModule *module);
 /* 1: public header types need this import, 2: only private header types do,
  * 0: implementation-only. Source visibility does not change. */
@@ -107,7 +107,6 @@ void TargetDefineName(const ZirModule *module, ZirTarget target,
                       const char *name, char *out, size_t size);
 void ArrayAbiName(const ZirFunction *fn, int parameter, char *out, size_t size);
 void ArrayAbiArgs(const ZirFunction *fn, char *out, size_t size);
-int CanEmitBody(const ZirModule *module, const ZirFunction *fn);
 int FunctionHasParallelRegions(const ZirFunction *fn);
 void EmitParallelWorkers(FILE *out, const ZirModule *module,
                          const ZirFunction *fn, ZirTarget target,

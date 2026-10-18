@@ -6,7 +6,7 @@
 ZirSourceSpan Span(const char *path, int line, int column)
 {
     (void)path;
-    return (ZirSourceSpan){0, line, column, line, column};
+    return (ZirSourceSpan){.line = line, .column = column, .end_line = line, .end_column = column};
 }
 
 void Diagnostic(ZirSourceSpan span, const char *code, const char *format, ...)

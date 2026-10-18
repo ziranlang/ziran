@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_token.h"
 #include "compiler_scan.h"
 

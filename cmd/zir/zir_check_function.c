@@ -1,3 +1,6 @@
+#include "zir_memory.h"
+static void free_scratch_NormalizeFunctionArraysBuffers(void *pointer);
+static void free_scratch_CheckFunctionBuffers(void *pointer);
 #include "zir_check_internal.h"
 
 static ZirSourceSpan
@@ -182,8 +185,6 @@ static int
 check_function_with_buffers(Checker *c, ZirFunction *fn, CheckFunctionBuffers *buffers)
 {
     int errors_before = c->errors;
-    int has_slots;
-    int has_arrays;
     int n;
     c->fn = fn;
     if(contains_vec(c->module, fn->return_type, 0) && fn->is_extern)
@@ -224,8 +225,6 @@ restart:
             activate_using_filtered(c, using->path, using->filter,
                                     using->span);
         }
-    has_slots = 0;
-    has_arrays = fn->return_type[0] == '[';
     fn->uses_host = fn->is_extern && fn->extern_kind == ZIR_EXTERN_HOST;
     n = *skip_ws(FunctionArgs(c->fn)) ? split_top_level(FunctionArgs(c->fn), buffers->params[0], 64, sizeof(buffers->params[0])) : 0;
     for(int a = 0; a < n; a++) {
@@ -239,12 +238,10 @@ restart:
                            colon);
                 return 0;
             }
-            has_slots |= parameter_type != NULL && parameter_type->is_procedure_type;
             if(pointer_to_array(colon))
                 error(c, fn->span, "pointers to arrays are not supported; pass the element pointer", buffers->params[a]);
             if(contains_vec(c->module, colon, 0) && fn->is_extern)
                 error(c, fn->span, "Vec cannot cross an extern signature", buffers->params[a]);
-            has_arrays |= ArrayValueType(colon) || SliceElementType(colon, NULL, 0);
             bind(c, buffers->params[a], colon, c->fn->span);
             if((!fn->from_ir || fn->is_specialization) &&
                (fn->using_parameters & (UINT64_C(1) << a)))
@@ -500,7 +497,6 @@ restart:
                       "generic types require a concrete specialization",
                       st->type);
             if(local_type != NULL && local_type->is_procedure_type) {
-                has_slots = 1;
                 if(st->expr_root < 0) {
                     Diagnostic(st->span, "check.slot_initializer", "slot bindings require an initializer");
                     c->failed = 1;
@@ -651,25 +647,6 @@ restart:
            st->kind == ZIR_STMT_WHILE || st->kind == ZIR_STMT_FOR)
             c->depth++;
     }
-    for(int i = 0; i < fn->expr_count; i++) {
-        const ZirExpr *call = &fn->exprs[i];
-        has_arrays |= SliceElementType(call->type, NULL, 0);
-        if(call->kind != ZIR_EXPR_CALL)
-            continue;
-        const ZirFunction *callee = NULL;
-        const ZirModule *owner = NULL;
-        if(ResolveFunction(c->module, call->name, &owner, &callee) <= 0 ||
-           callee == NULL || callee->is_extern)
-            continue;
-        has_arrays |= ArrayValueType(callee->return_type);
-        int count = *skip_ws(FunctionArgs(callee)) ?
-            split_top_level(FunctionArgs(callee), buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
-        for(int parameter = 0; parameter < count; parameter++) {
-            const char *colon = strchr(buffers->parameters[parameter], ':');
-            if(colon != NULL)
-                has_arrays |= ArrayValueType(skip_ws(colon + 1));
-        }
-    }
     if(!fn->is_extern && strcmp(fn->return_type, "void") &&
        !sequence_returns(fn, 0, fn->stmt_count))
         error(c, fn->span, "missing return: every path must return a value", fn->name);
@@ -687,16 +664,6 @@ restart:
         return 0;
     }
     c->fn->checked = c->errors == errors_before;
-    for(int expression = 0; expression < c->fn->expr_count; expression++)
-        has_slots |= c->fn->exprs[expression].is_function_value;
-    /* Portable scalar emission classifies functions for bundles; a body the
-     * emitter cannot express is excluded there and re-verified by the bundle
-     * gate. Type checking itself stays complete, so native-only programs
-     * with host-bound state (raw pointers, foreign handles) check clean. */
-    if((has_slots || has_arrays) && !c->fn->is_extern && !c->fn->checked)
-        c->fn->checked = 0;
-    if(c->fn->checked && !c->fn->is_extern && !CanEmitBody(c->module, c->fn))
-        c->fn->checked = 0;
     if(c->fn->checked) {
         fn->using_parameters = 0;
         for(int i = 0; i < fn->stmt_count; i++)
@@ -708,14 +675,17 @@ restart:
 int
 check_function(Checker *c, ZirFunction *fn)
 {
-    static _Thread_local CheckFunctionBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CheckFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CheckFunctionBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CheckFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = check_function_with_buffers(c, fn, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -920,14 +890,29 @@ normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn,
 int
 normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
 {
-    static _Thread_local NormalizeFunctionArraysBuffers *spares[16];
-    static _Thread_local int spare_count;
-    NormalizeFunctionArraysBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_NormalizeFunctionArraysBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    NormalizeFunctionArraysBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = normalize_function_arrays_with_buffers(module, fn, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
+}
+
+static void free_scratch_NormalizeFunctionArraysBuffers(void *pointer)
+{
+    NormalizeFunctionArraysBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_CheckFunctionBuffers(void *pointer)
+{
+    CheckFunctionBuffers *buffers = pointer;
+    free(buffers);
 }

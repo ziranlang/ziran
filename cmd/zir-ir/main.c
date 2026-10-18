@@ -207,7 +207,8 @@ main(int argc, char **argv)
         if(entry != NULL) {
             for(int i = 0; i < count; i++)
                 merged.module_count += set.programs[i]->module_count;
-            merged.modules = calloc((size_t)merged.module_count,
+            merged.context = set.context;
+        merged.modules = calloc((size_t)merged.module_count,
                                     sizeof(*merged.modules));
             if(merged.modules == NULL)
                 goto done;
@@ -225,6 +226,7 @@ main(int argc, char **argv)
                 goto done;
             for(int i = 0; i < linked->module_count; i++) {
                 ZirProgram view = {0};
+                view.context = linked->context;
                 view.modules = &linked->modules[i];
                 view.module_count = 1;
                 if(!write_program(&view, out_dir))

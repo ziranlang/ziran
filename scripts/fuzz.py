@@ -44,7 +44,7 @@ def failure(result):
     text = result.stderr.decode("utf-8", "replace")
     for line in text.splitlines():
         if "ERROR: AddressSanitizer" in line:
-            return line.split(" on ")[0]
+            return line[line.index("ERROR: AddressSanitizer"):].split(" on ")[0]
         if "runtime error:" in line:
             return line.split(": runtime error")[0]
     if result.returncode < 0 or result.returncode > 1:

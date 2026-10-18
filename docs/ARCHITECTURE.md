@@ -51,8 +51,8 @@ for law-driven development, LLM tooling, parallel execution, and evolution.
 
 Inside the compiler, names in that model are interned: an expression's or
 statement's name and type, and a function's parameter list, are shared
-immutable strings (`KeepName`, `KeepParameters`), so equal spellings are one
-pointer. Parameter lists are split once into names and types
+immutable strings (`KeepName`, `KeepParameters`), so equal spellings within a
+compilation context are one pointer. Parameter lists are split once into names and types
 (`ParametersOf`). Type and procedure resolution keep entry-scope answers,
 including misses and ambiguity, until declarations or imports change
 (`SymbolLookupsChanged`). Lookup file spellings remain part of each key;
@@ -71,6 +71,35 @@ declared platform libraries. `.zib` contains portable executable content and
 cannot depend on arbitrary target-specific C, C++, or Go source fragments.
 Native and portable builds of the same supported program must agree on
 observable language behavior.
+
+Semantic checking sets `ZirFunction.checked` only from language validity.
+Native symbol planning runs afterward, and body eligibility is a separate
+emitter query. An emitter's inability to represent a valid function does not
+turn that function into unchecked source. The portable verifier remains the
+authority for executable `.zib` support.
+
+Parameter declarations have one immutable parsed view, including binding
+names, types, namespace modifiers, and defaults. Record fields likewise use
+the shared field snapshots. Backends consume these views; source spellings
+remain available for diagnostics, template rewriting, and serialization.
+Rust and Python keep their type, expression, statement, runtime, and module
+output passes in separate translation units with private backend interfaces.
+
+Compilation contexts own interned text, source paths, symbol answers,
+declaration snapshots, expression caches, and reusable scratch buffers.
+Source and artifact readers create a context when the caller has not selected
+one. Programs and linked copies retain the contexts whose bytes they borrow;
+closing the original program therefore cannot invalidate a linked copy.
+Source spans keep their original context independently of the module's lookup
+context. Context pointers and cache identities are never serialized.
+
+Public source parsing is a recoverable operation. Syntax and source-read
+errors return `NULL` after reporting the ordinary structured diagnostic.
+An operation-local allocation transaction releases partial trees, temporary
+buffers, and open streams after an error, and restores the enclosing parser
+state. Transactions nest across import callbacks and are local to each thread.
+Published immutable caches remain owned by their context. See
+[Compiler embedding](COMPILER_API.md) for lifetime and concurrency rules.
 
 The linker resolves explicit imports, includes the reachable library code,
 and reports unresolved symbols or unavailable capabilities. A program with no

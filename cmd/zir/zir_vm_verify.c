@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_vm_internal.h"
 #include "zir_scalar.h"
 
@@ -1375,8 +1376,8 @@ free_verification_buffers(void)
     }
 }
 
-int
-VmVerify(const ZirProgram *program, const char *entry_module,
+static int
+VmVerify_in_context(const ZirProgram *program, const char *entry_module,
             const char *entry_function)
 {
     VmVerifyBuffers *buffers = verify_spare_count > 0 ? verify_spares[--verify_spare_count] :
@@ -1388,4 +1389,12 @@ VmVerify(const ZirProgram *program, const char *entry_module,
         free(buffers);
     free_verification_buffers();
     return returned;
+}
+
+int VmVerify(const ZirProgram *program, const char *entry_module, const char *entry_function)
+{
+    CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
+    int result = VmVerify_in_context(program, entry_module, entry_function);
+    CompilerContextSelect(previous);
+    return result;
 }

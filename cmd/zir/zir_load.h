@@ -4,6 +4,8 @@
 #include "zir.h"
 
 typedef struct ProgramSet {
+    CompilerContext *context;
+    int owns_context;
     ZirProgram **programs;
     char **paths;
     char **roots;

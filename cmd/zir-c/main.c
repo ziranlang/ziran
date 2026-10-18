@@ -119,6 +119,7 @@ main(int argc, char **argv)
     int unresolved = 0;
     int result = 1;
     ProgramSet set = {0};
+    CompilerContext *command_context = NULL, *previous_context = NULL;
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
     const char *module_paths[64];
@@ -207,6 +208,9 @@ main(int argc, char **argv)
         }
         defines[define_count++] = "POSIX_THREADS";
     }
+    command_context = CompilerContextOpen();
+    if(command_context == NULL) { DiagnosticOutOfMemory(); goto done; }
+    previous_context = CompilerContextSelect(command_context);
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file),
@@ -226,6 +230,7 @@ main(int argc, char **argv)
     if(entry != NULL) {
         for(i = 0; i < file_count; i++)
             merged.module_count += progs[i]->module_count;
+        merged.context = set.context;
         merged.modules = calloc((size_t)merged.module_count,
                                 sizeof(*merged.modules));
         if(merged.modules == NULL)
@@ -250,6 +255,7 @@ main(int argc, char **argv)
         syms_count = linked->module_count;
         for(i = 0; i < linked->module_count; i++) {
             ZirProgram view = {0};
+            view.context = linked->context;
             view.modules = &linked->modules[i];
             view.module_count = 1;
             if(!c_build_syms(&view, &syms[i]))
@@ -294,6 +300,7 @@ main(int argc, char **argv)
         for(i = 0; i < file_count; i++)
             for(int m = 0; m < progs[i]->module_count; m++) {
                 ZirProgram view = {0};
+                view.context = progs[i]->context;
                 view.modules = &progs[i]->modules[m];
                 view.module_count = 1;
                 if(!c_build_syms(&view, &syms[position++]))
@@ -340,5 +347,10 @@ done:
     }
 finish:
     if(output_lock >= 0) close(output_lock);
+    CompilerContextSelect(previous_context);
+    if(command_context && !CompilerContextClose(command_context)) {
+        Diagnostic((ZirSourceSpan){0}, "compiler.context", "compiler operation retained live programs");
+        result = 1;
+    }
     return result;
 }

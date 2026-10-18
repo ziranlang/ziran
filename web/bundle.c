@@ -54,6 +54,7 @@ BuildBundle(const char *root, const char *search, const char *inputs,
                                (const char *const *)set.paths)) goto done;
     for(int p = 0; p < set.count; p++)
         merged.module_count += set.programs[p]->module_count;
+    merged.context = set.context;
     merged.modules = calloc((size_t)merged.module_count, sizeof(*merged.modules));
     if(merged.modules == NULL) goto done;
     int at = 0;

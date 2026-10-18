@@ -5,7 +5,8 @@
 
 /*
  * Parse a .zi source file into a ZirProgram. Returns a heap-allocated
- * program (caller frees with ProgramFree), or NULL on fatal error.
+ * program (caller frees with ProgramFree), or NULL on source-read or syntax
+ * error. Errors report diagnostics and release operation-local resources.
  * This is the shared Ziran frontend used by the IR and native backends.
  */
 ZirProgram *parse_file(const char *path, const char *root);

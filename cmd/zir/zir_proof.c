@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_proof.h"
 #include "zir_proof_kernel.h"
 #include "zir_scalar.h"

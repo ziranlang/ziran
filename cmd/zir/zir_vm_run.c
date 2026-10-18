@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_emit.h"
 #include "zir_vm_internal.h"
 #include <stdatomic.h>
@@ -1827,8 +1828,8 @@ free_runtime_buffers(Vm *vm)
     }
 }
 
-VmInstance *
-VmInstanceOpenVerified(const ZirProgram *program, const ZirModule *module,
+static VmInstance *
+VmInstanceOpenVerified_in_context(const ZirProgram *program, const ZirModule *module,
                        const ZirFunction *entry, VmHostCall host, void *context)
 {
     VmInstance *instance = calloc(1, sizeof(*instance));
@@ -1859,8 +1860,8 @@ VmInstanceOpen(const ZirProgram *program, const char *entry_module,
     return VmInstanceOpenVerified(program, module, entry, host, context);
 }
 
-int
-VmInstanceRun(VmInstance *instance, long long *result, int *has_result)
+static int
+VmInstanceRun_in_context(VmInstance *instance, long long *result, int *has_result)
 {
     if(instance == NULL || result == NULL || has_result == NULL ||
        instance->vm.failed)
@@ -1981,4 +1982,20 @@ VmRun(const ZirProgram *program, const char *entry_module,
 {
     return VmRunWithHost(program, entry_module, entry_function,
                          NULL, NULL, result, has_result);
+}
+
+VmInstance *VmInstanceOpenVerified(const ZirProgram *program, const ZirModule *module, const ZirFunction *entry, VmHostCall host, void *context)
+{
+    CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
+    VmInstance * result = VmInstanceOpenVerified_in_context(program, module, entry, host, context);
+    CompilerContextSelect(previous);
+    return result;
+}
+
+int VmInstanceRun(VmInstance *instance, long long *result, int *has_result)
+{
+    CompilerContext *previous = CompilerContextSelect(instance ? instance->vm.program->context : NULL);
+    int status = VmInstanceRun_in_context(instance, result, has_result);
+    CompilerContextSelect(previous);
+    return status;
 }

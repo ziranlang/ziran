@@ -1,3 +1,10 @@
+#include "zir_memory.h"
+static void free_scratch_EmitBodyBuffers(void *pointer);
+static void free_scratch_EmitSequenceBuffers(void *pointer);
+static void free_scratch_EmitSwitchBuffers(void *pointer);
+static void free_scratch_NativeForBuffers(void *pointer);
+static void free_scratch_EmitIfBuffers(void *pointer);
+static void free_scratch_ParallelRegionDispatchBuffers(void *pointer);
 #include "zir_emit_internal.h"
 
 static void emit_sequence(Emitter *e,int begin,int end);
@@ -293,14 +300,17 @@ parallel_region_dispatch_with_buffers(Emitter *e, const ParallelRegion *region, 
 static void
 parallel_region_dispatch(Emitter *e, const ParallelRegion *region)
 {
-    static _Thread_local ParallelRegionDispatchBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ParallelRegionDispatchBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ParallelRegionDispatchBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ParallelRegionDispatchBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     parallel_region_dispatch_with_buffers(e, region, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -517,14 +527,17 @@ emit_if_with_buffers(Emitter *e,int i,int end,int chained, EmitIfBuffers *buffer
 static int
 emit_if(Emitter *e,int i,int end,int chained)
 {
-    static _Thread_local EmitIfBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitIfBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitIfBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitIfBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = emit_if_with_buffers(e, i, end, chained, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -732,14 +745,17 @@ native_for_with_buffers(Emitter *e, int open, int close, NativeForBuffers *buffe
 static int
 native_for(Emitter *e, int open, int close)
 {
-    static _Thread_local NativeForBuffers *spares[16];
-    static _Thread_local int spare_count;
-    NativeForBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_NativeForBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    NativeForBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = native_for_with_buffers(e, open, close, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -877,14 +893,17 @@ emit_switch_with_buffers(Emitter *e, int declaration, int end, EmitSwitchBuffers
 static int
 emit_switch(Emitter *e, int declaration, int end)
 {
-    static _Thread_local EmitSwitchBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitSwitchBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitSwitchBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitSwitchBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = emit_switch_with_buffers(e, declaration, end, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1179,14 +1198,17 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
 static void
 emit_sequence(Emitter *e,int begin,int end)
 {
-    static _Thread_local EmitSequenceBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitSequenceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitSequenceBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitSequenceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_sequence_with_buffers(e, begin, end, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 /* Buffers EmitBody keeps on the heap so deep nesting fits the stack;
@@ -1243,14 +1265,53 @@ EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget targe
             ZirResolveTarget resolver,void *context,
             ZirAssemblyBlockEmitter assembly,void *assembly_context)
 {
-    static _Thread_local EmitBodyBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitBodyBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitBodyBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitBodyBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = EmitBody_with_buffers(out, module, fn, target, resolver, context, assembly, assembly_context, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
+}
+
+static void free_scratch_EmitBodyBuffers(void *pointer)
+{
+    EmitBodyBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_EmitSequenceBuffers(void *pointer)
+{
+    EmitSequenceBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_EmitSwitchBuffers(void *pointer)
+{
+    EmitSwitchBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_NativeForBuffers(void *pointer)
+{
+    NativeForBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_EmitIfBuffers(void *pointer)
+{
+    EmitIfBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_ParallelRegionDispatchBuffers(void *pointer)
+{
+    ParallelRegionDispatchBuffers *buffers = pointer;
+    free(buffers);
 }

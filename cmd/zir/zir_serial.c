@@ -1,6 +1,9 @@
+#include "zir_memory.h"
+static void free_scratch_CheckCanonicalProgramsBuffers(void *pointer);
 #include "zir_stream.h"
 #include "zir_serial.h"
 #include "zir_check.h"
+#include "zir_native.h"
 #include "zir_diagnostic.h"
 #include "zir_parse.h"
 #include "zir_text.h"
@@ -129,7 +132,7 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 57u
+#define ZIR_FORMAT_VERSION 58u
 enum { ASSEMBLY_BLOCK_FLAG = 1u << 30 };
 
 static const Field import_fields[] = {
@@ -435,6 +438,7 @@ read_span(Reader *reader, ZirSourceSpan *span)
     char path[ZIR_PATH_MAX];
     if(!read_string(reader, path, sizeof(path)))
         return 0;
+    span->context = CompilerContextCurrent();
     span->file = SourceFile(path);
     for(int i = 0; i < 4; i++)
         if(!read_u32(reader, &numbers[i]))
@@ -713,6 +717,7 @@ read_module(Reader *reader, ZirModule *module)
     uint32_t count;
     if(!read_fields(reader, module, module_fields, FIELD_COUNT(module_fields)))
         return 0;
+    module->context = CompilerContextCurrent();
     READ_ARRAY(reader, module, globals, global_count, global_fields);
     READ_ARRAY(reader, module, defines, define_count, define_fields);
     READ_ARRAY(reader, module, asserts, assert_count, assert_fields);
@@ -1063,8 +1068,8 @@ ProgramWritePortable(const ZirProgram *program, FILE *out, size_t *size)
     return result;
 }
 
-ZirProgram *
-ProgramRead(FILE *in, const char *path)
+static ZirProgram *
+ProgramRead_in_context(FILE *in, const char *path)
 {
     unsigned char magic[4];
     uint32_t version, count;
@@ -1238,7 +1243,7 @@ CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
         }
     }
     if(saved_count == 0)
-        return CheckPrograms(programs, count);
+        return CheckPrograms(programs, count) && PrepareNativeNames(programs, count);
     original_counts = calloc((size_t)count, sizeof(*original_counts));
     if(original_counts == NULL) goto failed;
     for(int i = 0; i < count; i++) {
@@ -1273,7 +1278,7 @@ CheckCanonicalPrograms_with_buffers(ZirProgram **programs, int count,
         if((input_paths == NULL || PathIsIR(input_paths[i])) &&
            !ProgramWrite(programs[i], before))
             goto failed;
-    if(!CheckPrograms(programs, count))
+    if(!CheckPrograms(programs, count) || !PrepareNativeNames(programs, count))
         goto done;
     for(int i = 0; i < count; i++) {
         if(original_counts[i] == NULL) continue;
@@ -1341,18 +1346,54 @@ done:
     return valid;
 }
 
-int
-CheckCanonicalPrograms(ZirProgram **programs, int count,
+static int
+CheckCanonicalPrograms_in_context(ZirProgram **programs, int count,
                        const char *const *input_paths)
 {
-    static _Thread_local CheckCanonicalProgramsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CheckCanonicalProgramsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CheckCanonicalProgramsBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CheckCanonicalProgramsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = CheckCanonicalPrograms_with_buffers(programs, count, input_paths, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
+}
+
+int CheckCanonicalPrograms(ZirProgram **programs, int count, const char *const *input_paths)
+{
+    CompilerContext *previous = CompilerContextSelect(count > 0 && programs && programs[0] ? programs[0]->context : CompilerContextCurrent());
+    int result = CheckCanonicalPrograms_in_context(programs, count, input_paths);
+    CompilerContextSelect(previous);
+    return result;
+}
+
+ZirProgram *ProgramRead(FILE *in, const char *path)
+{
+    CompilerMemory *memory = CompilerMemoryPause();
+    CompilerContext *previous = CompilerContextCurrent();
+    CompilerContext *owner = previous ? previous : CompilerContextOpen();
+    if(!owner) { CompilerMemoryResume(memory); DiagnosticOutOfMemory(); return NULL; }
+    CompilerContextSelect(owner);
+    ZirProgram *program = ProgramRead_in_context(in, path);
+    if(program && !program->context_retained) {
+        CompilerContextRetain(owner);
+        program->context_retained = 1;
+    }
+    if(program && !previous) program->owns_context = 1;
+    CompilerContextSelect(previous);
+    if(!program && !previous) CompilerContextClose(owner);
+    CompilerMemoryResume(memory);
+    return program;
+}
+
+static void free_scratch_CheckCanonicalProgramsBuffers(void *pointer)
+{
+    CheckCanonicalProgramsBuffers *buffers = pointer;
+    free(buffers);
 }

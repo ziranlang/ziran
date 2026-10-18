@@ -1,3 +1,5 @@
+#include "zir_memory.h"
+static void free_scratch_CheckProgramsBuffers(void *pointer);
 #include <inttypes.h>
 #include "zir_check_internal.h"
 /* Buffers CheckPrograms keeps on the heap so deep nesting fits the stack;
@@ -27,57 +29,6 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
     buffers->c.programs = programs; buffers->c.program_count = count;
     if(!LinkImports(programs, count))
         return 0;
-    for(int p = 0; p < count; p++)
-        for(int m = 0; m < programs[p]->module_count; m++) {
-            ZirModule *module = &programs[p]->modules[m];
-            for(int g = 0; g < module->global_count; g++)
-                module->globals[g].native_name_collision = 0;
-            for(int d = 0; d < module->define_count; d++)
-                module->defines[d].native_name_collision = 0;
-            for(int t = 0; t < module->type_count; t++) {
-                ZirType *type = &module->types[t];
-                type->native_name_mangled = 0;
-                if(type->is_record_template ||
-                   (type->is_extern && !type->foreign_target[0])) continue;
-                for(int target = ZIR_C; target <= ZIR_GO; target++) {
-                    char mapped[ZIR_NAME_MAX * 2];
-                    TargetBindingName(NULL, (ZirTarget)target, type->name,
-                                      mapped, sizeof(mapped));
-                    if(strcmp(mapped, type->name))
-                        type->native_name_mangled = 1;
-                }
-            }
-        }
-    if(!MarkNativeNameCollisions(programs, count)) {
-        DiagnosticOutOfMemory();
-        return 0;
-    }
-    for(int p = 0; p < count; p++)
-        for(int m = 0; m < programs[p]->module_count; m++) {
-            ZirModule *module = &programs[p]->modules[m];
-            for(int t = 0; t < module->type_count; t++) {
-                ZirType *type = &module->types[t];
-                if(type->is_record_template ||
-                   (type->is_extern && !type->foreign_target[0])) continue;
-                for(int q = p; q < count; q++)
-                    for(int n = q == p ? m : 0;
-                        n < programs[q]->module_count; n++) {
-                        ZirModule *other_module = &programs[q]->modules[n];
-                        for(int u = q == p && n == m ? t + 1 : 0;
-                            u < other_module->type_count; u++) {
-                            ZirType *other = &other_module->types[u];
-                            if(other->is_record_template ||
-                               (other->is_extern && !other->foreign_target[0]) ||
-                               strcmp(type->name, other->name)) continue;
-                            if(same_type_application(module, type, other_module, other) ||
-                               SameMapType(module, type, other_module, other))
-                                continue;
-                            type->native_name_mangled = 1;
-                            other->native_name_mangled = 1;
-                        }
-                    }
-            }
-        }
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++) {
             ZirModule *module = &programs[p]->modules[m];
@@ -728,18 +679,21 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
     return 1;
 }
 
-int
-CheckPrograms(ZirProgram **programs, int count)
+static int
+CheckPrograms_in_context(ZirProgram **programs, int count)
 {
     uint64_t profile_started = ProfileStart();
-    static _Thread_local CheckProgramsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CheckProgramsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CheckProgramsBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CheckProgramsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = CheckPrograms_with_buffers(programs, count, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     ProfileEnd("check", profile_started);
     return returned;
@@ -1015,4 +969,18 @@ LintPrograms(ZirProgram **programs, int count)
             }
         }
     return warnings;
+}
+
+int CheckPrograms(ZirProgram **programs, int count)
+{
+    CompilerContext *previous = CompilerContextSelect(count > 0 && programs && programs[0] ? programs[0]->context : CompilerContextCurrent());
+    int result = CheckPrograms_in_context(programs, count);
+    CompilerContextSelect(previous);
+    return result;
+}
+
+static void free_scratch_CheckProgramsBuffers(void *pointer)
+{
+    CheckProgramsBuffers *buffers = pointer;
+    free(buffers);
 }

@@ -1,3 +1,8 @@
+#include "zir_memory.h"
+static void free_scratch_LowerIfCaseBuffers(void *pointer);
+static void free_scratch_NormalizeRecordArraysBuffers(void *pointer);
+static void free_scratch_CheckTypeDeclarationsBuffers(void *pointer);
+static void free_scratch_DeclaredApplicationValidBuffers(void *pointer);
 #include "zir_check_internal.h"
 
 static int declared_application_valid(const ZirModule *module, const char *text, int depth);
@@ -196,14 +201,17 @@ declared_application_valid_with_buffers(const ZirModule *module, const char *tex
 static int
 declared_application_valid(const ZirModule *module, const char *text, int depth)
 {
-    static _Thread_local DeclaredApplicationValidBuffers *spares[16];
-    static _Thread_local int spare_count;
-    DeclaredApplicationValidBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_DeclaredApplicationValidBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    DeclaredApplicationValidBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = declared_application_valid_with_buffers(module, text, depth, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -863,14 +871,17 @@ check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuf
 int
 check_type_declarations(ZirModule *module)
 {
-    static _Thread_local CheckTypeDeclarationsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CheckTypeDeclarationsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CheckTypeDeclarationsBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CheckTypeDeclarationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = check_type_declarations_with_buffers(module, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -940,14 +951,17 @@ normalize_record_arrays_with_buffers(ZirModule *module, int templates_only,
 int
 normalize_record_arrays(ZirModule *module, int templates_only)
 {
-    static _Thread_local NormalizeRecordArraysBuffers *spares[16];
-    static _Thread_local int spare_count;
-    NormalizeRecordArraysBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_NormalizeRecordArraysBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    NormalizeRecordArraysBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = normalize_record_arrays_with_buffers(module, templates_only, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1495,14 +1509,17 @@ done:
 int
 lower_if_case(Checker *c, int index, const char *checked_type)
 {
-    static _Thread_local LowerIfCaseBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LowerIfCaseBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerIfCaseBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    LowerIfCaseBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = lower_if_case_with_buffers(c, index, checked_type, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -2224,4 +2241,28 @@ check_vec_call_results(Checker *c, int index, int transferred, int discarded)
     check_vec_call_results(c, expr->left, 0, 0);
     check_vec_call_results(c, expr->right, 0, 0);
     check_vec_call_results(c, expr->third, 0, 0);
+}
+
+static void free_scratch_LowerIfCaseBuffers(void *pointer)
+{
+    LowerIfCaseBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_NormalizeRecordArraysBuffers(void *pointer)
+{
+    NormalizeRecordArraysBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_CheckTypeDeclarationsBuffers(void *pointer)
+{
+    CheckTypeDeclarationsBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_DeclaredApplicationValidBuffers(void *pointer)
+{
+    DeclaredApplicationValidBuffers *buffers = pointer;
+    free(buffers);
 }

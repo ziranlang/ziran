@@ -1,3 +1,7 @@
+#include "zir_memory.h"
+static void free_scratch_ExpandTypeThisBuffers(void *pointer);
+static void free_scratch_TakeAbiIncompleteBuffers(void *pointer);
+static void free_scratch_ParseFileGlobalBuffers(void *pointer);
 #include "zir_parse_internal.h"
 #include "compiler_source.h"
 
@@ -20,6 +24,8 @@ _Static_assert(ZIR_STMT_UNKNOWN == StatementKind_Unknown &&
                ZIR_STMT_IF_CASE == StatementKind_IfCase,
                "C frontend statement kinds must match the Ziran scanner");
 
+_Thread_local ParseRecovery *ZirParseRecovery;
+
 static String
 source_view(const char *source)
 {
@@ -34,6 +40,7 @@ die(const char *fmt, ...)
     va_start(ap, fmt);
     DiagnosticV(Span("", 0, 0), "parse.fatal", fmt, ap);
     va_end(ap);
+    if(ZirParseRecovery) longjmp(ZirParseRecovery->jump, 1);
     exit(1);
 }
 
@@ -45,6 +52,7 @@ die_at(ZirSourceSpan span, const char *fmt, ...)
     va_start(args, fmt);
     DiagnosticV(span, "parse.syntax", fmt, args);
     va_end(args);
+    if(ZirParseRecovery) longjmp(ZirParseRecovery->jump, 1);
     exit(1);
 }
 
@@ -224,14 +232,17 @@ parse_file_global(ZirModule *module, const char *declaration,
                   ZirSourceSpan span, int scope_public, int scope_file,
                   char *name_out, size_t name_size)
 {
-    static _Thread_local ParseFileGlobalBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ParseFileGlobalBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ParseFileGlobalBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ParseFileGlobalBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     parse_file_global_with_buffers(module, declaration, span, scope_public, scope_file, name_out, name_size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -439,14 +450,17 @@ take_abi_incomplete_with_buffers(ZirType *type, TakeAbiIncompleteBuffers *buffer
 int
 take_abi_incomplete(ZirType *type)
 {
-    static _Thread_local TakeAbiIncompleteBuffers *spares[16];
-    static _Thread_local int spare_count;
-    TakeAbiIncompleteBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_TakeAbiIncompleteBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    TakeAbiIncompleteBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = take_abi_incomplete_with_buffers(type, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -498,14 +512,17 @@ expand_type_this_with_buffers(ZirType *type, ExpandTypeThisBuffers *buffers)
 int
 expand_type_this(ZirType *type)
 {
-    static _Thread_local ExpandTypeThisBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ExpandTypeThisBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ExpandTypeThisBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ExpandTypeThisBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = expand_type_this_with_buffers(type, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -690,4 +707,22 @@ closing_parenthesis(const char *open)
 {
     int64_t at = compiler_source_ClosingParenthesis(source_view(open));
     return at < 0 ? NULL : open + at;
+}
+
+static void free_scratch_ExpandTypeThisBuffers(void *pointer)
+{
+    ExpandTypeThisBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_TakeAbiIncompleteBuffers(void *pointer)
+{
+    TakeAbiIncompleteBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_ParseFileGlobalBuffers(void *pointer)
+{
+    ParseFileGlobalBuffers *buffers = pointer;
+    free(buffers);
 }

@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_text.h"
 #include "zir.h"
 #include "zir_diagnostic.h"
@@ -109,11 +110,22 @@ split_top_level(const char *s, char *parts, int max, size_t part_size)
 
 /* Parameter lists by their kept text; a kept text is one pointer for one
  * spelling, so the pointer identifies the list. */
-static struct {
+typedef struct ParameterLists {
     const char **texts;
     const ZirParameters **lists;
     size_t count, slots;
-} parameter_lists;
+} ParameterLists;
+static void free_parameter_lists(void *value)
+{
+    ParameterLists *lists = value;
+    for(size_t i = 0; i < lists->slots; i++) free((void *)lists->lists[i]);
+    free(lists->texts); free(lists->lists);
+}
+static ParameterLists *context_parameters(void)
+{
+    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_PARAMETERS, sizeof(ParameterLists), free_parameter_lists);
+}
+#define parameter_lists (*context_parameters())
 static atomic_flag parameter_lock = ATOMIC_FLAG_INIT;
 
 static size_t
@@ -143,19 +155,33 @@ split_parameters(const char *text)
         ZirParameter *parameter = &list->items[i];
         parameter->text = KeepText(parts[i]);
         parameter->name = parameter->type = NULL;
+        parameter->binding_name = parameter->value_type = parameter->default_value = NULL;
+        parameter->is_using = 0;
         char *colon = strchr(parts[i], ':');
         if(colon != NULL) {
             parameter->type = KeepText(skip_ws(colon + 1));
             *colon = '\0';
             parameter->name = KeepText(trim(parts[i]));
+            const char *name = parameter->name;
+            parameter->is_using = !strncmp(name, "using ", 6);
+            if(parameter->is_using) name = skip_ws(name + 6);
+            parameter->binding_name = KeepName(name);
+            char value_type[ZIR_TEXT_MAX];
+            copy_text(value_type, sizeof(value_type), parameter->type);
+            char *equals = top_level_assignment(value_type);
+            if(equals) {
+                *equals = '\0';
+                parameter->default_value = KeepText(skip_ws(equals + 1));
+            }
+            parameter->value_type = KeepName(trim(value_type));
         }
     }
     free(parts);
     return list;
 }
 
-const ZirParameters *
-ParametersOf(const char *text)
+static const ZirParameters *
+ParametersOf_persistent(const char *text)
 {
     const char *kept = KeepText(text);
     while(atomic_flag_test_and_set_explicit(&parameter_lock, memory_order_acquire)) {}
@@ -327,4 +353,12 @@ OperatorOfProcedure(const char *name)
 {
     String op = compiler_text_ProcedureOperator(source_text(name));
     return op.length > 0 ? op.data : NULL;
+}
+
+const ZirParameters *ParametersOf(const char *text)
+{
+    CompilerMemory *memory = CompilerMemoryPause();
+    const ZirParameters *result = ParametersOf_persistent(text);
+    CompilerMemoryResume(memory);
+    return result;
 }

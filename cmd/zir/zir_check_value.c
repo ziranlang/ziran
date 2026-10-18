@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_check_internal.h"
 
 const char *

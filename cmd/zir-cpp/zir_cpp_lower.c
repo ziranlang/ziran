@@ -1,3 +1,5 @@
+static void free_scratch_LowerModuleBuffers(void *pointer);
+static void free_scratch_EmitExternPrototypeBuffers(void *pointer);
 /*
  * zir_cpp_lower.c - ZIR to C++ backend. Lowers a ZirProgram to .cpp/.hpp
  * source files that can call declared C host functions. Emitted declarations
@@ -875,14 +877,17 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
 static void
 emit_extern_prototype(FILE *c, const ZirModule *m, const ZirImport *imp)
 {
-    static _Thread_local EmitExternPrototypeBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitExternPrototypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitExternPrototypeBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitExternPrototypeBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_extern_prototype_with_buffers(c, m, imp, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -1379,22 +1384,25 @@ static int
 lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_count,
              const char *out_dir)
 {
-    static _Thread_local LowerModuleBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LowerModuleBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerModuleBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    LowerModuleBuffers *buffers = CompilerScratchTake(scratch_hint);
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     uint64_t profile_started = ProfileStart();
     int returned = lower_module_with_buffers(m, restab, restab_count, out_dir, buffers);
     ProfileEnd("emit.cpp", profile_started);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
 
 int
-cpp_lower(const ZirProgram *program, const char *root, const char *out_dir, const ZirCppModuleSyms *restab, int restab_count)
+cpp_lower_in_context(const ZirProgram *program, const char *root, const char *out_dir, const ZirCppModuleSyms *restab, int restab_count)
 {
     int i;
 
@@ -1478,4 +1486,24 @@ cpp_free_syms(ZirCppModuleSyms *syms, int count)
 {
     for(int i = 0; i < count; i++)
         free(syms[i].fns);
+}
+
+int cpp_lower(const ZirProgram *program, const char *root, const char *out_dir, const ZirCppModuleSyms *restab, int restab_count)
+{
+    CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
+    int result = cpp_lower_in_context(program, root, out_dir, restab, restab_count);
+    CompilerContextSelect(previous);
+    return result;
+}
+
+static void free_scratch_LowerModuleBuffers(void *pointer)
+{
+    LowerModuleBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_EmitExternPrototypeBuffers(void *pointer)
+{
+    EmitExternPrototypeBuffers *buffers = pointer;
+    free(buffers);
 }

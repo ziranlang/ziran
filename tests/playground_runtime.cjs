@@ -48,6 +48,9 @@ async function main() {
   assert.notEqual(invalid.status, 0);
   assert.match(invalid.diagnostics, /missing_value/);
   assert.equal(invalid.output, '');
+  const syntax = run('Tag :: enum s32 { First; Last }\nmain :: () {');
+  assert.notEqual(syntax.status, 0);
+  assert.match(syntax.diagnostics, /unterminated/);
   const noEntry = run('Other :: () -> s32 { return 1; }');
   assert.notEqual(noEntry.status, 0);
   assert.match(noEntry.diagnostics, /entry procedure/);

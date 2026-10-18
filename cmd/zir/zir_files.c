@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir_files.h"
 
 #include <ctype.h>
@@ -63,7 +64,7 @@ char *CanonicalPath(const char *path)
         if(*p == '\\') *p = '/';
     return result;
 #else
-    return realpath(path, NULL);
+    return CompilerOwn(realpath(path, NULL));
 #endif
 }
 

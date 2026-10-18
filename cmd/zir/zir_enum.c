@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir.h"
 #include "zir_string.h"
 #include "compiler_enum.h"
@@ -16,10 +17,17 @@ typedef struct EnumValues {
     int valid;
 } EnumValues;
 
-static struct {
+typedef struct EnumSnapshots {
     EnumValues **slots;
     size_t count, capacity;
-} enum_values;
+} EnumSnapshots;
+static void free_enum_values(void *pointer);
+static EnumSnapshots *context_enums(void)
+{
+    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_ENUMS,
+                                  sizeof(EnumSnapshots), free_enum_values);
+}
+#define enum_values (*context_enums())
 static atomic_flag enum_values_lock = ATOMIC_FLAG_INIT;
 
 static size_t
@@ -35,17 +43,17 @@ enum_slot(EnumValues **slots, size_t capacity,
 }
 
 static void
-free_enum_values(void)
+free_enum_values(void *pointer)
 {
-    for(size_t i = 0; i < enum_values.capacity; i++) {
-        EnumValues *values = enum_values.slots[i];
+    EnumSnapshots *snapshots = pointer;
+    for(size_t i = 0; i < snapshots->capacity; i++) {
+        EnumValues *values = snapshots->slots[i];
         if(values) {
             free(values->entries);
             free(values);
         }
     }
-    free(enum_values.slots);
-    memset(&enum_values, 0, sizeof(enum_values));
+    free(snapshots->slots);
 }
 
 /* The lock protects publication and table growth. Entries borrow interned
@@ -69,7 +77,6 @@ values_of(const ZirType *type)
             if(values)
                 slots[enum_slot(slots, capacity, values->body, values->backing)] = values;
         }
-        if(enum_values.capacity == 0) atexit(free_enum_values);
         free(enum_values.slots);
         enum_values.slots = slots;
         enum_values.capacity = capacity;
@@ -107,9 +114,11 @@ EnumMemberValue(const ZirType *type, const char *wanted, int64_t *value)
 {
     if(!type->is_enum)
         return 0;
+    CompilerMemory *memory = CompilerMemoryPause();
     while(atomic_flag_test_and_set_explicit(&enum_values_lock, memory_order_acquire)) {}
     const EnumValues *values = values_of(type);
     atomic_flag_clear_explicit(&enum_values_lock, memory_order_release);
+    CompilerMemoryResume(memory);
     if(values == NULL || !values->valid) return 0;
     if(wanted == NULL) return 1;
     String name = StringView(wanted, strlen(wanted));

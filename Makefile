@@ -79,8 +79,8 @@ STATEMENT_C := $(BUILD_DIR)/compiler-statement
 STATEMENT_READY := $(STATEMENT_C)/.generated
 endif
 override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C)
-FRONTEND := cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
-    cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
+FRONTEND := cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
+    cmd/zir/zir_native.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
     cmd/zir/zir_proof_kernel.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
@@ -348,10 +348,10 @@ $(BIN_DIR)/zi2cpp: $(call obj,cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
-$(BIN_DIR)/zi2rust: $(call obj,cmd/zir-rust/main.c cmd/zir-rust/zir_rust_lower.c cmd/zir-rust/zir_rust_asm.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
+$(BIN_DIR)/zi2rust: $(call obj,cmd/zir-rust/main.c cmd/zir-rust/zir_rust_lower.c cmd/zir-rust/zir_rust_types.c cmd/zir-rust/zir_rust_expr.c cmd/zir-rust/zir_rust_statement.c cmd/zir-rust/zir_rust_module.c cmd/zir-rust/zir_rust_runtime.c cmd/zir-rust/zir_rust_asm.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
-$(BIN_DIR)/zi2py: $(call obj,cmd/zir-py/main.c cmd/zir-py/zir_py_lower.c cmd/zir-py/zir_py_runtime.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
+$(BIN_DIR)/zi2py: $(call obj,cmd/zir-py/main.c cmd/zir-py/zir_py_lower.c cmd/zir-py/zir_py_types.c cmd/zir-py/zir_py_value.c cmd/zir-py/zir_py_expr.c cmd/zir-py/zir_py_statement.c cmd/zir-py/zir_py_runtime.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2zib: $(call obj,cmd/zir-zib/main.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)

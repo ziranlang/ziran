@@ -1,3 +1,12 @@
+#include "zir_memory.h"
+static void free_scratch_ReadLoweredSourceBuffers(void *pointer);
+static void free_scratch_LowerEnumValuesBuffers(void *pointer);
+static void free_scratch_CanonicalEnumValuesBuffers(void *pointer);
+static void free_scratch_DiscoverConditionalTypeBuffers(void *pointer);
+static void free_scratch_DiscoverFileScopeBuffers(void *pointer);
+static void free_scratch_DiscoverFunctionHeaderBuffers(void *pointer);
+static void free_scratch_DiscoverNamedTypeBuffers(void *pointer);
+static void free_scratch_NormalizeJaiSourceTokensBuffers(void *pointer);
 #include "zir_files.h"
 #include "zir_parse_internal.h"
 
@@ -274,14 +283,17 @@ normalize_jai_source_tokens(char *line, const char *path,
                    "for + - * / %% == != < <= > >= & | ^ << >>");
         }
     }
-    static _Thread_local NormalizeJaiSourceTokensBuffers *spares[16];
-    static _Thread_local int spare_count;
-    NormalizeJaiSourceTokensBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_NormalizeJaiSourceTokensBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    NormalizeJaiSourceTokensBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     normalize_jai_source_tokens_with_buffers(line, path, physical_path, line_no, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -451,14 +463,17 @@ discover_named_type(const char *source, const char *path, const char *rel,
                     int line_no,
                     int scope_public, int scope_file, ZirTypes *future)
 {
-    static _Thread_local DiscoverNamedTypeBuffers *spares[16];
-    static _Thread_local int spare_count;
-    DiscoverNamedTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_DiscoverNamedTypeBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    DiscoverNamedTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     discover_named_type_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -563,14 +578,17 @@ discover_function_header(const char *source, const char *path,
                          int scope_public, int scope_file,
                          ZirFunctions *future)
 {
-    static _Thread_local DiscoverFunctionHeaderBuffers *spares[16];
-    static _Thread_local int spare_count;
-    DiscoverFunctionHeaderBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_DiscoverFunctionHeaderBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    DiscoverFunctionHeaderBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     discover_function_header_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -1126,14 +1144,17 @@ discover_file_scope(const char *source, const char *path, const char *rel,
                     ZirGlobals *future_globals,
                     ZirDiscoveredFiles *files, int depth)
 {
-    static _Thread_local DiscoverFileScopeBuffers *spares[16];
-    static _Thread_local int spare_count;
-    DiscoverFileScopeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_DiscoverFileScopeBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    DiscoverFileScopeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     discover_file_scope_with_buffers(source, path, rel, root, future_constants, future_usings, future_imports, future_types, deferred_types, future_functions, future_globals, files, depth, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 /* Buffers discover_conditional_type keeps on the heap so deep nesting fits the stack;
@@ -1188,14 +1209,17 @@ discover_conditional_type(const ZirDeferredType *item,
                           const CompileParseContext *context,
                           ZirTypes *future, int allow_defer)
 {
-    static _Thread_local DiscoverConditionalTypeBuffers *spares[16];
-    static _Thread_local int spare_count;
-    DiscoverConditionalTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_DiscoverConditionalTypeBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    DiscoverConditionalTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = discover_conditional_type_with_buffers(item, module, constants, context, future, allow_defer, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1278,14 +1302,17 @@ canonical_enum_values_with_buffers(ZirType *type, CanonicalEnumValuesBuffers *bu
 static void
 canonical_enum_values(ZirType *type)
 {
-    static _Thread_local CanonicalEnumValuesBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CanonicalEnumValuesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CanonicalEnumValuesBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CanonicalEnumValuesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     canonical_enum_values_with_buffers(type, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 /* Buffers lower_enum_values keeps on the heap so deep nesting fits the stack;
@@ -1388,14 +1415,17 @@ lower_enum_values_with_buffers(ZirType *type, LowerEnumValuesBuffers *buffers)
 void
 lower_enum_values(ZirType *type)
 {
-    static _Thread_local LowerEnumValuesBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LowerEnumValuesBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerEnumValuesBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    LowerEnumValuesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     lower_enum_values_with_buffers(type, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -1643,14 +1673,17 @@ read_lowered_source_with_buffers(const char *path, ReadLoweredSourceBuffers *buf
 char *
 read_lowered_source(const char *path)
 {
-    static _Thread_local ReadLoweredSourceBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ReadLoweredSourceBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ReadLoweredSourceBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ReadLoweredSourceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     char *returned = read_lowered_source_with_buffers(path, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1727,4 +1760,52 @@ import_string_source(const char *line, ZirSourceSpan span)
         output.text[0] = '\0';
     }
     return output.text;
+}
+
+static void free_scratch_ReadLoweredSourceBuffers(void *pointer)
+{
+    ReadLoweredSourceBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_LowerEnumValuesBuffers(void *pointer)
+{
+    LowerEnumValuesBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_CanonicalEnumValuesBuffers(void *pointer)
+{
+    CanonicalEnumValuesBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_DiscoverConditionalTypeBuffers(void *pointer)
+{
+    DiscoverConditionalTypeBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_DiscoverFileScopeBuffers(void *pointer)
+{
+    DiscoverFileScopeBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_DiscoverFunctionHeaderBuffers(void *pointer)
+{
+    DiscoverFunctionHeaderBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_DiscoverNamedTypeBuffers(void *pointer)
+{
+    DiscoverNamedTypeBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_NormalizeJaiSourceTokensBuffers(void *pointer)
+{
+    NormalizeJaiSourceTokensBuffers *buffers = pointer;
+    free(buffers);
 }

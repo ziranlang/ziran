@@ -62,10 +62,6 @@ typedef struct {
     char guard[256];
 } ModuleIdentity;
 
-typedef struct TypePath {
-    const ZirType *record;
-    const struct TypePath *parent;
-} TypePath;
 
 typedef struct Local {
     char name[ZIR_NAME_MAX];

@@ -6,6 +6,7 @@
  * Linked by the IR and native backends.
  */
 #include "zir.h"
+#include "zir_memory.h"
 #include "zir_parse.h"
 #include "zir_text.h"
 #include "zir_cleanup.h"
@@ -25,6 +26,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+typedef struct ParseRecovery {
+    jmp_buf jump;
+    struct ParseRecovery *previous;
+    CompilerMemory *memory;
+    void *expression_cache;
+    int arrays, law, defaults;
+} ParseRecovery;
+extern _Thread_local ParseRecovery *ZirParseRecovery;
+extern _Thread_local int ZirDefaultExpansionDepth;
+void *ParseCacheEnter(void);
+void ParseCacheLeave(void *previous);
 
 enum {
     SOURCE_PATH_MAX = 1024,

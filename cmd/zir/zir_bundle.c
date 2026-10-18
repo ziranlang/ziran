@@ -1,3 +1,7 @@
+#include "zir_memory.h"
+static void free_scratch_LinkCheckedEntryBuffers(void *pointer);
+static void free_scratch_PruneRecordFieldsBuffers(void *pointer);
+static void free_scratch_PruneFunctionBuffers(void *pointer);
 #include "zir_bundle.h"
 #include "zir_stream.h"
 #include "zir_check.h"
@@ -354,11 +358,13 @@ copy_program(const ZirProgram *source)
                              source->module_count : 1), sizeof(*result->modules));
     if(result->modules == NULL)
         goto failed;
+    if(!ProgramInheritContexts(result, source)) goto failed;
     result->module_count = result->module_cap = source->module_count;
     for(int m = 0; m < source->module_count; m++) {
         const ZirModule *from = &source->modules[m];
         ZirModule *to = &result->modules[m];
         *to = *from;
+        to->context = result->context;
         to->globals = NULL; to->global_count = to->global_cap = 0;
         to->defines = NULL; to->define_count = to->define_cap = 0;
         to->asserts = NULL; to->assert_count = to->assert_cap = 0;
@@ -688,14 +694,17 @@ prune_function_with_buffers(ZirFunction *fn, PruneFunctionBuffers *buffers)
 static int
 prune_function(ZirFunction *fn)
 {
-    static _Thread_local PruneFunctionBuffers *spares[16];
-    static _Thread_local int spare_count;
-    PruneFunctionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_PruneFunctionBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    PruneFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = prune_function_with_buffers(fn, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1013,14 +1022,17 @@ static int
 prune_record_fields(ZirProgram *program, const char *entry_module,
                     const char *entry_function)
 {
-    static _Thread_local PruneRecordFieldsBuffers *spares[16];
-    static _Thread_local int spare_count;
-    PruneRecordFieldsBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_PruneRecordFieldsBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    PruneRecordFieldsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = prune_record_fields_with_buffers(program, entry_module, entry_function, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -2001,6 +2013,7 @@ resolve_reachability:
     linked->modules = calloc((size_t)selected_modules, sizeof(*linked->modules));
     if(linked->modules == NULL)
         goto failed;
+    if(!ProgramInheritContexts(linked, program)) goto failed;
     linked->module_count = linked->module_cap = selected_modules;
     int out = 0;
     for(int m = 0; m < program->module_count; m++) {
@@ -2029,6 +2042,7 @@ resolve_reachability:
             continue;
         target = &linked->modules[out++];
         *target = *source;
+        target->context = linked->context;
         target->globals = NULL; target->global_count = target->global_cap = 0;
         target->defines = NULL; target->define_count = target->define_cap = 0;
         target->asserts = NULL; target->assert_count = target->assert_cap = 0;
@@ -2171,20 +2185,23 @@ static ZirProgram *
 link_checked_entry(const ZirProgram *program, const char *entry_module,
            const char *entry_function, int native)
 {
-    static _Thread_local LinkCheckedEntryBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LinkCheckedEntryBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LinkCheckedEntryBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    LinkCheckedEntryBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     ZirProgram *returned = link_checked_entry_with_buffers(program, entry_module, entry_function, native, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
 
 ZirProgram *
-BundleLink(const ZirProgram *program, const char *entry_module,
+BundleLink_in_context(const ZirProgram *program, const char *entry_module,
            const char *entry_function)
 {
     ZirProgram *optimized = copy_program(program);
@@ -2220,14 +2237,14 @@ native_link(const ZirProgram *program, const char *entry_module,
 }
 
 ZirProgram *
-NativeLink(const ZirProgram *program, const char *entry_module,
+NativeLink_in_context(const ZirProgram *program, const char *entry_module,
            const char *entry_function)
 {
     return native_link(program, entry_module, entry_function, 1);
 }
 
 ZirProgram *
-NativeGoLink(const ZirProgram *program, const char *entry_module,
+NativeGoLink_in_context(const ZirProgram *program, const char *entry_module,
              const char *entry_function)
 {
     return native_link(program, entry_module, entry_function, 2);
@@ -2370,12 +2387,16 @@ append_library(ZirProgram *program, const ZirProgram *library)
         return 0;
     }
     program->modules = modules;
+    if(!ProgramInheritContexts(program, copy)) { ProgramFree(copy); return 0; }
+    for(int m = 0; m < copy->module_count; m++) copy->modules[m].context = program->context;
     memcpy(modules + program->module_count, copy->modules,
            (size_t)copy->module_count * sizeof(*modules));
     program->module_count += copy->module_count;
     program->module_cap = program->module_count;
     free(copy->modules);
-    free(copy);
+    copy->modules = NULL;
+    copy->module_count = copy->module_cap = 0;
+    ProgramFree(copy);
     SymbolLookupsChanged();
     return 1;
 }
@@ -2599,4 +2620,46 @@ BundleRead(FILE *in, const char *path,
 {
     return BundleReadInContext(in, path, entry_module, module_size,
         entry_function, function_size, laws, assets, NULL, 0, NULL, NULL);
+}
+
+static void free_scratch_LinkCheckedEntryBuffers(void *pointer)
+{
+    LinkCheckedEntryBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_PruneRecordFieldsBuffers(void *pointer)
+{
+    PruneRecordFieldsBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_PruneFunctionBuffers(void *pointer)
+{
+    PruneFunctionBuffers *buffers = pointer;
+    free(buffers);
+}
+
+ZirProgram *BundleLink(const ZirProgram *program, const char *entry_module, const char *entry_function)
+{
+    CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
+    ZirProgram *linked = BundleLink_in_context(program, entry_module, entry_function);
+    CompilerContextSelect(previous);
+    return linked;
+}
+
+ZirProgram *NativeLink(const ZirProgram *program, const char *entry_module, const char *entry_function)
+{
+    CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
+    ZirProgram *linked = NativeLink_in_context(program, entry_module, entry_function);
+    CompilerContextSelect(previous);
+    return linked;
+}
+
+ZirProgram *NativeGoLink(const ZirProgram *program, const char *entry_module, const char *entry_function)
+{
+    CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
+    ZirProgram *linked = NativeGoLink_in_context(program, entry_module, entry_function);
+    CompilerContextSelect(previous);
+    return linked;
 }

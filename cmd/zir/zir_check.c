@@ -1,3 +1,8 @@
+#include "zir_memory.h"
+static void free_scratch_LowerFileRecordUsingBuffers(void *pointer);
+static void free_scratch_LayoutTypeBuffers(void *pointer);
+static void free_scratch_LowerFileScopeUsingBuffers(void *pointer);
+static void free_scratch_CheckFilePrivateExpressionBuffers(void *pointer);
 #include "zir_check_internal.h"
 
 static const char *apply_using_filter(const char *filter, const char *name, char *buffer, size_t size);
@@ -111,14 +116,17 @@ int
 check_file_private_expression(const ZirModule *module, const char *source,
                               ZirSourceSpan span)
 {
-    static _Thread_local CheckFilePrivateExpressionBuffers *spares[16];
-    static _Thread_local int spare_count;
-    CheckFilePrivateExpressionBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CheckFilePrivateExpressionBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    CheckFilePrivateExpressionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = check_file_private_expression_with_buffers(module, source, span, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -283,14 +291,17 @@ int
 LowerFileScopeUsing(ZirModule *module, char *source, size_t capacity,
                     ZirSourceSpan span)
 {
-    static _Thread_local LowerFileScopeUsingBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LowerFileScopeUsingBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerFileScopeUsingBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    LowerFileScopeUsingBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = LowerFileScopeUsing_with_buffers(module, source, capacity, span, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -569,14 +580,17 @@ int
 layout_type(const ZirModule *module, const char *source, int depth,
             size_t *size, size_t *alignment)
 {
-    static _Thread_local LayoutTypeBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LayoutTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LayoutTypeBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    LayoutTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = layout_type_with_buffers(module, source, depth, size, alignment, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1223,14 +1237,17 @@ int
 lower_file_record_using(ZirModule *module, char *source, size_t capacity,
                         ZirSourceSpan span)
 {
-    static _Thread_local LowerFileRecordUsingBuffers *spares[16];
-    static _Thread_local int spare_count;
-    LowerFileRecordUsingBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerFileRecordUsingBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    LowerFileRecordUsingBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = lower_file_record_using_with_buffers(module, source, capacity, span, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -1634,4 +1651,28 @@ queue_specialization(Checker *c, const ZirModule *owner,
     copy_text(request->name, sizeof(request->name), name);
     copy_text(request->type, sizeof(request->type), type);
     return 1;
+}
+
+static void free_scratch_LowerFileRecordUsingBuffers(void *pointer)
+{
+    LowerFileRecordUsingBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_LayoutTypeBuffers(void *pointer)
+{
+    LayoutTypeBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_LowerFileScopeUsingBuffers(void *pointer)
+{
+    LowerFileScopeUsingBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_CheckFilePrivateExpressionBuffers(void *pointer)
+{
+    CheckFilePrivateExpressionBuffers *buffers = pointer;
+    free(buffers);
 }

@@ -31,6 +31,12 @@ typedef struct ZirParameter {
     const char *text;
     const char *name;
     const char *type;
+    /* Semantic declaration view; original name/type/text remain diagnostic
+     * spellings. Defaults and namespace modifiers are parsed once here. */
+    const char *binding_name;
+    const char *value_type;
+    const char *default_value;
+    int is_using;
 } ZirParameter;
 typedef struct ZirParameters {
     int count;

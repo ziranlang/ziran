@@ -1,3 +1,4 @@
+#include "zir_memory.h"
 #include "zir.h"
 #include "compiler_type.h"
 #include <string.h>
@@ -32,10 +33,16 @@ typedef struct RecordFields {
     size_t field_slot_count;
     int *field_slots;
 } RecordFields;
-static struct {
+typedef struct FieldSnapshots {
     RecordFields **slots, **ids;
     size_t slots_count, count, capacity;
-} record_fields;
+} FieldSnapshots;
+static void free_record_fields(void *value);
+static FieldSnapshots *context_fields(void)
+{
+    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_FIELDS, sizeof(FieldSnapshots), free_record_fields);
+}
+#define record_fields (*context_fields())
 static atomic_flag record_fields_lock = ATOMIC_FLAG_INIT;
 enum { FIELD_CURSOR_BITS = 12, FIELD_CURSOR_MASK = (1 << FIELD_CURSOR_BITS) - 1 };
 
@@ -47,16 +54,16 @@ static size_t field_slot(RecordFields **slots, size_t count, const char *body, i
     return at;
 }
 
-static void free_record_fields(void)
+static void free_record_fields(void *value)
 {
-    for(size_t i = 0; i < record_fields.count; i++) {
-        free(record_fields.ids[i]->items);
-        free(record_fields.ids[i]->field_slots);
-        free(record_fields.ids[i]);
+    FieldSnapshots *fields = value;
+    for(size_t i = 0; i < fields->count; i++) {
+        free(fields->ids[i]->items);
+        free(fields->ids[i]->field_slots);
+        free(fields->ids[i]);
     }
-    free(record_fields.ids);
-    free(record_fields.slots);
-    memset(&record_fields, 0, sizeof(record_fields));
+    free(fields->ids);
+    free(fields->slots);
 }
 
 static size_t
@@ -86,7 +93,6 @@ static RecordFields *fields_of(const ZirType *record)
             RecordFields *entry = record_fields.ids[i];
             slots[field_slot(slots, count, entry->body, entry->is_union)] = entry;
         }
-        if(record_fields.slots_count == 0) atexit(free_record_fields);
         free(record_fields.slots);
         record_fields.slots = slots;
         record_fields.slots_count = count;
@@ -158,7 +164,7 @@ static RecordFields *fields_of(const ZirType *record)
     return result;
 }
 
-int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
+int TypeNextField_persistent(const ZirType *record, size_t *cursor, ZirTypeField *field)
 {
     memset(field, 0, sizeof(*field));
     if(record->is_enum || record->is_procedure_type) return -1;
@@ -183,8 +189,8 @@ int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
     return 1;
 }
 
-int
-TypeFindField(const ZirType *record, const char *name, ZirTypeField *field)
+static int
+TypeFindField_persistent(const ZirType *record, const char *name, ZirTypeField *field)
 {
     if(record == NULL || name == NULL || record->is_enum || record->is_procedure_type) {
         memset(field, 0, sizeof(*field));
@@ -208,8 +214,8 @@ TypeFindField(const ZirType *record, const char *name, ZirTypeField *field)
     return fields == NULL || fields->terminal < 0 ? -1 : 0;
 }
 
-int
-TypeHasOnlyPrimitiveFields(const ZirType *record)
+static int
+TypeHasOnlyPrimitiveFields_persistent(const ZirType *record)
 {
     if(record == NULL || record->is_enum || record->is_procedure_type) return 0;
     while(atomic_flag_test_and_set_explicit(&record_fields_lock, memory_order_acquire)) {}
@@ -312,4 +318,43 @@ int PyForeignCallParts(const char *target, char *module, size_t module_size,
 int PyForeignTargetValid(const char *target)
 {
     return compiler_type_PythonCall(type_text(target)).kind == 1;
+}
+
+int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
+{
+    CompilerContext *previous = CompilerContextSelect(record ? record->span.context : NULL);
+    CompilerMemory *memory = CompilerMemoryPause();
+    int result = TypeNextField_persistent(record, cursor, field);
+    CompilerMemoryResume(memory);
+    CompilerContextSelect(previous);
+    return result;
+}
+
+int TypeFindField(const ZirType *record, const char *name, ZirTypeField *field)
+{
+    CompilerContext *previous = CompilerContextSelect(record ? record->span.context : NULL);
+    CompilerMemory *memory = CompilerMemoryPause();
+    int result = TypeFindField_persistent(record, name, field);
+    CompilerMemoryResume(memory);
+    CompilerContextSelect(previous);
+    return result;
+}
+
+int TypeHasOnlyPrimitiveFields(const ZirType *record)
+{
+    CompilerContext *previous = CompilerContextSelect(record ? record->span.context : NULL);
+    CompilerMemory *memory = CompilerMemoryPause();
+    int result = TypeHasOnlyPrimitiveFields_persistent(record);
+    CompilerMemoryResume(memory);
+    CompilerContextSelect(previous);
+    return result;
+}
+
+int
+ArrayValueType(const char *type)
+{
+    char element[ZIR_NAME_MAX];
+    /* Host char buffers retain their explicit C-string interop convention. */
+    return ArrayElementType(type, element, sizeof(element), NULL) &&
+           strcmp(element, "char") != 0 && strcmp(element, "const char") != 0;
 }

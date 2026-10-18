@@ -1,3 +1,7 @@
+#include "zir_memory.h"
+static void free_scratch_ScalarLiteralBuffers(void *pointer);
+static void free_scratch_EmitDestinationBuffers(void *pointer);
+static void free_scratch_NumberBuffers(void *pointer);
 #include "zir_emit_internal.h"
 
 int zir_minify_output;
@@ -842,14 +846,17 @@ void
 number(Emitter *e, const char *type, const char *a, const char *a_type,
        const char *b, const char *b_type, int op, char *out, size_t size)
 {
-    static _Thread_local NumberBuffers *spares[16];
-    static _Thread_local int spare_count;
-    NumberBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_NumberBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    NumberBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     number_with_buffers(e, type, a, a_type, b, b_type, op, out, size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -981,14 +988,17 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
 void
 emit_destination(Emitter *e, int index, char *out, size_t size)
 {
-    static _Thread_local EmitDestinationBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitDestinationBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitDestinationBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitDestinationBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_destination_with_buffers(e, index, out, size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
 }
 
@@ -1178,14 +1188,35 @@ int
 ScalarLiteral(const char *type, const char *text, ZirTarget target,
                   ZirSourceSpan span, char *out, size_t size)
 {
-    static _Thread_local ScalarLiteralBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ScalarLiteralBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ScalarLiteralBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ScalarLiteralBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = ScalarLiteral_with_buffers(type, text, target, span, out, size, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
+}
+
+static void free_scratch_ScalarLiteralBuffers(void *pointer)
+{
+    ScalarLiteralBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_EmitDestinationBuffers(void *pointer)
+{
+    EmitDestinationBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_NumberBuffers(void *pointer)
+{
+    NumberBuffers *buffers = pointer;
+    free(buffers);
 }

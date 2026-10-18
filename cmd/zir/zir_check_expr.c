@@ -1,3 +1,6 @@
+#include "zir_memory.h"
+static void free_scratch_InferExpressionTypeBuffers(void *pointer);
+static void free_scratch_ExpressionTypeBuffers(void *pointer);
 #include "zir_check_internal.h"
 /* Buffers expression_type keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -2634,14 +2637,17 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
 const char *
 expression_type(Checker *c, int index)
 {
-    static _Thread_local ExpressionTypeBuffers *spares[16];
-    static _Thread_local int spare_count;
-    ExpressionTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ExpressionTypeBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    ExpressionTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     const char *returned = expression_type_with_buffers(c, index, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
 }
@@ -2687,14 +2693,29 @@ int
 InferExpressionType(const ZirModule *module, const char *expression,
                     ZirSourceSpan span, char *type, size_t capacity)
 {
-    static _Thread_local InferExpressionTypeBuffers *spares[16];
-    static _Thread_local int spare_count;
-    InferExpressionTypeBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_InferExpressionTypeBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    InferExpressionTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = InferExpressionType_with_buffers(module, expression, span, type, capacity, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
+}
+
+static void free_scratch_InferExpressionTypeBuffers(void *pointer)
+{
+    InferExpressionTypeBuffers *buffers = pointer;
+    free(buffers);
+}
+
+static void free_scratch_ExpressionTypeBuffers(void *pointer)
+{
+    ExpressionTypeBuffers *buffers = pointer;
+    free(buffers);
 }

@@ -1,3 +1,5 @@
+#include "zir_memory.h"
+static void free_scratch_EmitRuntimeHeadersBuffers(void *pointer);
 #include "zir_runtime.h"
 #include "zir.h"
 
@@ -88,14 +90,23 @@ EmitRuntimeHeaders_with_buffers(const char *out_dir, const char *generated_path,
 int
 EmitRuntimeHeaders(const char *out_dir, const char *generated_path)
 {
-    static _Thread_local EmitRuntimeHeadersBuffers *spares[16];
-    static _Thread_local int spare_count;
-    EmitRuntimeHeadersBuffers *buffers = spare_count > 0 ? spares[--spare_count] :
-        AllocateOrExit(sizeof(*buffers));
+    static const char scratch_key;
+    static _Thread_local uint64_t scratch_identity;
+    static _Thread_local CompilerScratch *scratch_hint;
+    if(scratch_identity != CompilerContextIdentity()) {
+        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitRuntimeHeadersBuffers);
+        scratch_identity = CompilerContextIdentity();
+    }
+    EmitRuntimeHeadersBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
+    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = EmitRuntimeHeaders_with_buffers(out_dir, generated_path, buffers);
-    if(spare_count < 16)
-        spares[spare_count++] = buffers;
-    else
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
+}
+
+static void free_scratch_EmitRuntimeHeadersBuffers(void *pointer)
+{
+    EmitRuntimeHeadersBuffers *buffers = pointer;
+    free(buffers);
 }

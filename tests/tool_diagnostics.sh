@@ -96,7 +96,7 @@ int main(void) {
 }
 ''')
 subprocess.run(['cc', '-std=c11', '-I' + str(repo / 'cmd/zir'), str(probe),
-                str(repo / 'cmd/zir/zir_diagnostic.c'), '-o', str(work / 'probe')], check=True)
+                str(repo / 'cmd/zir/zir_diagnostic.c'), str(repo / 'cmd/zir/zir_memory.c'), '-o', str(work / 'probe')], check=True)
 items = diagnostics([work / 'probe'], 'compiler.memory')
 assert items[0]['message'].startswith('🙂ÿ'), items
 assert len(items) == 2, items

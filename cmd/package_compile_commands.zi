@@ -1,18 +1,12 @@
 // `ziran compile-commands` writes compile_commands.json, which tells editors
-// such as clangd how generated C is compiled. Linux only: it lists a
-// directory and resolves paths through the C library.
+// such as clangd how generated C is compiled. It lists a directory and
+// resolves paths through the POSIX C library.
+#import "file_linux"
 #scope_file
 libc :: #system_library "libc";
 CcGetDirectory :: (output: *u8, capacity: u64) -> *u8 #foreign libc "getcwd";
 CcResolve :: (path: *u8, output: *u8) -> *u8 #foreign libc "realpath";
-CcOpenDirectory :: (path: *u8) -> *void #foreign libc "opendir";
-CcReadDirectory :: (directory: *void) -> *u8 #foreign libc "readdir";
-CcCloseDirectory :: (directory: *void) -> s32 #foreign libc "closedir";
 CcAccess :: (path: *u8, mode: s32) -> s32 #foreign libc "access";
-CcOpen :: (path: *u8, flags: s32, mode: ..any) -> s32 #foreign libc "open";
-CcWrite :: (descriptor: s32, input: *u8, count: u64) -> s64 #foreign libc "write";
-CcClose :: (descriptor: s32) -> s32 #foreign libc "close";
-CcRename :: (source: *u8, destination: *u8) -> s32 #foreign libc "rename";
 CcGetEnvironment :: (name: *u8) -> *u8 #foreign libc "getenv";
 CcCopyDescriptor :: (source: *CcDescriptor, destination: *string,
     count: u64) -> void #foreign libc "bcopy";
@@ -46,7 +40,7 @@ CcNameBytes :: struct {
 
 // Where the JSON is assembled before it is written in blocks.
 CcSink :: struct {
-    descriptor: s32
+    file: FileHandle
     length: s32
     failed: bool
     block: [4096]u8
@@ -172,28 +166,26 @@ CcSplit :: (command: string) -> bool {
 
 // Collects the names of the .c files in a directory, sorted.
 CcCollect :: (directory: string) -> bool {
-    path: [4096]u8
     cc_name_count = 0
-    if !CcCopy(directory, path[:]) { return false }
-    handle: *void = CcOpenDirectory(*path[0])
-    if handle == null { return false }
+    cursor := OpenDirectory(directory)
+    if !cursor.valid { return false }
     while true {
-        entry: *u8 = CcReadDirectory(handle)
-        if entry == null { break }
-        // struct dirent on Linux: d_name starts at byte 19.
-        name: string = CcFromCString(*entry[19])
+        entry := NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+        name: string = CcFromCString(*entry.name[0])
         if name.count < 3 || name.count >= 128 { continue }
         if name[cast(s32)name.count - 2] != 46 || name[cast(s32)name.count - 1] != 99 {
             continue
         }
         if cc_name_count >= 4096 {
-            CcCloseDirectory(handle)
+            unused CloseDirectory(*cursor)
             return false
         }
         CcCopy(name, cc_names[cc_name_count].data[:])
         cc_name_count += 1
     }
-    CcCloseDirectory(handle)
+    failed := cursor.failed
+    if !CloseDirectory(*cursor) || failed { return false }
     outer: s32 = 1
     while outer < cc_name_count {
         inner: s32 = outer
@@ -223,7 +215,7 @@ CcBefore :: (first: string, second: string) -> bool {
 CcFlush :: (sink: *CcSink) {
     at: s32 = 0
     while at < sink.length {
-        written: s64 = CcWrite(sink.descriptor, *sink.block[at], cast(u64)(sink.length - at))
+        written: s64 = Write(sink.file, sink.block[at:sink.length])
         if written <= 0 {
             sink.failed = true
             break
@@ -314,11 +306,10 @@ WriteCompileCommands :: (include: string, compiler: string, generated: string,
     !CcAppend(temporary_path[:], ".tmp") {
         return "the output path is too long"
     }
-    // O_WRONLY | O_CREAT | O_TRUNC, mode 0644
     cc_sink.length = 0
     cc_sink.failed = false
-    cc_sink.descriptor = CcOpen(*temporary_path[0], 577, cast(s32)420)
-    if cc_sink.descriptor < 0 { return "cannot write the output file" }
+    cc_sink.file = OpenReplace(CcText(temporary_path[:]))
+    if !cc_sink.file.valid { return "cannot write the output file" }
 
     include_flag: [4104]u8
     generated_flag: [4104]u8
@@ -362,9 +353,9 @@ WriteCompileCommands :: (include: string, compiler: string, generated: string,
     }
     if cc_name_count > 0 { CcEmit(*cc_sink, "]\n") }
     CcFlush(*cc_sink)
-    CcClose(cc_sink.descriptor)
+    if !CloseFile(cc_sink.file) { cc_sink.failed = true }
     if cc_sink.failed { return "cannot write the output file" }
-    if CcRename(*temporary_path[0], *destination_path[0]) != 0 {
+    if !RenamePath(CcText(temporary_path[:]), CcText(destination_path[:])) {
         return "cannot replace the output file"
     }
     return ""

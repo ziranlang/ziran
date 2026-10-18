@@ -8,6 +8,10 @@ CompilerVersion :: #import "version"
 #scope_file
 libc :: #system_library "libc";
 ReadLink :: (path: *u8, output: *u8, count: usize) -> isize #foreign libc "readlink";
+#if #defined(__APPLE__) {
+    ExecutablePathRaw :: (output: *u8, size: *u32) -> s32 #foreign libc "_NSGetExecutablePath";
+    RealPathRaw :: (path: *u8, resolved: *u8) -> *u8 #foreign libc "realpath";
+}
 
 #scope_export
 #program_export
@@ -27,10 +31,20 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     // PATH may supply just "ziran" as argv[0]. Sibling compiler tools are
     // resolved beside this executable, as in the previous native launcher.
-    path: [32]u8
-    CopyCString("/proc/self/exe", path[:])
     launcher: [4096]u8
-    length: s64 = cast(s64)ReadLink(*path[0], *launcher[0], 4095)
+    length: s64 = -1
+    #if #defined(__APPLE__) {
+        unresolved: [4096]u8
+        capacity: u32 = 4096
+        if ExecutablePathRaw(*unresolved[0], *capacity) == 0 &&
+        RealPathRaw(*unresolved[0], *launcher[0]) != null {
+            length = cast(s64)TextFromCString(*launcher[0]).count
+        }
+    } else {
+        path: [32]u8
+        CopyCString("/proc/self/exe", path[:])
+        length = cast(s64)ReadLink(*path[0], *launcher[0], 4095)
+    }
     if length <= 0 || length >= 4095 {
         original := TextFromCString(argv[0])
         length = cast(s64)original.count

@@ -31,6 +31,25 @@ jobs:
         with:
           name: check-logs
           path: build/check-logs/
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the toolchain
+        run: make
+      - name: Run file, formatter and package commands natively
+        run: |
+          ziran="$GITHUB_WORKSPACE/build/bin/ziran"
+          sh tests/std_file_darwin.sh "$ziran"
+          sh tests/compile_commands.sh "$ziran"
+          printf 'Answer::()->s32 {\nreturn 42\n}\n' > "$RUNNER_TEMP/app.zi"
+          "$ziran" fmt "$RUNNER_TEMP/app.zi"
+          "$ziran" fmt --check "$RUNNER_TEMP/app.zi"
+          "$ziran" new "$RUNNER_TEMP/hello"
+          printf '[overrides]\nziran = "%s"\n' "$GITHUB_WORKSPACE" > "$RUNNER_TEMP/hello/ziran.local.toml"
+          cd "$RUNNER_TEMP/hello"
+          test "$("$ziran" run)" = "Hello, world!"
   sanitize:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

@@ -15,7 +15,11 @@ Exit :: (code: s32) #foreign libc "_exit";
 Wait :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
 Read :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
 Flush :: (stream: *void) -> s32 #foreign libc "fflush";
-LastError :: () -> *s32 #foreign libc "__errno_location";
+#if #defined(__APPLE__) {
+    LastError :: () -> *s32 #foreign libc "__error";
+} else {
+    LastError :: () -> *s32 #foreign libc "__errno_location";
+}
 PrintError :: (prefix: *u8) #foreign libc "perror";
 
 ProcessPointer :: struct { value: *u8 }

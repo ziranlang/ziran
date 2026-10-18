@@ -7,7 +7,6 @@ Diagnostics :: #import "diagnostics"
 
 #scope_export
 libc :: #system_library "libc";
-crypto :: #system_library "crypto";
 PkgMallocRaw :: (size: u64) -> *u8 #foreign libc "malloc";
 PkgFreeRaw :: (memory: *u8) #foreign libc "free";
 PkgCallocRaw :: (count: u64, size: u64) -> *u8 #foreign libc "calloc";
@@ -15,8 +14,24 @@ PkgGetenvRaw :: (name: *u8) -> *u8 #foreign libc "getenv";
 PkgGetcwdRaw :: (buffer: *u8, size: u64) -> *u8 #foreign libc "getcwd";
 PkgRealpathRaw :: (path: *u8, resolved: *u8) -> *u8 #foreign libc "realpath";
 PkgWriteRaw :: (fd: s32, bytes: *u8, count: u64) -> s64 #foreign libc "write";
-PkgSha256Raw :: (input: *u8, size: u64, digest: *u8) -> *u8 #foreign crypto "SHA256";
-PkgRandomRaw :: (output: *u8, size: s32) -> s32 #foreign crypto "RAND_bytes";
+#if #defined(__APPLE__) {
+    // libSystem provides both; macOS does not ship OpenSSL's libcrypto.
+    PkgDigestRaw :: (input: *u8, size: u32, digest: *u8) -> *u8 #foreign libc "CC_SHA256";
+    PkgRandomFillRaw :: (output: *u8, size: u64) #foreign libc "arc4random_buf";
+    PkgSha256Raw :: (input: *u8, size: u64, digest: *u8) -> *u8 {
+        if size > cast(u64)4294967295 { return null }
+        return PkgDigestRaw(input, cast(u32)size, digest)
+    }
+    PkgRandomRaw :: (output: *u8, size: s32) -> s32 {
+        if size < 0 { return 0 }
+        PkgRandomFillRaw(output, cast(u64)size)
+        return 1
+    }
+} else {
+    crypto :: #system_library "crypto";
+    PkgSha256Raw :: (input: *u8, size: u64, digest: *u8) -> *u8 #foreign crypto "SHA256";
+    PkgRandomRaw :: (output: *u8, size: s32) -> s32 #foreign crypto "RAND_bytes";
+}
 
 PkgReadResult :: struct {
     text: string

@@ -12,6 +12,9 @@
 #else
 #include <unistd.h>
 #endif
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 
 int PathIsAbsolute(const char *path)
 {
@@ -79,6 +82,18 @@ int ExecutablePath(char *output, size_t capacity)
     }
     for(DWORD i = 0; i < length; i++)
         if(output[i] == '\\') output[i] = '/';
+#elif defined(__APPLE__)
+    char unresolved[PATH_MAX], resolved[PATH_MAX];
+    uint32_t size = sizeof(unresolved);
+    size_t length = 0;
+    if(_NSGetExecutablePath(unresolved, &size) == 0 &&
+       realpath(unresolved, resolved) != NULL)
+        length = strlen(resolved);
+    if(length == 0 || length >= capacity - 1) {
+        output[0] = '\0';
+        return 0;
+    }
+    memcpy(output, resolved, length);
 #else
     ssize_t length = readlink("/proc/self/exe", output, capacity - 1);
     if(length <= 0 || (size_t)length >= capacity - 1) {

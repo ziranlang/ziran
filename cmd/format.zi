@@ -12,22 +12,45 @@ Release :: (storage: *u8) #foreign libc "free";
 CanonicalPath :: (path: *u8, output: *u8) -> *u8 #foreign libc "realpath";
 TemporaryFile :: (pattern: *u8) -> s32 #foreign libc "mkstemp";
 SetMode :: (fd: s32, mode: u32) -> s32 #foreign libc "fchmod";
-Stat :: (fd: s32, path: *u8, flags: s32, mask: u32,
-    metadata: *FileMetadata) -> s32 #foreign libc "statx";
 Environment :: (name: *u8) -> *u8 #foreign libc "getenv";
 
-// Linux's statx ABI has a stable 32-byte prefix followed by 224 bytes of
-// attributes. Only file type and permissions are needed here.
-FileMetadata :: struct {
-    mask: u32
-    block_size: u32
-    attributes: u64
-    links: u32
-    uid: u32
-    gid: u32
-    mode: u16
-    reserved: u16
-    remainder: [224]u8
+// Only file type and permissions are needed here.
+#if #defined(__APPLE__) {
+    // Darwin's stat keeps the mode after a 32-bit device number. Intel's
+    // unsuffixed symbols use the older record, which has a 32-bit inode first.
+    FileMetadata :: struct {
+        device: s32
+        #if #defined(__x86_64__) {
+            inode: u32
+        }
+        mode: u16
+        remainder: [256]u8
+    }
+    StatPath :: (path: *u8, metadata: *FileMetadata) -> s32 #foreign libc "stat";
+    StatFile :: (fd: s32, metadata: *FileMetadata) -> s32 #foreign libc "fstat";
+} else {
+    // Linux's statx ABI has a stable 32-byte prefix followed by 224 bytes of
+    // attributes.
+    FileMetadata :: struct {
+        mask: u32
+        block_size: u32
+        attributes: u64
+        links: u32
+        uid: u32
+        gid: u32
+        mode: u16
+        reserved: u16
+        remainder: [224]u8
+    }
+    Stat :: (fd: s32, path: *u8, flags: s32, mask: u32,
+        metadata: *FileMetadata) -> s32 #foreign libc "statx";
+    StatPath :: (path: *u8, metadata: *FileMetadata) -> s32 {
+        return Stat(-100, path, 0, 3, metadata)
+    }
+    StatFile :: (fd: s32, metadata: *FileMetadata) -> s32 {
+        empty: [1]u8
+        return Stat(fd, *empty[0], 4096, 3, metadata)
+    }
 }
 
 Report :: (message: string, path: string) -> s32 {
@@ -103,15 +126,14 @@ FormatFile :: (path: string, check: bool) -> s32 {
     name: [4096]u8
     if !CopyCString(path, name[:]) { return Report("invalid path: ", path) }
     metadata: FileMetadata
-    empty: [1]u8
     // Inspect before opening: a FIFO or device must never block the formatter.
-    if Stat(-100, *name[0], 0, 3, *metadata) != 0 ||
+    if StatPath(*name[0], *metadata) != 0 ||
     (metadata.mode & 61440) != 32768 {
         return Report("not found or not a regular file: ", path)
     }
     file := OpenRead(path)
     if !file.valid { return Report("cannot read: ", path) }
-    if Stat(file.fd, *empty[0], 4096, 3, *metadata) != 0 ||
+    if StatFile(file.fd, *metadata) != 0 ||
     (metadata.mode & 61440) != 32768 {
         CloseFile(file)
         return Report("not a regular file: ", path)

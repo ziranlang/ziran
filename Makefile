@@ -1,6 +1,15 @@
 CC ?= cc
 AR ?= ar
-OBJCOPY ?= objcopy
+TARGET_MACHINE := $(shell $(CC) -dumpmachine 2>/dev/null)
+DARWIN_TARGET := $(findstring darwin,$(TARGET_MACHINE))
+# Merged groups localize their shared helpers. Apple's ld -r already turns
+# hidden symbols into local ones; other object formats need objcopy.
+OBJCOPY ?= $(if $(DARWIN_TARGET),true,objcopy)
+# Ziran platform conditions are fixed when its sources compile, so the
+# tools written in Ziran name the Darwin host explicitly.
+ZIRAN_DEFINES ?= $(if $(DARWIN_TARGET),--define __APPLE__ --define $(if $(findstring x86_64,$(TARGET_MACHINE)),__x86_64__,__aarch64__))
+# macOS supplies SHA-256 and random bytes in libSystem.
+PACKAGE_LIBS ?= $(if $(DARWIN_TARGET),,-lcrypto) -lm
 CFLAGS ?= -O2
 override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
 # Kept names and texts (KeepName, KeepText) are shared and immutable, so
@@ -34,6 +43,7 @@ BIN_DIR := $(BUILD_DIR)/bin
 # Generated seeds break the cycle between the compiler and its Ziran
 # modules. Normal tools always link freshly compiled .zi implementations.
 HOST_CC ?= cc
+HOST_OBJCOPY ?= $(if $(findstring darwin,$(shell $(HOST_CC) -dumpmachine 2>/dev/null)),true,objcopy)
 BOOTSTRAP ?= 0
 SCANNER_OBJECT := $(BUILD_DIR)/obj/compiler-scan.o
 TEXT_OBJECT := $(BUILD_DIR)/obj/compiler-text.o
@@ -205,7 +215,6 @@ VM_PARTS := $(addprefix cmd/zir/zir_vm,.c _verify.c _eval.c _run.c)
 
 # COFF does not retain ELF hidden visibility, but objcopy can localize the
 # same declarations explicitly after the group's objects have been merged.
-TARGET_MACHINE := $(shell $(CC) -dumpmachine 2>/dev/null)
 ifneq ($(or $(findstring mingw,$(TARGET_MACHINE)),$(findstring windows,$(TARGET_MACHINE))),)
 COFF_PRIVATE_SYMBOLS := $(BUILD_DIR)/private-symbols
 $(COFF_PRIVATE_SYMBOLS)/%.txt: cmd/zir/zir_%_internal.h scripts/private-symbols.py
@@ -273,7 +282,7 @@ $(PACKAGE_C)/.generated: $(PACKAGE_SOURCES) $(BIN_DIR)/zi2c
 	rm -rf $(PACKAGE_C).next
 	mkdir -p $(BUILD_DIR)/package-source
 	printf 'Version :: "%s";\n' '$(ZIRAN_VERSION)' > $(BUILD_DIR)/package-source/version.zi
-	$(BIN_DIR)/zi2c --no-main --root cmd --module-path std \
+	$(BIN_DIR)/zi2c --no-main $(ZIRAN_DEFINES) --root cmd --module-path std \
 	    --module-path $(BUILD_DIR)/package-source -o $(PACKAGE_C).next cmd/package_entry.zi
 	mkdir -p $(PACKAGE_C)
 	for f in $(PACKAGE_C).next/*; do \
@@ -306,7 +315,7 @@ package-link: $(PACKAGE_OBJECTS) | $(BIN_DIR)
 	linked_bin=$$(mktemp "$(BIN_DIR)/.ziran.XXXXXX"); \
 	trap 'rm -f "$$linked_bin"' EXIT; \
 	trap 'exit 1' HUP INT TERM; \
-	$(CC) $(CFLAGS) -o "$$linked_bin" $(PACKAGE_OBJECTS) -lcrypto -lm; \
+	$(CC) $(CFLAGS) -o "$$linked_bin" $(PACKAGE_OBJECTS) $(PACKAGE_LIBS); \
 	chmod u+x "$$linked_bin"; \
 	mv -f "$$linked_bin" "$(BIN_DIR)/ziran"
 
@@ -317,7 +326,7 @@ FORMAT_C := $(BUILD_DIR)/format-c
 FORMAT_SOURCES := cmd/format.zi cmd/format_source.zi cmd/diagnostics.zi std/vec.zi std/option.zi \
     std/byte_text_linux.zi std/c_string.zi std/file_linux.zi
 $(BIN_DIR)/zi-fmt: $(FORMAT_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flags | $(BIN_DIR)
-	$(BIN_DIR)/zi2c --entry format:main --root cmd --module-path std \
+	$(BIN_DIR)/zi2c --entry format:main $(ZIRAN_DEFINES) --root cmd --module-path std \
 	    -o $(FORMAT_C) cmd/format.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(FORMAT_C) -o $@ $(FORMAT_C)/*.c -lm
 
@@ -371,7 +380,7 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_expression/compiler_expression.c bootstrap/compiler_expression/compiler_expression.h \
     bootstrap/compiler_statement/compiler_statement.c bootstrap/compiler_statement/compiler_statement.h Makefile
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
-	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=objcopy CFLAGS=-O2 \
+	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=-O2 \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
 
 $(SCANNER_C)/.generated: cmd/compiler_scan.zi $(BOOTSTRAP_BIN)

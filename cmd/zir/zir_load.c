@@ -391,6 +391,24 @@ module_target(const char *target)
     return module_target_part(target, strlen(target));
 }
 
+/* The NAME of the longest --module-path NAME=DIR that holds SOURCE. */
+static const char *
+module_path_package(const LoadContext *context, const char *source)
+{
+    const char *package = NULL;
+    size_t longest = 0;
+    for(int i = 0; i < context->module_path_count; i++) {
+        const char *directory = context->module_paths[i];
+        size_t length = strlen(directory);
+        if(context->module_path_names[i] == NULL || length <= longest ||
+           strncmp(source, directory, length) != 0 || source[length] != '/')
+            continue;
+        package = context->module_path_names[i];
+        longest = length;
+    }
+    return package;
+}
+
 static int
 try_module(LoadContext *context, const char *directory, const char *load_root,
            const char *target, int prefer_ir)
@@ -613,6 +631,18 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
     const char *standard = ToolchainStandardDirectory();
     if(standard != NULL) {
         result = try_module(context, standard, standard, target, prefer_ir);
+        if(result != 0)
+            return result > 0;
+    }
+    /* A module from --module-path NAME=DIR belongs to package NAME. A short
+     * import found nowhere else resolves in that package's directories, as
+     * it would in a project, including from a NAME/module.zi directory. */
+    const char *package = module_path_package(context, owner_source);
+    for(int i = 0; package != NULL && i < context->module_path_count; i++) {
+        if(context->module_path_names[i] == NULL ||
+           strcmp(context->module_path_names[i], package) != 0) continue;
+        result = try_module(context, context->module_paths[i],
+                            context->module_paths[i], target, prefer_ir);
         if(result != 0)
             return result > 0;
     }

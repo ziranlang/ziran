@@ -27,6 +27,17 @@ ZI
     --entry main:Answer -o "$work/app.zib" "$work/app/main.zi"
 test "$("$ziran" run "$work/app.zib")" = 42
 
+# A directory module's short imports resolve in its own package even when
+# nothing else loaded them first.
+cat > "$work/app/directory.zi" <<'ZI'
+#import "lib/Greeting"
+#program_export
+Answer :: () -> s32 { return Greet() + Extra() }
+ZI
+"$ziran" bundle --root "$work/app" --module-path "lib=$work/lib/src" \
+    --entry directory:Answer -o "$work/directory.zib" "$work/app/directory.zi"
+test "$("$ziran" run "$work/directory.zib")" = 42
+
 # A named path serves only its qualified imports.
 cat > "$work/app/short.zi" <<'ZI'
 #import "greet"

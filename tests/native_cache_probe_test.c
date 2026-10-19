@@ -53,6 +53,20 @@ int main(void)
          " cc1 -D'TEXT=" COMPILER LIBRARIES "'\n" ASSEMBLER "\n", 0);
     same(COMPILER ASSEMBLER "\n" LIBRARIES "\n" COMPILER ASSEMBLER "\n" LIBRARIES "\n",
          COMPILER LIBRARIES "\n" ASSEMBLER "\n" COMPILER LIBRARIES "\n" ASSEMBLER "\n", 1);
+    /* cc1 writes its checksum one byte at a time, then its newline. */
+#define CHECKSUM "Compiler executable checksum: "
+#define DIGITS "0051dfc1fa4e89ba97760da93f2546f3"
+    const char *checked = OPTIONS CHECKSUM DIGITS "\n" ASSEMBLER "\n";
+    same(checked, OPTIONS CHECKSUM DIGITS ASSEMBLER "\n\n", 1);
+    same(checked, OPTIONS CHECKSUM "0051df" ASSEMBLER "\nc1fa4e89ba97760da93f2546f3\n", 1);
+    same(checked, OPTIONS CHECKSUM ASSEMBLER "\n" DIGITS "\n", 1);
+    same(CHECKSUM DIGITS "\r\n" ASSEMBLER "\r\n", CHECKSUM DIGITS ASSEMBLER "\r\n\r\n", 1);
+    same(checked, OPTIONS CHECKSUM "0051df" ASSEMBLER "\nc1fa4e89ba97760da93f2546f4\n", 0);
+    same(checked, OPTIONS CHECKSUM "0051df" ASSEMBLER "\nc1fa4e89ba97760da93f2546f\n", 0);
+    same(checked, OPTIONS CHECKSUM DIGITS ASSEMBLER "\nextra metadata\n", 0);
+    same(checked, OPTIONS CHECKSUM DIGITS "GNU assembler version 2.44 (target)\n\n", 0);
+    same(checked, OPTIONS CHECKSUM DIGITS "GNU assembler version 2.45 (target) using BFD version 2.44\n\n", 0);
+    same(checked, OPTIONS "Other checksum: " DIGITS ASSEMBLER "\n\n", 0);
     char *changed = strdup(interleaved);
     assert(changed);
     for(size_t i = 0; changed[i]; i++) {
@@ -60,6 +74,16 @@ int main(void)
         if(saved == '\n') continue;
         changed[i] = saved == 'X' ? 'Y' : 'X';
         same(ordinary, changed, 0);
+        changed[i] = saved;
+    }
+    free(changed);
+    changed = strdup(OPTIONS CHECKSUM "0051df" ASSEMBLER "\nc1fa4e89ba97760da93f2546f3\n");
+    assert(changed);
+    for(size_t i = 0; changed[i]; i++) {
+        char saved = changed[i];
+        if(saved == '\n') continue;
+        changed[i] = saved == 'X' ? 'Y' : 'X';
+        same(checked, changed, 0);
         changed[i] = saved;
     }
     free(changed);

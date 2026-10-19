@@ -431,19 +431,39 @@ static int supported_arguments(char *const *args,int count)
     return 1;
 }
 
-/* cc1 writes its compiler prefix separately from its math-library versions.
- * A whole assembler banner can arrive between those writes. Reconstruct
- * only that recognized pair of records, retaining every version byte. */
+static int assembler_banner(const char *text)
+{
+    return !strncmp(text,"GNU assembler version ",22) && strstr(text," using BFD version ");
+}
+static int checksum_digits(const char *text,size_t count)
+{
+    for(size_t i=0;i<count;i++) if(!text[i] || !strchr("0123456789abcdef",text[i])) return 0;
+    return 1;
+}
+
+/* cc1 writes some records in pieces: its compiler prefix apart from its
+ * math-library versions, and its executable checksum one byte at a time
+ * before the newline. A whole assembler banner can arrive between those
+ * writes. Reconstruct only these recognized records, retaining every
+ * version and checksum byte. */
 static int join_probe_versions(char **lines,size_t count)
 {
-    const char *prefix="\tcompiled by GNU C version ";
-    size_t prefix_length=strlen(prefix);
+    const char *prefix="\tcompiled by GNU C version ",*checksum="Compiler executable checksum: ";
+    size_t prefix_length=strlen(prefix),checksum_length=strlen(checksum);
     for(size_t i=0;i+1<count;i++) {
-        char *line=lines[i],*next=lines[i+1];
-        if(strncmp(line,prefix,prefix_length) || strncmp(next,"GMP version ",12)) continue;
-        char *banner=strstr(line+prefix_length,"GNU assembler version ");
-        if(!banner || banner<=line+prefix_length || banner[-2]!=',' || banner[-1]!=' ' ||
-           !strstr(banner," using BFD version ")) continue;
+        char *line=lines[i],*next=lines[i+1],*banner;
+        if(!strncmp(line,prefix,prefix_length) && !strncmp(next,"GMP version ",12)) {
+            banner=strstr(line+prefix_length,"GNU assembler version ");
+            if(!banner || banner<=line+prefix_length || banner[-2]!=',' || banner[-1]!=' ') continue;
+        } else if(!strncmp(line,checksum,checksum_length)) {
+            /* The remaining digits of the 32 follow on the next physical
+             * line, which ends where cc1's own newline was. */
+            banner=strstr(line+checksum_length,"GNU assembler version ");
+            size_t before=banner ? (size_t)(banner-line)-checksum_length : 0,after=strcspn(next,"\r");
+            if(!banner || before+after!=32 || !checksum_digits(line+checksum_length,before) ||
+               !checksum_digits(next,after) || (next[after] && strcmp(next+after,"\r"))) continue;
+        } else continue;
+        if(!assembler_banner(banner)) continue;
         size_t banner_size=strlen(banner)+1,tail_size=strlen(next)+1;
         char *saved=malloc(banner_size);
         if(!saved) return 0;
@@ -576,6 +596,9 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
             struct stat directory;
             if(piped && (stat(path,&directory)!=0 || !S_ISDIR(directory.st_mode))) ok=0;
             if(ok) { ok=add_name(&cache->roots,path);hash_text(&hash,path); }
+        } else if(searching && piped && assembler_banner(line)) {
+            /* A whole assembler banner can arrive between cc1's search
+             * lines. It is one of the hashed records, never a root. */
         } else if(searching && piped) {
             /* Concurrent verbose output must not hide a search root. */
             ok=0;

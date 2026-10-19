@@ -830,6 +830,19 @@ assembly_helpers(FILE *out, const ZirModule *module, const ZirFunction *fn,
     free(outputs);
 }
 
+/* Clang before 19 has no "lzcnt" for __builtin_cpu_supports, so it reads
+ * the CPUID bit (extended leaf 0x80000001, ECX bit 5) directly. */
+static const char lzcnt_cpuid[] =
+    "__extension__ ({\n"
+    "    unsigned int zir_leaf = 0x80000000u, zir_b, zir_c = 0, zir_d, zir_lzcnt = 0;\n"
+    "    __asm__(\"cpuid\" : \"+a\"(zir_leaf), \"=b\"(zir_b), \"+c\"(zir_c), \"=d\"(zir_d));\n"
+    "    if(zir_leaf >= 0x80000001u) {\n"
+    "        zir_leaf = 0x80000001u; zir_c = 0;\n"
+    "        __asm__(\"cpuid\" : \"+a\"(zir_leaf), \"=b\"(zir_b), \"+c\"(zir_c), \"=d\"(zir_d));\n"
+    "        zir_lzcnt = (zir_c & 0x20u) != 0;\n"
+    "    }\n"
+    "    zir_lzcnt; })";
+
 static void
 assembly_predicate(FILE *out, const Assembly *assembly)
 {
@@ -839,6 +852,9 @@ assembly_predicate(FILE *out, const Assembly *assembly)
         if(!first) fputs(" && ", out);
         if(assembly->architecture == ASM_AARCH64)
             fprintf(out, "(getauxval(AT_HWCAP) & %s) != 0", cpu_features[i].hwcap);
+        else if(!strcmp(cpu_features[i].name, "lzcnt"))
+            fprintf(out, "(\n#if defined(__clang__) && __clang_major__ < 19\n%s\n#else\n"
+                         "__builtin_cpu_supports(\"lzcnt\")\n#endif\n)", lzcnt_cpuid);
         else fprintf(out, "__builtin_cpu_supports(\"%s\")", cpu_features[i].name);
         first = 0;
     }

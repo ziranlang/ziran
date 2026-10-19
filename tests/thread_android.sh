@@ -1,7 +1,12 @@
 #!/bin/sh
 set -eu
 ziran=${1:?pass the ziran command}
-ndk=${ZIRAN_THREAD_ANDROID_NDK:?set the Android NDK root for focused cross-links}
+# Like the other Android cross-links, this runs where an NDK is installed.
+ndk=${ZIRAN_THREAD_ANDROID_NDK:-${ANDROID_NDK_HOME:-}}
+if test -z "$ndk"; then
+    echo 'Android thread cross-links skipped: set ANDROID_NDK_HOME or ZIRAN_THREAD_ANDROID_NDK'
+    exit 0
+fi
 work=${ZIRAN_THREAD_ANDROID_BUILD:-"$(pwd)/build/thread-android"}
 mkdir -p "$work"
 exec 9>"$work/check.lock"

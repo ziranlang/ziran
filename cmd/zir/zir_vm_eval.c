@@ -1017,7 +1017,7 @@ numeric_literal(Frame *frame, const ZirExpr *expression, Value *output)
     char *end;
     errno = 0;
     if(expression->kind == ZIR_EXPR_FLOAT)
-        value = real_value(strtod(expression->text, &end));
+        value = real_value(ParseDecimal(expression->text, &end));
     else if(expression->text[0] == '-')
         value = int_value(strtoll(expression->text, &end, 0));
     else {

@@ -1662,7 +1662,7 @@ fold_global_element_in_scope(Vm *vm, const ZirModule *module,
             return 1;
         }
         char *end = NULL;
-        double number = strtod(expr->text, &end);
+        double number = ParseDecimal(expr->text, &end);
         if(end != expr->text && *skip_ws(end) == '\0' &&
            isfinite(number) && target->kind == VALUE_REAL) {
             *target = real_value(number);
@@ -1781,7 +1781,7 @@ initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlo
                               !strcmp(slot->declaration->type,
                                       "float64")) {
                         char *end = NULL;
-                        double number = strtod(init, &end);
+                        double number = ParseDecimal(init, &end);
                         if(end != init && *skip_ws(end) == '\0')
                             slot->value = real_value(number);
                         else

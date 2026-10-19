@@ -850,6 +850,7 @@ compile_value_literal(CompileValue *value)
         int written = snprintf(value->literal, sizeof(value->literal),
                                "%.17g", value->real);
         if(written < 0 || (size_t)written >= sizeof(value->literal)) return 0;
+        DecimalPointDot(value->literal);
         if(strpbrk(value->literal, ".eE") == NULL) {
             if((size_t)written + 2 >= sizeof(value->literal)) return 0;
             strcat(value->literal, ".0");

@@ -73,6 +73,7 @@ def main():
         "record_fields_by_name.sh": str(bin_dir / "record-fields-by-name-test"),
         "process.sh": str(bin_dir / "process-host-test"),
         "vm_vec_scope.sh": str(bin_dir / "vm-vec-scope-test"),
+        "vm_locale.sh": str(bin_dir / "vm-locale-test"),
     }
     checks = [("bundle-link-test", [str(bin_dir / "bundle-link-test")])]
     for script in sorted((repo / "tests").glob("*.sh")):

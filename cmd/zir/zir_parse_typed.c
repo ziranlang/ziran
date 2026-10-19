@@ -155,7 +155,7 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         return compile_value_literal(result);
     case ZIR_EXPR_FLOAT:
         errno = 0;
-        real = strtod(expression->text, &end);
+        real = ParseDecimal(expression->text, &end);
         if(errno == ERANGE || end == expression->text || *end ||
            !isfinite(real)) return 0;
         result->kind = COMPILE_REAL;

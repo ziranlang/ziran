@@ -4,6 +4,7 @@
 #include "zir_diagnostic.h"
 #include "compiler_text.h"
 
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -272,6 +273,48 @@ PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity)
     return returned;
 }
 
+/* A host may switch LC_NUMERIC after startup; GTK adopts the user's locale.
+ * There strtod stops at the '.' of every Ziran literal, so read the text with
+ * the locale's own decimal point in place of it. */
+double
+ParseDecimal(const char *text, char **end)
+{
+    const char *point = localeconv()->decimal_point;
+    const char *dot = strchr(text, '.');
+    char local[256], *stop;
+    size_t length = strlen(text), width, offset, consumed;
+    if(dot == NULL || point == NULL || point[0] == '\0' || strcmp(point, ".") == 0)
+        return strtod(text, end);
+    width = strlen(point);
+    offset = (size_t)(dot - text);
+    if(length + width >= sizeof(local))
+        return strtod(text, end);
+    memcpy(local, text, offset);
+    memcpy(local + offset, point, width);
+    memcpy(local + offset + width, dot + 1, length - offset);
+    double value = strtod(local, &stop);
+    consumed = (size_t)(stop - local);
+    if(consumed > offset)
+        consumed = consumed < offset + width ? offset : consumed - width + 1;
+    if(end != NULL)
+        *end = (char *)text + consumed;
+    return value;
+}
+
+void
+DecimalPointDot(char *text)
+{
+    const char *point = localeconv()->decimal_point;
+    char *found;
+    size_t width;
+    if(point == NULL || point[0] == '\0' || strcmp(point, ".") == 0 ||
+       (found = strstr(text, point)) == NULL)
+        return;
+    width = strlen(point);
+    *found = '.';
+    memmove(found + 1, found + width, strlen(found + width) + 1);
+}
+
 /* Portable `print` float text: the shortest decimal that reads back to the
  * same value, in positional notation. Native C/C++ output uses the matching
  * print_float helper in include/zir_string.h. */
@@ -302,8 +345,9 @@ FormatPrintFloat(double value, int single, char *out, size_t capacity)
         PUT('-');
         p++;
     }
+    /* Only digits: the locale's decimal point may be ',' or longer. */
     for(; *p != 'e'; p++)
-        if(*p != '.')
+        if(*p >= '0' && *p <= '9')
             digits[count++] = *p;
     exponent = atoi(p + 1);
     while(count > 1 && digits[count - 1] == '0')

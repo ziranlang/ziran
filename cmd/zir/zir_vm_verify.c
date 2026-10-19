@@ -374,7 +374,7 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
         char *end;
         double number;
         errno = 0;
-        number = strtod(expression->text, &end);
+        number = ParseDecimal(expression->text, &end);
         return errno == 0 && end != expression->text && *end == 0 &&
                isfinite(number);
     }
@@ -1285,7 +1285,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                    (!strcmp(global->type, "float32") ||
                     !strcmp(global->type, "float64"))) {
                     char *end = NULL;
-                    strtod(init, &end);
+                    ParseDecimal(init, &end);
                     literal_ok = end != init && *skip_ws(end) == '\0';
                 }
                 if(!literal_ok && !strcmp(global->type, "bool"))

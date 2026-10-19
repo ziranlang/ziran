@@ -23,6 +23,11 @@ typedef struct PrintPiece {
 enum { PRINT_PIECES_MAX = 64 };
 int PrintFormatPieces(const char *format, PrintPiece *pieces, int capacity);
 void FormatPrintFloat(double value, int single, char *out, size_t capacity);
+/* strtod for Ziran's decimal text, which always uses '.', whatever
+ * LC_NUMERIC the host process selected. */
+double ParseDecimal(const char *text, char **end);
+/* Puts '.' back in place of the locale's decimal point in printf output. */
+void DecimalPointDot(char *text);
 int split_top_level(const char *s, char *parts, int max, size_t part_size);
 /* A parameter list split once. Each parameter is trimmed text as
  * split_top_level gives it, with the name before its first ':' (trimmed)

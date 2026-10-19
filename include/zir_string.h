@@ -38,8 +38,9 @@ static inline void print_float(double value, int single) {
     }
     p = scientific;
     if (*p == '-') { fputc('-', stdout); p++; }
+    /* Only digits: the locale's decimal point may be ',' or longer. */
     for (; *p != 'e'; p++)
-        if (*p != '.') digits[count++] = *p;
+        if (*p >= '0' && *p <= '9') digits[count++] = *p;
     exponent = atoi(p + 1);
     while (count > 1 && digits[count - 1] == '0') count--;
     if (exponent < 0) {

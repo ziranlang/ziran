@@ -1227,6 +1227,7 @@ vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
         signature->read_only = 0;
         signature->scalar_plan = NULL;
         signature->scalar_checked = 0;
+        signature->expression_plans = NULL;
         for(int i = 0; !function->is_extern && i < count; i++)
             if(!vm_type_contains_vec(vm, module, parsed[i].type, 0) &&
                parameter_read_only(function, parsed[i].name))
@@ -1246,8 +1247,10 @@ void
 free_signatures(Vm *vm)
 {
     for(size_t i = 0; i < vm->signature_slots; i++) {
-        if(vm->signatures[i] != NULL)
+        if(vm->signatures[i] != NULL) {
             free(vm->signatures[i]->scalar_plan);
+            free(vm->signatures[i]->expression_plans);
+        }
         free(vm->signatures[i]);
     }
     free(vm->signatures);
@@ -1417,6 +1420,10 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     buffers->frame.vm = vm;
     buffers->frame.module = module;
     buffers->frame.function = function;
+    if(signature->expression_plans == NULL && function->expr_count > 0)
+        signature->expression_plans = calloc((size_t)function->expr_count,
+                                             sizeof(*signature->expression_plans));
+    buffers->frame.plans = signature->expression_plans;
     buffers->frame.caller = vm->active_frame;
     buffers->frame.serial = ++vm->call_serial;
     vm->active_frame = &buffers->frame;

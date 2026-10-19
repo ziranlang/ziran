@@ -1209,8 +1209,38 @@ scalar_integer_result(const Value *input, Value *output, int64_t integer)
 }
 
 static const Value *
+scalar_coerce_value(Frame *frame, const Value *input, const char *type,
+                    ScalarConversion conversion, Value *output);
+
+/* Most plan results already have their type's canonical form. Return those
+ * unchanged without a call, exactly where scalar_coerce_value would. */
+static inline const Value *
 scalar_coerce(Frame *frame, const Value *input, const char *type,
               ScalarConversion conversion, Value *output)
+{
+    if(input->kind == VALUE_INT && !input->unsigned64 &&
+       input->bits == (uint64_t)input->integer) {
+        int64_t value = input->integer;
+        switch(conversion) {
+        case ScalarInteger: case ScalarS64: return input;
+        case ScalarS32: if(value >= INT32_MIN && value <= INT32_MAX) return input; break;
+        case ScalarU32: if(value >= 0 && value <= UINT32_MAX) return input; break;
+        case ScalarS16: if(value >= INT16_MIN && value <= INT16_MAX) return input; break;
+        case ScalarU16: if(value >= 0 && value <= UINT16_MAX) return input; break;
+        case ScalarS8: if(value >= INT8_MIN && value <= INT8_MAX) return input; break;
+        case ScalarU8: if(value >= 0 && value <= UINT8_MAX) return input; break;
+        case ScalarBool: if(value == 0 || value == 1) return input; break;
+        default: break;
+        }
+    } else if((input->kind == VALUE_REAL && conversion == ScalarF64) ||
+              (input->kind == VALUE_STRING && conversion == ScalarString))
+        return input;
+    return scalar_coerce_value(frame, input, type, conversion, output);
+}
+
+static const Value *
+scalar_coerce_value(Frame *frame, const Value *input, const char *type,
+                    ScalarConversion conversion, Value *output)
 {
     if(input->kind == VALUE_INT || input->kind == VALUE_REAL || input->kind == VALUE_ENUM) {
         if(conversion == ScalarInteger) return input;
@@ -1453,8 +1483,30 @@ scalar_compile(ScalarBuilder *builder, int index, int depth)
     }
 }
 
+static const ScalarPlan *scalar_plan_site(Frame *frame, int index);
+
+/* Marks an expression whose plan was sought and could not be made. */
+static char scalar_no_plan_marker;
+#define SCALAR_NO_PLAN ((ScalarPlan *)&scalar_no_plan_marker)
+
+/* A call's own table answers most lookups by index; the shared plan sites
+ * are hashed by expression and searched only once per expression. */
 static const ScalarPlan *
 scalar_plan(Frame *frame, int index)
+{
+    ScalarPlan **plans = frame->plans;
+    if(plans != NULL) {
+        ScalarPlan *known = plans[index];
+        if(known == SCALAR_NO_PLAN) return NULL;
+        if(known != NULL) return known;
+    }
+    const ScalarPlan *plan = scalar_plan_site(frame, index);
+    if(plans != NULL) plans[index] = plan != NULL ? (ScalarPlan *)plan : SCALAR_NO_PLAN;
+    return plan;
+}
+
+static const ScalarPlan *
+scalar_plan_site(Frame *frame, int index)
 {
     const ZirExpr *expression = &frame->function->exprs[index];
     Vm *vm = frame->vm;

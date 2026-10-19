@@ -449,6 +449,9 @@ typedef struct VmSignature {
     uint64_t read_only;
     struct ScalarPlan *scalar_plan;
     int scalar_checked;
+    /* Each expression's plan, borrowed from the VM's plan sites, so a call
+     * finds one by its index; allocated on the function's first call. */
+    struct ScalarPlan **expression_plans;
     VmParameter parameters[];
 } VmSignature;
 
@@ -594,6 +597,8 @@ struct Frame {
     /* Set while a union member is the assignment destination. */
     Record *union_write_record;
     const char *union_write_type;
+    /* This call's function's expression plans (VmSignature), or NULL. */
+    struct ScalarPlan **plans;
 };
 
 typedef enum Flow {

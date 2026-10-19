@@ -10,6 +10,7 @@ static void free_scratch_LoadImportBuffers(void *pointer);
 
 #include <ctype.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -162,6 +163,75 @@ module_loaded(const ProgramSet *set, const char *target)
     return 0;
 }
 
+/* The NAME of the longest --module-path NAME=DIR that holds SOURCE. */
+static const char *
+module_path_package(const LoadContext *context, const char *source)
+{
+    const char *package = NULL;
+    size_t longest = 0;
+    for(int i = 0; i < context->module_path_count; i++) {
+        const char *directory = context->module_paths[i];
+        size_t length = strlen(directory);
+        if(context->module_path_names[i] == NULL || length <= longest ||
+           strncmp(source, directory, length) != 0 || source[length] != '/')
+            continue;
+        package = context->module_path_names[i];
+        longest = length;
+    }
+    return package;
+}
+
+/* A package given only as --module-path NAME=DIR keeps its modules in its
+ * own namespace, as a project does, so two packages may both have a module
+ * named tree. A directory that is also an ordinary search path stays shared. */
+static int
+package_scoped(const LoadContext *context, const char *package)
+{
+    int named = 0;
+    if(context->packages != NULL || package == NULL) return 0;
+    for(int i = 0; i < context->module_path_count; i++) {
+        if(context->module_path_names[i] == NULL ||
+           strcmp(context->module_path_names[i], package) != 0) continue;
+        named = 1;
+        for(int j = 0; j < context->module_path_count; j++)
+            if(context->module_path_names[j] == NULL &&
+               strcmp(context->module_paths[j], context->module_paths[i]) == 0)
+                return 0;
+    }
+    return named;
+}
+
+/* A scoped module is p<16 hex digits>_MODULE, the identity shape of project
+ * package modules, so hosts that accept those accept these as well. */
+static int
+package_identity(const char *package, const char *module, char *output, size_t size)
+{
+    uint64_t hash = 1469598103934665603ull;
+    for(const unsigned char *at = (const unsigned char *)package; *at; at++) {
+        hash ^= *at;
+        hash *= 1099511628211ull;
+    }
+    int written = snprintf(output, size, "p%016llx_%s", (unsigned long long)hash, module);
+    return written > 0 && (size_t)written < size;
+}
+
+/* Points IMPORT at the scoped identity of the package module loaded from
+ * PATH. Modules outside scoped packages keep the name they were imported by. */
+static void
+import_loaded(const LoadContext *context, ZirImport *import, const char *path)
+{
+    char *canonical = CanonicalPath(path);
+    const ProgramSet *set = context->set;
+    if(canonical != NULL &&
+       package_scoped(context, module_path_package(context, canonical)))
+        for(int i = 0; i < set->count; i++)
+            if(strcmp(set->paths[i], canonical) == 0 &&
+               set->programs[i]->module_count == 1)
+                snprintf(import->target, sizeof(import->target), "%s",
+                         set->programs[i]->modules[0].name);
+    free(canonical);
+}
+
 static int
 add_program_named(LoadContext *context, const char *path, const char *root,
                   const char *identity)
@@ -252,6 +322,23 @@ add_program_named(LoadContext *context, const char *path, const char *root,
         }
         snprintf(program->modules[0].name,
                  sizeof(program->modules[0].name), "%s", identity);
+    }
+    const char *scope = module_path_package(context, canonical);
+    if(!PathIsIR(path) && package_scoped(context, scope)) {
+        char scoped[sizeof(program->modules[0].name)];
+        if(program->module_count != 1 ||
+           !package_identity(scope, program->modules[0].name, scoped, sizeof(scoped)) ||
+           snprintf(program->modules[0].source_path,
+                    sizeof(program->modules[0].source_path), "%s.zi",
+                    scoped) >= (int)sizeof(program->modules[0].source_path)) {
+            Diagnostic(Span(path, 1, 1), "module.identity",
+                       "package module has an invalid identity: %s", path);
+            ProgramFree(program);
+            free(canonical);
+            return 0;
+        }
+        snprintf(program->modules[0].name, sizeof(program->modules[0].name),
+                 "%s", scoped);
     }
     if(context->packages != NULL && !PathIsIR(path)) {
         const char *mapped = PackageModuleName(context->packages, canonical);
@@ -391,24 +478,6 @@ module_target(const char *target)
     return module_target_part(target, strlen(target));
 }
 
-/* The NAME of the longest --module-path NAME=DIR that holds SOURCE. */
-static const char *
-module_path_package(const LoadContext *context, const char *source)
-{
-    const char *package = NULL;
-    size_t longest = 0;
-    for(int i = 0; i < context->module_path_count; i++) {
-        const char *directory = context->module_paths[i];
-        size_t length = strlen(directory);
-        if(context->module_path_names[i] == NULL || length <= longest ||
-           strncmp(source, directory, length) != 0 || source[length] != '/')
-            continue;
-        package = context->module_path_names[i];
-        longest = length;
-    }
-    return package;
-}
-
 static int
 try_module(LoadContext *context, const char *directory, const char *load_root,
            const char *target, int prefer_ir)
@@ -519,13 +588,26 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         memmove(import->target, target + prefix + 1,
                 strlen(target + prefix + 1) + 1);
         if(named) {
-            if(module_loaded(set, target)) return 1;
+            char identity[ZIR_NAME_MAX];
+            snprintf(identity, sizeof(identity), "%s", target);
+            if(package_scoped(context, package) &&
+               !package_identity(package, target, identity, sizeof(identity))) {
+                Diagnostic(import->span, "module.identity",
+                           "package module identity is too long: %s/%s", package, target);
+                return 0;
+            }
+            if(module_loaded(set, identity)) {
+                snprintf(import->target, sizeof(import->target), "%s", identity);
+                return 1;
+            }
             for(int i = 0; i < context->module_path_count; i++) {
                 if(context->module_path_names[i] == NULL ||
                    strcmp(context->module_path_names[i], package) != 0) continue;
                 int result = try_module(context, context->module_paths[i],
                                         context->module_paths[i], target,
                                         prefer_ir);
+                if(result > 0)
+                    snprintf(import->target, sizeof(import->target), "%s", identity);
                 if(result != 0)
                     return result > 0;
             }
@@ -563,8 +645,10 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
                        import->signature + 4);
             return 0;
         }
-        return add_program_named(context, buffers->candidate, buffers->module_root,
-                                 target);
+        if(!add_program_named(context, buffers->candidate, buffers->module_root,
+                              target)) return 0;
+        import_loaded(context, import, buffers->candidate);
+        return 1;
     }
     if(!prefer_ir && strncmp(import->signature, "file:", 5) == 0) {
         struct stat info;
@@ -593,7 +677,36 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         *parent = '\0';
         int loaded = add_program(context, buffers->candidate, canonical);
         free(canonical);
+        if(loaded) import_loaded(context, import, buffers->candidate);
         return loaded;
+    }
+    /* A scoped package resolves a short import in its own modules first,
+     * then like any other module in shared paths and the standard library. */
+    const char *owner_package = module_path_package(context, owner_source);
+    if(!prefer_ir && package_scoped(context, owner_package)) {
+        char identity[ZIR_NAME_MAX];
+        if(!package_identity(owner_package, target, identity, sizeof(identity))) {
+            Diagnostic(import->span, "module.identity",
+                       "package module identity is too long: %s", target);
+            return 0;
+        }
+        int result = module_loaded(set, identity);
+        if(result == 0 && slash != NULL &&
+           (size_t)(slash - owner_path) < sizeof(buffers->directory)) {
+            memcpy(buffers->directory, owner_path, (size_t)(slash - owner_path));
+            buffers->directory[slash - owner_path] = '\0';
+            result = try_module(context, buffers->directory, owner_root,
+                                target, prefer_ir);
+        }
+        for(int i = 0; result == 0 && i < context->module_path_count; i++)
+            if(context->module_path_names[i] != NULL &&
+               strcmp(context->module_path_names[i], owner_package) == 0)
+                result = try_module(context, context->module_paths[i],
+                                    context->module_paths[i], target, prefer_ir);
+        if(result > 0)
+            snprintf(import->target, sizeof(import->target), "%s", identity);
+        if(result != 0)
+            return result > 0;
     }
     if(module_loaded(set, target))
         return 1;

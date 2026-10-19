@@ -38,6 +38,33 @@ ZI
     --entry directory:Answer -o "$work/directory.zib" "$work/app/directory.zi"
 test "$("$ziran" run "$work/directory.zib")" = 42
 
+# A named package keeps its modules apart from the app's: both may have a
+# module named tree, and the package's own short import finds its own.
+mkdir -p "$work/lib/src/Branch"
+cat > "$work/lib/src/tree.zi" <<'ZI'
+Depth :: () -> s32 { return 2 }
+ZI
+cat > "$work/lib/src/Branch/module.zi" <<'ZI'
+using LibTree :: #import "tree";
+Leaf :: () -> s32 { return Depth() * 10 }
+ZI
+cat > "$work/app/tree.zi" <<'ZI'
+Size :: () -> s32 { return 2 }
+ZI
+cat > "$work/app/forest.zi" <<'ZI'
+#import "tree"
+#import "lib/Branch"
+#program_export
+Answer :: () -> s32 { return Size() + Leaf() + 20 }
+ZI
+"$ziran" bundle --root "$work/app" --module-path "lib=$work/lib/src" \
+    --entry forest:Answer -o "$work/forest.zib" "$work/app/forest.zi"
+test "$("$ziran" run "$work/forest.zib")" = 42
+"$ziran" build --target=c --no-main --root "$work/app" --module-path "lib=$work/lib/src" \
+    -o "$work/forest-c" "$work/app/forest.zi"
+${CC:-cc} -std=c11 -fsyntax-only -I"$(dirname -- "$(command -v "$ziran")")/../../include" \
+    -I"$work/forest-c" "$work/forest-c"/*.c
+
 # A named path serves only its qualified imports.
 cat > "$work/app/short.zi" <<'ZI'
 #import "greet"

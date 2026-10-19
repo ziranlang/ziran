@@ -36,6 +36,9 @@ command = [str(ziran), 'build', '--target=c', '--exe', '--entry', 'app:Answer', 
 program(0)
 subprocess.run(command, env=env, check=True)
 assert subprocess.run([str(out/'app')]).returncode == 42
+# The group package's modules are generated under their package identities.
+first_source = next(path.name for path in out.glob('*m00.c'))
+last_source = next(path.name for path in out.glob('*m15.c'))
 # A stale nested source is not in this invocation's generated manifest. A
 # stale root basename must not be confused with the reachable nested file.
 (out/'dead').mkdir()
@@ -168,11 +171,11 @@ try:
         reset()
         index = len(children)
         profile = work/f'profile-{mode}.jsonl'
-        first = start(mode=mode, extra={'BUILD_HOLD_SOURCE':'m00.c', 'BUILD_MESSAGES':'1', 'ZIRAN_PROFILE':str(profile)})
+        first = start(mode=mode, extra={'BUILD_HOLD_SOURCE':first_source, 'BUILD_MESSAGES':'1', 'ZIRAN_PROFILE':str(profile)})
         until(lambda: state()['active'] >= workers)
         (work/'compile.release').touch()
         until(lambda: (work/'hold.waiting').exists())
-        until(lambda: (work/'started-m15.c').exists())
+        until(lambda: (work/('started-'+last_source)).exists())
         assert not (work/'hold.release').exists() and not (work/'link.ready').exists()
         assert 1 <= state()['peak'] <= workers
         assert subprocess.run([str(out/'app')]).returncode == 41 + number
@@ -197,9 +200,9 @@ try:
     if available_cpus > 1:
         reset()
         index = len(children)
-        first = start(extra={'BUILD_HOLD_SOURCE':'m00.c', 'BUILD_NOISE':'1'})
+        first = start(extra={'BUILD_HOLD_SOURCE':first_source, 'BUILD_NOISE':'1'})
         (work/'compile.release').touch()
-        until(lambda: (work/'hold.waiting').exists() and (work/'started-m15.c').exists())
+        until(lambda: (work/'hold.waiting').exists() and (work/('started-'+last_source)).exists())
         assert not (work/'link.ready').exists()
         (work/'hold.release').touch()
         until(lambda: (work/'link.ready').exists())
@@ -213,7 +216,7 @@ try:
         # workers must still be drained and reaped before failure returns.
         program(4)
         reset()
-        first = start(extra={'BUILD_FAIL_SOURCE':'m00.c', 'BUILD_HOLD_OTHERS':'1'})
+        first = start(extra={'BUILD_FAIL_SOURCE':first_source, 'BUILD_HOLD_OTHERS':'1'})
         until(lambda: state()['active'] >= workers)
         (work/'compile.release').touch()
         until(lambda: (work/'failed').exists() and (work/'failed').read_text().strip())

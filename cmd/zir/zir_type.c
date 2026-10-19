@@ -228,6 +228,8 @@ TypeHasOnlyPrimitiveFields_persistent(const ZirType *record)
 
 int SliceElementType(const char *type, char *element, size_t element_size)
 {
+    /* Only "[]T" is a slice; the VM asks this of every type it meets. */
+    if(type == NULL || type[0] != '[' || type[1] != ']') return 0;
     ElementType result = compiler_type_SliceElement(type_text(type));
     return result.valid && copy_part(element, element_size, result.element);
 }
@@ -254,6 +256,8 @@ int UnionScalarFields(const ZirModule *module, const ZirType *record)
 
 int ArrayElementType(const char *type, char *element, size_t element_size, int *capacity)
 {
+    /* Only "[N]T" is an array; the VM asks this of every type it meets. */
+    if(type == NULL || type[0] != '[') return 0;
     ElementType result = compiler_type_ArrayElement(type_text(type));
     if(!result.valid || !copy_part(element, element_size, result.element)) return 0;
     if(capacity != NULL) *capacity = (int)result.capacity;

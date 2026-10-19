@@ -550,7 +550,8 @@ host_argument(const ZirModule *module, const char *type, Value value,
         return 1;
     }
     const ZirModule *owner = NULL;
-    const ZirType *record = FindType(module, type, &owner);
+    /* Builtin scalar names are never records or enums. */
+    const ZirType *record = value_kind(type) != VALUE_INVALID ? NULL : FindType(module, type, &owner);
     if(record != NULL && !record->is_enum) {
         const InlineRecord *shape=value.kind==VALUE_INLINE_RECORD ? value.inline_record : NULL;
         if(shape!=NULL) {

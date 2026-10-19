@@ -102,7 +102,8 @@ free_evaluation_buffers(Vm *vm)
 
 static int vm_spelling_equal(const char *left, const char *right)
 {
-    return left == right || (left && right && !strcmp(left, right));
+    /* Most names differ in their first byte; skip the call for those. */
+    return left == right || (left && right && left[0] == right[0] && !strcmp(left, right));
 }
 
 static Local *
@@ -1262,6 +1263,32 @@ typedef struct ScalarStep {
     unsigned char left_unsigned, conversion, cast_conversion;
 } ScalarStep;
 
+/* Unary operators resolved when a plan is built; step->left_unsigned then
+ * says the result type is the untyped "integer". */
+enum { ScalarUnaryNone, ScalarUnaryRead, ScalarUnaryNegate, ScalarUnaryPlus,
+       ScalarUnaryNot, ScalarUnaryComplement };
+
+static Value
+scalar_unary(Vm *vm, const ScalarStep *step, Value right)
+{
+    switch(step->operation) {
+    case ScalarUnaryRead: return place_read(vm, right);
+    case ScalarUnaryNegate:
+        return right.kind == VALUE_REAL ? real_value(-right.real) :
+            right.unsigned64 && !step->left_unsigned ?
+            uint_value(UINT64_C(0) - right.bits) :
+            int_value(signed64(UINT64_C(0) - integer_bits(right)));
+    case ScalarUnaryPlus: return right;
+    case ScalarUnaryNot: return int_value(!truthy(right));
+    case ScalarUnaryComplement:
+        if(right.kind == VALUE_INT)
+            return right.unsigned64 ? uint_value(~right.bits) : int_value(~right.integer);
+        break;
+    }
+    vm->failed = 1;
+    return int_value(0);
+}
+
 typedef struct ScalarPlan {
     unsigned short count;
     unsigned char output; /* expression result, or procedure register count */
@@ -1316,6 +1343,14 @@ scalar_step(ScalarBuilder *builder, ScalarOp op, const ZirExpr *expression,
     }
     if(op == SCALAR_CAST)
         step->cast_conversion = (unsigned char)scalar_conversion(expression->name);
+    if(op == SCALAR_UNARY) {
+        const char *unary = expression->op;
+        step->operation = (unsigned short)(!strcmp(unary, "*") ? ScalarUnaryRead :
+            !strcmp(unary, "-") ? ScalarUnaryNegate : !strcmp(unary, "+") ? ScalarUnaryPlus :
+            !strcmp(unary, "!") ? ScalarUnaryNot : !strcmp(unary, "~") ? ScalarUnaryComplement :
+            ScalarUnaryNone);
+        step->left_unsigned = !strcmp(expression->type, "integer");
+    }
     if(op == SCALAR_BINARY) {
         step->operation = (unsigned short)binary_operation(expression->op);
         const char *left_type = builder->function->exprs[expression->left].type;
@@ -1459,6 +1494,34 @@ scalar_plan(Frame *frame, int index)
      * checked position and coercion policy survive repeated execution. */
     if(output < 0 || builder.count < 2)
         return NULL;
+    /* Literals and true/false are fixed: resolve them once, as function
+     * plans do, instead of on every execution. A literal that does not
+     * parse keeps its ordinary leaf, which reports the failure when run. */
+    Vm literal_vm = {.constant_sites = vm->constant_sites};
+    Frame literal_frame = {.vm = &literal_vm, .module = frame->module, .function = frame->function};
+    for(int i = 0; i < builder.count; i++) {
+        ScalarStep *step = &builder.steps[i];
+        if(step->op != SCALAR_LEAF) continue;
+        const ZirExpr *node = step->expression;
+        if(node->kind == ZIR_EXPR_IDENT &&
+           (!strcmp(node->name, "true") || !strcmp(node->name, "false"))) {
+            step->op = SCALAR_INT;
+            step->literal_bits = !strcmp(node->name, "true");
+        } else if(node->kind == ZIR_EXPR_INT || node->kind == ZIR_EXPR_FLOAT) {
+            Value storage;
+            literal_vm.failed = 0;
+            const Value *value = numeric_literal(&literal_frame, node, &storage);
+            if(literal_vm.failed) continue;
+            if(value->kind == VALUE_REAL) {
+                step->op = SCALAR_REAL;
+                step->literal_real = value->real;
+            } else if(value->kind == VALUE_INT) {
+                step->op = value->unsigned64 ? SCALAR_UINT : SCALAR_INT;
+                step->literal_bits = integer_bits(*value);
+            }
+        }
+    }
+    vm->constant_sites = literal_vm.constant_sites;
     ScalarPlan *plan = malloc(sizeof(*plan) + (size_t)builder.count * sizeof(*plan->steps));
     if(plan == NULL)
         return NULL;
@@ -1975,21 +2038,18 @@ scalar_execute(Frame *frame, const ScalarPlan *plan, int depth)
                     (ScalarConversion)step->conversion, output);
             continue;
         }
-        case SCALAR_UNARY: {
-            Value right = *values[step->right];
-            if(!strcmp(expression->op, "*")) value = place_read(frame->vm, right);
-            else if(!strcmp(expression->op, "-"))
-                value = right.kind == VALUE_REAL ? real_value(-right.real) :
-                    right.unsigned64 && strcmp(expression->type, "integer") != 0 ?
-                    uint_value(UINT64_C(0) - right.bits) :
-                    int_value(signed64(UINT64_C(0) - integer_bits(right)));
-            else if(!strcmp(expression->op, "+")) value = right;
-            else if(!strcmp(expression->op, "!")) value = int_value(!truthy(right));
-            else if(!strcmp(expression->op, "~") && right.kind == VALUE_INT)
-                value = right.unsigned64 ? uint_value(~right.bits) : int_value(~right.integer);
-            else frame->vm->failed = 1;
+        case SCALAR_UNARY:
+            value = scalar_unary(frame->vm, step, *values[step->right]);
             break;
-        }
+        case SCALAR_INT:
+            values[step->output] = int_result(output, signed64(step->literal_bits));
+            continue;
+        case SCALAR_UINT:
+            values[step->output] = uint_result(output, step->literal_bits);
+            continue;
+        case SCALAR_REAL:
+            values[step->output] = real_result(output, step->literal_real);
+            continue;
         case SCALAR_TRUTH:
             int_result(output, truthy(*values[step->right]));
             values[step->output] = scalar_coerce(frame, output, expression->type,
@@ -2174,17 +2234,9 @@ scalar_run_function(Frame *frame, const ScalarPlan *plan, Flow *flow,
         }
         case SCALAR_UNARY: {
             const ZirExpr *expression = step->expression;
-            Value right = *values[step->right], value = int_value(0);
-            if(!strcmp(expression->op, "-"))
-                value = right.kind == VALUE_REAL ? real_value(-right.real) :
-                    right.unsigned64 && strcmp(expression->type, "integer") != 0 ?
-                    uint_value(UINT64_C(0) - right.bits) :
-                    int_value(signed64(UINT64_C(0) - integer_bits(right)));
-            else if(!strcmp(expression->op, "+")) value = right;
-            else if(!strcmp(expression->op, "!")) value = int_value(!truthy(right));
-            else if(!strcmp(expression->op, "~") && right.kind == VALUE_INT)
-                value = right.unsigned64 ? uint_value(~right.bits) : int_value(~right.integer);
-            else vm->failed = 1;
+            /* Function plans never read through a pointer. */
+            Value value = step->operation == ScalarUnaryRead ? (vm->failed = 1, int_value(0)) :
+                scalar_unary(vm, step, *values[step->right]);
             *output = value;
             if(!vm->failed)
                 values[step->output] = scalar_coerce(frame, output, expression->type,

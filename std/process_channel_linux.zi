@@ -74,6 +74,10 @@ StartChannel :: (arguments: []string, merge_stderr: bool) -> ProcessChannel {
         ChannelExecRaw(*bytes[0].bytes[0], *pointers[0])
         ChannelExitRaw(127)
     }
+    // The parent places the child in its own group too, so the group exists
+    // when this returns even before the child runs. After the child's exec
+    // this fails harmlessly, because the child already set it.
+    unused ChannelGroupRaw(pid, pid)
     ChannelCloseRaw(fds[1])
     result.pid = pid; result.socket.fd = fds[0]; result.socket.valid = true
     return result

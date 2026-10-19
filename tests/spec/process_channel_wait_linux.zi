@@ -22,7 +22,9 @@ Main :: () -> s32 {
         for i: 0..samples - 1 {
             channel: ProcessChannel; channel.socket.fd = -1; channel.pid = Spawn(150)
             if channel.pid <= 0 { return 1 }
-            if !WaitChannel(*channel, 1000) || !channel.exited || channel.pid != 0 || channel.code != 7 { return 2 }
+            // The deadline only bounds a hang; a loaded host can stall the
+            // child for longer than its 150 microseconds of work.
+            if !WaitChannel(*channel, 10000) || !channel.exited || channel.pid != 0 || channel.code != 7 { return 2 }
             elapsed := (Now() - ExitTime()) / 1000
             if elapsed < 0 { return 3 }
             if i > 0 { print(",") }; print("%", elapsed); delay += elapsed
@@ -42,7 +44,10 @@ Main :: () -> s32 {
     started := Now()
     if WaitChannel(*channel, 15) || channel.error != 0 || channel.exited || channel.pid <= 0 { return 9 }
     elapsed := (Now() - started) / 1000000
-    if elapsed < 10 || elapsed > 80 || Interrupts() < 2 { return 10 }
+    // Each interrupted poll takes at least 2 ms, so a wait that consumes its
+    // 15 ms deadline polls at most 8 times however slowly the host runs.
+    // Restarting the deadline would poll until the child exits at 100 ms.
+    if elapsed < 10 || Interrupts() < 2 || Interrupts() > 10 { return 10 }
     if !CloseChannel(*channel, 0) || channel.code != 137 { return 11 }
     Release()
     if Descriptors() != original { return 12 }

@@ -74,6 +74,9 @@ stable_borrowed_layout(void)
     root->fields[27].value = (Value){.kind = VALUE_ENUM, .integer = 7};
     root->fields[28].value = (Value){.kind = VALUE_SLOT};
     size_t live = vm.record_bytes + vm.array_bytes;
+    /* A caller may hold a layout while others are added, as a host return
+     * does while it fills each field of a record. */
+    const VmLayout *held = record_layout(&vm, node);
 
     /* Several table growths must preserve metadata held by existing records.
      * Types containing only scalars need no collector field visits. */
@@ -85,7 +88,8 @@ stable_borrowed_layout(void)
         initialize_fields(&vm, extra);
     }
     assert(vm.layout_slots >= 512 && root->field_slots == slots);
-    assert(record_layout(&vm, node)->field_slots == slots);
+    assert(record_layout(&vm, node) == held && held->type == node && held->count == 29);
+    assert(!strcmp(held->fields[23].name, "v23") && held->field_slots == slots);
     assert(record_field(root, "v23") == &root->fields[23].value);
     assert(record_field(root, "text") == &root->fields[24].value);
     assert(record_field(root, "missing") == NULL);
@@ -122,13 +126,13 @@ allocation_failures(void)
     strcpy(type->body, "existing: s64;");
     (void)KeepText("existing");
     (void)KeepText("s64");
-    /* Record storage, table and fields each have independent
+    /* Record storage, table, layout and fields each have independent
      * allocation failures. The shared slots/reference allocation can fail too. */
-    for(int failure = 1; failure <= 4; failure++) {
+    for(int failure = 1; failure <= 5; failure++) {
         Vm vm = {0};
         calloc_count = 0;
-        fail_calloc = failure <= 3 ? failure : 0;
-        fail_malloc = failure == 4;
+        fail_calloc = failure <= 4 ? failure : 0;
+        fail_malloc = failure == 5;
         Record *record = allocate_record(&vm, NULL, type, 1);
         fail_calloc = fail_malloc = 0;
         assert(record == NULL && vm.failed && vm.records == NULL && vm.record_bytes == 0);

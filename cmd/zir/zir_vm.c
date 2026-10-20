@@ -483,10 +483,10 @@ vm_vec_element_type(Vm *vm, const ZirModule *module, const char *type,
 }
 
 static size_t
-layout_slot(const VmLayout *layouts, size_t slots, const ZirType *type)
+layout_slot(VmLayout *const *layouts, size_t slots, const ZirType *type)
 {
     size_t slot = ((uintptr_t)type >> 4) * 0x9e3779b97f4a7c15u & (slots - 1);
-    while(layouts[slot].type != NULL && layouts[slot].type != type)
+    while(layouts[slot] != NULL && layouts[slot]->type != type)
         slot = (slot + 1) & (slots - 1);
     return slot;
 }
@@ -511,25 +511,29 @@ record_layout(Vm *vm, const ZirType *type)
         return NULL;
     if(vm->layout_slots != 0) {
         size_t slot = layout_slot(vm->layouts, vm->layout_slots, type);
-        if(vm->layouts[slot].type == type)
-            return &vm->layouts[slot];
+        if(vm->layouts[slot] != NULL)
+            return vm->layouts[slot];
     }
+    /* Growing moves the slots, never the layouts they point at. */
     if((vm->layout_count + 1) * 2 > vm->layout_slots) {
         size_t slots = vm->layout_slots ? vm->layout_slots * 2 : 64;
-        VmLayout *layouts = calloc(slots, sizeof(*layouts));
+        VmLayout **layouts = calloc(slots, sizeof(*layouts));
         if(layouts == NULL)
             return NULL;
         for(size_t i = 0; i < vm->layout_slots; i++)
-            if(vm->layouts[i].type != NULL)
-                layouts[layout_slot(layouts, slots, vm->layouts[i].type)] =
+            if(vm->layouts[i] != NULL)
+                layouts[layout_slot(layouts, slots, vm->layouts[i]->type)] =
                     vm->layouts[i];
         free(vm->layouts);
         vm->layouts = layouts;
         vm->layout_slots = slots;
     }
-    size_t slot = layout_slot(vm->layouts, vm->layout_slots, type);
+    VmLayout *layout = calloc(1, sizeof(*layout));
+    if(layout == NULL)
+        return NULL;
+    vm->layouts[layout_slot(vm->layouts, vm->layout_slots, type)] = layout;
     vm->layout_count++;
-    VmLayout *layout = parse_layout(&vm->layouts[slot], type);
+    parse_layout(layout, type);
     if(layout->count >= 0) {
         size_t slots = 4;
         while(slots < (size_t)layout->count * 2)
@@ -568,9 +572,12 @@ void
 free_layouts(Vm *vm)
 {
     for(size_t i = 0; i < vm->layout_slots; i++) {
-        free(vm->layouts[i].fields);
-        free(vm->layouts[i].field_slots);
-        free(vm->layouts[i].inline_record);
+        if(vm->layouts[i] == NULL)
+            continue;
+        free(vm->layouts[i]->fields);
+        free(vm->layouts[i]->field_slots);
+        free(vm->layouts[i]->inline_record);
+        free(vm->layouts[i]);
     }
     free(vm->layouts);
     vm->layouts = NULL;

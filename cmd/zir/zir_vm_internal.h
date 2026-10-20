@@ -574,7 +574,9 @@ typedef struct Vm {
     VmHostCall host;
     void *host_context;
     uint64_t call_serial;
-    VmLayout *layouts;  /* open-addressed by type pointer */
+    /* Open-addressed by type pointer. Each layout keeps the address it was
+     * made at, so a caller may hold one across calls that add others. */
+    VmLayout **layouts;
     size_t layout_slots;
     size_t layout_count;
 } Vm;

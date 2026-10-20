@@ -197,6 +197,11 @@ profile_close(Vm *vm)
  * call checks again. */
 enum { VM_STACK_MARGIN = 1024 * 1024 };
 
+/* An outermost call allocating at least this much reclaims its own
+ * temporaries when it returns; smaller ones wait for the batch collection,
+ * which runs once allocations since the last one reach its threshold. */
+enum { VM_OUTERMOST_RELEASE_BYTES = 256 * 1024 };
+
 static Flow
 execute_sequence(Frame *frame, int begin, int end, int depth, Value *result);
 
@@ -1448,6 +1453,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     size_t threshold = vm->collection_threshold ? vm->collection_threshold : 4 * 1024 * 1024;
     if(vm->allocated_since_collection >= threshold)
         collect_unreachable(vm);
+    size_t allocated_bytes_entry = vm->allocated_since_collection;
     Flow flow;
     if((signature->scalar_checked && signature->scalar_plan == NULL) ||
        !execute_scalar_function(&buffers->frame, signature, &result, &flow))
@@ -1479,9 +1485,15 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
      * with unusually large live storage still reclaims its own temporaries
      * before the VM's allocation limits are reached. */
     /* A call that allocated nothing left nothing to reclaim; skipping it
-     * avoids marking every live value after each small helper call. */
+     * avoids marking every live value after each small helper call. An
+     * outermost call that allocated little leaves its temporaries to the
+     * batch collection too: a retained program run every frame would
+     * otherwise mark its whole live graph after each frame. */
+    size_t call_bytes = vm->allocated_since_collection >= allocated_bytes_entry ?
+        vm->allocated_since_collection - allocated_bytes_entry :
+        vm->allocated_since_collection;
     if(!vm->failed && allocation_before_result > allocation_entry &&
-       (vm->depth == 0 ||
+       ((vm->depth == 0 && call_bytes >= VM_OUTERMOST_RELEASE_BYTES) ||
         vm->record_bytes > VM_MAX_RECORD_BYTES / 2 ||
         vm->array_bytes > VM_MAX_ARRAY_BYTES / 2)) {
         vm->pin_generation++;

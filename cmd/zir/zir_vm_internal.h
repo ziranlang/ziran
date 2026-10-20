@@ -529,6 +529,10 @@ typedef struct Vm {
      * Off by default, where a record must match its declared layout. */
     int match_fields_by_name;
     int failed;
+    /* The innermost function that saw the run fail and the statement it
+     * was running, so the failure names where it happened. */
+    const ZirFunction *failed_function;
+    ZirSourceSpan failed_span;
     /* Calls may nest until the C stack reaches stack_floor, where the
      * thread's stack bounds are known; elsewhere VM_MAX_DEPTH calls.
      * depth_exceeded holds the depth where a run stopped for that. */
@@ -599,6 +603,8 @@ struct Frame {
     const char *union_write_type;
     /* This call's function's expression plans (VmSignature), or NULL. */
     struct ScalarPlan **plans;
+    /* The statement this call is running, to locate a failure. */
+    const ZirStmt *statement;
 };
 
 typedef enum Flow {

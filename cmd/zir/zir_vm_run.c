@@ -248,6 +248,7 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
         int close;
         int saved_locals;
         Flow flow;
+        frame->statement = statement;
         if(vm->max_steps > 0 && ++vm->steps > vm->max_steps)
             return FLOW_ERROR;
         switch(statement->kind) {
@@ -1336,6 +1337,8 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     if(!vm->failed && too_deep)
         vm->depth_exceeded = vm->depth > 0 ? vm->depth : 1;
     if(vm->failed || too_deep || count != arg_count) {
+        if(!vm->failed && vm->failed_function == NULL)
+            vm->failed_function = function;
         vm->failed = 1;
         return result;
     }
@@ -1452,6 +1455,11 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     if(flow == FLOW_ERROR || flow == FLOW_BREAK || flow == FLOW_CONTINUE ||
        (flow != FLOW_RETURN && strcmp(function->return_type, "void") != 0))
         vm->failed = 1;
+    if(vm->failed && vm->failed_function == NULL) {
+        vm->failed_function = function;
+        if(buffers->frame.statement != NULL)
+            vm->failed_span = buffers->frame.statement->span;
+    }
     uint64_t allocation_before_result = vm->allocation;
     Value returned = buffers->frame.returned_owned &&
         storage_allocation(result) > allocation_entry &&
@@ -1877,6 +1885,8 @@ VmInstanceRun_in_context(VmInstance *instance, long long *result, int *has_resul
     Vm *vm = &instance->vm;
     vm->steps = 0;
     vm->stack_floor = NULL;
+    vm->failed_function = NULL;
+    memset(&vm->failed_span, 0, sizeof(vm->failed_span));
 #ifdef VM_KNOWS_STACK
     pthread_attr_t attributes;
     if(pthread_getattr_np(pthread_self(), &attributes) == 0) {
@@ -1909,6 +1919,14 @@ VmInstanceRun_in_context(VmInstance *instance, long long *result, int *has_resul
             Diagnostic(instance->entry->span, "zib.runtime",
                        "portable execution failed: calls nested deeper than %d",
                        VM_MAX_DEPTH);
+        else if(vm->failed_function != NULL && vm->failed_span.line > 0)
+            Diagnostic(vm->failed_span, "zib.runtime",
+                       "portable execution failed in %s",
+                       vm->failed_function->name);
+        else if(vm->failed_function != NULL)
+            Diagnostic(instance->entry->span, "zib.runtime",
+                       "portable execution failed in %s",
+                       vm->failed_function->name);
         else
             Diagnostic(instance->entry->span, "zib.runtime",
                        "portable execution failed");

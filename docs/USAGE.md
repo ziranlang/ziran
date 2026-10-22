@@ -1246,6 +1246,15 @@ whether the provider could obtain a reading. Native Plan 9 libc accepts
 unsigned 32-bit epoch seconds, covering 1970 through early 2106; values outside
 that range return an invalid reading. Dates after 2038 retain their full value.
 
+With `--define _WIN32`, `date_time_linux` and `timer_linux` use native Windows
+APIs instead of POSIX calls. Windows civil clocks use
+FILETIME and the system's timezone rules, with valid dates from 1601 through
+9999. Its named-zone query recognizes UTC/GMT; other IANA names return an
+invalid offset because these Windows APIs do not expose an IANA database.
+Monotonic timestamps use QueryPerformanceCounter. Run
+`sh tests/std_time_windows.sh build/bin/ziran` for source and saved-IR checks,
+including linking with MinGW and execution under Wine when available.
+
 Import `calendar` for Gregorian `LeapYear`, `DaysInMonth`, `DayOfWeek`,
 `DayOfYear`, `DateTimeValid`, and `FormatDateTime`. `DayOfWeek` returns zero for
 Sunday and minus one for an invalid date. Calendar dates range from year 1 to

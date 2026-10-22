@@ -1,0 +1,42 @@
+Time :: #import "date_time_linux";
+Timer :: #import "timer_linux";
+#import "calendar"
+
+#program_export
+CheckWindowsTime :: () -> s32 {
+    output: [64]u8
+    if FormatDateTime(Time.UtcAt(0), "%F %T", output[:]) != "1970-01-01 00:00:00" ||
+    FormatDateTime(Time.UtcAt(-1), "%F %T", output[:]) != "1969-12-31 23:59:59" ||
+    FormatDateTime(Time.UtcAt(951782400), "%F %j", output[:]) != "2000-02-29 060" ||
+    FormatDateTime(Time.UtcAt(cast(s64)2147483648), "%F %T", output[:]) != "2038-01-19 03:14:08" {
+        return 1
+    }
+    if !Time.UtcAt(-11644473600).valid || !Time.UtcAt(253402300799).valid ||
+    Time.UtcAt(-11644473601).valid || Time.UtcAt(253402300800).valid ||
+    Time.UtcAt(cast(s64)9223372036854775807).valid {
+        return 2
+    }
+    before := Time.UnixNow()
+    milliseconds := Time.UnixMilliseconds()
+    after := Time.UnixNow()
+    if before < 1700000000 || milliseconds < (before - 1) * 1000 ||
+    milliseconds >= (after + 2) * 1000 || !DateTimeValid(Time.LocalNow()) {
+        return 3
+    }
+    if !Time.ZoneOffsetAt("UTC", before).valid || Time.ZoneOffsetAt("UTC", before).seconds != 0 ||
+    Time.ZoneOffsetAt("Not/AZone", before).valid || Time.ZoneOffsetAt("../etc/passwd", before).valid {
+        return 4
+    }
+    precise := Timer.MonotonicNanoseconds()
+    first := Timer.MonotonicMilliseconds()
+    if precise < 0 || first < 0 || !Timer.SleepMilliseconds(20) {
+        return 5
+    }
+    if Timer.MonotonicMilliseconds() < first || Timer.MonotonicNanoseconds() < precise + 1000000 {
+        return 6
+    }
+    if Timer.SleepMilliseconds(-1) || Timer.SleepMilliseconds(86400001) || !Timer.SleepMilliseconds(0) {
+        return 7
+    }
+    return 0
+}

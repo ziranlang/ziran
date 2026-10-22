@@ -1,81 +1,140 @@
-// Monotonic timing and interruptible sleeps for native glibc Linux programs.
-// Wall-clock time is intentionally unavailable from this module.
-libc :: #system_library "libc";
+#if #defined(_WIN32) {
+    // Monotonic timing and bounded sleeps on 64-bit Windows.
+    #scope_file
+    kernel32 :: #system_library "kernel32";
+    CounterRaw :: (value: *s64) -> s32 #foreign kernel32 "QueryPerformanceCounter";
+    FrequencyRaw :: (value: *s64) -> s32 #foreign kernel32 "QueryPerformanceFrequency";
+    SleepRaw :: (milliseconds: u32) #foreign kernel32 "Sleep";
 
-// struct timespec: time_t seconds and long nanoseconds. Both are the size
-// of a pointer on Linux and Android, so 32-bit on armeabi-v7a; 64-bit fields
-// read the clock as garbage there. Emscripten's time_t is 64-bit on wasm32
-// while long stays 32-bit, so its timespec is 64-bit seconds, 32-bit
-// nanoseconds and padding.
-#if #defined(PLATFORM_WEB) {
-    ClockValue :: struct {
-        seconds: s64
-        nanoseconds: s32
-        padding: s32
+    #scope_export
+    #program_export
+    MonotonicNanoseconds :: () -> s64 {
+        counter: s64
+        frequency: s64
+        if CounterRaw(*counter) == 0 || FrequencyRaw(*frequency) == 0 ||
+        counter < 0 || frequency <= 0 {
+            return -1
+        }
+        seconds := counter / frequency
+        // Scale only the fractional second, avoiding counter * 1e9 overflow.
+        fraction := cast(s64)(cast(float64)(counter % frequency) /
+            cast(float64)frequency * 1000000000.0)
+        if seconds > 9223372036 ||
+        seconds == 9223372036 && fraction > 854775807 {
+            return -1
+        }
+        return seconds * 1000000000 + fraction
+    }
+
+    #program_export
+    MonotonicMilliseconds :: () -> s64 {
+        counter: s64
+        frequency: s64
+        if CounterRaw(*counter) == 0 || FrequencyRaw(*frequency) == 0 ||
+        counter < 0 || frequency <= 0 {
+            return -1
+        }
+        seconds := counter / frequency
+        if seconds > 9223372036854775 {
+            return -1
+        }
+        fraction := cast(s64)(cast(float64)(counter % frequency) /
+            cast(float64)frequency * 1000.0)
+        if seconds == 9223372036854775 && fraction > 807 {
+            return -1
+        }
+        return seconds * 1000 + fraction
+    }
+
+    #program_export
+    SleepMilliseconds :: (milliseconds: s64) -> bool {
+        if milliseconds < 0 || milliseconds > 86400000 {
+            return false
+        }
+        SleepRaw(cast(u32)milliseconds)
+        return true
     }
 } else {
-    ClockValue :: struct {
-        seconds: isize
-        nanoseconds: isize
-    }
-}
+    // Monotonic timing and interruptible sleeps for native glibc Linux programs.
+    // Wall-clock time is intentionally unavailable from this module.
+    libc :: #system_library "libc";
 
-ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
-ClockSleepRaw :: (clock: s32, flags: s32, request: *ClockValue,
-    remaining: *ClockValue) -> s32 #foreign libc "clock_nanosleep";
-
-// Nanosecond resolution for profiling short operations. -1 reports a failed
-// clock or a value outside the signed nanosecond range.
-#program_export
-MonotonicNanoseconds :: () -> s64 {
-    value: ClockValue
-    if ClockGetTimeRaw(1, *value) != 0 { return -1 }
-    seconds := cast(s64)value.seconds; nanoseconds := cast(s64)value.nanoseconds
-    if seconds < 0 || nanoseconds < 0 || nanoseconds > 999999999 ||
-    seconds > 9223372036 ||
-    (seconds == 9223372036 && nanoseconds > 854775807) { return -1 }
-    return seconds * 1000000000 + nanoseconds
-}
-
-#program_export
-MonotonicMilliseconds :: () -> s64 {
-    value: [1]ClockValue
-    if ClockGetTimeRaw(1, *value[0]) != 0 { return -1 }
-    seconds := cast(s64)value[0].seconds; nanoseconds := cast(s64)value[0].nanoseconds
-    if nanoseconds < 0 || nanoseconds > 999999999 {
-        return -1
-    }
-    if seconds > 9223372036854775 || seconds < 0 {
-        return -1
-    }
-    return seconds * 1000 + nanoseconds / 1000000
-}
-
-MakeClockValue :: (milliseconds: s64) -> ClockValue {
-    value: ClockValue
-    if milliseconds < 0 { return value }
+    // struct timespec: time_t seconds and long nanoseconds. Both are the size
+    // of a pointer on Linux and Android, so 32-bit on armeabi-v7a; 64-bit fields
+    // read the clock as garbage there. Emscripten's time_t is 64-bit on wasm32
+    // while long stays 32-bit, so its timespec is 64-bit seconds, 32-bit
+    // nanoseconds and padding.
     #if #defined(PLATFORM_WEB) {
-        value.seconds = milliseconds / 1000
-        value.nanoseconds = cast(s32)((milliseconds % 1000) * 1000000)
+        ClockValue :: struct {
+            seconds: s64
+            nanoseconds: s32
+            padding: s32
+        }
+    } else {
+        ClockValue :: struct {
+            seconds: isize
+            nanoseconds: isize
+        }
     }
-    #if #defined(PLATFORM_WEB) == false {
-        value.seconds = cast(isize)(milliseconds / 1000)
-        value.nanoseconds = cast(isize)((milliseconds % 1000) * 1000000)
-    }
-    return value
-}
 
-#program_export
-SleepMilliseconds :: (milliseconds: s64) -> bool {
-    if milliseconds < 0 || milliseconds > 86400000 { return false }
-    request: [1]ClockValue
-    remaining: [1]ClockValue
-    request[0] = MakeClockValue(milliseconds)
-    while request[0].seconds > 0 || request[0].nanoseconds > 0 {
-        status: s32 = ClockSleepRaw(1, 0, *request[0], *remaining[0])
-        if status == 0 { return true }
-        if status != 4 { return false }
-        request[0] = remaining[0]
+    ClockGetTimeRaw :: (clock: s32, value: *ClockValue) -> s32 #foreign libc "clock_gettime";
+    ClockSleepRaw :: (clock: s32, flags: s32, request: *ClockValue,
+        remaining: *ClockValue) -> s32 #foreign libc "clock_nanosleep";
+
+    // Nanosecond resolution for profiling short operations. -1 reports a failed
+    // clock or a value outside the signed nanosecond range.
+    #program_export
+    MonotonicNanoseconds :: () -> s64 {
+        value: ClockValue
+        if ClockGetTimeRaw(1, *value) != 0 { return -1 }
+        seconds := cast(s64)value.seconds; nanoseconds := cast(s64)value.nanoseconds
+        if seconds < 0 || nanoseconds < 0 || nanoseconds > 999999999 ||
+        seconds > 9223372036 ||
+        (seconds == 9223372036 && nanoseconds > 854775807) { return -1 }
+        return seconds * 1000000000 + nanoseconds
     }
-    return true
+
+    #program_export
+    MonotonicMilliseconds :: () -> s64 {
+        value: [1]ClockValue
+        if ClockGetTimeRaw(1, *value[0]) != 0 { return -1 }
+        seconds := cast(s64)value[0].seconds; nanoseconds := cast(s64)value[0].nanoseconds
+        if nanoseconds < 0 || nanoseconds > 999999999 {
+            return -1
+        }
+        if seconds > 9223372036854775 || seconds < 0 {
+            return -1
+        }
+        return seconds * 1000 + nanoseconds / 1000000
+    }
+
+    MakeClockValue :: (milliseconds: s64) -> ClockValue {
+        value: ClockValue
+        if milliseconds < 0 { return value }
+        #if #defined(PLATFORM_WEB) {
+            value.seconds = milliseconds / 1000
+            value.nanoseconds = cast(s32)((milliseconds % 1000) * 1000000)
+        }
+        #if #defined(PLATFORM_WEB) == false {
+            value.seconds = cast(isize)(milliseconds / 1000)
+            value.nanoseconds = cast(isize)((milliseconds % 1000) * 1000000)
+        }
+        return value
+    }
+
+    #program_export
+    SleepMilliseconds :: (milliseconds: s64) -> bool {
+        if milliseconds < 0 || milliseconds > 86400000 { return false }
+        request: [1]ClockValue
+        remaining: [1]ClockValue
+        request[0] = MakeClockValue(milliseconds)
+        while request[0].seconds > 0 || request[0].nanoseconds > 0 {
+            status: s32 = ClockSleepRaw(1, 0, *request[0], *remaining[0])
+            if status == 0 { return true }
+            if status != 4 { return false }
+            request[0] = remaining[0]
+        }
+        return true
+    }
+
 }

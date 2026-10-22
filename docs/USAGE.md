@@ -1165,6 +1165,14 @@ The worker calls that notification once after publishing completion, allowing
 an event loop or pipe waiter to wake immediately. The notification must not
 join or restart its own thread. Keep the thread and argument storage alive
 until `ThreadFinished` or `ThreadWait` joins it before consuming results.
+`std/thread_windows.zi` provides the same worker interface for native Win64
+without winpthreads. It starts through the C runtime, polls the native thread
+handle with a zero timeout, and closes that handle only after the thread and
+its cleanup finish. Keep its record and arguments at stable addresses until
+completion, including while a canceled request is being collected.
+`tests/thread_windows.sh` executes C and C++ source and saved-IR checks under
+Wine on a private display, including held notifications, thread cleanup,
+result publication and handle reuse.
 `std/parallel_linux.zi` supplies a reusable `ParallelPool` for independent
 half-open ranges. `ParallelRun` divides a range among persistent workers and
 the submitting thread, then waits for every lane before returning. Keep the

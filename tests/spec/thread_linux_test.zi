@@ -1,4 +1,8 @@
-#import "thread_linux"
+#if #defined(_WIN32) {
+    #import "thread_windows"
+} else {
+    #import "thread_linux"
+}
 #import "timer_linux"
 
 first: Thread;

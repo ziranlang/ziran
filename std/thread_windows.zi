@@ -1,0 +1,91 @@
+// Background work for native 64-bit Windows programs. The caller owns one
+// stable Thread record from Start until Finished or Wait reports completion.
+// Results and notification arguments stay alive until then. Completion waits
+// for the notification and C runtime cleanup, not just the procedure's return.
+crt :: #system_library "msvcrt";
+kernel32 :: #system_library "kernel32";
+
+ThreadProcedure :: #type (argument: *void) #c_call;
+WindowsThreadEntry :: #type (argument: *void) -> u32 #c_call;
+WindowsThreadCreate :: (security: *void, stack_size: u32,
+    entry: WindowsThreadEntry, argument: *void, flags: u32, id: *u32) -> usize #foreign crt "_beginthreadex";
+WindowsThreadWait :: (handle: *void, milliseconds: u32) -> u32 #foreign kernel32 "WaitForSingleObject";
+WindowsThreadClose :: (handle: *void) -> s32 #foreign kernel32 "CloseHandle";
+
+ThreadNotification :: struct {
+    procedure: ThreadProcedure
+    argument: *void
+}
+
+Thread :: struct {
+    handle: usize
+    procedure: ThreadProcedure
+    argument: *void
+    notification: ThreadNotification
+    running: bool
+    finished: bool
+}
+
+ThreadRun :: (argument: *void) -> u32 {
+    thread := cast(*Thread)argument
+    thread.procedure(thread.argument)
+    thread.finished = true
+    if thread.notification.procedure != null {
+        thread.notification.procedure(thread.notification.argument)
+    }
+    return 0
+}
+
+// The notification runs on this worker and must not join or restart it.
+// _beginthreadex retains a waitable handle and releases C runtime thread
+// storage when ThreadRun returns. The owner closes the handle after waiting.
+#program_export
+ThreadStart :: (thread: *Thread, procedure: ThreadProcedure,
+    argument: *void, notification: ThreadNotification = .{}) -> bool {
+    if thread == null || thread.running || procedure == null {
+        return false
+    }
+    thread.procedure = procedure
+    thread.argument = argument
+    thread.notification = notification
+    thread.finished = false
+    thread.running = true
+    entry: WindowsThreadEntry = ThreadRun
+    thread.handle = WindowsThreadCreate(null, 0, entry, cast(*void)thread, 0, null)
+    if thread.handle == cast(usize)0 {
+        thread.running = false
+        return false
+    }
+    return true
+}
+
+#program_export
+ThreadRunning :: (thread: *Thread) -> bool {
+    return thread != null && thread.running
+}
+
+ThreadComplete :: (thread: *Thread, milliseconds: u32) -> bool {
+    if thread == null || !thread.running ||
+    WindowsThreadWait(cast(*void)thread.handle, milliseconds) != cast(u32)0 {
+        return false
+    }
+    if WindowsThreadClose(cast(*void)thread.handle) == 0 {
+        return false
+    }
+    thread.handle = cast(usize)0
+    thread.running = false
+    return true
+}
+
+// A zero-time wait checks the actual native thread exit and never waits for
+// its procedure, notification, or TLS cleanup. Successful polling consumes
+// the handle once and makes the record reusable.
+#program_export
+ThreadFinished :: (thread: *Thread) -> bool {
+    return ThreadComplete(thread, 0)
+}
+
+#program_export
+ThreadWait :: (thread: *Thread) {
+    unused ThreadComplete(thread, cast(u32)4294967295)
+}

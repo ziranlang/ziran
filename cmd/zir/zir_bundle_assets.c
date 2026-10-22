@@ -155,23 +155,27 @@ ZibAssetsWrite(FILE *out, const ZibAssets *assets)
     return 1;
 }
 
-/* Bound every allocation by the actual remaining bytes before allocating.
- * Section sizes use u32; no additional arbitrary file-size limit is imposed. */
+/* Resources are the last section. Measure it once, rather than seeking to
+ * the end twice per resource (which also discards stdio's read buffer). */
 static int
-remaining(FILE *in, uint64_t wanted)
+section_size(FILE *in, size_t *size)
 {
     long start = ftell(in);
     if(start < 0 || fseek(in, 0, SEEK_END) != 0) return 0;
     long end = ftell(in);
     if(fseek(in, start, SEEK_SET) != 0) return 0;
-    return end >= start && (uint64_t)(end - start) >= wanted;
+    if(end < start || (uint64_t)(end - start) > SIZE_MAX) return 0;
+    *size = (size_t)(end - start);
+    return 1;
 }
 
 int
 ZibAssetsRead(FILE *in, ZibAssets *assets)
 {
     uint32_t count;
-    if(!read_size(in, &count) || !remaining(in, (uint64_t)count * 9) ||
+    size_t size;
+    if(!read_size(in, &count) || !section_size(in, &size) ||
+       (uint64_t)count * 9 > size ||
        (uint64_t)count > SIZE_MAX / sizeof(*assets->items)) return 0;
     if(count == 0) return 1;
     assets->items = calloc(count, sizeof(*assets->items));
@@ -180,17 +184,21 @@ ZibAssetsRead(FILE *in, ZibAssets *assets)
         ZibAsset *item = &assets->items[i];
         assets->count++;
         uint32_t n;
-        if(!read_size(in, &n) || n == 0 || (uint64_t)n + 1 > SIZE_MAX ||
-           !remaining(in, (uint64_t)n + 4)) return 0;
+        if(size < 4 || !read_size(in, &n)) return 0;
+        size -= 4;
+        if(n == 0 || (uint64_t)n + 1 > SIZE_MAX ||
+           (uint64_t)n + 4 > size) return 0;
         item->name = malloc((size_t)n + 1);
         if(item->name == NULL || fread(item->name, 1, n, in) != n) return 0;
         item->name[n] = '\0';
+        size -= n + (size_t)4;
         if(memchr(item->name, 0, n) != NULL || !asset_name(item->name) ||
            (i > 0 && strcmp(assets->items[i - 1].name, item->name) >= 0) ||
-           !read_size(in, &item->size) || !remaining(in, item->size)) return 0;
+           !read_size(in, &item->size) || item->size > size) return 0;
         item->data = malloc(item->size ? item->size : 1);
         if(item->data == NULL || fread(item->data, 1, item->size, in) != item->size)
             return 0;
+        size -= item->size;
     }
     return 1;
 }

@@ -4,6 +4,11 @@ ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" -I"$repo/cmd/zir" \
+    "$repo/tests/bundle_assets_stream_test.c" \
+    "${ZIRAN_LIB:-$repo/build/libziran.a}" -Wl,--wrap=fseek -lm -lpthread \
+    -o "$work/resource-stream"
+"$work/resource-stream"
 mkdir -p "$work/assets/sub"
 printf 'a\000b' > "$work/assets/a.bin"
 : > "$work/assets/empty"

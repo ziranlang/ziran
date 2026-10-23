@@ -1181,8 +1181,9 @@ Wine on a private display, including held notifications, thread cleanup,
 result publication and handle reuse.
 `std/parallel_linux.zi` supplies a reusable `ParallelPool` for independent
 half-open ranges. `ParallelRun` divides a range among persistent workers and
-the submitting thread, then waits for every lane before returning. Keep the
-pool at one address, submit from one owner, and call `ParallelClose` before
+the submitting thread, then waits for every lane before returning. Short ranges
+use a subset of the pool instead of becoming serial when more lanes are
+configured. Keep the pool at one address, submit from one owner, and call `ParallelClose` before
 releasing it. Callbacks must write only their own range and keep shared inputs
 immutable. Four lanes run by default; `ZIRAN_PAR_THREADS` selects 1–64 lanes.
 Native C and C++ source builds define `POSIX_THREADS` automatically, including

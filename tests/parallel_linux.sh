@@ -4,6 +4,12 @@ ziran=${1:?pass the ziran command}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
+"${CC:-cc}" -std=c11 -Iinclude tests/parallel_native_lanes_test.c -pthread -o "$work/lanes-c"
+"${CXX:-c++}" -x c++ -std=c++17 -Iinclude tests/parallel_native_lanes_test.c -pthread -o "$work/lanes-cpp"
+for count in 1 2 8 64; do
+    ZIRAN_PAR_THREADS=$count "$work/lanes-c"
+    ZIRAN_PAR_THREADS=$count "$work/lanes-cpp"
+done
 "$ziran" check --root tests/spec --module-path std tests/spec/parallel_linux_test.zi
 for target in c cpp; do
     "$ziran" build --target="$target" --no-main --root tests/spec --module-path std \

@@ -456,6 +456,38 @@ bound_string_constant(const ZirModule *module, const char *name, int depth,
     return status;
 }
 
+/* A real definition's value: a literal, another real constant, or either
+ * with a sign, as in `Side :: -90.0` or `Again :: -Side`. A negated
+ * negative literal loses its sign rather than gaining a second one. */
+static int
+real_constant_node(const ZirModule *owner, const ZirFunction *expression,
+                   int index, int depth, char *literal, size_t size)
+{
+    if(depth > 128) return -1;
+    const ZirExpr *node = &expression->exprs[index];
+    if(node->kind == ZIR_EXPR_FLOAT) {
+        copy_text(literal, size, node->text);
+        return 1;
+    }
+    if(node->kind == ZIR_EXPR_IDENT)
+        return bound_real_constant(owner, node->name, depth + 1, literal, size);
+    if(node->kind != ZIR_EXPR_UNARY || node->right < 0 ||
+       (strcmp(node->op, "-") && strcmp(node->op, "+")))
+        return 0;
+    char operand[128];
+    int status = real_constant_node(owner, expression, node->right, depth + 1,
+                                    operand, sizeof(operand));
+    if(status != 1)
+        return status;
+    if(!strcmp(node->op, "+"))
+        copy_text(literal, size, operand);
+    else if(operand[0] == '-')
+        copy_text(literal, size, operand + 1);
+    else if(snprintf(literal, size, "-%s", operand) >= (int)size)
+        return -1;
+    return 1;
+}
+
 /* Fold real definitions into typed expression nodes before writing .zir.
  * Backends then see the same literal from source and saved IR. */
 int
@@ -471,14 +503,8 @@ bound_real_constant(const ZirModule *module, const char *name, int depth,
     ZirFunction expression = {0};
     int index = ParseExpr(&expression, owner, definition->value,
                           definition->span);
-    int status = 0;
-    if(index < 0) status = -1;
-    else if(expression.exprs[index].kind == ZIR_EXPR_FLOAT) {
-        copy_text(literal, size, expression.exprs[index].text);
-        status = 1;
-    } else if(expression.exprs[index].kind == ZIR_EXPR_IDENT)
-        status = bound_real_constant(owner, expression.exprs[index].name,
-                                     depth + 1, literal, size);
+    int status = index < 0 ? -1 :
+        real_constant_node(owner, &expression, index, depth, literal, size);
     free(expression.exprs);
     return status;
 }

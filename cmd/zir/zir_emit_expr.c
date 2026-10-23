@@ -1079,6 +1079,12 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
     case ZIR_EXPR_FLOAT: {
         copy_text(buffers->result,sizeof(buffers->result),expr->text);size_t n=strlen(buffers->result);
         if(n && (buffers->result[n-1]=='f' || buffers->result[n-1]=='F')) buffers->result[n-1]=0;
+        /* A folded negative constant keeps its own parentheses, so a
+         * negation in front cannot read as a decrement. */
+        if(buffers->result[0] == '-') {
+            copy_text(buffers->a, sizeof(buffers->a), buffers->result);
+            format(buffers->result, sizeof(buffers->result), "(%s)", buffers->a);
+        }
         pure = 1;
         break;
     }

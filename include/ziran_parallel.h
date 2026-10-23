@@ -56,7 +56,9 @@ static inline void ziran_parallel_run(
     int64_t chunk;
     if(end < start)
         return;
-    if(threads <= 1 || span < 2 * (int64_t)threads) {
+    if(span / 2 < threads)
+        threads = (int)(span / 2);
+    if(threads <= 1) {
         worker(start, end, context);
         return;
     }

@@ -19,6 +19,9 @@ SelfTest :: () -> s32 {
     procedure: RangeProcedure = Fill
     ParallelRun(*pool, 0, 0, procedure, cast(*void)*data)
     if pool.initialized { return 1 }
+    ParallelRun(*pool, 0, 1, procedure, cast(*void)*data)
+    if pool.initialized || data.visits[0] != 1 { return 8 }
+    data.visits[0] = 0
     for pass: 0..cast(s32)127 {
         data.pass = cast(s64)pass
         ParallelRun(*pool, 0, 513, procedure, cast(*void)*data)
@@ -33,6 +36,9 @@ SelfTest :: () -> s32 {
     // A short tail executes once even when it cannot use every lane.
     ParallelRun(*pool, 511, 513, procedure, cast(*void)*data)
     if data.visits[510] != 128 || data.visits[511] != 129 || data.visits[512] != 129 { return 5 }
+    ParallelRun(*pool, 0, 4, procedure, cast(*void)*data)
+    if ParallelCount() > 1 && data.identities[0] == data.identities[3] { return 9 }
+    for i: 0..3 { if data.visits[i] != 129 { return 10 }; data.visits[i] = 128 }
     ParallelClose(*pool); ParallelClose(*pool)
     if pool.initialized || pool.workers != 0 { return 6 }
     ParallelRun(*pool, 0, 513, procedure, cast(*void)*data)

@@ -30,6 +30,7 @@ ParallelPool :: struct {
     generation: u64
     remaining: s32
     workers: s32
+    active_workers: s32
     initialized: bool
     stopping: bool
 }
@@ -62,7 +63,8 @@ ParallelWorker :: (argument: *void) {
         }
         if pool.stopping { break }
         generation = pool.generation
-        span := pool.end - pool.start; chunk := span / cast(s64)(pool.workers + 1)
+        if lane.index >= pool.active_workers { continue }
+        span := pool.end - pool.start; chunk := span / cast(s64)(pool.active_workers + 1)
         start := pool.start + cast(s64)lane.index * chunk
         procedure := pool.procedure; data := pool.argument
         unused MutexUnlock(ParallelLock(pool))
@@ -101,15 +103,20 @@ ParallelInit :: (pool: *ParallelPool) -> bool {
 ParallelRun :: (pool: *ParallelPool, start: s64, end: s64,
     procedure: RangeProcedure, argument: *void) {
     if end <= start || procedure == null { return }
-    if pool == null || !ParallelInit(pool) || pool.workers == 0 || end - start < cast(s64)(pool.workers + 1) * 2 {
+    if end - start < 4 || pool == null || !ParallelInit(pool) || pool.workers == 0 {
         procedure(start, end, argument); return
     }
     unused MutexLock(ParallelLock(pool))
     pool.procedure = procedure; pool.argument = argument; pool.start = start; pool.end = end
-    pool.remaining = pool.workers; pool.generation += cast(u64)1
+    // A short range can still use a subset of the pool. A large configured
+    // pool must not force useful parallel work back onto its owner alone.
+    active := pool.workers
+    if cast(s64)(active + 1) > (end - start) / 2 { active = cast(s32)((end - start) / 2) - 1 }
+    pool.active_workers = active
+    pool.remaining = active; pool.generation += cast(u64)1
     unused ConditionBroadcast(ParallelWake(pool))
-    chunk := (end - start) / cast(s64)(pool.workers + 1)
-    caller_start := start + cast(s64)pool.workers * chunk
+    chunk := (end - start) / cast(s64)(active + 1)
+    caller_start := start + cast(s64)active * chunk
     unused MutexUnlock(ParallelLock(pool))
     procedure(caller_start, end, argument)
     unused MutexLock(ParallelLock(pool))

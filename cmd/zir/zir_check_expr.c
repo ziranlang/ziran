@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_check_internal.h"
 /* Buffers expression_type keeps on the heap so deep nesting fits the stack;
@@ -2632,20 +2633,10 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
     return e->type;
 }
 
-const char *
-expression_type(Checker *c, int index)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ExpressionTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    const char *returned = expression_type_with_buffers(c, index, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, const char *, expression_type,
+    (Checker *c, int index),
+    ExpressionTypeBuffers, RECOVERABLE, free,
+    expression_type_with_buffers(c, index, buffers))
 /* Buffers InferExpressionType keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct InferExpressionTypeBuffers {
@@ -2684,18 +2675,8 @@ InferExpressionType_with_buffers(const ZirModule *module, const char *expression
     return valid;
 }
 
-int
-InferExpressionType(const ZirModule *module, const char *expression,
-                    ZirSourceSpan span, char *type, size_t capacity)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    InferExpressionTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = InferExpressionType_with_buffers(module, expression, span, type, capacity, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, InferExpressionType,
+    (const ZirModule *module, const char *expression,
+                    ZirSourceSpan span, char *type, size_t capacity),
+    InferExpressionTypeBuffers, RECOVERABLE, free,
+    InferExpressionType_with_buffers(module, expression, span, type, capacity, buffers))

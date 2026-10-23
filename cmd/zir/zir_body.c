@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_body.h"
 #include "zir_check.h"
@@ -89,20 +90,10 @@ portable_type_path_with_buffers(const ZirModule *module, const char *type, const
     return status == 0 && fields > 0;
 }
 
-static int
-portable_type_path(const ZirModule *module, const char *type, const TypePath *path)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    PortableTypePathBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = portable_type_path_with_buffers(module, type, path, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, portable_type_path,
+    (const ZirModule *module, const char *type, const TypePath *path),
+    PortableTypePathBuffers, RECOVERABLE, free,
+    portable_type_path_with_buffers(module, type, path, buffers))
 
 static int
 portable_type(const ZirModule *module, const char *type)

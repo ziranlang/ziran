@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_bundle.h"
 #include "zir_stream.h"
@@ -688,20 +689,10 @@ prune_function_with_buffers(ZirFunction *fn, PruneFunctionBuffers *buffers)
     return 1;
 }
 
-static int
-prune_function(ZirFunction *fn)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    PruneFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = prune_function_with_buffers(fn, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, prune_function,
+    (ZirFunction *fn),
+    PruneFunctionBuffers, RECOVERABLE, free,
+    prune_function_with_buffers(fn, buffers))
 
 typedef struct FieldUse {
     ZirType *type;
@@ -1012,21 +1003,11 @@ failed:
 /* Entry links are closed programs. A field unused by their checked graph
  * need not occupy every element of a large retained array. Host signatures
  * and the entry ABI keep their complete layouts. */
-static int
-prune_record_fields(ZirProgram *program, const char *entry_module,
-                    const char *entry_function)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    PruneRecordFieldsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = prune_record_fields_with_buffers(program, entry_module, entry_function, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, prune_record_fields,
+    (ZirProgram *program, const char *entry_module,
+                    const char *entry_function),
+    PruneRecordFieldsBuffers, RECOVERABLE, free,
+    prune_record_fields_with_buffers(program, entry_module, entry_function, buffers))
 
 static int
 mark_type_pointer(const ZirProgram *program, const ZirModule *owner,
@@ -2255,21 +2236,11 @@ failed:
     return NULL;
 }
 
-static ZirProgram *
-link_checked_entry(const ZirProgram *program, const char *entry_module,
-           const char *entry_function, int native)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LinkCheckedEntryBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    ZirProgram *returned = link_checked_entry_with_buffers(program, entry_module, entry_function, native, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, ZirProgram *, link_checked_entry,
+    (const ZirProgram *program, const char *entry_module,
+           const char *entry_function, int native),
+    LinkCheckedEntryBuffers, RECOVERABLE, free,
+    link_checked_entry_with_buffers(program, entry_module, entry_function, native, buffers))
 
 ZirProgram *
 BundleLink_in_context(const ZirProgram *program, const char *entry_module,

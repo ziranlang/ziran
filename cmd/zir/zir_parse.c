@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_parse_internal.h"
 #include "compiler_source.h"
@@ -224,21 +225,12 @@ parse_file_global_with_buffers(ZirModule *module, const char *declaration,
         copy_text(name_out, name_size, name);
 }
 
-void
-parse_file_global(ZirModule *module, const char *declaration,
+COMPILER_SCRATCH_VOID(, parse_file_global,
+    (ZirModule *module, const char *declaration,
                   ZirSourceSpan span, int scope_public, int scope_file,
-                  char *name_out, size_t name_size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ParseFileGlobalBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    parse_file_global_with_buffers(module, declaration, span, scope_public, scope_file, name_out, name_size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+                  char *name_out, size_t name_size),
+    ParseFileGlobalBuffers, RECOVERABLE, free,
+    parse_file_global_with_buffers(module, declaration, span, scope_public, scope_file, name_out, name_size, buffers))
 
 int
 contains_source_directive(const char *source, const char *directive)
@@ -441,20 +433,10 @@ take_abi_incomplete_with_buffers(ZirType *type, TakeAbiIncompleteBuffers *buffer
     return 1;
 }
 
-int
-take_abi_incomplete(ZirType *type)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    TakeAbiIncompleteBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = take_abi_incomplete_with_buffers(type, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, take_abi_incomplete,
+    (ZirType *type),
+    TakeAbiIncompleteBuffers, RECOVERABLE, free,
+    take_abi_incomplete_with_buffers(type, buffers))
 /* Buffers expand_type_this keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct ExpandTypeThisBuffers {
@@ -500,20 +482,10 @@ expand_type_this_with_buffers(ZirType *type, ExpandTypeThisBuffers *buffers)
     return 1;
 }
 
-int
-expand_type_this(ZirType *type)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ExpandTypeThisBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = expand_type_this_with_buffers(type, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, expand_type_this,
+    (ZirType *type),
+    ExpandTypeThisBuffers, RECOVERABLE, free,
+    expand_type_this_with_buffers(type, buffers))
 
 const char *
 relative_path(const char *root, const char *path)

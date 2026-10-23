@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_cleanup.h"
 #include "zir_diagnostic.h"
@@ -109,20 +110,10 @@ action_kind_with_buffers(const char *text, ZirStmt *action, ActionKindBuffers *b
     return valid;
 }
 
-static int
-action_kind(const char *text, ZirStmt *action)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ActionKindBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = action_kind_with_buffers(text, action, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, action_kind,
+    (const char *text, ZirStmt *action),
+    ActionKindBuffers, RECOVERABLE, free,
+    action_kind_with_buffers(text, action, buffers))
 
 static int
 append(ZirFunction *out, const ZirStmt *st)
@@ -587,20 +578,10 @@ done:
     return ok;
 }
 
-int
-LowerCleanup(ZirFunction *fn)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerCleanupBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = LowerCleanup_with_buffers(fn, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, LowerCleanup,
+    (ZirFunction *fn),
+    LowerCleanupBuffers, RECOVERABLE, free,
+    LowerCleanup_with_buffers(fn, buffers))
 
 static LoopHeader
 for_header(const ZirStmt *statement)
@@ -705,21 +686,11 @@ done:
     return ok;
 }
 
-static int
-lower_named_while(ZirFunction *fn, int index, const char *name,
-                  const char *condition)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerNamedWhileBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = lower_named_while_with_buffers(fn, index, name, condition, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, lower_named_while,
+    (ZirFunction *fn, int index, const char *name,
+                  const char *condition),
+    LowerNamedWhileBuffers, RECOVERABLE, free,
+    lower_named_while_with_buffers(fn, index, name, condition, buffers))
 /* Buffers BindJaiLoopControls keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct BindJaiLoopControlsBuffers {
@@ -804,20 +775,10 @@ done:
     return ok;
 }
 
-int
-BindJaiLoopControls(ZirFunction *fn)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    BindJaiLoopControlsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = BindJaiLoopControls_with_buffers(fn, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, BindJaiLoopControls,
+    (ZirFunction *fn),
+    BindJaiLoopControlsBuffers, RECOVERABLE, free,
+    BindJaiLoopControls_with_buffers(fn, buffers))
 
 static int
 range_name_used(const ZirFunction *fn, const ZirModule *module,
@@ -1108,20 +1069,10 @@ done:
     return ok;
 }
 
-static int
-lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerOneRangeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = lower_one_range_with_buffers(fn, module, index, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, lower_one_range,
+    (ZirFunction *fn, const ZirModule *module, int index),
+    LowerOneRangeBuffers, RECOVERABLE, free,
+    lower_one_range_with_buffers(fn, module, index, buffers))
 
 /* Buffers lower_one_collection keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -1229,20 +1180,10 @@ done:
     return ok;
 }
 
-static int
-lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerOneCollectionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = lower_one_collection_with_buffers(fn, module, index, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, lower_one_collection,
+    (ZirFunction *fn, const ZirModule *module, int index),
+    LowerOneCollectionBuffers, RECOVERABLE, free,
+    lower_one_collection_with_buffers(fn, module, index, buffers))
 int
 LowerJaiFor(ZirFunction *fn, const ZirModule *module)
 {

@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 /*
  * zir_go_lower.c - ZIR to Go backend. See zir_go_lower.h for scope.
  */
@@ -726,19 +727,10 @@ parse_extern_import_with_buffers(const ZirImport *imp, ParseExternImportBuffers 
 
 /* Parse "name :: (args) -> ret #foreign library;" from a raw foreign import
  * line (the ZirImport.signature keeps the whole declaration). */
-static void
-parse_extern_import(const ZirImport *imp)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ParseExternImportBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    parse_extern_import_with_buffers(imp, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, parse_extern_import,
+    (const ZirImport *imp),
+    ParseExternImportBuffers, POOLED, free,
+    parse_extern_import_with_buffers(imp, buffers))
 /* Buffers parse_enum keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct ParseEnumBuffers {
@@ -827,19 +819,10 @@ parse_enum_with_buffers(const ZirModule *owner, const ZirType *t, ParseEnumBuffe
 
 /* Parse enum body members. The parser may deliver them newline-separated or
  * comma-joined on one line ('A = 0, B, C'), so split on both. */
-static void
-parse_enum(const ZirModule *owner, const ZirType *t)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ParseEnumBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    parse_enum_with_buffers(owner, t, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, parse_enum,
+    (const ZirModule *owner, const ZirType *t),
+    ParseEnumBuffers, POOLED, free,
+    parse_enum_with_buffers(owner, t, buffers))
 
 /* (Re)build the per-module context: extern bridge + enum constants. Must run
  * before any expression or statement is emitted for the module. */
@@ -942,21 +925,11 @@ tx_group_with_buffers(const ZirModule *m, const char *src, char *dst, size_t *dn
 
 /* Translate the inside of a braced/paren group starting after the opener;
  * returns the position after the matching closer. */
-static const char *
-tx_group(const ZirModule *m, const char *src, char *dst, size_t *dn,
-         char open, char close)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    TxGroupBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    const char *returned = tx_group_with_buffers(m, src, dst, dn, open, close, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, const char *, tx_group,
+    (const ZirModule *m, const char *src, char *dst, size_t *dn,
+         char open, char close),
+    TxGroupBuffers, POOLED, free,
+    tx_group_with_buffers(m, src, dst, dn, open, close, buffers))
 
 static void
 resolve_slot_type(void *context, const char *source, char *out, size_t size)
@@ -1362,19 +1335,10 @@ tx_expr_with_buffers(const ZirModule *m, const char *src, char *dst, size_t dst_
     (void)buffers->out;
 }
 
-static void
-tx_expr(const ZirModule *m, const char *src, char *dst, size_t dst_size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    TxExprBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    tx_expr_with_buffers(m, src, dst, dst_size, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, tx_expr,
+    (const ZirModule *m, const char *src, char *dst, size_t dst_size),
+    TxExprBuffers, POOLED, free,
+    tx_expr_with_buffers(m, src, dst, dst_size, buffers))
 
 /* -------------------------------------------------------- module lowering */
 
@@ -1469,20 +1433,11 @@ lower_function_with_buffers(FILE *f, const ZirModule *m, const ZirFunction *fn,
     zir_go_local_count = saved_local_count;
 }
 
-static void
-lower_function(FILE *f, const ZirModule *m, const ZirFunction *fn,
-               const char *guard, GoAssembly *assembly)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerFunctionBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    lower_function_with_buffers(f, m, fn, guard, assembly, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, lower_function,
+    (FILE *f, const ZirModule *m, const ZirFunction *fn,
+               const char *guard, GoAssembly *assembly),
+    LowerFunctionBuffers, POOLED, free,
+    lower_function_with_buffers(f, m, fn, guard, assembly, buffers))
 
 /* Native methods delegate to the ordinary free function, retaining a single
  * implementation and preserving pointer receivers, error and panic identity. */

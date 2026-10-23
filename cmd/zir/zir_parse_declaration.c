@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_parse_internal.h"
 #include "zir_string.h"
@@ -295,22 +296,12 @@ lower_template_record_default_with_buffers(ZirModule *module,
     return 1;
 }
 
-static int
-lower_template_record_default(ZirModule *module,
+COMPILER_SCRATCH_RETURN(static, int, lower_template_record_default,
+    (ZirModule *module,
                               const ZirFunction *function, int parameter,
-                              char *part, size_t capacity)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerTemplateRecordDefaultBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = lower_template_record_default_with_buffers(module, function, parameter, part, capacity, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                              char *part, size_t capacity),
+    LowerTemplateRecordDefaultBuffers, RECOVERABLE, free,
+    lower_template_record_default_with_buffers(module, function, parameter, part, capacity, buffers))
 /* Buffers add_default_helpers keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct AddDefaultHelpersBuffers {
@@ -491,21 +482,12 @@ add_default_helpers_with_buffers(ZirProgram *program, ZirModule *module,
     }
 }
 
-void
-add_default_helpers(ZirProgram *program, ZirModule *module,
+COMPILER_SCRATCH_VOID(, add_default_helpers,
+    (ZirProgram *program, ZirModule *module,
                     const char *source_path, const char *root,
-                    ZirCompileImportResolver resolver, void *resolver_context)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    AddDefaultHelpersBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    add_default_helpers_with_buffers(program, module, source_path, root, resolver, resolver_context, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+                    ZirCompileImportResolver resolver, void *resolver_context),
+    AddDefaultHelpersBuffers, RECOVERABLE, free,
+    add_default_helpers_with_buffers(program, module, source_path, root, resolver, resolver_context, buffers))
 
 int
 parse_import_line(ZirModule *module, const char *path, int line_no,

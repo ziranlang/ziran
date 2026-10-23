@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_files.h"
 #include "zir_expr.h"
@@ -339,20 +340,11 @@ done:
     free(parameters); free(defaults);
 }
 
-static void
-append_default_arguments(ExprParser *p, int callee,
-                         const char *name, int *first, int *last)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    AppendDefaultArgumentsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    append_default_arguments_with_buffers(p, callee, name, first, last, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, append_default_arguments,
+    (ExprParser *p, int callee,
+                         const char *name, int *first, int *last),
+    AppendDefaultArgumentsBuffers, RECOVERABLE, free,
+    append_default_arguments_with_buffers(p, callee, name, first, last, buffers))
 
 static SyntaxCursor syntax_cursor(ExprParser *p);
 static const char *expression_name(String part);

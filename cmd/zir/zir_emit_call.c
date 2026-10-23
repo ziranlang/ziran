@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 
@@ -228,23 +229,13 @@ emit_global_literal_node_with_buffers(GlobalLiteralEmit *emit, int index,
     return append_global_literal(out, size, used, "%s", buffers->scalar);
 }
 
-static int
-emit_global_literal_node(GlobalLiteralEmit *emit, int index,
+COMPILER_SCRATCH_RETURN(static, int, emit_global_literal_node,
+    (GlobalLiteralEmit *emit, int index,
                          const ZirModule *scope, const char *type,
                          char *out, size_t size,
-                         size_t *used, int depth)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitGlobalLiteralNodeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = emit_global_literal_node_with_buffers(emit, index, scope, type, out, size, used, depth, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                         size_t *used, int depth),
+    EmitGlobalLiteralNodeBuffers, RECOVERABLE, free,
+    emit_global_literal_node_with_buffers(emit, index, scope, type, out, size, used, depth, buffers))
 /* Buffers EmitGlobalInitializer keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitGlobalInitializerBuffers {
@@ -285,24 +276,14 @@ EmitGlobalInitializer_with_buffers(const ZirModule *module, const ZirGlobal *glo
     return ok ? 1 : -1;
 }
 
-int
-EmitGlobalInitializer(const ZirModule *module, const ZirGlobal *global,
+COMPILER_SCRATCH_RETURN(, int, EmitGlobalInitializer,
+    (const ZirModule *module, const ZirGlobal *global,
                       ZirTarget target, ZirGlobalScalarRewrite scalar,
                       ZirGlobalTypeRewrite type_name,
                       ZirGlobalFieldRewrite field_name, void *context,
-                      char *out, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitGlobalInitializerBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = EmitGlobalInitializer_with_buffers(module, global, target, scalar, type_name, field_name, context, out, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                      char *out, size_t size),
+    EmitGlobalInitializerBuffers, RECOVERABLE, free,
+    EmitGlobalInitializer_with_buffers(module, global, target, scalar, type_name, field_name, context, out, size, buffers))
 /* Buffers emit_global_slot_wrappers_node keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitGlobalSlotWrappersNodeBuffers {
@@ -385,24 +366,15 @@ emit_global_slot_wrappers_node_with_buffers(FILE *out, const ZirModule *module,
             buffers->resolved);
 }
 
-static void
-emit_global_slot_wrappers_node(FILE *out, const ZirModule *module,
+COMPILER_SCRATCH_VOID(static, emit_global_slot_wrappers_node,
+    (FILE *out, const ZirModule *module,
                                const ZirGlobal *global,
                                const ZirFunction *probe, int index,
                                const ZirModule *scope, const char *type,
                                ZirTarget target, ZirResolveTarget resolver,
-                               void *context, int depth)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitGlobalSlotWrappersNodeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_global_slot_wrappers_node_with_buffers(out, module, global, probe, index, scope, type, target, resolver, context, depth, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+                               void *context, int depth),
+    EmitGlobalSlotWrappersNodeBuffers, RECOVERABLE, free,
+    emit_global_slot_wrappers_node_with_buffers(out, module, global, probe, index, scope, type, target, resolver, context, depth, buffers))
 /* Buffers EmitGlobalSlotWrappers keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitGlobalSlotWrappersBuffers {
@@ -430,21 +402,12 @@ EmitGlobalSlotWrappers_with_buffers(FILE *out, const ZirModule *module,
     free(buffers->probe.exprs);
 }
 
-void
-EmitGlobalSlotWrappers(FILE *out, const ZirModule *module,
+COMPILER_SCRATCH_VOID(, EmitGlobalSlotWrappers,
+    (FILE *out, const ZirModule *module,
                        const ZirGlobal *global, ZirTarget target,
-                       ZirResolveTarget resolver, void *context)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitGlobalSlotWrappersBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    EmitGlobalSlotWrappers_with_buffers(out, module, global, target, resolver, context, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+                       ZirResolveTarget resolver, void *context),
+    EmitGlobalSlotWrappersBuffers, RECOVERABLE, free,
+    EmitGlobalSlotWrappers_with_buffers(out, module, global, target, resolver, context, buffers))
 
 static void
 call_parameter_type(Emitter *e, const ZirExpr *call, int ordinal,
@@ -719,19 +682,10 @@ emit_call_with_buffers(Emitter *e, const ZirExpr *expr, const char *array_result
     replace_call_placeholders(buffers->resolved, buffers->arguments, argument_count, out, size);
 }
 
-void
-emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitCallBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_call_with_buffers(e, expr, array_result, out, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_call,
+    (Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size),
+    EmitCallBuffers, RECOVERABLE, free,
+    emit_call_with_buffers(e, expr, array_result, out, size, buffers))
 
 static void
 slot_wrapper_name(const ZirModule *module, const ZirFunction *fn, int index,
@@ -796,20 +750,11 @@ EmitSlotWrappers_with_buffers(FILE *out, const ZirModule *module, const ZirFunct
 
 /* C has no lexical function values. A file-scope adapter supplies the uniform
  * borrowed-context slot ABI while ordinary Ziran functions keep their own ABI. */
-void
-EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
-                    ZirTarget target, ZirResolveTarget resolver, void *context)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitSlotWrappersBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    EmitSlotWrappers_with_buffers(out, module, fn, target, resolver, context, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, EmitSlotWrappers,
+    (FILE *out, const ZirModule *module, const ZirFunction *fn,
+                    ZirTarget target, ZirResolveTarget resolver, void *context),
+    EmitSlotWrappersBuffers, RECOVERABLE, free,
+    EmitSlotWrappers_with_buffers(out, module, fn, target, resolver, context, buffers))
 /* Buffers emit_function_value keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitFunctionValueBuffers {
@@ -890,19 +835,10 @@ emit_function_value_with_buffers(Emitter *e, int index, char *out, size_t size, 
         format(out, size, "(%s) => %s", buffers->arguments, buffers->resolved);
 }
 
-void
-emit_function_value(Emitter *e, int index, char *out, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitFunctionValueBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_function_value_with_buffers(e, index, out, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_function_value,
+    (Emitter *e, int index, char *out, size_t size),
+    EmitFunctionValueBuffers, RECOVERABLE, free,
+    emit_function_value_with_buffers(e, index, out, size, buffers))
 
 int
 member_path(const ZirFunction *fn, int index)
@@ -1021,19 +957,10 @@ print_run_flush_with_buffers(Emitter *e, PrintRun *run, int format_expr, PrintRu
     memset(run, 0, sizeof(*run));
 }
 
-static void
-print_run_flush(Emitter *e, PrintRun *run, int format_expr)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    PrintRunFlushBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    print_run_flush_with_buffers(e, run, format_expr, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, print_run_flush,
+    (Emitter *e, PrintRun *run, int format_expr),
+    PrintRunFlushBuffers, RECOVERABLE, free,
+    print_run_flush_with_buffers(e, run, format_expr, buffers))
 
 /* A name followed only by member access, calls, and indexing, such as
  * corner.x or Area(box), binds tighter than a cast and needs no
@@ -1225,16 +1152,7 @@ emit_print_with_buffers(Emitter *e, const ZirExpr *expr, EmitPrintBuffers *buffe
     free(values);
 }
 
-void
-emit_print(Emitter *e, const ZirExpr *expr)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitPrintBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_print_with_buffers(e, expr, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_print,
+    (Emitter *e, const ZirExpr *expr),
+    EmitPrintBuffers, RECOVERABLE, free,
+    emit_print_with_buffers(e, expr, buffers))

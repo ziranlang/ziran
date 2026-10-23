@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_parse_internal.h"
 #include "compiler_source.h"
@@ -466,23 +467,13 @@ replace_compile_ifx_with_buffers(char *source, size_t capacity, const ZirFunctio
     return 1;
 }
 
-static int
-replace_compile_ifx(char *source, size_t capacity, const ZirFunction *fn,
+COMPILER_SCRATCH_RETURN(static, int, replace_compile_ifx,
+    (char *source, size_t capacity, const ZirFunction *fn,
                     const ZirModule *module, const ZirExpr *expr,
                     const ZirConsts *consts,
-                    ZirSourceSpan span, int allow_deferred)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ReplaceCompileIfxBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = replace_compile_ifx_with_buffers(source, capacity, fn, module, expr, consts, span, allow_deferred, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                    ZirSourceSpan span, int allow_deferred),
+    ReplaceCompileIfxBuffers, RECOVERABLE, free,
+    replace_compile_ifx_with_buffers(source, capacity, fn, module, expr, consts, span, allow_deferred, buffers))
 /* Buffers lower_compile_ifx_value keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct LowerCompileIfxValueBuffers {
@@ -517,22 +508,12 @@ lower_compile_ifx_value_with_buffers(char *value, size_t capacity,
     die_at(span, "too many nested #ifx expressions");
 }
 
-int
-lower_compile_ifx_value(char *value, size_t capacity,
+COMPILER_SCRATCH_RETURN(, int, lower_compile_ifx_value,
+    (char *value, size_t capacity,
                         const ZirModule *module, const ZirConsts *consts,
-                        ZirSourceSpan span, int allow_deferred)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerCompileIfxValueBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = lower_compile_ifx_value_with_buffers(value, capacity, module, consts, span, allow_deferred, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                        ZirSourceSpan span, int allow_deferred),
+    LowerCompileIfxValueBuffers, RECOVERABLE, free,
+    lower_compile_ifx_value_with_buffers(value, capacity, module, consts, span, allow_deferred, buffers))
 
 int
 lower_compile_ifx_function(ZirFunction *fn, const ZirModule *module,
@@ -625,20 +606,11 @@ replace_size_of_with_buffers(char *source, size_t capacity, const ZirModule *mod
     copy_text(source, capacity, buffers->rewritten);
 }
 
-static void
-replace_size_of(char *source, size_t capacity, const ZirModule *module,
-                const ZirExpr *expr, ZirSourceSpan span)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ReplaceSizeOfBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    replace_size_of_with_buffers(source, capacity, module, expr, span, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, replace_size_of,
+    (char *source, size_t capacity, const ZirModule *module,
+                const ZirExpr *expr, ZirSourceSpan span),
+    ReplaceSizeOfBuffers, RECOVERABLE, free,
+    replace_size_of_with_buffers(source, capacity, module, expr, span, buffers))
 /* Buffers lower_size_of_value keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct LowerSizeOfValueBuffers {
@@ -668,20 +640,11 @@ lower_size_of_value_with_buffers(char *value, size_t capacity, const ZirModule *
     die_at(span, "too many size_of expressions");
 }
 
-void
-lower_size_of_value(char *value, size_t capacity, const ZirModule *module,
-                    ZirSourceSpan span)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerSizeOfValueBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    lower_size_of_value_with_buffers(value, capacity, module, span, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, lower_size_of_value,
+    (char *value, size_t capacity, const ZirModule *module,
+                    ZirSourceSpan span),
+    LowerSizeOfValueBuffers, RECOVERABLE, free,
+    lower_size_of_value_with_buffers(value, capacity, module, span, buffers))
 
 /* Imports are linked after parsing. Finish any #ifx selection that called
  * into another module, then lower size_of only in the selected branch. */
@@ -822,21 +785,11 @@ parse_compile_check_with_buffers(ZirModule *module, const char *path, int line_n
     return 0;
 }
 
-int
-parse_compile_check(ZirModule *module, const char *path, int line_no,
-                    char *line, const ZirConsts *consts)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ParseCompileCheckBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = parse_compile_check_with_buffers(module, path, line_no, line, consts, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, parse_compile_check,
+    (ZirModule *module, const char *path, int line_no,
+                    char *line, const ZirConsts *consts),
+    ParseCompileCheckBuffers, RECOVERABLE, free,
+    parse_compile_check_with_buffers(module, path, line_no, line, consts, buffers))
 
 /* Returns 1 when the line is consumed by top-level conditional handling
  * ('#if'/'else #if'/'else' open or retarget a frame; the matching '}'

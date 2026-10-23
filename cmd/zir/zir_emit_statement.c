@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 
@@ -291,19 +292,10 @@ parallel_region_dispatch_with_buffers(Emitter *e, const ParallelRegion *region, 
     line(e, "}");
 }
 
-static void
-parallel_region_dispatch(Emitter *e, const ParallelRegion *region)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ParallelRegionDispatchBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    parallel_region_dispatch_with_buffers(e, region, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, parallel_region_dispatch,
+    (Emitter *e, const ParallelRegion *region),
+    ParallelRegionDispatchBuffers, RECOVERABLE, free,
+    parallel_region_dispatch_with_buffers(e, region, buffers))
 
 int
 FunctionHasParallelRegions(const ZirFunction *fn)
@@ -515,20 +507,10 @@ emit_if_with_buffers(Emitter *e,int i,int end,int chained, EmitIfBuffers *buffer
 /* An if and its else branches. An else holding only another if whose
  * condition needs no setup continues the chain as else if; chained is set
  * for such a link, whose closing brace the first if writes. */
-static int
-emit_if(Emitter *e,int i,int end,int chained)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitIfBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = emit_if_with_buffers(e, i, end, chained, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, emit_if,
+    (Emitter *e,int i,int end,int chained),
+    EmitIfBuffers, RECOVERABLE, free,
+    emit_if_with_buffers(e, i, end, chained, buffers))
 
 static int
 expression_reads(const ZirFunction *fn, int index, const char *name)
@@ -730,20 +712,10 @@ native_for_with_buffers(Emitter *e, int open, int close, NativeForBuffers *buffe
  *     { step: s64 = 0; while step <= 2 { ...; step += 1 } }
  * C and Go write it as one counting loop, and Go walks a local collection
  * whose index goes unused with range. */
-static int
-native_for(Emitter *e, int open, int close)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    NativeForBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = native_for_with_buffers(e, open, close, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, native_for,
+    (Emitter *e, int open, int close),
+    NativeForBuffers, RECOVERABLE, free,
+    native_for_with_buffers(e, open, close, buffers))
 
 /* Collects the constants an if-case arm compares its value with:
  * value == A, or value == A || value == B. */
@@ -875,20 +847,10 @@ emit_switch_with_buffers(Emitter *e, int declaration, int end, EmitSwitchBuffers
  * arm would leave the switch instead of its loop, so such chains stay ifs,
  * and C switches only on integers. Returns the last statement written, or
  * -1 to write the statements as they are. */
-static int
-emit_switch(Emitter *e, int declaration, int end)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitSwitchBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = emit_switch_with_buffers(e, declaration, end, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, emit_switch,
+    (Emitter *e, int declaration, int end),
+    EmitSwitchBuffers, RECOVERABLE, free,
+    emit_switch_with_buffers(e, declaration, end, buffers))
 /* Buffers emit_sequence keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitSequenceBuffers {
@@ -1177,19 +1139,10 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
     e->local_count=saved;e->depth--;e->sequence_terminated=0;
 }
 
-static void
-emit_sequence(Emitter *e,int begin,int end)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitSequenceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_sequence_with_buffers(e, begin, end, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, emit_sequence,
+    (Emitter *e,int begin,int end),
+    EmitSequenceBuffers, RECOVERABLE, free,
+    emit_sequence_with_buffers(e, begin, end, buffers))
 /* Buffers EmitBody keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitBodyBuffers {
@@ -1239,19 +1192,9 @@ EmitBody_with_buffers(FILE *out,const ZirModule *module,const ZirFunction *fn,Zi
     free(e.locals);return 1;
 }
 
-int
-EmitBody(FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
+COMPILER_SCRATCH_RETURN(, int, EmitBody,
+    (FILE *out,const ZirModule *module,const ZirFunction *fn,ZirTarget target,
             ZirResolveTarget resolver,void *context,
-            ZirAssemblyBlockEmitter assembly,void *assembly_context)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitBodyBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = EmitBody_with_buffers(out, module, fn, target, resolver, context, assembly, assembly_context, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+            ZirAssemblyBlockEmitter assembly,void *assembly_context),
+    EmitBodyBuffers, RECOVERABLE, free,
+    EmitBody_with_buffers(out, module, fn, target, resolver, context, assembly, assembly_context, buffers))

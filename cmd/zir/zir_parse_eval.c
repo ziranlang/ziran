@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_parse_internal.h"
 
@@ -970,21 +971,11 @@ compile_values_equal_with_buffers(const CompileValue *left, const CompileValue *
     return 0;
 }
 
-int
-compile_values_equal(const CompileValue *left, const CompileValue *right,
-                     int *equal)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    CompileValuesEqualBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = compile_values_equal_with_buffers(left, right, equal, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, compile_values_equal,
+    (const CompileValue *left, const CompileValue *right,
+                     int *equal),
+    CompileValuesEqualBuffers, RECOVERABLE, free,
+    compile_values_equal_with_buffers(left, right, equal, buffers))
 
 int
 compile_compound_value(const ZirFunction *probe, const ZirExpr *expression,
@@ -1114,22 +1105,12 @@ compile_compound_member_with_buffers(const CompileValue *compound, const char *m
     return found;
 }
 
-int
-compile_compound_member(const CompileValue *compound, const char *member,
+COMPILER_SCRATCH_RETURN(, int, compile_compound_member,
+    (const CompileValue *compound, const char *member,
                         const ZirModule *module, const char *path, int depth,
-                        int *fuel, CompileValue *result)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    CompileCompoundMemberBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = compile_compound_member_with_buffers(compound, member, module, path, depth, fuel, result, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                        int *fuel, CompileValue *result),
+    CompileCompoundMemberBuffers, RECOVERABLE, free,
+    compile_compound_member_with_buffers(compound, member, module, path, depth, fuel, result, buffers))
 /* Buffers compile_compound_index keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct CompileCompoundIndexBuffers {
@@ -1170,22 +1151,12 @@ compile_compound_index_with_buffers(const CompileValue *compound, int64_t index,
     return found;
 }
 
-int
-compile_compound_index(const CompileValue *compound, int64_t index,
+COMPILER_SCRATCH_RETURN(, int, compile_compound_index,
+    (const CompileValue *compound, int64_t index,
                        const ZirModule *module, const char *path, int depth,
-                       int *fuel, CompileValue *result)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    CompileCompoundIndexBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = compile_compound_index_with_buffers(compound, index, module, path, depth, fuel, result, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                       int *fuel, CompileValue *result),
+    CompileCompoundIndexBuffers, RECOVERABLE, free,
+    compile_compound_index_with_buffers(compound, index, module, path, depth, fuel, result, buffers))
 
 static int
 local_value_name_visible(const ZirModule *module, const char *path,

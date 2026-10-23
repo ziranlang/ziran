@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_check_internal.h"
 
@@ -108,21 +109,11 @@ check_file_private_expression_with_buffers(const ZirModule *module, const char *
     return 1;
 }
 
-int
-check_file_private_expression(const ZirModule *module, const char *source,
-                              ZirSourceSpan span)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    CheckFilePrivateExpressionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = check_file_private_expression_with_buffers(module, source, span, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, check_file_private_expression,
+    (const ZirModule *module, const char *source,
+                              ZirSourceSpan span),
+    CheckFilePrivateExpressionBuffers, RECOVERABLE, free,
+    check_file_private_expression_with_buffers(module, source, span, buffers))
 
 static int
 file_scope_symbol_visible(const ZirModule *module, const char *name)
@@ -280,21 +271,11 @@ failed:
     return 0;
 }
 
-int
-LowerFileScopeUsing(ZirModule *module, char *source, size_t capacity,
-                    ZirSourceSpan span)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerFileScopeUsingBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = LowerFileScopeUsing_with_buffers(module, source, capacity, span, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, LowerFileScopeUsing,
+    (ZirModule *module, char *source, size_t capacity,
+                    ZirSourceSpan span),
+    LowerFileScopeUsingBuffers, RECOVERABLE, free,
+    LowerFileScopeUsing_with_buffers(module, source, capacity, span, buffers))
 
 int
 check_file_scope_enum_names(const ZirModule *module,
@@ -571,21 +552,11 @@ layout_type_with_buffers(const ZirModule *module, const char *source, int depth,
     return 1;
 }
 
-int
-layout_type(const ZirModule *module, const char *source, int depth,
-            size_t *size, size_t *alignment)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LayoutTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = layout_type_with_buffers(module, source, depth, size, alignment, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, layout_type,
+    (const ZirModule *module, const char *source, int depth,
+            size_t *size, size_t *alignment),
+    LayoutTypeBuffers, RECOVERABLE, free,
+    layout_type_with_buffers(module, source, depth, size, alignment, buffers))
 
 int
 TypeLayout(const ZirModule *module, const char *type,
@@ -1225,21 +1196,11 @@ failed:
     return 0;
 }
 
-int
-lower_file_record_using(ZirModule *module, char *source, size_t capacity,
-                        ZirSourceSpan span)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerFileRecordUsingBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = lower_file_record_using_with_buffers(module, source, capacity, span, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, lower_file_record_using,
+    (ZirModule *module, char *source, size_t capacity,
+                        ZirSourceSpan span),
+    LowerFileRecordUsingBuffers, RECOVERABLE, free,
+    lower_file_record_using_with_buffers(module, source, capacity, span, buffers))
 
 /* Earlier initialized globals have known startup values. Expose those values
  * only while folding another global initializer; they are still mutable at

@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_rust_internal.h"
 
 /* Buffers validate_module keeps on the heap so deep nesting fits the stack;
@@ -125,19 +126,10 @@ validate_module_with_buffers(const ZirModule *module, ValidateModuleBuffers *buf
     }
 }
 
-void
-validate_module(const ZirModule *module)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ValidateModuleBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    validate_module_with_buffers(module, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, validate_module,
+    (const ZirModule *module),
+    ValidateModuleBuffers, POOLED, free,
+    validate_module_with_buffers(module, buffers))
 /* Buffers emit_slot_wrappers keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitSlotWrappersBuffers {
@@ -229,20 +221,11 @@ emit_slot_wrappers_with_buffers(RustEmitter *emitter, const ZirModule *module,
     }
 }
 
-static void
-emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
-                               const ZirFunction *function)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitSlotWrappersBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_slot_wrappers_with_buffers(emitter, module, function, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, emit_slot_wrappers,
+    (RustEmitter *emitter, const ZirModule *module,
+                               const ZirFunction *function),
+    EmitSlotWrappersBuffers, POOLED, free,
+    emit_slot_wrappers_with_buffers(emitter, module, function, buffers))
 
 /* Whether any program takes this function as a procedure value. */
 static int rust_function_is_value(RustEmitter *emitter, const ZirModule *module,
@@ -386,20 +369,11 @@ lower_function_with_buffers(RustEmitter *emitter, const ZirModule *module,
     fputs("}\n\n", emitter->output);
 }
 
-void
-lower_function(RustEmitter *emitter, const ZirModule *module,
-                           const ZirFunction *function)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerFunctionBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    lower_function_with_buffers(emitter, module, function, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, lower_function,
+    (RustEmitter *emitter, const ZirModule *module,
+                           const ZirFunction *function),
+    LowerFunctionBuffers, POOLED, free,
+    lower_function_with_buffers(emitter, module, function, buffers))
 
 /* A parsed initializer names its record but not every node's type; the
  * declared type supplies each field's and element's type. */
@@ -542,21 +516,12 @@ rust_global_initializer_with_buffers(RustEmitter *emitter,
     rust_zero_value(emitter, global->type, output, size);
 }
 
-static void
-rust_global_initializer(RustEmitter *emitter,
+COMPILER_SCRATCH_VOID(static, rust_global_initializer,
+    (RustEmitter *emitter,
                                      const ZirGlobal *global, char *output,
-                                     size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    RustGlobalInitializerBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    rust_global_initializer_with_buffers(emitter, global, output, size, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+                                     size_t size),
+    RustGlobalInitializerBuffers, POOLED, free,
+    rust_global_initializer_with_buffers(emitter, global, output, size, buffers))
 /* Buffers emit_global_definitions keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitGlobalDefinitionsBuffers {
@@ -592,19 +557,10 @@ emit_global_definitions_with_buffers(RustEmitter *emitter, FILE *output, EmitGlo
     }
 }
 
-void
-emit_global_definitions(RustEmitter *emitter, FILE *output)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitGlobalDefinitionsBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_global_definitions_with_buffers(emitter, output, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_global_definitions,
+    (RustEmitter *emitter, FILE *output),
+    EmitGlobalDefinitionsBuffers, POOLED, free,
+    emit_global_definitions_with_buffers(emitter, output, buffers))
 
 static RustModuleVisit *module_visit(RustModuleVisits *visits,
                                      const ZirModule *module)

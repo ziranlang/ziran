@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 /*
  * zir_c_plan9.c - 8c-safe post-pass for generated C.
  *
@@ -463,19 +464,10 @@ proto_add_file_with_buffers(const char *path, int allow_c, ProtoAddFileBuffers *
     fclose(f);
 }
 
-static void
-proto_add_file(const char *path, int allow_c)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ProtoAddFileBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    proto_add_file_with_buffers(path, allow_c, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, proto_add_file,
+    (const char *path, int allow_c),
+    ProtoAddFileBuffers, POOLED, free,
+    proto_add_file_with_buffers(path, allow_c, buffers))
 
 static void
 proto_scan_dir(const char *path, int depth)
@@ -910,21 +902,11 @@ emit_compound_temp_with_buffers(Buf *out, const char *indent, const char *type,
 
 /* Emit statements that build `Type temp` from the literal body and
  * append them to out. Returns 0 on success. */
-static int
-emit_compound_temp(Buf *out, const char *indent, const char *type,
-                   const char *body, int body_len, const char *temp)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitCompoundTempBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = emit_compound_temp_with_buffers(out, indent, type, body, body_len, temp, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, emit_compound_temp,
+    (Buf *out, const char *indent, const char *type,
+                   const char *body, int body_len, const char *temp),
+    EmitCompoundTempBuffers, POOLED, free,
+    emit_compound_temp_with_buffers(out, indent, type, body, body_len, temp, buffers))
 
 /* Find the next cast-shaped compound literal "(Ident]){{" on the line,
  * starting at *cursor. Sets the cast span and brace span. */
@@ -1074,20 +1056,10 @@ rewrite_line_compound_with_buffers(Buf *out, const char *line, int lineno, int *
 }
 
 /* Rewrite every cast literal on one line into temps + rebuilt line. */
-static int
-rewrite_line_compound(Buf *out, const char *line, int lineno, int *rewrote)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    RewriteLineCompoundBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = rewrite_line_compound_with_buffers(out, line, lineno, rewrote, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, rewrite_line_compound,
+    (Buf *out, const char *line, int lineno, int *rewrote),
+    RewriteLineCompoundBuffers, POOLED, free,
+    rewrite_line_compound_with_buffers(out, line, lineno, rewrote, buffers))
 
 /* ------------------------------------------------------------------ */
 /* __auto_type resolution                                            */
@@ -1261,20 +1233,10 @@ expr_type_with_buffers(const char *expr, size_t len, char *type, size_t type_siz
     return 1;
 }
 
-static int
-expr_type(const char *expr, size_t len, char *type, size_t type_size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ExprTypeBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = expr_type_with_buffers(expr, len, type, type_size, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, expr_type,
+    (const char *expr, size_t len, char *type, size_t type_size),
+    ExprTypeBuffers, POOLED, free,
+    expr_type_with_buffers(expr, len, type, type_size, buffers))
 
 static int
 autotype_type_for_init(const char *init, char *type, size_t type_size)
@@ -2305,19 +2267,10 @@ rewrite_plan9_print_with_buffers(char *line, size_t size, RewritePlan9PrintBuffe
 
 /* Plan 9's libc prints with print, spells unsigned %llud, and writes raw
  * bytes with write. */
-static void
-rewrite_plan9_print(char *line, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    RewritePlan9PrintBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    rewrite_plan9_print_with_buffers(line, size, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, rewrite_plan9_print,
+    (char *line, size_t size),
+    RewritePlan9PrintBuffers, POOLED, free,
+    rewrite_plan9_print_with_buffers(line, size, buffers))
 /* Buffers c_plan9_rewrite_once keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct CPlan9RewriteOnceBuffers {
@@ -2660,17 +2613,7 @@ fail:
     return NULL;
 }
 
-char *
-c_plan9_rewrite_once(const char *text)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    CPlan9RewriteOnceBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    char *returned = c_plan9_rewrite_once_with_buffers(text, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, char *, c_plan9_rewrite_once,
+    (const char *text),
+    CPlan9RewriteOnceBuffers, POOLED, free,
+    c_plan9_rewrite_once_with_buffers(text, buffers))

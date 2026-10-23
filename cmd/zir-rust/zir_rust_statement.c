@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_rust_internal.h"
 
 static int block_end(const ZirFunction *function, int begin, int end)
@@ -53,20 +54,10 @@ emit_if_with_buffers(RustEmitter *emitter, int index, int end, EmitIfBuffers *bu
     return close;
 }
 
-static int
-emit_if(RustEmitter *emitter, int index, int end)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitIfBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = emit_if_with_buffers(emitter, index, end, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, emit_if,
+    (RustEmitter *emitter, int index, int end),
+    EmitIfBuffers, POOLED, free,
+    emit_if_with_buffers(emitter, index, end, buffers))
 
 static void emit_compound_assignment(RustEmitter *emitter,
                                      const ZirStmt *statement,
@@ -221,20 +212,11 @@ rust_zero_value_with_buffers(RustEmitter *emitter, const char *type,
     snprintf(output + used, size - used, " }");
 }
 
-void
-rust_zero_value(RustEmitter *emitter, const char *type,
-                            char *output, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    RustZeroValueBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    rust_zero_value_with_buffers(emitter, type, output, size, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, rust_zero_value,
+    (RustEmitter *emitter, const char *type,
+                            char *output, size_t size),
+    RustZeroValueBuffers, POOLED, free,
+    rust_zero_value_with_buffers(emitter, type, output, size, buffers))
 
 /* The binding a place expression writes through, or NULL. */
 static const char *rust_place_base(const ZirFunction *function, int index)
@@ -379,20 +361,10 @@ emit_native_for_with_buffers(RustEmitter *emitter, int open, int close, EmitNati
 /* A lowered counting loop, { step: s64 = 0; while step <= 2 { ...;
  * step += 1 } }, is for step in 0i64..=2i64 in Rust, or .rev() for one
  * counting down. The range steps, so the marked step statements go. */
-static int
-emit_native_for(RustEmitter *emitter, int open, int close)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitNativeForBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = emit_native_for_with_buffers(emitter, open, close, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, emit_native_for,
+    (RustEmitter *emitter, int open, int close),
+    EmitNativeForBuffers, POOLED, free,
+    emit_native_for_with_buffers(emitter, open, close, buffers))
 /* Buffers emit_sequence keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitSequenceBuffers {
@@ -547,16 +519,7 @@ unsupported_statement:
     }
 }
 
-void
-emit_sequence(RustEmitter *emitter, int begin, int end)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitSequenceBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_sequence_with_buffers(emitter, begin, end, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_sequence,
+    (RustEmitter *emitter, int begin, int end),
+    EmitSequenceBuffers, POOLED, free,
+    emit_sequence_with_buffers(emitter, begin, end, buffers))

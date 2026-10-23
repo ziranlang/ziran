@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 
@@ -392,19 +393,10 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
 
 /* Keep collection lowering outside recursive expression lowering: its large
  * target buffers must not increase every nested expression stack frame. */
-static void
-emit_vec_call(Emitter *e, const ZirExpr *expr, char *out, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitVecCallBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_vec_call_with_buffers(e, expr, out, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, emit_vec_call,
+    (Emitter *e, const ZirExpr *expr, char *out, size_t size),
+    EmitVecCallBuffers, RECOVERABLE, free,
+    emit_vec_call_with_buffers(e, expr, out, size, buffers))
 
 static void
 native_size_expression(Emitter *e, const char *type, char *out, size_t size)
@@ -1467,16 +1459,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
     e->pure = 1;
 }
 
-void
-emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitExprBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_expr_with_buffers(e, index, expected, out, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_expr,
+    (Emitter *e, int index, const char *expected, char *out, size_t size),
+    EmitExprBuffers, RECOVERABLE, free,
+    emit_expr_with_buffers(e, index, expected, out, size, buffers))

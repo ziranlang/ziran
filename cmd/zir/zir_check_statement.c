@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_check_internal.h"
 
@@ -194,20 +195,10 @@ declared_application_valid_with_buffers(const ZirModule *module, const char *tex
     return 1;
 }
 
-static int
-declared_application_valid(const ZirModule *module, const char *text, int depth)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    DeclaredApplicationValidBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = declared_application_valid_with_buffers(module, text, depth, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, declared_application_valid,
+    (const ZirModule *module, const char *text, int depth),
+    DeclaredApplicationValidBuffers, RECOVERABLE, free,
+    declared_application_valid_with_buffers(module, text, depth, buffers))
 /* Buffers check_type_declarations keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct CheckTypeDeclarationsBuffers {
@@ -861,20 +852,10 @@ check_type_declarations_with_buffers(ZirModule *module, CheckTypeDeclarationsBuf
     return 1;
 }
 
-int
-check_type_declarations(ZirModule *module)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    CheckTypeDeclarationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = check_type_declarations_with_buffers(module, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, check_type_declarations,
+    (ZirModule *module),
+    CheckTypeDeclarationsBuffers, RECOVERABLE, free,
+    check_type_declarations_with_buffers(module, buffers))
 /* Buffers normalize_record_arrays keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct NormalizeRecordArraysBuffers {
@@ -938,20 +919,10 @@ normalize_record_arrays_with_buffers(ZirModule *module, int templates_only,
 /* Checked record layouts carry concrete array sizes into saved IR and ZIB.
  * A bundle intentionally omits source definitions, so a field must not keep
  * depending on a compile-time name after this point. */
-int
-normalize_record_arrays(ZirModule *module, int templates_only)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    NormalizeRecordArraysBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = normalize_record_arrays_with_buffers(module, templates_only, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, normalize_record_arrays,
+    (ZirModule *module, int templates_only),
+    NormalizeRecordArraysBuffers, RECOVERABLE, free,
+    normalize_record_arrays_with_buffers(module, templates_only, buffers))
 
 static int
 return_block_end(const ZirFunction *fn, int begin, int end)
@@ -1493,20 +1464,10 @@ done:
 
 /* A Jai if-case evaluates its selector once. With #through, an active flag
  * carries execution into the next arm without retesting its label. */
-int
-lower_if_case(Checker *c, int index, const char *checked_type)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerIfCaseBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = lower_if_case_with_buffers(c, index, checked_type, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, lower_if_case,
+    (Checker *c, int index, const char *checked_type),
+    LowerIfCaseBuffers, RECOVERABLE, free,
+    lower_if_case_with_buffers(c, index, checked_type, buffers))
 
 int
 validate_loop_targets(Checker *c, const ZirFunction *fn)

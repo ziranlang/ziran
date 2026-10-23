@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 
@@ -839,20 +840,11 @@ number_with_buffers(Emitter *e, const char *type, const char *a, const char *a_t
     }
 }
 
-void
-number(Emitter *e, const char *type, const char *a, const char *a_type,
-       const char *b, const char *b_type, int op, char *out, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    NumberBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    number_with_buffers(e, type, a, a_type, b, b_type, op, out, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, number,
+    (Emitter *e, const char *type, const char *a, const char *a_type,
+       const char *b, const char *b_type, int op, char *out, size_t size),
+    NumberBuffers, RECOVERABLE, free,
+    number_with_buffers(e, type, a, a_type, b, b_type, op, out, size, buffers))
 
 /* C text that starts with a prefix operator or a cast, such as *(p) or
  * (uint8_t*)(p), binds looser than a postfix subscript; wrap it first. */
@@ -979,19 +971,10 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
     fatal(expr, "unsupported assignment destination");
 }
 
-void
-emit_destination(Emitter *e, int index, char *out, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitDestinationBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_destination_with_buffers(e, index, out, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_destination,
+    (Emitter *e, int index, char *out, size_t size),
+    EmitDestinationBuffers, RECOVERABLE, free,
+    emit_destination_with_buffers(e, index, out, size, buffers))
 
 void
 literal(Emitter *e, const ZirExpr *expr, const char *type, int negative, char *out, size_t size)
@@ -1175,18 +1158,8 @@ ScalarLiteral_with_buffers(const char *type, const char *text, ZirTarget target,
     free(buffers->fn.exprs);return ok;
 }
 
-int
-ScalarLiteral(const char *type, const char *text, ZirTarget target,
-                  ZirSourceSpan span, char *out, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ScalarLiteralBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = ScalarLiteral_with_buffers(type, text, target, span, out, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, ScalarLiteral,
+    (const char *type, const char *text, ZirTarget target,
+                  ZirSourceSpan span, char *out, size_t size),
+    ScalarLiteralBuffers, RECOVERABLE, free,
+    ScalarLiteral_with_buffers(type, text, target, span, out, size, buffers))

@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_files.h"
 #include "zir_load.h"
@@ -763,21 +764,11 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
     return 0;
 }
 
-static int
-load_import(LoadContext *context, const char *owner_source,
-            const char *owner_root, ZirImport *import)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LoadImportBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = load_import_with_buffers(context, owner_source, owner_root, import, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, load_import,
+    (LoadContext *context, const char *owner_source,
+            const char *owner_root, ZirImport *import),
+    LoadImportBuffers, RECOVERABLE, free,
+    load_import_with_buffers(context, owner_source, owner_root, import, buffers))
 
 static ZirModule *
 early_target(LoadContext *context, ZirProgram *current,

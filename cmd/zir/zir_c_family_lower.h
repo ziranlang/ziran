@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 /* Shared C/C++ lowering implementation; select the native target in its wrapper. */
 #if !ZIR_C_FAMILY_CPP
 #define C_FAMILY_MODULE_SYMS ZirCModuleSyms
@@ -1013,19 +1014,10 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
     }
 }
 
-static void
-emit_extern_prototype(FILE *c, const ZirModule *m, const ZirImport *imp)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitExternPrototypeBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_extern_prototype_with_buffers(c, m, imp, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, emit_extern_prototype,
+    (FILE *c, const ZirModule *m, const ZirImport *imp),
+    EmitExternPrototypeBuffers, POOLED, free,
+    emit_extern_prototype_with_buffers(c, m, imp, buffers))
 
 
 static int

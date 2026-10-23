@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_rust_internal.h"
 
 static const char *const rust_keywords[] = {
@@ -216,19 +217,10 @@ emit_type_definitions_with_buffers(RustEmitter *emitter, FILE *output, EmitTypeD
     }
 }
 
-void
-emit_type_definitions(RustEmitter *emitter, FILE *output)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitTypeDefinitionsBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_type_definitions_with_buffers(emitter, output, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_type_definitions,
+    (RustEmitter *emitter, FILE *output),
+    EmitTypeDefinitionsBuffers, POOLED, free,
+    emit_type_definitions_with_buffers(emitter, output, buffers))
 
 void rust_extern_symbol(RustEmitter *emitter, const ZirModule *module,
                                const ZirImport *import, char *output,
@@ -341,19 +333,10 @@ emit_extern_definitions_with_buffers(RustEmitter *emitter, FILE *output, EmitExt
         fputs("}\n\n", output);
 }
 
-void
-emit_extern_definitions(RustEmitter *emitter, FILE *output)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitExternDefinitionsBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_extern_definitions_with_buffers(emitter, output, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_extern_definitions,
+    (RustEmitter *emitter, FILE *output),
+    EmitExternDefinitionsBuffers, POOLED, free,
+    emit_extern_definitions_with_buffers(emitter, output, buffers))
 
 void rust_identifier(const char *source, char *output, size_t size)
 {

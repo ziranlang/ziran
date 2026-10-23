@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 #include "zir_scalar.h"
@@ -1314,20 +1315,11 @@ EmitSlotType_with_buffers(FILE *out, const ZirType *slot, ZirTarget target,
         fprintf(out, ");\n} %s;\n", name);
 }
 
-void
-EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
-                ZirResolveTarget resolve_type, void *context)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitSlotTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    EmitSlotType_with_buffers(out, slot, target, resolve_type, context, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, EmitSlotType,
+    (FILE *out, const ZirType *slot, ZirTarget target,
+                ZirResolveTarget resolve_type, void *context),
+    EmitSlotTypeBuffers, RECOVERABLE, free,
+    EmitSlotType_with_buffers(out, slot, target, resolve_type, context, buffers))
 
 int width(const char *type) { return (*type == 's' || *type == 'u') ? atoi(type + 1) : 0; }
 int signed_type(const char *type) { return *type == 's'; }
@@ -1455,21 +1447,12 @@ emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
     copy_text(out, size, buffers->result);
 }
 
-void
-emit_field_path(const ZirModule *module, ZirTarget target,
+COMPILER_SCRATCH_VOID(, emit_field_path,
+    (const ZirModule *module, ZirTarget target,
                 const char *base_type, const char *path,
-                const char *base_expression, char *out, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitFieldPathBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_field_path_with_buffers(module, target, base_type, path, base_expression, out, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+                const char *base_expression, char *out, size_t size),
+    EmitFieldPathBuffers, RECOVERABLE, free,
+    emit_field_path_with_buffers(module, target, base_type, path, base_expression, out, size, buffers))
 
 void
 EmitStringType(FILE *out)

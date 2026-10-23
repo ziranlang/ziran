@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_rust_internal.h"
 
 /* Buffers emit_destination keeps on the heap so deep nesting fits the stack;
@@ -122,20 +123,11 @@ emit_destination_with_buffers(RustEmitter *emitter, int index, char *output,
     unsupported_expression(emitter, expression);
 }
 
-void
-emit_destination(RustEmitter *emitter, int index, char *output,
-                             size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitDestinationBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_destination_with_buffers(emitter, index, output, size, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_destination,
+    (RustEmitter *emitter, int index, char *output,
+                             size_t size),
+    EmitDestinationBuffers, POOLED, free,
+    emit_destination_with_buffers(emitter, index, output, size, buffers))
 
 /* A body needs an unsafe block only to reach static mut globals or go
  * through raw pointers; foreign calls and checked indexing carry their own
@@ -329,20 +321,11 @@ emit_typed_expression_with_buffers(RustEmitter *emitter, int index,
         snprintf(output, size, "%s", buffers->value);
 }
 
-void
-emit_typed_expression(RustEmitter *emitter, int index,
-                                  const char *type, char *output, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitTypedExpressionBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_typed_expression_with_buffers(emitter, index, type, output, size, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_typed_expression,
+    (RustEmitter *emitter, int index,
+                                  const char *type, char *output, size_t size),
+    EmitTypedExpressionBuffers, POOLED, free,
+    emit_typed_expression_with_buffers(emitter, index, type, output, size, buffers))
 
 static void emit_integer_literal(const ZirExpr *expression, char *output,
                                  size_t size)
@@ -523,20 +506,10 @@ emit_print_statement_with_buffers(RustEmitter *emitter, const ZirExpr *expressio
     return 1;
 }
 
-int
-emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitPrintStatementBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = emit_print_statement_with_buffers(emitter, expression, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, emit_print_statement,
+    (RustEmitter *emitter, const ZirExpr *expression),
+    EmitPrintStatementBuffers, POOLED, free,
+    emit_print_statement_with_buffers(emitter, expression, buffers))
 /* Buffers emit_call keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitCallBuffers {
@@ -832,20 +805,11 @@ emit_call_with_buffers(RustEmitter *emitter, const ZirExpr *expression,
     snprintf(output, size, "%s(%s)", buffers->symbol, buffers->arguments);
 }
 
-static void
-emit_call(RustEmitter *emitter, const ZirExpr *expression,
-                      char *output, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitCallBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_call_with_buffers(emitter, expression, output, size, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, emit_call,
+    (RustEmitter *emitter, const ZirExpr *expression,
+                      char *output, size_t size),
+    EmitCallBuffers, POOLED, free,
+    emit_call_with_buffers(emitter, expression, output, size, buffers))
 
 int wrapping_operation(const char *operation)
 {
@@ -1434,17 +1398,8 @@ emit_expression_with_buffers(RustEmitter *emitter, int index, char *output,
     }
 }
 
-void
-emit_expression(RustEmitter *emitter, int index, char *output,
-                            size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EmitExpressionBuffers *buffers = CompilerScratchTake(scratch_hint);
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    emit_expression_with_buffers(emitter, index, output, size, buffers);
-    if(!CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, emit_expression,
+    (RustEmitter *emitter, int index, char *output,
+                            size_t size),
+    EmitExpressionBuffers, POOLED, free,
+    emit_expression_with_buffers(emitter, index, output, size, buffers))

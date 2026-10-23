@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_stream.h"
 #include "zir_serial.h"
@@ -1345,21 +1346,11 @@ done:
     return valid;
 }
 
-static int
-CheckCanonicalPrograms_in_context(ZirProgram **programs, int count,
-                       const char *const *input_paths)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    CheckCanonicalProgramsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = CheckCanonicalPrograms_with_buffers(programs, count, input_paths, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, CheckCanonicalPrograms_in_context,
+    (ZirProgram **programs, int count,
+                       const char *const *input_paths),
+    CheckCanonicalProgramsBuffers, RECOVERABLE, free,
+    CheckCanonicalPrograms_with_buffers(programs, count, input_paths, buffers))
 
 int CheckCanonicalPrograms(ZirProgram **programs, int count, const char *const *input_paths)
 {

@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_files.h"
 #include "zir_parse_internal.h"
@@ -447,21 +448,12 @@ discover_named_type_with_buffers(const char *source, const char *path, const cha
     future->items[future->count++] = buffers->type;
 }
 
-static void
-discover_named_type(const char *source, const char *path, const char *rel,
+COMPILER_SCRATCH_VOID(static, discover_named_type,
+    (const char *source, const char *path, const char *rel,
                     int line_no,
-                    int scope_public, int scope_file, ZirTypes *future)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    DiscoverNamedTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    discover_named_type_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+                    int scope_public, int scope_file, ZirTypes *future),
+    DiscoverNamedTypeBuffers, RECOVERABLE, free,
+    discover_named_type_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers))
 
 static void
 append_type_source(char *target, size_t capacity, const char *line,
@@ -558,22 +550,13 @@ discover_function_header_with_buffers(const char *source, const char *path,
     function->is_file_private = scope_file;
 }
 
-static void
-discover_function_header(const char *source, const char *path,
+COMPILER_SCRATCH_VOID(static, discover_function_header,
+    (const char *source, const char *path,
                          const char *rel, int line_no,
                          int scope_public, int scope_file,
-                         ZirFunctions *future)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    DiscoverFunctionHeaderBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    discover_function_header_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+                         ZirFunctions *future),
+    DiscoverFunctionHeaderBuffers, RECOVERABLE, free,
+    discover_function_header_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers))
 
 static int
 discover_body_statement(ZirFunction *function, char *source, int line,
@@ -1117,26 +1100,17 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
 /* Discover only unconditional file-scope declarations. Conditional and type
  * bodies stay opaque; supported procedure bodies are retained for bounded
  * compile-time evaluation. */
-void
-discover_file_scope(const char *source, const char *path, const char *rel,
+COMPILER_SCRATCH_VOID(, discover_file_scope,
+    (const char *source, const char *path, const char *rel,
                     const char *root,
                     ZirConsts *future_constants, ZirUsings *future_usings,
                     ZirImports *future_imports, ZirTypes *future_types,
                     ZirDeferredTypes *deferred_types,
                     ZirFunctions *future_functions,
                     ZirGlobals *future_globals,
-                    ZirDiscoveredFiles *files, int depth)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    DiscoverFileScopeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    discover_file_scope_with_buffers(source, path, rel, root, future_constants, future_usings, future_imports, future_types, deferred_types, future_functions, future_globals, files, depth, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+                    ZirDiscoveredFiles *files, int depth),
+    DiscoverFileScopeBuffers, RECOVERABLE, free,
+    discover_file_scope_with_buffers(source, path, rel, root, future_constants, future_usings, future_imports, future_types, deferred_types, future_functions, future_globals, files, depth, buffers))
 /* Buffers discover_conditional_type keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct DiscoverConditionalTypeBuffers {
@@ -1183,23 +1157,13 @@ discover_conditional_type_with_buffers(const ZirDeferredType *item,
     return 1;
 }
 
-static int
-discover_conditional_type(const ZirDeferredType *item,
+COMPILER_SCRATCH_RETURN(static, int, discover_conditional_type,
+    (const ZirDeferredType *item,
                           ZirModule *module, const ZirConsts *constants,
                           const CompileParseContext *context,
-                          ZirTypes *future, int allow_defer)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    DiscoverConditionalTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = discover_conditional_type_with_buffers(item, module, constants, context, future, allow_defer, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                          ZirTypes *future, int allow_defer),
+    DiscoverConditionalTypeBuffers, RECOVERABLE, free,
+    discover_conditional_type_with_buffers(item, module, constants, context, future, allow_defer, buffers))
 
 void
 discover_conditional_types(const ZirDeferredTypes *deferred,
@@ -1276,19 +1240,10 @@ canonical_enum_values_with_buffers(ZirType *type, CanonicalEnumValuesBuffers *bu
 
 /* Jai constant declarations inside enums use 'Member :: value'. The checked
  * IR stores explicit values in the backend-neutral 'Member = value' form. */
-static void
-canonical_enum_values(ZirType *type)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    CanonicalEnumValuesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    canonical_enum_values_with_buffers(type, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(static, canonical_enum_values,
+    (ZirType *type),
+    CanonicalEnumValuesBuffers, RECOVERABLE, free,
+    canonical_enum_values_with_buffers(type, buffers))
 /* Buffers lower_enum_values keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct LowerEnumValuesBuffers {
@@ -1386,19 +1341,10 @@ lower_enum_values_with_buffers(ZirType *type, LowerEnumValuesBuffers *buffers)
     canonical_enum_values(type);
 }
 
-void
-lower_enum_values(ZirType *type)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    LowerEnumValuesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    lower_enum_values_with_buffers(type, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-}
+COMPILER_SCRATCH_VOID(, lower_enum_values,
+    (ZirType *type),
+    LowerEnumValuesBuffers, RECOVERABLE, free,
+    lower_enum_values_with_buffers(type, buffers))
 
 void
 parse_enum_backing(ZirType *type, const char *header)
@@ -1641,20 +1587,10 @@ read_lowered_source_with_buffers(const char *path, ReadLoweredSourceBuffers *buf
     return lowered;
 }
 
-char *
-read_lowered_source(const char *path)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    ReadLoweredSourceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    char *returned = read_lowered_source_with_buffers(path, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, char *, read_lowered_source,
+    (const char *path),
+    ReadLoweredSourceBuffers, RECOVERABLE, free,
+    read_lowered_source_with_buffers(path, buffers))
 
 /* Decode the literal source of Jai's #import, string form. A raw #string
  * body has already been lowered to this same quoted spelling. */

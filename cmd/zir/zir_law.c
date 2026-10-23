@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 /* Named law obligations (LANGUAGE_DIRECTION.md): evaluation, gate, and the
  * machine-readable result schema shared by `ziran check` and bundles. */
@@ -225,21 +226,11 @@ evaluate_bounds_law_with_buffers(const ZirModule *module, const ZirLaw *law,
 
 /* kind: bounds ---------------------------------------------------------- */
 
-static LawStatus
-evaluate_bounds_law(const ZirModule *module, const ZirLaw *law,
-                    char *detail, size_t size)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EvaluateBoundsLawBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    LawStatus returned = evaluate_bounds_law_with_buffers(module, law, detail, size, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, LawStatus, evaluate_bounds_law,
+    (const ZirModule *module, const ZirLaw *law,
+                    char *detail, size_t size),
+    EvaluateBoundsLawBuffers, RECOVERABLE, free,
+    evaluate_bounds_law_with_buffers(module, law, detail, size, buffers))
 
 /* kind: effect ---------------------------------------------------------- */
 

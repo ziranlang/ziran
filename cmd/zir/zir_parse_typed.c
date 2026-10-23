@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include <inttypes.h>
 #include "zir_parse_internal.h"
@@ -479,22 +480,12 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
     }
 }
 
-int
-evaluate_typed_node(const ZirFunction *probe, int index,
+COMPILER_SCRATCH_RETURN(, int, evaluate_typed_node,
+    (const ZirFunction *probe, int index,
                     const ZirModule *module, const char *path,
-                    int depth, int *fuel, CompileValue *result)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EvaluateTypedNodeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = evaluate_typed_node_with_buffers(probe, index, module, path, depth, fuel, result, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                    int depth, int *fuel, CompileValue *result),
+    EvaluateTypedNodeBuffers, RECOVERABLE, free,
+    evaluate_typed_node_with_buffers(probe, index, module, path, depth, fuel, result, buffers))
 typedef struct ParseCacheEntry {
     const ZirModule *module;
     uint64_t hash;
@@ -675,22 +666,12 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
     return ok;
 }
 
-int
-evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
+COMPILER_SCRATCH_RETURN(, int, evaluate_typed_expression,
+    (const ZirModule *module, const ZirConsts *names,
                           const char *source, ZirSourceSpan span, int depth,
-                          int *fuel, CompileValue *result)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EvaluateTypedExpressionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = evaluate_typed_expression_with_buffers(module, names, source, span, depth, fuel, result, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                          int *fuel, CompileValue *result),
+    EvaluateTypedExpressionBuffers, RECOVERABLE, free,
+    evaluate_typed_expression_with_buffers(module, names, source, span, depth, fuel, result, buffers))
 
 static int
 typed_body_expression(TypedBody *body, const char *source,
@@ -735,21 +716,11 @@ typed_body_condition_with_buffers(TypedBody *body, const char *header,
            compile_truth(&value, truth);
 }
 
-static int
-typed_body_condition(TypedBody *body, const char *header,
-                     const char *word, int *truth)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    TypedBodyConditionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = typed_body_condition_with_buffers(body, header, word, truth, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, typed_body_condition,
+    (TypedBody *body, const char *header,
+                     const char *word, int *truth),
+    TypedBodyConditionBuffers, RECOVERABLE, free,
+    typed_body_condition_with_buffers(body, header, word, truth, buffers))
 
 static void
 typed_leave_scope(TypedBody *body, int saved)
@@ -1348,21 +1319,11 @@ failed:
     return 0;
 }
 
-static int
-typed_body_statements(TypedBody *body, int start, int stop,
-                      int *flow, CompileValue *result)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    TypedBodyStatementsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = typed_body_statements_with_buffers(body, start, stop, flow, result, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, typed_body_statements,
+    (TypedBody *body, int start, int stop,
+                      int *flow, CompileValue *result),
+    TypedBodyStatementsBuffers, RECOVERABLE, free,
+    typed_body_statements_with_buffers(body, start, stop, flow, result, buffers))
 /* Buffers evaluate_typed_function keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EvaluateTypedFunctionBuffers {
@@ -1507,24 +1468,14 @@ done:
     return ok;
 }
 
-static int
-evaluate_typed_function(const ZirModule *module, const char *name,
+COMPILER_SCRATCH_RETURN(static, int, evaluate_typed_function,
+    (const ZirModule *module, const char *name,
                         ZirSourceSpan call_span, CompileValue *arguments,
                         char argument_names[][ZIR_NAME_MAX],
                         int argument_count, int depth, int *fuel,
-                        CompileValue *result)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EvaluateTypedFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = evaluate_typed_function_with_buffers(module, name, call_span, arguments, argument_names, argument_count, depth, fuel, result, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                        CompileValue *result),
+    EvaluateTypedFunctionBuffers, RECOVERABLE, free,
+    evaluate_typed_function_with_buffers(module, name, call_span, arguments, argument_names, argument_count, depth, fuel, result, buffers))
 /* Buffers evaluate_typed_integer_function keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EvaluateTypedIntegerFunctionBuffers {
@@ -1566,23 +1517,13 @@ evaluate_typed_integer_function_with_buffers(ZirEval *ev, const char *name,
     return 1;
 }
 
-int
-evaluate_typed_integer_function(ZirEval *ev, const char *name,
+COMPILER_SCRATCH_RETURN(, int, evaluate_typed_integer_function,
+    (ZirEval *ev, const char *name,
                                 const int64_t *values,
                                 const char argument_names[][ZIR_NAME_MAX],
-                                int argument_count, int64_t *result)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    EvaluateTypedIntegerFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = evaluate_typed_integer_function_with_buffers(ev, name, values, argument_names, argument_count, result, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                                int argument_count, int64_t *result),
+    EvaluateTypedIntegerFunctionBuffers, RECOVERABLE, free,
+    evaluate_typed_integer_function_with_buffers(ev, name, values, argument_names, argument_count, result, buffers))
 
 int
 eval_typed_condition(const char *source, const ZirModule *module,

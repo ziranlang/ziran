@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_check_internal.h"
 
@@ -670,20 +671,10 @@ restart:
     return !c->failed;
 }
 
-int
-check_function(Checker *c, ZirFunction *fn)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    CheckFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = check_function_with_buffers(c, fn, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, check_function,
+    (Checker *c, ZirFunction *fn),
+    CheckFunctionBuffers, RECOVERABLE, free,
+    check_function_with_buffers(c, fn, buffers))
 
 int
 check_template_declaration(Checker *c, ZirFunction *fn)
@@ -882,17 +873,7 @@ normalize_function_arrays_with_buffers(const ZirModule *module, ZirFunction *fn,
 
 /* Resolve every declaration before checking bodies, so imported and forward
  * calls compare the same array shapes regardless of traversal order. */
-int
-normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    NormalizeFunctionArraysBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = normalize_function_arrays_with_buffers(module, fn, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, normalize_function_arrays,
+    (const ZirModule *module, ZirFunction *fn),
+    NormalizeFunctionArraysBuffers, RECOVERABLE, free,
+    normalize_function_arrays_with_buffers(module, fn, buffers))

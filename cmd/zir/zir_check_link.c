@@ -1,3 +1,4 @@
+#include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_check_internal.h"
 
@@ -329,22 +330,12 @@ rewrite_type_applications_with_buffers(ZirModule *module, const char *source,
     return 1;
 }
 
-int
-rewrite_type_applications(ZirModule *module, const char *source,
+COMPILER_SCRATCH_RETURN(, int, rewrite_type_applications,
+    (ZirModule *module, const char *source,
                           char *output, size_t capacity,
-                          ZirSourceSpan span, int recursion)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    RewriteTypeApplicationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = rewrite_type_applications_with_buffers(module, source, output, capacity, span, recursion, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                          ZirSourceSpan span, int recursion),
+    RewriteTypeApplicationsBuffers, RECOVERABLE, free,
+    rewrite_type_applications_with_buffers(module, source, output, capacity, span, recursion, buffers))
 /* Buffers rewrite_function_type_applications keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct RewriteFunctionTypeApplicationsBuffers {
@@ -396,20 +387,10 @@ rewrite_function_type_applications_with_buffers(ZirModule *module, ZirFunction *
     return 1;
 }
 
-static int
-rewrite_function_type_applications(ZirModule *module, ZirFunction *fn)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    RewriteFunctionTypeApplicationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = rewrite_function_type_applications_with_buffers(module, fn, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, rewrite_function_type_applications,
+    (ZirModule *module, ZirFunction *fn),
+    RewriteFunctionTypeApplicationsBuffers, RECOVERABLE, free,
+    rewrite_function_type_applications_with_buffers(module, fn, buffers))
 /* Buffers normalize_type_applications keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct NormalizeTypeApplicationsBuffers {
@@ -472,20 +453,10 @@ normalize_type_applications_with_buffers(ZirModule *module, NormalizeTypeApplica
     return 1;
 }
 
-int
-normalize_type_applications(ZirModule *module)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    NormalizeTypeApplicationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = normalize_type_applications_with_buffers(module, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, normalize_type_applications,
+    (ZirModule *module),
+    NormalizeTypeApplicationsBuffers, RECOVERABLE, free,
+    normalize_type_applications_with_buffers(module, buffers))
 /* Buffers order_local_types keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct OrderLocalTypesBuffers {
@@ -531,20 +502,10 @@ order_local_types_with_buffers(ZirModule *module, OrderLocalTypesBuffers *buffer
 
 /* Native interfaces define records by value. Put a field's local record
  * before its owner, including records created by nested type application. */
-int
-order_local_types(ZirModule *module)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    OrderLocalTypesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = order_local_types_with_buffers(module, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, order_local_types,
+    (ZirModule *module),
+    OrderLocalTypesBuffers, RECOVERABLE, free,
+    order_local_types_with_buffers(module, buffers))
 
 /* Type spellings are validated after parsing and after generic expansion so
  * source and saved IR cannot disagree about which declarations are Jai. */
@@ -627,20 +588,10 @@ jai_parameter_types_with_buffers(ZirSourceSpan span, const char *args, JaiParame
     return 1;
 }
 
-static int
-jai_parameter_types(ZirSourceSpan span, const char *args)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    JaiParameterTypesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = jai_parameter_types_with_buffers(span, args, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(static, int, jai_parameter_types,
+    (ZirSourceSpan span, const char *args),
+    JaiParameterTypesBuffers, RECOVERABLE, free,
+    jai_parameter_types_with_buffers(span, args, buffers))
 
 int
 jai_module_types(const ZirModule *module)
@@ -882,22 +833,12 @@ rewrite_private_parameters(const char **field, ZirSourceSpan span,
     return ok;
 }
 
-static int
-rewrite_private_reference(char *source, size_t capacity,
+COMPILER_SCRATCH_RETURN(static, int, rewrite_private_reference,
+    (char *source, size_t capacity,
                           ZirSourceSpan span, const char *original,
-                          const char *internal)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    RewritePrivateReferenceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = rewrite_private_reference_with_buffers(source, capacity, span, original, internal, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+                          const char *internal),
+    RewritePrivateReferenceBuffers, RECOVERABLE, free,
+    rewrite_private_reference_with_buffers(source, capacity, span, original, internal, buffers))
 
 int
 name_private_defines(ZirModule *module)
@@ -1526,20 +1467,10 @@ instantiate_specializations_with_buffers(Checker *checker, InstantiateSpecializa
     return 1;
 }
 
-int
-instantiate_specializations(Checker *checker)
-{
-    static const char scratch_key;
-    static _Thread_local CompilerScratchCache scratch_cache;
-    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
-    InstantiateSpecializationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    int returned = instantiate_specializations_with_buffers(checker, buffers);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
-    return returned;
-}
+COMPILER_SCRATCH_RETURN(, int, instantiate_specializations,
+    (Checker *checker),
+    InstantiateSpecializationsBuffers, RECOVERABLE, free,
+    instantiate_specializations_with_buffers(checker, buffers))
 
 
 

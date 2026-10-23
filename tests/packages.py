@@ -10,12 +10,14 @@ import sys
 import tempfile
 
 
-def call(*args: str, cwd: Path, env: dict, succeed: bool = True) -> str:
+def call(*args: str, cwd: Path, env: dict, succeed: bool = True,
+         pass_fds: tuple = ()) -> str:
     # Under `make check -jN` the jobserver descriptors do not reach this
     # process, so a nested make would warn into output the tests compare.
     env = {k: v for k, v in env.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")}
     result = subprocess.run(args, cwd=cwd, env=env, text=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            pass_fds=pass_fds)
     if succeed != (result.returncode == 0):
         raise AssertionError(f"{' '.join(args)} returned {result.returncode}:\n{result.stdout}")
     return result.stdout
@@ -868,8 +870,23 @@ level = "3"
         ], output
         # Another launcher, such as an older installed ziran, hands the
         # project command to the pinned toolchain's own launcher.
-        handed = call(str(bootstrap / "ziran"), "tool", "Tooling", "build",
-                      cwd=tooled, env=env).splitlines()
+        # Keep this executable outside the compiler tree even when TMPDIR
+        # is a build folder inside it. No filesystem scratch is needed.
+        bootstrap_fd = None
+        try:
+            external = str(bootstrap / "ziran")
+            inherited = ()
+            if hasattr(os, "memfd_create"):
+                bootstrap_fd = os.memfd_create("ziran-bootstrap", flags=0)
+                with open(ziran, "rb") as source, os.fdopen(os.dup(bootstrap_fd), "wb") as target:
+                    shutil.copyfileobj(source, target)
+                external = f"/proc/self/fd/{bootstrap_fd}"
+                inherited = (bootstrap_fd,)
+            handed = call(external, "tool", "Tooling", "build", cwd=tooled,
+                          env=env, pass_fds=inherited).splitlines()
+        finally:
+            if bootstrap_fd is not None:
+                os.close(bootstrap_fd)
         assert "pinned=1" in handed, handed
         write(tooled / "ziran.local.toml",
               f'[overrides]\nziran = "{compiler}"\n[tool.Tooling]\nmode = "slow"\n')

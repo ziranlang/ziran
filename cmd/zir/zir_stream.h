@@ -186,7 +186,7 @@ TextStreamClose(TextStream *stream)
         failed = stream->data == NULL;
     }
 #else
-    failed = fflush(stream->file) != 0 || TextStreamPosition(stream, &stream->length) != 0;
+    failed |= fflush(stream->file) != 0 || TextStreamPosition(stream, &stream->length) != 0;
     if(!failed && stream->length == SIZE_MAX) { errno = EOVERFLOW; failed = 1; }
     if(!failed) {
         stream->data = malloc(stream->length + 1);

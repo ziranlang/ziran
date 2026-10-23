@@ -17,4 +17,7 @@ grep -q "^## \[$want\]" "$repo/CHANGELOG.md" || {
     exit 1
 }
 "$ziran" --help 2>&1 | grep -Fq 'ziran version'
-echo "version: $want matches VERSION, CHANGELOG.md, and the built compiler"
+for page in index get-started status api; do
+    grep -Fq "v$want" "$repo/site/$page.html"
+done
+echo "version: $want matches VERSION, CHANGELOG.md, the website, and the built compiler"

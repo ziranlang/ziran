@@ -6,6 +6,12 @@
 
 #if defined(TEST_TEXT_STREAM_TMPFILE)
 #define __plan9__ 1
+/* Exercise real disk I/O inside the test's owned working directory. */
+static FILE *test_temporary_stream(void)
+{
+    return fopen("text-stream.tmp", "w+b");
+}
+#define tmpfile test_temporary_stream
 #endif
 #include "zir_stream.h"
 
@@ -38,6 +44,18 @@ static void binary_output(void)
     for(unsigned i = 0; i < 16384; i++)
         assert((unsigned char)text[sizeof(prefix) + i] == ((i * 17) & 255));
     free(text);
+}
+
+static void readonly_failure(void)
+{
+    FILE *file = fopen("readonly.tmp", "wb");
+    assert(file != NULL && fclose(file) == 0);
+    char *text = NULL;
+    size_t size = 0;
+    TextStream stream = {.text = &text, .size = &size};
+    stream.file = fopen("readonly.tmp", "rb");
+    assert(stream.file != NULL && fputc('x', stream.file) == EOF);
+    assert(TextStreamClose(&stream) == -1 && text == NULL && size == 0);
 }
 
 #if defined(__GLIBC__) && defined(ZIR_MEMORY_STREAMS)
@@ -94,6 +112,7 @@ int main(void)
 {
     empty_output();
     binary_output();
+    readonly_failure();
 #if defined(__GLIBC__) && defined(ZIR_MEMORY_STREAMS)
     write_only_output();
 #endif

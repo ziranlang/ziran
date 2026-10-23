@@ -932,6 +932,12 @@ bundle; the provider must have the same signature. `--bind-host MODULE`
 binds every remaining capability to MODULE's exported function of the same
 name, as a C program links a host's symbols by name, so one Ziran host module
 serves `ziran bundle` and the Go, Rust, and Python targets alike.
+The portable host ABI copies returned string bytes into VM-managed storage,
+including strings inside records, arrays, slices, and mutable slice updates.
+A host can reuse its result buffers on its next call; saved strings retain
+their bytes for as long as the program uses them, including across instance
+runs. Returned fields and elements must remain valid until that next call.
+Opaque pointer results still refer to host-owned storage.
 Use `#scope_file`, `#scope_module`, and `#scope_export` to change the
 visibility of following declarations.
 

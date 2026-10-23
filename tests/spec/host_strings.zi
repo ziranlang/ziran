@@ -1,0 +1,25 @@
+host_api :: #system_library "host_api";
+Row :: struct { title: string; labels: [2]string }
+ReadText :: () -> string #foreign host_api;
+ReadRow :: () -> Row #foreign host_api;
+ReadView :: () -> []string #foreign host_api;
+Replace :: (values: []string) #foreign host_api;
+Clobber :: () #foreign host_api;
+Empty :: () -> string #foreign host_api;
+saved: string;
+
+#program_export
+Answer :: () -> s32 {
+    if saved != "" && saved != "a\0b" { return 1 }
+    text := ReadText()
+    row := ReadRow()
+    view := ReadView()
+    words: [1]string
+    Replace(words[:])
+    Clobber()
+    if text != "a\0b" || row.title != "a\0b" || row.labels[0] != "a\0b" ||
+       row.labels[1] != "b" || view.count != 2 || view[0] != "a\0b" ||
+       view[1] != "b" || words[0] != "a\0b" || Empty() != "" { return 2 }
+    saved = text
+    return 42
+}

@@ -791,6 +791,24 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
                 break;
             }
         }
+        /* External buffers may be reused by the next host call. Snapshot
+         * their bytes, including strings nested in records and collections. */
+        if(result.string_owner == NULL && input->length != 0) {
+            if(input->length > SIZE_MAX - sizeof(StringLiteral) - 1) {
+                vm->failed = 1;
+                return int_value(0);
+            }
+            size_t bytes = sizeof(StringLiteral) + input->length + 1;
+            StringLiteral *item = malloc(bytes);
+            if(item == NULL) {
+                vm->failed = 1;
+                return int_value(0);
+            }
+            item->length = input->length;
+            memcpy(item->data, input->data, item->length);
+            item->data[item->length] = 0;
+            result = keep_string(vm, item, NULL, bytes);
+        }
     }
     else if(kind == VM_HOST_POINTER)
         result = uint_value((uintptr_t)input->pointer);

@@ -50,11 +50,13 @@ struct VmHostField {
  * argument has kind VM_HOST_SLICE, length elements, and a mutable elements array.
  * Modify elements in place and keep the elements pointer and length intact;
  * the VM validates and copies every element back after the call. Returned
- * fields and string bytes must remain valid until BundleRun returns.
+ * fields, collection elements and string bytes are copied after the callback
+ * returns, before the next host call. Keep them valid until that next call;
+ * a later call may reuse their storage. Strings copied into the VM retain
+ * their bytes while reachable, including across BundleInstanceRun calls.
  * Fixed arrays have kind VM_HOST_ARRAY and exactly their declared length.
  * Their elements may be inspected during the call; mutations to argument
  * elements are not copied back. A zero-length array has no elements.
- * Returned array elements must remain valid until BundleRun returns.
  * A returned zero-length slice may have a null elements pointer. Longer
  * slices need elements for their declared length; oversized lengths fail.
  * A declared pointer type crosses as kind VM_HOST_POINTER with the raw address

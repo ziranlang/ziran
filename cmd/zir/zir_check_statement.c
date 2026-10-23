@@ -916,7 +916,7 @@ normalize_record_arrays_with_buffers(ZirModule *module, int templates_only,
     return 1;
 }
 
-/* Checked record layouts carry concrete array sizes into saved IR and ZIB.
+/* Checked record layouts carry concrete array sizes into saved IR and ZX.
  * A bundle intentionally omits source definitions, so a field must not keep
  * depending on a compile-time name after this point. */
 COMPILER_SCRATCH_RETURN(, int, normalize_record_arrays,

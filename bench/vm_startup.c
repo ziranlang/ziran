@@ -32,7 +32,7 @@ int main(int argc, char **argv)
     double *samples = calloc((size_t)runs, sizeof(*samples));
     if(samples == NULL) return 2;
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     double started = milliseconds();
     FILE *input = fopen(argv[1], "rb");
     if(input == NULL) return 2;
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
     size_t live_bytes = VmInstanceLiveValueBytes(instance);
     double closing = milliseconds();
     VmInstanceClose(instance);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     double closed = milliseconds();
     qsort(samples, (size_t)runs, sizeof(*samples), ordered);

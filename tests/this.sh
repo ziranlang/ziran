@@ -72,8 +72,8 @@ for input in source saved; do
         module_dir=$work/ir
     fi
     "$ziran" bundle --root "$module_dir" --entry recursive:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 46
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 46
 
     for target in c cpp go; do
         out="$work/$target-$input"
@@ -111,7 +111,7 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/outside.zi" <<'ZI'
 Outside :: #this;

@@ -89,13 +89,13 @@ for form in source saved library; do
     esac
     output=$work/$fixture-$form
     if test "$fixture" = app; then
-        "$ziran" bundle --root "$root" --entry app:main -o "$output.zib" "$input"
-        "$ziran" run "$output.zib" > "$output.vm"
+        "$ziran" bundle --root "$root" --entry app:main -o "$output.zx" "$input"
+        "$ziran" run "$output.zx" > "$output.vm"
         cmp "$work/expected" "$output.vm"
     else
         # Fixed-array returns containing nested arrays remain a native-only
         # capability. The portable linker must reject them explicitly.
-        if "$ziran" bundle --root "$root" --entry matrix:main -o "$output.zib" "$input" > "$output.err" 2>&1; then
+        if "$ziran" bundle --root "$root" --entry matrix:main -o "$output.zx" "$input" > "$output.err" 2>&1; then
             echo 'nested array result was accepted by the portable linker' >&2
             exit 1
         fi
@@ -123,8 +123,8 @@ for form in source saved library; do
     fi
 done
 done
-cmp "$work/app-source.zib" "$work/app-saved.zib"
-cmp "$work/app-source.zib" "$work/app-library.zib"
+cmp "$work/app-source.zx" "$work/app-saved.zx"
+cmp "$work/app-source.zx" "$work/app-library.zx"
 
 reject() {
     name=$1

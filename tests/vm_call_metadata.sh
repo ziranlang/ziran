@@ -109,7 +109,7 @@ cat > "$work/budget.c" <<'C'
 int main(int argc, char **argv) {
     assert(argc == 2);
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     FILE *file = fopen(argv[1], "rb"); assert(file);
     ZirProgram *program = BundleRead(file, argv[1], module, sizeof(module),
                                     entry, sizeof(entry), &laws, NULL);
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
         assert(!VmInstanceRun(instance, &answer, &present));
         VmInstanceClose(instance);
     }
-    ZibLawTableFree(&laws); ProgramFree(program);
+    ZxLawTableFree(&laws); ProgramFree(program);
     return 0;
 }
 C
@@ -136,11 +136,11 @@ C
 for form in source saved; do
     module="$work/app.zi"; root=$work
     if test "$form" = saved; then module="$work/ir/app.zir"; root="$work/ir"; fi
-    "$ziran" bundle --root "$root" --entry app:main -o "$work/$form.zib" "$module"
-    test "$("$ziran" run "$work/$form.zib")" = 0
+    "$ziran" bundle --root "$root" --entry app:main -o "$work/$form.zx" "$module"
+    test "$("$ziran" run "$work/$form.zx")" = 0
     "$ziran" build --root "$root" --target=c --exe --entry app:main \
         -o "$work/$form-c" "$module"
     "$work/$form-c/app"
-    "$ziran" bundle --root "$root" --entry app:Budget -o "$work/$form-budget.zib" "$module"
-    "$work/budget" "$work/$form-budget.zib"
+    "$ziran" bundle --root "$root" --entry app:Budget -o "$work/$form-budget.zx" "$module"
+    "$work/budget" "$work/$form-budget.zx"
 done

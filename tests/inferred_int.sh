@@ -22,12 +22,12 @@ EOF
 "$ziran" check --root "$work" "$work/inferred_int.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/inferred_int.zi"
 "$ziran" bundle --root "$work" --entry inferred_int:Answer \
-    -o "$work/source.zib" "$work/inferred_int.zi"
+    -o "$work/source.zx" "$work/inferred_int.zi"
 "$ziran" bundle --root "$work/ir" --entry inferred_int:Answer \
-    -o "$work/saved.zib" "$work/ir/inferred_int.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/inferred_int.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 for input in "$work/inferred_int.zi" "$work/ir/inferred_int.zir"; do
     case "$input" in

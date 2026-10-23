@@ -23,12 +23,12 @@ static FILE *input_bytes(const unsigned char *bytes, size_t size)
 int main(void)
 {
     enum { count = 4096 };
-    ZibAssets original = {0};
+    ZxAssets original = {0};
     original.items = calloc(count, sizeof(*original.items));
     assert(original.items);
     original.count = count;
     for(size_t i = 0; i < count; i++) {
-        ZibAsset *item = &original.items[i];
+        ZxAsset *item = &original.items[i];
         item->name = malloc(32);
         item->size = (uint32_t)(i % 257);
         item->data = malloc(item->size ? item->size : 1);
@@ -38,13 +38,13 @@ int main(void)
             item->data[j] = (unsigned char)(i + j);
     }
     FILE *file = tmpfile();
-    assert(file && ZibAssetsWrite(file, &original));
+    assert(file && ZxAssetsWrite(file, &original));
     long size = ftell(file);
     assert(size > 0);
     rewind(file);
     seeks = 0;
-    ZibAssets loaded = {0};
-    assert(ZibAssetsRead(file, &loaded));
+    ZxAssets loaded = {0};
+    assert(ZxAssetsRead(file, &loaded));
     assert(seeks <= 2); /* Independent of the number of resources. */
     assert(loaded.count == original.count && fgetc(file) == EOF);
     for(size_t i = 0; i < count; i++) {
@@ -53,8 +53,8 @@ int main(void)
         assert(memcmp(loaded.items[i].data, original.items[i].data,
                       original.items[i].size) == 0);
     }
-    ZibAssetsFree(&loaded);
-    ZibAssetsFree(&original);
+    ZxAssetsFree(&loaded);
+    ZxAssetsFree(&original);
     fclose(file);
 
     /* Every truncation of a section containing empty and binary resources
@@ -65,15 +65,15 @@ int main(void)
     };
     for(size_t n = 0; n < sizeof(section); n++) {
         file = input_bytes(section, n);
-        assert(!ZibAssetsRead(file, &loaded));
-        ZibAssetsFree(&loaded);
+        assert(!ZxAssetsRead(file, &loaded));
+        ZxAssetsFree(&loaded);
         fclose(file);
     }
     file = input_bytes(section, sizeof(section));
-    assert(ZibAssetsRead(file, &loaded) && loaded.count == 2);
+    assert(ZxAssetsRead(file, &loaded) && loaded.count == 2);
     assert(loaded.items[0].size == 0 && loaded.items[0].data);
     assert(loaded.items[1].size == 3 && loaded.items[1].data[1] == 255);
-    ZibAssetsFree(&loaded);
+    ZxAssetsFree(&loaded);
     fclose(file);
 
     unsigned char malformed[sizeof(section)];
@@ -83,8 +83,8 @@ int main(void)
         memcpy(malformed, section, sizeof(section));
         memset(malformed + offset, 255, 4);
         file = input_bytes(malformed, sizeof(malformed));
-        assert(!ZibAssetsRead(file, &loaded));
-        ZibAssetsFree(&loaded);
+        assert(!ZxAssetsRead(file, &loaded));
+        ZxAssetsFree(&loaded);
         fclose(file);
     }
     puts("Resource reads use constant seeks; empty/binary bytes, bounds and truncations passed");

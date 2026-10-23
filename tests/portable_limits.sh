@@ -14,8 +14,8 @@ run_program() {
     mkdir -p "$work/$name"
     cat > "$work/$name/app.zi"
     "$ziran" bundle --root "$work/$name" --entry app:main \
-        -o "$work/$name/app.zib" "$work/$name/app.zi" > "$work/$name.out" 2>&1 &&
-    "$ziran" run "$work/$name/app.zib" >> "$work/$name.out" 2>&1
+        -o "$work/$name/app.zx" "$work/$name/app.zi" > "$work/$name.out" 2>&1 &&
+    "$ziran" run "$work/$name/app.zx" >> "$work/$name.out" 2>&1
 }
 
 expect_output() {

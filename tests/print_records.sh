@@ -87,8 +87,8 @@ for input in source saved; do
         module=$work/ir/app.zir
         root=$work/ir
     fi
-    "$ziran" bundle --root "$root" --entry app:Show -o "$work/$input.zib" "$module"
-    "$ziran" run "$work/$input.zib" > "$work/$input.out"
+    "$ziran" bundle --root "$root" --entry app:Show -o "$work/$input.zx" "$module"
+    "$ziran" run "$work/$input.zx" > "$work/$input.out"
     cmp "$work/expected" "$work/$input.out"
     output="$work/c-$input"
     "$ziran" build --target=c --exe --entry app:Show --root "$root" -o "$output" "$module"
@@ -112,4 +112,4 @@ GO
     (cd "$output" && GO111MODULE=off go run .) > "$output.out"
     cmp "$work/expected" "$output.out"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

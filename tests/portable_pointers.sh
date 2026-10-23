@@ -66,8 +66,8 @@ Answer :: () -> s32 {
     return <<p;
 }
 ZI
-"$ziran" bundle --root "$work" --entry dangling:Answer -o "$work/dangling.zib" "$work/dangling.zi"
-if "$ziran" run "$work/dangling.zib" > "$work/dangling.out" 2>&1; then
+"$ziran" bundle --root "$work" --entry dangling:Answer -o "$work/dangling.zx" "$work/dangling.zi"
+if "$ziran" run "$work/dangling.zx" > "$work/dangling.out" 2>&1; then
     echo 'a pointer at a returned local was read' >&2
     exit 1
 fi
@@ -82,8 +82,8 @@ for input in source saved; do
         module=$work/ir/app.zir
         root=$work/ir
     fi
-    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     output="$work/c-$input"
     "$ziran" build --target=c --exe --entry app:Answer --root "$root" -o "$output" "$module"
     status=0
@@ -105,4 +105,4 @@ func main() { if App_Answer() != 42 { panic("wrong result") } }
 GO
     GO111MODULE=off go run "$output"/*.go
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

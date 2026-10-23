@@ -12,9 +12,9 @@ module=vm_return_storage_test
 for form in source saved; do
     root=$repo/tests/spec; input=$source
     if test "$form" = saved; then root=$work/ir; input=$root/$module.zir; fi
-    "$ziran" bundle --root "$root" --entry "$module:Answer" -o "$work/$form.zib" "$input"
+    "$ziran" bundle --root "$root" --entry "$module:Answer" -o "$work/$form.zx" "$input"
     for run in 1 2; do
-        test "$(ZIRAN_VM_PROFILE="$work/$form-$run.jsonl" "$ziran" run "$work/$form.zib")" = 42
+        test "$(ZIRAN_VM_PROFILE="$work/$form-$run.jsonl" "$ziran" run "$work/$form.zx")" = 42
         python3 - "$work/$form-$run.jsonl" <<'PY'
 import json, sys
 sample = json.loads(open(sys.argv[1]).read().splitlines()[-1])
@@ -42,5 +42,5 @@ PY
         "$output/program"
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 echo 'Fresh record/array returns retain copies for stored values and borrowed storage'

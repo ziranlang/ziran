@@ -7,7 +7,7 @@
     "go",
     "rust",
     "py",
-    "zib"
+    "zx"
   ],
   "evidence": "tests/numeric_semantics.sh",
   "additional_evidence": ["tests/numeric_width_matrix.sh"],

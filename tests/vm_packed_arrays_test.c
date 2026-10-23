@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 {
     if(argc != 2) return 2;
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     FILE *input = fopen(argv[1], "rb");
     if(input == NULL) return 2;
     ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module),
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     else
         valid = valid && probe.samples == 3 && probe.peak > 983040 && probe.peak < 2097152;
     VmInstanceClose(probe.instance);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     return valid ? 0 : 1;
 }

@@ -44,8 +44,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry host_buffer:Answer \
-        -o "$work/$input.zib" "$source"
-    "$host_test" "$work/$input.zib"
+        -o "$work/$input.zx" "$source"
+    "$host_test" "$work/$input.zx"
     for target in c cpp go; do
         output=$work/$input-$target
         "$ziran" build --target="$target" --root "$root" \
@@ -108,7 +108,7 @@ GO
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 # A library can expose a foreign slice parameter without any Ziran function
 # body. Its generated native header must still declare Slice.
@@ -154,12 +154,12 @@ for input in source saved; do
         returned_root=$work/ret-ir
     fi
     "$ziran" bundle --root "$returned_root" --entry returned:Answer \
-        -o "$work/returned-$input.zib" "$returned"
-    "$host_test" "$work/returned-$input.zib" return_view
-    "$host_test" "$work/returned-$input.zib" return_empty
-    "$host_test" "$work/returned-$input.zib" return_huge
+        -o "$work/returned-$input.zx" "$returned"
+    "$host_test" "$work/returned-$input.zx" return_view
+    "$host_test" "$work/returned-$input.zx" return_empty
+    "$host_test" "$work/returned-$input.zx" return_huge
 done
-cmp "$work/returned-source.zib" "$work/returned-saved.zib"
+cmp "$work/returned-source.zx" "$work/returned-saved.zx"
 
 cat > "$work/record_slices.zi" <<'ZI'
 Point :: struct { x: s32; y: s32; }
@@ -186,9 +186,9 @@ for input in source saved; do
         record_root=$work/record-ir
     fi
     "$ziran" bundle --root "$record_root" --entry record_slices:Answer \
-        -o "$work/record-$input.zib" "$record"
-    "$host_test" "$work/record-$input.zib" records
-    "$host_test" "$work/record-$input.zib" records_bad
+        -o "$work/record-$input.zx" "$record"
+    "$host_test" "$work/record-$input.zx" records
+    "$host_test" "$work/record-$input.zx" records_bad
     for target in c cpp go; do
         output=$work/record-$input-$target
         "$ziran" build --target="$target" --root "$record_root" \
@@ -247,7 +247,7 @@ GO
         fi
     done
 done
-cmp "$work/record-source.zib" "$work/record-saved.zib"
+cmp "$work/record-source.zx" "$work/record-saved.zx"
 
 cat > "$work/bad_return.zi" <<'ZI'
 host_api :: #system_library "host_api";
@@ -274,5 +274,5 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry overlap:Answer \
-    -o "$work/overlap.zib" "$work/overlap.zi"
-"$host_test" "$work/overlap.zib" overlap
+    -o "$work/overlap.zx" "$work/overlap.zi"
+"$host_test" "$work/overlap.zx" overlap

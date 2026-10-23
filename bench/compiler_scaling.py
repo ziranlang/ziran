@@ -74,7 +74,7 @@ def main():
     cc = shutil.which(os.environ.get('CC', 'cc'))
     if cc is None:
         parser.error('a C compiler is required')
-    for name in ['ziran', 'zi2zir', 'zi2c', 'zi2zib']:
+    for name in ['ziran', 'zi2zir', 'zi2c', 'zi2zx']:
         if not (binaries / name).is_file():
             parser.error(f'build the compiler first: missing {binaries / name}')
     hashes = {str(path.relative_to(ROOT)): digest(path)
@@ -89,7 +89,7 @@ def main():
         head=git('rev-parse', 'HEAD'), status=git('status', '--short'),
         platform=platform.platform(), cpu_affinity=sorted(os.sched_getaffinity(0)),
         compiler_version=version.stdout, source_hashes=hashes,
-        binary_hashes={name: digest(binaries / name) for name in ['ziran', 'zi2zir', 'zi2c', 'zi2zib']},
+        binary_hashes={name: digest(binaries / name) for name in ['ziran', 'zi2zir', 'zi2c', 'zi2zx']},
         sizes=args.sizes, fields=args.fields, repetitions=args.repetitions, discarded_warmups=1,
         caveats=['Wall times measure whole child processes, including startup and shutdown.',
                  'Compiler phase times are inclusive and overlap; their sum is not build time.',
@@ -139,9 +139,9 @@ def main():
             run([cc, '-std=c99', '-O2', '-I', native, '-I', ROOT/'include', host,
                  *sorted(native.glob('*.c')), '-lm', '-o', binary], label, 'native-compile:c')
             run([binary], label, 'run:c', oracle)
-            bundle = directory / form / 'program.zib'
-            run([binaries/'zi2zib', 'bundle', '--root', root, '--entry', 'program:Answer', '-o', bundle, entry], label, 'bundle')
-            run([binaries/'zi2zib', 'run', bundle], label, 'run:vm', oracle)
+            bundle = directory / form / 'program.zx'
+            run([binaries/'zi2zx', 'bundle', '--root', root, '--entry', 'program:Answer', '-o', bundle, entry], label, 'bundle')
+            run([binaries/'zi2zx', 'run', bundle], label, 'run:vm', oracle)
         (directory / 'fixture-hashes.json').write_text(json.dumps(
             {str(path.relative_to(directory)): digest(path) for path in source.glob('*.zi')}, indent=2) + '\n')
     for size in args.sizes:

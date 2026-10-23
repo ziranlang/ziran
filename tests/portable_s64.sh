@@ -23,9 +23,9 @@ Answer :: () -> s32 {
 EOF
 "$ziran" ir --root "$work" -o "$work/ir" "$work/wide.zi"
 "$ziran" bundle --root "$work" --entry wide:Answer \
-    -o "$work/source.zib" "$work/wide.zi"
+    -o "$work/source.zx" "$work/wide.zi"
 "$ziran" bundle --root "$work/ir" --entry wide:Answer \
-    -o "$work/saved.zib" "$work/ir/wide.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/wide.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42

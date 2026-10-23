@@ -89,8 +89,8 @@ int main(int argc, char **argv)
     else out = fopen(argv[3], !strcmp(argv[2], "append") ? "ab" : "wb");
     assert(out);
     static const unsigned char asset_data[] = "NATIVE_BLOCK_CANARY\0asset #asm survives";
-    ZibAsset asset = {"sample.bin", (unsigned char *)asset_data, sizeof(asset_data)};
-    ZibAssets assets = {&asset, 1};
+    ZxAsset asset = {"sample.bin", (unsigned char *)asset_data, sizeof(asset_data)};
+    ZxAssets assets = {&asset, 1};
     int invalid = !strcmp(argv[2], "invalid");
     int oversized = !strcmp(argv[2], "oversized");
     ZirFunction *first = &program->modules[0].functions[0];

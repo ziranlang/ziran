@@ -22,5 +22,5 @@ Answer :: () -> s32 {
     return Sum(numbers[:]) - First(pair) + 1
 }
 ZI
-"$ziran" bundle --root "$work" --entry spaced:Answer -o "$work/spaced.zib" "$work/spaced.zi"
-test "$("$ziran" run "$work/spaced.zib")" = 40
+"$ziran" bundle --root "$work" --entry spaced:Answer -o "$work/spaced.zx" "$work/spaced.zi"
+test "$("$ziran" run "$work/spaced.zx")" = 40

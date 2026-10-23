@@ -39,8 +39,8 @@ ZI
 for form in source saved; do
     root=$work; input=$work/assignment.zi
     if test "$form" = saved; then root=$work/ir; input=$root/assignment.zir; fi
-    "$ziran" bundle --root "$root" --entry assignment:Answer -o "$work/$form.zib" "$input"
-    answer=$("$ziran" run "$work/$form.zib")
+    "$ziran" bundle --root "$root" --entry assignment:Answer -o "$work/$form.zx" "$input"
+    answer=$("$ziran" run "$work/$form.zx")
     if test "$answer" != 42; then echo "Nested assignment $form VM returned $answer, expected 42" >&2; exit 1; fi
     "$ziran" build --target=py --exe --root "$root" --entry assignment:Main -o "$work/$form-py" "$input"
     python3 "$work/$form-py"
@@ -65,5 +65,5 @@ for form in source saved; do
     CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --offline --manifest-path "$output/Cargo.toml"
     "$work/rust-target/debug/ziran_generated"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 echo 'Nested array assignments preserve independent copied values in source/saved VM, Python, C/C++, Go and Rust'

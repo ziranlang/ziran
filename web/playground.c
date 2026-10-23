@@ -19,7 +19,7 @@ EM_JS(void, report_stage, (const char *stage), {
 static void report_stage(const char *stage) { (void)stage; }
 #endif
 
-/* The website uses the same module loader, checker, linker, and VM as zi2zib.
+/* The website uses the same module loader, checker, linker, and VM as zi2zx.
  * The worker supplies one source file and embedded standard modules; no host
  * capabilities are installed. */
 int RunSource(void)

@@ -87,11 +87,11 @@ expect_rejection 'C-header import unexpectedly succeeded' "$work/header_import.e
 grep -Fq 'Jai #import requires a module identifier' \
     "$work/header_import.err"
 "$ziran" bundle --root "$work/app" --module-path "$work/lib" \
-    --entry main:Result -o "$work/source.zib" "$work/app/main.zi"
+    --entry main:Result -o "$work/source.zx" "$work/app/main.zi"
 "$ziran" bundle --root "$work/ir" --module-path "$work/ir" \
-    --entry main:Result -o "$work/saved.zib" "$work/ir/main.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/saved.zib")" = 42
+    --entry main:Result -o "$work/saved.zx" "$work/ir/main.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 "$ziran" build --target=c --root "$work/app" \
     --module-path "$work/lib" -o "$work/c" "$work/app/main.zi"
@@ -116,11 +116,11 @@ if ! test -s "$work/explicit-ir/base.zir"; then
     exit 1
 fi
 "$ziran" bundle --root "$work/app" --entry explicit:Result \
-    -o "$work/explicit-source.zib" "$work/app/explicit.zi"
+    -o "$work/explicit-source.zx" "$work/app/explicit.zi"
 "$ziran" bundle --root "$work/explicit-ir" --entry explicit:Result \
-    -o "$work/explicit-saved.zib" "$work/explicit-ir/explicit.zir"
-cmp "$work/explicit-source.zib" "$work/explicit-saved.zib"
-test "$("$ziran" run "$work/explicit-source.zib")" = 42
+    -o "$work/explicit-saved.zx" "$work/explicit-ir/explicit.zir"
+cmp "$work/explicit-source.zx" "$work/explicit-saved.zx"
+test "$("$ziran" run "$work/explicit-source.zx")" = 42
 "$ziran" build --target=c --root "$work/app" \
     -o "$work/explicit-c" "$work/app/explicit.zi"
 cat > "$work/explicit-c/main.c" <<'EOF'
@@ -173,11 +173,11 @@ EOF
 "$ziran" ir --root "$work/app" -o "$work/named-ir" \
     "$work/app/named.zi"
 "$ziran" bundle --root "$work/app" --entry named:Result \
-    -o "$work/named-source.zib" "$work/app/named.zi"
+    -o "$work/named-source.zx" "$work/app/named.zi"
 "$ziran" bundle --root "$work/named-ir" --entry named:Result \
-    -o "$work/named-saved.zib" "$work/named-ir/named.zir"
-cmp "$work/named-source.zib" "$work/named-saved.zib"
-test "$("$ziran" run "$work/named-saved.zib")" = 42
+    -o "$work/named-saved.zx" "$work/named-ir/named.zir"
+cmp "$work/named-source.zx" "$work/named-saved.zx"
+test "$("$ziran" run "$work/named-saved.zx")" = 42
 for target in c cpp go; do
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main --root "$work/app" \
@@ -259,9 +259,9 @@ EOF
 "$ziran" check --root "$work/app" --module-path "$work/lib" \
     "$work/app/named_search.zi"
 "$ziran" bundle --root "$work/app" --module-path "$work/lib" \
-    --entry named_search:Result -o "$work/named-search.zib" \
+    --entry named_search:Result -o "$work/named-search.zx" \
     "$work/app/named_search.zi"
-test "$("$ziran" run "$work/named-search.zib")" = 42
+test "$("$ziran" run "$work/named-search.zx")" = 42
 mkdir -p "$work/lib/suite"
 cat > "$work/lib/suite/module.zi" <<'EOF'
 #load "answer.zi";
@@ -280,11 +280,11 @@ EOF
     "$work/app/directory.zi"
 test -s "$work/directory-ir/suite.zir"
 "$ziran" bundle --root "$work/app" --entry directory:Result \
-    -o "$work/directory-source.zib" "$work/app/directory.zi"
+    -o "$work/directory-source.zx" "$work/app/directory.zi"
 "$ziran" bundle --root "$work/directory-ir" --entry directory:Result \
-    -o "$work/directory-saved.zib" "$work/directory-ir/directory.zir"
-cmp "$work/directory-source.zib" "$work/directory-saved.zib"
-test "$("$ziran" run "$work/directory-saved.zib")" = 42
+    -o "$work/directory-saved.zx" "$work/directory-ir/directory.zir"
+cmp "$work/directory-source.zx" "$work/directory-saved.zx"
+test "$("$ziran" run "$work/directory-saved.zx")" = 42
 for target in c cpp go; do
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main --root "$work/app" \
@@ -379,11 +379,11 @@ EOF
 "$ziran" ir --root "$work/app" -o "$work/loaded-ir" \
     "$work/app/loaded_main.zi"
 "$ziran" bundle --root "$work/app" --entry loaded_main:Result \
-    -o "$work/loaded-source.zib" "$work/app/loaded_main.zi"
+    -o "$work/loaded-source.zx" "$work/app/loaded_main.zi"
 "$ziran" bundle --root "$work/loaded-ir" --entry loaded_main:Result \
-    -o "$work/loaded-saved.zib" "$work/loaded-ir/loaded_main.zir"
-cmp "$work/loaded-source.zib" "$work/loaded-saved.zib"
-test "$("$ziran" run "$work/loaded-saved.zib")" = 42
+    -o "$work/loaded-saved.zx" "$work/loaded-ir/loaded_main.zir"
+cmp "$work/loaded-source.zx" "$work/loaded-saved.zx"
+test "$("$ziran" run "$work/loaded-saved.zx")" = 42
 "$ziran" build --target=c --root "$work/app" \
     -o "$work/loaded-c" "$work/app/loaded_main.zi"
 cat > "$work/loaded-c/main.c" <<'EOF'

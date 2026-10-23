@@ -170,7 +170,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     else if command == "api" { executable = "zi-api" }
     else if command == "inspect" { executable = "zi-inspect" }
     else if command == "fmt" { executable = "zi-fmt" }
-    else if bundle { executable = "zi2zib" }
+    else if bundle { executable = "zi2zx" }
     else if build {
         target: string = ""
         index: s32 = 0
@@ -238,7 +238,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         count += 1
     }
     if bundle { child[count] = command; count += 1 }
-    // `ziran run --project FILE.zib` runs a bundle with the pinned toolchain
+    // `ziran run --project FILE.zx` runs a bundle with the pinned toolchain
     // that built it; a bundle takes no source root.
     if project && command != "run" && !PkgHasArgument(arguments, "--root") {
         child[count] = "--root"
@@ -302,7 +302,7 @@ PkgHasSource :: (arguments: []string) -> bool {
         part: string = arguments[index]
         if part == "--" { return false }
         if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") ||
-           PkgEndsWith(part, ".zib") { return true }
+           PkgEndsWith(part, ".zx") { return true }
         index += 1
     }
     return false
@@ -313,7 +313,7 @@ PkgHasBundle :: (arguments: []string) -> bool {
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
         if part == "--" { return false }
-        if PkgEndsWith(part, ".zib") { return true }
+        if PkgEndsWith(part, ".zx") { return true }
         index += 1
     }
     return false

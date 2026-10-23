@@ -106,7 +106,7 @@ for name, (source, answer, output) in cases.items():
     forms = {'source': (folder, path), 'saved': (folder/'ir', folder/'ir'/(module+'.zir'))}
     for form, (root, input_file) in forms.items():
         if name in ['wide', 'voidslot']:
-            bundle = folder/(form+'.zib')
+            bundle = folder/(form+'.zx')
             run([ziran, 'bundle', '--root', root, '--entry', module+':Probe', '-o', bundle, input_file])
             run([ziran, 'run', bundle], text='4294967338\n' if name == 'wide' else '42\n')
         for target, compiler in compilers.items():

@@ -220,8 +220,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --module-path "$repo/std" \
-        --entry app:Answer -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 106
+        --entry app:Answer -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 106
     for target in c cpp go; do
         output="$work/$target-$input"
         if test "$target" = go; then
@@ -258,7 +258,7 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/private.zi" <<'ZI'
 #import "vec"

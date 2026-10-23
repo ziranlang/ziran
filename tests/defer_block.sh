@@ -65,8 +65,8 @@ for input in source saved; do
         set -- "$work/ir/deferred.zir"
     fi
     "$ziran" bundle --root "$work" --entry deferred:Answer \
-        -o "$work/$input.zib" "$@"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$@"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         out="$work/$input-$target"
         if test "$target" = go; then
@@ -101,4 +101,4 @@ GO
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

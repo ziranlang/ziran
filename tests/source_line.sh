@@ -28,11 +28,11 @@ ZI
 "$ziran" check --root "$work" "$work/source_line.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/source_line.zi"
 "$ziran" bundle --root "$work" --entry source_line:Answer \
-    -o "$work/source.zib" "$work/source_line.zi"
+    -o "$work/source.zx" "$work/source_line.zi"
 "$ziran" bundle --root "$work/ir" --entry source_line:Answer \
-    -o "$work/saved.zib" "$work/ir/source_line.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/source_line.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
 
 for input in source saved; do
     if test "$input" = source; then
@@ -88,8 +88,8 @@ MAIN_LINE :: #line;
 Answer :: () -> s64 { return LOADED_LINE * 40 + MAIN_LINE }
 ZI
 "$ziran" bundle --root "$work" --entry from_load:Answer \
-    -o "$work/from_load.zib" "$work/from_load.zi"
-test "$("$ziran" run "$work/from_load.zib")" = 42
+    -o "$work/from_load.zx" "$work/from_load.zi"
+test "$("$ziran" run "$work/from_load.zx")" = 42
 
 cat > "$work/raw_line.zi" <<'ZI'
 TEXT :: #string END
@@ -102,8 +102,8 @@ Answer :: () -> s64 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry raw_line:Answer \
-    -o "$work/raw_line.zib" "$work/raw_line.zi"
-test "$("$ziran" run "$work/raw_line.zib")" = 7
+    -o "$work/raw_line.zx" "$work/raw_line.zi"
+test "$("$ziran" run "$work/raw_line.zx")" = 7
 
 cat > "$work/file_meta.zi" <<'ZI'
 LOADED_FILE :: #file;
@@ -124,11 +124,11 @@ Answer :: () -> s64 {
 ZI
 "$ziran" ir --root "$work" -o "$work/file_ir" "$work/file_path.zi"
 "$ziran" bundle --root "$work" --entry file_path:Answer \
-    -o "$work/file_source.zib" "$work/file_path.zi"
+    -o "$work/file_source.zx" "$work/file_path.zi"
 "$ziran" bundle --root "$work/file_ir" --entry file_path:Answer \
-    -o "$work/file_saved.zib" "$work/file_ir/file_path.zir"
-cmp "$work/file_source.zib" "$work/file_saved.zib"
-test "$("$ziran" run "$work/file_source.zib")" = 42
+    -o "$work/file_saved.zx" "$work/file_ir/file_path.zir"
+cmp "$work/file_source.zx" "$work/file_saved.zx"
+test "$("$ziran" run "$work/file_source.zx")" = 42
 for input in source saved; do
     if test "$input" = source; then
         root=$work

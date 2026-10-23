@@ -33,8 +33,8 @@ for input in source saved; do
         set -- "$work/ir/lib.zir" "$work/ir/main.zir"
     fi
     "$ziran" bundle --root "$work" --entry main:Answer \
-        -o "$work/$input.zib" "$@"
-    test "$("$ziran" run "$work/$input.zib")" = 126
+        -o "$work/$input.zx" "$@"
+    test "$("$ziran" run "$work/$input.zx")" = 126
     for target in c cpp go; do
         "$ziran" build --target="$target" --root "$work" \
             -o "$work/$target-$input" "$@"
@@ -69,4 +69,4 @@ func TestGlobalSlot(t *testing.T) {
 GO
     (cd "$work/go-$input" && GO111MODULE=off go test)
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

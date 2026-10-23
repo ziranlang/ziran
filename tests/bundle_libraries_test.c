@@ -39,6 +39,6 @@ int main(int argc, char **argv)
     assert(BundleAssetCount(standalone) == 1);
     assert(BundleRun(standalone, NULL, 0, &result, &has_result) && result == 41);
     BundleClose(standalone);
-    puts("Shared ZIB code, independent state, retained libraries and standalone execution passed");
+    puts("Shared ZX code, independent state, retained libraries and standalone execution passed");
     return 0;
 }

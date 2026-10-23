@@ -40,8 +40,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry signed:Answer \
-        -o "$work/$input.zib" "$source"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$source"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp; do
         output="$work/$target-$input"
         "$ziran" build --target="$target" --root "$root" \

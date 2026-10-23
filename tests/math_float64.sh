@@ -127,6 +127,6 @@ Answer :: () -> s32 {
     return 42
 }
 ZI
-"$ziran" bundle --root "$work" --module-path "$repo/std" --entry bundle_check:Answer -o "$work/check.zib" "$work/bundle_check.zi"
-test "$("$ziran" run "$work/check.zib")" = 42
+"$ziran" bundle --root "$work" --module-path "$repo/std" --entry bundle_check:Answer -o "$work/check.zx" "$work/bundle_check.zi"
+test "$("$ziran" run "$work/check.zx")" = 42
 echo 'math-float64-test-ok: 21 functions within their ulp limits against libm, exact calculator values, portable bundle'

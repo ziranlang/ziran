@@ -43,8 +43,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry file_type_of:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         output=$work/$target-$input
         "$ziran" build "--target=$target" --root "$root" \
@@ -75,7 +75,7 @@ GO
         esac
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/global_query.zi" <<'ZI'
 pair: s64;
@@ -341,8 +341,8 @@ for input in source saved; do
         root=$work/deferred-ir
     fi
     "$ziran" bundle --root "$root" --entry deferred_type_of:Answer \
-        -o "$work/deferred-$input.zib" "$module"
-    test "$("$ziran" run "$work/deferred-$input.zib")" = 86
+        -o "$work/deferred-$input.zx" "$module"
+    test "$("$ziran" run "$work/deferred-$input.zx")" = 86
     for target in c cpp go; do
         output=$work/deferred-$target-$input
         "$ziran" build "--target=$target" --root "$root" \
@@ -373,7 +373,7 @@ GO
         esac
     done
 done
-cmp "$work/deferred-source.zib" "$work/deferred-saved.zib"
+cmp "$work/deferred-source.zx" "$work/deferred-saved.zx"
 
 cat > "$work/inactive_forward.zi" <<'ZI'
 #if false {

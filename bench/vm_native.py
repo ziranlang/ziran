@@ -89,7 +89,7 @@ def main():
         measured = vm_cases[name]
         assert measured['expected']==answer
         assert measured['source_sha256']==digest(vm/'fixtures'/(module+'.zi'))
-        assert measured['bundle_sha256']==digest(vm/'fixtures'/(module+'.zib'))
+        assert measured['bundle_sha256']==digest(vm/'fixtures'/(module+'.zx'))
         checked=(0x12345678+args.runs*(answer & MASK)) & MASK
         metadata['cases'].append(dict(name=name,answer=answer,batch_result=checked,
                                       source_sha256=digest(vm/'fixtures'/(module+'.zi'))))

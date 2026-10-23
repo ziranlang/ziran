@@ -48,11 +48,11 @@ ZI
 "$ziran" bundle --root "$work" --module-path std \
     --entry app:Answer --bind date_time:LocalNowHost=provider:FakeNow \
     --bind date_time:UnixNowHost=provider:FakeUnix \
-    -o "$work/source.zib" "$work/app.zi" "$work/provider.zi"
+    -o "$work/source.zx" "$work/app.zi" "$work/provider.zi"
 "$ziran" bundle --root "$work/ir" --module-path "$work/ir" \
     --entry app:Answer --bind date_time:LocalNowHost=provider:FakeNow \
     --bind date_time:UnixNowHost=provider:FakeUnix \
-    -o "$work/saved.zib" "$work/ir/app.zir" "$work/ir/provider.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/app.zir" "$work/ir/provider.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42

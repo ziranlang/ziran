@@ -43,22 +43,22 @@ main :: (argc: s32, argv: **u8) -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry main:Answer --asset-dir "assets=$work/assets" \
-    -o "$work/source.zib" "$work/main.zi"
+    -o "$work/source.zx" "$work/main.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/main.zi"
 "$ziran" bundle --root "$work/ir" --entry main:Answer --asset-dir "assets=$work/assets" \
-    -o "$work/saved.zib" "$work/ir/main.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/main.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/read.zi"
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -Wno-main -I"$repo/include" -I"$work/c" "$work/c"/*.c \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -lpthread -o "$work/read"
-"$work/read" "$work/source.zib"
+"$work/read" "$work/source.zx"
 python3 - "$work" <<'PY'
 from pathlib import Path
 import struct
 import sys
 root = Path(sys.argv[1])
-data = (root / "source.zib").read_bytes()
+data = (root / "source.zx").read_bytes()
 at = data.index(b"assets/a.bin")
 for name, replacement in [
     ("traversal", b"../bad/a.bin"),
@@ -67,23 +67,23 @@ for name, replacement in [
     ("nul", b"assets\x00a.bin"),
 ]:
     assert len(replacement) == len(b"assets/a.bin")
-    (root / (name + ".zib")).write_bytes(data[:at] + replacement + data[at + len(replacement):])
-(root / "truncated.zib").write_bytes(data[:-1])
+    (root / (name + ".zx")).write_bytes(data[:at] + replacement + data[at + len(replacement):])
+(root / "truncated.zx").write_bytes(data[:-1])
 count_offset = at - 8
-(root / "oversized.zib").write_bytes(data[:count_offset] + struct.pack("<I", 0xffffffff) + data[count_offset + 4:])
+(root / "oversized.zx").write_bytes(data[:count_offset] + struct.pack("<I", 0xffffffff) + data[count_offset + 4:])
 at = data.index(b"assets/sub/z.bin")
-(root / "unsorted.zib").write_bytes(data[:at] + b"assets/aaa/z.bin" + data[at + 16:])
+(root / "unsorted.zx").write_bytes(data[:at] + b"assets/aaa/z.bin" + data[at + 16:])
 PY
 for case in traversal absolute backslash nul truncated oversized unsorted; do
-    if "$work/read" "$work/$case.zib" >/dev/null 2>&1; then
+    if "$work/read" "$work/$case.zx" >/dev/null 2>&1; then
         echo "accepted malformed bundle assets: $case" >&2
         exit 1
     fi
 done
 ln -s "$work/main.zi" "$work/assets/link"
 if "$ziran" bundle --root "$work" --entry main:Answer --asset-dir "assets=$work/assets" \
-    -o "$work/symlink.zib" "$work/main.zi" >/dev/null 2>&1; then
+    -o "$work/symlink.zx" "$work/main.zi" >/dev/null 2>&1; then
     echo 'accepted an asset symlink' >&2
     exit 1
 fi
-printf '%s\n' 'Zib embedded binary files, empty files, deterministic packaging and malformed paths passed'
+printf '%s\n' 'Zx embedded binary files, empty files, deterministic packaging and malformed paths passed'

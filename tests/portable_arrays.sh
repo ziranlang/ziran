@@ -207,8 +207,8 @@ for input in source saved; do
         module_dir=$work/ir
     fi
     "$ziran" bundle --root "$module_dir" --entry arrayapp:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 42
 
     for target in c cpp go; do
         output="$work/$target-$input"
@@ -244,7 +244,7 @@ CPP
     done
 done
 
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/c_style_array.zi" <<'EOF'
 Answer :: () -> s32 {
@@ -273,15 +273,15 @@ Answer :: () -> s32 {
 EOF
 "$ziran" ir --root "$work" -o "$work/capacity-ir" "$work/capacity_app.zi"
 "$ziran" bundle --root "$work" --entry capacity_app:Answer \
-    -o "$work/capacity-source.zib" "$work/capacity_app.zi"
+    -o "$work/capacity-source.zx" "$work/capacity_app.zi"
 "$ziran" bundle --root "$work/capacity-ir" --entry capacity_app:Answer \
-    -o "$work/capacity-saved.zib" "$work/capacity-ir/capacity_app.zir"
-cmp "$work/capacity-source.zib" "$work/capacity-saved.zib"
-test "$("$ziran" run "$work/capacity-source.zib")" = 42
+    -o "$work/capacity-saved.zx" "$work/capacity-ir/capacity_app.zir"
+cmp "$work/capacity-source.zx" "$work/capacity-saved.zx"
+test "$("$ziran" run "$work/capacity-source.zx")" = 42
 
 "$ziran" bundle --root "$work" --entry arrayapp:OutOfBounds \
-    -o "$work/out-of-bounds.zib" "$work/arrayapp.zi"
-if "$ziran" run "$work/out-of-bounds.zib" \
+    -o "$work/out-of-bounds.zx" "$work/arrayapp.zi"
+if "$ziran" run "$work/out-of-bounds.zx" \
     2> "$work/out-of-bounds.err"; then
     echo 'portable array read escaped its bounds' >&2
     exit 1
@@ -289,8 +289,8 @@ fi
 grep -Fq 'portable execution failed' "$work/out-of-bounds.err"
 
 "$ziran" bundle --root "$work" --entry arrayapp:NestedOutOfBounds \
-    -o "$work/nested-out-of-bounds.zib" "$work/arrayapp.zi"
-if "$ziran" run "$work/nested-out-of-bounds.zib" \
+    -o "$work/nested-out-of-bounds.zx" "$work/arrayapp.zi"
+if "$ziran" run "$work/nested-out-of-bounds.zx" \
     2> "$work/nested-out-of-bounds.err"; then
     echo 'portable nested array read escaped its bounds' >&2
     exit 1

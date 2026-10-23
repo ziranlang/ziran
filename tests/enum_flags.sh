@@ -117,12 +117,12 @@ EOF
 grep -Fq 'constant SharedValue = "5"' "$work/flags.inspect"
 grep -Fq 'global shared_global: s32 = "5"' "$work/flags.inspect"
 "$ziran" bundle --root "$work" --entry flags:Answer \
-    -o "$work/source.zib" "$work/flags.zi"
+    -o "$work/source.zx" "$work/flags.zi"
 "$ziran" bundle --root "$work/ir" --entry flags:Answer \
-    -o "$work/saved.zib" "$work/ir/flags.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/flags.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 for input in "$work/flags.zi" "$work/ir/flags.zir"; do
     case "$input" in
@@ -199,8 +199,8 @@ ZI
 "$ziran" ir --root "$work" -o "$work/named-ir" "$work/named_top.zi"
 for input in "$work/named_top.zi" "$work/named-ir/named_top.zir"; do
     "$ziran" bundle --root "$work" --entry named_top:Answer \
-        -o "$work/named.zib" "$input"
-    test "$("$ziran" run "$work/named.zib")" = 5
+        -o "$work/named.zx" "$input"
+    test "$("$ziran" run "$work/named.zx")" = 5
 done
 
 cat > "$work/loaded_enum.zi" <<'ZI'

@@ -24,8 +24,8 @@ for source in "$examples"/*.zi; do
     out=$work/$name
     mkdir -p "$out"
 
-    "$ziran" bundle --root "$examples" --entry "$name:main" -o "$out/$name.zib" "$source"
-    "$ziran" run "$out/$name.zib" > "$out/expected"
+    "$ziran" bundle --root "$examples" --entry "$name:main" -o "$out/$name.zx" "$source"
+    "$ziran" run "$out/$name.zx" > "$out/expected"
     test -s "$out/expected" || { echo "$name printed nothing" >&2; exit 1; }
 
     "$ziran" build --target=c --root "$examples" -o "$out/c" "$source"

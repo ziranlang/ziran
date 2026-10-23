@@ -118,12 +118,12 @@ ZI
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 "$ziran" bundle --root "$work" --entry app:Answer \
-    -o "$work/source.zib" "$work/app.zi"
+    -o "$work/source.zx" "$work/app.zi"
 "$ziran" bundle --root "$work/ir" --entry app:Answer \
-    -o "$work/saved.zib" "$work/ir/app.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/app.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 cat > "$work/global_instance.c" <<'C'
 #include "ziran_host.h"
 #include <assert.h>
@@ -151,8 +151,8 @@ C
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" \
     "$work/global_instance.c" "$ziran_lib" ${VM_LDFLAGS:-} \
     -o "$work/global_instance"
-"$work/global_instance" "$work/source.zib"
-"$work/global_instance" "$work/saved.zib"
+"$work/global_instance" "$work/source.zx"
+"$work/global_instance" "$work/saved.zx"
 
 for input in source saved; do
     if test "$input" = source; then
@@ -209,8 +209,8 @@ for input in "$work/invalid.zi" "$work/runtime-ir/invalid.zir"; do
         *) root=$work/runtime-ir ;;
     esac
     "$ziran" bundle --root "$root" --entry invalid:Answer \
-        -o "$work/invalid.zib" "$input"
-    test "$("$ziran" run "$work/invalid.zib")" = 1
+        -o "$work/invalid.zx" "$input"
+    test "$("$ziran" run "$work/invalid.zx")" = 1
 done
 
 cat > "$work/runtime_record.zi" <<'ZI'
@@ -237,8 +237,8 @@ for name in runtime_record runtime_array; do
             *) root=$work/runtime-ir ;;
         esac
         "$ziran" bundle --root "$root" --entry "$name:Answer" \
-            -o "$work/$name.zib" "$input"
-        test "$("$ziran" run "$work/$name.zib")" = 1
+            -o "$work/$name.zx" "$input"
+        test "$("$ziran" run "$work/$name.zx")" = 1
     done
 done
 
@@ -275,10 +275,10 @@ Answer :: () -> s32 {
 ZI
 "$ziran" ir --root "$work" -o "$work/session-ir" "$work/session.zi"
 "$ziran" bundle --root "$work" --entry session:Answer \
-    -o "$work/session-source.zib" "$work/session.zi"
+    -o "$work/session-source.zx" "$work/session.zi"
 "$ziran" bundle --root "$work/session-ir" --entry session:Answer \
-    -o "$work/session-saved.zib" "$work/session-ir/session.zir"
-cmp "$work/session-source.zib" "$work/session-saved.zib"
+    -o "$work/session-saved.zx" "$work/session-ir/session.zir"
+cmp "$work/session-source.zx" "$work/session-saved.zx"
 cat > "$work/instance.c" <<'C'
 #include "ziran_host.h"
 #include <assert.h>
@@ -317,5 +317,5 @@ int main(int argc, char **argv)
 C
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" \
     "$work/instance.c" "$ziran_lib" ${VM_LDFLAGS:-} -o "$work/instance"
-"$work/instance" "$work/session-source.zib"
-"$work/instance" "$work/session-saved.zib"
+"$work/instance" "$work/session-source.zx"
+"$work/instance" "$work/session-saved.zx"

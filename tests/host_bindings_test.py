@@ -23,9 +23,9 @@ def run(*args):
     return result
 
 run(ziran, 'ir', '--root', work, '-o', work / 'ir', work / 'app.zi')
-library = work / 'provider.zib'
+library = work / 'provider.zx'
 run(ziran, 'bundle', '--root', work, '--entry', 'provider:main', '-o', library, work / 'provider.zi')
-bridge = work / 'bridge.zib'
+bridge = work / 'bridge.zx'
 (work / 'bridge.zi').write_text('#import "provider"\n#program_export\n'
     'main :: () -> s64 {\nreturn Next(7)\n}\n')
 run(ziran, 'bundle', '--root', work, '--entry', 'bridge:main', '--library', library,
@@ -33,19 +33,19 @@ run(ziran, 'bundle', '--root', work, '--entry', 'bridge:main', '--library', libr
 for mode, options in [('standalone', []), ('thin', ['--library', library]),
                       ('included', ['--include-library', library])]:
     for form, root, source in [('source', work, work / 'app.zi'), ('saved', work / 'ir', work / 'ir/app.zir')]:
-        bundle = work / f'{mode}-{form}.zib'
+        bundle = work / f'{mode}-{form}.zx'
         run(ziran, 'bundle', '--root', root, '--entry', 'app:Answer', *options, '-o', bundle, source)
         run(work / 'test', bundle, expected, *([library] if mode == 'thin' else []))
         if mode == 'thin': run(work / 'test', bundle, expected, bridge, library)
-    assert (work / f'{mode}-source.zib').read_bytes() == (work / f'{mode}-saved.zib').read_bytes()
+    assert (work / f'{mode}-source.zx').read_bytes() == (work / f'{mode}-saved.zx').read_bytes()
 solo = work / 'solo.zi'
 solo.write_text('host_api :: #system_library "host_api";\n'
     'Only :: (value: s64) -> s64 #foreign host_api;\nseed: s64 = Only(7);\n'
     '#program_export\nAnswer :: () -> s64 {\nreturn Only(seed)\n}\n')
 run(ziran, 'ir', '--root', work, '-o', work / 'single-ir', solo)
 for form, root, source in [('source', work, solo), ('saved', work / 'single-ir', work / 'single-ir/solo.zir')]:
-    bundle = work / f'single-{form}.zib'
+    bundle = work / f'single-{form}.zx'
     run(ziran, 'bundle', '--root', root, '--entry', 'solo:Answer', '-o', bundle, source)
     run(work / 'test', bundle)
-assert (work / 'single-source.zib').read_bytes() == (work / 'single-saved.zib').read_bytes()
+assert (work / 'single-source.zx').read_bytes() == (work / 'single-saved.zx').read_bytes()
 print('128 host bindings passed in source/saved standalone, thin, included and nested retained libraries')

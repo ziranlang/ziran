@@ -130,11 +130,11 @@ ZI
 "$ziran" ir --root "$work/linked" -o "$work/linked/ir" \
     "$work/linked/app.zi"
 "$ziran" bundle --root "$work/linked" --entry app:Answer \
-    -o "$work/linked/source.zib" "$work/linked/app.zi"
+    -o "$work/linked/source.zx" "$work/linked/app.zi"
 "$ziran" bundle --root "$work/linked/ir" --entry app:Answer \
-    -o "$work/linked/saved.zib" "$work/linked/ir/app.zir"
-cmp "$work/linked/source.zib" "$work/linked/saved.zib"
-test "$("$ziran" run "$work/linked/saved.zib")" = 42
+    -o "$work/linked/saved.zx" "$work/linked/ir/app.zir"
+cmp "$work/linked/source.zx" "$work/linked/saved.zx"
+test "$("$ziran" run "$work/linked/saved.zx")" = 42
 for input in source saved; do
     if test "$input" = source; then
         root=$work/linked

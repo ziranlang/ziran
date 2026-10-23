@@ -13,7 +13,7 @@ compiler_type_TargetKnown(String target)
 {
     bool value_0 = StringEqual(target, StringLiteral("c")) || StringEqual(target, StringLiteral("cpp")) || StringEqual(target, StringLiteral("go"));
     bool value_1 = value_0 || StringEqual(target, StringLiteral("rust")) || StringEqual(target, StringLiteral("py"));
-    return value_1 || StringEqual(target, StringLiteral("zib")) || StringEqual(target, StringLiteral("plan9-c"));
+    return value_1 || StringEqual(target, StringLiteral("zx")) || StringEqual(target, StringLiteral("plan9-c"));
 }
 
 String
@@ -45,7 +45,7 @@ compiler_type_ForeignImportSupported(String target, String foreign)
         return true;
     }
     if (StringEqual(foreign, StringLiteral("c"))) {
-        return !StringEqual(target, StringLiteral("zib"));
+        return !StringEqual(target, StringLiteral("zx"));
     }
     return false;
 }
@@ -54,7 +54,7 @@ bool
 compiler_type_ProcedureTypeSupported(String target, bool c_call)
 {
     bool value_0 = compiler_type_TargetKnown(target);
-    return value_0 && (!c_call || (!StringEqual(target, StringLiteral("go")) && !StringEqual(target, StringLiteral("zib"))));
+    return value_0 && (!c_call || (!StringEqual(target, StringLiteral("go")) && !StringEqual(target, StringLiteral("zx"))));
 }
 
 int32_t

@@ -78,8 +78,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry widen:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     output="$work/c-$input"
     "$ziran" build --target=c --root "$root" -o "$output" "$module"
     cat > "$output/main.c" <<'C'
@@ -104,4 +104,4 @@ func main() { if Widen_Answer() != 42 { panic("wrong result") } }
 GO
     GO111MODULE=off go run "$output"/*.go
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

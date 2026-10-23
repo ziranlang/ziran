@@ -25,11 +25,11 @@ EOF
 "$ziran" check --root "$work" "$work/slots.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/slots.zi"
 "$ziran" bundle --root "$work" --entry slots:Answer \
-    -o "$work/source.zib" "$work/slots.zi"
+    -o "$work/source.zx" "$work/slots.zi"
 "$ziran" bundle --root "$work/ir" --entry slots:Answer \
-    -o "$work/saved.zib" "$work/ir/slots.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/slots.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
 
 "$tool_dir/zi2c" --no-main --root "$work" -o "$work/c" "$work/slots.zi"
 cc -std=c11 -fsyntax-only -I"$project_dir/include" -I"$work/c" \
@@ -82,12 +82,12 @@ EOF
 
 "$ziran" ir --root "$work" -o "$work/native-ir" "$work/native_slots.zi"
 "$ziran" bundle --root "$work" --entry native_slots:NativeAnswer \
-    -o "$work/native-source.zib" "$work/native_slots.zi"
+    -o "$work/native-source.zx" "$work/native_slots.zi"
 "$ziran" bundle --root "$work/native-ir" --entry native_slots:NativeAnswer \
-    -o "$work/native-saved.zib" "$work/native-ir/native_slots.zir"
-cmp "$work/native-source.zib" "$work/native-saved.zib"
-test "$("$ziran" run "$work/native-source.zib")" = 42
-test "$("$ziran" run "$work/native-saved.zib")" = 42
+    -o "$work/native-saved.zx" "$work/native-ir/native_slots.zir"
+cmp "$work/native-source.zx" "$work/native-saved.zx"
+test "$("$ziran" run "$work/native-source.zx")" = 42
+test "$("$ziran" run "$work/native-saved.zx")" = 42
 
 "$tool_dir/zi2c" --no-main --root "$work" -o "$work/native-c" \
     "$work/native_slots.zi"

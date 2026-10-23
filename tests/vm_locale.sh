@@ -43,6 +43,6 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --module-path "$repo/std" \
-        --entry numbers:Check -o "$work/$input.zib" "$module"
-    "$vm_test" "$work/$input.zib"
+        --entry numbers:Check -o "$work/$input.zx" "$module"
+    "$vm_test" "$work/$input.zx"
 done

@@ -47,7 +47,7 @@ def main():
     if not 1 <= args.iterations <= 128 or args.repetitions < 1 or not 1 <= args.runs <= 10000:
         parser.error('iterations 1..128, positive repetitions and runs 1..10000 required')
     before = args.before_dir.resolve()
-    for name in ['zi2zir', 'zi2zib', 'libziran.a']:
+    for name in ['zi2zir', 'zi2zx', 'libziran.a']:
         if not (before/name).is_file(): parser.error(f'missing preserved baseline: {name}')
     output = args.out.resolve()
     if output.exists():
@@ -69,16 +69,16 @@ def main():
         source, expected = fixture(size, args.iterations)
         entry = directory/'values.zi'
         entry.write_text(source)
-        bundle = directory/'values.zib'
+        bundle = directory/'values.zx'
         commands = [
             [ROOT/'build/bin/zi2zir', '--root', directory, '-o', directory/'ir', entry],
-            [ROOT/'build/bin/zi2zib', 'bundle', '--root', directory, '--entry', 'values:Answer', '-o', bundle, entry],
-            [ROOT/'build/bin/zi2zib', 'bundle', '--root', directory/'ir', '--entry', 'values:Answer',
-             '-o', directory/'saved.zib', directory/'ir/values.zir'],
+            [ROOT/'build/bin/zi2zx', 'bundle', '--root', directory, '--entry', 'values:Answer', '-o', bundle, entry],
+            [ROOT/'build/bin/zi2zx', 'bundle', '--root', directory/'ir', '--entry', 'values:Answer',
+             '-o', directory/'saved.zx', directory/'ir/values.zir'],
         ]
         for argv in commands:
             subprocess.run([str(part) for part in argv], cwd=ROOT, env=env, check=True)
-        if bundle.read_bytes() != (directory/'saved.zib').read_bytes():
+        if bundle.read_bytes() != (directory/'saved.zx').read_bytes():
             raise AssertionError('source and saved enum bundles differ')
         manifest['cases'].append(dict(size=size, source=str(entry), bundle=str(bundle), expected=expected,
                                       source_sha256=hashlib.sha256(entry.read_bytes()).hexdigest(),

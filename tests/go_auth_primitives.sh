@@ -170,8 +170,8 @@ func main() {
 }
 GO
     GO111MODULE=off go run -race "$out"/*.go
-    "$ziran" bundle --entry auth:Answer --root "$root" --module-path std -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --entry auth:Answer --root "$root" --module-path std -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
 done
 cmp "$work/source-go/auth.go" "$work/saved-go/auth.go"
 echo 'Go Ed25519 types, exact signatures, copied bytes, escaped URLs, time and saved IR: passed'

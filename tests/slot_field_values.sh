@@ -44,12 +44,12 @@ EOF
 "$ziran" check --root "$work" "$work/slots.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/slots.zi"
 "$ziran" bundle --root "$work" --entry slots:Answer \
-    -o "$work/source.zib" "$work/slots.zi"
+    -o "$work/source.zx" "$work/slots.zi"
 "$ziran" bundle --root "$work/ir" --entry slots:Answer \
-    -o "$work/saved.zib" "$work/ir/slots.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/slots.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 if grep -aFq 'unresolved' "$work/ir/slots.zir"; then
     echo 'slot field call was not resolved' >&2
     exit 1

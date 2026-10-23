@@ -9,8 +9,8 @@ for mode in source saved; do
     root=tests/spec
     entry=tests/spec/compact_branches.zi
     if [ "$mode" = saved ]; then root=$work/ir; entry=$work/ir/compact_branches.zir; fi
-    "$ziran" bundle --root "$root" --entry compact_branches:main -o "$work/$mode.zib" "$entry"
-    "$ziran" run "$work/$mode.zib" > "$work/$mode-vm.out"
+    "$ziran" bundle --root "$root" --entry compact_branches:main -o "$work/$mode.zx" "$entry"
+    "$ziran" run "$work/$mode.zx" > "$work/$mode-vm.out"
     cmp "$work/expected" "$work/$mode-vm.out"
     for target in c cpp go; do
         out=$work/$mode-$target

@@ -54,8 +54,8 @@ if "$ziran" check --root "$work" "$work/invalid_recursive_record.zi" \
 fi
 
 "$ziran" bundle --root "$work" --entry tree:Answer \
-    -o "$work/tree.zib" "$work/tree.zi"
-test "$("$ziran" run "$work/tree.zib")" = 42
+    -o "$work/tree.zx" "$work/tree.zi"
+test "$("$ziran" run "$work/tree.zx")" = 42
 for target in c cpp go; do
     output="$work/$target"
     "$ziran" build --target="$target" --root "$work" \

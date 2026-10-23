@@ -35,5 +35,5 @@ Answer :: () -> s32 {
 ZI
 
 "$ziran" bundle --root "$work" --entry fields_host:Answer \
-    -o "$work/fields.zib" "$work/fields_host.zi"
-"$host_test" "$work/fields.zib"
+    -o "$work/fields.zx" "$work/fields_host.zi"
+"$host_test" "$work/fields.zx"

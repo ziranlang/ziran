@@ -203,5 +203,5 @@ grep -Fq 'address-of requires an assignable expression' "$work/invalid.err"
 
 # The portable runner reads and writes through pointers at its own storage.
 "$ziran" bundle --root "$work" --entry pointers:Answer \
-    -o "$work/pointers.zib" "$work/pointers.zi"
-test "$("$ziran" run "$work/pointers.zib")" = 42
+    -o "$work/pointers.zx" "$work/pointers.zi"
+test "$("$ziran" run "$work/pointers.zx")" = 42

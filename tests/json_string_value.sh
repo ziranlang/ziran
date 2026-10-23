@@ -11,13 +11,13 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 "$ziran" ir --root tests/spec --module-path std -o "$work/ir" \
     tests/spec/json_string_value_test.zi
 "$ziran" bundle --root tests/spec --module-path std \
-    --entry json_string_value_test:SelfTest -o "$work/source.zib" \
+    --entry json_string_value_test:SelfTest -o "$work/source.zx" \
     tests/spec/json_string_value_test.zi
 "$ziran" bundle --root "$work/ir" --module-path "$work/ir" \
-    --entry json_string_value_test:SelfTest -o "$work/saved.zib" \
+    --entry json_string_value_test:SelfTest -o "$work/saved.zx" \
     "$work/ir/json_string_value_test.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
 
 # The offset buffer and empty-slice count path must also work in native output.
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

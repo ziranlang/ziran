@@ -43,12 +43,12 @@ EOF
 "$ziran" check --root "$work" "$work/strings.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/strings.zi"
 "$ziran" bundle --root "$work" --entry strings:Answer \
-    -o "$work/source.zib" "$work/strings.zi"
+    -o "$work/source.zx" "$work/strings.zi"
 "$ziran" bundle --root "$work" --entry strings:Answer \
-    -o "$work/ir.zib" "$work/ir/strings.zir"
-cmp "$work/source.zib" "$work/ir.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/ir.zib")" = 42
+    -o "$work/ir.zx" "$work/ir/strings.zir"
+cmp "$work/source.zx" "$work/ir.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/ir.zx")" = 42
 
 for input in source ir; do
     if test "$input" = source; then
@@ -98,8 +98,8 @@ Answer :: () -> s32 {
 }
 EOF
 "$ziran" bundle --root "$work" --entry bad_index:Answer \
-    -o "$work/bad_index.zib" "$work/bad_index.zi"
-if "$ziran" run "$work/bad_index.zib" 2> "$work/bad_index.err"; then
+    -o "$work/bad_index.zx" "$work/bad_index.zi"
+if "$ziran" run "$work/bad_index.zx" 2> "$work/bad_index.err"; then
     echo 'out-of-range string index unexpectedly ran' >&2
     exit 1
 fi

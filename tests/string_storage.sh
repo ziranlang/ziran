@@ -68,8 +68,8 @@ for form in source saved; do
     extension=zi
     if [ "$form" = saved ]; then root=$work/ir; extension=zir; fi
     "$ziran" bundle --root "$root" --module-path "$repo/std" --entry string_storage:Answer \
-        -o "$work/$form.zib" "$root/string_storage.$extension"
-    "$work/vm-test" "$work/$form.zib"
+        -o "$work/$form.zx" "$root/string_storage.$extension"
+    "$work/vm-test" "$work/$form.zx"
     for target in c cpp; do
         output=$work/$form-$target
         "$ziran" build "--target=$target" --entry empty_builder:Answer --root "$root" \

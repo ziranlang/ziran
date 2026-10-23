@@ -176,7 +176,7 @@ for input in "$work/ordinary_names.zi" "$work/ordinary-ir/ordinary_names.zir"; d
     done
 done
 for input in "$work/ordinary_names.zi" "$work/ordinary-ir/ordinary_names.zir"; do
-    output="$work/ordinary-$(basename "$input").zib"
+    output="$work/ordinary-$(basename "$input").zx"
     "$ziran" bundle --root "$work" --entry ordinary_names:Answer \
         -o "$output" "$input"
     test "$("$ziran" run "$output")" = 42
@@ -287,15 +287,15 @@ ${CC:-cc} -Iinclude -I"$work/modules" "$work/modules/library.c" \
     "$work/modules/app.c" "$work/modules/main.c" -o "$work/modules/app"
 "$work/modules/app"
 
-"$ziran" bundle --root "$work" --entry app:Answer -o "$work/app.zib" \
+"$ziran" bundle --root "$work" --entry app:Answer -o "$work/app.zx" \
     "$work/library.zi" "$work/app.zi"
-test "$("$ziran" run "$work/app.zib")" = 42
+test "$("$ziran" run "$work/app.zx")" = 42
 "$ziran" ir --root "$work" -o "$work/modules-ir" \
     "$work/library.zi" "$work/app.zi"
-"$ziran" bundle --root "$work" --entry app:Answer -o "$work/app-from-ir.zib" \
+"$ziran" bundle --root "$work" --entry app:Answer -o "$work/app-from-ir.zx" \
     "$work/modules-ir/library.zir" "$work/modules-ir/app.zir"
-cmp "$work/app.zib" "$work/app-from-ir.zib"
-test "$("$ziran" run "$work/app-from-ir.zib")" = 42
+cmp "$work/app.zx" "$work/app-from-ir.zx"
+test "$("$ziran" run "$work/app-from-ir.zx")" = 42
 "$ziran" build --target=c --root "$work" -o "$work/mixed-modules" \
     "$work/library.zi" "$work/modules-ir/app.zir"
 cp "$work/modules/main.c" "$work/mixed-modules/main.c"
@@ -312,8 +312,8 @@ Answer :: () -> s32 {
 }
 EOF
 "$ziran" bundle --root "$work" --entry local_bundle:Answer \
-    -o "$work/local-bundle.zib" "$work/local_bundle.zi"
-test "$("$ziran" run "$work/local-bundle.zib")" = 42
+    -o "$work/local-bundle.zx" "$work/local_bundle.zi"
+test "$("$ziran" run "$work/local-bundle.zx")" = 42
 cat > "$work/flow.zi" <<'EOF'
 #program_export
 Answer :: () -> s32 {
@@ -364,13 +364,13 @@ func main() { if Flow_Answer() != 42 { panic("wrong result") } }
 EOF
 GO111MODULE=off go run "$work/flow-go/flow.go" "$work/flow-go/main.go"
 "$ziran" bundle --root "$work" --entry flow:Answer \
-    -o "$work/flow.zib" "$work/flow.zi"
-test "$("$ziran" run "$work/flow.zib")" = 42
+    -o "$work/flow.zx" "$work/flow.zi"
+test "$("$ziran" run "$work/flow.zx")" = 42
 "$ziran" ir --root "$work" -o "$work/flow-ir" "$work/flow.zi"
 "$ziran" bundle --root "$work" --entry flow:Answer \
-    -o "$work/flow-from-ir.zib" "$work/flow-ir/flow.zir"
-cmp "$work/flow.zib" "$work/flow-from-ir.zib"
-test "$("$ziran" run "$work/flow-from-ir.zib")" = 42
+    -o "$work/flow-from-ir.zx" "$work/flow-ir/flow.zir"
+cmp "$work/flow.zx" "$work/flow-from-ir.zx"
+test "$("$ziran" run "$work/flow-from-ir.zx")" = 42
 cat > "$work/reals.zi" <<'EOF'
 #program_export
 Scale :: (value: float32) -> float32 {
@@ -424,13 +424,13 @@ func main() { if Reals_Answer() != 42 { panic("wrong real result") } }
 EOF
 GO111MODULE=off go run "$work/reals-go/reals.go" "$work/reals-go/main.go"
 "$ziran" bundle --root "$work" --entry reals:Answer \
-    -o "$work/reals.zib" "$work/reals.zi"
-test "$("$ziran" run "$work/reals.zib")" = 42
+    -o "$work/reals.zx" "$work/reals.zi"
+test "$("$ziran" run "$work/reals.zx")" = 42
 "$ziran" ir --root "$work" -o "$work/reals-ir" "$work/reals.zi"
 "$ziran" bundle --root "$work" --entry reals:Answer \
-    -o "$work/reals-from-ir.zib" "$work/reals-ir/reals.zir"
-cmp "$work/reals.zib" "$work/reals-from-ir.zib"
-test "$("$ziran" run "$work/reals-from-ir.zib")" = 42
+    -o "$work/reals-from-ir.zx" "$work/reals-ir/reals.zir"
+cmp "$work/reals.zx" "$work/reals-from-ir.zx"
+test "$("$ziran" run "$work/reals-from-ir.zx")" = 42
 cat > "$work/reachable_library.zi" <<'EOF'
 Props :: struct {
     value: s32
@@ -459,20 +459,20 @@ Answer :: () -> s32 {
 }
 EOF
 "$ziran" bundle --root "$work" --entry reachable_app:Answer \
-    -o "$work/reachable.zib" "$work/reachable_library.zi" \
+    -o "$work/reachable.zx" "$work/reachable_library.zi" \
     "$work/dead_library.zi" "$work/reachable_app.zi"
-test "$("$ziran" run "$work/reachable.zib")" = 42
+test "$("$ziran" run "$work/reachable.zx")" = 42
 "$ziran" ir --root "$work" -o "$work/reachable-ir" \
     "$work/reachable_library.zi" "$work/dead_library.zi" \
     "$work/reachable_app.zi"
 "$ziran" bundle --root "$work" --entry reachable_app:Answer \
-    -o "$work/reachable-from-ir.zib" \
+    -o "$work/reachable-from-ir.zx" \
     "$work/reachable-ir/reachable_library.zir" \
     "$work/reachable-ir/dead_library.zir" \
     "$work/reachable-ir/reachable_app.zir"
-cmp "$work/reachable.zib" "$work/reachable-from-ir.zib"
-test "$("$ziran" run "$work/reachable-from-ir.zib")" = 42
-python3 - "$work/reachable.zib" <<'PY'
+cmp "$work/reachable.zx" "$work/reachable-from-ir.zx"
+test "$("$ziran" run "$work/reachable-from-ir.zx")" = 42
+python3 - "$work/reachable.zx" <<'PY'
 from pathlib import Path
 import sys
 data = Path(sys.argv[1]).read_bytes()
@@ -519,19 +519,19 @@ Answer :: () -> s32 {
 }
 EOF
 "$ziran" bundle --root "$work" --entry record_application:Answer \
-    -o "$work/record.zib" "$work/record_shapes.zi" \
+    -o "$work/record.zx" "$work/record_shapes.zi" \
     "$work/record_operations.zi" "$work/record_application.zi"
-test "$("$ziran" run "$work/record.zib")" = 42
+test "$("$ziran" run "$work/record.zx")" = 42
 "$ziran" ir --root "$work" -o "$work/record-ir" \
     "$work/record_shapes.zi" "$work/record_operations.zi" \
     "$work/record_application.zi"
 "$ziran" bundle --root "$work" --entry record_application:Answer \
-    -o "$work/record-from-ir.zib" \
+    -o "$work/record-from-ir.zx" \
     "$work/record-ir/record_shapes.zir" \
     "$work/record-ir/record_operations.zir" \
     "$work/record-ir/record_application.zir"
-cmp "$work/record.zib" "$work/record-from-ir.zib"
-test "$("$ziran" run "$work/record-from-ir.zib")" = 42
+cmp "$work/record.zx" "$work/record-from-ir.zx"
+test "$("$ziran" run "$work/record-from-ir.zx")" = 42
 cat > "$work/modes.zi" <<'EOF'
 Mode :: enum {
     Off :: -1;
@@ -563,15 +563,15 @@ Answer :: () -> s32 {
 }
 EOF
 "$ziran" bundle --root "$work" --entry mode_app:Answer \
-    -o "$work/modes.zib" "$work/modes.zi" "$work/mode_app.zi"
-test "$("$ziran" run "$work/modes.zib")" = 42
+    -o "$work/modes.zx" "$work/modes.zi" "$work/mode_app.zi"
+test "$("$ziran" run "$work/modes.zx")" = 42
 "$ziran" ir --root "$work" -o "$work/modes-ir" \
     "$work/modes.zi" "$work/mode_app.zi"
 "$ziran" bundle --root "$work" --entry mode_app:Answer \
-    -o "$work/modes-from-ir.zib" \
+    -o "$work/modes-from-ir.zx" \
     "$work/modes-ir/modes.zir" "$work/modes-ir/mode_app.zir"
-cmp "$work/modes.zib" "$work/modes-from-ir.zib"
-test "$("$ziran" run "$work/modes-from-ir.zib")" = 42
+cmp "$work/modes.zx" "$work/modes-from-ir.zx"
+test "$("$ziran" run "$work/modes-from-ir.zx")" = 42
 cat > "$work/direct_enum.zi" <<'EOF'
 Step :: enum {
     First :: 3;
@@ -585,8 +585,8 @@ Answer :: () -> s32 {
 }
 EOF
 "$ziran" bundle --root "$work" --entry direct_enum:Answer \
-    -o "$work/direct-enum.zib" "$work/direct_enum.zi"
-test "$("$ziran" run "$work/direct-enum.zib")" = 8
+    -o "$work/direct-enum.zx" "$work/direct_enum.zi"
+test "$("$ziran" run "$work/direct-enum.zx")" = 8
 cat > "$work/unsigned_bits.zi" <<'EOF'
 #program_export
 Answer :: () -> s32 {
@@ -608,15 +608,15 @@ Answer :: () -> s32 {
 }
 EOF
 "$ziran" bundle --root "$work" --entry unsigned_bits:Answer \
-    -o "$work/unsigned-bits.zib" "$work/unsigned_bits.zi"
-test "$("$ziran" run "$work/unsigned-bits.zib")" = 42
+    -o "$work/unsigned-bits.zx" "$work/unsigned_bits.zi"
+test "$("$ziran" run "$work/unsigned-bits.zx")" = 42
 "$ziran" ir --root "$work" -o "$work/unsigned-bits-ir" \
     "$work/unsigned_bits.zi"
 "$ziran" bundle --root "$work" --entry unsigned_bits:Answer \
-    -o "$work/unsigned-bits-from-ir.zib" \
+    -o "$work/unsigned-bits-from-ir.zx" \
     "$work/unsigned-bits-ir/unsigned_bits.zir"
-cmp "$work/unsigned-bits.zib" "$work/unsigned-bits-from-ir.zib"
-test "$("$ziran" run "$work/unsigned-bits-from-ir.zib")" = 42
+cmp "$work/unsigned-bits.zx" "$work/unsigned-bits-from-ir.zx"
+test "$("$ziran" run "$work/unsigned-bits-from-ir.zx")" = 42
 "$ziran" build --target=c --root "$work" \
     -o "$work/unsigned-bits-c" "$work/unsigned_bits.zi"
 cat > "$work/unsigned-bits-c/main.c" <<'EOF'
@@ -666,12 +666,12 @@ Answer :: () -> s32 {
 EOF
 "$ziran" ir --root "$work" -o "$work/u64-ir" "$work/u64_boundary.zi"
 "$ziran" bundle --root "$work" --entry u64_boundary:Answer \
-    -o "$work/u64.zib" "$work/u64_boundary.zi"
+    -o "$work/u64.zx" "$work/u64_boundary.zi"
 "$ziran" bundle --root "$work" --entry u64_boundary:Answer \
-    -o "$work/u64-ir.zib" "$work/u64-ir/u64_boundary.zir"
-cmp "$work/u64.zib" "$work/u64-ir.zib"
-test "$("$ziran" run "$work/u64.zib")" = 42
-test "$("$ziran" run "$work/u64-ir.zib")" = 42
+    -o "$work/u64-ir.zx" "$work/u64-ir/u64_boundary.zir"
+cmp "$work/u64.zx" "$work/u64-ir.zx"
+test "$("$ziran" run "$work/u64.zx")" = 42
+test "$("$ziran" run "$work/u64-ir.zx")" = 42
 for input in source ir; do
     if test "$input" = source; then
         extension=zi
@@ -742,9 +742,9 @@ cp "$work/flow-go/main.go" "$work/changed-text-go/main.go"
 GO111MODULE=off go run "$work/changed-text-go/flow.go" \
     "$work/changed-text-go/main.go"
 "$ziran" bundle --root "$work" --entry flow:Answer \
-    -o "$work/changed-text.zib" "$work/changed-text.zir"
-test "$("$ziran" run "$work/changed-text.zib")" = 42
-python3 - "$work/flow.zib" "$work/changed-embedded-text.zib" <<'PY'
+    -o "$work/changed-text.zx" "$work/changed-text.zir"
+test "$("$ziran" run "$work/changed-text.zx")" = 42
+python3 - "$work/flow.zx" "$work/changed-embedded-text.zx" <<'PY'
 from pathlib import Path
 import sys
 data = Path(sys.argv[1]).read_bytes()
@@ -754,7 +754,7 @@ data = data.replace(b'return 42', b'return xx', 1)
 Path(sys.argv[2]).write_bytes(data.replace(b'else if value == 12',
                                              b'xxxx if value == 12', 1))
 PY
-test "$("$ziran" run "$work/changed-embedded-text.zib")" = 42
+test "$("$ziran" run "$work/changed-embedded-text.zx")" = 42
 python3 - "$work/flow-ir/flow.zir" "$work/inconsistent-flow.zir" <<'PY'
 from pathlib import Path
 import sys
@@ -788,9 +788,9 @@ sed 's/42/43/g' "$work/flow-go/main.go" > "$work/inconsistent-go/main.go"
 GO111MODULE=off go run "$work/inconsistent-go/flow.go" \
     "$work/inconsistent-go/main.go"
 "$ziran" bundle --root "$work" --entry flow:Answer \
-    -o "$work/inconsistent-flow.zib" "$work/inconsistent-flow.zir"
-test "$("$ziran" run "$work/inconsistent-flow.zib")" = 43
-python3 - "$work/flow.zib" "$work/inconsistent-embedded.zib" <<'PY'
+    -o "$work/inconsistent-flow.zx" "$work/inconsistent-flow.zir"
+test "$("$ziran" run "$work/inconsistent-flow.zx")" = 43
+python3 - "$work/flow.zx" "$work/inconsistent-embedded.zx" <<'PY'
 from pathlib import Path
 import sys
 data = bytearray(Path(sys.argv[1]).read_bytes())
@@ -798,23 +798,23 @@ assert data.count(b'42') == 2
 data[data.rfind(b'42'):data.rfind(b'42') + 2] = b'43'
 Path(sys.argv[2]).write_bytes(data)
 PY
-test "$("$ziran" run "$work/inconsistent-embedded.zib")" = 43
-python3 - "$work/app.zib" "$work/bad-bundle.zib" "$work/old-bundle.zib" <<'PY'
+test "$("$ziran" run "$work/inconsistent-embedded.zx")" = 43
+python3 - "$work/app.zx" "$work/bad-bundle.zx" "$work/old-bundle.zx" <<'PY'
 from pathlib import Path
 import sys
 data = Path(sys.argv[1]).read_bytes()
-assert data[:8] == b'ZIB\0\x1a\0\0\0', data[:8]
+assert data[:8] == b'ZX\0\0\x1a\0\0\0', data[:8]
 Path(sys.argv[2]).write_bytes(data[:17])
 old = bytearray(data)
 old[4] = 19
 Path(sys.argv[3]).write_bytes(old)
 PY
 expect_rejection 'truncated bundle unexpectedly ran' "$work/bad-bundle.err" \
-    "$ziran" run "$work/bad-bundle.zib"
+    "$ziran" run "$work/bad-bundle.zx"
 grep -Fq 'invalid or truncated bundle' "$work/bad-bundle.err"
 expect_rejection 'unsupported bundle version unexpectedly ran' "$work/old-bundle.err" \
-    "$ziran" run "$work/old-bundle.zib"
-grep -Fq 'unsupported ZIB version' "$work/old-bundle.err"
+    "$ziran" run "$work/old-bundle.zx"
+grep -Fq 'unsupported ZX version' "$work/old-bundle.err"
 cat > "$work/unsupported_bundle.zi" <<'EOF'
 #program_export
 Answer :: () -> s32 {
@@ -825,8 +825,8 @@ Answer :: () -> s32 {
 EOF
 # Pointers at portable storage, null included, run in bundles.
 "$ziran" bundle --root "$work" --entry unsupported_bundle:Answer \
-    -o "$work/unsupported-bundle.zib" "$work/unsupported_bundle.zi"
-test "$("$ziran" run "$work/unsupported-bundle.zib")" = 42
+    -o "$work/unsupported-bundle.zx" "$work/unsupported_bundle.zi"
+test "$("$ziran" run "$work/unsupported-bundle.zx")" = 42
 
 cat > "$work/blocklib.zi" <<'EOF'
 Props :: struct {
@@ -881,13 +881,13 @@ ${CC:-cc} -Iinclude -I"$work/blocks-from-ir" \
     "$work/blocks-from-ir/main.c" -o "$work/blocks-from-ir/app"
 "$work/blocks-from-ir/app"
 "$ziran" bundle --root "$work" --entry blockapp:Answer \
-    -o "$work/blocks-source.zib" "$work/blocklib.zi" "$work/blockapp.zi"
+    -o "$work/blocks-source.zx" "$work/blocklib.zi" "$work/blockapp.zi"
 "$ziran" bundle --root "$work/blocks-ir" --entry blockapp:Answer \
-    -o "$work/blocks-saved.zib" "$work/blocks-ir/blocklib.zir" \
+    -o "$work/blocks-saved.zx" "$work/blocks-ir/blocklib.zir" \
     "$work/blocks-ir/blockapp.zir"
-cmp "$work/blocks-source.zib" "$work/blocks-saved.zib"
-test "$("$ziran" run "$work/blocks-source.zib")" = 42
-test "$("$ziran" run "$work/blocks-saved.zib")" = 42
+cmp "$work/blocks-source.zx" "$work/blocks-saved.zx"
+test "$("$ziran" run "$work/blocks-source.zx")" = 42
+test "$("$ziran" run "$work/blocks-saved.zx")" = 42
 cat > "$work/void_block.zi" <<'EOF'
 Props :: struct {
     value: s32

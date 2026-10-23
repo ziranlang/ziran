@@ -132,8 +132,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry slices:Answer \
-        -o "$work/$input.zib" "$source"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$source"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         output="$work/$target-$input"
         "$ziran" build --target="$target" --root "$root" \
@@ -200,12 +200,12 @@ if "$ziran" check --root "$work" "$work/invalid_slice_escape.zi" \
     exit 1
 fi
 
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 for entry in ReadOutside WriteOutside RangeOutside RangeReverse; do
     "$ziran" bundle --root "$work" --entry "slices:$entry" \
-        -o "$work/$entry.zib" "$work/slices.zi"
-    if "$ziran" run "$work/$entry.zib" 2> "$work/$entry.err"; then
+        -o "$work/$entry.zx" "$work/slices.zi"
+    if "$ziran" run "$work/$entry.zx" 2> "$work/$entry.err"; then
         echo "portable slice $entry escaped its bounds" >&2
         exit 1
     fi

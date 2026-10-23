@@ -12,14 +12,14 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 "$ziran" ir --root "$root/tests/spec" --module-path "$root/std" \
     -o "$work/ir" "$root/tests/spec/process_test.zi"
 "$ziran" bundle --root "$root/tests/spec" --module-path "$root/std" \
-    --entry process_test:SelfTest -o "$work/source.zib" \
+    --entry process_test:SelfTest -o "$work/source.zx" \
     "$root/tests/spec/process_test.zi"
 "$ziran" bundle --root "$work/ir" --module-path "$work/ir" \
-    --entry process_test:SelfTest -o "$work/saved.zib" \
+    --entry process_test:SelfTest -o "$work/saved.zx" \
     "$work/ir/process_test.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-"$host_test" "$work/source.zib"
-"$host_test" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
+"$host_test" "$work/source.zx"
+"$host_test" "$work/saved.zx"
 
 for target in c cpp go; do
     output="$work/$target"

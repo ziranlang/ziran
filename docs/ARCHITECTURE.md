@@ -8,7 +8,7 @@ It is not a claim that every part is implemented. Current gaps are tracked in
 
 | Repository | Owns | Must not own |
 | --- | --- | --- |
-| Ziran | Language semantics, parser, checker, laws, standard library, `.zir`, native backends, `.zib` linker, verifier, loader, and generic execution runtime | Widgets, UI trees, styling, DOM policy, renderers, Kryon-specific names or implicit UI startup |
+| Ziran | Language semantics, parser, checker, laws, standard library, `.zir`, native backends, `.zx` linker, verifier, loader, and generic execution runtime | Widgets, UI trees, styling, DOM policy, renderers, Kryon-specific names or implicit UI startup |
 | Kryon | Importable `.zi` modules for widgets, layout, themes, interaction, accessibility, rendering, and platform adapters | Ziran syntax, compiler branches for widgets, or an application's terminal or product UI |
 
 The dependency direction is **Kryon → Ziran**. A CLI, service, or library can
@@ -46,7 +46,7 @@ for law-driven development, LLM tooling, parallel execution, and evolution.
 ```text
 .zi modules ──parse/check──> .zir modules
 .zir modules ──native backend──> C, C++, native Go, Rust, or Python output
-.zir modules ──link/verify──> .zib ──portable runtime + host capabilities──> process
+.zir modules ──link/verify──> .zx ──portable runtime + host capabilities──> process
 ```
 
 Inside the compiler, names in that model are interned: an expression's or
@@ -67,7 +67,7 @@ owning scope. Rewriting a body selects a new snapshot, so copied or relocated
 record declarations cannot retain stale field names or ownership facts.
 
 Every backend consumes the same checked `.zir` model. Native output may bind
-declared platform libraries. `.zib` contains portable executable content and
+declared platform libraries. `.zx` contains portable executable content and
 cannot depend on arbitrary target-specific C, C++, or Go source fragments.
 Native and portable builds of the same supported program must agree on
 observable language behavior.
@@ -76,7 +76,7 @@ Semantic checking sets `ZirFunction.checked` only from language validity.
 Native symbol planning runs afterward, and body eligibility is a separate
 emitter query. An emitter's inability to represent a valid function does not
 turn that function into unchecked source. The portable verifier remains the
-authority for executable `.zib` support.
+authority for executable `.zx` support.
 
 Parameter declarations have one immutable parsed view, including binding
 names, types, namespace modifiers, and defaults. Record fields likewise use
@@ -109,7 +109,7 @@ other host access must be declared as capabilities when needed. The host
 supplies those capabilities. A missing required capability is a reported
 error, never silently ignored.
 
-The portable runtime launches a non-graphical `.zib` without initializing a
+The portable runtime launches a non-graphical `.zx` without initializing a
 window or display. Kryon decides how to use the host's graphical capabilities
 through its imported `.zi` implementation. The compiler and loader do not
 inspect widget names to make that decision.

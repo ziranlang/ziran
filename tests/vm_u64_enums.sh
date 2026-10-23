@@ -17,8 +17,8 @@ for form in source saved; do
         input=$work/ir/vm_u64_enums_test.zir
         root=$work/ir
     fi
-    "$ziran" bundle --root "$root" --entry "$entry" -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 0
+    "$ziran" bundle --root "$root" --entry "$entry" -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 0
     for target in c cpp go; do
         output=$work/$form-$target
         if test "$target" = c; then
@@ -34,5 +34,5 @@ for form in source saved; do
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 echo 'Unsigned 64-bit enums retain their values through casts, flags, calls and storage on every target'

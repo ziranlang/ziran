@@ -15,8 +15,8 @@ make</code></pre><p><code>make</code> builds in parallel on half of your cores a
     print("Hello, World!\n");
 }</code></pre><p><code>print</code> substitutes each <code>%</code> in its format with the next argument, so <code>print("Hello, %!\n", name)</code> greets any name. Write <code>%%</code> for a percent sign.</p><p><a class="text-link" href="examples/hello.zi" download>Download hello.zi ↓</a></p></section>
 <section id="check"><p class="eyebrow">03 / Check and execute</p><h2>Run the checked program</h2><pre><code>build/bin/ziran check --root . hello.zi
-build/bin/ziran bundle --root . --entry hello:main -o hello.zib hello.zi
-build/bin/ziran run hello.zib</code></pre><p>The last command prints <code>Hello, World!</code>. To save checked IR, use <code>build/bin/ziran ir --root . -o out hello.zi</code>.</p></section>
+build/bin/ziran bundle --root . --entry hello:main -o hello.zx hello.zi
+build/bin/ziran run hello.zx</code></pre><p>The last command prints <code>Hello, World!</code>. To save checked IR, use <code>build/bin/ziran ir --root . -o out hello.zi</code>.</p></section>
 <section id="native"><p class="eyebrow">04 / Native output</p><h2>Build a native program</h2><p>The same checked source generates Rust, Go, Python, C, or C++. For Rust, Go, and Python, <code>--exe</code> with an entry writes a runnable program:</p><pre><code>build/bin/ziran build --target=rust --exe --entry hello:main --root . -o out/rust hello.zi
 cargo run --manifest-path out/rust/Cargo.toml
 

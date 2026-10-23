@@ -32,8 +32,8 @@ for input in source saved; do
         module="$work/ir/constant_names.zir"
     fi
     "$ziran" bundle --root "$work" --entry constant_names:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         output="$work/$input-$target"
         "$ziran" build "--target=$target" --root "$work" \
@@ -63,4 +63,4 @@ for input in source saved; do
         esac
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

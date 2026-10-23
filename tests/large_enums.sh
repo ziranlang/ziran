@@ -27,8 +27,8 @@ for form in source saved; do
     module=$work/app.zi
     root=$work
     if test "$form" = saved; then module=$work/ir/app.zir; root=$work/ir; fi
-    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zib" "$module"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zx" "$module"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     for target in c cpp go py rust; do
         output=$work/$target-$form
         if test "$target" = rust; then
@@ -60,4 +60,4 @@ for form in source saved; do
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

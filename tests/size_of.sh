@@ -112,12 +112,12 @@ if ! grep -aFq 'size_of' "$work/ir/sizes.zir"; then
     exit 1
 fi
 "$ziran" bundle --root "$work" --entry sizes:Answer \
-    -o "$work/source.zib" "$work/sizes.zi"
+    -o "$work/source.zx" "$work/sizes.zi"
 "$ziran" bundle --root "$work/ir" --entry sizes:Answer \
-    -o "$work/saved.zib" "$work/ir/sizes.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/sizes.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 for target in c cpp go; do
     out="$work/$target"

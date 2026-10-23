@@ -43,8 +43,8 @@ sources="$work/app.zi $work/api.zi $work/host.zi"
 test "$("$work/c/app")" = 18
 
 "$ziran" bundle --root "$work" --entry app:main --bind-host host \
-    -o "$work/app.zib" $sources
-test "$("$ziran" run "$work/app.zib")" = "18
+    -o "$work/app.zx" $sources
+test "$("$ziran" run "$work/app.zx")" = "18
 0"
 
 "$ziran" build --target=go --pkg main --exe --root "$work" --entry app:main \
@@ -64,12 +64,12 @@ test "$(python3 "$work/py")" = 18
 
 # An explicit --bind wins over the module's same-named function.
 "$ziran" bundle --root "$work" --entry app:main --bind api:Scale=host:Twice \
-    --bind-host host -o "$work/explicit.zib" $sources
-test "$("$ziran" run "$work/explicit.zib")" = "19
+    --bind-host host -o "$work/explicit.zx" $sources
+test "$("$ziran" run "$work/explicit.zx")" = "19
 0"
 
 if "$ziran" bundle --root "$work" --entry app:main --bind-host nowhere \
-    -o "$work/missing.zib" $sources > "$work/missing.out" 2> "$work/missing.err"; then
+    -o "$work/missing.zx" $sources > "$work/missing.out" 2> "$work/missing.err"; then
     echo 'a missing host module was accepted' >&2
     exit 1
 fi

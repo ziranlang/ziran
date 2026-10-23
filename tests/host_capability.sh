@@ -71,11 +71,11 @@ Answer :: () -> s32 {
 EOF
 "$ziran" ir --root "$work" -o "$work/ir" "$work/application.zi"
 "$ziran" bundle --root "$work" --entry application:Answer \
-    -o "$work/source.zib" "$work/application.zi"
+    -o "$work/source.zx" "$work/application.zi"
 "$ziran" bundle --root "$work/ir" --entry application:Answer \
-    -o "$work/saved.zib" "$work/ir/application.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-python3 - "$work/source.zib" <<'PY'
+    -o "$work/saved.zx" "$work/ir/application.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+python3 - "$work/source.zx" <<'PY'
 from pathlib import Path
 import struct
 import sys
@@ -88,23 +88,23 @@ count, = struct.unpack_from('<I', data, offset)
 assert count == 7, count
 assert b'UnusedHost' not in data
 PY
-"$host_test" "$work/source.zib"
-"$host_test" "$work/saved.zib"
-if "$ziran" run "$work/source.zib" 2> "$work/missing.err"; then
+"$host_test" "$work/source.zx"
+"$host_test" "$work/saved.zx"
+if "$ziran" run "$work/source.zx" 2> "$work/missing.err"; then
     echo 'bundle unexpectedly ran without its host capabilities' >&2
     exit 1
 fi
 grep -Fq 'missing host capability:' "$work/missing.err"
-python3 - "$work/source.zib" "$work/tampered.zib" <<'PY'
+python3 - "$work/source.zx" "$work/tampered.zx" <<'PY'
 from pathlib import Path
 import sys
 data = bytearray(Path(sys.argv[1]).read_bytes())
-assert data[:8] == b'ZIB\0\x1a\0\0\0'
+assert data[:8] == b'ZX\0\0\x1a\0\0\0'
 assert b'AddTenHost' in data
 data[data.index(b'AddTenHost')] = ord('X')
 Path(sys.argv[2]).write_bytes(data)
 PY
-if "$ziran" run "$work/tampered.zib" 2> "$work/tampered.err"; then
+if "$ziran" run "$work/tampered.zx" 2> "$work/tampered.err"; then
     echo 'tampered capability list unexpectedly ran' >&2
     exit 1
 fi
@@ -119,7 +119,7 @@ Answer :: () -> s32 {
 }
 EOF
 if "$ziran" bundle --root "$work" --entry unsupported:Answer \
-    -o "$work/unsupported.zib" "$work/unsupported.zi" \
+    -o "$work/unsupported.zx" "$work/unsupported.zi" \
     2> "$work/unsupported.err"; then
     echo 'pointer dereference unexpectedly bundled' >&2
     exit 1

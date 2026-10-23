@@ -28,23 +28,23 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 "$ziran" ir --root "$work" --module-path "$repo/std" -o "$work/ir" "$work/large.zi"
 size=$(wc -c < "$work/ir/large.zir")
 test "$size" -gt 262144
-"$ziran" bundle --root "$work" --module-path "$repo/std" --entry large:Answer -o "$work/source.zib" "$work/large.zi"
-"$ziran" bundle --root "$work/ir" --module-path "$work/ir" --entry large:Answer -o "$work/saved.zib" "$work/ir/large.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/saved.zib")" = 179700
+"$ziran" bundle --root "$work" --module-path "$repo/std" --entry large:Answer -o "$work/source.zx" "$work/large.zi"
+"$ziran" bundle --root "$work/ir" --module-path "$work/ir" --entry large:Answer -o "$work/saved.zx" "$work/ir/large.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/saved.zx")" = 179700
 
 mkdir "$work/trailing" "$work/short"
 cp "$work/ir/large.zir" "$work/trailing/large.zir"
 printf 'x' >> "$work/trailing/large.zir"
 if "$ziran" bundle --root "$work/trailing" --module-path "$work/trailing" --entry large:Answer \
-    -o "$work/trailing.zib" "$work/trailing/large.zir" 2> "$work/trailing.err"; then
+    -o "$work/trailing.zx" "$work/trailing/large.zir" 2> "$work/trailing.err"; then
     echo 'saved IR with trailing bytes was accepted' >&2
     exit 1
 fi
 grep -q 'trailing or unreadable ZIR data' "$work/trailing.err"
 head -c $((size - 3)) "$work/ir/large.zir" > "$work/short/large.zir"
 if "$ziran" bundle --root "$work/short" --module-path "$work/short" --entry large:Answer \
-    -o "$work/short.zib" "$work/short/large.zir" 2> "$work/short.err"; then
+    -o "$work/short.zx" "$work/short/large.zir" 2> "$work/short.err"; then
     echo 'truncated saved IR was accepted' >&2
     exit 1
 fi

@@ -140,7 +140,7 @@ int main(int argc,char **argv){(void)argc;int64_t n=strtoll(argv[1],0,10);uint64
             name=form+'-c-'+mode; binary=work/name
             build(['cc',*c_flags,*(['-DZIRAN_NO_ASM'] if mode=='fallback' else []),'-I'+str(ROOT/'include'),'-I'+str(c_out),c_out/'kernel.c',c_out/'host.c','-o',binary],name)
             cases.append((name,binary))
-        bundle = work / 'portable.zib'
+        bundle = work / 'portable.zx'
         build([args.bin_dir.resolve()/'ziran','bundle','--root',work,'--entry','kernel:Answer','-o',bundle,entry],form+'-vm-bundle')
         invoke([args.bin_dir.resolve()/'ziran','run',bundle],expected=oracle(args.small))
     for language, text in [('rust',rust_control),('c',c_control)]:

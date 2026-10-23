@@ -111,15 +111,15 @@ Names :: () -> bool {
 }
 
 Targets :: () -> bool {
-    targets: [7]string = .{"c", "cpp", "go", "rust", "py", "zib", "plan9-c"}
+    targets: [7]string = .{"c", "cpp", "go", "rust", "py", "zx", "plan9-c"}
     for target: targets {
         if !Types.TargetKnown(target) || !Types.ForeignImportSupported(target, "host") ||
-        Types.ForeignImportSupported(target, "c") != (target != "zib") ||
+        Types.ForeignImportSupported(target, "c") != (target != "zx") ||
         Types.ForeignImportSupported(target, "go") != (target == "go") ||
         Types.ForeignImportSupported(target, "py") != (target == "py") ||
         Types.ForeignImportSupported(target, "unknown") ||
         !Types.ProcedureTypeSupported(target, false) ||
-        Types.ProcedureTypeSupported(target, true) != (target != "go" && target != "zib") { return false }
+        Types.ProcedureTypeSupported(target, true) != (target != "go" && target != "zx") { return false }
     }
     if Types.ScalarByteWidth("s8") != 1 || Types.ScalarByteWidth("bool") != 1 ||
        Types.ScalarByteWidth("u16") != 2 || Types.ScalarByteWidth("float32") != 4 ||

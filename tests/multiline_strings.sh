@@ -65,11 +65,11 @@ awk 'BEGIN {
 "$ziran" check --root "$work" "$work/multiline.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/multiline.zi"
 "$ziran" bundle --root "$work" --entry multiline:Answer \
-    -o "$work/source.zib" "$work/multiline.zi"
+    -o "$work/source.zx" "$work/multiline.zi"
 "$ziran" bundle --root "$work" --entry multiline:Answer \
-    -o "$work/ir.zib" "$work/ir/multiline.zir"
-cmp "$work/source.zib" "$work/ir.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
+    -o "$work/ir.zx" "$work/ir/multiline.zir"
+cmp "$work/source.zx" "$work/ir.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
 
 for input in source ir; do
     if test "$input" = source; then
@@ -115,8 +115,8 @@ cp "$work/multiline.zi" "$work/formatted.zi"
 "$ziran" fmt "$work/formatted.zi"
 "$ziran" fmt --check "$work/formatted.zi"
 "$ziran" bundle --root "$work" --entry formatted:Answer \
-    -o "$work/formatted.zib" "$work/formatted.zi"
-test "$("$ziran" run "$work/formatted.zib")" = 42
+    -o "$work/formatted.zx" "$work/formatted.zi"
+test "$("$ziran" run "$work/formatted.zx")" = 42
 
 cat > "$work/bad_open.zi" <<'ZI'
 Text :: #string END extra

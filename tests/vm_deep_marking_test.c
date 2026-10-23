@@ -108,7 +108,7 @@ main(int argc, char **argv)
     borrowed_graph();
     assert(argc == 2);
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     FILE *input = fopen(argv[1], "rb");
     assert(input != NULL);
     ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module),
@@ -124,7 +124,7 @@ main(int argc, char **argv)
         assert(present && answer == 42);
     }
     VmInstanceClose(instance);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     return 0;
 }

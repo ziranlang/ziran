@@ -74,8 +74,8 @@ func main() {
 }
 GO
     GO111MODULE=off go run "$out"/*.go
-    "$ziran" bundle --root "$root" --entry tags:Answer -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --root "$root" --entry tags:Answer -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp; do
         native=$work/$input-$target
         "$ziran" build "--target=$target" --no-main --root "$root" \

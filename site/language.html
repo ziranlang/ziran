@@ -16,7 +16,7 @@ Add :: (a: s32, b: s32) -&gt; s32 {
     result := a + b;
     return cast(s32)result;
 }</code></pre><p>A standalone <code>#program_export</code> before a function preserves its native symbol name. A named procedure type such as <code>Child :: #type (s32) -&gt; ();</code> can pass a named function as a callback; capturing closures are not supported.</p></section>
-<section id="types"><p class="eyebrow">03 / Values</p><h2>Types, records, and enums</h2><p>The tested surface includes <code>bool</code>, signed and unsigned integers, <code>float32</code>, <code>float64</code>, immutable <code>string</code>, records, enums, fixed arrays, and borrowed slices. <code>int</code> aliases <code>s64</code>. Native targets also support checked raw pointer forms; raw pointers are outside portable <code>.zib</code>.</p><pre><code>Box :: struct($T: Type) {
+<section id="types"><p class="eyebrow">03 / Values</p><h2>Types, records, and enums</h2><p>The tested surface includes <code>bool</code>, signed and unsigned integers, <code>float32</code>, <code>float64</code>, immutable <code>string</code>, records, enums, fixed arrays, and borrowed slices. <code>int</code> aliases <code>s64</code>. Native targets also support checked raw pointer forms; raw pointers are outside portable <code>.zx</code>.</p><pre><code>Box :: struct($T: Type) {
     value: T;
 }
 NumberBox :: Box(s32);

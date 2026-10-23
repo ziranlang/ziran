@@ -56,8 +56,8 @@ func main() {
 }
 GO
     GO111MODULE=off go run -race "$out"/*.go
-    "$ziran" bundle --entry native:Answer --root "$root" --module-path std -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --entry native:Answer --root "$root" --module-path std -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
 done
 cmp "$work/source-go/native.go" "$work/saved-go/native.go"
 for declaration in \

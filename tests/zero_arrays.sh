@@ -120,11 +120,11 @@ for input in source saved; do
         file=$work/ir/empty.zir
     fi
     "$ziran" bundle --root "$root" --entry empty:Answer \
-        -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     "$ziran" bundle --root "$root" --entry empty:Bad \
-        -o "$work/$input-bad.zib" "$file"
-    if "$ziran" run "$work/$input-bad.zib" >"$work/bad.err" 2>&1; then
+        -o "$work/$input-bad.zx" "$file"
+    if "$ziran" run "$work/$input-bad.zx" >"$work/bad.err" 2>&1; then
         echo "portable zero array index succeeded" >&2
         exit 1
     fi
@@ -190,7 +190,7 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/bridge.zi" <<'ZI'
 using Defs :: #import "defs";
@@ -214,12 +214,12 @@ Answer :: () -> s32 {
 ZI
 "$ziran" ir --root "$work" -o "$work/relay-ir" "$work/relay.zi"
 "$ziran" bundle --root "$work" --entry relay:Answer \
-    -o "$work/relay-source.zib" "$work/relay.zi"
+    -o "$work/relay-source.zx" "$work/relay.zi"
 "$ziran" bundle --root "$work/relay-ir" --entry relay:Answer \
-    -o "$work/relay-saved.zib" "$work/relay-ir/relay.zir"
-cmp "$work/relay-source.zib" "$work/relay-saved.zib"
-test "$("$ziran" run "$work/relay-source.zib")" = 42
-test "$("$ziran" run "$work/relay-saved.zib")" = 42
+    -o "$work/relay-saved.zx" "$work/relay-ir/relay.zir"
+cmp "$work/relay-source.zx" "$work/relay-saved.zx"
+test "$("$ziran" run "$work/relay-source.zx")" = 42
+test "$("$ziran" run "$work/relay-saved.zx")" = 42
 for input in source saved; do
     if test "$input" = source; then
         root=$work
@@ -323,5 +323,5 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry shadow_alias:Answer \
-    -o "$work/shadow_alias.zib" "$work/shadow_alias.zi"
-test "$("$ziran" run "$work/shadow_alias.zib")" = 42
+    -o "$work/shadow_alias.zx" "$work/shadow_alias.zi"
+test "$("$ziran" run "$work/shadow_alias.zx")" = 42

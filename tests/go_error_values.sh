@@ -110,8 +110,8 @@ GO
     for target in c cpp; do
         "$ziran" build --target="$target" --entry native:Answer --root "$root" --module-path std -o "$work/$input-$target" "$file"
     done
-    "$ziran" bundle --entry native:Answer --root "$root" --module-path std -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --entry native:Answer --root "$root" --module-path std -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     if "$ziran" build --target=c --no-main --root "$root" --module-path std -o "$work/rejected" "$file" > "$work/rejected.out" 2>&1; then
         echo 'reachable foreign Go package values were accepted in C' >&2
         exit 1

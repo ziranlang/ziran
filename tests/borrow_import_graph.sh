@@ -24,6 +24,6 @@ Answer :: () -> s32 {
 ''')
 PY
 timeout 20 "$ziran" check --root "$work" "$work/main.zi"
-timeout 20 "$ziran" bundle --root "$work" --entry main:Answer -o "$work/app.zib" "$work/main.zi"
-test "$("$ziran" run "$work/app.zib")" = 42
+timeout 20 "$ziran" bundle --root "$work" --entry main:Answer -o "$work/app.zx" "$work/main.zi"
+test "$("$ziran" run "$work/app.zx")" = 42
 printf '%s\n' 'Borrow checking terminates over shared import graphs'

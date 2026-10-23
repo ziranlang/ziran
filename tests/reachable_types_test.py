@@ -40,7 +40,7 @@ run([ziran,'ir','--root',source,'-o',work/'ir',source/'app.zi'])
 for form in ['source','saved']:
     root = source if form == 'source' else work/'ir'
     entry = root/('app.zi' if form == 'source' else 'app.zir')
-    bundle = work/(form+'.zib')
+    bundle = work/(form+'.zx')
     run([ziran,'bundle','--root',root,'--entry','app:Main','-o',bundle,entry])
     run([ziran,'run',bundle],expected)
     for target in ['c','cpp','go','py','rust','plan9-c']:
@@ -64,7 +64,7 @@ for form in ['source','saved']:
             (output/'src/main.rs').write_text('fn main() { assert_eq!(ziran_generated::Answer(7), '+str(oracle(7))+'); assert_eq!(ziran_generated::Answer(9), '+str(oracle(9))+'); }\n')
             run(['cargo','run','--quiet','--offline','--manifest-path',output/'Cargo.toml'])
     print('Late record fields passed '+form+' VM/bundle and generated-target checks',flush=True)
-assert (work/'source.zib').read_bytes() == (work/'saved.zib').read_bytes()
+assert (work/'source.zx').read_bytes() == (work/'saved.zx').read_bytes()
 
 # A foreign signature keeps every field in the ABI. Check its complete layout
 # separately from the portable program's legitimate unused-field pruning.

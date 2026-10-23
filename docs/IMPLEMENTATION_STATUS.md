@@ -1,7 +1,7 @@
 # Implementation status
 
 This page reports the local repository as it exists now. [Architecture](ARCHITECTURE.md),
-[`.zir`](ZIR.md), and [`.zib`](ZIB.md) define the target state.
+[`.zir`](ZIR.md), and [`.zx`](ZX.md) define the target state.
 
 ## Working now
 
@@ -106,10 +106,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Portable bundle writing omits native assembly templates while retaining the
   checked bodies and full native `.zir` data. It measures the payload and writes
   directly to files or pipes without a temporary payload file.
-  `tests/zib_portable_write.sh` checks graph immutability, binary assets,
+  `tests/zx_portable_write.sh` checks graph immutability, binary assets,
   certificates, persistent state, append streams and write failures;
   `tests/bundle_libraries.sh` covers shared and included code.
-  `bench/zib_metadata.py` compares bundle size, packing and fresh-host loading
+  `bench/zx_metadata.py` compares bundle size, packing and fresh-host loading
   with a preserved compiler, including a reader/writer crossover and ordinary
   bundles without assembly. Its large comment annotations are a stress case.
 
@@ -179,7 +179,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   workspace allocation requests. `tests/compiler_profile.sh` checks the
   schema, separate output, and failure reporting. `bench/compiler_scaling.py`
   validates module graphs and local/imported generic specializations from source and saved
-  IR on native C and `.zib`, retains phase profiles and whole-command samples,
+  IR on native C and `.zx`, retains phase profiles and whole-command samples,
   and can check real package entries. These are measured workloads, not a
   claim about every application or target.
 
@@ -212,7 +212,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   comments; it writes through a temporary file beside the source and retains
   permissions and symlinks. `tests/formatter.sh` checks semantic preservation,
   idempotence, filesystem errors, a saved-IR command rebuild, and scanner
-  agreement on C, C++, Go, Rust, Python, and `.zib`.
+  agreement on C, C++, Go, Rust, Python, and `.zx`.
   The parser, checker, native backends, and portable runtime still contain C;
   the compiler is not yet fully self-hosted.
 
@@ -225,7 +225,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `make update-bootstrap` regenerates it after an intentional scanner change.
   `tests/compiler_scan.sh` checks token kinds, escaped and multiline literals,
   numeric spellings, source positions, and a reproducible corpus from source
-  and saved IR on C, C++, Go, Rust, Python, and `.zib`. It also checks bootstrap
+  and saved IR on C, C++, Go, Rust, Python, and `.zx`. It also checks bootstrap
   output agreement, C frontend lookahead, null input, and token truncation.
 
 - Shared compiler text rules are implemented in `cmd/compiler_text.zi`:
@@ -238,7 +238,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   link the freshly compiled Ziran implementation. Fresh builds use a generated
   seed checked by `make check-bootstrap` and updated by `make update-bootstrap`.
   `tests/compiler_text.sh` checks source and saved IR on C, C++, Go, Rust,
-  Python, and `.zib`, including malformed escapes, UTF-8 boundaries, bounded
+  Python, and `.zx`, including malformed escapes, UTF-8 boundaries, bounded
   output, deterministic byte inputs, bootstrap agreement, and the C boundary.
   Name-distance cases include embedded NUL bytes, invalid limits, and an
   independent full-matrix oracle at the native boundary.
@@ -258,7 +258,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   the portable library compile the maintained Ziran source; fresh builds use
   a generated seed verified by `make check-bootstrap`.
   `tests/compiler_source.sh` checks source and saved IR on C, C++, Go, Rust,
-  Python, and `.zib`, including bounded outputs, in-place comment removal,
+  Python, and `.zx`, including bounded outputs, in-place comment removal,
   malformed delimiters, nested literals, and a reproducible input corpus.
   Raw-string diagnostics now count escaped physical newlines in preceding
   ordinary strings correctly. Declaration IR construction, checking,
@@ -274,7 +274,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   diagnostics. Ordinary tools and the portable library link the compiled
   Ziran implementation; fresh builds use a generated declaration seed checked
   by `make check-bootstrap`. `tests/compiler_declaration.sh` checks source and
-  saved IR on C, C++, Go, Rust, Python, and `.zib`, including nested defaults,
+  saved IR on C, C++, Go, Rust, Python, and `.zx`, including nested defaults,
   the 64-parameter limit, `using` flags, rejected declarations, bounded output,
   a reproducible byte corpus, seed agreement, and the C boundary.
   The same module parses `using, only`, `except`, and `map` clauses, with
@@ -298,7 +298,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   Enum expressions such as `1 + 2 * 3`, division by `-1`, and division or
   remainder of the minimum signed value now accept valid results while
   rejecting overflow. `tests/compiler_enum.sh` checks source and saved IR on
-  C, C++, Go, Rust, Python, and `.zib`, including malformed input, numeric
+  C, C++, Go, Rust, Python, and `.zx`, including malformed input, numeric
   boundaries, bounded workspace, deterministic byte inputs, seed agreement,
   and the C boundary. Fresh builds use a generated seed verified by
   `make check-bootstrap`.
@@ -318,7 +318,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   listing a record does not repeatedly measure its entire body. The C
   boundary retains IR access and checked copies into its fixed buffers.
   `tests/compiler_type.sh` checks source and saved IR on C, C++, Go, Rust,
-  Python, and `.zib`, including malformed input, numeric and output limits,
+  Python, and `.zx`, including malformed input, numeric and output limits,
   quoted separators, UTF-8 tag decoding, a deterministic byte corpus, seed
   agreement, and the C boundary. Fresh builds compile the maintained Ziran
   source using a generated seed verified by `make check-bootstrap`.
@@ -342,7 +342,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   the maintained Ziran source; fresh builds use a generated seed verified by
   `make check-bootstrap`.
   `tests/compiler_expression.sh` checks source and saved IR on C, C++, Go,
-  Rust, Python, and `.zib`, including precedence, literal escapes, malformed
+  Rust, Python, and `.zx`, including precedence, literal escapes, malformed
   statements, chained calls, named arguments, nested initializers, open slices,
   prefix forms, scope errors, nesting limits, deterministic byte inputs,
   seed agreement, borrowed ranges, and the C frontend boundary. The compiler
@@ -360,7 +360,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   loop lowering. Fresh builds use a generated seed verified by
   `make check-bootstrap`; ordinary tools compile the maintained Ziran source.
   `tests/compiler_statement.sh` checks source and saved IR on C, C++, Go,
-  Rust, Python, and `.zib`, including malformed headers, borrowed ranges,
+  Rust, Python, and `.zx`, including malformed headers, borrowed ranges,
   limits, deterministic byte inputs, seed agreement, and the C scope boundary.
   The checker, lowering, backends, and portable runtime still require
   further migration before the compiler is fully self-hosted.
@@ -375,7 +375,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   while writing only the caller's bounded prefix. The C boundary retains
   library visibility, target classification, diagnostics, and IR storage.
   `tests/compiler_declaration.sh` checks source and saved IR on C, C++, Go,
-  Rust, Python, and `.zib`, including rejection cases, prefix output, borrowed
+  Rust, Python, and `.zx`, including rejection cases, prefix output, borrowed
   ranges, deterministic input, and exact generated-seed agreement.
 
 - Optional `then`, one-line `else`, and compile-time `#if`/`else #if` headers
@@ -407,7 +407,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   and declaration IR construction. Ordinary tools compile the maintained Ziran
   source; fresh builds use its checked generated seed.
   `tests/compiler_declaration.sh` checks source and saved IR on C, C++, Go,
-  Rust, Python, and `.zib`, bounded prefixes, borrowed ranges, deterministic
+  Rust, Python, and `.zx`, bounded prefixes, borrowed ranges, deterministic
   inputs, the C boundary, and seed agreement. `tests/multiple_results.sh`,
   `tests/generic_multiple_results.sh`, `tests/operators.sh`,
   `tests/local_procedures.sh`, `tests/default_arguments.sh`, and
@@ -431,7 +431,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   inaccessible to importers. Procedure types with the same name in different
   modules, or names that are native target keywords, receive distinct valid
   native identities. `tests/named_generic_dependencies.sh` checks these cases
-  from source and saved IR on C, C++, Go, Rust, Python, and `.zib`.
+  from source and saved IR on C, C++, Go, Rust, Python, and `.zx`.
   C++ includes private named-module dependencies in generated implementation
   files, keeping them out of public headers;
   `tests/private_module_imports.sh` checks C, C++, and Plan 9 C output.
@@ -549,7 +549,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Go enum lowering retains every enum declaration and member instead of
   silently stopping at 32 types or 64 members. `tests/large_enums.sh` checks
   a 96-member enum and 40 further enum types from source and saved IR on
-  C, C++, Go, Rust, Python, and `.zib`.
+  C, C++, Go, Rust, Python, and `.zx`.
 - Bundle re-export lookup visits shared dependencies once per query instead
   of repeatedly following every import path, and has no 32-hop cutoff.
   `tests/bundle_global_reachability.sh` checks a 40-module graph with shared
@@ -577,7 +577,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   converting a nonfinite float to an integer remains an error. Compile-time
   casts and arithmetic fold the tested boundaries with the same width rules.
   `tests/numeric_semantics.sh` checks these cases from source and saved IR on
-  C, C++, Go, and `.zib`. Its stable conformance IDs are published by
+  C, C++, Go, and `.zx`. Its stable conformance IDs are published by
   `ziran capabilities --json`, described by
   `tests/numeric_conformance.json`, and kept synchronized with markers in the
   differential test. Mixed-width narrowing/widening after addition and u8
@@ -586,14 +586,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   value)` for strings, integers, bools, and floats, and
   `BuilderPrint(*builder, "format", args...)`, which expands to those calls
   and imports `std/format` for its file. `tests/format_builder.sh` checks
-  source and saved IR on C, C++, Go, and `.zib`.
+  source and saved IR on C, C++, Go, and `.zx`.
 - Statements may be longer than 4 KB, such as a table of records written as
   one array literal: source text is kept whole through parsing, checking,
   and saved IR (up to 1 MB per text), and C and C++ store an array literal
   too long for one initializer element by element. Before, such a
   statement failed with "expression is not supported by language checking"
   or silently. `tests/long_literals.sh` checks source and saved IR on C,
-  C++, Go, and `.zib`.
+  C++, Go, and `.zx`.
 - `ziran check --lint` warns (code `lint.cast`) about casts to a value's own
   type and casts that only widen a whole typed initializer, assignment,
   argument, or result; it leaves casts that set arithmetic width, choose an
@@ -633,7 +633,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - The portable runner has no statement budget (only the web playground
   bounds a run), holds as many locals as a function declares, takes the
   language's 64 parameters, and nests calls until the C stack is nearly full
-  where the stack's bounds are known; `zi2zib run` gives programs a 256 MiB
+  where the stack's bounds are known; `zi2zx run` gives programs a 256 MiB
   stack. `tests/portable_long_runs.sh` and `tests/portable_limits.sh` cover
   these.
 - A generic record from another module may hold types only that module
@@ -641,7 +641,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `vec.Vec(string)`, and every copy of one application gets the same name.
   Records applied through a named import, `Pairs.Pair(s32, string)`, work
   too. `tests/generic_record_imports.sh` checks source and saved IR on C,
-  C++, Go, and `.zib`.
+  C++, Go, and `.zx`.
 - `std/file` imports the file operations for the native C target: file_linux
   on Linux, Android, the web, and Windows, file_plan9 on Plan 9, where
   `--target=plan9-c` now defines `PLAN9`. It adds `ReadEntireFile` and
@@ -657,14 +657,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   zeroed value in shared heap storage and invalidates direct pointer aliases
   on free; direct reads after free and repeated frees fail. Native callers
   remain responsible for raw pointer lifetimes. `tests/heap_new.sh` checks
-  source and saved IR on C, C++, Go, Rust, Python, and `.zib`, including
+  source and saved IR on C, C++, Go, Rust, Python, and `.zx`, including
   records with text, arrays, and pointers.
 - A procedure may declare procedures inside it. The parser hoists each to
   file scope under a private name (`zi_local_Outer_Name`, kept out of API
   listings) and renames its uses in the rest of the enclosing procedure; as
   in Jai, it may recurse and nest but cannot use the enclosing procedure's
   locals, which the unresolved-name error says. `tests/local_procedures.sh`
-  checks source and saved IR on C, C++, Go, and `.zib`.
+  checks source and saved IR on C, C++, Go, and `.zx`.
 - Records take Jai operator procedures: `operator + :: (a: V, b: V) -> V`
   for the binary operators `+ - * / % == != < <= > >= & | ^ << >>`. Several
   declarations of one operator are overloads; `a += b` uses operator +,
@@ -672,18 +672,18 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   arguments swapped. Operators reach callers through open and named imports,
   and a record operation without one reports that an operator procedure is
   needed. `tests/operators.sh` checks source and saved IR on C, C++, Go,
-  and `.zib`.
+  and `.zx`.
 - `print` shows a record as `{x = 1, y = 2}`: nested records in braces,
   strings quoted, enums by name, fixed arrays by element (up to 16), and
   Vecs and slices by count. The call becomes a call of a generated
   procedure taking the same arguments, so each is evaluated once; a value
   holding a Vec is passed by address instead of moved. `tests/print_records.sh`
-  checks source and saved IR on C, C++, Go, and `.zib`.
+  checks source and saved IR on C, C++, Go, and `.zx`.
 - A local declaration may use `type_of(expression)` as its type, and a for
   range counts in its bounds' type (`0..count` with `count: s32` is `s32`;
   constant ranges stay `s64`). Indexing with `value[a..b]` reports that
   slices are written `value[start:end]`. `tests/range_types.sh` checks
-  source and saved IR on C, C++, Go, and `.zib`.
+  source and saved IR on C, C++, Go, and `.zx`.
 - `std/hash_map` provides `HashMap(K, V)` with `HashMapSet`, `HashMapGet`,
   `HashMapHas`, `HashMapRemove`, and `HashMapFree` over string and integer
   keys, written in portable Ziran. Polymorphic procedures bind type
@@ -692,19 +692,19 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   fields then. A bundle keeps a record field every module's copy of one
   type application uses, and Go compares copies of `Vec(string)` by their
   slice type. `tests/hash_map.sh` checks source and saved IR on C, C++, Go,
-  and `.zib`.
+  and `.zx`.
 - `print` shows an enum value by its member name, and a value outside the
   enum as `(invalid Enum)`. The checker routes the argument through a
   generated name procedure in the enum's module, created only for enums a
-  program prints, so every target and `.zib` agree. Flag enums still need
+  program prints, so every target and `.zx` agree. Flag enums still need
   a cast. `tests/print_enums.sh` checks source and saved IR on C, C++, Go,
-  and `.zib`.
+  and `.zx`.
 - Polymorphic procedures may bind several type parameters, each with its
   own `$Name`, as in `Pick :: (a: $A, b: $B) -> A`. Every call infers each
   parameter and gets its own specialization, placed with the caller when one
   of its types is only visible there. A name bound twice is an error.
   `tests/generic_parameters.sh` checks source and saved IR on C, C++, Go,
-  and `.zib`.
+  and `.zx`.
 - Fixed-array parameters `[N]$T` infer their element type and enforce their
   declared capacity, including zero-capacity arrays. Bounds resolve in the
   defining module, and dependent `[N]T` parameters and return types are checked
@@ -716,7 +716,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/generic_array_parameter.sh` checks named/open imports, scalars,
   records, generic array fields, independent type parameters, multiple results,
   array aliases, source/saved IR and separately saved libraries on C, C++, Go, Rust, Python,
-  and `.zib`. Nested-array elements and returns work on the native targets;
+  and `.zx`. Nested-array elements and returns work on the native targets;
   the portable linker explicitly rejects unsupported nested-array returns.
   The test also rejects slices, scalars, mismatched capacities and element
   types, unresolved/negative bounds, and duplicate binders.
@@ -728,7 +728,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   The choice is made in checking, so saved IR and every target call the
   chosen procedure directly. Exported and polymorphic procedures cannot be
   overloaded. `tests/overloads.sh` checks source and saved IR on C, C++, Go,
-  and `.zib`.
+  and `.zx`.
 - Jai resizable arrays: `[..]T` is `std/vec`'s `Vec(T)`, imported for the
   file automatically, and `array_add(*a, x)`, `array_reset(*a)`,
   `array_free(a)`, and `array_reset_keeping_memory(*a)` are the matching Vec
@@ -736,30 +736,30 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   passed where `[]T` is expected lends a view (`VecSlice`) instead of moving.
   Vecs of fixed arrays and nested Vecs are rejected; wrap the element in a
   record. `tests/resizable_arrays.sh` checks source and saved IR on C, C++,
-  Go, and `.zib`.
+  Go, and `.zx`.
 - Procedures return several results as in Jai: `-> s32, s32` or named
   `-> (low: s32, high: s32)`, `return a, b`, `q, r := F()`, `q, r = F()`, and
   `_` to skip one. A call used as one value gives its first result. The results
   travel in a generated record shared by procedures with the same result types
-  (`Results__s32__s32`, fields `value_0`...), so every target and `.zib` run
+  (`Results__s32__s32`, fields `value_0`...), so every target and `.zx` run
   them unchanged. Returning another module's results directly needs binding
   them first. Polymorphic procedures also return several results: result
   records specialize their fields using the procedure's bound types, including
   mixed types, records, arrays, and slices. Named and open imports, defaults,
   nested calls, direct generic forwarding, and a separately saved library work
-  on C, C++, Go, Rust, Python, and `.zib`.
+  on C, C++, Go, Rust, Python, and `.zx`.
   `tests/generic_multiple_results.sh` checks source/saved-IR equivalence,
   single evaluation, rejected result types/counts, and saved-library validation.
   `tests/multiple_results.sh` checks source and saved IR on C, C++, Go, and
-  `.zib`.
+  `.zx`.
 - Lossless numeric conversions are implicit: a narrower integer into a wider
   one of the same signedness, an unsigned integer into a wider signed type,
   and `float32` into `float64`, at initializers, assignments, returns,
   arguments, and binary operators. The checker inserts an explicit cast into
-  the checked graph, so C, C++, Go, Rust, Python, and `.zib` see the same
+  the checked graph, so C, C++, Go, Rust, Python, and `.zx` see the same
   conversion. Narrowing, sign changes, and integer-to-float conversions still
   need `cast`. `tests/implicit_widening.sh` checks source and saved IR on
-  C, C++, Go, and `.zib`.
+  C, C++, Go, and `.zx`.
 - Jai `using record: Type` parameters and local declarations, plus `using
   record;` and nested paths such as `using entity.position;` in a procedure
   body, promote record fields into lexical lookup. Explicit local bindings
@@ -767,7 +767,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   names are diagnosed. Struct fields declared `using field: Record` promote
   contained fields through nested records and concrete generic applications.
   Reads and writes retain their nested storage layout in checked IR; source
-  and saved IR agree in C, C++, Go, and `.zib`. Pointer-backed `using` fields
+  and saved IR agree in C, C++, Go, and `.zx`. Pointer-backed `using` fields
   work in native targets.
   Polymorphic procedures preserve parameter, local, and imperative `using`
   declarations in saved templates and lower them for each concrete call.
@@ -775,17 +775,17 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   fields of module-local record and scalar-union globals in procedure bodies.
   Forward global declarations, filters, local shadowing, ambiguity diagnostics,
   and file-private `#load` boundaries are tested from source and saved IR in
-  C, C++, Go, and `.zib` by `tests/data_scope_using.sh`.
+  C, C++, Go, and `.zx` by `tests/data_scope_using.sh`.
   Public globals from open and named imports can also be read, assigned, and
   opened with record `using` in procedure bodies. `tests/imported_globals.sh`
-  checks source and saved IR across C, C++, Go, and `.zib`, along with
+  checks source and saved IR across C, C++, Go, and `.zx`, along with
   ambiguous imports and private global visibility. Named and open imported
   globals keep their declaring record type when a consumer defines a
   same-named type; direct and `using` field access agree across all four
   targets. Checked IR retains open-import type ownership with a private alias.
   `using,only(...)`/`except(...)`/`map(...)` modifiers filter and rename
   promoted record fields and opened enum members on local and data-scope
-  using declarations, in source and saved IR across C, C++, Go, and `.zib`;
+  using declarations, in source and saved IR across C, C++, Go, and `.zx`;
   a hidden or unmapped name stays unresolved. File-scope enum filters also
   apply in constants, global initializers, `#run`, `#assert`, and `#if`;
   conflicting maps of one exposed name are diagnosed even when they open
@@ -821,7 +821,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   joins C-style adjacent string literals or multi-line `?:` fragments.
 - Portable file-scope array initializers use `.[...]` literals with the
   declared array type for context: scalar elements and record elements
-  (`Type.{.field = value}`) fold in the VM, serialize through `.zib`, and
+  (`Type.{.field = value}`) fold in the VM, serialize through `.zx`, and
   lower to brace initializers in C99 (designated, with string fields expanded
   to `{data, length}` pairs), C++ (positional with the same string pairs),
   and Go composite literals (native strings).
@@ -889,30 +889,30 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - `make check` passes standalone non-UI programs, a two-module import, and an
   imported typed record call named `Button` through generated C, C++, and
   native Go. A local declaration binds its non-void result, with source and
-  saved `.zir` builds across those targets and matching source/saved `.zib`
+  saved `.zir` builds across those targets and matching source/saved `.zx`
   execution. The call is resolved from its declaration, not its name.
 - Jai procedure type aliases such as `Child :: #type (s32) -> ();` and
   `Compute :: #type (s32) -> s32;` can be passed as callbacks to imported
   functions. Source and saved `.zir` builds execute named callbacks with void,
-  scalar, and record results in C, C++, Go, and `.zib`. Capture-free values
+  scalar, and record results in C, C++, Go, and `.zx`. Capture-free values
   can be stored in records, fixed arrays, and globals, and returned from
   functions. Entry builds retain their named targets and remove unread record
   fields from closed-program layouts. The former `#slot` declaration and
   capturing body syntax are rejected.
 - Context-inferred `.{...}` record literals work in declarations, assignments,
   returns, record fields, and arguments to imported functions. Source and saved
-  IR produce the same result in C, C++, Go, and `.zib`; missing type context
+  IR produce the same result in C, C++, Go, and `.zx`; missing type context
   and unknown fields are rejected.
 - Jai `defer { ... }` blocks run their statements in order on scope exit,
   including early returns and loop exits. Source and saved IR agree in C,
-  C++, Go, and `.zib`. Control transfer or a nested `defer` inside a deferred
+  C++, Go, and `.zx`. Control transfer or a nested `defer` inside a deferred
   block still needs lowering support.
 - Jai inclusive integer ranges accept named binders, implicit `it`,
   `it_index`, and `for <` reverse iteration. Bounds run once, and `break`,
   `continue`, nested ranges, and `defer` work across source and saved IR,
-  C, C++, Go, and `.zib`. Fixed arrays and borrowed slices also support
+  C, C++, Go, and `.zx`. Fixed arrays and borrowed slices also support
   value and index bindings, reverse iteration, and nested loop control across
-  those targets. C, C++, Go, and `.zib` support `for *` pointer iteration for
+  those targets. C, C++, Go, and `.zx` support `for *` pointer iteration for
   in-place element changes. Collection
   expressions run once and value bindings copy elements. C-style three-clause
   headers are rejected. Jai `for_expansion` iterables remain unsupported.
@@ -930,7 +930,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   transitively. Repeated `--module-path DIR` options locate ordinary libraries
   outside an app root; explicitly supplied modules take precedence. A separate
   app root and two-module library are tested from source and saved `.zir`,
-  including generated C and `.zib`. Kryon's drag policy test loads its `src/ui/`
+  including generated C and `.zx`. Kryon's drag policy test loads its `src/ui/`
   library from an app entry file through the same path, across C, C++, Go,
   and portable bundles.
 - Jai `#import, file "relative/path.zi";` resolves a source file relative to
@@ -949,7 +949,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   selection, so earlier conditions can use later public constants and type
   layouts from those files. File-private names remain local to their loaded
   file; `tests/forward_load_conditions.sh` checks source and saved IR on C,
-  C++, Go, and `.zib`. `#import, string`
+  C++, Go, and `.zx`. `#import, string`
   compiles quoted or raw `#string` source as an embedded module, with named
   and unqualified imports. Compile-time branches inside embedded source can
   call modules imported earlier in that source. Source and saved IR bundles
@@ -993,8 +993,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   1-, 2-, 4-, and 8-byte sizes and alignments on C, C++, and Go, plus
   independent union value copies across all four targets. Unions with string,
   record, array, or pointer fields remain C/C++-only.
-- `zi2zib bundle --root DIR --entry module:function -o FILE` builds an
-  experimental version 26 `.zib` from source or saved IR. `zi2zib run FILE`
+- `zi2zx bundle --root DIR --entry module:function -o FILE` builds an
+  experimental version 26 `.zx` from source or saved IR. `zi2zx run FILE`
   loads and executes the validated scalar, plain record, enum, and fixed-array
   subset with no host bindings. Graphical programs use an embedding host;
   Kryon's reusable desktop player supplies its rendering and input capabilities.
@@ -1021,7 +1021,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   tracing calls or stored procedure values.
   Fixed arrays with numeric or resolved constant-expression bounds, including
   imported constants and nested arrays in records, are tested through source
-  and saved IR in C, C++, Go, and `.zib`.
+  and saved IR in C, C++, Go, and `.zx`.
   Tests cover ASCII values in nested `char` arrays, value-copy isolation, and
   portable bounds failures. Linked bundles retain needed
   compile-time definitions for bound expressions, including constants-only
@@ -1059,7 +1059,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   with the generated escape name. Same-named globals in linked modules, and
   globals whose target keyword escapes collide across modules, receive
   distinct native names. `tests/imported_global_names.sh` checks reads,
-  writes, source, and saved IR on C, C++, Go, and `.zib`. A Go global and type
+  writes, source, and saved IR on C, C++, Go, and `.zx`. A Go global and type
   whose names differ only by case or underscores remain distinct. Constants
   use the same keyword and collision handling without defining C keywords as
   macros; source and saved IR tests include dependent constants and fixed-array
@@ -1074,7 +1074,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   targets. Generic record templates use named
   `Name :: Generic(Type)` declarations or direct
   `Generic(Type)` annotations; `std/pair.zi` also provides `Pair`. Concrete
-  record fields work in source, saved IR, C, C++, Go, and `.zib`. Top-level boolean
+  record fields work in source, saved IR, C, C++, Go, and `.zx`. Top-level boolean
   `&&` and `||` expressions in simple statements and loop conditions retain
   short-circuit evaluation, including nested forms. Jai `ifx` conditional
   expressions, with or without `then`, replace C-style `?:`; top-level
@@ -1084,7 +1084,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   across the native targets and portable bundles. Entry linking preserves
   argument positions when it folds a constant
   conditional or short-circuit expression. `tests/nested_lazy_call.sh`
-  compares source and saved `.zir` across C, C++, Go, and `.zib` while
+  compares source and saved `.zir` across C, C++, Go, and `.zx` while
   checking that unselected arms have no effects.
   Jai `#ifx` selects a constant, global initializer, or function expression
   arm before strict checking and saved-IR generation. It accepts the Jai
@@ -1092,7 +1092,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   constant aliases, and compiler-host `OS` comparisons with `.WINDOWS`,
   `.MACOS`, or `.LINUX`; unused arms are not type-checked.
   `#ifx` also selects record and fixed-array values in file constants, global
-  initializers, local definitions, and call arguments on C, C++, Go, and `.zib` from source
+  initializers, local definitions, and call arguments on C, C++, Go, and `.zx` from source
   and saved IR. `#run`, `#if`, `#ifx`, and `#assert` evaluate pure procedures
   with signed integer (up to
   `s64`), unsigned integer (up to `u32`), or boolean parameters/results. Local
@@ -1109,7 +1109,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   procedures and imports are available while parsing. Named imported real
   and string constants resolve in `#if` and `#run` even when the import
   declaration follows the condition. Their public visibility and private
-  exclusion are checked from source and saved IR on C, C++, Go, and `.zib` by
+  exclusion are checked from source and saved IR on C, C++, Go, and `.zx` by
   `tests/imported_typed_constants.sh`. Pure compile-time procedures can now
   return named records and fixed arrays. Their evaluated fields, array
   elements, and array counts can feed `#run` scalars and `#assert`. Local
@@ -1117,7 +1117,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   graphs in procedure bodies, and direct file-scope initializers can use
   them. `tests/compile_values.sh` checks nested records, fixed arrays,
   bounds rejection, runtime record arguments and globals, and source/saved-IR
-  execution on C, C++, Go, and `.zib`. Public aggregate definitions from
+  execution on C, C++, Go, and `.zx`. Public aggregate definitions from
   named, open, and using imports retain their declaring record types in
   runtime expressions and direct globals; `tests/imported_aggregate_constants.sh`
   checks nested records, arrays, compile-time `#run`, `#assert`, and `#if`
@@ -1171,7 +1171,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   global initializers; checked IR lowers opened members to values before native
   or portable execution. File-scope record and union `using` fields also work
   in pure global initializers that read earlier initialized globals. The
-  checker folds those startup values for C, C++, Go, and `.zib`, respects
+  checker folds those startup values for C, C++, Go, and `.zx`, respects
   local shadowing, and rejects ambiguous or file-private names. General global
   initialization and promotion from imported globals still need coverage.
   Call arguments and returns accept typed and contextual members. Enum and scalar
@@ -1203,7 +1203,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   including implicit flags, explicit values, `#specified` backing types, and
   a later `#load`. Inactive and file-private flags stay hidden;
   `tests/forward_type_conditions.sh` checks source and saved IR on C, C++, Go,
-  and `.zib`. The same test covers a later generic record and a one-line
+  and `.zx`. The same test covers a later generic record and a one-line
   concrete alias without a semicolon in `#if size_of` and `#run size_of`;
   aliases inside inactive branches or private loaded files stay hidden.
   Later records, enums, and generic records with `#if`-selected bodies also
@@ -1224,23 +1224,23 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   A file-scope `#run` that calls such a later procedure now folds before a
   following `#if` tests the result; loaded file-private procedures remain
   hidden from callers in other files.
-  `tests/file_type_of.sh` checks source and saved IR on C, C++, Go, and `.zib`.
+  `tests/file_type_of.sh` checks source and saved IR on C, C++, Go, and `.zx`.
   Standalone `type_of` values and broader forward `#if` queries remain
   unsupported.
   Foreign-record size queries still require their Jai layouts.
   Jai `#line` resolves to the physical source line before checking and remains
-  stable through saved IR, native targets, and `.zib`, including `#load` files.
+  stable through saved IR, native targets, and `.zx`, including `#load` files.
   `#file` and `#filepath` resolve to the full source filename and containing
   directory, including in loaded files. `#procedure_name()` resolves to the
   declared procedure name in bodies, defaults, and pure `#run` calls; source
   use outside a procedure is rejected.
   Untyped integer locals inferred with `:=` now use `s64` storage, including
   when their values exceed 32 bits, across saved IR and all supported targets.
-  Source, saved IR, native targets, and `.zib` agree on tested success and error
+  Source, saved IR, native targets, and `.zx` agree on tested success and error
   paths. Kryon's headless suite exercises these paths through ordinary imports;
   widget and platform coverage is tracked in the Kryon repository.
 - Reachable `#foreign host_api` calls now appear as module/function
-  capabilities in `.zib`. The loader verifies the capability list against the
+  capabilities in `.zx`. The loader verifies the capability list against the
   linked IR. `build/libziran.a` and `include/ziran_host.h` expose an opaque
   bundle handle, capability enumeration, and bindings for integer, real, string,
   enum, plain record, and void calls. Record fields retain declared names and
@@ -1328,7 +1328,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   saved-IR bundles; C, C++, and Go emit the same initializers natively
   (designated initializers in C, positional in C++, struct literals in Go).
   Checked runtime initializers can call procedures and read globals. Source
-  and saved IR agree on C, C++, Go, and `.zib`; imported modules initialize
+  and saved IR agree on C, C++, Go, and `.zx`; imported modules initialize
   before consumers, including imports used only for startup effects, and each
   portable instance initializes once. String globals and string fields in
   record and array initializers decode
@@ -1339,7 +1339,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   The VM reads and writes
   globals across
   imported function calls, and reclaims replaced values without losing
-  globals reached by a caller. Source and saved `.zir`, `.zib`, C, C++, and Go
+  globals reached by a caller. Source and saved `.zir`, `.zx`, C, C++, and Go
   tests cover value isolation and repeated mutation. Each `BundleRun` starts
   fresh; `BundleInstantiate` preserves globals across repeated
   `BundleInstanceRun` calls on one instance.
@@ -1450,7 +1450,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   host capabilities stay opaque handles: a bundle can store, compare, and
   pass them back, but not read through them. Pointer casts and arithmetic
   remain outside the portable subset. `tests/portable_pointers.sh` checks
-  source and saved IR on C, C++, Go, and `.zib`.
+  source and saved IR on C, C++, Go, and `.zx`.
 - Compiler functions use short names without `Zir` or `zir_` prefixes,
   including the IR serializer's `ProgramWrite`, `ProgramRead`, and `PathIsIR`.
   IR data types retain `Zir` names for now.
@@ -1481,7 +1481,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   addresses of temporaries and dereferences of non-pointers. Raw pointers
   can also be indexed on C, C++, and Go native targets when the caller knows
   the allocation bounds. Source and saved `.zir` agree. Raw pointers remain
-  outside `.zib`.
+  outside `.zx`.
 - The shared checker resolves `record_pointer.field` against declared record
   fields, including imported records, and reports unknown fields. Checked
   pointer-member reads and writes now emit from source and saved `.zir` on
@@ -1490,7 +1490,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   prefix `*Type`; suffix `Type*` and `const` qualifiers are rejected in source
   and saved IR. Existing downstream Kryon source using those spellings still
   needs migration before cutover.
-  Raw pointers remain outside `.zib`; broader host-bound native bodies still
+  Raw pointers remain outside `.zx`; broader host-bound native bodies still
   need checked lowering.
 - The inherited `#intrinsic "web"` modifier and its two name-based browser
   shims are gone. Browser behavior now requires an explicit host or target
@@ -1525,7 +1525,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   proofs and exhausted budgets are unknown; invalid certificates and cycles
   cannot be waived. Evidence distinguishes structural checks, concrete
   evaluation, finite exhaustion, and full-domain scalar kernel proofs.
-  `.zir` and `.zib` store and recheck certificates and verification dependencies;
+  `.zir` and `.zx` store and recheck certificates and verification dependencies;
   forged graph references, steps, and evidence are rejected. Lean 4.34.1
   validates the mathematical rules and an independent interpreter checks
   generated C kernel claims. The C port and procedure projection remain
@@ -1540,7 +1540,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   prints one JSON result object per obligation, `disproved` and unwaived
   `unknown` results fail the build, `#law_waive NAME "reason";` waives an
   `unknown`, and the tables serialize per module in `.zir` (byte-identical
-  from source and saved IR) and as the linked closure in `.zib`, where
+  from source and saved IR) and as the linked closure in `.zx`, where
   `BundleLaw*` accessors expose them and laws keep the types, procedures,
   and externs they name. Effect laws compare the derived class
   (`#law Name effect Proc == pure;` against pure, observing, mutating, or
@@ -1598,12 +1598,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   source/saved-IR equality, and all four execution paths.
 - Validated benchmark harnesses record compilation and runtime samples with
   command lines, versions, hashes, hardware, and checked outputs. The multilingual
-  UTF-8 harness compares source and saved IR across C, C++, Go, `.zib`, and
+  UTF-8 harness compares source and saved IR across C, C++, Go, `.zx`, and
   handwritten C, C++, Go, Rust, Java, JavaScript, and Python implementations.
   The record-call harness covers fixed arrays, record value parameters, field
   access, wrapping `s32` updates, and an ordinary call in every round. It
   compares source and saved IR through generated C, C++, Go, generated Rust
-  when Cargo is installed, and `.zib`, plus the available comparison languages.
+  when Cargo is installed, and `.zx`, plus the available comparison languages.
   The current clean-head baseline contains 238 validated samples across 58
   phase/case combinations in `bench/results/2026-09-28-record-calls-rust/`;
   the earlier 206-sample baseline in
@@ -1614,10 +1614,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Polymorphic procedures bind `$T` through a direct, slice (`[]$T`), or
   pointer (`*$T`) parameter. `tests/generic_slice_parameter.sh` runs slice
   binders over scalars, 64-bit values, records, and subslices through source
-  and saved IR on `.zib`, C, C++, Go, Rust, and Python, runs pointer binders
+  and saved IR on `.zx`, C, C++, Go, Rust, and Python, runs pointer binders
   natively, and rejects non-slice and non-pointer arguments. `std/sort.zi`
   builds an allocation-free heapsort, `IsSorted`, `LowerBound`, and
-  `BinarySearch` on them; `tests/sort.sh` checks edge cases on `.zib` and C.
+  `BinarySearch` on them; `tests/sort.sh` checks edge cases on `.zx` and C.
 
 ## Still required
 
@@ -1635,11 +1635,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   support.
 - Complete ordinary-library procedure values and imports. Named capture-free
   callbacks and stored procedure values already work across native targets and
-  `.zib`; procedure-valued defaults and the remaining general import forms do
+  `.zx`; procedure-valued defaults and the remaining general import forms do
   not.
 - Move remaining target-specific declaration and import lowering from text into
   typed IR, then enforce target capability errors uniformly.
-- Extend the `.zib` linker and verifier to all checked expressions and native
+- Extend the `.zx` linker and verifier to all checked expressions and native
   features, including complete host capability coverage. The current bundle
   embeds checked `.zir` and follows direct calls, but it remains a subset.
 - Complete ownership edge cases: unknown heap and host-backed view aliases,

@@ -345,7 +345,7 @@ def cpu_name():
 
 
 def main():
-    required = [BIN / name for name in ['zi2zir', 'zi2c', 'zi2cpp', 'zi2go', 'zi2zib']]
+    required = [BIN / name for name in ['zi2zir', 'zi2c', 'zi2cpp', 'zi2go', 'zi2zx']]
     missing = [str(path) for path in required if not path.is_file()]
     missing += [name for name in ['gcc', 'g++', 'go'] if not shutil.which(name)]
     if missing:
@@ -420,9 +420,9 @@ def main():
         if not equality[target]:
             raise AssertionError(f'{target} source and saved IR emission differ')
     for kind, root, source in [('source', FIX, ZI), ('saved', IR, SAVED)]:
-        repeated([BIN / 'zi2zib', 'bundle', '--root', root,
+        repeated([BIN / 'zi2zx', 'bundle', '--root', root,
                   '--module-path', ROOT / 'std', '--entry', 'records:Answer',
-                  '-o', OUT / f'{kind}.zib', source], 'ziran', f'{kind} to zib')
+                  '-o', OUT / f'{kind}.zx', source], 'ziran', f'{kind} to zx')
     if (BIN / 'zi2rust').is_file() and shutil.which('cargo'):
         generated = {}
         for kind, root, source in [('source', FIX, ZI), ('saved', IR, SAVED)]:
@@ -450,7 +450,7 @@ def main():
             raise AssertionError('rust source and saved IR emission differ')
     else:
         meta['unsupported'].append('Generated Rust: zi2rust/cargo unavailable')
-    if (OUT / 'source.zib').read_bytes() != (OUT / 'saved.zib').read_bytes():
+    if (OUT / 'source.zx').read_bytes() != (OUT / 'saved.zx').read_bytes():
         raise AssertionError('source and saved bundles differ')
     comparisons = {
         'hand C': ['gcc', '-O2', '-std=c99', C, '-o', FIX / 'hand-c'],
@@ -483,8 +483,8 @@ def main():
         cases = list(runtime.items())
         if n == args.small:
             for kind in ['source', 'saved']:
-                cases.append((f'ziran VM ({kind})', [BIN / 'zi2zib', 'run',
-                                                     OUT / f'{kind}.zib']))
+                cases.append((f'ziran VM ({kind})', [BIN / 'zi2zx', 'run',
+                                                     OUT / f'{kind}.zx']))
         oracle = str(expected(n))
         for name, command in cases:
             result = invoke([*command, *([] if name.startswith('ziran VM') else [str(n)])],
@@ -505,7 +505,7 @@ def main():
     meta['source_hashes_unchanged_during_measurement'] = before == source_hashes()
     meta['fixture_hashes'] = {str(p.relative_to(OUT)): hashlib.sha256(p.read_bytes()).hexdigest()
                               for p in FIX.iterdir() if p.is_file()}
-    products = [OUT / f'{kind}.zib' for kind in ['source', 'saved']]
+    products = [OUT / f'{kind}.zx' for kind in ['source', 'saved']]
     for target, extension in [('c', 'c'), ('cpp', 'cpp'), ('go', 'go'), ('rust', 'rs')]:
         for kind in ['source', 'saved']:
             directory = OUT / f'{target}-{kind}'

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and measure assembly, portable fallback, C, Go, and the .zib VM."""
+"""Validate and measure assembly, portable fallback, C, Go, and the .zx VM."""
 import argparse
 import hashlib
 import json
@@ -77,7 +77,7 @@ def main():
                     input=dict(small=args.small, large=args.large, seed=SEED),
                     compile_repetitions=args.compile_repetitions, run_repetitions=args.run_repetitions,
                     discarded_warmups=1, cc=subprocess.check_output([cc, '--version'], text=True),
-                    tools={name: digest(binaries / name) for name in ['zi2zir', 'zi2c', 'zi2zib']},
+                    tools={name: digest(binaries / name) for name in ['zi2zir', 'zi2c', 'zi2zx']},
                     source_hashes={str(path.relative_to(ROOT)): digest(path)
                                    for folder in ['cmd', 'std', 'include']
                                    for path in (ROOT / folder).rglob('*')
@@ -155,7 +155,7 @@ Answer :: () -> s64 { return cast(s64)(Kernel(SMALL, SEED) & 9223372036854775807
     for form, root, entry in [('source', output, source), ('saved', output/'ir', output/'ir/swap.zir')]:
         directory = output / form
         repeated([binaries/'zi2c', '--root', root, '-o', directory, entry], 'compile', f'Ziran {form} emit C')
-        repeated([binaries/'zi2zib', 'bundle', '--root', root, '--entry', 'swap:Answer', '-o', output/f'{form}.zib', entry],
+        repeated([binaries/'zi2zx', 'bundle', '--root', root, '--entry', 'swap:Answer', '-o', output/f'{form}.zx', entry],
                  'compile', f'Ziran {form} bundle')
         host = directory/'host.c'
         host.write_text('#include "swap.h"\n#include <stdio.h>\n#include <stdlib.h>\n'
@@ -169,7 +169,7 @@ Answer :: () -> s64 { return cast(s64)(Kernel(SMALL, SEED) & 9223372036854775807
     for name in ['swap.c', 'swap.h']:
         if (output/'source'/name).read_bytes() != (output/'saved'/name).read_bytes():
             raise AssertionError('source and saved IR output differ')
-    if (output/'source.zib').read_bytes() != (output/'saved.zib').read_bytes():
+    if (output/'source.zx').read_bytes() != (output/'saved.zx').read_bytes():
         raise AssertionError('source and saved IR bundles differ')
     reference = output/'reference.c'
     reference.write_text('#include <stdint.h>\n#include <stdio.h>\n#include <stdlib.h>\n'
@@ -204,7 +204,7 @@ Answer :: () -> s64 { return cast(s64)(Kernel(SMALL, SEED) & 9223372036854775807
         commands = [(name, [binary, str(n)], expected) for name, binary in native]
         if n == args.small:
             for form in ['source', 'saved']:
-                commands.append((f'Ziran {form} VM fallback', [binaries/'zi2zib', 'run', output/f'{form}.zib'],
+                commands.append((f'Ziran {form} VM fallback', [binaries/'zi2zx', 'run', output/f'{form}.zx'],
                                  expected & ((1 << 63) - 1)))
         for repetition in range(args.run_repetitions + 1):
             rng.shuffle(commands)

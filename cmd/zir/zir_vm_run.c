@@ -164,7 +164,7 @@ profile_open(Vm *vm)
     profile->output = fopen(path, "ab");
     if(profile->output == NULL) {
         free(profile);
-        Diagnostic(Span("", 0, 0), "zib.profile", "cannot open runtime profile");
+        Diagnostic(Span("", 0, 0), "zx.profile", "cannot open runtime profile");
         return;
     }
     profile->instance = atomic_fetch_add(&profile_instance, 1) + 1;
@@ -1379,7 +1379,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
         }
         VmHostValue host_result = {0};
         if(vm->host == NULL) {
-            Diagnostic(function->span, "zib.capability",
+            Diagnostic(function->span, "zx.capability",
                        "missing host capability: %s:%s",
                        module->name, function->name);
             vm->failed = 1;
@@ -1396,7 +1396,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
                     continue;
                 if(args[i].offset < args[j].offset + args[j].length &&
                    args[j].offset < args[i].offset + args[i].length) {
-                    Diagnostic(function->span, "zib.host_alias",
+                    Diagnostic(function->span, "zx.host_alias",
                                "overlapping mutable host slice arguments require separate storage");
                     vm->failed = 1;
                     break;
@@ -1726,7 +1726,7 @@ initialize_module_startup(Vm *vm, const ZirProgram *program, int index,
     const ZirModule *module = &program->modules[index];
     if(state[index] == 2) return 1;
     if(state[index] == 1) {
-        Diagnostic(module->span, "zib.global",
+        Diagnostic(module->span, "zx.global",
                    "cyclic module startup dependency: %s", module->name);
         vm->failed = 1;
         return 0;
@@ -1938,27 +1938,27 @@ VmInstanceRun_in_context(VmInstance *instance, long long *result, int *has_resul
     *has_result = strcmp(instance->entry->return_type, "void") != 0;
     if(vm->failed) {
         if(vm->max_steps > 0 && vm->steps > vm->max_steps)
-            Diagnostic(instance->entry->span, "zib.runtime",
+            Diagnostic(instance->entry->span, "zx.runtime",
                        "portable execution failed: stopped after %d statements",
                        vm->max_steps);
         else if(vm->depth_exceeded && vm->stack_floor != NULL)
-            Diagnostic(instance->entry->span, "zib.runtime",
+            Diagnostic(instance->entry->span, "zx.runtime",
                        "portable execution failed: %d nested calls filled the stack",
                        vm->depth_exceeded);
         else if(vm->depth_exceeded)
-            Diagnostic(instance->entry->span, "zib.runtime",
+            Diagnostic(instance->entry->span, "zx.runtime",
                        "portable execution failed: calls nested deeper than %d",
                        VM_MAX_DEPTH);
         else if(vm->failed_function != NULL && vm->failed_span.line > 0)
-            Diagnostic(vm->failed_span, "zib.runtime",
+            Diagnostic(vm->failed_span, "zx.runtime",
                        "portable execution failed in %s",
                        vm->failed_function->name);
         else if(vm->failed_function != NULL)
-            Diagnostic(instance->entry->span, "zib.runtime",
+            Diagnostic(instance->entry->span, "zx.runtime",
                        "portable execution failed in %s",
                        vm->failed_function->name);
         else
-            Diagnostic(instance->entry->span, "zib.runtime",
+            Diagnostic(instance->entry->span, "zx.runtime",
                        "portable execution failed");
         return 0;
     }

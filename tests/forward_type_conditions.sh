@@ -240,8 +240,8 @@ for input in "$work/forward_type.zi" "$work/ir/forward_type.zir"; do
         *.zir) root=$work/ir; label=saved ;;
     esac
     "$ziran" bundle --root "$root" --entry forward_type:Answer \
-        -o "$work/$label.zib" "$input"
-    test "$("$ziran" run "$work/$label.zib")" = 96
+        -o "$work/$label.zx" "$input"
+    test "$("$ziran" run "$work/$label.zx")" = 96
     for target in c cpp go; do
         out="$work/$label-$target"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
@@ -271,7 +271,7 @@ GO
         esac
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/inactive_type.zi" <<'ZI'
 #if false {

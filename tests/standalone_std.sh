@@ -26,8 +26,8 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" check --root "$work" "$work/app.zi"
-"$ziran" bundle --root "$work" --entry app:Answer -o "$work/app.zib" "$work/app.zi"
-test "$("$ziran" run "$work/app.zib")" = 42
+"$ziran" bundle --root "$work" --entry app:Answer -o "$work/app.zx" "$work/app.zi"
+test "$("$ziran" run "$work/app.zx")" = 42
 
 # ZIRAN_STD names another standard directory; one without the standard
 # modules makes the import fail instead of silently using another.

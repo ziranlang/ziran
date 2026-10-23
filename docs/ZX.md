@@ -1,13 +1,20 @@
-# Ziran portable bundle (`.zib`)
+# Ziran portable bundle (`.zx`)
 
 This describes the target contract and the experimental subset that ships now.
 See [Implementation status](IMPLEMENTATION_STATUS.md) for the remaining work.
 
+The file roles are `.zi` for source, `.zir` for checked intermediate modules,
+and `.zx` for portable executables and libraries. The portable tool is
+`zi2zx`, and its target name is `zx`. This is a permanent format cutover:
+rebuild previous `.zib` programs from source or current `.zir`; changing a
+filename alone does not convert the binary format. The previous tool and
+target names are not aliases.
+
 ## Experimental version 26
 
-`zi2zib bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
+`zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, then links reachable
-modules. `zi2zib run FILE` validates and executes
+modules. `zi2zx run FILE` validates and executes
 zero-argument integer, bool, or void entry functions on a portable interpreter.
 Integer entries support `s8`, `s16`, `s32`, `s64`, `u8`, `u16`, `u32`, and `u64`;
 the command prints unsigned results over their full range. C hosts recover a
@@ -25,7 +32,7 @@ comparisons, arithmetic, and shifts use the full unsigned range. Signed `s64`
 arithmetic, casts, bitwise operations, and shifts are also supported. Portable
 enum initializers support integer literals and references to preceding members joined by `+`
 or `-`; other constant expressions remain outside this subset. The bundle is
-`ZIB` plus a zero byte, a little-endian version, length-prefixed entry module
+`ZX` plus two zero bytes, a little-endian version, length-prefixed entry module
 and function names, a host capability count and its required module/function
 names, and a
 length-prefixed version 58 `.zir` payload. Named law and waiver tables precede
@@ -69,13 +76,13 @@ capability list. An embedding C host links `build/libziran.a`, includes
 module/function names with `BundleCapabilityCount`, `BundleCapabilityModule`,
 and `BundleCapabilityFunction`. It passes `HostBinding` entries to `BundleRun`.
 The runner checks that every required binding is present before executing the
-entry function. The standalone `zi2zib run` command has no host bindings and
+entry function. The standalone `zi2zx run` command has no host bindings and
 rejects a call that needs one. A run is not bounded: like the program's native
 builds, it continues until the entry returns. Only the web playground stops a
 run after 1,000,000 statements (`VmRunBounded`), so a runaway loop cannot hang
 the page, and it says so in the diagnostic. A function holds as many locals as
 it declares. Calls nest until the C stack is nearly full, where the thread's
-stack bounds are known (Linux); `zi2zib run` runs the program on a 256 MiB
+stack bounds are known (Linux); `zi2zx run` runs the program on a 256 MiB
 stack, room for about 60,000 nested calls, and a runaway recursion stops with
 "N nested calls filled the stack". Elsewhere, such as in the playground, calls
 nest 128 deep. Functions take the language's full 64 parameters. The loader compares the capability list with
@@ -125,15 +132,15 @@ array identity across an array value assignment.
 
 ## Target contract
 
-A `.zib` is a versioned, portable executable bundle linked from checked
-`.zir` modules. Its format identifier is `ZIB`. It contains the program's
+A `.zx` is a versioned, portable executable bundle linked from checked
+`.zir` modules. Its format identifier is `ZX`. It contains the program's
 portable executable content, data, entry point, linked module identities,
 exports, and explicit host capability requirements. The exact instruction and
 section encoding will be specified before the format is called stable.
 
 The linker resolves imports and includes reachable code from ordinary
 libraries. That includes Kryon only when the program imports it. A non-UI
-command-line program is a first-class `.zib`; it launches without a graphical
+command-line program is a first-class `.zx`; it launches without a graphical
 host. Kryon UI code is portable Ziran code in the bundle, with rendering and
 input supplied through declared host capabilities. The same bundle format
 serves graphical and non-graphical programs.
@@ -169,9 +176,9 @@ Android (including API 21) and Web hosts read the input and embedded IR through
 read-only memory streams; loading needs no temporary directory. Windows and
 Plan 9 hosts use seekable temporary streams.
 
-Kryon's reusable desktop player supplies rendering and input to a Zib instance;
+Kryon's reusable desktop player supplies rendering and input to a ZX instance;
 the application's widgets and state run inside the VM. A downloaded graphical
-program launches with `kryon run app.zib`, including embedded images. See
+program launches with `kryon run app.zx`, including embedded images. See
 [Kryon project profiles](https://github.com/kryonlabs/kryon/blob/master/docs/PROJECTS.md).
 Application-specific storage, audio, and other native interfaces still require
 declared host capabilities with portable signatures. A native application's

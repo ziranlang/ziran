@@ -354,7 +354,7 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
             return 0;
         if(!TypeLayout(module, expression->name, &size, &alignment) ||
            size > INT64_MAX) {
-            Diagnostic(expression->span, "zib.size_of",
+            Diagnostic(expression->span, "zx.size_of",
                        "cannot evaluate portable size_of(%s)", expression->name);
             return 0;
         }
@@ -1195,7 +1195,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
        (ScalarWidth(entry->return_type) == 0 &&
         strcmp(entry->return_type, "bool") != 0 &&
         strcmp(entry->return_type, "void") != 0)) {
-        Diagnostic(Span("<bundle>", 1, 1), "zib.entry",
+        Diagnostic(Span("<bundle>", 1, 1), "zx.entry",
                       "entry must be one unique zero-argument integer, bool, or void Ziran function");
         return 0;
     }
@@ -1203,14 +1203,14 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
         const ZirModule *module = &program->modules[m];
         for(int other = 0; other < m; other++)
             if(strcmp(program->modules[other].name, module->name) == 0) {
-                Diagnostic(module->span, "zib.module",
+                Diagnostic(module->span, "zx.module",
                               "duplicate module identity: %s", module->name);
                 return 0;
             }
         for(int t = 0; t < module->type_count; t++)
             if(module->types[t].is_union &&
                !portable_union(module, &module->types[t])) {
-                DiagnosticTarget(module->types[t].span, "zib.union", "zib", "unions.scalar",
+                DiagnosticTarget(module->types[t].span, "zx.union", "zx", "unions.scalar",
                            "portable unions support scalar fields only");
                 return 0;
             }
@@ -1239,7 +1239,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                             same_bound_type(module, provider_module,
                                             buffers->expected[p].type);
                     if(!valid) {
-                        Diagnostic(import->span, "zib.bind",
+                        Diagnostic(import->span, "zx.bind",
                                    "bound Ziran host provider has a missing or mismatched signature: %s:%s",
                                    module->name, import->name);
                         return 0;
@@ -1260,7 +1260,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
             if((module->imports[i].kind != ZIR_IMPORT_OPEN &&
                 module->imports[i].kind != ZIR_IMPORT_MODULE) ||
                module->imports[i].resolved_module == NULL) {
-                DiagnosticTarget(module->imports[i].span, "zib.capability", "zib", "ffi.host",
+                DiagnosticTarget(module->imports[i].span, "zx.capability", "zx", "ffi.host",
                               "portable execution requires an included Ziran module or supported host capability");
                 return 0;
             }
@@ -1268,7 +1268,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
         for(int g = 0; g < module->global_count; g++) {
             const ZirGlobal *global = &module->globals[g];
             if(!portable_type(module, global->type)) {
-                Diagnostic(global->span, "zib.global",
+                Diagnostic(global->span, "zx.global",
                            "portable globals need a value type");
                 return 0;
             }
@@ -1305,7 +1305,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                     literal_ok = verify_global_aggregate(module, global);
                 if(!literal_ok ||
                    SliceElementType(global->type, NULL, 0)) {
-                    Diagnostic(global->span, "zib.global",
+                    Diagnostic(global->span, "zx.global",
                                "portable global initializers need a scalar, string, function, record, or array literal value");
                     return 0;
                 }
@@ -1318,7 +1318,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
             int binding_count = parse_parameters(module, function, bindings);
             if(binding_count < 0 && parameters_exceeded) {
                 free(bindings);
-                Diagnostic(function->span, "zib.function",
+                Diagnostic(function->span, "zx.function",
                            "portable functions take at most %d parameters: %s",
                            VM_MAX_PARAMS, function->name);
                 return 0;
@@ -1327,7 +1327,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                !portable_type(module, function->return_type) ||
                binding_count < 0) {
                 free(bindings);
-                Diagnostic(function->span, "zib.function",
+                Diagnostic(function->span, "zx.function",
                               "function is outside the portable subset: %s",
                               function->name);
                 return 0;
@@ -1336,14 +1336,14 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                                            bindings, binding_count, 0, 0);
             free(bindings);
             if(!verified) {
-                DiagnosticTarget(function->span, "zib.statement", "zib", "execution.portable",
+                DiagnosticTarget(function->span, "zx.statement", "zx", "execution.portable",
                            "statement is outside the portable subset in %s",
                            function->name);
                 return 0;
             }
             if(strcmp(function->return_type, "void") != 0 &&
                !FunctionReturnsOnEveryPath(function)) {
-                Diagnostic(function->span, "zib.return",
+                Diagnostic(function->span, "zx.return",
                            "portable functions must return on every path: %s",
                            function->name);
                 return 0;

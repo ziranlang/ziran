@@ -37,8 +37,8 @@ for input in "$work/forward_import.zi" "$work/ir/forward_import.zir"; do
         *.zir) root=$work/ir; label=saved ;;
     esac
     "$ziran" bundle --root "$root" --entry forward_import:Answer \
-        -o "$work/$label.zib" "$input"
-    test "$("$ziran" run "$work/$label.zib")" = 42
+        -o "$work/$label.zx" "$input"
+    test "$("$ziran" run "$work/$label.zx")" = 42
     for target in c cpp go; do
         out="$work/$label-$target"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
@@ -68,7 +68,7 @@ GO
         esac
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/open_import.zi" <<'ZI'
 #if Read() == 40 {

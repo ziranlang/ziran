@@ -33,8 +33,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry par:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 285
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 285
     for target in c cpp go; do
         output="$work/$target-$input"
         if test "$target" = go; then
@@ -70,7 +70,7 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 # Threaded native runs: same result under several worker counts.
 ZIRAN_PAR_THREADS=1 "$work/c-source/app"

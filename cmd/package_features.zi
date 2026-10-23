@@ -125,7 +125,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = ""},
     .{target = "py", status = "supported", limit = ""},
-    .{target = "zib", status = "supported", limit = ""},
+    .{target = "zx", status = "supported", limit = ""},
     .{target = "plan9-c", status = "experimental", limit = "Not covered by the numeric differential matrix."}
     ]
     record_targets: [7]PkgTargetSupport = .[
@@ -134,7 +134,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = ""},
     .{target = "py", status = "supported", limit = ""},
-    .{target = "zib", status = "supported", limit = ""},
+    .{target = "zx", status = "supported", limit = ""},
     .{target = "plan9-c", status = "experimental", limit = "Not covered by the aggregate-ownership differential matrix."}
     ]
     view_targets: [7]PkgTargetSupport = .[
@@ -143,7 +143,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "go", status = "supported", limit = "Mutable backing bytes are snapshotted."},
     .{target = "rust", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
     .{target = "py", status = "supported", limit = "Mutable backing bytes are snapshotted."},
-    .{target = "zib", status = "supported", limit = "Mutable backing bytes are snapshotted."},
+    .{target = "zx", status = "supported", limit = "Mutable backing bytes are snapshotted."},
     .{target = "plan9-c", status = "experimental", limit = "Borrow behavior is inherited from the C post-pass and is not covered by the differential matrix."}
     ]
     module_targets: [7]PkgTargetSupport = .[
@@ -152,7 +152,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = ""},
     .{target = "py", status = "supported", limit = ""},
-    .{target = "zib", status = "supported", limit = ""},
+    .{target = "zx", status = "supported", limit = ""},
     .{target = "plan9-c", status = "experimental", limit = "Named imports are inherited from the C post-pass and are not covered by the multi-target differential matrix."}
     ]
     print_targets: [7]PkgTargetSupport = .[
@@ -161,7 +161,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = ""},
     .{target = "py", status = "supported", limit = ""},
-    .{target = "zib", status = "supported", limit = ""},
+    .{target = "zx", status = "supported", limit = ""},
     .{target = "plan9-c", status = "supported", limit = "tests/print.sh builds it with plan9port when installed, otherwise through a host libc shim."}
     ]
     assert_targets: [7]PkgTargetSupport = .[
@@ -170,7 +170,7 @@ Features :: (arguments: []string) -> s32 {
     .{target = "go", status = "supported", limit = ""},
     .{target = "rust", status = "supported", limit = "Checked before native output."},
     .{target = "py", status = "supported", limit = "Checked before native output."},
-    .{target = "zib", status = "supported", limit = ""},
+    .{target = "zx", status = "supported", limit = ""},
     .{target = "plan9-c", status = "supported", limit = "Checked before native output."}
     ]
     base_features: [5]PkgFeature = .[
@@ -268,7 +268,7 @@ Features :: (arguments: []string) -> s32 {
         .{target = "go", status = "supported", limit = ""},
         .{target = "rust", status = "supported", limit = ""},
         .{target = "py", status = "supported", limit = ""},
-        .{target = "zib", status = "supported", limit = ""},
+        .{target = "zx", status = "supported", limit = ""},
         .{target = "plan9-c", status = "experimental", limit = "Not covered by these source/saved IR differential tests."},
     ]
     parallel_targets: [7]PkgTargetSupport = .[
@@ -277,7 +277,7 @@ Features :: (arguments: []string) -> s32 {
         .{target = "go", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
         .{target = "rust", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
         .{target = "py", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
-        .{target = "zib", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
+        .{target = "zx", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
         .{target = "plan9-c", status = "experimental", limit = "CPU regions execute serially with a downgrade marker."},
     ]
     gpu_targets: [7]PkgTargetSupport = .[
@@ -286,7 +286,7 @@ Features :: (arguments: []string) -> s32 {
         .{target = "go", status = "supported", limit = "CPU fallback only; no GPU device backend."},
         .{target = "rust", status = "supported", limit = "CPU fallback only; no GPU device backend."},
         .{target = "py", status = "supported", limit = "CPU fallback only; no GPU device backend."},
-        .{target = "zib", status = "supported", limit = "CPU fallback only; no GPU device backend."},
+        .{target = "zx", status = "supported", limit = "CPU fallback only; no GPU device backend."},
         .{target = "plan9-c", status = "experimental", limit = "CPU fallback only; no GPU device backend."},
     ]
     contracts: [7]PkgFeature = .[
@@ -374,7 +374,7 @@ Features :: (arguments: []string) -> s32 {
         .{target = "go", status = "supported", limit = "Checked Go body by default. -tags=ziran_asm enables the GNU cgo bridge with CGO_ENABLED=1, or direct AMD64 Go ABI0 for represented numeric/register-result forms with CGO_ENABLED=0. The direct path retains the checked body for pointer operands/results, stack changes, external calls/data and other unrepresented forms. Package builds include generated assembly companions; small native calls still have ABI overhead."},
         .{target = "rust", status = "supported", limit = "Native function/block assembly with CPU detection, typed registers and memory operands, complete representable GNU constraint columns and self-contained local labels. Unrepresented templates and reserved registers without a usable alternative retain the checked body. Available architectures/features depend on rustc."},
         .{target = "py", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
-        .{target = "zib", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
+        .{target = "zx", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
         .{target = "plan9-c", status = "experimental", limit = "Executes the checked portable body; no native assembly emission."},
     ]
     assembly_feature: PkgFeature

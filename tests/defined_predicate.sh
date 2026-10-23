@@ -53,12 +53,12 @@ if grep -aFq 'MissingValue' "$work/ir/predicate.zir"; then
     exit 1
 fi
 "$ziran" bundle --root "$work" --entry predicate:Answer \
-    -o "$work/source.zib" "$work/predicate.zi"
+    -o "$work/source.zx" "$work/predicate.zi"
 "$ziran" bundle --root "$work/ir" --entry predicate:Answer \
-    -o "$work/saved.zib" "$work/ir/predicate.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 113
-test "$("$ziran" run "$work/saved.zib")" = 113
+    -o "$work/saved.zx" "$work/ir/predicate.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 113
+test "$("$ziran" run "$work/saved.zx")" = 113
 
 "$ziran" build --target=c --root "$work" \
     -o "$work/c" "$work/predicate.zi"
@@ -88,8 +88,8 @@ Answer :: () -> s32 {
 }
 EOF
 "$ziran" bundle --root "$work" --entry negated:Answer \
-    -o "$work/native.zib" "$work/negated.zi"
-test "$("$ziran" run "$work/native.zib")" = 11
+    -o "$work/native.zx" "$work/negated.zi"
+test "$("$ziran" run "$work/native.zx")" = 11
 "$(dirname "$ziran")/zi2c" --no-main --define PLATFORM_WEB --root "$work" \
     -o "$work/web" "$work/negated.zi"
 cat > "$work/web/main.c" <<'EOF'

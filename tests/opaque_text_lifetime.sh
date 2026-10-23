@@ -59,6 +59,6 @@ ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/safe.zi"
 for input in "$work/safe.zi" "$work/ir/safe.zir"; do
     "$ziran" check --root "$work" "$input"
-    "$ziran" bundle --root "$work" --entry safe:Answer -o "$work/safe.zib" "$input"
-    test "$("$ziran" run "$work/safe.zib")" = 42
+    "$ziran" bundle --root "$work" --entry safe:Answer -o "$work/safe.zx" "$input"
+    test "$("$ziran" run "$work/safe.zx")" = 42
 done

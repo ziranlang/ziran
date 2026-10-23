@@ -88,11 +88,11 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry collections:Answer \
-        -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     "$ziran" bundle --root "$root" --entry collections:NamedCollection \
-        -o "$work/$input-named.zib" "$file"
-    test "$("$ziran" run "$work/$input-named.zib")" = 42
+        -o "$work/$input-named.zx" "$file"
+    test "$("$ziran" run "$work/$input-named.zx")" = 42
     for target in c cpp go; do
         out=$work/$input-$target
         if test "$target" = go; then
@@ -127,8 +127,8 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
-cmp "$work/source-named.zib" "$work/saved-named.zib"
+cmp "$work/source.zx" "$work/saved.zx"
+cmp "$work/source-named.zx" "$work/saved-named.zx"
 
 cat > "$work/pointer_for.zi" <<'ZI'
 #program_export
@@ -186,8 +186,8 @@ CPP
 done
 # The portable runner points at its own array elements the same way.
 "$ziran" bundle --root "$work" --entry pointer_for:Answer \
-   -o "$work/pointer.zib" "$work/pointer_for.zi"
-test "$("$ziran" run "$work/pointer.zib")" = 15
+   -o "$work/pointer.zx" "$work/pointer_for.zi"
+test "$("$ziran" run "$work/pointer.zx")" = 15
 
 cat > "$work/non_collection.zi" <<'ZI'
 Answer :: () -> s32 {

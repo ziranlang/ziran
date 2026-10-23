@@ -227,8 +227,8 @@ for kind in source saved; do
         module=$work/ir/owned.zir
     fi
     "$ziran" bundle --entry owned:Check --root "$root" \
-        --module-path "$repo/std" -o "$work/$kind.zib" "$module"
-    test "$("$ziran" run "$work/$kind.zib")" = 117
+        --module-path "$repo/std" -o "$work/$kind.zx" "$module"
+    test "$("$ziran" run "$work/$kind.zx")" = 117
 
     c_output=$work/$kind-c
     "$ziran" build --target=c --entry owned:Check --root "$root" \
@@ -298,7 +298,7 @@ GO
     GO111MODULE=off go run "$go_output"/*.go
 done
 
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source-c/owned.c" "$work/saved-c/owned.c"
 cmp "$work/source-c/owned.h" "$work/saved-c/owned.h"
 cmp "$work/source-cpp/owned.cpp" "$work/saved-cpp/owned.cpp"

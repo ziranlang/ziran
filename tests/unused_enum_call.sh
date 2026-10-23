@@ -45,8 +45,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry unused:Answer \
-        -o "$work/$input.zib" "$source"
-    test "$("$ziran" run "$work/$input.zib")" = 22
+        -o "$work/$input.zx" "$source"
+    test "$("$ziran" run "$work/$input.zx")" = 22
     for target in c cpp go; do
         output="$work/$target-$input"
         "$ziran" build --target="$target" --root "$root" \

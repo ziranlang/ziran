@@ -9,10 +9,10 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 "$ziran" ir --root tests/spec --module-path std -o "$work/ir" \
     tests/spec/std_number_text.zi
 "$ziran" bundle --root tests/spec --module-path std \
-    --entry std_number_text:SelfTest -o "$work/source.zib" \
+    --entry std_number_text:SelfTest -o "$work/source.zx" \
     tests/spec/std_number_text.zi
 "$ziran" bundle --root "$work/ir" --module-path "$work/ir" \
-    --entry std_number_text:SelfTest -o "$work/saved.zib" \
+    --entry std_number_text:SelfTest -o "$work/saved.zx" \
     "$work/ir/std_number_text.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42

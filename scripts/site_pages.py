@@ -77,12 +77,12 @@ def example_sections(ziran):
             imports = re.search(r'^#import "', source, re.M) is not None
             module_path = ' --module-path std' if imports else ''
             path = f'site/examples/{name}.zi'
-            bundle = os.path.join(work, name + '.zib')
+            bundle = os.path.join(work, name + '.zx')
             run([ziran, 'bundle', '--root', '.'] + (['--module-path', 'std'] if imports else [])
                 + ['--entry', f'{name}:{entry}', '-o', bundle, path])
             output = run([ziran, 'run', bundle])
             commands = (f'build/bin/ziran bundle --root .{module_path} --entry {name}:{entry} '
-                        f'-o {name}.zib {path}\nbuild/bin/ziran run {name}.zib\n'
+                        f'-o {name}.zx {path}\nbuild/bin/ziran run {name}.zx\n'
                         + ''.join(f'# {line}\n' for line in output.rstrip('\n').split('\n')))
             anchor = name.replace('_', '-')
             description = description[:1].upper() + description[1:]

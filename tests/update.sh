@@ -58,14 +58,14 @@ Check :: () -> s32 {
 ZI
 
 "$ziran" bundle --root "$work" --module-path "$repo/std" \
-    --entry app:Check -o "$work/app.zib" "$work/app.zi"
-test "$("$ziran" run "$work/app.zib")" = 0
+    --entry app:Check -o "$work/app.zx" "$work/app.zi"
+test "$("$ziran" run "$work/app.zx")" = 0
 
 "$ziran" ir --root "$work" --module-path "$repo/std" \
     -o "$work/ir" "$work/app.zi"
 "$ziran" bundle --root "$work/ir" --module-path "$repo/std" \
-    --entry app:Check -o "$work/saved.zib" "$work/ir/app.zir"
-test "$("$ziran" run "$work/saved.zib")" = 0
+    --entry app:Check -o "$work/saved.zx" "$work/ir/app.zir"
+test "$("$ziran" run "$work/saved.zx")" = 0
 
 "$ziran" build --target=c --no-main --root "$work" \
     --module-path "$repo/std" -o "$work/c" "$work/app.zi"

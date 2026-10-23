@@ -65,8 +65,8 @@ for input in source saved; do
     if test "$input" = source; then module=$work/flow.zi
     else module=$work/ir/flow.zir; fi
     "$ziran" bundle --root "$work" --entry flow:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 24
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 24
     for target in c cpp go; do
         output="$work/$target-$input"
         if test "$target" = go; then
@@ -103,4 +103,4 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

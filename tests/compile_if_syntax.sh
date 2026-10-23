@@ -92,12 +92,12 @@ if grep -aFq 'Hidden' "$work/ir/branches.zir" ||
     exit 1
 fi
 "$ziran" bundle --root "$work" --entry branches:Answer \
-    -o "$work/source.zib" "$work/branches.zi"
+    -o "$work/source.zx" "$work/branches.zi"
 "$ziran" bundle --root "$work/ir" --entry branches:Answer \
-    -o "$work/saved.zib" "$work/ir/branches.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/branches.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 "$ziran" build --target=c --root "$work" \
     -o "$work/c" "$work/branches.zi"
 cat > "$work/c/main.c" <<'EOF'
@@ -196,8 +196,8 @@ for input in "$work/forward.zi" "$work/forward-ir/forward.zir"; do
         *.zir) root=$work/forward-ir; label=saved ;;
     esac
     "$ziran" bundle --root "$root" --entry forward:Answer \
-        -o "$work/forward-$label.zib" "$input"
-    test "$("$ziran" run "$work/forward-$label.zib")" = 42
+        -o "$work/forward-$label.zx" "$input"
+    test "$("$ziran" run "$work/forward-$label.zx")" = 42
     for target in c cpp go; do
         out="$work/forward-$label-$target"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
@@ -227,7 +227,7 @@ GO
         esac
     done
 done
-cmp "$work/forward-source.zib" "$work/forward-saved.zib"
+cmp "$work/forward-source.zx" "$work/forward-saved.zx"
 
 cat > "$work/inactive_constant.zi" <<'EOF'
 #if false {
@@ -280,8 +280,8 @@ for input in "$work/forward_using.zi" "$work/using-ir/forward_using.zir"; do
         *.zir) root=$work/using-ir; label=saved ;;
     esac
     "$ziran" bundle --root "$root" --entry forward_using:Answer \
-        -o "$work/using-$label.zib" "$input"
-    test "$("$ziran" run "$work/using-$label.zib")" = 42
+        -o "$work/using-$label.zx" "$input"
+    test "$("$ziran" run "$work/using-$label.zx")" = 42
     for target in c cpp go; do
         out="$work/using-$label-$target"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
@@ -311,7 +311,7 @@ GO
         esac
     done
 done
-cmp "$work/using-source.zib" "$work/using-saved.zib"
+cmp "$work/using-source.zx" "$work/using-saved.zx"
 
 cat > "$work/inactive_using.zi" <<'EOF'
 Color :: enum { Red :: 1; }
@@ -368,5 +368,5 @@ if grep -aFq 'RejectedType' "$work/inactive-ir/inactive_tokens.zir" ||
     exit 1
 fi
 "$ziran" bundle --root "$work" --entry inactive_tokens:Answer \
-    -o "$work/inactive_tokens.zib" "$work/inactive_tokens.zi"
-test "$("$ziran" run "$work/inactive_tokens.zib")" = 42
+    -o "$work/inactive_tokens.zx" "$work/inactive_tokens.zi"
+test "$("$ziran" run "$work/inactive_tokens.zx")" = 42

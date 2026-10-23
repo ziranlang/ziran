@@ -54,8 +54,8 @@ odd even
 25
 EOF
 
-"$ziran" bundle --root "$work" --entry order:main -o "$work/order.zib" "$work/order.zi"
-"$ziran" run "$work/order.zib" > "$work/vm.out"
+"$ziran" bundle --root "$work" --entry order:main -o "$work/order.zx" "$work/order.zi"
+"$ziran" run "$work/order.zx" > "$work/vm.out"
 
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/order.zi"
 printf '#include "order.h"\nint main(void) { order_main(); return 0; }\n' > "$work/c/run.c"

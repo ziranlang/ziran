@@ -1,6 +1,6 @@
 # Ziran repository rules
 
-Ziran owns the language, compiler tools, `.zir`, portable `.zib` output,
+Ziran owns the language, compiler tools, `.zir`, portable `.zx` output,
 standard modules, and runtime. Keep this repository usable for programs that
 do not import a UI library.
 

@@ -68,7 +68,7 @@ def main():
     for version, folder in versions.items():
         host = out / ('host-' + version)
         run(['cc', '-O2', '-D_GNU_SOURCE', '-std=c11', '-I' + str(ROOT / 'include'),
-             ROOT / 'bench/zib_metadata.c', folder / 'libziran.a' if (folder / 'libziran.a').exists() else folder.parent / 'libziran.a', '-lm', '-pthread', '-o', host])
+             ROOT / 'bench/zx_metadata.c', folder / 'libziran.a' if (folder / 'libziran.a').exists() else folder.parent / 'libziran.a', '-lm', '-pthread', '-o', host])
     for form in ('plain', 'function', 'block'):
         for functions, padding in ([(128, 0)] if form == 'plain' else [(1, 0), (64, 1024), (128, 2048)]):
             name = f'{form}-{functions}-{padding}'; work = out / name; work.mkdir()
@@ -77,10 +77,10 @@ def main():
                 ir = work / ('ir-' + version)
                 run([folder / 'ziran', 'ir', '--root', work, '-o', ir, entry])
                 ir_commands.append((name, version, [folder / 'ziran', 'ir', '--root', work, '-o', ir, entry]))
-                bundle = work / (version + '.zib')
+                bundle = work / (version + '.zx')
                 command = [folder / 'ziran', 'bundle', '--root', work, '--entry', 'program:Answer', '-o', bundle, entry]
                 run(command); run([folder / 'ziran', 'run', bundle], expected=8 + functions)
-                saved = work / (version + '-saved.zib')
+                saved = work / (version + '-saved.zx')
                 run([folder / 'ziran', 'bundle', '--root', ir, '--entry', 'program:Answer', '-o', saved, ir / 'program.zir'])
                 assert bundle.read_bytes() == saved.read_bytes()
                 if version == 'after':
@@ -90,7 +90,7 @@ def main():
                 artifacts.append(dict(case=name, version=version, bytes=bundle.stat().st_size,
                                       sha256=hashlib.sha256(bundle.read_bytes()).hexdigest()))
             assert (work / 'ir-before/program.zir').read_bytes() == (work / 'ir-after/program.zir').read_bytes()
-            if form == 'plain': assert (work / 'before.zib').read_bytes() == (work / 'after.zib').read_bytes()
+            if form == 'plain': assert (work / 'before.zx').read_bytes() == (work / 'after.zx').read_bytes()
     # Warmups were the validation builds above. Shuffle paired packing samples.
     trials = [(phase, *command) for phase, items in [('bundle', commands), ('ir', ir_commands)] for command in items] * args.repetitions
     random.Random(41).shuffle(trials)
@@ -100,7 +100,7 @@ def main():
     loads = []
     for artifact in artifacts:
         for reader in versions:
-            command = [out / ('host-' + reader), out / artifact['case'] / (artifact['version'] + '.zib'),
+            command = [out / ('host-' + reader), out / artifact['case'] / (artifact['version'] + '.zx'),
                        artifact['case'].split('-')[1], args.runs]
             run(command)
             loads.append((artifact['case'], artifact['version'], reader, command))
@@ -118,8 +118,8 @@ def main():
                                if not key.endswith('heap_delta_bytes') or all(r['heap_supported'] for r in selected) else None
                                for key in fields}))
     metadata = dict(repetitions=args.repetitions,runs=args.runs,discarded_warmups=1,
-                    source_sha256={str(p.resolve().relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),ROOT/'bench/zib_metadata.c']},
-                    binary_sha256={version:{tool:hashlib.sha256((folder/tool).read_bytes()).hexdigest() for tool in ('ziran','zi2zib','zi2zir')} for version,folder in versions.items()},
+                    source_sha256={str(p.resolve().relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),ROOT/'bench/zx_metadata.c']},
+                    binary_sha256={version:{tool:hashlib.sha256((folder/tool).read_bytes()).hexdigest() for tool in ('ziran','zi2zx','zi2zir')} for version,folder in versions.items()},
                     caveats=['Synthetic annotations include deliberately large comments; this is a metadata stress test, not a typical application size claim.',
                              'Fresh host processes include startup; internal open timing excludes input-file reading.',
                              'Host reader/writer crossover separates smaller payloads from runtime changes. Every run validates an independent arithmetic result and persistent state.',

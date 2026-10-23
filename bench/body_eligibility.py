@@ -39,7 +39,7 @@ def main():
     if out.exists(): parser.error('preserve receipts and remove inactive outputs before reusing --out')
     out.mkdir(parents=True)
     versions = {'before': args.before_bin_dir.resolve(), 'after': args.bin_dir.resolve()}
-    tools = ('ziran', 'zi2zir', 'zi2c', 'zi2zib')
+    tools = ('ziran', 'zi2zir', 'zi2c', 'zi2zx')
     for folder in versions.values():
         for name in tools:
             if not (folder/name).is_file(): parser.error(f'missing {folder/name}')
@@ -91,18 +91,18 @@ def main():
                 invoke([binaries/'zi2zir', '--root', source, '-o', ir, entry])
                 for form, root, input_path in [('source', source, entry), ('saved', ir, ir/'program.zir')]:
                     output = folder/version/form
-                    emitted = output/'c'; bundle = output/'program.zib'
+                    emitted = output/'c'; bundle = output/'program.zx'
                     check = [binaries/'zi2zir', '--check-only', '--root', root, input_path]
                     emit = [binaries/'zi2c', '--root', root, '-o', emitted, input_path]
-                    pack = [binaries/'zi2zib', 'bundle', '--root', root, '--entry', 'program:Answer', '-o', bundle, input_path]
+                    pack = [binaries/'zi2zx', 'bundle', '--root', root, '--entry', 'program:Answer', '-o', bundle, input_path]
                     for phase, command in [('check', check), ('emit:c', emit), ('bundle', pack)]:
                         invoke(command); register(case, form, version, phase, command)
-                    invoke([binaries/'zi2zib', 'run', bundle], expected=expected)
+                    invoke([binaries/'zi2zx', 'run', bundle], expected=expected)
             before_ir = folder/'ir-before'; after_ir = folder/'ir-after'
             assert {p.name:p.read_bytes() for p in before_ir.glob('*.zir')} == {p.name:p.read_bytes() for p in after_ir.glob('*.zir')}
             for form in ('source', 'saved'):
                 assert contents(folder/'before'/form/'c') == contents(folder/'after'/form/'c'), (case, form)
-                assert (folder/'before'/form/'program.zib').read_bytes() == (folder/'after'/form/'program.zib').read_bytes()
+                assert (folder/'before'/form/'program.zx').read_bytes() == (folder/'after'/form/'program.zx').read_bytes()
                 # Compile the identical emitted C once per form and check a
                 # closed-form oracle independent of the compiler/runtime.
                 output = folder/'after'/form; emitted = output/'c'; host = output/'host.c'
@@ -110,7 +110,7 @@ def main():
                 invoke(['cc', '-O2', '-std=c11', '-I'+str(ROOT/'include'), '-I'+str(emitted),
                         host, *sorted(emitted.glob('*.c')), '-lm', '-o', output/'run'])
                 invoke([output/'run'], expected=expected)
-            assert (folder/'after/source/program.zib').read_bytes() == (folder/'after/saved/program.zib').read_bytes()
+            assert (folder/'after/source/program.zx').read_bytes() == (folder/'after/saved/program.zx').read_bytes()
             print('validated '+case, flush=True)
     for index, (name, directory, entry) in enumerate(args.project):
         directory = Path(directory).resolve()

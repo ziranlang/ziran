@@ -64,8 +64,8 @@ for input in source saved; do
         file=$work/ir/app.zir
     fi
     "$ziran" bundle --root "$root" --entry app:Answer \
-        -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         out=$work/$input-$target
         case "$target" in
@@ -101,7 +101,7 @@ GO
         esac
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/open_case.zi" <<'ZI'
 #import "library";
@@ -177,8 +177,8 @@ for name in open_case using_case forward_case shadow_case open_shadow_case using
             *.zir) root=$work/ir ;;
         esac
         "$ziran" bundle --root "$root" --entry "$name:Answer" \
-            -o "$work/$name.zib" "$input"
-        test "$("$ziran" run "$work/$name.zib")" = 42
+            -o "$work/$name.zx" "$input"
+        test "$("$ziran" run "$work/$name.zx")" = 42
         for target in c cpp go; do
             out=$work/$name-$target-$(basename "$root")
             case "$target" in
@@ -247,8 +247,8 @@ for input in source saved; do
         file=$work/shadow-ir/value_shadow.zir
     fi
     "$ziran" bundle --root "$root" --entry value_shadow:Answer \
-        -o "$work/value_shadow-$input.zib" "$file"
-    test "$("$ziran" run "$work/value_shadow-$input.zib")" = 7
+        -o "$work/value_shadow-$input.zx" "$file"
+    test "$("$ziran" run "$work/value_shadow-$input.zx")" = 7
     for target in c cpp go; do
         out="$work/value_shadow-$target-$input"
         if test "$target" = go; then
@@ -280,4 +280,4 @@ CPP
         fi
     done
 done
-cmp "$work/value_shadow-source.zib" "$work/value_shadow-saved.zib"
+cmp "$work/value_shadow-source.zx" "$work/value_shadow-saved.zx"

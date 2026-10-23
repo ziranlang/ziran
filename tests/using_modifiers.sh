@@ -69,8 +69,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry app:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 1
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 1
     for target in c cpp go; do
         output="$work/$target-$input"
         if test "$target" = go; then
@@ -106,7 +106,7 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/hidden.zi" <<'ZI'
 Pair :: struct { left: s64; right: s64; }

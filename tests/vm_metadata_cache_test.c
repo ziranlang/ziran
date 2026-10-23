@@ -100,7 +100,7 @@ main(int argc, char **argv)
 {
     assert(argc == 2);
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     FILE *input = fopen(argv[1], "rb");
     assert(input);
     ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module),
@@ -150,7 +150,7 @@ main(int argc, char **argv)
     VmInstanceClose(uncached);
     free(call_sites);
     free(global_sites);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     puts("Colliding call/global sites retain module identity, mutable values, independent lifetimes and allocation-failure behavior");
     return 0;

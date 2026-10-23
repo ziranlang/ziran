@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 {
     if(argc != 2) return 2;
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     FILE *input = fopen(argv[1], "rb");
     if(input == NULL) return 2;
     ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module),
@@ -52,7 +52,7 @@ int main(int argc, char **argv)
     printf("{\"entry\":\"%s\",\"valid\":%s,\"samples\":%u,\"peak_live_value_bytes\":%zu,\"bounded\":%s}\n",
            entry, valid ? "true" : "false", probe.samples, probe.peak, bounded ? "true" : "false");
     VmInstanceClose(probe.instance);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     return valid && bounded ? 0 : 1;
 }

@@ -50,10 +50,10 @@ def prepare(args):
         manifest['libraries'][label] = dict(path=str(library), sha256=sha(library), argv=list(map(str, argv)))
     for case in fixtures['cases']:
         name = case['name']; source, answer = expected[name]
-        module = name.replace('-', '_'); bundle = vm/'fixtures'/(module+'.zib')
+        module = name.replace('-', '_'); bundle = vm/'fixtures'/(module+'.zx')
         if case['expected'] != answer or (vm/'fixtures'/(module+'.zi')).read_text() != source:
             raise ValueError('Fixture source or oracle changed: '+name)
-        copied = out/(module+'.zib'); copied.write_bytes(bundle.read_bytes())
+        copied = out/(module+'.zx'); copied.write_bytes(bundle.read_bytes())
         manifest['files'][copied.name] = sha(copied)
         manifest['cases'].append(dict(name=name, bundle=copied.name, expected=answer))
     (out/'manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')

@@ -28,7 +28,7 @@ The same runtime exports `BuildBundle(root, search, inputs, entry_module,
 entry_function, output)` for editors that provide their own host. Search roots
 and input files are newline-separated filesystem paths; named roots use the
 normal `name=/directory` form. Clients write source into `FS`, then read the
-compiled `.zib` output. A failed compilation removes that output. This path
+compiled `.zx` output. A failed compilation removes that output. This path
 uses the ordinary module loader, checker, linker, verifier, and bundle writer;
 it does not execute the program or install host capabilities.
 

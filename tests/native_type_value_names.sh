@@ -51,8 +51,8 @@ ZI
 for input in source saved; do
     if test "$input" = source; then root=$work; file=$work/app.zi
     else root=$work/ir; file=$work/ir/app.zir; fi
-    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         out=$work/$input-$target
         "$ziran" build --target="$target" --root "$root" -o "$out" "$file"
@@ -88,5 +88,5 @@ GO
         esac
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 echo 'Native type/value names passed unpruned C/C++/Go source and saved IR; exported C ABI and portable bundle agree'

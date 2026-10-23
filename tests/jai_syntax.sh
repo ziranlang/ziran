@@ -187,8 +187,8 @@ for target in c cpp go; do
 done
 "$ziran" check --root "$work" "$work/names.zi"
 "$ziran" bundle --root "$work" --entry names:Answer \
-    -o "$work/names.zib" "$work/names.zi"
-test "$("$ziran" run "$work/names.zib")" = 42
+    -o "$work/names.zx" "$work/names.zi"
+test "$("$ziran" run "$work/names.zx")" = 42
 
 cat > "$work/state_name.zi" <<'ZI'
 Record :: struct {
@@ -222,8 +222,8 @@ for input in source saved; do
         root=$work/bindings-ir
     fi
     "$ziran" bundle --root "$root" --entry bindings:Answer \
-        -o "$work/bindings-$input.zib" "$file"
-    test "$("$ziran" run "$work/bindings-$input.zib")" = 42
+        -o "$work/bindings-$input.zx" "$file"
+    test "$("$ziran" run "$work/bindings-$input.zx")" = 42
     for target in c cpp go; do
         out=$work/bindings-$input-$target
         if test "$target" = go; then

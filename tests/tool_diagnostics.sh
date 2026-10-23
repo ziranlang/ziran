@@ -34,13 +34,13 @@ def diagnostics(command, code=None, *, env=None, success=False):
 
 # Invalid arguments honor a later JSON flag, including in the formatter.
 for tool in ('zi2c', 'zi2cpp', 'zi2go', 'zi2rust', 'zi2py', 'zi2zir',
-             'zi2zib', 'zi-api', 'zi-inspect', 'zi-fmt'):
+             'zi2zx', 'zi-api', 'zi-inspect', 'zi-fmt'):
     diagnostics([binary / tool, '--unknown', '--diagnostics=json'], 'command.arguments')
 
 diagnostics([ziran, 'build', '--target=unknown', '--diagnostics=json'], 'package.command')
 diagnostics([ziran, 'check', '--diagnostics=json', '--root', work, work / 'missing.zi'], 'module.input')
 diagnostics([ziran, 'inspect', '--diagnostics=json', work / 'missing.zir'], 'zir.input')
-diagnostics([ziran, 'run', '--diagnostics=json', work / 'missing.zib'], 'zib.input')
+diagnostics([ziran, 'run', '--diagnostics=json', work / 'missing.zx'], 'zx.input')
 diagnostics([ziran, 'fmt', '--diagnostics=json', work / 'missing.zi'], 'format.input')
 
 # A native byte path and a valid multilingual path must both remain valid JSON.

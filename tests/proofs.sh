@@ -19,10 +19,10 @@ PY
 "$ziran" ir --root "$repo/tests/proof" -o "$work/ir" "$repo/tests/proof/PROOF.zi"
 "$ziran" check --root "$work/ir" "$work/ir/PROOF.zir" > "$work/saved.json"
 cmp "$work/source.json" "$work/saved.json"
-"$ziran" bundle --root "$repo/tests/proof" --entry scalar:Answer -o "$work/source.zib" "$repo/tests/proof/PROOF.zi"
-"$ziran" bundle --root "$work/ir" --entry scalar:Answer -o "$work/saved.zib" "$work/ir/PROOF.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
+"$ziran" bundle --root "$repo/tests/proof" --entry scalar:Answer -o "$work/source.zx" "$repo/tests/proof/PROOF.zi"
+"$ziran" bundle --root "$work/ir" --entry scalar:Answer -o "$work/saved.zx" "$work/ir/PROOF.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
 
 cat > "$work/good.zi" <<'ZI'
 Adjust :: (x: u8) -> u8 {
@@ -67,14 +67,14 @@ for kind in goal step cycle index evidence; do
         echo "tampered $kind certificate was accepted" >&2; exit 1
     fi
 done
-python3 - "$work/source.zib" "$work/forged.zib" <<'PY'
+python3 - "$work/source.zx" "$work/forged.zx" <<'PY'
 from pathlib import Path
 import sys
 data = Path(sys.argv[1]).read_bytes()
 assert b'kernel' in data
 Path(sys.argv[2]).write_bytes(data.replace(b'kernel', b'forged', 1))
 PY
-if "$ziran" run "$work/forged.zib" > /dev/null 2> "$work/forged.err"; then
+if "$ziran" run "$work/forged.zx" > /dev/null 2> "$work/forged.err"; then
     echo 'forged bundle law evidence was accepted' >&2; exit 1
 fi
 rg -q 'law table differs' "$work/forged.err"

@@ -18,8 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { ZIB_VERSION = 26, ZIB_MAX_IR_BYTES = 256 * 1024 * 1024,
-       ZIB_MAX_CAPABILITIES = 4096 };
+enum { ZX_VERSION = 26, ZX_MAX_IR_BYTES = 256 * 1024 * 1024,
+       ZX_MAX_CAPABILITIES = 4096 };
 
 typedef struct CapabilityName {
     char module[ZIR_NAME_MAX];
@@ -476,7 +476,7 @@ copy_live_sequence(const ZirFunction *from, ZirFunction *to,
                    int begin, int end, int depth, int *stops)
 {
     if(depth > LIVE_NESTING_MAX) {
-        Diagnostic(from->span, "zib.statement",
+        Diagnostic(from->span, "zx.statement",
                    "%s nests blocks deeper than %d levels", from->name,
                    LIVE_NESTING_MAX);
         return 0;
@@ -1549,7 +1549,7 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
         const ZirModule *module = &program->modules[m];
         for(int other = 0; other < m; other++)
             if(strcmp(program->modules[other].name, module->name) == 0) {
-                Diagnostic(module->span, "zib.module",
+                Diagnostic(module->span, "zx.module",
                            "duplicate module identity: %s", module->name);
                 goto failed;
             }
@@ -1566,7 +1566,7 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
         for(int f = 0; f < module->function_count; f++)
             if(strcmp(module->functions[f].name, entry_function) == 0) {
                 if(entry_f >= 0) {
-                    Diagnostic(module->functions[f].span, "zib.entry",
+                    Diagnostic(module->functions[f].span, "zx.entry",
                                "ambiguous bundle entry: %s", entry_function);
                     goto failed;
                 }
@@ -1575,7 +1575,7 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
             }
     }
     if(entry_m < 0) {
-        Diagnostic(Span("<bundle>", 1, 1), "zib.entry",
+        Diagnostic(Span("<bundle>", 1, 1), "zx.entry",
                    "bundle entry was not found: %s:%s",
                    entry_module, entry_function);
         goto failed;
@@ -1758,7 +1758,7 @@ resolve_reachability:
                                         }
                                     }
                                     if(found != 1) {
-                                        Diagnostic(import->span, "zib.bind",
+                                        Diagnostic(import->span, "zx.bind",
                                                    "bound Ziran host provider is missing or ambiguous: %s",
                                                    import->name);
                                         goto failed;
@@ -1797,7 +1797,7 @@ resolve_reachability:
                                     }
                             continue;
                         }
-                        Diagnostic(expression->span, "zib.call",
+                        Diagnostic(expression->span, "zx.call",
                                    "unresolved portable call: %s",
                                    expression->name);
                         goto failed;
@@ -1813,7 +1813,7 @@ resolve_reachability:
                             if(callee == &program->modules[target_m].functions[candidate])
                                 target_f = candidate;
                     if(target_f < 0) {
-                        Diagnostic(expression->span, "zib.call",
+                        Diagnostic(expression->span, "zx.call",
                                    "call is outside the linked program: %s",
                                    expression->name);
                         goto failed;
@@ -2118,7 +2118,7 @@ resolve_reachability:
              * pointer fields, and Go checks its own unions. */
             if(!native && source->types[t].is_union &&
                !bundle_portable_union(source, &source->types[t])) {
-                DiagnosticTarget(source->types[t].span, "zib.union", "zib", "unions.scalar",
+                DiagnosticTarget(source->types[t].span, "zx.union", "zx", "unions.scalar",
                            "portable unions support scalar fields only");
                 goto failed;
             }
@@ -2331,7 +2331,7 @@ int
 BundleWriteInContext(FILE *out, const ZirProgram *program,
                const ZirProgram *context,
                const char *entry_module, const char *entry_function,
-               const ZibAssets *assets)
+               const ZxAssets *assets)
 {
     size_t length = 0;
     int ok;
@@ -2339,14 +2339,14 @@ BundleWriteInContext(FILE *out, const ZirProgram *program,
        entry_function == NULL)
         return 0;
     ok = ProgramMeasurePortable(program, &length);
-    if(length == 0 || length > ZIB_MAX_IR_BYTES)
+    if(length == 0 || length > ZX_MAX_IR_BYTES)
         ok = 0;
     int capabilities = count_capabilities(program, program->module_count);
-    if(capabilities > ZIB_MAX_CAPABILITIES)
+    if(capabilities > ZX_MAX_CAPABILITIES)
         ok = 0;
     if(ok) {
-        ok = fwrite("ZIB\0", 1, 4, out) == 4 &&
-             write_u32(out, ZIB_VERSION) &&
+        ok = fwrite("ZX\0\0", 1, 4, out) == 4 &&
+             write_u32(out, ZX_VERSION) &&
              write_name(out, entry_module) &&
              write_name(out, entry_function) &&
              write_u32(out, (uint32_t)capabilities);
@@ -2403,7 +2403,7 @@ BundleWriteInContext(FILE *out, const ZirProgram *program,
         size_t written = 0;
         ok = ok && write_u32(out, (uint32_t)length) &&
              ProgramWritePortable(program, out, &written) && written == length &&
-             ZibAssetsWrite(out, assets) && fflush(out) == 0;
+             ZxAssetsWrite(out, assets) && fflush(out) == 0;
     }
     return ok;
 }
@@ -2411,7 +2411,7 @@ BundleWriteInContext(FILE *out, const ZirProgram *program,
 int
 BundleWrite(FILE *out, const ZirProgram *program,
             const char *entry_module, const char *entry_function,
-            const ZibAssets *assets)
+            const ZxAssets *assets)
 {
     return BundleWriteInContext(out, program, program, entry_module,
                                 entry_function, assets);
@@ -2479,7 +2479,7 @@ append_library(ZirProgram *program, const ZirProgram *library)
 }
 
 void
-ZibLawTableFree(ZibLawTable *table)
+ZxLawTableFree(ZxLawTable *table)
 {
     if(table == NULL)
         return;
@@ -2495,7 +2495,7 @@ ZirProgram *
 BundleReadInContext(FILE *in, const char *path,
            char *entry_module, size_t module_size,
            char *entry_function, size_t function_size,
-           ZibLawTable *laws, ZibAssets *assets,
+           ZxLawTable *laws, ZxAssets *assets,
            const ZirProgram *const *libraries, size_t library_count,
            int *own_module_count, size_t *own_capability_count)
 {
@@ -2505,8 +2505,8 @@ BundleReadInContext(FILE *in, const char *path,
     unsigned char *payload_bytes = NULL;
     ZirProgram *program = NULL;
     CapabilityName *capabilities = NULL;
-    ZibLawTable discarded = {0};
-    ZibAssets discarded_assets = {0};
+    ZxLawTable discarded = {0};
+    ZxAssets discarded_assets = {0};
     int discard_assets = assets == NULL;
     if(discard_assets) assets = &discarded_assets;
     int discard_laws = laws == NULL;
@@ -2517,19 +2517,19 @@ BundleReadInContext(FILE *in, const char *path,
        entry_function == NULL || library_count > 64 ||
        (library_count != 0 && libraries == NULL))
         return NULL;
-    if(fread(signature, 1, 4, in) != 4 || memcmp(signature, "ZIB\0", 4))
+    if(fread(signature, 1, 4, in) != 4 || memcmp(signature, "ZX\0\0", 4))
         goto failed;
     if(!read_u32(in, &version))
         goto failed;
-    if(version != ZIB_VERSION) {
-        problem = "unsupported ZIB version";
+    if(version != ZX_VERSION) {
+        problem = "unsupported ZX version";
         goto failed;
     }
     if(!read_name(in, entry_module, module_size) ||
        !read_name(in, entry_function, function_size) ||
        !read_u32(in, &capability_count))
         goto failed;
-    if(capability_count > ZIB_MAX_CAPABILITIES) {
+    if(capability_count > ZX_MAX_CAPABILITIES) {
         problem = "bundle has too many host capabilities";
         goto failed;
     }
@@ -2546,14 +2546,14 @@ BundleReadInContext(FILE *in, const char *path,
     if(laws != NULL) {
         uint32_t law_count = 0, waiver_count = 0;
         if(!read_u32(in, &law_count) ||
-           law_count > ZIB_MAX_CAPABILITIES * 64)
+           law_count > ZX_MAX_CAPABILITIES * 64)
             goto failed;
         laws->laws = law_count ? calloc(law_count,
                                         sizeof(*laws->laws)) : NULL;
         if(law_count != 0 && laws->laws == NULL)
             goto failed;
         for(uint32_t i = 0; i < law_count; i++) {
-            ZibLawRecord *record = &laws->laws[i];
+            ZxLawRecord *record = &laws->laws[i];
             uint32_t lo, hi, waived;
             if(!read_name(in, record->module, sizeof(record->module)) ||
                !read_name(in, record->name, sizeof(record->name)) ||
@@ -2571,14 +2571,14 @@ BundleReadInContext(FILE *in, const char *path,
         }
         laws->law_count = (int)law_count;
         if(!read_u32(in, &waiver_count) ||
-           waiver_count > ZIB_MAX_CAPABILITIES * 64)
+           waiver_count > ZX_MAX_CAPABILITIES * 64)
             goto failed;
         laws->waivers = waiver_count ? calloc(waiver_count,
                                               sizeof(*laws->waivers)) : NULL;
         if(waiver_count != 0 && laws->waivers == NULL)
             goto failed;
         for(uint32_t i = 0; i < waiver_count; i++) {
-            ZibLawWaiverRecord *record = &laws->waivers[i];
+            ZxLawWaiverRecord *record = &laws->waivers[i];
             if(!read_name(in, record->module, sizeof(record->module)) ||
                !read_name(in, record->name, sizeof(record->name)) ||
                !read_name(in, record->reason, sizeof(record->reason)))
@@ -2586,11 +2586,11 @@ BundleReadInContext(FILE *in, const char *path,
         }
         laws->waiver_count = (int)waiver_count;
     }
-    if(!read_u32(in, &length) || length == 0 || length > ZIB_MAX_IR_BYTES)
+    if(!read_u32(in, &length) || length == 0 || length > ZX_MAX_IR_BYTES)
         goto failed;
     payload_bytes = malloc(length);
     if(payload_bytes == NULL || fread(payload_bytes, 1, length, in) != length ||
-       !ZibAssetsRead(in, assets) || fgetc(in) != EOF || ferror(in))
+       !ZxAssetsRead(in, assets) || fgetc(in) != EOF || ferror(in))
         goto failed;
     payload = ZirReadMemory(payload_bytes, length);
     if(payload == NULL)
@@ -2645,7 +2645,7 @@ BundleReadInContext(FILE *in, const char *path,
                 char detail[ZIR_TEXT_MAX];
                 int status = EvaluateLaw(program, module, law, detail, sizeof(detail));
                 if(next >= laws->law_count) { problem = "bundle law table differs from checked IR"; goto failed; }
-                const ZibLawRecord *record = &laws->laws[next++];
+                const ZxLawRecord *record = &laws->laws[next++];
                 if(strcmp(record->module, module->name) || strcmp(record->name, law->name) ||
                    strcmp(record->kind, law->kind) || strcmp(record->status, LawStatusName(status)) ||
                    strcmp(record->detail, detail) || strcmp(record->evidence.method, law->evidence.method) ||
@@ -2658,7 +2658,7 @@ BundleReadInContext(FILE *in, const char *path,
             }
             for(int w = 0; w < module->law_waiver_count; w++) {
                 if(next_waiver >= laws->waiver_count) { problem = "bundle waiver table differs from checked IR"; goto failed; }
-                const ZibLawWaiverRecord *record = &laws->waivers[next_waiver++];
+                const ZxLawWaiverRecord *record = &laws->waivers[next_waiver++];
                 if(strcmp(record->module, module->name) || strcmp(record->name, module->law_waivers[w].name) ||
                    strcmp(record->reason, module->law_waivers[w].reason)) {
                     problem = "bundle waiver table differs from checked IR"; goto failed;
@@ -2672,20 +2672,20 @@ BundleReadInContext(FILE *in, const char *path,
     fclose(payload);
     free(payload_bytes);
     free(capabilities);
-    if(discard_laws) ZibLawTableFree(&discarded);
-    if(discard_assets) ZibAssetsFree(&discarded_assets);
+    if(discard_laws) ZxLawTableFree(&discarded);
+    if(discard_assets) ZxAssetsFree(&discarded_assets);
     if(own_module_count != NULL) *own_module_count = own_modules;
     if(own_capability_count != NULL) *own_capability_count = capability_count;
     return program;
 failed:
-    Diagnostic(Span(path, 1, 1), "zib.invalid", "%s", problem);
+    Diagnostic(Span(path, 1, 1), "zx.invalid", "%s", problem);
     if(payload != NULL)
         fclose(payload);
     free(payload_bytes);
     free(capabilities);
     ProgramFree(program);
-    ZibAssetsFree(assets);
-    if(discard_laws) ZibLawTableFree(&discarded);
+    ZxAssetsFree(assets);
+    if(discard_laws) ZxLawTableFree(&discarded);
     return NULL;
 }
 
@@ -2693,7 +2693,7 @@ ZirProgram *
 BundleRead(FILE *in, const char *path,
            char *entry_module, size_t module_size,
            char *entry_function, size_t function_size,
-           ZibLawTable *laws, ZibAssets *assets)
+           ZxLawTable *laws, ZxAssets *assets)
 {
     return BundleReadInContext(in, path, entry_module, module_size,
         entry_function, function_size, laws, assets, NULL, 0, NULL, NULL);

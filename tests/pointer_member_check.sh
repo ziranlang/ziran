@@ -163,8 +163,8 @@ if "$compiler" --check-only --root "$work" "$work/escape_slice.zi" \
 fi
 grep -q 'returned slice borrows local or temporary storage' "$work/err"
 
-if "$bin/zi2zib" bundle --root "$work" --entry read:Write \
-    -o "$work/read.zib" "$work/read.zi" 2>"$work/bundle.err"; then
+if "$bin/zi2zx" bundle --root "$work" --entry read:Write \
+    -o "$work/read.zx" "$work/read.zi" 2>"$work/bundle.err"; then
     echo "native pointer entered portable bundle" >&2
     exit 1
 fi

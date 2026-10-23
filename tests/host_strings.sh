@@ -15,7 +15,7 @@ for form in source saved; do
     module=$source; root=$repo/tests/spec
     if [ "$form" = saved ]; then module=$work/ir/host_strings.zir; root=$work/ir; fi
     "$ziran" bundle --root "$root" --entry host_strings:Answer \
-        -o "$work/$form.zib" "$module"
-    "$work/test" "$work/$form.zib"
+        -o "$work/$form.zx" "$module"
+    "$work/test" "$work/$form.zx"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

@@ -12,7 +12,7 @@ one JSON object per line on their ordinary failure paths:
 The code identity is the stable part. Messages and spans can improve; do not
 parse human-readable message text when a code is present. Code names use a
 phase prefix such as `parse`, `check`, `emit`, `module`, `package`, `law`,
-`parallel`, `gpu`, `zib`, `zir`, `vm`, or `host`.
+`parallel`, `gpu`, `zx`, `zir`, `vm`, or `host`.
 
 Query remediation with:
 
@@ -21,7 +21,7 @@ ziran explain check.slice_lifetime
 ziran explain zir.noncanonical --json
 ziran explain --list
 ziran explain --list --json
-ziran check --target=zib --diagnostics=json --root . main.zi
+ziran check --target=zx --diagnostics=json --root . main.zi
 ```
 
 A single explanation has schema version 1:
@@ -49,7 +49,7 @@ must verify `original` against the current document before applying an edit.
 Strings, comments, ambiguous occurrences, and source rewritten after checking
 must never be changed by a guessed edit.
 
-`check --target=c|cpp|go|rust|py|zib|plan9-c` checks target-specific foreign
+`check --target=c|cpp|go|rust|py|zx|plan9-c` checks target-specific foreign
 identities/imports and Go/portable scalar-union restrictions before writing
 output. Builds use the same preflight policy. Its failures include `target`
 and a capability such as `ffi.go`, `types.py`, or `unions.scalar`; individual

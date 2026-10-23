@@ -26,7 +26,7 @@ asset_name(const char *name)
 }
 
 void
-ZibAssetsFree(ZibAssets *assets)
+ZxAssetsFree(ZxAssets *assets)
 {
     if(assets == NULL) return;
     for(size_t i = 0; i < assets->count; i++) {
@@ -52,7 +52,7 @@ join_path(const char *left, const char *right)
 }
 
 static int
-collect_path(ZibAssets *assets, const char *name, const char *path)
+collect_path(ZxAssets *assets, const char *name, const char *path)
 {
     struct stat stat;
     if(!asset_name(name) || FileStatusNoLinks(path, &stat) != 0) return 0;
@@ -76,7 +76,7 @@ collect_path(ZibAssets *assets, const char *name, const char *path)
     if(!S_ISREG(stat.st_mode) || stat.st_size < 0 ||
        (uint64_t)stat.st_size > UINT32_MAX ||
        assets->count >= SIZE_MAX / sizeof(*assets->items)) return 0;
-    ZibAsset item = {0};
+    ZxAsset item = {0};
     item.name = strdup(name);
     item.size = (uint32_t)stat.st_size;
     item.data = malloc(item.size ? item.size : 1);
@@ -85,7 +85,7 @@ collect_path(ZibAssets *assets, const char *name, const char *path)
         fread(item.data, 1, item.size, input) == item.size &&
         fgetc(input) == EOF && !ferror(input);
     if(input != NULL && fclose(input) != 0) ok = 0;
-    ZibAsset *items = ok ? realloc(assets->items,
+    ZxAsset *items = ok ? realloc(assets->items,
         (assets->count + 1) * sizeof(*items)) : NULL;
     if(items == NULL) { free(item.name); free(item.data); return 0; }
     assets->items = items;
@@ -96,11 +96,11 @@ collect_path(ZibAssets *assets, const char *name, const char *path)
 static int
 compare_asset(const void *left, const void *right)
 {
-    return strcmp(((const ZibAsset *)left)->name, ((const ZibAsset *)right)->name);
+    return strcmp(((const ZxAsset *)left)->name, ((const ZxAsset *)right)->name);
 }
 
 int
-ZibAssetsCollect(ZibAssets *assets, const char *spec)
+ZxAssetsCollect(ZxAssets *assets, const char *spec)
 {
     const char *separator = spec ? strchr(spec, '=') : NULL;
     if(separator == NULL || separator == spec || separator[1] == '\0') return 0;
@@ -139,12 +139,12 @@ read_size(FILE *in, uint32_t *size)
 }
 
 int
-ZibAssetsWrite(FILE *out, const ZibAssets *assets)
+ZxAssetsWrite(FILE *out, const ZxAssets *assets)
 {
     size_t count = assets != NULL ? assets->count : 0;
     if(count > UINT32_MAX || !write_size(out, (uint32_t)count)) return 0;
     for(size_t i = 0; i < count; i++) {
-        const ZibAsset *item = &assets->items[i];
+        const ZxAsset *item = &assets->items[i];
         size_t n = strlen(item->name);
         if(n > UINT32_MAX || !asset_name(item->name) ||
            (i > 0 && strcmp(assets->items[i - 1].name, item->name) >= 0) ||
@@ -170,7 +170,7 @@ section_size(FILE *in, size_t *size)
 }
 
 int
-ZibAssetsRead(FILE *in, ZibAssets *assets)
+ZxAssetsRead(FILE *in, ZxAssets *assets)
 {
     uint32_t count;
     size_t size;
@@ -181,7 +181,7 @@ ZibAssetsRead(FILE *in, ZibAssets *assets)
     assets->items = calloc(count, sizeof(*assets->items));
     if(assets->items == NULL) return 0;
     for(uint32_t i = 0; i < count; i++) {
-        ZibAsset *item = &assets->items[i];
+        ZxAsset *item = &assets->items[i];
         assets->count++;
         uint32_t n;
         if(size < 4 || !read_size(in, &n)) return 0;

@@ -44,8 +44,8 @@ for form in source saved; do
     root=$work
     suffix=zi
     if test "$form" = saved; then root=$work/ir; suffix=zir; fi
-    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zib" "$root/app.$suffix"
-    test "$("$ziran" run "$work/$form.zib")" = 0
+    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zx" "$root/app.$suffix"
+    test "$("$ziran" run "$work/$form.zx")" = 0
     for target in c cpp; do
         "$ziran" build --root "$root" --target="$target" --entry app:Answer --no-main \
             -o "$work/$form-$target" "$root/app.$suffix"
@@ -65,5 +65,5 @@ for form in source saved; do
     printf '%s\n' 'package main' 'func main() { if App_Answer() != 0 { panic("builtin prefix call") } }' > "$work/$form-go/main.go"
     GO111MODULE=off go run "$work/$form-go"/*.go
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 echo 'Short and builtin-prefix function names retain ordinary calls across source, saved IR, native and portable execution'

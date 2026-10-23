@@ -20,8 +20,8 @@ Order :: () -> s32 {
 EOF
 expected=614
 
-"$ziran" bundle --root "$work" --entry order:Order -o "$work/order.zib" "$work/order.zi"
-test "$("$ziran" run "$work/order.zib")" = "$expected"
+"$ziran" bundle --root "$work" --entry order:Order -o "$work/order.zx" "$work/order.zi"
+test "$("$ziran" run "$work/order.zx")" = "$expected"
 
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/order.zi"
 cat > "$work/c/main.c" <<'EOF'

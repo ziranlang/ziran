@@ -71,7 +71,7 @@ assert source.stat().st_mtime_ns == before.st_mtime_ns
 for name, content in [("original", original), ("formatted", formatted)]:
     path = work / (name + ".zi")
     path.write_bytes(content)
-    bundle = work / (name + ".zib")
+    bundle = work / (name + ".zx")
     subprocess.run([str(ziran), "bundle", "--root", str(work), "--entry", name + ":Answer",
                     "-o", str(bundle), str(path)], check=True)
     assert subprocess.check_output([str(ziran), "run", str(bundle)]).strip() == b"42"
@@ -176,8 +176,8 @@ for input in "$work/scanner.zi" "$work/ir/scanner.zir"; do
     form=source
     case "$input" in *.zir) form=saved ;; esac
     "$ziran" bundle --root "$work" --module-path "$repo/cmd" \
-        --entry scanner:Answer -o "$work/scanner.zib" "$input"
-    test "$("$ziran" run "$work/scanner.zib")" = 42
+        --entry scanner:Answer -o "$work/scanner.zx" "$input"
+    test "$("$ziran" run "$work/scanner.zx")" = 42
     output="$work/$form"
     "$ziran" build --target=c --exe --entry scanner:Run --root "$work" \
         --module-path "$repo/cmd" -o "$output/c" "$input"

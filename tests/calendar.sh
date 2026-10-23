@@ -37,6 +37,6 @@ for input in source saved; do
             ;;
         esac
     done
-    "$ziran" bundle --root "$root" --module-path "$repo/std" --entry calendar_test:Check -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 0
+    "$ziran" bundle --root "$root" --module-path "$repo/std" --entry calendar_test:Check -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 0
 done

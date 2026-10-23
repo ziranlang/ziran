@@ -53,8 +53,8 @@ pair 6 0
 bytes 6
 EOF
 
-"$ziran" bundle --root "$work" --entry loops:main -o "$work/loops.zib" "$work/loops.zi"
-"$ziran" run "$work/loops.zib" > "$work/vm.out"
+"$ziran" bundle --root "$work" --entry loops:main -o "$work/loops.zx" "$work/loops.zi"
+"$ziran" run "$work/loops.zx" > "$work/vm.out"
 
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/loops.zi"
 printf '#include "loops.h"\nint main(void) { loops_main(); return 0; }\n' > "$work/c/run.c"

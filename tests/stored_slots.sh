@@ -73,8 +73,8 @@ for input in source saved; do
     else
         set -- "$work/ir/stored.zir"
     fi
-    "$ziran" bundle --root "$work" --entry stored:Answer -o "$work/$input.zib" "$@"
-    test "$("$ziran" run "$work/$input.zib")" = 44
+    "$ziran" bundle --root "$work" --entry stored:Answer -o "$work/$input.zx" "$@"
+    test "$("$ziran" run "$work/$input.zx")" = 44
     for target in c cpp go; do
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --entry stored:Answer --root "$work" -o "$work/$target-$input" "$@"
@@ -106,4 +106,4 @@ func main() { if Stored_Answer() != 44 { panic("stored slot result") } }
 GO
     GO111MODULE=off go run "$work/go-$input/stored.go" "$work/go-$input/main.go"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

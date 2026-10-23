@@ -18,12 +18,12 @@ for form in source saved; do
     input=$source; root=$repo/tests/spec
     if test "$form" = saved; then input=$work/ir/vm_inline_records_test.zir; root=$work/ir; fi
     "$ziran" bundle --root "$root" --module-path "$repo/std" --entry vm_inline_records_test:Answer \
-        -o "$work/$form.zib" "$input"
-    "$work/test" "$work/$form.zib"
+        -o "$work/$form.zx" "$input"
+    "$work/test" "$work/$form.zx"
     for entry in Dangling Freed Popped Moved; do
         "$ziran" bundle --root "$root" --module-path "$repo/std" --entry "vm_inline_records_test:$entry" \
-            -o "$work/$form-$entry.zib" "$input"
-        if "$ziran" run "$work/$form-$entry.zib" > "$work/$form-$entry.out" 2>&1; then
+            -o "$work/$form-$entry.zx" "$input"
+        if "$ziran" run "$work/$form-$entry.zx" > "$work/$form-$entry.out" 2>&1; then
             echo "read expired record storage: $form $entry" >&2
             exit 1
         fi
@@ -50,4 +50,4 @@ GO
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

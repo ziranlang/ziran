@@ -107,8 +107,8 @@ GO
     GO111MODULE=off GOCACHE=/tmp/ziran-method-go-cache go run -race "$out"/*.go
     "$ziran" build --target=go --exe --pkg main --root "$work" --module-path std --entry methods:InterfaceEntry -o "$work/$form-entry" "$input"
     test "$(GO111MODULE=off GOCACHE=/tmp/ziran-method-go-cache go run -race "$work/$form-entry"/*.go)" = 42
-    "$ziran" bundle --root "$work" --module-path std --entry methods:Answer -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$work" --module-path std --entry methods:Answer -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     "$ziran" build --target=c --exe --root "$work" --module-path std --entry methods:Answer -o "$work/$form-c" "$input"
     result=0
     "$work/$form-c/methods" || result=$?

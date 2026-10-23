@@ -31,8 +31,8 @@ for input in source saved; do
         source="$work/ir/character.zir"
     fi
     "$ziran" bundle --root "$work" --entry character:Answer \
-        -o "$work/$input.zib" "$source"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$source"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         output="$work/$input-$target"
         "$ziran" build "--target=$target" --root "$work" \
@@ -60,7 +60,7 @@ for input in source saved; do
         esac
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/bad.zi" <<'ZI'
 Answer :: () -> s64 { return #char "AB" }

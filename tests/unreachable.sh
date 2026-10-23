@@ -29,11 +29,11 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry flow:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     "$ziran" bundle --root "$root" --entry flow:Trap \
-        -o "$work/trap-$input.zib" "$module"
-    if "$ziran" run "$work/trap-$input.zib" 2> "$work/trap.err"; then
+        -o "$work/trap-$input.zx" "$module"
+    if "$ziran" run "$work/trap-$input.zx" 2> "$work/trap.err"; then
         echo 'unreachable path unexpectedly returned' >&2
         exit 1
     fi
@@ -72,4 +72,4 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

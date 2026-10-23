@@ -16,7 +16,7 @@ for command in check ir bundle; do
         check) set -- check --root "$work" "$work/ffi.zi" ;;
         ir) set -- ir --root "$work" -o "$work/ir" "$work/ffi.zi" ;;
         bundle) set -- bundle --root "$work" --entry ffi:Read \
-            -o "$work/ffi.zib" "$work/ffi.zi" ;;
+            -o "$work/ffi.zx" "$work/ffi.zi" ;;
     esac
     if "$ziran" "$@" 2> "$work/$command.err"; then
         echo "$command accepted a C header import" >&2

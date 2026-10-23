@@ -52,8 +52,8 @@ for form in source saved; do
     root=$work
     file=$work/app.zi
     if test "$form" = saved; then root=$work/ir; file=$root/app.zir; fi
-    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zib" "$file"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zx" "$file"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     for target in c cpp; do
         out=$work/$form-$target
         "$ziran" build --target="$target" --root "$root" -o "$out" "$file"
@@ -102,7 +102,7 @@ RS
         echo 'assembly leaked into Plan 9 output' >&2; exit 1
     fi
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source-c/app.c" "$work/saved-c/app.c"
 cmp "$work/source-cpp/app.cpp" "$work/saved-cpp/app.cpp"
 

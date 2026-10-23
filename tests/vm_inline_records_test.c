@@ -84,7 +84,7 @@ int main(int argc, char **argv)
     FILE *input = fopen(argv[1], "rb");
     assert(input != NULL);
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module),
                                      entry, sizeof(entry), &laws, NULL);
     fclose(input);
@@ -99,7 +99,7 @@ int main(int argc, char **argv)
     }
     VmInstanceClose(instance);
     free(extra_types);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     return 0;
 }

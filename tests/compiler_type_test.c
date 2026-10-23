@@ -245,7 +245,7 @@ int main(void)
     assert(compiler_type_ProcedureTypeSupported(text("rust"), true));
     assert(!compiler_type_ProcedureTypeSupported(text("go"), true));
     assert(compiler_type_ProcedureTypeSupported(text("go"), false));
-    assert(!compiler_type_ProcedureTypeSupported(text("zib"), true));
+    assert(!compiler_type_ProcedureTypeSupported(text("zx"), true));
     assert(!compiler_type_ProcedureTypeSupported((String){0}, false));
     assert(BuiltinTypeName("s64") && !BuiltinTypeName("integer") && !BuiltinTypeName(NULL));
     assert(MapPrimitiveName("MapGet") && !MapPrimitiveName("MapGetX") && !MapPrimitiveName(NULL));

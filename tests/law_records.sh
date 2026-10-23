@@ -84,8 +84,8 @@ grep -q '"status":"disproved"' "$work/false.json"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/records.zi"
 "$ziran" check --root "$work/ir" "$work/ir/records.zir" > "$work/saved.json"
 cmp "$work/laws.json" "$work/saved.json"
-"$ziran" bundle --root "$work" --entry records:Answer -o "$work/records.zib" "$work/records.zi"
-test "$("$ziran" run "$work/records.zib")" = 42
+"$ziran" bundle --root "$work" --entry records:Answer -o "$work/records.zx" "$work/records.zi"
+test "$("$ziran" run "$work/records.zx")" = 42
 "$ziran" build --target=c --no-main --root "$work" -o "$work/c" "$work/records.zi"
 cat > "$work/c/main.c" <<'C'
 #include "records.h"

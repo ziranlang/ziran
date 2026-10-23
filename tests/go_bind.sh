@@ -118,8 +118,8 @@ GO
     result=0
     "$work/$form-entry-bin" || result=$?
     test "$result" = 42
-    "$ziran" bundle --root "$work" --module-path std --entry binding:Answer -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$work" --module-path std --entry binding:Answer -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     "$ziran" build --target=c --exe --root "$work" --module-path std --entry binding:Answer -o "$work/$form-c" "$input"
     result=0
     "$work/$form-c/binding" || result=$?
@@ -134,7 +134,7 @@ GO
             exit 1
         fi
     done
-    if "$ziran" bundle --root "$work" --module-path std --entry binding:BindEntry -o "$work/rejected.zib" "$input" > "$work/rejected.log" 2>&1; then
+    if "$ziran" bundle --root "$work" --module-path std --entry binding:BindEntry -o "$work/rejected.zx" "$input" > "$work/rejected.log" 2>&1; then
         echo "reachable Go bind accepted by portable bundle" >&2
         exit 1
     fi

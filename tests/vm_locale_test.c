@@ -23,7 +23,7 @@ main(int argc, char **argv)
                                     "es_ES.UTF-8", "es_ES.utf8", "fr_FR.UTF-8", "fr_FR.utf8",
                                     "pt_BR.UTF-8", "pt_BR.utf8", NULL};
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     long long result = -1;
     int has_result = 0;
     const char *selected = NULL;
@@ -50,7 +50,7 @@ main(int argc, char **argv)
         return 1;
     }
     VmInstanceClose(instance);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     return 0;
 }

@@ -29,16 +29,16 @@ main :: () -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry common:main \
-    --asset-dir "shared=$work/shared" -o "$work/common.zib" "$work/common.zi"
-"$ziran" bundle --root "$work" --entry app:main --library "$work/common.zib" \
-    -o "$work/thin.zib" "$work/app.zi"
-"$ziran" bundle --root "$work" --entry app:main --include-library "$work/common.zib" \
-    -o "$work/standalone.zib" "$work/app.zi"
+    --asset-dir "shared=$work/shared" -o "$work/common.zx" "$work/common.zi"
+"$ziran" bundle --root "$work" --entry app:main --library "$work/common.zx" \
+    -o "$work/thin.zx" "$work/app.zi"
+"$ziran" bundle --root "$work" --entry app:main --include-library "$work/common.zx" \
+    -o "$work/standalone.zx" "$work/app.zi"
 python3 - "$work" <<'PY'
 from pathlib import Path
 import sys
 for name in ('common', 'thin', 'standalone'):
-    data=(Path(sys.argv[1])/(name+'.zib')).read_bytes()
+    data=(Path(sys.argv[1])/(name+'.zx')).read_bytes()
     assert b'LIBRARY_NATIVE_FN' not in data and b'LIBRARY_NATIVE_BLOCK' not in data
 PY
 mkdir -p "$work/wrong"
@@ -54,7 +54,7 @@ main :: () -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work/wrong" --entry common:main \
-    -o "$work/wrong.zib" "$work/wrong/common.zi"
+    -o "$work/wrong.zx" "$work/wrong/common.zi"
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" "$repo/tests/bundle_libraries_test.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -lpthread -o "$work/test"
-"$work/test" "$work/common.zib" "$work/thin.zib" "$work/standalone.zib" "$work/wrong.zib"
+"$work/test" "$work/common.zx" "$work/thin.zx" "$work/standalone.zx" "$work/wrong.zx"

@@ -137,7 +137,7 @@ most four procedures scan directly without cache or graph-visit storage.
 
 ## Paired checking and body eligibility
 
-Preserve `ziran`, `zi2zir`, `zi2c` and `zi2zib` together before changing the
+Preserve `ziran`, `zi2zir`, `zi2c` and `zi2zx` together before changing the
 compiler, then run:
 
 ```sh
@@ -165,7 +165,7 @@ general Go/C performance parity.
 
 ## Repeated portable execution
 
-Before changing the runtime, preserve `zi2zir`, `zi2zib` and `libziran.a` together
+Before changing the runtime, preserve `zi2zir`, `zi2zx` and `libziran.a` together
 in a stable baseline directory. Then run:
 
 ```sh
@@ -350,7 +350,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/host_capabilities.py \
   --before-dir build/host-capabilities/before --out build/benchmarks/host-capabilities
 ```
 
-Preserve `zi2zib` and `libziran.a` before changing the runtime. The default uses
+Preserve `zi2zx` and `libziran.a` before changing the runtime. The default uses
 1, 16, 64 and 256 host capabilities, nine paired process samples and nine fresh
 instances after discarded process/instance warmups. Each instance executes 32
 rounds of every capability. Callbacks check their names, contexts, arguments and
@@ -368,7 +368,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/bundle_instances.py \
   --before-dir build/bundle-runtime/before --out build/benchmarks/bundle-instances
 ```
 
-The preserved directory contains `zi2zib` and `libziran.a`. Scalar, 256-member
+The preserved directory contains `zi2zx` and `libziran.a`. Scalar, 256-member
 enum and 64-module fixtures use independent Python integer oracles. Both
 compilers must produce identical bundle bytes. Nine interleaved process samples
 per version follow a process warmup; each process measures 49 fresh instances
@@ -396,7 +396,7 @@ prove a memory reduction. Reuse the stable output after preserving receipts
 and checking that old outputs are inactive.
 
 `bench/vm_startup.py` compares two preserved compiler/runtime builds. Before
-changing the compiler, keep its `zi2zir`, `zi2zib`, optional `ziran` launcher,
+changing the compiler, keep its `zi2zir`, `zi2zx`, optional `ziran` launcher,
 and `libziran.a` in a stable baseline directory. Do not replace that baseline
 while a comparison is running. The current tools default to `build/bin`, with
 the current library in `build/libziran.a`.
@@ -410,7 +410,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vm_startup.py \
   --out build/vm-performance/comparison \
   --case modules128 \
     build/benchmarks/compiler-scaling/modules-128/source/program.zi \
-    build/benchmarks/compiler-scaling/modules-128/source/program.zib 130048
+    build/benchmarks/compiler-scaling/modules-128/source/program.zx 130048
 ```
 
 Each `--case` names a source file, its bundle, and an independently derived
@@ -447,7 +447,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/assembly.py \
 ```
 
 The byte-swap recurrence compares source and saved IR with native assembly,
-forced Ziran fallback, handwritten C and Go, and the `.zib` fallback. Every
+forced Ziran fallback, handwritten C and Go, and the `.zx` fallback. Every
 sample is checked against a separate Python oracle; emitted source and bundles
 must agree between source and saved IR. On x86_64 the harness also checks for
 a `bswap` instruction in the native binary. The fixture includes an AArch64
@@ -524,7 +524,7 @@ requires GCC, G++, Go and the Ziran tools. Rust, Java and Node comparisons are
 included when their toolchains are present, and absences are recorded.
 
 One integer recurrence is built from source and saved IR to C, C++, Go, and
-portable `.zib`. The harness checks that generated source and bundles match,
+portable `.zx`. The harness checks that generated source and bundles match,
 and validates every runtime result against an independent modular-series
 oracle before reporting times. It separately measures Ziran check/emission,
 downstream native compilation, and whole-process execution. Runtime cases are
@@ -552,7 +552,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vector_growth.py
 ```
 
 This measures source and saved-IR checks and emissions to C, C++, Go, and
-portable `.zib`, downstream native builds, and whole-process execution.
+portable `.zx`, downstream native builds, and whole-process execution.
 Handwritten C, C++, Go, Rust, Java, JavaScript, and Python versions provide
 algorithm-level comparisons when their toolchains are installed; unavailable
 tools are recorded explicitly. The checksum uses a closed-form arithmetic
@@ -578,7 +578,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/record_calls.py
 Each round updates all records through a checked `Mix(Point, Point, s32, s32)`
 call and accumulates a signed 64-bit checksum with wrapping `s32` field
 arithmetic. The harness measures source and saved IR through C, C++, Go, Rust when Cargo is
-installed, and portable `.zib`, downstream native builds, and whole-process execution.
+installed, and portable `.zx`, downstream native builds, and whole-process execution.
 Handwritten C, C++, Go, Rust, Java, JavaScript, and Python versions participate
 when installed. Every sample must match an independent Python oracle; source
 and saved-IR generated output and bundles are checked for equality. The VM runs
@@ -606,7 +606,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/text_scan.py
 
 The text has 10 bytes and 4 Unicode scalar values; every runtime sample must
 return `148921 * rounds`. The harness compares Ziran source and saved IR to
-C, C++, Go, Plan 9 C, and `.zib`, plus handwritten C, C++, Go, Rust, Java,
+C, C++, Go, Plan 9 C, and `.zx`, plus handwritten C, C++, Go, Rust, Java,
 JavaScript, and Python when installed. It validates generated-source and
 bundle equality, compares canonical Plan 9 dispatcher output with direct
 `zi2c --target=plan9-c`, and records unavailable tools rather than estimating

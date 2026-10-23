@@ -40,10 +40,10 @@ def main():
              ('library', library, library / entry.name)]
     records = []
     for form, root, input_file in forms:
-        bundle = WORK / (form + '.zib')
+        bundle = WORK / (form + '.zx')
         run([ZIRAN, 'bundle', '--root', root, '--entry', 'generic_assembly_test:Answer', '-o', bundle, input_file])
         run([ZIRAN, 'run', bundle], expected=42)
-        records.append(dict(form=form, target='zib'))
+        records.append(dict(form=form, target='zx'))
         for target in ('c', 'cpp', 'rust', 'go', 'py', 'plan9-c'):
             output = WORK / (form + '-' + target)
             run([ZIRAN, 'build', '--target=' + target, '--root', root,
@@ -86,7 +86,7 @@ def main():
             else:
                 run(['python3', '-c', 'import runpy; assert runpy.run_path(' + repr(str(output / '__init__.py')) + ')["Answer"]()==42'])
                 records.append(dict(form=form, target=target))
-    assert (WORK / 'source.zib').read_bytes() == (WORK / 'saved.zib').read_bytes()
+    assert (WORK / 'source.zx').read_bytes() == (WORK / 'saved.zx').read_bytes()
     # Reject malformed unused declarations before specialization, then reject
     # bad concrete operands and broken portable bodies even when asm is valid.
     cases = [

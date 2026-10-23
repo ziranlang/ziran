@@ -27,9 +27,9 @@ Answer :: () -> s64 {
 }
 ZI
 "$ziran" ir --root "$work" --module-path "$repo/std" -o "$work/ir" "$work/consumer.zi"
-"$ziran" bundle --root "$work" --module-path "$repo/std" --entry consumer:Answer -o "$work/source.zib" "$work/consumer.zi"
-"$ziran" bundle --root "$work/ir" --module-path "$work/ir" --entry consumer:Answer -o "$work/saved.zib" "$work/ir/consumer.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+"$ziran" bundle --root "$work" --module-path "$repo/std" --entry consumer:Answer -o "$work/source.zx" "$work/consumer.zi"
+"$ziran" bundle --root "$work/ir" --module-path "$work/ir" --entry consumer:Answer -o "$work/saved.zx" "$work/ir/consumer.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 echo 'Imported owned field stays canonical after pruning its local type shadow'

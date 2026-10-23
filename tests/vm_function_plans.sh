@@ -32,8 +32,8 @@ for form in source saved; do
     root=$work
     if test "$form" = saved; then input=$work/ir/vm_function_plans_test.zir; root=$work/ir; fi
     "$ziran" bundle --root "$root" --module-path "$repo/std" --entry vm_function_plans_test:Answer \
-        -o "$work/$form.zib" "$input"
-    "$work/test" "$work/$form.zib"
+        -o "$work/$form.zx" "$input"
+    "$work/test" "$work/$form.zx"
     for target in c cpp go; do
         output=$work/$target-$form
         "$ziran" build --target="$target" --root "$root" --module-path "$repo/std" -o "$output" "$input"
@@ -55,4 +55,4 @@ GO
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

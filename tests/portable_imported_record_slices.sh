@@ -48,8 +48,8 @@ ZI
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/main.zi"
 for input in "$work/main.zi" "$work/ir/main.zir"; do
-    "$ziran" bundle --root "$work" --entry main:Answer -o "$work/check.zib" "$input"
-    test "$("$ziran" run "$work/check.zib")" = 42
+    "$ziran" bundle --root "$work" --entry main:Answer -o "$work/check.zx" "$input"
+    test "$("$ziran" run "$work/check.zx")" = 42
 done
 
 cat > "$work/other.zi" <<'ZI'

@@ -1,7 +1,7 @@
 #!/bin/sh
 # New(T) allocates a zeroed T and returns *T; free(p) releases it and
 # ignores null. A linked list built with New runs the same on C, C++, Go,
-# Rust, Python, and .zib from source and saved IR. The portable runner stops cleanly on
+# Rust, Python, and .zx from source and saved IR. The portable runner stops cleanly on
 # a read after free and on a second free. A procedure or foreign procedure
 # of the program's own named New or free still wins over the built-in.
 set -eu
@@ -64,8 +64,8 @@ ZI
 run_fails() {
     name=$1
     cat > "$work/$name.zi"
-    "$ziran" bundle --root "$work" --entry "$name:main" -o "$work/$name.zib" "$work/$name.zi"
-    if "$ziran" run "$work/$name.zib" > "$work/$name.out" 2>&1; then
+    "$ziran" bundle --root "$work" --entry "$name:main" -o "$work/$name.zx" "$work/$name.zi"
+    if "$ziran" run "$work/$name.zx" > "$work/$name.out" 2>&1; then
         echo "$name: ran" >&2
         exit 1
     fi
@@ -95,8 +95,8 @@ reject not_pointer 'free takes one pointer from New' <<'ZI'
 main :: () { x: s32 = 1; free(x); }
 ZI
 
-"$ziran" bundle --root "$work" --entry own:Answer -o "$work/own.zib" "$work/own.zi"
-test "$("$ziran" run "$work/own.zib")" = 42
+"$ziran" bundle --root "$work" --entry own:Answer -o "$work/own.zx" "$work/own.zi"
+test "$("$ziran" run "$work/own.zx")" = 42
 
 # A foreign free, such as C's, is called as declared.
 cat > "$work/foreign.zi" <<'ZI'
@@ -118,8 +118,8 @@ for input in source saved; do
         module=$work/ir/app.zir
         root=$work/ir
     fi
-    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     output="$work/c-$input"
     "$ziran" build --target=c --exe --entry app:Answer --root "$root" -o "$output" "$module"
     status=0
@@ -154,7 +154,7 @@ GO
         test "$status" = 42
     fi
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 # Python aliases share the allocation, so a freed scalar cannot be read or
 # freed a second time. Never run these invalid raw-pointer cases natively.

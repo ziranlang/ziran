@@ -14,9 +14,9 @@ import sys
 
 item = json.loads(Path(sys.argv[1]).read_text())
 assert item['schema_version'] == 1
-assert item['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zib', 'plan9-c']
+assert item['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zx', 'plan9-c']
 assert item['tier'] == {'c': 'primary', 'cpp': 'secondary', 'go': 'secondary',
-                        'rust': 'secondary', 'py': 'secondary', 'zib': 'primary',
+                        'rust': 'secondary', 'py': 'secondary', 'zx': 'primary',
                         'plan9-c': 'experimental'}
 assert item['parallel_execution']['rust'] == 'serial'
 assert item['text_view_mutable_bytes']['rust'] == 'borrowed'
@@ -34,13 +34,13 @@ manifest = json.loads((Path(sys.argv[2]) / 'tests/numeric_conformance.json').rea
 numeric = item['numeric_conformance']
 assert numeric['schema_version'] == 1
 assert numeric['stability'] == 'stable-id'
-assert numeric['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zib']
+assert numeric['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zx']
 assert numeric['ids'] == [case['id'] for case in manifest['cases']]
 assert len(numeric['ids']) == len(set(numeric['ids']))
 assert item['diagnostics_json'] == 'partial'
 PY
 
-for target in c cpp go rust py zib plan9-c; do
+for target in c cpp go rust py zx plan9-c; do
     "$ziran" capabilities "--target=$target" --json > "$work/$target.json"
     python3 - "$work/$target.json" "$target" \
             "$repo/tests/numeric_conformance.json" <<'PY'
@@ -57,7 +57,7 @@ assert item['parallel_execution'] == ('threads' if threads else 'serial')
 if target in ('rust', 'py'):
     assert 'target_contract' not in item
 borrowed = target in ('c', 'cpp', 'rust', 'plan9-c')
-assert item['tier'] == ('primary' if target in ('c', 'zib') else
+assert item['tier'] == ('primary' if target in ('c', 'zx') else
                         'experimental' if target == 'plan9-c' else 'secondary')
 assert item['text_view_mutable_bytes'] == ('borrowed' if borrowed else 'snapshot')
 assert item['source_and_saved_ir'] is True

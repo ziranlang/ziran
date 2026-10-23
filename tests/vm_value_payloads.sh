@@ -16,8 +16,8 @@ for form in source saved; do
     module=$source; root="$repo/tests/spec"
     if test "$form" = saved; then module="$work/ir/vm_value_payloads_test.zir"; root="$work/ir"; fi
     "$ziran" bundle --root "$root" --entry vm_value_payloads_test:Answer \
-        -o "$work/$form.zib" "$module"
-    "$work/vm-test" "$work/$form.zib"
+        -o "$work/$form.zx" "$module"
+    "$work/vm-test" "$work/$form.zx"
     for target in c cpp go; do
         output="$work/$target-$form"
         "$ziran" build --target="$target" --root "$root" -o "$output" "$module"
@@ -74,4 +74,4 @@ C
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

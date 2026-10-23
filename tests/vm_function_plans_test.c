@@ -68,7 +68,7 @@ main(int argc, char **argv)
 {
     assert(argc == 2);
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     FILE *input = fopen(argv[1], "rb");
     assert(input != NULL);
     ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module),
@@ -147,7 +147,7 @@ main(int argc, char **argv)
     VmSignature *signature = vm_signature(&compiled->vm, owner, fallback);
     assert(signature->scalar_checked && signature->scalar_plan == NULL);
     VmInstanceClose(compiled);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     puts("Procedure plans preserve changing inputs, scoped and named control flow, errors and every step limit");
     return 0;

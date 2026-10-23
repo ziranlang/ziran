@@ -41,8 +41,8 @@ done
 printf '127\n100\n' > "$work/expected"
 
 "$ziran" check --root "$work" "$work/deep.zi"
-"$ziran" bundle --root "$work" --entry deep:main -o "$work/deep.zib" "$work/deep.zi"
-"$ziran" run "$work/deep.zib" > "$work/vm.out"
+"$ziran" bundle --root "$work" --entry deep:main -o "$work/deep.zx" "$work/deep.zi"
+"$ziran" run "$work/deep.zx" > "$work/vm.out"
 
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/deep.zi"
 printf '#include "deep.h"\nint main(void) { deep_main(); return 0; }\n' > "$work/c/run.c"

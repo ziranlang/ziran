@@ -39,8 +39,8 @@ for input in source saved; do
         module=$work/ir/app.zir
         root=$work/ir
     fi
-    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = "$expected
+    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = "$expected
 42"
     output="$work/c-$input"
     "$ziran" build --target=c --exe --entry app:Answer --root "$root" -o "$output" "$module"
@@ -61,4 +61,4 @@ func main() { if App_Answer() != 42 { panic("wrong result") } }
 GO
     test "$(GO111MODULE=off go run "$output"/*.go)" = "$expected"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

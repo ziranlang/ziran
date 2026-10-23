@@ -42,8 +42,8 @@ for input in source saved; do
         file=$work/ir/app.zir
     fi
     "$ziran" bundle --root "$root" --entry app:Answer \
-        -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         out="$work/$target-$input"
         if test "$target" = go; then
@@ -75,7 +75,7 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/field_type.zi" <<'ZI'
 Point :: struct { x: s64; }

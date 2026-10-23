@@ -18,7 +18,7 @@ for form in source saved; do
     if test "$form" = saved; then module="$work/ir/vm_nested_collection_test.zir"; root="$work/ir"; fi
     for entry in main Memory; do
         "$ziran" bundle --root "$root" --module-path "$repo/std" --entry "vm_nested_collection_test:$entry" \
-            -o "$work/$form-$entry.zib" "$module"
-        "$work/vm-test" "$work/$form-$entry.zib"
+            -o "$work/$form-$entry.zx" "$module"
+        "$work/vm-test" "$work/$form-$entry.zx"
     done
 done

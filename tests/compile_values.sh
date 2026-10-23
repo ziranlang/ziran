@@ -90,11 +90,11 @@ if rg -a -q '#run|#ifx|Missing' "$work/ir/app.zir"; then
     exit 1
 fi
 "$ziran" bundle --root "$work" --entry app:Answer \
-    -o "$work/source.zib" "$work/app.zi"
+    -o "$work/source.zx" "$work/app.zi"
 "$ziran" bundle --root "$work/ir" --entry app:Answer \
-    -o "$work/saved.zib" "$work/ir/app.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/app.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 for input in source saved; do
     if test "$input" = source; then

@@ -40,8 +40,8 @@ for input in source saved; do
         set -- "$work/ir/inferred.zir"
     fi
     "$ziran" bundle --root "$work" --entry inferred:Answer \
-        -o "$work/$input.zib" "$@"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$@"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         out="$work/$input-$target"
         if test "$target" = go; then
@@ -76,7 +76,7 @@ GO
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/no_context.zi" <<'ZI'
 Answer :: () {

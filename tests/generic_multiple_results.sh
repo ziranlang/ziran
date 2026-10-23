@@ -127,8 +127,8 @@ for input in source saved library; do
         library) root=$work/library-ir; source=$root/$fixture.zi ;;
     esac
     output=$work/$fixture-$input
-    "$ziran" bundle --root "$root" --entry "$fixture:main" -o "$output.zib" "$source"
-    "$ziran" run "$output.zib" > "$output.vm"
+    "$ziran" bundle --root "$root" --entry "$fixture:main" -o "$output.zx" "$source"
+    "$ziran" run "$output.zx" > "$output.vm"
     cmp "$work/expected" "$output.vm"
     "$ziran" build --target=c --exe --entry "$fixture:main" --root "$root" -o "$output/c" "$source"
     "$output/c/$fixture" > "$output.c"
@@ -151,7 +151,7 @@ for input in source saved library; do
         cmp "$work/expected" "$output.rust"
     fi
 done
-cmp "$work/$fixture-source.zib" "$work/$fixture-saved.zib"
+cmp "$work/$fixture-source.zx" "$work/$fixture-saved.zx"
 done
 
 cat > "$work/mismatch.zi" <<'ZI'

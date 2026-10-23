@@ -115,8 +115,8 @@ func main() {
 }
 GO
     GO111MODULE=off go run -race "$out"/*.go
-    "$ziran" bundle --entry scheduled:Answer --root "$root" --module-path std -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --entry scheduled:Answer --root "$root" --module-path std -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
 done
 cmp "$work/source-go/scheduled.go" "$work/saved-go/scheduled.go"
 for declaration in \

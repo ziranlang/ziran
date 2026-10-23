@@ -169,10 +169,10 @@ CPP
         "$out/app"
     done
     "$ziran" bundle --root "$scalar_root" --entry scalar:Overlap \
-        -o "$work/overlap-$input.zib" "$scalar"
-    test "$("$ziran" run "$work/overlap-$input.zib")" = 42
+        -o "$work/overlap-$input.zx" "$scalar"
+    test "$("$ziran" run "$work/overlap-$input.zx")" = 42
 done
-cmp "$work/overlap-source.zib" "$work/overlap-saved.zib"
+cmp "$work/overlap-source.zx" "$work/overlap-saved.zx"
 
 cat > "$work/badunion.zi" <<'ZI'
 BadUnion :: union {
@@ -186,7 +186,7 @@ Bad :: () -> s32 {
 }
 ZI
 if "$ziran" bundle --root "$work" --entry badunion:Bad \
-    -o "$work/badunion.zib" "$work/badunion.zi" \
+    -o "$work/badunion.zx" "$work/badunion.zi" \
     2> "$work/badunion.err"; then
     echo 'portable bundle accepted a non-scalar union field' >&2
     exit 1

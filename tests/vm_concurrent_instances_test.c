@@ -96,7 +96,7 @@ static void *run_worker(void *context)
 int main(int argc, char **argv)
 {
     assert(argc == 2 || (argc == 3 && strcmp(argv[2], "--bundle") == 0));
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     ZirProgram *loaded = NULL;
     if(argc == 3) {
         bundle = BundleOpen(argv[1]);
@@ -135,7 +135,7 @@ int main(int argc, char **argv)
         assert(workers[index].parameters == workers[0].parameters);
     }
     pthread_barrier_destroy(&ready);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     if(loaded != NULL) ProgramFree(loaded);
     if(bundle != NULL) BundleClose(bundle);
     puts("Concurrent immutable metadata growth and independent portable VM state passed");

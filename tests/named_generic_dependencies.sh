@@ -107,8 +107,8 @@ for input in source saved; do
         source=$work/ir/app.zir
     fi
     output=$work/$input
-    "$ziran" bundle --root "$root" --entry app:main -o "$output.zib" "$source"
-    "$ziran" run "$output.zib" > "$output.vm"
+    "$ziran" bundle --root "$root" --entry app:main -o "$output.zx" "$source"
+    "$ziran" run "$output.zx" > "$output.vm"
     cmp "$work/expected" "$output.vm"
     "$ziran" build --target=c --exe --entry app:main --root "$root" -o "$output/c" "$source"
     "$output/c/app" > "$output.c"
@@ -141,7 +141,7 @@ for input in source saved; do
         exit 1
     fi
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/rejected.zi" <<'ZI'
 Library :: #import "lib"

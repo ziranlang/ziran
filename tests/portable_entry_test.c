@@ -47,7 +47,7 @@ int main(int argc, char **argv)
     BundleClose(bundle);
     rewind(input);
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module),
                                     entry, sizeof(entry), &laws, NULL);
     fclose(input);
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
     check(result, present, expected, has_result);
     assert(VmRunBounded(program, module, entry, NULL, NULL, 1000, &result, &present));
     check(result, present, expected, has_result);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     return 0;
 }

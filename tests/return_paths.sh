@@ -113,8 +113,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry flow:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 640
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 640
     output="$work/c-$input"
     "$ziran" build --target=c --root "$root" -o "$output" "$module"
     cat > "$output/main.c" <<'C'
@@ -131,4 +131,4 @@ func main() { if Flow_Answer() != 640 { panic("wrong result") } }
 GO
     GO111MODULE=off go run "$output"/*.go
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

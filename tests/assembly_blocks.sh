@@ -164,8 +164,8 @@ C
 for form in source saved; do
     root=$work; input=$work/blocks.zi
     if test "$form" = saved; then root=$work/ir; input=$root/blocks.zir; fi
-    "$ziran" bundle --root "$root" --entry blocks:Answer -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$root" --entry blocks:Answer -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     for target in c cpp; do
         output=$work/$form-$target
         "$ziran" build --target="$target" --root "$root" -o "$output" "$input"
@@ -209,7 +209,7 @@ for form in source saved; do
     printf 'fn main() { assert_eq!(ziran_generated::Answer(), 42); }\n' > "$work/$form-rust/src/main.rs"
     cargo run --quiet --offline --manifest-path "$work/$form-rust/Cargo.toml"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source-c/blocks.c" "$work/saved-c/blocks.c"
 cmp "$work/source-cpp/blocks.cpp" "$work/saved-cpp/blocks.cpp"
 

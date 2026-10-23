@@ -8,7 +8,7 @@ An ordinary procedure can supply architecture-specific assembly and a required
 Ziran implementation. C/C++ output selects assembly when built by GCC or Clang
 for that architecture. Rust translates supported operands and templates to
 `core::arch::asm!`. Go can opt into native assembly through cgo as described
-below. Other compilers, Plan 9 C, Python, and `.zib` use the
+below. Other compilers, Plan 9 C, Python, and `.zx` use the
 checked Ziran body. Define `ZIRAN_NO_ASM` when compiling generated C/C++, or
 set `RUSTFLAGS="--cfg ziran_no_asm"` for Cargo, to force the portable body.
 
@@ -95,7 +95,7 @@ and [ARM64 hardware capabilities](https://www.kernel.org/doc/html/latest/arch/ar
 Assembly and the fallback must implement the same behavior; checking the
 fallback does not prove their equivalence. These variants do not yet provide
 `asm goto`, naked functions, standalone assembler files, or direct Go ABI
-assembler output. Saved IR preserves the variants; `.zib`
+assembler output. Saved IR preserves the variants; `.zx`
 executes only portable code. Rebuild older IR/bundles with the current compiler.
 
 Generated Go packages use their checked Go implementation by default. Enable
@@ -162,7 +162,7 @@ already recognize many byte swaps and arithmetic patterns.
 forced fallback, an optional previous compiler, generated C and handwritten
 Rust/C controls. It validates every sample against an independent integer oracle.
 Use `--generic` to instantiate those kernels through type parameters; both
-whole-loop and per-call cases also verify their portable `.zib` result.
+whole-loop and per-call cases also verify their portable `.zx` result.
 Use `--alternatives` to benchmark paired register constraints against forced
 fallback and an optional preserved compiler that falls back for alternatives.
 The loop templates retain their original GNU `%=` labels. Baseline lowering
@@ -224,7 +224,7 @@ another positive worker count.
 ## Compiler commands
 
 The compiler commands are `zi2zir` (including
-`--check-only`), `zi2c`, `zi2cpp`, `zi2go`, `zi2rust`, `zi2py`, and `zi2zib`.
+`--check-only`), `zi2c`, `zi2cpp`, `zi2go`, `zi2rust`, `zi2py`, and `zi2zx`.
 `zi-fmt` formats source. `ziran guide` prints a short reference from the
 installed compiler, including current safety and target limits.
 `ziran capabilities --target=go --json` reports a versioned machine-readable
@@ -1001,7 +1001,7 @@ target's native `Map(K, V)` from `std/map_go` is separate and keeps its
 `std/text.zi` supplies ASCII case folding, prefix matching, and substring
 matching over immutable UTF-8 strings. Non-ASCII bytes compare unchanged. These
 functions use only portable Ziran operations, so the same source builds for C,
-C++, Go, and `.zib`. Add `--module-path std` when importing it from an app.
+C++, Go, and `.zx`. Add `--module-path std` when importing it from an app.
 `std/string_range.zi` provides `Substring(source, start, length)` over borrowed
 bytes, using Ziran's checked `source[low:high]` string range syntax. Choose
 UTF-8 codepoint boundaries when the result must remain valid text.

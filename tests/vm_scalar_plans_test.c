@@ -185,7 +185,7 @@ int main(int argc, char **argv)
     check_short_plans();
     check_literal_eviction();
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     FILE *input = fopen(argv[1], "rb");
     assert(input != NULL);
     ZirProgram *program = BundleRead(input, argv[1], module, sizeof(module), entry,
@@ -234,7 +234,7 @@ int main(int argc, char **argv)
     int present = 0;
     assert(VmInstanceRun(second, &answer, &present) && present && answer == 42);
     VmInstanceClose(second);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     puts("Scalar plans preserve branches, numeric coercion, current values and independent lifetimes");
     return 0;

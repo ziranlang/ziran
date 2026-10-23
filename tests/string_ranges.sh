@@ -7,14 +7,14 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 "$ziran" check --root tests/spec --module-path std tests/spec/std_string.zi
 "$ziran" bundle --root tests/spec --module-path std \
-    --entry std_string:main -o "$work/source.zib" tests/spec/std_string.zi
+    --entry std_string:main -o "$work/source.zx" tests/spec/std_string.zi
 "$ziran" ir --root tests/spec --module-path std \
     -o "$work/ir" tests/spec/std_string.zi
 "$ziran" bundle --root "$work/ir" --module-path "$work/ir" \
-    --entry std_string:main -o "$work/saved.zib" "$work/ir/std_string.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 0
-test "$("$ziran" run "$work/saved.zib")" = 0
+    --entry std_string:main -o "$work/saved.zx" "$work/ir/std_string.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 0
+test "$("$ziran" run "$work/saved.zx")" = 0
 
 "$ziran" build --target=c --root tests/spec --module-path std \
     -o "$work/c" tests/spec/std_string.zi
@@ -35,8 +35,8 @@ GO
 GO111MODULE=off go run "$work/go"/*.go
 
 "$ziran" bundle --root tests/spec --entry std_string_bad:main \
-    -o "$work/bad.zib" tests/spec/std_string_bad.zi
-if "$ziran" run "$work/bad.zib" 2> "$work/bad.err"; then
+    -o "$work/bad.zx" tests/spec/std_string_bad.zi
+if "$ziran" run "$work/bad.zx" 2> "$work/bad.err"; then
     echo 'out-of-range string slice unexpectedly ran' >&2
     exit 1
 fi

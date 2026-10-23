@@ -57,11 +57,11 @@ int main(void) { return Answer() == $expected ? 0 : 1; }
 EOF
         "${CXX:-c++}" -std=c++17 -O1 -I"$output" "$output"/*.cpp -o "$output/test"
         "$output/test"
-        "$tool_dir/zi2zib" bundle --root "$module_root" "$@" \
-            --entry main:Answer -o "$work/$platform-$form.zib" "$input"
-        test "$("$tool_dir/zi2zib" run "$work/$platform-$form.zib")" = "$expected"
+        "$tool_dir/zi2zx" bundle --root "$module_root" "$@" \
+            --entry main:Answer -o "$work/$platform-$form.zx" "$input"
+        test "$("$tool_dir/zi2zx" run "$work/$platform-$form.zx")" = "$expected"
     done
-    cmp "$work/$platform-source.zib" "$work/$platform-saved.zib"
+    cmp "$work/$platform-source.zx" "$work/$platform-saved.zx"
 done
 
 if "$tool_dir/zi2zir" --check-only --root "$work" \
@@ -71,9 +71,9 @@ if "$tool_dir/zi2zir" --check-only --root "$work" \
 fi
 
 for name in 'ANDROID-BUILD' '1ANDROID' ''; do
-    if "$tool_dir/zi2zib" bundle --root "$work" --entry main:Answer \
-        -o "$work/invalid.zib" --define "$name" "$work/main.zi" >/dev/null 2>&1; then
-        echo 'Zib accepted an invalid compiler definition' >&2
+    if "$tool_dir/zi2zx" bundle --root "$work" --entry main:Answer \
+        -o "$work/invalid.zx" --define "$name" "$work/main.zi" >/dev/null 2>&1; then
+        echo 'Zx accepted an invalid compiler definition' >&2
         exit 1
     fi
     if "$tool_dir/zi2cpp" --no-main --root "$work" -o "$work/invalid" \
@@ -82,9 +82,9 @@ for name in 'ANDROID-BUILD' '1ANDROID' ''; do
         exit 1
     fi
 done
-if "$tool_dir/zi2zib" bundle --root "$work" --entry main:Answer \
-    -o "$work/invalid.zib" --define >/dev/null 2>&1; then
-    echo 'Zib accepted --define without a name' >&2
+if "$tool_dir/zi2zx" bundle --root "$work" --entry main:Answer \
+    -o "$work/invalid.zx" --define >/dev/null 2>&1; then
+    echo 'Zx accepted --define without a name' >&2
     exit 1
 fi
 if "$tool_dir/zi2cpp" --no-main --root "$work" -o "$work/invalid" \
@@ -92,4 +92,4 @@ if "$tool_dir/zi2cpp" --no-main --root "$work" -o "$work/invalid" \
     echo 'C++ accepted --define without a name' >&2
     exit 1
 fi
-echo 'Compiler definitions: C generation and C++/Zib source/saved-IR execution passed'
+echo 'Compiler definitions: C generation and C++/Zx source/saved-IR execution passed'

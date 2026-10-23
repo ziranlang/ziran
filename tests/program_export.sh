@@ -18,11 +18,11 @@ ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/exported.zi"
 "$ziran" check --root "$work/ir" "$work/ir/exported.zir"
 "$ziran" bundle --root "$work" --entry exported:Answer \
-    -o "$work/source.zib" "$work/exported.zi"
+    -o "$work/source.zx" "$work/exported.zi"
 "$ziran" bundle --root "$work/ir" --entry exported:Answer \
-    -o "$work/saved.zib" "$work/ir/exported.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/exported.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 cat > "$work/main.c" <<'C'
 #include "exported.h"
@@ -130,8 +130,8 @@ for input in source saved; do
         file=$work/keywords-ir/keywords.zir
     fi
     "$ziran" bundle --root "$root" --entry keywords:Answer \
-        -o "$work/keywords-$input.zib" "$file"
-    test "$("$ziran" run "$work/keywords-$input.zib")" = 42
+        -o "$work/keywords-$input.zx" "$file"
+    test "$("$ziran" run "$work/keywords-$input.zx")" = 42
     for target in c cpp; do
         out="$work/keywords-$target-$input"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"
@@ -147,4 +147,4 @@ for input in source saved; do
         nm "$out/main" | grep -Eq ' T class$'
     done
 done
-cmp "$work/keywords-source.zib" "$work/keywords-saved.zib"
+cmp "$work/keywords-source.zx" "$work/keywords-saved.zx"

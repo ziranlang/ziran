@@ -173,7 +173,7 @@ for source in (identity, work / 'identity-ir/identity.zir'):
                     '-I' + str(native), *map(str, native.glob('*.c')),
                     '-o', str(native / 'test'), '-lm'], check=True)
     subprocess.run([str(native / 'test')], check=True)
-    bundle = work / 'identity.zib'
+    bundle = work / 'identity.zx'
     subprocess.run([ziran, 'bundle', '--root', str(work), '--entry', 'identity:CheckIdentity',
                     '-o', str(bundle), str(source)], check=True)
     result = subprocess.run([ziran, 'run', str(bundle)], capture_output=True, text=True, check=True)
@@ -213,7 +213,7 @@ safe.write_text(node + writer + '''
 subprocess.run([ziran, 'ir', '--root', str(work), '-o', str(work / 'ir'), str(safe)], check=True)
 for source in (safe, work / 'ir/safe.zir'):
     subprocess.run([ziran, 'check', '--root', str(work), str(source)], check=True)
-    bundle = work / 'safe.zib'
+    bundle = work / 'safe.zx'
     subprocess.run([ziran, 'bundle', '--root', str(work), '--entry', 'safe:Answer',
                     '-o', str(bundle), str(source)], check=True)
     result = subprocess.run([ziran, 'run', str(bundle)], capture_output=True, text=True, check=True)

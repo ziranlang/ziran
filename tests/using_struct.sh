@@ -42,12 +42,12 @@ ZI
 "$ziran" check --root "$work" "$work/app.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 "$ziran" bundle --root "$work" --entry app:Answer \
-    -o "$work/source.zib" "$work/app.zi"
+    -o "$work/source.zx" "$work/app.zi"
 "$ziran" bundle --root "$work/ir" --entry app:Answer \
-    -o "$work/saved.zib" "$work/ir/app.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/app.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 for input in "$work/app.zi" "$work/ir/app.zir"; do
     case "$input" in

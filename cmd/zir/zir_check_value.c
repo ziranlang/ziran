@@ -428,7 +428,7 @@ integer_constant(const ZirModule *module, const char *name, int64_t *value)
 }
 
 /* Resolve a literal string definition into the expression graph. The source
- * macro spelling must not become a backend dependency in saved .zir or .zib. */
+ * macro spelling must not become a backend dependency in saved .zir or .zx. */
 int
 bound_string_constant(const ZirModule *module, const char *name, int depth,
                       char *literal, size_t size)

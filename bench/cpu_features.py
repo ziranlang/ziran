@@ -162,7 +162,7 @@ def main():
         compiler=subprocess.check_output([cc, '--version'], text=True), measurement_launcher=launcher,
         input=dict(seed=SEED, small=args.small, large=args.large, assembly_form=args.assembly_form), discarded_warmups=1,
         compile_repetitions=args.compile_repetitions, run_repetitions=args.run_repetitions,
-        tools={name: digest(binaries/name) for name in ['zi2zir', 'zi2c', 'zi2zib']},
+        tools={name: digest(binaries/name) for name in ['zi2zir', 'zi2c', 'zi2zx']},
         source_hashes={str(p.relative_to(ROOT)): digest(p) for directory in ['cmd', 'std', 'include']
                        for p in (ROOT/directory).rglob('*') if p.is_file() and p.suffix in ['.c', '.h', '.zi']},
         caveats=['One dependent xorshift/popcount workload; not a language ranking.',
@@ -210,8 +210,8 @@ def main():
     for form, root, file in [('source', output, entry), ('saved', output/'ir', output/'ir/counts.zir')]:
         generated = output/form
         repeated([binaries/'zi2c', '--root', root, '-o', generated, file], f'{form} emit C')
-        repeated([binaries/'zi2zib', 'bundle', '--root', root, '--entry', 'counts:Answer',
-                  '-o', output/f'{form}.zib', file], f'{form} bundle')
+        repeated([binaries/'zi2zx', 'bundle', '--root', root, '--entry', 'counts:Answer',
+                  '-o', output/f'{form}.zx', file], f'{form} bundle')
         host = generated/'host.c'
         host.write_text('#include "counts.h"\n#include <stdio.h>\n#include <stdlib.h>\n'
             f'int main(int argc,char **argv){{if(argc!=2)return 1;printf("%llu\\n",'
@@ -223,7 +223,7 @@ def main():
             native.append((f'Ziran {form} {mode}', binary))
     for name in ['counts.c', 'counts.h']:
         assert (output/'source'/name).read_bytes() == (output/'saved'/name).read_bytes()
-    assert (output/'source.zib').read_bytes() == (output/'saved.zib').read_bytes()
+    assert (output/'source.zx').read_bytes() == (output/'saved.zx').read_bytes()
     reference = output/'reference.c'
     reference.write_text('''#include <stdint.h>
 #include <stdio.h>
@@ -283,7 +283,7 @@ int main(int argc,char **argv) {
         expected = oracle(n)
         commands = [(name, [binary, str(n)], expected) for name, binary in native]
         if n == args.small:
-            commands += [(f'Ziran {form} VM', [binaries/'zi2zib', 'run', output/f'{form}.zib'], expected)
+            commands += [(f'Ziran {form} VM', [binaries/'zi2zx', 'run', output/f'{form}.zx'], expected)
                          for form in ['source', 'saved']]
         for repetition in range(args.run_repetitions + 1):
             rng.shuffle(commands)

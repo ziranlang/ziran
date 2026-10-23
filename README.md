@@ -26,8 +26,8 @@ You need Make, a C11 compiler, and GNU binutils. From the repository root:
 ```sh
 make
 build/bin/ziran bundle --root site/examples --entry hello:main \
-  -o build/hello.zib site/examples/hello.zi
-build/bin/ziran run build/hello.zib
+  -o build/hello.zx site/examples/hello.zi
+build/bin/ziran run build/hello.zx
 ```
 
 This prints `Hello, World!`. To install the `ziran` command for your user, run
@@ -58,7 +58,7 @@ Use `build/bin/ziran` from the checkout, or `ziran` after installation.
 | `api` | Query public declarations as JSON. |
 
 Source files use `.zi`, checked modules use [`.zir`](docs/ZIR.md), and portable
-programs use [`.zib`](docs/ZIB.md). Native targets and the portable runner have
+programs use [`.zx`](docs/ZX.md). Native targets and the portable runner have
 different limits; the Plan 9 C target is experimental.
 
 When an existing native C file includes a generated Plan 9 header after

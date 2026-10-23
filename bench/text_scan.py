@@ -353,7 +353,7 @@ int main(int argc, char **argv) {{
 
 def main():
     required = [BIN / name for name in ['ziran', 'zi2zir', 'zi2c',
-                                          'zi2cpp', 'zi2go', 'zi2zib']]
+                                          'zi2cpp', 'zi2go', 'zi2zx']]
     missing = [str(path) for path in required if not path.is_file()]
     missing += [name for name in ['gcc', 'g++', 'go'] if not shutil.which(name)]
     if missing:
@@ -462,10 +462,10 @@ def main():
     if not shutil.which('9c'):
         meta['unsupported'].append('Plan 9 native execution: 9c unavailable')
     for kind, root, source in [('source', FIX, ZI), ('saved', IR, SAVED)]:
-        repeated([BIN / 'zi2zib', 'bundle', '--root', root,
+        repeated([BIN / 'zi2zx', 'bundle', '--root', root,
                   '--module-path', ROOT / 'std', '--entry', 'text_scan:Answer',
-                  '-o', OUT / f'{kind}.zib', source], 'ziran', f'{kind} to zib')
-    if (OUT / 'source.zib').read_bytes() != (OUT / 'saved.zib').read_bytes():
+                  '-o', OUT / f'{kind}.zx', source], 'ziran', f'{kind} to zx')
+    if (OUT / 'source.zx').read_bytes() != (OUT / 'saved.zx').read_bytes():
         raise AssertionError('source and saved bundles differ')
     comparisons = {
         'hand C': ['gcc', '-O2', '-std=c99', C, '-o', FIX / 'hand-c'],
@@ -498,8 +498,8 @@ def main():
         cases = list(runtime.items())
         if size == args.small:
             for kind in ['source', 'saved']:
-                cases.append((f'ziran VM ({kind})', [BIN / 'zi2zib', 'run',
-                                                     OUT / f'{kind}.zib']))
+                cases.append((f'ziran VM ({kind})', [BIN / 'zi2zx', 'run',
+                                                     OUT / f'{kind}.zx']))
         oracle = str(expected(size))
         for name, command in cases:
             arguments = [] if name.startswith('ziran VM') else [str(size)]
@@ -527,7 +527,7 @@ def main():
     meta['source_hashes_unchanged_during_measurement'] = before == source_hashes()
     meta['fixture_hashes'] = {str(p.relative_to(OUT)): hashlib.sha256(p.read_bytes()).hexdigest()
                               for p in FIX.iterdir() if p.is_file()}
-    products = [OUT / f'{kind}.zib' for kind in ['source', 'saved']]
+    products = [OUT / f'{kind}.zx' for kind in ['source', 'saved']]
     for target, extension in [('c', 'c'), ('cpp', 'cpp'), ('go', 'go')]:
         for kind in ['source', 'saved']:
             directory = OUT / f'{target}-{kind}'

@@ -86,11 +86,11 @@ def main():
         command = [cc, '-O2', '-std=c11', '-D_GNU_SOURCE', '-I', ROOT/'include', '-I', ROOT/'cmd/zir',
                    ROOT/'bench/vm_startup.c', library, '-lm', '-pthread', '-o', runner]
         subprocess.run([str(p) for p in command], cwd=ROOT, env=env, check=True, capture_output=True)
-        variants[label] = dict(runner=runner, checker=directory/'zi2zir', bundler=directory/'zi2zib',
+        variants[label] = dict(runner=runner, checker=directory/'zi2zir', bundler=directory/'zi2zx',
                                launcher=directory/'ziran')
         metadata['artifacts'][label] = dict(library=str(library), library_sha256=digest(library),
                                           runner_sha256=digest(runner), checker_sha256=digest(directory/'zi2zir'),
-                                          bundler_sha256=digest(directory/'zi2zib'),
+                                          bundler_sha256=digest(directory/'zi2zx'),
                                           compile_command=[str(p) for p in command])
     rows = []
 
@@ -125,7 +125,7 @@ def main():
         source, bundle, expected = Path(source).resolve(), Path(bundle).resolve(), int(expected)
         if not -(1 << 63) <= expected < (1 << 63): parser.error('expected results must fit s64')
         bundle_bytes = bundle.read_bytes()
-        if bundle_bytes[:4] != b'ZIB\0': parser.error('invalid bundle signature')
+        if bundle_bytes[:4] != b'ZX\0\0': parser.error('invalid bundle signature')
         cursor, entry_names = 8, []
         for _ in range(2):
             length, = struct.unpack_from('<I', bundle_bytes, cursor)
@@ -133,7 +133,7 @@ def main():
             entry_names.append(bundle_bytes[cursor:cursor + length].decode('utf-8'))
             cursor += length
         for label, variant in variants.items():
-            generated = output/f'case-{case_index}-{label}.zib'
+            generated = output/f'case-{case_index}-{label}.zx'
             subprocess.run([str(p) for p in [variant['bundler'], 'bundle', '--root', source.parent,
                            '--module-path', ROOT/'std', '--entry', ':'.join(entry_names),
                            '-o', generated, source]], cwd=ROOT, env=env, check=True, capture_output=True)

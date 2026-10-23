@@ -8,11 +8,11 @@ source="$repo/tests/spec/$module.zi"
 
 "$ziran" ir --root "$repo/tests/spec" --module-path "$repo/cmd" -o "$work/ir" "$source"
 "$ziran" bundle --root "$repo/tests/spec" --module-path "$repo/cmd" --entry "$module:Answer" \
-    -o "$work/answer.zib" "$source"
-test "$("$ziran" run "$work/answer.zib")" = 42
+    -o "$work/answer.zx" "$source"
+test "$("$ziran" run "$work/answer.zx")" = 42
 "$ziran" bundle --root "$repo/tests/spec" --module-path "$repo/cmd" --entry "$module:Fingerprint" \
-    -o "$work/fingerprint.zib" "$source"
-expected="42 $("$ziran" run "$work/fingerprint.zib")"
+    -o "$work/fingerprint.zx" "$source"
+expected="42 $("$ziran" run "$work/fingerprint.zx")"
 
 for input in "$source" "$work/ir/$module.zir"; do
     form=source
@@ -20,10 +20,10 @@ for input in "$source" "$work/ir/$module.zir"; do
     output="$work/$form"
     for entry in Answer Fingerprint; do
         "$ziran" bundle --root "$repo/tests/spec" --module-path "$repo/cmd" --entry "$module:$entry" \
-            -o "$work/$entry.zib" "$input"
+            -o "$work/$entry.zx" "$input"
         case "$entry" in
-            Answer) test "$("$ziran" run "$work/$entry.zib")" = 42 ;;
-            Fingerprint) test "42 $("$ziran" run "$work/$entry.zib")" = "$expected" ;;
+            Answer) test "$("$ziran" run "$work/$entry.zx")" = 42 ;;
+            Fingerprint) test "42 $("$ziran" run "$work/$entry.zx")" = "$expected" ;;
         esac
     done
     "$ziran" build --target=c --exe --entry "$module:Run" --root "$repo/tests/spec" \

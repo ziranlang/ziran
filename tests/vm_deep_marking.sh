@@ -21,8 +21,8 @@ for form in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry vm_deep_marking_test:Answer \
-        -o "$work/$form.zib" "$input"
-    "$work/test" "$work/$form.zib"
+        -o "$work/$form.zx" "$input"
+    "$work/test" "$work/$form.zx"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 echo 'Deep heap-pointer chains survive repeated collections and release their storage'

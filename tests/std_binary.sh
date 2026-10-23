@@ -13,11 +13,11 @@ cd "$repo"
 "$ziran" check --root tests/spec --module-path std tests/spec/std_binary.zi
 "$ziran" ir --root tests/spec --module-path std -o "$work/ir" tests/spec/std_binary.zi
 "$ziran" bundle --root tests/spec --module-path std \
-    --entry std_binary:SelfTest -o "$work/source.zib" tests/spec/std_binary.zi
+    --entry std_binary:SelfTest -o "$work/source.zx" tests/spec/std_binary.zi
 "$ziran" bundle --root "$work/ir" --module-path "$work/ir" \
-    --entry std_binary:SelfTest -o "$work/saved.zib" "$work/ir/std_binary.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
+    --entry std_binary:SelfTest -o "$work/saved.zx" "$work/ir/std_binary.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
 
 "$ziran" build --target=c --no-main --root tests/spec --module-path std -o "$work/c" tests/spec/std_binary.zi
 cat > "$work/compare.c" <<'C'

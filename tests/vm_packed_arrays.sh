@@ -16,15 +16,15 @@ for form in source saved; do
     module=$source; root="$repo/tests/spec"
     if test "$form" = saved; then module="$work/ir/vm_packed_arrays_test.zir"; root="$work/ir"; fi
     "$ziran" bundle --root "$root" --module-path "$repo/std" --entry vm_packed_arrays_test:Answer \
-        -o "$work/$form.zib" "$module"
-    "$work/vm-test" "$work/$form.zib"
+        -o "$work/$form.zx" "$module"
+    "$work/vm-test" "$work/$form.zx"
     "$ziran" bundle --root "$root" --module-path "$repo/std" --entry vm_packed_arrays_test:Capacity \
-        -o "$work/$form-Capacity.zib" "$module"
-    "$work/vm-test" "$work/$form-Capacity.zib"
+        -o "$work/$form-Capacity.zx" "$module"
+    "$work/vm-test" "$work/$form-Capacity.zx"
     for entry in PopInvalid ClearInvalid GrowthInvalid; do
         "$ziran" bundle --root "$root" --module-path "$repo/std" --entry "vm_packed_arrays_test:$entry" \
-            -o "$work/$form-$entry.zib" "$module"
-        if "$ziran" run "$work/$form-$entry.zib" > "$work/$form-$entry.out" 2>&1; then
+            -o "$work/$form-$entry.zx" "$module"
+        if "$ziran" run "$work/$form-$entry.zx" > "$work/$form-$entry.out" 2>&1; then
             echo "read invalid vector storage: $form $entry" >&2
             exit 1
         fi
@@ -68,4 +68,4 @@ C
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

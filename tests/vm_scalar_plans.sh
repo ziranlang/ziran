@@ -18,7 +18,7 @@ for form in source saved; do
     root=$repo/tests/spec
     if test "$form" = saved; then input=$work/ir/vm_scalar_plans_test.zir; root=$work/ir; fi
     "$ziran" bundle --root "$root" --entry vm_scalar_plans_test:Answer \
-        -o "$work/$form.zib" "$input"
-    "$work/test" "$work/$form.zib"
+        -o "$work/$form.zx" "$input"
+    "$work/test" "$work/$form.zx"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

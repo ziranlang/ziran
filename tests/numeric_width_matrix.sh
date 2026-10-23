@@ -10,8 +10,8 @@ for form in source saved; do
     root=$work
     input=$work/width_matrix.zi
     if [ "$form" = saved ]; then root=$work/ir; input=$work/ir/width_matrix.zir; fi
-    "$ziran" bundle --root "$root" --entry width_matrix:Answer -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$root" --entry width_matrix:Answer -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     for target in c cpp go rust py; do
         output=$work/$form-$target
         if [ "$target" = cpp ]; then

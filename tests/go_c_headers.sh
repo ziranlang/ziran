@@ -158,7 +158,7 @@ GO
             exit 1
         fi
     done
-    if "$ziran" bundle --root "$work" --entry policy:NativeEntry -o "$work/rejected.zib" "$input" > "$work/rejected.log" 2>&1; then
+    if "$ziran" bundle --root "$work" --entry policy:NativeEntry -o "$work/rejected.zx" "$input" > "$work/rejected.log" 2>&1; then
         echo 'reachable cgo header binding accepted by portable bundle' >&2
         exit 1
     fi
@@ -166,8 +166,8 @@ GO
     result=0
     "$work/$form-c/policy" || result=$?
     test "$result" = 42
-    "$ziran" bundle --root "$work" --entry policy:Answer -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$work" --entry policy:Answer -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 42
 done
 for file in types.go types.cgo.go types.nocgo.go other_types.go other_types.cgo.go other_types.nocgo.go policy.go policy.cgo.go policy.nocgo.go zi2go.cgo.go zi2go.nocgo.go; do
     cmp "$work/source-go/$file" "$work/saved-go/$file"

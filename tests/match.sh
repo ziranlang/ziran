@@ -92,13 +92,13 @@ for input in source saved; do
     # Paths from mktemp contain no whitespace on supported test systems.
     # shellcheck disable=SC2086
     "$ziran" bundle --root "$root" --entry app:Answer \
-        -o "$work/$input.zib" $modules
-    test "$("$ziran" run "$work/$input.zib")" = 156
+        -o "$work/$input.zx" $modules
+    test "$("$ziran" run "$work/$input.zx")" = 156
     # shellcheck disable=SC2086
     "$ziran" bundle --root "$root" --entry app:Invalid \
-        -o "$work/invalid-$input.zib" $modules
+        -o "$work/invalid-$input.zx" $modules
     expect_rejection 'invalid enum value unexpectedly matched' "$work/invalid.err" \
-        "$ziran" run "$work/invalid-$input.zib"
+        "$ziran" run "$work/invalid-$input.zx"
     grep -Fq 'unreachable code executed' "$work/invalid.err"
 
     for target in c cpp go; do
@@ -138,7 +138,7 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/through.zi" <<'ZI'
 Mode :: enum { First; Second; Third; Fourth; }
@@ -212,8 +212,8 @@ for input in source saved; do
         root=$work/through-ir
     fi
     "$ziran" bundle --root "$root" --entry through:Answer \
-        -o "$work/through-$input.zib" "$file"
-    test "$("$ziran" run "$work/through-$input.zib")" = 42
+        -o "$work/through-$input.zx" "$file"
+    test "$("$ziran" run "$work/through-$input.zx")" = 42
     for target in c cpp go; do
         output=$work/through-$input-$target
         if test "$target" = go; then
@@ -245,7 +245,7 @@ CPP
         fi
     done
 done
-cmp "$work/through-source.zib" "$work/through-saved.zib"
+cmp "$work/through-source.zx" "$work/through-saved.zx"
 
 cat > "$work/invalid_through.zi" <<'ZI'
 Mode :: enum { First; Second; }
@@ -392,8 +392,8 @@ for input in source saved; do
         root=$work/scalar-ir
     fi
     "$ziran" bundle --root "$root" --entry scalar_case:Answer \
-        -o "$work/scalar-$input.zib" "$file"
-    test "$("$ziran" run "$work/scalar-$input.zib")" = 42
+        -o "$work/scalar-$input.zx" "$file"
+    test "$("$ziran" run "$work/scalar-$input.zx")" = 42
     for target in c cpp go; do
         output=$work/scalar-$input-$target
         if test "$target" = go; then
@@ -425,7 +425,7 @@ CPP
         fi
     done
 done
-cmp "$work/scalar-source.zib" "$work/scalar-saved.zib"
+cmp "$work/scalar-source.zx" "$work/scalar-saved.zx"
 
 cat > "$work/scalar_default_order.zi" <<'ZI'
 Value :: (number: s32) -> s32 {
@@ -514,8 +514,8 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry inline:Answer \
-    -o "$work/inline.zib" "$work/inline.zi"
-test "$("$ziran" run "$work/inline.zib")" = 42
+    -o "$work/inline.zx" "$work/inline.zi"
+test "$("$ziran" run "$work/inline.zx")" = 42
 
 cat > "$work/partial.zi" <<'ZI'
 Color :: enum { Red; Blue; }
@@ -532,8 +532,8 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry partial:Answer \
-    -o "$work/partial.zib" "$work/partial.zi"
-test "$("$ziran" run "$work/partial.zib")" = 42
+    -o "$work/partial.zx" "$work/partial.zi"
+test "$("$ziran" run "$work/partial.zx")" = 42
 
 cat > "$work/unqualified.zi" <<'ZI'
 Color :: enum { Red; Blue; }
@@ -579,5 +579,5 @@ grep -Fq 'match is not Jai syntax' "$work/old_match.err"
     printf '    }\n}\n'
 } > "$work/many.zi"
 "$ziran" bundle --root "$work" --entry many:Answer \
-    -o "$work/many.zib" "$work/many.zi"
-test "$("$ziran" run "$work/many.zib")" = 69
+    -o "$work/many.zx" "$work/many.zi"
+test "$("$ziran" run "$work/many.zx")" = 69

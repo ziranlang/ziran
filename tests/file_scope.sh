@@ -27,11 +27,11 @@ ZI
 "$ziran" check --root "$work" "$work/main.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/main.zi"
 "$ziran" bundle --root "$work" --entry main:Answer \
-    -o "$work/source.zib" "$work/main.zi"
+    -o "$work/source.zx" "$work/main.zi"
 "$ziran" bundle --root "$work/ir" --entry main:Answer \
-    -o "$work/saved.zib" "$work/ir/main.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/saved.zib")" = 43
+    -o "$work/saved.zx" "$work/ir/main.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/saved.zx")" = 43
 
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/main.zi"
 cat > "$work/c/entry.c" <<'C'
@@ -224,11 +224,11 @@ ZI
 "$ziran" check --root "$work" "$work/main.zi"
 "$ziran" ir --root "$work" -o "$work/duplicate-ir" "$work/main.zi"
 "$ziran" bundle --root "$work" --entry main:Answer \
-    -o "$work/duplicate-source.zib" "$work/main.zi"
+    -o "$work/duplicate-source.zx" "$work/main.zi"
 "$ziran" bundle --root "$work/duplicate-ir" --entry main:Answer \
-    -o "$work/duplicate-saved.zib" "$work/duplicate-ir/main.zir"
-cmp "$work/duplicate-source.zib" "$work/duplicate-saved.zib"
-test "$("$ziran" run "$work/duplicate-saved.zib")" = 22
+    -o "$work/duplicate-saved.zx" "$work/duplicate-ir/main.zir"
+cmp "$work/duplicate-source.zx" "$work/duplicate-saved.zx"
+test "$("$ziran" run "$work/duplicate-saved.zx")" = 22
 
 "$ziran" build --target=c --root "$work" -o "$work/duplicate-c" \
     "$work/main.zi"
@@ -341,11 +341,11 @@ Answer :: () -> s32 { return ReadOne() + ReadTwo() }
 ZI
 "$ziran" ir --root "$work" -o "$work/private-enum-ir" "$work/main.zi"
 "$ziran" bundle --root "$work" --entry main:Answer \
-    -o "$work/private-enum-source.zib" "$work/main.zi"
+    -o "$work/private-enum-source.zx" "$work/main.zi"
 "$ziran" bundle --root "$work/private-enum-ir" --entry main:Answer \
-    -o "$work/private-enum-saved.zib" "$work/private-enum-ir/main.zir"
-cmp "$work/private-enum-source.zib" "$work/private-enum-saved.zib"
-test "$("$ziran" run "$work/private-enum-saved.zib")" = 9
+    -o "$work/private-enum-saved.zx" "$work/private-enum-ir/main.zir"
+cmp "$work/private-enum-source.zx" "$work/private-enum-saved.zx"
+test "$("$ziran" run "$work/private-enum-saved.zx")" = 9
 "$ziran" build --target=c --root "$work" -o "$work/private-enum-c" \
     "$work/main.zi"
 cat > "$work/private-enum-c/entry.c" <<'C'

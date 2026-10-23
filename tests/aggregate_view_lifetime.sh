@@ -94,8 +94,8 @@ done
 "$ziran" check --root "$work" "$work/pointer_local.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/good.zi"
 "$ziran" bundle --root "$work" --entry good:Answer \
-    -o "$work/source.zib" "$work/good.zi"
+    -o "$work/source.zx" "$work/good.zi"
 "$ziran" bundle --root "$work/ir" --entry good:Answer \
-    -o "$work/saved.zib" "$work/ir/good.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 115
+    -o "$work/saved.zx" "$work/ir/good.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 115

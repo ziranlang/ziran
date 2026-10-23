@@ -23,14 +23,14 @@ ZI
 "$ziran" ir --root "$work" -o "$work/ir" \
     "$work/app.zi" "$work/provider.zi"
 "$ziran" bundle --root "$work" --entry app:main \
-    --bind app:Effect=provider:Produce -o "$work/source.zib" \
+    --bind app:Effect=provider:Produce -o "$work/source.zx" \
     "$work/app.zi" "$work/provider.zi"
 "$ziran" bundle --root "$work/ir" --entry app:main \
-    --bind app:Effect=provider:Produce -o "$work/saved.zib" \
+    --bind app:Effect=provider:Produce -o "$work/saved.zx" \
     "$work/ir/app.zir" "$work/ir/provider.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 for input in source saved; do
     output=$work/go-$input
@@ -116,19 +116,19 @@ done
 # host module's export of that name.
 "$ziran" bundle --root "$work/native" --entry both:both \
     --bind app:Effect=provider:Produce --bind third:Effect=provider:ProduceThird \
-    --bind-host both -o "$work/native.zib" "$work/native/both.zi"
-test "$("$ziran" run "$work/native.zib")" = 112
+    --bind-host both -o "$work/native.zx" "$work/native/both.zi"
+test "$("$ziran" run "$work/native.zx")" = 112
 
 "$ziran" bundle --root "$work" --entry app:main \
-    -o "$work/unbound.zib" "$work/app.zi"
-if "$ziran" run "$work/unbound.zib" > "$work/unbound.out" 2> "$work/unbound.err"; then
+    -o "$work/unbound.zx" "$work/app.zi"
+if "$ziran" run "$work/unbound.zx" > "$work/unbound.out" 2> "$work/unbound.err"; then
     echo 'unbound capability unexpectedly ran' >&2
     exit 1
 fi
 rg -q 'missing host capability: app:Effect' "$work/unbound.err"
 
 if "$ziran" bundle --root "$work" --entry app:main \
-    --bind app:Effect=bad_provider:Produce -o "$work/bad.zib" \
+    --bind app:Effect=bad_provider:Produce -o "$work/bad.zx" \
     "$work/app.zi" "$work/bad_provider.zi" > "$work/bad.out" 2> "$work/bad.err"; then
     echo 'mismatched provider unexpectedly linked' >&2
     exit 1

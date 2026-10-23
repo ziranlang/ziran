@@ -16,7 +16,7 @@ ForeignCall :: struct { kind: s32; module: string; receiver: string; symbol: str
 
 TargetKnown :: (target: string) -> bool {
     return target == "c" || target == "cpp" || target == "go" || target == "rust" ||
-        target == "py" || target == "zib" || target == "plan9-c"
+        target == "py" || target == "zx" || target == "plan9-c"
 }
 
 // Empty means an ordinary language type. Foreign identities belong to the
@@ -32,12 +32,12 @@ ForeignImportSupported :: (target: string, foreign: string) -> bool {
     if !TargetKnown(target) { return false }
     if foreign == "go" || foreign == "py" { return target == foreign }
     if foreign == "host" { return true }
-    if foreign == "c" { return target != "zib" }
+    if foreign == "c" { return target != "zx" }
     return false
 }
 
 ProcedureTypeSupported :: (target: string, c_call: bool) -> bool {
-    return TargetKnown(target) && (!c_call || (target != "go" && target != "zib"))
+    return TargetKnown(target) && (!c_call || (target != "go" && target != "zx"))
 }
 
 ScalarByteWidth :: (type: string) -> s32 {

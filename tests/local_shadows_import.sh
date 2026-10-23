@@ -36,9 +36,9 @@ Answer :: () -> s32 {
 }
 ZI
 
-"$ziran" bundle --root "$work" --entry app:Answer -o "$work/app.zib" \
+"$ziran" bundle --root "$work" --entry app:Answer -o "$work/app.zx" \
     "$work/app.zi"
-test "$("$ziran" run "$work/app.zib")" = 1
+test "$("$ziran" run "$work/app.zx")" = 1
 
 "$ziran" build --target=c --entry app:Answer --root "$work" \
     -o "$work/c" "$work/app.zi"

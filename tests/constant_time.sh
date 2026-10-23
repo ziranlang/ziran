@@ -8,5 +8,5 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
     tests/spec/constant_time_test.zi
 "$1" bundle --root tests/spec --module-path std \
     --entry constant_time_test:SelfTest \
-    -o "$work/test.zib" tests/spec/constant_time_test.zi
-test "$("$1" run "$work/test.zib")" = "42"
+    -o "$work/test.zx" tests/spec/constant_time_test.zi
+test "$("$1" run "$work/test.zx")" = "42"

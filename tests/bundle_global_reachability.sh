@@ -41,10 +41,10 @@ Answer :: () -> s32 {
 PY
 timeout 20 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 timeout 20 "$ziran" bundle --root "$work" --entry app:Answer \
-    -o "$work/source.zib" "$work/app.zi"
+    -o "$work/source.zx" "$work/app.zi"
 timeout 20 "$ziran" bundle --root "$work/ir" --entry app:Answer \
-    -o "$work/saved.zib" "$work/ir/app.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/app.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 echo 'Application globals link through shared imports with source/saved parity'

@@ -70,10 +70,10 @@ EOF
 
 "$ziran" check --root "$work" "$work/app.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
-"$ziran" bundle --root "$work" --entry app:main -o "$work/source.zib" "$work/app.zi"
-"$ziran" bundle --root "$work/ir" --entry app:main -o "$work/saved.zib" "$work/ir/app.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-"$ziran" run "$work/source.zib" > "$work/vm.out"
+"$ziran" bundle --root "$work" --entry app:main -o "$work/source.zx" "$work/app.zi"
+"$ziran" bundle --root "$work/ir" --entry app:main -o "$work/saved.zx" "$work/ir/app.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+"$ziran" run "$work/source.zx" > "$work/vm.out"
 cmp "$work/expected" "$work/vm.out"
 
 for input in "$work/app.zi" "$work/ir/app.zir"; do
@@ -120,7 +120,7 @@ for input in "$work/app.zi" "$work/ir/app.zir"; do
 done
 
 # A pointer parameter binds the pointee type. Pointers are outside the
-# portable .zib subset, so the native targets cover it.
+# portable .zx subset, so the native targets cover it.
 cat > "$work/swap.zi" <<'ZI'
 Pair :: struct { left: s32; right: s32; }
 Swap :: (left: *$T, right: *T) {

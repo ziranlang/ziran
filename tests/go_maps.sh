@@ -188,12 +188,12 @@ GO
         fi
         grep -Eq 'maps require the Go target|foreign Go types require the Go target' "$work/rejected.out" || { cat "$work/rejected.out"; exit 1; }
     done
-    if "$ziran" bundle --root "$root" --module-path std --entry maps:Count -o "$work/rejected.zib" "$file" > "$work/rejected.out" 2>&1; then
+    if "$ziran" bundle --root "$root" --module-path std --entry maps:Count -o "$work/rejected.zx" "$file" > "$work/rejected.out" 2>&1; then
         echo 'map entered a portable ABI' >&2
         exit 1
     fi
-    "$ziran" bundle --root "$root" --module-path std --entry maps:Answer -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --root "$root" --module-path std --entry maps:Answer -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
 done
 cmp "$work/source-go/maps.go" "$work/saved-go/maps.go"
 for key in '[]u8' 'Map(string, s64)' 'Any' 'void' '*Unknown'; do

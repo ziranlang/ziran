@@ -43,12 +43,12 @@ ZI
 "$ziran" check --root "$work" "$work/app.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 "$ziran" bundle --root "$work" --entry app:Answer \
-    -o "$work/source.zib" "$work/app.zi"
+    -o "$work/source.zx" "$work/app.zi"
 "$ziran" bundle --root "$work/ir" --entry app:Answer \
-    -o "$work/saved.zib" "$work/ir/app.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/app.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 for input in "$work/app.zi" "$work/ir/app.zir"; do
     case "$input" in
@@ -84,15 +84,15 @@ for input in source saved; do
         root=$work/file-ir
     fi
     "$ziran" bundle --root "$root" --entry file_expr:Answer \
-        -o "$work/file-$input.zib" "$module"
-    test "$("$ziran" run "$work/file-$input.zib")" = 42
+        -o "$work/file-$input.zx" "$module"
+    test "$("$ziran" run "$work/file-$input.zx")" = 42
     for target in c cpp go; do
         out="$work/file-$target-$input"
         native_answer_42 "$target" "$root" "$out" "$module" \
             file_expr FileExpr_Answer 'file using'
     done
 done
-cmp "$work/file-source.zib" "$work/file-saved.zib"
+cmp "$work/file-source.zx" "$work/file-saved.zx"
 
 cat > "$work/file_shadow.zi" <<'ZI'
 Point :: struct { x: s64; y: s64; }
@@ -103,8 +103,8 @@ sum: s64 = x + seed.y;
 Answer :: () -> s64 { return sum }
 ZI
 "$ziran" bundle --root "$work" --entry file_shadow:Answer \
-    -o "$work/file-shadow.zib" "$work/file_shadow.zi"
-test "$("$ziran" run "$work/file-shadow.zib")" = 62
+    -o "$work/file-shadow.zx" "$work/file_shadow.zi"
+test "$("$ziran" run "$work/file-shadow.zx")" = 62
 
 cat > "$work/file_ambiguous.zi" <<'ZI'
 Point :: struct { x: s64; }

@@ -36,8 +36,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry nested_comments:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go; do
         output=$work/$target-$input
         "$ziran" build "--target=$target" --root "$root" \
@@ -68,7 +68,7 @@ GO
         esac
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/unclosed.zi" <<'ZI'
 /* outer /* inner */ still outer

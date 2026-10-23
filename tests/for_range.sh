@@ -130,17 +130,17 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry ranges:Answer \
-        -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     "$ziran" bundle --root "$root" --entry ranges:WideAnswer \
-        -o "$work/$input-wide.zib" "$file"
-    test "$("$ziran" run "$work/$input-wide.zib")" = 42
+        -o "$work/$input-wide.zx" "$file"
+    test "$("$ziran" run "$work/$input-wide.zx")" = 42
     "$ziran" bundle --root "$root" --entry ranges:SingleBody \
-        -o "$work/$input-single.zib" "$file"
-    test "$("$ziran" run "$work/$input-single.zib")" = 42
+        -o "$work/$input-single.zx" "$file"
+    test "$("$ziran" run "$work/$input-single.zx")" = 42
     "$ziran" bundle --root "$root" --entry ranges:NamedControl \
-        -o "$work/$input-named.zib" "$file"
-    test "$("$ziran" run "$work/$input-named.zib")" = 42
+        -o "$work/$input-named.zx" "$file"
+    test "$("$ziran" run "$work/$input-named.zx")" = 42
     for target in c cpp go; do
         out=$work/$input-$target
         if test "$target" = go; then
@@ -176,9 +176,9 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
-cmp "$work/source-single.zib" "$work/saved-single.zib"
-cmp "$work/source-named.zib" "$work/saved-named.zib"
+cmp "$work/source.zx" "$work/saved.zx"
+cmp "$work/source-single.zx" "$work/saved-single.zx"
+cmp "$work/source-named.zx" "$work/saved-named.zx"
 
 cat > "$work/collision.zi" <<'ZI'
 range_first_0 :: 7
@@ -190,8 +190,8 @@ Answer :: () -> s32 {
 ZI
 "$ziran" check --root "$work" "$work/collision.zi"
 "$ziran" bundle --root "$work" --entry collision:Answer \
-    -o "$work/collision.zib" "$work/collision.zi"
-test "$("$ziran" run "$work/collision.zib")" = 42
+    -o "$work/collision.zx" "$work/collision.zi"
+test "$("$ziran" run "$work/collision.zx")" = 42
 
 cat > "$work/c_style.zi" <<'ZI'
 Answer :: () -> s32 {

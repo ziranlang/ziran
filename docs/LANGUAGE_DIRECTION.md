@@ -28,7 +28,7 @@ integration behavior; they are not presented as proofs.
 
 The intended development loop is to state invariants, implement code, check
 laws, run conformance tests, and retain the checked result in `.zir` and
-`.zib` metadata where needed for independent validation. Diagnostics should
+`.zx` metadata where needed for independent validation. Diagnostics should
 identify the violated law and the smallest relevant source span. This is a
 tooling requirement for LLM-generated code and human-written code alike.
 
@@ -53,7 +53,7 @@ span. The contract has four parts.
    waived for that law name.
 3. **Gate semantics.** `ziran check` evaluates every reachable law and exits
    nonzero on any `disproved`, `invalid`, or unwaived `unknown`. Generated artifacts
-   embed the result set: `.zir` stores per-module law tables and `.zib`
+   embed the result set: `.zir` stores per-module law tables and `.zx`
    stores the transitive closure of laws its linked modules reached, so a
    consumer can refuse a bundle whose laws were not all `proved` at save
    time. Waivers are explicit `#law_waive NAME reason;` declarations with
@@ -62,11 +62,11 @@ span. The contract has four parts.
    and declared kinds, never on wall-clock time, iteration order, or backend
    choice. The same module set must produce byte-identical law tables in
    repeated runs, which the test matrix enforces the same way it enforces
-   `.zib` byte equality.
+   `.zx` byte equality.
 
 The compiler now implements named `type`, `effect`, `bounds`, `size`, `abi`,
 `custom`, `forall`, and scalar `theorem` laws, writes law tables and proof
-graphs to checked `.zir` and linked `.zib`, and reports results as JSON.
+graphs to checked `.zir` and linked `.zx`, and reports results as JSON.
 `custom` evaluates closed compile-time expressions, `forall`
 (`#law N forall x: 0..4, k: SomeEnum => condition;`) checks every combination
 of integer ranges, enum members, and bounded integer sequences
@@ -340,7 +340,7 @@ Pointer type annotations use prefix `*Type`. C-style suffix `Type*` and
 Raw pointers support `pointer[index]` on native targets. The caller must
 establish that the pointer is non-null and the index is within the allocation;
 unlike fixed arrays and slices, a raw pointer carries no length. Portable
-`.zib` bundles continue to reject reachable raw pointers.
+`.zx` bundles continue to reject reachable raw pointers.
 Runtime conditional expressions use Jai `ifx condition then a else b`.
 The optional `then` spelling is also accepted. C-style `?:` is rejected.
 Compile-time conditional expressions use `#ifx condition then a; else b`.
@@ -427,7 +427,7 @@ references in typed declarations, comparisons, returns, and calls.
 ## Evolution
 
 The language can grow without embedding one library's concepts in its core.
-While Ziran is experimental, source syntax, library APIs, `.zir`, and `.zib`
+While Ziran is experimental, source syntax, library APIs, `.zir`, and `.zx`
 have no backward-compatibility promise. Prefer a coherent language design over
 compatibility shims; version incompatible binary formats and reject old input
 with clear diagnostics. Reproducible compiler output and conformance suites let

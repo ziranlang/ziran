@@ -17,8 +17,8 @@ Answer :: () -> s32 {
 EOF
 "$ziran" check --root "$work" "$work/paren_record.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/paren_record.zi"
-"$ziran" bundle --root "$work" --entry paren_record:Answer -o "$work/a.zib" "$work/paren_record.zi"
-test "$("$ziran" run "$work/a.zib")" = 42
+"$ziran" bundle --root "$work" --entry paren_record:Answer -o "$work/a.zx" "$work/paren_record.zi"
+test "$("$ziran" run "$work/a.zx")" = 42
 cat > "$work/bad_cast.zi" <<'EOF'
 Answer :: () -> s32 {
     return (s32)1

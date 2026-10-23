@@ -40,7 +40,7 @@ def main():
         assert 'portable body for this variant' not in native
         assert 'options(pure' not in native and 'preserves_flags' not in native
         assert 'MaybeUninit' in native and 'addr_of_mut!' in native
-        bundle = WORK / (form + '.zib')
+        bundle = WORK / (form + '.zx')
         run([ZIRAN, 'bundle', '--root', root, '--entry', 'asmcases:Answer', '-o', bundle, entry], env)
         assert run([ZIRAN, 'run', bundle], env).stdout.strip() == '42'
         def body(name):
@@ -111,7 +111,7 @@ int main(void) {
                     if mode == 'fallback': command.append('-DZIRAN_NO_ASM')
                     run([*command, *generated.glob('*.' + extension), '-o', generated / 'check'], env)
                     run([generated / 'check'], env)
-    assert (WORK / 'source.zib').read_bytes() == (WORK / 'saved.zib').read_bytes()
+    assert (WORK / 'source.zx').read_bytes() == (WORK / 'saved.zx').read_bytes()
     # A real native assembler must reject a bad opcode. Forced fallback still
     # compiles the checked body, including when there are no operands.
     bad = WORK / 'bad.zi'

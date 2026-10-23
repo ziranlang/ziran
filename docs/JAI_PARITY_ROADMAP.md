@@ -5,13 +5,13 @@ every Jai program. [Implementation status](IMPLEMENTATION_STATUS.md) records
 what works today; [Language direction](LANGUAGE_DIRECTION.md) records the broader
 design. The current checked source grammar aims to use Jai syntax. Ziran is
 experimental: breaking changes are welcome, and there is no requirement to
-load old source, `.zir`, `.zib`, flags, or runtime entry points.
+load old source, `.zir`, `.zx`, flags, or runtime entry points.
 
 ## The finish line
 
 For each supported Jai construct, the same program must parse, type-check, and
 behave consistently when built from `.zi` source or saved `.zir`, on C, C++, Go,
-and the portable `.zib` runner. A backend may explicitly reject a capability
+and the portable `.zx` runner. A backend may explicitly reject a capability
 it cannot implement yet. It must never quietly substitute a different layout,
 evaluation order, visibility rule, or bounds behavior. Every removed Ziran-only
 spelling needs a source rejection test, and saved IR must reject forged obsolete
@@ -50,7 +50,7 @@ the checker, IR, or emitters, with `DISPLAY` and `WAYLAND_DISPLAY` unset.
 | Procedures | Named values, defaults, named arguments, direct polymorphism, overloads, binary `operator` procedures with `#symmetric`, local procedures | Variadic, `operator []`, unary operators, anonymous procedures, and broader procedure-form audit |
 | Compile time | Bounded pure scalars, strings, floats, and record/array results used at compile time, in checked runtime expressions, and in selected file-scope initializers, including public imports | Full file-scope initialization semantics, verified effect rules |
 | Native output | C/C++/Go checked body graphs; C/C++ unions and scalar Go unions; imported and keyword record, union, enum, global, and constant names, including global/constant and function/value collisions; C/C++ keyword exports and header guards; Go module filenames and prefixes; valid C/C++ private names for punctuation in root filenames | Declaration lowering, remaining whole-program names, non-scalar Go union layout |
-| Portable output | Verified `.zib` scalar/record/array subset, scalar unions, and host calls | Remaining globals, aggregates, pointer casts, non-scalar unions, host shapes |
+| Portable output | Verified `.zx` scalar/record/array subset, scalar unions, and host calls | Remaining globals, aggregates, pointer casts, non-scalar unions, host shapes |
 | Ownership | Scoped `Vec(T)` operations | Move, drop, pop, lookup, builder, borrowing across calls |
 
 This matrix records known implementation work, not an exhaustive catalog of
@@ -65,17 +65,17 @@ Top-level `using value;`, nested paths, and `using value: Record;` now promote
 module-local record and scalar-union global fields inside procedures. Public
 globals from open imports and named imports resolve for reads, writes, and
 record `using` in procedures. `tests/imported_globals.sh` exercises source and
-saved IR on C, C++, Go, and `.zib`, including ambiguity and private visibility.
+saved IR on C, C++, Go, and `.zx`, including ambiguity and private visibility.
 The
 checker lowers references to ordinary checked member access before `.zir` is
 saved. `tests/data_scope_using.sh` covers reads, writes, filters, forward
 declarations, local shadowing, collisions, `#scope_file` across `#load`, and
-source/saved-IR execution on C, C++, Go, and `.zib`. `using StructType;`
+source/saved-IR execution on C, C++, Go, and `.zx`. `using StructType;`
 still rejects a type in place of a value.
 
 Pure global initializers now resolve fields opened by file-scope record
 `using` and fold references to earlier initialized globals. Source and saved
-IR agree on C, C++, Go, and `.zib`; `tests/data_scope_using.sh` covers nested
+IR agree on C, C++, Go, and `.zx`; `tests/data_scope_using.sh` covers nested
 paths, filters, local shadowing, ambiguity with another record or enum, and
 file-private visibility across `#load`. Checked runtime-dependent global
 initializers now run once per module instance; broader startup effects and
@@ -99,7 +99,7 @@ The parser now discovers unconditional, single-line file constants and
 report an explicit error. A condition can also see enum members opened by a
 later `using` when the enum type is already declared. The filter and file
 visibility rules still apply. `tests/compile_if_syntax.sh` covers these cases
-on source and saved `.zir` for C, C++, Go, and `.zib`, and checks that names
+on source and saved `.zir` for C, C++, Go, and `.zx`, and checks that names
 from inactive branches stay hidden. Ordinary named and open `#import`
 declarations are also discovered before condition selection, so a later import
 can provide a pure procedure, scalar integer constant, or imported type layout
@@ -144,7 +144,7 @@ Unconditional procedure headers and single-line typed globals in the current
 file or a later `#load` now resolve forward `#if size_of(type_of(...))`
 queries without evaluating the operand. Procedure parameter lists may span
 lines; global member queries can use a later record type. `tests/file_type_of.sh`
-checks source and saved IR on C, C++, Go, and `.zib`, and keeps inactive and
+checks source and saved IR on C, C++, Go, and `.zx`, and keeps inactive and
 file-private names hidden. Branch conditions can also call an unconditional
 pure procedure declared later when its body has local declarations,
 assignments, braced `if`/`else if`/`else`, bounded `while` loops, and a return,
@@ -211,7 +211,7 @@ Polymorphic procedures now support several results, including independently
 bound types, records, arrays, and slices. `tests/generic_multiple_results.sh`
 checks named/open imports, default arguments, nested calls, first-result use,
 single evaluation, and separately saved libraries on C, C++, Go, Rust, Python,
-and `.zib`. Generated result records use ordinary generic type applications;
+and `.zx`. Generated result records use ordinary generic type applications;
 original saved-library declarations are still checked for canonical metadata.
 
 Fixed-array binders `[N]$T` now infer the element type while enforcing a
@@ -222,7 +222,7 @@ generic fields and result records keep their bound types when a local alias
 has the same name.
 `tests/generic_array_parameter.sh` covers scalar and record elements,
 zero-capacity arrays, value semantics, named/open imports, independent binders,
-multiple results, and source/saved IR on C, C++, Go, Rust, Python, and `.zib`.
+multiple results, and source/saved IR on C, C++, Go, Rust, Python, and `.zx`.
 Nested-array returns are tested on the native targets and explicitly rejected
 by the portable linker. Capacity inference and generic constraints remain open.
 
@@ -230,12 +230,12 @@ by the portable linker. Capacity inference and generic constraints remain open.
 tested scalar subset, including source/saved-IR builds and entry pruning.
 `#ifx` also selects record and fixed-array results in file constants, global
 initializers, local definitions, and call arguments; `tests/compile_ifx.sh` checks source and
-saved IR on C, C++, Go, and `.zib`. Audit remaining lazy-expression placements
+saved IR on C, C++, Go, and `.zx`. Audit remaining lazy-expression placements
 and aggregate forms.
 Forward and imported `size_of(type_of(...))` operands now resolve in tested
 file-scope constants, global initializers, `#run`, and `#ifx`; imported
 operands also work in `#if`. `tests/file_type_of.sh` checks source and saved
-IR on C, C++, Go, and `.zib`. A local declaration may name its type with
+IR on C, C++, Go, and `.zx`. A local declaration may name its type with
 `type_of(expression)`, as in `b: type_of(a + 1) = 5`; the checker replaces it
 with the concrete type (`tests/range_types.sh`). `type_of` in parameters,
 fields, and globals, broader forward `#if` queries, and foreign-record
@@ -252,7 +252,7 @@ arguments, returns, open and named imported-bound aliases in globals,
 records, signatures, and nested arrays, plus fixed-array aliases exposed
 through two public `using` import re-exports. Private and ambiguous re-exported
 aliases are rejected. The test also checks `size_of`, `.count`, null `.data`,
-and index failures from source and saved IR on C, C++, Go, and `.zib`.
+and index failures from source and saved IR on C, C++, Go, and `.zx`.
 The native C/C++ output uses
 GNU-compatible zero-array extensions, which compile under the strict C99 and
 C++ modes used by the test. The portable VM allocates an array descriptor with
@@ -320,7 +320,7 @@ Function bodies use checked expression graphs, but declaration and import
 lowering still contain target-specific text handling. File-scope record and
 array initializers now share a parsed expression-tree lowering path on C,
 C++, and Go, including nested values and reordered record fields;
-`tests/portable_globals.sh` compares them with saved IR and `.zib` and checks
+`tests/portable_globals.sh` compares them with saved IR and `.zx` and checks
 that mismatched scalar, record-field, and array-element initializers fail in
 the shared checker. Replace the remaining textual lowering with typed
 declaration/import nodes or a checked target-neutral lowering plan. Audit name
@@ -330,15 +330,15 @@ underscores. Test C99, C++, Go, mixed source/IR input, and malformed saved
 IR. Bump the experimental `.zir` version whenever its contract changes and
 reject earlier versions; there is no migration path to maintain.
 
-Scalar and enum unions overlap storage on C, C++, Go, and `.zib`. Go uses a
+Scalar and enum unions overlap storage on C, C++, Go, and `.zx`. Go uses a
 byte backing with the largest field's alignment; `tests/union.sh` checks 1-,
 2-, 4-, and 8-byte C, C++, and Go sizes and alignments, plus overlapping
 scalar field access and independent value copies from source and saved IR on
 all four targets. String, record, array, and pointer fields
-remain unsupported on Go and `.zib`. Select layout-preserving representations
+remain unsupported on Go and `.zx`. Select layout-preserving representations
 for those fields, then test nested layouts, copies, and host boundaries.
 
-### 8. Expand `.zib` and host capabilities
+### 8. Expand `.zx` and host capabilities
 
 The portable verifier and VM support a useful scalar/record/array subset, and
 carry raw pointers as opaque host handles that can be stored, compared, and
@@ -349,13 +349,13 @@ record, and fixed-array global initializers run portably, including nested
 record and array literals across native targets. Bounded pure procedure calls
 in initializers fold before output. Checked runtime initializers now execute
 once per module instance, with imports initialized first; `tests/runtime_globals.sh`
-checks scalar, record, and array results on C, C++, Go, and `.zib` from source
+checks scalar, record, and array results on C, C++, Go, and `.zx` from source
 and saved IR. Broader startup effects and cycle diagnostics remain open.
 Go rejects startup calls that need a host binding before `init` runs.
 Host calls support scalar, string, plain-record, pointer, and fixed-array
 arguments and returns, including zero and nested arrays with checked shapes.
 Synchronous scalar, string, and plain-record slice arguments and returns work
-from source and saved IR on native C, C++, Go, and `.zib`; the VM rejects
+from source and saved IR on native C, C++, Go, and `.zx`; the VM rejects
 malformed host results. Procedure slots remain open. Implement each boundary as
 a versioned checked contract in `cmd/zir/zir_bundle.c`, `cmd/zir/zir_vm.c`, and
 `include/ziran_host.h`. Retain preflight verification so a bundle cannot reach

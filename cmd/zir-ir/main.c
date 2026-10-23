@@ -17,7 +17,7 @@
 static void
 usage(void)
 {
-    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|cpp|go|rust|py|zib|plan9-c] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ...");
+    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|cpp|go|rust|py|zx|plan9-c] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ...");
 }
 
 static int

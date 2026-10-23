@@ -236,15 +236,15 @@ def main():
         module = name.replace('-', '_')
         path = fixtures/f'{module}.zi'
         path.write_text(source)
-        bundle = fixtures/f'{module}.zib'
+        bundle = fixtures/f'{module}.zx'
         base = ['--root', fixtures, '--module-path', ROOT/'std', '--entry', module+':Answer']
-        subprocess.run([str(p) for p in [before/'zi2zib', 'bundle', *base, '-o', bundle, path]],
+        subprocess.run([str(p) for p in [before/'zi2zx', 'bundle', *base, '-o', bundle, path]],
                        cwd=ROOT, env=env, check=True)
         ir = output/'ir'/module
         subprocess.run([str(p) for p in [after/'zi2zir', '--root', fixtures, '--module-path', ROOT/'std', '-o', ir, path]],
                        cwd=ROOT, env=env, check=True)
-        saved = fixtures/f'{module}-saved.zib'
-        subprocess.run([str(p) for p in [after/'zi2zib', 'bundle', '--root', ir,
+        saved = fixtures/f'{module}-saved.zx'
+        subprocess.run([str(p) for p in [after/'zi2zx', 'bundle', '--root', ir,
                        '--module-path', ROOT/'std', '--entry', module+':Answer', '-o', saved, ir/f'{module}.zir']],
                        cwd=ROOT, env=env, check=True)
         if saved.read_bytes() != bundle.read_bytes():

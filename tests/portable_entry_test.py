@@ -33,12 +33,12 @@ run(ziran, 'ir', '--root', work, '-o', work / 'ir', source)
 for name, _, _, expected in cases:
     output = '' if expected is None else f'{expected}\n'
     for form, entry, root in [('source', source, work), ('saved', work / 'ir/entries.zir', work / 'ir')]:
-        bundle = work / f'{name}-{form}.zib'
+        bundle = work / f'{name}-{form}.zx'
         run(ziran, 'bundle', '--root', root, '--entry', f'entries:{name}', '-o', bundle, entry)
         actual = run(ziran, 'run', bundle).stdout
         assert actual == output, (name, form, repr(actual), repr(output))
         run(work / 'host', bundle, (expected or 0) % (1 << 64), int(expected is not None))
-    assert (work / f'{name}-source.zib').read_bytes() == (work / f'{name}-saved.zib').read_bytes()
+    assert (work / f'{name}-source.zx').read_bytes() == (work / f'{name}-saved.zx').read_bytes()
 
 for name, signature, body in [
     ('real', '() -> float64', 'return 1.5'),
@@ -49,7 +49,7 @@ for name, signature, body in [
     invalid = work / f'{name}.zi'
     invalid.write_text(f'#program_export\nAnswer :: {signature} {{\n{body}\n}}\n')
     result = subprocess.run(list(map(str, [ziran, 'bundle', '--root', work, '--entry', f'{name}:Answer',
-                            '-o', work / f'{name}.zib', invalid])), capture_output=True, text=True,
+                            '-o', work / f'{name}.zx', invalid])), capture_output=True, text=True,
                             env=dict(os.environ, ZIRAN_DIAGNOSTICS='json'))
-    assert result.returncode != 0 and 'zib.entry' in result.stderr, (name, result.stderr)
+    assert result.returncode != 0 and 'zx.entry' in result.stderr, (name, result.stderr)
 print(f'{len(cases)} portable scalar entries passed from source and saved IR through CLI and host APIs')

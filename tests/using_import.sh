@@ -46,8 +46,8 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry app:Answer \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 35
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 35
     for target in c cpp go; do
         output="$work/$target-$input"
         if test "$target" = go; then
@@ -83,7 +83,7 @@ CPP
         fi
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/shadow.zi" <<'ZI'
 using Lib :: #import "lib";
@@ -94,8 +94,8 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry shadow:Answer \
-    -o "$work/shadow.zib" "$work/shadow.zi"
-test "$("$ziran" run "$work/shadow.zib")" = 40
+    -o "$work/shadow.zx" "$work/shadow.zi"
+test "$("$ziran" run "$work/shadow.zx")" = 40
 
 cat > "$work/clash.zi" <<'ZI'
 using A :: #import "lib";
@@ -128,8 +128,8 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry caller:Answer \
-    -o "$work/caller.zib" "$work/caller.zi"
-test "$("$ziran" run "$work/caller.zib")" = 9
+    -o "$work/caller.zx" "$work/caller.zi"
+test "$("$ziran" run "$work/caller.zx")" = 9
 "$ziran" build --target=c --entry caller:Answer --root "$work" \
     -o "$work/caller-c" "$work/caller.zi"
 cat > "$work/caller-c/main.c" <<'C'

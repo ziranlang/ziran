@@ -32,5 +32,5 @@ for spelling in (b'i32', b'i64', b'f32', b'f64', b'double'):
 PY
 
 "$ziran" bundle --root "$work/ir" --entry types:Answer \
-    -o "$work/types.zib" "$work/ir/types.zir"
-test "$("$ziran" run "$work/types.zib")" = 42
+    -o "$work/types.zx" "$work/ir/types.zir"
+test "$("$ziran" run "$work/types.zx")" = 42

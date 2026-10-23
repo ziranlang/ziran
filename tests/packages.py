@@ -464,16 +464,16 @@ main :: () -> s32 {
             go_env = {**env, "GO111MODULE": "off"}
             call("go", "test", ".", cwd=go, env=go_env)
         call(ziran, "bundle", "--project", "--entry", "app:main",
-             "-o", str(root / "source.zib"), str(app / "src/app.zi"),
+             "-o", str(root / "source.zx"), str(app / "src/app.zi"),
              cwd=app, env=env)
         call(ziran, "bundle", "--root", str(root / "ir"),
-             "--entry", "app:main", "-o", str(root / "saved.zib"),
+             "--entry", "app:main", "-o", str(root / "saved.zx"),
              str(root / "ir/app.zir"), cwd=app, env=env)
-        assert (root / "source.zib").read_bytes() == (root / "saved.zib").read_bytes()
-        assert call(ziran, "run", str(root / "source.zib"), cwd=app,
+        assert (root / "source.zx").read_bytes() == (root / "saved.zx").read_bytes()
+        assert call(ziran, "run", str(root / "source.zx"), cwd=app,
                     env=env).strip() == "0"
         # The project's pinned toolchain runs what it bundled.
-        assert call(ziran, "run", "--project", str(root / "source.zib"),
+        assert call(ziran, "run", "--project", str(root / "source.zx"),
                     cwd=app, env=env).strip() == "0"
 
         locked_failure = call(ziran, "check", "--project", "--locked",
@@ -736,13 +736,13 @@ main :: () -> s32 { return HostedValue() }
         call(ziran, "lock", cwd=host_app, env=env)
         call(ziran, "bundle", "--project", "--bind",
              "hosted/measure:Measure=app:Doubled", "--entry", "app:main",
-             "-o", str(root / "hosted.zib"), str(host_app / "src/app.zi"),
+             "-o", str(root / "hosted.zx"), str(host_app / "src/app.zi"),
              cwd=host_app, env=env)
-        assert call(ziran, "run", str(root / "hosted.zib"), cwd=host_app,
+        assert call(ziran, "run", str(root / "hosted.zx"), cwd=host_app,
                     env=env).strip() == "41"
         unbound = call(ziran, "bundle", "--project", "--bind",
                        "hosted/missing:Measure=app:Doubled", "--entry", "app:main",
-                       "-o", str(root / "missing.zib"), str(host_app / "src/app.zi"),
+                       "-o", str(root / "missing.zx"), str(host_app / "src/app.zi"),
                        cwd=host_app, env=env, succeed=False)
         assert "no direct dependency has" in unbound, unbound
 
@@ -1035,7 +1035,7 @@ def templates(ziran: str, root: Path, compiler: Path, env: dict) -> None:
     assert call(str(work / "prefix/bin/greeter"), cwd=work, env=env) == "Hello, world!\n"
     write(greeter / "src/bundle_main.zi",
           '#program_export\nmain :: () -> s32 { print("Hello, bundle!\\n"); return 0 }\n')
-    linked_bundle = work / "greeter.zib"
+    linked_bundle = work / "greeter.zx"
     call(ziran, "bundle", "--root", "src", "--entry", "bundle_main:main",
          "-o", str(linked_bundle), str(greeter / "src/bundle_main.zi"),
          cwd=greeter, env=env)

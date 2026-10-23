@@ -55,10 +55,10 @@ for input in "$work/choice.zi" "$work/ir/choice.zir"; do
         *) suffix=saved ;;
     esac
     "$ziran" bundle --root "$work" --entry choice:Answer \
-        -o "$work/$suffix.zib" "$input"
-    test "$("$ziran" run "$work/$suffix.zib")" = 42
+        -o "$work/$suffix.zx" "$input"
+    test "$("$ziran" run "$work/$suffix.zx")" = 42
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 for target in c cpp go; do
     out="$work/$target"
@@ -124,8 +124,8 @@ cat > "$work/inline.zi" <<'EOF'
 Answer :: () -> s32 { return #ifx OS == .LINUX || OS != .LINUX then 42 else MissingValue() }
 EOF
 "$ziran" bundle --root "$work" --entry inline:Answer \
-    -o "$work/inline.zib" "$work/inline.zi"
-test "$("$ziran" run "$work/inline.zib")" = 42
+    -o "$work/inline.zx" "$work/inline.zi"
+test "$("$ziran" run "$work/inline.zx")" = 42
 
 cat > "$work/literal_text.zi" <<'EOF'
 TEXT :: "#ifx true then 1 else 2";

@@ -88,6 +88,6 @@ test "$("$work/rust-target/debug/ziran_generated")" = "$expected"
     -o "$work/py" $sources
 test "$(python3 "$work/py")" = "$expected"
 
-"$ziran" bundle --root "$work" --entry shapes:main -o "$work/shapes.zib" $sources
-test "$("$ziran" run "$work/shapes.zib")" = "$expected
+"$ziran" bundle --root "$work" --entry shapes:main -o "$work/shapes.zx" $sources
+test "$("$ziran" run "$work/shapes.zx")" = "$expected
 0"

@@ -24,11 +24,11 @@ ZI
 "$ziran" check --root "$work" "$work/params.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/params.zi"
 "$ziran" bundle --root "$work" --entry params:Answer \
-    -o "$work/source.zib" "$work/params.zi"
+    -o "$work/source.zx" "$work/params.zi"
 "$ziran" bundle --root "$work" --entry params:Answer \
-    -o "$work/ir.zib" "$work/ir/params.zir"
-cmp "$work/source.zib" "$work/ir.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
+    -o "$work/ir.zx" "$work/ir/params.zir"
+cmp "$work/source.zx" "$work/ir.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
 for input in "$work/params.zi" "$work/ir/params.zir"; do
     go_output="$work/go-$(basename "$input")"
     "$ziran" build --target=go --pkg main --root "$work" \

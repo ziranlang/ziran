@@ -115,8 +115,8 @@ step 1
 step 2
 EOF
 
-"$ziran" bundle --root "$work" --entry switches:main -o "$work/switches.zib" "$work/switches.zi"
-"$ziran" run "$work/switches.zib" > "$work/vm.out"
+"$ziran" bundle --root "$work" --entry switches:main -o "$work/switches.zx" "$work/switches.zi"
+"$ziran" run "$work/switches.zx" > "$work/vm.out"
 
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/switches.zi"
 printf '#include "switches.h"\nint main(void) { switches_main(); return 0; }\n' > "$work/c/run.c"

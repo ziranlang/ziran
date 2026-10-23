@@ -41,9 +41,9 @@ for form in source saved; do
     if test "$form" = saved; then root=$work/ir; fi
     suffix=zi
     if test "$form" = saved; then suffix=zir; fi
-    "$ziran" bundle --root "$root" --entry first:Answer -o "$work/$form.zib" \
+    "$ziran" bundle --root "$root" --entry first:Answer -o "$work/$form.zx" \
         "$root/first.$suffix" "$root/second.$suffix"
-    test "$("$ziran" run "$work/$form.zib")" = 624
-    "$work/test" "$work/$form.zib"
+    test "$("$ziran" run "$work/$form.zx")" = 624
+    "$work/test" "$work/$form.zx"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

@@ -9,11 +9,11 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 "$ziran" check --root tests/spec --module-path std tests/spec/zip_test.zi
 "$ziran" ir --root tests/spec --module-path std -o "$work/ir" tests/spec/zip_test.zi
 "$ziran" bundle --root tests/spec --module-path std \
-    --entry zip_test:SelfTest -o "$work/source.zib" tests/spec/zip_test.zi
+    --entry zip_test:SelfTest -o "$work/source.zx" tests/spec/zip_test.zi
 "$ziran" bundle --root "$work/ir" --module-path "$work/ir" \
-    --entry zip_test:SelfTest -o "$work/saved.zib" "$work/ir/zip_test.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 0
+    --entry zip_test:SelfTest -o "$work/saved.zx" "$work/ir/zip_test.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 0
 
 "$ziran" check --root tests/spec --module-path std tests/spec/zip_linux_test.zi
 "$tool_dir/zi2c" --no-main --root tests/spec --module-path std \

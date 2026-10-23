@@ -51,8 +51,8 @@ for form in source saved; do
     input=$work/zero_arrays.zi; module_root=$work
     if test "$form" = saved; then input=$work/ir/zero_arrays.zir; module_root=$work/ir; fi
     "$ziran" bundle --root "$module_root" --module-path "$module_root" \
-        --entry zero_arrays:Main -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 0
+        --entry zero_arrays:Main -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 0
     for target in ${ENUM_ZERO_ARRAY_TARGETS:-c cpp go rust py}; do
         output=$work/$form-$target
         executable=--exe; package=

@@ -19,12 +19,12 @@ ZI
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/comments.zi"
 "$ziran" bundle --root "$work" --entry comments:Answer \
-    -o "$work/source.zib" "$work/comments.zi"
+    -o "$work/source.zx" "$work/comments.zi"
 "$ziran" bundle --root "$work/ir" --entry comments:Answer \
-    -o "$work/saved.zib" "$work/ir/comments.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/comments.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/comments.zi"
 printf '#include "comments.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$work/main.c"

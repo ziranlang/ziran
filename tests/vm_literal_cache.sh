@@ -46,6 +46,6 @@ for form in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --module-path "$repo/std" --entry vm_literal_cache_test:main \
-        -o "$work/$form.zib" "$input"
-    "$work/test" "$work/$form.zib"
+        -o "$work/$form.zx" "$input"
+    "$work/test" "$work/$form.zx"
 done

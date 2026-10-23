@@ -7,7 +7,7 @@ in [Implementation status](IMPLEMENTATION_STATUS.md).
 
 | Concern | Repository after cutover |
 | --- | --- |
-| `.zi` language, checker, laws, standard library, `.zir`, native backends, `.zib`, portable runtime | Ziran |
+| `.zi` language, checker, laws, standard library, `.zir`, native backends, `.zx`, portable runtime | Ziran |
 | Reusable widgets, layout, styling, accessibility, interaction, renderers, host adapters implemented in `.zi` | Kryon |
 | Product behavior and application UI | Each application repository |
 
@@ -30,13 +30,13 @@ full source gate and app build do not pass yet. Inbe now pins the current
 verified local Kryon and Ziran revisions while its source migration proceeds.
 
 1. Finish generic Ziran imports, typed blocks and slots, laws, saved `.zir`,
-   and the `.zib` capability contract without importing Kryon.
+   and the `.zx` capability contract without importing Kryon.
 2. Complete Kryon's native, browser, and portable host effects through explicit
    interfaces and verify widget behavior in applications.
 3. Port representative applications to Kryon imports and run their behavior
    and supported target gates.
 4. Migrate downstream source and dependency pointers to `.zi`, `.zir`, and
-   `.zib`. Existing `.krb` bytes are not `.zib` and require recompilation.
+   `.zx`. Existing `.krb` bytes are not `.zx` and require recompilation.
 
 All Kryon changes are made in the upstream Kryon repository, then consumed by
 applications through clean dependency updates. The Ziran repository owns only
@@ -46,9 +46,9 @@ independently while the downstream application cutover is completed.
 ## Completion gates
 
 - Non-UI `.zi` and `.zir` builds work with no Kryon checkout or graphics
-  dependency; equivalent `.zib` programs run without a display.
+  dependency; equivalent `.zx` programs run without a display.
 - A saved `.zir` can be read by every supported backend; equivalent source and
-  saved-IR builds behave the same. The `.zib` loader rejects malformed bundles
+  saved-IR builds behave the same. The `.zx` loader rejects malformed bundles
   and missing capabilities before execution.
 - Kryon builds from maintained `.zi` source and is linked only when imported.
   Widget calls are ordinary typed calls, and supported UI examples have no

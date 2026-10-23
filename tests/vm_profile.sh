@@ -27,13 +27,13 @@ ZI
 for form in source saved; do
     source="$work/app.zi"; root="$work"
     if test "$form" = saved; then source="$work/ir/app.zir"; root="$work/ir"; fi
-    "$ziran" bundle --root "$root" --entry app:main -o "$work/$form.zib" "$source"
-    test "$("$ziran" run "$work/$form.zib")" = 0
+    "$ziran" bundle --root "$root" --entry app:main -o "$work/$form.zx" "$source"
+    test "$("$ziran" run "$work/$form.zx")" = 0
     test ! -e "$work/$form.jsonl"
     for repeat in 1 2; do
-        test "$(ZIRAN_VM_PROFILE="$work/$form.jsonl" "$ziran" run "$work/$form.zib")" = 0
+        test "$(ZIRAN_VM_PROFILE="$work/$form.jsonl" "$ziran" run "$work/$form.zx")" = 0
     done
-    test "$(ZIRAN_VM_PROFILE="$work/missing/profile.jsonl" "$ziran" run "$work/$form.zib" 2> "$work/$form-unavailable.log")" = 0
+    test "$(ZIRAN_VM_PROFILE="$work/missing/profile.jsonl" "$ziran" run "$work/$form.zx" 2> "$work/$form-unavailable.log")" = 0
     python3 - "$work/$form.jsonl" <<'PY'
 import json,sys
 from pathlib import Path

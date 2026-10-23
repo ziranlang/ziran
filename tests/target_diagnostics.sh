@@ -45,7 +45,7 @@ for form in source saved; do
     root=$work
     extension=zi
     if [ "$form" = saved ]; then root=$work/ir; extension=zir; fi
-    for target in c cpp go rust py zib plan9-c; do
+    for target in c cpp go rust py zx plan9-c; do
         "$ziran" check "--target=$target" --root "$root" "$root/plain.$extension"
         for fixture in go_api py_api go_type py_type c_api c_callback; do
             case "$fixture:$target" in
@@ -88,7 +88,7 @@ PY
             test ! -d "$output" || test -z "$(find "$output" -type f -print -quit)"
         fi
         # Preflight all inputs before emitting even the first valid module.
-        if [ "$target" != zib ]; then
+        if [ "$target" != zx ]; then
             fixture=go_type
             if [ "$target" = go ]; then fixture=py_type; fi
             output=$work/$form-$target-output
@@ -106,7 +106,7 @@ assert len(items) == 1 and items[0]['target'] == sys.argv[2], items
 PY
         fi
     done
-    for target in go zib; do
+    for target in go zx; do
         if "$ziran" check "--target=$target" --diagnostics=json --root "$root" \
             "$root/aggregate_union.$extension" > "$work/stdout" 2> "$work/union.jsonl"; then
             echo "$target accepted an aggregate union during checking" >&2

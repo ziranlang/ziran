@@ -41,7 +41,7 @@ Earlier binary versions are rejected; regenerate saved IR and bundles from
 source. See [assembly](USAGE.md#assembly-with-a-portable-body).
 
 `.zir` is the compiler interchange and cache format. Portable distribution
-uses a linked `.zib`, not an unlinked `.zir`. See [Bundle format](ZIB.md).
+uses a linked `.zx`, not an unlinked `.zir`. See [Bundle format](ZX.md).
 
 ## Experimental version 52
 
@@ -84,7 +84,7 @@ integers are encoded explicitly; process pointers and C struct padding are
 not serialized. The reader rejects wrong versions, truncated records,
 oversized fields, invalid references, and trailing bytes. The C, C++, native Go, and experimental Plan 9 C
 commands can build saved `.zir` modules, including an imported two-module
-typed record call example. The experimental `.zib` bundler also consumes saved `.zir`
+typed record call example. The experimental `.zx` bundler also consumes saved `.zir`
 for its restricted scalar, record, and enum subset. Native and bundle builds rerun
 the language checker on the saved expression graph. The reader rejects invalid
 references and cycles, and the checked serialization must match the saved bytes.
@@ -178,4 +178,4 @@ Native symbol planning and emitter eligibility are separate passes. Source
 spellings remain diagnostic and serialization data; immutable parameter and
 field snapshots provide the declaration view used by compiler passes. Cache
 identities and compilation-context pointers are in-memory data and are never
-written to `.zir` or `.zib`.
+written to `.zir` or `.zx`.

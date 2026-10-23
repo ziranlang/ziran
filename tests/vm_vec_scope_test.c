@@ -28,7 +28,7 @@ int
 main(int argc, char **argv)
 {
     char module[ZIR_NAME_MAX], entry[ZIR_NAME_MAX];
-    ZibLawTable laws = {0};
+    ZxLawTable laws = {0};
     long long result = -1;
     int has_result = 0;
     Probe probe = {0};
@@ -50,7 +50,7 @@ main(int argc, char **argv)
         assert(has_result && result == 0 && probe.calls == 6);
     }
     VmInstanceClose(probe.instance);
-    ZibLawTableFree(&laws);
+    ZxLawTableFree(&laws);
     ProgramFree(program);
     return 0;
 }

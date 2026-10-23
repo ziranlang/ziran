@@ -84,7 +84,7 @@ def runtime_rounds(items, n):
     cases = list(items)
     if n == SMALL:
         for kind in ['source', 'saved']:
-            cases.append((f'ziran VM ({kind})', [BIN/'zi2zib','run',OUT/f'{kind}.zib']))
+            cases.append((f'ziran VM ({kind})', [BIN/'zi2zx','run',OUT/f'{kind}.zx']))
     oracle = str(expected(n))
     for name, command in cases:
         result = invoke([*command, *([] if name.startswith('ziran VM') else [str(n)])],
@@ -228,7 +228,7 @@ def metadata():
 def main():
     required = {'zi2zir':BIN/'zi2zir','zi2c':BIN/'zi2c',
                 'zi2cpp':BIN/'zi2cpp','zi2go':BIN/'zi2go',
-                'zi2zib':BIN/'zi2zib'}
+                'zi2zx':BIN/'zi2zx'}
     missing = [str(path) for path in required.values() if not path.is_file()]
     missing += [tool for tool in ['gcc','g++','go'] if not shutil.which(tool)]
     if missing:
@@ -272,10 +272,10 @@ def main():
         if source_bytes != saved_bytes:
             raise AssertionError(f'{target} generated source differs between source and saved IR')
     for kind,root,source in [('source',FIX,ZI),('saved',IR,SAVED)]:
-        bundle = OUT/f'{kind}.zib'
-        repeated([BIN/'zi2zib','bundle','--root',root,'--entry','smoke:Answer','-o',bundle,source],
-                 'ziran', f'{kind} to zib')
-    assert (OUT/'source.zib').read_bytes() == (OUT/'saved.zib').read_bytes()
+        bundle = OUT/f'{kind}.zx'
+        repeated([BIN/'zi2zx','bundle','--root',root,'--entry','smoke:Answer','-o',bundle,source],
+                 'ziran', f'{kind} to zx')
+    assert (OUT/'source.zx').read_bytes() == (OUT/'saved.zx').read_bytes()
     meta['source_saved_bundle_identical'] = True
     builds = {
         'hand C':['gcc','-O2','-std=c99',C,'-o',FIX/'hand-c'],
@@ -305,7 +305,7 @@ def main():
     meta['head_after'] = subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     meta['fixture_hashes'] = {str(p.relative_to(OUT)):hashlib.sha256(p.read_bytes()).hexdigest()
                               for p in FIX.iterdir() if p.suffix in ['.zi','.c','.cpp','.go','.rs','.py','.js','.java']}
-    artifact_paths = [OUT/'source.zib',OUT/'saved.zib']
+    artifact_paths = [OUT/'source.zx',OUT/'saved.zx']
     artifact_paths += [OUT/f'{target}-{kind}'/'app' for target in ['c','cpp','go'] for kind in ['source','saved']]
     artifact_paths += [FIX/name for name in ['hand-c','hand-cpp','hand-go']]
     if 'hand Rust' in builds: artifact_paths.append(FIX/'hand-rust')

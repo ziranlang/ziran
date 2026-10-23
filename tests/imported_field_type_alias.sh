@@ -58,7 +58,7 @@ for input in source saved; do
         esac
         "$work/program"
     done
-    "$ziran" bundle --root "$root" --entry main:Answer -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --root "$root" --entry main:Answer -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
 done
 echo 'Imported record fields and procedure parameters retain qualified type identity: passed'

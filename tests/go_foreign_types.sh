@@ -115,13 +115,13 @@ GO
         fi
         grep -q 'foreign Go types require the Go target' "$work/rejected.out" || { cat "$work/rejected.out"; exit 1; }
     done
-    if "$ziran" bundle --root "$root" --entry opaque:GetPayload -o "$work/rejected.zib" "$file" > "$work/rejected.out" 2>&1; then
+    if "$ziran" bundle --root "$root" --entry opaque:GetPayload -o "$work/rejected.zx" "$file" > "$work/rejected.out" 2>&1; then
         echo 'foreign Go type entered a portable ABI' >&2
         exit 1
     fi
     # An unused Go type need not prevent a portable entry or native build.
-    "$ziran" bundle --root "$root" --entry opaque:Answer -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --root "$root" --entry opaque:Answer -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     "$ziran" build --target=c --entry opaque:Answer --root "$root" -o "$work/$input-c" "$file"
 done
 cmp "$work/source-go/opaque.go" "$work/saved-go/opaque.go"

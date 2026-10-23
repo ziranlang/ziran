@@ -10,8 +10,8 @@
 <div class="article-grid"><aside class="page-toc"><strong>On this page</strong><!-- generated:examples_toc --><a href="#hello">Hello, World!</a><a href="#greet">Print values</a><a href="#values">Values</a><a href="#variables">Variables and constants</a><a href="#functions">Functions</a><a href="#conditions">Conditions</a><a href="#loops">Loops</a><a href="#arrays">Arrays and slices</a><a href="#structs">Structs</a><a href="#enums">Enums</a><a href="#text-basics">Strings</a><a href="#defer">Defer</a><a href="#fizzbuzz">FizzBuzz</a><a href="#primes">The Sieve of Eratosthenes</a><a href="#score">Model a score</a><a href="#text-demo">Use a standard module</a><!-- /generated:examples_toc --><a href="#targets">Native targets</a></aside><div class="article-body">
 <!-- generated:examples --><section id="hello"><p class="eyebrow">01 / hello.zi</p><h2>Hello, World!</h2><p>The smallest complete program.</p><pre><code>main :: () {
     print("Hello, World!\n");
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry hello:main -o hello.zib site/examples/hello.zi
-build/bin/ziran run hello.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry hello:main -o hello.zx site/examples/hello.zi
+build/bin/ziran run hello.zx
 # Hello, World!</code></pre><p><a class="text-link" href="examples/hello.zi" download>Download hello.zi ↓</a></p></section>
 <section id="greet"><p class="eyebrow">02 / greet.zi</p><h2>Print values</h2><p>Each % in a print format takes the next argument, and %% prints a percent sign.</p><pre><code>main :: () {
     name := "Ziran";
@@ -19,8 +19,8 @@ build/bin/ziran run hello.zib
     print("Hello, %! It is %.\n", name, year);
     print("% + % = %\n", 40, 2, 40 + 2);
     print("pi is about %, and 100%% sure\n", 3.14159);
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry greet:main -o greet.zib site/examples/greet.zi
-build/bin/ziran run greet.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry greet:main -o greet.zx site/examples/greet.zi
+build/bin/ziran run greet.zx
 # Hello, Ziran! It is 2026.
 # 40 + 2 = 42
 # pi is about 3.14159, and 100% sure</code></pre><p><a class="text-link" href="examples/greet.zi" download>Download greet.zi ↓</a></p></section>
@@ -31,8 +31,8 @@ build/bin/ziran run greet.zib
     print("true and false: %\n", true &amp;&amp; false);
     print("true or false: %\n", true || false);
     print("not true: %\n", !true);
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry values:main -o values.zib site/examples/values.zi
-build/bin/ziran run values.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry values:main -o values.zx site/examples/values.zi
+build/bin/ziran run values.zx
 # text: ziran
 # 1 + 1 = 2
 # 7.0 / 3.0 = 2.3333333333333335
@@ -57,8 +57,8 @@ main :: () {
 
     fruit := "apple";
     print("% and the limit is %\n", fruit, LIMIT);
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry variables:main -o variables.zib site/examples/variables.zi
-build/bin/ziran run variables.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry variables:main -o variables.zx site/examples/variables.zi
+build/bin/ziran run variables.zx
 # initial
 # 1 2
 # true
@@ -88,8 +88,8 @@ main :: () {
     Greet("world", greeting = "Goodbye");
     print("10! = %\n", Factorial(10));
     print("fibonacci(20) = %\n", Fibonacci(20));
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry functions:main -o functions.zib site/examples/functions.zi
-build/bin/ziran run functions.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry functions:main -o functions.zx site/examples/functions.zi
+build/bin/ziran run functions.zx
 # 1 + 2 = 3
 # Hello, Ziran!
 # Goodbye, world!
@@ -125,8 +125,8 @@ main :: () {
 
     print("day 3 is a %\n", DayKind(3));
     print("day 6 is a %\n", DayKind(6));
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry conditions:main -o conditions.zib site/examples/conditions.zi
-build/bin/ziran run conditions.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry conditions:main -o conditions.zx site/examples/conditions.zi
+build/bin/ziran run conditions.zx
 # -4 is negative
 # 0 is zero
 # 9 is positive
@@ -154,8 +154,8 @@ build/bin/ziran run conditions.zib
         if number &gt; 7 { break; }
         print("odd %\n", number);
     }
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry loops:main -o loops.zib site/examples/loops.zi
-build/bin/ziran run loops.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry loops:main -o loops.zx site/examples/loops.zi
+build/bin/ziran run loops.zx
 # while 1
 # while 2
 # while 3
@@ -188,8 +188,8 @@ main :: () {
 
     print("sum of all: %\n", Sum(numbers[:]));
     print("sum of middle: %\n", Sum(middle));
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry arrays:main -o arrays.zib site/examples/arrays.zi
-build/bin/ziran run arrays.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry arrays:main -o arrays.zx site/examples/arrays.zi
+build/bin/ziran run arrays.zx
 # empty: 0 0 0 0 0
 # set: 100, count: 5
 # middle has 3 items starting with 2
@@ -230,8 +230,8 @@ main :: () {
     copy := box;
     copy.width = 1;
     print("the copy is % wide, the original still %\n", copy.width, box.width);
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry structs:main -o structs.zib site/examples/structs.zi
-build/bin/ziran run structs.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry structs:main -o structs.zx site/examples/structs.zi
+build/bin/ziran run structs.zx
 # point: (3, 4)
 # area: 50
 # grown: 12x7 with area 84
@@ -255,8 +255,8 @@ main :: () {
     print("a circle has % corners\n", Corners(.CIRCLE));
     print("a square has % corners\n", Corners(.SQUARE));
     print("a triangle has % corners\n", Corners(.TRIANGLE));
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry enums:main -o enums.zib site/examples/enums.zi
-build/bin/ziran run enums.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry enums:main -o enums.zx site/examples/enums.zi
+build/bin/ziran run enums.zx
 # a circle has 0 corners
 # a square has 4 corners
 # a triangle has 3 corners</code></pre><p><a class="text-link" href="examples/enums.zi" download>Download enums.zi ↓</a></p></section>
@@ -276,8 +276,8 @@ main :: () {
     print("its middle is %\n", word[1:5]);
     print("equal to \"banana\": %\n", word == "banana");
     print("equal to \"apple\": %\n", word == "apple");
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry text_basics:main -o text_basics.zib site/examples/text_basics.zi
-build/bin/ziran run text_basics.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry text_basics:main -o text_basics.zx site/examples/text_basics.zi
+build/bin/ziran run text_basics.zx
 # banana has 6 bytes
 # the first byte is 98
 # it contains 3 a's
@@ -297,8 +297,8 @@ main :: () {
         defer print("leave the block\n");
         print("inside the block\n");
     }
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry defer:main -o defer.zib site/examples/defer.zi
-build/bin/ziran run defer.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry defer:main -o defer.zx site/examples/defer.zi
+build/bin/ziran run defer.zx
 # open file
 # use file
 # close file
@@ -317,8 +317,8 @@ build/bin/ziran run defer.zib
             print("%\n", number);
         }
     }
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry fizzbuzz:main -o fizzbuzz.zib site/examples/fizzbuzz.zi
-build/bin/ziran run fizzbuzz.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry fizzbuzz:main -o fizzbuzz.zx site/examples/fizzbuzz.zi
+build/bin/ziran run fizzbuzz.zx
 # 1
 # 2
 # Fizz
@@ -353,8 +353,8 @@ main :: () {
         }
     }
     print("\n");
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry primes:main -o primes.zib site/examples/primes.zi
-build/bin/ziran run primes.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry primes:main -o primes.zx site/examples/primes.zi
+build/bin/ziran run primes.zx
 # 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 </code></pre><p><a class="text-link" href="examples/primes.zi" download>Download primes.zi ↓</a></p></section>
 <section id="score"><p class="eyebrow">15 / score.zi</p><h2>Model a score</h2><p>Define a record, pass it to a procedure, and return the answer.</p><pre><code>Score :: struct {
     value: s32;
@@ -368,8 +368,8 @@ Total :: (score: Score) -&gt; s32 {
 Answer :: () -&gt; s32 {
     score: Score = Score.{value = 40, bonus = 2};
     return Total(score);
-}</code></pre><pre><code>build/bin/ziran bundle --root . --entry score:Answer -o score.zib site/examples/score.zi
-build/bin/ziran run score.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --entry score:Answer -o score.zx site/examples/score.zi
+build/bin/ziran run score.zx
 # 42</code></pre><p><a class="text-link" href="examples/score.zi" download>Download score.zi ↓</a></p></section>
 <section id="text-demo"><p class="eyebrow">16 / text_demo.zi</p><h2>Use a standard module</h2><p>Import the text module and test a prefix with ASCII case folding.</p><pre><code>#import "text"
 
@@ -378,8 +378,8 @@ Answer :: () -&gt; s32 {
         return 1;
     }
     return 0;
-}</code></pre><pre><code>build/bin/ziran bundle --root . --module-path std --entry text_demo:Answer -o text_demo.zib site/examples/text_demo.zi
-build/bin/ziran run text_demo.zib
+}</code></pre><pre><code>build/bin/ziran bundle --root . --module-path std --entry text_demo:Answer -o text_demo.zx site/examples/text_demo.zi
+build/bin/ziran run text_demo.zx
 # 1</code></pre><p><a class="text-link" href="examples/text_demo.zi" download>Download text_demo.zi ↓</a></p></section>
 <!-- /generated:examples -->
 <section id="targets"><p class="eyebrow">17 / Native output</p><h2>Generate native code</h2><p>Every program above prints the same output on the portable runner and as C, C++, Go, Rust, and Python; <code>tests/examples.sh</code> checks it. For Rust, Go, and Python, <code>--exe</code> with an entry writes a runnable program. Go, Cargo, or Python 3.10 is needed only to run that output.</p><pre><code>build/bin/ziran build --target=rust --exe --entry fizzbuzz:main --root . -o out/rust site/examples/fizzbuzz.zi

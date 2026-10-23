@@ -9,8 +9,8 @@ for mode in source saved; do
     root=tests/spec
     input=tests/spec/path_test.zi
     if test "$mode" = saved; then root=$work/ir; input=$root/path_test.zir; fi
-    "$ziran" bundle --root "$root" --module-path std --entry path_test:main -o "$work/$mode.zib" "$input"
-    test "$("$ziran" run "$work/$mode.zib")" = 0
+    "$ziran" bundle --root "$root" --module-path std --entry path_test:main -o "$work/$mode.zx" "$input"
+    test "$("$ziran" run "$work/$mode.zx")" = 0
     for target in c cpp go; do
         out=$work/$mode-$target
         if test "$target" = go; then

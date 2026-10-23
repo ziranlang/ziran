@@ -48,6 +48,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
 "${CC:-cc}" -std=c11 -I"$(dirname "$0")/../include" -I"$work/c" "$work/c"/*.c -o "$work/rows"
 "$work/rows"
-"$ziran" bundle --root "$work" --entry rows:Answer -o "$work/rows.zib" "$work/rows.zi"
-test "$("$ziran" run "$work/rows.zib")" = 42
+"$ziran" bundle --root "$work" --entry rows:Answer -o "$work/rows.zx" "$work/rows.zi"
+test "$("$ziran" run "$work/rows.zx")" = 42
 echo "Indexed field reads stay in place"

@@ -120,13 +120,13 @@ for input in source saved; do
         env -u DISPLAY -u WAYLAND_DISPLAY "$output/program"
     done
     "$ziran" bundle --entry update:Check --root "$root" \
-        -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 97
+        -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 97
     "$ziran" bundle --entry update:CheckFields --root "$root" \
-        -o "$work/$input-fields.zib" "$module"
-    test "$("$ziran" run "$work/$input-fields.zib")" = 97
+        -o "$work/$input-fields.zx" "$module"
+    test "$("$ziran" run "$work/$input-fields.zx")" = 97
     "$ziran" bundle --entry update:CheckAliasedArguments --root "$root" \
-        -o "$work/$input-alias.zib" "$module"
-    test "$("$ziran" run "$work/$input-alias.zib")" = 101
+        -o "$work/$input-alias.zx" "$module"
+    test "$("$ziran" run "$work/$input-alias.zx")" = 101
 done
 echo 'record updates: C, C++ and bundles preserve values on a small native stack'

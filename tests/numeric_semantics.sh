@@ -151,7 +151,7 @@ manifest_ids = [case['id'] for case in manifest['cases']]
 assert ids == manifest_ids, (ids, manifest_ids)
 assert capability['ids'] == manifest_ids
 assert len(manifest_ids) == len(set(manifest_ids))
-assert manifest['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zib']
+assert manifest['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zx']
 PY
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/numeric.zi"
@@ -166,18 +166,18 @@ for entry in Answer Bad8 Bad16 BadNegative; do
             module=$work/ir/numeric.zir
         fi
         "$ziran" bundle --root "$root" --entry "numeric:$entry" \
-            -o "$work/$input-$entry.zib" "$module"
+            -o "$work/$input-$entry.zx" "$module"
     done
-    cmp "$work/source-$entry.zib" "$work/saved-$entry.zib"
+    cmp "$work/source-$entry.zx" "$work/saved-$entry.zx"
 done
 
 for input in source saved; do
-    if test "$("$ziran" run "$work/$input-Answer.zib")" != 42; then
+    if test "$("$ziran" run "$work/$input-Answer.zx")" != 42; then
         echo 'portable numeric result differs from native targets' >&2
         exit 1
     fi
     for entry in Bad8 Bad16 BadNegative; do
-        if "$ziran" run "$work/$input-$entry.zib" > "$work/vm-$entry.log" 2>&1; then
+        if "$ziran" run "$work/$input-$entry.zx" > "$work/vm-$entry.log" 2>&1; then
             echo "portable runner accepted an oversized $entry shift" >&2
             exit 1
         fi

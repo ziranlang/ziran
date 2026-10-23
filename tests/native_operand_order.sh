@@ -11,8 +11,8 @@ source=$repo/tests/spec/$module.zi
 for form in source saved; do
     input=$source; root=$repo/tests/spec
     if [ "$form" = saved ]; then input=$work/ir/$module.zir; root=$work/ir; fi
-    "$ziran" bundle --root "$root" --entry "$module:Answer" -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$root" --entry "$module:Answer" -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     for target in c cpp go rust py; do
         output=$work/$form-$target
         if [ "$target" = cpp ]; then
@@ -45,4 +45,4 @@ for index, path in enumerate(map(Path, sys.argv[1:])):
         assert staged == (index == 2), (path, name, match[1])
 PY
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

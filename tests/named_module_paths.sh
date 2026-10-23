@@ -24,8 +24,8 @@ ZI
 
 "$ziran" check --root "$work/app" --module-path "lib=$work/lib/src" "$work/app/main.zi"
 "$ziran" bundle --root "$work/app" --module-path "lib=$work/lib/src" \
-    --entry main:Answer -o "$work/app.zib" "$work/app/main.zi"
-test "$("$ziran" run "$work/app.zib")" = 42
+    --entry main:Answer -o "$work/app.zx" "$work/app/main.zi"
+test "$("$ziran" run "$work/app.zx")" = 42
 
 # A directory module's short imports resolve in its own package even when
 # nothing else loaded them first.
@@ -35,8 +35,8 @@ cat > "$work/app/directory.zi" <<'ZI'
 Answer :: () -> s32 { return Greet() + Extra() }
 ZI
 "$ziran" bundle --root "$work/app" --module-path "lib=$work/lib/src" \
-    --entry directory:Answer -o "$work/directory.zib" "$work/app/directory.zi"
-test "$("$ziran" run "$work/directory.zib")" = 42
+    --entry directory:Answer -o "$work/directory.zx" "$work/app/directory.zi"
+test "$("$ziran" run "$work/directory.zx")" = 42
 
 # A named package keeps its modules apart from the app's: both may have a
 # module named tree, and the package's own short import finds its own.
@@ -58,8 +58,8 @@ cat > "$work/app/forest.zi" <<'ZI'
 Answer :: () -> s32 { return Size() + Leaf() + 20 }
 ZI
 "$ziran" bundle --root "$work/app" --module-path "lib=$work/lib/src" \
-    --entry forest:Answer -o "$work/forest.zib" "$work/app/forest.zi"
-test "$("$ziran" run "$work/forest.zib")" = 42
+    --entry forest:Answer -o "$work/forest.zx" "$work/app/forest.zi"
+test "$("$ziran" run "$work/forest.zx")" = 42
 "$ziran" build --target=c --no-main --root "$work/app" --module-path "lib=$work/lib/src" \
     -o "$work/forest-c" "$work/app/forest.zi"
 ${CC:-cc} -std=c11 -fsyntax-only -I"$(dirname -- "$(command -v "$ziran")")/../../include" \

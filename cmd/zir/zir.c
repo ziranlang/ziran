@@ -41,10 +41,10 @@ CheckTargetCapabilities(const ZirProgram *program, const char *target)
                 return 0;
             }
             if(type->is_union && !type->is_record_template &&
-               (!strcmp(target, "zib") || !strcmp(target, "go")) &&
+               (!strcmp(target, "zx") || !strcmp(target, "go")) &&
                !UnionScalarFields(module, type)) {
-                if(!strcmp(target, "zib"))
-                    DiagnosticTarget(type->span, "zib.union", target, "unions.scalar",
+                if(!strcmp(target, "zx"))
+                    DiagnosticTarget(type->span, "zx.union", target, "unions.scalar",
                         "portable unions support scalar fields only: %s", type->name);
                 else
                     DiagnosticTarget(type->span, "zir_go.union", target, "unions.scalar",

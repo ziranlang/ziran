@@ -85,8 +85,8 @@ func main() {
 GO
     gofmt -w "$work/$form"/*.go
     GO111MODULE=off go run "$work/$form"/*.go
-    "$ziran" bundle --root "$root" --entry reply:Answer -o "$work/$form.zib" "$record"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$root" --entry reply:Answer -o "$work/$form.zx" "$record"
+    test "$("$ziran" run "$work/$form.zx")" = 42
 done
 cmp "$work/source/reply.go" "$work/saved/reply.go"
 

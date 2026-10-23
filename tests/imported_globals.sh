@@ -28,12 +28,12 @@ ZI
 "$ziran" check --root "$work" "$work/app.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 "$ziran" bundle --root "$work" --entry app:Answer \
-    -o "$work/source.zib" "$work/app.zi"
+    -o "$work/source.zx" "$work/app.zi"
 "$ziran" bundle --root "$work/ir" --entry app:Answer \
-    -o "$work/saved.zib" "$work/ir/app.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/app.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 for input in "$work/app.zi" "$work/ir/app.zir"; do
     case "$input" in
@@ -86,8 +86,8 @@ for input in "$work/named_using.zi" "$work/named-ir/named_using.zir"; do
         *) root=$work/named-ir; suffix=saved ;;
     esac
     "$ziran" bundle --root "$root" --entry named_using:Answer \
-        -o "$work/named.zib" "$input"
-    test "$("$ziran" run "$work/named.zib")" = 42
+        -o "$work/named.zx" "$input"
+    test "$("$ziran" run "$work/named.zx")" = 42
     for target in c cpp go; do
         out="$work/named-$target-$suffix"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
@@ -171,8 +171,8 @@ for input in source saved; do
         file=$work/open-shadow-ir/type_shadow.zir
     fi
     "$ziran" bundle --root "$root" --entry type_shadow:Answer \
-        -o "$work/open-shadow-$input.zib" "$file"
-    test "$("$ziran" run "$work/open-shadow-$input.zib")" = 42
+        -o "$work/open-shadow-$input.zx" "$file"
+    test "$("$ziran" run "$work/open-shadow-$input.zx")" = 42
     for target in c cpp go; do
         out="$work/open-shadow-$target-$input"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"
@@ -204,7 +204,7 @@ CPP
         fi
     done
 done
-cmp "$work/open-shadow-source.zib" "$work/open-shadow-saved.zib"
+cmp "$work/open-shadow-source.zx" "$work/open-shadow-saved.zx"
 
 cat > "$work/using_import_type_shadow.zi" <<'ZI'
 using Lib :: #import "lib"
@@ -229,11 +229,11 @@ for input in source saved; do
         file=$work/using-import-shadow-ir/using_import_type_shadow.zir
     fi
     "$ziran" bundle --root "$root" --entry using_import_type_shadow:Answer \
-        -o "$work/using-import-shadow-$input.zib" "$file"
-    test "$("$ziran" run "$work/using-import-shadow-$input.zib")" = 42
+        -o "$work/using-import-shadow-$input.zx" "$file"
+    test "$("$ziran" run "$work/using-import-shadow-$input.zx")" = 42
 done
-cmp "$work/using-import-shadow-source.zib" \
-    "$work/using-import-shadow-saved.zib"
+cmp "$work/using-import-shadow-source.zx" \
+    "$work/using-import-shadow-saved.zx"
 
 cat > "$work/named_type_shadow.zi" <<'ZI'
 Lib :: #import "lib"
@@ -259,8 +259,8 @@ for input in source saved; do
         file=$work/shadow-ir/named_type_shadow.zir
     fi
     "$ziran" bundle --root "$root" --entry named_type_shadow:Answer \
-        -o "$work/shadow-$input.zib" "$file"
-    test "$("$ziran" run "$work/shadow-$input.zib")" = 42
+        -o "$work/shadow-$input.zx" "$file"
+    test "$("$ziran" run "$work/shadow-$input.zx")" = 42
     for target in c cpp go; do
         out="$work/shadow-$target-$input"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"
@@ -292,7 +292,7 @@ CPP
         fi
     done
 done
-cmp "$work/shadow-source.zib" "$work/shadow-saved.zib"
+cmp "$work/shadow-source.zx" "$work/shadow-saved.zx"
 
 cat > "$work/private.zi" <<'ZI'
 Lib :: #import "private_lib"
@@ -327,8 +327,8 @@ Answer :: () -> s32 {
     return Store.Read(item) + Store.items[1].value
 }
 ZI
-"$ziran" bundle --root "$work" --entry items:Answer -o "$work/items.zib" "$work/items.zi"
-test "$("$ziran" run "$work/items.zib")" = 12
+"$ziran" bundle --root "$work" --entry items:Answer -o "$work/items.zx" "$work/items.zi"
+test "$("$ziran" run "$work/items.zx")" = 12
 "$ziran" build --target=c --entry items:Answer --root "$work" -o "$work/items-c" "$work/items.zi"
 cat > "$work/items-c/main.c" <<'C'
 #include "items.h"
@@ -368,8 +368,8 @@ for input in source saved; do
         file=$work/local-shadow-ir/local_shadow.zir
     fi
     "$ziran" bundle --root "$root" --entry local_shadow:Answer \
-        -o "$work/local-shadow-$input.zib" "$file"
-    test "$("$ziran" run "$work/local-shadow-$input.zib")" = 42
+        -o "$work/local-shadow-$input.zx" "$file"
+    test "$("$ziran" run "$work/local-shadow-$input.zx")" = 42
     for target in c cpp go; do
         out="$work/local-shadow-$target-$input"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"

@@ -34,9 +34,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     return 0
 }
 ZI
-"$ziran" bundle --root "$work" --entry app:main -o "$work/app.zib" "$work/app.zi"
+"$ziran" bundle --root "$work" --entry app:main -o "$work/app.zx" "$work/app.zi"
 "$ziran" build --target=c --root "$work" --module-path "$repo/std" -o "$work/c" "$work/query.zi"
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -Wno-main -I"$repo/include" -I"$work/c" "$work/c"/*.c \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -lpthread -o "$work/query"
-"$work/query" "$work/app.zib"
+"$work/query" "$work/app.zx"
 printf '%s\n' 'Ziran bundle host capability discovery passed'

@@ -67,10 +67,10 @@ def prepare(args):
         (go/'bridge.go').write_text('package main\nfunc benchKernel(n int64, seed uint64) uint64 { return Kernel_Kernel(n,seed) }\n')
         cases.append(dict(name=form+'-go', binary=str((go/'run').relative_to(out))))
         execute([tools/'ziran', 'bundle', '--root', root, '--entry', 'kernel:Answer',
-                 '-o', out/(form+'.zib'), input_file], env)
+                 '-o', out/(form+'.zx'), input_file], env)
     assert (out/'source-c/kernel.c').read_bytes() == (out/'saved-c/kernel.c').read_bytes()
     assert (out/'source-go/kernel.go').read_bytes() == (out/'saved-go/kernel.go').read_bytes()
-    assert (out/'source.zib').read_bytes() == (out/'saved.zib').read_bytes()
+    assert (out/'source.zx').read_bytes() == (out/'saved.zx').read_bytes()
     control = out/'control-c'; control.mkdir()
     (control/'kernel.h').write_text('#include <stdint.h>\nuint64_t Kernel(int64_t rounds, uint64_t seed);\n')
     (control/'kernel.c').write_text('''#include "kernel.h"
@@ -120,11 +120,11 @@ func benchKernel(n int64, seed uint64) uint64 {
     data = dict(schema=1, created_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
                 abi=args.abi, small=args.small, large=args.large, seed=SEED,
                 expected={str(n):oracle(n) for n in (args.small,args.large)}, cases=cases,
-                bundle_sha256=sha(out/'source.zib'), vm_runner_sha256=sha(out/'vm-runner'),
+                bundle_sha256=sha(out/'source.zx'), vm_runner_sha256=sha(out/'vm-runner'),
                 runtime_sha256=sha(library), source_saved_identical=True,
                 compiler_versions=dict(ndk=execute([cc,'--version'],env,capture_output=True,text=True).stdout,
                                        go=execute(['go','version'],env,capture_output=True,text=True).stdout),
-                tool_hashes={name:sha(tools/name) for name in ('ziran','zi2c','zi2go','zi2zir','zi2zib')},
+                tool_hashes={name:sha(tools/name) for name in ('ziran','zi2c','zi2go','zi2zir','zi2zx')},
                 harness_hashes={name:sha(ROOT/'bench'/name) for name in (
                     'android_execution.py','android_native.c','android_native.go','cpu_features.py','vm_startup.c')},
                 flags=dict(c=['-O3','-std=c11','-D_GNU_SOURCE'],vm=['-O2','-std=c11'],
@@ -169,12 +169,12 @@ def run(args):
         result['remote']=remote;save()
         files={case['name']:(out/case['binary'],case['sha256']) for case in manifest['cases']}
         files.update({'vm-runner':(out/'vm-runner',manifest['vm_runner_sha256']),
-                      'program.zib':(out/'source.zib',manifest['bundle_sha256'])})
+                      'program.zx':(out/'source.zx',manifest['bundle_sha256'])})
         for name,(path,digest) in files.items():
             assert sha(path)==digest
             adb('push',str(path),remote+'/'+name)
             assert shell('sha256sum',remote+'/'+name).split()[0]==digest
-            if name!='program.zib':shell('chmod','700',remote+'/'+name)
+            if name!='program.zx':shell('chmod','700',remote+'/'+name)
         trials=[(case['name'],n,r) for r in range(args.repetitions+1) for n in (manifest['small'],manifest['large']) for case in manifest['cases']]
         random.Random(20261016).shuffle(trials)
         # Discarded process warmups finish before measured trials.
@@ -184,7 +184,7 @@ def run(args):
             assert row['result']==manifest['expected'][str(n)],(name,n,row)
             samples.append(dict(case=name,rounds=n,repetition=repetition,warmup=repetition==0,**row))
         for repetition in range(args.repetitions+1):
-            row=json.loads(shell('timeout','120',remote+'/vm-runner',remote+'/program.zib',9,manifest['expected'][str(manifest['small'])]))
+            row=json.loads(shell('timeout','120',remote+'/vm-runner',remote+'/program.zx',9,manifest['expected'][str(manifest['small'])]))
             assert row['result']==manifest['expected'][str(manifest['small'])]
             samples.append(dict(case='vm',rounds=manifest['small'],repetition=repetition,warmup=repetition==0,**row))
         result['after']=observe()

@@ -61,12 +61,12 @@ EOF
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/record_host.zi"
 "$ziran" bundle --root "$work" --entry record_host:Answer \
-    -o "$work/source.zib" "$work/record_host.zi"
+    -o "$work/source.zx" "$work/record_host.zi"
 "$ziran" bundle --root "$work/ir" --entry record_host:Answer \
-    -o "$work/saved.zib" "$work/ir/record_host.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-"$host_test" "$work/source.zib"
-"$host_test" "$work/saved.zib"
+    -o "$work/saved.zx" "$work/ir/record_host.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+"$host_test" "$work/source.zx"
+"$host_test" "$work/saved.zx"
 
 for input in source saved; do
     if test "$input" = source; then

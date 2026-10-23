@@ -56,8 +56,8 @@ for input in source saved; do
         file=$work/ir/app.zir
     fi
     "$ziran" bundle --root "$root" --entry app:Answer \
-        -o "$work/$input.zib" "$file"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$file"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     for target in c cpp go rust; do
         out=$work/$target-$input
         if test "$target" = rust; then
@@ -111,7 +111,7 @@ GO
         esac
     done
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/instance.c" <<'C'
 #include "ziran_host.h"
@@ -137,5 +137,5 @@ int main(int argc, char **argv) {
 C
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" "$work/instance.c" \
     "$ziran_lib" ${VM_LDFLAGS:-} -o "$work/instance"
-"$work/instance" "$work/source.zib"
-"$work/instance" "$work/saved.zib"
+"$work/instance" "$work/source.zx"
+"$work/instance" "$work/saved.zx"

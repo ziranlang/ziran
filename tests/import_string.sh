@@ -26,11 +26,11 @@ ZI
 "$ziran" check --root "$work/src" "$work/src/main.zi"
 "$ziran" ir --root "$work/src" -o "$work/ir" "$work/src/main.zi"
 "$ziran" bundle --root "$work/src" --entry main:Result \
-    -o "$work/source.zib" "$work/src/main.zi"
+    -o "$work/source.zx" "$work/src/main.zi"
 "$ziran" bundle --root "$work/ir" --entry main:Result \
-    -o "$work/saved.zib" "$work/ir/main.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/saved.zib")" = 42
+    -o "$work/saved.zx" "$work/ir/main.zir"
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 for input in source saved; do
     if test "$input" = source; then

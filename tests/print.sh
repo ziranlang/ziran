@@ -66,9 +66,9 @@ for input in "$work/greet.zi" "$work/ir/greet.zir"; do
         *) suffix=saved ;;
     esac
     "$ziran" bundle --root "$work" --entry greet:Greet \
-        -o "$work/$suffix.zib" "$input"
-    "$ziran" run "$work/$suffix.zib" > "$work/$suffix.zib.out"
-    printf '0\n' | cat "$work/expected" - | cmp - "$work/$suffix.zib.out"
+        -o "$work/$suffix.zx" "$input"
+    "$ziran" run "$work/$suffix.zx" > "$work/$suffix.zx.out"
+    printf '0\n' | cat "$work/expected" - | cmp - "$work/$suffix.zx.out"
 
     for target in c cpp go; do
         out="$work/$suffix-$target"
@@ -249,9 +249,9 @@ main :: () {
     print("Hello, World!\n");
 }
 EOF
-"$ziran" bundle --root "$work" --entry hello:main -o "$work/hello.zib" \
+"$ziran" bundle --root "$work" --entry hello:main -o "$work/hello.zx" \
     "$work/hello.zi"
-test "$("$ziran" run "$work/hello.zib")" = "Hello, World!"
+test "$("$ziran" run "$work/hello.zx")" = "Hello, World!"
 
 # A whole Plan 9 program: the generated main wrapper must survive the print
 # helpers' guard, and its status becomes the exit status.

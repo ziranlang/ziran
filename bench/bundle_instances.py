@@ -84,15 +84,15 @@ def main():
         command = [cc, '-O2', '-std=c11', '-D_GNU_SOURCE', '-I', ROOT / 'include',
                    ROOT / 'bench/bundle_instances.c', library, '-lm', '-pthread', '-o', runner]
         subprocess.run(list(map(str, command)), check=True, env=env, capture_output=True)
-        variants[label] = dict(runner=runner, bundler=directory / 'zi2zib')
+        variants[label] = dict(runner=runner, bundler=directory / 'zi2zx')
         metadata['artifacts'][label] = dict(library=str(library), library_sha256=digest(library),
-                                          runner_sha256=digest(runner), bundler_sha256=digest(directory / 'zi2zib'))
+                                          runner_sha256=digest(runner), bundler_sha256=digest(directory / 'zi2zx'))
     rows = []
     rng = random.Random(20261015)
     for name, source, expected in fixtures(output / 'fixtures'):
         bundles = {}
         for label, variant in variants.items():
-            bundle = source.parent / f'{label}.zib'
+            bundle = source.parent / f'{label}.zx'
             subprocess.run(list(map(str, [variant['bundler'], 'bundle', '--root', source.parent,
                            '--entry', 'main:Answer', '-o', bundle, source])), check=True, env=env,
                            capture_output=True)

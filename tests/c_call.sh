@@ -139,7 +139,7 @@ CPP
 done
 
 if "$ziran" bundle --root "$work" --entry native:Answer \
-    -o "$work/native.zib" "$work/native.zi" > "$work/bundle.out" 2>&1; then
+    -o "$work/native.zx" "$work/native.zi" > "$work/bundle.out" 2>&1; then
     echo '#c_call function value unexpectedly entered a portable bundle' >&2
     exit 1
 fi

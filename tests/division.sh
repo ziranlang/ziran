@@ -63,8 +63,8 @@ for name in divide zero; do
     cp "$work/rust-target-$name/debug/ziran_generated" "$work/rust-$name/program"
 done
 
-"$ziran" bundle --root "$work" --entry divide:main -o "$work/divide.zib" "$work/divide.zi"
-"$ziran" run "$work/divide.zib" > "$work/vm.out"
+"$ziran" bundle --root "$work" --entry divide:main -o "$work/divide.zx" "$work/divide.zi"
+"$ziran" run "$work/divide.zx" > "$work/vm.out"
 cmp -s "$work/expected" "$work/vm.out" || {
     echo "the portable VM divides differently" >&2
     diff "$work/expected" "$work/vm.out" >&2 || true

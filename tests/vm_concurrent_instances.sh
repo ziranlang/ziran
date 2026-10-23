@@ -27,11 +27,11 @@ for form in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry vm_concurrent_instances_test:Next \
-        -o "$work/$form.zib" "$input"
-    "$work/test" "$work/$form.zib"
-    "$work/test" "$work/$form.zib" --bundle
+        -o "$work/$form.zx" "$input"
+    "$work/test" "$work/$form.zx"
+    "$work/test" "$work/$form.zx" --bundle
     rm -f "$work/$form-profile.jsonl"
-    ZIRAN_PROFILE="$work/$form-profile.jsonl" "$work/test" "$work/$form.zib"
+    ZIRAN_PROFILE="$work/$form-profile.jsonl" "$work/test" "$work/$form.zx"
     python3 - "$work/$form-profile.jsonl" <<'PY'
 import json, sys
 records = [json.loads(line) for line in open(sys.argv[1])]
@@ -43,12 +43,12 @@ assert phase['calls'] == 8 * 600
 assert record['workspace_allocation_calls'] >= 8 * 600
 PY
 done
-ZIRAN_DIAGNOSTICS=json "$work/test" "$work/source.zib" 2>"$work/diagnostics.jsonl"
+ZIRAN_DIAGNOSTICS=json "$work/test" "$work/source.zx" 2>"$work/diagnostics.jsonl"
 python3 - "$work/diagnostics.jsonl" <<'PY'
 import json, sys
 records = [json.loads(line) for line in open(sys.argv[1])]
 assert len(records) == 8
-assert all(record['code'] == 'zib.entry' and record['path'] == '<bundle>' for record in records)
+assert all(record['code'] == 'zx.entry' and record['path'] == '<bundle>' for record in records)
 PY
 python3 - "$work/cold-profile.jsonl" <<'PY'
 import json, sys

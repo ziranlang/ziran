@@ -44,11 +44,11 @@ rg -q '"law":"SizeExact".*"status":"proved".*8 bytes == 8' "$work/laws.json"
 cmp "$work/laws.json" "$work/saved.json"
 
 "$ziran" bundle --root "$work" --entry laws:Answer \
-    -o "$work/laws-source.zib" "$work/laws.zi"
+    -o "$work/laws-source.zx" "$work/laws.zi"
 "$ziran" bundle --root "$work/ir" --entry laws:Answer \
-    -o "$work/laws-saved.zib" "$work/ir/laws.zir"
-cmp "$work/laws-source.zib" "$work/laws-saved.zib"
-test "$("$ziran" run "$work/laws-source.zib")" = 42
+    -o "$work/laws-saved.zx" "$work/ir/laws.zir"
+cmp "$work/laws-source.zx" "$work/laws-saved.zx"
+test "$("$ziran" run "$work/laws-source.zx")" = 42
 
 cat > "$work/disproved.zi" <<'ZI'
 Pair :: struct { a: s64; b: s64; }
@@ -103,11 +103,11 @@ rg -q '"status":"unknown"' "$work/waived.json"
 
 "$ziran" ir --root "$work" -o "$work/wir" "$work/waived.zi"
 "$ziran" bundle --root "$work" --entry waived:Answer \
-    -o "$work/waived-source.zib" "$work/waived.zi"
+    -o "$work/waived-source.zx" "$work/waived.zi"
 "$ziran" bundle --root "$work/wir" --entry waived:Answer \
-    -o "$work/waived-saved.zib" "$work/wir/waived.zir"
-cmp "$work/waived-source.zib" "$work/waived-saved.zib"
-test "$("$ziran" run "$work/waived-source.zib")" = 7
+    -o "$work/waived-saved.zx" "$work/wir/waived.zir"
+cmp "$work/waived-source.zx" "$work/waived-saved.zx"
+test "$("$ziran" run "$work/waived-source.zx")" = 7
 
 cat > "$work/forall.zi" <<'ZI'
 Kind :: enum { A, B, C }

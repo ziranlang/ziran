@@ -45,8 +45,8 @@ rg -q '"status":"disproved"' "$work/false.json"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/numeric.zi"
 "$ziran" check --root "$work/ir" "$work/ir/numeric.zir" > "$work/saved.json"
 cmp "$work/laws.json" "$work/saved.json"
-"$ziran" bundle --root "$work" --entry numeric:Answer -o "$work/numeric.zib" "$work/numeric.zi"
-test "$("$ziran" run "$work/numeric.zib")" = 42
+"$ziran" bundle --root "$work" --entry numeric:Answer -o "$work/numeric.zx" "$work/numeric.zi"
+test "$("$ziran" run "$work/numeric.zx")" = 42
 for target in c cpp go; do
     output=$work/$target
     if test "$target" = go; then

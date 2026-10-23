@@ -10,14 +10,14 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 "$ziran" ir --root tests/spec --module-path std -o "$work/ir" \
     tests/spec/std_utf8.zi
 "$ziran" bundle --root tests/spec --module-path std \
-    --entry std_utf8:SelfTest -o "$work/source.zib" \
+    --entry std_utf8:SelfTest -o "$work/source.zx" \
     tests/spec/std_utf8.zi
 "$ziran" bundle --root "$work/ir" --module-path "$work/ir" \
-    --entry std_utf8:SelfTest -o "$work/saved.zib" \
+    --entry std_utf8:SelfTest -o "$work/saved.zx" \
     "$work/ir/std_utf8.zir"
-cmp "$work/source.zib" "$work/saved.zib"
-test "$("$ziran" run "$work/source.zib")" = 42
-test "$("$ziran" run "$work/saved.zib")" = 42
+cmp "$work/source.zx" "$work/saved.zx"
+test "$("$ziran" run "$work/source.zx")" = 42
+test "$("$ziran" run "$work/saved.zx")" = 42
 
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 export GOCACHE="$work/go-cache"

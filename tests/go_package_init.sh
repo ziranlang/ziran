@@ -92,15 +92,15 @@ GO
     test -f "$entry/ziran_entry.go"
     "$ziran" build --target=go --no-main --prune-stale --pkg main --root "$work" -o "$entry" "$input"
     test ! -f "$entry/ziran_entry.go"
-    "$ziran" bundle --root "$work" --entry app:Portable -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$work" --entry app:Portable -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     for target in c cpp; do
         if "$ziran" build --target="$target" --root "$work" --entry app:Run -o "$work/rejected" "$input" > "$work/rejected.log" 2>&1; then
             echo "reachable Go initialization accepted by $target" >&2
             exit 1
         fi
     done
-    if "$ziran" bundle --root "$work" --entry app:Run -o "$work/rejected.zib" "$input" > "$work/rejected.log" 2>&1; then
+    if "$ziran" bundle --root "$work" --entry app:Run -o "$work/rejected.zx" "$input" > "$work/rejected.log" 2>&1; then
         echo 'reachable Go initialization accepted by portable bundle' >&2
         exit 1
     fi

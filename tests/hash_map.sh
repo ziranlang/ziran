@@ -149,8 +149,8 @@ for input in source saved; do
         module=$work/ir/app.zir
         root=$work/ir
     fi
-    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zib" "$module"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+    "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zx" "$module"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     output="$work/c-$input"
     "$ziran" build --target=c --exe --entry app:Answer --root "$root" -o "$output" "$module"
     status=0
@@ -180,4 +180,4 @@ GO
         test "$(CARGO_TARGET_DIR="$work/rust-target" cargo run --quiet --offline --manifest-path "$output/Cargo.toml")" = 42
     fi
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"

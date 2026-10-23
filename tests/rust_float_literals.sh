@@ -32,12 +32,12 @@ ZI
 for form in source saved; do
     root=$work; input=$work/floats.zi
     if test "$form" = saved; then root=$work/ir; input=$root/floats.zir; fi
-    "$ziran" bundle --root "$root" --entry floats:Answer -o "$work/$form.zib" "$input"
-    test "$("$ziran" run "$work/$form.zib")" = 42
+    "$ziran" bundle --root "$root" --entry floats:Answer -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 42
     output=$work/$form-rust
     "$ziran" build --target=rust --exe --root "$root" --entry floats:Main -o "$output" "$input"
     CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --offline --manifest-path "$output/Cargo.toml"
     "$work/rust-target/debug/ziran_generated"
 done
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 echo 'Float32/float64 comparisons and arithmetic with integer literals passed source/saved Rust and VM'

@@ -2,11 +2,11 @@
 
 `ziran capabilities --json` prints one JSON object describing the currently
 supported output targets and shared limits. Use `--target=c`, `cpp`, `go`,
-`rust`, `zib`, or `plan9-c` to select one target. The command works without a project or network
+`rust`, `zx`, or `plan9-c` to select one target. The command works without a project or network
 access, so an editor or coding agent can query the installed compiler before
 generating code. The `numeric_conformance` object is a stable-ID registry. Its `ids` cite the
 numerical cases proven by [numeric semantics](../tests/numeric_semantics.sh)
-for C, C++, Go, Rust, Python, and `.zib`; they are described by [numeric_conformance.json](../tests/numeric_conformance.json).
+for C, C++, Go, Rust, Python, and `.zx`; they are described by [numeric_conformance.json](../tests/numeric_conformance.json).
 The [width matrix](../tests/numeric_width_matrix.sh) adds 592 independently
 generated boundary conversions across all 64 integer type pairs, from source
 and saved IR on those six targets.
@@ -14,7 +14,7 @@ and saved IR on those six targets.
 versions they do not understand and ignore unknown fields within a version.
 
 `tier` says how complete a target is. `primary` targets, C and the portable
-`.zib` runner, carry every language feature and gate every change. The
+`.zx` runner, carry every language feature and gate every change. The
 downstream applications build through them. `secondary` targets, C++, Go,
 Rust, and Python, may lag behind a new feature, but must reject a program they
 cannot run faithfully during checking or lowering, never emit code with a
@@ -35,7 +35,7 @@ and `serial` for Rust, Python, Go, and the portable VM.
 It does not promise a parallel result reduction. `gpu_execution` is `cpu_fallback` for every target: there is no
 device backend. `text_view_mutable_bytes` reports the current observable
 divergence when backing bytes are mutated after making a view: native C/C++/Rust
-borrow those bytes, while Go, Python, and `.zib` copy them. Checking rejects mutation
+borrow those bytes, while Go, Python, and `.zx` copy them. Checking rejects mutation
 of local backing storage while a direct, field-held, aliased, or
 checked-call-produced view is live. Field-sensitive checks protect the
 borrowed field or array while allowing sibling record fields to change. Global
@@ -69,7 +69,7 @@ automatic ownership or runtime checking of arbitrary pointer aliases.
 
 `target_preflight` reports the common foreign identity/import, native callback
 ABI, and Go/portable scalar-union checks available through
-`ziran check --target=...` and builds. Go and `.zib` reject `#c_call`
+`ziran check --target=...` and builds. Go and `.zx` reject `#c_call`
 procedure types with a `procedures.c-call` capability diagnostic before
 native output is emitted. The target's lowerer and verifier still enforce
 its other limits.

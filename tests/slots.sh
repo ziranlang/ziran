@@ -98,8 +98,8 @@ for input in source saved; do
         set -- "$work/ir/slotlib.zir" "$work/ir/slotapp.zir"
     fi
     "$ziran" bundle --root "$work" --entry slotapp:Answer \
-        -o "$work/$input.zib" "$@"
-    test "$("$ziran" run "$work/$input.zib")" = 42
+        -o "$work/$input.zx" "$@"
+    test "$("$ziran" run "$work/$input.zx")" = 42
     c_out="$work/c-$input"
     cpp_out="$work/cpp-$input"
     go_out="$work/go-$input"
@@ -134,7 +134,7 @@ GO
         "$go_out/slotapp.go" "$go_out/main.go"
 done
 
-cmp "$work/source.zib" "$work/saved.zib"
+cmp "$work/source.zx" "$work/saved.zx"
 
 cat > "$work/wrong_callback.zi" <<'EOF'
 #import "slotlib"
@@ -182,7 +182,7 @@ for bad in wrong_callback missing_callback wrong_record wrong_return; do
     esac
     grep -Fq "$diagnostic" "$work/$bad.out"
     if "$ziran" bundle --root "$work" --entry "$bad:Answer" \
-        -o "$work/$bad.zib" "$work/$bad.zi" \
+        -o "$work/$bad.zx" "$work/$bad.zi" \
         > "$work/$bad.out" 2>&1; then
         echo "invalid procedure call entered a bundle: $bad" >&2
         exit 1

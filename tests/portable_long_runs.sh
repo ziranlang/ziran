@@ -1,6 +1,6 @@
 #!/bin/sh
 # The portable runner has no statement budget: a program that runs millions
-# of statements finishes on .zib with the same output as on C, as it would
+# of statements finishes on .zx with the same output as on C, as it would
 # on every native target. Only the web playground bounds its runs.
 set -eu
 
@@ -27,8 +27,8 @@ main :: () {
 }
 ZI
 
-"$ziran" bundle --root "$work" --entry long:main -o "$work/long.zib" "$work/long.zi"
-"$ziran" run "$work/long.zib" > "$work/vm.out"
+"$ziran" bundle --root "$work" --entry long:main -o "$work/long.zx" "$work/long.zi"
+"$ziran" run "$work/long.zx" > "$work/vm.out"
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/long.zi"
 printf '#include "long.h"\nint main(void) { long_main(); return 0; }\n' > "$work/c/run.c"
 "${CC:-cc}" -std=c99 -I"$work/c" "$work/c/long.c" "$work/c/run.c" -o "$work/c/program"

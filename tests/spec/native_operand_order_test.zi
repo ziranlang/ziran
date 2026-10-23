@@ -1,0 +1,39 @@
+WideBox :: struct { value: s64 }
+current: string = "abc";
+values: [2]WideBox;
+calls: s32;
+
+#program_export
+PlainWide :: (left: WideBox, right: WideBox) -> bool { return left.value < right.value }
+#program_export
+PlainView :: (text: string, low: s64, high: s64) -> bool { return text[low:high] == "abc" }
+
+Rebind :: () -> s64 { current = "changed"; return 0 }
+Clear :: () -> s64 { values[0].value = 0; return 1 }
+Pick :: () -> s32 { index := calls; calls += 1; return index }
+Mark :: () -> bool { calls += 1; return true }
+
+#program_export
+Answer :: () -> s32 {
+    left: WideBox = .{value = -9223372036854775808}
+    right: WideBox = .{value = 9223372036854775807}
+    if !PlainWide(left, right) || PlainWide(right, left) { return 1 }
+    if !PlainView("zabcz", 1, 4) || PlainView("xyz", 0, 3) { return 2 }
+    current = "abc"
+    before := current[Rebind():]
+    if before != "abc" || current != "changed" { return 3 }
+    values[0].value = 99
+    if values[0].value < Clear() || values[0].value != 0 { return 4 }
+    values[0].value = -9223372036854775808
+    values[1].value = 9223372036854775807
+    calls = 0
+    if !(values[Pick()].value < values[Pick()].value) || calls != 2 { return 5 }
+    calls = 0
+    if false && Mark() { return 6 }
+    if !(true || Mark()) || calls != 0 { return 7 }
+    if !(true && Mark()) || !(false || Mark()) || calls != 2 { return 8 }
+    return 42
+}
+
+#program_export
+main :: () -> s32 { result := Answer(); return ifx result == 42 then 0 else result }

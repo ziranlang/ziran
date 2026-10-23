@@ -202,6 +202,9 @@ rust_lower_with_buffers(const ZirProgram *const *programs, int program_count,
           "        assert!(low >= 0 && low <= high && high as usize <= value.len);\n"
           "        Self { data: if low == 0 { value.data } else { unsafe { value.data.offset(low) } }, len: (high - low) as usize }\n"
           "    }\n"
+          "    pub fn slice_from(value: Self, low: isize) -> Self {\n"
+          "        Self::slice(value, low, value.len as isize)\n"
+          "    }\n"
           "}\n\n", runtime);
     emit_type_definitions(&buffers->emitter, body);
     emit_extern_definitions(&buffers->emitter, body);

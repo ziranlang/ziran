@@ -1051,13 +1051,17 @@ emit_expression_with_buffers(RustEmitter *emitter, int index, char *output,
             }
             if(expression->right >= 0)
                 emit_expression(emitter, expression->right, buffers->low, sizeof(buffers->low));
-            if(expression->third >= 0)
+            if(expression->third >= 0) {
                 emit_expression(emitter, expression->third, buffers->high, sizeof(buffers->high));
-            else
-                snprintf(buffers->high, sizeof(buffers->high), "%s.len", buffers->base);
-            snprintf(output, size,
-                     "ZiranText::slice(%s, %s as isize, %s as isize)",
-                     buffers->base, buffers->low, buffers->high);
+                snprintf(output, size,
+                         "ZiranText::slice(%s, %s as isize, %s as isize)",
+                         buffers->base, buffers->low, buffers->high);
+            } else {
+                /* A bound can rebind the source. Read the missing end from
+                 * the header already passed as the first argument. */
+                snprintf(output, size, "ZiranText::slice_from(%s, %s as isize)",
+                         buffers->base, buffers->low);
+            }
             break;
         }
         {

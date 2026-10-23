@@ -1682,6 +1682,41 @@ resolve_reachability:
                     if(expression->kind == ZIR_EXPR_CALL &&
                        builtin_call(expression->name))
                         continue;
+                    /* Native code calls a module's own bound host
+                     * capability as its program export, even where an
+                     * imported module has a function of the same name,
+                     * so that export is kept. Bundles keep their bytes. */
+                    if(native)
+                        for(int i = 0; i < module->import_count; i++) {
+                            const ZirImport *bound = &module->imports[i];
+                            if(bound->kind != ZIR_IMPORT_EXTERN ||
+                               bound->extern_kind != ZIR_EXTERN_HOST ||
+                               strncmp(bound->target, "ziran:", 6) != 0 ||
+                               strcmp(bound->name, expression->name) != 0)
+                                continue;
+                            for(int candidate = 0;
+                                candidate < program->module_count;
+                                candidate++) {
+                                const ZirModule *provider =
+                                    &program->modules[candidate];
+                                if(strcmp(provider->name, bound->target + 6) != 0)
+                                    continue;
+                                for(int export = 0;
+                                    export < provider->function_count;
+                                    export++) {
+                                    const ZirFunction *implementation =
+                                        &provider->functions[export];
+                                    if(strcmp(implementation->name,
+                                              bound->extern_symbol) == 0 &&
+                                       implementation->exported &&
+                                       !implementation->is_extern &&
+                                       !keep[candidate][export]) {
+                                        keep[candidate][export] = 1;
+                                        changed = 1;
+                                    }
+                                }
+                            }
+                        }
                     if(ResolveFunction(module, expression->name,
                                        &owner, &callee) != 1 ||
                        owner == NULL || callee == NULL) {

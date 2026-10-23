@@ -65,33 +65,51 @@ host_api :: #system_library "host_api";
 Effect :: (value: s32) -> s32 #foreign host_api;
 Other :: () -> s32 { return Effect(1) }
 ZI
+# A bound capability also named by a function of a module it imports still
+# keeps its bound export.
+cat > "$work/native/shadow.zi" <<'ZI'
+Effect :: (value: s32) -> s32 { return value * 1000 }
+ZI
+cat > "$work/native/third.zi" <<'ZI'
+#import "shadow"
+host_api :: #system_library "host_api";
+Effect :: (value: s32) -> s32 #foreign host_api;
+Third :: () -> s32 { return Effect(3) }
+ZI
 cat > "$work/native/both.zi" <<'ZI'
 #import "app"
 #import "other"
+#import "third"
 #import "provider"
 #program_export
 Effect :: (value: s32) -> s32 { return value * 10 }
 #program_export
-both :: () -> s32 { return Main() + Other() }
+both :: () -> s32 { return Main() + Other() + Third() }
 ZI
 cp "$work/provider.zi" "$work/native/"
+cat >> "$work/native/provider.zi" <<'ZI'
+#program_export
+ProduceThird :: (value: s32) -> s32 { return value + 2 }
+ZI
 for input in source saved; do
     output=$work/c-$input
     if test "$input" = source; then
         "$ziran" build --target=c --exe --root "$work/native" --entry both:both \
-            --bind app:Effect=provider:Produce -o "$output" "$work/native/both.zi"
+            --bind app:Effect=provider:Produce --bind third:Effect=provider:ProduceThird \
+            -o "$output" "$work/native/both.zi"
     else
         # The binding is kept in IR saved for the entry.
         "$ziran" ir --root "$work/native" --entry both:both --bind app:Effect=provider:Produce \
-            -o "$work/native-ir" "$work/native/both.zi"
+            --bind third:Effect=provider:ProduceThird -o "$work/native-ir" "$work/native/both.zi"
         # shellcheck disable=SC2046
         "$ziran" build --target=c --exe --root "$work/native-ir" --entry both:both \
             -o "$output" $(ls "$work"/native-ir/*.zir)
     fi
     status=0
     env -u DISPLAY -u WAYLAND_DISPLAY "$output/both" || status=$?
-    # app's Effect(41) is Produce: 42; other's Effect(1) is the export: 10.
-    test "$status" = 52
+    # app's Effect(41) is Produce: 42; other's Effect(1) is the export: 10;
+    # third's Effect(3) is ProduceThird: 5.
+    test "$status" = 57
 done
 
 "$ziran" bundle --root "$work" --entry app:main \

@@ -1,6 +1,7 @@
 #include "zir.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
+#include "zir_command.h"
 #include "zir_load.h"
 #include "zir_serial.h"
 #include "zir_text.h"
@@ -175,18 +176,6 @@ visible_function(const ZirFunction *fn)
     }
     return fn->is_public && !fn->is_file_private &&
            !fn->is_specialization && !fn->is_global_initializer;
-}
-
-static int
-valid_define(const char *name)
-{
-    if(name == NULL || (!isalpha((unsigned char)*name) && *name != '_') ||
-       strlen(name) >= ZIR_NAME_MAX)
-        return 0;
-    for(const unsigned char *p = (const unsigned char *)name + 1; *p; p++)
-        if(!isalnum(*p) && *p != '_')
-            return 0;
-    return 1;
 }
 
 static int
@@ -372,29 +361,17 @@ main(int argc, char **argv)
     ProgramSet set = {0};
 
     SetDiagnosticFormatFromArguments(argc, argv);
-    for(int i = 1; i < argc; i++) {
-        if(strcmp(argv[i], "--json") == 0) {
-            json = 1;
-        } else if(strncmp(argv[i], "--diagnostics=", 14) == 0) {
-            if(!SetDiagnosticFormat(argv[i] + 14)) {
-                usage();
-                return 2;
-            }
-        } else if(strcmp(argv[i], "--root") == 0 && i + 1 < argc) {
-            root = argv[++i];
-        } else if(strcmp(argv[i], "--module-path") == 0 && i + 1 < argc &&
-                  module_path_count < 64) {
-            module_paths[module_path_count++] = argv[++i];
-        } else if(strcmp(argv[i], "--define") == 0 && i + 1 < argc &&
-                  define_count < 64 && valid_define(argv[i + 1])) {
-            defines[define_count++] = argv[++i];
-        } else if(argv[i][0] == '-') {
-            usage();
-            return 2;
-        } else {
-            first_file = i;
-            break;
-        }
+    const CommandOption options[] = {
+        COMMAND_FLAG("--json", json),
+        COMMAND_TEXT("--root", root),
+        COMMAND_LIST("--module-path", module_paths, module_path_count, 64, NULL),
+        COMMAND_LIST("--define", defines, define_count, 64, valid_define),
+    };
+    first_file = ReadCommandOptions(argc, argv, options,
+                                    sizeof(options) / sizeof(*options));
+    if(first_file < 0) {
+        usage();
+        return 2;
     }
     if(root == NULL || first_file == 0) {
         usage();

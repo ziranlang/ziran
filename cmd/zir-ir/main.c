@@ -4,6 +4,7 @@
 #include "zir_check.h"
 #include "zir_serial.h"
 #include "zir_diagnostic.h"
+#include "zir_command.h"
 #include "zir_load.h"
 #include "zir_bundle.h"
 
@@ -17,34 +18,6 @@ static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|cpp|go|rust|py|zib|plan9-c] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...");
-}
-
-static int
-valid_define(const char *name)
-{
-    if(name == NULL || (!isalpha((unsigned char)*name) && *name != '_') ||
-       strlen(name) >= ZIR_NAME_MAX)
-        return 0;
-    for(const unsigned char *p = (const unsigned char *)name + 1; *p; p++)
-        if(!isalnum(*p) && *p != '_')
-            return 0;
-    return 1;
-}
-
-static int
-split_entry(const char *text, char *module, char *function)
-{
-    const char *separator = text ? strrchr(text, ':') : NULL;
-    size_t length;
-    if(separator == NULL || separator == text || separator[1] == 0)
-        return 0;
-    length = (size_t)(separator - text);
-    if(length >= ZIR_NAME_MAX || strlen(separator + 1) >= ZIR_NAME_MAX)
-        return 0;
-    memcpy(module, text, length);
-    module[length] = 0;
-    strcpy(function, separator + 1);
-    return 1;
 }
 
 static int
@@ -205,17 +178,8 @@ main(int argc, char **argv)
                 goto done;
     if(!check_only) {
         if(entry != NULL) {
-            for(int i = 0; i < count; i++)
-                merged.module_count += set.programs[i]->module_count;
-            merged.context = set.context;
-        merged.modules = calloc((size_t)merged.module_count,
-                                    sizeof(*merged.modules));
-            if(merged.modules == NULL)
+            if(!CommandMergePrograms(&set, &merged))
                 goto done;
-            int position = 0;
-            for(int i = 0; i < count; i++)
-                for(int m = 0; m < set.programs[i]->module_count; m++)
-                    merged.modules[position++] = set.programs[i]->modules[m];
             ZirProgram *merged_ptr = &merged;
             if(!LinkImports(&merged_ptr, 1))
                 goto done;

@@ -5,6 +5,7 @@
 #include "zir_parse.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
+#include "zir_command.h"
 #include "zir_serial.h"
 #include "zir_load.h"
 #include "zir_bundle.h"
@@ -22,22 +23,6 @@ usage(void)
             "usage: zi2go [--no-main] [--prune-stale] [--exe] [--minify] [--pkg NAME] [--entry module:function] "
             "[--bind module:function=module:function] [--bind-host module] "
             "[--diagnostics=text|json] [--module-path DIR] --root DIR -o DIR file.zi|file.zir ...\n");
-}
-
-static int
-split_entry(const char *text, char *module, char *function)
-{
-    const char *separator = text ? strrchr(text, ':') : NULL;
-    size_t length;
-    if(separator == NULL || separator == text || separator[1] == 0)
-        return 0;
-    length = (size_t)(separator - text);
-    if(length >= ZIR_NAME_MAX || strlen(separator + 1) >= ZIR_NAME_MAX)
-        return 0;
-    memcpy(module, text, length);
-    module[length] = 0;
-    strcpy(function, separator + 1);
-    return 1;
 }
 
 int
@@ -70,43 +55,24 @@ main(int argc, char **argv)
     int first_file = 0;
 
     SetDiagnosticFormatFromArguments(argc, argv);
-    for(i = 1; i < argc; i++) {
-        if(strncmp(argv[i], "--diagnostics=", 14) == 0) {
-            if(!SetDiagnosticFormat(argv[i] + 14)) {
-                usage();
-                return 1;
-            }
-        } else if(strcmp(argv[i], "--root") == 0 && i + 1 < argc) {
-            root = argv[++i];
-        } else if(strcmp(argv[i], "--module-path") == 0 && i + 1 < argc && module_path_count < 64) {
-            module_paths[module_path_count++] = argv[++i];
-        } else if(strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
-            out_dir = argv[++i];
-        } else if(strcmp(argv[i], "--pkg") == 0 && i + 1 < argc) {
-            pkg = argv[++i];
-        } else if(strcmp(argv[i], "--entry") == 0 && i + 1 < argc) {
-            entry = argv[++i];
-        } else if(strcmp(argv[i], "--bind") == 0 && i + 1 < argc &&
-                  binding_count < 64) {
-            bindings[binding_count++] = argv[++i];
-        } else if(strcmp(argv[i], "--bind-host") == 0 && i + 1 < argc &&
-                  host_module_count < 16) {
-            host_modules[host_module_count++] = argv[++i];
-        } else if(strcmp(argv[i], "--prune-stale") == 0) {
-            prune_stale = 1;
-        } else if(strcmp(argv[i], "--no-main") == 0) {
-            no_main = 1;
-        } else if(strcmp(argv[i], "--exe") == 0) {
-            executable = 1;
-        } else if(strcmp(argv[i], "--minify") == 0) {
-            minify = 1;
-        } else if(argv[i][0] == '-') {
-            usage();
-            return 1;
-        } else {
-            first_file = i;
-            break;
-        }
+    const CommandOption options[] = {
+        COMMAND_TEXT("--root", root),
+        COMMAND_LIST("--module-path", module_paths, module_path_count, 64, NULL),
+        COMMAND_TEXT("-o", out_dir),
+        COMMAND_TEXT("--pkg", pkg),
+        COMMAND_TEXT("--entry", entry),
+        COMMAND_LIST("--bind", bindings, binding_count, 64, NULL),
+        COMMAND_LIST("--bind-host", host_modules, host_module_count, 16, NULL),
+        COMMAND_FLAG("--prune-stale", prune_stale),
+        COMMAND_FLAG("--no-main", no_main),
+        COMMAND_FLAG("--exe", executable),
+        COMMAND_FLAG("--minify", minify),
+    };
+    first_file = ReadCommandOptions(argc, argv, options,
+                                    sizeof(options) / sizeof(*options));
+    if(first_file < 0) {
+        usage();
+        return 1;
     }
     if(root == NULL || out_dir == NULL || first_file == 0 ||
        (entry != NULL && !split_entry(entry, entry_module, entry_function)) ||
@@ -130,17 +96,8 @@ main(int argc, char **argv)
     if(!check_ok)
         goto done;
     if(entry != NULL) {
-        for(i = 0; i < file_count; i++)
-            merged.module_count += progs[i]->module_count;
-        merged.context = set.context;
-        merged.modules = calloc((size_t)merged.module_count,
-                                sizeof(*merged.modules));
-        if(merged.modules == NULL)
+        if(!CommandMergePrograms(&set, &merged))
             goto done;
-        int position = 0;
-        for(i = 0; i < file_count; i++)
-            for(int m = 0; m < progs[i]->module_count; m++)
-                merged.modules[position++] = progs[i]->modules[m];
         ZirProgram *merged_ptr = &merged;
         if(!LinkImports(&merged_ptr, 1))
             goto done;

@@ -2,6 +2,7 @@
 #include "zir_bundle.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
+#include "zir_command.h"
 #include "zir_serial.h"
 #include "zir_load.h"
 #include "zir_vm.h"
@@ -22,34 +23,6 @@ usage(void)
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2zib bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--library FILE.zib|--include-library FILE.zib] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
             "       zi2zib run file.zib\n");
-}
-
-static int
-valid_define(const char *name)
-{
-    if(name == NULL || (!isalpha((unsigned char)*name) && *name != '_') ||
-       strlen(name) >= ZIR_NAME_MAX)
-        return 0;
-    for(const unsigned char *p = (const unsigned char *)name + 1; *p; p++)
-        if(!isalnum(*p) && *p != '_')
-            return 0;
-    return 1;
-}
-
-static int
-split_entry(const char *text, char *module, char *function)
-{
-    const char *separator = text ? strrchr(text, ':') : NULL;
-    size_t length;
-    if(separator == NULL || separator == text || separator[1] == 0)
-        return 0;
-    length = (size_t)(separator - text);
-    if(length >= ZIR_NAME_MAX || strlen(separator + 1) >= ZIR_NAME_MAX)
-        return 0;
-    memcpy(module, text, length);
-    module[length] = 0;
-    strcpy(function, separator + 1);
-    return 1;
 }
 
 static int

@@ -61,6 +61,7 @@ DirectoryMetadata :: struct {
     FindCloseRaw :: (search: *void) -> s32 #foreign kernel32 "FindClose";
     AllocateRaw :: (count: usize, size: usize) -> *void #foreign libc "calloc";
     FreeRaw :: (memory: *void) #foreign libc "free";
+    CrtErrnoRaw :: () -> *s32 #foreign libc "_errno";
 
     Overlapped :: struct {
         internal: usize
@@ -110,9 +111,22 @@ DirectoryMetadata :: struct {
         return cast(*void)cast(isize)fd
     }
 
+    // POSIX callers read why a call failed from errno, and Win32 reports it
+    // through GetLastError. A missing file or folder becomes ENOENT, so a
+    // document that does not exist yet is not taken for a failure.
+    Failed :: () -> s32 {
+        error := LastErrorRaw()
+        code: s32 = 5
+        if error == cast(u32)2 || error == cast(u32)3 { code = 2 }
+        if error == cast(u32)5 { code = 13 }
+        if error == cast(u32)80 || error == cast(u32)183 { code = 17 }
+        CrtErrnoRaw().* = code
+        return -1
+    }
+
     Status :: (succeeded: s32) -> s32 {
         if succeeded != 0 { return 0 }
-        return -1
+        return Failed()
     }
 
     OpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 {
@@ -121,8 +135,11 @@ DirectoryMetadata :: struct {
         if !WidePath(path, wide[:]) { return -1 }
         if (flags & OpenDirectoryOnly) != 0 {
             found := AttributesRaw(*wide[0])
-            if found == cast(u32)MissingAttributes ||
-            (found & cast(u32)AttributeDirectory) == 0 { return -1 }
+            if found == cast(u32)MissingAttributes { return Failed() }
+            if (found & cast(u32)AttributeDirectory) == 0 {
+                CrtErrnoRaw().* = 20
+                return -1
+            }
         }
         access: u32 = 0x80000000
         if (flags & 3) == OpenWriteOnly { access = 0x40000000 }
@@ -143,7 +160,7 @@ DirectoryMetadata :: struct {
         }
         handle := CreateFileRaw(*wide[0], access, 7, null, disposition,
             attributes, null)
-        if cast(isize)handle == cast(isize)-1 { return -1 }
+        if cast(isize)handle == cast(isize)-1 { return Failed() }
         return cast(s32)cast(isize)handle
     }
 

@@ -33,10 +33,16 @@ ListedName :: (directory: string, name: string) -> bool {
     return CloseDirectory(*cursor) && found
 }
 
+test_c :: #system_library "libc";
+CrtErrno :: () -> *s32 #foreign test_c "_errno";
+
 #program_export
 main :: () -> s32 {
     if !CreateDirectory("files") || !CreateDirectory("files") { return 1 }
     if !DirectoryExists("files") || PathExists("files/missing") { return 2 }
+    // POSIX callers tell a missing file from a failure by ENOENT.
+    missing := OpenRead("files/missing")
+    if missing.valid || CrtErrno().* != 2 { return 28 }
 
     // Line ends, ^Z, and NUL bytes must pass through unchanged.
     bytes: [6]u8 = .[10, 13, 26, 0, 255, 10]

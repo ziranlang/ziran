@@ -1164,43 +1164,121 @@ mentions_identifier(const char *text, const char *name)
     return 0;
 }
 
+/* The globals that retained functions name. A link only ever adds retained
+ * functions, so each one is read once, the first time a question finds it
+ * kept, instead of every retained expression being read again for every
+ * global that is asked about. */
+typedef struct {
+    const ZirProgram *program;
+    unsigned char **keep;
+    unsigned char **read;
+    unsigned char **used;
+    const char **names;
+    int name_count;
+} GlobalUses;
+
 static int
-global_is_used(const ZirProgram *program, unsigned char **keep,
-               const ZirModule *owner, const ZirGlobal *global)
+compare_names(const void *left, const void *right)
 {
+    return strcmp(*(const char *const *)left, *(const char *const *)right);
+}
+
+static void
+global_uses_free(GlobalUses *uses)
+{
+    if(uses->read != NULL)
+        for(int m = 0; m < uses->program->module_count; m++)
+            free(uses->read[m]);
+    if(uses->used != NULL)
+        for(int m = 0; m < uses->program->module_count; m++)
+            free(uses->used[m]);
+    free(uses->read);
+    free(uses->used);
+    free(uses->names);
+}
+
+static int
+global_uses_start(GlobalUses *uses, const ZirProgram *program,
+                  unsigned char **keep)
+{
+    memset(uses, 0, sizeof(*uses));
+    uses->program = program;
+    uses->keep = keep;
+    uses->read = calloc((size_t)program->module_count, sizeof(*uses->read));
+    uses->used = calloc((size_t)program->module_count, sizeof(*uses->used));
+    if(uses->read == NULL || uses->used == NULL)
+        return 0;
+    int globals = 0;
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        uses->read[m] = calloc((size_t)(module->function_count > 0 ?
+                               module->function_count : 1), 1);
+        uses->used[m] = calloc((size_t)(module->global_count > 0 ?
+                               module->global_count : 1), 1);
+        if(uses->read[m] == NULL || uses->used[m] == NULL)
+            return 0;
+        globals += module->global_count;
+    }
+    uses->names = calloc((size_t)(globals > 0 ? globals : 1), sizeof(*uses->names));
+    if(uses->names == NULL)
+        return 0;
+    for(int m = 0; m < program->module_count; m++)
+        for(int g = 0; g < program->modules[m].global_count; g++)
+            uses->names[uses->name_count++] = program->modules[m].globals[g].name;
+    qsort(uses->names, (size_t)uses->name_count, sizeof(*uses->names), compare_names);
+    return 1;
+}
+
+static void
+global_uses_read(GlobalUses *uses)
+{
+    const ZirProgram *program = uses->program;
     for(int m = 0; m < program->module_count; m++) {
         const ZirModule *module = &program->modules[m];
         for(int f = 0; f < module->function_count; f++) {
-            if(!keep[m][f]) continue;
+            if(!uses->keep[m][f] || uses->read[m][f]) continue;
+            uses->read[m][f] = 1;
             const ZirFunction *function = &module->functions[f];
             for(int e = 0; e < function->expr_count; e++) {
                 const ZirExpr *expression = &function->exprs[e];
-                const ZirModule *resolved_owner = NULL;
-                const ZirGlobal *resolved_global = NULL;
+                const ZirModule *owner = NULL;
+                const ZirGlobal *global = NULL;
                 if(expression->kind != ZIR_EXPR_IDENT &&
                    !(expression->kind == ZIR_EXPR_CALL &&
                      expression->slot_type[0] && expression->name[0])) continue;
                 /* A global can only be named by its identifier or an
                  * import-qualified identifier. Most retained expressions
-                 * name locals: do not walk their import graph once for
-                 * every global declaration in the program. */
+                 * name locals: resolve only names that some global has. */
                 const char *symbol = strrchr(expression->name, '.');
                 symbol = symbol == NULL ? expression->name : symbol + 1;
-                if(strcmp(symbol, global->name) == 0 &&
-                   ResolveGlobalAt(module, expression->name,
-                                   SpanPath(expression->span), &resolved_owner,
-                                   &resolved_global) == 1 &&
-                   resolved_owner == owner && resolved_global == global)
-                    return 1;
+                if(bsearch(&symbol, uses->names, (size_t)uses->name_count,
+                           sizeof(*uses->names), compare_names) == NULL)
+                    continue;
+                /* Only this program's globals are asked about; a name can
+                 * also resolve into a module that the program does not hold. */
+                if(ResolveGlobalAt(module, expression->name,
+                                   SpanPath(expression->span), &owner,
+                                   &global) == 1 &&
+                   owner >= program->modules &&
+                   owner < program->modules + program->module_count &&
+                   global >= owner->globals &&
+                   global < owner->globals + owner->global_count)
+                    uses->used[owner - program->modules][global - owner->globals] = 1;
             }
         }
     }
-    return 0;
+}
+
+static int
+global_is_used(GlobalUses *uses, const ZirModule *owner, const ZirGlobal *global)
+{
+    global_uses_read(uses);
+    return uses->used[owner - uses->program->modules][global - owner->globals];
 }
 
 static int
 uses_constant_name(const ZirProgram *program, unsigned char **keep,
-                   const ZirModule *module,
+                   GlobalUses *uses, const ZirModule *module,
                    const unsigned char *keep_types,
                    const unsigned char *keep_defines, const char *name)
 {
@@ -1220,7 +1298,7 @@ uses_constant_name(const ZirProgram *program, unsigned char **keep,
            mentions_identifier(module->types[t].body, name))
             return 1;
     for(int g = 0; g < module->global_count; g++)
-        if(global_is_used(program, keep, module, &module->globals[g]) &&
+        if(global_is_used(uses, module, &module->globals[g]) &&
            (mentions_identifier(module->globals[g].type, name) ||
             mentions_identifier(module->globals[g].init, name)))
             return 1;
@@ -1367,6 +1445,7 @@ mark_global_functions(const ZirProgram *program, const ZirModule *module,
 static int
 import_is_used(const ZirProgram *program, const ZirModule *module,
                const unsigned char *keep, unsigned char **keep_all,
+               GlobalUses *uses,
                unsigned char **keep_types, unsigned char **keep_defines,
                const ZirImport *import)
 {
@@ -1385,7 +1464,7 @@ import_is_used(const ZirProgram *program, const ZirModule *module,
        import->resolved_module == NULL)
         return 0;
     for(int g = 0; g < module->global_count; g++)
-        if(global_is_used(program, keep_all, module, &module->globals[g]) &&
+        if(global_is_used(uses, module, &module->globals[g]) &&
            mark_global_functions(program, module, &module->globals[g],
                                  NULL, NULL, import->resolved_module) != 0)
             return 1;
@@ -1478,6 +1557,7 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
     unsigned char **keep_defines = NULL;
     unsigned char *keep_modules = NULL;
     unsigned char *startup_path = NULL;
+    GlobalUses uses = {0};
     ZirProgram *linked = NULL;
     int entry_m = -1, entry_f = -1;
     int selected_modules = 0;
@@ -1490,7 +1570,8 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
     keep_modules = calloc((size_t)program->module_count, 1);
     startup_path = calloc((size_t)program->module_count, 1);
     if(keep == NULL || keep_types == NULL || keep_defines == NULL ||
-       keep_modules == NULL || startup_path == NULL)
+       keep_modules == NULL || startup_path == NULL ||
+       !global_uses_start(&uses, program, keep))
         goto failed;
     for(int m = 0; m < program->module_count; m++) {
         const ZirModule *module = &program->modules[m];
@@ -1582,13 +1663,13 @@ resolve_reachability:
                 active |= keep[m][f] != 0;
             if(!active)
                 for(int g = 0; g < module->global_count; g++)
-                    if(global_is_used(program, keep, module,
+                    if(global_is_used(&uses, module,
                                       &module->globals[g])) {
                         active = 1;
                         break;
                     }
             for(int g = 0; g < module->global_count; g++)
-                if(global_is_used(program, keep, module, &module->globals[g]) &&
+                if(global_is_used(&uses, module, &module->globals[g]) &&
                    mark_global_functions(program, module, &module->globals[g],
                                          keep, &changed, NULL) < 0)
                     goto failed;
@@ -1769,7 +1850,7 @@ resolve_reachability:
                 }
             }
             for(int g = 0; g < module->global_count; g++)
-                if(global_is_used(program, keep, module, &module->globals[g]) &&
+                if(global_is_used(&uses, module, &module->globals[g]) &&
                    !mark_type(program, module, module->globals[g].type,
                               keep_types, &changed))
                     goto failed;
@@ -1851,7 +1932,7 @@ resolve_reachability:
                                 break;
                             }
                     if(visible)
-                        used = uses_constant_name(program, keep, consumer,
+                        used = uses_constant_name(program, keep, &uses, consumer,
                             keep_types[m], keep_defines[m], constant->name);
                 }
                 if(used) {
@@ -1869,7 +1950,7 @@ resolve_reachability:
             memchr(keep_defines[m], 1, (size_t)program->modules[m].define_count) != NULL;
     for(int m = 0; m < program->module_count; m++)
         for(int g = 0; g < program->modules[m].global_count; g++)
-            if(global_is_used(program, keep, &program->modules[m],
+            if(global_is_used(&uses, &program->modules[m],
                               &program->modules[m].globals[g]))
                 keep_modules[m] = 1;
     /* A law keeps what it names so its closure stays decidable in the
@@ -2072,7 +2153,7 @@ resolve_reachability:
          * used only by discarded functions must not add bundle state or
          * unsupported initializer requirements. */
         for(int g = 0; g < source->global_count; g++) {
-            if(!global_is_used(program, keep, source, &source->globals[g]))
+            if(!global_is_used(&uses, source, &source->globals[g]))
                 continue;
             ZirGlobal *next = realloc(target->globals,
                 (size_t)(target->global_count + 1) * sizeof(*next));
@@ -2109,7 +2190,7 @@ resolve_reachability:
             kept_imports += source->law_count || source->proof_count || source->imports[i].is_using ||
                            import_has_startup_path(program, startup_path,
                                                    &source->imports[i]) ||
-                           import_is_used(program, source, keep[m], keep,
+                           import_is_used(program, source, keep[m], keep, &uses,
                                            keep_types, keep_defines,
                                            &source->imports[i]) ||
                            law_names_import(source, &source->imports[i]);
@@ -2124,7 +2205,7 @@ resolve_reachability:
                 if(source->law_count || source->proof_count || source->imports[i].is_using ||
                    import_has_startup_path(program, startup_path,
                                            &source->imports[i]) ||
-                   import_is_used(program, source, keep[m], keep, keep_types,
+                   import_is_used(program, source, keep[m], keep, &uses, keep_types,
                                   keep_defines,
                                   &source->imports[i]) ||
                    law_names_import(source, &source->imports[i]))
@@ -2161,6 +2242,7 @@ resolve_reachability:
     free(keep_defines);
     free(keep_modules);
     free(startup_path);
+    global_uses_free(&uses);
     return linked;
 failed:
     if(keep != NULL)
@@ -2177,6 +2259,7 @@ failed:
     free(keep_defines);
     free(keep_modules);
     free(startup_path);
+    global_uses_free(&uses);
     ProgramFree(linked);
     return NULL;
 }

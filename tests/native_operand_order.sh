@@ -38,7 +38,7 @@ from pathlib import Path
 import re, sys
 for index, path in enumerate(map(Path, sys.argv[1:])):
     text = path.read_text()
-    for name in ('PlainWide', 'PlainView'):
+    for name in ('PlainWide', 'PlainView', 'PlainShort'):
         match = re.search(r'\b' + name + r'\([^;{}]*\)\s*\{(.*?)\n\}', text, re.S)
         assert match, (path, name)
         staged = bool(re.search(r'\bvalue_\d+\b', match[1]))

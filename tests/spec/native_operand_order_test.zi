@@ -7,6 +7,8 @@ calls: s32;
 PlainWide :: (left: WideBox, right: WideBox) -> bool { return left.value < right.value }
 #program_export
 PlainView :: (text: string, low: s64, high: s64) -> bool { return text[low:high] == "abc" }
+#program_export
+PlainShort :: (allow: bool) -> bool { return allow && Mark() }
 
 Rebind :: () -> s64 { current = "changed"; return 0 }
 Clear :: () -> s64 { values[0].value = 0; return 1 }
@@ -32,6 +34,9 @@ Answer :: () -> s32 {
     if false && Mark() { return 6 }
     if !(true || Mark()) || calls != 0 { return 7 }
     if !(true && Mark()) || !(false || Mark()) || calls != 2 { return 8 }
+    calls = 0
+    if PlainShort(false) || calls != 0 { return 9 }
+    if !PlainShort(true) || calls != 1 { return 10 }
     return 42
 }
 

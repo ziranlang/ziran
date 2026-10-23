@@ -1304,6 +1304,10 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             FILE *scratch = EmitScratchOpen(&scratch_text, &scratch_size);
             if(scratch != NULL) {
                 e->out = scratch;
+                /* The right side runs last and only if the left selects it.
+                 * Its final call can stay in &&/|| when no setup is needed. */
+                e->call_in_place = (e->target == ZIR_C || e->target == ZIR_CPP) &&
+                                  !zir_native_operand_temporaries;
                 emit_expr(e,expr->right,"bool",buffers->b,sizeof(buffers->b));
                 EmitScratchClose(scratch, &scratch_size);
                 e->out = saved_out;

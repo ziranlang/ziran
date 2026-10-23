@@ -94,11 +94,7 @@ compiler_enum_Number(Cursor* cursor, bool negative)
         bool value_2 = value_0 < value_1;
         if (value_2) {
             bool value_3 = (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, ((int64_t)((uint64_t)(cursor->at) + UINT64_C(1)))) == 120;
-            bool value_4 = value_3;
-            if (!value_4) {
-                bool value_5 = (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, ((int64_t)((uint64_t)(cursor->at) + UINT64_C(1)))) == 88;
-                value_4 = value_5;
-            }
+            bool value_4 = value_3 || (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, ((int64_t)((uint64_t)(cursor->at) + UINT64_C(1)))) == 88;
             value_2 = value_4;
         }
         if (value_2) {
@@ -113,23 +109,23 @@ compiler_enum_Number(Cursor* cursor, bool negative)
     }
     uint64_t magnitude = 0ULL;
     while (true) {
-        int64_t value_6 = cursor->at;
-        int64_t value_7 = (int64_t)(cursor->source).length;
-        if (!(value_6 < value_7)) { break; }
+        int64_t value_5 = cursor->at;
+        int64_t value_6 = (int64_t)(cursor->source).length;
+        if (!(value_5 < value_6)) { break; }
         int64_t digit = compiler_enum_Digit((uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at));
         if (digit < 0LL || (uint64_t)(digit) >= base) {
             break;
         }
-        uint64_t value_8 = (uint64_t)(IntegerOp((uint64_t)(((uint64_t)((uint64_t)limit - (uint64_t)(digit)))), (uint64_t)(base), 64, 0, 4));
-        if (magnitude > value_8) {
+        uint64_t value_7 = (uint64_t)(IntegerOp((uint64_t)(((uint64_t)((uint64_t)limit - (uint64_t)(digit)))), (uint64_t)(base), 64, 0, 4));
+        if (magnitude > value_7) {
             cursor->valid = false;
             return 0LL;
         }
         magnitude = (uint64_t)(((uint64_t)magnitude * (uint64_t)base) + (uint64_t)(digit));
         cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
     }
-    int64_t value_9 = cursor->at;
-    if (value_9 == begin) {
+    int64_t value_8 = cursor->at;
+    if (value_8 == begin) {
         cursor->valid = false;
         return 0LL;
     }
@@ -146,19 +142,14 @@ compiler_enum_Term(Cursor* cursor, Slice entries)
     bool negative = false;
     int64_t value_0 = cursor->at;
     int64_t value_1 = (int64_t)(cursor->source).length;
-    bool value_2 = value_0 < value_1;
-    if (value_2) {
-        bool value_3 = (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at) == 43 || (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at) == 45;
-        value_2 = value_3;
-    }
-    if (value_2) {
+    if (value_0 < value_1 && ((uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at) == 43 || (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at) == 45)) {
         negative = (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at) == 45;
         cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
     }
     compiler_enum_Space(cursor);
-    int64_t value_4 = cursor->at;
-    int64_t value_5 = (int64_t)(cursor->source).length;
-    if (value_4 == value_5) {
+    int64_t value_2 = cursor->at;
+    int64_t value_3 = (int64_t)(cursor->source).length;
+    if (value_2 == value_3) {
         cursor->valid = false;
         return 0LL;
     }
@@ -166,26 +157,21 @@ compiler_enum_Term(Cursor* cursor, Slice entries)
     if (first >= 48 && first <= 57) {
         return compiler_enum_Number(cursor, negative);
     }
-    bool value_6 = compiler_enum_IdentifierStart(first);
-    if (!value_6) {
+    bool value_4 = compiler_enum_IdentifierStart(first);
+    if (!value_4) {
         cursor->valid = false;
         return 0LL;
     }
     int64_t begin = cursor->at;
     while (true) {
-        int64_t value_7 = cursor->at;
-        int64_t value_8 = (int64_t)(cursor->source).length;
-        bool value_9 = value_7 < value_8;
-        bool value_10 = value_9;
-        if (value_10) {
-            bool value_11 = compiler_text_IdentifierByte((uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at));
-            value_10 = value_11;
-        }
-        if (!value_10) { break; }
+        int64_t value_5 = cursor->at;
+        int64_t value_6 = (int64_t)(cursor->source).length;
+        bool value_7 = value_5 < value_6;
+        if (!(value_7 && compiler_text_IdentifierByte((uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at)))) { break; }
         cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
     }
-    String value_12 = cursor->source;
-    String name = StringRange(value_12, (int64_t)begin, (int64_t)cursor->at);
+    String value_8 = cursor->source;
+    String name = StringRange(value_8, (int64_t)begin, (int64_t)cursor->at);
     for (int64_t it_index = 0LL; it_index < (int64_t)(entries).length; it_index++) {
         Entry entry = ((Entry *)entries.data)[SliceIndex(entries, (int64_t)it_index)];
         if (StringEqual(entry.name, name)) {
@@ -296,29 +282,8 @@ compiler_enum_Sum(Cursor* cursor, Slice entries)
         if (!cursor->valid) {
             return 0LL;
         }
-        bool value_2 = op == 43;
-        if (value_2) {
-            bool value_3 = right > 0LL && value > (int64_t)(UINT64_C(9223372036854775807) - (uint64_t)right);
-            if (!value_3) {
-                bool value_4 = right < 0LL && value < (int64_t)((uint64_t)((-INT64_C(9223372036854775807)-1)) - (uint64_t)right);
-                value_3 = value_4;
-            }
-            value_2 = value_3;
-        }
-        bool value_5 = value_2;
-        if (!value_5) {
-            bool value_6 = op == 45;
-            if (value_6) {
-                bool value_7 = right < 0LL && value > (int64_t)(UINT64_C(9223372036854775807) + (uint64_t)right);
-                if (!value_7) {
-                    bool value_8 = right > 0LL && value < (int64_t)((uint64_t)((-INT64_C(9223372036854775807)-1)) + (uint64_t)right);
-                    value_7 = value_8;
-                }
-                value_6 = value_7;
-            }
-            value_5 = value_6;
-        }
-        if (value_5) {
+        bool value_2 = op == 43 && ((right > 0LL && value > (int64_t)(UINT64_C(9223372036854775807) - (uint64_t)right)) || (right < 0LL && value < (int64_t)((uint64_t)((-INT64_C(9223372036854775807)-1)) - (uint64_t)right)));
+        if (value_2 || (op == 45 && ((right < 0LL && value > (int64_t)(UINT64_C(9223372036854775807) + (uint64_t)right)) || (right > 0LL && value < (int64_t)((uint64_t)((-INT64_C(9223372036854775807)-1)) + (uint64_t)right))))) {
             cursor->valid = false;
             return 0LL;
         }
@@ -413,11 +378,7 @@ compiler_enum_MemberValue(String body, String backing, String wanted, Slice entr
             bool value_1 = value_0;
             if (value_1) {
                 bool value_2 = (uint8_t)ZIRAN_INDEX(body.data, body.length, at) == 44;
-                bool value_3 = value_2;
-                if (!value_3) {
-                    bool value_4 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(body.data, body.length, at));
-                    value_3 = value_4;
-                }
+                bool value_3 = value_2 || compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(body.data, body.length, at));
                 value_1 = value_3;
             }
             if (!value_1) { break; }
@@ -431,18 +392,13 @@ compiler_enum_MemberValue(String body, String backing, String wanted, Slice entr
             end = (int64_t)((uint64_t)end + UINT64_C(1));
         }
         int64_t begin = at;
-        bool value_5 = compiler_enum_IdentifierStart((uint8_t)ZIRAN_INDEX(body.data, body.length, at));
-        if (!value_5) {
+        bool value_4 = compiler_enum_IdentifierStart((uint8_t)ZIRAN_INDEX(body.data, body.length, at));
+        if (!value_4) {
             return (Evaluation){0};
         }
         while (true) {
-            bool value_6 = at < end;
-            bool value_7 = value_6;
-            if (value_7) {
-                bool value_8 = compiler_text_IdentifierByte((uint8_t)ZIRAN_INDEX(body.data, body.length, at));
-                value_7 = value_8;
-            }
-            if (!value_7) { break; }
+            bool value_5 = at < end;
+            if (!(value_5 && compiler_text_IdentifierByte((uint8_t)ZIRAN_INDEX(body.data, body.length, at)))) { break; }
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
         String name = StringRange(body, (int64_t)begin, (int64_t)at);
@@ -450,9 +406,9 @@ compiler_enum_MemberValue(String body, String backing, String wanted, Slice entr
             return (Evaluation){0};
         }
         {
-            Slice value_9 = entries;
-            Slice value_10 = SliceRange(value_9, (int64_t)0LL, (int64_t)result.count, sizeof(Entry));
-            Slice loop_view_26 = SliceRange(value_10, (int64_t)0, (int64_t)value_10.length, sizeof(Entry));
+            Slice value_6 = entries;
+            Slice value_7 = SliceRange(value_6, (int64_t)0LL, (int64_t)result.count, sizeof(Entry));
+            Slice loop_view_26 = SliceRange(value_7, (int64_t)0, (int64_t)value_7.length, sizeof(Entry));
             int64_t loop_count_26 = (int64_t)(loop_view_26).length;
             int64_t loop_cursor_26 = 0LL;
             while (loop_cursor_26 < loop_count_26) {
@@ -472,16 +428,16 @@ compiler_enum_MemberValue(String body, String backing, String wanted, Slice entr
                 return (Evaluation){0};
             }
             cursor.at = (int64_t)((uint64_t)(cursor.at) + UINT64_C(1));
-            Slice value_11 = entries;
-            value = compiler_enum_Expression(&(cursor), SliceRange(value_11, (int64_t)0LL, (int64_t)result.count, sizeof(Entry)));
+            Slice value_8 = entries;
+            value = compiler_enum_Expression(&(cursor), SliceRange(value_8, (int64_t)0LL, (int64_t)result.count, sizeof(Entry)));
             if (!cursor.valid) {
                 return (Evaluation){0};
             }
         } else if (!next_valid) {
             return (Evaluation){0};
         }
-        bool value_12 = compiler_enum_FitsBacking(backing, value);
-        if (!value_12) {
+        bool value_9 = compiler_enum_FitsBacking(backing, value);
+        if (!value_9) {
             return (Evaluation){0};
         }
         ((Entry *)entries.data)[SliceIndex(entries, (int64_t)result.count)] = (Entry){.name = name, .value = value};

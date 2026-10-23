@@ -44,12 +44,7 @@ static bool
 compiler_scan_Identifier(uint8_t byte)
 {
     bool value_0 = compiler_scan_Letter(byte);
-    bool value_1 = value_0;
-    if (!value_1) {
-        bool value_2 = compiler_scan_Digit(byte);
-        value_1 = value_2;
-    }
-    return value_1;
+    return value_0 || compiler_scan_Digit(byte);
 }
 
 static void
@@ -125,126 +120,84 @@ compiler_scan_NextToken(String source, int64_t at, int32_t line, int32_t column)
     uint8_t byte = compiler_scan_Byte(source, cursor.at);
     if (byte == 0) {
         token.kind = TokenKind_Eof;
-    } else {
-        bool value_0 = byte == 35;
-        if (!value_0) {
-            bool value_1 = compiler_scan_Letter(byte);
-            value_0 = value_1;
+    } else if (byte == 35 || compiler_scan_Letter(byte)) {
+        token.kind = TokenKind_Ident;
+        if (byte == 35) {
+            token.kind = TokenKind_Directive;
         }
-        if (value_0) {
-            token.kind = TokenKind_Ident;
-            if (byte == 35) {
-                token.kind = TokenKind_Directive;
+        compiler_scan_Advance(&(cursor), source);
+        while (compiler_scan_Identifier(compiler_scan_Byte(source, cursor.at))) {
+            compiler_scan_Advance(&(cursor), source);
+        }
+    } else {
+        bool value_0 = compiler_scan_Digit(byte);
+        if (value_0 || (byte == 46 && compiler_scan_Digit(compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1)))))) {
+            bool real = byte == 46;
+            bool value_1 = byte == 48;
+            if (value_1) {
+                bool value_2 = compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) == 120;
+                bool value_3 = value_2 || compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) == 88;
+                value_1 = value_3;
+            }
+            bool hexadecimal = value_1;
+            compiler_scan_Advance(&(cursor), source);
+            while (true) {
+                uint8_t current = compiler_scan_Byte(source, cursor.at);
+                bool value_4 = compiler_scan_Identifier(current);
+                bool value_5 = !value_4 && current != 46;
+                if (value_5) {
+                    bool value_6 = (current == 43 || current == 45) && compiler_scan_Exponent(compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) - UINT64_C(1))), hexadecimal);
+                    value_5 = !value_6;
+                }
+                if (value_5) {
+                    break;
+                }
+                if (current == 46 || compiler_scan_Exponent(current, hexadecimal)) {
+                    real = true;
+                }
+                compiler_scan_Advance(&(cursor), source);
+            }
+            token.kind = TokenKind_Int;
+            if (real) {
+                token.kind = TokenKind_Float;
+            }
+        } else if (byte == 34 || byte == 39) {
+            token.kind = TokenKind_String;
+            if (byte == 39) {
+                token.kind = TokenKind_Char;
             }
             compiler_scan_Advance(&(cursor), source);
-            while (compiler_scan_Identifier(compiler_scan_Byte(source, cursor.at))) {
+            while (compiler_scan_Byte(source, cursor.at) != 0) {
+                uint8_t current = compiler_scan_Byte(source, cursor.at);
                 compiler_scan_Advance(&(cursor), source);
+                if (current == 92 && compiler_scan_Byte(source, cursor.at) != 0) {
+                    compiler_scan_Advance(&(cursor), source);
+                } else if (current == byte) {
+                    break;
+                }
             }
         } else {
-            bool value_2 = compiler_scan_Digit(byte);
-            bool value_3 = value_2;
-            if (!value_3) {
-                bool value_4 = byte == 46;
-                if (value_4) {
-                    bool value_5 = compiler_scan_Digit(compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))));
-                    value_4 = value_5;
-                }
-                value_3 = value_4;
+            bool value_7 = compiler_scan_Contains(StringLiteral("{}()[],;"), byte);
+            bool value_8 = value_7;
+            if (!value_8) {
+                bool value_9 = byte == 58 && compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) != 58;
+                bool value_10 = value_9 && compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) != 61;
+                value_8 = value_10;
             }
-            if (value_3) {
-                bool real = byte == 46;
-                bool value_6 = byte == 48;
-                if (value_6) {
-                    bool value_7 = compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) == 120;
-                    bool value_8 = value_7;
-                    if (!value_8) {
-                        bool value_9 = compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) == 88;
-                        value_8 = value_9;
-                    }
-                    value_6 = value_8;
-                }
-                bool hexadecimal = value_6;
+            if (value_8) {
+                token.kind = TokenKind_Punct;
                 compiler_scan_Advance(&(cursor), source);
-                while (true) {
-                    uint8_t current = compiler_scan_Byte(source, cursor.at);
-                    bool value_10 = compiler_scan_Identifier(current);
-                    bool value_11 = !value_10 && current != 46;
-                    if (value_11) {
-                        bool value_12 = current == 43 || current == 45;
-                        if (value_12) {
-                            bool value_13 = compiler_scan_Exponent(compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) - UINT64_C(1))), hexadecimal);
-                            value_12 = value_13;
-                        }
-                        value_11 = !value_12;
-                    }
-                    if (value_11) {
-                        break;
-                    }
-                    bool value_14 = current == 46;
-                    if (!value_14) {
-                        bool value_15 = compiler_scan_Exponent(current, hexadecimal);
-                        value_14 = value_15;
-                    }
-                    if (value_14) {
-                        real = true;
-                    }
-                    compiler_scan_Advance(&(cursor), source);
-                }
-                token.kind = TokenKind_Int;
-                if (real) {
-                    token.kind = TokenKind_Float;
-                }
-            } else if (byte == 34 || byte == 39) {
-                token.kind = TokenKind_String;
-                if (byte == 39) {
-                    token.kind = TokenKind_Char;
-                }
-                compiler_scan_Advance(&(cursor), source);
-                while (compiler_scan_Byte(source, cursor.at) != 0) {
-                    uint8_t current = compiler_scan_Byte(source, cursor.at);
-                    compiler_scan_Advance(&(cursor), source);
-                    bool value_16 = current == 92;
-                    if (value_16) {
-                        bool value_17 = compiler_scan_Byte(source, cursor.at) != 0;
-                        value_16 = value_17;
-                    }
-                    if (value_16) {
-                        compiler_scan_Advance(&(cursor), source);
-                    } else if (current == byte) {
-                        break;
-                    }
-                }
             } else {
-                bool value_18 = compiler_scan_Contains(StringLiteral("{}()[],;"), byte);
-                bool value_19 = value_18;
-                if (!value_19) {
-                    bool value_20 = byte == 58;
-                    if (value_20) {
-                        bool value_21 = compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) != 58;
-                        value_20 = value_21;
-                    }
-                    bool value_22 = value_20;
-                    if (value_22) {
-                        bool value_23 = compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) != 61;
-                        value_22 = value_23;
-                    }
-                    value_19 = value_22;
+                int64_t length = compiler_scan_OperatorLength(source, cursor.at);
+                token.kind = TokenKind_Operator;
+                if (length == 0LL) {
+                    token.kind = TokenKind_Unknown;
+                    length = 1LL;
                 }
-                if (value_19) {
-                    token.kind = TokenKind_Punct;
+                int64_t index = 0LL;
+                while (index < length) {
                     compiler_scan_Advance(&(cursor), source);
-                } else {
-                    int64_t length = compiler_scan_OperatorLength(source, cursor.at);
-                    token.kind = TokenKind_Operator;
-                    if (length == 0LL) {
-                        token.kind = TokenKind_Unknown;
-                        length = 1LL;
-                    }
-                    int64_t index = 0LL;
-                    while (index < length) {
-                        compiler_scan_Advance(&(cursor), source);
-                        index = (int64_t)((uint64_t)index + UINT64_C(1));
-                    }
+                    index = (int64_t)((uint64_t)index + UINT64_C(1));
                 }
             }
         }

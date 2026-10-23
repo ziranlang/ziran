@@ -52,6 +52,48 @@ for input in source saved; do
     test "$status" = 42
 done
 
+# A native C build calls the bound export; another module's capability of
+# the same name still resolves to the export with that name.
+mkdir -p "$work/native"
+cat > "$work/native/app.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Effect :: (value: s32) -> s32 #foreign host_api;
+Main :: () -> s32 { return Effect(41) }
+ZI
+cat > "$work/native/other.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Effect :: (value: s32) -> s32 #foreign host_api;
+Other :: () -> s32 { return Effect(1) }
+ZI
+cat > "$work/native/both.zi" <<'ZI'
+#import "app"
+#import "other"
+#import "provider"
+#program_export
+Effect :: (value: s32) -> s32 { return value * 10 }
+#program_export
+both :: () -> s32 { return Main() + Other() }
+ZI
+cp "$work/provider.zi" "$work/native/"
+for input in source saved; do
+    output=$work/c-$input
+    if test "$input" = source; then
+        "$ziran" build --target=c --exe --root "$work/native" --entry both:both \
+            --bind app:Effect=provider:Produce -o "$output" "$work/native/both.zi"
+    else
+        # The binding is kept in IR saved for the entry.
+        "$ziran" ir --root "$work/native" --entry both:both --bind app:Effect=provider:Produce \
+            -o "$work/native-ir" "$work/native/both.zi"
+        # shellcheck disable=SC2046
+        "$ziran" build --target=c --exe --root "$work/native-ir" --entry both:both \
+            -o "$output" $(ls "$work"/native-ir/*.zir)
+    fi
+    status=0
+    env -u DISPLAY -u WAYLAND_DISPLAY "$output/both" || status=$?
+    # app's Effect(41) is Produce: 42; other's Effect(1) is the export: 10.
+    test "$status" = 52
+done
+
 "$ziran" bundle --root "$work" --entry app:main \
     -o "$work/unbound.zib" "$work/app.zi"
 if "$ziran" run "$work/unbound.zib" > "$work/unbound.out" 2> "$work/unbound.err"; then

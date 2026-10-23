@@ -249,6 +249,14 @@ resolve_module_fn(const ZirModule *m, const char *ident, size_t len,
             NativeCForeignName(m, foreign, dst, dst_size);
             return strlen(dst);
         }
+        /* A host capability bound to a program export calls that export. */
+        if(foreign->kind == ZIR_IMPORT_EXTERN &&
+           foreign->extern_kind == ZIR_EXTERN_HOST &&
+           !strncmp(foreign->target, "ziran:", 6) &&
+           foreign->extern_symbol[0] != '\0' && !strcmp(foreign->name, name)) {
+            snprintf(dst, dst_size, "%s", foreign->extern_symbol);
+            return strlen(dst);
+        }
     }
     if(ResolveFunction(m, name, &owner, &fn) == 1) {
         function_c_name(owner, fn, dst, dst_size);
@@ -952,7 +960,8 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
     char ret[LOWER_NAME_MAX];
     char return_type[LOWER_NAME_MAX];
     char symbol[LOWER_NAME_MAX];
-    const char *cname = imp->name;
+    const char *cname = imp->extern_kind == ZIR_EXTERN_HOST && !strncmp(imp->target, "ziran:", 6) &&
+        imp->extern_symbol[0] != '\0' ? imp->extern_symbol : imp->name;
     extract_extern_signature(imp, ret, sizeof(ret), buffers->cargs, sizeof(buffers->cargs));
     strip_alias_type(m, ret, return_type, sizeof(return_type));
     copy_text(ret, sizeof(ret), return_type);

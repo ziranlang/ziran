@@ -31,7 +31,7 @@ usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2c [--no-main] [--prune-stale] [--plan9|--target=plan9-c] "
-            "[--entry module:function [--exe]] [--include-dir DIR] "
+            "[--entry module:function [--exe] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--include-dir DIR] "
             "[--diagnostics=text|json] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
 }
 
@@ -99,6 +99,10 @@ main(int argc, char **argv)
     int module_path_count = 0;
     const char *defines[65];
     int define_count = 0;
+    const char *bindings[64];
+    int binding_count = 0;
+    const char *host_modules[16];
+    int host_module_count = 0;
     ZirProgram **progs;
     ZirCModuleSyms *syms = NULL;
     int syms_count = 0;
@@ -114,6 +118,8 @@ main(int argc, char **argv)
         COMMAND_LIST("--define", defines, define_count, 64, valid_define),
         COMMAND_TEXT("-o", out_dir),
         COMMAND_TEXT("--entry", entry),
+        COMMAND_LIST("--bind", bindings, binding_count, 64, NULL),
+        COMMAND_LIST("--bind-host", host_modules, host_module_count, 16, NULL),
         COMMAND_FLAG("--prune-stale", prune_stale),
         COMMAND_FLAG("--no-main", no_main),
         COMMAND_FLAG("--exe", exe),
@@ -129,6 +135,7 @@ main(int argc, char **argv)
     }
     if(root == NULL || out_dir == NULL || first_file == 0 ||
        (entry != NULL && !split_entry(entry, entry_module, entry_function)) ||
+       ((binding_count > 0 || host_module_count > 0) && entry == NULL) ||
        (exe && (entry == NULL || plan9))) {
         if(exe && entry == NULL) {
             Diagnostic((ZirSourceSpan){0}, "command.arguments", "--exe needs --entry module:function");
@@ -188,6 +195,12 @@ main(int argc, char **argv)
         ZirProgram *merged_ptr = &merged;
         if(!LinkImports(&merged_ptr, 1))
             goto done;
+        for(i = 0; i < binding_count; i++)
+            if(!BindHostProvider(&merged, bindings[i]))
+                goto done;
+        for(i = 0; i < host_module_count; i++)
+            if(!BindHostModule(&merged, host_modules[i]))
+                goto done;
         linked = NativeLink(&merged, entry_module, entry_function);
         if(linked == NULL)
             goto done;

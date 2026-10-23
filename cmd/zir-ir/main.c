@@ -17,7 +17,7 @@
 static void
 usage(void)
 {
-    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|cpp|go|rust|py|zib|plan9-c] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...");
+    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|cpp|go|rust|py|zib|plan9-c] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ...");
 }
 
 static int
@@ -84,6 +84,10 @@ main(int argc, char **argv)
     int module_path_count = 0;
     const char *defines[64];
     int define_count = 0;
+    const char *bindings[64];
+    int binding_count = 0;
+    const char *host_modules[16];
+    int host_module_count = 0;
     int count;
 
     SetDiagnosticFormatFromArguments(argc, argv);
@@ -111,6 +115,10 @@ main(int argc, char **argv)
             out_dir = argv[++i];
         } else if(strcmp(argv[i], "--entry") == 0 && i + 1 < argc) {
             entry = argv[++i];
+        } else if(strcmp(argv[i], "--bind") == 0 && i + 1 < argc && binding_count < 64) {
+            bindings[binding_count++] = argv[++i];
+        } else if(strcmp(argv[i], "--bind-host") == 0 && i + 1 < argc && host_module_count < 16) {
+            host_modules[host_module_count++] = argv[++i];
         } else if(strcmp(argv[i], "--check-only") == 0) {
             check_only = 1;
         } else if(strcmp(argv[i], "--lint") == 0) {
@@ -122,6 +130,10 @@ main(int argc, char **argv)
             first_file = i;
             break;
         }
+    }
+    if((binding_count > 0 || host_module_count > 0) && entry == NULL) {
+        Diagnostic(Span("<command>", 1, 1), "host.bind", "--bind needs --entry");
+        return 1;
     }
     if(root == NULL || (!check_only && out_dir == NULL) || first_file == 0 ||
        (entry != NULL && (check_only ||
@@ -183,6 +195,13 @@ main(int argc, char **argv)
             ZirProgram *merged_ptr = &merged;
             if(!LinkImports(&merged_ptr, 1))
                 goto done;
+            /* Native builds bind host capabilities as bundles and Go do. */
+            for(int b = 0; b < binding_count; b++)
+                if(!BindHostProvider(&merged, bindings[b]))
+                    goto done;
+            for(int b = 0; b < host_module_count; b++)
+                if(!BindHostModule(&merged, host_modules[b]))
+                    goto done;
             linked = NativeLink(&merged, entry_module, entry_function);
             if(linked == NULL)
                 goto done;

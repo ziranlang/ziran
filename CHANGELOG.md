@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.1] - 2026-10-23
+### Fixed
+- Source generation now preserves output errors on hosts that use file-backed text streams.
+- Website release links now follow the installed compiler version.
+
 ## [0.3.0] - 2026-10-23
 ### Changed
 - Portable executables and libraries now use `.zx`, the `zi2zx` tool, and the `zx` target. Source stays `.zi` and checked intermediate modules stay `.zir`. Rebuild previous `.zib` programs; renaming a file does not convert it.

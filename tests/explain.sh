@@ -38,7 +38,9 @@ assert len(listing["codes"]) >= 1
 assert listing["codes"] == sorted(listing["codes"])
 
 emitted = set()
-for path in (repo / "cmd").rglob("*.c"):
+sources = (path for path in (repo / "cmd").rglob("*")
+           if path.suffix in (".c", ".h"))
+for path in sources:
     text = path.read_text()
     for match in re.finditer(r"(?:Diagnostic(?:V|Detailed|Target)?|Warning)\s*\(", text):
         end = match.end()

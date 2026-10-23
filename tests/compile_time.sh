@@ -3,6 +3,7 @@ set -eu
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$repo/tests/lib/native_answer.sh"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -46,33 +47,8 @@ for input in source saved; do
     fi
     for target in c cpp go; do
         out="$work/$target-$input"
-        if test "$target" = go; then
-            "$ziran" build --target=go --pkg main --root "$root" \
-                -o "$out" "$file"
-            cat > "$out/main.go" <<'GO'
-package main
-func main() { if Phase_Answer() != 42 { panic("compile-time phase") } }
-GO
-            GO111MODULE=off go run "$out"/*.go
-        elif test "$target" = c; then
-            "$ziran" build --target=c --root "$root" -o "$out" "$file"
-            cat > "$out/main.c" <<'C'
-#include "phase.h"
-int main(void) { return Answer() == 42 ? 0 : 1; }
-C
-            "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
-                "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$file"
-            cat > "$out/main.cpp" <<'CPP'
-#include "phase.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out"/*.cpp -o "$out/app"
-            "$out/app"
-        fi
+        native_answer_42 "$target" "$root" "$out" "$file" \
+            phase Phase_Answer 'compile-time phase'
     done
 done
 

@@ -3,6 +3,7 @@ set -eu
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$repo/tests/lib/native_answer.sh"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -55,33 +56,8 @@ for input in "$work/app.zi" "$work/ir/app.zir"; do
     esac
     for target in c cpp go; do
         out="$work/$target-$suffix"
-        if test "$target" = go; then
-            "$ziran" build --target=go --pkg main --root "$root" \
-                -o "$out" "$input"
-            cat > "$out/main.go" <<'GO'
-package main
-func main() { if App_Answer() != 42 { panic("using struct") } }
-GO
-            GO111MODULE=off go run "$out"/*.go
-        elif test "$target" = c; then
-            "$ziran" build --target=c --root "$root" -o "$out" "$input"
-            cat > "$out/main.c" <<'C'
-#include "app.h"
-int main(void) { return Answer() == 42 ? 0 : 1; }
-C
-            "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
-                "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$input"
-            cat > "$out/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out"/*.cpp -o "$out/app"
-            "$out/app"
-        fi
+        native_answer_42 "$target" "$root" "$out" "$input" \
+            app App_Answer 'using struct'
     done
 done
 

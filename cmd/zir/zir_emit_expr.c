@@ -4,6 +4,43 @@
 
 static int sized_string_literals;
 
+/* These reads and wrapping integer operations neither call nor fault. Keep
+ * snapshots for indexes, dereferences and conversions that can fail, so their
+ * evaluation order and diagnostics stay intact. A deep tree keeps the
+ * conservative path without adding an unbounded analysis recursion. */
+static int
+plain_wide_operand(const ZirFunction *fn, int index, int depth)
+{
+    if(index < 0 || index >= fn->expr_count || depth >= 64) return 0;
+    const ZirExpr *expr = &fn->exprs[index];
+    switch(expr->kind) {
+    case ZIR_EXPR_INT: case ZIR_EXPR_IDENT:
+    case ZIR_EXPR_SIZE_OF: case ZIR_EXPR_COMPILE_TIME:
+        return 1;
+    case ZIR_EXPR_MEMBER:
+        return expr->left >= 0 && expr->left < fn->expr_count &&
+               fn->exprs[expr->left].type[0] != '*' &&
+               plain_wide_operand(fn, expr->left, depth + 1);
+    case ZIR_EXPR_UNARY:
+        return (!strcmp(expr->op, "+") || !strcmp(expr->op, "-") ||
+                !strcmp(expr->op, "~")) &&
+               plain_wide_operand(fn, expr->right, depth + 1);
+    case ZIR_EXPR_BINARY:
+        return (!strcmp(expr->op, "+") || !strcmp(expr->op, "-") ||
+                !strcmp(expr->op, "*") || !strcmp(expr->op, "&") ||
+                !strcmp(expr->op, "|") || !strcmp(expr->op, "^")) &&
+               plain_wide_operand(fn, expr->left, depth + 1) &&
+               plain_wide_operand(fn, expr->right, depth + 1);
+    case ZIR_EXPR_CAST:
+        return expr->right >= 0 && expr->right < fn->expr_count &&
+               width(canonical(expr->name)) &&
+               width(canonical(fn->exprs[expr->right].type)) &&
+               plain_wide_operand(fn, expr->right, depth + 1);
+    default:
+        return 0;
+    }
+}
+
 void
 EmitUseSizedStringLiterals(int enabled)
 {
@@ -819,11 +856,20 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                 format(buffers->result, sizeof(buffers->result), "%s[%s:%s]", view, buffers->low, buffers->high);
                 break;
             }
-            fresh(e, view);
-            if(e->target == ZIR_GO)
-                line(e, "%s := %s", view, buffers->source);
-            else
-                line(e, "String %s = %s;", view, buffers->source);
+            int inline_view = (e->target == ZIR_C || e->target == ZIR_CPP) &&
+               !(e->target == ZIR_C && zir_native_operand_temporaries) &&
+               plain_identifier(buffers->source) && strlen(buffers->source) < sizeof(view) &&
+               !expression_calls(e->fn, expr->right) &&
+               !expression_calls(e->fn, expr->third);
+            if(inline_view) {
+                copy_text(view, sizeof(view), buffers->source);
+            } else {
+                fresh(e, view);
+                if(e->target == ZIR_GO)
+                    line(e, "%s := %s", view, buffers->source);
+                else
+                    line(e, "String %s = %s;", view, buffers->source);
+            }
             if(expr->right >= 0) {
                 emit_expr(e, expr->right, "s64", buffers->low, sizeof(buffers->low));
                 low_pure = e->pure;
@@ -834,6 +880,13 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             } else format(buffers->high, sizeof(buffers->high), e->target == ZIR_GO ?
                           "len(%s)" : "%s.length", view);
             pure = base_pure && low_pure && high_pure;
+            if(inline_view && strlen(view) + strlen(buffers->low) +
+               strlen(buffers->high) + 64 >= sizeof(buffers->result)) {
+                fresh(e, view);
+                line(e, "String %s = %s;", view, buffers->source);
+                if(expr->third < 0)
+                    format(buffers->high, sizeof(buffers->high), "%s.length", view);
+            }
             if(e->target == ZIR_GO) {
                 line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > int64(len(%s)) { panic(\"string range out of bounds\") }",
                      buffers->low, buffers->high, buffers->low, buffers->high, view);
@@ -1221,6 +1274,10 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
          * native 8c aborts on two indexed wide fields in one comparison. */
         int wide_compare = !strcmp(type, "bool") && width(operand_type) == 64 &&
                            (e->target == ZIR_C || e->target == ZIR_CPP);
+        int ordered_wide = wide_compare &&
+                           ((e->target == ZIR_C && zir_native_operand_temporaries) ||
+                            !plain_wide_operand(e->fn, expr->left, 0) ||
+                            !plain_wide_operand(e->fn, expr->right, 0));
         uint64_t literal_bits;
         e->call_in_place = !logical && !call_can_change(e, expr->right) &&
                            (e->target == ZIR_GO || !expression_calls(e->fn, expr->right));
@@ -1228,7 +1285,8 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         left_pure = e->pure;
         /* The left side reads first: a call on the right that could change
          * it runs only after the left value is taken. */
-        if((wide_compare && !plain_identifier(buffers->a) &&
+        if((wide_compare && (ordered_wide || strlen(buffers->a) > ZIR_INLINE_MAX) &&
+            !plain_identifier(buffers->a) &&
             !integer_literal_bits(buffers->a, &literal_bits)) ||
            (expression_calls(e->fn, expr->right) && call_can_change(e, expr->left))) {
             fresh(e, temp);
@@ -1270,7 +1328,8 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
          * runs last and stays in place. */
         e->call_in_place = 1;
         emit_expr(e,expr->right,(!strcmp(expr->op,"<<")||!strcmp(expr->op,">>"))?"s32":operand_type,buffers->b,sizeof(buffers->b));
-        if(wide_compare && !plain_identifier(buffers->b) &&
+        if(wide_compare && (ordered_wide || strlen(buffers->b) > ZIR_INLINE_MAX) &&
+           !plain_identifier(buffers->b) &&
            !integer_literal_bits(buffers->b, &literal_bits)) {
             fresh(e, temp);
             declare(e, temp, operand_type, buffers->b);

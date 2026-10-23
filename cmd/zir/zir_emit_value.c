@@ -3,7 +3,7 @@
 #include "zir_emit_internal.h"
 
 int zir_minify_output;
-static int separate_indexed_stores;
+int zir_native_operand_temporaries;
 
 void
 EmitUseMinifiedOutput(int enabled)
@@ -12,9 +12,9 @@ EmitUseMinifiedOutput(int enabled)
 }
 
 void
-EmitUseSeparateIndexedStores(int enabled)
+EmitUseNativeOperandTemporaries(int enabled)
 {
-    separate_indexed_stores = enabled != 0;
+    zir_native_operand_temporaries = enabled != 0;
 }
 
 int
@@ -78,7 +78,7 @@ assign_value(Emitter *e, const char *destination, const char *type, const char *
 {
     char plain[ZIR_TEXT_MAX];
     source = bare(source, plain, sizeof(plain));
-    if(separate_indexed_stores && e->target == ZIR_C && width(canonical(type)) &&
+    if(zir_native_operand_temporaries && e->target == ZIR_C && width(canonical(type)) &&
        (strstr(destination, "ZIRAN_INDEX(") ||
         strstr(destination, "ZIRAN_VEC_INDEX("))) {
         /* 8c can lose a pending scalar when an indexed destination calls a

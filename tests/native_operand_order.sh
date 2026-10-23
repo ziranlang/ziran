@@ -33,5 +33,16 @@ for form in source saved; do
         fi
     done
     "$ziran" build --target=plan9-c --entry "$module:main" --root "$root" -o "$work/$form-plan9" "$input"
+    python3 - "$work/$form-c/$module.c" "$work/$form-cpp/$module.cpp" "$work/$form-plan9/$module.c" <<'PY'
+from pathlib import Path
+import re, sys
+for index, path in enumerate(map(Path, sys.argv[1:])):
+    text = path.read_text()
+    for name in ('PlainWide', 'PlainView'):
+        match = re.search(r'\b' + name + r'\([^;{}]*\)\s*\{(.*?)\n\}', text, re.S)
+        assert match, (path, name)
+        staged = bool(re.search(r'\bvalue_\d+\b', match[1]))
+        assert staged == (index == 2), (path, name, match[1])
+PY
 done
 cmp "$work/source.zib" "$work/saved.zib"

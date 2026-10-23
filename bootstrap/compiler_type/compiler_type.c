@@ -19,30 +19,18 @@ compiler_type_TargetKnown(String target)
 String
 compiler_type_ForeignTypeTarget(String foreign, bool is_map)
 {
-    int64_t value_0 = (int64_t)(foreign).length;
-    bool value_1 = value_0 >= 3LL;
-    if (value_1) {
-        String value_2 = foreign;
-        value_1 = (StringEqual(StringRange(value_2, (int64_t)0LL, (int64_t)3LL), StringLiteral("py:")));
-    }
-    if (value_1) {
+    if ((int64_t)(foreign).length >= 3LL && StringEqual(StringRange(foreign, (int64_t)0LL, (int64_t)3LL), StringLiteral("py:"))) {
         return StringLiteral("py");
     }
-    bool value_3 = is_map;
-    if (!value_3) {
-        int64_t value_4 = (int64_t)(foreign).length;
-        bool value_5 = value_4 >= 3LL;
-        if (value_5) {
-            String value_6 = foreign;
-            value_5 = (StringEqual(StringRange(value_6, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:")));
-        }
-        value_3 = value_5;
+    bool value_0 = is_map;
+    if (!value_0) {
+        bool value_1 = (int64_t)(foreign).length >= 3LL && StringEqual(StringRange(foreign, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:"));
+        value_0 = value_1;
     }
-    if (value_3) {
+    if (value_0) {
         return StringLiteral("go");
     }
-    int64_t value_7 = (int64_t)(foreign).length;
-    if (value_7 > 0LL) {
+    if ((int64_t)(foreign).length > 0LL) {
         return StringLiteral("unknown");
     }
     return StringLiteral("");
@@ -104,12 +92,7 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
     RecordField result = {0};
     result.status = -1;
     result.next = at;
-    bool value_0 = at < 0LL;
-    if (!value_0) {
-        int64_t value_1 = (int64_t)(body).length;
-        value_0 = (at > value_1);
-    }
-    if (value_0) {
+    if (at < 0LL || at > (int64_t)(body).length) {
         return result;
     }
     while (compiler_type_Byte(body, at) != 0) {
@@ -118,13 +101,13 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
         while (compiler_type_Byte(body, end) != 0) {
             uint8_t byte = (uint8_t)ZIRAN_INDEX(body.data, body.length, end);
             if (quote) {
-                bool value_2 = byte == 92;
-                bool value_3 = value_2;
-                if (value_3) {
-                    bool value_4 = compiler_type_Byte(body, (int64_t)((uint64_t)end + UINT64_C(1))) != 0;
-                    value_3 = value_4;
+                bool value_0 = byte == 92;
+                bool value_1 = value_0;
+                if (value_1) {
+                    bool value_2 = compiler_type_Byte(body, (int64_t)((uint64_t)end + UINT64_C(1))) != 0;
+                    value_1 = value_2;
                 }
-                if (value_3) {
+                if (value_1) {
                     end = (int64_t)((uint64_t)end + UINT64_C(1));
                 } else if (byte == 34) {
                     quote = false;
@@ -143,71 +126,43 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
         if (compiler_type_Byte(body, end) != 0) {
             result.next = (int64_t)((uint64_t)(result.next) + UINT64_C(1));
         }
-        String value_5 = body;
-        String line = compiler_type_Trim(StringRange(value_5, (int64_t)at, (int64_t)end));
+        String line = compiler_type_Trim(StringRange(body, (int64_t)at, (int64_t)end));
         at = result.next;
-        int64_t value_6 = (int64_t)(line).length;
-        if (value_6 == 0LL) {
+        if ((int64_t)(line).length == 0LL) {
             continue;
         }
-        int64_t value_7 = (int64_t)(line).length;
-        bool value_8 = value_7 >= 6LL;
-        if (value_8) {
-            String value_9 = line;
-            value_8 = (StringEqual(StringRange(value_9, (int64_t)0LL, (int64_t)5LL), StringLiteral("using")));
+        bool value_3 = (int64_t)(line).length >= 6LL && StringEqual(StringRange(line, (int64_t)0LL, (int64_t)5LL), StringLiteral("using"));
+        bool value_4 = value_3;
+        bool value_5 = value_4;
+        if (value_5) {
+            bool value_6 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(line.data, line.length, 5));
+            value_5 = value_6;
         }
-        bool value_10 = value_8;
-        bool value_11 = value_10;
-        if (value_11) {
-            bool value_12 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(line.data, line.length, 5));
-            value_11 = value_12;
-        }
-        if (value_11) {
+        if (value_5) {
             result.is_using = true;
-            String value_13 = line;
-            line = compiler_type_Trim(StringRange(value_13, (int64_t)5LL, (int64_t)value_13.length));
+            line = compiler_type_Trim(StringRange(line, (int64_t)5LL, (int64_t)line.length));
         }
         int64_t colon = compiler_type_Find(line, 58, 0LL);
         if (colon < 0LL) {
             return result;
         }
-        String value_14 = line;
-        String name = compiler_type_Trim(StringRange(value_14, (int64_t)0LL, (int64_t)colon));
-        String value_15 = line;
-        String type = compiler_type_Trim(StringRange(value_15, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)value_15.length));
+        String name = compiler_type_Trim(StringRange(line, (int64_t)0LL, (int64_t)colon));
+        String type = compiler_type_Trim(StringRange(line, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)line.length));
         int64_t tag = compiler_type_Find(type, 35, 0LL);
         if (tag >= 0LL) {
-            String value_16 = type;
-            String directive = StringRange(value_16, (int64_t)tag, (int64_t)value_16.length);
-            bool value_17 = union_record;
-            if (!value_17) {
-                int64_t value_18 = (int64_t)(directive).length;
-                value_17 = (value_18 < 8LL);
+            String directive = StringRange(type, (int64_t)tag, (int64_t)type.length);
+            bool value_7 = union_record || (int64_t)(directive).length < 8LL || !StringEqual(StringRange(directive, (int64_t)0LL, (int64_t)7LL), StringLiteral("#go_tag"));
+            bool value_8 = value_7;
+            bool value_9 = value_8;
+            if (!value_9) {
+                bool value_10 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(directive.data, directive.length, 7));
+                value_9 = !value_10;
             }
-            bool value_19 = value_17;
-            if (!value_19) {
-                String value_20 = directive;
-                value_19 = (!StringEqual(StringRange(value_20, (int64_t)0LL, (int64_t)7LL), StringLiteral("#go_tag")));
-            }
-            bool value_21 = value_19;
-            bool value_22 = value_21;
-            if (!value_22) {
-                bool value_23 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(directive.data, directive.length, 7));
-                value_22 = !value_23;
-            }
-            if (value_22) {
+            if (value_9) {
                 return result;
             }
-            String value_24 = directive;
-            String literal = compiler_type_Trim(StringRange(value_24, (int64_t)7LL, (int64_t)value_24.length));
-            int64_t value_25 = (int64_t)(literal).length;
-            bool value_26 = value_25 == 0LL;
-            if (!value_26) {
-                int64_t value_27 = (int64_t)(literal).length;
-                int64_t value_28 = (int64_t)(tag_workspace).length;
-                value_26 = (value_27 >= value_28);
-            }
-            if (value_26) {
+            String literal = compiler_type_Trim(StringRange(directive, (int64_t)7LL, (int64_t)directive.length));
+            if ((int64_t)(literal).length == 0LL || (int64_t)(literal).length >= (int64_t)(tag_workspace).length) {
                 return result;
             }
             DecodedLiteral decoded = compiler_text_DecodeString(literal, tag_workspace);
@@ -215,9 +170,9 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
                 return result;
             }
             {
-                Slice value_29 = tag_workspace;
-                Slice value_30 = SliceRange(value_29, (int64_t)0LL, (int64_t)decoded.count, sizeof(uint8_t));
-                Slice loop_view_63 = SliceRange(value_30, (int64_t)0, (int64_t)value_30.length, sizeof(uint8_t));
+                Slice value_11 = tag_workspace;
+                Slice value_12 = SliceRange(value_11, (int64_t)0LL, (int64_t)decoded.count, sizeof(uint8_t));
+                Slice loop_view_63 = SliceRange(value_12, (int64_t)0, (int64_t)value_12.length, sizeof(uint8_t));
                 int64_t loop_count_63 = (int64_t)(loop_view_63).length;
                 int64_t loop_cursor_63 = 0LL;
                 while (loop_cursor_63 < loop_count_63) {
@@ -230,26 +185,10 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
                 }
             }
             result.tag = literal;
-            String value_31 = type;
-            type = compiler_type_Trim(StringRange(value_31, (int64_t)0LL, (int64_t)tag));
+            type = compiler_type_Trim(StringRange(type, (int64_t)0LL, (int64_t)tag));
         }
-        bool value_32 = compiler_type_Identifier(name);
-        bool value_33 = !value_32;
-        if (!value_33) {
-            int64_t value_34 = (int64_t)(name).length;
-            value_33 = (value_34 >= name_limit);
-        }
-        bool value_35 = value_33;
-        if (!value_35) {
-            int64_t value_36 = (int64_t)(type).length;
-            value_35 = (value_36 == 0LL);
-        }
-        bool value_37 = value_35;
-        if (!value_37) {
-            int64_t value_38 = (int64_t)(type).length;
-            value_37 = (value_38 >= type_limit);
-        }
-        if (value_37) {
+        bool value_13 = compiler_type_Identifier(name);
+        if (!value_13 || (int64_t)(name).length >= name_limit || (int64_t)(type).length == 0LL || (int64_t)(type).length >= type_limit) {
             return result;
         }
         result.status = 1;
@@ -264,43 +203,31 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
 ElementType
 compiler_type_SliceElement(String type)
 {
-    int64_t value_0 = (int64_t)(type).length;
-    bool value_1 = value_0 < 2LL;
-    if (!value_1) {
-        String value_2 = type;
-        value_1 = (!StringEqual(StringRange(value_2, (int64_t)0LL, (int64_t)2LL), StringLiteral("[]")));
-    }
-    if (value_1) {
+    if ((int64_t)(type).length < 2LL || !StringEqual(StringRange(type, (int64_t)0LL, (int64_t)2LL), StringLiteral("[]"))) {
         return (ElementType){0};
     }
-    String value_3 = type;
-    String element = compiler_type_Trim(StringRange(value_3, (int64_t)2LL, (int64_t)value_3.length));
-    int64_t value_4 = (int64_t)(element).length;
-    return (ElementType){.valid = value_4 > 0LL, .element = element, .capacity = 0LL};
+    String element = compiler_type_Trim(StringRange(type, (int64_t)2LL, (int64_t)type.length));
+    return (ElementType){.valid = (int64_t)(element).length > 0LL, .element = element, .capacity = 0LL};
 }
 
 ElementType
 compiler_type_ArrayElement(String type)
 {
-    int64_t value_0 = (int64_t)(type).length;
-    if (value_0 < 4LL || (uint8_t)ZIRAN_INDEX(type.data, type.length, 0) != 91) {
+    if ((int64_t)(type).length < 4LL || (uint8_t)ZIRAN_INDEX(type.data, type.length, 0) != 91) {
         return (ElementType){0};
     }
     int64_t close = compiler_type_Find(type, 93, 1LL);
     if (close <= 1LL) {
         return (ElementType){0};
     }
-    String value_1 = type;
-    String element = compiler_type_Trim(StringRange(value_1, (int64_t)((int64_t)((uint64_t)close + UINT64_C(1))), (int64_t)value_1.length));
-    int64_t value_2 = (int64_t)(element).length;
-    if (value_2 == 0LL) {
+    String element = compiler_type_Trim(StringRange(type, (int64_t)((int64_t)((uint64_t)close + UINT64_C(1))), (int64_t)type.length));
+    if ((int64_t)(element).length == 0LL) {
         return (ElementType){0};
     }
     bool digits = true;
     {
-        String value_3 = type;
-        String value_4 = StringRange(value_3, (int64_t)1LL, (int64_t)close);
-        String loop_view_12 = StringRange(value_4, (int64_t)0, (int64_t)value_4.length);
+        String value_0 = StringRange(type, (int64_t)1LL, (int64_t)close);
+        String loop_view_12 = StringRange(value_0, (int64_t)0, (int64_t)value_0.length);
         int64_t loop_count_12 = (int64_t)(loop_view_12).length;
         int64_t loop_cursor_12 = 0LL;
         while (loop_cursor_12 < loop_count_12) {
@@ -317,9 +244,8 @@ compiler_type_ArrayElement(String type)
     if (digits) {
         capacity = 0LL;
         {
-            String value_5 = type;
-            String value_6 = StringRange(value_5, (int64_t)1LL, (int64_t)close);
-            String loop_view_21 = StringRange(value_6, (int64_t)0, (int64_t)value_6.length);
+            String value_1 = StringRange(type, (int64_t)1LL, (int64_t)close);
+            String loop_view_21 = StringRange(value_1, (int64_t)0, (int64_t)value_1.length);
             int64_t loop_count_21 = (int64_t)(loop_view_21).length;
             int64_t loop_cursor_21 = 0LL;
             while (loop_cursor_21 < loop_count_21) {
@@ -339,22 +265,16 @@ compiler_type_ArrayElement(String type)
 bool
 compiler_type_BuiltinName(String name)
 {
-    int64_t value_0 = (int64_t)(name).length;
-    bool value_1 = value_0 < 2LL;
-    if (!value_1) {
-        int64_t value_2 = (int64_t)(name).length;
-        value_1 = (value_2 > 7LL);
-    }
-    if (value_1) {
+    if ((int64_t)(name).length < 2LL || (int64_t)(name).length > 7LL) {
         return false;
     }
-    bool value_3 = StringEqual(name, StringLiteral("bool")) || StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("s8"));
-    bool value_4 = value_3 || StringEqual(name, StringLiteral("u8")) || StringEqual(name, StringLiteral("s16")) || StringEqual(name, StringLiteral("u16"));
-    bool value_5 = value_4 || StringEqual(name, StringLiteral("s32")) || StringEqual(name, StringLiteral("u32")) || StringEqual(name, StringLiteral("s64"));
-    bool value_6 = value_5 || StringEqual(name, StringLiteral("u64")) || StringEqual(name, StringLiteral("isize")) || StringEqual(name, StringLiteral("usize"));
-    bool value_7 = value_6 || StringEqual(name, StringLiteral("float32")) || StringEqual(name, StringLiteral("float64"));
-    bool value_8 = value_7 || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("int")) || StringEqual(name, StringLiteral("float"));
-    return value_8 || StringEqual(name, StringLiteral("Type")) || StringEqual(name, StringLiteral("any"));
+    bool value_0 = StringEqual(name, StringLiteral("bool")) || StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("s8"));
+    bool value_1 = value_0 || StringEqual(name, StringLiteral("u8")) || StringEqual(name, StringLiteral("s16")) || StringEqual(name, StringLiteral("u16"));
+    bool value_2 = value_1 || StringEqual(name, StringLiteral("s32")) || StringEqual(name, StringLiteral("u32")) || StringEqual(name, StringLiteral("s64"));
+    bool value_3 = value_2 || StringEqual(name, StringLiteral("u64")) || StringEqual(name, StringLiteral("isize")) || StringEqual(name, StringLiteral("usize"));
+    bool value_4 = value_3 || StringEqual(name, StringLiteral("float32")) || StringEqual(name, StringLiteral("float64"));
+    bool value_5 = value_4 || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("int")) || StringEqual(name, StringLiteral("float"));
+    return value_5 || StringEqual(name, StringLiteral("Type")) || StringEqual(name, StringLiteral("any"));
 }
 
 bool
@@ -381,13 +301,7 @@ compiler_type_MapPrimitive(String name)
 ForeignCall
 compiler_type_GoCall(String target, int64_t receiver_limit)
 {
-    int64_t value_0 = (int64_t)(target).length;
-    bool value_1 = value_0 >= 3LL;
-    if (value_1) {
-        String value_2 = target;
-        value_1 = (StringEqual(StringRange(value_2, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:")));
-    }
-    bool explicit_go = value_1;
+    bool explicit_go = (int64_t)(target).length >= 3LL && StringEqual(StringRange(target, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:"));
     int64_t start = 0LL;
     if (explicit_go) {
         start = 3LL;
@@ -419,59 +333,43 @@ compiler_type_GoCall(String target, int64_t receiver_limit)
     if (end <= start || (!explicit_go && !slash)) {
         return (ForeignCall){0};
     }
-    String value_3 = target;
-    String module = StringRange(value_3, (int64_t)start, (int64_t)end);
-    {
-        int64_t it_index = 0LL;
-        while (true) {
-            int64_t value_4 = (int64_t)(module).length;
-            if (!(it_index < value_4)) { break; }
-            uint8_t byte = (uint8_t)ZIRAN_INDEX(module.data, module.length, it_index);
-            bool value_5 = compiler_text_IdentifierByte(byte);
-            if (!value_5 && byte != 47 && byte != 46 && byte != 45) {
-                return (ForeignCall){0};
-            }
-            it_index = (int64_t)((uint64_t)it_index + UINT64_C(1));
+    String module = StringRange(target, (int64_t)start, (int64_t)end);
+    for (int64_t it_index = 0LL; it_index < (int64_t)(module).length; it_index++) {
+        uint8_t byte = (uint8_t)ZIRAN_INDEX(module.data, module.length, it_index);
+        bool value_0 = compiler_text_IdentifierByte(byte);
+        if (!value_0 && byte != 47 && byte != 46 && byte != 45) {
+            return (ForeignCall){0};
         }
     }
     String receiver = StringLiteral("");
     int64_t name = (int64_t)((uint64_t)end + UINT64_C(1));
     if (method >= 0LL) {
         int64_t close = compiler_type_Find(target, 41, (int64_t)((uint64_t)method + UINT64_C(2)));
-        bool value_6 = close < 0LL;
-        if (!value_6) {
-            bool value_7 = compiler_type_Byte(target, (int64_t)((uint64_t)close + UINT64_C(1))) != 46;
-            value_6 = value_7;
+        bool value_1 = close < 0LL;
+        if (!value_1) {
+            bool value_2 = compiler_type_Byte(target, (int64_t)((uint64_t)close + UINT64_C(1))) != 46;
+            value_1 = value_2;
         }
-        if (value_6) {
+        if (value_1) {
             return (ForeignCall){0};
         }
-        String value_8 = target;
-        receiver = StringRange(value_8, (int64_t)((int64_t)((uint64_t)method + UINT64_C(2))), (int64_t)close);
-        int64_t value_9 = (int64_t)(receiver).length;
-        bool value_10 = value_9 == 0LL;
-        if (!value_10) {
-            int64_t value_11 = (int64_t)(receiver).length;
-            value_10 = (value_11 >= receiver_limit);
-        }
-        if (value_10) {
+        receiver = StringRange(target, (int64_t)((int64_t)((uint64_t)method + UINT64_C(2))), (int64_t)close);
+        if ((int64_t)(receiver).length == 0LL || (int64_t)(receiver).length >= receiver_limit) {
             return (ForeignCall){0};
         }
         String receiver_name = receiver;
         if ((uint8_t)ZIRAN_INDEX(receiver.data, receiver.length, 0) == 42) {
-            String value_12 = receiver;
-            receiver_name = StringRange(value_12, (int64_t)1LL, (int64_t)value_12.length);
+            receiver_name = StringRange(receiver, (int64_t)1LL, (int64_t)receiver.length);
         }
-        bool value_13 = compiler_type_Identifier(receiver_name);
-        if (!value_13) {
+        bool value_3 = compiler_type_Identifier(receiver_name);
+        if (!value_3) {
             return (ForeignCall){0};
         }
         name = (int64_t)((uint64_t)close + UINT64_C(2));
     }
-    String value_14 = target;
-    String symbol = StringRange(value_14, (int64_t)name, (int64_t)value_14.length);
-    bool value_15 = compiler_type_Identifier(symbol);
-    if (!value_15) {
+    String symbol = StringRange(target, (int64_t)name, (int64_t)target.length);
+    bool value_4 = compiler_type_Identifier(symbol);
+    if (!value_4) {
         return (ForeignCall){0};
     }
     int32_t kind = 1;
@@ -484,32 +382,20 @@ compiler_type_GoCall(String target, int64_t receiver_limit)
 bool
 compiler_type_GoTypeTarget(String target)
 {
-    int64_t value_0 = (int64_t)(target).length;
-    bool value_1 = value_0 < 3LL;
-    if (!value_1) {
-        String value_2 = target;
-        value_1 = (!StringEqual(StringRange(value_2, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:")));
-    }
-    if (value_1) {
+    if ((int64_t)(target).length < 3LL || !StringEqual(StringRange(target, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:"))) {
         return false;
     }
     ForeignCall call = compiler_type_GoCall(target, 0LL);
     if (call.kind != 1) {
         return false;
     }
-    int64_t value_3 = (int64_t)(target).length;
-    bool value_4 = value_3 >= 11LL;
-    if (value_4) {
-        String value_5 = target;
-        value_4 = (StringEqual(StringRange(value_5, (int64_t)0LL, (int64_t)11LL), StringLiteral("go:builtin.")));
-    }
-    if (value_4) {
-        bool value_6 = StringEqual(call.module, StringLiteral("builtin"));
-        if (value_6) {
-            bool value_7 = StringEqual(call.symbol, StringLiteral("any")) || StringEqual(call.symbol, StringLiteral("error"));
-            value_6 = value_7;
+    if ((int64_t)(target).length >= 11LL && StringEqual(StringRange(target, (int64_t)0LL, (int64_t)11LL), StringLiteral("go:builtin."))) {
+        bool value_0 = StringEqual(call.module, StringLiteral("builtin"));
+        if (value_0) {
+            bool value_1 = StringEqual(call.symbol, StringLiteral("any")) || StringEqual(call.symbol, StringLiteral("error"));
+            value_0 = value_1;
         }
-        return value_6;
+        return value_0;
     }
     return true;
 }
@@ -517,23 +403,16 @@ compiler_type_GoTypeTarget(String target)
 ForeignCall
 compiler_type_PythonCall(String target)
 {
-    int64_t value_0 = (int64_t)(target).length;
-    bool value_1 = value_0 < 3LL;
-    if (!value_1) {
-        String value_2 = target;
-        value_1 = (!StringEqual(StringRange(value_2, (int64_t)0LL, (int64_t)3LL), StringLiteral("py:")));
-    }
-    if (value_1) {
+    if ((int64_t)(target).length < 3LL || !StringEqual(StringRange(target, (int64_t)0LL, (int64_t)3LL), StringLiteral("py:"))) {
         return (ForeignCall){0};
     }
     int64_t slash = compiler_type_Find(target, 47, 3LL);
     if (slash < 0LL) {
         return (ForeignCall){0};
     }
-    String value_3 = target;
-    String module = StringRange(value_3, (int64_t)3LL, (int64_t)slash);
-    bool value_4 = compiler_type_DottedIdentifier(module);
-    if (!value_4) {
+    String module = StringRange(target, (int64_t)3LL, (int64_t)slash);
+    bool value_0 = compiler_type_DottedIdentifier(module);
+    if (!value_0) {
         return (ForeignCall){0};
     }
     int64_t name = (int64_t)((uint64_t)slash + UINT64_C(1));
@@ -541,48 +420,39 @@ compiler_type_PythonCall(String target)
     int32_t kind = 1;
     if (compiler_type_Byte(target, name) == 40) {
         int64_t close = compiler_type_Find(target, 41, (int64_t)((uint64_t)name + UINT64_C(1)));
-        bool value_5 = close < 0LL;
-        if (!value_5) {
-            bool value_6 = compiler_type_Byte(target, (int64_t)((uint64_t)close + UINT64_C(1))) != 46;
-            value_5 = value_6;
+        bool value_1 = close < 0LL;
+        if (!value_1) {
+            bool value_2 = compiler_type_Byte(target, (int64_t)((uint64_t)close + UINT64_C(1))) != 46;
+            value_1 = value_2;
         }
-        if (value_5) {
+        if (value_1) {
             return (ForeignCall){0};
         }
-        String value_7 = target;
-        receiver = StringRange(value_7, (int64_t)((int64_t)((uint64_t)name + UINT64_C(1))), (int64_t)close);
+        receiver = StringRange(target, (int64_t)((int64_t)((uint64_t)name + UINT64_C(1))), (int64_t)close);
         name = (int64_t)((uint64_t)close + UINT64_C(2));
-        bool value_8 = compiler_type_Identifier(receiver);
-        bool value_9 = !value_8;
-        if (!value_9) {
-            String value_10 = target;
-            bool value_11 = compiler_type_Identifier(StringRange(value_10, (int64_t)name, (int64_t)value_10.length));
-            value_9 = !value_11;
+        bool value_3 = compiler_type_Identifier(receiver);
+        bool value_4 = !value_3;
+        if (!value_4) {
+            bool value_5 = compiler_type_Identifier(StringRange(target, (int64_t)name, (int64_t)target.length));
+            value_4 = !value_5;
         }
-        if (value_9) {
+        if (value_4) {
             return (ForeignCall){0};
         }
         kind = 2;
     } else {
-        String value_12 = target;
-        bool value_13 = compiler_type_DottedIdentifier(StringRange(value_12, (int64_t)name, (int64_t)value_12.length));
-        if (!value_13) {
+        bool value_6 = compiler_type_DottedIdentifier(StringRange(target, (int64_t)name, (int64_t)target.length));
+        if (!value_6) {
             return (ForeignCall){0};
         }
     }
-    String value_14 = target;
-    return (ForeignCall){.kind = kind, .module = module, .receiver = receiver, .symbol = StringRange(value_14, (int64_t)name, (int64_t)value_14.length)};
+    return (ForeignCall){.kind = kind, .module = module, .receiver = receiver, .symbol = StringRange(target, (int64_t)name, (int64_t)target.length)};
 }
 
 static uint8_t
 compiler_type_Byte(String source, int64_t at)
 {
-    bool value_0 = at < 0LL;
-    if (!value_0) {
-        int64_t value_1 = (int64_t)(source).length;
-        value_0 = (at >= value_1);
-    }
-    if (value_0) {
+    if (at < 0LL || at >= (int64_t)(source).length) {
         return 0;
     }
     return (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
@@ -591,9 +461,7 @@ compiler_type_Byte(String source, int64_t at)
 static int64_t
 compiler_type_Find(String source, uint8_t wanted, int64_t at)
 {
-    while (true) {
-        int64_t value_0 = (int64_t)(source).length;
-        if (!(at < value_0)) { break; }
+    while (at < (int64_t)(source).length) {
         if ((uint8_t)ZIRAN_INDEX(source.data, source.length, at) == wanted) {
             return at;
         }
@@ -606,32 +474,24 @@ static String
 compiler_type_Trim(String source)
 {
     SourceRange range = compiler_text_TrimRange(source);
-    String value_0 = source;
-    return StringRange(value_0, (int64_t)range.begin, (int64_t)range.end);
+    return StringRange(source, (int64_t)range.begin, (int64_t)range.end);
 }
 
 static bool
 compiler_type_Identifier(String source)
 {
-    int64_t value_0 = (int64_t)(source).length;
-    if (value_0 == 0LL) {
+    if ((int64_t)(source).length == 0LL) {
         return false;
     }
     uint8_t first = (uint8_t)ZIRAN_INDEX(source.data, source.length, 0);
     if (first != 95 && !(first >= 97 && first <= 122) && !(first >= 65 && first <= 90)) {
         return false;
     }
-    {
-        int64_t it_index = 0LL;
-        while (true) {
-            int64_t value_1 = (int64_t)(source).length;
-            if (!(it_index < value_1)) { break; }
-            uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
-            bool value_2 = compiler_text_IdentifierByte(byte);
-            if (!value_2) {
-                return false;
-            }
-            it_index = (int64_t)((uint64_t)it_index + UINT64_C(1));
+    for (int64_t it_index = 0LL; it_index < (int64_t)(source).length; it_index++) {
+        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
+        bool value_0 = compiler_text_IdentifierByte(byte);
+        if (!value_0) {
+            return false;
         }
     }
     return true;
@@ -640,22 +500,17 @@ compiler_type_Identifier(String source)
 static bool
 compiler_type_DottedIdentifier(String source)
 {
-    int64_t value_0 = (int64_t)(source).length;
-    if (value_0 == 0LL) {
+    if ((int64_t)(source).length == 0LL) {
         return false;
     }
     int64_t at = 0LL;
-    while (true) {
-        int64_t value_1 = (int64_t)(source).length;
-        if (!(at < value_1)) { break; }
+    while (at < (int64_t)(source).length) {
         int64_t dot = compiler_type_Find(source, 46, at);
         if (dot < 0LL) {
-            String value_2 = source;
-            return compiler_type_Identifier(StringRange(value_2, (int64_t)at, (int64_t)value_2.length));
+            return compiler_type_Identifier(StringRange(source, (int64_t)at, (int64_t)source.length));
         }
-        String value_3 = source;
-        bool value_4 = compiler_type_Identifier(StringRange(value_3, (int64_t)at, (int64_t)dot));
-        if (!value_4) {
+        bool value_0 = compiler_type_Identifier(StringRange(source, (int64_t)at, (int64_t)dot));
+        if (!value_0) {
             return false;
         }
         at = (int64_t)((uint64_t)dot + UINT64_C(1));

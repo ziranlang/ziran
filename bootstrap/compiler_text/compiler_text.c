@@ -15,25 +15,8 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
     if (limit < 0 || limit >= 128) {
         return 128;
     }
-    int64_t value_0 = (int64_t)(a).length;
-    bool value_1 = value_0 >= 128LL;
-    if (!value_1) {
-        int64_t value_2 = (int64_t)(b).length;
-        value_1 = (value_2 >= 128LL);
-    }
-    bool value_3 = value_1;
-    if (!value_3) {
-        int64_t value_4 = (int64_t)((uint64_t)((int64_t)(a).length) - (uint64_t)((int64_t)(b).length));
-        int64_t value_5 = (int64_t)(limit);
-        value_3 = (value_4 > value_5);
-    }
-    bool value_6 = value_3;
-    if (!value_6) {
-        int64_t value_7 = (int64_t)((uint64_t)((int64_t)(b).length) - (uint64_t)((int64_t)(a).length));
-        int64_t value_8 = (int64_t)(limit);
-        value_6 = (value_7 > value_8);
-    }
-    if (value_6) {
+    bool value_0 = (int64_t)(a).length >= 128LL || (int64_t)(b).length >= 128LL || (int64_t)((uint64_t)((int64_t)(a).length) - (uint64_t)((int64_t)(b).length)) > (int64_t)(limit);
+    if (value_0 || (int64_t)((uint64_t)((int64_t)(b).length) - (uint64_t)((int64_t)(a).length)) > (int64_t)(limit)) {
         return (int32_t)((uint32_t)limit + 1u);
     }
     int32_t previous[128] = {0};
@@ -51,21 +34,17 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
         }
     }
     int64_t i = 1LL;
-    while (true) {
-        int64_t value_9 = (int64_t)(a).length;
-        if (!(i <= value_9)) { break; }
+    while (i <= (int64_t)(a).length) {
         int32_t best = (int32_t)(i);
         ZIRAN_INDEX(current, sizeof(current) / sizeof(current[0]), 0) = best;
         int64_t j = 1LL;
-        while (true) {
-            int64_t value_10 = (int64_t)(b).length;
-            if (!(j <= value_10)) { break; }
-            bool value_11 = (uint8_t)ZIRAN_INDEX(a.data, a.length, ((int64_t)((uint64_t)i - UINT64_C(1)))) != (uint8_t)ZIRAN_INDEX(b.data, b.length, ((int64_t)((uint64_t)j - UINT64_C(1))));
-            int32_t value_12 = 0;
-            if (value_11) {
-                value_12 = 1;
+        while (j <= (int64_t)(b).length) {
+            bool value_1 = (uint8_t)ZIRAN_INDEX(a.data, a.length, ((int64_t)((uint64_t)i - UINT64_C(1)))) != (uint8_t)ZIRAN_INDEX(b.data, b.length, ((int64_t)((uint64_t)j - UINT64_C(1))));
+            int32_t value_2 = 0;
+            if (value_1) {
+                value_2 = 1;
             }
-            int32_t substitute = (int32_t)((uint32_t)(ZIRAN_INDEX(previous, 128, ((int64_t)((uint64_t)j - UINT64_C(1))))) + (uint32_t)value_12);
+            int32_t substitute = (int32_t)((uint32_t)(ZIRAN_INDEX(previous, 128, ((int64_t)((uint64_t)j - UINT64_C(1))))) + (uint32_t)value_2);
             int32_t remove = (int32_t)((uint32_t)(ZIRAN_INDEX(previous, 128, j)) + 1u);
             int32_t insert = (int32_t)((uint32_t)(ZIRAN_INDEX(current, 128, ((int64_t)((uint64_t)j - UINT64_C(1))))) + 1u);
             int32_t value = substitute;
@@ -120,17 +99,15 @@ compiler_text_IdentifierByte(uint8_t byte)
 int64_t
 compiler_text_SkipSpace(String source, int64_t at, bool inline_only)
 {
-    while (true) {
-        int64_t value_0 = (int64_t)(source).length;
-        if (!(at < value_0)) { break; }
+    while (at < (int64_t)(source).length) {
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         if (inline_only) {
             if (byte != 32 && byte != 9) {
                 break;
             }
         } else {
-            bool value_1 = compiler_text_SpaceByte(byte);
-            if (!value_1) {
+            bool value_0 = compiler_text_SpaceByte(byte);
+            if (!value_0) {
                 break;
             }
         }
@@ -192,58 +169,37 @@ compiler_text_BlockHeaderEnd(String source)
 int64_t
 compiler_text_CamelIdentifier(String source, Slice output)
 {
-    int64_t value_0 = (int64_t)(output).length;
-    if (value_0 == 0LL) {
+    if ((int64_t)(output).length == 0LL) {
         return 0LL;
     }
     int64_t used = 0LL;
     bool upper = true;
-    {
-        int64_t it_index = 0LL;
-        while (true) {
-            int64_t value_1 = (int64_t)(source).length;
-            if (!(it_index < value_1)) { break; }
-            uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
-            int64_t value_2 = (int64_t)((uint64_t)used + UINT64_C(1));
-            int64_t value_3 = (int64_t)(output).length;
-            if (value_2 >= value_3) {
-                break;
+    for (int64_t it_index = 0LL; it_index < (int64_t)(source).length; it_index++) {
+        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
+        if ((int64_t)((uint64_t)used + UINT64_C(1)) >= (int64_t)(output).length) {
+            break;
+        }
+        if ((byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57)) {
+            if (upper && byte >= 97 && byte <= 122) {
+                byte = (uint8_t)((uint32_t)byte - 32u);
             }
-            if ((byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57)) {
-                if (upper && byte >= 97 && byte <= 122) {
-                    byte = (uint8_t)((uint32_t)byte - 32u);
-                }
-                ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = byte;
-                used = (int64_t)((uint64_t)used + UINT64_C(1));
-                upper = false;
-            } else {
-                upper = true;
-            }
-            it_index = (int64_t)((uint64_t)it_index + UINT64_C(1));
+            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = byte;
+            used = (int64_t)((uint64_t)used + UINT64_C(1));
+            upper = false;
+        } else {
+            upper = true;
         }
     }
-    bool value_4 = used == 0LL;
-    if (value_4) {
-        int64_t value_5 = (int64_t)((uint64_t)used + UINT64_C(1));
-        int64_t value_6 = (int64_t)(output).length;
-        value_4 = (value_5 < value_6);
-    }
-    if (value_4) {
+    if (used == 0LL && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
         ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 88;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
-    bool value_7 = used > 0LL && ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] >= 48 && ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] <= 57;
-    bool value_8 = value_7;
-    if (value_8) {
-        int64_t value_9 = (int64_t)((uint64_t)used + UINT64_C(1));
-        int64_t value_10 = (int64_t)(output).length;
-        value_8 = (value_9 < value_10);
-    }
-    if (value_8) {
+    bool value_0 = used > 0LL && ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] >= 48 && ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] <= 57;
+    if (value_0 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
         int64_t index = used;
         while (index > 0LL) {
-            uint8_t value_11 = ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)((uint64_t)index - UINT64_C(1))))];
-            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = value_11;
+            uint8_t value_1 = ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)((uint64_t)index - UINT64_C(1))))];
+            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = value_1;
             index = (int64_t)((uint64_t)index - UINT64_C(1));
         }
         ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] = 77;
@@ -276,8 +232,7 @@ compiler_text_GoFieldIdentifier(String source, Slice output)
             replacement = StringLiteral("CanonicalURL");
         }
     }
-    int64_t value_2 = (int64_t)(replacement).length;
-    if (value_2 == 0LL) {
+    if ((int64_t)(replacement).length == 0LL) {
         return used;
     }
     {
@@ -298,43 +253,32 @@ compiler_text_GoFieldIdentifier(String source, Slice output)
 int64_t
 compiler_text_EscapeCString(String source, Slice output)
 {
-    int64_t value_0 = (int64_t)(output).length;
-    if (value_0 == 0LL) {
+    if ((int64_t)(output).length == 0LL) {
         return 0LL;
     }
     int64_t used = 0LL;
-    {
-        int64_t it_index = 0LL;
-        while (true) {
-            int64_t value_1 = (int64_t)(source).length;
-            if (!(it_index < value_1)) { break; }
-            uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
-            int64_t value_2 = (int64_t)((uint64_t)used + UINT64_C(1));
-            int64_t value_3 = (int64_t)(output).length;
-            if (value_2 >= value_3) {
-                break;
-            }
-            uint8_t escaped[4] = {0};
-            Slice value_4 = {escaped, 4};
-            int64_t count = compiler_text_EscapeByte(byte, true, SliceRange(value_4, (int64_t)0, (int64_t)value_4.length, sizeof(uint8_t)));
-            {
-                int64_t range_first_10 = 0LL;
-                int64_t range_last_10 = (int64_t)((uint64_t)count - UINT64_C(1));
-                int64_t index = range_first_10;
-                while (index <= range_last_10) {
-                    int64_t value_5 = (int64_t)((uint64_t)used + UINT64_C(1));
-                    int64_t value_6 = (int64_t)(output).length;
-                    if (value_5 < value_6) {
-                        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = ZIRAN_INDEX(escaped, 4, index);
-                        used = (int64_t)((uint64_t)used + UINT64_C(1));
-                    }
-                    if (index == range_last_10) {
-                        break;
-                    }
-                    index = (int64_t)((uint64_t)index + UINT64_C(1));
+    for (int64_t it_index = 0LL; it_index < (int64_t)(source).length; it_index++) {
+        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
+        if ((int64_t)((uint64_t)used + UINT64_C(1)) >= (int64_t)(output).length) {
+            break;
+        }
+        uint8_t escaped[4] = {0};
+        Slice value_0 = {escaped, 4};
+        int64_t count = compiler_text_EscapeByte(byte, true, SliceRange(value_0, (int64_t)0, (int64_t)value_0.length, sizeof(uint8_t)));
+        {
+            int64_t range_first_10 = 0LL;
+            int64_t range_last_10 = (int64_t)((uint64_t)count - UINT64_C(1));
+            int64_t index = range_first_10;
+            while (index <= range_last_10) {
+                if ((int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
+                    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = ZIRAN_INDEX(escaped, 4, index);
+                    used = (int64_t)((uint64_t)used + UINT64_C(1));
                 }
+                if (index == range_last_10) {
+                    break;
+                }
+                index = (int64_t)((uint64_t)index + UINT64_C(1));
             }
-            it_index = (int64_t)((uint64_t)it_index + UINT64_C(1));
         }
     }
     ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 0;
@@ -344,19 +288,12 @@ compiler_text_EscapeCString(String source, Slice output)
 SourcePart
 compiler_text_NextSourcePart(String source, int64_t at)
 {
-    bool value_0 = at < 0LL;
-    if (!value_0) {
-        int64_t value_1 = (int64_t)(source).length;
-        value_0 = (at > value_1);
-    }
-    if (value_0) {
+    if (at < 0LL || at > (int64_t)(source).length) {
         return (SourcePart){.begin = 0LL, .end = 0LL, .next = -1LL};
     }
     int64_t start = at;
     int32_t depth = 0;
-    while (true) {
-        int64_t value_2 = (int64_t)(source).length;
-        if (!(at < value_2)) { break; }
+    while (at < (int64_t)(source).length) {
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         if (byte == 34 || byte == 39) {
             at = compiler_text_AfterQuote(source, at);
@@ -375,8 +312,7 @@ compiler_text_NextSourcePart(String source, int64_t at)
     }
     int64_t end = at;
     int64_t next = -1LL;
-    int64_t value_3 = (int64_t)(source).length;
-    if (at < value_3) {
+    if (at < (int64_t)(source).length) {
         next = (int64_t)((uint64_t)at + UINT64_C(1));
     }
     return (SourcePart){.begin = start, .end = end, .next = next};
@@ -387,9 +323,7 @@ compiler_text_TopLevelAssignment(String source)
 {
     int64_t at = 0LL;
     int32_t depth = 0;
-    while (true) {
-        int64_t value_0 = (int64_t)(source).length;
-        if (!(at < value_0)) { break; }
+    while (at < (int64_t)(source).length) {
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         if (byte == 34 || byte == 39) {
             at = compiler_text_AfterQuote(source, at);
@@ -401,23 +335,23 @@ compiler_text_TopLevelAssignment(String source)
                     depth = (int32_t)((uint32_t)depth - 1u);
                 }
             } else {
-                bool value_1 = byte == 61 && depth == 0;
-                if (value_1) {
-                    bool value_2 = compiler_text_Byte(source, (int64_t)((uint64_t)at + UINT64_C(1))) != 61;
-                    value_1 = value_2;
+                bool value_0 = byte == 61 && depth == 0;
+                if (value_0) {
+                    bool value_1 = compiler_text_Byte(source, (int64_t)((uint64_t)at + UINT64_C(1))) != 61;
+                    value_0 = value_1;
                 }
-                bool value_3 = value_1;
-                if (value_3) {
-                    bool value_4 = at == 0LL;
-                    if (!value_4) {
-                        bool value_5 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 61 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 33;
-                        bool value_6 = value_5 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 60;
-                        bool value_7 = value_6 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 62;
-                        value_4 = value_7;
+                bool value_2 = value_0;
+                if (value_2) {
+                    bool value_3 = at == 0LL;
+                    if (!value_3) {
+                        bool value_4 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 61 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 33;
+                        bool value_5 = value_4 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 60;
+                        bool value_6 = value_5 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 62;
+                        value_3 = value_6;
                     }
-                    value_3 = value_4;
+                    value_2 = value_3;
                 }
-                if (value_3) {
+                if (value_2) {
                     return at;
                 }
             }
@@ -430,13 +364,12 @@ compiler_text_TopLevelAssignment(String source)
 DecodedLiteral
 compiler_text_DecodeString(String source, Slice output)
 {
-    int64_t value_0 = (int64_t)(source).length;
-    bool value_1 = value_0 < 2LL || (uint8_t)ZIRAN_INDEX(source.data, source.length, 0) != 34;
-    if (!value_1) {
-        bool value_2 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1)))) != 34;
-        value_1 = value_2;
+    bool value_0 = (int64_t)(source).length < 2LL || (uint8_t)ZIRAN_INDEX(source.data, source.length, 0) != 34;
+    if (!value_0) {
+        bool value_1 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1)))) != 34;
+        value_0 = value_1;
     }
-    if (value_1) {
+    if (value_0) {
         return (DecodedLiteral){.valid = false, .count = 0LL};
     }
     int64_t used = 0LL;
@@ -444,17 +377,12 @@ compiler_text_DecodeString(String source, Slice output)
     uint32_t scalar = 0;
     uint32_t minimum = 0;
     int64_t at = 1LL;
-    while (true) {
-        int64_t value_3 = (int64_t)((uint64_t)at + UINT64_C(1));
-        int64_t value_4 = (int64_t)(source).length;
-        if (!(value_3 < value_4)) { break; }
+    while ((int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(source).length) {
         uint32_t value = (uint32_t)((uint8_t)ZIRAN_INDEX(source.data, source.length, at));
         bool unicode_escape = false;
         if (value == 92) {
             at = (int64_t)((uint64_t)at + UINT64_C(1));
-            int64_t value_5 = (int64_t)((uint64_t)at + UINT64_C(1));
-            int64_t value_6 = (int64_t)(source).length;
-            if (value_5 >= value_6) {
+            if ((int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(source).length) {
                 return (DecodedLiteral){.valid = false, .count = 0LL};
             }
             value = (uint32_t)((uint8_t)ZIRAN_INDEX(source.data, source.length, at));
@@ -495,9 +423,7 @@ compiler_text_DecodeString(String source, Slice output)
                     int32_t index = range_first_40;
                     while (index <= range_last_40) {
                         at = (int64_t)((uint64_t)at + UINT64_C(1));
-                        int64_t value_7 = (int64_t)((uint64_t)at + UINT64_C(1));
-                        int64_t value_8 = (int64_t)(source).length;
-                        if (value_7 >= value_8) {
+                        if ((int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(source).length) {
                             return (DecodedLiteral){.valid = false, .count = 0LL};
                         }
                         int32_t digit = compiler_text_HexDigit((uint8_t)ZIRAN_INDEX(source.data, source.length, at));
@@ -571,8 +497,7 @@ compiler_text_DecodeString(String source, Slice output)
                         return (DecodedLiteral){.valid = false, .count = 0LL};
                     }
                 }
-                int64_t value_9 = (int64_t)(output).length;
-                if (used >= value_9) {
+                if (used >= (int64_t)(output).length) {
                     return (DecodedLiteral){.valid = false, .count = 0LL};
                 }
                 ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = byte;
@@ -594,65 +519,49 @@ compiler_text_DecodeString(String source, Slice output)
 FormatStep
 compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
 {
-    bool value_0 = at < 0LL;
-    if (!value_0) {
-        int64_t value_1 = (int64_t)(bytes).length;
-        value_0 = (at > value_1);
-    }
-    if (value_0) {
+    if (at < 0LL || at > (int64_t)(bytes).length) {
         return (FormatStep){.valid = false, .argument = false, .present = false, .next = at};
     }
-    int64_t value_2 = (int64_t)(bytes).length;
-    if (at == value_2) {
+    if (at == (int64_t)(bytes).length) {
         return (FormatStep){.valid = true, .argument = false, .present = false, .next = at};
     }
-    bool value_3 = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)at)] == 37;
-    if (value_3) {
-        int64_t value_4 = (int64_t)((uint64_t)at + UINT64_C(1));
-        int64_t value_5 = (int64_t)(bytes).length;
-        bool value_6 = value_4 >= value_5;
-        if (!value_6) {
-            bool value_7 = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)((int64_t)((uint64_t)at + UINT64_C(1))))] != 37;
-            value_6 = value_7;
+    bool value_0 = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)at)] == 37;
+    if (value_0) {
+        bool value_1 = (int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(bytes).length;
+        if (!value_1) {
+            bool value_2 = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)((int64_t)((uint64_t)at + UINT64_C(1))))] != 37;
+            value_1 = value_2;
         }
-        value_3 = value_6;
+        value_0 = value_1;
     }
-    if (value_3) {
-        int64_t value_8 = (int64_t)(output).length;
-        if (value_8 > 0LL) {
+    if (value_0) {
+        if ((int64_t)(output).length > 0LL) {
             ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] = 0;
         }
         return (FormatStep){.valid = true, .argument = true, .present = true, .next = (int64_t)((uint64_t)at + UINT64_C(1))};
     }
-    int64_t value_9 = (int64_t)(output).length;
-    if (value_9 < 3LL) {
+    if ((int64_t)(output).length < 3LL) {
         return (FormatStep){.valid = false, .argument = false, .present = false, .next = at};
     }
     ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] = 34;
     int64_t used = 1LL;
-    while (true) {
-        int64_t value_10 = (int64_t)(bytes).length;
-        if (!(at < value_10)) { break; }
+    while (at < (int64_t)(bytes).length) {
         uint8_t byte = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)at)];
         if (byte == 37) {
-            int64_t value_11 = (int64_t)((uint64_t)at + UINT64_C(1));
-            int64_t value_12 = (int64_t)(bytes).length;
-            bool value_13 = value_11 >= value_12;
-            if (!value_13) {
-                bool value_14 = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)((int64_t)((uint64_t)at + UINT64_C(1))))] != 37;
-                value_13 = value_14;
+            bool value_3 = (int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(bytes).length;
+            if (!value_3) {
+                bool value_4 = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)((int64_t)((uint64_t)at + UINT64_C(1))))] != 37;
+                value_3 = value_4;
             }
-            if (value_13) {
+            if (value_3) {
                 break;
             }
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
         uint8_t escaped[4] = {0};
-        Slice value_15 = {escaped, 4};
-        int64_t count = compiler_text_EscapeByte(byte, false, SliceRange(value_15, (int64_t)0, (int64_t)value_15.length, sizeof(uint8_t)));
-        int64_t value_16 = (int64_t)(((uint64_t)used + (uint64_t)count) + UINT64_C(2));
-        int64_t value_17 = (int64_t)(output).length;
-        if (value_16 > value_17) {
+        Slice value_5 = {escaped, 4};
+        int64_t count = compiler_text_EscapeByte(byte, false, SliceRange(value_5, (int64_t)0, (int64_t)value_5.length, sizeof(uint8_t)));
+        if ((int64_t)(((uint64_t)used + (uint64_t)count) + UINT64_C(2)) > (int64_t)(output).length) {
             return (FormatStep){.valid = false, .argument = false, .present = false, .next = at};
         }
         {
@@ -691,14 +600,7 @@ compiler_text_OperatorTokenLength(String source)
 {
     for (int64_t index = 0LL; index <= 15LL; index++) {
         String op = ZIRAN_INDEX(Operators, 16, index);
-        int64_t value_0 = (int64_t)(source).length;
-        int64_t value_1 = (int64_t)(op).length;
-        bool value_2 = value_0 >= value_1;
-        if (value_2) {
-            String value_3 = source;
-            value_2 = (StringEqual(StringRange(value_3, (int64_t)0LL, (int64_t)(int64_t)(op).length), op));
-        }
-        if (value_2) {
+        if ((int64_t)(source).length >= (int64_t)(op).length && StringEqual(StringRange(source, (int64_t)0LL, (int64_t)(int64_t)(op).length), op)) {
             return (int64_t)(op).length;
         }
     }
@@ -719,12 +621,7 @@ compiler_text_ProcedureOperator(String name)
 static uint8_t
 compiler_text_Byte(String source, int64_t at)
 {
-    bool value_0 = at < 0LL;
-    if (!value_0) {
-        int64_t value_1 = (int64_t)(source).length;
-        value_0 = (at >= value_1);
-    }
-    if (value_0) {
+    if (at < 0LL || at >= (int64_t)(source).length) {
         return 0;
     }
     return (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
@@ -735,20 +632,13 @@ compiler_text_AfterQuote(String source, int64_t at)
 {
     uint8_t quote = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
     at = (int64_t)((uint64_t)at + UINT64_C(1));
-    while (true) {
-        int64_t value_0 = (int64_t)(source).length;
-        if (!(at < value_0)) { break; }
+    while (at < (int64_t)(source).length) {
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         at = (int64_t)((uint64_t)at + UINT64_C(1));
         if (byte == quote) {
             break;
         }
-        bool value_1 = byte == 92;
-        if (value_1) {
-            int64_t value_2 = (int64_t)(source).length;
-            value_1 = (at < value_2);
-        }
-        if (value_1) {
+        if (byte == 92 && at < (int64_t)(source).length) {
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         }
     }

@@ -16,12 +16,7 @@ static int64_t compiler_scan_OperatorLength(String source, int64_t at);
 static uint8_t
 compiler_scan_Byte(String source, int64_t at)
 {
-    bool value_0 = at < 0LL;
-    if (!value_0) {
-        int64_t value_1 = (int64_t)(source).length;
-        value_0 = (at >= value_1);
-    }
-    if (value_0) {
+    if (at < 0LL || at >= (int64_t)(source).length) {
         return 0;
     }
     return (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
@@ -72,16 +67,10 @@ compiler_scan_Advance(Cursor* cursor, String source)
 static bool
 compiler_scan_Contains(String bytes, uint8_t byte)
 {
-    {
-        int64_t it_index = 0LL;
-        while (true) {
-            int64_t value_0 = (int64_t)(bytes).length;
-            if (!(it_index < value_0)) { break; }
-            uint8_t value = (uint8_t)ZIRAN_INDEX(bytes.data, bytes.length, it_index);
-            if (value == byte) {
-                return true;
-            }
-            it_index = (int64_t)((uint64_t)it_index + UINT64_C(1));
+    for (int64_t it_index = 0LL; it_index < (int64_t)(bytes).length; it_index++) {
+        uint8_t value = (uint8_t)ZIRAN_INDEX(bytes.data, bytes.length, it_index);
+        if (value == byte) {
+            return true;
         }
     }
     return false;

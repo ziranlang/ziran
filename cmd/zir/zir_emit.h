@@ -146,9 +146,9 @@ int EmitBody(FILE *out, const ZirModule *module, const ZirFunction *fn,
 /* Dense-output switch for the Go target: remove the inlined-expression length
  * bound so single-use temporaries fold without a readability cap. Default off. */
 void EmitUseMinifiedOutput(int enabled);
-/* Native dialects can compute a checked scalar store's address in its own
- * statement before assigning the value. Ordinary C output stays unchanged. */
-void EmitUseSeparateIndexedStores(int enabled);
+/* Native dialects that use register pairs retain separate wide operand
+ * loads, string headers and indexed store addresses. */
+void EmitUseNativeOperandTemporaries(int enabled);
 /* Avoid literal macro expansion in native dialects with bounded preprocessors. */
 void EmitUseSizedStringLiterals(int enabled);
 #endif

@@ -565,7 +565,7 @@
 <section id="parallel_linux"><p class="eyebrow">51 / std/parallel_linux.zi</p><h2>parallel_linux</h2><p>Reusable native range workers. One owner submits non-overlapping ranges and joins their effects before continuing. Keep the pool at one address until ParallelClose; callbacks must not submit to or close their own pool.</p><p>Import with <code>#import "parallel_linux"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>RangeProcedure :: #type (start: s64, end: s64, argument: *void)</code></div>
 <div><code>ParallelLane :: struct { pool: *ParallelPool; index: s32; }</code></div>
-<div><code>ParallelPool :: struct { threads: [63]Thread; lanes: [63]ParallelLane; lock: [8]u64; wake: [8]u64; done: [8]u64; procedure: RangeProcedure; argument: *void; start: s64; end: s64; generation: u64; remaining: s32; workers: s32; initialized: bool; stopping: bool; }</code></div>
+<div><code>ParallelPool :: struct { threads: [63]Thread; lanes: [63]ParallelLane; lock: [8]u64; wake: [8]u64; done: [8]u64; procedure: RangeProcedure; argument: *void; start: s64; end: s64; generation: u64; remaining: s32; workers: s32; active_workers: s32; initialized: bool; stopping: bool; }</code></div>
 <div><code>ParallelCount :: () -&gt; s32</code><p>Matches checked #parallel regions: four lanes by default, including the submitting thread. ZIRAN_PAR_THREADS=1 is useful for parity and profiling.</p></div>
 <div><code>ParallelLock :: (pool: *ParallelPool) -&gt; *void</code></div>
 <div><code>ParallelWake :: (pool: *ParallelPool) -&gt; *void</code></div>

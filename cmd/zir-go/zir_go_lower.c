@@ -9,6 +9,7 @@
 #include "zir_check.h"
 #include "zir_expr.h"
 #include "zir_diagnostic.h"
+#include "zir_stream.h"
 
 #include <ctype.h>
 #include <stdint.h>
@@ -2141,6 +2142,9 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
             const ZirModule *m = &prog->modules[mi];
             char guard[ZIR_GO_NAME_MAX];
             FILE *f;
+            TextStream stream;
+            char *text = NULL;
+            size_t length = 0;
             NativeGoModuleIdentity(progs, prog_count, m, buffers->stem, sizeof(buffers->stem),
                                    guard, sizeof(guard));
             for(int fi = 0; fi < m->function_count; fi++)
@@ -2156,7 +2160,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
             snprintf(buffers->path, sizeof(buffers->path), "%s/%s%s.go", out_dir, buffers->stem,
                      test_stem ? (native_test ? "" : "_ziran") : (native_test ? "_test" : ""));
             mkdir_parent(buffers->path);
-            f = tmpfile();
+            f = TextStreamOpen(&stream, &text, &length);
             if(f == NULL) {
                 Diagnostic(m->span, "zir_go.global",
                            "cannot create Go output: %s", buffers->path);
@@ -2592,53 +2596,50 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 fprintf(f, "func init() { %s_ziranInit() }\n\n", guard);
             }
             }
-            /* Numeric helpers follow the code, once per package. */
-            {
-                long length = ftell(f);
-                char *text = malloc((size_t)length + 1);
-                if(text == NULL) {
-                    Diagnostic(m->span, "zir_go.global", "out of memory writing %s", buffers->path);
-                    fclose(f);
-                    GoAssemblyClose(assembly); return 1;
-                }
-                rewind(f);
-                text[fread(text, 1, (size_t)length, f)] = '\0';
-                fseek(f, 0, SEEK_END);
-                EmitGoNumberHelpers(f, text, &number_helpers);
+            if(TextStreamClose(&stream) != 0) {
+                Diagnostic(m->span, "zir_go.global",
+                           "cannot finish Go output: %s", buffers->path);
+                GoAssemblyClose(assembly); return 1;
+            }
+            /* Numeric helpers follow the code, once per package. Both
+             * streams report write failures before publishing any file. */
+            TextStream helper_stream;
+            char *helpers = NULL;
+            size_t helper_length = 0;
+            f = TextStreamOpen(&helper_stream, &helpers, &helper_length);
+            if(f == NULL) {
                 free(text);
+                Diagnostic(m->span, "zir_go.global",
+                           "cannot create Go output: %s", buffers->path);
+                GoAssemblyClose(assembly); return 1;
+            }
+            EmitGoNumberHelpers(f, text, &number_helpers);
+            if(TextStreamClose(&helper_stream) != 0) {
+                free(text);
+                Diagnostic(m->span, "zir_go.global",
+                           "cannot finish Go output: %s", buffers->path);
+                GoAssemblyClose(assembly); return 1;
             }
             /* End with one newline, as gofmt does, not a blank line. */
-            long remaining = ftell(f);
-            while(remaining > 1) {
-                char tail[2];
-                if(fseek(f, remaining - 2, SEEK_SET) != 0 ||
-                   fread(tail, 1, 2, f) != 2 || tail[0] != '\n' || tail[1] != '\n')
-                    break;
-                remaining--;
-            }
-            rewind(f);
+            char *tail = helper_length ? helpers : text;
+            size_t *remaining = helper_length ? &helper_length : &length;
+            while(*remaining > 1 && tail[*remaining - 2] == '\n' && tail[*remaining - 1] == '\n')
+                (*remaining)--;
             GeneratedOutputRecord(buffers->path);
             FILE *output = fopen(buffers->path, "wb");
             if(output == NULL) {
                 Diagnostic(m->span, "zir_go.global",
                            "cannot create Go output: %s", buffers->path);
-                fclose(f);
+                free(text);
+                free(helpers);
                 GoAssemblyClose(assembly); return 1;
             }
-            size_t bytes;
-            int failed = 0;
-            while(remaining > 0 &&
-                  (bytes = fread(buffers->buffer, 1, remaining < (long)sizeof(buffers->buffer) ?
-                                 (size_t)remaining : sizeof(buffers->buffer), f)) != 0) {
-                remaining -= (long)bytes;
-                if(fwrite(buffers->buffer, 1, bytes, output) != bytes) {
-                    failed = 1;
-                    break;
-                }
-            }
-            failed |= ferror(f) != 0;
+            int failed = fwrite(text, 1, length, output) != length;
+            if(!failed && helper_length)
+                failed = fwrite(helpers, 1, helper_length, output) != helper_length;
             failed |= fclose(output) != 0;
-            fclose(f);
+            free(text);
+            free(helpers);
             if(failed) {
                 Diagnostic(m->span, "zir_go.global",
                            "cannot finish Go output: %s", buffers->path);

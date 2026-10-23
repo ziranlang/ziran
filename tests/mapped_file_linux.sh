@@ -19,12 +19,14 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 extern long write(int, const void *, unsigned long);
 extern int close(int);
 extern int unlink(const char *);
-int main(void) {
-    char path[] = "/tmp/ziran-map-XXXXXX";
-    int fd = mkstemp(path);
+int main(int argc, char **argv) {
+    if(argc != 2) return 9;
+    char *path = argv[1];
+    int fd = open(path, O_RDWR | O_CREAT | O_EXCL, 0600);
     if(fd < 0) return 10;
     if(write(fd, "hello", 5) != 5 || close(fd) != 0) return 11;
     int status = SelfTest((uint8_t *)path);
@@ -32,4 +34,4 @@ int main(void) {
     return status;
 }
 EOF
-env -u DISPLAY -u WAYLAND_DISPLAY "$work/test"
+env -u DISPLAY -u WAYLAND_DISPLAY "$work/test" "$work/map"

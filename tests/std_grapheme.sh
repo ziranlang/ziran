@@ -15,10 +15,10 @@ for fixture in std_grapheme grapheme_conformance; do
             input="$work/$fixture/ir/$fixture.zir"
             set -- --root "$work/$fixture/ir" --module-path "$work/$fixture/ir"
         fi
-        if test "$fixture" = std_grapheme; then
-            "$ziran" bundle "$@" --entry std_grapheme:SelfTest -o "$work/$form.zib" "$input"
-            test "$("$ziran" run "$work/$form.zib")" = 42
-        fi
+        entry=SelfTest; expected=42
+        if test "$fixture" = grapheme_conformance; then entry=NativeMain; expected=0; fi
+        "$ziran" bundle "$@" --entry "$fixture:$entry" -o "$work/$fixture-$form.zib" "$input"
+        test "$("$ziran" run "$work/$fixture-$form.zib")" = "$expected"
         for target in c cpp go py rust; do
             output="$work/$fixture/$form-$target"
             if test "$target" = cpp; then
@@ -53,6 +53,6 @@ for fixture in std_grapheme grapheme_conformance; do
             esac
         done
     done
+    cmp "$work/$fixture-source.zib" "$work/$fixture-saved.zib"
 done
-cmp "$work/source.zib" "$work/saved.zib"
-echo 'Grapheme segmentation: all 766 Unicode 17 conformance cases passed on C/C++/Go/Python/Rust from source and saved IR; VM editing cases passed'
+echo 'Grapheme segmentation: all 766 Unicode 17 conformance cases and VM editing cases passed from source and saved IR on VM/C/C++/Go/Python/Rust'

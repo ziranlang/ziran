@@ -96,9 +96,7 @@ def generate(directory, root):
             elif token != '×':
                 data.extend(chr(int(token, 16)).encode('utf-8'))
         literal = ''.join(f'\\x{byte:02x}' for byte in data)
-        name = f'offsets{len(cases)}'
-        cases.append(f'    {name}: [{len(offsets)}]s32 = .{{{", ".join(map(str, offsets))}}}\n'
-                     f'    if !Check("{literal}", {name}[:]) {{ return false }}')
+        cases.append(f'    if !CheckOffsets("{literal}", s32.[{", ".join(map(str, offsets))}]) {{ return false }}')
     source = '''// Generated Unicode 17.0.0 GraphemeBreakTest corpus; Unicode License V3.
 // https://www.unicode.org/license.txt
 G :: #import "std/grapheme";
@@ -117,6 +115,10 @@ Check :: (value: string, offsets: []s32) -> bool {
             index -= 1
         }
     return true
+}
+// Own each literal array for the duration of the borrowed-slice check.
+CheckOffsets :: (value: string, offsets: $T) -> bool {
+    return Check(value, offsets[:])
 }
 '''
     chunks = [cases[index:index + 80] for index in range(0, len(cases), 80)]

@@ -1,9 +1,4 @@
 #include "zir_rust_internal.h"
-static void free_scratch_EmitExpressionBuffers(void *pointer);
-static void free_scratch_EmitCallBuffers(void *pointer);
-static void free_scratch_EmitPrintStatementBuffers(void *pointer);
-static void free_scratch_EmitTypedExpressionBuffers(void *pointer);
-static void free_scratch_EmitDestinationBuffers(void *pointer);
 
 /* Buffers emit_destination keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -132,12 +127,9 @@ emit_destination(RustEmitter *emitter, int index, char *output,
                              size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitDestinationBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitDestinationBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_destination_with_buffers(emitter, index, output, size, buffers);
@@ -342,12 +334,9 @@ emit_typed_expression(RustEmitter *emitter, int index,
                                   const char *type, char *output, size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitTypedExpressionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitTypedExpressionBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_typed_expression_with_buffers(emitter, index, type, output, size, buffers);
@@ -538,12 +527,9 @@ int
 emit_print_statement(RustEmitter *emitter, const ZirExpr *expression)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitPrintStatementBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitPrintStatementBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = emit_print_statement_with_buffers(emitter, expression, buffers);
@@ -851,12 +837,9 @@ emit_call(RustEmitter *emitter, const ZirExpr *expression,
                       char *output, size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitCallBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitCallBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_call_with_buffers(emitter, expression, output, size, buffers);
@@ -1456,47 +1439,12 @@ emit_expression(RustEmitter *emitter, int index, char *output,
                             size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitExpressionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitExpressionBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_expression_with_buffers(emitter, index, output, size, buffers);
     if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
-}
-
-
-
-static void free_scratch_EmitExpressionBuffers(void *pointer)
-{
-    EmitExpressionBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitCallBuffers(void *pointer)
-{
-    EmitCallBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitPrintStatementBuffers(void *pointer)
-{
-    EmitPrintStatementBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitTypedExpressionBuffers(void *pointer)
-{
-    EmitTypedExpressionBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitDestinationBuffers(void *pointer)
-{
-    EmitDestinationBuffers *buffers = pointer;
-    free(buffers);
 }

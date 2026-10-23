@@ -1,11 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_InstantiateSpecializationsBuffers(void *pointer);
-static void free_scratch_RewritePrivateReferenceBuffers(void *pointer);
-static void free_scratch_JaiParameterTypesBuffers(void *pointer);
-static void free_scratch_OrderLocalTypesBuffers(void *pointer);
-static void free_scratch_NormalizeTypeApplicationsBuffers(void *pointer);
-static void free_scratch_RewriteFunctionTypeApplicationsBuffers(void *pointer);
-static void free_scratch_RewriteTypeApplicationsBuffers(void *pointer);
 #include "zir_check_internal.h"
 
 static int
@@ -342,12 +335,9 @@ rewrite_type_applications(ZirModule *module, const char *source,
                           ZirSourceSpan span, int recursion)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewriteTypeApplicationsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     RewriteTypeApplicationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = rewrite_type_applications_with_buffers(module, source, output, capacity, span, recursion, buffers);
@@ -410,12 +400,9 @@ static int
 rewrite_function_type_applications(ZirModule *module, ZirFunction *fn)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewriteFunctionTypeApplicationsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     RewriteFunctionTypeApplicationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = rewrite_function_type_applications_with_buffers(module, fn, buffers);
@@ -489,12 +476,9 @@ int
 normalize_type_applications(ZirModule *module)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_NormalizeTypeApplicationsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     NormalizeTypeApplicationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = normalize_type_applications_with_buffers(module, buffers);
@@ -551,12 +535,9 @@ int
 order_local_types(ZirModule *module)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_OrderLocalTypesBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     OrderLocalTypesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = order_local_types_with_buffers(module, buffers);
@@ -650,12 +631,9 @@ static int
 jai_parameter_types(ZirSourceSpan span, const char *args)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_JaiParameterTypesBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     JaiParameterTypesBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = jai_parameter_types_with_buffers(span, args, buffers);
@@ -910,12 +888,9 @@ rewrite_private_reference(char *source, size_t capacity,
                           const char *internal)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewritePrivateReferenceBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     RewritePrivateReferenceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = rewrite_private_reference_with_buffers(source, capacity, span, original, internal, buffers);
@@ -1555,12 +1530,9 @@ int
 instantiate_specializations(Checker *checker)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_InstantiateSpecializationsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     InstantiateSpecializationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = instantiate_specializations_with_buffers(checker, buffers);
@@ -1569,47 +1541,12 @@ instantiate_specializations(Checker *checker)
     return returned;
 }
 
-static void free_scratch_InstantiateSpecializationsBuffers(void *pointer)
-{
-    InstantiateSpecializationsBuffers *buffers = pointer;
-    free(buffers);
-}
 
-static void free_scratch_RewritePrivateReferenceBuffers(void *pointer)
-{
-    RewritePrivateReferenceBuffers *buffers = pointer;
-    free(buffers);
-}
 
-static void free_scratch_JaiParameterTypesBuffers(void *pointer)
-{
-    JaiParameterTypesBuffers *buffers = pointer;
-    free(buffers);
-}
 
-static void free_scratch_OrderLocalTypesBuffers(void *pointer)
-{
-    OrderLocalTypesBuffers *buffers = pointer;
-    free(buffers);
-}
 
-static void free_scratch_NormalizeTypeApplicationsBuffers(void *pointer)
-{
-    NormalizeTypeApplicationsBuffers *buffers = pointer;
-    free(buffers);
-}
 
-static void free_scratch_RewriteFunctionTypeApplicationsBuffers(void *pointer)
-{
-    RewriteFunctionTypeApplicationsBuffers *buffers = pointer;
-    free(buffers);
-}
 
-static void free_scratch_RewriteTypeApplicationsBuffers(void *pointer)
-{
-    RewriteTypeApplicationsBuffers *buffers = pointer;
-    free(buffers);
-}
 
 int LinkImports(ZirProgram **programs, int count)
 {

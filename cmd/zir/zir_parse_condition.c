@@ -1,9 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_ParseCompileCheckBuffers(void *pointer);
-static void free_scratch_LowerSizeOfValueBuffers(void *pointer);
-static void free_scratch_ReplaceSizeOfBuffers(void *pointer);
-static void free_scratch_LowerCompileIfxValueBuffers(void *pointer);
-static void free_scratch_ReplaceCompileIfxBuffers(void *pointer);
 #include "zir_parse_internal.h"
 #include "compiler_source.h"
 
@@ -478,12 +473,9 @@ replace_compile_ifx(char *source, size_t capacity, const ZirFunction *fn,
                     ZirSourceSpan span, int allow_deferred)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ReplaceCompileIfxBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     ReplaceCompileIfxBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = replace_compile_ifx_with_buffers(source, capacity, fn, module, expr, consts, span, allow_deferred, buffers);
@@ -531,12 +523,9 @@ lower_compile_ifx_value(char *value, size_t capacity,
                         ZirSourceSpan span, int allow_deferred)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerCompileIfxValueBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerCompileIfxValueBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = lower_compile_ifx_value_with_buffers(value, capacity, module, consts, span, allow_deferred, buffers);
@@ -641,12 +630,9 @@ replace_size_of(char *source, size_t capacity, const ZirModule *module,
                 const ZirExpr *expr, ZirSourceSpan span)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ReplaceSizeOfBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     ReplaceSizeOfBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     replace_size_of_with_buffers(source, capacity, module, expr, span, buffers);
@@ -687,12 +673,9 @@ lower_size_of_value(char *value, size_t capacity, const ZirModule *module,
                     ZirSourceSpan span)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerSizeOfValueBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerSizeOfValueBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     lower_size_of_value_with_buffers(value, capacity, module, span, buffers);
@@ -844,12 +827,9 @@ parse_compile_check(ZirModule *module, const char *path, int line_no,
                     char *line, const ZirConsts *consts)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ParseCompileCheckBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     ParseCompileCheckBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = parse_compile_check_with_buffers(module, path, line_no, line, consts, buffers);
@@ -944,34 +924,4 @@ strip_block_comments(char *s, int *comment_depth)
                                                        *comment_depth);
     s[result.count] = '\0';
     *comment_depth = result.depth;
-}
-
-static void free_scratch_ParseCompileCheckBuffers(void *pointer)
-{
-    ParseCompileCheckBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_LowerSizeOfValueBuffers(void *pointer)
-{
-    LowerSizeOfValueBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_ReplaceSizeOfBuffers(void *pointer)
-{
-    ReplaceSizeOfBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_LowerCompileIfxValueBuffers(void *pointer)
-{
-    LowerCompileIfxValueBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_ReplaceCompileIfxBuffers(void *pointer)
-{
-    ReplaceCompileIfxBuffers *buffers = pointer;
-    free(buffers);
 }

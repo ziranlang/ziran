@@ -1,5 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_LoadImportBuffers(void *pointer);
 #include "zir_files.h"
 #include "zir_load.h"
 #include "zir_check.h"
@@ -769,12 +768,9 @@ load_import(LoadContext *context, const char *owner_source,
             const char *owner_root, ZirImport *import)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LoadImportBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LoadImportBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = load_import_with_buffers(context, owner_source, owner_root, import, buffers);
@@ -1053,10 +1049,4 @@ int ProgramsLoadWithDefines(ProgramSet *set, const char *root,
     if(result) { set->context = owner; set->owns_context = !previous; }
     else if(!previous) CompilerContextClose(owner);
     return result;
-}
-
-static void free_scratch_LoadImportBuffers(void *pointer)
-{
-    LoadImportBuffers *buffers = pointer;
-    free(buffers);
 }

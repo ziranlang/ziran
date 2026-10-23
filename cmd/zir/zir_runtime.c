@@ -1,5 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_EmitRuntimeHeadersBuffers(void *pointer);
 #include "zir_runtime.h"
 #include "zir.h"
 
@@ -91,22 +90,13 @@ int
 EmitRuntimeHeaders(const char *out_dir, const char *generated_path)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitRuntimeHeadersBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitRuntimeHeadersBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = EmitRuntimeHeaders_with_buffers(out_dir, generated_path, buffers);
     if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
-}
-
-static void free_scratch_EmitRuntimeHeadersBuffers(void *pointer)
-{
-    EmitRuntimeHeadersBuffers *buffers = pointer;
-    free(buffers);
 }

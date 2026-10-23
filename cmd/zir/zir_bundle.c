@@ -1,7 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_LinkCheckedEntryBuffers(void *pointer);
-static void free_scratch_PruneRecordFieldsBuffers(void *pointer);
-static void free_scratch_PruneFunctionBuffers(void *pointer);
 #include "zir_bundle.h"
 #include "zir_stream.h"
 #include "zir_check.h"
@@ -695,12 +692,9 @@ static int
 prune_function(ZirFunction *fn)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_PruneFunctionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     PruneFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = prune_function_with_buffers(fn, buffers);
@@ -1023,12 +1017,9 @@ prune_record_fields(ZirProgram *program, const char *entry_module,
                     const char *entry_function)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_PruneRecordFieldsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     PruneRecordFieldsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = prune_record_fields_with_buffers(program, entry_module, entry_function, buffers);
@@ -2269,12 +2260,9 @@ link_checked_entry(const ZirProgram *program, const char *entry_module,
            const char *entry_function, int native)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LinkCheckedEntryBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LinkCheckedEntryBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     ZirProgram *returned = link_checked_entry_with_buffers(program, entry_module, entry_function, native, buffers);
@@ -2705,23 +2693,8 @@ BundleRead(FILE *in, const char *path,
         entry_function, function_size, laws, assets, NULL, 0, NULL, NULL);
 }
 
-static void free_scratch_LinkCheckedEntryBuffers(void *pointer)
-{
-    LinkCheckedEntryBuffers *buffers = pointer;
-    free(buffers);
-}
 
-static void free_scratch_PruneRecordFieldsBuffers(void *pointer)
-{
-    PruneRecordFieldsBuffers *buffers = pointer;
-    free(buffers);
-}
 
-static void free_scratch_PruneFunctionBuffers(void *pointer)
-{
-    PruneFunctionBuffers *buffers = pointer;
-    free(buffers);
-}
 
 ZirProgram *BundleLink(const ZirProgram *program, const char *entry_module, const char *entry_function)
 {

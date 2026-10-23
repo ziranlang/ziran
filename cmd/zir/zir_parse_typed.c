@@ -1,10 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_EvaluateTypedIntegerFunctionBuffers(void *pointer);
-static void free_scratch_EvaluateTypedFunctionBuffers(void *pointer);
-static void free_scratch_TypedBodyStatementsBuffers(void *pointer);
-static void free_scratch_TypedBodyConditionBuffers(void *pointer);
-static void free_scratch_EvaluateTypedExpressionBuffers(void *pointer);
-static void free_scratch_EvaluateTypedNodeBuffers(void *pointer);
 #include <inttypes.h>
 #include "zir_parse_internal.h"
 
@@ -491,12 +485,9 @@ evaluate_typed_node(const ZirFunction *probe, int index,
                     int depth, int *fuel, CompileValue *result)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EvaluateTypedNodeBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EvaluateTypedNodeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = evaluate_typed_node_with_buffers(probe, index, module, path, depth, fuel, result, buffers);
@@ -690,12 +681,9 @@ evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
                           int *fuel, CompileValue *result)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EvaluateTypedExpressionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EvaluateTypedExpressionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = evaluate_typed_expression_with_buffers(module, names, source, span, depth, fuel, result, buffers);
@@ -752,12 +740,9 @@ typed_body_condition(TypedBody *body, const char *header,
                      const char *word, int *truth)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_TypedBodyConditionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     TypedBodyConditionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = typed_body_condition_with_buffers(body, header, word, truth, buffers);
@@ -1368,12 +1353,9 @@ typed_body_statements(TypedBody *body, int start, int stop,
                       int *flow, CompileValue *result)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_TypedBodyStatementsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     TypedBodyStatementsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = typed_body_statements_with_buffers(body, start, stop, flow, result, buffers);
@@ -1533,12 +1515,9 @@ evaluate_typed_function(const ZirModule *module, const char *name,
                         CompileValue *result)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EvaluateTypedFunctionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EvaluateTypedFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = evaluate_typed_function_with_buffers(module, name, call_span, arguments, argument_names, argument_count, depth, fuel, result, buffers);
@@ -1594,12 +1573,9 @@ evaluate_typed_integer_function(ZirEval *ev, const char *name,
                                 int argument_count, int64_t *result)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EvaluateTypedIntegerFunctionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EvaluateTypedIntegerFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = evaluate_typed_integer_function_with_buffers(ev, name, values, argument_names, argument_count, result, buffers);
@@ -1779,40 +1755,4 @@ void ParseCacheLeave(void *saved)
     *cache = *(ExpressionCache *)saved;
     free(saved);
     CompilerMemoryResume(memory);
-}
-
-static void free_scratch_EvaluateTypedIntegerFunctionBuffers(void *pointer)
-{
-    EvaluateTypedIntegerFunctionBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EvaluateTypedFunctionBuffers(void *pointer)
-{
-    EvaluateTypedFunctionBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_TypedBodyStatementsBuffers(void *pointer)
-{
-    TypedBodyStatementsBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_TypedBodyConditionBuffers(void *pointer)
-{
-    TypedBodyConditionBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EvaluateTypedExpressionBuffers(void *pointer)
-{
-    EvaluateTypedExpressionBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EvaluateTypedNodeBuffers(void *pointer)
-{
-    EvaluateTypedNodeBuffers *buffers = pointer;
-    free(buffers);
 }

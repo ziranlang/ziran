@@ -28,6 +28,14 @@ void *CompilerContextStorage(CompilerContext *context, CompilerStorage key,
                             size_t size, void (*destroy)(void *));
 typedef struct CompilerScratch CompilerScratch;
 CompilerScratch *CompilerContextScratch(const void *key, void (*destroy)(void *));
+/* Each call site keeps this hint in thread-local storage. Context identities
+ * invalidate it without consulting or retaining a previously closed context. */
+typedef struct CompilerScratchCache {
+    uint64_t identity;
+    CompilerScratch *pool;
+} CompilerScratchCache;
+CompilerScratch *CompilerScratchCached(CompilerScratchCache *cache,
+                                      const void *key, void (*destroy)(void *));
 void *CompilerScratchTake(CompilerScratch *scratch);
 int CompilerScratchPut(CompilerScratch *scratch, void *value);
 #endif

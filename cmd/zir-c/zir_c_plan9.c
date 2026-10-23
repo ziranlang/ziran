@@ -1,9 +1,3 @@
-static void free_scratch_CPlan9RewriteOnceBuffers(void *pointer);
-static void free_scratch_RewritePlan9PrintBuffers(void *pointer);
-static void free_scratch_ExprTypeBuffers(void *pointer);
-static void free_scratch_RewriteLineCompoundBuffers(void *pointer);
-static void free_scratch_EmitCompoundTempBuffers(void *pointer);
-static void free_scratch_ProtoAddFileBuffers(void *pointer);
 /*
  * zir_c_plan9.c - 8c-safe post-pass for generated C.
  *
@@ -473,12 +467,9 @@ static void
 proto_add_file(const char *path, int allow_c)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ProtoAddFileBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     ProtoAddFileBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     proto_add_file_with_buffers(path, allow_c, buffers);
@@ -924,12 +915,9 @@ emit_compound_temp(Buf *out, const char *indent, const char *type,
                    const char *body, int body_len, const char *temp)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitCompoundTempBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitCompoundTempBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = emit_compound_temp_with_buffers(out, indent, type, body, body_len, temp, buffers);
@@ -1090,12 +1078,9 @@ static int
 rewrite_line_compound(Buf *out, const char *line, int lineno, int *rewrote)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewriteLineCompoundBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     RewriteLineCompoundBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = rewrite_line_compound_with_buffers(out, line, lineno, rewrote, buffers);
@@ -1280,12 +1265,9 @@ static int
 expr_type(const char *expr, size_t len, char *type, size_t type_size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ExprTypeBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     ExprTypeBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = expr_type_with_buffers(expr, len, type, type_size, buffers);
@@ -2327,12 +2309,9 @@ static void
 rewrite_plan9_print(char *line, size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RewritePlan9PrintBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     RewritePlan9PrintBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     rewrite_plan9_print_with_buffers(line, size, buffers);
@@ -2685,52 +2664,13 @@ char *
 c_plan9_rewrite_once(const char *text)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CPlan9RewriteOnceBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     CPlan9RewriteOnceBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     char *returned = c_plan9_rewrite_once_with_buffers(text, buffers);
     if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
-}
-
-static void free_scratch_CPlan9RewriteOnceBuffers(void *pointer)
-{
-    CPlan9RewriteOnceBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_RewritePlan9PrintBuffers(void *pointer)
-{
-    RewritePlan9PrintBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_ExprTypeBuffers(void *pointer)
-{
-    ExprTypeBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_RewriteLineCompoundBuffers(void *pointer)
-{
-    RewriteLineCompoundBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitCompoundTempBuffers(void *pointer)
-{
-    EmitCompoundTempBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_ProtoAddFileBuffers(void *pointer)
-{
-    ProtoAddFileBuffers *buffers = pointer;
-    free(buffers);
 }

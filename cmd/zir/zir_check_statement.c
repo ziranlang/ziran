@@ -1,8 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_LowerIfCaseBuffers(void *pointer);
-static void free_scratch_NormalizeRecordArraysBuffers(void *pointer);
-static void free_scratch_CheckTypeDeclarationsBuffers(void *pointer);
-static void free_scratch_DeclaredApplicationValidBuffers(void *pointer);
 #include "zir_check_internal.h"
 
 static int declared_application_valid(const ZirModule *module, const char *text, int depth);
@@ -202,12 +198,9 @@ static int
 declared_application_valid(const ZirModule *module, const char *text, int depth)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_DeclaredApplicationValidBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     DeclaredApplicationValidBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = declared_application_valid_with_buffers(module, text, depth, buffers);
@@ -872,12 +865,9 @@ int
 check_type_declarations(ZirModule *module)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CheckTypeDeclarationsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     CheckTypeDeclarationsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = check_type_declarations_with_buffers(module, buffers);
@@ -952,12 +942,9 @@ int
 normalize_record_arrays(ZirModule *module, int templates_only)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_NormalizeRecordArraysBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     NormalizeRecordArraysBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = normalize_record_arrays_with_buffers(module, templates_only, buffers);
@@ -1510,12 +1497,9 @@ int
 lower_if_case(Checker *c, int index, const char *checked_type)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerIfCaseBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerIfCaseBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = lower_if_case_with_buffers(c, index, checked_type, buffers);
@@ -2241,28 +2225,4 @@ check_vec_call_results(Checker *c, int index, int transferred, int discarded)
     check_vec_call_results(c, expr->left, 0, 0);
     check_vec_call_results(c, expr->right, 0, 0);
     check_vec_call_results(c, expr->third, 0, 0);
-}
-
-static void free_scratch_LowerIfCaseBuffers(void *pointer)
-{
-    LowerIfCaseBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_NormalizeRecordArraysBuffers(void *pointer)
-{
-    NormalizeRecordArraysBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_CheckTypeDeclarationsBuffers(void *pointer)
-{
-    CheckTypeDeclarationsBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_DeclaredApplicationValidBuffers(void *pointer)
-{
-    DeclaredApplicationValidBuffers *buffers = pointer;
-    free(buffers);
 }

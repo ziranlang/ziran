@@ -1,6 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_InferExpressionTypeBuffers(void *pointer);
-static void free_scratch_ExpressionTypeBuffers(void *pointer);
 #include "zir_check_internal.h"
 /* Buffers expression_type keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -2638,12 +2636,9 @@ const char *
 expression_type(Checker *c, int index)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ExpressionTypeBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     ExpressionTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     const char *returned = expression_type_with_buffers(c, index, buffers);
@@ -2694,28 +2689,13 @@ InferExpressionType(const ZirModule *module, const char *expression,
                     ZirSourceSpan span, char *type, size_t capacity)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_InferExpressionTypeBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     InferExpressionTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = InferExpressionType_with_buffers(module, expression, span, type, capacity, buffers);
     if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
-}
-
-static void free_scratch_InferExpressionTypeBuffers(void *pointer)
-{
-    InferExpressionTypeBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_ExpressionTypeBuffers(void *pointer)
-{
-    ExpressionTypeBuffers *buffers = pointer;
-    free(buffers);
 }

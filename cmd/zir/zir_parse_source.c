@@ -1,5 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_ParseSourceBuffers(void *pointer);
 #include "zir_files.h"
 #include "zir_parse_internal.h"
 /* Buffers parse_source keeps on the heap so deep nesting fits the stack;
@@ -1966,12 +1965,9 @@ parse_source(const char *path, const char *root, const char *source,
              const char *const *defines, int define_count)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ParseSourceBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     ParseSourceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     uint64_t profile_started = ProfileStart();
@@ -2084,10 +2080,4 @@ ZirProgram *
 parse_source_text(const char *path, const char *source)
 {
     return parse_operation(path, ".", source, NULL, NULL, NULL, 0);
-}
-
-static void free_scratch_ParseSourceBuffers(void *pointer)
-{
-    ParseSourceBuffers *buffers = pointer;
-    free(buffers);
 }

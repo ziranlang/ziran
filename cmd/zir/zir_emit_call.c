@@ -1,13 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_EmitPrintBuffers(void *pointer);
-static void free_scratch_PrintRunFlushBuffers(void *pointer);
-static void free_scratch_EmitFunctionValueBuffers(void *pointer);
-static void free_scratch_EmitSlotWrappersBuffers(void *pointer);
-static void free_scratch_EmitCallBuffers(void *pointer);
-static void free_scratch_EmitGlobalSlotWrappersBuffers(void *pointer);
-static void free_scratch_EmitGlobalSlotWrappersNodeBuffers(void *pointer);
-static void free_scratch_EmitGlobalInitializerBuffers(void *pointer);
-static void free_scratch_EmitGlobalLiteralNodeBuffers(void *pointer);
 #include "zir_emit_internal.h"
 
 static void
@@ -244,12 +235,9 @@ emit_global_literal_node(GlobalLiteralEmit *emit, int index,
                          size_t *used, int depth)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitGlobalLiteralNodeBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitGlobalLiteralNodeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = emit_global_literal_node_with_buffers(emit, index, scope, type, out, size, used, depth, buffers);
@@ -305,12 +293,9 @@ EmitGlobalInitializer(const ZirModule *module, const ZirGlobal *global,
                       char *out, size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitGlobalInitializerBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitGlobalInitializerBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = EmitGlobalInitializer_with_buffers(module, global, target, scalar, type_name, field_name, context, out, size, buffers);
@@ -409,12 +394,9 @@ emit_global_slot_wrappers_node(FILE *out, const ZirModule *module,
                                void *context, int depth)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitGlobalSlotWrappersNodeBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitGlobalSlotWrappersNodeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_global_slot_wrappers_node_with_buffers(out, module, global, probe, index, scope, type, target, resolver, context, depth, buffers);
@@ -454,12 +436,9 @@ EmitGlobalSlotWrappers(FILE *out, const ZirModule *module,
                        ZirResolveTarget resolver, void *context)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitGlobalSlotWrappersBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitGlobalSlotWrappersBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     EmitGlobalSlotWrappers_with_buffers(out, module, global, target, resolver, context, buffers);
@@ -744,12 +723,9 @@ void
 emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitCallBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitCallBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_call_with_buffers(e, expr, array_result, out, size, buffers);
@@ -825,12 +801,9 @@ EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                     ZirTarget target, ZirResolveTarget resolver, void *context)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitSlotWrappersBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitSlotWrappersBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     EmitSlotWrappers_with_buffers(out, module, fn, target, resolver, context, buffers);
@@ -921,12 +894,9 @@ void
 emit_function_value(Emitter *e, int index, char *out, size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitFunctionValueBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitFunctionValueBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_function_value_with_buffers(e, index, out, size, buffers);
@@ -1055,12 +1025,9 @@ static void
 print_run_flush(Emitter *e, PrintRun *run, int format_expr)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_PrintRunFlushBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     PrintRunFlushBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     print_run_flush_with_buffers(e, run, format_expr, buffers);
@@ -1262,69 +1229,12 @@ void
 emit_print(Emitter *e, const ZirExpr *expr)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitPrintBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitPrintBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_print_with_buffers(e, expr, buffers);
     if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
-}
-
-static void free_scratch_EmitPrintBuffers(void *pointer)
-{
-    EmitPrintBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_PrintRunFlushBuffers(void *pointer)
-{
-    PrintRunFlushBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitFunctionValueBuffers(void *pointer)
-{
-    EmitFunctionValueBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitSlotWrappersBuffers(void *pointer)
-{
-    EmitSlotWrappersBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitCallBuffers(void *pointer)
-{
-    EmitCallBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitGlobalSlotWrappersBuffers(void *pointer)
-{
-    EmitGlobalSlotWrappersBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitGlobalSlotWrappersNodeBuffers(void *pointer)
-{
-    EmitGlobalSlotWrappersNodeBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitGlobalInitializerBuffers(void *pointer)
-{
-    EmitGlobalInitializerBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitGlobalLiteralNodeBuffers(void *pointer)
-{
-    EmitGlobalLiteralNodeBuffers *buffers = pointer;
-    free(buffers);
 }

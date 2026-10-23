@@ -1,6 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_EmitFieldPathBuffers(void *pointer);
-static void free_scratch_EmitSlotTypeBuffers(void *pointer);
 #include "zir_emit_internal.h"
 #include "zir_scalar.h"
 
@@ -1321,12 +1319,9 @@ EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
                 ZirResolveTarget resolve_type, void *context)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitSlotTypeBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitSlotTypeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     EmitSlotType_with_buffers(out, slot, target, resolve_type, context, buffers);
@@ -1466,12 +1461,9 @@ emit_field_path(const ZirModule *module, ZirTarget target,
                 const char *base_expression, char *out, size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitFieldPathBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitFieldPathBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_field_path_with_buffers(module, target, base_type, path, base_expression, out, size, buffers);
@@ -1834,20 +1826,4 @@ emitter_type_contains_vec(const ZirModule *module, const char *type, int depth)
                                      field.type, depth + 1))
             return 1;
     return 0;
-}
-
-
-
-
-
-static void free_scratch_EmitFieldPathBuffers(void *pointer)
-{
-    EmitFieldPathBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitSlotTypeBuffers(void *pointer)
-{
-    EmitSlotTypeBuffers *buffers = pointer;
-    free(buffers);
 }

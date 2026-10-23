@@ -1,6 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_AddDefaultHelpersBuffers(void *pointer);
-static void free_scratch_LowerTemplateRecordDefaultBuffers(void *pointer);
 #include "zir_parse_internal.h"
 #include "zir_string.h"
 
@@ -303,12 +301,9 @@ lower_template_record_default(ZirModule *module,
                               char *part, size_t capacity)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerTemplateRecordDefaultBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerTemplateRecordDefaultBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = lower_template_record_default_with_buffers(module, function, parameter, part, capacity, buffers);
@@ -502,12 +497,9 @@ add_default_helpers(ZirProgram *program, ZirModule *module,
                     ZirCompileImportResolver resolver, void *resolver_context)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_AddDefaultHelpersBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     AddDefaultHelpersBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     add_default_helpers_with_buffers(program, module, source_path, root, resolver, resolver_context, buffers);
@@ -921,16 +913,4 @@ expand_builder_print(const char *text, char (*lines)[ZIR_TEXT_MAX], int max,
         lines[i][result.lengths[i]] = 0;
     }
     return result.statements;
-}
-
-static void free_scratch_AddDefaultHelpersBuffers(void *pointer)
-{
-    AddDefaultHelpersBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_LowerTemplateRecordDefaultBuffers(void *pointer)
-{
-    LowerTemplateRecordDefaultBuffers *buffers = pointer;
-    free(buffers);
 }

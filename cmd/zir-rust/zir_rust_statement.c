@@ -1,8 +1,4 @@
 #include "zir_rust_internal.h"
-static void free_scratch_EmitSequenceBuffers(void *pointer);
-static void free_scratch_EmitNativeForBuffers(void *pointer);
-static void free_scratch_RustZeroValueBuffers(void *pointer);
-static void free_scratch_EmitIfBuffers(void *pointer);
 
 static int block_end(const ZirFunction *function, int begin, int end)
 {
@@ -61,12 +57,9 @@ static int
 emit_if(RustEmitter *emitter, int index, int end)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitIfBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitIfBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = emit_if_with_buffers(emitter, index, end, buffers);
@@ -233,12 +226,9 @@ rust_zero_value(RustEmitter *emitter, const char *type,
                             char *output, size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RustZeroValueBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     RustZeroValueBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     rust_zero_value_with_buffers(emitter, type, output, size, buffers);
@@ -393,12 +383,9 @@ static int
 emit_native_for(RustEmitter *emitter, int open, int close)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitNativeForBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitNativeForBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = emit_native_for_with_buffers(emitter, open, close, buffers);
@@ -564,39 +551,12 @@ void
 emit_sequence(RustEmitter *emitter, int begin, int end)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitSequenceBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitSequenceBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_sequence_with_buffers(emitter, begin, end, buffers);
     if(!CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
-}
-
-static void free_scratch_EmitSequenceBuffers(void *pointer)
-{
-    EmitSequenceBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitNativeForBuffers(void *pointer)
-{
-    EmitNativeForBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_RustZeroValueBuffers(void *pointer)
-{
-    RustZeroValueBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitIfBuffers(void *pointer)
-{
-    EmitIfBuffers *buffers = pointer;
-    free(buffers);
 }

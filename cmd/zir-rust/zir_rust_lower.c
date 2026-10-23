@@ -1,5 +1,4 @@
 #include "zir_rust_internal.h"
-static void free_scratch_RustLowerBuffers(void *pointer);
 
 static FILE *open_output(ZirSourceSpan span, const char *directory,
                          const char *relative)
@@ -281,12 +280,9 @@ rust_lower_in_context(const ZirProgram *const *programs, int program_count,
                const char *entry_function, int executable)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RustLowerBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     RustLowerBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     uint64_t profile_started = ProfileStart();
@@ -303,10 +299,4 @@ int rust_lower(const ZirProgram *const *programs, int program_count, const char 
     int result = rust_lower_in_context(programs, program_count, output_directory, entry_module, entry_function, executable);
     CompilerContextSelect(previous);
     return result;
-}
-
-static void free_scratch_RustLowerBuffers(void *pointer)
-{
-    RustLowerBuffers *buffers = pointer;
-    free(buffers);
 }

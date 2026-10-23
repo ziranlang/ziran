@@ -1,6 +1,4 @@
 #include "zir_rust_internal.h"
-static void free_scratch_EmitExternDefinitionsBuffers(void *pointer);
-static void free_scratch_EmitTypeDefinitionsBuffers(void *pointer);
 
 static const char *const rust_keywords[] = {
     "as", "async", "await", "break", "const", "continue", "crate", "dyn",
@@ -222,12 +220,9 @@ void
 emit_type_definitions(RustEmitter *emitter, FILE *output)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitTypeDefinitionsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitTypeDefinitionsBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_type_definitions_with_buffers(emitter, output, buffers);
@@ -350,12 +345,9 @@ void
 emit_extern_definitions(RustEmitter *emitter, FILE *output)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitExternDefinitionsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitExternDefinitionsBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_extern_definitions_with_buffers(emitter, output, buffers);
@@ -960,16 +952,4 @@ void rust_member_path(RustEmitter *emitter, const ZirModule *owner,
         }
         path = dot + 1;
     }
-}
-
-static void free_scratch_EmitExternDefinitionsBuffers(void *pointer)
-{
-    EmitExternDefinitionsBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitTypeDefinitionsBuffers(void *pointer)
-{
-    EmitTypeDefinitionsBuffers *buffers = pointer;
-    free(buffers);
 }

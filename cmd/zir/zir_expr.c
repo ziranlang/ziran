@@ -1,5 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_AppendDefaultArgumentsBuffers(void *pointer);
 #include "zir_files.h"
 #include "zir_expr.h"
 #include "zir_check.h"
@@ -345,12 +344,9 @@ append_default_arguments(ExprParser *p, int callee,
                          const char *name, int *first, int *last)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_AppendDefaultArgumentsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     AppendDefaultArgumentsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     append_default_arguments_with_buffers(p, callee, name, first, last, buffers);
@@ -848,10 +844,4 @@ StructureFunction(ZirFunction *fn, const ZirModule *module)
             free(value);
         }
     }
-}
-
-static void free_scratch_AppendDefaultArgumentsBuffers(void *pointer)
-{
-    AppendDefaultArgumentsBuffers *buffers = pointer;
-    free(buffers);
 }

@@ -1,10 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_LowerOneCollectionBuffers(void *pointer);
-static void free_scratch_LowerOneRangeBuffers(void *pointer);
-static void free_scratch_BindJaiLoopControlsBuffers(void *pointer);
-static void free_scratch_LowerNamedWhileBuffers(void *pointer);
-static void free_scratch_LowerCleanupBuffers(void *pointer);
-static void free_scratch_ActionKindBuffers(void *pointer);
 #include "zir_cleanup.h"
 #include "zir_diagnostic.h"
 #include "zir_text.h"
@@ -119,12 +113,9 @@ static int
 action_kind(const char *text, ZirStmt *action)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ActionKindBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     ActionKindBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = action_kind_with_buffers(text, action, buffers);
@@ -600,12 +591,9 @@ int
 LowerCleanup(ZirFunction *fn)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerCleanupBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerCleanupBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = LowerCleanup_with_buffers(fn, buffers);
@@ -722,12 +710,9 @@ lower_named_while(ZirFunction *fn, int index, const char *name,
                   const char *condition)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerNamedWhileBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerNamedWhileBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = lower_named_while_with_buffers(fn, index, name, condition, buffers);
@@ -823,12 +808,9 @@ int
 BindJaiLoopControls(ZirFunction *fn)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_BindJaiLoopControlsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     BindJaiLoopControlsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = BindJaiLoopControls_with_buffers(fn, buffers);
@@ -1130,12 +1112,9 @@ static int
 lower_one_range(ZirFunction *fn, const ZirModule *module, int index)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerOneRangeBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerOneRangeBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = lower_one_range_with_buffers(fn, module, index, buffers);
@@ -1254,12 +1233,9 @@ static int
 lower_one_collection(ZirFunction *fn, const ZirModule *module, int index)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerOneCollectionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerOneCollectionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = lower_one_collection_with_buffers(fn, module, index, buffers);
@@ -1282,40 +1258,4 @@ LowerJaiFor(ZirFunction *fn, const ZirModule *module)
         }
     }
     return 1;
-}
-
-static void free_scratch_LowerOneCollectionBuffers(void *pointer)
-{
-    LowerOneCollectionBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_LowerOneRangeBuffers(void *pointer)
-{
-    LowerOneRangeBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_BindJaiLoopControlsBuffers(void *pointer)
-{
-    BindJaiLoopControlsBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_LowerNamedWhileBuffers(void *pointer)
-{
-    LowerNamedWhileBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_LowerCleanupBuffers(void *pointer)
-{
-    LowerCleanupBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_ActionKindBuffers(void *pointer)
-{
-    ActionKindBuffers *buffers = pointer;
-    free(buffers);
 }

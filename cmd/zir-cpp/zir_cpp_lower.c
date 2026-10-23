@@ -1,5 +1,3 @@
-static void free_scratch_LowerModuleBuffers(void *pointer);
-static void free_scratch_EmitExternPrototypeBuffers(void *pointer);
 /*
  * zir_cpp_lower.c - ZIR to C++ backend. Lowers a ZirProgram to .cpp/.hpp
  * source files that can call declared C host functions. Emitted declarations
@@ -878,12 +876,9 @@ static void
 emit_extern_prototype(FILE *c, const ZirModule *m, const ZirImport *imp)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitExternPrototypeBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitExternPrototypeBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_extern_prototype_with_buffers(c, m, imp, buffers);
@@ -1390,12 +1385,9 @@ lower_module(const ZirModule *m, const ZirCppModuleSyms *restab, int restab_coun
              const char *out_dir)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerModuleBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerModuleBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     uint64_t profile_started = ProfileStart();
@@ -1499,16 +1491,4 @@ int cpp_lower(const ZirProgram *program, const char *root, const char *out_dir, 
     int result = cpp_lower_in_context(program, root, out_dir, restab, restab_count);
     CompilerContextSelect(previous);
     return result;
-}
-
-static void free_scratch_LowerModuleBuffers(void *pointer)
-{
-    LowerModuleBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitExternPrototypeBuffers(void *pointer)
-{
-    EmitExternPrototypeBuffers *buffers = pointer;
-    free(buffers);
 }

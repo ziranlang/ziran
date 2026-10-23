@@ -1,6 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_NormalizeFunctionArraysBuffers(void *pointer);
-static void free_scratch_CheckFunctionBuffers(void *pointer);
 #include "zir_check_internal.h"
 
 static ZirSourceSpan
@@ -676,12 +674,9 @@ int
 check_function(Checker *c, ZirFunction *fn)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CheckFunctionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     CheckFunctionBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = check_function_with_buffers(c, fn, buffers);
@@ -891,28 +886,13 @@ int
 normalize_function_arrays(const ZirModule *module, ZirFunction *fn)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_NormalizeFunctionArraysBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     NormalizeFunctionArraysBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = normalize_function_arrays_with_buffers(module, fn, buffers);
     if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
     return returned;
-}
-
-static void free_scratch_NormalizeFunctionArraysBuffers(void *pointer)
-{
-    NormalizeFunctionArraysBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_CheckFunctionBuffers(void *pointer)
-{
-    CheckFunctionBuffers *buffers = pointer;
-    free(buffers);
 }

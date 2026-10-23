@@ -1,9 +1,4 @@
 #include "zir_rust_internal.h"
-static void free_scratch_EmitGlobalDefinitionsBuffers(void *pointer);
-static void free_scratch_RustGlobalInitializerBuffers(void *pointer);
-static void free_scratch_LowerFunctionBuffers(void *pointer);
-static void free_scratch_EmitSlotWrappersBuffers(void *pointer);
-static void free_scratch_ValidateModuleBuffers(void *pointer);
 
 /* Buffers validate_module keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -134,12 +129,9 @@ void
 validate_module(const ZirModule *module)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_ValidateModuleBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     ValidateModuleBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     validate_module_with_buffers(module, buffers);
@@ -242,12 +234,9 @@ emit_slot_wrappers(RustEmitter *emitter, const ZirModule *module,
                                const ZirFunction *function)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitSlotWrappersBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitSlotWrappersBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_slot_wrappers_with_buffers(emitter, module, function, buffers);
@@ -402,12 +391,9 @@ lower_function(RustEmitter *emitter, const ZirModule *module,
                            const ZirFunction *function)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_LowerFunctionBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     LowerFunctionBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     lower_function_with_buffers(emitter, module, function, buffers);
@@ -562,12 +548,9 @@ rust_global_initializer(RustEmitter *emitter,
                                      size_t size)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_RustGlobalInitializerBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     RustGlobalInitializerBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     rust_global_initializer_with_buffers(emitter, global, output, size, buffers);
@@ -613,12 +596,9 @@ void
 emit_global_definitions(RustEmitter *emitter, FILE *output)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_EmitGlobalDefinitionsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     EmitGlobalDefinitionsBuffers *buffers = CompilerScratchTake(scratch_hint);
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     emit_global_definitions_with_buffers(emitter, output, buffers);
@@ -726,35 +706,4 @@ int emit_startup(RustEmitter *emitter, FILE *output)
     fputs("        ZIRAN_STARTUP_STATE = 2;\n    }\n}\n\n", output);
     free(ordered.items);
     return 1;
-}
-
-
-static void free_scratch_EmitGlobalDefinitionsBuffers(void *pointer)
-{
-    EmitGlobalDefinitionsBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_RustGlobalInitializerBuffers(void *pointer)
-{
-    RustGlobalInitializerBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_LowerFunctionBuffers(void *pointer)
-{
-    LowerFunctionBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_EmitSlotWrappersBuffers(void *pointer)
-{
-    EmitSlotWrappersBuffers *buffers = pointer;
-    free(buffers);
-}
-
-static void free_scratch_ValidateModuleBuffers(void *pointer)
-{
-    ValidateModuleBuffers *buffers = pointer;
-    free(buffers);
 }

@@ -8,7 +8,6 @@ typedef struct TypePath {
     const ZirType *record;
     const struct TypePath *parent;
 } TypePath;
-static void free_scratch_PortableTypePathBuffers(void *pointer);
 static void free_scratch_CanEmitBodyBuffers(void *pointer);
 static int record_type(const ZirModule *module, const char *type)
 {
@@ -94,12 +93,9 @@ static int
 portable_type_path(const ZirModule *module, const char *type, const TypePath *path)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_PortableTypePathBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     PortableTypePathBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = portable_type_path_with_buffers(module, type, path, buffers);
@@ -236,12 +232,9 @@ int
 CanEmitBody(const ZirModule *module, const ZirFunction *fn)
 {
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CanEmitBodyBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free_scratch_CanEmitBodyBuffers);
     CanEmitBodyBuffers *buffers;
     buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(buffers == NULL) {
@@ -257,11 +250,6 @@ CanEmitBody(const ZirModule *module, const ZirFunction *fn)
     return returned;
 }
 
-static void free_scratch_PortableTypePathBuffers(void *pointer)
-{
-    PortableTypePathBuffers *buffers = pointer;
-    free(buffers);
-}
 
 static void free_scratch_CanEmitBodyBuffers(void *pointer)
 {

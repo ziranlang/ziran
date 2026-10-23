@@ -123,6 +123,16 @@ CompilerScratch *CompilerContextScratch(const void *key, void (*destroy)(void *)
     atomic_flag_clear_explicit(&pools->lock, memory_order_release);
     return pool;
 }
+CompilerScratch *CompilerScratchCached(CompilerScratchCache *cache,
+                                      const void *key, void (*destroy)(void *))
+{
+    uint64_t identity = CompilerContextIdentity();
+    if(cache->identity != identity) {
+        cache->pool = CompilerContextScratch(key, destroy);
+        cache->identity = identity;
+    }
+    return cache->pool;
+}
 void *CompilerScratchTake(CompilerScratch *scratch)
 {
     while(atomic_flag_test_and_set_explicit(&scratch->lock, memory_order_acquire)) {}

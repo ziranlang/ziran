@@ -1,5 +1,4 @@
 #include "zir_memory.h"
-static void free_scratch_CheckProgramsBuffers(void *pointer);
 #include <inttypes.h>
 #include "zir_check_internal.h"
 /* Buffers CheckPrograms keeps on the heap so deep nesting fits the stack;
@@ -684,12 +683,9 @@ CheckPrograms_in_context(ZirProgram **programs, int count)
 {
     uint64_t profile_started = ProfileStart();
     static const char scratch_key;
-    static _Thread_local uint64_t scratch_identity;
-    static _Thread_local CompilerScratch *scratch_hint;
-    if(scratch_identity != CompilerContextIdentity()) {
-        scratch_hint = CompilerContextScratch(&scratch_key, free_scratch_CheckProgramsBuffers);
-        scratch_identity = CompilerContextIdentity();
-    }
+    static _Thread_local CompilerScratchCache scratch_cache;
+    CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
+        &scratch_key, free);
     CheckProgramsBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
     int returned = CheckPrograms_with_buffers(programs, count, buffers);
@@ -977,10 +973,4 @@ int CheckPrograms(ZirProgram **programs, int count)
     int result = CheckPrograms_in_context(programs, count);
     CompilerContextSelect(previous);
     return result;
-}
-
-static void free_scratch_CheckProgramsBuffers(void *pointer)
-{
-    CheckProgramsBuffers *buffers = pointer;
-    free(buffers);
 }

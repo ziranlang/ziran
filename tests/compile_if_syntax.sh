@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 work=$(mktemp -d)
@@ -137,11 +138,8 @@ Value :: 1;
 Value :: 2;
 }
 EOF
-if "$ziran" check --root "$work" "$work/old_branch.zi" \
-    2> "$work/old_branch.err"; then
-    echo 'obsolete #else_if was accepted' >&2
-    exit 1
-fi
+expect_rejection 'obsolete #else_if was accepted' "$work/old_branch.err" \
+    "$ziran" check --root "$work" "$work/old_branch.zi"
 grep -Fq "Jai compile-time branches use 'else #if'" \
     "$work/old_branch.err"
 
@@ -152,11 +150,8 @@ Value :: 1;
 Value :: 2;
 }
 EOF
-if "$ziran" check --root "$work" "$work/old_else.zi" \
-    2> "$work/old_else.err"; then
-    echo 'obsolete #else was accepted' >&2
-    exit 1
-fi
+expect_rejection 'obsolete #else was accepted' "$work/old_else.err" \
+    "$ziran" check --root "$work" "$work/old_else.zi"
 grep -Fq "Jai compile-time branches use 'else #if'" \
     "$work/old_else.err"
 
@@ -165,11 +160,8 @@ cat > "$work/runtime_condition.zi" <<'EOF'
 Answer :: () -> s32 { return 42 }
 }
 EOF
-if "$ziran" check --root "$work" "$work/runtime_condition.zi" \
-    2> "$work/runtime_condition.err"; then
-    echo 'unknown #if condition was accepted' >&2
-    exit 1
-fi
+expect_rejection 'unknown #if condition was accepted' "$work/runtime_condition.err" \
+    "$ziran" check --root "$work" "$work/runtime_condition.zi"
 grep -Fq '#if condition is not a compile-time constant' \
     "$work/runtime_condition.err"
 
@@ -177,11 +169,8 @@ cat > "$work/unterminated.zi" <<'EOF'
 #if true {
 Answer :: () -> s32 { return 42 }
 EOF
-if "$ziran" check --root "$work" "$work/unterminated.zi" \
-    2> "$work/unterminated.err"; then
-    echo 'unterminated #if was accepted' >&2
-    exit 1
-fi
+expect_rejection 'unterminated #if was accepted' "$work/unterminated.err" \
+    "$ziran" check --root "$work" "$work/unterminated.zi"
 grep -Fq 'unterminated #if block' "$work/unterminated.err"
 
 cat > "$work/forward.zi" <<'EOF'
@@ -248,11 +237,8 @@ Hidden :: 1;
 Answer :: () -> s64 { return 42 }
 }
 EOF
-if "$ziran" check --root "$work" "$work/inactive_constant.zi" \
-    2> "$work/inactive_constant.err"; then
-    echo 'constant in inactive branch became visible' >&2
-    exit 1
-fi
+expect_rejection 'constant in inactive branch became visible' "$work/inactive_constant.err" \
+    "$ziran" check --root "$work" "$work/inactive_constant.zi"
 grep -Fq '#if condition is not a compile-time constant' \
     "$work/inactive_constant.err"
 
@@ -263,11 +249,8 @@ Answer :: () -> s64 { return 42 }
 FIRST :: SECOND;
 SECOND :: FIRST;
 EOF
-if "$ziran" check --root "$work" "$work/cyclic_constant.zi" \
-    2> "$work/cyclic_constant.err"; then
-    echo 'cyclic forward constants were accepted' >&2
-    exit 1
-fi
+expect_rejection 'cyclic forward constants were accepted' "$work/cyclic_constant.err" \
+    "$ziran" check --root "$work" "$work/cyclic_constant.zi"
 grep -Fq 'cyclic compile-time constant: FIRST' \
     "$work/cyclic_constant.err"
 
@@ -339,11 +322,8 @@ using Color;
 Answer :: () -> s64 { return 42 }
 }
 EOF
-if "$ziran" check --root "$work" "$work/inactive_using.zi" \
-    2> "$work/inactive_using.err"; then
-    echo 'using in inactive branch became visible' >&2
-    exit 1
-fi
+expect_rejection 'using in inactive branch became visible' "$work/inactive_using.err" \
+    "$ziran" check --root "$work" "$work/inactive_using.zi"
 grep -Fq '#if condition is not a compile-time constant' \
     "$work/inactive_using.err"
 
@@ -354,11 +334,8 @@ Answer :: () -> s64 { return 42 }
 }
 using,only("Red") Color;
 EOF
-if "$ziran" check --root "$work" "$work/filtered_using.zi" \
-    2> "$work/filtered_using.err"; then
-    echo 'filtered future enum member became visible' >&2
-    exit 1
-fi
+expect_rejection 'filtered future enum member became visible' "$work/filtered_using.err" \
+    "$ziran" check --root "$work" "$work/filtered_using.zi"
 grep -Fq '#if condition is not a compile-time constant' \
     "$work/filtered_using.err"
 

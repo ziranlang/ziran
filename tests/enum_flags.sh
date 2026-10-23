@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 work=$(mktemp -d)
@@ -223,11 +224,8 @@ cat > "$work/private_top.zi" <<'ZI'
 #load "private_enum.zi";
 Bad :: () -> s64 { return North }
 ZI
-if "$ziran" check --root "$work" "$work/private_top.zi" \
-    2> "$work/private_top.err"; then
-    echo 'file-private enum using leaked through #load' >&2
-    exit 1
-fi
+expect_rejection 'file-private enum using leaked through #load' "$work/private_top.err" \
+    "$ziran" check --root "$work" "$work/private_top.zi"
 grep -Fq 'unresolved name: North' "$work/private_top.err"
 
 cat > "$work/ambiguous_top.zi" <<'ZI'
@@ -237,22 +235,16 @@ using One;
 using Two;
 value: s32 = Value;
 ZI
-if "$ziran" check --root "$work" "$work/ambiguous_top.zi" \
-    2> "$work/ambiguous_top.err"; then
-    echo 'ambiguous file-scope enum member was accepted' >&2
-    exit 1
-fi
+expect_rejection 'ambiguous file-scope enum member was accepted' "$work/ambiguous_top.err" \
+    "$ziran" check --root "$work" "$work/ambiguous_top.zi"
 grep -Fq 'ambiguous using enum member: Value' "$work/ambiguous_top.err"
 
 cat > "$work/invalid_top.zi" <<'ZI'
 Thing :: struct { value: s32; }
 using Thing;
 ZI
-if "$ziran" check --root "$work" "$work/invalid_top.zi" \
-    2> "$work/invalid_top.err"; then
-    echo 'top-level using accepted a non-enum type' >&2
-    exit 1
-fi
+expect_rejection 'top-level using accepted a non-enum type' "$work/invalid_top.err" \
+    "$ziran" check --root "$work" "$work/invalid_top.zi"
 grep -Fq 'top-level using requires an enum type: Thing' \
     "$work/invalid_top.err"
 
@@ -260,22 +252,16 @@ cat > "$work/bare_enum.zi" <<'ZI'
 Direction :: enum { North :: 1; }
 Bad :: () -> s64 { return North }
 ZI
-if "$ziran" check --root "$work" "$work/bare_enum.zi" \
-    2> "$work/bare_enum.err"; then
-    echo 'bare enum member without using was accepted' >&2
-    exit 1
-fi
+expect_rejection 'bare enum member without using was accepted' "$work/bare_enum.err" \
+    "$ziran" check --root "$work" "$work/bare_enum.zi"
 grep -Fq 'unresolved name: North' "$work/bare_enum.err"
 
 cat > "$work/bare_global_enum.zi" <<'ZI'
 Direction :: enum { North :: 1; }
 value: Direction = North;
 ZI
-if "$ziran" check --root "$work" "$work/bare_global_enum.zi" \
-    2> "$work/bare_global_enum.err"; then
-    echo 'bare file-scope enum member without using was accepted' >&2
-    exit 1
-fi
+expect_rejection 'bare file-scope enum member without using was accepted' "$work/bare_global_enum.err" \
+    "$ziran" check --root "$work" "$work/bare_global_enum.zi"
 grep -Fq 'enum member needs a type qualifier or using: North' \
     "$work/bare_global_enum.err"
 
@@ -289,11 +275,8 @@ Bad :: () -> s64 {
     return North
 }
 ZI
-if "$ziran" check --root "$work" "$work/scoped_enum.zi" \
-    2> "$work/scoped_enum.err"; then
-    echo 'enum using escaped its lexical block' >&2
-    exit 1
-fi
+expect_rejection 'enum using escaped its lexical block' "$work/scoped_enum.err" \
+    "$ziran" check --root "$work" "$work/scoped_enum.zi"
 grep -Fq 'unresolved name: North' "$work/scoped_enum.err"
 
 cat > "$work/ambiguous_enum.zi" <<'ZI'
@@ -305,32 +288,23 @@ Bad :: () -> s64 {
     return Value
 }
 ZI
-if "$ziran" check --root "$work" "$work/ambiguous_enum.zi" \
-    2> "$work/ambiguous_enum.err"; then
-    echo 'ambiguous opened enum member was accepted' >&2
-    exit 1
-fi
+expect_rejection 'ambiguous opened enum member was accepted' "$work/ambiguous_enum.err" \
+    "$ziran" check --root "$work" "$work/ambiguous_enum.zi"
 grep -Fq 'ambiguous using enum member: Value' "$work/ambiguous_enum.err"
 
 cat > "$work/too_wide.zi" <<'EOF'
 Bad :: enum u8 { TooWide :: 256; }
 EOF
-if "$ziran" check --root "$work" "$work/too_wide.zi" \
-    2> "$work/too_wide.err"; then
-    echo 'enum member outside u8 backing type was accepted' >&2
-    exit 1
-fi
+expect_rejection 'enum member outside u8 backing type was accepted' "$work/too_wide.err" \
+    "$ziran" check --root "$work" "$work/too_wide.zi"
 grep -Fq 'invalid enum value or value outside backing type' \
     "$work/too_wide.err"
 
 cat > "$work/negative_unsigned.zi" <<'EOF'
 Bad :: enum_flags u8 { Negative :: -1; }
 EOF
-if "$ziran" check --root "$work" "$work/negative_unsigned.zi" \
-    2> "$work/negative_unsigned.err"; then
-    echo 'negative unsigned flag was accepted' >&2
-    exit 1
-fi
+expect_rejection 'negative unsigned flag was accepted' "$work/negative_unsigned.err" \
+    "$ziran" check --root "$work" "$work/negative_unsigned.zi"
 grep -Fq 'invalid enum value or value outside backing type' \
     "$work/negative_unsigned.err"
 
@@ -343,44 +317,32 @@ EOF
 cat > "$work/unspecified_member.zi" <<'EOF'
 Bad :: enum u8 #specified { First :: 1; Second; }
 EOF
-if "$ziran" check --root "$work" "$work/unspecified_member.zi" \
-    2> "$work/unspecified_member.err"; then
-    echo '#specified enum accepted an implicit member' >&2
-    exit 1
-fi
+expect_rejection '#specified enum accepted an implicit member' "$work/unspecified_member.err" \
+    "$ziran" check --root "$work" "$work/unspecified_member.zi"
 grep -Fq '#specified enum requires an explicit value' \
     "$work/unspecified_member.err"
 
 cat > "$work/unspecified_flag.zi" <<'EOF'
 Bad :: enum_flags u8 #specified { First :: 1; Second; }
 EOF
-if "$ziran" check --root "$work" "$work/unspecified_flag.zi" \
-    2> "$work/unspecified_flag.err"; then
-    echo '#specified enum_flags accepted an implicit member' >&2
-    exit 1
-fi
+expect_rejection '#specified enum_flags accepted an implicit member' "$work/unspecified_flag.err" \
+    "$ziran" check --root "$work" "$work/unspecified_flag.zi"
 grep -Fq '#specified enum requires an explicit value' \
     "$work/unspecified_flag.err"
 
 cat > "$work/legacy_enum_value.zi" <<'EOF'
 Bad :: enum u8 #specified { First = 1; }
 EOF
-if "$ziran" check --root "$work" "$work/legacy_enum_value.zi" \
-    2> "$work/legacy_enum_value.err"; then
-    echo 'C-style enum value assignment was accepted' >&2
-    exit 1
-fi
+expect_rejection 'C-style enum value assignment was accepted' "$work/legacy_enum_value.err" \
+    "$ziran" check --root "$work" "$work/legacy_enum_value.zi"
 grep -Fq 'Member :: value syntax' "$work/legacy_enum_value.err"
 
 cat > "$work/unknown_flag.zi" <<'EOF'
 Mask :: enum_flags u8 { A; B; }
 Bad :: () -> Mask { return .Missing }
 EOF
-if "$ziran" check --root "$work" "$work/unknown_flag.zi" \
-    2> "$work/unknown_flag.err"; then
-    echo 'unknown inferred flag member was accepted' >&2
-    exit 1
-fi
+expect_rejection 'unknown inferred flag member was accepted' "$work/unknown_flag.err" \
+    "$ziran" check --root "$work" "$work/unknown_flag.zi"
 grep -Fq 'unknown enum member' "$work/unknown_flag.err"
 
 cat > "$work/global_enum.zi" <<'ZI'

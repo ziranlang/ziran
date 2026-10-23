@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -259,11 +260,9 @@ GO
     GO111MODULE=off go run "$work/ffi-go-$input/ffi_direct.go" \
         "$work/ffi-go-$input/ffi_host.go" "$work/ffi-go-$input/main.go"
 done
-if "$ziran" build --target=go --runtime-implementation --root "$work" \
-    -o "$work/legacy-go" "$work/hello.zi" 2> "$work/legacy-go.err"; then
-    echo 'legacy Kryon runtime mode unexpectedly passed' >&2
-    exit 1
-fi
+expect_rejection 'legacy Kryon runtime mode unexpectedly passed' "$work/legacy-go.err" \
+    "$ziran" build --target=go --runtime-implementation --root "$work" \
+    -o "$work/legacy-go" "$work/hello.zi"
 
 cat > "$work/library.zi" <<'EOF'
 #program_export
@@ -810,15 +809,11 @@ old = bytearray(data)
 old[4] = 19
 Path(sys.argv[3]).write_bytes(old)
 PY
-if "$ziran" run "$work/bad-bundle.zib" 2> "$work/bad-bundle.err"; then
-    echo 'truncated bundle unexpectedly ran' >&2
-    exit 1
-fi
+expect_rejection 'truncated bundle unexpectedly ran' "$work/bad-bundle.err" \
+    "$ziran" run "$work/bad-bundle.zib"
 grep -Fq 'invalid or truncated bundle' "$work/bad-bundle.err"
-if "$ziran" run "$work/old-bundle.zib" 2> "$work/old-bundle.err"; then
-    echo 'unsupported bundle version unexpectedly ran' >&2
-    exit 1
-fi
+expect_rejection 'unsupported bundle version unexpectedly ran' "$work/old-bundle.err" \
+    "$ziran" run "$work/old-bundle.zib"
 grep -Fq 'unsupported ZIB version' "$work/old-bundle.err"
 cat > "$work/unsupported_bundle.zi" <<'EOF'
 #program_export
@@ -906,11 +901,8 @@ Main :: () {
     }
 }
 EOF
-if "$ziran" check --root "$work" "$work/void_block.zi" \
-    2> "$work/void_block.err"; then
-    echo 'named block call unexpectedly passed' >&2
-    exit 1
-fi
+expect_rejection 'named block call unexpectedly passed' "$work/void_block.err" \
+    "$ziran" check --root "$work" "$work/void_block.zi"
 grep -Fq 'block calls are not Jai syntax' "$work/void_block.err"
 "$ziran" build --target=go --pkg main --root "$work" \
     -o "$work/blocks-go-ir" "$work/blocks-ir/blocklib.zir" \
@@ -942,11 +934,9 @@ import sys
 data = Path(sys.argv[1]).read_bytes()
 Path(sys.argv[2]).write_bytes(data[:17])
 PY
-if "$ziran" build --target=c --root "$work" -o "$work/corrupt-out" \
-    "$work/corrupt.zir" 2> "$work/corrupt.err"; then
-    echo 'truncated IR unexpectedly passed' >&2
-    exit 1
-fi
+expect_rejection 'truncated IR unexpectedly passed' "$work/corrupt.err" \
+    "$ziran" build --target=c --root "$work" -o "$work/corrupt-out" \
+    "$work/corrupt.zir"
 grep -Eq 'truncated|invalid' "$work/corrupt.err"
 python3 - "$work/blocks-ir/blockapp.zir" "$work/version.zir" <<'PY'
 from pathlib import Path
@@ -955,86 +945,63 @@ data = bytearray(Path(sys.argv[1]).read_bytes())
 data[4] = 31
 Path(sys.argv[2]).write_bytes(data)
 PY
-if "$ziran" build --target=c --root "$work" -o "$work/version-out" \
-    "$work/version.zir" 2> "$work/version.err"; then
-    echo 'unsupported IR version unexpectedly passed' >&2
-    exit 1
-fi
+expect_rejection 'unsupported IR version unexpectedly passed' "$work/version.err" \
+    "$ziran" build --target=c --root "$work" -o "$work/version-out" \
+    "$work/version.zir"
 grep -Fq 'unsupported ZIR version' "$work/version.err"
 
 cat > "$work/bad.zi" <<'EOF'
 #assert 0, "expected failure"
 EOF
-if "$ziran" check --diagnostics=json --root "$work" "$work/bad.zi" \
-    2> "$work/diagnostic.json"; then
-    echo 'invalid source unexpectedly passed' >&2
-    exit 1
-fi
+expect_rejection 'invalid source unexpectedly passed' "$work/diagnostic.json" \
+    "$ziran" check --diagnostics=json --root "$work" "$work/bad.zi"
 python3 -m json.tool "$work/diagnostic.json" > /dev/null
 
 cat > "$work/ui_mode.zi" <<'EOF'
 Screen :: () #ui {
 }
 EOF
-if "$ziran" check --root "$work" "$work/ui_mode.zi" \
-    2> "$work/ui_mode.err"; then
-    echo '#ui unexpectedly passed in Ziran' >&2
-    exit 1
-fi
+expect_rejection '#ui unexpectedly passed in Ziran' "$work/ui_mode.err" \
+    "$ziran" check --root "$work" "$work/ui_mode.zi"
 grep -Fq 'unknown function modifier: #ui' "$work/ui_mode.err"
 
 cat > "$work/extern_ui_mode.zi" <<'EOF'
 host_api :: #system_library "host_api";
 Effect :: () #foreign host_api; #ui
 EOF
-if "$ziran" check --root "$work" "$work/extern_ui_mode.zi" \
-    2> "$work/extern_ui_mode.err"; then
-    echo '#ui extern unexpectedly passed in Ziran' >&2
-    exit 1
-fi
+expect_rejection '#ui extern unexpectedly passed in Ziran' "$work/extern_ui_mode.err" \
+    "$ziran" check --root "$work" "$work/extern_ui_mode.zi"
 grep -Fq 'unknown directive: #ui' "$work/extern_ui_mode.err"
 
 cat > "$work/unknown_directive.zi" <<'EOF'
 #style defaults
 EOF
-if "$ziran" check --root "$work" "$work/unknown_directive.zi" \
-    2> "$work/unknown_directive.err"; then
-    echo 'unknown directive unexpectedly passed in Ziran' >&2
-    exit 1
-fi
+expect_rejection 'unknown directive unexpectedly passed in Ziran' "$work/unknown_directive.err" \
+    "$ziran" check --root "$work" "$work/unknown_directive.zi"
 grep -Fq 'unknown directive: #style defaults' "$work/unknown_directive.err"
 
 cat > "$work/unknown_top_level.zi" <<'EOF'
 route home {
 }
 EOF
-if "$ziran" check --root "$work" "$work/unknown_top_level.zi" \
-    2> "$work/unknown_top_level.err"; then
-    echo 'unknown top-level declaration unexpectedly passed in Ziran' >&2
-    exit 1
-fi
+expect_rejection 'unknown top-level declaration unexpectedly passed in Ziran' "$work/unknown_top_level.err" \
+    "$ziran" check --root "$work" "$work/unknown_top_level.zi"
 grep -Fq 'invalid top-level declaration' "$work/unknown_top_level.err"
 
 cat > "$work/unknown_app.zi" <<'EOF'
 app main {
 }
 EOF
-if "$ziran" check --root "$work" "$work/unknown_app.zi" \
-    2> "$work/unknown_app.err"; then
-    echo 'old app block unexpectedly passed in Ziran' >&2
-    exit 1
-fi
+expect_rejection 'old app block unexpectedly passed in Ziran' "$work/unknown_app.err" \
+    "$ziran" check --root "$work" "$work/unknown_app.zi"
 grep -Fq 'invalid top-level declaration' "$work/unknown_app.err"
 
 cat > "$work/intrinsic_mode.zi" <<'EOF'
 web_context_click_in_bounds :: (x0: s32, y0: s32, x1: s32,
     y1: s32) -> int #intrinsic "web"
 EOF
-if "$ziran" check --root "$work" "$work/intrinsic_mode.zi" \
-    2> "$work/intrinsic_mode.err"; then
-    echo '#intrinsic unexpectedly passed in Ziran' >&2
-    exit 1
-fi
+expect_rejection '#intrinsic unexpectedly passed in Ziran' "$work/intrinsic_mode.err" \
+    "$ziran" check --root "$work" "$work/intrinsic_mode.zi"
 grep -Fq 'unknown function modifier: #intrinsic' "$work/intrinsic_mode.err"
 
 cat > "$work/instance_mode.zi" <<'EOF'
@@ -1045,11 +1012,8 @@ Main :: () {
     state: State #instance(7)
 }
 EOF
-if "$ziran" check --root "$work" "$work/instance_mode.zi" \
-    2> "$work/instance_mode.err"; then
-    echo '#instance unexpectedly passed in Ziran' >&2
-    exit 1
-fi
+expect_rejection '#instance unexpectedly passed in Ziran' "$work/instance_mode.err" \
+    "$ziran" check --root "$work" "$work/instance_mode.zi"
 grep -Fq 'unknown declaration modifier: #instance' "$work/instance_mode.err"
 
 cat > "$work/unknown_block.zi" <<'EOF'
@@ -1059,9 +1023,6 @@ Main :: () {
     }
 }
 EOF
-if "$ziran" check --root "$work" "$work/unknown_block.zi" \
-    2> "$work/unknown_block.err"; then
-    echo 'unknown block call unexpectedly passed' >&2
-    exit 1
-fi
+expect_rejection 'unknown block call unexpectedly passed' "$work/unknown_block.err" \
+    "$ziran" check --root "$work" "$work/unknown_block.zi"
 grep -Fq 'block calls are not Jai syntax' "$work/unknown_block.err"

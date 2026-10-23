@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -125,11 +126,8 @@ done
 cat > "$work/unknown.zi" <<'ZI'
 BAD :: size_of(type_of(MissingValue));
 ZI
-if "$ziran" check --root "$work" "$work/unknown.zi" \
-    2> "$work/unknown.err"; then
-    echo 'unknown file-scope type_of operand was accepted' >&2
-    exit 1
-fi
+expect_rejection 'unknown file-scope type_of operand was accepted' "$work/unknown.err" \
+    "$ziran" check --root "$work" "$work/unknown.zi"
 rg -q 'unknown|checked expression' "$work/unknown.err"
 
 cat > "$work/type_lib.zi" <<'ZI'
@@ -386,11 +384,8 @@ HiddenGlobal: s64;
 SELECTED :: 1;
 }
 ZI
-if "$ziran" check --root "$work" "$work/inactive_forward.zi" \
-    2> "$work/inactive_forward.err"; then
-    echo 'inactive procedure leaked into a forward #if query' >&2
-    exit 1
-fi
+expect_rejection 'inactive procedure leaked into a forward #if query' "$work/inactive_forward.err" \
+    "$ziran" check --root "$work" "$work/inactive_forward.zi"
 rg -q 'unresolved function|checked expression' "$work/inactive_forward.err"
 
 cat > "$work/inactive_global.zi" <<'ZI'
@@ -401,11 +396,8 @@ HiddenGlobal: s64;
 SELECTED :: 1;
 }
 ZI
-if "$ziran" check --root "$work" "$work/inactive_global.zi" \
-    2> "$work/inactive_global.err"; then
-    echo 'inactive global leaked into a forward #if query' >&2
-    exit 1
-fi
+expect_rejection 'inactive global leaked into a forward #if query' "$work/inactive_global.err" \
+    "$ziran" check --root "$work" "$work/inactive_global.zi"
 rg -q 'unknown|checked expression' "$work/inactive_global.err"
 
 cat > "$work/private_loaded.zi" <<'ZI'
@@ -414,11 +406,8 @@ SELECTED :: 1;
 }
 #load "type_loaded.zi";
 ZI
-if "$ziran" check --root "$work" "$work/private_loaded.zi" \
-    2> "$work/private_loaded.err"; then
-    echo 'file-private loaded procedure leaked into a #if query' >&2
-    exit 1
-fi
+expect_rejection 'file-private loaded procedure leaked into a #if query' "$work/private_loaded.err" \
+    "$ziran" check --root "$work" "$work/private_loaded.zi"
 rg -q 'unresolved function|checked expression' "$work/private_loaded.err"
 
 cat > "$work/private_loaded_global.zi" <<'ZI'
@@ -427,11 +416,8 @@ SELECTED :: 1;
 }
 #load "type_loaded.zi";
 ZI
-if "$ziran" check --root "$work" "$work/private_loaded_global.zi" \
-    2> "$work/private_loaded_global.err"; then
-    echo 'file-private loaded global leaked into a #if query' >&2
-    exit 1
-fi
+expect_rejection 'file-private loaded global leaked into a #if query' "$work/private_loaded_global.err" \
+    "$ziran" check --root "$work" "$work/private_loaded_global.zi"
 rg -q 'unknown|checked expression' "$work/private_loaded_global.err"
 
 cat > "$work/forward_global_value.zi" <<'ZI'
@@ -440,11 +426,8 @@ SELECTED :: 1;
 }
 LaterGlobal: s32 = 1;
 ZI
-if "$ziran" check --root "$work" "$work/forward_global_value.zi" \
-    2> "$work/forward_global_value.err"; then
-    echo 'mutable global value became a compile-time constant' >&2
-    exit 1
-fi
+expect_rejection 'mutable global value became a compile-time constant' "$work/forward_global_value.err" \
+    "$ziran" check --root "$work" "$work/forward_global_value.zi"
 rg -q 'not a compile-time constant' "$work/forward_global_value.err"
 
 cat > "$work/forward_effectful_call.zi" <<'ZI'
@@ -457,11 +440,8 @@ Effectful :: () -> s32 {
     return count
 }
 ZI
-if "$ziran" check --root "$work" "$work/forward_effectful_call.zi" \
-    2> "$work/forward_effectful_call.err"; then
-    echo 'effectful forward procedure ran during branch selection' >&2
-    exit 1
-fi
+expect_rejection 'effectful forward procedure ran during branch selection' "$work/forward_effectful_call.err" \
+    "$ziran" check --root "$work" "$work/forward_effectful_call.zi"
 rg -q 'not a compile-time constant' "$work/forward_effectful_call.err"
 
 cat > "$work/private_loaded_call.zi" <<'ZI'
@@ -470,11 +450,8 @@ SELECTED :: 1;
 }
 #load "type_loaded.zi";
 ZI
-if "$ziran" check --root "$work" "$work/private_loaded_call.zi" \
-    2> "$work/private_loaded_call.err"; then
-    echo 'file-private loaded procedure ran from another file' >&2
-    exit 1
-fi
+expect_rejection 'file-private loaded procedure ran from another file' "$work/private_loaded_call.err" \
+    "$ziran" check --root "$work" "$work/private_loaded_call.zi"
 rg -q 'not a compile-time constant' "$work/private_loaded_call.err"
 
 cat > "$work/private_loaded_run.zi" <<'ZI'
@@ -484,11 +461,8 @@ SELECTED :: 1;
 }
 #load "type_loaded.zi";
 ZI
-if "$ziran" check --root "$work" "$work/private_loaded_run.zi" \
-    2> "$work/private_loaded_run.err"; then
-    echo 'file-private loaded procedure ran through a forward #run' >&2
-    exit 1
-fi
+expect_rejection 'file-private loaded procedure ran through a forward #run' "$work/private_loaded_run.err" \
+    "$ziran" check --root "$work" "$work/private_loaded_run.zi"
 rg -q 'not a compile-time constant|unresolved|private' \
     "$work/private_loaded_run.err"
 
@@ -498,11 +472,8 @@ SELECTED :: 1;
 }
 Recursive :: () -> s32 { return Recursive() }
 ZI
-if "$ziran" check --root "$work" "$work/forward_recursive_call.zi" \
-    2> "$work/forward_recursive_call.err"; then
-    echo 'recursive forward procedure exceeded the compile-time limit' >&2
-    exit 1
-fi
+expect_rejection 'recursive forward procedure exceeded the compile-time limit' "$work/forward_recursive_call.err" \
+    "$ziran" check --root "$work" "$work/forward_recursive_call.zi"
 rg -q 'not a compile-time constant' "$work/forward_recursive_call.err"
 
 cat > "$work/forward_unbounded_loop.zi" <<'ZI'
@@ -514,9 +485,6 @@ Unbounded :: () -> s64 {
     return 1
 }
 ZI
-if "$ziran" check --root "$work" "$work/forward_unbounded_loop.zi" \
-    2> "$work/forward_unbounded_loop.err"; then
-    echo 'unbounded forward procedure exceeded the compile-time limit' >&2
-    exit 1
-fi
+expect_rejection 'unbounded forward procedure exceeded the compile-time limit' "$work/forward_unbounded_loop.err" \
+    "$ziran" check --root "$work" "$work/forward_unbounded_loop.zi"
 rg -q 'not a compile-time constant' "$work/forward_unbounded_loop.err"

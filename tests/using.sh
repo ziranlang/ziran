@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -91,21 +92,15 @@ Bad :: (using one: Box, using two: Box) -> s64 {
     return value
 }
 ZI
-if "$ziran" check --root "$work" "$work/ambiguous.zi" \
-    2> "$work/ambiguous.err"; then
-    echo 'ambiguous using field was accepted' >&2
-    exit 1
-fi
+expect_rejection 'ambiguous using field was accepted' "$work/ambiguous.err" \
+    "$ziran" check --root "$work" "$work/ambiguous.zi"
 grep -Fq 'ambiguous using field' "$work/ambiguous.err"
 
 cat > "$work/scalar.zi" <<'ZI'
 Bad :: (using value: s64) -> s64 { return value }
 ZI
-if "$ziran" check --root "$work" "$work/scalar.zi" \
-    2> "$work/scalar.err"; then
-    echo 'scalar using binding was accepted' >&2
-    exit 1
-fi
+expect_rejection 'scalar using binding was accepted' "$work/scalar.err" \
+    "$ziran" check --root "$work" "$work/scalar.zi"
 grep -Fq 'using requires a concrete record binding' "$work/scalar.err"
 
 cat > "$work/scope.zi" <<'ZI'
@@ -117,11 +112,8 @@ Bad :: () -> s64 {
     return value
 }
 ZI
-if "$ziran" check --root "$work" "$work/scope.zi" \
-    2> "$work/scope.err"; then
-    echo 'out-of-scope using field was accepted' >&2
-    exit 1
-fi
+expect_rejection 'out-of-scope using field was accepted' "$work/scope.err" \
+    "$ziran" check --root "$work" "$work/scope.zi"
 grep -Fq 'unresolved name: value' "$work/scope.err"
 
 cat > "$work/nested_scope.zi" <<'ZI'
@@ -136,11 +128,8 @@ Bad :: () -> s64 {
     return x
 }
 ZI
-if "$ziran" check --root "$work" "$work/nested_scope.zi" \
-    2> "$work/nested_scope.err"; then
-    echo 'out-of-scope nested using field was accepted' >&2
-    exit 1
-fi
+expect_rejection 'out-of-scope nested using field was accepted' "$work/nested_scope.err" \
+    "$ziran" check --root "$work" "$work/nested_scope.zi"
 grep -Fq 'unresolved name: x' "$work/nested_scope.err"
 
 cat > "$work/unknown_path.zi" <<'ZI'
@@ -150,11 +139,8 @@ Bad :: (entity: Entity) -> s64 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" "$work/unknown_path.zi" \
-    2> "$work/unknown_path.err"; then
-    echo 'unknown using field was accepted' >&2
-    exit 1
-fi
+expect_rejection 'unknown using field was accepted' "$work/unknown_path.err" \
+    "$ziran" check --root "$work" "$work/unknown_path.zi"
 grep -Fq 'unknown using field: missing' "$work/unknown_path.err"
 
 cat > "$work/invalid_path.zi" <<'ZI'
@@ -164,11 +150,8 @@ Bad :: (entity: Entity) -> s64 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" "$work/invalid_path.zi" \
-    2> "$work/invalid_path.err"; then
-    echo 'invalid using field path was accepted' >&2
-    exit 1
-fi
+expect_rejection 'invalid using field path was accepted' "$work/invalid_path.err" \
+    "$ziran" check --root "$work" "$work/invalid_path.zi"
 grep -Fq 'using needs a record binding or field path' "$work/invalid_path.err"
 
 cat > "$work/ambiguous_path.zi" <<'ZI'
@@ -180,11 +163,8 @@ Bad :: (entity: Entity) -> s64 {
     return x
 }
 ZI
-if "$ziran" check --root "$work" "$work/ambiguous_path.zi" \
-    2> "$work/ambiguous_path.err"; then
-    echo 'ambiguous nested using field was accepted' >&2
-    exit 1
-fi
+expect_rejection 'ambiguous nested using field was accepted' "$work/ambiguous_path.err" \
+    "$ziran" check --root "$work" "$work/ambiguous_path.zi"
 grep -Fq 'ambiguous using field: x' "$work/ambiguous_path.err"
 
 cat > "$work/global_path.zi" <<'ZI'
@@ -205,9 +185,6 @@ Bad :: (entity: Entity) -> s64 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" "$work/scalar_path.zi" \
-    2> "$work/scalar_path.err"; then
-    echo 'scalar using field path was accepted' >&2
-    exit 1
-fi
+expect_rejection 'scalar using field path was accepted' "$work/scalar_path.err" \
+    "$ziran" check --root "$work" "$work/scalar_path.zi"
 grep -Fq 'using requires a concrete record binding' "$work/scalar_path.err"

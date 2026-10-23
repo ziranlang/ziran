@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -13,85 +14,61 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/old_export.zi" <<'EOF'
 Answer :: () -> s32 #export { return 42 }
 EOF
-if "$ziran" check --root "$work" "$work/old_export.zi" \
-    2> "$work/old_export.err"; then
-    echo 'signature #export was accepted' >&2
-    exit 1
-fi
+expect_rejection 'signature #export was accepted' "$work/old_export.err" \
+    "$ziran" check --root "$work" "$work/old_export.zi"
 grep -Fq 'unknown function modifier: #export' "$work/old_export.err"
 
 cat > "$work/misplaced_export.zi" <<'EOF'
 #program_export
 Number :: struct { value: s32; }
 EOF
-if "$ziran" check --root "$work" "$work/misplaced_export.zi" \
-    2> "$work/misplaced_export.err"; then
-    echo 'misplaced #program_export was accepted' >&2
-    exit 1
-fi
+expect_rejection 'misplaced #program_export was accepted' "$work/misplaced_export.err" \
+    "$ziran" check --root "$work" "$work/misplaced_export.zi"
 grep -Fq '#program_export must precede a function declaration' \
     "$work/misplaced_export.err"
 
 cat > "$work/dangling_export.zi" <<'EOF'
 #program_export
 EOF
-if "$ziran" check --root "$work" "$work/dangling_export.zi" \
-    2> "$work/dangling_export.err"; then
-    echo 'dangling #program_export was accepted' >&2
-    exit 1
-fi
+expect_rejection 'dangling #program_export was accepted' "$work/dangling_export.err" \
+    "$ziran" check --root "$work" "$work/dangling_export.zi"
 grep -Fq '#program_export must precede a function declaration' \
     "$work/dangling_export.err"
 
 cat > "$work/old_global.zi" <<'EOF'
 count :: s32 #global
 EOF
-if "$ziran" check --root "$work" "$work/old_global.zi" \
-    2> "$work/old_global.err"; then
-    echo '#global declaration was accepted' >&2
-    exit 1
-fi
+expect_rejection '#global declaration was accepted' "$work/old_global.err" \
+    "$ziran" check --root "$work" "$work/old_global.zi"
 grep -Fq '#global is not Jai syntax' "$work/old_global.err"
 
 cat > "$work/static_global.zi" <<'EOF'
 static count: s32 = 1;
 EOF
-if "$ziran" check --root "$work" "$work/static_global.zi" \
-    2> "$work/static_global.err"; then
-    echo 'C-style static global was accepted' >&2
-    exit 1
-fi
+expect_rejection 'C-style static global was accepted' "$work/static_global.err" \
+    "$ziran" check --root "$work" "$work/static_global.zi"
 grep -Fq 'invalid file-scope variable name' "$work/static_global.err"
 
 cat > "$work/no_global_semicolon.zi" <<'EOF'
 count: s32 = 1
 EOF
-if "$ziran" check --root "$work" "$work/no_global_semicolon.zi" \
-    2> "$work/no_global_semicolon.err"; then
-    echo 'file-scope variable without a semicolon was accepted' >&2
-    exit 1
-fi
+expect_rejection 'file-scope variable without a semicolon was accepted' "$work/no_global_semicolon.err" \
+    "$ziran" check --root "$work" "$work/no_global_semicolon.zi"
 grep -Fq "file-scope variable declaration needs ';'" \
     "$work/no_global_semicolon.err"
 
 cat > "$work/old_extern.zi" <<'EOF'
 Host :: () -> s32 #extern
 EOF
-if "$ziran" check --root "$work" "$work/old_extern.zi" \
-    2> "$work/old_extern.err"; then
-    echo '#extern procedure was accepted' >&2
-    exit 1
-fi
+expect_rejection '#extern procedure was accepted' "$work/old_extern.err" \
+    "$ziran" check --root "$work" "$work/old_extern.zi"
 grep -Fq 'unknown function modifier: #extern' "$work/old_extern.err"
 
 cat > "$work/unknown_foreign_library.zi" <<'EOF'
 Host :: () -> s32 #foreign missing;
 EOF
-if "$ziran" check --root "$work" "$work/unknown_foreign_library.zi" \
-    2> "$work/unknown_foreign_library.err"; then
-    echo 'undeclared #foreign library was accepted' >&2
-    exit 1
-fi
+expect_rejection 'undeclared #foreign library was accepted' "$work/unknown_foreign_library.err" \
+    "$ziran" check --root "$work" "$work/unknown_foreign_library.zi"
 grep -Fq '#foreign library is not declared: missing' \
     "$work/unknown_foreign_library.err"
 
@@ -99,33 +76,24 @@ cat > "$work/foreign_semicolon.zi" <<'EOF'
 libc :: #system_library "libc";
 Abs :: (value: s32) -> s32 #foreign libc
 EOF
-if "$ziran" check --root "$work" "$work/foreign_semicolon.zi" \
-    2> "$work/foreign_semicolon.err"; then
-    echo '#foreign procedure without a semicolon was accepted' >&2
-    exit 1
-fi
+expect_rejection '#foreign procedure without a semicolon was accepted' "$work/foreign_semicolon.err" \
+    "$ziran" check --root "$work" "$work/foreign_semicolon.zi"
 grep -Fq "#foreign declaration must end with ';'" \
     "$work/foreign_semicolon.err"
 
 cat > "$work/old_extern_type.zi" <<'EOF'
 Record :: struct #extern { value: s32; }
 EOF
-if "$ziran" check --root "$work" "$work/old_extern_type.zi" \
-    2> "$work/old_extern_type.err"; then
-    echo '#extern type was accepted' >&2
-    exit 1
-fi
+expect_rejection '#extern type was accepted' "$work/old_extern_type.err" \
+    "$ziran" check --root "$work" "$work/old_extern_type.zi"
 grep -Fq '#extern is not Jai syntax for a type declaration' \
     "$work/old_extern_type.err"
 
 cat > "$work/old_private.zi" <<'EOF'
 Hidden :: () -> s32 #private { return 42 }
 EOF
-if "$ziran" check --root "$work" "$work/old_private.zi" \
-    2> "$work/old_private.err"; then
-    echo '#private function was accepted' >&2
-    exit 1
-fi
+expect_rejection '#private function was accepted' "$work/old_private.err" \
+    "$ziran" check --root "$work" "$work/old_private.zi"
 grep -Fq '#private is not Jai syntax' "$work/old_private.err"
 
 cat > "$work/old_ternary.zi" <<'EOF'
@@ -133,11 +101,8 @@ Answer :: () -> s32 {
     return true ? 1 : 2
 }
 EOF
-if "$ziran" check --root "$work" "$work/old_ternary.zi" \
-    2> "$work/old_ternary.err"; then
-    echo 'C-style conditional expression was accepted' >&2
-    exit 1
-fi
+expect_rejection 'C-style conditional expression was accepted' "$work/old_ternary.err" \
+    "$ziran" check --root "$work" "$work/old_ternary.zi"
 grep -Fq 'C-style conditional is not valid Jai syntax' \
     "$work/old_ternary.err"
 
@@ -206,11 +171,8 @@ saved = Path(sys.argv[1]).read_bytes()
 assert saved.count(b"*s32") == 1
 Path(sys.argv[2]).write_bytes(saved.replace(b"*s32", b"s32*"))
 PY
-if "$ziran" check --root "$work" "$work/pointer-ir/forged.zir" \
-    2> "$work/forged_pointer.err"; then
-    echo 'C-style pointer type was accepted from saved IR' >&2
-    exit 1
-fi
+expect_rejection 'C-style pointer type was accepted from saved IR' "$work/forged_pointer.err" \
+    "$ziran" check --root "$work" "$work/pointer-ir/forged.zir"
 grep -Fq 'C-style pointer type is not Jai syntax' \
     "$work/forged_pointer.err"
 
@@ -276,11 +238,8 @@ Answer :: () -> s32 {
 }
 EOF
 "$ziran" check --root "$work" "$work/scoped_client.zi"
-if "$ziran" check --root "$work" "$work/scoped_bad_client.zi" \
-    2> "$work/scoped_bad_client.err"; then
-    echo '#scope_file procedure leaked across modules' >&2
-    exit 1
-fi
+expect_rejection '#scope_file procedure leaked across modules' "$work/scoped_bad_client.err" \
+    "$ziran" check --root "$work" "$work/scoped_bad_client.zi"
 for bad in scoped_bad_type scoped_bad_constant; do
     if "$ziran" check --root "$work" "$work/$bad.zi" \
         2> "$work/$bad.err"; then

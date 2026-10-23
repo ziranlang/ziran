@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -96,10 +97,8 @@ for input in source saved; do
     # shellcheck disable=SC2086
     "$ziran" bundle --root "$root" --entry app:Invalid \
         -o "$work/invalid-$input.zib" $modules
-    if "$ziran" run "$work/invalid-$input.zib" 2> "$work/invalid.err"; then
-        echo 'invalid enum value unexpectedly matched' >&2
-        exit 1
-    fi
+    expect_rejection 'invalid enum value unexpectedly matched' "$work/invalid.err" \
+        "$ziran" run "$work/invalid-$input.zib"
     grep -Fq 'unreachable code executed' "$work/invalid.err"
 
     for target in c cpp go; do
@@ -261,11 +260,8 @@ Value :: (mode: Mode) -> s32 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" "$work/invalid_through.zi" \
-    2> "$work/invalid_through.err"; then
-    echo 'accepted #through before the end of a case' >&2
-    exit 1
-fi
+expect_rejection 'accepted #through before the end of a case' "$work/invalid_through.err" \
+    "$ziran" check --root "$work" "$work/invalid_through.zi"
 grep -Fq '#through must end a case before another case' \
     "$work/invalid_through.err"
 
@@ -281,11 +277,8 @@ Value :: (mode: Mode) -> s32 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" "$work/final_through.zi" \
-    2> "$work/final_through.err"; then
-    echo 'accepted #through in the final case' >&2
-    exit 1
-fi
+expect_rejection 'accepted #through in the final case' "$work/final_through.err" \
+    "$ziran" check --root "$work" "$work/final_through.zi"
 grep -Fq '#through must end a case before another case' \
     "$work/final_through.err"
 
@@ -295,11 +288,8 @@ Answer :: () -> s32 {
     return 42
 }
 ZI
-if "$ziran" check --root "$work" "$work/unknown_directive.zi" \
-    2> "$work/unknown_directive.err"; then
-    echo 'silently ignored an unknown function-body directive' >&2
-    exit 1
-fi
+expect_rejection 'silently ignored an unknown function-body directive' "$work/unknown_directive.err" \
+    "$ziran" check --root "$work" "$work/unknown_directive.zi"
 grep -Fq 'unknown function-body directive' "$work/unknown_directive.err"
 
 cat > "$work/scalar_case.zi" <<'ZI'
@@ -447,11 +437,8 @@ Value :: (number: s32) -> s32 {
     }
 }
 ZI
-if "$ziran" check --root "$work" "$work/scalar_default_order.zi" \
-    2> "$work/scalar_default_order.err"; then
-    echo 'accepted a default case before another case' >&2
-    exit 1
-fi
+expect_rejection 'accepted a default case before another case' "$work/scalar_default_order.err" \
+    "$ziran" check --root "$work" "$work/scalar_default_order.zi"
 grep -Fq 'default case must be last' "$work/scalar_default_order.err"
 
 cat > "$work/scalar_case_type.zi" <<'ZI'
@@ -464,11 +451,8 @@ Value :: (number: s32) -> s32 {
     }
 }
 ZI
-if "$ziran" check --root "$work" "$work/scalar_case_type.zi" \
-    2> "$work/scalar_case_type.err"; then
-    echo 'accepted a case with an incompatible type' >&2
-    exit 1
-fi
+expect_rejection 'accepted a case with an incompatible type' "$work/scalar_case_type.err" \
+    "$ziran" check --root "$work" "$work/scalar_case_type.zi"
 grep -Fq 'operand types differ' "$work/scalar_case_type.err"
 
 cat > "$work/missing.zi" <<'ZI'
@@ -482,11 +466,8 @@ Value :: (mode: Mode) -> s32 {
     }
 }
 ZI
-if "$ziran" check --diagnostics=json --root "$work" "$work/modes.zi" "$work/missing.zi" \
-    2> "$work/missing.err"; then
-    echo 'non-exhaustive if-case unexpectedly accepted' >&2
-    exit 1
-fi
+expect_rejection 'non-exhaustive if-case unexpectedly accepted' "$work/missing.err" \
+    "$ziran" check --diagnostics=json --root "$work" "$work/modes.zi" "$work/missing.zi"
 grep -Fq '"code":"check.if_case"' "$work/missing.err"
 grep -Fq 'non-exhaustive if-case; missing case: Later' "$work/missing.err"
 
@@ -503,11 +484,8 @@ Value :: (mode: Mode) -> s32 {
     }
 }
 ZI
-if "$ziran" check --root "$work" "$work/modes.zi" "$work/duplicate.zi" \
-    2> "$work/duplicate.err"; then
-    echo 'duplicate if-case member unexpectedly accepted' >&2
-    exit 1
-fi
+expect_rejection 'duplicate if-case member unexpectedly accepted' "$work/duplicate.err" \
+    "$ziran" check --root "$work" "$work/modes.zi" "$work/duplicate.zi"
 grep -Fq 'duplicate if-case member: On' "$work/duplicate.err"
 
 cat > "$work/not_enum.zi" <<'ZI'
@@ -518,11 +496,8 @@ Value :: (number: s32) -> s32 {
     }
 }
 ZI
-if "$ziran" check --root "$work" "$work/not_enum.zi" \
-    2> "$work/not_enum.err"; then
-    echo 'non-enum complete if-case unexpectedly accepted' >&2
-    exit 1
-fi
+expect_rejection 'non-enum complete if-case unexpectedly accepted' "$work/not_enum.err" \
+    "$ziran" check --root "$work" "$work/not_enum.zi"
 grep -Fq 'if-case requires a checked enum or scalar value' "$work/not_enum.err"
 
 cat > "$work/inline.zi" <<'ZI'
@@ -571,11 +546,8 @@ Value :: (color: Color) -> s32 {
     }
 }
 ZI
-if "$ziran" check --root "$work" "$work/unqualified.zi" \
-    2> "$work/unqualified.err"; then
-    echo 'unqualified Jai enum case was accepted' >&2
-    exit 1
-fi
+expect_rejection 'unqualified Jai enum case was accepted' "$work/unqualified.err" \
+    "$ziran" check --root "$work" "$work/unqualified.zi"
 grep -Fq "enum case requires 'case .Member;'" "$work/unqualified.err"
 
 cat > "$work/old_match.zi" <<'ZI'
@@ -587,11 +559,8 @@ Value :: (color: Color) -> s32 {
     }
 }
 ZI
-if "$ziran" check --root "$work" "$work/old_match.zi" \
-    2> "$work/old_match.err"; then
-    echo 'non-Jai enum match was accepted' >&2
-    exit 1
-fi
+expect_rejection 'non-Jai enum match was accepted' "$work/old_match.err" \
+    "$ziran" check --root "$work" "$work/old_match.zi"
 grep -Fq 'match is not Jai syntax' "$work/old_match.err"
 
 {

@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 work=$(mktemp -d)
@@ -68,30 +69,21 @@ cat > "$work/app/old_module.zi" <<'EOF'
 #module "old_module"
 Answer :: () -> s32 { return 42; }
 EOF
-if "$ziran" check --root "$work/app" "$work/app/old_module.zi" \
-    2> "$work/old_module.err"; then
-    echo 'non-Jai #module directive was accepted' >&2
-    exit 1
-fi
+expect_rejection 'non-Jai #module directive was accepted' "$work/old_module.err" \
+    "$ziran" check --root "$work/app" "$work/app/old_module.zi"
 grep -Fq 'unknown directive: #module' "$work/old_module.err"
 cat > "$work/app/angled_import.zi" <<'EOF'
 #import <stdio.h>
 EOF
-if "$ziran" check --root "$work/app" "$work/app/angled_import.zi" \
-    2> "$work/angled_import.err"; then
-    echo 'C-style angled import unexpectedly succeeded' >&2
-    exit 1
-fi
+expect_rejection 'C-style angled import unexpectedly succeeded' "$work/angled_import.err" \
+    "$ziran" check --root "$work/app" "$work/app/angled_import.zi"
 grep -Fq 'Jai #import requires a quoted module or file name' \
     "$work/angled_import.err"
 cat > "$work/app/header_import.zi" <<'EOF'
 #import "stdio.h"
 EOF
-if "$ziran" check --root "$work/app" "$work/app/header_import.zi" \
-    2> "$work/header_import.err"; then
-    echo 'C-header import unexpectedly succeeded' >&2
-    exit 1
-fi
+expect_rejection 'C-header import unexpectedly succeeded' "$work/header_import.err" \
+    "$ziran" check --root "$work/app" "$work/app/header_import.zi"
 grep -Fq 'Jai #import requires a module identifier' \
     "$work/header_import.err"
 "$ziran" bundle --root "$work/app" --module-path "$work/lib" \
@@ -220,62 +212,44 @@ Base :: #import, file "../lib/base.zi";
 #program_export
 Result :: () -> s32 { return Value() }
 EOF
-if "$ziran" check --root "$work/app" "$work/app/named_unqualified.zi" \
-    2> "$work/named_unqualified.err"; then
-    echo 'named import leaked an unqualified function' >&2
-    exit 1
-fi
+expect_rejection 'named import leaked an unqualified function' "$work/named_unqualified.err" \
+    "$ziran" check --root "$work/app" "$work/app/named_unqualified.zi"
 cat > "$work/app/named_constant_unqualified.zi" <<'EOF'
 Base :: #import, file "../lib/base.zi";
 #program_export
 Result :: () -> s32 { return ConstValue }
 EOF
-if "$ziran" check --root "$work/app" \
-    "$work/app/named_constant_unqualified.zi" \
-    2> "$work/named_constant_unqualified.err"; then
-    echo 'named import leaked an unqualified constant' >&2
-    exit 1
-fi
+expect_rejection 'named import leaked an unqualified constant' "$work/named_constant_unqualified.err" \
+    "$ziran" check --root "$work/app" \
+    "$work/app/named_constant_unqualified.zi"
 cat > "$work/app/named_private.zi" <<'EOF'
 Base :: #import, file "../lib/base.zi";
 #program_export
 Result :: () -> s32 { return Base.Secret() }
 EOF
-if "$ziran" check --root "$work/app" "$work/app/named_private.zi" \
-    2> "$work/named_private.err"; then
-    echo 'named import exposed a private function' >&2
-    exit 1
-fi
+expect_rejection 'named import exposed a private function' "$work/named_private.err" \
+    "$ziran" check --root "$work/app" "$work/app/named_private.zi"
 cat > "$work/app/named_private_type.zi" <<'EOF'
 Base :: #import, file "../lib/base.zi";
 #program_export
 Result :: () -> s32 { item: Base.PrivateThing; return item.number }
 EOF
-if "$ziran" check --root "$work/app" "$work/app/named_private_type.zi" \
-    2> "$work/named_private_type.err"; then
-    echo 'named import exposed a private type' >&2
-    exit 1
-fi
+expect_rejection 'named import exposed a private type' "$work/named_private_type.err" \
+    "$ziran" check --root "$work/app" "$work/app/named_private_type.zi"
 cat > "$work/app/named_duplicate.zi" <<'EOF'
 Base :: #import, file "../lib/base.zi";
 Base :: #import, file "../lib/base.zi";
 EOF
-if "$ziran" check --root "$work/app" "$work/app/named_duplicate.zi" \
-    2> "$work/named_duplicate.err"; then
-    echo 'duplicate import alias unexpectedly succeeded' >&2
-    exit 1
-fi
+expect_rejection 'duplicate import alias unexpectedly succeeded' "$work/named_duplicate.err" \
+    "$ziran" check --root "$work/app" "$work/app/named_duplicate.zi"
 grep -Fq 'duplicate import alias' "$work/named_duplicate.err"
 cat > "$work/app/named_shadow.zi" <<'EOF'
 Base :: #import, file "../lib/base.zi";
 #program_export
 Result :: () -> s32 { Base: s32 = 1; return Base }
 EOF
-if "$ziran" check --root "$work/app" "$work/app/named_shadow.zi" \
-    2> "$work/named_shadow.err"; then
-    echo 'local binding shadowed an import alias' >&2
-    exit 1
-fi
+expect_rejection 'local binding shadowed an import alias' "$work/named_shadow.err" \
+    "$ziran" check --root "$work/app" "$work/app/named_shadow.zi"
 grep -Fq 'binding shadows an imported module' "$work/named_shadow.err"
 cat > "$work/app/named_search.zi" <<'EOF'
 Base :: #import "base";
@@ -383,11 +357,8 @@ cp "$work/directory-search-ir/directory_search.zir" \
 cat > "$work/app/directory_missing.zi" <<'EOF'
 Suite :: #import, dir "../lib/absent";
 EOF
-if "$ziran" check --root "$work/app" "$work/app/directory_missing.zi" \
-    2> "$work/directory_missing.err"; then
-    echo 'missing directory module unexpectedly succeeded' >&2
-    exit 1
-fi
+expect_rejection 'missing directory module unexpectedly succeeded' "$work/directory_missing.err" \
+    "$ziran" check --root "$work/app" "$work/app/directory_missing.zi"
 grep -Fq 'cannot find imported directory module' \
     "$work/directory_missing.err"
 mkdir -p "$work/app/loaded"
@@ -443,11 +414,8 @@ GO111MODULE=off go run "$work/loaded-go"/*.go
 cat > "$work/app/load_cycle.zi" <<'EOF'
 #load "load_cycle.zi";
 EOF
-if "$ziran" check --root "$work/app" "$work/app/load_cycle.zi" \
-    2> "$work/load_cycle.err"; then
-    echo 'cyclic #load unexpectedly succeeded' >&2
-    exit 1
-fi
+expect_rejection 'cyclic #load unexpectedly succeeded' "$work/load_cycle.err" \
+    "$ziran" check --root "$work/app" "$work/app/load_cycle.zi"
 grep -Fq 'cyclic #load' "$work/load_cycle.err"
 cat > "$work/app/loaded/bad.zi" <<'EOF'
 Broken :: () -> s32 {
@@ -457,11 +425,8 @@ EOF
 cat > "$work/app/load_bad.zi" <<'EOF'
 #load "loaded/bad.zi";
 EOF
-if "$ziran" check --root "$work/app" "$work/app/load_bad.zi" \
-    2> "$work/load_bad.err"; then
-    echo 'invalid loaded file unexpectedly succeeded' >&2
-    exit 1
-fi
+expect_rejection 'invalid loaded file unexpectedly succeeded' "$work/load_bad.err" \
+    "$ziran" check --root "$work/app" "$work/app/load_bad.zi"
 grep -Fq 'loaded/bad.zi:2:' "$work/load_bad.err"
 cat > "$work/app/load_inactive.zi" <<'EOF'
 #if false {
@@ -475,18 +440,13 @@ EOF
 cat > "$work/app/missing_file.zi" <<'EOF'
 #import, file "../lib/missing.zi";
 EOF
-if "$ziran" check --diagnostics=json --root "$work/app" \
-    "$work/app/missing_file.zi" 2> "$work/missing_file.err"; then
-    echo 'missing explicit file import unexpectedly succeeded' >&2
-    exit 1
-fi
+expect_rejection 'missing explicit file import unexpectedly succeeded' "$work/missing_file.err" \
+    "$ziran" check --diagnostics=json --root "$work/app" \
+    "$work/app/missing_file.zi"
 grep -Fq 'cannot find imported file' "$work/missing_file.err"
 
-if "$ziran" check --diagnostics=json --root "$work/app" "$work/app/main.zi" \
-    2> "$work/missing.err"; then
-    echo 'missing module search path unexpectedly succeeded' >&2
-    exit 1
-fi
+expect_rejection 'missing module search path unexpectedly succeeded' "$work/missing.err" \
+    "$ziran" check --diagnostics=json --root "$work/app" "$work/app/main.zi"
 grep -Fq 'module.not_found' "$work/missing.err"
 
 for extension in kry kir krb; do

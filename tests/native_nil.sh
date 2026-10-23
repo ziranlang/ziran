@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -111,11 +112,8 @@ Wrong :: () -> s32 {
     return value
 }
 EOF
-if "$ziran" check --root "$work" "$work/invalid.zi" \
-    2> "$work/invalid.err"; then
-    echo 'integer accepted null initializer' >&2
-    exit 1
-fi
+expect_rejection 'integer accepted null initializer' "$work/invalid.err" \
+    "$ziran" check --root "$work" "$work/invalid.zi"
 grep -Fq 'initializer type mismatch' "$work/invalid.err"
 
 cat > "$work/invalid.zi" <<'EOF'
@@ -124,11 +122,8 @@ Wrong :: () -> s32 {
     return 0
 }
 EOF
-if "$ziran" check --root "$work" "$work/invalid.zi" \
-    2> "$work/invalid.err"; then
-    echo 'untyped null binding was accepted' >&2
-    exit 1
-fi
+expect_rejection 'untyped null binding was accepted' "$work/invalid.err" \
+    "$ziran" check --root "$work" "$work/invalid.zi"
 grep -Fq 'null requires an explicit pointer type' "$work/invalid.err"
 
 cat > "$work/invalid.zi" <<'EOF'
@@ -136,11 +131,8 @@ Wrong :: () -> *const u8 {
     return null
 }
 EOF
-if "$ziran" check --root "$work" "$work/invalid.zi" \
-    2> "$work/invalid.err"; then
-    echo 'C-style const pointer type was accepted' >&2
-    exit 1
-fi
+expect_rejection 'C-style const pointer type was accepted' "$work/invalid.err" \
+    "$ziran" check --root "$work" "$work/invalid.zi"
 grep -Fq 'const qualifier is not Jai syntax' "$work/invalid.err"
 
 cat > "$work/invalid.zi" <<'EOF'
@@ -148,11 +140,8 @@ Wrong :: () -> *s32 {
     return nil
 }
 EOF
-if "$ziran" check --root "$work" "$work/invalid.zi" \
-    2> "$work/invalid.err"; then
-    echo 'non-Jai nil literal was accepted' >&2
-    exit 1
-fi
+expect_rejection 'non-Jai nil literal was accepted' "$work/invalid.err" \
+    "$ziran" check --root "$work" "$work/invalid.zi"
 grep -Fq 'nil is not Jai syntax; use null' "$work/invalid.err"
 
 cat > "$work/invalid.zi" <<'EOF'
@@ -162,11 +151,8 @@ Wrong :: () -> s32 {
     return pointer.*
 }
 EOF
-if "$ziran" check --root "$work" "$work/invalid.zi" \
-    2> "$work/invalid.err"; then
-    echo 'C-style address-of was accepted' >&2
-    exit 1
-fi
+expect_rejection 'C-style address-of was accepted' "$work/invalid.err" \
+    "$ziran" check --root "$work" "$work/invalid.zi"
 grep -Fq 'C-style address-of is not valid Jai syntax' "$work/invalid.err"
 
 cat > "$work/invalid.zi" <<'EOF'
@@ -175,11 +161,8 @@ Wrong :: () -> s32 {
     return value.*
 }
 EOF
-if "$ziran" check --root "$work" "$work/invalid.zi" \
-    2> "$work/invalid.err"; then
-    echo 'dereference of a scalar was accepted' >&2
-    exit 1
-fi
+expect_rejection 'dereference of a scalar was accepted' "$work/invalid.err" \
+    "$ziran" check --root "$work" "$work/invalid.zi"
 grep -Fq 'dereference requires a pointer' "$work/invalid.err"
 
 cat > "$work/invalid.zi" <<'EOF'
@@ -188,11 +171,8 @@ Wrong :: () -> s32 {
     return <<value
 }
 EOF
-if "$ziran" check --root "$work" "$work/invalid.zi" \
-    2> "$work/invalid.err"; then
-    echo 'prefix dereference of a scalar was accepted' >&2
-    exit 1
-fi
+expect_rejection 'prefix dereference of a scalar was accepted' "$work/invalid.err" \
+    "$ziran" check --root "$work" "$work/invalid.zi"
 grep -Fq 'dereference requires a pointer' "$work/invalid.err"
 
 for increment in 'value++' '++value' 'value--' '--value'; do
@@ -217,11 +197,8 @@ Wrong :: () -> s32 {
     return 0
 }
 EOF
-if "$ziran" check --root "$work" "$work/invalid.zi" \
-    2> "$work/invalid.err"; then
-    echo 'address of a literal was accepted' >&2
-    exit 1
-fi
+expect_rejection 'address of a literal was accepted' "$work/invalid.err" \
+    "$ziran" check --root "$work" "$work/invalid.zi"
 grep -Fq 'address-of requires an assignable expression' "$work/invalid.err"
 
 # The portable runner reads and writes through pointers at its own storage.

@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -157,22 +158,16 @@ Touch :: (value: s64) -> s64 {
 }
 VALUE :: #run Touch(42);
 ZI
-if "$ziran" check --root "$work" "$work/effect.zi" \
-    2> "$work/effect.err"; then
-    echo 'effectful compile-time call was accepted' >&2
-    exit 1
-fi
+expect_rejection 'effectful compile-time call was accepted' "$work/effect.err" \
+    "$ziran" check --root "$work" "$work/effect.zi"
 rg -q '#run expression is not a constant' "$work/effect.err"
 
 cat > "$work/recursive.zi" <<'ZI'
 Loop :: (value: s64) -> s64 { return Loop(value) }
 VALUE :: #run Loop(1);
 ZI
-if "$ziran" check --root "$work" "$work/recursive.zi" \
-    2> "$work/recursive.err"; then
-    echo 'unbounded compile-time recursion was accepted' >&2
-    exit 1
-fi
+expect_rejection 'unbounded compile-time recursion was accepted' "$work/recursive.err" \
+    "$ziran" check --root "$work" "$work/recursive.zi"
 rg -q '#run expression is not a constant' "$work/recursive.err"
 
 cat > "$work/foreign_local.zi" <<'ZI'
@@ -183,11 +178,8 @@ Call :: () -> s64 {
 }
 VALUE :: #run Call();
 ZI
-if "$ziran" check --root "$work" "$work/foreign_local.zi" \
-    2> "$work/foreign_local.err"; then
-    echo 'compile-time callee captured a caller local' >&2
-    exit 1
-fi
+expect_rejection 'compile-time callee captured a caller local' "$work/foreign_local.err" \
+    "$ziran" check --root "$work" "$work/foreign_local.zi"
 rg -q '#run expression is not a constant' "$work/foreign_local.err"
 
 # A local without an initializer holds its type's zero, at compile time as
@@ -210,11 +202,8 @@ Loop :: () -> s64 {
 }
 VALUE :: #run Loop();
 ZI
-if "$ziran" check --root "$work" "$work/unbounded_loop.zi" \
-    2> "$work/unbounded_loop.err"; then
-    echo 'unbounded compile-time loop was accepted' >&2
-    exit 1
-fi
+expect_rejection 'unbounded compile-time loop was accepted' "$work/unbounded_loop.err" \
+    "$ziran" check --root "$work" "$work/unbounded_loop.zi"
 rg -q '#run expression is not a constant' "$work/unbounded_loop.err"
 
 cat > "$work/shared_fuel.zi" <<'ZI'
@@ -230,11 +219,8 @@ cat >> "$work/shared_fuel.zi" <<'ZI'
 Pair :: () -> s64 { return Spin(600) + Spin(600) }
 Combined :: #run Pair();
 ZI
-if "$ziran" check --root "$work" "$work/shared_fuel.zi" \
-    2> "$work/shared_fuel.err"; then
-    echo 'nested compile-time calls reset the work limit' >&2
-    exit 1
-fi
+expect_rejection 'nested compile-time calls reset the work limit' "$work/shared_fuel.err" \
+    "$ziran" check --root "$work" "$work/shared_fuel.zi"
 rg -q '#run expression is not a constant' "$work/shared_fuel.err"
 
 cat > "$work/impure_assert.zi" <<'ZI'
@@ -245,11 +231,8 @@ Touch :: () -> s64 {
 }
 #assert Touch() == 1
 ZI
-if "$ziran" check --root "$work" "$work/impure_assert.zi" \
-    2> "$work/impure_assert.err"; then
-    echo 'effectful #assert was accepted' >&2
-    exit 1
-fi
+expect_rejection 'effectful #assert was accepted' "$work/impure_assert.err" \
+    "$ziran" check --root "$work" "$work/impure_assert.zi"
 rg -q '#assert requires a compile-time constant condition' \
     "$work/impure_assert.err"
 
@@ -257,11 +240,8 @@ cat > "$work/overflow.zi" <<'ZI'
 AddOne :: (value: s64) -> s64 { return value + 1 }
 VALUE :: #run AddOne(9223372036854775807);
 ZI
-if "$ziran" check --root "$work" "$work/overflow.zi" \
-    2> "$work/overflow.err"; then
-    echo 'overflowing compile-time call was accepted' >&2
-    exit 1
-fi
+expect_rejection 'overflowing compile-time call was accepted' "$work/overflow.err" \
+    "$ziran" check --root "$work" "$work/overflow.zi"
 rg -q '#run expression is not a constant' "$work/overflow.err"
 
 # Compile-time branches and assertions are resolved by Ziran. They must never
@@ -294,11 +274,8 @@ assert data.count(needle) == 1
 data[data.index(needle) + 4] = ord('0')
 Path(sys.argv[2]).write_bytes(data)
 PY
-if "$ziran" check --root "$work" "$work/assert-forged.zir" \
-    2> "$work/assert-forged.err"; then
-    echo 'saved IR accepted a falsified compile-time assertion' >&2
-    exit 1
-fi
+expect_rejection 'saved IR accepted a falsified compile-time assertion' "$work/assert-forged.err" \
+    "$ziran" check --root "$work" "$work/assert-forged.zir"
 rg -q '#assert failed' "$work/assert-forged.err"
 for input in "$work/assert_selected.zi" "$work/assert-ir/assert_selected.zir"; do
     case "$input" in
@@ -321,11 +298,8 @@ cat > "$work/assert_failed.zi" <<'ZI'
 }
 Answer :: () -> s32 { return 42 }
 ZI
-if "$ziran" check --root "$work" "$work/assert_failed.zi" \
-    2> "$work/assert_failed.err"; then
-    echo 'selected false assertion passed frontend checking' >&2
-    exit 1
-fi
+expect_rejection 'selected false assertion passed frontend checking' "$work/assert_failed.err" \
+    "$ziran" check --root "$work" "$work/assert_failed.zi"
 rg -q '#assert failed' "$work/assert_failed.err"
 
 cat > "$work/error_selected.zi" <<'ZI'
@@ -334,9 +308,6 @@ cat > "$work/error_selected.zi" <<'ZI'
 }
 Answer :: () -> s32 { return 42 }
 ZI
-if "$ziran" check --root "$work" "$work/error_selected.zi" \
-    2> "$work/error_selected.err"; then
-    echo 'selected #error passed frontend checking' >&2
-    exit 1
-fi
+expect_rejection 'selected #error passed frontend checking' "$work/error_selected.err" \
+    "$ziran" check --root "$work" "$work/error_selected.zi"
 rg -q '#error:' "$work/error_selected.err"

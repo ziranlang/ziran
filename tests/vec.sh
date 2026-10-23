@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -265,11 +266,9 @@ items: Vec(s32);
 #program_export
 Bad :: () -> s32 { return items.data[0] }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/private.zi" 2> "$work/private.err"; then
-    echo 'Vec storage was accessible' >&2
-    exit 1
-fi
+expect_rejection 'Vec storage was accessible' "$work/private.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/private.zi"
 rg -q 'Vec storage is private' "$work/private.err"
 
 cat > "$work/copy.zi" <<'ZI'
@@ -282,11 +281,9 @@ Bad :: () -> s32 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/copy.zi" 2> "$work/copy.err"; then
-    echo 'moving a global Vec was accepted' >&2
-    exit 1
-fi
+expect_rejection 'moving a global Vec was accepted' "$work/copy.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/copy.zi"
 rg -q 'global Vec storage cannot move' "$work/copy.err"
 
 cat > "$work/usemove.zi" <<'ZI'
@@ -303,11 +300,9 @@ Bad :: () -> s32 {
     return cast(s32)values.count
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/usemove.zi" 2> "$work/usemove.err"; then
-    echo 'use after move was accepted' >&2
-    exit 1
-fi
+expect_rejection 'use after move was accepted' "$work/usemove.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/usemove.zi"
 rg -q 'used after moving' "$work/usemove.err"
 
 cat > "$work/owned.zi" <<'ZI'
@@ -323,11 +318,9 @@ Bad :: () -> s32 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/owned.zi" 2> "$work/owned.err"; then
-    echo 'assignment over an owned Vec was accepted' >&2
-    exit 1
-fi
+expect_rejection 'assignment over an owned Vec was accepted' "$work/owned.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/owned.zi"
 rg -q 'leaks it' "$work/owned.err"
 
 cat > "$work/nested.zi" <<'ZI'
@@ -347,11 +340,9 @@ Bad :: () -> s32 {
     return holder.items[0]
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/nested.zi" 2> "$work/nested.err"; then
-    echo 'reusing moved nested Vec storage was accepted' >&2
-    exit 1
-fi
+expect_rejection 'reusing moved nested Vec storage was accepted' "$work/nested.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/nested.zi"
 rg -q 'owned record field is used after moving' "$work/nested.err"
 
 cat > "$work/badborrow.zi" <<'ZI'
@@ -368,11 +359,9 @@ Bad :: () -> s32 {
     return Consume(values)
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/badborrow.zi" 2> "$work/badborrow.err"; then
-    echo 'moving a borrowed Vec was accepted' >&2
-    exit 1
-fi
+expect_rejection 'moving a borrowed Vec was accepted' "$work/badborrow.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/badborrow.zi"
 rg -q 'live borrowed view' "$work/badborrow.err"
 
 cat > "$work/badpush.zi" <<'ZI'
@@ -387,11 +376,9 @@ Bad :: () -> s32 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/badpush.zi" 2> "$work/badpush.err"; then
-    echo 'mutating a borrowed Vec was accepted' >&2
-    exit 1
-fi
+expect_rejection 'mutating a borrowed Vec was accepted' "$work/badpush.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/badpush.zi"
 rg -q 'live borrowed view' "$work/badpush.err"
 
 cat > "$work/badclone.zi" <<'ZI'
@@ -408,11 +395,9 @@ Bad :: () -> s32 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/badclone.zi" 2> "$work/badclone.err"; then
-    echo 'cloning into an owned Vec was accepted' >&2
-    exit 1
-fi
+expect_rejection 'cloning into an owned Vec was accepted' "$work/badclone.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/badclone.zi"
 rg -q 'fresh or moved-from' "$work/badclone.err"
 
 cat > "$work/count.zi" <<'ZI'
@@ -421,11 +406,9 @@ items: Vec(s32);
 #program_export
 Bad :: () { items.count = 5 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/count.zi" 2> "$work/count.err"; then
-    echo 'Vec count mutation was accepted' >&2
-    exit 1
-fi
+expect_rejection 'Vec count mutation was accepted' "$work/count.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/count.zi"
 rg -q 'read-only' "$work/count.err"
 
 cat > "$work/nooption.zi" <<'ZI'
@@ -438,11 +421,9 @@ Bad :: () -> s32 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/nooption.zi" 2> "$work/nooption.err"; then
-    echo 'VecPop without option was accepted' >&2
-    exit 1
-fi
+expect_rejection 'VecPop without option was accepted' "$work/nooption.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/nooption.zi"
 rg -q 'import option' "$work/nooption.err"
 
 cat > "$work/badindex.zi" <<'ZI'
@@ -455,11 +436,9 @@ Bad :: () -> s32 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/badindex.zi" 2> "$work/badindex.err"; then
-    echo 'VecGet with a string index was accepted' >&2
-    exit 1
-fi
+expect_rejection 'VecGet with a string index was accepted' "$work/badindex.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/badindex.zi"
 rg -q 'integer index' "$work/badindex.err"
 
 cat > "$work/badbuilder.zi" <<'ZI'
@@ -472,11 +451,9 @@ Bad :: () -> s32 {
     return 0
 }
 ZI
-if "$ziran" check --root "$work" --module-path "$repo/std" \
-    "$work/badbuilder.zi" 2> "$work/badbuilder.err"; then
-    echo 'BuilderFinish on a non-u8 Vec was accepted' >&2
-    exit 1
-fi
+expect_rejection 'BuilderFinish on a non-u8 Vec was accepted' "$work/badbuilder.err" \
+    "$ziran" check --root "$work" --module-path "$repo/std" \
+    "$work/badbuilder.zi"
 rg -q -F 'Vec(u8)' "$work/badbuilder.err"
 
 # Reading a Vec and moving it in one statement would give different values
@@ -491,8 +468,6 @@ Check :: () -> s64 {
     return values.count + Take(values)
 }
 ZI
-if "$ziran" check --root "$work" "$work/moved_read.zi" 2> "$work/moved_read.err"; then
-    echo 'a Vec read and moved in one statement was accepted' >&2
-    exit 1
-fi
+expect_rejection 'a Vec read and moved in one statement was accepted' "$work/moved_read.err" \
+    "$ziran" check --root "$work" "$work/moved_read.zi"
 grep -q 'cannot also be read in it' "$work/moved_read.err"

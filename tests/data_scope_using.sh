@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+. "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -111,11 +112,8 @@ using first: Point = Point.{.x = 20};
 using second: Point = Point.{.x = 22};
 sum: s64 = x;
 ZI
-if "$ziran" check --root "$work" "$work/file_ambiguous.zi" \
-    2> "$work/file_ambiguous.err"; then
-    echo 'ambiguous file-scope initializer using was accepted' >&2
-    exit 1
-fi
+expect_rejection 'ambiguous file-scope initializer using was accepted' "$work/file_ambiguous.err" \
+    "$ziran" check --root "$work" "$work/file_ambiguous.zi"
 grep -Fq 'ambiguous using field: x' "$work/file_ambiguous.err"
 
 cat > "$work/file_mixed_ambiguous.zi" <<'ZI'
@@ -125,11 +123,8 @@ Point :: struct { x: s64; }
 using point: Point = Point.{.x = 42};
 sum: s64 = x;
 ZI
-if "$ziran" check --root "$work" "$work/file_mixed_ambiguous.zi" \
-    2> "$work/file_mixed_ambiguous.err"; then
-    echo 'record and enum using exposed the same initializer name' >&2
-    exit 1
-fi
+expect_rejection 'record and enum using exposed the same initializer name' "$work/file_mixed_ambiguous.err" \
+    "$ziran" check --root "$work" "$work/file_mixed_ambiguous.zi"
 grep -Fq 'ambiguous using field: x' "$work/file_mixed_ambiguous.err"
 
 cat > "$work/ambiguous.zi" <<'ZI'
@@ -138,22 +133,16 @@ using first: Box;
 using second: Box;
 Bad :: () -> s64 { return value }
 ZI
-if "$ziran" check --root "$work" "$work/ambiguous.zi" \
-    2> "$work/ambiguous.err"; then
-    echo 'ambiguous file-scope record using was accepted' >&2
-    exit 1
-fi
+expect_rejection 'ambiguous file-scope record using was accepted' "$work/ambiguous.err" \
+    "$ziran" check --root "$work" "$work/ambiguous.zi"
 grep -Fq 'ambiguous using field: value' "$work/ambiguous.err"
 
 cat > "$work/scalar.zi" <<'ZI'
 using number;
 number: s64;
 ZI
-if "$ziran" check --root "$work" "$work/scalar.zi" \
-    2> "$work/scalar.err"; then
-    echo 'file-scope scalar using was accepted' >&2
-    exit 1
-fi
+expect_rejection 'file-scope scalar using was accepted' "$work/scalar.err" \
+    "$ziran" check --root "$work" "$work/scalar.zi"
 grep -Fq 'using requires a concrete record binding' "$work/scalar.err"
 
 cat > "$work/shadow.zi" <<'ZI'
@@ -164,11 +153,8 @@ Bad :: () -> s64 {
     return x
 }
 ZI
-if "$ziran" check --root "$work" "$work/shadow.zi" \
-    2> "$work/shadow.err"; then
-    echo 'shadowed file-scope using root still promoted fields' >&2
-    exit 1
-fi
+expect_rejection 'shadowed file-scope using root still promoted fields' "$work/shadow.err" \
+    "$ziran" check --root "$work" "$work/shadow.zi"
 grep -Fq 'unresolved name: x' "$work/shadow.err"
 
 cat > "$work/private.zi" <<'ZI'
@@ -188,11 +174,8 @@ Point :: struct { x: s64; }
 Answer :: () -> s64 { return Inside() }
 ZI
 "$ziran" check --root "$work" "$work/private_ok.zi"
-if "$ziran" check --root "$work" "$work/private_app.zi" \
-    2> "$work/private.err"; then
-    echo 'file-private record using leaked across #load' >&2
-    exit 1
-fi
+expect_rejection 'file-private record using leaked across #load' "$work/private.err" \
+    "$ziran" check --root "$work" "$work/private_app.zi"
 grep -Fq 'unresolved name: x' "$work/private.err"
 
 cat > "$work/private_init.zi" <<'ZI'
@@ -200,9 +183,6 @@ Point :: struct { x: s64; }
 #load "private.zi";
 sum: s64 = x;
 ZI
-if "$ziran" check --root "$work" "$work/private_init.zi" \
-    2> "$work/private_init.err"; then
-    echo 'file-private using leaked into a global initializer' >&2
-    exit 1
-fi
+expect_rejection 'file-private using leaked into a global initializer' "$work/private_init.err" \
+    "$ziran" check --root "$work" "$work/private_init.zi"
 grep -Fq 'unresolved name: x' "$work/private_init.err"

@@ -65,10 +65,10 @@ host_api :: #system_library "host_api";
 Effect :: (value: s32) -> s32 #foreign host_api;
 Other :: () -> s32 { return Effect(1) }
 ZI
-# A bound capability also named by a function of a module it imports still
-# keeps its bound export.
+# A capability also named by a function of a module it imports calls that
+# function on every target, and its bound export is still kept and checked.
 cat > "$work/native/shadow.zi" <<'ZI'
-Effect :: (value: s32) -> s32 { return value * 1000 }
+Effect :: (value: s32) -> s32 { return value * 20 }
 ZI
 cat > "$work/native/third.zi" <<'ZI'
 #import "shadow"
@@ -108,9 +108,16 @@ for input in source saved; do
     status=0
     env -u DISPLAY -u WAYLAND_DISPLAY "$output/both" || status=$?
     # app's Effect(41) is Produce: 42; other's Effect(1) is the export: 10;
-    # third's Effect(3) is ProduceThird: 5.
-    test "$status" = 57
+    # third's Effect(3) is shadow's function: 60.
+    test "$status" = 112
 done
+
+# A bundle keeps the bound export too; the other capability goes to the
+# host module's export of that name.
+"$ziran" bundle --root "$work/native" --entry both:both \
+    --bind app:Effect=provider:Produce --bind third:Effect=provider:ProduceThird \
+    --bind-host both -o "$work/native.zib" "$work/native/both.zi"
+test "$("$ziran" run "$work/native.zib")" = 112
 
 "$ziran" bundle --root "$work" --entry app:main \
     -o "$work/unbound.zib" "$work/app.zi"

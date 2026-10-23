@@ -249,7 +249,16 @@ resolve_module_fn(const ZirModule *m, const char *ident, size_t len,
             NativeCForeignName(m, foreign, dst, dst_size);
             return strlen(dst);
         }
-        /* A host capability bound to a program export calls that export. */
+    }
+    if(ResolveFunction(m, name, &owner, &fn) == 1) {
+        function_c_name(owner, fn, dst, dst_size);
+        return strlen(dst);
+    }
+    /* A host capability bound to a program export calls that export. An
+     * imported module's function of the same name still wins, as in a
+     * bundle. */
+    for(int i = 0; i < m->import_count; i++) {
+        const ZirImport *foreign = &m->imports[i];
         if(foreign->kind == ZIR_IMPORT_EXTERN &&
            foreign->extern_kind == ZIR_EXTERN_HOST &&
            !strncmp(foreign->target, "ziran:", 6) &&
@@ -257,10 +266,6 @@ resolve_module_fn(const ZirModule *m, const char *ident, size_t len,
             snprintf(dst, dst_size, "%s", foreign->extern_symbol);
             return strlen(dst);
         }
-    }
-    if(ResolveFunction(m, name, &owner, &fn) == 1) {
-        function_c_name(owner, fn, dst, dst_size);
-        return strlen(dst);
     }
     return 0;
 }

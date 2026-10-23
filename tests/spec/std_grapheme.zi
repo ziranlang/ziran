@@ -1,4 +1,5 @@
 G :: #import "std/grapheme";
+D :: #import "std/grapheme_data";
 
 #program_export
 SelfTest :: () -> s32 {
@@ -15,8 +16,28 @@ SelfTest :: () -> s32 {
     bytes: [4]u8 = .{255, 204, 136, 97}
     invalid := TextView(bytes[:])
     if G.Next(invalid, 0) != 1 || G.Next(invalid, 1) != 3 || G.Count(invalid) != 3 { return 6 }
+    if D.Property(0) != 3 || D.Property(10) != 2 || D.Property(13) != 1 ||
+       D.Property(44032) != 12 || D.Property(44033) != 13 ||
+       D.Property(cast(u32)1114112) != 0 || D.Property(cast(u32)4294967295) != 0 { return 7 }
     return 42
 }
 
+// Captured from the previous Unicode 17 implementation and independently
+// verified against the UCD inputs. Every code point, including surrogates,
+// contributes in order; the segmentation conformance corpus remains intact.
+PropertyFingerprint :: () -> u64 {
+    fingerprint: u64 = 14695981039346656037
+    point: u32 = 0
+    while point <= cast(u32)1114111 {
+        fingerprint = (fingerprint ^ cast(u64)D.Property(point)) * cast(u64)1099511628211
+        point += 1
+    }
+    return fingerprint
+}
+
 #program_export
-NativeMain :: () -> s32 { return ifx SelfTest() == 42 then 0 else SelfTest() }
+NativeMain :: () -> s32 {
+    result := SelfTest()
+    if result != 42 { return result }
+    return ifx PropertyFingerprint() == cast(u64)13360306684555711926 then 0 else 8
+}

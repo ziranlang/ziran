@@ -55,7 +55,11 @@ for form in source saved; do
     done
 done
 "$ziran" build --target=c --define _WIN32 --root "$repo/tests/spec" -o "$work/windows" "$input"
-if rg '__asm__\("__errno(_location)?"\)' "$work/windows"; then exit 1; fi
+# Symbol declarations also carry an inactive Darwin spelling. Inspect the
+# active non-Darwin branch before rejecting Android/Linux errno entry points.
+"${CC:-cc}" -E -P -U__APPLE__ -I"$repo/include" "$work/windows/"*.c > "$work/windows.c"
+if rg '__asm__\("__errno(_location)?"\)' "$work/windows.c"; then exit 1; fi
+rg -q '__asm__\("_errno"\)' "$work/windows.c"
 "$ziran" build --target=c --define PLATFORM_WEB --root "$repo/tests/spec" -o "$work/web" "$input"
 emcc=${EMCC:-emcc}
 if command -v "$emcc" >/dev/null 2>&1; then

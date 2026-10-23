@@ -133,7 +133,25 @@ addToLibrary({
     var W = ZiranWeb();
     try {
       var target = W.value(object);
-      W.write(result, target[W.names[name]].apply(target, W.args(args, count)));
+      var method = W.names[name], value;
+      args = Number(args);
+      // Common Web API arities avoid an argument array and apply dispatch.
+      // Keep the property call so accessors and the receiver retain normal
+      // JavaScript semantics. Larger calls still accept arbitrary arity.
+      switch (count) {
+      case 0: value = target[method](); break;
+      case 1: value = target[method](W.read(args)); break;
+      case 2: value = target[method](W.read(args), W.read(args + 16)); break;
+      case 3: value = target[method](W.read(args), W.read(args + 16), W.read(args + 32)); break;
+      case 4: value = target[method](W.read(args), W.read(args + 16), W.read(args + 32), W.read(args + 48)); break;
+      case 5: value = target[method](W.read(args), W.read(args + 16), W.read(args + 32), W.read(args + 48), W.read(args + 64)); break;
+      case 6: value = target[method](W.read(args), W.read(args + 16), W.read(args + 32), W.read(args + 48), W.read(args + 64), W.read(args + 80)); break;
+      case 7: value = target[method](W.read(args), W.read(args + 16), W.read(args + 32), W.read(args + 48), W.read(args + 64), W.read(args + 80), W.read(args + 96)); break;
+      case 8: value = target[method](W.read(args), W.read(args + 16), W.read(args + 32), W.read(args + 48), W.read(args + 64), W.read(args + 80), W.read(args + 96), W.read(args + 112)); break;
+      case 9: value = target[method](W.read(args), W.read(args + 16), W.read(args + 32), W.read(args + 48), W.read(args + 64), W.read(args + 80), W.read(args + 96), W.read(args + 112), W.read(args + 128)); break;
+      default: value = target[method].apply(target, W.args(args, count));
+      }
+      W.write(result, value);
       return 0;
     } catch (e) { W.write(result, undefined); return W.fail(e); }
   },

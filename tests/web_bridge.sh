@@ -183,6 +183,29 @@ ScopeChecks :: () -> s32 {
     return 0
 }
 
+CallArityChecks :: () -> s32 {
+    target := WebGetObject(WebModule, WebName("arityFixture"))
+    args: [10]WebValue
+    args[0] = WebText("héllo")
+    args[1] = WebBool(true)
+    args[2] = WebNull()
+    args[3] = WebUndefined()
+    args[4] = WebObject(target)
+    for index: cast(s32)5..9 { args[index] = WebNumber(cast(float64)index + 0.5) }
+    baseline := WebLiveHandles()
+    for count: cast(s32)0..10 {
+        answer := WebCall(target, WebName("probe"), *args[0], count)
+        if WebFailed() || WebAsNumber(answer) != cast(float64)count { return count + 1 }
+    }
+    // Calls returning scalar values allocate no temporary handles.
+    if WebLiveHandles() != baseline { return 12 }
+    unused WebCall0(target, WebName("throws"))
+    if !WebFailed() { return 13 }
+    unused WebCall0(target, WebName("probe"))
+    if WebFailed() { return 14 }
+    return 0
+}
+
 #program_export
 Answer :: () -> s32 {
     failed := ArrayChecks()
@@ -199,10 +222,21 @@ Answer :: () -> s32 {
     if failed != 0 { return 600 + failed }
     failed = ScopeChecks()
     if failed != 0 { return 700 + failed }
+    failed = CallArityChecks()
+    if failed != 0 { return 800 + failed }
     return 42
 }
 ZI
 cat > "$work/post.js" <<'JS'
+Module.arityFixture = {
+  probe: function(...args) {
+    if (this !== Module.arityFixture) throw Error('Wrong call receiver');
+    const expected = ['héllo', true, null, undefined, this, 5.5, 6.5, 7.5, 8.5, 9.5];
+    if (args.some((value, i) => value !== expected[i])) throw Error('Wrong argument value');
+    return args.length;
+  },
+  throws: function() { throw Error('Fixture error'); }
+};
 Module.onRuntimeInitialized = async function () {
   var result = await Module.ccall('Answer', 'number', [], [], {async: true});
   console.log(result === 42 ? 'PASS' : 'FAIL ' + result);
@@ -212,14 +246,20 @@ JS
 "$bin/zi2c" --no-main --root "$work" --module-path "$repo/std" \
     -o "$work/c" "$work/app.zi"
 for memory in 0 2; do
-EM_CACHE=$cache "$emcc" -O1 -sMEMORY64=$memory -I"$repo/include" -iquote "$work/c" \
+if ! EM_CACHE=$cache "$emcc" -O1 -sMEMORY64=$memory -I"$repo/include" -iquote "$work/c" \
     "$work"/c/*.c --js-library "$repo/web/ziran_web.js" \
     --post-js "$work/post.js" -sASYNCIFY -sEXPORTED_FUNCTIONS=_Answer \
     -sEXPORTED_RUNTIME_METHODS=ccall -sENVIRONMENT=node \
-    -o "$work/app.js" 2>&1 | grep -v 'warning' || true
-output=$(node "$work/app.js" 2>&1 || true)
+    -o "$work/app.js" > "$work/compile.log" 2>&1; then
+    cat "$work/compile.log" >&2
+    exit 1
+fi
+if ! output=$(node "$work/app.js" 2>&1); then
+    echo "$output" >&2
+    exit 1
+fi
 case "$output" in
-*PASS*) echo "Ziran web bridge passed" ;;
+*PASS*) echo "Ziran web bridge passed (MEMORY64=$memory)" ;;
 *) echo "$output" >&2; exit 1 ;;
 esac
 done

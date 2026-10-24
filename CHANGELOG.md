@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Added
 - Linux and Android hosts on x86-64, ARM and ARM64 run portable bundles as native code, compiled in memory and cached between launches.
+- Natively run bundles execute `#parallel for` regions on worker threads, one per processor.
 
 ### Fixed
 - Bundles accept arrays of fixed arrays as function and host capability parameters.

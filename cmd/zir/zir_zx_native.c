@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -57,6 +58,10 @@ typedef struct HostString {
     char data[];
 } HostString;
 
+typedef struct Pool Pool;
+
+enum { ERROR_SIZE = 2048 };
+
 struct ZxNative {
     TCCState *tcc;
     VmHostCall host;
@@ -75,6 +80,10 @@ struct ZxNative {
     int64_t (*run)(void);
     long long *budget;
     char **floor;
+    unsigned long *stack_mask;
+    unsigned long *stack_margin;
+    unsigned long *budget_slot;
+    Pool *pool;
     int match_fields_by_name;
     int max_steps;
     int failed;
@@ -85,56 +94,79 @@ struct ZxNative {
     HostString **strings;
     size_t string_buckets;
     size_t string_count;
-    char error[2048];
+    char error[ERROR_SIZE];
 };
 
 static _Thread_local ZxNative *current;
+/* A parallel region's worker fails into its own escape point and message;
+ * the region then reports the first failure on the calling thread. */
+static _Thread_local jmp_buf *worker_escape;
+static _Thread_local char worker_error[ERROR_SIZE];
 static pthread_mutex_t compile_lock = PTHREAD_MUTEX_INITIALIZER;
 static FILE *bundle_stdout;
 static FILE *bundle_stderr;
 
-static void
-append_error(ZxNative *native, const char *format, va_list args)
+/* Where this thread's failure message goes. */
+static char *
+error_text(ZxNative *native)
 {
-    size_t used = strlen(native->error);
-    if(used + 1 < sizeof(native->error))
-        vsnprintf(native->error + used, sizeof(native->error) - used, format, args);
+    return worker_escape != NULL ? worker_error : native->error;
 }
 
-/* Stop the running bundle. Only called while ZxNativeRun or initialization
- * has an escape point. */
+static void
+append_error(char *error, const char *format, va_list args)
+{
+    size_t used = strlen(error);
+    if(used + 1 < ERROR_SIZE)
+        vsnprintf(error + used, ERROR_SIZE - used, format, args);
+}
+
+/* Stop the running bundle. Only called while ZxNativeRun, initialization or
+ * a parallel region's worker has an escape point. */
 static void
 native_fail(const char *format, ...)
 {
     ZxNative *native = current;
-    if(native == NULL || native->escape == NULL)
+    jmp_buf *escape = worker_escape != NULL ? worker_escape :
+                      native != NULL ? native->escape : NULL;
+    if(native == NULL || escape == NULL)
         abort();
     if(format != NULL) {
         va_list args;
         va_start(args, format);
-        native->error[0] = '\0';
-        append_error(native, format, args);
+        char *error = error_text(native);
+        error[0] = '\0';
+        append_error(error, format, args);
         va_end(args);
     }
-    native->failed = 1;
-    longjmp(*native->escape, 1);
+    if(worker_escape == NULL)
+        native->failed = 1;
+    longjmp(*escape, 1);
 }
 
 /* Run guards C lowering writes when the engine asks: a step budget spent at
  * each function entry and loop iteration, a stack floor checked at entry,
  * and unreachable statements that report where they are. Every compiled
- * file includes this first; the trampoline file defines the two variables,
- * which each run sets for its instance. */
+ * file includes this first; the trampoline file defines the variables,
+ * which each run sets for its instance. While a parallel region runs, only
+ * its workers run compiled code: the floor is off, and each worker's stack
+ * is aligned to its size, so the mask finds how deep it is and where its own
+ * step budget lives, so workers never write a shared counter. */
 static const char guard_header[] =
     "#ifndef ZX_GUARD_H\n"
     "#define ZX_GUARD_H\n"
     "extern long long zx_native_budget;\n"
     "extern char *zx_native_floor;\n"
+    "extern unsigned long zx_native_stack_mask;\n"
+    "extern unsigned long zx_native_stack_margin;\n"
+    "extern unsigned long zx_native_budget_slot;\n"
     "void ZxNativeOverrun(void);\n"
     "void ZxNativeStackOverrun(void);\n"
     "void ZxNativeUnreachable(const char *place);\n"
-    "#define ZIR_STEP() do { if(--zx_native_budget < 0) ZxNativeOverrun(); } while(0)\n"
-    "#define ZIR_ENTER() do { char zx_here; if(&zx_here < zx_native_floor) ZxNativeStackOverrun(); ZIR_STEP(); } while(0)\n"
+    "#define ZIR_STEP() do { char zx_step; long long *zx_budget = zx_native_stack_mask ? "
+    "(long long *)(((unsigned long)&zx_step & ~zx_native_stack_mask) + zx_native_budget_slot) : "
+    "&zx_native_budget; if(--*zx_budget < 0) ZxNativeOverrun(); } while(0)\n"
+    "#define ZIR_ENTER() do { char zx_here; if(&zx_here < zx_native_floor || ((unsigned long)&zx_here & zx_native_stack_mask) < zx_native_stack_margin) ZxNativeStackOverrun(); ZIR_STEP(); } while(0)\n"
     "#define ZIR_UNREACHABLE(place) ZxNativeUnreachable(place)\n"
     "#endif\n";
 
@@ -345,9 +377,10 @@ bundle_fprintf(FILE *stream, const char *format, ...)
     if(stream == bundle_stderr && current != NULL) {
         va_list copy;
         va_copy(copy, args);
-        append_error(current, format, copy);
+        append_error(error_text(current), format, copy);
         va_end(copy);
-        written = vfprintf(stream, format, args);
+        /* A worker's message is printed only if its region reports it. */
+        written = worker_escape != NULL ? (int)strlen(format) : vfprintf(stream, format, args);
     } else {
         written = vfprintf(stream, format, args);
     }
@@ -358,10 +391,11 @@ bundle_fprintf(FILE *stream, const char *format, ...)
 static void
 bundle_abort(void)
 {
-    if(current != NULL && current->error[0] != '\0') {
-        size_t length = strlen(current->error);
-        while(length > 0 && current->error[length - 1] == '\n')
-            current->error[--length] = '\0';
+    char *error = current != NULL ? error_text(current) : NULL;
+    if(error != NULL && error[0] != '\0') {
+        size_t length = strlen(error);
+        while(length > 0 && error[length - 1] == '\n')
+            error[--length] = '\0';
         native_fail(NULL);
     }
     native_fail("aborted");
@@ -391,25 +425,250 @@ ZxNativeUnreachable(const char *place)
     native_fail("%s: unreachable code executed", place);
 }
 
-/* Parallel regions run serially on the calling thread: declining a thread
- * makes them run each chunk in place, as the VM runs them. */
-static int
-bundle_thread_create(void *thread, const void *attributes, void *(*start)(void *),
-                     void *argument)
-{
-    (void)thread;
-    (void)attributes;
-    (void)start;
-    (void)argument;
-    return EAGAIN;
-}
+/* ---- Parallel regions ----
+ *
+ * `#parallel for` regions run on a pool of worker threads each instance
+ * starts at its first region, one per processor (ZIRAN_PAR_THREADS in the
+ * host's environment chooses 1-16). The checker admits only bodies whose
+ * iterations share no mutable storage and call no host code, so any
+ * interleaving gives the serial result. The calling thread waits while the
+ * workers take chunks of the range in order. After a failure no new chunk
+ * starts; the ones running finish, and the failure in the lowest chunk, the
+ * one a serial run meets first, is reported on the calling thread. Each
+ * worker counts its steps on its own stack page, starting from what the run
+ * has left; the region then charges the run for every worker's steps. */
+
+typedef void (*ParallelWorker)(int64_t low, int64_t high, void *context);
+
+static int environment_set(const char *name);
+
+enum { POOL_MAX = 16, CHUNKS_PER_WORKER = 4 };
+/* Worker stacks are aligned to their size; see the guard header. The top
+ * page holds the worker's step budget, below it the thread's stack. */
+#define WORKER_STACK ((size_t)8 << 20)
+
+struct Pool {
+    ZxNative *native;
+    pthread_mutex_t lock;
+    pthread_cond_t work;
+    pthread_cond_t done;
+    pthread_t threads[POOL_MAX];
+    void *stacks[POOL_MAX];
+    int count;
+    int closing;
+    unsigned job;
+    ParallelWorker worker;
+    void *context;
+    int64_t start;
+    int64_t end;
+    int64_t chunk;
+    int64_t chunks;
+    int64_t next;
+    int busy;
+    int failed;
+    int64_t failed_chunk;
+    char error[ERROR_SIZE];
+};
 
 static int
-bundle_thread_join(unsigned long thread, void **result)
+pool_size(void)
 {
-    (void)thread;
-    (void)result;
-    return EINVAL;
+    const char *requested = getenv("ZIRAN_PAR_THREADS");
+    long count = requested != NULL && requested[0] != '\0' ?
+                 strtol(requested, NULL, 10) : sysconf(_SC_NPROCESSORS_ONLN);
+    if(count < 1)
+        count = 1;
+    return count > POOL_MAX ? POOL_MAX : (int)count;
+}
+
+/* A worker stack aligned to its size, with its lowest page unmapped so a
+ * frame too large for the margin still stops at it. */
+static size_t
+page_size(void)
+{
+    return (size_t)sysconf(_SC_PAGESIZE);
+}
+
+static long long *
+worker_budget(void *stack)
+{
+    return (long long *)((unsigned char *)stack + WORKER_STACK - page_size());
+}
+
+static void *
+worker_stack(void)
+{
+    size_t size = WORKER_STACK;
+    unsigned char *mapped = mmap(NULL, size * 2, PROT_READ | PROT_WRITE,
+                                 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if(mapped == MAP_FAILED)
+        return NULL;
+    uintptr_t base = ((uintptr_t)mapped + size - 1) & ~(uintptr_t)(size - 1);
+    if(base > (uintptr_t)mapped)
+        munmap(mapped, base - (uintptr_t)mapped);
+    uintptr_t end = (uintptr_t)mapped + size * 2;
+    if(end > base + size)
+        munmap((void *)(base + size), end - (base + size));
+    mprotect((void *)base, page_size(), PROT_NONE);
+    return (void *)base;
+}
+
+/* Run chunks until the job has none left. Called with the lock held. */
+static void
+pool_take(Pool *pool)
+{
+    while(!pool->failed && pool->next < pool->chunks) {
+        int64_t index = pool->next++;
+        int64_t low = pool->start + index * pool->chunk;
+        int64_t high = low + pool->chunk - 1;
+        if(high > pool->end || high < low)
+            high = pool->end;
+        pthread_mutex_unlock(&pool->lock);
+        jmp_buf escape;
+        worker_escape = &escape;
+        worker_error[0] = '\0';
+        int failed = setjmp(escape) != 0;
+        if(!failed)
+            pool->worker(low, high, pool->context);
+        worker_escape = NULL;
+        pthread_mutex_lock(&pool->lock);
+        if(failed && (!pool->failed || index < pool->failed_chunk)) {
+            pool->failed = 1;
+            pool->failed_chunk = index;
+            memcpy(pool->error, worker_error, sizeof(pool->error));
+        }
+    }
+}
+
+static void *
+pool_main(void *opaque)
+{
+    Pool *pool = opaque;
+    current = pool->native;
+    /* Jobs count from 1, so a worker that starts late still runs the first. */
+    unsigned seen = 0;
+    pthread_mutex_lock(&pool->lock);
+    for(;;) {
+        while(!pool->closing && pool->job == seen)
+            pthread_cond_wait(&pool->work, &pool->lock);
+        if(pool->closing)
+            break;
+        seen = pool->job;
+        pool_take(pool);
+        if(--pool->busy == 0)
+            pthread_cond_signal(&pool->done);
+    }
+    pthread_mutex_unlock(&pool->lock);
+    return NULL;
+}
+
+static void
+pool_close(Pool *pool)
+{
+    if(pool == NULL)
+        return;
+    pthread_mutex_lock(&pool->lock);
+    pool->closing = 1;
+    pthread_cond_broadcast(&pool->work);
+    pthread_mutex_unlock(&pool->lock);
+    for(int i = 0; i < pool->count; i++)
+        pthread_join(pool->threads[i], NULL);
+    for(int i = 0; i < POOL_MAX; i++)
+        if(pool->stacks[i] != NULL)
+            munmap(pool->stacks[i], WORKER_STACK);
+    pthread_cond_destroy(&pool->work);
+    pthread_cond_destroy(&pool->done);
+    pthread_mutex_destroy(&pool->lock);
+    free(pool);
+}
+
+static Pool *
+pool_open(ZxNative *native)
+{
+    Pool *pool = calloc(1, sizeof(*pool));
+    if(pool == NULL)
+        return NULL;
+    pool->native = native;
+    pthread_mutex_init(&pool->lock, NULL);
+    pthread_cond_init(&pool->work, NULL);
+    pthread_cond_init(&pool->done, NULL);
+    int wanted = pool_size();
+    for(int i = 0; i < wanted; i++) {
+        pthread_attr_t attributes;
+        pool->stacks[i] = worker_stack();
+        if(pool->stacks[i] == NULL || pthread_attr_init(&attributes) != 0)
+            break;
+        int started = pthread_attr_setstack(&attributes, pool->stacks[i],
+                                            WORKER_STACK - page_size()) == 0 &&
+                      pthread_create(&pool->threads[pool->count], &attributes, pool_main, pool) == 0;
+        pthread_attr_destroy(&attributes);
+        if(!started)
+            break;
+        pool->count++;
+    }
+    if(pool->count == 0) {
+        pool_close(pool);
+        return NULL;
+    }
+    if(environment_set("ZIRAN_NATIVE_TIMING"))
+        fprintf(stderr, "ziran: native %s: %d parallel workers\n",
+                native->entry->name, pool->count);
+    return pool;
+}
+
+static void
+ZxNativeParallel(ParallelWorker worker, int64_t start, int64_t end, void *context)
+{
+    ZxNative *native = current;
+    if(end < start)
+        return;
+    /* A region reached from inside another region's worker runs in place. */
+    if(worker_escape != NULL) {
+        worker(start, end, context);
+        return;
+    }
+    if(native->pool == NULL && pool_size() > 1 && end > start)
+        native->pool = pool_open(native);
+    Pool *pool = native->pool;
+    if(pool == NULL || end == start) {
+        worker(start, end, context);
+        return;
+    }
+    uint64_t span = (uint64_t)end - (uint64_t)start + 1;
+    uint64_t chunks = (uint64_t)pool->count * CHUNKS_PER_WORKER;
+    if(chunks > span)
+        chunks = span;
+    char *floor = *native->floor;
+    pthread_mutex_lock(&pool->lock);
+    pool->worker = worker;
+    pool->context = context;
+    pool->start = start;
+    pool->end = end;
+    pool->chunk = (int64_t)((span + chunks - 1) / chunks);
+    pool->chunks = (int64_t)((span + (uint64_t)pool->chunk - 1) / (uint64_t)pool->chunk);
+    pool->next = 0;
+    pool->failed = 0;
+    pool->busy = pool->count;
+    long long budget = *native->budget;
+    for(int i = 0; i < pool->count; i++)
+        *worker_budget(pool->stacks[i]) = budget;
+    *native->floor = NULL;
+    *native->stack_mask = (unsigned long)(WORKER_STACK - 1);
+    *native->stack_margin = STACK_MARGIN;
+    *native->budget_slot = (unsigned long)(WORKER_STACK - page_size());
+    pool->job++;
+    pthread_cond_broadcast(&pool->work);
+    while(pool->busy > 0)
+        pthread_cond_wait(&pool->done, &pool->lock);
+    *native->floor = floor;
+    *native->stack_mask = 0;
+    *native->stack_margin = 0;
+    for(int i = 0; i < pool->count; i++)
+        *native->budget -= budget - *worker_budget(pool->stacks[i]);
+    int failed = pool->failed;
+    pthread_mutex_unlock(&pool->lock);
+    if(failed)
+        native_fail("%s", pool->error);
 }
 
 /* Bundles see no process environment. */
@@ -469,8 +728,7 @@ add_symbols(TCCState *state)
         {"fprintf", (const void *)bundle_fprintf},
         {"abort", (const void *)bundle_abort},
         {"exit", (const void *)bundle_exit},
-        {"pthread_create", (const void *)bundle_thread_create},
-        {"pthread_join", (const void *)bundle_thread_join},
+        {"ZxNativeParallel", (const void *)ZxNativeParallel},
         {"getenv", (const void *)bundle_getenv},
         {"strtol", (const void *)strtol},
         {"printf", (const void *)printf},
@@ -619,7 +877,9 @@ write_entry_points(FILE *out, const ZirProgram *program, const ZirCModuleSyms *s
             fprintf(out, "    %s();\n", name);
         }
     fputs("}\n\nlong long zx_native_budget = 9223372036854775807LL;\n"
-          "char *zx_native_floor;\n\nint64_t\nzx_native_run(void)\n{\n", out);
+          "char *zx_native_floor;\nunsigned long zx_native_stack_mask;\n"
+          "unsigned long zx_native_stack_margin;\nunsigned long zx_native_budget_slot;\n"
+          "\nint64_t\nzx_native_run(void)\n{\n", out);
     if(entry->return_type[0] == '\0' || strcmp(entry->return_type, "void") == 0)
         fprintf(out, "    %s();\n    return 0;\n}\n", function);
     else
@@ -917,6 +1177,10 @@ lower_program(ZirProgram *program, const ZirModule *owner, const ZirFunction *en
     EmitRunGuards(1);
     int lowered = c_lower(program, ".", directory, symbols, program->module_count, 1);
     EmitRunGuards(0);
+    /* Parallel regions use the engine's ziran_parallel.h, not the runtime's. */
+    char runtime_parallel[ZIR_PATH_MAX];
+    snprintf(runtime_parallel, sizeof(runtime_parallel), "%s/ziran_parallel.h", directory);
+    unlink(runtime_parallel);
     if(!lowered || !write_header_order(native, directory))
         goto done;
     for(size_t i = 0; i < native->capability_count; i++) {
@@ -1005,8 +1269,12 @@ link_program(ZxNative *native, const char *directory, const char *object)
     native->run = (int64_t (*)(void))tcc_get_symbol(native->tcc, "zx_native_run");
     native->budget = (long long *)tcc_get_symbol(native->tcc, "zx_native_budget");
     native->floor = (char **)tcc_get_symbol(native->tcc, "zx_native_floor");
+    native->stack_mask = (unsigned long *)tcc_get_symbol(native->tcc, "zx_native_stack_mask");
+    native->stack_margin = (unsigned long *)tcc_get_symbol(native->tcc, "zx_native_stack_margin");
+    native->budget_slot = (unsigned long *)tcc_get_symbol(native->tcc, "zx_native_budget_slot");
     if(native->start == NULL || native->run == NULL || native->budget == NULL ||
-       native->floor == NULL) {
+       native->floor == NULL || native->stack_mask == NULL || native->stack_margin == NULL ||
+       native->budget_slot == NULL) {
         snprintf(native->error, sizeof(native->error), "compiled bundle has no entry points");
         return 0;
     }
@@ -1403,6 +1671,7 @@ ZxNativeClose(ZxNative *native)
         fprintf(stderr, "ziran: native %s closed: %zu host strings (%zu bytes), %zu bytes of host slices\n",
                 native->entry->name, native->string_count, text, kept);
     }
+    pool_close(native->pool);
     if(native->tcc != NULL)
         tcc_delete(native->tcc);
     free_blocks(native->scratch);

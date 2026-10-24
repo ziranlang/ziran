@@ -171,9 +171,16 @@ A bundle that cannot be compiled fails with `zx.native`; there is no
 fallback. Runtime failures stop the run as in the VM: bounds, unreachable
 code, a host breaking the value contract, the step limit and nested calls
 filling the stack. Native code counts the step limit in function calls and
-loop iterations rather than statements, runs `#parallel for` serially, and
-does not check pointer lifetimes at run time: it trusts bundle code as a
-native build of the program would.
+loop iterations rather than statements, and does not check pointer lifetimes
+at run time: it trusts bundle code as a native build of the program would.
+
+`#parallel for` regions run on worker threads each instance starts at its
+first region, one per processor up to 16; `ZIRAN_PAR_THREADS` in the host's
+environment sets the count, and 1 runs regions in place. The calling thread
+waits while the workers take chunks of the range in order. A failure inside
+a worker stops the run with the failure a serial run would meet first. Each
+worker counts steps against what the run has left, and the run is charged
+for all of them when the region ends.
 
 Other hosts (the browser, Windows, macOS) run the portable VM, and
 `zi2zx-vm` with `libziran-vm.a` run it everywhere for tests of the VM itself.

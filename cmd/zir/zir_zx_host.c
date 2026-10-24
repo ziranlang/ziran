@@ -12,6 +12,7 @@
 #include "zir_check.h"
 #include "zir_emit.h"
 #include "zir_native.h"
+#include "zir_stream.h"
 #include "ziran_host.h"
 
 #include <stdarg.h>
@@ -663,11 +664,11 @@ ZxWriteHostTrampolines(const ZirProgram *program, ZxCapabilityName *capabilities
                        size_t capability_count, FILE *out, char *error, size_t error_size)
 {
     HostGen gen = {.error = error, .error_size = error_size};
-    char *body = NULL, *declarations = NULL, *includes = NULL;
+    unsigned char *body = NULL, *declarations = NULL, *includes = NULL;
     size_t body_size = 0, declarations_size = 0, includes_size = 0;
-    FILE *body_out = open_memstream(&body, &body_size);
-    FILE *declarations_out = open_memstream(&declarations, &declarations_size);
-    FILE *includes_out = open_memstream(&includes, &includes_size);
+    FILE *body_out = ZirWriteMemory(&body, &body_size);
+    FILE *declarations_out = ZirWriteMemory(&declarations, &declarations_size);
+    FILE *includes_out = ZirWriteMemory(&includes, &includes_size);
     const ZirModule **modules = calloc(capability_count ? capability_count : 1,
                                        sizeof(*modules));
     const ZirImport **imports = calloc(capability_count ? capability_count : 1,
@@ -731,11 +732,12 @@ ZxWriteHostTrampolines(const ZirProgram *program, ZxCapabilityName *capabilities
         fputs("/* Host capability trampolines for natively compiled bundles. */\n"
               "#include <stdint.h>\n#include <stddef.h>\n#include <stdbool.h>\n"
               "#include <string.h>\n", out);
-        fputs(includes, out);
+        /* A stream nothing was written to leaves its buffer NULL. */
+        fputs(includes ? (const char *)includes : "", out);
         fputs("#include \"zx_native_services.h\"\n\n", out);
-        fputs(declarations, out);
+        fputs(declarations ? (const char *)declarations : "", out);
         fputs("\n", out);
-        fputs(body, out);
+        fputs(body ? (const char *)body : "", out);
         if(ferror(out))
             gen_fail(&gen, "cannot write host trampolines");
     }

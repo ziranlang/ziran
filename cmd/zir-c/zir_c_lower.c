@@ -146,6 +146,33 @@ static void function_c_name(const ZirModule *m, const ZirFunction *fn,
 static void strip_alias_type(const ZirModule *m, const char *type,
                              char *dst, size_t dst_size);
 
+/* The program being lowered, for host capabilities bound to Ziran
+ * providers in other modules. */
+static const ZirProgram *lowering_program;
+
+/* A host capability bound to an exported Ziran provider calls the
+ * provider's C function, under whatever name collisions gave it. */
+static int
+bound_provider_c_name(const ZirImport *imp, char *dst, size_t dst_size)
+{
+    if(imp->extern_kind != ZIR_EXTERN_HOST || strncmp(imp->target, "ziran:", 6) != 0 ||
+       imp->extern_symbol[0] == '\0')
+        return 0;
+    for(int m = 0; lowering_program != NULL && m < lowering_program->module_count; m++) {
+        const ZirModule *module = &lowering_program->modules[m];
+        if(strcmp(module->name, imp->target + 6) != 0)
+            continue;
+        for(int f = 0; f < module->function_count; f++)
+            if(!module->functions[f].is_extern &&
+               strcmp(module->functions[f].name, imp->extern_symbol) == 0) {
+                function_c_name(module, &module->functions[f], dst, dst_size);
+                return 1;
+            }
+    }
+    snprintf(dst, dst_size, "%s", imp->extern_symbol);
+    return 1;
+}
+
 /* If ident (len chars, followed by '(') names a function in this module,
  * write its full C name into dst and return its length; else return 0. */
 static size_t
@@ -176,13 +203,9 @@ resolve_module_fn(const ZirModule *m, const char *ident, size_t len,
      * bundle. */
     for(int i = 0; i < m->import_count; i++) {
         const ZirImport *foreign = &m->imports[i];
-        if(foreign->kind == ZIR_IMPORT_EXTERN &&
-           foreign->extern_kind == ZIR_EXTERN_HOST &&
-           !strncmp(foreign->target, "ziran:", 6) &&
-           foreign->extern_symbol[0] != '\0' && !strcmp(foreign->name, name)) {
-            snprintf(dst, dst_size, "%s", foreign->extern_symbol);
+        if(foreign->kind == ZIR_IMPORT_EXTERN && !strcmp(foreign->name, name) &&
+           bound_provider_c_name(foreign, dst, dst_size))
             return strlen(dst);
-        }
     }
     return 0;
 }
@@ -814,8 +837,9 @@ emit_extern_prototype_with_buffers(FILE *c, const ZirModule *m, const ZirImport 
     char ret[LOWER_NAME_MAX];
     char return_type[LOWER_NAME_MAX];
     char symbol[LOWER_NAME_MAX];
-    const char *cname = imp->extern_kind == ZIR_EXTERN_HOST && !strncmp(imp->target, "ziran:", 6) &&
-        imp->extern_symbol[0] != '\0' ? imp->extern_symbol : imp->name;
+    char provider[LOWER_NAME_MAX];
+    const char *cname = bound_provider_c_name(imp, provider, sizeof(provider)) ?
+        provider : imp->name;
     extract_extern_signature(imp, ret, sizeof(ret), buffers->cargs, sizeof(buffers->cargs));
     strip_alias_type(m, ret, return_type, sizeof(return_type));
     copy_text(ret, sizeof(ret), return_type);
@@ -1414,10 +1438,14 @@ c_lower_in_context(const ZirProgram *program, const char *root, const char *out_
             if(!fn->is_template && NativeProgramMain(&program->modules[i], fn) &&
                !CheckNativeEntry(fn, "c")) return 0;
         }
+    lowering_program = program;
     for(i = 0; i < program->module_count; i++)
         if(!lower_module(&program->modules[i], restab, restab_count,
-                         out_dir, linked))
+                         out_dir, linked)) {
+            lowering_program = NULL;
             return 0;
+        }
+    lowering_program = NULL;
     return 1;
 }
 

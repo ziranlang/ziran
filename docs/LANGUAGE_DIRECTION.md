@@ -120,6 +120,9 @@ target error instead of silently changing the result.
    A body that writes through slices calls only pure code and reads no
    global arrays; native code runs it in order when the written slice
    shares storage with another slice, string or array the body reads.
+   A callee that writes through a slice it is handed, directly or by
+   passing it on, receives only storage the iteration owns: a binding the
+   body declares, a view of one, or the iteration's own window.
 4. **Observable ordering.** The only ordering guarantees are: effects of an
    iteration appear between the loop's entry and exit; `#parallel` regions
    do not nest; and the loop completes before any statement after it runs.

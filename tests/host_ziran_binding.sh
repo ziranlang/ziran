@@ -134,3 +134,25 @@ if "$ziran" bundle --root "$work" --entry app:main \
     exit 1
 fi
 rg -q 'mismatched signature' "$work/bad.err"
+
+# A provider exported under another symbol, beside another module's
+# function of the same name, is still the function the bound call reaches.
+cat > "$work/renamed.zi" <<'ZI'
+#program_export "ProduceValue"
+Produce :: (value: s32) -> s32 { return value + 1 }
+ZI
+cat > "$work/other.zi" <<'ZI'
+Produce :: (value: s32) -> s32 { return value - 100 }
+#program_export
+Twice :: (value: s32) -> s32 { return Produce(value) + 100 }
+ZI
+cat > "$work/app2.zi" <<'ZI'
+#import "other"
+host_api :: #system_library "host_api";
+Effect :: (value: s32) -> s32 #foreign host_api;
+#program_export
+main :: () -> s32 { return Twice(Effect(20)) + 21 }
+ZI
+"$ziran" bundle --root "$work" --entry app2:main --bind app2:Effect=renamed:Produce \
+    -o "$work/renamed.zx" "$work/app2.zi" "$work/renamed.zi" "$work/other.zi"
+test "$("$ziran" run "$work/renamed.zx")" = 42

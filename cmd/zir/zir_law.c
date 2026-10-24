@@ -1616,6 +1616,122 @@ check_view_writes(const ZirModule *module, const ZirFunction *fn, int while_inde
     return 1;
 }
 
+/* The binding at the root of an argument or destination, through fields,
+ * indexes, slicing and address-of; -1 when there is none. */
+static int
+storage_root(const ZirFunction *fn, int index)
+{
+    while(index >= 0 && index < fn->expr_count) {
+        const ZirExpr *expr = &fn->exprs[index];
+        if(expr->kind == ZIR_EXPR_IDENT)
+            return index;
+        if(expr->kind != ZIR_EXPR_MEMBER && expr->kind != ZIR_EXPR_INDEX &&
+           expr->kind != ZIR_EXPR_SLICE && expr->kind != ZIR_EXPR_POINTER_MEMBER &&
+           expr->kind != ZIR_EXPR_UNARY && expr->kind != ZIR_EXPR_CAST)
+            return -1;
+        index = expr->kind == ZIR_EXPR_UNARY ? expr->right : expr->left;
+    }
+    return -1;
+}
+
+static int
+name_listed(const char *const *names, int count, const char *name)
+{
+    for(int i = 0; i < count; i++)
+        if(strcmp(names[i], name) == 0)
+            return 1;
+    return 0;
+}
+
+/* Whether CALLEE may write through its slice or pointer parameter at
+ * POSITION: directly, through a local view of it, or by passing it on to a
+ * callee that does. What cannot be followed counts as a write. */
+static int
+parameter_written(const ZirModule *module, const ZirFunction *callee, int position, int depth)
+{
+    if(depth > 16 || callee->is_extern)
+        return 1;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(callee));
+    if(position < 0 || position >= parameters->count)
+        return 0;
+    const char *type = parameters->items[position].value_type;
+    if(type == NULL || parameters->items[position].binding_name == NULL)
+        return 1;
+    type = skip_ws(type);
+    if(!slice_type(type) && type[0] != '*')
+        return 0;
+    const char *views[64];
+    int view_count = 0;
+    views[view_count++] = parameters->items[position].binding_name;
+    for(int changed = 1; changed;) {
+        changed = 0;
+        for(int s = 0; s < callee->stmt_count && view_count < 64; s++) {
+            const ZirStmt *st = &callee->stmts[s];
+            if(st->kind != ZIR_STMT_DECL || st->expr_root < 0 || st->type == NULL ||
+               (!slice_type(st->type) && skip_ws(st->type)[0] != '*') ||
+               name_listed(views, view_count, st->name))
+                continue;
+            int root = storage_root(callee, st->expr_root);
+            if(root >= 0 && name_listed(views, view_count, callee->exprs[root].name)) {
+                views[view_count++] = st->name;
+                changed = 1;
+            }
+        }
+    }
+    for(int s = 0; s < callee->stmt_count; s++) {
+        const ZirStmt *st = &callee->stmts[s];
+        char name[ZIR_NAME_MAX];
+        int through_pointer = 0, through_view = 0;
+        if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 &&
+           destination_identifier(callee, st->lhs_root, name, sizeof(name),
+                                  &through_pointer, &through_view) &&
+           (through_pointer || through_view) && name_listed(views, view_count, name))
+            return 1;
+    }
+    for(int e = 0; e < callee->expr_count; e++) {
+        const ZirExpr *call = &callee->exprs[e];
+        if(call->kind != ZIR_EXPR_CALL || !call->name[0])
+            continue;
+        int ordinal = 0;
+        for(int a = call->first_child; a >= 0 && a < callee->expr_count;
+            a = callee->exprs[a].next_sibling, ordinal++) {
+            int root = storage_root(callee, a);
+            if(root < 0 || !name_listed(views, view_count, callee->exprs[root].name))
+                continue;
+            const ZirModule *owner = NULL;
+            const ZirFunction *next = NULL;
+            if(call->slot_type[0] || ResolveFunction(module, call->name, &owner, &next) != 1 ||
+               next == NULL)
+                return !vec_operation_name(call->name) || strcmp(call->name, "VecGet") != 0;
+            int at = callee->exprs[a].argument_index >= 0 ? callee->exprs[a].argument_index : ordinal;
+            if(parameter_written(owner != NULL ? owner : module, next, at, depth + 1))
+                return 1;
+        }
+    }
+    return 0;
+}
+
+/* Whether an argument hands the callee storage this iteration owns: a
+ * binding the body declares that refers to nothing else, a view of one, or
+ * this iteration's window. */
+static int
+iteration_storage(const ZirModule *module, const ZirFunction *fn, int argument, int scan,
+                  int close, const char *const *own, int own_count)
+{
+    int root = storage_root(fn, argument);
+    if(root < 0)
+        return 0;
+    const char *name = fn->exprs[root].name;
+    if(name_listed(own, own_count, name))
+        return 1;
+    if(!region_declares(fn, scan, close + 1, name))
+        return 0;
+    for(int s = close; s >= scan; s--)
+        if(stmt_declares_name(&fn->stmts[s], name))
+            return fn->stmts[s].type != NULL && !type_refers(module, fn->stmts[s].type, 0);
+    return 0;
+}
+
 static const ZirFunction *
 parallel_callee(const ZirModule *module, const ZirExpr *expr)
 {
@@ -1784,6 +1900,9 @@ check_parallel_region_in(const ZirProgram *program, const ZirModule *module,
      * slices they come from. */
     const char *window_names[16], *window_sources[16];
     int window_count = 0;
+    /* Bindings that view storage only this iteration uses. */
+    const char *own[64];
+    int own_count = 0;
     int view_writes = 0;
     for(int s = scan; s <= close; s++) {
         const ZirStmt *st = &fn->stmts[s];
@@ -1796,6 +1915,9 @@ check_parallel_region_in(const ZirProgram *program, const ZirModule *module,
                 window_names[window_count] = st->name;
                 window_sources[window_count++] = source;
             }
+            if(own_count < 64 && (source != NULL ||
+               iteration_storage(module, fn, st->expr_root, scan, close, own, own_count)))
+                own[own_count++] = st->name;
         }
         if(st->kind == ZIR_STMT_WHILE && st->is_parallel && is_body) {
             Diagnostic(st->span, "parallel.nest",
@@ -1916,6 +2038,25 @@ check_parallel_region_in(const ZirProgram *program, const ZirModule *module,
                                    "#parallel calls %s code: %s",
                                    callee->effect_class, expr->name);
                         return 0;
+                    }
+                    const ZirModule *callee_owner = NULL;
+                    const ZirFunction *target = NULL;
+                    if(callee != NULL &&
+                       ResolveFunction(module, expr->name, &callee_owner, &target) == 1) {
+                        int ordinal = 0;
+                        for(int a = expr->first_child; a >= 0 && a < fn->expr_count;
+                            a = fn->exprs[a].next_sibling, ordinal++) {
+                            int at = fn->exprs[a].argument_index >= 0 ?
+                                     fn->exprs[a].argument_index : ordinal;
+                            if(parameter_written(callee_owner != NULL ? callee_owner : module,
+                                                 callee, at, 0) &&
+                               !iteration_storage(module, fn, a, scan, close, own, own_count)) {
+                                Diagnostic(st->span, "parallel.memory",
+                                           "#parallel passes shared storage to %s, which writes through it",
+                                           expr->name);
+                                return 0;
+                            }
+                        }
                     }
                 }
             }

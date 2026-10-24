@@ -117,6 +117,39 @@ ZI
 "$ziran" bundle --root "$work" --entry local:Answer -o "$work/local.zx" "$work/local.zi"
 test "$(ZIRAN_NATIVE_CACHE=0 ZIRAN_PAR_THREADS=4 "$ziran" run "$work/local.zx")" = 20
 
+# A callee may write through a slice it is handed only when the iteration
+# owns that storage: an array it declares, or its own window.
+cat > "$work/callees.zi" <<'ZI'
+Fill :: (view: []s64, value: s64) {
+    view[0] = value
+}
+Relay :: (view: []s64, value: s64) {
+    tail := view[1:]
+    Fill(tail, value + 1)
+}
+#program_export
+Answer :: () -> s64 {
+    out: [8]s64
+    pairs: [16]s64
+    shared := pairs[:]
+    #parallel for 0..7 {
+        scratch: [4]s64
+        Fill(scratch[:], it)
+        Relay(scratch[:], it)
+        row := shared[it * 2 : it * 2 + 2]
+        Fill(row, scratch[0] + scratch[1] + 1)
+        out[it] = scratch[0] + scratch[1] + 1
+    }
+    total: s64 = 0
+    for 0..7 { total += out[it] + pairs[it * 2] }
+    return total
+}
+ZI
+"$ziran" bundle --root "$work" --entry callees:Answer -o "$work/callees.zx" "$work/callees.zi"
+for threads in 1 4; do
+    test "$(ZIRAN_NATIVE_CACHE=0 ZIRAN_PAR_THREADS=$threads "$ziran" run "$work/callees.zx")" = 144
+done
+
 reject() {
     name=$1
     pattern=$2
@@ -156,4 +189,26 @@ bad nested_slice '    #parallel for 0..3 {
         output[it] = box.items[it]
     }'
 reject nested_slice "box refers to storage native code cannot check" "a record holding a slice"
+cat > "$work/shared_callee.zi" <<'ZI'
+Fill :: (view: []s64, value: s64) {
+    view[0] = value
+}
+Relay :: (view: []s64, value: s64) {
+    tail := view[1:]
+    Fill(tail, value + 1)
+}
+Direct :: (shared: []s64) {
+    #parallel for 0..7 {
+        Fill(shared, it)
+    }
+}
+Passed :: (shared: []s64) {
+    #parallel for 0..7 {
+        Relay(shared, it)
+    }
+}
+ZI
+reject shared_callee "passes shared storage to Fill, which writes through it" "a callee writing a shared slice"
+sed -i '/^Direct ::/,/^}/d' "$work/shared_callee.zi"
+reject shared_callee "passes shared storage to Relay, which writes through it" "a callee passing a shared slice on"
 echo "parallel bodies wrote through slice windows and slots on every target"

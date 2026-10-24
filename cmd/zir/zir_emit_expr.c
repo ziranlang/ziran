@@ -39,6 +39,26 @@ plain_wide_operand(const ZirFunction *fn, int index, int depth)
     }
 }
 
+/* One arm of a conditional, as the conditional's type: Go does not widen a
+ * float32 or narrower integer arm by itself. SCRATCH holds the arm's text
+ * while it is converted. */
+static void
+conditional_branch(Emitter *e, int branch, const char *type, char *out, size_t size,
+                   char *scratch, size_t scratch_size)
+{
+    emit_expr(e, branch, type, out, size);
+    if(e->target != ZIR_GO || branch < 0 || branch >= e->fn->expr_count)
+        return;
+    const char *from = canonical(e->fn->exprs[branch].type);
+    const char *have = TargetType(from, e->target);
+    const char *want = TargetType(canonical(type), e->target);
+    if(have == NULL || want == NULL || strcmp(have, want) == 0 ||
+       !strcmp(from, "integer") || !strcmp(from, "real"))
+        return;
+    copy_text(scratch, scratch_size, out);
+    format(out, size, "%s(%s)", want, scratch);
+}
+
 typedef struct EmitMapCallBuffers {
     char map[ZIR_TEXT_MAX];
     char argument[ZIR_TEXT_MAX];
@@ -1180,12 +1200,14 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         declare(e, temp, type, buffers->b);
         line(e, e->target == ZIR_GO ? "if %s {" : "if (%s) {", buffers->a);
         e->indent++;
-        emit_expr(e, expr->right, type, buffers->b, sizeof(buffers->b));
+        conditional_branch(e, expr->right, type, buffers->b, sizeof(buffers->b),
+                           buffers->a, sizeof(buffers->a));
         assign_value(e, temp, type, buffers->b);
         e->indent--;
         line(e, "} else {");
         e->indent++;
-        emit_expr(e, expr->third, type, buffers->b, sizeof(buffers->b));
+        conditional_branch(e, expr->third, type, buffers->b, sizeof(buffers->b),
+                           buffers->a, sizeof(buffers->a));
         assign_value(e, temp, type, buffers->b);
         e->indent--;
         line(e, "}");

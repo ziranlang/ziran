@@ -14,6 +14,9 @@
 - `#parallel for` regions reject mutating, foreign and procedure-value calls nested inside larger expressions.
 - Native parallel workers see every binding their body reads, including parameters and fixed arrays.
 - `#parallel for` bodies can write into arrays they declare themselves.
+- `#parallel for` regions reject handing a shared slice to a callee that writes through it, directly or by passing it on.
+- Natively run bundles reach a bound Ziran provider exported under another symbol.
+- Go output converts a conditional's arms to its type, such as a float32 arm of a float64 conditional.
 
 ## [0.3.1] - 2026-10-23
 ### Fixed

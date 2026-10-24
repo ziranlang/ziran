@@ -558,3 +558,6 @@ curl-http-test: $(BIN_DIR)/zi2c
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+# The native ZX engine adds itself to libziran.a on hosts TinyCC targets.
+include native-zx.mk

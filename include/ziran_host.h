@@ -129,7 +129,9 @@ BundleInstance *BundleInstantiate(const Bundle *bundle,
                                    size_t binding_count);
 int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);
-/* Bound each subsequent run to max_steps statements; zero is unbounded. */
+/* Bound each subsequent run to max_steps units of work, so a runaway bundle
+ * stops with an error: statements in the portable VM, function calls and
+ * loop iterations in natively compiled code. Zero is unbounded. */
 void BundleInstanceLimitSteps(BundleInstance *instance, int max_steps);
 /* Let records the host returns to this instance omit fields the bundle
  * declares (they take zero values) or carry fields it does not (ignored),

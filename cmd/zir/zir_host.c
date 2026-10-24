@@ -4,6 +4,10 @@
 #include "zir_diagnostic.h"
 #include "zir_vm.h"
 #include "zir_check.h"
+#ifdef ZIRAN_NATIVE_ZX
+#include "zir_sha256.h"
+#include "zir_zx_native.h"
+#endif
 
 #include "zir_stream.h"
 
@@ -28,6 +32,7 @@ struct Bundle {
     Bundle **libraries;
     size_t library_count;
     size_t references;
+    unsigned char digest[32]; /* SHA-256 of the bundle's bytes (native engine) */
     size_t capability_count;
     Capability capabilities[];
 };
@@ -157,7 +162,7 @@ cache_capabilities(Bundle **slot, size_t count)
 }
 
 static Bundle *
-open_bundle_stream(FILE *file, const char *name,
+open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
                    Bundle *const *libraries, size_t count)
 {
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
@@ -165,6 +170,8 @@ open_bundle_stream(FILE *file, const char *name,
     if(bundle == NULL)
         return NULL;
     bundle->references = 1;
+    if(digest != NULL)
+        memcpy(bundle->digest, digest, sizeof(bundle->digest));
     if(count > 64 || (count != 0 && libraries == NULL)) {
         BundleClose(bundle);
         return NULL;
@@ -242,7 +249,21 @@ BundleOpenWithLibraries(const char *path, Bundle *const *libraries, size_t count
         Diagnostic(Span(path, 1, 1), "zx.input", "cannot open bundle");
         return NULL;
     }
-    Bundle *bundle = open_bundle_stream(file, path, libraries, count);
+    unsigned char *digest = NULL;
+#ifdef ZIRAN_NATIVE_ZX
+    /* Native code caches are keyed by the bundle's exact bytes. */
+    unsigned char bytes_digest[32];
+    unsigned char buffer[4096];
+    size_t read;
+    Sha256 hash;
+    Sha256Begin(&hash);
+    while((read = fread(buffer, 1, sizeof(buffer), file)) > 0)
+        Sha256Add(&hash, buffer, read);
+    Sha256End(&hash, bytes_digest);
+    if(!ferror(file) && fseek(file, 0, SEEK_SET) == 0)
+        digest = bytes_digest;
+#endif
+    Bundle *bundle = open_bundle_stream(file, path, digest, libraries, count);
     fclose(file);
     return bundle;
 }
@@ -262,7 +283,16 @@ BundleOpenBytesWithLibraries(const unsigned char *data, size_t size,
     FILE *file = ZirReadMemory(data, size);
     if(file == NULL)
         return NULL;
-    Bundle *bundle = open_bundle_stream(file, "<embedded bundle>", libraries, count);
+    unsigned char *digest = NULL;
+#ifdef ZIRAN_NATIVE_ZX
+    unsigned char bytes_digest[32];
+    Sha256 hash;
+    Sha256Begin(&hash);
+    Sha256Add(&hash, data, size);
+    Sha256End(&hash, bytes_digest);
+    digest = bytes_digest;
+#endif
+    Bundle *bundle = open_bundle_stream(file, "<embedded bundle>", digest, libraries, count);
     fclose(file);
     return bundle;
 }
@@ -349,7 +379,12 @@ typedef struct BindingSet {
 struct BundleInstance {
     BindingSet set;
     HostBinding *owned_bindings;
+#ifdef ZIRAN_NATIVE_ZX
+    ZxNative *native;
+    const char **capability_names;
+#else
     VmInstance *vm;
+#endif
 };
 
 static int
@@ -416,6 +451,17 @@ validate_bindings(const Bundle *bundle, const BindingSet *set)
     return 1;
 }
 
+#ifdef ZIRAN_NATIVE_ZX
+/* A bundle and the libraries it links name one native program. */
+static void
+add_identity(Sha256 *hash, const Bundle *bundle)
+{
+    Sha256Add(hash, bundle->digest, sizeof(bundle->digest));
+    for(size_t i = 0; i < bundle->library_count; i++)
+        add_identity(hash, bundle->libraries[i]);
+}
+#endif
+
 BundleInstance *
 BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
                   size_t binding_count)
@@ -464,9 +510,34 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
         BundleInstanceClose(instance);
         return NULL;
     }
+#ifdef ZIRAN_NATIVE_ZX
+    /* Native platforms run bundles only as native code; a bundle that cannot
+     * be compiled is an error, never a slower fallback. */
+    unsigned char identity[32];
+    Sha256 hash;
+    Sha256Begin(&hash);
+    add_identity(&hash, bundle);
+    Sha256End(&hash, identity);
+    size_t count = bundle->capability_count;
+    instance->capability_names = calloc(count * 2 + 1, sizeof(*instance->capability_names));
+    if(instance->capability_names == NULL) {
+        BundleInstanceClose(instance);
+        return NULL;
+    }
+    for(size_t i = 0; i < count; i++) {
+        instance->capability_names[i] = bundle->capabilities[i].module;
+        instance->capability_names[count + i] = bundle->capabilities[i].function;
+    }
+    instance->native = ZxNativeOpen(bundle->program, bundle->entry_owner, bundle->entry,
+                                    identity, instance->capability_names,
+                                    instance->capability_names + count, count,
+                                    dispatch, &instance->set);
+    if(instance->native == NULL) {
+#else
     instance->vm = VmInstanceOpenVerified(bundle->program, bundle->entry_owner,
                                            bundle->entry, dispatch, &instance->set);
     if(instance->vm == NULL) {
+#endif
         BundleInstanceClose(instance);
         return NULL;
     }
@@ -477,22 +548,36 @@ int
 BundleInstanceRun(BundleInstance *instance, long long *result,
                   int *has_result)
 {
+#ifdef ZIRAN_NATIVE_ZX
+    return instance != NULL && ZxNativeRun(instance->native, result, has_result);
+#else
     return instance != NULL && VmInstanceRun(instance->vm, result,
                                               has_result);
+#endif
 }
 
 void
 BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
 {
+#ifdef ZIRAN_NATIVE_ZX
+    if(instance != NULL)
+        ZxNativeLimitSteps(instance->native, max_steps);
+#else
     if(instance != NULL)
         VmInstanceLimitSteps(instance->vm, max_steps);
+#endif
 }
 
 void
 BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
 {
+#ifdef ZIRAN_NATIVE_ZX
+    if(instance != NULL)
+        ZxNativeMatchFieldsByName(instance->native, enabled);
+#else
     if(instance != NULL)
         VmInstanceMatchFieldsByName(instance->vm, enabled);
+#endif
 }
 
 void
@@ -500,7 +585,12 @@ BundleInstanceClose(BundleInstance *instance)
 {
     if(instance == NULL)
         return;
+#ifdef ZIRAN_NATIVE_ZX
+    ZxNativeClose(instance->native);
+    free(instance->capability_names);
+#else
     VmInstanceClose(instance->vm);
+#endif
     free(instance->owned_bindings);
     free(instance);
 }

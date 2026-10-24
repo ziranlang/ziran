@@ -1301,6 +1301,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         else
             fprintf(c, "static %s\n%s(%s)\n{\n",
                     cret[0] ? cret : "void", cname, buffers->cargs);
+        if(EmitRunGuardsEnabled())
+            fputs("    ZIR_ENTER();\n", c);
         EmitAssembly(c, m, fn, ZIR_C, cret);
         lower_body(c, m, restab, restab_count, fn);
         fprintf(c, "}\n");

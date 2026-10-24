@@ -1,0 +1,34 @@
+#ifndef ZIR_ZX_NATIVE_H
+#define ZIR_ZX_NATIVE_H
+
+#include "zir.h"
+#include "ziran_host.h"
+
+/* A bundle instance running as native code: the verified program lowered to
+ * C, compiled in memory by TinyCC and called directly. Host capabilities
+ * reach `host` with the same values the portable VM passes. */
+typedef struct ZxNative ZxNative;
+
+/* Headers natively compiled bundles include, embedded in the library. */
+typedef struct ZxNativeHeader {
+    const char *name;
+    const char *text;
+} ZxNativeHeader;
+extern const ZxNativeHeader ZxNativeHeaders[];
+
+/* Compile and initialize one instance. Capability i names the function
+ * trampolines pass to `host`. `identity` is a SHA-256 of the bundle's bytes
+ * and its libraries; with it, compiled code is cached and reused across
+ * launches. Returns NULL after a diagnostic when the program cannot be
+ * compiled or its module initializers fail. */
+ZxNative *ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
+                       const ZirFunction *entry, const unsigned char identity[32],
+                       const char *const *capability_modules,
+                       const char *const *capability_functions,
+                       size_t capability_count, VmHostCall host, void *context);
+int ZxNativeRun(ZxNative *native, long long *result, int *has_result);
+void ZxNativeLimitSteps(ZxNative *native, int max_steps);
+void ZxNativeMatchFieldsByName(ZxNative *native, int enabled);
+void ZxNativeClose(ZxNative *native);
+
+#endif

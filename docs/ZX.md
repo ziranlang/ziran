@@ -152,6 +152,34 @@ diagnostics. A portable bundle cannot contain an undeclared dependency on
 target-specific C or Go code. Hosts may implement the declared
 capability interfaces with native libraries.
 
+## Native execution
+
+On Linux and Android hosts with x86-64, 32-bit ARM or ARM64 processors,
+`libziran` runs bundles as native code. `BundleInstantiate` lowers the
+verified program to C with the backend `ziran build --target=c` uses,
+compiles it in memory with the bundled TinyCC (`third_party/tinycc`, LGPL-2.1;
+applications that ship it include its notice) and calls it. Host
+capabilities receive the same `VmHostValue` shapes the portable VM passes.
+
+Compiled code is cached under a key of the bundle's SHA-256, its libraries,
+the CPU and the compiler's own sources, in `$ZIRAN_NATIVE_CACHE`,
+`$XDG_CACHE_HOME/ziran-native`, `~/.cache/ziran-native` or
+`$TMPDIR/ziran-native-cache`; `ZIRAN_NATIVE_CACHE=0` turns it off. Kryon's
+Android hosts point `TMPDIR` at the app's private files.
+
+A bundle that cannot be compiled fails with `zx.native`; there is no
+fallback. Runtime failures stop the run as in the VM: bounds, unreachable
+code, a host breaking the value contract, the step limit and nested calls
+filling the stack. Native code counts the step limit in function calls and
+loop iterations rather than statements, runs `#parallel for` serially, and
+does not check pointer lifetimes at run time: it trusts bundle code as a
+native build of the program would.
+
+Other hosts (the browser, Windows, macOS) run the portable VM, and
+`zi2zx-vm` with `libziran-vm.a` run it everywhere for tests of the VM itself.
+`ZIRAN_NATIVE_TIMING=1` reports where compilation time goes and
+`ZIRAN_NATIVE_KEEP=1` keeps the generated C.
+
 ## Embedded files and application hosts
 
 `--define NAME` selects the same source branches as the native compiler.

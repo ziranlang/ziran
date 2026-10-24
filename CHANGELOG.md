@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+### Added
+- Linux and Android hosts on x86-64, ARM and ARM64 run portable bundles as native code, compiled in memory and cached between launches.
+
 ## [0.3.1] - 2026-10-23
 ### Fixed
 - Source generation now preserves output errors on hosts that use file-backed text streams.

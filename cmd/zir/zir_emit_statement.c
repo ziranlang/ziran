@@ -2,6 +2,20 @@
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 
+static int run_guards;
+
+void
+EmitRunGuards(int enabled)
+{
+    run_guards = enabled != 0;
+}
+
+int
+EmitRunGuardsEnabled(void)
+{
+    return run_guards;
+}
+
 static void emit_sequence(Emitter *e,int begin,int end);
 static int emit_switch(Emitter *e, int declaration, int end);
 
@@ -982,7 +996,11 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
         case ZIR_STMT_UNREACHABLE:
             drop_locals(e, 0);
-            line(e,e->target==ZIR_GO?"panic(\"unreachable\")":"abort();");
+            if(run_guards && e->target == ZIR_C)
+                line(e, "ZIR_UNREACHABLE(\"%s:%d:%d\");", SpanPath(st->span),
+                     st->span.line, st->span.column);
+            else
+                line(e,e->target==ZIR_GO?"panic(\"unreachable\")":"abort();");
             e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
         case ZIR_STMT_IF:i=emit_if(e,i,end,0);break;
         case ZIR_STMT_WHILE: {
@@ -1052,6 +1070,8 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     line(e,e->target==ZIR_GO?"if !%s { break }":"if (!%s) { break; }",buffers->value);
                 }
             }
+            if(run_guards && e->target == ZIR_C)
+                line(e, "ZIR_STEP();");
             if(labeled && e->target!=ZIR_GO) {
                 line(e,"{");e->indent++;
             }

@@ -7,6 +7,9 @@
 set -eu
 
 ziran=$1
+# Run-time pointer and storage checks belong to the portable VM; native
+# code does not make them.
+run_vm="$(dirname "$ziran")/zi2zx-vm"
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -67,7 +70,7 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" bundle --root "$work" --entry dangling:Answer -o "$work/dangling.zx" "$work/dangling.zi"
-if "$ziran" run "$work/dangling.zx" > "$work/dangling.out" 2>&1; then
+if "$run_vm" run "$work/dangling.zx" > "$work/dangling.out" 2>&1; then
     echo 'a pointer at a returned local was read' >&2
     exit 1
 fi

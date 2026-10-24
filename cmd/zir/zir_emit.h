@@ -131,6 +131,12 @@ void EmitNativeMain(FILE *out, const ZirModule *module, const ZirFunction *fn,
 int FoldIntegerOperation(const char *op, const char *type, uint64_t a, uint64_t b,
                          uint64_t *result);
 void EmitStringType(FILE *out);
+/* Natively run bundles bound their work and stack: with guards on, C
+ * lowering marks each function entry ZIR_ENTER(), each loop iteration
+ * ZIR_STEP() and each unreachable statement ZIR_UNREACHABLE("place"); the
+ * native engine defines them. Ordinary C output is unchanged. */
+void EmitRunGuards(int enabled);
+int EmitRunGuardsEnabled(void);
 /* Encode a checked literal for native expressions and constant byte arrays. */
 void EmitStringLiteral(const ZirExpr *expr, ZirTarget target, char *out, size_t size);
 void EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,

@@ -27,8 +27,9 @@ static unsigned char *bundle_bytes(const ZirProgram *program, const char *entry,
 int main(void)
 {
     const char *source = "count: s32 = 40;\n"
-        "#program_export\nNext :: () -> s32 {\ncount += 1\nreturn count\n}\n"
-        "#program_export\nReal :: () -> float64 {\nreturn 1.5\n}\n";
+        "#program_export\nNext :: () -> s32 {\ncount = Bump(count)\nreturn count\n}\n"
+        "#program_export\nReal :: () -> float64 {\nreturn 1.5\n}\n"
+        "Bump :: (value: s32) -> s32 {\nreturn value + 1\n}\n";
     ZirProgram *program = parse_source_text("verified.zi", source);
     assert(program != NULL && CheckPrograms(&program, 1));
     assert(VmVerify(program, "verified", "Next"));

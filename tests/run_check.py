@@ -92,6 +92,7 @@ def main():
     for key in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS"):
         env.pop(key, None)
     env["ZIRAN_LIB"] = str(bin_dir.parent / "libziran.a")
+    env["ZIRAN_VM_LIB"] = str(bin_dir.parent / "libziran-vm.a")
     # Package builds select cgo/nocgo companions automatically. Preserve the
     # older checks' explicit file lists while applying the same Go constraints.
     go = env.get("ZIRAN_TEST_GO_REAL") or shutil.which("go")

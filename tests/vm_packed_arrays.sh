@@ -2,8 +2,10 @@
 set -eu
 ulimit -c 0
 ziran=${1:?pass the ziran command}
+# These check the portable VM itself, which runs where native code cannot.
+run_vm="$(dirname "$ziran")/zi2zx-vm"
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-library=${ZIRAN_LIB:-$repo/build/libziran.a}
+library=${ZIRAN_VM_LIB:-$repo/build/libziran-vm.a}
 build=$(CDPATH= cd -- "$(dirname -- "$library")" && pwd)
 work="$build/tests/vm-packed-arrays"
 mkdir -p "$work"
@@ -24,7 +26,7 @@ for form in source saved; do
     for entry in PopInvalid ClearInvalid GrowthInvalid; do
         "$ziran" bundle --root "$root" --module-path "$repo/std" --entry "vm_packed_arrays_test:$entry" \
             -o "$work/$form-$entry.zx" "$module"
-        if "$ziran" run "$work/$form-$entry.zx" > "$work/$form-$entry.out" 2>&1; then
+        if "$run_vm" run "$work/$form-$entry.zx" > "$work/$form-$entry.out" 2>&1; then
             echo "read invalid vector storage: $form $entry" >&2
             exit 1
         fi

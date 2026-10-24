@@ -1,0 +1,16 @@
+TinyCC for Ziran's native ZX engine
+===================================
+
+A subset of TinyCC (https://repo.or.cz/tinycc.git, branch mob) at commit
+e23dabed154a8495f3ac1ff3cc9d04fa1c207893 (2026-10-16): the in-memory compiler
+for x86-64, 32-bit ARM and ARM64 hosts. TinyCC is licensed under the GNU
+LGPL 2.1 (COPYING); applications that ship the engine must include that
+notice. Ziran builds it as one translation unit with cmd/zir/tinycc/config.h.
+
+Local changes, to be offered upstream:
+
+- arm-gen.c: a call that splits a structure between r3 and the stack placed
+  the next 8-byte-aligned stack argument 4 bytes low, without the alignment
+  padding the callee expects, and released 4 bytes too many afterwards.
+  copy_params now pads the first stack argument from the end of the split
+  structure (plan->core_stack_end).

@@ -15,6 +15,10 @@ Box :: struct {
 }
 EchoEmpty :: (values: [0]s32) -> [0]s32 #foreign host_api;
 EchoBoxes :: (values: [2]Box) -> [2]Box #foreign host_api;
+Grid :: struct {
+    cells: [2][2]u8
+}
+AddGrid :: (grid: Grid, rows: [2][2]u8) -> [2][2]u8 #foreign host_api;
 
 #program_export
 Answer :: () -> s32 {
@@ -24,6 +28,19 @@ Answer :: () -> s32 {
     boxes[0].value = 40
     boxes[1].value = 2
     changed: [2]Box = EchoBoxes(boxes)
+    grid: Grid
+    rows: [2][2]u8
+    grid.cells[0][0] = 1
+    grid.cells[0][1] = 2
+    grid.cells[1][0] = 3
+    grid.cells[1][1] = 4
+    rows[0][0] = 10
+    rows[0][1] = 20
+    rows[1][0] = 30
+    rows[1][1] = 40
+    sums: [2][2]u8 = AddGrid(grid, rows)
+    if sums[0][0] != 11 || sums[0][1] != 22 || sums[1][0] != 33 ||
+       sums[1][1] != 44 { return 0 }
     if returned.count != 0 || returned.data != null ||
        changed.count != 2 || changed[0].empty.count != 0 ||
        changed[1].empty.count != 0 { return 0 }
@@ -58,6 +75,10 @@ package main
 type arrayHost struct{}
 func (arrayHost) EchoEmpty(values [0]int32) [0]int32 { return values }
 func (arrayHost) EchoBoxes(values [2]Box) [2]Box { return values }
+func (arrayHost) AddGrid(grid Grid, rows [2][2]uint8) [2][2]uint8 {
+	for i := range rows { for j := range rows[i] { rows[i][j] += grid.Cells[i][j] } }
+	return rows
+}
 func init() { SetArraysHost(arrayHost{}) }
 func main() { if Arrays_Answer() != 42 { panic("array host") } }
 GO
@@ -71,6 +92,11 @@ void EchoEmpty(int32_t *result, int32_t *values) {
 }
 void EchoBoxes(Box result[2], Box values[2]) {
     result[0] = values[0]; result[1] = values[1];
+}
+void AddGrid(uint8_t result[2][2], Grid grid, uint8_t rows[2][2]) {
+    for(int i = 0; i < 2; i++)
+        for(int j = 0; j < 2; j++)
+            result[i][j] = (uint8_t)(grid.cells[i][j] + rows[i][j]);
 }
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C

@@ -63,7 +63,7 @@ parse_parameters(const ZirModule *module, const ZirFunction *function,
         while(*cursor != '\0' && isspace((unsigned char)*cursor))
             cursor++;
         start = cursor;
-        if(*cursor == '[') {
+        while(*cursor == '[') {
             cursor++;
             while(isalnum((unsigned char)*cursor) || *cursor == '_')
                 cursor++;

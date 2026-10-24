@@ -4,6 +4,9 @@
 ### Added
 - Linux and Android hosts on x86-64, ARM and ARM64 run portable bundles as native code, compiled in memory and cached between launches.
 
+### Fixed
+- Bundles accept arrays of fixed arrays as function and host capability parameters.
+
 ## [0.3.1] - 2026-10-23
 ### Fixed
 - Source generation now preserves output errors on hosts that use file-backed text streams.

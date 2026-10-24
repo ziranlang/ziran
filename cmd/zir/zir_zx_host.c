@@ -253,22 +253,50 @@ string_literal(FILE *out, const char *text)
     fputc('"', out);
 }
 
-/* For a fixed array or slice: its element type and the element's C spelling.
- * Collections of fixed arrays do not cross the boundary. */
+/* A fixed array's innermost element type in C and its dimensions, so
+ * "[12][4]u8" becomes "uint8_t" and "[12][4]". */
+static int
+array_base(HostGen *gen, const ZirModule *module, const char *type, char *base,
+           size_t base_size, char *dims, size_t dims_size)
+{
+    char element[ZIR_NAME_MAX], inner[ZIR_NAME_MAX];
+    int capacity = 0;
+    size_t used = 0;
+    dims[0] = '\0';
+    snprintf(inner, sizeof(inner), "%s", type);
+    while(ArrayElementType(inner, element, sizeof(element), &capacity)) {
+        used += (size_t)snprintf(dims + used, used < dims_size ? dims_size - used : 0,
+                                 "[%d]", capacity);
+        snprintf(inner, sizeof(inner), "%s", element);
+    }
+    return c_spelling(gen, module, inner, base, base_size);
+}
+
+/* For a fixed array or slice: its element type, the C type of a pointer to
+ * one element, and the element's size. Elements may be fixed arrays too. */
 static int
 collection_element(HostGen *gen, const ZirModule *module, const char *type,
-                   HostShape shape, char *element, char *element_c, int *capacity)
+                   HostShape shape, char *element, char *element_pointer,
+                   char *element_size, int *capacity)
 {
     *capacity = 0;
     if(shape == SHAPE_ARRAY)
         ArrayElementType(type, element, ZIR_NAME_MAX, capacity);
     else
         SliceElementType(type, element, ZIR_NAME_MAX);
+    char base[ZIR_NAME_MAX * 2], dims[ZIR_NAME_MAX];
     if(ArrayElementType(element, NULL, 0, NULL)) {
-        gen_fail(gen, "host capabilities cannot pass %s, a collection of fixed arrays", type);
-        return 0;
+        if(!array_base(gen, module, element, base, sizeof(base), dims, sizeof(dims)))
+            return 0;
+        snprintf(element_pointer, ZIR_NAME_MAX * 3, "%s (*)%s", base, dims);
+        snprintf(element_size, ZIR_NAME_MAX * 3, "sizeof(%s%s)", base, dims);
+        return 1;
     }
-    return c_spelling(gen, module, element, element_c, ZIR_NAME_MAX * 2);
+    if(!c_spelling(gen, module, element, base, sizeof(base)))
+        return 0;
+    snprintf(element_pointer, ZIR_NAME_MAX * 3, "%s *", base);
+    snprintf(element_size, ZIR_NAME_MAX * 3, "sizeof(%s)", base);
+    return 1;
 }
 
 /* Write `dest` (a zx_value *) from the C lvalue `source`. */
@@ -281,9 +309,10 @@ emit_put(HostGen *gen, const ZirModule *module, const char *type,
     if(gen->failed)
         return;
     if(shape == SHAPE_ARRAY || shape == SHAPE_SLICE) {
-        char element[ZIR_NAME_MAX], element_c[ZIR_NAME_MAX * 2];
+        char element[ZIR_NAME_MAX], element_pointer[ZIR_NAME_MAX * 3], element_size[ZIR_NAME_MAX * 3];
         int capacity;
-        if(!collection_element(gen, module, type, shape, element, element_c, &capacity))
+        if(!collection_element(gen, module, type, shape, element, element_pointer,
+                               element_size, &capacity))
             return;
         int pad = depth * 4;
         /* Like the VM, a zero-length array crosses with no elements. */
@@ -313,8 +342,8 @@ emit_put(HostGen *gen, const ZirModule *module, const char *type,
         if(shape == SHAPE_ARRAY)
             snprintf(element_source, sizeof(element_source), "(%s)[i%d]", source, depth);
         else
-            snprintf(element_source, sizeof(element_source), "((%s *)s%d.data)[i%d]",
-                     element_c, depth, depth);
+            snprintf(element_source, sizeof(element_source), "((%s)s%d.data)[i%d]",
+                     element_pointer, depth, depth);
         emit_put(gen, module, element, element_dest, element_source, depth + 2);
         fprintf(out, "%*s    }\n%*s}\n", pad, "", pad, "");
         return;
@@ -340,9 +369,10 @@ emit_get(HostGen *gen, const ZirModule *module, const char *type,
     if(gen->failed)
         return;
     if(shape == SHAPE_ARRAY || shape == SHAPE_SLICE) {
-        char element[ZIR_NAME_MAX], element_c[ZIR_NAME_MAX * 2];
+        char element[ZIR_NAME_MAX], element_pointer[ZIR_NAME_MAX * 3], element_size[ZIR_NAME_MAX * 3];
         int capacity;
-        if(!collection_element(gen, module, type, shape, element, element_c, &capacity))
+        if(!collection_element(gen, module, type, shape, element, element_pointer,
+                               element_size, &capacity))
             return;
         int pad = depth * 4;
         fprintf(out, "%*s{\n%*s    const zx_value *v%d = %s;\n", pad, "", pad, "", depth, source);
@@ -356,10 +386,10 @@ emit_get(HostGen *gen, const ZirModule *module, const char *type,
             fprintf(out, "%*s    ZxNativeExpectLength(v%d, (size_t)(%s).length);\n",
                     pad, "", depth, target);
         else
-            fprintf(out, "%*s    ZxNativeExpectSlice(v%d, sizeof(%s));\n"
-                         "%*s    (%s).data = ZxNativeKeep((v%d->length ? v%d->length : 1) * sizeof(%s));\n"
+            fprintf(out, "%*s    ZxNativeExpectSlice(v%d, %s);\n"
+                         "%*s    (%s).data = ZxNativeKeep((v%d->length ? v%d->length : 1) * %s);\n"
                          "%*s    (%s).length = (int64_t)v%d->length;\n",
-                    pad, "", depth, element_c, pad, "", target, depth, depth, element_c,
+                    pad, "", depth, element_size, pad, "", target, depth, depth, element_size,
                     pad, "", target, depth);
         fprintf(out, "%*s    for(size_t i%d = 0; i%d < v%d->length; i%d++) {\n", pad, "",
                 depth, depth, depth, depth);
@@ -368,8 +398,8 @@ emit_get(HostGen *gen, const ZirModule *module, const char *type,
         if(shape == SHAPE_ARRAY)
             snprintf(element_target, sizeof(element_target), "(%s)[i%d]", target, depth);
         else
-            snprintf(element_target, sizeof(element_target), "((%s *)(%s).data)[i%d]",
-                     element_c, target, depth);
+            snprintf(element_target, sizeof(element_target), "((%s)(%s).data)[i%d]",
+                     element_pointer, target, depth);
         emit_get(gen, module, element, element_source, element_target, depth + 2, 0);
         fprintf(out, "%*s    }\n%*s}\n", pad, "", pad, "");
         return;
@@ -561,14 +591,12 @@ emit_trampoline(HostGen *gen, const ZirModule *module, const ZirImport *import,
     const char *result = import->return_type[0] ? import->return_type : "void";
     int count = parameter_types(import->args, types, HOST_MAX_PARAMETERS);
     HostShape result_shape = host_shape(gen, module, result);
-    char result_c[ZIR_NAME_MAX * 2], out_element[ZIR_NAME_MAX], out_element_c[ZIR_NAME_MAX * 2];
-    int out_capacity = 0;
+    char result_c[ZIR_NAME_MAX * 2], out_base[ZIR_NAME_MAX * 2], out_dims[ZIR_NAME_MAX];
     if(count > HOST_MAX_PARAMETERS)
         gen_fail(gen, "%s takes more than %d parameters", symbol, HOST_MAX_PARAMETERS);
     /* C lowering returns a fixed array through a hidden first parameter. */
     if(result_shape == SHAPE_ARRAY) {
-        collection_element(gen, module, result, SHAPE_ARRAY, out_element, out_element_c,
-                           &out_capacity);
+        array_base(gen, module, result, out_base, sizeof(out_base), out_dims, sizeof(out_dims));
         snprintf(result_c, sizeof(result_c), "void");
     } else if(!gen->failed) {
         c_spelling(gen, module, result, result_c, sizeof(result_c));
@@ -580,16 +608,15 @@ emit_trampoline(HostGen *gen, const ZirModule *module, const ZirImport *import,
     fprintf(out, "%s\n%s(", result_c, symbol);
     int written = 0;
     if(result_shape == SHAPE_ARRAY) {
-        fprintf(out, "%s zx_out[%d]", out_element_c, out_capacity);
+        fprintf(out, "%s zx_out%s", out_base, out_dims);
         written = 1;
     }
     for(int i = 0; i < count && !gen->failed; i++) {
-        char element[ZIR_NAME_MAX], c_type[ZIR_NAME_MAX * 2];
-        int capacity = 0;
+        char c_type[ZIR_NAME_MAX * 2], dims[ZIR_NAME_MAX];
         if(written++ > 0) fputs(", ", out);
-        if(ArrayElementType(types[i], element, sizeof(element), &capacity)) {
-            if(c_spelling(gen, module, element, c_type, sizeof(c_type)))
-                fprintf(out, "%s p%d[%d]", c_type, i, capacity);
+        if(ArrayElementType(types[i], NULL, 0, NULL)) {
+            if(array_base(gen, module, types[i], c_type, sizeof(c_type), dims, sizeof(dims)))
+                fprintf(out, "%s p%d%s", c_type, i, dims);
         } else if(c_spelling(gen, module, types[i], c_type, sizeof(c_type))) {
             fprintf(out, "%s p%d", c_type, i);
         }
@@ -612,15 +639,17 @@ emit_trampoline(HostGen *gen, const ZirModule *module, const ZirImport *import,
         for(int j = i + 1; j < count; j++) {
             if(host_shape(gen, module, types[j]) != SHAPE_SLICE)
                 continue;
-            char a[ZIR_NAME_MAX], b[ZIR_NAME_MAX], a_c[ZIR_NAME_MAX * 2], b_c[ZIR_NAME_MAX * 2];
-            SliceElementType(types[i], a, sizeof(a));
-            SliceElementType(types[j], b, sizeof(b));
-            if(!c_spelling(gen, module, a, a_c, sizeof(a_c)) ||
-               !c_spelling(gen, module, b, b_c, sizeof(b_c)))
+            char element[ZIR_NAME_MAX], pointer[ZIR_NAME_MAX * 3];
+            char a_size[ZIR_NAME_MAX * 3], b_size[ZIR_NAME_MAX * 3];
+            int capacity;
+            if(!collection_element(gen, module, types[i], SHAPE_SLICE, element, pointer,
+                                   a_size, &capacity) ||
+               !collection_element(gen, module, types[j], SHAPE_SLICE, element, pointer,
+                                   b_size, &capacity))
                 break;
-            fprintf(out, "    ZxNativeDistinct(p%d.data, (size_t)p%d.length * sizeof(%s), "
-                         "p%d.data, (size_t)p%d.length * sizeof(%s));\n",
-                    i, i, a_c, j, j, b_c);
+            fprintf(out, "    ZxNativeDistinct(p%d.data, (size_t)p%d.length * %s, "
+                         "p%d.data, (size_t)p%d.length * %s);\n",
+                    i, i, a_size, j, j, b_size);
         }
     }
     for(int i = 0; i < count; i++) {

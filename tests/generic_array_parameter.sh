@@ -88,19 +88,9 @@ for form in source saved library; do
         library) root=$work/library-ir; input=$root/$fixture.zi ;;
     esac
     output=$work/$fixture-$form
-    if test "$fixture" = app; then
-        "$ziran" bundle --root "$root" --entry app:main -o "$output.zx" "$input"
-        "$ziran" run "$output.zx" > "$output.vm"
-        cmp "$work/expected" "$output.vm"
-    else
-        # Fixed-array returns containing nested arrays remain a native-only
-        # capability. The portable linker must reject them explicitly.
-        if "$ziran" bundle --root "$root" --entry matrix:main -o "$output.zx" "$input" > "$output.err" 2>&1; then
-            echo 'nested array result was accepted by the portable linker' >&2
-            exit 1
-        fi
-        rg -q 'outside the portable subset' "$output.err"
-    fi
+    "$ziran" bundle --root "$root" --entry "$fixture:main" -o "$output.zx" "$input"
+    "$ziran" run "$output.zx" > "$output.vm"
+    cmp "$work/expected" "$output.vm"
     "$ziran" build --target=c --exe --entry "$fixture:main" --root "$root" -o "$output/c" "$input"
     "$output/c/$fixture" > "$output.c"
     cmp "$work/expected" "$output.c"
@@ -112,8 +102,10 @@ for form in source saved library; do
     cmp "$work/expected" "$output.py"
 done
 done
-cmp "$work/app-source.zx" "$work/app-saved.zx"
-cmp "$work/app-source.zx" "$work/app-library.zx"
+for fixture in app matrix; do
+    cmp "$work/$fixture-source.zx" "$work/$fixture-saved.zx"
+    cmp "$work/$fixture-source.zx" "$work/$fixture-library.zx"
+done
 
 reject() {
     name=$1

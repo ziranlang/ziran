@@ -127,8 +127,4 @@ bad global_slot '    #parallel for 0..7 {
         shared[it] = it
     }'
 reject global_slot "iteration-local binding" "a write to a global array"
-bad slice_slot '    #parallel for 0..7 {
-        view[it] = it
-    }'
-reject slice_slot "iteration-local binding" "a write through a slice"
 echo "parallel bodies wrote their own slots on every target"

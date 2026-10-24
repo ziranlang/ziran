@@ -276,6 +276,91 @@ parallel_region_fits(const ZirFunction *fn, int while_index)
     ParallelRegion region;
     return parallel_region_at(fn, while_index, &region) && region.forward;
 }
+static void parallel_capture_type(Emitter *e, const char *type, char *out, size_t size);
+
+/* The C storage range of capture C in CTX, as pointer and byte count, for
+ * slices, strings and fixed arrays; 0 for other captures. */
+static int
+capture_range(Emitter *e, const ParallelRegion *region, int c, const char *ctx,
+              char *range, size_t size)
+{
+    const char *type = region->capture_types[c];
+    char captured[ZIR_NAME_MAX * 4], element[ZIR_NAME_MAX], mapped[ZIR_NAME_MAX * 2];
+    TargetBindingName(e->fn, e->target, region->captures[c], captured, sizeof(captured));
+    if(!strcmp(type, "string"))
+        format(range, size, "%s.capture_%s.data, (int64_t)%s.capture_%s.length",
+               ctx, captured, ctx, captured);
+    else if(SliceElementType(type, element, sizeof(element))) {
+        parallel_capture_type(e, element, mapped, sizeof(mapped));
+        format(range, size, "%s.capture_%s.data, %s.capture_%s.length * (int64_t)sizeof(%s)",
+               ctx, captured, ctx, captured, mapped);
+    } else if(ArrayValueType(type))
+        format(range, size, "%s.capture_%s, (int64_t)sizeof(%s)", ctx, captured, captured);
+    else
+        return 0;
+    return 1;
+}
+
+/* Whether the body writes into captured slice NAME: it takes windows of it
+ * or assigns its elements. */
+static int
+parallel_writes_slice(const ZirFunction *fn, const ParallelRegion *region, const char *name)
+{
+    for(int i = region->body_begin; i < region->body_end; i++) {
+        const ZirStmt *st = &fn->stmts[i];
+        int root = st->kind == ZIR_STMT_DECL ? st->expr_root :
+                   st->kind == ZIR_STMT_ASSIGN ? st->lhs_root : -1;
+        if(st->kind == ZIR_STMT_DECL && root >= 0 && fn->exprs[root].kind == ZIR_EXPR_SLICE)
+            root = fn->exprs[root].left;
+        else if(st->kind == ZIR_STMT_DECL)
+            continue;
+        while(root >= 0 && root < fn->expr_count &&
+              (fn->exprs[root].kind == ZIR_EXPR_INDEX || fn->exprs[root].kind == ZIR_EXPR_MEMBER))
+            root = fn->exprs[root].left;
+        if(root >= 0 && root < fn->expr_count && fn->exprs[root].kind == ZIR_EXPR_IDENT &&
+           !strcmp(fn->exprs[root].name, name))
+            return 1;
+    }
+    return 0;
+}
+
+/* The condition under which the region at WHILE_INDEX must run in order:
+ * a slice it writes into shares storage with another slice, string or
+ * array it captures. Empty when it writes into no slice. */
+static void
+parallel_shared_storage(Emitter *e, int while_index, const char *ctx, char *out, size_t size)
+{
+    struct {
+        ParallelRegion full;
+        char written[ZIR_TEXT_MAX], other[ZIR_TEXT_MAX];
+    } *work = AllocateOrExit(sizeof(*work));
+    ParallelRegion *full = &work->full;
+    char *written = work->written, *other = work->other;
+    size_t used = 0;
+    out[0] = '\0';
+    parallel_region_at(e->fn, while_index, full);
+    parallel_region_captures(e->module, e->fn, full);
+    for(int w = 0; w < full->capture_count; w++) {
+        if(!SliceElementType(full->capture_types[w], NULL, 0) ||
+           !parallel_writes_slice(e->fn, full, full->captures[w]) ||
+           !capture_range(e, full, w, ctx, written, ZIR_TEXT_MAX))
+            continue;
+        for(int c = 0; c < full->capture_count; c++) {
+            if(c == w || !capture_range(e, full, c, ctx, other, ZIR_TEXT_MAX))
+                continue;
+            int wrote = snprintf(out + used, size - used, "%sziran_parallel_overlap(%s, %s)",
+                                 used ? " || " : "", written, other);
+            if(wrote < 0 || (size_t)wrote >= size - used) {
+                Diagnostic(e->fn->stmts[while_index].span, "emit.parallel",
+                           "native parallel region shares too many slices to check");
+                exit(1);
+            }
+            used += (size_t)wrote;
+        }
+    }
+    free(work);
+}
+
 /* Buffers parallel_region_dispatch keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct ParallelRegionDispatchBuffers {
@@ -309,15 +394,27 @@ parallel_region_dispatch_with_buffers(Emitter *e, const ParallelRegion *region, 
         {
             char captured[ZIR_NAME_MAX * 4];
             TargetBindingName(e->fn, e->target, full.captures[c], captured, sizeof(captured));
-            /* Arrays travel by address; each worker copies them. */
+            /* Arrays travel by address; workers reach the caller's. */
             if(ArrayValueType(full.capture_types[c]))
                 line(e, "%s.capture_%s = (void *)%s;", ctx, captured, captured);
             else
                 line(e, "%s.capture_%s = %s;", ctx, captured, captured);
         }
     }
+    char shared[ZIR_TEXT_MAX];
+    parallel_shared_storage(e, region->while_index, ctx, shared, sizeof(shared));
+    if(shared[0]) {
+        line(e, "if(%s)", shared);
+        e->indent++;
+        line(e, "%s_worker(%s.start, %s.end, &%s);", region->worker, ctx, ctx, ctx);
+        e->indent--;
+        line(e, "else");
+        e->indent++;
+    }
     line(e, "ziran_parallel_run(%s_worker, %s.start, %s.end, &%s);",
          region->worker, ctx, ctx, ctx);
+    if(shared[0])
+        e->indent--;
     e->indent--;
     line(e, "}");
 }

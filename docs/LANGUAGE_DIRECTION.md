@@ -111,10 +111,15 @@ target error instead of silently changing the result.
    parallel body are rejected unless the storage is declared `#local` to the
    iteration. Allocation inside an iteration is private to it; a result
    moved out of the loop body must be owned (`Vec` moves satisfy this).
-   An iteration may also write its own slot of a fixed array the function
-   owns, `out[it]` with any field or index after it, when the body uses
-   that array only at `out[it]` and keeps its loop binding unchanged:
-   iterations then never write the same slot.
+   An iteration may also write its own slot of a fixed array or slice the
+   function owns, `out[it]` with any field or index after it, when the body
+   uses it only at `out[it]` and keeps its loop binding unchanged:
+   iterations then never write the same slot. It may write through its own
+   window of such a slice, `row := out[it * K : it * K + K]` with K the same
+   in every iteration, when the body uses `out` only to take that window.
+   A body that writes through slices calls only pure code and reads no
+   global arrays; native code runs it in order when the written slice
+   shares storage with another slice, string or array the body reads.
 4. **Observable ordering.** The only ordering guarantees are: effects of an
    iteration appear between the loop's entry and exit; `#parallel` regions
    do not nest; and the loop completes before any statement after it runs.

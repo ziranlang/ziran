@@ -1231,12 +1231,17 @@ stmt_declares_name(const ZirStmt *st, const char *name)
     return st->kind == ZIR_STMT_DECL && strcmp(st->name, name) == 0;
 }
 
+/* The binding a destination writes into. THROUGH_POINTER marks a write
+ * through a pointer; THROUGH_VIEW one into an element of a slice, Vec or
+ * string, whose storage the binding only refers to. An element of a fixed
+ * array is part of the binding itself. */
 static int
 destination_identifier(const ZirFunction *fn, int root, char *out,
-                       size_t size, int *through_pointer)
+                       size_t size, int *through_pointer, int *through_view)
 {
     const ZirExpr *expr = &fn->exprs[root];
     *through_pointer = 0;
+    *through_view = 0;
     if(expr->kind == ZIR_EXPR_IDENT) {
         snprintf(out, size, "%s", expr->name);
         return 1;
@@ -1246,6 +1251,14 @@ destination_identifier(const ZirFunction *fn, int root, char *out,
         if(cursor->kind == ZIR_EXPR_IDENT) {
             snprintf(out, size, "%s", cursor->name);
             return 1;
+        }
+        if(cursor->kind == ZIR_EXPR_INDEX) {
+            const char *base = cursor->left >= 0 && cursor->left < fn->expr_count ?
+                               fn->exprs[cursor->left].type : NULL;
+            if(base == NULL || !ArrayElementType(base, NULL, 0, NULL))
+                *through_view = 1;
+            index = cursor->left;
+            continue;
         }
         if(cursor->kind == ZIR_EXPR_POINTER_MEMBER ||
            (cursor->kind == ZIR_EXPR_UNARY && !strcmp(cursor->op, "*")))
@@ -1294,21 +1307,165 @@ slot_write_array(const ZirFunction *fn, int index, const char *binder)
     return NULL;
 }
 
-/* Whether NAME is a fixed array the function owns, declared before
- * statement BEFORE or as a parameter; globals are shared with callees. */
-static int
-owned_array(const ZirFunction *fn, int before, const char *name)
+/* The type of a binding the function declares before statement BEFORE or
+ * takes as a parameter; NULL for globals and other names. */
+static const char *
+binding_type(const ZirFunction *fn, int before, const char *name)
 {
     for(int s = before - 1; s >= 0; s--)
         if(stmt_declares_name(&fn->stmts[s], name))
-            return fn->stmts[s].type != NULL && ArrayValueType(fn->stmts[s].type);
+            return fn->stmts[s].type;
     const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
     for(int p = 0; p < parameters->count; p++)
         if(parameters->items[p].binding_name != NULL &&
            strcmp(parameters->items[p].binding_name, name) == 0)
-            return parameters->items[p].value_type != NULL &&
-                   ArrayValueType(parameters->items[p].value_type);
+            return parameters->items[p].value_type;
+    return NULL;
+}
+
+static int
+slice_type(const char *type)
+{
+    return type != NULL && SliceElementType(type, NULL, 0);
+}
+
+/* Whether NAME is a fixed array or slice of the function, declared before
+ * statement BEFORE or as a parameter; globals are shared with callees. */
+static int
+owned_array(const ZirFunction *fn, int before, const char *name)
+{
+    const char *type = binding_type(fn, before, name);
+    return type != NULL && (ArrayValueType(type) || slice_type(type));
+}
+
+/* Whether a value of TYPE refers to storage outside itself: a pointer,
+ * slice, string, Vec or map, or a record or array holding one. */
+static int
+type_refers(const ZirModule *module, const char *type, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    size_t offset = 0;
+    ZirTypeField field;
+    int status;
+    if(depth >= 16)
+        return 1;
+    type = skip_ws(type);
+    if(type[0] == '*' || !strcmp(type, "string") || slice_type(type) ||
+       VecElementType(module, type, NULL, 0))
+        return 1;
+    if(ArrayElementType(type, element, sizeof(element), NULL))
+        return type_refers(module, element, depth + 1);
+    const ZirType *record = FindType(module, type, NULL);
+    if(record == NULL || record->is_enum)
+        return 0;
+    if(record->is_map || record->is_procedure_type || record->is_record_template)
+        return 1;
+    while((status = TypeNextField(record, &offset, &field)) == 1)
+        if(type_refers(module, field.type, depth + 1))
+            return 1;
+    return status != 0;
+}
+
+/* Whether trees A and B are written the same way. */
+static int
+same_tree(const ZirFunction *fn, int a, int b, int siblings)
+{
+    if(a < 0 || b < 0 || a >= fn->expr_count || b >= fn->expr_count)
+        return a == b || ((a < 0 || a >= fn->expr_count) && (b < 0 || b >= fn->expr_count));
+    const ZirExpr *x = &fn->exprs[a], *y = &fn->exprs[b];
+    if(x->kind != y->kind || strcmp(x->op, y->op) != 0 ||
+       strcmp(x->name ? x->name : "", y->name ? y->name : "") != 0 ||
+       strcmp(x->text ? x->text : "", y->text ? y->text : "") != 0)
+        return 0;
+    return same_tree(fn, x->left, y->left, 1) && same_tree(fn, x->right, y->right, 1) &&
+           same_tree(fn, x->third, y->third, 1) &&
+           same_tree(fn, x->first_child, y->first_child, 1) &&
+           (!siblings || same_tree(fn, x->next_sibling, y->next_sibling, 1));
+}
+
+static int
+binary_with(const ZirFunction *fn, int index, const char *op, int *other, int operand)
+{
+    if(index < 0 || index >= fn->expr_count)
+        return 0;
+    const ZirExpr *expr = &fn->exprs[index];
+    if(expr->kind != ZIR_EXPR_BINARY || strcmp(expr->op, op) != 0)
+        return 0;
+    if(same_tree(fn, expr->left, operand, 0)) {
+        *other = expr->right;
+        return 1;
+    }
+    if(same_tree(fn, expr->right, operand, 0)) {
+        *other = expr->left;
+        return 1;
+    }
     return 0;
+}
+
+static int
+loop_binding(const ZirFunction *fn, int index, const char *binder)
+{
+    return index >= 0 && index < fn->expr_count && fn->exprs[index].kind == ZIR_EXPR_IDENT &&
+           strcmp(fn->exprs[index].name, binder) == 0;
+}
+
+/* Whether K is the same in every iteration: no calls, and no binding the
+ * region declares. */
+static int
+region_invariant(const ZirFunction *fn, int k, int scan, int close, ZirExprWalk walk)
+{
+    for(int e = ExprWalkFirst(&walk, k); e >= 0; e = ExprWalkNext(&walk)) {
+        const ZirExpr *expr = &fn->exprs[e];
+        if(expr->kind == ZIR_EXPR_CALL ||
+           (expr->kind == ZIR_EXPR_IDENT && region_declares(fn, scan, close + 1, expr->name)))
+            return 0;
+    }
+    return 1;
+}
+
+/* The slice a declaration takes this iteration's window of, S[it * K :
+ * it * K + K] or S[it * K : (it + 1) * K] with K the same in every
+ * iteration, so iterations get disjoint windows; NULL otherwise. */
+static const char *
+window_source(const ZirFunction *fn, int root, const char *binder, int scan, int close,
+              ZirExprWalk walk)
+{
+    if(root < 0 || root >= fn->expr_count || fn->exprs[root].kind != ZIR_EXPR_SLICE)
+        return NULL;
+    const ZirExpr *slice = &fn->exprs[root];
+    if(slice->left < 0 || fn->exprs[slice->left].kind != ZIR_EXPR_IDENT)
+        return NULL;
+    const char *source = fn->exprs[slice->left].name;
+    if(region_declares(fn, scan, close + 1, source) || !slice_type(binding_type(fn, scan, source)))
+        return NULL;
+    int k = -1, binder_at = -1, other = -1;
+    const ZirExpr *low = slice->right >= 0 ? &fn->exprs[slice->right] : NULL;
+    if(low == NULL || low->kind != ZIR_EXPR_BINARY || strcmp(low->op, "*") != 0)
+        return NULL;
+    if(loop_binding(fn, low->left, binder)) {
+        binder_at = low->left;
+        k = low->right;
+    } else if(loop_binding(fn, low->right, binder)) {
+        binder_at = low->right;
+        k = low->left;
+    } else {
+        return NULL;
+    }
+    (void)binder_at;
+    if(!region_invariant(fn, k, scan, close, walk))
+        return NULL;
+    if(binary_with(fn, slice->third, "+", &other, slice->right) && same_tree(fn, other, k, 0))
+        return source;
+    if(binary_with(fn, slice->third, "*", &other, k) && other >= 0 &&
+       fn->exprs[other].kind == ZIR_EXPR_BINARY && !strcmp(fn->exprs[other].op, "+")) {
+        const ZirExpr *next = &fn->exprs[other];
+        int one = loop_binding(fn, next->left, binder) ? next->right :
+                  loop_binding(fn, next->right, binder) ? next->left : -1;
+        if(one >= 0 && fn->exprs[one].kind == ZIR_EXPR_INT && fn->exprs[one].text != NULL &&
+           strcmp(fn->exprs[one].text, "1") == 0)
+            return source;
+    }
+    return NULL;
 }
 
 /* Slot writes are disjoint only while every iteration keeps its own loop
@@ -1321,10 +1478,11 @@ check_slot_writes(const ZirFunction *fn, int while_index, int close,
     for(int s = while_index + 2; s < close; s++) {
         const ZirStmt *st = &fn->stmts[s];
         char name[ZIR_NAME_MAX];
-        int through_pointer = 0;
+        int through_pointer = 0, through_view = 0;
         if(stmt_declares_name(st, binder) ||
            (st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 &&
-            destination_identifier(fn, st->lhs_root, name, sizeof(name), &through_pointer) &&
+            destination_identifier(fn, st->lhs_root, name, sizeof(name), &through_pointer,
+                                   &through_view) &&
             strcmp(name, binder) == 0)) {
             Diagnostic(st->span, "parallel.memory",
                        "#parallel slot writes need the loop binding unchanged: %s", binder);
@@ -1332,6 +1490,8 @@ check_slot_writes(const ZirFunction *fn, int while_index, int close,
         }
     }
     for(int a = 0; a < array_count; a++) {
+        if(arrays[a] == NULL)
+            continue;
         int uses = 0, slots = 0;
         const ZirStmt *seen = NULL;
         for(int s = while_index + 1; s < close; s++) {
@@ -1359,6 +1519,99 @@ check_slot_writes(const ZirFunction *fn, int while_index, int close,
                        arrays[a], arrays[a], binder);
             return 0;
         }
+    }
+    return 1;
+}
+
+/* A slice the body takes windows of appears only as their source, so no
+ * iteration reads another iteration's window. */
+static int
+check_windows(const ZirFunction *fn, int while_index, int close,
+              const char *const *sources, int count, ZirExprWalk walk)
+{
+    for(int w = 0; w < count; w++) {
+        int windows = 0, uses = 0;
+        const ZirStmt *seen = NULL;
+        for(int v = 0; v < count; v++)
+            windows += strcmp(sources[v], sources[w]) == 0;
+        for(int s = while_index + 1; s < close; s++) {
+            const ZirStmt *st = &fn->stmts[s];
+            int roots[2] = {st->expr_root, st->lhs_root};
+            for(int r = 0; r < 2; r++)
+                for(int e = ExprWalkFirst(&walk, roots[r]); e >= 0; e = ExprWalkNext(&walk))
+                    if(fn->exprs[e].kind == ZIR_EXPR_IDENT &&
+                       strcmp(fn->exprs[e].name, sources[w]) == 0) {
+                        uses++;
+                        if(seen == NULL)
+                            seen = st;
+                    }
+        }
+        if(uses != windows) {
+            Diagnostic(seen != NULL ? seen->span : fn->stmts[while_index].span, "parallel.memory",
+                       "#parallel uses %s only through its per-iteration windows", sources[w]);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Writes through slices land in storage other bindings may share. Native
+ * code checks the slices, strings and arrays the body reads against the
+ * written ones before it runs the region on threads; anything else the
+ * body could reach that storage through is refused here: bindings that
+ * hold references, global arrays and callees that read globals. */
+static int
+check_view_writes(const ZirModule *module, const ZirFunction *fn, int while_index,
+                  int close, int scan, ZirExprWalk walk)
+{
+    for(int s = while_index + 1; s < close; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        int roots[2] = {st->expr_root, st->lhs_root};
+        for(int r = 0; r < 2; r++)
+            for(int e = ExprWalkFirst(&walk, roots[r]); e >= 0; e = ExprWalkNext(&walk)) {
+                const ZirExpr *expr = &fn->exprs[e];
+                const ZirModule *owner = NULL;
+                const ZirFunction *callee = NULL;
+                if(expr->kind == ZIR_EXPR_CALL && expr->name[0] &&
+                   ResolveFunction(module, expr->name, &owner, &callee) == 1 &&
+                   callee != NULL && effect_rank(callee->effect_class) > 0) {
+                    Diagnostic(st->span, "parallel.memory",
+                               "#parallel writes through slices need pure callees: %s is %s",
+                               expr->name, callee->effect_class);
+                    return 0;
+                }
+                if(expr->kind != ZIR_EXPR_IDENT || !expr->name[0] ||
+                   region_declares(fn, scan, close + 1, expr->name))
+                    continue;
+                const char *type = binding_type(fn, scan, expr->name);
+                if(type == NULL && expr->is_global_value) {
+                    for(int g = 0; g < module->global_count; g++)
+                        if(!strcmp(module->globals[g].name, expr->name))
+                            type = module->globals[g].type;
+                    if(type != NULL && (type_refers(module, type, 0) ||
+                                        ArrayElementType(type, NULL, 0, NULL))) {
+                        Diagnostic(st->span, "parallel.memory",
+                                   "#parallel writes through slices cannot read global %s",
+                                   expr->name);
+                        return 0;
+                    }
+                    continue;
+                }
+                if(type == NULL)
+                    continue;
+                char element[ZIR_NAME_MAX];
+                int checked = !strcmp(type, "string") ||
+                    (SliceElementType(type, element, sizeof(element)) &&
+                     !type_refers(module, element, 0)) ||
+                    (ArrayElementType(type, element, sizeof(element), NULL) &&
+                     !type_refers(module, element, 0));
+                if(!checked && type_refers(module, type, 0)) {
+                    Diagnostic(st->span, "parallel.memory",
+                               "#parallel writes through slices; %s refers to storage native code cannot check",
+                               expr->name);
+                    return 0;
+                }
+            }
     }
     return 1;
 }
@@ -1527,11 +1780,23 @@ check_parallel_region_in(const ZirProgram *program, const ZirModule *module,
                          fn->stmts[while_index + 1].name : NULL;
     const char *slot_arrays[16];
     int slot_array_count = 0;
+    /* Bindings that hold this iteration's window of a slice, and the
+     * slices they come from. */
+    const char *window_names[16], *window_sources[16];
+    int window_count = 0;
+    int view_writes = 0;
     for(int s = scan; s <= close; s++) {
         const ZirStmt *st = &fn->stmts[s];
-        int through_pointer = 0;
+        int through_pointer = 0, through_view = 0;
         char name[ZIR_NAME_MAX];
         int is_body = s > while_index && s < close;
+        if(is_body && binder != NULL && st->kind == ZIR_STMT_DECL && st->expr_root >= 0) {
+            const char *source = window_source(fn, st->expr_root, binder, scan, close, walk);
+            if(source != NULL && window_count < 16) {
+                window_names[window_count] = st->name;
+                window_sources[window_count++] = source;
+            }
+        }
         if(st->kind == ZIR_STMT_WHILE && st->is_parallel && is_body) {
             Diagnostic(st->span, "parallel.nest",
                        "#parallel regions cannot nest");
@@ -1563,6 +1828,7 @@ check_parallel_region_in(const ZirProgram *program, const ZirModule *module,
                                  slot_write_array(fn, st->lhs_root, binder) : NULL;
         if(slot_array != NULL && !region_declares(fn, scan, close + 1, slot_array) &&
            owned_array(fn, scan, slot_array)) {
+            view_writes |= slice_type(binding_type(fn, scan, slot_array));
             int known = 0;
             for(int a = 0; a < slot_array_count; a++)
                 known |= strcmp(slot_arrays[a], slot_array) == 0;
@@ -1575,12 +1841,16 @@ check_parallel_region_in(const ZirProgram *program, const ZirModule *module,
             }
         } else if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 && is_body) {
             if(!destination_identifier(fn, st->lhs_root, name, sizeof(name),
-                                       &through_pointer)) {
+                                       &through_pointer, &through_view)) {
                 Diagnostic(st->span, "parallel.memory",
                            "#parallel writes need an iteration-local binding");
                 return 0;
             }
-            if(through_pointer ||
+            int window = 0;
+            for(int w = 0; w < window_count; w++)
+                window |= strcmp(window_names[w], name) == 0;
+            view_writes |= window && through_view;
+            if(through_pointer || (through_view && !window) ||
                !region_declares(fn, scan, close + 1, name)) {
                 Diagnostic(st->span, "parallel.memory",
                            "#parallel writes need an iteration-local binding: %s",
@@ -1651,8 +1921,12 @@ check_parallel_region_in(const ZirProgram *program, const ZirModule *module,
             }
         }
     }
-    return slot_array_count == 0 ||
-           check_slot_writes(fn, while_index, close, binder, slot_arrays, slot_array_count, walk);
+    if(slot_array_count == 0 && window_count == 0)
+        return 1;
+    if(!check_slot_writes(fn, while_index, close, binder, slot_arrays, slot_array_count, walk))
+        return 0;
+    return check_windows(fn, while_index, close, window_sources, window_count, walk) &&
+           (!view_writes || check_view_writes(module, fn, while_index, close, scan, walk));
 }
 
 static int

@@ -4,12 +4,16 @@
 ### Added
 - Linux and Android hosts on x86-64, ARM and ARM64 run portable bundles as native code, compiled in memory and cached between launches.
 - Natively run bundles execute `#parallel for` regions on worker threads, one per processor.
-- `#parallel for` bodies can hand out results by writing their own slot of a fixed array the function owns, such as `out[it] = value`.
+- `#parallel for` bodies can hand out results by writing their own slot of an array or slice the function owns, such as `out[it] = value`, or their own window of a slice, such as the row `pixels[it * width : it * width + width]`.
+
+### Changed
+- Native builds run `#parallel for` regions on one thread per processor instead of four; `ZIRAN_PAR_THREADS` still chooses.
 
 ### Fixed
 - Bundles accept arrays of fixed arrays as function and host capability parameters.
 - `#parallel for` regions reject mutating, foreign and procedure-value calls nested inside larger expressions.
 - Native parallel workers see every binding their body reads, including parameters and fixed arrays.
+- `#parallel for` bodies can write into arrays they declare themselves.
 
 ## [0.3.1] - 2026-10-23
 ### Fixed

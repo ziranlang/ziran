@@ -1524,9 +1524,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `for`; source and saved IR build byte-identical bundles everywhere.
   The native C99 target executes forward regions on pthreads through
   `ziran_parallel.h`: each region becomes a file-scope worker over
-  contiguous index chunks with read-only captures passed by value, the
-  thread count comes from `ZIRAN_PAR_THREADS` (default 4, capped 64), and
-  files containing workers compile with `-pthread`. Reverse regions, the
+  contiguous index chunks that reaches captured fixed arrays through a
+  pointer and other captures by value, the thread count is the processor
+  count unless `ZIRAN_PAR_THREADS` chooses 1-64, and files containing
+  workers compile with `-pthread`. Natively run bundles use the engine's
+  worker pool. Reverse regions, the
   portable VM, and Go run serially with an emitted downgrade marker, as the
   backend-duties clause permits; region-leaving `return`/`break`/`continue`
   are rejected so no schedule can skip iterations. `#parallel_gpu for`

@@ -11,14 +11,23 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <pthread.h>
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* One worker per processor; ZIRAN_PAR_THREADS chooses 1-64. */
 static inline int ziran_parallel_threads(void)
 {
     long requested = 4;
+#if defined(_SC_NPROCESSORS_ONLN)
+    long online = sysconf(_SC_NPROCESSORS_ONLN);
+    if(online >= 1)
+        requested = online;
+#endif
     const char *from_env = getenv("ZIRAN_PAR_THREADS");
     if(from_env != NULL && from_env[0] != '\0') {
         long parsed = strtol(from_env, NULL, 10);
@@ -42,6 +51,16 @@ static inline void *ziran_parallel_entry(void *opaque)
     ziran_parallel_job *job = (ziran_parallel_job *)opaque;
     job->worker(job->low, job->high, job->context);
     return NULL;
+}
+
+/* Whether two byte ranges share storage: a region that writes through a
+ * slice runs in order when another slice, string or array it reads does. */
+static inline int ziran_parallel_overlap(const void *a, int64_t a_bytes,
+                                         const void *b, int64_t b_bytes)
+{
+    uintptr_t x = (uintptr_t)a, y = (uintptr_t)b;
+    return a_bytes > 0 && b_bytes > 0 && x < y + (uintptr_t)b_bytes &&
+           y < x + (uintptr_t)a_bytes;
 }
 
 static inline void ziran_parallel_run(

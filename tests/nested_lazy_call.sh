@@ -51,7 +51,7 @@ for input in "$work/calls.zi" "$work/ir/calls.zir"; do
         *.zi) suffix=source; root=$work ;;
         *) suffix=saved; root=$work/ir ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$suffix"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --entry calls:Answer \
@@ -70,16 +70,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c99 -pedantic-errors \
                 -I"$repo/include" -I"$out" "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --entry calls:Answer --root "$root" \
-                -o "$out" "$input"
-            cat > "$out/main.cpp" <<'CPP'
-#include "calls.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 \
-                -I"$repo/include" -I"$out" "$out"/*.cpp -o "$out/app"
             "$out/app"
         fi
     done

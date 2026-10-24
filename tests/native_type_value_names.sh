@@ -53,7 +53,7 @@ for input in source saved; do
     else root=$work/ir; file=$work/ir/app.zir; fi
     "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zx" "$file"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$input-$target
         "$ziran" build --target="$target" --root "$root" -o "$out" "$file"
         case "$target" in
@@ -64,15 +64,6 @@ for input in source saved; do
 int main(void) { return Answer() == 42 && Counter(41) == 42 && Amount(11) == 11 ? 0 : 1; }
 C
                 "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" "$out"/*.c -o "$out/program"
-                "$out/program"
-                ;;
-            cpp)
-                cat > "$out/driver.cpp" <<'CPP'
-#include "app.hpp"
-#include "procedures.hpp"
-int main() { return Answer() == 42 && Counter(41) == 42 && Amount(11) == 11 ? 0 : 1; }
-CPP
-                "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" "$out"/*.cpp -o "$out/program"
                 "$out/program"
                 ;;
             go)
@@ -89,4 +80,4 @@ GO
     done
 done
 cmp "$work/source.zx" "$work/saved.zx"
-echo 'Native type/value names passed unpruned C/C++/Go source and saved IR; exported C ABI and portable bundle agree'
+echo 'Native type/value names passed unpruned C/Go source and saved IR; exported C ABI and portable bundle agree'

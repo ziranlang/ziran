@@ -34,9 +34,6 @@ test "$("$ziran" run "$work/source.zx")" = 42
 "$tool_dir/zi2c" --no-main --root "$work" -o "$work/c" "$work/slots.zi"
 cc -std=c11 -fsyntax-only -I"$project_dir/include" -I"$work/c" \
     "$work/c/slots.c"
-"$tool_dir/zi2cpp" --no-main --root "$work" -o "$work/cpp" "$work/slots.zi"
-c++ -std=c++17 -fsyntax-only -I"$project_dir/include" -I"$work/cpp" \
-    "$work/cpp/slots.cpp"
 
 cat > "$work/native_slots.zi" <<'EOF'
 Record :: struct {
@@ -101,15 +98,3 @@ EOF
     "$work/native-c/native_slots.c" "$work/native-c/main.c" \
     -o "$work/native-c/app"
 "$work/native-c/app"
-"$tool_dir/zi2cpp" --no-main --root "$work" -o "$work/native-cpp" \
-    "$work/native_slots.zi"
-"${CXX:-c++}" -std=c++17 -fsyntax-only -I"$project_dir/include" \
-    -I"$work/native-cpp" "$work/native-cpp/native_slots.cpp"
-cat > "$work/native-cpp/main.cpp" <<'EOF'
-#include "native_slots.hpp"
-int main() { return NativeAnswer() == 42 ? 0 : 1; }
-EOF
-"${CXX:-c++}" -std=c++17 -I"$project_dir/include" \
-    -I"$work/native-cpp" "$work/native-cpp/native_slots.cpp" \
-    "$work/native-cpp/main.cpp" -o "$work/native-cpp/app"
-"$work/native-cpp/app"

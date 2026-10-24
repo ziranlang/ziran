@@ -149,7 +149,7 @@ Before execution, the loader validates the format version, section bounds,
 symbols, entry point, and capability contract. Missing symbols, unsupported
 versions, malformed bundles, and unavailable required capabilities fail with
 diagnostics. A portable bundle cannot contain an undeclared dependency on
-target-specific C, C++, or Go code. Hosts may implement the declared
+target-specific C or Go code. Hosts may implement the declared
 capability interfaces with native libraries.
 
 ## Embedded files and application hosts
@@ -173,8 +173,8 @@ for file access and enumeration of the exact required capability names.
 through the same reader and verifier, without requiring an application file
 path. The caller may release the input bytes after opening the bundle. Unix,
 Android (including API 21) and Web hosts read the input and embedded IR through
-read-only memory streams; loading needs no temporary directory. Windows and
-Plan 9 hosts use seekable temporary streams.
+read-only memory streams; loading needs no temporary directory. Windows hosts
+use seekable temporary streams.
 
 Kryon's reusable desktop player supplies rendering and input to a ZX instance;
 the application's widgets and state run inside the VM. A downloaded graphical

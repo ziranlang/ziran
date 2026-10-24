@@ -101,10 +101,8 @@ for input in source saved; do
         -o "$work/$input.zx" "$@"
     test "$("$ziran" run "$work/$input.zx")" = 42
     c_out="$work/c-$input"
-    cpp_out="$work/cpp-$input"
     go_out="$work/go-$input"
     "$ziran" build --target=c --root "$work" -o "$c_out" "$@"
-    "$ziran" build --target=cpp --root "$work" -o "$cpp_out" "$@"
     "$ziran" build --target=go --pkg main \
         --root "$work" -o "$go_out" "$@"
 
@@ -116,15 +114,6 @@ C
         "$c_out/slotlib.c" "$c_out/slotapp.c" "$c_out/main.c" \
         -o "$c_out/app"
     "$c_out/app"
-
-    cat > "$cpp_out/main.cpp" <<'CPP'
-#include "slotapp.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-    "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$cpp_out" \
-        "$cpp_out/slotlib.cpp" "$cpp_out/slotapp.cpp" \
-        "$cpp_out/main.cpp" -o "$cpp_out/app"
-    "$cpp_out/app"
 
     cat > "$go_out/main.go" <<'GO'
 package main
@@ -187,7 +176,7 @@ for bad in wrong_callback missing_callback wrong_record wrong_return; do
         echo "invalid procedure call entered a bundle: $bad" >&2
         exit 1
     fi
-    for target in c cpp go; do
+    for target in c go; do
         if "$ziran" build --target="$target" --root "$work" \
             -o "$work/$bad-$target" "$work/$bad.zi" \
             > "$work/$bad.out" 2>&1; then

@@ -17,7 +17,7 @@
 static void
 usage(void)
 {
-    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|cpp|go|rust|py|zx|plan9-c] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ...");
+    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|go|py|zx] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ...");
 }
 
 static int
@@ -141,23 +141,13 @@ main(int argc, char **argv)
         usage();
         return 1;
     }
-    if(target != NULL && !strcmp(target, "plan9-c")) {
-        if(define_count == 64) {
-            Diagnostic(Span("<command>", 1, 1), "zir.validation",
-                       "no define slot left for the Plan 9 target");
-            return 1;
-        }
-        defines[define_count++] = "PLAN9";
-    }
     /* Explicit native IR freezes the same adapters as a source build.
-     * Untargeted IR remains portable; web and Plan 9 selectors opt out. */
-    int posix_threads = target != NULL &&
-        (!strcmp(target, "c") || !strcmp(target, "cpp"));
+     * Untargeted IR remains portable; the web selector opts out. */
+    int posix_threads = target != NULL && !strcmp(target, "c");
     int threads_defined = 0;
     for(int d = 0; d < define_count; d++) {
         threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
-        if(!strcmp(defines[d], "PLATFORM_WEB") ||
-           !strcmp(defines[d], "PLAN9"))
+        if(!strcmp(defines[d], "PLATFORM_WEB"))
             posix_threads = 0;
     }
     if(posix_threads && !threads_defined) {

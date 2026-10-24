@@ -166,52 +166,37 @@ for form in source saved; do
     if test "$form" = saved; then root=$work/ir; input=$root/blocks.zir; fi
     "$ziran" bundle --root "$root" --entry blocks:Answer -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c cpp; do
-        output=$work/$form-$target
-        "$ziran" build --target="$target" --root "$root" -o "$output" "$input"
-        compiler=${CC:-cc}; suffix=c; standard=c11
-        if test "$target" = cpp; then
-            compiler=${CXX:-c++}; suffix=cpp; standard=c++17
-            sed 's/"blocks.h"/"blocks.hpp"/' "$work/host.c" > "$work/host.cpp"
-        fi
-        for optimization in 0 2; do
-            for mode in native missing disabled; do
-                set --
-                if test "$mode" = missing; then set -- -include "$work/missing.h"; fi
-                if test "$mode" = disabled; then set -- -DZIRAN_NO_ASM; fi
-                isa_flags=
-                if test "$(uname -m)" = x86_64; then isa_flags='-march=x86-64 -mno-popcnt -mno-avx'; fi
-                "$compiler" -std="$standard" -O"$optimization" $isa_flags "$@" -I"$repo/include" -I"$output" \
-                    "$output/blocks.$suffix" "$work/host.$suffix" -pthread -o "$output/run"
-                "$output/run"
-            done
+    output=$work/$form-c
+    "$ziran" build --target=c --root "$root" -o "$output" "$input"
+    compiler=${CC:-cc}; suffix=c; standard=c11
+    for optimization in 0 2; do
+        for mode in native missing disabled; do
+            set --
+            if test "$mode" = missing; then set -- -include "$work/missing.h"; fi
+            if test "$mode" = disabled; then set -- -DZIRAN_NO_ASM; fi
+            isa_flags=
+            if test "$(uname -m)" = x86_64; then isa_flags='-march=x86-64 -mno-popcnt -mno-avx'; fi
+            "$compiler" -std="$standard" -O"$optimization" $isa_flags "$@" -I"$repo/include" -I"$output" \
+                "$output/blocks.$suffix" "$work/host.$suffix" -pthread -o "$output/run"
+            "$output/run"
         done
-        if test -n "${ANDROID_NDK_HOME:-}"; then
-            tool=clang
-            if test "$target" = cpp; then tool=clang++; fi
-            for triple in aarch64-linux-android24 armv7a-linux-androideabi24 x86_64-linux-android24 i686-linux-android24; do
-                "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/$triple-$tool" \
-                    -std="$standard" -O2 -I"$repo/include" -I"$output" \
-                    "$output/blocks.$suffix" "$work/host.$suffix" -pthread -o "$output/$triple"
-            done
-        fi
     done
-    "$ziran" build --target=plan9-c --root "$root" -o "$work/$form-plan9" "$input"
-    if rg -q '__asm__|__builtin_cpu|__atomic|target\("' "$work/$form-plan9"/*.c; then
-        echo 'native assembly leaked into Plan 9 output' >&2;exit 1
+    if test -n "${ANDROID_NDK_HOME:-}"; then
+        tool=clang
+        for triple in aarch64-linux-android24 armv7a-linux-androideabi24 x86_64-linux-android24 i686-linux-android24; do
+            "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/$triple-$tool" \
+                -std="$standard" -O2 -I"$repo/include" -I"$output" \
+                "$output/blocks.$suffix" "$work/host.$suffix" -pthread -o "$output/$triple"
+        done
     fi
     "$ziran" build --target=go --pkg main --root "$root" -o "$work/$form-go" "$input"
     printf 'package main\nfunc main() { if Blocks_Answer() != 42 { panic("assembly fallback") } }\n' > "$work/$form-go/main.go"
     (cd "$work/$form-go" && GO111MODULE=off go build -o run . && ./run)
     "$ziran" build --target=py --root "$root" -o "$work/$form-py" "$input"
     (cd "$work/$form-py" && python3 -c 'import runpy; assert runpy.run_path("__init__.py")["Answer"]()==42')
-    "$ziran" build --target=rust --root "$root" -o "$work/$form-rust" "$input"
-    printf 'fn main() { assert_eq!(ziran_generated::Answer(), 42); }\n' > "$work/$form-rust/src/main.rs"
-    cargo run --quiet --offline --manifest-path "$work/$form-rust/Cargo.toml"
 done
 cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source-c/blocks.c" "$work/saved-c/blocks.c"
-cmp "$work/source-cpp/blocks.cpp" "$work/saved-cpp/blocks.cpp"
 
 # A native payload cannot disagree with the statement it accompanies, and
 # changing both copies still requires a real lexical binding.
@@ -317,11 +302,9 @@ PY
 for form in source saved; do
     root=$work; input=$work/limit.zi
     if test "$form" = saved; then root=$work/limit-ir; input=$root/limit.zir; fi
-    for target in c cpp; do
-        if "$ziran" build --target="$target" --root "$root" -o "$work/limit-$target" "$input" > "$work/limit.log" 2>&1; then
-            echo 'native parallel capture limit was ignored' >&2;exit 1
-        fi
-        grep -Fq 'exceeds 16 captured bindings' "$work/limit.log"
-    done
+    if "$ziran" build --target=c --root "$root" -o "$work/limit-c" "$input" > "$work/limit.log" 2>&1; then
+        echo 'native parallel capture limit was ignored' >&2;exit 1
+    fi
+    grep -Fq 'exceeds 16 captured bindings' "$work/limit.log"
 done
 echo 'Assembly blocks preserve typed local operands, CPU selection and portable fallbacks'

@@ -77,7 +77,7 @@ for input in source ir; do
     else
         filename="$work/ir/multiline.zir"
     fi
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$work" \
@@ -96,16 +96,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             ${CC:-cc} -Iinclude -I"$output" "$output/multiline.c" \
                 "$output/main.c" -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --root "$work" \
-                -o "$output" "$filename"
-            cat > "$output/main.cpp" <<'CPP'
-#include "multiline.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            ${CXX:-c++} -Iinclude -I"$output" "$output/multiline.cpp" \
-                "$output/main.cpp" -o "$output/app"
             "$output/app"
         fi
     done

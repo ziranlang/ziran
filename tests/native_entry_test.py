@@ -8,13 +8,13 @@ import sys
 
 ziran, work = (Path(arg).resolve() for arg in sys.argv[1:])
 repo = Path(__file__).resolve().parents[1]
-compilers = {'c': shutil.which(os.environ.get('CC', 'cc')),
-             'cpp': shutil.which(os.environ.get('CXX', 'c++'))}
+compilers = {'c': shutil.which(os.environ.get('CC', 'cc'))}
+# C++ hosts include generated C headers.
+cxx = shutil.which(os.environ.get('CXX', 'c++'))
 # Match web_bridge.sh: the installed SDK need not be on PATH.
 emcc = Path(os.environ.get('EMCC', Path.home()/'emsdk/upstream/emscripten/emcc'))
 web_c = str(emcc) if emcc.is_file() and os.access(emcc, os.X_OK) else shutil.which('emcc')
-emxx = Path(web_c).with_name('em++') if web_c else None
-web_compilers = {'c': web_c, 'cpp': str(emxx) if emxx and emxx.is_file() and os.access(emxx, os.X_OK) else shutil.which('em++')}
+web_compilers = {'c': web_c}
 
 def run(command, *, answer=0, text=None):
     result = subprocess.run([str(part) for part in command], capture_output=True, text=True, timeout=30)
@@ -111,11 +111,11 @@ for name, (source, answer, output) in cases.items():
             run([ziran, 'run', bundle], text='4294967338\n' if name == 'wide' else '42\n')
         for target, compiler in compilers.items():
             out = folder/(target+'-'+form)
-            suffix, header, standard = ('c', 'h', 'c11') if target == 'c' else ('cpp', 'hpp', 'c++17')
+            suffix, header, standard = 'c', 'h', 'c11'
             run([ziran, 'build', '--target='+target, '--root', root, '-o', out, input_file])
             generated = out/(module+'.'+suffix)
-            flags = ['-std='+standard, '-O2', '-Werror=main', '-I'+str(repo/'include'), '-I'+str(out)]
-            if target == 'c': flags += ['-Werror=incompatible-pointer-types']
+            flags = ['-std='+standard, '-O2', '-Werror=main', '-Werror=incompatible-pointer-types',
+                     '-I'+str(repo/'include'), '-I'+str(out)]
             host = folder/('host.'+suffix)
             sources = [generated]
             if name in ['renamed', 'renamedvoid']:
@@ -133,7 +133,7 @@ for name, (source, answer, output) in cases.items():
                 tools = Path(os.environ['ANDROID_NDK_HOME'])/'toolchains/llvm/prebuilt/linux-x86_64/bin'
                 for triple in ['aarch64-linux-android24', 'armv7a-linux-androideabi24',
                                'x86_64-linux-android24', 'i686-linux-android24']:
-                    cross = tools/(triple+('-clang' if target == 'c' else '-clang++'))
+                    cross = tools/(triple+'-clang')
                     run([cross, *flags, generated, '-o', out/(triple+'.elf')])
                     cross_linked += 1
             if form == 'source' and name in ['unsigned', 'assembly']:
@@ -155,15 +155,13 @@ for name, (source, answer, output) in cases.items():
                 host.write_text('#include "'+module+'.'+header+'"\nint main(int argc, char **argv) { (void)argc; (void)argv; return Probe() == '+expected+' ? 0 : 1; }\n')
                 run([compiler, *flags, out/'body.o', host, '-o', out/'probe'])
                 run([out/'probe'])
-                if target == 'c':
-                    cpp_host = host.with_suffix('.cpp')
-                    cpp_host.write_bytes(host.read_bytes())
-                    run([compilers['cpp'], '-std=c++17', '-O2', '-I'+str(repo/'include'), '-I'+str(out), out/'body.o', cpp_host, '-o', out/'cpp-probe'])
-                    run([out/'cpp-probe'])
-    for target, suffix in [('c', 'c'), ('cpp', 'cpp')]:
-        assert (folder/(target+'-source')/(module+'.'+suffix)).read_bytes() == (folder/(target+'-saved')/(module+'.'+suffix)).read_bytes()
+                cpp_host = host.with_suffix('.cpp')
+                cpp_host.write_bytes(host.read_bytes())
+                run([cxx, '-std=c++17', '-O2', '-I'+str(repo/'include'), '-I'+str(out), out/'body.o', cpp_host, '-o', out/'cpp-probe'])
+                run([out/'cpp-probe'])
+    assert (folder/'c-source'/(module+'.c')).read_bytes() == (folder/'c-saved'/(module+'.c')).read_bytes()
 
-# Invalid native boundaries fail in the compiler, not in the downstream C/C++
+# Invalid native boundaries fail in the compiler, not in the downstream C
 # compiler. Their ordinary portable procedure signatures remain legal.
 bad_cases = ['main :: () -> string { return "text" }',
              'main :: (argc: string, argv: **u8) -> s32 { return 0 }',
@@ -173,11 +171,10 @@ for index, text in enumerate(bad_cases):
     source = work/f'bad{index}.zi'
     source.write_text('#program_export\n'+text+'\n')
     run([ziran, 'check', '--root', work, source])
-    for target in ['c', 'cpp']:
-        result = subprocess.run([str(ziran), 'build', '--target='+target, '--diagnostics=json',
-                                 '--root', str(work), '-o', str(work/'bad-output'), str(source)],
-                                capture_output=True, text=True, timeout=30)
-        assert result.returncode != 0, result.stdout
-        items = [json.loads(line) for line in result.stderr.splitlines()]
-        assert any(item['capability'] == 'entry.signature' for item in items), items
-print(f'Native C/C++ entries preserve typed bodies, argument bytes, status, exports, assembly fallback and saved IR ({compiled} executables, {cross_linked} Android cross-links, {web_executed} WebAssembly executions)')
+    result = subprocess.run([str(ziran), 'build', '--target=c', '--diagnostics=json',
+                             '--root', str(work), '-o', str(work/'bad-output'), str(source)],
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode != 0, result.stdout
+    items = [json.loads(line) for line in result.stderr.splitlines()]
+    assert any(item['capability'] == 'entry.signature' for item in items), items
+print(f'Native C entries preserve typed bodies, argument bytes, status, exports, assembly fallback and saved IR ({compiled} executables, {cross_linked} Android cross-links, {web_executed} WebAssembly executions)')

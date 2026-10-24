@@ -22,7 +22,7 @@ for form in source saved; do
         input=$work/ir/sequence_header_test.zir
         root=$work/ir
     fi
-    for target in py c cpp; do
+    for target in py c; do
         output=$work/$form-$target
         if test "$target" = py; then
             LDLIBS="-l:$exact_library" "$ziran" build --target=py --root "$root" \
@@ -30,17 +30,12 @@ for form in source saved; do
                 --exe -o "$output" "$input"
             python3 "$output"
         else
-            "$ziran" build --target="$target" --root "$root" --module-path "$project_dir/std" \
+            "$ziran" build --target=c --root "$root" --module-path "$project_dir/std" \
                 --entry sequence_header_test:Main --no-main -o "$output" "$input"
-            if test "$target" = c; then
-                compiler=${CC:-cc}; extension=c; header=h; standard=c11
-            else
-                compiler=${CXX:-c++}; extension=cpp; header=hpp; standard=c++17
-            fi
-            printf '#include "sequence_header_test.%s"\nint main(void) { return (int)sequence_header_test_Main(); }\n' \
-                "$header" > "$output/driver.$extension"
-            "$compiler" -O2 -std="$standard" -I"$project_dir/include" -I"$output" \
-                "$output"/*."$extension" -o "$output/probe" -lm
+            printf '#include "sequence_header_test.h"\nint main(void) { return (int)sequence_header_test_Main(); }\n' \
+                > "$output/driver.c"
+            "${CC:-cc}" -O2 -std=c11 -I"$project_dir/include" -I"$output" \
+                "$output"/*.c -o "$output/probe" -lm
             "$output/probe"
         fi
         echo "$form $target sequence headers passed"

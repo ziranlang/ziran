@@ -102,28 +102,6 @@ C
         -o "$output/c/test"
     env -u DISPLAY -u WAYLAND_DISPLAY "$output/c/test"
 
-    "$bin/zi2cpp" --no-main --root "$root" -o "$output/cpp" "$file"
-    cat > "$output/cpp/main.cpp" <<'CPP'
-#include "read.hpp"
-int main() {
-    Node node = {};
-    int32_t reads = 0;
-    return Write(&node, 20) == 41 && Read(&node) == 41 &&
-           WriteForward(&node, 23) == 23 && node.value == 23 &&
-           node.child.value == 21 && BorrowArray(&node) == 42 &&
-           node.values[1] == 42 &&
-           ReadIndexed(&node.values[0], 1) == 42 &&
-           WriteIndexed(&node.values[0], 2, 37) == 37 &&
-           node.values[2] == 37 &&
-           ReadNextIndex(&node.values[0], &reads) == 42 && reads == 1 &&
-           ReadIndexed(&node.values[0], 4) == -1 ? 0 : 1;
-}
-CPP
-    "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output/cpp" \
-        "$output/cpp/read.cpp" "$output/cpp/main.cpp" \
-        -o "$output/cpp/test"
-    env -u DISPLAY -u WAYLAND_DISPLAY "$output/cpp/test"
-
     "$bin/zi2go" --no-main --root "$root" -o "$output/go" "$file"
     cat > "$output/go/read_test.go" <<'GO'
 package ziran

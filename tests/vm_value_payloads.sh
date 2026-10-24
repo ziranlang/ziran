@@ -18,7 +18,7 @@ for form in source saved; do
     "$ziran" bundle --root "$root" --entry vm_value_payloads_test:Answer \
         -o "$work/$form.zx" "$module"
     "$work/vm-test" "$work/$form.zx"
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$form"
         "$ziran" build --target="$target" --root "$root" -o "$output" "$module"
         if test "$target" = go; then
@@ -42,13 +42,8 @@ func TestPayloads(t *testing.T) {
 GO
             GO111MODULE=off go test "$output"/*.go
         else
-            cat > "$output/main.$target" <<'C'
-#ifdef __cplusplus
-#include "vm_value_payloads_test.hpp"
-extern "C" {
-#else
+            cat > "$output/main.c" <<'C'
 #include "vm_value_payloads_test.h"
-#endif
 static int handle;
 void *Handle(void) { return &handle; }
 Payload RoundTrip(int64_t number, uint64_t wide, double real, String text, Tone tone, void *pointer) {
@@ -60,16 +55,9 @@ int32_t Inspect(Slice values) {
     items[0].wide = 9; items[0].real = 3.5; items[0].text = StringView("changed", 7);
     return 42;
 }
-#ifdef __cplusplus
-}
-#endif
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
-            if test "$target" = c; then
-                "${CC:-cc}" -std=c11 -I"$output" -I"$repo/include" "$output"/*.c -o "$output/app"
-            else
-                "${CXX:-c++}" -std=c++17 -I"$output" -I"$repo/include" "$output"/*.cpp -o "$output/app"
-            fi
+            "${CC:-cc}" -std=c11 -I"$output" -I"$repo/include" "$output"/*.c -o "$output/app"
             "$output/app"
         fi
     done

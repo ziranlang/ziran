@@ -104,7 +104,7 @@ typedef struct Emitter {
     /* Set for a Go declaration whose value already has the declared type,
      * so it can read name := value. */
     int short_declaration;
-    /* Set by a C or C++ declaration whose initializer is a record or array
+    /* Set by a C declaration whose initializer is a record or array
      * value, which may then be written as a brace list. */
     int braced_initializer;
 } Emitter;
@@ -158,7 +158,6 @@ typedef struct ParallelRegion {
  * object and localizes these hidden symbols, so they never leave it. */
 #pragma GCC visibility push(hidden)
 extern int zir_minify_output;
-extern int zir_native_operand_temporaries;
 int format(char *out, size_t size, const char *format_string, ...);
 int function_mentions(const ZirFunction *fn, const char *name);
 const char *canonical(const char *type);

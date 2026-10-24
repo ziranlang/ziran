@@ -5,11 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#ifdef __cplusplus
-#include "thread_linux_test.hpp"
-#else
 #include "thread_linux_test.h"
-#endif
 
 static pthread_mutex_t gate = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t changed = PTHREAD_COND_INITIALIZER;

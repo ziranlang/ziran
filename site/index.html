@@ -11,7 +11,7 @@
     }
   </script>
   <meta name="theme-color" content="#f7f3eb">
-  <meta name="description" content="Ziran is an experimental, open-source programming language. Write checked .zi programs, build C, C++, Go, Rust, or Python output, and run supported portable bundles.">
+  <meta name="description" content="Ziran is an experimental, open-source programming language. Write checked .zi programs, build C, Go, or Python output, and run supported portable bundles.">
   <title>Ziran — Build useful software</title>
   <link rel="canonical" href="https://ziran-lang.org/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -39,7 +39,7 @@
       <div class="hero-copy">
         <div class="hero-kicker"><p class="eyebrow">Open source programming language</p><a class="release-badge" href="status.html"><span aria-hidden="true"></span>Experimental</a></div>
         <h1>Build useful software with <em>Ziran.</em></h1>
-        <p class="hero-lead">Write clear <code>.zi</code> programs, check them before they run, and choose C, C++, Go, Rust, or Python output, or a portable bundle.</p>
+        <p class="hero-lead">Write clear <code>.zi</code> programs, check them before they run, and choose C, Go, or Python output, or a portable bundle.</p>
         <div class="actions"><a class="btn btn-primary" href="get-started.html">Get started <span aria-hidden="true">→</span></a><a class="btn" href="examples.html">See examples <span aria-hidden="true">↗</span></a></div>
         <ul class="hero-points"><li>Readable source</li><li>Build-time laws</li><li><a href="std.html">Standard library</a></li></ul>
         <p class="hero-note">Latest release: <a href="https://github.com/ziranlang/ziran/releases/tag/v0.3.1">v0.3.1</a>. Build from source today. <a href="status.html">See current support</a>.</p>
@@ -100,7 +100,7 @@
 
     <section class="target-strip" aria-label="Supported output choices">
       <p>One source.<br><strong>Your choice of output.</strong></p>
-      <ul><li>C</li><li>C++</li><li>Go</li><li>Rust</li><li>Python</li><li class="portable-target">.zx <span>portable</span></li></ul>
+      <ul><li>C</li><li>Go</li><li>Python</li><li class="portable-target">.zx <span>portable</span></li></ul>
       <a href="status.html">See coverage <span aria-hidden="true">↗</span></a>
     </section>
 
@@ -109,7 +109,7 @@
       <div class="feature-grid">
         <article><div class="feature-top"><span class="feature-number">01 / Write</span><span class="feature-icon" aria-hidden="true">{ }</span></div><h3>Write readable code</h3><p>Give data a shape with records and enums. Connect procedures, generics, arrays, and borrowed slices with explicit imports.</p><div class="feature-preview" aria-hidden="true"><code><span>main</span> :: () {<br>&nbsp; print(<b>"Hello, World!"</b>);<br>}</code></div><a href="language.html">Explore the language <span aria-hidden="true">↗</span></a></article>
         <article><div class="feature-top"><span class="feature-number">02 / Check</span><span class="feature-icon" aria-hidden="true">✓</span></div><h3>Check before building</h3><p>Catch unsupported forms and prove <code>#law</code> obligations at build time. Get a counterexample when a law fails.</p><div class="feature-preview law-preview" aria-hidden="true"><span class="law-symbol">✓</span><div><code>#law</code><span>Proved at build time</span></div></div><a href="api.html#toolchain">Explore the tools <span aria-hidden="true">↗</span></a></article>
-        <article><div class="feature-top"><span class="feature-number">03 / Build</span><span class="feature-icon" aria-hidden="true">↗</span></div><h3>Choose an output</h3><p>Generate readable native output or package the portable subset as a <code>.zx</code> bundle. Inspect each step along the way.</p><div class="feature-preview build-preview" aria-hidden="true"><code>.zi</code><span>→</span><div><code>C · C++ · Go</code><code>Rust · Python · .zx</code></div></div><a href="status.html">Check target coverage <span aria-hidden="true">↗</span></a></article>
+        <article><div class="feature-top"><span class="feature-number">03 / Build</span><span class="feature-icon" aria-hidden="true">↗</span></div><h3>Choose an output</h3><p>Generate readable native output or package the portable subset as a <code>.zx</code> bundle. Inspect each step along the way.</p><div class="feature-preview build-preview" aria-hidden="true"><code>.zi</code><span>→</span><div><code>C · Go</code><code>Python · .zx</code></div></div><a href="status.html">Check target coverage <span aria-hidden="true">↗</span></a></article>
       </div>
     </section>
 
@@ -118,7 +118,7 @@
       <div class="use-grid">
         <article class="use-card"><div class="use-visual record-visual" aria-hidden="true"><div><small>Score</small><code>value <b class="record-value">40</b></code><code>bonus <b class="record-bonus">2</b></code></div><span>→</span><output class="record-total">42</output></div><span>01 / Language</span><strong>Records and procedures</strong><p>Change the fields and see their total.</p><div class="diagram-controls record-controls" hidden><label>Value<input class="record-value-input" type="number" value="40" min="-999" max="999" step="1"></label><label>Bonus<input class="record-bonus-input" type="number" value="2" min="-999" max="999" step="1"></label><output class="record-summary" aria-live="polite">40 + 2 = 42</output></div><button class="diagram-edit" type="button" data-example="score" hidden>Open in editor <span aria-hidden="true">↗</span></button><a href="examples.html#score">See example <span aria-hidden="true">↗</span></a></article>
         <article class="use-card"><div class="use-visual text-visual" aria-hidden="true"><code class="text-preview"><b>Zi</b>ran</code><span class="text-match"><i>✓</i> Prefix matched</span></div><span>02 / Library</span><strong>Text processing</strong><p>Try a prefix with ASCII case folding.</p><div class="diagram-controls text-controls" hidden><label>Text<input class="text-value-input" type="text" value="Ziran" maxlength="40" spellcheck="false"></label><label>Prefix<input class="text-prefix-input" type="text" value="zi" maxlength="40" spellcheck="false"></label><output class="text-summary" aria-live="polite">Prefix matched</output></div><button class="diagram-edit" type="button" data-example="text" hidden>Open in editor <span aria-hidden="true">↗</span></button><a href="examples.html#text-demo">See example <span aria-hidden="true">↗</span></a></article>
-        <article class="use-card"><div class="use-visual native-visual" aria-hidden="true"><code>source.zi</code><span>↓</span><div><code data-target="c" class="is-selected">C</code><code data-target="cpp">C++</code><code data-target="go">Go</code><code data-target="rust">Rust</code><code data-target="py">Python</code></div></div><span>03 / Toolchain</span><strong>Native output</strong><p>Choose a target to see its build command.</p><div class="diagram-controls target-controls" hidden><label>Output<select class="target-select"><option value="c">C</option><option value="go">Go</option><option value="rust">Rust</option><option value="cpp">C++</option><option value="py">Python</option></select></label><output class="target-summary" aria-live="polite">Generate C output</output><pre class="target-command"><code>ziran build --target=c --root . -o out/c source.zi</code></pre></div><a href="examples.html#targets">See commands <span aria-hidden="true">↗</span></a></article>
+        <article class="use-card"><div class="use-visual native-visual" aria-hidden="true"><code>source.zi</code><span>↓</span><div><code data-target="c" class="is-selected">C</code><code data-target="go">Go</code><code data-target="py">Python</code></div></div><span>03 / Toolchain</span><strong>Native output</strong><p>Choose a target to see its build command.</p><div class="diagram-controls target-controls" hidden><label>Output<select class="target-select"><option value="c">C</option><option value="go">Go</option><option value="py">Python</option></select></label><output class="target-summary" aria-live="polite">Generate C output</output><pre class="target-command"><code>ziran build --target=c --root . -o out/c source.zi</code></pre></div><a href="examples.html#targets">See commands <span aria-hidden="true">↗</span></a></article>
       </div>
     </section>
 

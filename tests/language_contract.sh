@@ -263,10 +263,8 @@ for extension in zi zir; do
         inputs="$work/scope-ir/scoped.zir $work/scope-ir/scoped_client.zir"
     fi
     out=$work/scope-c-$extension
-    cpp_out=$work/scope-cpp-$extension
     # The fixture paths contain no spaces; split this two-file list deliberately.
     "$ziran" build --target=c --root "$work" -o "$out" $inputs
-    "$ziran" build --target=cpp --root "$work" -o "$cpp_out" $inputs
     if grep -Fq 'Hidden(' "$out/scoped.h" ||
        grep -Fq 'increment' "$out/scoped.h"; then
         echo 'private scope leaked into generated header' >&2
@@ -288,23 +286,6 @@ EOF
     ${CC:-cc} -std=c11 -I"$repo/include" -I"$out" \
         "$out/scoped.c" "$out/scoped_client.c" "$out/main.c" -o "$out/app"
     "$out/app"
-    ${CXX:-c++} -E -x c++ -I"$repo/include" -I"$cpp_out" \
-        "$cpp_out/scoped.hpp" > "$cpp_out/public.ii"
-    ${CXX:-c++} -dM -E -x c++ -I"$repo/include" -I"$cpp_out" \
-        "$cpp_out/scoped.hpp" > "$cpp_out/public_macros.ii"
-    if grep -Fq 'HiddenRecord' "$cpp_out/public.ii" ||
-       grep -Fq '#define HIDDEN ' "$cpp_out/public_macros.ii"; then
-        echo 'private declaration leaked into generated C++ header' >&2
-        exit 1
-    fi
-    cat > "$cpp_out/main.cpp" <<'EOF'
-#include "scoped_client.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-EOF
-    ${CXX:-c++} -std=c++17 -I"$repo/include" -I"$cpp_out" \
-        "$cpp_out/scoped.cpp" "$cpp_out/scoped_client.cpp" \
-        "$cpp_out/main.cpp" -o "$cpp_out/app"
-    "$cpp_out/app"
 done
 
 cat > "$work/foreign_c.zi" <<'EOF'
@@ -319,9 +300,7 @@ EOF
 for input in "$work/foreign_c.zi" "$work/foreign-ir/foreign_c.zir"; do
     kind=$(basename "$input")
     c_out=$work/foreign-c-$kind
-    cpp_out=$work/foreign-cpp-$kind
     "$ziran" build --target=c --root "$work" -o "$c_out" "$input"
-    "$ziran" build --target=cpp --root "$work" -o "$cpp_out" "$input"
     cat > "$c_out/main.c" <<'EOF'
 #include "foreign_c.h"
 int main(void) { return Answer() == 42 ? 0 : 1; }
@@ -329,24 +308,14 @@ EOF
     ${CC:-cc} -std=c11 -I"$repo/include" -I"$c_out" \
         "$c_out/foreign_c.c" "$c_out/main.c" -o "$c_out/app"
     "$c_out/app"
-    cat > "$cpp_out/main.cpp" <<'EOF'
-#include "foreign_c.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-EOF
-    ${CXX:-c++} -std=c++17 -I"$repo/include" -I"$cpp_out" \
-        "$cpp_out/foreign_c.cpp" "$cpp_out/main.cpp" -o "$cpp_out/app"
-    "$cpp_out/app"
 done
 
 for input in "$source" "$work/ir/language_contract.zir"; do
     kind=$(basename "$input")
     c_out=$work/c-$kind
-    cpp_out=$work/cpp-$kind
     go_out=$work/go-$kind
     "$ziran" build --target=c --root "$repo/tests/spec" \
         -o "$c_out" "$input"
-    "$ziran" build --target=cpp --root "$repo/tests/spec" \
-        -o "$cpp_out" "$input"
     "$ziran" build --target=go --pkg main \
         --root "$repo/tests/spec" -o "$go_out" "$input"
 
@@ -357,15 +326,6 @@ EOF
     ${CC:-cc} -std=c11 -I"$repo/include" -I"$c_out" \
         "$c_out/language_contract.c" "$c_out/main.c" -o "$c_out/app"
     "$c_out/app"
-
-    cat > "$cpp_out/main.cpp" <<'EOF'
-#include "language_contract.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-EOF
-    ${CXX:-c++} -std=c++17 -I"$repo/include" -I"$cpp_out" \
-        "$cpp_out/language_contract.cpp" "$cpp_out/main.cpp" \
-        -o "$cpp_out/app"
-    "$cpp_out/app"
 
     cat > "$go_out/main.go" <<'EOF'
 package main

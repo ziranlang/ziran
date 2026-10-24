@@ -437,8 +437,7 @@ zero_record(Emitter *e, const char *type, char *out, size_t size)
             format(out, size, "%s{}", target_type);
         return;
     }
-    copy_text(out, size, e->target == ZIR_CPP ||
-              TypeHasZeroArray(e->module, type) ? "{}" : "{0}");
+    copy_text(out, size, TypeHasZeroArray(e->module, type) ? "{}" : "{0}");
 }
 
 /* Whether a condition lowers without statements of its own, so it can sit
@@ -898,7 +897,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                                   sizeof(binding));
                 line(e, "_ = %s", binding);
             }
-            if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+            if(e->target == ZIR_C &&
                TypeHasZeroArray(e->module, st->type)) {
                 /* Counts and null data views can fold away every runtime use
                  * of zero-storage arrays, including nested array shapes. */
@@ -956,7 +955,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             if(st->expr_root >= 0) {
                 e->call_in_place = 1;
                 emit_expr(e, st->expr_root, e->fn->return_type, buffers->value, sizeof(buffers->value));
-                if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+                if(e->target == ZIR_C &&
                    ArrayElementType(e->fn->return_type, NULL, 0, NULL)) {
                     char output[ZIR_NAME_MAX];
                     ArrayAbiName(e->fn, -1, output, sizeof(output));
@@ -993,7 +992,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 line(e, st->is_gpu ?
                     "// ziran: #parallel_gpu region downgraded to serial (no GPU device)" :
                     "// ziran: #parallel region downgraded to serial");
-            if(st->is_parallel && (e->target==ZIR_C || e->target==ZIR_CPP)) {
+            if(st->is_parallel && e->target == ZIR_C) {
                 ParallelRegion region;
                 if(parallel_region_at(e->fn,i,&region) && region.forward) {
                     char function_name[ZIR_NAME_MAX];
@@ -1173,7 +1172,7 @@ EmitBody_with_buffers(FILE *out,const ZirModule *module,const ZirFunction *fn,Zi
     for(int i=0;i<count;i++) {
         char *colon=strchr(buffers->params[i],':');*colon++=0;trim_in_place(buffers->params[i]);
         const char *type=canonical(skip_ws(colon));
-        if((target == ZIR_C || target == ZIR_CPP) &&
+        if(target == ZIR_C &&
            ArrayValueType(type)) {
             char incoming[ZIR_NAME_MAX];
             char binding[ZIR_NAME_MAX];

@@ -47,7 +47,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry unused:Answer \
         -o "$work/$input.zx" "$source"
     test "$("$ziran" run "$work/$input.zx")" = 22
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         "$ziran" build --target="$target" --root "$root" \
             --entry unused:Answer -o "$output" "$source"
@@ -69,15 +69,7 @@ C
             "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" -I"$output" \
                 "$output"/*.c -o "$output/app"
             "$output/app"
-        else
-            cat > "$output/main.cpp" <<'CPP'
-#include "unused.hpp"
-int main() { return Answer() == 22 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
-            "$output/app"
         fi
     done
 done
-echo 'unused call results, including enum results: VM, C, C++, and Go passed'
+echo 'unused call results, including enum results: VM, C, and Go passed'

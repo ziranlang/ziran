@@ -523,7 +523,7 @@ the measured sample counts; each case also has one discarded warmup. The run
 requires GCC, G++, Go and the Ziran tools. Rust, Java and Node comparisons are
 included when their toolchains are present, and absences are recorded.
 
-One integer recurrence is built from source and saved IR to C, C++, Go, and
+One integer recurrence is built from source and saved IR to C, Go, and
 portable `.zx`. The harness checks that generated source and bundles match,
 and validates every runtime result against an independent modular-series
 oracle before reporting times. It separately measures Ziran check/emission,
@@ -551,7 +551,7 @@ For a second workload that grows a `Vec(s32)` and then scans it, run:
 env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/vector_growth.py
 ```
 
-This measures source and saved-IR checks and emissions to C, C++, Go, and
+This measures source and saved-IR checks and emissions to C, Go, and
 portable `.zx`, downstream native builds, and whole-process execution.
 Handwritten C, C++, Go, Rust, Java, JavaScript, and Python versions provide
 algorithm-level comparisons when their toolchains are installed; unavailable
@@ -564,7 +564,7 @@ records, generics, larger module graphs, or real applications.
 
 The [vector-growth baseline](results/2026-09-27-vector-growth/benchmark.md)
 contains three measured compilation and five measured execution samples per
-case on one machine. The generated C and C++ runs were close to their
+case on one machine. The generated C runs were close to their
 handwritten comparisons for the large input; generated Go took about 22 ms
 versus 8 ms for handwritten Go. This identifies a workload for investigating
 vector lowering, not a general performance ranking.
@@ -577,16 +577,14 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/record_calls.py
 
 Each round updates all records through a checked `Mix(Point, Point, s32, s32)`
 call and accumulates a signed 64-bit checksum with wrapping `s32` field
-arithmetic. The harness measures source and saved IR through C, C++, Go, Rust when Cargo is
-installed, and portable `.zx`, downstream native builds, and whole-process execution.
+arithmetic. The harness measures source and saved IR through C, Go, and
+portable `.zx`, downstream native builds, and whole-process execution.
 Handwritten C, C++, Go, Rust, Java, JavaScript, and Python versions participate
 when installed. Every sample must match an independent Python oracle; source
 and saved-IR generated output and bundles are checked for equality. The VM runs
 the small input only because the large input exceeds its instruction budget.
-The [clean-head generated-Rust record-call baseline](results/2026-09-28-record-calls-rust/README.md)
-contains 238 validated samples across 58 phase/case combinations. The
-[earlier baseline](results/2026-09-28-record-calls/README.md) contains 206
-samples across 50 combinations and predates generated-Rust participation.
+The [record-call baseline](results/2026-09-28-record-calls/README.md) contains
+206 samples across 50 combinations.
 
 For a focused before/after comparison of two validated Go binaries, run
 `bench/vector_growth_ab.py --before PATH --after PATH --out NEW.json`. It
@@ -606,14 +604,8 @@ env -u DISPLAY -u WAYLAND_DISPLAY python3 bench/text_scan.py
 
 The text has 10 bytes and 4 Unicode scalar values; every runtime sample must
 return `148921 * rounds`. The harness compares Ziran source and saved IR to
-C, C++, Go, Plan 9 C, and `.zx`, plus handwritten C, C++, Go, Rust, Java,
-JavaScript, and Python when installed. It validates generated-source and
-bundle equality, compares canonical Plan 9 dispatcher output with direct
-`zi2c --target=plan9-c`, and records unavailable tools rather than estimating
-them. When no Plan 9 compiler is installed, the harness still compiles the
-emitted Plan 9 dialect with host GCC against a minimal fake Plan 9 libc and
-marks those runtime samples as dialect validation rather than Plan 9 hardware
-performance. The
+C, Go, and `.zx`, plus handwritten C, C++, Go, Rust, Java, JavaScript, and
+Python when installed. It validates generated-source and bundle equality and
+records unavailable tools rather than estimating them. The
 [committed-head result](results/2026-09-27-text-scan-multilang/README.md)
-contains 206 validated samples across 50 phase/case combinations and predates
-generated-Rust participation.
+contains 206 validated samples across 50 phase/case combinations.

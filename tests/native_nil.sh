@@ -72,7 +72,7 @@ for input in source saved; do
     else
         module=$work/ir/pointers.zir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$work" \
@@ -91,16 +91,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --root "$work" \
-                -o "$output" "$module"
-            cat > "$output/main.cpp" <<'CPP'
-#include "pointers.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         fi
     done

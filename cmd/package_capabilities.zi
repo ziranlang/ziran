@@ -27,15 +27,14 @@ PkgPrintNumericIdList :: () -> void {
 PkgPrintNumericConformance :: (target: string) -> void {
     PkgPrint("\"numeric_conformance\":{\"schema_version\":1,\"stability\":\"stable-id\",\"targets\":[", false)
     if target.count == 0 {
-        PkgPrint("\"c\",\"cpp\",\"go\",\"rust\",\"py\",\"zx\"", false)
-    } else if target != "plan9-c" {
+        PkgPrint("\"c\",\"go\",\"py\",\"zx\"", false)
+    } else {
         PkgPrint("\"", false)
         PkgPrint(target, false)
         PkgPrint("\"", false)
     }
     PkgPrint("],\"ids\":", false)
-    if target != "plan9-c" { PkgPrintNumericIdList() }
-    else { PkgPrint("[]", false) }
+    PkgPrintNumericIdList()
     PkgPrint("}", false)
 }
 
@@ -53,24 +52,21 @@ Capabilities :: (arguments: []string) -> s32 {
             return PkgFail("capabilities accepts one target")
         }
         if part == "--target=c" { target = "c" }
-        else if part == "--target=cpp" { target = "cpp" }
         else if part == "--target=go" { target = "go" }
-        else if part == "--target=rust" { target = "rust" }
         else if part == "--target=py" { target = "py" }
         else if part == "--target=zx" { target = "zx" }
-        else if part == "--target=plan9-c" { target = "plan9-c" }
         else {
             return PkgFail(
-                "usage: ziran capabilities [--target=c|cpp|go|rust|py|zx|plan9-c] [--json]")
+                "usage: ziran capabilities [--target=c|go|py|zx] [--json]")
         }
         index += 1
     }
     PkgPrint("{\"schema_version\":1,", false)
     if target.count == 0 {
-        PkgPrint("\"targets\":[\"c\",\"cpp\",\"go\",\"rust\",\"py\",\"zx\",\"plan9-c\"],", false)
-        PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"cpp\":\"threads\",\"go\":\"serial\",\"rust\":\"serial\",\"py\":\"serial\",\"zx\":\"serial\",\"plan9-c\":\"serial\"},", false)
-        PkgPrint("\"text_view_mutable_bytes\":{\"c\":\"borrowed\",\"cpp\":\"borrowed\",\"go\":\"snapshot\",\"rust\":\"borrowed\",\"py\":\"snapshot\",\"zx\":\"snapshot\",\"plan9-c\":\"borrowed\"},", false)
-        PkgPrint("\"tier\":{\"c\":\"primary\",\"cpp\":\"secondary\",\"go\":\"secondary\",\"rust\":\"secondary\",\"py\":\"secondary\",\"zx\":\"primary\",\"plan9-c\":\"experimental\"},", false)
+        PkgPrint("\"targets\":[\"c\",\"go\",\"py\",\"zx\"],", false)
+        PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"go\":\"serial\",\"py\":\"serial\",\"zx\":\"serial\"},", false)
+        PkgPrint("\"text_view_mutable_bytes\":{\"c\":\"borrowed\",\"go\":\"snapshot\",\"py\":\"snapshot\",\"zx\":\"snapshot\"},", false)
+        PkgPrint("\"tier\":{\"c\":\"primary\",\"go\":\"secondary\",\"py\":\"secondary\",\"zx\":\"primary\"},", false)
     } else {
         PkgPrint("\"target\":\"", false)
         PkgPrint(target, false)
@@ -79,23 +75,11 @@ Capabilities :: (arguments: []string) -> s32 {
          * may lag but reject what they lack before emitting code. */
         tier: string = "secondary"
         if target == "c" || target == "zx" { tier = "primary" }
-        else if target == "plan9-c" { tier = "experimental" }
         PkgPrint("\"tier\":\"", false)
         PkgPrint(tier, false)
         PkgPrint("\",", false)
-        if target == "plan9-c" {
-            PkgPrint("\"parallel_execution\":\"serial\",", false)
-            PkgPrint("\"text_view_mutable_bytes\":\"borrowed\",", false)
-            PkgPrint("\"target_contract\":\"experimental-post-pass\",", false)
-            PkgPrint("\"native_os\":\"plan9\",", false)
-            PkgPrint("\"native_libc\":\"plan9\",", false)
-            PkgPrint("\"architecture\":\"386\",", false)
-            PkgPrint("\"dialect\":\"plan9-c88\",", false)
-        } else if target == "c" || target == "cpp" {
+        if target == "c" {
             PkgPrint("\"parallel_execution\":\"threads\",", false)
-            PkgPrint("\"text_view_mutable_bytes\":\"borrowed\",", false)
-        } else if target == "rust" {
-            PkgPrint("\"parallel_execution\":\"serial\",", false)
             PkgPrint("\"text_view_mutable_bytes\":\"borrowed\",", false)
         } else {
             PkgPrint("\"parallel_execution\":\"serial\",", false)

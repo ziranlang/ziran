@@ -44,26 +44,13 @@ for form in source saved; do
     if test "$answer" != 42; then echo "Nested assignment $form VM returned $answer, expected 42" >&2; exit 1; fi
     "$ziran" build --target=py --exe --root "$root" --entry assignment:Main -o "$work/$form-py" "$input"
     python3 "$work/$form-py"
-    for target in c cpp; do
-        output=$work/$form-$target
-        if test "$target" = c; then
-            "$ziran" build --target=c --exe --root "$root" --entry assignment:Main -o "$output" "$input"
-            "$output/assignment"
-        else
-            "$ziran" build --target=cpp --no-main --root "$root" -o "$output" "$input"
-            printf '#include "assignment.hpp"\nint main() { return Main(); }\n' > "$output/main.cpp"
-            "${CXX:-c++}" -O2 -std=c++17 -I"$repo/include" -I"$output" "$output"/*.cpp -lm -o "$output/app"
-            "$output/app"
-        fi
-    done
+    output=$work/$form-c
+    "$ziran" build --target=c --exe --root "$root" --entry assignment:Main -o "$output" "$input"
+    "$output/assignment"
     output=$work/$form-go
     "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$input"
     printf 'package main\nfunc main() { if Assignment_Main()!=0 { panic("nested array assignment") } }\n' > "$output/main.go"
     GO111MODULE=off go run "$output"/*.go
-    output=$work/$form-rust
-    "$ziran" build --target=rust --exe --root "$root" --entry assignment:Main -o "$output" "$input"
-    CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --offline --manifest-path "$output/Cargo.toml"
-    "$work/rust-target/debug/ziran_generated"
 done
 cmp "$work/source.zx" "$work/saved.zx"
-echo 'Nested array assignments preserve independent copied values in source/saved VM, Python, C/C++, Go and Rust'
+echo 'Nested array assignments preserve independent copied values in source/saved VM, Python, C and Go'

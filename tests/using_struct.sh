@@ -54,7 +54,7 @@ for input in "$work/app.zi" "$work/ir/app.zir"; do
         *.zi) suffix=source; root=$work ;;
         *) suffix=saved; root=$work/ir ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$suffix"
         native_answer_42 "$target" "$root" "$out" "$input" \
             app App_Answer 'using struct'

@@ -5,12 +5,10 @@
 ## Assembly with a portable body
 
 An ordinary procedure can supply architecture-specific assembly and a required
-Ziran implementation. C/C++ output selects assembly when built by GCC or Clang
-for that architecture. Rust translates supported operands and templates to
-`core::arch::asm!`. Go can opt into native assembly through cgo as described
-below. Other compilers, Plan 9 C, Python, and `.zx` use the
-checked Ziran body. Define `ZIRAN_NO_ASM` when compiling generated C/C++, or
-set `RUSTFLAGS="--cfg ziran_no_asm"` for Cargo, to force the portable body.
+Ziran implementation. C output selects assembly when built by GCC or Clang
+for that architecture. Go can opt into native assembly through cgo as described
+below. Other compilers, Python, and `.zx` use the checked Ziran body. Define
+`ZIRAN_NO_ASM` when compiling generated C to force the portable body.
 
 ```zi
 Increment :: (value: $T) -> T #asm("x86_64", "add $1, %[out]", "=r", "0", "cc", "") #asm("aarch64", "add %[out], %[value], #1", "=r", "r", "", "") {
@@ -26,8 +24,8 @@ extended assembly syntax, including named operands, register modifiers,
 multiple instructions, escaped newlines, and assembler directives. Templates
 are quoted as data in generated source. The native compiler and assembler
 validate instruction syntax and machine-specific constraints.
-Generated C/C++ uses positional operands internally, so source operand aliases
-may also be C or C++ keywords. Named matching inputs retain the same binding.
+Generated C uses positional operands internally, so source operand aliases
+may also be C keywords. Named matching inputs retain the same binding.
 
 Input operands follow parameter order and use the parameter names. Parameters
 must be scalars or pointers. A scalar or pointer result has operand name
@@ -57,7 +55,7 @@ for register lifetimes, early clobbers, matching constraints, flags and memory.
 
 Architecture names are `x86_64`, `x86`, `aarch64`, `arm`, `riscv64`, `riscv32`,
 `powerpc64`, `powerpc`, `s390x`, and `loongarch64`. Selection uses the native
-compiler's target macros or Rust's `target_arch` configuration, so cross-compilation selects the destination
+compiler's target macros, so cross-compilation selects the destination
 architecture. Append required CPU features with `+`, for example
 `"x86_64+popcnt"`, `"x86_64+avx2+bmi2"`, or `"aarch64+crc32"`.
 
@@ -73,7 +71,7 @@ Count :: (value: u64) -> s64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=
 Feature variants use isolated functions compiled for the requested ISA. The
 ordinary caller keeps the build's baseline ISA, checks CPU availability once,
 and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers
-use the compiler's CPU detection; Linux/Android AArch64 C/C++ uses the kernel's
+use the compiler's CPU detection; Linux/Android AArch64 C uses the kernel's
 hardware-capability information. Other platforms or unavailable capabilities
 use the next eligible variant or the checked Ziran body. `ZIRAN_NO_ASM` forces
 the portable body. Build the caller for the oldest CPU you intend to support;
@@ -122,28 +120,6 @@ amortize that cost; calling the bridge for every small operation can be much
 slower than the Go body. Measure the intended call granularity before enabling
 the tag. Default builds retain a compile-time-disabled native branch.
 
-Rust supports typed general/floating-point registers, fixed x86 registers,
-matching inputs, early clobbers, record results, and memory operands. Memory
-operands in local blocks retain the actual caller storage, including aliases.
-Numeric local labels are renamed consistently to avoid LLVM's restricted
-labels. Rust retains conservative memory and flag effects. CPU-feature helpers
-use `target_feature` and the standard library's runtime detection; available
-architectures and features depend on the Rust compiler and target. For GNU
-constraint alternatives, Rust selects the first complete column whose operands
-and template it can represent; every operand must have the same number of
-columns. Ties and per-column early clobbers remain intact. This selects a valid
-form rather than reproducing GCC's allocation-cost decisions. Self-contained
-`.L…%=` labels become numeric locals, with forward/backward references resolved
-within each template. They remain safe when the compiler duplicates assembly
-through inlining or generic specialization. Each such label must have one
-definition. Unique IDs used as literal data, nonlocal/exported symbols, or in
-assembler control/macro directives retain fallback. Reserved Rust registers and
-unsupported operand modifiers also use the checked body for that variant, with a
-comment in generated Rust explaining the limitation. These are portability
-fallbacks, not full GNU assembly coverage.
-Rust-output compiler builds also support Windows-hosted generation and native
-backslash input/output paths.
-
 Run `tests/assembly.sh build/bin/ziran` for source/saved IR execution and
 rejection checks, and `tests/assembly_features.sh` for CPU selection,
 concurrent calls, unavailable features and isolated helpers.
@@ -151,22 +127,12 @@ concurrent calls, unavailable features and isolated helpers.
 strict cgo pointer checking, startup dispatch, memory aliases, concurrency and
 source/saved IR. `bench/go_assembly.py` compares whole-loop and per-operation
 bridges with checked Go bodies, a preserved compiler and native C controls.
-`tests/rust_assembly.sh` checks native Rust and forced fallback at two
-optimization levels from source and saved IR. `bench/assembly.py`
+`bench/assembly.py`
 measures baseline assembly against its forced fallback and handwritten C/Go;
 `bench/cpu_features.py` measures CPU-selected loop kernels against an optimized
 Ziran body and handwritten C, with independent result validation. Use assembly
 where measurements or access to a specific instruction justify it; compilers
 already recognize many byte swaps and arithmetic patterns.
-`bench/rust_assembly.py` compares Rust whole-loop and per-call assembly with
-forced fallback, an optional previous compiler, generated C and handwritten
-Rust/C controls. It validates every sample against an independent integer oracle.
-Use `--generic` to instantiate those kernels through type parameters; both
-whole-loop and per-call cases also verify their portable `.zx` result.
-Use `--alternatives` to benchmark paired register constraints against forced
-fallback and an optional preserved compiler that falls back for alternatives.
-The loop templates retain their original GNU `%=` labels. Baseline lowering
-counts record whether the preserved compiler emitted assembly or fallback.
 
 ### Local assembly blocks
 
@@ -197,10 +163,9 @@ pass a pointer when assembly needs to access other storage, and declare the
 memory and register clobbers required by the GNU contract.
 
 Architecture-only blocks emit inline assembly. CPU-feature blocks use isolated
-helpers. C/C++ helpers receive input values and return a single `=r`/`=&r` output directly;
+helpers. C helpers receive input values and return a single `=r`/`=&r` output directly;
 other or multiple outputs use each binding's actual address. Selection is cached
-atomically per block. Rust helpers return register outputs and take addresses
-for memory operands. Their portable body is always checked, runs on unsupported
+atomically per block. Their portable body is always checked, runs on unsupported
 targets or with `ZIRAN_NO_ASM`, and must fall through to the following statement.
 It may contain local loops and their loop control, but cannot return or break
 out of the assembly block. Native instructions must preserve that fallthrough,
@@ -224,7 +189,7 @@ another positive worker count.
 ## Compiler commands
 
 The compiler commands are `zi2zir` (including
-`--check-only`), `zi2c`, `zi2cpp`, `zi2go`, `zi2rust`, `zi2py`, and `zi2zx`.
+`--check-only`), `zi2c`, `zi2go`, `zi2py`, and `zi2zx`.
 `zi-fmt` formats source. `ziran guide` prints a short reference from the
 installed compiler, including current safety and target limits.
 `ziran capabilities --target=go --json` reports a versioned machine-readable
@@ -252,12 +217,11 @@ that procedure and exits with its integer result; the entry takes nothing or
 `(argc: s32, argv: **u8)` (signed byte pointers are also accepted). `CC`,
 `CFLAGS` (default `-O2`), `LDFLAGS`, and `LDLIBS` apply as in make.
 
-C and C++ program entries use a standard `int main(int, char **)` adapter.
+C program entries use a standard `int main(int, char **)` adapter.
 The Ziran procedure keeps its declared parameter and result types for ordinary
 calls and function values. The adapter converts its integer result to a process
 status; a procedure returning nothing exits successfully. This also applies to
 a procedure exported under the symbol `main` through `#program_export "main"`.
-Plan 9 entries keep their native `void main` and `exits` status convention.
 
 Native C executable builds compile up to four source files concurrently, then
 link and replace the executable only after success. The output directory has
@@ -317,8 +281,7 @@ of fabricating results. Build the generated Go package with `go build .` or
 `go run .`, which honor the build tags. Reachable header bindings and native
 availability checks require Go; pruning a portable entry can remove them.
 
-The Rust backend also preserves `LDFLAGS` and `LDLIBS` in its generated
-Cargo project. Python copies scalar pointer buffers into C storage for a
+Python copies scalar pointer buffers into C storage for a
 call, preserves aliases within that call, and copies mutations back. Native
 pointer outputs and C-owned scalar buffers remain accessible through the
 same pointer API. C libraries that retain Ziran-owned memory after a call
@@ -335,11 +298,9 @@ in either order; read the resulting range only after both fields are valid.
 string or slice. Ordinary `TextView` retains the Python target's snapshot rule.
 
 Run `sh tests/sequence_header.sh build/bin/ziran` to compare these operations
-from source and saved IR on Python, C and C++, including embedded NUL bytes,
+from source and saved IR on Python and C, including embedded NUL bytes,
 pointer aliases, header assignment and borrowed buffer writes.
 
-Use
-`ziran build --target=plan9-c` for the experimental Plan 9 C output path.
 Pass `--entry module:function` to a C99 build to retain functions, types,
 globals, and constants reachable from that entry. A native host implementation
 of a called foreign function is retained when it is among the input modules.
@@ -556,7 +517,7 @@ Describe :: (message: Message) -> string #go_method "Error" {
 On an ordinary method procedure, `#go_results` flattens a nonempty concrete
 result record into native Go multiple results in field order. Its fields must
 be named without `using` or owned vectors. Ordinary Ziran calls still receive
-that record. C, C++ and the portable VM keep the same ordinary procedure body;
+that record. C and the portable VM keep the same ordinary procedure body;
 method adapters are Go ABI metadata. Both attributes survive saved IR. Go
 executable entry selection retains methods of reachable receiver records for
 native interface dispatch.
@@ -844,7 +805,7 @@ published. Python `SystemExit` and `KeyboardInterrupt` retain their usual
 behavior.
 
 Python imports stay Python imports in saved `.zir`. Modules that use them
-build only for the Python target; the C, C++, Go, and Rust targets reject
+build only for the Python target; the C and Go targets reject
 them. A module meant for every target gives each target its own
 implementation behind one Ziran interface.
 
@@ -931,7 +892,7 @@ can satisfy a portable host capability with an exported Ziran function in the
 bundle; the provider must have the same signature. `--bind-host MODULE`
 binds every remaining capability to MODULE's exported function of the same
 name, as a C program links a host's symbols by name, so one Ziran host module
-serves `ziran bundle` and the Go, Rust, and Python targets alike.
+serves `ziran bundle` and the Go and Python targets alike.
 The portable host ABI copies returned string bytes into VM-managed storage,
 including strings inside records, arrays, slices, and mutable slice updates.
 A host can reuse its result buffers on its next call; saved strings retain
@@ -1001,7 +962,7 @@ target's native `Map(K, V)` from `std/map_go` is separate and keeps its
 `std/text.zi` supplies ASCII case folding, prefix matching, and substring
 matching over immutable UTF-8 strings. Non-ASCII bytes compare unchanged. These
 functions use only portable Ziran operations, so the same source builds for C,
-C++, Go, and `.zx`. Add `--module-path std` when importing it from an app.
+Go, and `.zx`. Add `--module-path std` when importing it from an app.
 `std/string_range.zi` provides `Substring(source, start, length)` over borrowed
 bytes, using Ziran's checked `source[low:high]` string range syntax. Choose
 UTF-8 codepoint boundaries when the result must remain valid text.
@@ -1056,7 +1017,7 @@ and array element lookup, string spans, and decimal number reading. It validates
 the value shape and escapes while scanning; member names match unescaped ASCII
 bytes. Callers keep the original input string and use byte offsets returned by
 the scanner. Its tests compare source and saved-IR portable bundles, and the
-same module is exercised through native C, C++, and Go by a downstream client.
+same module is exercised through native C and Go by a downstream client.
 
 `ArrayRangesReuse` accepts value ranges from a successful scan and their
 unchanged backing document. It reuses validation only for complete values
@@ -1116,14 +1077,13 @@ public shape rather than a secret-dependent oracle.
 arguments, stdin, an optional credential binding, a timeout, and a desktop
 isolation request. The host starts the child, yields output lines, and returns
 its exit result. Its contract runs from source and saved `.zir` as a portable
-bundle and through native C, C++, and Go mocks.
+bundle and through native C and Go mocks.
 
 ### Files
 
 `#import "std/file"` gives one set of file operations on every native C
-target: it uses `std/file_linux.zi` on Linux, Android, the web, and Windows,
-and `std/file_plan9.zi` for `--target=plan9-c`, which defines `PLAN9` for
-`#if #defined(PLAN9)`. The shared operations are `OpenRead`, `OpenWrite`,
+target: it uses `std/file_linux.zi` on Linux, Android, the web, and Windows.
+The shared operations are `OpenRead`, `OpenWrite`,
 `OpenUpdate`, `OpenReplace`, `Read`, `Write`, `ReadAt`, `WriteAt`,
 `FileSize`, `CloseFile`, `RemoveFile`, `RenameNoReplace`, `PathExists`,
 `DirectoryExists`, `CreateDirectory`, `CreatePrivateDirectory`, and the
@@ -1139,18 +1099,6 @@ if WriteEntireFile("notes.txt", "hello\n") {
 
 The Go target and portable bundles do not have these operations; Go
 programs use `std/file_go`.
-
-### Native Plan 9 files
-
-Native `plan9-c` builds can import `std/file_plan9.zi` for positional byte
-reads and writes, file size, read/update/replace handles, private files,
-directory checks and creation, removal, and renaming without replacement.
-`RenameNoReplace` changes only a basename within the same directory; it
-rejects cross-directory moves. Paths reject embedded NUL bytes and must fit
-the adapter's 4096-byte C buffer. These operations use native Plan 9 libc
-and are not portable host capabilities. `tests/file_plan9.sh` checks source
-and saved IR generation; TaijiOS's `rill-ziran-plan9-smoke` gate compiles
-and runs the fixture with native `8c`/`8l`.
 
 ### Native Linux adapters
 
@@ -1176,7 +1124,7 @@ without winpthreads. It starts through the C runtime, polls the native thread
 handle with a zero timeout, and closes that handle only after the thread and
 its cleanup finish. Keep its record and arguments at stable addresses until
 completion, including while a canceled request is being collected.
-`tests/thread_windows.sh` executes C and C++ source and saved-IR checks under
+`tests/thread_windows.sh` executes C source and saved-IR checks under
 Wine on a private display, including held notifications, thread cleanup,
 result publication and handle reuse.
 `std/parallel_linux.zi` supplies a reusable `ParallelPool` for independent
@@ -1186,10 +1134,10 @@ use a subset of the pool instead of becoming serial when more lanes are
 configured. Keep the pool at one address, submit from one owner, and call `ParallelClose` before
 releasing it. Callbacks must write only their own range and keep shared inputs
 immutable. Four lanes run by default; `ZIRAN_PAR_THREADS` selects 1–64 lanes.
-Native C and C++ source builds define `POSIX_THREADS` automatically, including
+Native C source builds define `POSIX_THREADS` automatically, including
 Windows. Windows native worker builds require a pthread-capable toolchain,
-such as MinGW-w64 with winpthreads. `PLAN9` and `PLATFORM_WEB` opt out;
-untargeted IR stays portable. Explicit C/C++ IR freezes the same capability
+such as MinGW-w64 with winpthreads. `PLATFORM_WEB` opts out;
+untargeted IR stays portable. Explicit C IR freezes the same capability
 selection as source builds. Libraries
 can use that capability to parallelize their native adapters by default while
 keeping portable output independent of pthreads. This does not parallelize
@@ -1252,14 +1200,12 @@ accepts values that do not own `Vec` storage, including nested maps for JSON.
 
 ### Native civil clocks and calendars
 
-Import `date_time_linux` or `date_time_plan9` for `UnixNow()`, `LocalNow()`,
+Import `date_time_linux` for `UnixNow()`, `LocalNow()`,
 `LocalAt(seconds)`, and `UtcAt(seconds)`. `LocalAt` uses the operating system's
 timezone and daylight-saving rules. The shared `LocalDateTime` record lives
 in `date_time_types`; the hosted `date_time` module re-exports that same type.
 Months and days are one-based, `day_of_year` is zero-based, and `valid` reports
-whether the provider could obtain a reading. Native Plan 9 libc accepts
-unsigned 32-bit epoch seconds, covering 1970 through early 2106; values outside
-that range return an invalid reading. Dates after 2038 retain their full value.
+whether the provider could obtain a reading. Dates after 2038 retain their full value.
 
 With `--define _WIN32`, `date_time_linux` and `timer_linux` use native Windows
 APIs instead of POSIX calls. Windows civil clocks use

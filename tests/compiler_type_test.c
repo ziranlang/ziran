@@ -242,7 +242,8 @@ int main(void)
     indexed_fields();
     containers();
     foreign_symbols();
-    assert(compiler_type_ProcedureTypeSupported(text("rust"), true));
+    assert(compiler_type_ProcedureTypeSupported(text("c"), true));
+    assert(!compiler_type_ProcedureTypeSupported(text("cpp"), true));
     assert(!compiler_type_ProcedureTypeSupported(text("go"), true));
     assert(compiler_type_ProcedureTypeSupported(text("go"), false));
     assert(!compiler_type_ProcedureTypeSupported(text("zx"), true));

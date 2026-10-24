@@ -128,7 +128,7 @@ for input in source saved; do
         echo "portable zero array index succeeded" >&2
         exit 1
     fi
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -165,26 +165,6 @@ C
                 "$out/empty.c" "$out/bad.c" -o "$out/bad"
             if "$out/bad" >"$work/bad.err" 2>&1; then
                 echo "C zero array index succeeded" >&2
-                exit 1
-            fi
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$file"
-            cat > "$out/main.cpp" <<'CPP'
-#include "empty.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -pedantic-errors \
-                -I"$repo/include" -I"$out" "$out"/*.cpp -o "$out/program"
-            "$out/program"
-            cat > "$out/bad.cpp" <<'CPP'
-#include "empty.hpp"
-int main() { return Bad(); }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -pedantic-errors \
-                -I"$repo/include" -I"$out" \
-                "$out/empty.cpp" "$out/bad.cpp" -o "$out/bad"
-            if "$out/bad" >"$work/bad.err" 2>&1; then
-                echo "C++ zero array index succeeded" >&2
                 exit 1
             fi
         fi
@@ -228,7 +208,7 @@ for input in source saved; do
         root=$work/relay-ir
         file=$work/relay-ir/relay.zir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/relay-$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -246,15 +226,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c99 -Wall -Werror -pedantic-errors \
                 -I"$repo/include" -I"$out" "$out"/*.c -o "$out/program"
-            "$out/program"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$file"
-            cat > "$out/main.cpp" <<'CPP'
-#include "relay.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -pedantic-errors \
-                -I"$repo/include" -I"$out" "$out"/*.cpp -o "$out/program"
             "$out/program"
         fi
     done

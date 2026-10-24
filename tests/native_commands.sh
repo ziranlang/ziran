@@ -21,7 +21,7 @@ for input in "$repo/cmd/package_entry.zi" "$work/ir/package_entry.zir"; do
     mkdir -p "$output/bin"
     ${CC:-cc} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$output/c" \
         "$output/c/"*.c -o "$output/bin/ziran" -lcrypto -lm
-    for tool in zi2zir zi2c zi2go zi2cpp zi2rust zi2py zi2zx zi-api zi-inspect zi-fmt; do
+    for tool in zi2zir zi2c zi2go zi2py zi2zx zi-api zi-inspect zi-fmt; do
         tool_path=$(CDPATH= cd -- "$(dirname -- "$ziran")" && pwd)/$tool
         ln -s "$tool_path" "$output/bin/$tool"
     done

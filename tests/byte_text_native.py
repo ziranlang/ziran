@@ -24,8 +24,7 @@ with tempfile.TemporaryDirectory(prefix="ziran-byte-text-") as directory:
          "-o", work / "ir", source])
     for mode, entry, root in (("source", source, ROOT / "tests"),
                               ("saved", work / "ir/byte_text_native.zir", work / "ir")):
-        for target, compiler, suffix in (("c", os.environ.get("CC", "cc"), "c"),
-                                          ("cpp", os.environ.get("CXX", "c++"), "cpp")):
+        for target, compiler, suffix in (("c", os.environ.get("CC", "cc"), "c"),):
             output = work / (mode + "-" + target)
             run([BIN / ("zi2" + target), "--no-main", "--root", root,
                  "--module-path", ROOT / "std", "-o", output, entry])
@@ -39,4 +38,4 @@ with tempfile.TemporaryDirectory(prefix="ziran-byte-text-") as directory:
                  "-sENVIRONMENT=node", "-sWASM_ASYNC_COMPILATION=0",
                  "-sEXIT_RUNTIME=1", "-o", output / "wasm.js"])
             run(["node", output / "wasm.js"])
-print("Borrowed strings: source/saved IR, C/C++, native64/Wasm32 passed")
+print("Borrowed strings: source/saved IR, C, native64/Wasm32 passed")

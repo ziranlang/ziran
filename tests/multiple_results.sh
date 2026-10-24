@@ -109,14 +109,6 @@ for input in source saved; do
     status=0
     "$output/app" || status=$?
     test "$status" = 42
-    output="$work/cpp-$input"
-    "$ziran" build --target=cpp --root "$root" -o "$output" "$module"
-    cat > "$output/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-    "${CXX:-c++}" -I"$repo/include" -I"$output" "$output"/*.cpp -o "$output/app"
-    "$output/app"
     output="$work/go-$input"
     "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$module"
     cat > "$output/main.go" <<'GO'

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Native filesystem behavior plus C/C++ generation of both Darwin ABIs.
+# Native filesystem behavior plus C generation of both Darwin ABIs.
 set -eu
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -28,15 +28,9 @@ for form in source saved; do
     (cd "$run/$form" && "$work/$form/std_file_darwin")
 done
 for arch in __aarch64__ __x86_64__; do
-    for target in c cpp; do
-        generated="$work/$arch-$target"
-        "$ziran" build --define __APPLE__ --define "$arch" --target="$target" \
-            --root "$repo/tests" --no-main -o "$generated" "$input"
-        if test "$target" = c; then
-            "${CC:-cc}" -std=c11 -fsyntax-only -I"$repo/include" "$generated"/*.c
-        else
-            "${CXX:-c++}" -std=c++17 -fsyntax-only -I"$repo/include" "$generated"/*.cpp
-        fi
-    done
+    generated="$work/$arch-c"
+    "$ziran" build --define __APPLE__ --define "$arch" --target=c \
+        --root "$repo/tests" --no-main -o "$generated" "$input"
+    "${CC:-cc}" -std=c11 -fsyntax-only -I"$repo/include" "$generated"/*.c
 done
-printf 'Native source/saved-IR file behavior and both Darwin C/C++ ABIs passed.\n'
+printf 'Native source/saved-IR file behavior and both Darwin C ABIs passed.\n'

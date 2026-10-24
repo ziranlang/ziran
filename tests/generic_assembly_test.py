@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ENV = dict(os.environ)
 for key in ('DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS'):
     ENV.pop(key, None)
-ENV.update(GO111MODULE='off', CARGO_TARGET_DIR=str(WORK / 'cargo-target'))
+ENV.update(GO111MODULE='off')
 WORK.mkdir(parents=True, exist_ok=True)
 
 
@@ -44,38 +44,22 @@ def main():
         run([ZIRAN, 'bundle', '--root', root, '--entry', 'generic_assembly_test:Answer', '-o', bundle, input_file])
         run([ZIRAN, 'run', bundle], expected=42)
         records.append(dict(form=form, target='zx'))
-        for target in ('c', 'cpp', 'rust', 'go', 'py', 'plan9-c'):
+        for target in ('c', 'go', 'py'):
             output = WORK / (form + '-' + target)
             run([ZIRAN, 'build', '--target=' + target, '--root', root,
                  *(['--pkg', 'main'] if target == 'go' else []), '-o', output, input_file])
-            if target == 'plan9-c':
-                for path in output.glob('*.c'):
-                    assert '__asm__' not in path.read_text()
-                records.append(dict(form=form, target=target, emitted=True))
-                continue
-            if target in ('c', 'cpp'):
-                suffix, header, compiler, standard = ('c', 'h', os.environ.get('CC', 'cc'), 'c11') if target == 'c' else ('cpp', 'hpp', os.environ.get('CXX', 'c++'), 'c++17')
-                host = output / ('host.' + suffix)
-                host.write_text('#include <stdio.h>\n#include "generic_assembly_test.' + header + '"\nint main(void){long long value=Answer();if(value!=42)printf("generic case %lld\\n",value);return value==42?0:1;}\n')
+            if target == 'c':
+                host = output / 'host.c'
+                host.write_text('#include <stdio.h>\n#include "generic_assembly_test.h"\nint main(void){long long value=Answer();if(value!=42)printf("generic case %lld\\n",value);return value==42?0:1;}\n')
                 for optimization in (0, 2):
                     for mode in ('native', 'fallback'):
-                        args = [compiler, '-std=' + standard, '-O' + str(optimization),
+                        args = [os.environ.get('CC', 'cc'), '-std=c11', '-O' + str(optimization),
                                 *(['-DZIRAN_NO_ASM'] if mode == 'fallback' else []),
                                 '-I' + str(ROOT / 'include'), '-I' + str(output),
-                                *sorted(output.glob('*.' + suffix)), '-o', output / 'run']
+                                *sorted(output.glob('*.c')), '-o', output / 'run']
                         run(args); run([output / 'run'])
                         records.append(dict(form=form, target=target, optimization=optimization, mode=mode))
-                assert '__asm__' in '\n'.join(p.read_text() for p in output.glob('*.' + suffix))
-            elif target == 'rust':
-                if not shutil.which('cargo'): continue
-                (output / 'src/main.rs').write_text('fn main(){assert_eq!(ziran_generated::Answer(),42);}\n')
-                assert 'core::arch::asm!' in (output / 'src/lib.rs').read_text()
-                assert 'portable body for this variant' not in (output / 'src/lib.rs').read_text()
-                for optimization in (0, 2):
-                    for mode in ('native', 'fallback'):
-                        selected = dict(ENV, RUSTFLAGS='-Dwarnings -Copt-level=' + str(optimization) + (' --cfg ziran_no_asm' if mode == 'fallback' else ''))
-                        run(['cargo', 'run', '--quiet', '--offline', '--manifest-path', output / 'Cargo.toml'], env=selected)
-                        records.append(dict(form=form, target=target, optimization=optimization, mode=mode))
+                assert '__asm__' in '\n'.join(p.read_text() for p in output.glob('*.c'))
             elif target == 'go':
                 if not shutil.which('go'): continue
                 (output / 'main.go').write_text('package main\nfunc main(){if GenericAssemblyTest_Answer()!=42{panic("generic assembly fallback")}}\n')

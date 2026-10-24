@@ -15,8 +15,7 @@ ElementType :: struct { valid: bool; element: string; capacity: s64 }
 ForeignCall :: struct { kind: s32; module: string; receiver: string; symbol: string }
 
 TargetKnown :: (target: string) -> bool {
-    return target == "c" || target == "cpp" || target == "go" || target == "rust" ||
-        target == "py" || target == "zx" || target == "plan9-c"
+    return target == "c" || target == "go" || target == "py" || target == "zx"
 }
 
 // Empty means an ordinary language type. Foreign identities belong to the

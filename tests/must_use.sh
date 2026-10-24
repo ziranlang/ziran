@@ -57,7 +57,7 @@ ZI
     grep -Fq '#must return value is ignored' "$work/$case_name.err"
 done
 
-for target in c cpp go; do
+for target in c go; do
     "$ziran" build "--target=$target" --root "$work" \
         -o "$work/$target-source" "$work/app.zi"
     "$ziran" build "--target=$target" --root "$work/ir" \

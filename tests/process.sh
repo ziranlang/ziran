@@ -21,7 +21,7 @@ cmp "$work/source.zx" "$work/saved.zx"
 "$host_test" "$work/source.zx"
 "$host_test" "$work/saved.zx"
 
-for target in c cpp go; do
+for target in c go; do
     output="$work/$target"
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main \
@@ -82,34 +82,6 @@ int main(void) { return SelfTest() == 42 && calls == 3 ? 0 : 1; }
 C
         ${CC:-cc} -I"$root/include" -I"$output" \
             "$output"/*.c -o "$output/app"
-        "$output/app"
-    else
-        "$ziran" build --target=cpp --root "$root/tests/spec" \
-            --module-path "$root/std" -o "$output" \
-            "$root/tests/spec/process_test.zi"
-        cat > "$output/main.cpp" <<'CPP'
-#include "zir_string.h"
-#include "process_test.hpp"
-#include <cassert>
-static int calls;
-extern "C" ProcessStart StartHost(ProcessRequest request, Slice args) {
-    assert(request.isolate_desktop && args.length == 1);
-    assert(StringEqual(static_cast<String *>(args.data)[0], StringView("arg", 3)));
-    calls++;
-    ProcessStart result = {}; result.handle = 7; return result;
-}
-extern "C" ProcessLine NextLineHost(int32_t handle) {
-    assert(handle == 7); calls++;
-    ProcessLine result = {}; result.text = StringView("ready", 5); return result;
-}
-extern "C" ProcessExit WaitHost(int32_t handle) {
-    assert(handle == 7); calls++;
-    ProcessExit result = {}; return result;
-}
-int main() { return SelfTest() == 42 && calls == 3 ? 0 : 1; }
-CPP
-        ${CXX:-c++} -I"$root/include" -I"$output" \
-            "$output"/*.cpp -o "$output/app"
         "$output/app"
     fi
 done

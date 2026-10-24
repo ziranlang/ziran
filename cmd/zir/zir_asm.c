@@ -614,7 +614,7 @@ assembly_string(FILE *out, const char *text)
     fputc('"', out);
 }
 
-/* GNU operand aliases are C/C++ identifiers too. Emit positional references
+/* GNU operand aliases are C identifiers too. Emit positional references
  * so a legal Ziran alias such as 'register' never becomes a host keyword.
  * Keep escaped percent signs, modifiers, unknown names and literal data. */
 static void
@@ -996,14 +996,6 @@ AssemblyInputNeedsStorage(const char *constraint)
     return 0;
 }
 
-static _Thread_local int portable_blocks;
-
-void
-EmitUsePortableAssembly(int enabled)
-{
-    portable_blocks = enabled;
-}
-
 static void
 block_helper_name(const ZirModule *module, const ZirFunction *fn, ZirTarget target,
                   int statement, int variant, char *name, size_t size)
@@ -1145,10 +1137,10 @@ assembly_block_helpers(FILE *out, const ZirModule *module,
 
 static int
 assembly_block(FILE *out, const ZirModule *module, const ZirFunction *fn,
-               int statement, ZirTarget target, int force,
+               int statement, ZirTarget target,
                ZirAssemblyOperandResolver resolver, void *context)
 {
-    if((!force && portable_blocks && target == ZIR_C) || (target != ZIR_C && target != ZIR_CPP)) return 0;
+    if(target != ZIR_C) return 0;
     const ZirStmt *st = &fn->stmts[statement];
     if(!StatementHasAssembly(st)) return 0;
     if(!CheckAssemblyBlock(fn, statement, NULL, NULL)) exit(1);
@@ -1247,20 +1239,14 @@ int
 EmitAssemblyBlock(FILE *out, const ZirModule *module, const ZirFunction *fn,
                   int statement, ZirTarget target)
 {
-    return assembly_block(out, module, fn, statement, target, 0, NULL, NULL);
-}
-
-int
-EmitAssemblyBlockTry(FILE *out, const ZirModule *module, const ZirFunction *fn, int statement)
-{
-    return assembly_block(out, module, fn, statement, ZIR_C, 1, NULL, NULL);
+    return assembly_block(out, module, fn, statement, target, NULL, NULL);
 }
 
 int
 EmitAssemblyBlockMapped(FILE *out, const ZirModule *module, const ZirFunction *fn,
                         int statement, ZirAssemblyOperandResolver resolver, void *context)
 {
-    return assembly_block(out, module, fn, statement, ZIR_C, 1, resolver, context);
+    return assembly_block(out, module, fn, statement, ZIR_C, resolver, context);
 }
 
 int

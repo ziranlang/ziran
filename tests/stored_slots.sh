@@ -75,7 +75,7 @@ for input in source saved; do
     fi
     "$ziran" bundle --root "$work" --entry stored:Answer -o "$work/$input.zx" "$@"
     test "$("$ziran" run "$work/$input.zx")" = 44
-    for target in c cpp go; do
+    for target in c go; do
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --entry stored:Answer --root "$work" -o "$work/$target-$input" "$@"
         else
@@ -93,13 +93,6 @@ C
         exit 1
     fi
     "$work/c-$input/app"
-    cat > "$work/cpp-$input/main.cpp" <<'CPP'
-#include "stored.hpp"
-int main() { return Answer() == 44 ? 0 : 1; }
-CPP
-    "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$work/cpp-$input" \
-        "$work/cpp-$input/stored.cpp" "$work/cpp-$input/main.cpp" -o "$work/cpp-$input/app"
-    "$work/cpp-$input/app"
     cat > "$work/go-$input/main.go" <<'GO'
 package main
 func main() { if Stored_Answer() != 44 { panic("stored slot result") } }

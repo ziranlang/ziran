@@ -24,21 +24,14 @@ test "$("$1" run "$work/saved.zx")" = "42"
 for form in source saved; do
     input=tests/spec/sort_test.zi; module_root=tests/spec
     if test "$form" = saved; then input=$work/ir/sort_test.zir; module_root=$work/ir; fi
-    for target in c cpp; do
-        output=$work/$form-$target
-        "$1" build --target="$target" --root "$module_root" --module-path std -o "$output" "$input"
-        if test "$target" = c; then
-            printf '#include "sort_test.h"\nint main(void) { return SelfTest() == 42 ? 0 : 1; }\n' > "$output/run.c"
-            "${CC:-cc}" -std=c11 -I"$output" "$output"/*.c -o "$output/program"
-        else
-            printf '#include "sort_test.hpp"\nint main() { return SelfTest() == 42 ? 0 : 1; }\n' > "$output/run.cpp"
-            "${CXX:-c++}" -std=c++17 -I"$output" "$output"/*.cpp -o "$output/program"
-        fi
-        "$output/program"
-    done
+    output=$work/$form-c
+    "$1" build --target=c --root "$module_root" --module-path std -o "$output" "$input"
+    printf '#include "sort_test.h"\nint main(void) { return SelfTest() == 42 ? 0 : 1; }\n' > "$output/run.c"
+    "${CC:-cc}" -std=c11 -I"$output" "$output"/*.c -o "$output/program"
+    "$output/program"
     "$1" build --target=py --root "$module_root" --module-path std --entry sort_test:SelfTest --exe -o "$work/$form-py" "$input"
     result=0
     python3 "$work/$form-py" || result=$?
     test "$result" = 42
 done
-printf 'Sorting passed source and saved VM, C, C++ and Python.\n'
+printf 'Sorting passed source and saved VM, C and Python.\n'

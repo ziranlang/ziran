@@ -7,7 +7,7 @@ portable VM), checked indexing, fallible `VecPush`, `VecClear`, `VecFree`,
 `Vec(u8)` string builder through `BuilderAppend` and `BuilderFinish`, an
 explicit `VecClone(dest, src)` with a recoverable failure result, and
 `VecSlice(values, low, high)` borrowed views, in C99,
-C++, Go, and the portable VM. A vector can live in a local, global, record
+Go, and the portable VM. A vector can live in a local, global, record
 field, or fixed-array element reached from a record. Direct vector bindings,
 whole aggregates containing vectors, vector-bearing record-literal fields, and
 plain record-member paths rooted at a local aggregate have move checks on
@@ -16,7 +16,7 @@ its runtime may terminate on physical allocation failure; this is not yet the
 full recoverable failure contract below. `VecPop` and `VecGet` require the
 `Option` record template from `std/option.zi` to be visible in the using module.
 
-**Current safety limits:** C99, C++, Go, and the portable VM drop direct owned
+**Current safety limits:** C99, Go, and the portable VM drop direct owned
 `Vec` locals and parameters at block close, return, break, and continue. They
 also recursively drop vectors reachable through record fields and fixed arrays.
 A direct move clears its source before the next drop; an aggregate move clears
@@ -60,8 +60,8 @@ local so its lifetime is explicit; an ordinary call can consume the fresh
 result directly.
 
 `BuilderFinish` consumes the builder: the returned `string` keeps the builder's
-bytes without copying them on native C/C++/Rust when nonempty. Those targets
-still retain nonempty finished bytes for process lifetime; they now release
+bytes without copying them on native C when nonempty. That target
+still retains nonempty finished bytes for process lifetime; it now releases
 reserved storage when the result is empty. Go copies into its immutable string
 representation. The VM copies into an owned snapshot, preserves its owner
 through aliases and ranges, and collects unused snapshots at safe statement
@@ -118,6 +118,6 @@ string builder owns UTF-8 bytes in a `Vec[u8]`; `BuilderAppend` can fail, and
 `BuilderFinish` consumes the builder without copying its bytes. Immutable
 `string` values remain unchanged.
 
-The parser, checker, checked `.zir`, C/C++/Go emitters, portable verifier, VM,
+The parser, checker, checked `.zir`, C/Go emitters, portable verifier, VM,
 and host boundary implement the direct-vector operations above, with the
 ownership and automatic-drop limitations called out at the start of this page.

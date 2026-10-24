@@ -210,7 +210,7 @@ for input in source saved; do
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 42
 
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main \
@@ -229,16 +229,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --root "$module_dir" \
-                -o "$output" "$module"
-            cat > "$output/main.cpp" <<'CPP'
-#include "arrayapp.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         fi
     done

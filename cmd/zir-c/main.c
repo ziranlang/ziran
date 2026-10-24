@@ -13,7 +13,6 @@
 #include "zir_bundle.h"
 #include "zir_c_lower.h"
 #include "zir_c_build.h"
-#include "zir_c_plan9.h"
 
 #include "zir_emit.h"
 
@@ -30,8 +29,8 @@ static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
-            "usage: zi2c [--no-main] [--prune-stale] [--plan9|--target=plan9-c] "
-            "[--entry module:function [--exe] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--include-dir DIR] "
+            "usage: zi2c [--no-main] [--prune-stale] "
+            "[--entry module:function [--exe] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] "
             "[--diagnostics=text|json] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
 }
 
@@ -88,8 +87,6 @@ main(int argc, char **argv)
     int exe = 0;
     int output_lock = -1;
     int check_ok;
-    int plan9 = 0;
-    int unresolved = 0;
     int result = 1;
     ProgramSet set = {0};
     CompilerContext *command_context = NULL, *previous_context = NULL;
@@ -123,9 +120,6 @@ main(int argc, char **argv)
         COMMAND_FLAG("--prune-stale", prune_stale),
         COMMAND_FLAG("--no-main", no_main),
         COMMAND_FLAG("--exe", exe),
-        COMMAND_FLAG("--plan9", plan9),
-        COMMAND_FLAG("--target=plan9-c", plan9),
-        COMMAND_CALLBACK("--include-dir", c_plan9_add_include_dir),
     };
     first_file = ReadCommandOptions(argc, argv, options,
                                     sizeof(options) / sizeof(*options));
@@ -136,7 +130,7 @@ main(int argc, char **argv)
     if(root == NULL || out_dir == NULL || first_file == 0 ||
        (entry != NULL && !split_entry(entry, entry_module, entry_function)) ||
        ((binding_count > 0 || host_module_count > 0) && entry == NULL) ||
-       (exe && (entry == NULL || plan9))) {
+       (exe && entry == NULL)) {
         if(exe && entry == NULL) {
             Diagnostic((ZirSourceSpan){0}, "command.arguments", "--exe needs --entry module:function");
             return 1;
@@ -144,22 +138,13 @@ main(int argc, char **argv)
         usage();
         return 1;
     }
-    /* Source can tell Plan 9 apart, as std/file does: #if #defined(PLAN9). */
-    if(plan9 && define_count < 64) {
-        int present = 0;
-        for(int i = 0; i < define_count; i++)
-            present |= strcmp(defines[i], "PLAN9") == 0;
-        if(!present)
-            defines[define_count++] = "PLAN9";
-    }
     /* Native pthread adapters are available by default, including Windows
-     * builds with winpthreads. Web and Plan 9 retain portable adapters. */
-    int posix_threads = !plan9;
+     * builds with winpthreads. Web retains portable adapters. */
+    int posix_threads = 1;
     int threads_defined = 0;
     for(int d = 0; d < define_count; d++) {
         threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
-        if(strcmp(defines[d], "PLATFORM_WEB") == 0 ||
-           strcmp(defines[d], "PLAN9") == 0)
+        if(strcmp(defines[d], "PLATFORM_WEB") == 0)
             posix_threads = 0;
     }
     if(posix_threads && !threads_defined) {
@@ -184,10 +169,9 @@ main(int argc, char **argv)
                                       (const char *const *)set.paths);
     if(!check_ok)
         goto done;
-    c_plan9_set_enabled(plan9);
     if(entry == NULL)
         for(i = 0; i < file_count; i++)
-            if(!CheckTargetCapabilities(progs[i], plan9 ? "plan9-c" : "c"))
+            if(!CheckTargetCapabilities(progs[i], "c"))
                 goto done;
     if(entry != NULL) {
         if(!CommandMergePrograms(&set, &merged))
@@ -204,7 +188,7 @@ main(int argc, char **argv)
         linked = NativeLink(&merged, entry_module, entry_function);
         if(linked == NULL)
             goto done;
-        if(!CheckTargetCapabilities(linked, plan9 ? "plan9-c" : "c"))
+        if(!CheckTargetCapabilities(linked, "c"))
             goto done;
         output_lock = lock_output(out_dir);
         if(output_lock < 0) goto done;
@@ -293,16 +277,6 @@ done:
             result = 1;
             goto finish;
         }
-    }
-    unresolved = c_plan9_unresolved();
-    if(plan9 && unresolved > 0) {
-        /* Unresolved declarations are usually inside platform guards the
-         * native build compiles out; the in-guest compile is the final
-         * arbiter, so warn rather than fail. */
-        Warning((ZirSourceSpan){0}, "zir_c.plan9",
-                "--plan9 left %d __auto_type declarations unresolved "
-                "(guarded code compiles out; the rest must be resolvable)",
-                unresolved);
     }
 finish:
     if(output_lock >= 0) close(output_lock);

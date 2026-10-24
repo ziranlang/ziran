@@ -151,7 +151,7 @@ for feature in variant anon_enum match postfix guard switch goto default_label l
         c_adjacent_strings) message='statement is not supported by language checking' ;;
     esac
     grep -Fq "$message" "$work/$feature.err"
-    for target in c cpp go; do
+    for target in c go; do
         if "$ziran" build --target="$target" --root "$work" \
             -o "$work/out-$feature-$target" "$work/$feature.zi" \
             2> "$work/build-$feature-$target.err"; then
@@ -176,7 +176,7 @@ Answer :: () -> s32 {
 }
 ZI
 # Checking is unconditional; the old explicit switch is no longer accepted.
-for target in c cpp go; do
+for target in c go; do
     if "$ziran" build "--target=$target" --strict --root "$work" \
         -o "$work/strict-$target" "$work/names.zi" \
         2> "$work/strict-$target.err"; then
@@ -224,7 +224,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry bindings:Answer \
         -o "$work/bindings-$input.zx" "$file"
     test "$("$ziran" run "$work/bindings-$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/bindings-$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -242,14 +242,6 @@ C
                 ${CC:-cc} -std=c11 -Iinclude -I"$out" \
                     "$out/bindings.c" "$out/main.c" -o "$out/app"
                 "$out/app" ;;
-            cpp)
-                cat > "$out/main.cpp" <<'CPP'
-#include "bindings.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-                ${CXX:-c++} -std=c++17 -Iinclude -I"$out" \
-                    "$out/bindings.cpp" "$out/main.cpp" -o "$out/app"
-                "$out/app" ;;
             go)
                 cat > "$out/main.go" <<'GO'
 package main
@@ -263,7 +255,7 @@ done
 cat > "$work/unresolved.zi" <<'ZI'
 Answer :: () -> s32 { return Missing }
 ZI
-for target in c cpp go; do
+for target in c go; do
     if "$ziran" build "--target=$target" --root "$work" \
         -o "$work/unresolved-$target" "$work/unresolved.zi" \
         2> "$work/unresolved-$target.err"; then

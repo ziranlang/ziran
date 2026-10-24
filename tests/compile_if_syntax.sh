@@ -108,28 +108,14 @@ ${CC:-cc} -Iinclude -I"$work/c" "$work/c/branches.c" \
     "$work/c/main.c" -o "$work/c/app"
 "$work/c/app"
 
-for target in cpp go; do
-    out="$work/$target"
-    if test "$target" = go; then
-        "$ziran" build --target=go --pkg main --root "$work" \
-            -o "$out" "$work/branches.zi"
-        cat > "$out/main.go" <<'EOF'
+out="$work/go"
+"$ziran" build --target=go --pkg main --root "$work" \
+    -o "$out" "$work/branches.zi"
+cat > "$out/main.go" <<'EOF'
 package main
 func main() { if Branches_Answer() != 42 { panic("wrong #if result") } }
 EOF
-        GO111MODULE=off go run "$out/branches.go" "$out/main.go"
-    else
-        "$ziran" build --target=cpp --root "$work" \
-            -o "$out" "$work/branches.zi"
-        cat > "$out/main.cpp" <<'EOF'
-#include "branches.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-EOF
-        ${CXX:-c++} -Iinclude -I"$out" "$out/branches.cpp" \
-            "$out/main.cpp" -o "$out/app"
-        "$out/app"
-    fi
-done
+GO111MODULE=off go run "$out/branches.go" "$out/main.go"
 
 cat > "$work/old_branch.zi" <<'EOF'
 #if 1 {
@@ -198,7 +184,7 @@ for input in "$work/forward.zi" "$work/forward-ir/forward.zir"; do
     "$ziran" bundle --root "$root" --entry forward:Answer \
         -o "$work/forward-$label.zx" "$input"
     test "$("$ziran" run "$work/forward-$label.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/forward-$label-$target"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
         case "$target" in
@@ -206,12 +192,6 @@ for input in "$work/forward.zi" "$work/forward-ir/forward.zir"; do
                 printf '#include "forward.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$work/forward-main.c"
                 ${CC:-cc} -Iinclude -I"$out" "$out"/*.c \
                     "$work/forward-main.c" -o "$out/app"
-                "$out/app"
-                ;;
-            cpp)
-                printf '#include "forward.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$work/forward-main.cpp"
-                ${CXX:-c++} -Iinclude -I"$out" "$out"/*.cpp \
-                    "$work/forward-main.cpp" -o "$out/app"
                 "$out/app"
                 ;;
             go)
@@ -282,7 +262,7 @@ for input in "$work/forward_using.zi" "$work/using-ir/forward_using.zir"; do
     "$ziran" bundle --root "$root" --entry forward_using:Answer \
         -o "$work/using-$label.zx" "$input"
     test "$("$ziran" run "$work/using-$label.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/using-$label-$target"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
         case "$target" in
@@ -290,12 +270,6 @@ for input in "$work/forward_using.zi" "$work/using-ir/forward_using.zir"; do
                 printf '#include "forward_using.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$work/using-main.c"
                 ${CC:-cc} -Iinclude -I"$out" "$out"/*.c \
                     "$work/using-main.c" -o "$out/app"
-                "$out/app"
-                ;;
-            cpp)
-                printf '#include "forward_using.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$work/using-main.cpp"
-                ${CXX:-c++} -Iinclude -I"$out" "$out"/*.cpp \
-                    "$work/using-main.cpp" -o "$out/app"
                 "$out/app"
                 ;;
             go)

@@ -34,7 +34,7 @@ for input in "$work/inferred_int.zi" "$work/ir/inferred_int.zir"; do
         *.zi) suffix=source ;;
         *) suffix=saved ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$suffix"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$work" \
@@ -53,16 +53,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 EOF
             ${CC:-cc} -Iinclude -I"$out" "$out/inferred_int.c" \
                 "$out/main.c" -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$work" \
-                -o "$out" "$input"
-            cat > "$out/main.cpp" <<'EOF'
-#include "inferred_int.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-EOF
-            ${CXX:-c++} -Iinclude -I"$out" "$out/inferred_int.cpp" \
-                "$out/main.cpp" -o "$out/app"
             "$out/app"
         fi
     done

@@ -104,7 +104,7 @@ for input in source saved; do
         root=$work/ir
         file=$work/ir/app.zir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$target-$input
         native_answer_42 "$target" "$root" "$out" "$file" \
             app App_Answer 'typed #run'

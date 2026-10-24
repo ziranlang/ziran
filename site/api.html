@@ -8,14 +8,14 @@
 <div><code>ziran version</code><p>Print the compiler version; <code>--version</code> is the same. Release tags follow it, so <code>ref = "v0.3.1"</code> in <code>ziran.toml</code> pins a release.</p></div>
 <div><code>ziran check --root DIR file.zi ...</code><p>Check source and its imports without writing output. Add <code>--diagnostics=json</code> for machine-readable diagnostics.</p></div>
 <div><code>ziran ir --root DIR -o DIR file.zi|file.zir ...</code><p>Check and write versioned binary <code>.zir</code> modules.</p></div>
-<div><code>ziran build --target=c|cpp|go|rust|py|plan9-c --root DIR -o DIR file.zi|file.zir ...</code><p>Generate target source. <code>--exe --entry module:function</code> writes a runnable Go or Rust project, or a Python <code>__main__.py</code> that <code>python3 DIR</code> runs; Go also takes <code>--pkg NAME</code>. <code>plan9-c</code> is experimental.</p></div>
+<div><code>ziran build --target=c|go|py --root DIR -o DIR file.zi|file.zir ...</code><p>Generate target source. <code>--exe --entry module:function</code> writes a runnable Go project, or a Python <code>__main__.py</code> that <code>python3 DIR</code> runs; Go also takes <code>--pkg NAME</code>.</p></div>
 <div><code>ziran bundle --root DIR --entry module:function -o FILE file.zi|file.zir ...</code><p>Link a supported program into a version 24 <code>.zx</code> bundle. <code>--bind module:function=module:function</code> redirects a host capability.</p></div>
 <div><code>ziran run FILE.zx</code><p>Validate and run a bundle. The entry result, if any, is printed after the program output.</p></div>
 <div><code>ziran fmt [--check] file.zi ...</code><p>Format source with stable indentation and spacing; <code>--check</code> reports files that need formatting.</p></div>
 <div><code>ziran inspect [--hex] file.zir</code><p>Show a saved <code>.zir</code> module as readable declarations and expression graphs, or as bytes and offsets.</p></div>
 <div><code>ziran api [--json] --root DIR file.zi|file.zir ...</code><p>List the checked public constants, globals, types, and procedures of each loaded module. The <a href="std.html">standard library reference</a> is generated this way.</p></div>
 <div><code>ziran features [--id ID] [--json]</code><p>Report the versioned feature registry: syntax, status, target support, limits, and accepted and rejected examples.</p></div>
-<div><code>ziran capabilities [--target=c|cpp|go|rust|py|zx|plan9-c] [--json]</code><p>Report what each target supports and its limits.</p></div>
+<div><code>ziran capabilities [--target=c|go|py|zx] [--json]</code><p>Report what each target supports and its limits.</p></div>
 <div><code>ziran explain CODE | --list [--json]</code><p>Explain a diagnostic code, or list every registered code.</p></div>
 </div><p>Repeat <code>--module-path DIR</code> to search for imported modules outside the root, and use <code>--define NAME</code> to select conditional source. Checking is unconditional; the toolchain rejects <code>--strict</code> and <code>--no-strict</code>.</p></section>
 <section id="projects"><p class="eyebrow">02 / Projects</p><h2>Project commands</h2><p>A project has a <code>ziran.toml</code> and a committed <code>ziran.lock</code> that pins every dependency and the compiler to full Git commits. Add <code>--project [--locked] [--offline]</code> to <code>check</code>, <code>ir</code>, <code>build</code>, <code>bundle</code>, or <code>api</code> to use it.</p><div class="api-list">
@@ -29,7 +29,7 @@
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/docs/PACKAGES.md">Packages and project imports ↗</a></p></section>
 <section id="tools"><p class="eyebrow">03 / Direct tools</p><h2>Compiler binaries</h2><p><code>ziran</code> dispatches to these tools in <code>build/bin</code>; they accept the same options.</p><div class="api-list">
 <div><code>zi2zir</code><p>Check source and write <code>.zir</code>; <code>--check-only</code> writes nothing.</p></div>
-<div><code>zi2c · zi2cpp · zi2go · zi2rust · zi2py</code><p>Generate C (including Plan 9 C with <code>--target=plan9-c</code>), C++, Go, Rust, and Python 3.10. <code>--no-main</code> leaves out the entry wrapper.</p></div>
+<div><code>zi2c · zi2go · zi2py</code><p>Generate C, Go, and Python 3.10. <code>--no-main</code> leaves out the entry wrapper.</p></div>
 <div><code>zi2zx bundle | run</code><p>Link and run portable bundles.</p></div>
 <div><code>zi-api · zi-inspect · zi-fmt</code><p>The API listing, <code>.zir</code> inspector, and formatter.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/README.md">Toolchain source guide ↗</a></p></section>

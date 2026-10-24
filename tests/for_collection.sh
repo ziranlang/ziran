@@ -93,7 +93,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry collections:NamedCollection \
         -o "$work/$input-named.zx" "$file"
     test "$("$ziran" run "$work/$input-named.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -114,15 +114,6 @@ int main(void) { return Answer() == 42 && NamedCollection() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                 "$out/collections.c" "$out/main.c" -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$file"
-            cat > "$out/main.cpp" <<'CPP'
-#include "collections.hpp"
-int main() { return Answer() == 42 && NamedCollection() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out/collections.cpp" "$out/main.cpp" -o "$out/app"
             "$out/app"
         fi
     done
@@ -153,7 +144,7 @@ for input in source saved; do
         file=$work/pointer-ir/pointer_for.zir
         root=$work/pointer-ir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/pointer-$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -171,15 +162,6 @@ int main(void) { return Answer() == 15 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                 "$out/pointer_for.c" "$out/main.c" -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$file"
-            cat > "$out/main.cpp" <<'CPP'
-#include "pointer_for.hpp"
-int main() { return Answer() == 15 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out/pointer_for.cpp" "$out/main.cpp" -o "$out/app"
             "$out/app"
         fi
     done
@@ -265,7 +247,7 @@ for kind in string slice array; do
         echo "saved IR accepted legacy $kind length syntax" >&2
         exit 1
     fi
-    for target in c cpp go; do
+    for target in c go; do
         if "$ziran" build --target="$target" --root "$work" \
            -o "$work/legacy-$kind-$target" "$source" \
            2> "$work/legacy_${kind}_$target.err"; then

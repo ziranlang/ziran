@@ -12,7 +12,7 @@ for mode in source saved; do
     "$ziran" bundle --root "$root" --entry compact_branches:main -o "$work/$mode.zx" "$entry"
     "$ziran" run "$work/$mode.zx" > "$work/$mode-vm.out"
     cmp "$work/expected" "$work/$mode-vm.out"
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$mode-$target
         if [ "$target" = go ]; then
             "$ziran" build --target=go --pkg main --exe --entry compact_branches:main --root "$root" -o "$out" "$entry"
@@ -21,11 +21,6 @@ for mode in source saved; do
             "$ziran" build --target=c --root "$root" -o "$out" "$entry"
             printf '#include "compact_branches.h"\nint main(void) { compact_branches_main(); return 0; }\n' > "$out/run.c"
             "${CC:-cc}" -std=c99 -I"$out" "$out/compact_branches.c" "$out/run.c" -o "$out/program"
-            "$out/program" > "$out.out"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$entry"
-            printf '#include "compact_branches.hpp"\nint main() { compact_branches_main(); return 0; }\n' > "$out/run.cpp"
-            "${CXX:-c++}" -std=c++17 -I"$out" "$out/compact_branches.cpp" "$out/run.cpp" -o "$out/program"
             "$out/program" > "$out.out"
         fi
         cmp "$work/expected" "$out.out"

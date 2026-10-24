@@ -52,11 +52,12 @@ ZirMemoryClose(void *context)
 #endif
 
 /* Read-only seekable stream. Unix, Android and Emscripten do not need
- * filesystem access or TMPDIR to load embedded bundles. */
+ * filesystem access or TMPDIR to load embedded bundles. Windows has no
+ * memory streams; ZIR_STREAM_TMPFILE selects its temporary-file path. */
 static inline FILE *
 ZirReadMemory(const unsigned char *data, size_t size)
 {
-#if defined(_WIN32) || defined(__plan9__)
+#if defined(_WIN32) || defined(ZIR_STREAM_TMPFILE)
     FILE *file = tmpfile();
     if(file == NULL)
         return NULL;
@@ -81,7 +82,7 @@ ZirReadMemory(const unsigned char *data, size_t size)
 #endif
 }
 
-#if !defined(_WIN32) && !defined(__plan9__)
+#if !defined(_WIN32) && !defined(ZIR_STREAM_TMPFILE)
 #define ZIR_MEMORY_STREAMS 1
 #if defined(__ANDROID__) || defined(__APPLE__) || defined(__FreeBSD__)
 typedef struct ZirMemoryWriter {

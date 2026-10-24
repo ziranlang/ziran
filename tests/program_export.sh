@@ -31,33 +31,19 @@ int main(void) {
            Helper() == 42 ? 0 : 1;
 }
 C
-cat > "$work/main.cpp" <<'CPP'
-#include "exported.hpp"
-int main() {
-    return native_answer() == 42 && standalone_answer() == 42 &&
-           Helper() == 42 ? 0 : 1;
-}
-CPP
-for target in c cpp; do
-    for input in source saved; do
-        if test "$input" = source; then
-            root=$work
-            file=$work/exported.zi
-        else
-            root=$work/ir
-            file=$work/ir/exported.zir
-        fi
-        out="$work/$target-$input"
-        "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"
-        if test "$target" = c; then
-            ${CC:-cc} -Iinclude -I"$out" "$out/exported.c" \
-                "$work/main.c" -o "$out/main"
-        else
-            ${CXX:-c++} -Iinclude -I"$out" "$out/exported.cpp" \
-                "$work/main.cpp" -o "$out/main"
-        fi
-        "$out/main"
-    done
+for input in source saved; do
+    if test "$input" = source; then
+        root=$work
+        file=$work/exported.zi
+    else
+        root=$work/ir
+        file=$work/ir/exported.zir
+    fi
+    out="$work/c-$input"
+    "$ziran" build --target=c --root "$root" -o "$out" "$file"
+    ${CC:-cc} -Iinclude -I"$out" "$out/exported.c" \
+        "$work/main.c" -o "$out/main"
+    "$out/main"
 done
 
 cat > "$work/plain.zi" <<'ZI'
@@ -113,14 +99,6 @@ int main(void) {
                ? 0 : 1;
 }
 C
-cat > "$work/keyword_main.cpp" <<'CPP'
-#include "keywords.hpp"
-int main() {
-    return Answer() == 42 && ziran_keyword_switch_1() == 39 &&
-           ziran_keyword_switch_0() == 1 && ziran_keyword_class_0() == 2
-               ? 0 : 1;
-}
-CPP
 for input in source saved; do
     if test "$input" = source; then
         root=$work
@@ -132,19 +110,12 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry keywords:Answer \
         -o "$work/keywords-$input.zx" "$file"
     test "$("$ziran" run "$work/keywords-$input.zx")" = 42
-    for target in c cpp; do
-        out="$work/keywords-$target-$input"
-        "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"
-        if test "$target" = c; then
-            "${CC:-cc}" -std=c99 -pedantic-errors -Iinclude -I"$out" \
-                "$out/keywords.c" "$work/keyword_main.c" -o "$out/main"
-        else
-            "${CXX:-c++}" -std=c++17 -pedantic-errors -Iinclude -I"$out" \
-                "$out/keywords.cpp" "$work/keyword_main.cpp" -o "$out/main"
-        fi
-        "$out/main"
-        nm "$out/main" | grep -Eq ' T switch$'
-        nm "$out/main" | grep -Eq ' T class$'
-    done
+    out="$work/keywords-c-$input"
+    "$ziran" build --target=c --root "$root" -o "$out" "$file"
+    "${CC:-cc}" -std=c99 -pedantic-errors -Iinclude -I"$out" \
+        "$out/keywords.c" "$work/keyword_main.c" -o "$out/main"
+    "$out/main"
+    nm "$out/main" | grep -Eq ' T switch$'
+    nm "$out/main" | grep -Eq ' T class$'
 done
 cmp "$work/keywords-source.zx" "$work/keywords-saved.zx"

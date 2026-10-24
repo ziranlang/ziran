@@ -17,18 +17,13 @@ for input in source saved; do
     root=$repo/tests/spec
     file=$root/calendar_test.zi
     if test "$input" = saved; then root=$work/ir; file=$root/calendar_test.zir; fi
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$input-$target
         "$ziran" build --target="$target" --no-main --entry calendar_test:Check --root "$root" --module-path "$repo/std" -o "$out" "$file"
         case $target in
         c)
             printf '#include "calendar_test.h"\nint main(void) { return Check(); }\n' > "$out/entry.c"
             cc -std=c11 -I"$out" "$out"/*.c -lm -o "$work/program"
-            "$work/program"
-            ;;
-        cpp)
-            printf '#include "calendar_test.hpp"\nint main() { return Check(); }\n' > "$out/entry.cpp"
-            c++ -std=c++17 -I"$out" "$out"/*.cpp -lm -o "$work/program"
             "$work/program"
             ;;
         go)

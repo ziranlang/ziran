@@ -114,8 +114,8 @@ RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_he
 .PHONY: proof-model
 LEAN ?= lean
 CHECK_JOBS ?= 4
-all: $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zx $(BUILD_DIR)/libziran.a
-	$(RM) $(BIN_DIR)/zi2zib
+all: $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zx $(BUILD_DIR)/libziran.a
+	$(RM) $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust
 
 proof-model:
 	mkdir -p $(BUILD_DIR)/proofs
@@ -128,7 +128,7 @@ USER_BIN ?= $(HOME)/.local/bin
 USER_SHARE ?= $(HOME)/.local/share/ziran/bootstrap
 install-user: all
 	mkdir -p $(USER_BIN) $(USER_SHARE)/build/bin
-	@set -e; for tool in ziran zi-fmt zi2zir zi-api zi-inspect zi2c zi2go zi2cpp zi2rust zi2py zi2zx; do \
+	@set -e; for tool in ziran zi-fmt zi2zir zi-api zi-inspect zi2c zi2go zi2py zi2zx; do \
 		temporary=$$(mktemp "$(USER_SHARE)/build/bin/.$$tool.XXXXXX"); \
 		trap 'rm -f "$$temporary"' EXIT; \
 		cp "$(BIN_DIR)/$$tool" "$$temporary"; chmod 755 "$$temporary"; \
@@ -137,7 +137,7 @@ install-user: all
 	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include $(USER_SHARE)/templates
 	cp -r std include templates $(USER_SHARE)/
 	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add
-	$(RM) $(USER_SHARE)/build/bin/zi2zib
+	$(RM) $(USER_SHARE)/build/bin/zi2zib $(USER_SHARE)/build/bin/zi2cpp $(USER_SHARE)/build/bin/zi2rust
 	printf '%s\n' '#!/bin/sh' 'set -eu' \
 		'exec "$(USER_SHARE)/build/bin/ziran" "$$@"' > $(USER_BIN)/ziran
 	chmod 755 $(USER_BIN)/ziran
@@ -348,18 +348,11 @@ $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS)
 	mkdir -p $(dir $@)
 	sh scripts/embed_headers.sh $(RUNTIME_HEADERS) > $@
 
-$(BIN_DIR)/zi2c: $(call obj,cmd/zir-c/main.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_cache.c cmd/zir-c/zir_c_lower.c cmd/zir-c/zir_c_plan9.c) \
+$(BIN_DIR)/zi2c: $(call obj,cmd/zir-c/main.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_cache.c cmd/zir-c/zir_c_lower.c) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2go: $(call obj,cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c cmd/zir-go/zir_go_asm.c cmd/zir-go/zir_go_amd64.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
-
-$(BIN_DIR)/zi2cpp: $(call obj,cmd/zir-cpp/main.c cmd/zir-cpp/zir_cpp_lower.c) \
-    $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
-
-$(BIN_DIR)/zi2rust: $(call obj,cmd/zir-rust/main.c cmd/zir-rust/zir_rust_lower.c cmd/zir-rust/zir_rust_types.c cmd/zir-rust/zir_rust_expr.c cmd/zir-rust/zir_rust_statement.c cmd/zir-rust/zir_rust_module.c cmd/zir-rust/zir_rust_runtime.c cmd/zir-rust/zir_rust_asm.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2py: $(call obj,cmd/zir-py/main.c cmd/zir-py/zir_py_lower.c cmd/zir-py/zir_py_types.c cmd/zir-py/zir_py_value.c cmd/zir-py/zir_py_expr.c cmd/zir-py/zir_py_statement.c cmd/zir-py/zir_py_runtime.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
@@ -372,7 +365,7 @@ ifneq ($(BOOTSTRAP),1)
 BOOTSTRAP_BIN := $(BUILD_DIR)/bootstrap/bin/zi2c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     $(PORTABLE) cmd/zir/zir_runtime.c cmd/zir-c/main.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_build.h cmd/zir-c/zir_c_cache.c cmd/zir-c/zir_c_cache.h cmd/zir-c/zir_c_lower.c \
-    cmd/zir-c/zir_c_plan9.c cmd/zir-c/zir_c_process.h $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
+    cmd/zir-c/zir_c_process.h $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     bootstrap/compiler_scan/compiler_scan.c bootstrap/compiler_scan/compiler_scan.h \
     bootstrap/compiler_text/compiler_text.c bootstrap/compiler_text/compiler_text.h \
     bootstrap/compiler_source/compiler_source.c bootstrap/compiler_source/compiler_source.h \

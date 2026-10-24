@@ -40,13 +40,6 @@ int main(void) { return Answer() == 43 ? 0 : 1; }
 C
 "${CC:-cc}" -Iinclude -I"$work/c" "$work/c"/*.c -o "$work/c/app"
 "$work/c/app"
-"$ziran" build --target=cpp --root "$work" -o "$work/cpp" "$work/main.zi"
-cat > "$work/cpp/entry.cpp" <<'CPP'
-#include "main.hpp"
-int main() { return Answer() == 43 ? 0 : 1; }
-CPP
-"${CXX:-c++}" -Iinclude -I"$work/cpp" "$work/cpp"/*.cpp -o "$work/cpp/app"
-"$work/cpp/app"
 "$ziran" build --target=go --pkg main --root "$work" \
     -o "$work/go" "$work/main.zi"
 cat > "$work/go/entry.go" <<'GO'
@@ -243,15 +236,6 @@ fi
 "${CC:-cc}" -Iinclude -I"$work/duplicate-c" \
     "$work/duplicate-c"/*.c -o "$work/duplicate-c/app"
 "$work/duplicate-c/app"
-"$ziran" build --target=cpp --root "$work" -o "$work/duplicate-cpp" \
-    "$work/main.zi"
-cat > "$work/duplicate-cpp/entry.cpp" <<'CPP'
-#include "main.hpp"
-int main() { return Answer() == 22 ? 0 : 1; }
-CPP
-"${CXX:-c++}" -Iinclude -I"$work/duplicate-cpp" \
-    "$work/duplicate-cpp"/*.cpp -o "$work/duplicate-cpp/app"
-"$work/duplicate-cpp/app"
 "$ziran" build --target=go --pkg main --root "$work" \
     -o "$work/duplicate-go" "$work/main.zi"
 cat > "$work/duplicate-go/entry.go" <<'GO'
@@ -289,7 +273,7 @@ for input in source saved; do
         file=$work/private-global-ir/main.zir
         root=$work/private-global-ir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/private-global-$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -307,15 +291,6 @@ int main(void) { return Answer() == 3 ? 0 : 1; }
 C
             "${CC:-cc}" -Iinclude -I"$output" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$output" "$file"
-            cat > "$output/entry.cpp" <<'CPP'
-#include "main.hpp"
-int main() { return Answer() == 3 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -Iinclude -I"$output" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         fi
     done
@@ -355,15 +330,6 @@ C
 "${CC:-cc}" -Iinclude -I"$work/private-enum-c" \
     "$work/private-enum-c"/*.c -o "$work/private-enum-c/app"
 "$work/private-enum-c/app"
-"$ziran" build --target=cpp --root "$work" -o "$work/private-enum-cpp" \
-    "$work/main.zi"
-cat > "$work/private-enum-cpp/entry.cpp" <<'CPP'
-#include "main.hpp"
-int main() { return Answer() == 9 ? 0 : 1; }
-CPP
-"${CXX:-c++}" -Iinclude -I"$work/private-enum-cpp" \
-    "$work/private-enum-cpp"/*.cpp -o "$work/private-enum-cpp/app"
-"$work/private-enum-cpp/app"
 "$ziran" build --target=go --pkg main --root "$work" \
     -o "$work/private-enum-go" "$work/main.zi"
 cat > "$work/private-enum-go/entry.go" <<'GO'

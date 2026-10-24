@@ -156,14 +156,6 @@ for input in source saved; do
     status=0
     "$output/app" || status=$?
     test "$status" = 42
-    output="$work/cpp-$input"
-    "$ziran" build --target=cpp --root "$root" -o "$output" "$module"
-    cat > "$output/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-    "${CXX:-c++}" -I"$repo/include" -I"$output" "$output"/*.cpp -o "$output/app"
-    "$output/app"
     output="$work/go-$input"
     "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$module"
     cat > "$output/main.go" <<'GO'
@@ -174,10 +166,5 @@ GO
     output=$work/py-$input
     "$ziran" build --target=py --exe --entry app:Run --root "$root" -o "$output" "$module"
     test "$(python3 "$output")" = 42
-    if command -v cargo >/dev/null 2>&1; then
-        output=$work/rust-$input
-        "$ziran" build --target=rust --exe --entry app:Run --root "$root" -o "$output" "$module"
-        test "$(CARGO_TARGET_DIR="$work/rust-target" cargo run --quiet --offline --manifest-path "$output/Cargo.toml")" = 42
-    fi
 done
 cmp "$work/source.zx" "$work/saved.zx"

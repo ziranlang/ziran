@@ -14,25 +14,14 @@ ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/foreign_keywords.zi"
 for form in source saved; do
     input="$work/foreign_keywords.zi"; if test "$form" = saved; then input="$work/ir/foreign_keywords.zir"; fi
-    for target in c cpp; do
-        output="$work/$form-$target"
-        "$ziran" build --target="$target" --root "$work" -o "$output" "$input"
-        if test "$target" = c; then
-            cat > "$output/host.c" <<'C'
+    output="$work/$form-c"
+    "$ziran" build --target=c --root "$work" -o "$output" "$input"
+    cat > "$output/host.c" <<'C'
 #include "foreign_keywords.h"
 int32_t sum_keywords(int32_t a, int32_t b, int32_t c, int32_t d) { return a+b+c+d; }
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
-            cc -std=c11 -pedantic-errors -Iinclude -I"$output" "$output"/*.c -o "$output/test"
-        else
-            cat > "$output/host.cpp" <<'CPP'
-#include "foreign_keywords.hpp"
-extern "C" int32_t sum_keywords(int32_t a, int32_t b, int32_t c, int32_t d) { return a+b+c+d; }
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            c++ -std=c++17 -pedantic-errors -Iinclude -I"$output" "$output"/*.cpp -o "$output/test"
-        fi
-        "$output/test"
-    done
+    cc -std=c11 -pedantic-errors -Iinclude -I"$output" "$output"/*.c -o "$output/test"
+    "$output/test"
 done
-echo 'Foreign keyword parameters and escaped-name collisions pass C/C++ from source and saved IR'
+echo 'Foreign keyword parameters and escaped-name collisions pass C from source and saved IR'

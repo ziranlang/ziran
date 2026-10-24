@@ -44,7 +44,7 @@ for input in "$work/app.zi" "$work/ir/app.zir"; do
         *.zi) suffix=source ; root=$work ;;
         *) suffix=saved ; root=$work/ir ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$suffix"
         native_answer_42 "$target" "$root" "$out" "$input" \
             app App_Answer 'compile-time call result'
@@ -143,7 +143,7 @@ for input in source saved; do
         root=$work/linked/ir
         file=$work/linked/ir/app.zir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/linked/$target-$input
         native_answer_42 "$target" "$root" "$out" "$file" \
             app App_Answer 'linked #run result'
@@ -245,7 +245,7 @@ expect_rejection 'overflowing compile-time call was accepted' "$work/overflow.er
 rg -q '#run expression is not a constant' "$work/overflow.err"
 
 # Compile-time branches and assertions are resolved by Ziran. They must never
-# leave C/C++ preprocessor checks or a Go-only validation path behind.
+# leave C preprocessor checks or a Go-only validation path behind.
 cat > "$work/assert_selected.zi" <<'ZI'
 #if true {
 #assert 1, "checked marker"
@@ -282,7 +282,7 @@ for input in "$work/assert_selected.zi" "$work/assert-ir/assert_selected.zir"; d
         *.zi) root=$work; suffix=source ;;
         *) root=$work/assert-ir; suffix=saved ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/assert-$target-$suffix"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
         if rg -q '^#error ' "$out"; then

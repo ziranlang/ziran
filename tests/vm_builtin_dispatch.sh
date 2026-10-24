@@ -46,20 +46,12 @@ for form in source saved; do
     if test "$form" = saved; then root=$work/ir; suffix=zir; fi
     "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zx" "$root/app.$suffix"
     test "$("$ziran" run "$work/$form.zx")" = 0
-    for target in c cpp; do
-        "$ziran" build --root "$root" --target="$target" --entry app:Answer --no-main \
-            -o "$work/$form-$target" "$root/app.$suffix"
-        if test "$target" = c; then
-            printf '%s\n' '#include "app.h"' 'int main(void) { return Answer(); }' > "$work/$form-$target/main.c"
-            "${CC:-cc}" -std=c11 -I"$repo/include" -I"$work/$form-$target" \
-                "$work/$form-$target"/*.c -o "$work/$form-$target/app"
-        else
-            printf '%s\n' '#include "app.hpp"' 'int main() { return Answer(); }' > "$work/$form-$target/main.cpp"
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$work/$form-$target" \
-                "$work/$form-$target"/*.cpp -o "$work/$form-$target/app"
-        fi
-        "$work/$form-$target/app"
-    done
+    "$ziran" build --root "$root" --target=c --entry app:Answer --no-main \
+        -o "$work/$form-c" "$root/app.$suffix"
+    printf '%s\n' '#include "app.h"' 'int main(void) { return Answer(); }' > "$work/$form-c/main.c"
+    "${CC:-cc}" -std=c11 -I"$repo/include" -I"$work/$form-c" \
+        "$work/$form-c"/*.c -o "$work/$form-c/app"
+    "$work/$form-c/app"
     "$ziran" build --root "$root" --target=go --pkg main --entry app:Answer --no-main \
         -o "$work/$form-go" "$root/app.$suffix"
     printf '%s\n' 'package main' 'func main() { if App_Answer() != 0 { panic("builtin prefix call") } }' > "$work/$form-go/main.go"

@@ -45,7 +45,7 @@ for input in source saved; do
         root=$work/ir
         file=$work/ir/phase.zir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$input"
         native_answer_42 "$target" "$root" "$out" "$file" \
             phase Phase_Answer 'compile-time phase'

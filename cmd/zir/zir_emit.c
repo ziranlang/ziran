@@ -347,50 +347,57 @@ function_reads_global(const ZirFunction *fn, const char *name)
     return 0;
 }
 
+static const char *const c_keywords[] = {
+    "auto", "break", "case", "char", "const", "continue", "default",
+    "do", "double", "else", "enum", "extern", "float", "for", "goto",
+    "if", "inline", "int", "long", "register", "restrict", "return",
+    "short", "signed", "sizeof", "static", "struct", "switch",
+    "typedef", "union", "unsigned", "void", "volatile", "while",
+    "_Alignas", "_Alignof", "_Atomic", "_Bool", "_Complex",
+    "_Generic", "_Imaginary", "_Noreturn", "_Static_assert",
+    "_Thread_local", NULL
+};
+/* C++ hosts include generated C headers, so exported identifiers and
+ * type names also avoid these words. */
+static const char *const cpp_keywords[] = {
+    "alignas", "alignof", "asm", "bool", "catch", "class", "constexpr",
+    "delete", "explicit", "false", "friend", "mutable", "namespace",
+    "new", "noexcept", "nullptr", "operator", "private", "protected",
+    "public", "template", "this", "throw", "true", "try", "typename",
+    "using", "virtual", "and", "and_eq", "bitand", "bitor",
+    "char16_t", "char32_t", "compl", "const_cast", "decltype",
+    "dynamic_cast", "export", "not", "not_eq", "or", "or_eq",
+    "reinterpret_cast", "static_assert", "static_cast", "thread_local",
+    "typeid", "wchar_t", "xor", "xor_eq", NULL
+};
+static const char *const go_keywords[] = {
+    "break", "case", "chan", "const", "continue", "default", "defer",
+    "else", "fallthrough", "for", "func", "go", "goto", "if", "import",
+    "interface", "map", "package", "range", "return", "select",
+    "struct", "switch", "type", "var", "fmt", "strconv", "math",
+    "formatFloat", "unsafe", "zirGoAssemblyEnabled", NULL
+};
+
+static int
+keyword(const char *name, const char *const *words)
+{
+    for(; *words; words++)
+        if(!strcmp(name, *words))
+            return 1;
+    return 0;
+}
+
+int
+NativeHeaderKeyword(const char *name)
+{
+    return keyword(name, c_keywords) || keyword(name, cpp_keywords);
+}
+
 void
 TargetBindingName(const ZirFunction *fn, ZirTarget target,
                   const char *name, char *out, size_t size)
 {
-    static const char *const c_keywords[] = {
-        "auto", "break", "case", "char", "const", "continue", "default",
-        "do", "double", "else", "enum", "extern", "float", "for", "goto",
-        "if", "inline", "int", "long", "register", "restrict", "return",
-        "short", "signed", "sizeof", "static", "struct", "switch",
-        "typedef", "union", "unsigned", "void", "volatile", "while",
-        "_Alignas", "_Alignof", "_Atomic", "_Bool", "_Complex",
-        "_Generic", "_Imaginary", "_Noreturn", "_Static_assert",
-        "_Thread_local", NULL
-    };
-    static const char *const cpp_keywords[] = {
-        "alignas", "alignof", "asm", "bool", "catch", "class", "constexpr",
-        "delete", "explicit", "false", "friend", "mutable", "namespace",
-        "new", "noexcept", "nullptr", "operator", "private", "protected",
-        "public", "template", "this", "throw", "true", "try", "typename",
-        "using", "virtual", "and", "and_eq", "bitand", "bitor",
-        "char16_t", "char32_t", "compl", "const_cast", "decltype",
-        "dynamic_cast", "export", "not", "not_eq", "or", "or_eq",
-        "reinterpret_cast", "static_assert", "static_cast", "thread_local",
-        "typeid", "wchar_t", "xor", "xor_eq", NULL
-    };
-    static const char *const go_keywords[] = {
-        "break", "case", "chan", "const", "continue", "default", "defer",
-        "else", "fallthrough", "for", "func", "go", "goto", "if", "import",
-        "interface", "map", "package", "range", "return", "select",
-        "struct", "switch", "type", "var", "fmt", "strconv", "math",
-        "formatFloat", "unsafe", "zirGoAssemblyEnabled", NULL
-    };
-    const char *const *lists[] = {c_keywords, cpp_keywords, go_keywords};
-    int reserved = 0;
-    for(const char *const *word = lists[0]; *word; word++)
-        reserved |= strcmp(name, *word) == 0;
-    if(target == ZIR_CPP)
-        for(const char *const *word = lists[1]; *word; word++)
-            reserved |= strcmp(name, *word) == 0;
-    if(target == ZIR_GO) {
-        reserved = 0;
-        for(const char *const *word = lists[2]; *word; word++)
-            reserved |= strcmp(name, *word) == 0;
-    }
+    int reserved = keyword(name, target == ZIR_GO ? go_keywords : c_keywords);
     if(!reserved && (fn == NULL || !function_reads_global(fn, name))) {
         copy_text(out, size, name);
         return;
@@ -525,8 +532,7 @@ native_names_mark_shared(const NativeValueNames *names)
                     *names->items[i].collision = *names->items[j].collision = 1;
 }
 
-/* C typedefs and C++ types share the ordinary identifier namespace with
- * values. Rename the type when the final value name remains unchanged;
+/* C typedefs share the ordinary identifier namespace with values. Rename the type when the final value name remains unchanged;
  * duplicate values already have their own native names. Identical concrete
  * types may share a name, so type/type ownership stays with CheckPrograms. */
 static void
@@ -551,7 +557,7 @@ int
 MarkNativeNameCollisions(ZirProgram **programs, int count)
 {
     const ZirProgram *native_programs[count > 0 ? count : 1];
-    NativeValueNames names[3] = {{0}, {0}, {0}}; /* C, C++, Go */
+    NativeValueNames names[2] = {{0}, {0}}; /* C, Go */
     int values = 0, ok = 1;
     for(int p = 0; p < count; p++) {
         native_programs[p] = programs[p];
@@ -560,7 +566,7 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                       programs[p]->modules[m].define_count +
                       programs[p]->modules[m].type_count;
     }
-    for(int t = 0; t < 3; t++) {
+    for(int t = 0; t < 2; t++) {
         names[t].bucket_count = values * 2 + 1;
         names[t].buckets = malloc((size_t)names[t].bucket_count * sizeof(int));
         if(names[t].buckets == NULL) ok = 0;
@@ -577,15 +583,15 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                 int *collision = is_global ?
                     &module->globals[v].native_name_collision :
                     &module->defines[v - module->global_count].native_name_collision;
-                for(int t = 0; ok && t < 3; t++) {
+                for(int t = 0; ok && t < 2; t++) {
                     char native[ZIR_NAME_MAX * 2];
-                    target_top_name(module, t == 0 ? ZIR_C : t == 1 ? ZIR_CPP : ZIR_GO,
+                    target_top_name(module, t == 0 ? ZIR_C : ZIR_GO,
                                     name, is_global, native, sizeof(native));
                     ok = native_names_add(&names[t], native, collision, 0);
                 }
             }
         }
-    for(int t = 0; ok && t < 3; t++)
+    for(int t = 0; ok && t < 2; t++)
         native_names_mark_shared(&names[t]);
     for(int p = 0; ok && p < count; p++)
         for(int m = 0; ok && m < programs[p]->module_count; m++) {
@@ -596,9 +602,8 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                    (type->is_extern && !type->foreign_target[0])) continue;
                 char native[ZIR_NAME_MAX * 2];
                 NativeTypeName(module, type, native, sizeof(native));
-                for(int target = 0; ok && target < 2; target++)
-                    ok = native_names_add(&names[target], native,
-                                          &type->native_name_mangled, 1);
+                ok = native_names_add(&names[0], native,
+                                      &type->native_name_mangled, 1);
             }
         }
     for(int p = 0; ok && p < count; p++)
@@ -610,16 +615,13 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                 if(function->is_template) continue;
                 NativeCFunctionName(module, function, native, sizeof(native));
                 native_names_mark(&names[0], native);
-                native_names_mark(&names[1], native);
-                if(NativeProgramMain(module, function)) {
+                if(NativeProgramMain(module, function))
                     native_names_mark(&names[0], "main");
-                    native_names_mark(&names[1], "main");
-                }
                 NativeGoFunctionName(native_programs, count, module, function,
                                      native, sizeof(native));
-                native_names_mark(&names[2], native);
+                native_names_mark(&names[1], native);
                 if(function->export_symbol[0])
-                    native_names_mark(&names[2], function->export_symbol);
+                    native_names_mark(&names[1], function->export_symbol);
             }
             for(int i = 0; i < module->import_count; i++) {
                 const ZirImport *foreign = &module->imports[i];
@@ -628,12 +630,11 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                 char native[ZIR_NAME_MAX * 2];
                 NativeCForeignName(module, foreign, native, sizeof(native));
                 native_names_mark(&names[0], native);
-                native_names_mark(&names[1], native);
             }
         }
-    for(int t = 0; ok && t < 2; t++)
-        native_names_mark_type_values(&names[t]);
-    for(int t = 0; t < 3; t++)
+    if(ok)
+        native_names_mark_type_values(&names[0]);
+    for(int t = 0; t < 2; t++)
         native_names_free(&names[t]);
     return ok;
 }
@@ -918,8 +919,10 @@ NativeExportName(const ZirModule *module, const ZirFunction *fn,
                  char *out, size_t size)
 {
     const char *symbol = fn->export_symbol[0] ? fn->export_symbol : fn->name;
-    TargetBindingName(NULL, ZIR_CPP, symbol, out, size);
-    if(!strcmp(out, symbol)) return;
+    if(!NativeHeaderKeyword(symbol)) {
+        copy_text(out, size, symbol);
+        return;
+    }
     for(int serial = 0; ; serial++) {
         int collision = 0;
         format(out, size, "ziran_keyword_%s_%d", symbol, serial);
@@ -1196,7 +1199,7 @@ slot_native_type(const char *source, ZirTarget target, char *out, size_t size)
             pointers++;
             array = skip_ws(array + 1);
         }
-        if((target == ZIR_C || target == ZIR_CPP) && *array == '[') {
+        if(target == ZIR_C && *array == '[') {
             char dimensions[ZIR_NAME_MAX], element[ZIR_NAME_MAX];
             const char *end = array;
             while(*end == '[') {
@@ -1468,10 +1471,9 @@ zero_value(const char *type, ZirTarget target)
     if(type[0] == '[')
         return "";
     if(type[0] != '[' && strchr(type, '*') != NULL)
-        return target == ZIR_GO ? "nil" :
-               target == ZIR_CPP ? "nullptr" : "((void *)0)";
+        return target == ZIR_GO ? "nil" : "((void *)0)";
     if(!strcmp(canonical(type), "string"))
-        return target == ZIR_C || target == ZIR_CPP ? "StringView(NULL, 0)" : "\"\"";
+        return target == ZIR_C ? "StringView(NULL, 0)" : "\"\"";
     if(!strcmp(canonical(type), "bool")) return "false";
     return "0";
 }
@@ -1484,13 +1486,13 @@ number_prefix(const ZirModule *module, char *out, size_t size)
     format(out, size, "number_%s", name);
 }
 
-/* C and C++ sources mark where numeric helpers go. Once the module is
- * written, EmitResolveNativeHelpers puts in the ones its code calls. */
+/* C sources mark where numeric helpers go. Once the module is written,
+ * EmitNativeHelpers puts in the ones its code calls. */
 void
 EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target)
 {
     (void)module;
-    if(target == ZIR_C || target == ZIR_CPP)
+    if(target == ZIR_C)
         fputs(NUMBER_HELPERS_MARK, out);
 }
 
@@ -1523,12 +1525,8 @@ NativeProgramMain(const ZirModule *module, const ZirFunction *fn)
 static void
 native_entry_error(const ZirFunction *fn, const char *target, const char *reason)
 {
-    if(!strcmp(target, "cpp"))
-        DiagnosticTarget(fn->span, "zir_cpp.entry", target, "entry.signature",
-                         "native entry %s %s", fn->name, reason);
-    else
-        DiagnosticTarget(fn->span, "zir_c.entry", target, "entry.signature",
-                         "native entry %s %s", fn->name, reason);
+    DiagnosticTarget(fn->span, "zir_c.entry", target, "entry.signature",
+                     "native entry %s %s", fn->name, reason);
 }
 
 int
@@ -1552,15 +1550,11 @@ CheckNativeEntry(const ZirFunction *fn, const char *target)
 }
 
 void
-EmitNativeMainDeclaration(FILE *out, ZirTarget target)
+EmitNativeMainDeclaration(FILE *out)
 {
-    if(target == ZIR_C) fputs("#ifdef __cplusplus\n", out);
-    fputs("}\nextern \"C++\" {\n", out);
-    if(target == ZIR_C) fputs("#endif\n", out);
-    fputs("int main(int argc, char **argv);\n", out);
-    if(target == ZIR_C) fputs("#ifdef __cplusplus\n", out);
-    fputs("}\nextern \"C\" {\n", out);
-    if(target == ZIR_C) fputs("#endif\n", out);
+    fputs("#ifdef __cplusplus\n}\nextern \"C++\" {\n#endif\n"
+          "int main(int argc, char **argv);\n"
+          "#ifdef __cplusplus\n}\nextern \"C\" {\n#endif\n", out);
 }
 
 void
@@ -1580,7 +1574,6 @@ EmitNativeMain(FILE *out, const ZirModule *module, const ZirFunction *fn,
     char body[ZIR_NAME_MAX * 2];
     NativeCFunctionName(module, fn, body, sizeof(body));
     const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
-    if(target == ZIR_CPP) fputs("}\nextern \"C++\" {\n", out);
     fputs("\nint\nmain(int argc, char **argv)\n{\n    (void)argc;\n    (void)argv;\n", out);
     int returns_value = fn->return_type[0] && strcmp(fn->return_type, "void");
     fprintf(out, "    %s%s(", returns_value ? "return (int)" : "", body);
@@ -1590,7 +1583,6 @@ EmitNativeMain(FILE *out, const ZirModule *module, const ZirFunction *fn,
     fputs(");\n", out);
     if(!returns_value) fputs("    return 0;\n", out);
     fputs("}\n", out);
-    if(target == ZIR_CPP) fputs("}\nextern \"C\" {\n", out);
 }
 
 /* C numeric helpers, named for what they do. IntegerOp reads signed
@@ -1735,40 +1727,6 @@ EmitNativeHelpers(FILE *file, const char *text)
             fprintf(file, "%s%s", written++ ? "\n" : "", c_number_helpers[i].definition);
     fputs(numbers ? numbers + strlen(NUMBER_HELPERS_MARK) : mark, file);
     return ferror(file) ? -1 : 0;
-}
-
-/* C++ transformations still operate on a completed file. Reuse the same
- * helper resolution without imposing another disk pass on memory emitters. */
-int
-EmitResolveNativeHelpers(const char *path)
-{
-    FILE *file = fopen(path, "rb");
-    char *text = NULL;
-    long length;
-    if(file == NULL)
-        return -1;
-    if(fseek(file, 0, SEEK_END) != 0 || (length = ftell(file)) < 0 ||
-       fseek(file, 0, SEEK_SET) != 0 || (text = malloc((size_t)length + 1)) == NULL ||
-       fread(text, 1, (size_t)length, file) != (size_t)length) {
-        fclose(file);
-        free(text);
-        return -1;
-    }
-    fclose(file);
-    text[length] = '\0';
-    const char *mark = strstr(text, RUNTIME_INCLUDES_MARK);
-    const char *numbers = strstr(text, NUMBER_HELPERS_MARK);
-    if(mark == NULL || (numbers != NULL && numbers < mark)) {
-        free(text);
-        return -1;
-    }
-    file = fopen(path, "wb");
-    if(file == NULL) { free(text); return -1; }
-    int status = EmitNativeHelpers(file, text);
-    if(fclose(file) != 0)
-        status = -1;
-    free(text);
-    return status;
 }
 
 void

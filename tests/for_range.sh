@@ -141,7 +141,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry ranges:NamedControl \
         -o "$work/$input-named.zx" "$file"
     test "$("$ziran" run "$work/$input-named.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -163,15 +163,6 @@ int main(void) { return Answer() == 42 && SingleBody() == 42 && NamedControl() =
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                 "$out/ranges.c" "$out/main.c" -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$file"
-            cat > "$out/main.cpp" <<'CPP'
-#include "ranges.hpp"
-int main() { return Answer() == 42 && SingleBody() == 42 && NamedControl() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out/ranges.cpp" "$out/main.cpp" -o "$out/app"
             "$out/app"
         fi
     done

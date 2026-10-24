@@ -40,7 +40,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry caller:Answer \
         -o "$work/$input.zx" "$source"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         "$ziran" build --target="$target" --root "$root" \
             --entry caller:Answer -o "$output" "$source"
@@ -61,15 +61,7 @@ C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                 "$output"/*.c -o "$output/app"
             "$output/app"
-        else
-            cat > "$output/main.cpp" <<'CPP'
-#include "caller.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
-            "$output/app"
         fi
     done
 done
-echo 'procedures past the 256th, called by name: VM, C, C++, and Go passed'
+echo 'procedures past the 256th, called by name: VM, C, and Go passed'

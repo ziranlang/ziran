@@ -43,12 +43,4 @@ C
     "$work/c"/*.c -o "$work/c/app"
 "$work/c/app"
 
-"$bin/zi2cpp" --no-main --root "$work" -o "$work/cpp" "$work/main.zi"
-cat > "$work/cpp/entry.cpp" <<'CPP'
-#include "main.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-"${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$work/cpp" \
-    "$work/cpp"/*.cpp -o "$work/cpp/app"
-"$work/cpp/app"
 echo "Native callback types survive duplicate imported record names"

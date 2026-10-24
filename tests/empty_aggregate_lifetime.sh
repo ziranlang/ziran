@@ -63,7 +63,7 @@ for input in source saved; do
         source="$work/ir/clear.zir"
         source_root="$work/ir"
     fi
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$input-$target"
         set --
         if test "$target" = go; then
@@ -75,11 +75,6 @@ for input in source saved; do
         c)
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                 "$output"/*.c -o "$work/test"
-            "$work/test"
-            ;;
-        cpp)
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$work/test"
             "$work/test"
             ;;
         go)

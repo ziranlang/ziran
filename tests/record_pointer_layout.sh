@@ -62,15 +62,9 @@ for form in source saved; do
     input=$work/app.zi
     root=$work
     if test "$form" = saved; then input=$work/ir/app.zir; root=$work/ir; fi
-    for target in c cpp; do
-        output=$work/$form-$target
-        "$ziran" build --target="$target" --entry app:main --root "$root" -o "$output" "$input"
-        if test "$target" = c; then
-            "${CC:-cc}" -std=c11 -I"$output" "$output"/*.c "$work/host.c" -o "$output/run"
-        else
-            "${CXX:-c++}" -std=c++17 -I"$output" "$output"/*.cpp -x c++ "$work/host.c" -o "$output/run"
-        fi
-        "$output/run"
-    done
+    output=$work/$form-c
+    "$ziran" build --target=c --entry app:main --root "$root" -o "$output" "$input"
+    "${CC:-cc}" -std=c11 -I"$output" "$output"/*.c "$work/host.c" -o "$output/run"
+    "$output/run"
 done
-echo 'Raw native record pointers preserve complete layouts in C/C++ source and saved IR'
+echo 'Raw native record pointers preserve complete layouts in C source and saved IR'

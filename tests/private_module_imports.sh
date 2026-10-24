@@ -28,27 +28,18 @@ for input in source saved; do
     source_root=$work
     source=$work/main.zi
     if test "$input" = saved; then source_root=$work/ir; source=$work/ir/main.zir; fi
-    for target in c cpp plan9-c; do
-        out=$work/$input-$target
-        "$ziran" build --target="$target" --root "$source_root" -o "$out" "$source"
-        extension=c
-        header=h
-        if test "$target" = cpp; then extension=cpp; header=hpp; fi
-        rg -Fq "#include \"value.$header\"" "$out/main.$extension"
-        if rg -Fq "#include \"value.$header\"" "$out/main.$header"; then
-            echo 'implementation-only import leaked into the public header' >&2
-            exit 1
-        fi
-        if test "$target" = c; then
-            printf '#include "main.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$out/driver.c"
-            "${CC:-cc}" -std=c11 -Werror -I"$out" "$out"/*.c -o "$out/run"
-            "$out/run"
-        elif test "$target" = cpp; then
-            printf '#include "main.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$out/driver.cpp"
-            "${CXX:-c++}" -std=c++17 -Werror -I"$out" "$out"/*.cpp -o "$out/run"
-            "$out/run"
-        fi
-    done
+    out=$work/$input-c
+    "$ziran" build --target=c --root "$source_root" -o "$out" "$source"
+    extension=c
+    header=h
+    rg -Fq "#include \"value.$header\"" "$out/main.$extension"
+    if rg -Fq "#include \"value.$header\"" "$out/main.$header"; then
+        echo 'implementation-only import leaked into the public header' >&2
+        exit 1
+    fi
+    printf '#include "main.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$out/driver.c"
+    "${CC:-cc}" -std=c11 -Werror -I"$out" "$out"/*.c -o "$out/run"
+    "$out/run"
 done
 
 # A private source import still supplies types used in an exported native
@@ -114,32 +105,26 @@ for input in source saved; do
     source_root=$work
     source=$work/interface.zi
     if test "$input" = saved; then source_root=$work/interface-ir; source=$source_root/interface.zir; fi
-    for target in c cpp plan9-c; do
-        out=$work/interface-$input-$target
-        "$ziran" build --target="$target" --root "$source_root" \
-            --entry interface:Answer -o "$out" "$source"
-        extension=c
-        header=h
-        if test "$target" = cpp; then extension=cpp; header=hpp; fi
-        rg -Fq "#include \"value.$header\"" "$out/api.$header"
-        if rg -Fq "#include \"unused.$header\"" "$out/api.$header"; then
-            echo 'implementation-only import leaked beside interface types' >&2
-            exit 1
-        fi
-        if test "$target" != plan9-c; then
-            printf '#include "interface.%s"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' "$header" > "$out/driver.$extension"
-            compiler=${CC:-cc}
-            standard=c11
-            if test "$target" = cpp; then compiler=${CXX:-c++}; standard=c++17; fi
-            "$compiler" -std="$standard" -Werror -I"$out" "$out"/*."$extension" -o "$out/run"
-            "$out/run"
-            # Consumers of the public header cannot see private slot types.
-            printf '#include "internal.%s"\nPrivateHandler leaked;\n' "$header" > "$out/leak.$extension"
-            if "$compiler" -std="$standard" -Werror -I"$out" -fsyntax-only "$out/leak.$extension" >"$out/leak.log" 2>&1; then
-                echo 'private procedure type leaked into the public header' >&2
-                exit 1
-            fi
-        fi
-    done
+    out=$work/interface-$input-c
+    "$ziran" build --target=c --root "$source_root" \
+        --entry interface:Answer -o "$out" "$source"
+    extension=c
+    header=h
+    rg -Fq "#include \"value.$header\"" "$out/api.$header"
+    if rg -Fq "#include \"unused.$header\"" "$out/api.$header"; then
+        echo 'implementation-only import leaked beside interface types' >&2
+        exit 1
+    fi
+    printf '#include "interface.%s"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' "$header" > "$out/driver.$extension"
+    compiler=${CC:-cc}
+    standard=c11
+    "$compiler" -std="$standard" -Werror -I"$out" "$out"/*."$extension" -o "$out/run"
+    "$out/run"
+    # Consumers of the public header cannot see private slot types.
+    printf '#include "internal.%s"\nPrivateHandler leaked;\n' "$header" > "$out/leak.$extension"
+    if "$compiler" -std="$standard" -Werror -I"$out" -fsyntax-only "$out/leak.$extension" >"$out/leak.log" 2>&1; then
+        echo 'private procedure type leaked into the public header' >&2
+        exit 1
+    fi
 done
-echo 'private imports and native interface types: C, C++ and Plan 9 C source/saved IR passed'
+echo 'private imports and native interface types: C source/saved IR passed'

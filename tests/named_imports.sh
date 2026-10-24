@@ -6,11 +6,6 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
-command -v cargo >/dev/null 2>&1 || {
-    echo 'cargo is required to test named imports through Rust' >&2
-    exit 1
-}
-
 cat > "$work/app.zi" <<'ZI'
 Text :: #import "text";
 #program_export
@@ -39,19 +34,13 @@ for input in source saved; do
         root=$work/ir
         file=$work/ir/app.zir
     fi
-    for target in c cpp go rust py; do
+    for target in c go py; do
         out=$work/$target-$input
         if test "$target" = py; then
             "$ziran" build --target=py --root "$root" \
                 --module-path "$repo/std" --entry app:Answer --exe \
                 -o "$out" "$file"
             python3 "$out"
-        elif test "$target" = rust; then
-            "$ziran" build --target=rust --root "$root" \
-                --module-path "$repo/std" --entry app:Answer --exe \
-                -o "$out" "$file"
-            cargo build --quiet --manifest-path "$out/Cargo.toml"
-            "$out/target/debug/ziran_generated"
         elif test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
                 --module-path "$repo/std" -o "$out" "$file"
@@ -70,25 +59,12 @@ C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                 "$out"/*.c -o "$out/app"
             "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$root" \
-                --module-path "$repo/std" -o "$out" "$file"
-            cat > "$out/test.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 0 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out"/*.cpp -o "$out/app"
-            "$out/app"
         fi
     done
 done
 
 cmp "$work/c-source/app.c" "$work/c-saved/app.c"
 cmp "$work/c-source/text.c" "$work/c-saved/text.c"
-cmp "$work/cpp-source/app.cpp" "$work/cpp-saved/app.cpp"
-cmp "$work/cpp-source/text.cpp" "$work/cpp-saved/text.cpp"
 cmp "$work/go-source/app.go" "$work/go-saved/app.go"
 cmp "$work/go-source/text.go" "$work/go-saved/text.go"
-cmp "$work/rust-source/src/main.rs" "$work/rust-saved/src/main.rs"
 cmp "$work/py-source/__main__.py" "$work/py-saved/__main__.py"

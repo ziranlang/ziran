@@ -37,21 +37,21 @@ func main() {
     require(marker == EXPECTED)
     block := int32(3); if marker == 7 { block = 9 }
     require(GoAssemblyTest_BlockMarker() == block && GoAssemblyTest_Startup() == marker)
-    require(RustAssemblyTest_Answer() == 42)
-    require(RustAssemblyTest_Byte(-100) == -100 && RustAssemblyTest_Narrow(0x1234567887654321) == 0x87654321)
-    require(RustAssemblyTest_FixedDestination(0x1234567887654321) == 0x87654321)
-    require(RustAssemblyTest_Odd(7) && !RustAssemblyTest_Odd(8) && RustAssemblyTest_BoolValue(true) == 1)
-    require(RustAssemblyTest_Add(-9) == -2 && RustAssemblyTest_NamedTie(-9) == -2)
-    pair := RustAssemblyTest_DivParts(47, 5); require(pair.Low == 9 && pair.High == 2)
-    pair = RustAssemblyTest_MemParts(0x1234567887654321); require(pair.Low == 0x1234567887654321 && pair.High == 0x12345678)
-    require(RustAssemblyTest_MemInput(0xffffffffffffffff) == 0xffffffffffffffff)
-    keywords := RustAssemblyTest_KeywordFields(57); require(keywords.Type == 57 && keywords.ZiranKeywordType0 == 57)
-    require(RustAssemblyTest_Word(41) == 42 && RustAssemblyTest_SignedWord(-7) == -7)
-    require(RustAssemblyTest_FloatAdd(1.25, 2.5) == 3.75)
-    require(RustAssemblyTest_Memory(-13) == -26 && RustAssemblyTest_Mixed(93) == 0 && RustAssemblyTest_BlockOdd(93))
-    require(RustAssemblyTest_Shadow(17,25) == 42 && RustAssemblyTest_Dialect(-19) == -19 && RustAssemblyTest_DialectSuffix(-19) == -19)
-    require(RustAssemblyTest_Labels(7) == 28 && RustAssemblyTest_LabelData() == 48)
-    RustAssemblyTest_Barrier()
+    require(NativeAssemblyTest_Answer() == 42)
+    require(NativeAssemblyTest_Byte(-100) == -100 && NativeAssemblyTest_Narrow(0x1234567887654321) == 0x87654321)
+    require(NativeAssemblyTest_FixedDestination(0x1234567887654321) == 0x87654321)
+    require(NativeAssemblyTest_Odd(7) && !NativeAssemblyTest_Odd(8) && NativeAssemblyTest_BoolValue(true) == 1)
+    require(NativeAssemblyTest_Add(-9) == -2 && NativeAssemblyTest_NamedTie(-9) == -2)
+    pair := NativeAssemblyTest_DivParts(47, 5); require(pair.Low == 9 && pair.High == 2)
+    pair = NativeAssemblyTest_MemParts(0x1234567887654321); require(pair.Low == 0x1234567887654321 && pair.High == 0x12345678)
+    require(NativeAssemblyTest_MemInput(0xffffffffffffffff) == 0xffffffffffffffff)
+    keywords := NativeAssemblyTest_KeywordFields(57); require(keywords.Type == 57 && keywords.ZiranKeywordType0 == 57)
+    require(NativeAssemblyTest_Word(41) == 42 && NativeAssemblyTest_SignedWord(-7) == -7)
+    require(NativeAssemblyTest_FloatAdd(1.25, 2.5) == 3.75)
+    require(NativeAssemblyTest_Memory(-13) == -26 && NativeAssemblyTest_Mixed(93) == 0 && NativeAssemblyTest_BlockOdd(93))
+    require(NativeAssemblyTest_Shadow(17,25) == 42 && NativeAssemblyTest_Dialect(-19) == -19 && NativeAssemblyTest_DialectSuffix(-19) == -19)
+    require(NativeAssemblyTest_Labels(7) == 28 && NativeAssemblyTest_LabelData() == 48)
+    NativeAssemblyTest_Barrier()
     require(GoAssemblyTest_InputAlias(5) == 18)
     value := int32(40); GoAssemblyTest_Store(&value); require(value == 41)
     require(GoAssemblyTest_Pointer(&value) == &value && GoAssemblyTest_PointerBlock(&value) == &value)
@@ -60,7 +60,7 @@ func main() {
     GoAssemblyTest_Comment(); require(GoAssemblyTest_Shadow(42) == 42)
     var wait sync.WaitGroup
     for worker:=0;worker<4;worker++ { wait.Add(1); go func(){defer wait.Done(); for i:=0;i<200;i++ {
-        require(RustAssemblyTest_Count(^uint64(0)) == 64 && RustAssemblyTest_Count32(^uint32(0)) == 32)
+        require(NativeAssemblyTest_Count(^uint64(0)) == 64 && NativeAssemblyTest_Count32(^uint32(0)) == 32)
         require(GoAssemblyTest_InputAlias(int64(i)) == 18)
     }}() }; wait.Wait()
     fmt.Println(marker,block)
@@ -73,14 +73,14 @@ def main():
         print('Go toolchain unavailable; native Go assembly execution not checked')
         return
     source = WORK/'source'; source.mkdir(exist_ok=True)
-    for name in ('go_assembly_test.zi', 'rust_assembly_test.zi'):
+    for name in ('go_assembly_test.zi', 'native_assembly_test.zi'):
         shutil.copy2(ROOT/'tests/spec'/name, source/name)
-    inputs = [source/'go_assembly_test.zi', source/'rust_assembly_test.zi']
+    inputs = [source/'go_assembly_test.zi', source/'native_assembly_test.zi']
     run([ZIRAN, 'ir', '--root', source, '-o', WORK/'ir', *inputs])
     records = []
     for form in ('source', 'saved'):
         root = source if form == 'source' else WORK/'ir'
-        entry = inputs if form == 'source' else [root/'go_assembly_test.zir', root/'rust_assembly_test.zir']
+        entry = inputs if form == 'source' else [root/'go_assembly_test.zir', root/'native_assembly_test.zir']
         out = WORK/form
         run([ZIRAN,'build','--target=go','--pkg','main','--root',root,'--prune-stale','-o',out,*entry])
         assert list(out.glob('*.assembly.go')) and list(out.glob('*.assembly.h'))
@@ -114,15 +114,12 @@ def main():
         # Source/saved native headers retain the full GNU text; Go comments
         # cannot terminate a template because only an include enters Go's preamble.
         assert '*/ and' not in '\n'.join(p.read_text() for p in out.glob('*.assembly.go'))
-        for target in ('c','cpp'):
-            native = WORK/(form+'-'+target)
-            run([ZIRAN,'build','--target='+target,'--root',root,'-o',native,entry[0]])
-            suffix,header,compiler = ('c','h','cc') if target=='c' else ('cpp','hpp','c++')
-            (native/('main.'+suffix)).write_text('#include "go_assembly_test.'+header+'"\nint main(void){return go_assembly_test_InputAlias(5)==18?0:1;}\n')
-            run([compiler,'-O2','-std=c11' if target=='c' else '-std=c++17',
-                 '-I'+str(native),*sorted(native.glob('*.'+suffix)),'-o',native/'run'])
-            run([native/'run'])
-            records.append(dict(form=form,target=target,memory_alias=True))
+        native = WORK/(form+'-c')
+        run([ZIRAN,'build','--target=c','--root',root,'-o',native,entry[0]])
+        (native/'main.c').write_text('#include "go_assembly_test.h"\nint main(void){return go_assembly_test_InputAlias(5)==18?0:1;}\n')
+        run(['cc','-O2','-std=c11','-I'+str(native),*sorted(native.glob('*.c')),'-o',native/'run'])
+        run([native/'run'])
+        records.append(dict(form=form,target='c',memory_alias=True))
     # Test-only Go modules can keep their records in *_test.go: companion
     # signatures contain only primitive ABI values, not those test-only types.
     suite = WORK/'suite'; suite.mkdir(exist_ok=True)

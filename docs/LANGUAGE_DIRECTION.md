@@ -126,7 +126,7 @@ target error instead of silently changing the result.
 
 Parallel execution is a target requirement. Effect classes and the
 `#parallel for` acceptance rules above are implemented and checked on every
-target. Native C and C++ execute forward regions on pthreads with
+target. Native C executes forward regions on pthreads with
 iteration-local workers and read-only captures; the portable VM and Go run
 regions serially with a reported downgrade, which the backend-duties clause
 permits. `#parallel_gpu for` regions enforce the GPU clause — pointer
@@ -216,9 +216,9 @@ function value. Capture-free procedure values can be stored in records, fixed
 arrays, and globals, and returned from functions. The callbacks do not capture
 caller locals, so callback code uses explicit state or a named function.
 Procedure type results are checked across the portable runtime and generated
-targets. `#c_call` procedure types use C callback pointers in native C and
-C++ output and may be stored in native records. A named Ziran function with
-the exact callback signature can supply a `#c_call` value in those targets.
+targets. `#c_call` procedure types use C callback pointers in native C
+output and may be stored in native records. A named Ziran function with
+the exact callback signature can supply a `#c_call` value in that target.
 Reachable `#c_call` values cannot enter portable bundles, and Go output rejects
 these declarations.
 Direct type applications such as `Box(s32)` now work in
@@ -275,7 +275,7 @@ Array declarations accept `.[values]` with an expected fixed-array type and
 explicit typed literals such as `s32.[1, 2]` or `Module.Point.[first, second]`.
 Saved `.zir` preserves these spellings. Zero-element typed and contextual
 literals work in locals, globals, records, returns, defaults, and generic calls
-across C, C++, Go, and portable bundles. C-style casts and compound literals
+across C, Go, and portable bundles. C-style casts and compound literals
 are rejected at the source boundary.
 Jai `#this` selects the enclosing procedure for recursive calls and typed
 procedure values, even if a local binding has the same name. In record field
@@ -293,7 +293,7 @@ type applications such as `Box(s32)`. File-scope constants, global
 initializers, and compile-time directives fold supported layouts during
 translation. Function-body expressions remain symbolic in checked source and
 saved IR, then lower to the selected target's size operation; consequently a
-borrowed slice is 16 bytes in C, C++, and the portable layout but 24 bytes in
+borrowed slice is 16 bytes in C and the portable layout but 24 bytes in
 Go. An untyped integer local inferred with `:=` also has `s64` storage.
 The C `sizeof` spelling is rejected. In function bodies,
 `size_of(type_of(expression))` uses the checked expression type without
@@ -311,7 +311,7 @@ as a string, including when used in a default or a `#run` call.
 `#caller_location` is valid as a procedure parameter default. It supplies a
 `Source_Code_Location` record with `fully_pathed_filename` and `line_number`
 from the call site; an explicit argument overrides the default. The record is
-available on C, C++, Go, and portable builds. Compile-time `#run` execution of
+available on C, Go, and portable builds. Compile-time `#run` execution of
 procedures that consume this record also captures the call-site path and line,
 including imported and nested calls; `#assert` and `#if` can use those results.
 ASCII byte characters use `#char "A"` and infer `s64`, as integer literals
@@ -374,7 +374,7 @@ The older `#else_if` and `#else` spellings are rejected. Conditional fields
 and enum members are also selected while parsing a declaration.
 Exported native symbols use Jai's `#program_export` before a procedure,
 either on its own line or inline. A quoted symbol such as
-`#program_export "entry" Start :: () { ... }` selects the C/C++ linker name;
+`#program_export "entry" Start :: () { ... }` selects the C linker name;
 the Go target emits a typed native adapter with that name. The old `#export`
 signature modifier is rejected.
 File-scope variables use `name: Type;` or `name: Type = value;`. The old

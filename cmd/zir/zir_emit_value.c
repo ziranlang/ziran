@@ -3,18 +3,11 @@
 #include "zir_emit_internal.h"
 
 int zir_minify_output;
-int zir_native_operand_temporaries;
 
 void
 EmitUseMinifiedOutput(int enabled)
 {
     zir_minify_output = enabled != 0;
-}
-
-void
-EmitUseNativeOperandTemporaries(int enabled)
-{
-    zir_native_operand_temporaries = enabled != 0;
 }
 
 int
@@ -78,21 +71,8 @@ assign_value(Emitter *e, const char *destination, const char *type, const char *
 {
     char plain[ZIR_TEXT_MAX];
     source = bare(source, plain, sizeof(plain));
-    if(zir_native_operand_temporaries && e->target == ZIR_C && width(canonical(type)) &&
-       (strstr(destination, "ZIRAN_INDEX(") ||
-        strstr(destination, "ZIRAN_VEC_INDEX("))) {
-        /* 8c can lose a pending scalar when an indexed destination calls a
-         * bounds helper, including helpers introduced for wide comparisons.
-         * Capture the address after emitted RHS calls, before the store. */
-        char place[ZIR_NAME_MAX];
-        fresh(e, place);
-        line(e, "%s *%s = &(%s);", TargetType(canonical(type), ZIR_C),
-             place, destination);
-        line(e, "*%s = %s;", place, source);
-        return;
-    }
     if(ArrayElementType(type, NULL, 0, NULL) &&
-       (e->target == ZIR_C || e->target == ZIR_CPP)) {
+       e->target == ZIR_C) {
         line(e, "memmove(%s, %s, sizeof(%s));", destination, source, destination);
     } else {
         line(e, "%s = %s%s", destination, source, e->target == ZIR_GO ? "" : ";");
@@ -175,13 +155,13 @@ declare_array(Emitter *e, const char *name, const char *type, const char *value)
             line(e, "var %s %s%s = %s", name, bounds, target_element, value);
         else
             line(e, "var %s %s%s", name, bounds, target_element);
-    } else if(e->target == ZIR_C || e->target == ZIR_CPP) {
+    } else if(e->target == ZIR_C) {
         int zero = TypeHasZeroArray(e->module, type);
         /* A brace list initializes the array in place. */
         int listed = value != NULL && value[0] == '{';
         line(e, "%s%s %s%s = %s;", zero ? "__extension__ " : "",
              target_element, name, bounds,
-             listed ? value : zero || e->target == ZIR_CPP ? "{}" : "{0}");
+             listed ? value : zero ? "{}" : "{0}");
         if(value != NULL && *value && !listed)
             assign_value(e, name, type, value);
     } else {
@@ -951,7 +931,7 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
         else if(e->target == ZIR_GO &&
                 e->fn->exprs[expr->left].type[0] == '*')
             go_pointer_index(e, buffers->base, buffers->index, out, size);
-        else if(vector && (e->target == ZIR_C || e->target == ZIR_CPP))
+        else if(vector && e->target == ZIR_C)
             format(out, size, "ZIRAN_VEC_INDEX((%s).data, (%s).count, %s)",
                    buffers->base, buffers->base, buffers->index);
         else if(vector)
@@ -959,7 +939,7 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
         else {
             const char *base = buffers->wrapped;
             postfix_base(buffers->base, buffers->wrapped, sizeof(buffers->wrapped));
-            if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+            if(e->target == ZIR_C &&
                ArrayElementType(e->fn->exprs[expr->left].type, NULL, 0, NULL))
                 format(out, size, "ZIRAN_INDEX(%s, sizeof(%s) / sizeof(%s[0]), %s)",
                        base, base, base, buffers->index);
@@ -1098,9 +1078,9 @@ EmitStringLiteral(const ZirExpr *expr, ZirTarget target, char *out, size_t size)
                 byte == '\\' ? "\\\\" : NULL;
             if(named != NULL)
                 used += (size_t)format(out + used, size - used, "%s", named);
-            else if((target == ZIR_C || target == ZIR_CPP) && byte == '?')
+            else if(target == ZIR_C && byte == '?')
                 used += (size_t)format(out + used, size - used, "\\?");
-            else if((target == ZIR_C || target == ZIR_CPP) && (byte < 32 || byte >= 127))
+            else if(target == ZIR_C && (byte < 32 || byte >= 127))
                 used += (size_t)format(out + used, size - used, "\\%03o", byte);
             else if(byte < 32 || byte == 127)
                 used += (size_t)format(out + used, size - used, "\\x%02x", byte);
@@ -1139,7 +1119,7 @@ ScalarLiteral_with_buffers(const char *type, const char *text, ZirTarget target,
         ZirExpr *expr=&buffers->fn.exprs[index];
         if(expr->kind == ZIR_EXPR_STRING && !strcmp(type, "string")) {
             EmitStringLiteral(expr, target, buffers->value, sizeof(buffers->value));
-            if(target == ZIR_C || target == ZIR_CPP)
+            if(target == ZIR_C)
                 format(out, size, "{%s, sizeof(%s) - 1}", buffers->value, buffers->value);
             else
                 copy_text(out, size, buffers->value);

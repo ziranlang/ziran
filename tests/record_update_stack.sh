@@ -97,28 +97,19 @@ for input in source saved; do
         root=$work/ir
         module=$root/update.zir
     fi
-    for target in c cpp; do
-        output=$work/$input-$target
-        "$ziran" build --target="$target" \
-            --root "$root" -o "$output" "$module"
-        if test "$target" = c; then
-            compiler=${CC:-cc}
-            standard=c99
-            suffix=c
-            cp "$work/main.c" "$output/main.c"
-        else
-            compiler=${CXX:-c++}
-            standard=c++17
-            suffix=cpp
-            sed 's/update.h/update.hpp/' "$work/main.c" > "$output/main.cpp"
-        fi
-        # Forbid accumulated result frames independently of whether the host
-        # optimizer happens to inline the incremental parser.
-        "$compiler" -std="$standard" -O2 -fno-inline \
-            -Werror=frame-larger-than=262144 -pthread -I"$output" \
-            "$output"/*.$suffix -o "$output/program"
-        env -u DISPLAY -u WAYLAND_DISPLAY "$output/program"
-    done
+    output=$work/$input-c
+    "$ziran" build --target=c \
+        --root "$root" -o "$output" "$module"
+    compiler=${CC:-cc}
+    standard=c99
+    suffix=c
+    cp "$work/main.c" "$output/main.c"
+    # Forbid accumulated result frames independently of whether the host
+    # optimizer happens to inline the incremental parser.
+    "$compiler" -std="$standard" -O2 -fno-inline \
+        -Werror=frame-larger-than=262144 -pthread -I"$output" \
+        "$output"/*.$suffix -o "$output/program"
+    env -u DISPLAY -u WAYLAND_DISPLAY "$output/program"
     "$ziran" bundle --entry update:Check --root "$root" \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 97
@@ -129,4 +120,4 @@ for input in source saved; do
         -o "$work/$input-alias.zx" "$module"
     test "$("$ziran" run "$work/$input-alias.zx")" = 101
 done
-echo 'record updates: C, C++ and bundles preserve values on a small native stack'
+echo 'record updates: C and bundles preserve values on a small native stack'

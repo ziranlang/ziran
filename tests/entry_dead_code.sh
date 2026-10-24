@@ -67,7 +67,7 @@ for input in source saved; do
     "$ziran" bundle --root "$work" --entry flow:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 24
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --entry flow:Answer \
@@ -88,17 +88,6 @@ int main(void) { return Answer() == 24 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c99 -pedantic-errors -I"$repo/include" \
                 -I"$output" "$output"/*.c -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --entry flow:Answer --root "$work" \
-                -o "$output" "$module"
-            if rg -q 'Dead\(' "$output/flow.cpp"; then exit 1; fi
-            cat > "$output/main.cpp" <<'CPP'
-#include "flow.hpp"
-int main() { return Answer() == 24 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         fi
     done

@@ -12,28 +12,17 @@ for form in source saved; do
     if [ "$form" = saved ]; then root=$work/ir; input=$work/ir/width_matrix.zir; fi
     "$ziran" bundle --root "$root" --entry width_matrix:Answer -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c cpp go rust py; do
+    for target in c go py; do
         output=$work/$form-$target
-        if [ "$target" = cpp ]; then
-            "$ziran" build --target=cpp --entry width_matrix:Run --root "$root" -o "$output" "$input"
-            printf '#include "width_matrix.hpp"\nint main() { Run(); }\n' > "$output/main.cpp"
-            ${CXX:-c++} ${VM_CFLAGS:-} -std=c++17 -I"$repo/include" -I"$output" \
-                "$output/"*.cpp -o "$output/app"
-            result=$("$output/app")
-        else
-            set --
-            if [ "$target" = go ]; then set -- --pkg main; fi
-            "$ziran" build "--target=$target" --exe --entry width_matrix:Run \
-                "$@" --root "$root" -o "$output" "$input"
-            case "$target" in
-                c) result=$("$output/width_matrix") ;;
-                go) result=$(GO111MODULE=off go run "$output/"*.go) ;;
-                py) result=$(python3 "$output") ;;
-                rust)
-                    CARGO_TARGET_DIR=$work/rust-target cargo build --quiet --manifest-path "$output/Cargo.toml"
-                    result=$("$work/rust-target/debug/ziran_generated") ;;
-            esac
-        fi
+        set --
+        if [ "$target" = go ]; then set -- --pkg main; fi
+        "$ziran" build "--target=$target" --exe --entry width_matrix:Run \
+            "$@" --root "$root" -o "$output" "$input"
+        case "$target" in
+            c) result=$("$output/width_matrix") ;;
+            go) result=$(GO111MODULE=off go run "$output/"*.go) ;;
+            py) result=$(python3 "$output") ;;
+        esac
         if [ "$result" != 42 ]; then
             echo "$form/$target failed conversion $result" >&2
             exit 1

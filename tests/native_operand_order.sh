@@ -13,13 +13,9 @@ for form in source saved; do
     if [ "$form" = saved ]; then input=$work/ir/$module.zir; root=$work/ir; fi
     "$ziran" bundle --root "$root" --entry "$module:Answer" -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c cpp go rust py; do
+    for target in c go py; do
         output=$work/$form-$target
-        if [ "$target" = cpp ]; then
-            "$ziran" build --target=cpp --entry "$module:main" --root "$root" -o "$output" "$input"
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" "$output/"*.cpp -o "$output/app"
-            "$output/app"
-        elif [ "$target" = go ]; then
+        if [ "$target" = go ]; then
             "$ziran" build --target=go --pkg main --exe --entry "$module:main" --root "$root" -o "$output" "$input"
             GO111MODULE=off go run "$output/"*.go
         else
@@ -27,22 +23,18 @@ for form in source saved; do
             case "$target" in
                 c) "$output/$module" ;;
                 py) python3 "$output" ;;
-                rust) CARGO_TARGET_DIR=$work/rust-target cargo build --quiet --offline --manifest-path "$output/Cargo.toml"
-                      "$work/rust-target/debug/ziran_generated" ;;
             esac
         fi
     done
-    "$ziran" build --target=plan9-c --entry "$module:main" --root "$root" -o "$work/$form-plan9" "$input"
-    python3 - "$work/$form-c/$module.c" "$work/$form-cpp/$module.cpp" "$work/$form-plan9/$module.c" <<'PY'
+    python3 - "$work/$form-c/$module.c" <<'PY'
 from pathlib import Path
 import re, sys
-for index, path in enumerate(map(Path, sys.argv[1:])):
-    text = path.read_text()
-    for name in ('PlainWide', 'PlainView', 'PlainShort'):
-        match = re.search(r'\b' + name + r'\([^;{}]*\)\s*\{(.*?)\n\}', text, re.S)
-        assert match, (path, name)
-        staged = bool(re.search(r'\bvalue_\d+\b', match[1]))
-        assert staged == (index == 2), (path, name, match[1])
+path = Path(sys.argv[1])
+text = path.read_text()
+for name in ('PlainWide', 'PlainView', 'PlainShort'):
+    match = re.search(r'\b' + name + r'\([^;{}]*\)\s*\{(.*?)\n\}', text, re.S)
+    assert match, (path, name)
+    assert not re.search(r'\bvalue_\d+\b', match[1]), (path, name, match[1])
 PY
 done
 cmp "$work/source.zx" "$work/saved.zx"

@@ -49,13 +49,13 @@ for platform in desktop android web; do
             module_root="$work/ir-$platform"
             input="$module_root/main.zir"
         fi
-        output="$work/cpp-$platform-$form"
-        "$tool_dir/zi2cpp" --no-main --root "$module_root" "$@" -o "$output" "$input"
-        cat > "$output/caller.cpp" <<EOF
-#include "main.hpp"
+        output="$work/c-$platform-$form"
+        "$tool_dir/zi2c" --no-main --root "$module_root" "$@" -o "$output" "$input"
+        cat > "$output/caller.c" <<EOF
+#include "main.h"
 int main(void) { return Answer() == $expected ? 0 : 1; }
 EOF
-        "${CXX:-c++}" -std=c++17 -O1 -I"$output" "$output"/*.cpp -o "$output/test"
+        "${CC:-cc}" -std=c11 -O1 -I"$output" "$output"/*.c -o "$output/test"
         "$output/test"
         "$tool_dir/zi2zx" bundle --root "$module_root" "$@" \
             --entry main:Answer -o "$work/$platform-$form.zx" "$input"
@@ -76,9 +76,9 @@ for name in 'ANDROID-BUILD' '1ANDROID' ''; do
         echo 'Zx accepted an invalid compiler definition' >&2
         exit 1
     fi
-    if "$tool_dir/zi2cpp" --no-main --root "$work" -o "$work/invalid" \
+    if "$tool_dir/zi2c" --no-main --root "$work" -o "$work/invalid" \
         --define "$name" "$work/main.zi" >/dev/null 2>&1; then
-        echo 'C++ accepted an invalid compiler definition' >&2
+        echo 'C accepted an invalid compiler definition' >&2
         exit 1
     fi
 done
@@ -87,9 +87,9 @@ if "$tool_dir/zi2zx" bundle --root "$work" --entry main:Answer \
     echo 'Zx accepted --define without a name' >&2
     exit 1
 fi
-if "$tool_dir/zi2cpp" --no-main --root "$work" -o "$work/invalid" \
+if "$tool_dir/zi2c" --no-main --root "$work" -o "$work/invalid" \
     --define >/dev/null 2>&1; then
-    echo 'C++ accepted --define without a name' >&2
+    echo 'C accepted --define without a name' >&2
     exit 1
 fi
-echo 'Compiler definitions: C generation and C++/Zx source/saved-IR execution passed'
+echo 'Compiler definitions: C generation and C/Zx source/saved-IR execution passed'

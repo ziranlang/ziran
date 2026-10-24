@@ -1,4 +1,4 @@
-/* GNU assembly uses the same checked C emitter as native C/C++. Go retains
+/* GNU assembly uses the same checked C emitter as native C. Go retains
  * its typed body and enables the native bridge with cgo and ziran_asm. */
 #include "zir_go_asm.h"
 #include "zir_go_amd64.h"

@@ -124,16 +124,10 @@ GO
     result=0
     "$work/$form-c/binding" || result=$?
     test "$result" = 42
-    "$ziran" build --target=cpp --root "$work" --module-path std --entry binding:Answer -o "$work/$form-cpp" "$input"
-    printf '#include "binding.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$work/$form-cpp/main.cpp"
-    ${CXX:-c++} -std=c++17 -Iinclude -I"$work/$form-cpp" "$work/$form-cpp"/*.cpp -o "$work/$form-cpp/app"
-    "$work/$form-cpp/app"
-    for target in c cpp; do
-        if "$ziran" build --target="$target" --root "$work" --module-path std --entry binding:BindEntry -o "$work/rejected" "$input" > "$work/rejected.log" 2>&1; then
-            echo "reachable Go bind accepted by $target" >&2
-            exit 1
-        fi
-    done
+    if "$ziran" build --target=c --root "$work" --module-path std --entry binding:BindEntry -o "$work/rejected" "$input" > "$work/rejected.log" 2>&1; then
+        echo "reachable Go bind accepted by c" >&2
+        exit 1
+    fi
     if "$ziran" bundle --root "$work" --module-path std --entry binding:BindEntry -o "$work/rejected.zx" "$input" > "$work/rejected.log" 2>&1; then
         echo "reachable Go bind accepted by portable bundle" >&2
         exit 1

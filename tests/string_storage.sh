@@ -70,19 +70,15 @@ for form in source saved; do
     "$ziran" bundle --root "$root" --module-path "$repo/std" --entry string_storage:Answer \
         -o "$work/$form.zx" "$root/string_storage.$extension"
     "$work/vm-test" "$work/$form.zx"
-    for target in c cpp; do
-        output=$work/$form-$target
-        "$ziran" build "--target=$target" --entry empty_builder:Answer --root "$root" \
-            --module-path "$repo/std" -o "$output" "$root/empty_builder.$extension"
-        suffix=c
-        compiler=${CC:-cc}
-        standard=c11
-        header=empty_builder.h
-        if [ "$target" = cpp ]; then
-            suffix=cpp; compiler=${CXX:-c++}; standard=c++17; header=empty_builder.hpp
-        fi
-        printf '#include "%s"\n' "$header" > "$output/main.$suffix"
-        cat >> "$output/main.$suffix" <<'C'
+    output=$work/$form-c
+    "$ziran" build --target=c --entry empty_builder:Answer --root "$root" \
+        --module-path "$repo/std" -o "$output" "$root/empty_builder.$extension"
+    suffix=c
+    compiler=${CC:-cc}
+    standard=c11
+    header=empty_builder.h
+    printf '#include "%s"\n' "$header" > "$output/main.$suffix"
+    cat >> "$output/main.$suffix" <<'C'
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C" {
@@ -104,41 +100,7 @@ void __wrap_free(void *p) {
 #endif
 int main(void) { return Answer() == 42 && outstanding == 0 ? 0 : 1; }
 C
-        "$compiler" ${VM_CFLAGS:-} "-std=$standard" -I"$repo/include" -I"$output" \
-            "$output/"*."$suffix" -Wl,--wrap=realloc -Wl,--wrap=free -o "$output/app"
-        "$output/app"
-    done
-    output=$work/$form-rust
-    "$ziran" build --target=rust --exe --entry empty_builder:Answer --root "$root" \
-        --module-path "$repo/std" -o "$output" "$root/empty_builder.$extension"
-    python3 - "$output/src/main.rs" <<'PY'
-import pathlib, sys
-path = pathlib.Path(sys.argv[1])
-source = path.read_text().replace('fn main() {', 'fn main() {\n    let before = LIVE.load(std::sync::atomic::Ordering::SeqCst);')
-source = source.replace('std::process::exit(code);', '''assert_eq!(code, 42);
-    assert_eq!(LIVE.load(std::sync::atomic::Ordering::SeqCst), before);''')
-source += '''
-struct CountingAllocator;
-static LIVE: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
-unsafe impl std::alloc::GlobalAlloc for CountingAllocator {
-    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
-        let result = std::alloc::System.alloc(layout);
-        if !result.is_null() { LIVE.fetch_add(1, std::sync::atomic::Ordering::SeqCst); }
-        result
-    }
-    unsafe fn dealloc(&self, data: *mut u8, layout: std::alloc::Layout) {
-        LIVE.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-        std::alloc::System.dealloc(data, layout);
-    }
-    unsafe fn realloc(&self, data: *mut u8, layout: std::alloc::Layout, size: usize) -> *mut u8 {
-        std::alloc::System.realloc(data, layout, size)
-    }
-}
-#[global_allocator]
-static ALLOCATOR: CountingAllocator = CountingAllocator;
-'''
-path.write_text(source)
-PY
-    CARGO_TARGET_DIR=$work/rust-target cargo build --quiet --manifest-path "$output/Cargo.toml"
-    "$work/rust-target/debug/ziran_generated"
+    "$compiler" ${VM_CFLAGS:-} "-std=$standard" -I"$repo/include" -I"$output" \
+        "$output/"*."$suffix" -Wl,--wrap=realloc -Wl,--wrap=free -o "$output/app"
+    "$output/app"
 done

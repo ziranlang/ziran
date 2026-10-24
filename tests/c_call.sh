@@ -30,12 +30,10 @@ for input in source saved; do
     else
         source="$work/ir/callback.zir"
     fi
-    for target in c cpp; do
-        output="$work/$input-$target"
-        "$ziran" build "--target=$target" --root "$work" \
-            -o "$output" "$source"
-        if test "$target" = c; then
-            cat > "$work/smoke.c" <<'C'
+    output="$work/$input-c"
+    "$ziran" build --target=c --root "$work" \
+        -o "$output" "$source"
+    cat > "$work/smoke.c" <<'C'
 #include "callback.h"
 static int32_t add_one(void *context, int32_t value) {
     (void)context;
@@ -46,25 +44,9 @@ int main(void) {
     return holder.callback(holder.context, 41) == 42 ? 0 : 1;
 }
 C
-            "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
-                -I"$output" "$work/smoke.c" -o "$output/app"
-        else
-            cat > "$work/smoke.cpp" <<'CPP'
-#include "callback.hpp"
-static int32_t add_one(void *context, int32_t value) {
-    (void)context;
-    return value + 1;
-}
-int main() {
-    Holder holder = {add_one, nullptr};
-    return holder.callback(holder.context, 41) == 42 ? 0 : 1;
-}
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" \
-                -I"$output" "$work/smoke.cpp" -o "$output/app"
-        fi
-        "$output/app"
-    done
+    "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
+        -I"$output" "$work/smoke.c" -o "$output/app"
+    "$output/app"
 done
 
 if "$ziran" build --target=go --root "$work" -o "$work/go" \
@@ -108,35 +90,19 @@ Answer :: () -> s32 {
 }
 ZI
 
-for target in c cpp; do
-    output="$work/native-$target"
-    "$ziran" build "--target=$target" --root "$work" -o "$output" \
-        "$work/native.zi"
-    if test "$target" = c; then
-        cat > "$output/smoke.c" <<'C'
+output="$work/native-c"
+"$ziran" build --target=c --root "$work" -o "$output" \
+    "$work/native.zi"
+cat > "$output/smoke.c" <<'C'
 #include "native.h"
 int main(void) {
     Binding binding = Make();
     return binding.call(0, 41) == 42 && Invoke(binding, 0, 41) == 42 ? 0 : 1;
 }
 C
-        "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" -I"$output" \
-            "$output/native.c" "$output/smoke.c" -o "$output/app"
-    else
-        cat > "$output/smoke.cpp" <<'CPP'
-#include "native.hpp"
-int main() {
-    Binding binding = Make();
-    return binding.call(nullptr, 41) == 42 &&
-        Invoke(binding, nullptr, 41) == 42 ? 0 : 1;
-}
-CPP
-        "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" \
-            -I"$output" "$output/native.cpp" "$output/smoke.cpp" \
-            -o "$output/app"
-    fi
-    "$output/app"
-done
+"${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" -I"$output" \
+    "$output/native.c" "$output/smoke.c" -o "$output/app"
+"$output/app"
 
 if "$ziran" bundle --root "$work" --entry native:Answer \
     -o "$work/native.zx" "$work/native.zi" > "$work/bundle.out" 2>&1; then
@@ -219,16 +185,9 @@ for input in source saved; do
     if test "$input" = saved; then
         source="$work/compare-ir/compare.zir"
     fi
-    for target in c cpp; do
-        output="$work/compare-$input-$target"
-        "$ziran" build "--target=$target" --root "$work" -o "$output" "$source"
-        if test "$target" = c; then
-            "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
-                -iquote "$output" "$output/compare.c" -o "$output/app"
-        else
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" \
-                -iquote "$output" "$output/compare.cpp" -o "$output/app"
-        fi
-        "$output/app"
-    done
+    output="$work/compare-$input-c"
+    "$ziran" build --target=c --root "$work" -o "$output" "$source"
+    "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
+        -iquote "$output" "$output/compare.c" -o "$output/app"
+    "$output/app"
 done

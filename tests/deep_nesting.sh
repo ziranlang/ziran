@@ -49,22 +49,11 @@ printf '#include "deep.h"\nint main(void) { deep_main(); return 0; }\n' > "$work
 "${CC:-cc}" -std=c99 -I"$work/c" "$work/c/deep.c" "$work/c/run.c" -o "$work/c/program"
 "$work/c/program" > "$work/c.out"
 
-"$ziran" build --target=cpp --root "$work" -o "$work/cpp" "$work/deep.zi"
-printf '#include "deep.hpp"\nint main() { deep_main(); return 0; }\n' > "$work/cpp/run.cpp"
-"${CXX:-c++}" -std=c++17 -I"$work/cpp" "$work/cpp/deep.cpp" "$work/cpp/run.cpp" \
-    -o "$work/cpp/program"
-"$work/cpp/program" > "$work/cpp.out"
-
 "$ziran" build --target=go --pkg main --exe --entry deep:main --root "$work" \
     -o "$work/go" "$work/deep.zi"
 (cd "$work/go" && GO111MODULE=off go run .) > "$work/go.out"
 
-"$ziran" build --target=rust --exe --entry deep:main --root "$work" \
-    -o "$work/rust" "$work/deep.zi"
-cargo build --quiet --manifest-path "$work/rust/Cargo.toml"
-"$work/rust/target/debug/ziran_generated" > "$work/rust.out"
-
-for target in vm c cpp go rust; do
+for target in vm c go; do
     if ! cmp -s "$work/expected" "$work/$target.out"; then
         echo "$target output differs for deeply nested code" >&2
         diff "$work/expected" "$work/$target.out" >&2 || true

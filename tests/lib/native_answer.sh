@@ -22,9 +22,6 @@ native_answer_42() (
             c)
                 native_extension=c; native_header=h; native_parameters=void
                 native_compiler=${CC:-cc}; native_standard=c11 ;;
-            cpp)
-                native_extension=cpp; native_header=hpp; native_parameters=
-                native_compiler=${CXX:-c++}; native_standard=c++17 ;;
             *) exit 1 ;;
         esac
         printf '#include "%s.%s"\nint main(%s) { return Answer() == 42 ? 0 : 1; }\n' \

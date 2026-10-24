@@ -71,7 +71,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 1
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --entry app:Answer \
@@ -90,17 +90,6 @@ int main(void) { return Answer() == 1 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c99 -pedantic-errors \
                 -I"$repo/include" -I"$output" "$output"/*.c \
-                -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --entry app:Answer --root "$root" \
-                -o "$output" "$module"
-            cat > "$output/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 1 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 \
-                -I"$repo/include" -I"$output" "$output"/*.cpp \
                 -o "$output/app"
             "$output/app"
         fi

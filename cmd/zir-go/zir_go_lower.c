@@ -266,7 +266,7 @@ go_validate_exports(const ZirProgram *const *programs, int count)
                 }
                 for(int t = 0; t < module->type_count; t++) {
                     NativeTypeName(module, &module->types[t], mapped, sizeof(mapped));
-                    // C/C++ collision repair may have renamed this type.
+                    // C collision repair may have renamed this type.
                     // Explicit Go exports must still respect its public name.
                     if(!strcmp(symbol, mapped) ||
                        !strcmp(symbol, module->types[t].name)) {
@@ -2434,7 +2434,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 if(t->is_procedure_type) {
                     if(t->is_c_call) {
                         Diagnostic(t->span, "zir_go.type",
-                                   "#c_call procedure types require the native C or C++ target");
+                                   "#c_call procedure types require the native C target");
                         exit(1);
                     }
                     EmitSlotType(f, t, ZIR_GO, resolve_slot_type, NULL);

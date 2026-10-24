@@ -48,26 +48,15 @@ for input in source saved; do
         source=$work/ir/subscript.zir
         root=$work/ir
     fi
-    for target in c cpp; do
-        output="$work/$target-$input"
-        "$ziran" build --target="$target" --root "$root" \
-            --entry subscript:Answer -o "$output" "$source"
-        if test "$target" = c; then
-            cat > "$output/main.c" <<'C'
+    output="$work/c-$input"
+    "$ziran" build --target=c --root "$root" \
+        --entry subscript:Answer -o "$output" "$source"
+    cat > "$output/main.c" <<'C'
 #include "subscript.h"
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
-            "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
-                "$output"/*.c -o "$output/app"
-        else
-            cat > "$output/main.cpp" <<'CPP'
-#include "subscript.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
-        fi
-        "$output/app"
-    done
+    "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
+        "$output"/*.c -o "$output/app"
+    "$output/app"
 done
-echo 'subscripts after a dereference or cast: C and C++ passed'
+echo 'subscripts after a dereference or cast: C passed'

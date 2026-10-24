@@ -49,7 +49,7 @@ must verify `original` against the current document before applying an edit.
 Strings, comments, ambiguous occurrences, and source rewritten after checking
 must never be changed by a guessed edit.
 
-`check --target=c|cpp|go|rust|py|zx|plan9-c` checks target-specific foreign
+`check --target=c|go|py|zx` checks target-specific foreign
 identities/imports and Go/portable scalar-union restrictions before writing
 output. Builds use the same preflight policy. Its failures include `target`
 and a capability such as `ffi.go`, `types.py`, or `unions.scalar`; individual

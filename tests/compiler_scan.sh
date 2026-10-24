@@ -145,25 +145,12 @@ for input in "$work/scanner.zi" "$work/ir/scanner.zir"; do
     "$ziran" build --target=c --exe --entry scanner:Run --root "$work" \
         --module-path "$repo/cmd" -o "$output/c" "$input"
     test "$("$output/c/scanner")" = "$expected"
-    "$ziran" build --target=cpp --root "$work" --module-path "$repo/cmd" \
-        -o "$output/cpp" "$input"
-    printf '#include "scanner.hpp"\nint main() { scanner_Run(); }\n' > "$output/cpp/run.cpp"
-    ${CXX:-c++} -std=c++17 -I"$repo/include" -I"$output/cpp" \
-        "$output/cpp/"*.cpp -o "$output/cpp/app"
-    test "$("$output/cpp/app")" = "$expected"
     "$ziran" build --target=go --exe --entry scanner:Run --pkg main --root "$work" \
         --module-path "$repo/cmd" -o "$output/go" "$input"
     test "$(GO111MODULE=off go run "$output/go/"*.go)" = "$expected"
     "$ziran" build --target=py --exe --entry scanner:Run --root "$work" \
         --module-path "$repo/cmd" -o "$output/py" "$input"
     test "$(python3 "$output/py")" = "$expected"
-    if command -v cargo >/dev/null 2>&1; then
-        "$ziran" build --target=rust --exe --entry scanner:Run --root "$work" \
-            --module-path "$repo/cmd" -o "$output/rust" "$input"
-        CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet \
-            --manifest-path "$output/rust/Cargo.toml"
-        test "$("$work/rust-target/debug/ziran_generated")" = "$expected"
-    fi
 done
 
 # Checked-in bootstrap output must agree with both the bootstrapped compiler

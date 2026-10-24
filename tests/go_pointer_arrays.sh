@@ -108,7 +108,7 @@ GO
 done
 cmp "$work/source-go/app.go" "$work/saved-go/app.go"
 
-# The shared array declaration path must retain C and C++ pointer syntax.
+# The shared array declaration path must retain C pointer syntax.
 cat > "$work/portable.zi" <<'ZI'
 #program_export
 Answer :: () -> s32 {
@@ -118,20 +118,14 @@ Answer :: () -> s32 {
     return values[0][0] + values[1][0]
 }
 ZI
-for target in c cpp; do
-    "$ziran" build --target="$target" --no-main \
-        --root "$work" -o "$work/$target" "$work/portable.zi"
-    case "$target" in
-        c) suffix=c; header=h; compiler=${CC:-cc}; standard=c11;;
-        cpp) suffix=cpp; header=hpp; compiler=${CXX:-c++}; standard=c++11;;
-    esac
-    cat > "$work/$target/driver.$suffix" <<EOF
-#include "portable.$header"
+"$ziran" build --target=c --no-main \
+    --root "$work" -o "$work/c" "$work/portable.zi"
+cat > "$work/c/driver.c" <<'EOF'
+#include "portable.h"
 int main(void) { return Answer() == 42 ? 0 : 1; }
 EOF
-    "$compiler" -std="$standard" -Wall -Werror -I"$work/$target" \
-        "$work/$target/portable.$suffix" "$work/$target/driver.$suffix" \
-        -o "$work/$target/run"
-    "$work/$target/run"
-done
-echo 'Go fixed arrays of pointers: source, saved IR, native identity and C/C++ passed'
+"${CC:-cc}" -std=c11 -Wall -Werror -I"$work/c" \
+    "$work/c/portable.c" "$work/c/driver.c" \
+    -o "$work/c/run"
+"$work/c/run"
+echo 'Go fixed arrays of pointers: source, saved IR, native identity and C passed'

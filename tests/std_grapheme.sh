@@ -19,21 +19,15 @@ for fixture in std_grapheme grapheme_conformance; do
         if test "$fixture" = grapheme_conformance; then entry=NativeMain; expected=0; fi
         "$ziran" bundle "$@" --entry "$fixture:$entry" -o "$work/$fixture-$form.zx" "$input"
         test "$("$ziran" run "$work/$fixture-$form.zx")" = "$expected"
-        for target in c cpp go py rust; do
+        for target in c go py; do
             output="$work/$fixture/$form-$target"
-            if test "$target" = cpp; then
-                "$ziran" build "$@" --target=cpp --no-main --entry "$fixture:NativeMain" -o "$output" "$input"
-                printf '#include "%s.hpp"\nint main() { return %s(); }\n' "$fixture" NativeMain > "$output/driver.cpp"
-                "${CXX:-c++}" -std=c++17 -I"$repo/include" "$output"/*.cpp -o "$output/$fixture"
-            elif test "$target" = go; then
+            if test "$target" = go; then
                 "$ziran" build "$@" --target=go --pkg main --exe --entry "$fixture:NativeMain" -o "$output" "$input"
             else
                 "$ziran" build "$@" --target="$target" --exe --entry "$fixture:NativeMain" -o "$output" "$input"
             fi
             case "$target" in
-                c|cpp) "$output/$fixture"
-                       # C++ exports retain their typed linkage; check the
-                       # demangled names as well as C's exact symbols.
+                c) "$output/$fixture"
                        symbols=GraphemeNext
                        # The conformance fixture only calls Next; its Count
                        # export is removed with other unreachable code.
@@ -41,18 +35,16 @@ for fixture in std_grapheme grapheme_conformance; do
                            symbols="$symbols GraphemeCount"
                        fi
                        for symbol in $symbols; do
-                           if ! nm -C "$output/$fixture" | grep -Eq " T $symbol(\\(|$)"; then
+                           if ! nm "$output/$fixture" | grep -Eq " T $symbol$"; then
                                echo "missing named $target export: $symbol" >&2
                                exit 1
                            fi
                        done ;;
                 go) GO111MODULE=off go run "$output"/*.go ;;
                 py) python3 "$output" ;;
-                rust) CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --offline --manifest-path "$output/Cargo.toml"
-                      "$work/rust-target/debug/ziran_generated" ;;
             esac
         done
     done
     cmp "$work/$fixture-source.zx" "$work/$fixture-saved.zx"
 done
-echo 'Grapheme segmentation: all 766 Unicode 17 conformance cases and VM editing cases passed from source and saved IR on VM/C/C++/Go/Python/Rust'
+echo 'Grapheme segmentation: all 766 Unicode 17 conformance cases and VM editing cases passed from source and saved IR on VM/C/Go/Python'

@@ -259,34 +259,6 @@ C
         -o "$work/test-$kind-c"
     "$work/test-$kind-c"
 
-    cpp_output=$work/$kind-cpp
-    "$ziran" build --target=cpp --entry owned:Check --root "$root" \
-        --module-path "$repo/std" -o "$cpp_output" "$module"
-    cat > "$cpp_output/main.cpp" <<'CPP'
-#include "owned.hpp"
-#include <cstddef>
-extern "C" void *__real_realloc(void *, std::size_t);
-extern "C" void __real_free(void *);
-static int outstanding;
-extern "C" void *__wrap_realloc(void *p, std::size_t size) {
-    void *result = __real_realloc(p, size);
-    if (p == nullptr && result != nullptr) outstanding++;
-    return result;
-}
-extern "C" void __wrap_free(void *p) {
-    if (p != nullptr) outstanding--;
-    __real_free(p);
-}
-int main() {
-    if (Check() != 117) return 1;
-    return outstanding == 0 ? 0 : 2;
-}
-CPP
-    "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$cpp_output" \
-        "$cpp_output"/*.cpp -Wl,--wrap=realloc -Wl,--wrap=free \
-        -o "$work/test-$kind-cpp"
-    "$work/test-$kind-cpp"
-
     go_output=$work/$kind-go
     "$ziran" build --target=go --pkg main --entry owned:Check \
         --root "$root" --module-path "$repo/std" \
@@ -301,5 +273,4 @@ done
 cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source-c/owned.c" "$work/saved-c/owned.c"
 cmp "$work/source-c/owned.h" "$work/saved-c/owned.h"
-cmp "$work/source-cpp/owned.cpp" "$work/saved-cpp/owned.cpp"
 cmp "$work/source-go/owned.go" "$work/saved-go/owned.go"

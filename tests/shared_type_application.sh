@@ -54,7 +54,7 @@ for input in source saved; do
         root=$work/ir
         file=$work/ir/app.zir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --no-main --pkg main --root "$root" --module-path std -o "$out" "$file"
@@ -65,11 +65,6 @@ for input in source saved; do
         c)
             printf '#include "app.h"\nint main(void) { return SelfTest() == 42 ? 0 : 1; }\n' > "$out/main.c"
             ${CC:-cc} -std=c99 -pedantic-errors -Iinclude -I"$out" "$out"/*.c -o "$out/test"
-            "$out/test"
-            ;;
-        cpp)
-            printf '#include "app.hpp"\nint main() { return SelfTest() == 42 ? 0 : 1; }\n' > "$out/main.cpp"
-            ${CXX:-c++} -Iinclude -I"$out" "$out"/*.cpp -o "$out/test"
             "$out/test"
             ;;
         go)

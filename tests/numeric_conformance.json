@@ -3,9 +3,7 @@
   "stability": "stable-id",
   "targets": [
     "c",
-    "cpp",
     "go",
-    "rust",
     "py",
     "zx"
   ],

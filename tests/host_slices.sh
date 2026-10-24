@@ -46,7 +46,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry host_buffer:Answer \
         -o "$work/$input.zx" "$source"
     "$host_test" "$work/$input.zx"
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/$input-$target
         "$ziran" build --target="$target" --root "$root" \
             -o "$output" "$source"
@@ -66,24 +66,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$output" -I"$include" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        elif test "$target" = cpp; then
-            cat > "$output/main.cpp" <<'CPP'
-#include "host_buffer.hpp"
-extern "C" int32_t Fill(Slice values) {
-    if(values.length == 0) return 0;
-    static_cast<uint8_t *>(values.data)[0] = 40;
-    return values.length;
-}
-extern "C" int32_t ReplaceWord(Slice values) {
-    static_cast<String *>(values.data)[0] = StringView("new", 3);
-    return values.length;
-}
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$output" \
-                -I"$include" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         else
             cat > "$output/host_buffer_test.go" <<'GO'
@@ -116,22 +98,13 @@ cat > "$work/foreign_only.zi" <<'ZI'
 host_api :: #system_library "host_api";
 Fill :: (values: []u8) -> s32 #foreign host_api;
 ZI
-for target in c cpp; do
-    output=$work/foreign-only-$target
-    "$ziran" build --target="$target" --root "$work" \
-        -o "$output" "$work/foreign_only.zi"
-    if test "$target" = c; then
-        printf '#include "foreign_only.h"\n' > "$work/foreign_only_smoke.c"
-        "${CC:-cc}" -std=c11 -I"$output" \
-            -I"$include" -c \
-            "$work/foreign_only_smoke.c" -o "$output/foreign_only.o"
-    else
-        printf '#include "foreign_only.hpp"\n' > "$work/foreign_only_smoke.cpp"
-        "${CXX:-c++}" -std=c++17 -I"$output" \
-            -I"$include" -c \
-            "$work/foreign_only_smoke.cpp" -o "$output/foreign_only.o"
-    fi
-done
+output=$work/foreign-only-c
+"$ziran" build --target=c --root "$work" \
+    -o "$output" "$work/foreign_only.zi"
+printf '#include "foreign_only.h"\n' > "$work/foreign_only_smoke.c"
+"${CC:-cc}" -std=c11 -I"$output" \
+    -I"$include" -c \
+    "$work/foreign_only_smoke.c" -o "$output/foreign_only.o"
 
 cat > "$work/returned.zi" <<'ZI'
 host_api :: #system_library "host_api";
@@ -189,7 +162,7 @@ for input in source saved; do
         -o "$work/record-$input.zx" "$record"
     "$host_test" "$work/record-$input.zx" records
     "$host_test" "$work/record-$input.zx" records_bad
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/record-$input-$target
         "$ziran" build --target="$target" --root "$record_root" \
             -o "$output" "$record"
@@ -209,23 +182,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -Wall -Werror -I"$output" -I"$include" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        elif test "$target" = cpp; then
-            cat > "$output/main.cpp" <<'CPP'
-#include "record_slices.hpp"
-extern "C" int32_t Mutate(Slice points) {
-    if(points.length != 2) return 0;
-    static_cast<Point *>(points.data)[0].x = 40;
-    return 2;
-}
-extern "C" Slice Make(void) {
-    static Point points[] = {{1, 0}, {0, 2}};
-    return Slice{points, 2};
-}
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$output" \
-                -I"$include" "$output"/*.cpp -o "$output/app"
             "$output/app"
         else
             cat > "$output/record_slices_test.go" <<'GO'

@@ -2,7 +2,7 @@
 set -eu
 
 # for loops come out as the target's own loops: a counting for in C and Go,
-# range in Go when the index goes unused, and for ... in in Rust. continue, named continue,
+# range in Go when the index goes unused. continue, named continue,
 # reverse ranges, and strings behave the same on every target.
 ziran=$1
 work=$(mktemp -d)
@@ -62,12 +62,6 @@ printf '#include "loops.h"\nint main(void) { loops_main(); return 0; }\n' > "$wo
 "$work/c/program" > "$work/c.out"
 grep -Fq 'for (int64_t step = 0LL; step <= 3LL; step++) {' "$work/c/loops.c"
 
-"$ziran" build --target=cpp --root "$work" -o "$work/cpp" "$work/loops.zi"
-printf '#include "loops.hpp"\nint main() { loops_main(); return 0; }\n' > "$work/cpp/run.cpp"
-"${CXX:-c++}" -std=c++17 -I"$work/cpp" "$work/cpp/loops.cpp" "$work/cpp/run.cpp" \
-    -o "$work/cpp/program"
-"$work/cpp/program" > "$work/cpp.out"
-
 "$ziran" build --target=go --pkg main --exe --entry loops:main --root "$work" \
     -o "$work/go" "$work/loops.zi"
 (cd "$work/go" && GO111MODULE=off go run .) > "$work/go.out"
@@ -75,15 +69,7 @@ grep -Fq 'for step := int64(0); step <= 3; step++ {' "$work/go/loops.go"
 grep -Fq 'for down := int64(3); down >= 1; down-- {' "$work/go/loops.go"
 grep -Fq 'for _, it := range values {' "$work/go/loops.go"
 
-"$ziran" build --target=rust --exe --entry loops:main --root "$work" \
-    -o "$work/rust" "$work/loops.zi"
-CARGO_TARGET_DIR=$work/rust-target cargo build --quiet \
-    --manifest-path "$work/rust/Cargo.toml" 2> /dev/null
-"$work/rust-target/debug/ziran_generated" > "$work/rust.out"
-grep -Fq 'for step in 0i64..=3i64 {' "$work/rust/src/main.rs"
-grep -Fq 'for down in (1i64..=3i64).rev() {' "$work/rust/src/main.rs"
-
-for target in vm c cpp go rust; do
+for target in vm c go; do
     if ! cmp -s "$work/expected" "$work/$target.out"; then
         echo "$target loops differ" >&2
         diff "$work/expected" "$work/$target.out" >&2 || true

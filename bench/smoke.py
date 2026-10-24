@@ -226,8 +226,7 @@ def metadata():
                 ])
 
 def main():
-    required = {'zi2zir':BIN/'zi2zir','zi2c':BIN/'zi2c',
-                'zi2cpp':BIN/'zi2cpp','zi2go':BIN/'zi2go',
+    required = {'zi2zir':BIN/'zi2zir','zi2c':BIN/'zi2c','zi2go':BIN/'zi2go',
                 'zi2zx':BIN/'zi2zx'}
     missing = [str(path) for path in required.values() if not path.is_file()]
     missing += [tool for tool in ['gcc','g++','go'] if not shutil.which(tool)]
@@ -245,7 +244,6 @@ def main():
     runtime = {}
     for target, ext, tool, compiler, standard in [
         ('c','c','zi2c','gcc','-std=c99'),
-        ('cpp','cpp','zi2cpp','g++','-std=c++17'),
         ('go','go','zi2go','go',None),
     ]:
         for kind, root, source in [('source',FIX,ZI),('saved',IR,SAVED)]:
@@ -259,8 +257,7 @@ def main():
                 command = ['go','build','-o',output/'app',output/'smoke.go',wrapper]
             else:
                 wrapper = output/f'main.{ext}'
-                header = 'smoke.h' if target == 'c' else 'smoke.hpp'
-                wrapper.write_text(f'#include "{header}"\n#include <stdio.h>\n#include <stdlib.h>\nint main(int argc,char **argv){{if(argc!=2)return 2;printf("%lld\\n",(long long)Kernel(strtoll(argv[1],0,10)));return 0;}}\n')
+                wrapper.write_text('#include "smoke.h"\n#include <stdio.h>\n#include <stdlib.h>\nint main(int argc,char **argv){{if(argc!=2)return 2;printf("%lld\\n",(long long)Kernel(strtoll(argv[1],0,10)));return 0;}}\n')
                 command = [compiler,standard,'-O2','-I',ROOT/'include','-I',output,
                            output/f'smoke.{ext}',wrapper,'-o',output/'app','-lm']
             phase = 'cached go build' if target == 'go' else 'downstream compile'
@@ -306,7 +303,7 @@ def main():
     meta['fixture_hashes'] = {str(p.relative_to(OUT)):hashlib.sha256(p.read_bytes()).hexdigest()
                               for p in FIX.iterdir() if p.suffix in ['.zi','.c','.cpp','.go','.rs','.py','.js','.java']}
     artifact_paths = [OUT/'source.zx',OUT/'saved.zx']
-    artifact_paths += [OUT/f'{target}-{kind}'/'app' for target in ['c','cpp','go'] for kind in ['source','saved']]
+    artifact_paths += [OUT/f'{target}-{kind}'/'app' for target in ['c','go'] for kind in ['source','saved']]
     artifact_paths += [FIX/name for name in ['hand-c','hand-cpp','hand-go']]
     if 'hand Rust' in builds: artifact_paths.append(FIX/'hand-rust')
     if 'hand Java' in builds: artifact_paths.append(FIX/'Smoke.class')

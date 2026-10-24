@@ -35,7 +35,7 @@ for input in source saved; do
     root=$work
     file=$root/main.zi
     if test "$input" = saved; then root=$work/ir; file=$root/main.zir; fi
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --no-main --pkg main --root "$root" --entry main:Answer -o "$out" "$file"
@@ -46,10 +46,6 @@ for input in source saved; do
         c)
             printf '#include "main.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$out/entry.c"
             cc -std=c11 -Iinclude -I"$out" "$out"/*.c -lm -o "$work/program"
-            ;;
-        cpp)
-            printf '#include "main.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$out/entry.cpp"
-            c++ -std=c++17 -Iinclude -I"$out" "$out"/*.cpp -lm -o "$work/program"
             ;;
         go)
             printf 'package main\nfunc main() { if Main_Answer() != 42 { panic("imported field type") } }\n' > "$out/entry.go"

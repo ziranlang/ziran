@@ -69,20 +69,10 @@ expected='360 -0.5 Kiryon 32 42'
 "$ziran" build --target=c --exe --root "$work" --entry shapes:main -o "$work/c" $sources
 test "$("$work/c/shapes")" = "$expected"
 
-"$ziran" build --target=cpp --root "$work" --entry shapes:main -o "$work/cpp" $sources
-"${CXX:-c++}" -std=c++17 -I"$work/cpp" "$work"/cpp/*.cpp -o "$work/cpp/program"
-test "$("$work/cpp/program")" = "$expected"
-
 "$ziran" build --target=go --pkg main --exe --root "$work" --entry shapes:main \
     -o "$work/go" $sources
 (cd "$work/go" && GO111MODULE=off go build -o program .)
 test "$("$work/go/program")" = "$expected"
-
-"$ziran" build --target=rust --exe --root "$work" --entry shapes:main \
-    -o "$work/rust" $sources
-CARGO_TARGET_DIR=$work/rust-target cargo build --quiet \
-    --manifest-path "$work/rust/Cargo.toml"
-test "$("$work/rust-target/debug/ziran_generated")" = "$expected"
 
 "$ziran" build --target=py --exe --root "$work" --entry shapes:main \
     -o "$work/py" $sources

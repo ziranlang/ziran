@@ -57,13 +57,8 @@ UnixNowHost :: () -> s64 { return Native.UnixNow() }
 ZI
 cat > "$work/entry.c" <<'C'
 #define _POSIX_C_SOURCE 200809L
-#ifdef __cplusplus
-#include "time_test.hpp"
-#include "date_time_linux.hpp"
-#else
 #include "time_test.h"
 #include "date_time_linux.h"
-#endif
 #include <pthread.h>
 #include <stdio.h>
 #include <time.h>
@@ -135,18 +130,11 @@ for input in source saved; do
     file=$root/time_test.zi
     provider=$root/provider.zi
     if test "$input" = saved; then root=$work/ir; file=$root/time_test.zir; provider=$root/provider.zir; fi
-    for target in c cpp; do
-        out=$work/$input-$target
-        "$ziran" build --target="$target" --no-main --root "$root" --module-path "$repo/std" -o "$out" "$file" "$provider"
-        if test "$target" = c; then
-            cp "$work/entry.c" "$out/entry.c"
-            cc -std=c11 -I"$out" "$out"/*.c -lm -pthread -o "$work/program"
-        else
-            cp "$work/entry.c" "$out/entry.cpp"
-            c++ -std=c++17 -I"$out" "$out"/*.cpp -lm -pthread -o "$work/program"
-        fi
-        TZ='EST5EDT,M3.2.0/2,M11.1.0/2' "$work/program"
-    done
+    out=$work/$input-c
+    "$ziran" build --target=c --no-main --root "$root" --module-path "$repo/std" -o "$out" "$file" "$provider"
+    cp "$work/entry.c" "$out/entry.c"
+    cc -std=c11 -I"$out" "$out"/*.c -lm -pthread -o "$work/program"
+    TZ='EST5EDT,M3.2.0/2,M11.1.0/2' "$work/program"
 done
 # ClockValue is struct timespec and the seconds are time_t: both are
 # long-sized, so 32-bit on armeabi-v7a, where 64-bit fields read garbage.
@@ -248,13 +236,8 @@ C
 #include <stddef.h>
 #include <stdio.h>
 #include <time.h>
-#ifdef __cplusplus
-#include "web_time.hpp"
-#include "date_time_linux.hpp"
-#else
 #include "web_time.h"
 #include "date_time_linux.h"
-#endif
 int main(void)
 {
     int result = CheckWebTime();
@@ -274,20 +257,17 @@ int main(void)
     return 0;
 }
 C
-    for target in c cpp; do
-        out=$work/web-$target
-        "$ziran" build --target="$target" --define PLATFORM_WEB --no-main --root "$work" \
-            --module-path "$repo/std" -o "$out" "$work/web_time.zi"
-        compiler=$emcc; extension=c; standard=c11
-        if test "$target" = cpp; then compiler=${emcc%emcc}em++; extension=cpp; standard=c++17; fi
-        cp "$work/web_entry.c" "$out/web_entry.$extension"
-        "$compiler" -std=$standard -I"$repo/include" -I"$out" \
-            "$out"/*."$extension" --js-library "$repo/web/ziran_web.js" -Wl,--fatal-warnings \
-            -sENVIRONMENT=node -sEXIT_RUNTIME=1 -o "$out/test.js"
-        node "$out/test.js"
-    done
+    out=$work/web-c
+    "$ziran" build --target=c --define PLATFORM_WEB --no-main --root "$work" \
+        --module-path "$repo/std" -o "$out" "$work/web_time.zi"
+    compiler=$emcc; extension=c; standard=c11
+    cp "$work/web_entry.c" "$out/web_entry.$extension"
+    "$compiler" -std=$standard -I"$repo/include" -I"$out" \
+        "$out"/*."$extension" --js-library "$repo/web/ziran_web.js" -Wl,--fatal-warnings \
+        -sENVIRONMENT=node -sEXIT_RUNTIME=1 -o "$out/test.js"
+    node "$out/test.js"
     printf 'web date-time checks passed: 64-bit time_t, timespec and struct tm layouts, libc agreement, named zones through Intl, sub-second monotonic clock\n'
 else
     printf 'Emscripten or node unavailable; web date-time checks skipped.\n'
 fi
-echo 'date-time-linux-test-ok: UTC, DST, post-2038, named zones, failed conversions, concurrent readings, portable host, C/C++ source and saved IR'
+echo 'date-time-linux-test-ok: UTC, DST, post-2038, named zones, failed conversions, concurrent readings, portable host, C source and saved IR'

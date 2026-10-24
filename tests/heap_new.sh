@@ -1,7 +1,7 @@
 #!/bin/sh
 # New(T) allocates a zeroed T and returns *T; free(p) releases it and
-# ignores null. A linked list built with New runs the same on C, C++, Go,
-# Rust, Python, and .zx from source and saved IR. The portable runner stops cleanly on
+# ignores null. A linked list built with New runs the same on C, Go,
+# Python, and .zx from source and saved IR. The portable runner stops cleanly on
 # a read after free and on a second free. A procedure or foreign procedure
 # of the program's own named New or free still wins over the built-in.
 set -eu
@@ -125,14 +125,6 @@ for input in source saved; do
     status=0
     "$output/app" || status=$?
     test "$status" = 42
-    output="$work/cpp-$input"
-    "$ziran" build --target=cpp --root "$root" -o "$output" "$module"
-    cat > "$output/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-    "${CXX:-c++}" -I"$repo/include" -I"$output" "$output"/*.cpp -o "$output/app"
-    "$output/app"
     output="$work/go-$input"
     "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$module"
     cat > "$output/main.go" <<'GO'
@@ -145,14 +137,6 @@ GO
     status=0
     python3 "$output" || status=$?
     test "$status" = 42
-    if command -v cargo >/dev/null 2>&1; then
-        output="$work/rust-$input"
-        "$ziran" build --target=rust --exe --entry app:Answer --root "$root" -o "$output" "$module"
-        CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --manifest-path "$output/Cargo.toml"
-        status=0
-        "$work/rust-target/debug/ziran_generated" || status=$?
-        test "$status" = 42
-    fi
 done
 cmp "$work/source.zx" "$work/saved.zx"
 

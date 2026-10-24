@@ -24,7 +24,7 @@ for command in check ir bundle; do
     fi
     grep -Fq '#import, file requires a relative .zi path' "$work/$command.err"
 done
-for target in c cpp go; do
+for target in c go; do
     if "$ziran" build --target="$target" --root "$work" \
         -o "$work/$target" "$work/ffi.zi" 2> "$work/$target.err"; then
         echo "$target accepted a C header import" >&2

@@ -32,7 +32,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry gpu:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 285
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --entry gpu:Answer \
@@ -55,25 +55,12 @@ C
                 -o "$output/app"
             "$output/app"
             rg -q "no GPU device capability" "$output/gpu.c"
-        else
-            "$ziran" build --target=cpp --entry gpu:Answer --root "$root" \
-                -o "$output" "$module"
-            cat > "$output/main.cpp" <<'CPP'
-#include "gpu.hpp"
-int main() { return Answer() == 285 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -pedantic-errors -pthread \
-                -I"$repo/include" -I"$output" "$output"/*.cpp \
-                -o "$output/app"
-            "$output/app"
-            rg -q "no GPU device capability" "$output/gpu.cpp"
         fi
     done
 done
 cmp "$work/source.zx" "$work/saved.zx"
 ZIRAN_PAR_THREADS=1 "$work/c-source/app"
 ZIRAN_PAR_THREADS=6 "$work/c-source/app"
-ZIRAN_PAR_THREADS=4 "$work/cpp-source/app"
 
 reject() {
     name=$1

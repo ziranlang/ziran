@@ -129,7 +129,7 @@ for input in "$work/flags.zi" "$work/ir/flags.zir"; do
         *.zi) suffix=source ;;
         *) suffix=saved ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$suffix"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$work" \
@@ -159,20 +159,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 EOF
             ${CC:-cc} -std=c11 -Iinclude -I"$out" "$out/flags.c" \
                 "$out/main.c" -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$work" \
-                -o "$out" "$input"
-            cat > "$out/main.cpp" <<'EOF'
-#include "flags.hpp"
-static_assert(sizeof(Mask) == 4, "mask width");
-static_assert(sizeof(Small) == 1, "small width");
-static_assert(sizeof(Default) == 8, "default width");
-static_assert(sizeof(Pair) == 16, "record layout");
-int main() { return Answer() == 42 ? 0 : 1; }
-EOF
-            ${CXX:-c++} -std=c++17 -Iinclude -I"$out" \
-                "$out/flags.cpp" "$out/main.cpp" -o "$out/app"
             "$out/app"
         fi
     done
@@ -361,7 +347,7 @@ for input in source saved; do
         file=$work/global-enum-ir/global_enum.zir
         root=$work/global-enum-ir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/global-enum-$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -379,15 +365,6 @@ int main(void) { return Answer() == 1 ? 0 : 1; }
 C
             "${CC:-cc}" -Iinclude -I"$output" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$output" "$file"
-            cat > "$output/entry.cpp" <<'CPP'
-#include "global_enum.hpp"
-int main() { return Answer() == 1 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -Iinclude -I"$output" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         fi
     done

@@ -160,7 +160,7 @@ for input in source saved; do
     else
         module=$work/ir/app.zir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/$target-$input
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$work" \
@@ -173,21 +173,12 @@ GO
         else
             "$ziran" build --target="$target" --root "$work" \
                 -o "$output" "$module"
-            if test "$target" = c; then
-                cat > "$output/main.c" <<'C'
+            cat > "$output/main.c" <<'C'
 #include "app.h"
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
-                "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
-                    "$output"/*.c -o "$output/app"
-            else
-                cat > "$output/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-                "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                    "$output"/*.cpp -o "$output/app"
-            fi
+            "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
+                "$output"/*.c -o "$output/app"
             "$output/app"
         fi
     done

@@ -42,7 +42,7 @@ for input in source saved; do
     "$ziran" bundle --root "$work" --entry inferred:Answer \
         -o "$work/$input.zx" "$@"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$input-$target"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$work" \
@@ -58,14 +58,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                 "$out/inferred.c" "$out/main.c" -o "$out/app"
-            "$out/app"
-        elif test "$target" = cpp; then
-            cat > "$out/main.cpp" <<'CPP'
-#include "inferred.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out/inferred.cpp" "$out/main.cpp" -o "$out/app"
             "$out/app"
         else
             cat > "$out/main.go" <<'GO'

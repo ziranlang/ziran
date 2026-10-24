@@ -449,15 +449,6 @@ main :: () -> s32 {
         assert len(list((root / "ir").glob("p*_Value.zir"))) == 2
         compile_app(ziran, app, root / "saved-c", compiler, env,
                     root / "ir/app.zir", False)
-        if shutil.which("c++"):
-            cpp = root / "cpp"
-            call(ziran, "build", "--project", "--target=cpp", "--entry",
-                 "app:main", "-o", str(cpp), str(app / "src/app.zi"),
-                 cwd=app, env=env)
-            for source in sorted(cpp.glob("*.cpp")):
-                call("c++", "-std=c++17", f"-I{compiler / 'include'}",
-                     f"-I{cpp}", "-fsyntax-only", str(source), cwd=app,
-                     env=env)
         if shutil.which("go"):
             go = root / "go"
             call(ziran, "build", "--project", "--target=go", "--pkg",

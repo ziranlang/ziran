@@ -181,7 +181,7 @@ func main() {
 }
 GO
     GO111MODULE=off go run "$out"/*.go
-    for target in c cpp rust py; do
+    for target in c py; do
         if "$ziran" build "--target=$target" --root "$root" --module-path std -o "$work/rejected-$target" "$file" > "$work/rejected.out" 2>&1; then
             echo "maps accepted by $target" >&2
             exit 1

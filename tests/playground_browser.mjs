@@ -139,9 +139,9 @@ try {
   assert.equal(await run(), '0');
   await evaluate(`(() => { const value = document.querySelector('.text-value-input'); value.value = 'Ä'; value.dispatchEvent(new Event('input')); const prefix = document.querySelector('.text-prefix-input'); prefix.value = 'ä'; prefix.dispatchEvent(new Event('input')); })()`);
   assert.equal(await evaluate(`document.querySelector('.text-summary').textContent`), 'No prefix match', 'ASCII folding must not fold non-ASCII characters');
-  await evaluate(`(() => { const target = document.querySelector('.target-select'); target.value = 'rust'; target.dispatchEvent(new Event('change')); })()`);
-  assert.match(await evaluate(`document.querySelector('.target-command').textContent`), /--target=rust/);
-  assert.equal(await evaluate(`document.querySelector('.native-visual .is-selected').dataset.target`), 'rust');
+  await evaluate(`(() => { const target = document.querySelector('.target-select'); target.value = 'go'; target.dispatchEvent(new Event('change')); })()`);
+  assert.match(await evaluate(`document.querySelector('.target-command').textContent`), /--target=go/);
+  assert.equal(await evaluate(`document.querySelector('.native-visual .is-selected').dataset.target`), 'go');
   await evaluate(`document.querySelector('.playground-reset').click(); window.scrollTo(0, 0); document.activeElement.blur()`);
   await screenshot('/tmp/ziran-interactive-desktop.png');
   await screenshot('/tmp/ziran-interactive-full.png', true);

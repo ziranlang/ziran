@@ -113,10 +113,6 @@ GO
     result=0
     "$work/$form-c/methods" || result=$?
     test "$result" = 42
-    "$ziran" build --target=cpp --root "$work" --module-path std --entry methods:Answer -o "$work/$form-cpp" "$input"
-    printf '#include "methods.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$work/$form-cpp/main.cpp"
-    ${CXX:-c++} -std=c++17 -Iinclude -I"$work/$form-cpp" "$work/$form-cpp"/*.cpp -o "$work/$form-cpp/app"
-    "$work/$form-cpp/app"
 done
 cmp "$work/source-go/methods.go" "$work/saved-go/methods.go"
 

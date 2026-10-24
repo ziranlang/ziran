@@ -1,7 +1,7 @@
 # Ziran intermediate representation (`.zir`)
 
 This is the target contract. An experimental binary version 58 now exists for
-the tested C/C++/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
+the tested C/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
 `.zir` is a versioned, checked, serializable module representation. It is the
@@ -32,7 +32,7 @@ Version 57 retains optional architecture-specific `#asm` variants alongside
 each function's checked portable body and local block bodies. Block metadata
 binds named scalar/pointer locals or parameters, and checking validates every
 binding in its lexical scope. Concrete generic instances retain these variants
-and validate their operand types and portable bodies. C/C++ and Rust may select a matching variant;
+and validate their operand types and portable bodies. C and Go may select a matching variant;
 other targets and the portable VM execute the checked body. The variants are
 explicit native metadata, never recovered from diagnostic statement text.
 Only annotated blocks carry the optional metadata payload; ordinary statements
@@ -82,7 +82,7 @@ The current writer emits `ZIR` followed by a zero byte, a little-endian
 version number, and length-prefixed checked module records. Strings and
 integers are encoded explicitly; process pointers and C struct padding are
 not serialized. The reader rejects wrong versions, truncated records,
-oversized fields, invalid references, and trailing bytes. The C, C++, native Go, and experimental Plan 9 C
+oversized fields, invalid references, and trailing bytes. The C and native Go
 commands can build saved `.zir` modules, including an imported two-module
 typed record call example. The experimental `.zx` bundler also consumes saved `.zir`
 for its restricted scalar, record, and enum subset. Native and bundle builds rerun
@@ -137,7 +137,7 @@ Record bodies retain `using` on contained fields. A checked member expression
 that names a promoted field records its concrete contained-field path; the
 reader verifies each intermediate field is a `using` field. Native backends
 and the portable runtime follow that path through the stored record layout.
-Union types preserve their shared-storage flag. C and C++ use that flag for
+Union types preserve their shared-storage flag. C uses that flag for
 native declarations; Go and the portable linker currently reject union storage.
 Polymorphic procedures retain their `$T` signature and structured body.
 Templates also retain `using` parameters and statements until concrete

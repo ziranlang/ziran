@@ -43,16 +43,15 @@ for form in ['source','saved']:
     bundle = work/(form+'.zx')
     run([ziran,'bundle','--root',root,'--entry','app:Main','-o',bundle,entry])
     run([ziran,'run',bundle],expected)
-    for target in ['c','cpp','go','py','rust','plan9-c']:
+    for target in ['c','go','py']:
         output = work/(form+'-'+target)
         command = [ziran,'build','--target='+target,'--root',root,'-o',output,entry]
         if target == 'go': command[2:2] = ['--pkg','main']
         run(command)
-        if target in ['c','cpp']:
-            suffix,header,compiler,standard = ('c','h',os.environ.get('CC','cc'),'c11') if target == 'c' else ('cpp','hpp',os.environ.get('CXX','c++'),'c++17')
-            host = output/('driver.'+suffix)
-            host.write_text('#include "app.'+header+'"\nint main(void) { return Answer(7) == '+str(oracle(7))+' && Answer(9) == '+str(oracle(9))+' ? 0 : 1; }\n')
-            run([compiler,'-O2','-std='+standard,'-I'+str(ROOT/'include'),'-I'+str(output),*sorted(output.glob('*.'+suffix)),'-o',output/'run'])
+        if target == 'c':
+            host = output/'driver.c'
+            host.write_text('#include "app.h"\nint main(void) { return Answer(7) == '+str(oracle(7))+' && Answer(9) == '+str(oracle(9))+' ? 0 : 1; }\n')
+            run([os.environ.get('CC','cc'),'-O2','-std=c11','-I'+str(ROOT/'include'),'-I'+str(output),*sorted(output.glob('*.c')),'-o',output/'run'])
             run([output/'run'])
         elif target == 'go':
             (output/'main.go').write_text('package main\nfunc main() { if App_Answer(7) != '+str(oracle(7))+' || App_Answer(9) != '+str(oracle(9))+' { panic("late record fields") } }\n')
@@ -60,9 +59,6 @@ for form in ['source','saved']:
             run([output/'run'])
         elif target == 'py':
             run(['python3','-c','import runpy; app=runpy.run_path("__init__.py"); assert app["Answer"](7)=='+str(oracle(7))+' and app["Answer"](9)=='+str(oracle(9))],cwd=output)
-        elif target == 'rust' and shutil.which('cargo'):
-            (output/'src/main.rs').write_text('fn main() { assert_eq!(ziran_generated::Answer(7), '+str(oracle(7))+'); assert_eq!(ziran_generated::Answer(9), '+str(oracle(9))+'); }\n')
-            run(['cargo','run','--quiet','--offline','--manifest-path',output/'Cargo.toml'])
     print('Late record fields passed '+form+' VM/bundle and generated-target checks',flush=True)
 assert (work/'source.zx').read_bytes() == (work/'saved.zx').read_bytes()
 

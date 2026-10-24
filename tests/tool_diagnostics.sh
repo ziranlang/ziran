@@ -33,8 +33,8 @@ def diagnostics(command, code=None, *, env=None, success=False):
     return items
 
 # Invalid arguments honor a later JSON flag, including in the formatter.
-for tool in ('zi2c', 'zi2cpp', 'zi2go', 'zi2rust', 'zi2py', 'zi2zir',
-             'zi2zx', 'zi-api', 'zi-inspect', 'zi-fmt'):
+for tool in ('zi2c', 'zi2go', 'zi2py', 'zi2zir', 'zi2zx', 'zi-api',
+             'zi-inspect', 'zi-fmt'):
     diagnostics([binary / tool, '--unknown', '--diagnostics=json'], 'command.arguments')
 
 diagnostics([ziran, 'build', '--target=unknown', '--diagnostics=json'], 'package.command')

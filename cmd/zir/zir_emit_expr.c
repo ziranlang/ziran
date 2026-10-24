@@ -2,8 +2,6 @@
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 
-static int sized_string_literals;
-
 /* These reads and wrapping integer operations neither call nor fault. Keep
  * snapshots for indexes, dereferences and conversions that can fail, so their
  * evaluation order and diagnostics stay intact. A deep tree keeps the
@@ -39,12 +37,6 @@ plain_wide_operand(const ZirFunction *fn, int index, int depth)
     default:
         return 0;
     }
-}
-
-void
-EmitUseSizedStringLiterals(int enabled)
-{
-    sized_string_literals = enabled;
 }
 
 typedef struct EmitMapCallBuffers {
@@ -389,8 +381,7 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
                  finished, buffers->vector, buffers->vector);
             line(e, "%s.Data = nil", buffers->vector);
         } else {
-            declare(e, finished, "string",
-                    e->target == ZIR_CPP ? "{}" : "{NULL, 0}");
+            declare(e, finished, "string", "{NULL, 0}");
             line(e, "%s.data = (%s).count > 0 ? (const char *)(%s).data : \"\";",
                  finished, buffers->vector, buffers->vector);
             line(e, "%s.length = (size_t)(%s).count;", finished, buffers->vector);
@@ -478,9 +469,8 @@ native_size_expression(Emitter *e, const char *type, char *out, size_t size)
 
 /* A C record value as a compound literal, (Point){.x = 3, .y = 4}, or,
  * initializing a declaration, a brace list: {.x = 3, .y = 4} or, for an
- * array, {1, 2, 3}. Unnamed fields are zero either way. C++17 has no
- * designated initializers, so its records keep field assignments; C arrays
- * are not values, so array elements and fields keep them too. Values with
+ * array, {1, 2, 3}. Unnamed fields are zero either way. C arrays are not
+ * values, so array elements and fields keep field assignments. Values with
  * calls use ordered stores so earlier reads happen before later calls. */
 static int
 c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
@@ -661,7 +651,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         break;
     case ZIR_EXPR_COMPOUND: {
         /* Array literals may exceed the expression scratch buffer. Emit
-         * their ordered element stores, as the C/C++ path already does,
+         * their ordered element stores, as the C path already does,
          * instead of constructing one unbounded Go expression. */
         if(e->target == ZIR_GO && ArrayElementType(type, NULL, 0, NULL)) {
             fresh(e, temp);
@@ -856,8 +846,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                 format(buffers->result, sizeof(buffers->result), "%s[%s:%s]", view, buffers->low, buffers->high);
                 break;
             }
-            int inline_view = (e->target == ZIR_C || e->target == ZIR_CPP) &&
-               !(e->target == ZIR_C && zir_native_operand_temporaries) &&
+            int inline_view = e->target == ZIR_C &&
                plain_identifier(buffers->source) && strlen(buffers->source) < sizeof(view) &&
                !expression_calls(e->fn, expr->right) &&
                !expression_calls(e->fn, expr->third);
@@ -1013,7 +1002,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         pure = base_pure && e->pure;
         int fixed_array = ArrayElementType(base_type, NULL, 0, &capacity);
         if(VecElementType(e->module, base_type, NULL, 0) &&
-           (e->target == ZIR_C || e->target == ZIR_CPP)) {
+           e->target == ZIR_C) {
             format(buffers->result, sizeof(buffers->result),
                    "ZIRAN_VEC_INDEX((%s).data, (%s).count, %s)", buffers->a, buffers->a, buffers->b);
         } else if(VecElementType(e->module, base_type, NULL, 0)) {
@@ -1027,10 +1016,10 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                 format(buffers->result, sizeof(buffers->result), "%s[%s]", buffers->a, buffers->b);
             else
                 format(buffers->result, sizeof(buffers->result), "(uint8_t)ZIRAN_INDEX(%s.data, %s.length, %s)", buffers->a, buffers->a, buffers->b);
-        } else if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+        } else if(e->target == ZIR_C &&
                   fixed_array && capacity == 0) {
             format(buffers->result, sizeof(buffers->result), "ZIRAN_EMPTY_INDEX(%s, %s)", buffers->a, buffers->b);
-        } else if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+        } else if(e->target == ZIR_C &&
                   fixed_array && capacity > 0) {
             /* Fixed-capacity arrays are bounds-checked in debug builds. */
             format(buffers->result, sizeof(buffers->result), "ZIRAN_INDEX(%s, %d, %s)",
@@ -1051,8 +1040,8 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             break;
         }
         if(!strcmp(expr->name, "null")) {
-            copy_text(buffers->result, sizeof(buffers->result), e->target == ZIR_GO ? "nil" :
-                      e->target == ZIR_CPP ? "nullptr" : "((void *)0)");
+            copy_text(buffers->result, sizeof(buffers->result),
+                      e->target == ZIR_GO ? "nil" : "((void *)0)");
             pure = 1;
             break;
         }
@@ -1071,33 +1060,8 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         break;
     case ZIR_EXPR_STRING:
         EmitStringLiteral(expr, e->target, buffers->a, sizeof(buffers->a));
-        if(e->target == ZIR_C || e->target == ZIR_CPP) {
-            if(sized_string_literals) {
-                /* The Plan 9 preprocessor has a bounded expansion buffer.
-                 * StringLiteral duplicates its argument for sizeof, which
-                 * overflows that buffer for otherwise valid long literals.
-                 * Carry the decoded byte count, including embedded NULs,
-                 * instead of scanning the string at runtime. */
-                size_t length;
-                if(!DecodeStringLiteral(expr->text, (unsigned char *)buffers->b,
-                                        sizeof(buffers->b), &length))
-                    fatal(expr, "could not decode string literal");
-                /* Named constants use one byte array instead of a second
-                 * copy of their long text at each reference. */
-                for(int i = 0; i < e->module->define_count; i++) {
-                    const ZirDefine *d = &e->module->defines[i];
-                    if(d->value[0] == '"' && !strcmp(d->value, expr->text)) {
-                        TargetDefineName(e->module, ZIR_C, d->name,
-                                         buffers->a, sizeof(buffers->a));
-                        break;
-                    }
-                }
-                format(buffers->result, sizeof(buffers->result), "StringView(%s, %zu)",
-                       buffers->a, length);
-            } else {
-                format(buffers->result, sizeof(buffers->result), "StringLiteral(%s)", buffers->a);
-            }
-        }
+        if(e->target == ZIR_C)
+            format(buffers->result, sizeof(buffers->result), "StringLiteral(%s)", buffers->a);
         else
             copy_text(buffers->result, sizeof(buffers->result), buffers->a);
         pure = 1;
@@ -1107,12 +1071,6 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         if(enum_constant(e, type, expr->text, buffers->result, sizeof(buffers->result))) {
             pure = 1;
             break;
-        }
-        if(e->target == ZIR_CPP && enum_type(e->module, type)) {
-            copy_text(buffers->a, sizeof(buffers->a), buffers->result);
-            char native[ZIR_NAME_MAX * 2];
-            e->resolve(e->context, type, native, sizeof(native));
-            format(buffers->result, sizeof(buffers->result), "(%s)(%s)", native, buffers->a);
         }
         pure=1;
         break;
@@ -1194,7 +1152,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             e->pure = 0;
             return;
         }
-        if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+        if(e->target == ZIR_C &&
            ArrayElementType(type, NULL, 0, NULL)) {
             fresh(e, temp);
             declare_array(e, temp, type, NULL);
@@ -1211,7 +1169,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         emit_expr(e,expr->left,"bool",buffers->a,sizeof(buffers->a));fresh(e,temp);
         const ZirType *declared = FindType(e->module, type, NULL);
         if(declared != NULL && declared->is_procedure_type) {
-            if(e->target == ZIR_C || e->target == ZIR_CPP)
+            if(e->target == ZIR_C)
                 format(buffers->b, sizeof(buffers->b), "(%s){0}", type);
             else
                 copy_text(buffers->b, sizeof(buffers->b), e->target == ZIR_GO ? "nil" : "null");
@@ -1270,13 +1228,11 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
          * could change and, in C, which orders no calls, makes no call. */
         int logical = !strcmp(expr->op, "&&") || !strcmp(expr->op, "||");
         /* 32-bit C compilers lower wide comparisons through register pairs.
-         * Load checked addresses separately before comparing those pairs:
-         * native 8c aborts on two indexed wide fields in one comparison. */
+         * Load checked addresses separately before comparing those pairs. */
         int wide_compare = !strcmp(type, "bool") && width(operand_type) == 64 &&
-                           (e->target == ZIR_C || e->target == ZIR_CPP);
+                           e->target == ZIR_C;
         int ordered_wide = wide_compare &&
-                           ((e->target == ZIR_C && zir_native_operand_temporaries) ||
-                            !plain_wide_operand(e->fn, expr->left, 0) ||
+                           (!plain_wide_operand(e->fn, expr->left, 0) ||
                             !plain_wide_operand(e->fn, expr->right, 0));
         uint64_t literal_bits;
         e->call_in_place = !logical && !call_can_change(e, expr->right) &&
@@ -1306,8 +1262,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                 e->out = scratch;
                 /* The right side runs last and only if the left selects it.
                  * Its final call can stay in &&/|| when no setup is needed. */
-                e->call_in_place = (e->target == ZIR_C || e->target == ZIR_CPP) &&
-                                  !zir_native_operand_temporaries;
+                e->call_in_place = e->target == ZIR_C;
                 emit_expr(e,expr->right,"bool",buffers->b,sizeof(buffers->b));
                 EmitScratchClose(scratch, &scratch_size);
                 e->out = saved_out;
@@ -1342,7 +1297,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         }
         pure = left_pure && e->pure;
         if(slot_compare && !operand_slot->is_c_call &&
-           (e->target == ZIR_C || e->target == ZIR_CPP)) {
+           e->target == ZIR_C) {
             if(!strcmp(expr->op, "=="))
                 format(buffers->result, sizeof(buffers->result),
                        "(%s.call == %s.call && %s.context == %s.context)", buffers->a, buffers->b, buffers->a, buffers->b);
@@ -1352,7 +1307,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             atom = 0;
             break;
         }
-        if(!strcmp(operand_type, "string") && (e->target == ZIR_C || e->target == ZIR_CPP))
+        if(!strcmp(operand_type, "string") && e->target == ZIR_C)
             format(buffers->result, sizeof(buffers->result), "%sStringEqual(%s, %s)", !strcmp(expr->op, "!=") ? "!" : "", buffers->a, buffers->b);
         else if(width(type) && operation(expr->op)) number(e,type,buffers->a,e->fn->exprs[expr->left].type,buffers->b,e->fn->exprs[expr->right].type,operation(expr->op),buffers->result,sizeof(buffers->result));
         else {
@@ -1361,7 +1316,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             format(buffers->result,sizeof(buffers->result),"%s %s %s",buffers->a,expr->op,buffers->b);
         }
         if(enum_flags_type(e->module, type) &&
-           (e->target == ZIR_C || e->target == ZIR_CPP)) {
+           e->target == ZIR_C) {
             copy_text(buffers->a, sizeof(buffers->a), buffers->result);
             format(buffers->result, sizeof(buffers->result), "(%s)(%s)", type, buffers->a);
         }
@@ -1449,7 +1404,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                         leaf = skip_ws(close + 1);
                     }
                 }
-                if((e->target == ZIR_C || e->target == ZIR_CPP) &&
+                if(e->target == ZIR_C &&
                    NativeTypeAtUse(e->module, leaf, native_leaf, sizeof(native_leaf))) {
                     format(source, sizeof(source), "%.*s%s", (int)(leaf - type), type, native_leaf);
                     slot_native_type(source, e->target, cast_native, sizeof(cast_native));
@@ -1497,7 +1452,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         /* declare() applies this cast for named enum types; inlined text has
          * to carry it so Go sees matching operand types. An explicit cast
          * keeps it even on a bare name: returning an s32 as an enum is not
-         * an implicit conversion in C++ or Go. */
+         * an implicit conversion in Go. */
         if((!plain_identifier(buffers->result) || expr->kind == ZIR_EXPR_CAST) &&
            enum_type(e->module, type)) {
             const char *scalar = TargetType(type, e->target);

@@ -11,7 +11,7 @@ for mode in source saved; do
     if test "$mode" = saved; then root=$work/ir; input=$root/path_test.zir; fi
     "$ziran" bundle --root "$root" --module-path std --entry path_test:main -o "$work/$mode.zx" "$input"
     test "$("$ziran" run "$work/$mode.zx")" = 0
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$mode-$target
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --exe --entry path_test:main --root "$root" --module-path std -o "$out" "$input"
@@ -20,9 +20,8 @@ for mode in source saved; do
         fi
         case "$target" in
             c) cc -std=c11 -I"$out" "$out"/*.c -o "$out/run"; "$out/run" ;;
-            cpp) c++ -std=c++17 -I"$out" "$out"/*.cpp -o "$out/run"; "$out/run" ;;
             go) (cd "$out" && GO111MODULE=off go run .) ;;
         esac
     done
 done
-echo 'path: source, saved IR, C, C++, Go, and VM passed'
+echo 'path: source, saved IR, C, Go, and VM passed'

@@ -35,7 +35,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry par:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 285
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --entry par:Answer \
@@ -56,17 +56,6 @@ C
                 -I"$repo/include" -I"$output" "$output"/*.c \
                 -o "$output/app"
             "$output/app"
-        else
-            "$ziran" build --target=cpp --entry par:Answer --root "$root" \
-                -o "$output" "$module"
-            cat > "$output/main.cpp" <<'CPP'
-#include "par.hpp"
-int main() { return Answer() == 285 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -pedantic-errors -pthread \
-                -I"$repo/include" -I"$output" "$output"/*.cpp \
-                -o "$output/app"
-            "$output/app"
         fi
     done
 done
@@ -76,9 +65,7 @@ cmp "$work/source.zx" "$work/saved.zx"
 ZIRAN_PAR_THREADS=1 "$work/c-source/app"
 ZIRAN_PAR_THREADS=2 "$work/c-source/app"
 ZIRAN_PAR_THREADS=8 "$work/c-source/app"
-ZIRAN_PAR_THREADS=6 "$work/cpp-source/app"
 rg -q "ziran_parallel_run" "$work/c-source/par.c"
-rg -q "ziran_parallel_run" "$work/cpp-source/par.cpp"
 rg -q "#parallel region downgraded to serial" "$work/go-source/par.go"
 
 reject() {

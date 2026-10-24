@@ -5,7 +5,7 @@
 #include <string.h>
 
 #if defined(TEST_TEXT_STREAM_TMPFILE)
-#define __plan9__ 1
+#define ZIR_STREAM_TMPFILE 1
 /* Exercise real disk I/O inside the test's owned working directory. */
 static FILE *test_temporary_stream(void)
 {

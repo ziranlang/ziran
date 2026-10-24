@@ -49,13 +49,4 @@ C
         "$c_output/main.c" -o "$c_output/test"
     "$c_output/test"
 
-    cpp_output="$work/cpp-$(basename "$input")"
-    "$ziran" build --target=cpp --root "$work" -o "$cpp_output" "$input"
-    cat > "$cpp_output/main.cpp" <<'CPP'
-#include "params.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-    ${CXX:-c++} -Iinclude -I"$cpp_output" "$cpp_output/params.cpp" \
-        "$cpp_output/main.cpp" -o "$cpp_output/test"
-    "$cpp_output/test"
 done

@@ -27,15 +27,11 @@ ZI
 for form in source saved; do
     input="$work/main.zi"
     if test "$form" = saved; then input="$work/ir/main.zir"; fi
-    for target in c cpp; do
-        output="$work/$form-$target"
-        "$ziran" build "--target=$target" --entry main:main --no-main --root "$work" -o "$output" "$input"
-        if test "$target" = c; then compiler=${CC:-cc}; standard=c99; extension=c
-        else compiler=${CXX:-c++}; standard=c++17; extension=cpp; fi
-        "$compiler" -std="$standard" -pedantic-errors -Wall -Werror -Wno-unused-function \
-            -I"$repo/include" -I"$output" "$output"/*."$extension" -o "$output/app"
-        "$output/app"
-    done
+    output="$work/$form-c"
+    "$ziran" build --target=c --entry main:main --no-main --root "$work" -o "$output" "$input"
+    "${CC:-cc}" -std=c99 -pedantic-errors -Wall -Werror -Wno-unused-function \
+        -I"$repo/include" -I"$output" "$output"/*.c -o "$output/app"
+    "$output/app"
 done
 
 # Independent modules may use the same local name for different real ABIs.
@@ -48,14 +44,10 @@ ZI
 for form in source saved; do
     input="$work/main.zi"
     if test "$form" = saved; then input="$work/distinct-ir/main.zir"; fi
-    for target in c cpp; do
-        output="$work/distinct-$form-$target"
-        "$ziran" build "--target=$target" --entry main:main --no-main --root "$work" -o "$output" "$input"
-        if test "$target" = c; then compiler=${CC:-cc}; standard=c99; extension=c
-        else compiler=${CXX:-c++}; standard=c++17; extension=cpp; fi
-        "$compiler" -std="$standard" -pedantic-errors -Wall -Werror -Wno-unused-function \
-            -I"$repo/include" -I"$output" "$output"/*."$extension" -o "$output/app"
-        "$output/app"
-    done
+    output="$work/distinct-$form-c"
+    "$ziran" build --target=c --entry main:main --no-main --root "$work" -o "$output" "$input"
+    "${CC:-cc}" -std=c99 -pedantic-errors -Wall -Werror -Wno-unused-function \
+        -I"$repo/include" -I"$output" "$output"/*.c -o "$output/app"
+    "$output/app"
 done
-echo 'Module-owned foreign bindings passed C/C++ source and saved IR with shared and distinct symbols/ABIs'
+echo 'Module-owned foreign bindings passed C source and saved IR with shared and distinct symbols/ABIs'

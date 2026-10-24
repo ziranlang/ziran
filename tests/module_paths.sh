@@ -139,18 +139,6 @@ for input in source saved; do
         file=$work/explicit-ir/explicit.zir
         root=$work/explicit-ir
     fi
-    "$ziran" build --target=cpp --root "$root" \
-        -o "$work/explicit-cpp-$input" "$file"
-    cat > "$work/explicit-cpp-$input/main.cpp" <<'EOF'
-#include "explicit.hpp"
-int main() { return Result() == 42 ? 0 : 1; }
-EOF
-    ${CXX:-c++} -Iinclude -I"$work/explicit-cpp-$input" \
-        "$work/explicit-cpp-$input/base.cpp" \
-        "$work/explicit-cpp-$input/explicit.cpp" \
-        "$work/explicit-cpp-$input/main.cpp" \
-        -o "$work/explicit-cpp-app-$input"
-    "$work/explicit-cpp-app-$input"
     "$ziran" build --target=go --pkg main --root "$root" \
         -o "$work/explicit-go-$input" "$file"
     cat > "$work/explicit-go-$input/main.go" <<'EOF'
@@ -178,7 +166,7 @@ EOF
     -o "$work/named-saved.zx" "$work/named-ir/named.zir"
 cmp "$work/named-source.zx" "$work/named-saved.zx"
 test "$("$ziran" run "$work/named-saved.zx")" = 42
-for target in c cpp go; do
+for target in c go; do
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main --root "$work/app" \
             -o "$work/named-go" "$work/app/named.zi"
@@ -194,14 +182,6 @@ EOF
 ${CC:-cc} -Iinclude -I"$work/named-c" "$work/named-c/base.c" \
     "$work/named-c/named.c" "$work/named-c/main.c" -o "$work/named-c-app"
 "$work/named-c-app"
-cat > "$work/named-cpp/main.cpp" <<'EOF'
-#include "named.hpp"
-int main() { return Result() == 42 ? 0 : 1; }
-EOF
-${CXX:-c++} -Iinclude -I"$work/named-cpp" "$work/named-cpp/base.cpp" \
-    "$work/named-cpp/named.cpp" "$work/named-cpp/main.cpp" \
-    -o "$work/named-cpp-app"
-"$work/named-cpp-app"
 cat > "$work/named-go/main.go" <<'EOF'
 package main
 func main() { if Named_Result() != 42 { panic("named import changed") } }
@@ -285,7 +265,7 @@ test -s "$work/directory-ir/suite.zir"
     -o "$work/directory-saved.zx" "$work/directory-ir/directory.zir"
 cmp "$work/directory-source.zx" "$work/directory-saved.zx"
 test "$("$ziran" run "$work/directory-saved.zx")" = 42
-for target in c cpp go; do
+for target in c go; do
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main --root "$work/app" \
             -o "$work/directory-go" "$work/app/directory.zi"
@@ -302,20 +282,12 @@ ${CC:-cc} -Iinclude -I"$work/directory-c" \
     "$work/directory-c/suite.c" "$work/directory-c/directory.c" \
     "$work/directory-c/main.c" -o "$work/directory-c-app"
 "$work/directory-c-app"
-cat > "$work/directory-cpp/main.cpp" <<'EOF'
-#include "directory.hpp"
-int main() { return Result() == 42 ? 0 : 1; }
-EOF
-${CXX:-c++} -Iinclude -I"$work/directory-cpp" \
-    "$work/directory-cpp/suite.cpp" "$work/directory-cpp/directory.cpp" \
-    "$work/directory-cpp/main.cpp" -o "$work/directory-cpp-app"
-"$work/directory-cpp-app"
 cat > "$work/directory-go/main.go" <<'EOF'
 package main
 func main() { if Directory_Result() != 42 { panic("directory import changed") } }
 EOF
 GO111MODULE=off go run "$work/directory-go"/*.go
-for target in c cpp go; do
+for target in c go; do
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main \
             --root "$work/directory-ir" -o "$work/directory-go-saved" \
@@ -328,14 +300,11 @@ for target in c cpp go; do
         "$ziran" build --target="$target" \
             --root "$work/directory-ir" -o "$work/directory-$target-saved" \
             "$work/directory-ir/directory.zir"
-        if test "$target" = c; then suffix=c; header=h
-        else suffix=cpp; header=hpp
-        fi
         for module in suite directory; do
-            cmp "$work/directory-$target/$module.$suffix" \
-                "$work/directory-$target-saved/$module.$suffix"
-            cmp "$work/directory-$target/$module.$header" \
-                "$work/directory-$target-saved/$module.$header"
+            cmp "$work/directory-$target/$module.c" \
+                "$work/directory-$target-saved/$module.c"
+            cmp "$work/directory-$target/$module.h" \
+                "$work/directory-$target-saved/$module.h"
         done
     fi
 done
@@ -394,16 +363,6 @@ ${CC:-cc} -Iinclude -I"$work/loaded-c" "$work/loaded-c/base.c" \
     "$work/loaded-c/loaded_main.c" \
     "$work/loaded-c/main.c" -o "$work/loaded-app"
 "$work/loaded-app"
-"$ziran" build --target=cpp --root "$work/app" \
-    -o "$work/loaded-cpp" "$work/app/loaded_main.zi"
-cat > "$work/loaded-cpp/main.cpp" <<'EOF'
-#include "loaded_main.hpp"
-int main() { return Result() == 42 ? 0 : 1; }
-EOF
-${CXX:-c++} -Iinclude -I"$work/loaded-cpp" \
-    "$work/loaded-cpp/base.cpp" "$work/loaded-cpp/loaded_main.cpp" \
-    "$work/loaded-cpp/main.cpp" -o "$work/loaded-cpp-app"
-"$work/loaded-cpp-app"
 "$ziran" build --target=go --pkg main --root "$work/app" \
     -o "$work/loaded-go" "$work/app/loaded_main.zi"
 cat > "$work/loaded-go/main.go" <<'EOF'

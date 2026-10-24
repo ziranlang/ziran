@@ -27,8 +27,4 @@ int c_lower(const ZirProgram *program, const char *root,
 int c_build_syms(const ZirProgram *program, ZirCModuleSyms *out);
 void c_free_syms(ZirCModuleSyms *syms, int count);
 
-/* Full C name for a function (module prefix unless exported). */
-void c_function_name(const ZirModule *m, const ZirFunction *fn,
-                         char *dst, size_t dst_size);
-
 #endif

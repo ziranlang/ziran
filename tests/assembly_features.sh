@@ -106,61 +106,47 @@ for form in source saved; do
     if test "$form" = saved; then root=$work/ir; input=$root/count.zir; fi
     "$ziran" bundle --root "$root" --entry count:Answer -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c cpp; do
-        output=$work/$form-$target
-        "$ziran" build --target="$target" --root "$root" -o "$output" "$input"
-        compiler=${CC:-cc}; suffix=c; standard=c11
-        if test "$target" = cpp; then
-            compiler=${CXX:-c++}; suffix=cpp; standard=c++17
-            sed 's/"count.h"/"count.hpp"/' "$work/host.c" > "$work/host.cpp"
-        fi
-        for optimization in 0 2; do
-            for mode in native missing disabled; do
-                set --
-                if test "$mode" = missing; then set -- -include "$work/no-features.h"; fi
-                if test "$mode" = disabled; then set -- -DZIRAN_NO_ASM; fi
-                isa_flags=
-                if test "$(uname -m)" = x86_64; then isa_flags='-march=x86-64 -mno-popcnt -mno-avx -mno-bmi2'; fi
-                "$compiler" -std="$standard" -O"$optimization" $isa_flags "$@" -I"$repo/include" -I"$output" \
-                    "$output/count.$suffix" "$work/host.$suffix" -o "$output/run"
-                "$output/run"
-            done
+    output=$work/$form-c
+    "$ziran" build --target=c --root "$root" -o "$output" "$input"
+    compiler=${CC:-cc}; suffix=c; standard=c11
+    for optimization in 0 2; do
+        for mode in native missing disabled; do
+            set --
+            if test "$mode" = missing; then set -- -include "$work/no-features.h"; fi
+            if test "$mode" = disabled; then set -- -DZIRAN_NO_ASM; fi
+            isa_flags=
+            if test "$(uname -m)" = x86_64; then isa_flags='-march=x86-64 -mno-popcnt -mno-avx -mno-bmi2'; fi
+            "$compiler" -std="$standard" -O"$optimization" $isa_flags "$@" -I"$repo/include" -I"$output" \
+                "$output/count.$suffix" "$work/host.$suffix" -o "$output/run"
+            "$output/run"
         done
-        if test -n "${ANDROID_NDK_HOME:-}"; then
-            tool=clang
-            if test "$target" = cpp; then tool=clang++; fi
-            for triple in aarch64-linux-android24 armv7a-linux-androideabi24 x86_64-linux-android24 i686-linux-android24; do
-                "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/$triple-$tool" \
-                    -std="$standard" -O2 -I"$repo/include" -I"$output" \
-                    "$output/count.$suffix" "$work/host.$suffix" -o "$output/$triple"
-            done
-        fi
     done
+    if test -n "${ANDROID_NDK_HOME:-}"; then
+        tool=clang
+        for triple in aarch64-linux-android24 armv7a-linux-androideabi24 x86_64-linux-android24 i686-linux-android24; do
+            "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/$triple-$tool" \
+                -std="$standard" -O2 -I"$repo/include" -I"$output" \
+                "$output/count.$suffix" "$work/host.$suffix" -o "$output/$triple"
+        done
+    fi
     "$ziran" build --target=go --pkg main --root "$root" -o "$work/$form-go" "$input"
     printf 'package main\nfunc main() { if Count_Answer() != 42 { panic("CPU fallback") } }\n' > "$work/$form-go/main.go"
     (cd "$work/$form-go" && GO111MODULE=off go build -o run . && ./run)
     "$ziran" build --target=py --root "$root" -o "$work/$form-py" "$input"
     (cd "$work/$form-py" && python3 -c 'import runpy; assert runpy.run_path("__init__.py")["Answer"]() == 42')
-    "$ziran" build --target=rust --root "$root" -o "$work/$form-rust" "$input"
-    printf 'fn main() { assert_eq!(ziran_generated::Answer(), 42); }\n' > "$work/$form-rust/src/main.rs"
-    cargo run --quiet --offline --manifest-path "$work/$form-rust/Cargo.toml"
 done
 cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source-c/count.c" "$work/saved-c/count.c"
-cmp "$work/source-cpp/count.cpp" "$work/saved-cpp/count.cpp"
 
 cat > "$work/main.zi" <<'ZI'
 #program_export
 main :: () #asm("x86_64+popcnt", "", "", "", "", "volatile") {}
 ZI
-for target in c cpp; do
-    "$ziran" build --target="$target" --root "$work" -o "$work/main-$target" "$work/main.zi"
-    compiler=${CC:-cc}; suffix=c; standard=c11
-    if test "$target" = cpp; then compiler=${CXX:-c++}; suffix=cpp; standard=c++17; fi
-    "$compiler" -std="$standard" -O2 -I"$repo/include" -I"$work/main-$target" \
-        "$work/main-$target/main.$suffix" -o "$work/main-$target/run"
-    "$work/main-$target/run"
-done
+"$ziran" build --target=c --root "$work" -o "$work/main-c" "$work/main.zi"
+compiler=${CC:-cc}; suffix=c; standard=c11
+"$compiler" -std="$standard" -O2 -I"$repo/include" -I"$work/main-c" \
+    "$work/main-c/main.$suffix" -o "$work/main-c/run"
+"$work/main-c/run"
 
 # Deliberate marker results test variant priority, feature conjunctions and
 # baseline selection. Production assembly must agree with its portable body.
@@ -209,20 +195,14 @@ int main(void) {
     assert(queries == previous); /* repeated calls do not query CPU features */
 }
 C
-for target in c cpp; do
-    output=$work/selection-$target
-    "$ziran" build --target="$target" --root "$work" -o "$output" "$work/selection.zi"
-    compiler=${CC:-cc}; suffix=c; standard=c11
-    if test "$target" = cpp; then
-        compiler=${CXX:-c++}; suffix=cpp; standard=c++17
-        sed 's/"selection.h"/"selection.hpp"/' "$work/selection-host.c" > "$work/selection-host.cpp"
-    fi
-    for mask in 0 1 2 3; do
-        "$compiler" -std="$standard" -O2 -DFEATURES="$mask" -include "$work/mock.h" \
-            -I"$repo/include" -I"$output" "$output/selection.$suffix" "$work/selection-host.$suffix" \
-            -pthread -o "$output/run"
-        "$output/run"
-    done
+output=$work/selection-c
+"$ziran" build --target=c --root "$work" -o "$output" "$work/selection.zi"
+compiler=${CC:-cc}; suffix=c; standard=c11
+for mask in 0 1 2 3; do
+    "$compiler" -std="$standard" -O2 -DFEATURES="$mask" -include "$work/mock.h" \
+        -I"$repo/include" -I"$output" "$output/selection.$suffix" "$work/selection-host.$suffix" \
+        -pthread -o "$output/run"
+    "$output/run"
 done
 
 # Compile every advertised runtime feature, including the corresponding

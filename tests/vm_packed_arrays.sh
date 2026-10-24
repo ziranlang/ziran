@@ -30,7 +30,7 @@ for form in source saved; do
         fi
         grep -q 'portable execution failed' "$work/$form-$entry.out"
     done
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$form"
         "$ziran" build --target="$target" --root "$root" --module-path "$repo/std" -o "$output" "$module"
         if test "$target" = go; then
@@ -46,24 +46,12 @@ func TestPackedArrays(t *testing.T) {
 GO
             GO111MODULE=off go test "$output"/*.go
         else
-            cat > "$output/main.$target" <<'C'
-#ifdef __cplusplus
-#include "vm_packed_arrays_test.hpp"
-extern "C" {
-#else
+            cat > "$output/main.c" <<'C'
 #include "vm_packed_arrays_test.h"
-#endif
 int64_t Measure(void) { return 0; }
-#ifdef __cplusplus
-}
-#endif
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
-            if test "$target" = c; then
-                "${CC:-cc}" -std=c11 -I"$output" -I"$repo/include" "$output"/*.c -o "$output/app"
-            else
-                "${CXX:-c++}" -std=c++17 -I"$output" -I"$repo/include" "$output"/*.cpp -o "$output/app"
-            fi
+            "${CC:-cc}" -std=c11 -I"$output" -I"$repo/include" "$output"/*.c -o "$output/app"
             "$output/app"
         fi
     done

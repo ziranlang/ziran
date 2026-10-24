@@ -55,10 +55,7 @@ for input in source saved; do
     if test "$input" = saved; then root=$work/ir; file=$root/ffi_test.zir; fi
     "$ziran" build --target=go --pkg main --exe --entry ffi_test:main --root "$root" -o "$work/go-$input" "$file"
     (cd "$work/go-$input" && GO111MODULE=off CGO_ENABLED=1 go build -o program . && ./program)
-    "$ziran" build --target=rust --exe --entry ffi_test:main --root "$root" -o "$work/rust-$input" "$file"
-    cargo build --quiet --offline --manifest-path "$work/rust-$input/Cargo.toml"
-    "$work/rust-$input/target/debug/ziran_generated"
     "$ziran" build --target=py --exe --entry ffi_test:main --root "$root" -o "$work/py-$input" "$file"
     python3 "$work/py-$input"
 done
-echo 'native C ABI: Go, Rust and Python source and saved IR passed'
+echo 'native C ABI: Go and Python source and saved IR passed'

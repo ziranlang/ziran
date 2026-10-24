@@ -107,9 +107,7 @@ func main() {
 }
 GO
     GO111MODULE=off go run -race "$out"/*.go
-    for target in c cpp; do
-        "$ziran" build --target="$target" --entry native:Answer --root "$root" --module-path std -o "$work/$input-$target" "$file"
-    done
+    "$ziran" build --target=c --entry native:Answer --root "$root" --module-path std -o "$work/$input-c" "$file"
     "$ziran" bundle --entry native:Answer --root "$root" --module-path std -o "$work/$input.zx" "$file"
     test "$("$ziran" run "$work/$input.zx")" = 42
     if "$ziran" build --target=c --no-main --root "$root" --module-path std -o "$work/rejected" "$file" > "$work/rejected.out" 2>&1; then

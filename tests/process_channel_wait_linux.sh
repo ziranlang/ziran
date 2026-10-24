@@ -12,19 +12,11 @@ entry=process_channel_wait_linux
 for form in source saved; do
     input="$root/tests/spec/$entry.zi"; modules="$root/std"; source_root="$root/tests/spec"
     if test "$form" = saved; then input="$work/ir/$entry.zir"; modules="$work/ir"; source_root="$work/ir"; fi
-    for target in c cpp; do
-        output="$work/$form-$target"
-        "$ziran" build --target="$target" --no-main --root "$source_root" --module-path "$modules" -o "$output" "$input"
-        if test "$target" = c; then
-            printf '#include "%s.h"\nint main(void) { return Main(); }\n' "$entry" > "$output/driver.c"
-            "${CC:-cc}" -O2 -std=c11 -I"$root/include" -I"$output" "$output"/*.c "$work/fixture.o" \
-                -Wl,--wrap=syscall -Wl,--wrap=poll -Wl,--wrap=clock_nanosleep -lm -o "$output/probe"
-        else
-            printf '#include "%s.hpp"\nint main() { return Main(); }\n' "$entry" > "$output/driver.cpp"
-            "${CXX:-c++}" -O2 -std=c++17 -I"$root/include" -I"$output" "$output"/*.cpp "$work/fixture.o" \
-                -Wl,--wrap=syscall -Wl,--wrap=poll -Wl,--wrap=clock_nanosleep -lm -o "$output/probe"
-        fi
-        "$output/probe" > "$work/$form-$target.jsonl"
-        cat "$work/$form-$target.jsonl"
-    done
+    output="$work/$form-c"
+    "$ziran" build --target=c --no-main --root "$source_root" --module-path "$modules" -o "$output" "$input"
+    printf '#include "%s.h"\nint main(void) { return Main(); }\n' "$entry" > "$output/driver.c"
+    "${CC:-cc}" -O2 -std=c11 -I"$root/include" -I"$output" "$output"/*.c "$work/fixture.o" \
+        -Wl,--wrap=syscall -Wl,--wrap=poll -Wl,--wrap=clock_nanosleep -lm -o "$output/probe"
+    "$output/probe" > "$work/$form-c.jsonl"
+    cat "$work/$form-c.jsonl"
 done

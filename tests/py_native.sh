@@ -104,7 +104,7 @@ done
 cmp "$work/source/__main__.py" "$work/saved/__main__.py"
 
 # Python natives exist only on the Python target.
-for target in c cpp go rust; do
+for target in c go; do
     if "$ziran" build --target=$target --entry native:main --root "$work" \
         --module-path std -o "$work/out-$target" "$work/native.zi" \
         2> "$work/$target.err"; then

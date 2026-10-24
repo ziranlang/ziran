@@ -75,7 +75,7 @@ for input in source saved; do
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 46
 
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$module_dir" \
@@ -97,16 +97,6 @@ int main(void) { return Answer() == 46 && NativeSelf() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                 "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$module_dir" \
-                -o "$out" "$module"
-            cat > "$out/main.cpp" <<'CPP'
-#include "recursive.hpp"
-int main() { return Answer() == 46 && NativeSelf() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out"/*.cpp -o "$out/app"
             "$out/app"
         fi
     done

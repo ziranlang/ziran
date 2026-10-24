@@ -62,22 +62,11 @@ printf '#include "order.h"\nint main(void) { order_main(); return 0; }\n' > "$wo
 "${CC:-cc}" -std=c99 -I"$work/c" "$work/c/order.c" "$work/c/run.c" -o "$work/c/program"
 "$work/c/program" > "$work/c.out"
 
-"$ziran" build --target=cpp --root "$work" -o "$work/cpp" "$work/order.zi"
-printf '#include "order.hpp"\nint main() { order_main(); return 0; }\n' > "$work/cpp/run.cpp"
-"${CXX:-c++}" -std=c++17 -I"$work/cpp" "$work/cpp/order.cpp" "$work/cpp/run.cpp" \
-    -o "$work/cpp/program"
-"$work/cpp/program" > "$work/cpp.out"
-
 "$ziran" build --target=go --pkg main --exe --entry order:main --root "$work" \
     -o "$work/go" "$work/order.zi"
 (cd "$work/go" && GO111MODULE=off go run .) > "$work/go.out"
 
-"$ziran" build --target=rust --exe --entry order:main --root "$work" \
-    -o "$work/rust" "$work/order.zi"
-cargo build --quiet --manifest-path "$work/rust/Cargo.toml"
-"$work/rust/target/debug/ziran_generated" > "$work/rust.out"
-
-for target in vm c cpp go rust; do
+for target in vm c go; do
     if ! cmp -s "$work/expected" "$work/$target.out"; then
         echo "$target runs call arguments out of order" >&2
         diff "$work/expected" "$work/$target.out" >&2 || true

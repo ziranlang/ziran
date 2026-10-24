@@ -76,7 +76,7 @@ for input in source saved; do
         module=$work/ir/record_host.zir
         root=$work/ir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/$target-$input
         "$ziran" build --target="$target" --root "$root" \
             -o "$output" "$module"
@@ -103,31 +103,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$output" -I"$include" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        elif test "$target" = cpp; then
-            cat > "$output/main.cpp" <<'CPP'
-#include "record_host.hpp"
-extern "C" Packet TransformHost(Packet packet) {
-    packet.point.x += 1;
-    packet.label = StringView("ok", 2);
-    packet.tone = (Tone)1;
-    return packet;
-}
-extern "C" int32_t SumSliceHost(Slice view) {
-    int64_t total = 0;
-    const Point *points = static_cast<const Point *>(view.data);
-    for(int64_t i = 0; i < view.length; i++)
-        total += points[i].x + points[i].y;
-    return static_cast<int32_t>(total);
-}
-extern "C" int32_t ObserveHost(State state, int32_t amount) {
-    return state.values[0] * 10 + amount;
-}
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$output" \
-                -I"$include" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         else
             cat > "$output/main.go" <<'GO'

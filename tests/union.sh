@@ -87,12 +87,10 @@ for input in source saved; do
         module=$work/ir/overlay.zir
         root=$work/ir
     fi
-    for target in c cpp; do
-        out="$work/$target-$input"
-        "$ziran" build --target="$target" --root "$root" \
-            -o "$out" "$module"
-        if test "$target" = c; then
-            cat > "$out/main.c" <<'C'
+    out="$work/c-$input"
+    "$ziran" build --target=c --root "$root" \
+        -o "$out" "$module"
+    cat > "$out/main.c" <<'C'
 #include <stddef.h>
 #include "overlay.h"
 _Static_assert(sizeof(Cell) == 8, "union layout");
@@ -100,22 +98,9 @@ _Static_assert(offsetof(Cell, narrow) == 0, "union first field");
 _Static_assert(offsetof(Cell, wide) == 0, "union second field");
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
-            "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
-                "$out"/*.c -o "$out/app"
-        else
-            cat > "$out/main.cpp" <<'CPP'
-#include <cstddef>
-#include "overlay.hpp"
-static_assert(sizeof(Cell) == 8, "union layout");
-static_assert(offsetof(Cell, narrow) == 0, "union first field");
-static_assert(offsetof(Cell, wide) == 0, "union second field");
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out"/*.cpp -o "$out/app"
-        fi
-        "$out/app"
-    done
+    "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
+        "$out"/*.c -o "$out/app"
+    "$out/app"
     if test "$input" = source; then
         scalar=$work/scalar.zi
         scalar_root=$work
@@ -139,12 +124,10 @@ func main() {
 }
 GO
     GO111MODULE=off go run "$work/go-$input"/*.go
-    for target in c cpp; do
-        out="$work/scalar-$target-$input"
-        "$ziran" build --target="$target" --entry scalar:Overlap \
-            --root "$scalar_root" -o "$out" "$scalar"
-        if test "$target" = c; then
-            cat > "$out/main.c" <<'C'
+    out="$work/scalar-c-$input"
+    "$ziran" build --target=c --entry scalar:Overlap \
+        --root "$scalar_root" -o "$out" "$scalar"
+    cat > "$out/main.c" <<'C'
 #include "scalar.h"
 _Static_assert(sizeof(Narrow) == 1 && _Alignof(Narrow) == 1, "narrow union");
 _Static_assert(sizeof(Half) == 2 && _Alignof(Half) == 2, "half union");
@@ -152,22 +135,9 @@ _Static_assert(sizeof(Word) == 4 && _Alignof(Word) == 4, "word union");
 _Static_assert(sizeof(Scalar) == 8 && _Alignof(Scalar) == 8, "wide union");
 int main(void) { return Overlap() == 42 ? 0 : 1; }
 C
-            "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
-                "$out"/*.c -o "$out/app"
-        else
-            cat > "$out/main.cpp" <<'CPP'
-#include "scalar.hpp"
-static_assert(sizeof(Narrow) == 1 && alignof(Narrow) == 1, "narrow union");
-static_assert(sizeof(Half) == 2 && alignof(Half) == 2, "half union");
-static_assert(sizeof(Word) == 4 && alignof(Word) == 4, "word union");
-static_assert(sizeof(Scalar) == 8 && alignof(Scalar) == 8, "wide union");
-int main() { return Overlap() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out"/*.cpp -o "$out/app"
-        fi
-        "$out/app"
-    done
+    "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
+        "$out"/*.c -o "$out/app"
+    "$out/app"
     "$ziran" bundle --root "$scalar_root" --entry scalar:Overlap \
         -o "$work/overlap-$input.zx" "$scalar"
     test "$("$ziran" run "$work/overlap-$input.zx")" = 42

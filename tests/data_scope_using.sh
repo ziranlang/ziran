@@ -55,7 +55,7 @@ for input in "$work/app.zi" "$work/ir/app.zir"; do
         *.zi) suffix=source; root=$work ;;
         *) suffix=saved; root=$work/ir ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$suffix"
         native_answer_42 "$target" "$root" "$out" "$input" \
             app App_Answer 'data scope using'
@@ -86,7 +86,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry file_expr:Answer \
         -o "$work/file-$input.zx" "$module"
     test "$("$ziran" run "$work/file-$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/file-$target-$input"
         native_answer_42 "$target" "$root" "$out" "$module" \
             file_expr FileExpr_Answer 'file using'

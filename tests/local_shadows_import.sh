@@ -50,16 +50,6 @@ C
     "$work"/c/*.c -o "$work/c/app"
 "$work/c/app"
 
-"$ziran" build --target=cpp --entry app:Answer --root "$work" \
-    -o "$work/cpp" "$work/app.zi"
-cat > "$work/cpp/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 1 ? 0 : 1; }
-CPP
-"${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$work/cpp" \
-    "$work"/cpp/*.cpp -o "$work/cpp/app"
-"$work/cpp/app"
-
 if command -v go >/dev/null 2>&1; then
     "$ziran" build --target=go --pkg main --entry app:Answer --root "$work" \
         -o "$work/go" "$work/app.zi"

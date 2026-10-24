@@ -83,6 +83,3 @@ EOF
 "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -I"$repo/include" -I"$work/c" \
     "$work/c/linked.c" "$work/linked.c" -o "$work/linked"
 "$work/linked"
-"$(dirname "$ziran")/zi2cpp" --no-main --root "$work" -o "$work/cpp" "$work/linked.zi"
-"${CXX:-c++}" -std=c++17 -fsyntax-only -I"$repo/include" -I"$work/cpp" \
-    "$work/cpp/linked.cpp"

@@ -152,12 +152,10 @@ func main() {
 GO
     (cd "$out" && CGO_ENABLED=1 GOEXPERIMENT=cgocheck2 CGO_CFLAGS="-I$work" GO111MODULE=off GOCACHE=/tmp/ziran-cgo-header-cache go run -race .)
     (cd "$out" && CGO_ENABLED=0 GO111MODULE=off GOCACHE=/tmp/ziran-cgo-header-cache go run .)
-    for target in c cpp; do
-        if "$ziran" build --target="$target" --root "$work" --entry policy:NativeEntry -o "$work/rejected" "$input" > "$work/rejected.log" 2>&1; then
-            echo "reachable cgo header binding accepted by $target" >&2
-            exit 1
-        fi
-    done
+    if "$ziran" build --target=c --root "$work" --entry policy:NativeEntry -o "$work/rejected" "$input" > "$work/rejected.log" 2>&1; then
+        echo "reachable cgo header binding accepted by c" >&2
+        exit 1
+    fi
     if "$ziran" bundle --root "$work" --entry policy:NativeEntry -o "$work/rejected.zx" "$input" > "$work/rejected.log" 2>&1; then
         echo 'reachable cgo header binding accepted by portable bundle' >&2
         exit 1

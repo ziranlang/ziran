@@ -54,14 +54,12 @@ def main():
         for form, root, module in [('source', work, source),
                                    ('saved', work / 'ir', work / 'ir/casts.zir')]:
             for target, compiler, standard, suffix in [
-                    ('c', os.environ.get('CC', 'cc'), 'c99', 'c'),
-                    ('cpp', os.environ.get('CXX', 'c++'), 'c++17', 'cpp')]:
+                    ('c', os.environ.get('CC', 'cc'), 'c99', 'c')]:
                 output = work / f'{form}-{target}'
                 run([ziran, 'build', f'--target={target}', '--no-main', '--root', str(root),
                      '-o', str(output), str(module)])
-                header = 'casts.h' if target == 'c' else 'casts.hpp'
                 driver = output / f'driver.{suffix}'
-                driver.write_text(f'#include "{header}"\n#include <inttypes.h>\n'
+                driver.write_text('#include "casts.h"\n#include <inttypes.h>\n'
                                   '#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n'
                                   'int main(int argc, char **argv) {\n'
                                   'if (argc != 3) return 2;\n'
@@ -105,7 +103,7 @@ def main():
                         form, 'go', function, value, expected, result.returncode,
                         result.stdout, result.stderr)
                 checked += 1
-        print(f'{checked} float32/float64 cast cases passed C/C++/Go, source/saved IR; C/C++ UBSan')
+        print(f'{checked} float32/float64 cast cases passed C/Go, source/saved IR; C UBSan')
 
 
 if __name__ == '__main__':

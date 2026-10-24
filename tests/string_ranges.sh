@@ -21,11 +21,6 @@ test "$("$ziran" run "$work/saved.zx")" = 0
 ${CC:-cc} -std=c11 -Iinclude -I"$work/c" "$work/c"/*.c -o "$work/c/app"
 "$work/c/app"
 
-"$ziran" build --target=cpp --root tests/spec --module-path std \
-    -o "$work/cpp" tests/spec/std_string.zi
-${CXX:-c++} -std=c++17 -Iinclude -I"$work/cpp" "$work/cpp"/*.cpp -o "$work/cpp/app"
-"$work/cpp/app"
-
 "$ziran" build --target=go --pkg main --root tests/spec \
     --module-path std -o "$work/go" tests/spec/std_string.zi
 cat > "$work/go/main.go" <<'GO'

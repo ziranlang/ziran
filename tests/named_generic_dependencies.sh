@@ -113,23 +113,12 @@ for input in source saved; do
     "$ziran" build --target=c --exe --entry app:main --root "$root" -o "$output/c" "$source"
     "$output/c/app" > "$output.c"
     cmp "$work/expected" "$output.c"
-    "$ziran" build --target=cpp --root "$root" -o "$output/cpp" "$source"
-    printf '#include "app.hpp"\nint main() { app_main(); }\n' > "$output/cpp/run.cpp"
-    "${CXX:-c++}" -std=c++17 -I"$output/cpp" "$output"/cpp/*.cpp -o "$output/cpp/app"
-    "$output/cpp/app" > "$output.cpp"
-    cmp "$work/expected" "$output.cpp"
     "$ziran" build --target=go --exe --entry app:main --pkg main --root "$root" -o "$output/go" "$source"
     GO111MODULE=off go run "$output"/go/*.go > "$output.go"
     cmp "$work/expected" "$output.go"
     "$ziran" build --target=py --exe --entry app:main --root "$root" -o "$output/py" "$source"
     python3 "$output/py" > "$output.py"
     cmp "$work/expected" "$output.py"
-    if command -v cargo >/dev/null 2>&1; then
-        "$ziran" build --target=rust --exe --entry app:main --root "$root" -o "$output/rust" "$source"
-        CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --manifest-path "$output/rust/Cargo.toml"
-        "$work/rust-target/debug/ziran_generated" > "$output.rust"
-        cmp "$work/expected" "$output.rust"
-    fi
     "$ziran" api --json --root "$root" "$source" > "$output.api"
     if rg -q '__zi_dependency_' "$output.api"; then
         echo 'generated dependency leaked into public API' >&2

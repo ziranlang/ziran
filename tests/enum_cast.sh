@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-# cast(Enum) of a plain s32 name must stay a cast in every target: C++ and Go
-# reject returning an integer where an enum is declared.
+# cast(Enum) of a plain s32 name must stay a cast in every target: Go
+# rejects returning an integer where an enum is declared.
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
@@ -51,16 +51,6 @@ C
 "${CC:-cc}" -std=c99 -pedantic-errors -I"$repo/include" -I"$work/c" \
     "$work"/c/*.c -o "$work/c/app"
 "$work/c/app"
-
-"$ziran" build --target=cpp --entry app:Answer --root "$work" \
-    -o "$work/cpp" "$work/app.zi"
-cat > "$work/cpp/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 1 ? 0 : 1; }
-CPP
-"${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$work/cpp" \
-    "$work"/cpp/*.cpp -o "$work/cpp/app"
-"$work/cpp/app"
 
 if command -v go >/dev/null 2>&1; then
     "$ziran" build --target=go --pkg main --entry app:Answer --root "$work" \

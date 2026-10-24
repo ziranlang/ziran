@@ -56,7 +56,7 @@ fi
 "$ziran" bundle --root "$work" --entry tree:Answer \
     -o "$work/tree.zx" "$work/tree.zi"
 test "$("$ziran" run "$work/tree.zx")" = 42
-for target in c cpp go; do
+for target in c go; do
     output="$work/$target"
     "$ziran" build --target="$target" --root "$work" \
         -o "$output" "$work/tree.zi"
@@ -77,14 +77,6 @@ C
         "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
             "$output"/*.c -o "$output/app"
         "$output/app"
-    else
-        cat > "$output/main.cpp" <<'CPP'
-#include "tree.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-        "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-            "$output"/*.cpp -o "$output/app"
-        "$output/app"
     fi
 done
-echo 'recursive slice records: VM, C, C++, and Go passed'
+echo 'recursive slice records: VM, C, and Go passed'

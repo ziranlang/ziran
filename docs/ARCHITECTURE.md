@@ -16,8 +16,8 @@ use Ziran without Kryon. Importing Kryon is an explicit source dependency.
 Kryon's maintained implementation, including its widget and runtime logic, is
 100% Ziran source. A platform adapter may call operating-system or third-party
 APIs through declared FFI or host capabilities; those external libraries are
-dependencies, not a second copy of Kryon's implementation. Generated C, C++,
-or Go is compiler output, not Kryon source.
+dependencies, not a second copy of Kryon's implementation. Generated C or Go
+is compiler output, not Kryon source.
 
 ## Language boundary
 
@@ -45,7 +45,7 @@ for law-driven development, LLM tooling, parallel execution, and evolution.
 
 ```text
 .zi modules ──parse/check──> .zir modules
-.zir modules ──native backend──> C, C++, native Go, Rust, or Python output
+.zir modules ──native backend──> C, native Go, or Python output
 .zir modules ──link/verify──> .zx ──portable runtime + host capabilities──> process
 ```
 
@@ -68,7 +68,7 @@ record declarations cannot retain stale field names or ownership facts.
 
 Every backend consumes the same checked `.zir` model. Native output may bind
 declared platform libraries. `.zx` contains portable executable content and
-cannot depend on arbitrary target-specific C, C++, or Go source fragments.
+cannot depend on arbitrary target-specific C or Go source fragments.
 Native and portable builds of the same supported program must agree on
 observable language behavior.
 
@@ -82,7 +82,7 @@ Parameter declarations have one immutable parsed view, including binding
 names, types, namespace modifiers, and defaults. Record fields likewise use
 the shared field snapshots. Backends consume these views; source spellings
 remain available for diagnostics, template rewriting, and serialization.
-Rust and Python keep their type, expression, statement, runtime, and module
+Python keeps its type, expression, statement, runtime, and module
 output passes in separate translation units with private backend interfaces.
 
 Compilation contexts own interned text, source paths, symbol answers,

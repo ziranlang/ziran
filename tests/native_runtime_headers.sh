@@ -9,7 +9,7 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
     "$repo/tests/native_helpers_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -lm -pthread -o "$work/helpers"
-"$work/helpers" "$work/invalid.c"
+"$work/helpers"
 
 cat > "$work/plain.zi" <<'ZI'
 #program_export
@@ -52,56 +52,50 @@ done
 for form in source saved; do
     root=$work; suffix=zi
     if test "$form" = saved; then root=$work/ir; suffix=zir; fi
-    for target in c cpp; do
-        if test "$target" = c; then
-            compiler=${CC:-cc}; extension=c; header=h; standard=c11
-        else
-            compiler=${CXX:-c++}; extension=cpp; header=hpp; standard=c++17
-        fi
-        for name in plain types operations print_only allocate; do
-            output=$work/$form-$target-$name
-            "$ziran" build --target="$target" --no-main --root "$root" \
-                -o "$output" "$root/$name.$suffix"
-            case "$name" in
-                plain)
-                    test ! -e "$output/zir_string.h"
-                    test ! -e "$output/zir_bounds.h"
-                    "$compiler" -std="$standard" -M "$output/plain.$extension" > "$work/deps"
-                    if rg -q '/(stdio|stdlib|string)\.h\b' "$work/deps"; then
-                        echo 'numeric-only output pulled in heavy runtime headers' >&2; exit 1
-                    fi
-                    body='int main(void) { return Add(19, 23) == 42 ? 0 : 1; }'
-                    ;;
-                types)
-                    body='int main(void) {
-                        String text = StringLiteral("a\0z");
-                        String words[] = {text};
-                        Slice values = {words, 1};
-                        Source_Code_Location loc = {text, 42};
-                        return Borrow(text).length == 3 && Location(loc) == 42 && Count(values) == 1 ? 0 : 1;
-                    }'
-                    ;;
-                operations)
-                    # Full helpers remain usable after the thin generated ABI.
-                    body='#include "zir_string.h"
-                    int main(void) {
-                        String text = StringLiteral("a\0z");
-                        if (!Same(text, StringView("a\0z", 3)) || !StringEqual(Part(text, 1, 3), StringView("\0z", 2))) return 1;
-                        Show(); return 0;
-                    }'
-                    ;;
-                print_only) body='int main(void) { Show(); return 0; }' ;;
-                allocate) body='int main(void) { return Answer() == 42 ? 0 : 1; }' ;;
-            esac
-            printf '#include "%s.%s"\n%s\n' "$name" "$header" "$body" > "$output/host.$extension"
-            "$compiler" -std="$standard" -O2 -Werror \
-                -I"$output" "$output"/*."$extension" -o "$output/program"
-            "$output/program" > "$work/result"
-            case "$name" in
-                operations) test "$(cat "$work/result")" = 0.125 ;;
-                print_only) test "$(cat "$work/result")" = 42 ;;
-            esac
-        done
+    compiler=${CC:-cc}; extension=c; header=h; standard=c11
+    for name in plain types operations print_only allocate; do
+        output=$work/$form-c-$name
+        "$ziran" build --target=c --no-main --root "$root" \
+            -o "$output" "$root/$name.$suffix"
+        case "$name" in
+            plain)
+                test ! -e "$output/zir_string.h"
+                test ! -e "$output/zir_bounds.h"
+                "$compiler" -std="$standard" -M "$output/plain.$extension" > "$work/deps"
+                if rg -q '/(stdio|stdlib|string)\.h\b' "$work/deps"; then
+                    echo 'numeric-only output pulled in heavy runtime headers' >&2; exit 1
+                fi
+                body='int main(void) { return Add(19, 23) == 42 ? 0 : 1; }'
+                ;;
+            types)
+                body='int main(void) {
+                    String text = StringLiteral("a\0z");
+                    String words[] = {text};
+                    Slice values = {words, 1};
+                    Source_Code_Location loc = {text, 42};
+                    return Borrow(text).length == 3 && Location(loc) == 42 && Count(values) == 1 ? 0 : 1;
+                }'
+                ;;
+            operations)
+                # Full helpers remain usable after the thin generated ABI.
+                body='#include "zir_string.h"
+                int main(void) {
+                    String text = StringLiteral("a\0z");
+                    if (!Same(text, StringView("a\0z", 3)) || !StringEqual(Part(text, 1, 3), StringView("\0z", 2))) return 1;
+                    Show(); return 0;
+                }'
+                ;;
+            print_only) body='int main(void) { Show(); return 0; }' ;;
+            allocate) body='int main(void) { return Answer() == 42 ? 0 : 1; }' ;;
+        esac
+        printf '#include "%s.%s"\n%s\n' "$name" "$header" "$body" > "$output/host.$extension"
+        "$compiler" -std="$standard" -O2 -Werror \
+            -I"$output" "$output"/*."$extension" -o "$output/program"
+        "$output/program" > "$work/result"
+        case "$name" in
+            operations) test "$(cat "$work/result")" = 0.125 ;;
+            print_only) test "$(cat "$work/result")" = 42 ;;
+        esac
     done
 done
 
@@ -135,4 +129,4 @@ PY
 python3 "$repo/tests/native_c_large_output_test.py" "$ziran" "$work/large-output"
 "${CC:-cc}" -std=c11 -Werror=implicit-function-declaration "$work/copied/use.c" -o "$work/copied/program"
 "$work/copied/program"
-echo 'Standalone native runtime headers: source, saved IR, C and C++ passed'
+echo 'Standalone native runtime headers: source, saved IR and C passed'

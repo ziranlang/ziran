@@ -29,7 +29,7 @@ for form in source saved; do
         fi
         grep -q 'portable execution failed' "$work/$form-$entry.out"
     done
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/$target-$form
         "$ziran" build --target="$target" --root "$root" --module-path "$repo/std" -o "$output" "$input"
         if test "$target" = go; then
@@ -42,8 +42,7 @@ func TestInlineRecords(t *testing.T) {
 GO
             GO111MODULE=off go test "$output"/*.go
         else
-            if test "$target" = c; then compiler=${CC:-cc}; ext=c; header=h; standard=c11
-            else compiler=${CXX:-c++}; ext=cpp; header=hpp; standard=c++17; fi
+            compiler=${CC:-cc}; ext=c; header=h; standard=c11
             printf '#include "vm_inline_records_test.%s"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' "$header" > "$output/host.$ext"
             "$compiler" -std="$standard" -I"$output" -I"$repo/include" "$output"/*."$ext" -o "$output/app"
             "$output/app"

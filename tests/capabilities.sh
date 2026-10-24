@@ -14,12 +14,10 @@ import sys
 
 item = json.loads(Path(sys.argv[1]).read_text())
 assert item['schema_version'] == 1
-assert item['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zx', 'plan9-c']
-assert item['tier'] == {'c': 'primary', 'cpp': 'secondary', 'go': 'secondary',
-                        'rust': 'secondary', 'py': 'secondary', 'zx': 'primary',
-                        'plan9-c': 'experimental'}
-assert item['parallel_execution']['rust'] == 'serial'
-assert item['text_view_mutable_bytes']['rust'] == 'borrowed'
+assert item['targets'] == ['c', 'go', 'py', 'zx']
+assert item['tier'] == {'c': 'primary', 'go': 'secondary', 'py': 'secondary', 'zx': 'primary'}
+assert item['parallel_execution']['c'] == 'threads'
+assert item['text_view_mutable_bytes']['c'] == 'borrowed'
 assert item['parallel_execution']['py'] == 'serial'
 assert item['text_view_mutable_bytes']['py'] == 'snapshot'
 assert item['source_and_saved_ir'] is True
@@ -34,13 +32,13 @@ manifest = json.loads((Path(sys.argv[2]) / 'tests/numeric_conformance.json').rea
 numeric = item['numeric_conformance']
 assert numeric['schema_version'] == 1
 assert numeric['stability'] == 'stable-id'
-assert numeric['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zx']
+assert numeric['targets'] == ['c', 'go', 'py', 'zx']
 assert numeric['ids'] == [case['id'] for case in manifest['cases']]
 assert len(numeric['ids']) == len(set(numeric['ids']))
 assert item['diagnostics_json'] == 'partial'
 PY
 
-for target in c cpp go rust py zx plan9-c; do
+for target in c go py zx; do
     "$ziran" capabilities "--target=$target" --json > "$work/$target.json"
     python3 - "$work/$target.json" "$target" \
             "$repo/tests/numeric_conformance.json" <<'PY'
@@ -52,14 +50,10 @@ item = json.loads(Path(sys.argv[1]).read_text())
 target = sys.argv[2]
 manifest = json.loads(Path(sys.argv[3]).read_text())
 assert item['target'] == target
-threads = target in ('c', 'cpp')
-assert item['parallel_execution'] == ('threads' if threads else 'serial')
-if target in ('rust', 'py'):
-    assert 'target_contract' not in item
-borrowed = target in ('c', 'cpp', 'rust', 'plan9-c')
-assert item['tier'] == ('primary' if target in ('c', 'zx') else
-                        'experimental' if target == 'plan9-c' else 'secondary')
-assert item['text_view_mutable_bytes'] == ('borrowed' if borrowed else 'snapshot')
+assert item['parallel_execution'] == ('threads' if target == 'c' else 'serial')
+assert 'target_contract' not in item
+assert item['tier'] == ('primary' if target in ('c', 'zx') else 'secondary')
+assert item['text_view_mutable_bytes'] == ('borrowed' if target == 'c' else 'snapshot')
 assert item['source_and_saved_ir'] is True
 assert item['target_preflight'] is True
 assert item['text_view_opaque_pointer_check'] is True
@@ -68,25 +62,17 @@ numeric = item['numeric_conformance']
 assert item['heap_allocation'] is True
 assert numeric['schema_version'] == 1
 assert numeric['stability'] == 'stable-id'
-if target == 'plan9-c':
-    assert numeric['targets'] == []
-    assert numeric['ids'] == []
-else:
-    assert numeric['targets'] == [target]
-    assert numeric['ids'] == [case['id'] for case in manifest['cases']]
-if target == 'plan9-c':
-    assert item['target_contract'] == 'experimental-post-pass'
-    assert item['native_os'] == 'plan9'
-    assert item['native_libc'] == 'plan9'
-    assert item['architecture'] == '386'
-    assert item['dialect'] == 'plan9-c88'
+assert numeric['targets'] == [target]
+assert numeric['ids'] == [case['id'] for case in manifest['cases']]
 PY
 done
 
-if "$ziran" capabilities --target=unknown > "$work/out" 2> "$work/err"; then
-    echo 'capabilities accepted an unknown target' >&2
-    exit 1
-fi
+for target in unknown cpp rust plan9-c; do
+    if "$ziran" capabilities "--target=$target" > "$work/out" 2> "$work/err"; then
+        echo "capabilities accepted the unknown target $target" >&2
+        exit 1
+    fi
+done
 if "$ziran" capabilities --target=c --target=go > "$work/out" 2> "$work/err"; then
     echo 'capabilities accepted conflicting targets' >&2
     exit 1

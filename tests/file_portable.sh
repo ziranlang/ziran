@@ -1,7 +1,6 @@
 #!/bin/sh
 # std/file is one import for files on every native C target: file_linux on
-# Linux, Android, the web, and Windows, and file_plan9 when
-# --target=plan9-c defines PLAN9. ReadEntireFile and WriteEntireFile read
+# Linux, Android, the web, and Windows. ReadEntireFile and WriteEntireFile read
 # and replace whole files, across 4 KB chunks. Source and saved IR agree.
 set -eu
 
@@ -50,8 +49,3 @@ for input in source saved; do
     (cd "$work/run-$input" && "$output/app") || status=$?
     test "$status" = 42
 done
-
-# Plan 9 builds the same source over file_plan9.
-"$ziran" build --target=plan9-c --root "$work" -o "$work/plan9" "$work/app.zi"
-test -f "$work/plan9/file_plan9.c"
-test ! -e "$work/plan9/file_linux.c"

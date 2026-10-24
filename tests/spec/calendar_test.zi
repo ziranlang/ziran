@@ -43,9 +43,4 @@ Report :: () -> s32 {
     return result
 }
 
-#if #defined(NATIVE_PLAN9) {
-    #program_export
-    main :: () -> s32 { return Report() }
-} else {
-    main :: () -> s32 { return Report() }
-}
+main :: () -> s32 { return Report() }

@@ -70,13 +70,9 @@ for form in source saved; do
     root=$work
     input=$work/app.zi
     if test "$form" = saved; then root=$work/ir; input=$root/app.zir; fi
-    for target in c cpp; do
-        out=$work/$form-$target
-        "$ziran" build --target="$target" --root "$root" -o "$out" "$input"
-        if test "$target" = c; then compiler=${CC:-cc}; standard=c11; extension=c
-        else compiler=${CXX:-c++}; standard=c++17; extension=cpp; fi
-        "$compiler" -std="$standard" -I"$out" "$out"/*."$extension" -o "$out/run"
-        timeout --kill-after=2s 10s "$out/run"
-    done
+    out=$work/$form-c
+    "$ziran" build --target=c --root "$root" -o "$out" "$input"
+    "${CC:-cc}" -std=c11 -I"$out" "$out"/*.c -o "$out/run"
+    timeout --kill-after=2s 10s "$out/run"
 done
-echo 'Native callbacks over public/private records, enums and colliding type names passed C/C++ source and saved IR'
+echo 'Native callbacks over public/private records, enums and colliding type names passed C source and saved IR'

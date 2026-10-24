@@ -76,19 +76,12 @@ GO
     GO111MODULE=off go run "$out"/*.go
     "$ziran" bundle --root "$root" --entry tags:Answer -o "$work/$input.zx" "$file"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp; do
-        native=$work/$input-$target
-        "$ziran" build "--target=$target" --no-main --root "$root" \
-            -o "$native" "$file"
-        if test "$target" = c; then
-            printf '#include "tags.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$native/main.c"
-            ${CC:-cc} -Iinclude -I"$native" "$native"/*.c -o "$native/test"
-        else
-            printf '#include "tags.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$native/main.cpp"
-            ${CXX:-c++} -Iinclude -I"$native" "$native"/*.cpp -o "$native/test"
-        fi
-        "$native/test"
-    done
+    native=$work/$input-c
+    "$ziran" build --target=c --no-main --root "$root" \
+        -o "$native" "$file"
+    printf '#include "tags.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$native/main.c"
+    ${CC:-cc} -Iinclude -I"$native" "$native"/*.c -o "$native/test"
+    "$native/test"
 done
 cmp "$work/source-go/tags.go" "$work/saved-go/tags.go"
 

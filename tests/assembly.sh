@@ -54,32 +54,28 @@ for form in source saved; do
     if test "$form" = saved; then root=$work/ir; file=$root/app.zir; fi
     "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zx" "$file"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c cpp; do
-        out=$work/$form-$target
-        "$ziran" build --target="$target" --root "$root" -o "$out" "$file"
-        compiler=${CC:-cc}; suffix=c; header=h; standard=c11
-        if test "$target" = cpp; then compiler=${CXX:-c++}; suffix=cpp; header=hpp; standard=c++17; fi
-        printf '#include "app.%s"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' "$header" > "$work/host.$suffix"
-        for optimization in 0 2; do
-            for mode in native fallback; do
-                define=
-                if test "$mode" = fallback; then define=-DZIRAN_NO_ASM; fi
-                "$compiler" -std="$standard" -O"$optimization" $define -I"$out" -I"$repo/include" \
-                    "$out/app.$suffix" "$work/host.$suffix" -o "$out/run"
-                "$out/run"
-            done
+    out=$work/$form-c
+    "$ziran" build --target=c --root "$root" -o "$out" "$file"
+    compiler=${CC:-cc}; suffix=c; header=h; standard=c11
+    printf '#include "app.%s"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' "$header" > "$work/host.$suffix"
+    for optimization in 0 2; do
+        for mode in native fallback; do
+            define=
+            if test "$mode" = fallback; then define=-DZIRAN_NO_ASM; fi
+            "$compiler" -std="$standard" -O"$optimization" $define -I"$out" -I"$repo/include" \
+                "$out/app.$suffix" "$work/host.$suffix" -o "$out/run"
+            "$out/run"
         done
-        ndk=${ANDROID_NDK_HOME:-}
-        if test -n "$ndk"; then
-            for triple in aarch64-linux-android24 armv7a-linux-androideabi24 x86_64-linux-android24 i686-linux-android24; do
-                tool=clang
-                if test "$target" = cpp; then tool=clang++; fi
-                "$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/$triple-$tool" \
-                    -std="$standard" -O2 -I"$out" -I"$repo/include" \
-                    -c "$out/app.$suffix" -o "$out/$triple.o"
-            done
-        fi
     done
+    ndk=${ANDROID_NDK_HOME:-}
+    if test -n "$ndk"; then
+        for triple in aarch64-linux-android24 armv7a-linux-androideabi24 x86_64-linux-android24 i686-linux-android24; do
+            tool=clang
+            "$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/$triple-$tool" \
+                -std="$standard" -O2 -I"$out" -I"$repo/include" \
+                -c "$out/app.$suffix" -o "$out/$triple.o"
+        done
+    fi
     "$ziran" build --target=go --pkg main --root "$root" -o "$work/$form-go" "$file"
     cat > "$work/$form-go/main.go" <<'GO'
 package main
@@ -90,21 +86,9 @@ GO
     fi
     "$ziran" build --target=py --root "$root" -o "$work/$form-py" "$file"
     (cd "$work/$form-py" && python3 -c 'import runpy; assert runpy.run_path("__init__.py")["Answer"]() == 42')
-    "$ziran" build --target=rust --root "$root" -o "$work/$form-rust" "$file"
-    if command -v cargo >/dev/null 2>&1; then
-        cat > "$work/$form-rust/src/main.rs" <<'RS'
-fn main() { assert_eq!(ziran_generated::Answer(), 42); }
-RS
-        cargo run --quiet --offline --manifest-path "$work/$form-rust/Cargo.toml"
-    fi
-    "$ziran" build --target=plan9-c --root "$root" -o "$work/$form-plan9" "$file"
-    if rg -q '__asm__|ZIRAN_NO_ASM' "$work/$form-plan9"/*.c; then
-        echo 'assembly leaked into Plan 9 output' >&2; exit 1
-    fi
 done
 cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source-c/app.c" "$work/saved-c/app.c"
-cmp "$work/source-cpp/app.cpp" "$work/saved-cpp/app.cpp"
 
 reject() {
     expected=$1

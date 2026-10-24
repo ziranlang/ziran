@@ -1,7 +1,6 @@
 # Ziran
 
-Ziran is a general-purpose language that compiles to C, C++, Go, Rust, and
-Python. The toolchain checks source, saves checked modules, and builds portable
+Ziran is a general-purpose language that compiles to C, Go, and Python. The toolchain checks source, saves checked modules, and builds portable
 programs you can run without a native compiler.
 
 [Website & playground](https://ziran-lang.org/) · [Compiler guide](docs/USAGE.md) · [Implementation status](docs/IMPLEMENTATION_STATUS.md)
@@ -50,7 +49,7 @@ Use `build/bin/ziran` from the checkout, or `ziran` after installation.
 | Command | Purpose |
 | --- | --- |
 | `check` | Validate source and imports. |
-| `build` | Generate C, C++, Go, Rust, or Python output. |
+| `build` | Generate C, Go, or Python output. |
 | `ir` / `inspect` | Save checked modules and read their contents. |
 | `bundle` / `run` | Build and run portable programs; `run --target=py FILE.zi -- ARGS` runs Python-target scripts. |
 | `fmt` | Format source files. |
@@ -59,12 +58,7 @@ Use `build/bin/ziran` from the checkout, or `ziran` after installation.
 
 Source files use `.zi`, checked modules use [`.zir`](docs/ZIR.md), and portable
 programs use [`.zx`](docs/ZX.md). Native targets and the portable runner have
-different limits; the Plan 9 C target is experimental.
-
-When an existing native C file includes a generated Plan 9 header after
-`<u.h>` and `<libc.h>`, define `ZIR_PLAN9_NATIVE_HEADERS_INCLUDED` first.
-Plan 9's native headers have no include guards; this avoids including them
-again through the generated runtime header.
+different limits.
 
 ## Standard library
 

@@ -48,19 +48,9 @@ for name in divide zero; do
         > "$work/c-$name/run.c"
     "${CC:-cc}" -std=c99 -I"$work/c-$name" "$work/c-$name/$name.c" \
         "$work/c-$name/run.c" -o "$work/c-$name/program"
-    "$ziran" build --target=cpp --root "$work" -o "$work/cpp-$name" "$work/$name.zi"
-    printf '#include "%s.hpp"\nint main() { %s_main(); return 0; }\n' "$name" "$name" \
-        > "$work/cpp-$name/run.cpp"
-    "${CXX:-c++}" -std=c++17 -I"$work/cpp-$name" "$work/cpp-$name/$name.cpp" \
-        "$work/cpp-$name/run.cpp" -o "$work/cpp-$name/program"
     "$ziran" build --target=go --pkg main --exe --entry "$name:main" --root "$work" \
         -o "$work/go-$name" "$work/$name.zi"
     (cd "$work/go-$name" && GO111MODULE=off go build -o program .)
-    "$ziran" build --target=rust --exe --entry "$name:main" --root "$work" \
-        -o "$work/rust-$name" "$work/$name.zi"
-    CARGO_TARGET_DIR=$work/rust-target-$name cargo build --quiet \
-        --manifest-path "$work/rust-$name/Cargo.toml" 2> /dev/null
-    cp "$work/rust-target-$name/debug/ziran_generated" "$work/rust-$name/program"
 done
 
 "$ziran" bundle --root "$work" --entry divide:main -o "$work/divide.zx" "$work/divide.zi"
@@ -70,7 +60,7 @@ cmp -s "$work/expected" "$work/vm.out" || {
     diff "$work/expected" "$work/vm.out" >&2 || true
     exit 1
 }
-for target in c cpp go rust; do
+for target in c go; do
     "$work/$target-divide/program" > "$work/$target.out"
     if ! cmp -s "$work/expected" "$work/$target.out"; then
         echo "$target divides differently from the portable VM" >&2

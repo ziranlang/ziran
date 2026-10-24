@@ -45,7 +45,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry file_type_of:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/$target-$input
         "$ziran" build "--target=$target" --root "$root" \
             -o "$output" "$module"
@@ -54,12 +54,6 @@ for input in source saved; do
                 printf '#include "file_type_of.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$work/main.c"
                 "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                     "$output"/*.c "$work/main.c" -o "$output/app"
-                "$output/app"
-                ;;
-            cpp)
-                printf '#include "file_type_of.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$work/main.cpp"
-                "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                    "$output"/*.cpp "$work/main.cpp" -o "$output/app"
                 "$output/app"
                 ;;
             go)
@@ -92,7 +86,7 @@ for input in source saved; do
         module=$work/global-ir/global_query.zir
         root=$work/global-ir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/global-$target-$input
         "$ziran" build "--target=$target" --root "$root" \
             -o "$output" "$module"
@@ -101,12 +95,6 @@ for input in source saved; do
                 printf '#include "global_query.h"\nint main(void) { return Answer() == 8 ? 0 : 1; }\n' > "$work/global-main.c"
                 "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                     "$output"/*.c "$work/global-main.c" -o "$output/app"
-                "$output/app"
-                ;;
-            cpp)
-                printf '#include "global_query.hpp"\nint main() { return Answer() == 8 ? 0 : 1; }\n' > "$work/global-main.cpp"
-                "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                    "$output"/*.cpp "$work/global-main.cpp" -o "$output/app"
                 "$output/app"
                 ;;
             go)
@@ -343,7 +331,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry deferred_type_of:Answer \
         -o "$work/deferred-$input.zx" "$module"
     test "$("$ziran" run "$work/deferred-$input.zx")" = 86
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/deferred-$target-$input
         "$ziran" build "--target=$target" --root "$root" \
             -o "$output" "$module"
@@ -352,12 +340,6 @@ for input in source saved; do
                 printf '#include "deferred_type_of.h"\nint main(void) { return Answer() == 86 ? 0 : 1; }\n' > "$work/deferred-main.c"
                 "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                     "$output"/*.c "$work/deferred-main.c" -o "$output/app"
-                "$output/app"
-                ;;
-            cpp)
-                printf '#include "deferred_type_of.hpp"\nint main() { return Answer() == 86 ? 0 : 1; }\n' > "$work/deferred-main.cpp"
-                "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                    "$output"/*.cpp "$work/deferred-main.cpp" -o "$output/app"
                 "$output/app"
                 ;;
             go)

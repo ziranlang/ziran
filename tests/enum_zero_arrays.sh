@@ -53,24 +53,16 @@ for form in source saved; do
     "$ziran" bundle --root "$module_root" --module-path "$module_root" \
         --entry zero_arrays:Main -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 0
-    for target in ${ENUM_ZERO_ARRAY_TARGETS:-c cpp go rust py}; do
+    for target in ${ENUM_ZERO_ARRAY_TARGETS:-c go py}; do
         output=$work/$form-$target
         executable=--exe; package=
-        if test "$target" = cpp; then executable=; fi
         if test "$target" = go; then package='--pkg main'; fi
         "$ziran" build --root "$module_root" --module-path "$module_root" \
             --target="$target" --entry zero_arrays:Main $executable $package \
             -o "$output" "$input"
-        if test "$target" = cpp; then
-            printf '#include "zero_arrays.hpp"\nint main() { return Main(); }\n' > "$output/main.cpp"
-            "${CXX:-c++}" -O2 -std=c++17 -I"$repo/include" -I"$output" "$output"/*.cpp \
-                -lm -o "$output/zero_arrays"
-        fi
         case "$target" in
             go) GO111MODULE=off go run "$output"/*.go;;
             py) python3 "$output";;
-            rust) CARGO_TARGET_DIR="$work/rust-$form" cargo run --offline --quiet \
-                --manifest-path "$output/Cargo.toml";;
             *) "$output/zero_arrays";;
         esac
     done

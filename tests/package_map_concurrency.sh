@@ -16,14 +16,8 @@ for form in source saved; do
         input=$work/ir/$entry.zir
         set -- --root "$work/ir" --module-path "$work/ir"
     fi
-    for target in c cpp; do
-        output=$work/$form-$target
-        "$ziran" build "$@" --target="$target" --no-main --entry "$entry:main" -o "$output" "$input"
-        if test "$target" = c; then
-            "${CC:-cc}" -O2 -std=c11 -I"$repo/include" "$output"/*.c -o "$output/probe" -lcrypto -lm
-        else
-            "${CXX:-c++}" -O2 -std=c++17 -I"$repo/include" "$output"/*.cpp -o "$output/probe" -lcrypto -lm
-        fi
-        python3 tests/package_map_concurrency.py "$output/probe"
-    done
+    output=$work/$form-c
+    "$ziran" build "$@" --target=c --no-main --entry "$entry:main" -o "$output" "$input"
+    "${CC:-cc}" -O2 -std=c11 -I"$repo/include" "$output"/*.c -o "$output/probe" -lcrypto -lm
+    python3 tests/package_map_concurrency.py "$output/probe"
 done

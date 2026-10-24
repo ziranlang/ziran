@@ -42,7 +42,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry bound:Answer \
         -o "$work/$input.zx" "$source"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         "$ziran" build --target="$target" --root "$root" \
             --entry bound:Answer -o "$output" "$source"
@@ -63,15 +63,7 @@ C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                 "$output"/*.c -o "$output/app"
             "$output/app"
-        else
-            cat > "$output/main.cpp" <<'CPP'
-#include "bound.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
-            "$output/app"
         fi
     done
 done
-echo 'slice bounded by an s32 field: VM, C, C++, and Go passed'
+echo 'slice bounded by an s32 field: VM, C, and Go passed'

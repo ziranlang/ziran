@@ -101,7 +101,7 @@ for input in source saved; do
         "$ziran" run "$work/invalid-$input.zx"
     grep -Fq 'unreachable code executed' "$work/invalid.err"
 
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         # shellcheck disable=SC2086
         if test "$target" = go; then
@@ -123,17 +123,6 @@ int main(void) { return Answer() == 156 ? 0 : 1; }
 C
             "${CC:-cc}" -I"$repo/include" -I"$output" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        else
-            # shellcheck disable=SC2086
-            "$ziran" build --target=cpp --root "$root" \
-                -o "$output" $modules
-            cat > "$output/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 156 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         fi
     done
@@ -214,7 +203,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry through:Answer \
         -o "$work/through-$input.zx" "$file"
     test "$("$ziran" run "$work/through-$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/through-$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -232,15 +221,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -I"$repo/include" -I"$output" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$output" "$file"
-            cat > "$output/main.cpp" <<'CPP'
-#include "through.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         fi
     done
@@ -394,7 +374,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry scalar_case:Answer \
         -o "$work/scalar-$input.zx" "$file"
     test "$("$ziran" run "$work/scalar-$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/scalar-$input-$target
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -412,15 +392,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -I"$repo/include" -I"$output" \
                 "$output"/*.c -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$output" "$file"
-            cat > "$output/main.cpp" <<'CPP'
-#include "scalar_case.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -I"$repo/include" -I"$output" \
-                "$output"/*.cpp -o "$output/app"
             "$output/app"
         fi
     done

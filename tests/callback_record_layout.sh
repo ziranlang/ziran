@@ -33,9 +33,4 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
 "${CC:-cc}" -std=c11 -I"$repo/include" -I"$work/c" "$work"/c/*.c -o "$work/app"
 "$work/app"
-"$bin/zi2cpp" --no-main --entry app:Answer --root "$work" -o "$work/cpp" "$work/app.zi"
-sed -e 's/app.h/app.hpp/' -e 's/_Static_assert/static_assert/' \
-    -e 's/int32_t Submit/extern "C" int32_t Submit/' "$work/c/host.c" > "$work/cpp/host.cpp"
-"${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$work/cpp" "$work"/cpp/*.cpp -o "$work/app-cpp"
-"$work/app-cpp"
 echo "Native callback records preserve unused fields and their C ABI"

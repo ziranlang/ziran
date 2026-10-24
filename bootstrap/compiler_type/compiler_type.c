@@ -11,9 +11,8 @@ static bool compiler_type_DottedIdentifier(String source);
 bool
 compiler_type_TargetKnown(String target)
 {
-    bool value_0 = StringEqual(target, StringLiteral("c")) || StringEqual(target, StringLiteral("cpp")) || StringEqual(target, StringLiteral("go"));
-    bool value_1 = value_0 || StringEqual(target, StringLiteral("rust")) || StringEqual(target, StringLiteral("py"));
-    return value_1 || StringEqual(target, StringLiteral("zx")) || StringEqual(target, StringLiteral("plan9-c"));
+    bool value_0 = StringEqual(target, StringLiteral("c")) || StringEqual(target, StringLiteral("go")) || StringEqual(target, StringLiteral("py"));
+    return value_0 || StringEqual(target, StringLiteral("zx"));
 }
 
 String

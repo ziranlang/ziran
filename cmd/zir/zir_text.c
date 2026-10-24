@@ -316,7 +316,7 @@ DecimalPointDot(char *text)
 }
 
 /* Portable `print` float text: the shortest decimal that reads back to the
- * same value, in positional notation. Native C/C++ output uses the matching
+ * same value, in positional notation. Native C output uses the matching
  * print_float helper in include/zir_string.h. */
 void
 FormatPrintFloat(double value, int single, char *out, size_t capacity)

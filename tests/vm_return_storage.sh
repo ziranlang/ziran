@@ -28,19 +28,13 @@ for name, per_call in {'MakeRecord': 0, 'MakeArray': 1, 'MakeArrayLiteral': 1,
     assert f['calls'] > 0 and f['self_allocations'] == per_call * f['calls'], (name, f)
 PY
     done
-    for target in c cpp; do
-        output=$work/$form-$target
-        "$ziran" build --target="$target" --root "$root" -o "$output" "$input"
-        if test "$target" = c; then
-            compiler=${CC:-cc}; extension=c; header=h; standard=c11
-        else
-            compiler=${CXX:-c++}; extension=cpp; header=hpp; standard=c++17
-        fi
-        printf '#include "%s.%s"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' \
-            "$module" "$header" > "$output/host.$extension"
-        "$compiler" -O2 -std="$standard" -I"$output" "$output"/*."$extension" -o "$output/program"
-        "$output/program"
-    done
+    output=$work/$form-c
+    "$ziran" build --target=c --root "$root" -o "$output" "$input"
+    compiler=${CC:-cc}; extension=c; header=h; standard=c11
+    printf '#include "%s.%s"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' \
+        "$module" "$header" > "$output/host.$extension"
+    "$compiler" -O2 -std="$standard" -I"$output" "$output"/*."$extension" -o "$output/program"
+    "$output/program"
 done
 cmp "$work/source.zx" "$work/saved.zx"
 echo 'Fresh record/array returns retain copies for stored values and borrowed storage'

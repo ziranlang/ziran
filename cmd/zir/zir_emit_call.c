@@ -135,66 +135,37 @@ emit_global_literal_node_with_buffers(GlobalLiteralEmit *emit, int index,
                 return 0;
         } else if(!append_global_literal(out, size, used, "{"))
             return 0;
-        if(record != NULL && emit->target == ZIR_CPP) {
+        int position = 0;
+        for(int child = expr->first_child; child >= 0;
+            child = emit->probe->exprs[child].next_sibling) {
+            const ZirExpr *entry = &emit->probe->exprs[child];
+            const char *field_type = element;
             ZirTypeField field;
-            size_t offset = 0;
-            int field_index = 0;
-            while(TypeNextField(record, &offset, &field) == 1) {
-                int selected = -1, entry_ordinal = 0;
-                for(int child = expr->first_child; child >= 0;
-                    child = emit->probe->exprs[child].next_sibling) {
-                    const ZirExpr *entry = &emit->probe->exprs[child];
-                    if((entry->name[0] &&
-                        !strcmp(entry->name, field.name)) ||
-                       (!entry->name[0] && entry_ordinal == field_index)) {
-                        selected = entry->right;
-                        break;
-                    }
-                    entry_ordinal++;
-                }
-                if(field_index++ &&
-                   !append_global_literal(out, size, used, ", ")) return 0;
-                if(selected >= 0) {
-                    if(!emit_global_literal_node(emit, selected,
-                                                 record_owner, field.type,
-                                                 out, size, used, depth + 1))
-                        return 0;
-                } else if(!append_global_literal(out, size, used, "{}"))
-                    return 0;
+            if(entry->right < 0 ||
+               (record != NULL &&
+                !global_field(record, entry->name, position, &field)))
+                return 0;
+            if(position &&
+               !append_global_literal(out, size, used, ", ")) return 0;
+            if(record != NULL) {
+                char mapped[ZIR_NAME_MAX * 2];
+                field_type = field.type;
+                if(emit->field_name != NULL)
+                    emit->field_name(record, field.name, mapped,
+                                     sizeof(mapped), emit->context);
+                else
+                    TargetFieldName(record, emit->target, field.name,
+                                    mapped, sizeof(mapped));
+                if(!append_global_literal(out, size, used,
+                     emit->target == ZIR_GO ? "%s: " : ".%s = ",
+                     mapped)) return 0;
             }
-        } else {
-            int position = 0;
-            for(int child = expr->first_child; child >= 0;
-                child = emit->probe->exprs[child].next_sibling) {
-                const ZirExpr *entry = &emit->probe->exprs[child];
-                const char *field_type = element;
-                ZirTypeField field;
-                if(entry->right < 0 ||
-                   (record != NULL &&
-                    !global_field(record, entry->name, position, &field)))
-                    return 0;
-                if(position &&
-                   !append_global_literal(out, size, used, ", ")) return 0;
-                if(record != NULL) {
-                    char mapped[ZIR_NAME_MAX * 2];
-                    field_type = field.type;
-                    if(emit->field_name != NULL)
-                        emit->field_name(record, field.name, mapped,
-                                         sizeof(mapped), emit->context);
-                    else
-                        TargetFieldName(record, emit->target, field.name,
-                                        mapped, sizeof(mapped));
-                    if(!append_global_literal(out, size, used,
-                         emit->target == ZIR_GO ? "%s: " : ".%s = ",
-                         mapped)) return 0;
-                }
-                if(!emit_global_literal_node(emit, entry->right,
-                                             record != NULL ? record_owner :
-                                             scope, field_type,
-                                             out, size, used, depth + 1))
-                    return 0;
-                position++;
-            }
+            if(!emit_global_literal_node(emit, entry->right,
+                                         record != NULL ? record_owner :
+                                         scope, field_type,
+                                         out, size, used, depth + 1))
+                return 0;
+            position++;
         }
         return append_global_literal(out, size, used, "}");
     }
@@ -391,7 +362,7 @@ EmitGlobalSlotWrappers_with_buffers(FILE *out, const ZirModule *module,
                        ZirResolveTarget resolver, void *context, EmitGlobalSlotWrappersBuffers *buffers)
 {
     memset(&buffers->probe, 0, sizeof(buffers->probe));
-    if((target != ZIR_C && target != ZIR_CPP) || !global->init[0])
+    if(target != ZIR_C || !global->init[0])
         return;
     int root = ParseExprTyped(&buffers->probe, module, global->init,
                               global->span, global->type);
@@ -595,7 +566,7 @@ emit_call_with_buffers(Emitter *e, const ZirExpr *expr, const char *array_result
             emit_expr(e, expr->left, expr->slot_type, buffers->source, sizeof(buffers->source));
         }
         declare(e, callable, expr->slot_type, buffers->source);
-        if(e->target == ZIR_C || e->target == ZIR_CPP) {
+        if(e->target == ZIR_C) {
             const ZirType *slot = FindType(e->module, expr->slot_type, NULL);
             if(slot != NULL && slot->is_c_call) {
                 n = (size_t)format(buffers->text, sizeof(buffers->text), "%s(", callable);
@@ -710,7 +681,7 @@ static void
 EmitSlotWrappers_with_buffers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                     ZirTarget target, ZirResolveTarget resolver, void *context, EmitSlotWrappersBuffers *buffers)
 {
-    if((target != ZIR_C && target != ZIR_CPP) || !CanEmitBody(module, fn))
+    if(target != ZIR_C || !CanEmitBody(module, fn))
         return;
     for(int index = 0; index < fn->expr_count; index++) {
         const ZirExpr *value = &fn->exprs[index];
@@ -775,7 +746,7 @@ emit_function_value_with_buffers(Emitter *e, int index, char *out, size_t size, 
     const ZirType *slot = FindType(e->module, value->type, &slot_owner);
     if(slot_owner == NULL)
         slot_owner = e->module;
-    if(e->target == ZIR_C || e->target == ZIR_CPP) {
+    if(e->target == ZIR_C) {
         if(slot != NULL && slot->is_c_call) {
             size_t length;
             format(buffers->call, sizeof(buffers->call), "%s()", value->name);

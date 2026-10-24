@@ -66,7 +66,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$input.zx" "$file"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out=$work/$input-$target
         case "$target" in
             c)
@@ -77,16 +77,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
                 "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                     "$out"/*.c -o "$out/app"
-                "$out/app"
-                ;;
-            cpp)
-                "$ziran" build --target=cpp --root "$root" -o "$out" "$file"
-                cat > "$out/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-                "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                    "$out"/*.cpp -o "$out/app"
                 "$out/app"
                 ;;
             go)
@@ -179,7 +169,7 @@ for name in open_case using_case forward_case shadow_case open_shadow_case using
         "$ziran" bundle --root "$root" --entry "$name:Answer" \
             -o "$work/$name.zx" "$input"
         test "$("$ziran" run "$work/$name.zx")" = 42
-        for target in c cpp go; do
+        for target in c go; do
             out=$work/$name-$target-$(basename "$root")
             case "$target" in
                 c)
@@ -191,17 +181,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
                     "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                         "$out"/*.c -o "$out/app"
-                    "$out/app"
-                    ;;
-                cpp)
-                    "$ziran" build --target=cpp --root "$root" \
-                        -o "$out" "$input"
-                    cat > "$out/main.cpp" <<CPP
-#include "$name.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-                    "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                        "$out"/*.cpp -o "$out/app"
                     "$out/app"
                     ;;
                 go)
@@ -249,7 +228,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry value_shadow:Answer \
         -o "$work/value_shadow-$input.zx" "$file"
     test "$("$ziran" run "$work/value_shadow-$input.zx")" = 7
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/value_shadow-$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -267,15 +246,6 @@ int main(void) { return Answer() == 7 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                 "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$file"
-            cat > "$out/main.cpp" <<'CPP'
-#include "value_shadow.hpp"
-int main() { return Answer() == 7 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out"/*.cpp -o "$out/app"
             "$out/app"
         fi
     done

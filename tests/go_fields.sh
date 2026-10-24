@@ -72,7 +72,7 @@ func main() {
 }
 GO
     GO111MODULE=off go run "$out"/*.go
-    for target in c cpp zx; do
+    for target in c zx; do
         if test "$target" = zx; then
             "$ziran" bundle --entry fields:Answer --root "$root" --module-path std -o "$work/$input-$target.zx" "$file"
         else

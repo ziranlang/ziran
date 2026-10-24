@@ -4,11 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef __cplusplus
-#include "thread_linux_test.hpp"
-#else
 #include "thread_linux_test.h"
-#endif
 
 static HANDLE entered, released, polled, poll_ready, poll_start;
 static DWORD cleanup_key;

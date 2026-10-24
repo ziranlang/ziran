@@ -1,7 +1,7 @@
 #ifndef ZIRAN_ZIR_RUNTIME_H
 #define ZIRAN_ZIR_RUNTIME_H
 
-/* A runtime header generated C and C++ include, embedded in the tool. */
+/* A runtime header generated C includes, embedded in the tool. */
 typedef struct ZirRuntimeHeader {
     const char *name;
     const char *text;

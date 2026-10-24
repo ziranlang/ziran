@@ -40,7 +40,7 @@ for input in "$work/app.zi" "$work/ir/app.zir"; do
         *.zi) suffix=source; root=$work ;;
         *) suffix=saved; root=$work/ir ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$suffix"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
         if test "$target" = go; then
@@ -59,14 +59,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
                 -I"$out" "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            cat > "$out/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" \
-                -I"$out" "$out"/*.cpp -o "$out/app"
             "$out/app"
         fi
     done
@@ -88,7 +80,7 @@ for input in "$work/named_using.zi" "$work/named-ir/named_using.zir"; do
     "$ziran" bundle --root "$root" --entry named_using:Answer \
         -o "$work/named.zx" "$input"
     test "$("$ziran" run "$work/named.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/named-$target-$suffix"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
         if test "$target" = go; then
@@ -107,14 +99,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
                 -I"$out" "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            cat > "$out/main.cpp" <<'CPP'
-#include "named_using.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" \
-                -I"$out" "$out"/*.cpp -o "$out/app"
             "$out/app"
         fi
     done
@@ -173,7 +157,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry type_shadow:Answer \
         -o "$work/open-shadow-$input.zx" "$file"
     test "$("$ziran" run "$work/open-shadow-$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/open-shadow-$target-$input"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"
         if test "$target" = go; then
@@ -192,14 +176,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
                 -I"$out" "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            cat > "$out/main.cpp" <<'CPP'
-#include "type_shadow.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" \
-                -I"$out" "$out"/*.cpp -o "$out/app"
             "$out/app"
         fi
     done
@@ -261,7 +237,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry named_type_shadow:Answer \
         -o "$work/shadow-$input.zx" "$file"
     test "$("$ziran" run "$work/shadow-$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/shadow-$target-$input"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"
         if test "$target" = go; then
@@ -280,14 +256,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
                 -I"$out" "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            cat > "$out/main.cpp" <<'CPP'
-#include "named_type_shadow.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" \
-                -I"$out" "$out"/*.cpp -o "$out/app"
             "$out/app"
         fi
     done
@@ -370,7 +338,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry local_shadow:Answer \
         -o "$work/local-shadow-$input.zx" "$file"
     test "$("$ziran" run "$work/local-shadow-$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/local-shadow-$target-$input"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$file"
         if test "$target" = go; then
@@ -389,14 +357,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -Wall -Werror -I"$repo/include" \
                 -I"$out" "$out"/*.c -o "$out/app"
-            "$out/app"
-        else
-            cat > "$out/main.cpp" <<'CPP'
-#include "local_shadow.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -Wall -Werror -I"$repo/include" \
-                -I"$out" "$out"/*.cpp -o "$out/app"
             "$out/app"
         fi
     done

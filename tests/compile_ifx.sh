@@ -60,7 +60,7 @@ for input in "$work/choice.zi" "$work/ir/choice.zir"; do
 done
 cmp "$work/source.zx" "$work/saved.zx"
 
-for target in c cpp go; do
+for target in c go; do
     out="$work/$target"
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main --root "$work" \
@@ -73,21 +73,12 @@ EOF
     else
         "$ziran" build "--target=$target" --root "$work" \
             -o "$out" "$work/choice.zi"
-        if test "$target" = c; then
-            cat > "$out/main.c" <<'EOF'
+        cat > "$out/main.c" <<'EOF'
 #include "choice.h"
 int main(void) { return Answer() == 42 ? 0 : 1; }
 EOF
-            ${CC:-cc} -Iinclude -I"$out" "$out/choice.c" \
-                "$out/main.c" -o "$out/app"
-        else
-            cat > "$out/main.cpp" <<'EOF'
-#include "choice.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-EOF
-            ${CXX:-c++} -Iinclude -I"$out" "$out/choice.cpp" \
-                "$out/main.cpp" -o "$out/app"
-        fi
+        ${CC:-cc} -Iinclude -I"$out" "$out/choice.c" \
+            "$out/main.c" -o "$out/app"
         "$out/app"
     fi
 done
@@ -145,7 +136,7 @@ if grep -aFq '#ifx' "$work/global-ir/global_ifx.zir"; then
     exit 1
 fi
 for input in "$work/global_ifx.zi" "$work/global-ir/global_ifx.zir"; do
-    for target in c cpp go; do
+    for target in c go; do
         case "$input" in
             *.zi) suffix=source ;;
             *) suffix=saved ;;

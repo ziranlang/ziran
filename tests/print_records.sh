@@ -94,14 +94,6 @@ for input in source saved; do
     "$ziran" build --target=c --exe --entry app:Show --root "$root" -o "$output" "$module"
     "$output/app" > "$output.out"
     cmp "$work/expected" "$output.out"
-    output="$work/cpp-$input"
-    "$ziran" build --target=cpp --root "$root" -o "$output" "$module"
-    cat > "$output/entry.cpp" <<'CPP'
-#include "app.hpp"
-int main() { Show(); return 0; }
-CPP
-    "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" "$output"/*.cpp -o "$output/app"
-    "$output/app" > "$output.out"
     cmp "$work/expected" "$output.out"
     output="$work/go-$input"
     "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$module"

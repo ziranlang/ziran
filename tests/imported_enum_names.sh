@@ -42,18 +42,9 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$input.zx" "$file"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp go rust; do
+    for target in c go; do
         out="$work/$target-$input"
-        if test "$target" = rust; then
-            "$ziran" build --target=rust --entry app:Answer --root "$root" \
-                --exe -o "$out" "$file"
-            cargo build --quiet --manifest-path "$out/Cargo.toml"
-            set +e
-            "$out/target/debug/ziran_generated"
-            status=$?
-            set -e
-            test "$status" -eq 42
-        elif test "$target" = go; then
+        if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
                 -o "$out" "$file"
             cat > "$out/main.go" <<'GO'
@@ -69,15 +60,6 @@ int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c11 -I"$repo/include" -I"$out" \
                 "$out"/*.c -o "$out/program"
-            "$out/program"
-        else
-            "$ziran" build --target=cpp --root "$root" -o "$out" "$file"
-            cat > "$out/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$out" \
-                "$out"/*.cpp -o "$out/program"
             "$out/program"
         fi
     done

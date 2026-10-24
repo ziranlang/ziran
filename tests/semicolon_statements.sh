@@ -40,7 +40,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry semicolon_statements:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/$target-$input
         "$ziran" build "--target=$target" --root "$root" \
             -o "$output" "$module"
@@ -49,12 +49,6 @@ for input in source saved; do
                 printf '#include "semicolon_statements.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$work/main.c"
                 "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                     "$output"/*.c "$work/main.c" -o "$output/app"
-                "$output/app"
-                ;;
-            cpp)
-                printf '#include "semicolon_statements.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$work/main.cpp"
-                "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                    "$output"/*.cpp "$work/main.cpp" -o "$output/app"
                 "$output/app"
                 ;;
             go)

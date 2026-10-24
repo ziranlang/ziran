@@ -279,7 +279,7 @@
     var label = event.target.selectedOptions[0].textContent;
     document.querySelectorAll('.native-visual [data-target]').forEach(function (element) { element.classList.toggle('is-selected', element.dataset.target === target); });
     document.querySelector('.target-summary').textContent = 'Generate ' + label + ' output';
-    var flags = target === 'c' || target === 'cpp' ? '' : ' --exe --entry source:main' + (target === 'go' ? ' --pkg main' : '');
+    var flags = target === 'c' ? '' : ' --exe --entry source:main' + (target === 'go' ? ' --pkg main' : '');
     document.querySelector('.target-command code').textContent = 'ziran build --target=' + target + flags + ' --root . -o out/' + target + ' source.zi';
   });
 })();

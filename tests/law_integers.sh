@@ -47,7 +47,7 @@ rg -q '"status":"disproved"' "$work/false.json"
 cmp "$work/laws.json" "$work/saved.json"
 "$ziran" bundle --root "$work" --entry numeric:Answer -o "$work/numeric.zx" "$work/numeric.zi"
 test "$("$ziran" run "$work/numeric.zx")" = 42
-for target in c cpp go; do
+for target in c go; do
     output=$work/$target
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main --no-main --root "$work" -o "$output" "$work/numeric.zi"
@@ -63,20 +63,9 @@ GO
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
         ${CC:-cc} -I"$repo/include" -I"$output" "$output/numeric.c" "$output/main.c" -lm -o "$output/app"
-    else
-        "$ziran" build --target=cpp --no-main --root "$work" -o "$output" "$work/numeric.zi"
-        cat > "$output/main.cpp" <<'CPP'
-#include "numeric.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-        ${CXX:-c++} -I"$repo/include" -I"$output" "$output/numeric.cpp" "$output/main.cpp" -lm -o "$output/app"
     fi
     "$output/app"
 done
-"$ziran" build --target=rust --exe --entry numeric:Answer --root "$work" -o "$work/rust" "$work/numeric.zi"
-CARGO_TARGET_DIR=$work/rust-target cargo build --quiet --manifest-path "$work/rust/Cargo.toml"
-status=0; "$work/rust-target/debug/ziran_generated" || status=$?
-test "$status" = 42
 "$ziran" build --target=py --exe --entry numeric:Answer --root "$work" -o "$work/app.py" "$work/numeric.zi"
 status=0; python3 "$work/app.py" || status=$?
 test "$status" = 42

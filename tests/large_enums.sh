@@ -29,16 +29,9 @@ for form in source saved; do
     if test "$form" = saved; then module=$work/ir/app.zir; root=$work/ir; fi
     "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zx" "$module"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c cpp go py rust; do
+    for target in c go py; do
         output=$work/$target-$form
-        if test "$target" = rust; then
-            if ! command -v cargo >/dev/null 2>&1; then continue; fi
-            "$ziran" build --target=rust --exe --entry app:Answer --root "$root" -o "$output" "$module"
-            CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet --manifest-path "$output/Cargo.toml"
-            status=0
-            "$work/rust-target/debug/ziran_generated" || status=$?
-            test "$status" = 42
-        elif test "$target" = py; then
+        if test "$target" = py; then
             "$ziran" build --target=py --exe --entry app:Answer --root "$root" -o "$output" "$module"
             status=0
             python3 "$output" || status=$?
@@ -47,11 +40,6 @@ for form in source saved; do
             "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$module"
             printf '%s\n' 'package main' 'func main() { if App_Answer() != 42 { panic("large enums") } }' > "$output/main.go"
             GO111MODULE=off go run "$output"/*.go
-        elif test "$target" = cpp; then
-            "$ziran" build --target=cpp --root "$root" -o "$output" "$module"
-            printf '%s\n' '#include "app.hpp"' 'int main() { return Answer() == 42 ? 0 : 1; }' > "$output/main.cpp"
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" "$output"/*.cpp -o "$output/app"
-            "$output/app"
         else
             "$ziran" build --target=c --exe --entry app:Answer --root "$root" -o "$output" "$module"
             status=0

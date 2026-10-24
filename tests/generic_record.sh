@@ -56,7 +56,7 @@ for input in "$work/app.zi" "$work/ir/app.zir"; do
         *.zi) suffix=source ; root=$work ;;
         *) suffix=saved ; root=$work/ir ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$target-$suffix"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
@@ -74,16 +74,6 @@ GO
 int main(void) { return Answer() == 42 ? 0 : 1; }
 C
             ${CC:-cc} -std=c11 -Iinclude -I"$out" "$out"/*.c \
-                -o "$out/app"
-            "$out/app"
-        else
-            "$ziran" build --target=cpp --root "$root" \
-                -o "$out" "$input"
-            cat > "$out/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-            ${CXX:-c++} -std=c++17 -Iinclude -I"$out" "$out"/*.cpp \
                 -o "$out/app"
             "$out/app"
         fi

@@ -33,7 +33,7 @@ for input in source saved; do
     "$ziran" bundle --root "$work" --entry character:Answer \
         -o "$work/$input.zx" "$source"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$input-$target"
         "$ziran" build "--target=$target" --root "$work" \
             -o "$output" "$source"
@@ -43,13 +43,6 @@ for input in source saved; do
                     > "$work/main.c"
                 "${CC:-cc}" -std=c11 -I"$repo/include" -I"$output" \
                     "$output/character.c" "$work/main.c" -o "$output/app"
-                "$output/app"
-                ;;
-            cpp)
-                printf '#include "character.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' \
-                    > "$work/main.cpp"
-                "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                    "$output/character.cpp" "$work/main.cpp" -o "$output/app"
                 "$output/app"
                 ;;
             go)

@@ -27,24 +27,15 @@ for definition in ANDROID ANDROID_BUILD; do
             root="$ir"
             modules="$ir"
         fi
-        for target in c cpp; do
-            output="$work/$definition/$form-$target"
-            "$ziran" build --define "$definition" --target="$target" --no-main \
-                --root "$root" --module-path "$modules" -o "$output" "$entry"
-            for triple in aarch64-linux-android24 armv7a-linux-androideabi24; do
-                if test "$target" = c; then
-                    "$bin/clang" --target="$triple" -std=c11 -fPIC -shared -Iinclude -I"$output" \
-                        tests/thread_completion_test.c "$output"/*.c -pthread \
-                        -Wl,--wrap=pthread_join -Wl,--wrap=pthread_mutex_lock -Wl,--no-undefined \
-                        -o "$output/$triple.so"
-                else
-                    "$bin/clang++" --target="$triple" -x c++ -std=c++17 -fPIC -shared -Iinclude -I"$output" \
-                        tests/thread_completion_test.c "$output"/*.cpp -pthread \
-                        -Wl,--wrap=pthread_join -Wl,--wrap=pthread_mutex_lock -Wl,--no-undefined \
-                        -o "$output/$triple.so"
-                fi
-                echo "PASS: $definition $form $target $triple thread cross-link"
-            done
+        output="$work/$definition/$form-c"
+        "$ziran" build --define "$definition" --target=c --no-main \
+            --root "$root" --module-path "$modules" -o "$output" "$entry"
+        for triple in aarch64-linux-android24 armv7a-linux-androideabi24; do
+            "$bin/clang" --target="$triple" -std=c11 -fPIC -shared -Iinclude -I"$output" \
+                tests/thread_completion_test.c "$output"/*.c -pthread \
+                -Wl,--wrap=pthread_join -Wl,--wrap=pthread_mutex_lock -Wl,--no-undefined \
+                -o "$output/$triple.so"
+            echo "PASS: $definition $form c $triple thread cross-link"
         done
     done
 done

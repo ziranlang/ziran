@@ -70,6 +70,6 @@ main :: () -> s32 {
     if !BytesMatch() { return 5 }
     if !ZeroArrayPreservesRecord() { return 6 }
     if !SignedMinimumLiteral() { return 7 }
-    print("plan9-wide-compare-test-ok\n")
+    print("wide-compare-test-ok\n")
     return 0
 }

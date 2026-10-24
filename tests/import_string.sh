@@ -50,16 +50,6 @@ C
         "$work/c-$input"/*.c -o "$work/c-app-$input"
     "$work/c-app-$input"
 
-    "$ziran" build --target=cpp --root "$root" \
-        -o "$work/cpp-$input" "$file"
-    cat > "$work/cpp-$input/test.cpp" <<'CPP'
-#include "main.hpp"
-int main() { return Result() == 42 ? 0 : 1; }
-CPP
-    ${CXX:-c++} -Iinclude -I"$work/cpp-$input" \
-        "$work/cpp-$input"/*.cpp -o "$work/cpp-app-$input"
-    "$work/cpp-app-$input"
-
     "$ziran" build --target=go --pkg main --root "$root" \
         -o "$work/go-$input" "$file"
     cat > "$work/go-$input/test.go" <<'GO'

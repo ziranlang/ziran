@@ -119,7 +119,7 @@ cmp "$work/source.zx" "$work/saved.zx"
 test "$("$ziran" run "$work/source.zx")" = 42
 test "$("$ziran" run "$work/saved.zx")" = 42
 
-for target in c cpp go; do
+for target in c go; do
     out="$work/$target"
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main --root "$work" \
@@ -142,8 +142,7 @@ EOF
     else
         "$ziran" build "--target=$target" --root "$work" \
             -o "$out" "$work/sizes.zi"
-        if test "$target" = c; then
-            cat > "$out/main.c" <<'EOF'
+        cat > "$out/main.c" <<'EOF'
 #include "sizes.h"
 _Static_assert(sizeof(Pair) == 16, "size_of disagrees with C record layout");
 _Static_assert(sizeof(String) == 16, "size_of disagrees with C string layout");
@@ -153,22 +152,8 @@ _Static_assert(sizeof(Concrete) == 4, "size_of disagrees with C generic layout")
 _Static_assert(sizeof(NestedBuffer) == 8, "size_of disagrees with C nested generic layout");
 int main(void) { return Answer() == 42 && NativeSliceSize() == 16 ? 0 : 1; }
 EOF
-            ${CC:-cc} -Iinclude -I"$out" "$out/sizes.c" \
-                "$out/main.c" -o "$out/app"
-        else
-            cat > "$out/main.cpp" <<'EOF'
-#include "sizes.hpp"
-static_assert(sizeof(Pair) == 16, "size_of disagrees with C++ record layout");
-static_assert(sizeof(String) == 16, "size_of disagrees with C++ string layout");
-static_assert(sizeof(Sample) == 24, "size_of disagrees with C++ string record layout");
-static_assert(sizeof(ComputedBuffer) == 16, "size_of disagrees with C++ array layout");
-static_assert(sizeof(Concrete) == 4, "size_of disagrees with C++ generic layout");
-static_assert(sizeof(NestedBuffer) == 8, "size_of disagrees with C++ nested generic layout");
-int main() { return Answer() == 42 && NativeSliceSize() == 16 ? 0 : 1; }
-EOF
-            ${CXX:-c++} -Iinclude -I"$out" "$out/sizes.cpp" \
-                "$out/main.cpp" -o "$out/app"
-        fi
+        ${CC:-cc} -Iinclude -I"$out" "$out/sizes.c" \
+            "$out/main.c" -o "$out/app"
         "$out/app"
     fi
 done
@@ -185,26 +170,15 @@ Callbacks :: struct {
 #program_export
 CallbacksSize :: () -> s32 { return cast(s32)size_of(Callbacks) }
 EOF
-for target in c cpp; do
-    out="$work/callbacks-$target"
-    "$ziran" build "--target=$target" --root "$work" -o "$out" "$work/callbacks.zi"
-    if test "$target" = c; then
-        cat > "$out/main.c" <<'EOF'
+out="$work/callbacks-c"
+"$ziran" build --target=c --root "$work" -o "$out" "$work/callbacks.zi"
+cat > "$out/main.c" <<'EOF'
 #include "callbacks.h"
 _Static_assert(sizeof(Callbacks) == 16, "size_of disagrees with C callback layout");
 int main(void) { return CallbacksSize() == 16 ? 0 : 1; }
 EOF
-        ${CC:-cc} -Iinclude -I"$out" "$out/callbacks.c" "$out/main.c" -o "$out/app"
-    else
-        cat > "$out/main.cpp" <<'EOF'
-#include "callbacks.hpp"
-static_assert(sizeof(Callbacks) == 16, "size_of disagrees with C++ callback layout");
-int main() { return CallbacksSize() == 16 ? 0 : 1; }
-EOF
-        ${CXX:-c++} -Iinclude -I"$out" "$out/callbacks.cpp" "$out/main.cpp" -o "$out/app"
-    fi
-    "$out/app"
-done
+${CC:-cc} -Iinclude -I"$out" "$out/callbacks.c" "$out/main.c" -o "$out/app"
+"$out/app"
 
 cat > "$work/old_sizeof.zi" <<'EOF'
 Answer :: () -> s32 { return sizeof(s32) }
@@ -306,7 +280,7 @@ for input in "$work/global_size.zi" "$work/global-ir/global_size.zir"; do
         *.zi) suffix=source ;;
         *) suffix=saved ;;
     esac
-    for target in c cpp go; do
+    for target in c go; do
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$work" \
                 -o "$work/global-$target-$suffix" "$input"

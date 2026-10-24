@@ -35,7 +35,7 @@ for input in source saved; do
     "$ziran" bundle --root "$work" --entry main:Answer \
         -o "$work/$input.zx" "$@"
     test "$("$ziran" run "$work/$input.zx")" = 126
-    for target in c cpp go; do
+    for target in c go; do
         "$ziran" build --target="$target" --root "$work" \
             -o "$work/$target-$input" "$@"
     done
@@ -49,16 +49,6 @@ C
         "$work/c-$input/main.c" "$work/c-$input/host.c" \
         -o "$work/c-$input/app"
     "$work/c-$input/app"
-
-    cat > "$work/cpp-$input/host.cpp" <<'CPP'
-#include "main.hpp"
-int main() { return Answer() == 126 ? 0 : 1; }
-CPP
-    "${CXX:-c++}" -std=c++17 -I"$repo/include" \
-        -I"$work/cpp-$input" "$work/cpp-$input/lib.cpp" \
-        "$work/cpp-$input/main.cpp" "$work/cpp-$input/host.cpp" \
-        -o "$work/cpp-$input/app"
-    "$work/cpp-$input/app"
 
     cat > "$work/go-$input/main_test.go" <<'GO'
 package ziran

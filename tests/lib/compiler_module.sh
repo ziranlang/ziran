@@ -29,25 +29,12 @@ for input in "$source" "$work/ir/$module.zir"; do
     "$ziran" build --target=c --exe --entry "$module:Run" --root "$repo/tests/spec" \
         --module-path "$repo/cmd" -o "$output/c" "$input"
     test "$("$output/c/$module")" = "$expected"
-    "$ziran" build --target=cpp --root "$repo/tests/spec" --module-path "$repo/cmd" \
-        -o "$output/cpp" "$input"
-    printf '#include "%s.hpp"\nint main() { %s_Run(); }\n' "$module" "$module" > "$output/cpp/run.cpp"
-    ${CXX:-c++} -std=c++17 -I"$repo/include" -I"$output/cpp" \
-        "$output/cpp/"*.cpp -o "$output/cpp/app"
-    test "$("$output/cpp/app")" = "$expected"
     "$ziran" build --target=go --exe --entry "$module:Run" --pkg main --root "$repo/tests/spec" \
         --module-path "$repo/cmd" -o "$output/go" "$input"
     test "$(GO111MODULE=off go run "$output/go/"*.go)" = "$expected"
     "$ziran" build --target=py --exe --entry "$module:Run" --root "$repo/tests/spec" \
         --module-path "$repo/cmd" -o "$output/py" "$input"
     test "$(python3 "$output/py")" = "$expected"
-    if command -v cargo >/dev/null 2>&1; then
-        "$ziran" build --target=rust --exe --entry "$module:Run" --root "$repo/tests/spec" \
-            --module-path "$repo/cmd" -o "$output/rust" "$input"
-        CARGO_TARGET_DIR="$work/rust-target" cargo build --quiet \
-            --manifest-path "$output/rust/Cargo.toml"
-        test "$("$work/rust-target/debug/ziran_generated")" = "$expected"
-    fi
 done
 
 # Both source and saved IR must regenerate the exact fresh-build seed.

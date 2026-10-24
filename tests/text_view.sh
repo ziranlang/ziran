@@ -45,17 +45,6 @@ C
     "$work/c"/*.c -o "$work/c/app"
 "$work/c/app"
 
-"$ziran" build --target=cpp --no-main --root "$work" \
-    --module-path "$repo/std" \
-    -o "$work/cpp" "$work/app.zi"
-cat > "$work/cpp/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Check(); }
-CPP
-"${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$work/cpp" \
-    "$work/cpp"/*.cpp -o "$work/cpp/app"
-"$work/cpp/app"
-
 "$ziran" build --target=go --pkg main --no-main --root "$work" \
     --module-path "$repo/std" \
     -o "$work/go" "$work/app.zi"

@@ -38,21 +38,15 @@ C
 for form in source saved; do
     source=$input; module_root=$repo/tests/spec
     if test "$form" = saved; then source=$work/ir/directory_entry_test.zir; module_root=$work/ir; fi
-    for target in c cpp; do
-        output=$work/$form-$target
-        "$ziran" build --target="$target" --root "$module_root" --entry directory_entry_test:main -o "$output" "$source"
-        if test "$target" = c; then
-            "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -I"$repo/include" "$output"/*.c "$work/fixture.o" -Wl,--wrap=readdir64 -o "$output/test"
-        else
-            "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror -I"$repo/include" "$output"/*.cpp "$work/fixture.o" -Wl,--wrap=readdir64 -o "$output/test"
-        fi
-        run=$work/run-$form-$target; mkdir -p "$run/entries/directory"
-        : > "$run/entries/ordinary"; : > "$run/entries/café 日本語.json"
-        ln -s ordinary "$run/entries/link"; ln -s missing "$run/entries/dangling"
-        mkfifo "$run/entries/fifo"
-        (cd "$run" && "$output/test")
-        printf '%s %s directory entry checks passed\n' "$form" "$target"
-    done
+    output=$work/$form-c
+    "$ziran" build --target=c --root "$module_root" --entry directory_entry_test:main -o "$output" "$source"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -I"$repo/include" "$output"/*.c "$work/fixture.o" -Wl,--wrap=readdir64 -o "$output/test"
+    run=$work/run-$form-c; mkdir -p "$run/entries/directory"
+    : > "$run/entries/ordinary"; : > "$run/entries/café 日本語.json"
+    ln -s ordinary "$run/entries/link"; ln -s missing "$run/entries/dangling"
+    mkfifo "$run/entries/fifo"
+    (cd "$run" && "$output/test")
+    printf '%s %s directory entry checks passed\n' "$form" c
 done
 "$ziran" build --target=c --define _WIN32 --root "$repo/tests/spec" -o "$work/windows" "$input"
 # Symbol declarations also carry an inactive Darwin spelling. Inspect the
@@ -77,19 +71,15 @@ JS
     for form in source saved; do
         source=$input; module_root=$repo/tests/spec
         if test "$form" = saved; then source=$work/web-ir/directory_entry_test.zir; module_root=$work/web-ir; fi
-        for target in c cpp; do
-            output=$work/web-$form-$target
-            "$ziran" build --target="$target" --define PLATFORM_WEB --root "$module_root" \
-                --entry directory_entry_test:main -o "$output" "$source"
-            extension=c
-            if test "$target" = cpp; then extension=cpp; fi
-            "$emcc" -std=c11 -Wall -Wextra -Werror -c "$work/fixture.c" -o "$work/web-fixture.o"
-            "$emcc" -I"$repo/include" "$output"/*."$extension" "$work/web-fixture.o" \
-                -Wl,--wrap=readdir --pre-js "$work/web-fixture.js" -sENVIRONMENT=node \
-                -sEXIT_RUNTIME=1 -o "$output/test.js"
-            node "$output/test.js"
-            printf '%s %s web directory entry checks passed\n' "$form" "$target"
-        done
+        output=$work/web-$form-c
+        "$ziran" build --target=c --define PLATFORM_WEB --root "$module_root" \
+            --entry directory_entry_test:main -o "$output" "$source"
+        "$emcc" -std=c11 -Wall -Wextra -Werror -c "$work/fixture.c" -o "$work/web-fixture.o"
+        "$emcc" -I"$repo/include" "$output"/*.c "$work/web-fixture.o" \
+            -Wl,--wrap=readdir --pre-js "$work/web-fixture.js" -sENVIRONMENT=node \
+            -sEXIT_RUNTIME=1 -o "$output/test.js"
+        node "$output/test.js"
+        printf '%s c web directory entry checks passed\n' "$form"
     done
 else
     printf 'Emscripten unavailable; web link and runtime checks skipped.\n'

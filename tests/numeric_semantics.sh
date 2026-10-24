@@ -151,7 +151,7 @@ manifest_ids = [case['id'] for case in manifest['cases']]
 assert ids == manifest_ids, (ids, manifest_ids)
 assert capability['ids'] == manifest_ids
 assert len(manifest_ids) == len(set(manifest_ids))
-assert manifest['targets'] == ['c', 'cpp', 'go', 'rust', 'py', 'zx']
+assert manifest['targets'] == ['c', 'go', 'py', 'zx']
 PY
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/numeric.zi"
@@ -192,7 +192,7 @@ for input in source saved; do
         root=$work/ir
         module=$work/ir/numeric.zir
     fi
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/$target-$input
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --no-main --root "$root" \
@@ -226,22 +226,6 @@ int main(int argc, char **argv) {
 C
             "${CC:-cc}" -std=c99 -I"$repo/include" -I"$output" \
                 "$output/numeric.c" "$output/main.c" -lm -o "$output/app"
-        else
-            "$ziran" build --target=cpp --no-main --root "$root" \
-                -o "$output" "$module"
-            cat > "$output/main.cpp" <<'CPP'
-#include "numeric.hpp"
-int main(int argc, char **argv) {
-    if (argc > 1) {
-        if (argv[1][0] == '8') return Bad8();
-        if (argv[1][0] == 'n') return BadNegative();
-        return Bad16();
-    }
-    return Answer() == 42 ? 0 : 1;
-}
-CPP
-            "${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$output" \
-                "$output/numeric.cpp" "$output/main.cpp" -lm -o "$output/app"
         fi
         "$output/app"
         for amount in 8 16 negative; do
@@ -252,26 +236,8 @@ CPP
         done
     done
 
-    # Rust builds one executable per entry: Answer returns 42 as its exit
+    # Python builds one program per entry: Answer returns 42 as its exit
     # status, and each bad shift must fail at run time.
-    for entry in Answer Bad8 Bad16 BadNegative; do
-        output=$work/rust-$input-$entry
-        "$ziran" build --target=rust --exe --entry "numeric:$entry" \
-            --root "$root" -o "$output" "$module"
-        CARGO_TARGET_DIR=$work/rust-target cargo build --quiet \
-            --manifest-path "$output/Cargo.toml"
-        cp "$work/rust-target/debug/ziran_generated" "$output/app"
-        if test "$entry" = Answer; then
-            status=0
-            "$output/app" || status=$?
-            test "$status" = 42
-        elif "$output/app" > "$output/bad.log" 2>&1; then
-            echo "rust accepted an oversized shift in $entry" >&2
-            exit 1
-        fi
-    done
-
-    # Python builds one program per entry the same way.
     for entry in Answer Bad8 Bad16 BadNegative; do
         output=$work/py-$input-$entry
         "$ziran" build --target=py --exe --entry "numeric:$entry" \

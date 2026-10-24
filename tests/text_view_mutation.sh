@@ -221,7 +221,7 @@ for name in direct field nested pointer_direct pointer_alias call_alias call_sec
         "$work/$name.err"
 done
 
-for target in c cpp go; do
+for target in c go; do
     if "$ziran" build "--target=$target" --root "$work" \
         -o "$work/direct-$target" "$work/direct.zi" \
         > "$work/direct-$target.out" 2> "$work/direct-$target.err"; then

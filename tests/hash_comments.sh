@@ -64,7 +64,7 @@ for scope in file type body bare; do
         fi
         rg -q 'unknown .*directive' "$work/$scope-$command.out"
     done
-    for target in c cpp go; do
+    for target in c go; do
         if "$ziran" build "--target=$target" --root "$work" \
             -o "$work/hash-$scope-$target" "$source" \
             > "$work/$scope-$target.out" 2>&1; then

@@ -20,7 +20,7 @@ jobs:
           go-version: '1.24'
       - name: Install ripgrep, MinGW, Wine, and the private display for the test scripts
         timeout-minutes: 5
-        run: sh scripts/ci_packages.sh ripgrep gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 wine wine64 xvfb xauth
+        run: sh scripts/ci_packages.sh ripgrep gcc-mingw-w64-x86-64 wine wine64 xvfb xauth
       - name: Build the toolchain
         run: make
       - name: Run the language, backend, and portable runtime checks

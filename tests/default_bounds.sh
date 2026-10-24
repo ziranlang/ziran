@@ -32,11 +32,7 @@ Unsigned :: (index: u64) -> s32 {
 ZI
 
 cat > "$work/main.c" <<'C'
-#ifdef __cplusplus
-#include "bounds.hpp"
-#else
 #include "bounds.h"
-#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,25 +64,18 @@ for input in source saved; do
         root=$work/ir
         module=$root/bounds.zir
     fi
-    for target in c cpp; do
-        output=$work/$input-$target
-        "$ziran" build --target="$target" --root "$root" \
-            -o "$output" "$module"
-        if test "$target" = c; then
-            compiler=${CC:-cc}
-            standard=c99
-            suffix=c
-        else
-            compiler=${CXX:-c++}
-            standard=c++17
-            suffix=cpp
-        fi
-        cp "$work/main.c" "$output/main.$suffix"
-        # Match release optimization and disabled assertions. There is no
-        # opt-in bounds flag: the language must guard these accesses itself.
-        "$compiler" -std="$standard" -O2 -DNDEBUG -I"$output" \
-            "$output"/*.$suffix -o "$output/program"
-        python3 - "$output/program" <<'PY'
+    output=$work/$input-c
+    "$ziran" build --target=c --root "$root" \
+        -o "$output" "$module"
+    compiler=${CC:-cc}
+    standard=c99
+    suffix=c
+    cp "$work/main.c" "$output/main.$suffix"
+    # Match release optimization and disabled assertions. There is no
+    # opt-in bounds flag: the language must guard these accesses itself.
+    "$compiler" -std="$standard" -O2 -DNDEBUG -I"$output" \
+        "$output"/*.$suffix -o "$output/program"
+    python3 - "$output/program" <<'PY'
 import signal
 import subprocess
 import sys
@@ -105,6 +94,5 @@ for function in ["read", "write", "text", "unsigned"]:
         assert result.returncode == -signal.SIGABRT, (function, index, result)
         assert "out of bounds" in result.stderr, (function, index, result.stderr)
 PY
-    done
 done
 echo 'default release bounds: fixed arrays, record writes, text and wide indices checked'

@@ -45,11 +45,11 @@ for form in source saved; do
     root=$work
     extension=zi
     if [ "$form" = saved ]; then root=$work/ir; extension=zir; fi
-    for target in c cpp go rust py zx plan9-c; do
+    for target in c go py zx; do
         "$ziran" check "--target=$target" --root "$root" "$root/plain.$extension"
         for fixture in go_api py_api go_type py_type c_api c_callback; do
             case "$fixture:$target" in
-                go_*:go|py_*:py|c_api:c|c_api:cpp|c_api:go|c_api:rust|c_api:py|c_api:plan9-c|c_callback:c|c_callback:cpp|c_callback:rust|c_callback:py|c_callback:plan9-c)
+                go_*:go|py_*:py|c_api:c|c_api:go|c_api:py|c_callback:c|c_callback:py)
                     "$ziran" check "--target=$target" --root "$root" "$root/$fixture.$extension"
                     continue ;;
             esac

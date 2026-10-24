@@ -19,15 +19,11 @@ for form in source saved; do
     fi
     "$ziran" bundle --root "$root" --entry "$entry" -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 0
-    for target in c cpp go; do
+    for target in c go; do
         output=$work/$form-$target
         if test "$target" = c; then
             "$ziran" build --target=c --root "$root" --entry "$entry" --exe -o "$output" "$input"
             "$output/vm_u64_enums_test"
-        elif test "$target" = cpp; then
-            "$ziran" build --target=cpp --root "$root" --entry "$entry" -o "$output" "$input"
-            "${CXX:-c++}" -std=c++17 -O1 -I"$repo/include" -I"$output" "$output"/*.cpp -o "$output/run"
-            "$output/run"
         else
             "$ziran" build --target=go --pkg main --root "$root" --entry "$entry" --exe -o "$output" "$input"
             env GO111MODULE=off go run "$output"/*.go

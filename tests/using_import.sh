@@ -48,7 +48,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 35
-    for target in c cpp go; do
+    for target in c go; do
         output="$work/$target-$input"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --entry app:Answer \
@@ -67,17 +67,6 @@ int main(void) { return Answer() == 35 ? 0 : 1; }
 C
             "${CC:-cc}" -std=c99 -pedantic-errors \
                 -I"$repo/include" -I"$output" "$output"/*.c \
-                -o "$output/app"
-            "$output/app"
-        else
-            "$ziran" build --target=cpp --entry app:Answer --root "$root" \
-                -o "$output" "$module"
-            cat > "$output/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 35 ? 0 : 1; }
-CPP
-            "${CXX:-c++}" -std=c++17 \
-                -I"$repo/include" -I"$output" "$output"/*.cpp \
                 -o "$output/app"
             "$output/app"
         fi
@@ -139,12 +128,3 @@ C
 "${CC:-cc}" -std=c99 -pedantic-errors -I"$repo/include" -I"$work/caller-c" \
     "$work/caller-c"/*.c -o "$work/caller-c/app"
 "$work/caller-c/app"
-"$ziran" build --target=cpp --entry caller:Answer --root "$work" \
-    -o "$work/caller-cpp" "$work/caller.zi"
-cat > "$work/caller-cpp/main.cpp" <<'CPP'
-#include "caller.hpp"
-int main() { return Answer() == 9 ? 0 : 1; }
-CPP
-"${CXX:-c++}" -std=c++17 -I"$repo/include" -I"$work/caller-cpp" \
-    "$work/caller-cpp"/*.cpp -o "$work/caller-cpp/app"
-"$work/caller-cpp/app"

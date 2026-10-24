@@ -24,13 +24,10 @@ PrepareNativeNames(ZirProgram **programs, int count)
                     !strncmp(type->name, "zir_file_type_", 14);
                 if(type->is_record_template ||
                    (type->is_extern && !type->foreign_target[0])) continue;
-                for(int target = ZIR_C; target <= ZIR_GO; target++) {
-                    char mapped[ZIR_NAME_MAX * 2];
-                    TargetBindingName(NULL, (ZirTarget)target, type->name,
-                                      mapped, sizeof(mapped));
-                    if(strcmp(mapped, type->name))
-                        type->native_name_mangled = 1;
-                }
+                char mapped[ZIR_NAME_MAX * 2];
+                TargetBindingName(NULL, ZIR_GO, type->name, mapped, sizeof(mapped));
+                if(NativeHeaderKeyword(type->name) || strcmp(mapped, type->name))
+                    type->native_name_mangled = 1;
             }
         }
     if(!MarkNativeNameCollisions(programs, count)) {
@@ -84,7 +81,7 @@ TargetType(const char *type, ZirTarget target)
     if(!strcmp(type, "integer")) type = "s64";
     else if(!strcmp(type, "real")) type = "float64";
     else if(*scalar) type = scalar;
-    if(SliceElementType(type, NULL, 0) && (target == ZIR_C || target == ZIR_CPP))
+    if(SliceElementType(type, NULL, 0) && target == ZIR_C)
         return "Slice";
     for(int i = 0; map[i].type; i++)
         if(!strcmp(type, map[i].type)) return target == ZIR_GO ? map[i].go : map[i].c;

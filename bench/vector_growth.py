@@ -234,7 +234,7 @@ print(total)
 
 
 def main():
-    required = [BIN / name for name in ['zi2zir', 'zi2c', 'zi2cpp', 'zi2go', 'zi2zx']]
+    required = [BIN / name for name in ['zi2zir', 'zi2c', 'zi2go', 'zi2zx']]
     missing = [str(path) for path in required if not path.is_file()]
     missing += [name for name in ['gcc', 'g++', 'go'] if not shutil.which(name)]
     if missing:
@@ -272,7 +272,6 @@ def main():
     equality = {}
     for target, extension, tool, compiler, standard in [
         ('c', 'c', 'zi2c', 'gcc', '-std=c99'),
-        ('cpp', 'cpp', 'zi2cpp', 'g++', '-std=c++17'),
         ('go', 'go', 'zi2go', 'go', None),
     ]:
         generated = {}
@@ -294,8 +293,7 @@ def main():
                          *sorted(output.glob('*.go'))]
             else:
                 wrapper = output / f'main.{extension}'
-                header = 'collection.h' if target == 'c' else 'collection.hpp'
-                wrapper.write_text(f'#include "{header}"\n#include <stdio.h>\n#include <stdlib.h>\n'
+                wrapper.write_text('#include "collection.h"\n#include <stdio.h>\n#include <stdlib.h>\n'
                                    'int main(int argc,char **argv){if(argc!=2)return 2;'
                                    'printf("%lld\\n",(long long)Kernel((int32_t)strtol(argv[1],0,10)));'
                                    'return 0;}\n')
@@ -368,7 +366,7 @@ def main():
     meta['fixture_hashes'] = {str(p.relative_to(OUT)): hashlib.sha256(p.read_bytes()).hexdigest()
                               for p in FIX.iterdir() if p.is_file()}
     products = [OUT / f'{kind}.zx' for kind in ['source', 'saved']]
-    for target, extension in [('c', 'c'), ('cpp', 'cpp'), ('go', 'go')]:
+    for target, extension in [('c', 'c'), ('go', 'go')]:
         for kind in ['source', 'saved']:
             directory = OUT / f'{target}-{kind}'
             products.extend(directory.glob(f'*.{extension}'))

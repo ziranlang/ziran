@@ -5,11 +5,6 @@ ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
-command -v cargo >/dev/null 2>&1 || {
-    echo 'cargo is required to test Rust print output' >&2
-    exit 1
-}
-
 cat > "$work/greet.zi" <<'EOF'
 Twice :: (value: s32) -> s32 {
     print("[twice %]", value);
@@ -52,14 +47,6 @@ EOF
 "$ziran" check --root "$work" "$work/greet.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/greet.zi"
 
-# Plan 9 C builds with plan9port when it is installed, else a host libc shim.
-plan9=${PLAN9:-}
-if test -z "$plan9"; then
-    for candidate in "$HOME/Projects/plan9port" /usr/local/plan9 /usr/lib/plan9; do
-        if test -x "$candidate/bin/9c"; then plan9=$candidate; break; fi
-    done
-fi
-
 for input in "$work/greet.zi" "$work/ir/greet.zir"; do
     case "$input" in
         *.zi) suffix=source ;;
@@ -70,7 +57,7 @@ for input in "$work/greet.zi" "$work/ir/greet.zir"; do
     "$ziran" run "$work/$suffix.zx" > "$work/$suffix.zx.out"
     printf '0\n' | cat "$work/expected" - | cmp - "$work/$suffix.zx.out"
 
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$suffix-$target"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$work" \
@@ -82,165 +69,22 @@ EOF
             GO111MODULE=off go run "$out"/*.go > "$out.out"
         else
             "$ziran" build "--target=$target" --root "$work" -o "$out" "$input"
-            if test "$target" = c; then
-                cat > "$out/main.c" <<'EOF'
+            cat > "$out/main.c" <<'EOF'
 #include "greet.h"
 int main(void) { return Greet(); }
 EOF
-                "${CC:-cc}" -std=c99 -pedantic-errors -Iinclude -I"$out" \
-                    "$out/greet.c" "$out/main.c" -o "$out/program"
-            else
-                cat > "$out/main.cpp" <<'EOF'
-#include "greet.hpp"
-int main() { return Greet(); }
-EOF
-                "${CXX:-c++}" -std=c++17 -Iinclude -I"$out" \
-                    "$out/greet.cpp" "$out/main.cpp" -o "$out/program"
-            fi
+            "${CC:-cc}" -std=c99 -pedantic-errors -Iinclude -I"$out" \
+                "$out/greet.c" "$out/main.c" -o "$out/program"
             "$out/program" > "$out.out"
         fi
         cmp "$work/expected" "$out.out"
     done
-
-    rust_out="$work/$suffix-rust"
-    "$ziran" build --target=rust --exe --entry greet:Greet \
-        --root "$work" -o "$rust_out" "$input"
-    cargo build --quiet --manifest-path "$rust_out/Cargo.toml"
-    "$rust_out/target/debug/ziran_generated" > "$rust_out.out"
-    cmp "$work/expected" "$rust_out.out"
 
     py_out="$work/$suffix-py"
     "$ziran" build --target=py --exe --entry greet:Greet \
         --root "$work" -o "$py_out" "$input"
     python3 "$py_out" > "$py_out.out"
     cmp "$work/expected" "$py_out.out"
-
-    # Plan 9 C: plan9port when installed, else the host through a libc shim.
-    plan9_out="$work/$suffix-plan9"
-    "$ziran" build --target=plan9-c --root "$work" -o "$plan9_out" "$input"
-    if grep -n '#include <std' "$plan9_out"/*.c "$plan9_out"/*.h; then
-        echo 'plan9-c print output retained hosted C headers' >&2
-        exit 1
-    fi
-    if test -n "$plan9" && test -x "$plan9/bin/9c"; then
-        # plan9port compiles against the real Plan 9 u.h and libc.h.
-        cat > "$plan9_out/driver.c" <<'EOF'
-#include <u.h>
-#include <libc.h>
-#include "greet.h"
-void main(int argc, char **argv) { USED(argc); USED(argv); Greet(); exits(nil); }
-EOF
-        (cd "$plan9_out" &&
-            PLAN9=$plan9 "$plan9/bin/9c" -I. greet.c driver.c 2> 9c.log &&
-            PLAN9=$plan9 "$plan9/bin/9l" -o program greet.o driver.o) ||
-            { cat "$plan9_out/9c.log" >&2; exit 1; }
-        "$plan9_out/program" > "$plan9_out.out"
-    else
-        mkdir -p "$work/plan9-include"
-        cat > "$work/plan9-include/u.h" <<'EOF'
-typedef unsigned char uchar;
-typedef unsigned short ushort;
-typedef unsigned int uint;
-typedef long long vlong;
-typedef unsigned long long uvlong;
-typedef unsigned long usize;
-EOF
-        cat > "$work/plan9-include/libc.h" <<'EOF'
-extern void *realloc(void *, unsigned long);
-extern void free(void *);
-extern void *memmove(void *, const void *, unsigned long);
-extern void *memcpy(void *, const void *, unsigned long);
-extern void *memset(void *, int, unsigned long);
-extern int memcmp(const void *, const void *, unsigned long);
-extern int fprint(int, const char *, ...);
-extern int print(const char *, ...);
-extern int snprint(char *, int, const char *, ...);
-extern long write(int, const void *, long);
-extern double strtod(const char *, char **);
-extern double frexp(double, int *);
-extern double ldexp(double, int);
-extern int atoi(const char *);
-extern int isNaN(double);
-extern int isInf(double, int);
-extern void exits(const char *);
-extern void abort(void);
-EOF
-        cat > "$work/plan9-shim.c" <<'EOF'
-#include <math.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-/* Plan 9 marks unsigned with a u flag before the verb (%llud, %ud); C
- * spells the verb u, so drop the d after it. */
-static const char *plan9_format(const char *format, char *out, size_t size) {
-    size_t used = 0;
-    int spec = 0;
-    for(const char *p = format; *p && used + 1 < size; p++) {
-        if(!spec) {
-            spec = *p == '%';
-        } else if(p[0] == 'u' && p[1] == 'd') {
-            out[used++] = 'u';
-            p++;
-            spec = 0;
-            continue;
-        } else if((*p >= 'a' && *p <= 'z' && *p != 'l' && *p != 'h' && *p != 'u') ||
-                  (*p >= 'A' && *p <= 'Z') || *p == '%') {
-            spec = 0;
-        }
-        out[used++] = *p;
-    }
-    out[used] = 0;
-    return out;
-}
-int fprint(int fd, const char *format, ...) {
-    char buffer[512];
-    va_list arguments;
-    int length;
-    char translated[512];
-    va_start(arguments, format);
-    length = vsnprintf(buffer, sizeof(buffer), plan9_format(format, translated, sizeof(translated)), arguments);
-    va_end(arguments);
-    return (int)write(fd, buffer, (size_t)length);
-}
-int print(const char *format, ...) {
-    char buffer[512];
-    va_list arguments;
-    int length;
-    char translated[512];
-    va_start(arguments, format);
-    length = vsnprintf(buffer, sizeof(buffer), plan9_format(format, translated, sizeof(translated)), arguments);
-    va_end(arguments);
-    return (int)write(1, buffer, (size_t)length);
-}
-int snprint(char *buffer, int size, const char *format, ...) {
-    va_list arguments;
-    int length;
-    char translated[512];
-    va_start(arguments, format);
-    length = vsnprintf(buffer, (size_t)size, plan9_format(format, translated, sizeof(translated)), arguments);
-    va_end(arguments);
-    return length;
-}
-int isNaN(double value) { return isnan(value); }
-int isInf(double value, int sign) {
-    return sign == 0 ? isinf(value) != 0 :
-        sign > 0 ? value == INFINITY : value == -INFINITY;
-}
-void exits(const char *status) { exit(status == NULL || *status == 0 ? 0 : 1); }
-EOF
-        cat > "$plan9_out/driver.c" <<'EOF'
-#include <u.h>
-#include <libc.h>
-#include "greet.h"
-int main(void) { return Greet(); }
-EOF
-        "${CC:-cc}" -std=c11 -I"$work/plan9-include" -I"$plan9_out" \
-            "$plan9_out/greet.c" "$plan9_out/driver.c" "$work/plan9-shim.c" \
-            -lm -o "$plan9_out/program"
-        "$plan9_out/program" > "$plan9_out.out"
-    fi
-    cmp "$work/expected" "$plan9_out.out"
 done
 
 # The classic program: no return value, so `ziran run` prints only the text.
@@ -252,26 +96,6 @@ EOF
 "$ziran" bundle --root "$work" --entry hello:main -o "$work/hello.zx" \
     "$work/hello.zi"
 test "$("$ziran" run "$work/hello.zx")" = "Hello, World!"
-
-# A whole Plan 9 program: the generated main wrapper must survive the print
-# helpers' guard, and its status becomes the exit status.
-if test -n "$plan9" && test -x "$plan9/bin/9c"; then
-    mkdir -p "$work/plan9-program"
-    cat > "$work/plan9-program/hello.zi" <<'EOF'
-#program_export
-main :: () -> s32 {
-    print("Hello, %!\n", "Plan 9");
-    return 0;
-}
-EOF
-    "$ziran" build --target=plan9-c --root "$work/plan9-program" \
-        -o "$work/plan9-program/out" "$work/plan9-program/hello.zi"
-    (cd "$work/plan9-program/out" &&
-        PLAN9=$plan9 "$plan9/bin/9c" -I. hello.c 2> 9c.log &&
-        PLAN9=$plan9 "$plan9/bin/9l" -o hello hello.o) ||
-        { cat "$work/plan9-program/out/9c.log" >&2; exit 1; }
-    test "$("$work/plan9-program/out/hello")" = "Hello, Plan 9!"
-fi
 
 reject() {
     name=$1

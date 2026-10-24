@@ -12,7 +12,5 @@ source = 'long_text: string = "%s";\n\nAnswer :: () -> s64 { return long_text.co
 Path(sys.argv[1]).write_text(source)
 PY
 
-for target in c cpp; do
-    "$ziran" build "--target=$target" --root "$work" \
-        -o "$work/$target" "$work/global_string.zi"
-done
+"$ziran" build --target=c --root "$work" \
+    -o "$work/c" "$work/global_string.zi"

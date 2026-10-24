@@ -86,24 +86,11 @@ for input in "$work/app.zi" "$work/ir/app.zir"; do
     "${CC:-cc}" -std=c11 -I"$out/c" "$out"/c/*.c -o "$out/c/program"
     "$out/c/program" > "$out/c.out"
 
-    "$ziran" build --target=cpp --root "$root" -o "$out/cpp" "$input"
-    printf '#include "app.hpp"\nint main() { app_main(); return 0; }\n' > "$out/cpp/run.cpp"
-    "${CXX:-c++}" -std=c++17 -I"$out/cpp" "$out"/cpp/*.cpp -o "$out/cpp/program"
-    "$out/cpp/program" > "$out/cpp.out"
-
     "$ziran" build --target=go --pkg main --exe --entry app:main --root "$root" \
         -o "$out/go" "$input"
     (cd "$out/go" && GO111MODULE=off go run .) > "$out/go.out"
 
-    targets="c cpp go"
-    if command -v cargo >/dev/null 2>&1; then
-        "$ziran" build --target=rust --exe --entry app:main --root "$root" \
-            -o "$out/rust" "$input"
-        CARGO_TARGET_DIR=$work/rust-target cargo build --quiet \
-            --manifest-path "$out/rust/Cargo.toml"
-        "$work/rust-target/debug/ziran_generated" > "$out/rust.out"
-        targets="$targets rust"
-    fi
+    targets="c go"
 
     "$ziran" build --target=py --exe --entry app:main --root "$root" \
         -o "$out/py" "$input"

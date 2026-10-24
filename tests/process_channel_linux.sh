@@ -103,10 +103,4 @@ for form in source saved; do
     "$ziran" build --target=c --root "$source_root" --module-path "$modules" \
         --entry channel_test:Main --exe -o "$work/$form-c" "$input"
     "$work/$form-c/channel_test"
-    "$ziran" build --target=cpp --no-main --root "$source_root" --module-path "$modules" \
-        -o "$work/$form-cpp" "$input"
-    printf '#include "channel_test.hpp"\nint main() { return Main(); }\n' > "$work/$form-cpp/main.cpp"
-    "${CXX:-c++}" -std=c++17 -O2 -I"$root/include" -I"$work/$form-cpp" \
-        "$work/$form-cpp"/*.cpp -lm -o "$work/$form-cpp/channel_test"
-    "$work/$form-cpp/channel_test"
 done

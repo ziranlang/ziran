@@ -45,14 +45,6 @@ for input in source saved; do
     output="$work/c-$input"
     "$ziran" build --target=c --exe --entry app:Answer --root "$root" -o "$output" "$module"
     test "$("$output/app" || true)" = "$expected"
-    output="$work/cpp-$input"
-    "$ziran" build --target=cpp --root "$root" -o "$output" "$module"
-    cat > "$output/main.cpp" <<'CPP'
-#include "app.hpp"
-int main() { return Answer() == 42 ? 0 : 1; }
-CPP
-    "${CXX:-c++}" -I"$repo/include" -I"$output" "$output"/*.cpp -o "$output/app"
-    test "$("$output/app")" = "$expected"
     output="$work/go-$input"
     "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$module"
     cat > "$output/main.go" <<'GO'

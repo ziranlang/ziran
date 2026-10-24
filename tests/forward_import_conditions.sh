@@ -39,7 +39,7 @@ for input in "$work/forward_import.zi" "$work/ir/forward_import.zir"; do
     "$ziran" bundle --root "$root" --entry forward_import:Answer \
         -o "$work/$label.zx" "$input"
     test "$("$ziran" run "$work/$label.zx")" = 42
-    for target in c cpp go; do
+    for target in c go; do
         out="$work/$label-$target"
         "$ziran" build "--target=$target" --root "$root" -o "$out" "$input"
         case "$target" in
@@ -47,12 +47,6 @@ for input in "$work/forward_import.zi" "$work/ir/forward_import.zir"; do
                 printf '#include "forward_import.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$work/main.c"
                 ${CC:-cc} -Iinclude -I"$out" "$out"/*.c \
                     "$work/main.c" -o "$out/app"
-                "$out/app"
-                ;;
-            cpp)
-                printf '#include "forward_import.hpp"\nint main() { return Answer() == 42 ? 0 : 1; }\n' > "$work/main.cpp"
-                ${CXX:-c++} -Iinclude -I"$out" "$out"/*.cpp \
-                    "$work/main.cpp" -o "$out/app"
                 "$out/app"
                 ;;
             go)

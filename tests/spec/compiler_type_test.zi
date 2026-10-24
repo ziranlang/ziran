@@ -111,7 +111,7 @@ Names :: () -> bool {
 }
 
 Targets :: () -> bool {
-    targets: [7]string = .{"c", "cpp", "go", "rust", "py", "zx", "plan9-c"}
+    targets: [4]string = .{"c", "go", "py", "zx"}
     for target: targets {
         if !Types.TargetKnown(target) || !Types.ForeignImportSupported(target, "host") ||
         Types.ForeignImportSupported(target, "c") != (target != "zx") ||
@@ -126,6 +126,7 @@ Targets :: () -> bool {
        Types.ScalarByteWidth("u64") != 8 || Types.ScalarByteWidth("string") != 0 ||
        Types.ScalarByteWidth("[2]s8") != 0 { return false }
     return !Types.TargetKnown("") && !Types.TargetKnown("gpu") &&
+        !Types.TargetKnown("cpp") && !Types.TargetKnown("rust") && !Types.TargetKnown("plan9-c") &&
         !Types.ForeignImportSupported("gpu", "host") &&
         !Types.ProcedureTypeSupported("gpu", false) &&
         Types.ForeignTypeTarget("", false) == "" &&

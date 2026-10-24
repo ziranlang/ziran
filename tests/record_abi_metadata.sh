@@ -28,8 +28,6 @@ test -s "$work/ir/record_abi.zir"
 
 "$ziran" build --target=c --root "$work/src" -o "$work/c" \
     "$work/src/record_abi.zi"
-"$ziran" build --target=cpp --root "$work/src" -o "$work/cpp" \
-    "$work/src/record_abi.zi"
 "$ziran" build --target=c --root "$work/ir" -o "$work/c-from-ir" \
     "$work/ir/record_abi.zir"
 cmp "$work/c/record_abi.h" "$work/c-from-ir/record_abi.h"
@@ -53,31 +51,6 @@ cat > "$work/c/main.c" <<'EOF'
 #include "record_abi.h"
 int main(void) { return ReadForeignRecord() == 42 ? 0 : 1; }
 EOF
-cat > "$work/cpp/main.cpp" <<'EOF'
-#include "record_abi.hpp"
-int main() { return ReadForeignRecord() == 42 ? 0 : 1; }
-EOF
 "${CC:-cc}" -std=c11 -I"$repo/include" -I"$work/c" \
     "$work/c/record_abi.c" "$work/c/main.c" -o "$work/c/runner"
 "$work/c/runner"
-"${CXX:-c++}" -std=c++11 -I"$repo/include" -I"$work/cpp" \
-    "$work/cpp/record_abi.cpp" \
-    "$work/cpp/main.cpp" -o "$work/cpp/runner"
-"$work/cpp/runner"
-
-"$ziran" build --target=plan9-c --root "$work/src" \
-    -o "$work/plan9" "$work/src/record_abi.zi"
-rg -q '^#pragma incomplete ForeignRecord$' "$work/plan9/record_abi.h"
-if rg -q '#pragma ziran abi_incomplete' "$work/plan9"/*; then
-    echo 'plan9-c retained generic ABI metadata' >&2
-    exit 1
-fi
-awk '
-    /^typedef struct ForeignRecord ForeignRecord;$/ { forward = 1 }
-    /^#pragma incomplete ForeignRecord$/ {
-        marker = 1
-        if(!forward) exit 1
-    }
-    /^struct ForeignRecord \{$/ { if(!marker) exit 1; found = 1 }
-    END { exit found ? 0 : 1 }
-' "$work/plan9/record_abi.h"

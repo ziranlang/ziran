@@ -16,7 +16,6 @@ typedef struct CommandOption {
     int *count;
     int capacity;
     int (*valid)(const char *);
-    void (*consume)(const char *);
 } CommandOption;
 
 #define COMMAND_TEXT(name_, value_) {name_, .value = &(value_)}
@@ -24,7 +23,6 @@ typedef struct CommandOption {
 #define COMMAND_LIST(name_, values_, count_, capacity_, valid_) \
     {name_, .value = (values_), .count = &(count_), \
      .capacity = (capacity_), .valid = (valid_)}
-#define COMMAND_CALLBACK(name_, consume_) {name_, .consume = (consume_)}
 
 /* Return the first input index, zero if there is none, or -1 for a usage
  * error. Stop at the first input: subsequent words are filenames. */
@@ -53,8 +51,7 @@ ReadCommandOptions(int argc, char *const *argv, const CommandOption *options,
            (item->valid != NULL && !item->valid(argv[index + 1])))
             return -1;
         const char *value = argv[++index];
-        if(item->consume != NULL) item->consume(value);
-        else if(item->count != NULL) item->value[(*item->count)++] = value;
+        if(item->count != NULL) item->value[(*item->count)++] = value;
         else *item->value = value;
     }
     return 0;

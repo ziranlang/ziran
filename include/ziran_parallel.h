@@ -1,8 +1,8 @@
 #ifndef ZIRAN_PARALLEL_H
 #define ZIRAN_PARALLEL_H
 
-/* Threaded execution for checked `#parallel for` regions on native C/C++
- * targets. Generated code includes this header only when it emits a
+/* Threaded execution for checked `#parallel for` regions on the native C
+ * target. Generated code includes this header only when it emits a
  * parallel worker; such translation units must compile and link with
  * -pthread. Iterations run in contiguous chunks with no shared mutable
  * state: the checker admits only pure or observing callees and

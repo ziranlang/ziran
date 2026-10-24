@@ -32,15 +32,6 @@ EOF
 "${CC:-cc}" -std=c99 -Iinclude -I"$work/c" "$work/c/order.c" "$work/c/main.c" -o "$work/c/program"
 test "$("$work/c/program")" = "$expected"
 
-"$ziran" build --target=cpp --root "$work" -o "$work/cpp" "$work/order.zi"
-cat > "$work/cpp/main.cpp" <<'EOF'
-#include <cstdio>
-#include "order.hpp"
-int main() { std::printf("%d\n", (int)Order()); return 0; }
-EOF
-"${CXX:-c++}" -std=c++17 -Iinclude -I"$work/cpp" "$work/cpp/order.cpp" "$work/cpp/main.cpp" -o "$work/cpp/program"
-test "$("$work/cpp/program")" = "$expected"
-
 "$ziran" build --target=go --pkg main --root "$work" -o "$work/go" "$work/order.zi"
 cat > "$work/go/main.go" <<'EOF'
 package main
@@ -49,7 +40,3 @@ func main() { fmt.Println(Order_Order()) }
 EOF
 test "$(GO111MODULE=off go run "$work"/go/*.go)" = "$expected"
 
-"$ziran" build --target=rust --exe --entry order:Order --root "$work" -o "$work/rust" "$work/order.zi"
-cargo build --quiet --manifest-path "$work/rust/Cargo.toml"
-"$work/rust/target/debug/ziran_generated" && status=0 || status=$?
-test "$status" = $((expected % 256))

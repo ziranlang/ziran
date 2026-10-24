@@ -214,6 +214,44 @@ FunctionDefaultArgs(const ZirFunction *fn)
     return fn->default_args_text ? fn->default_args_text : "";
 }
 
+/* Every expression of one tree, depth first. PENDING must have room for
+ * every expression of the function, since each is pushed at most once. */
+typedef struct ZirExprWalk {
+    const ZirFunction *fn;
+    int *pending;
+    int count;
+} ZirExprWalk;
+
+static inline void
+ExprWalkPush(ZirExprWalk *walk, int index)
+{
+    if(index >= 0 && index < walk->fn->expr_count && walk->count < walk->fn->expr_count)
+        walk->pending[walk->count++] = index;
+}
+
+static inline int
+ExprWalkNext(ZirExprWalk *walk)
+{
+    if(walk->count == 0)
+        return -1;
+    int index = walk->pending[--walk->count];
+    const ZirExpr *expr = &walk->fn->exprs[index];
+    ExprWalkPush(walk, expr->next_sibling);
+    ExprWalkPush(walk, expr->third);
+    ExprWalkPush(walk, expr->right);
+    ExprWalkPush(walk, expr->left);
+    ExprWalkPush(walk, expr->first_child);
+    return index;
+}
+
+static inline int
+ExprWalkFirst(ZirExprWalk *walk, int root)
+{
+    walk->count = 0;
+    ExprWalkPush(walk, root);
+    return ExprWalkNext(walk);
+}
+
 typedef struct ZirGlobal {
     char name[ZIR_NAME_MAX];
     char type[ZIR_TEXT_MAX];

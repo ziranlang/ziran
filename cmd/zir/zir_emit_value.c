@@ -265,7 +265,10 @@ resolve(Emitter *e, const char *name, char *out, size_t size)
 {
     for(int i = e->local_count - 1; i >= 0; i--)
         if(!strcmp(e->locals[i].name, name)) {
-            TargetBindingName(e->fn, e->target, name, out, size);
+            if(e->locals[i].alias[0])
+                copy_text(out, size, e->locals[i].alias);
+            else
+                TargetBindingName(e->fn, e->target, name, out, size);
             return;
         }
     e->resolve(e->context, name, out, size);

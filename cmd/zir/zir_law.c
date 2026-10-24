@@ -1268,6 +1268,101 @@ region_declares(const ZirFunction *fn, int begin, int end, const char *name)
     return 0;
 }
 
+/* A write to one slot of an array, A[it] with any field or index after it,
+ * where it is the region's loop binding: the array A, or NULL. */
+static const char *
+slot_write_array(const ZirFunction *fn, int index, const char *binder)
+{
+    while(index >= 0 && index < fn->expr_count) {
+        const ZirExpr *expr = &fn->exprs[index];
+        if(expr->kind == ZIR_EXPR_MEMBER) {
+            index = expr->left;
+            continue;
+        }
+        if(expr->kind != ZIR_EXPR_INDEX || expr->left < 0 || expr->left >= fn->expr_count)
+            return NULL;
+        const ZirExpr *base = &fn->exprs[expr->left];
+        if(base->kind != ZIR_EXPR_IDENT) {
+            index = expr->left;
+            continue;
+        }
+        const ZirExpr *slot = expr->right >= 0 && expr->right < fn->expr_count ?
+                              &fn->exprs[expr->right] : NULL;
+        return slot != NULL && slot->kind == ZIR_EXPR_IDENT &&
+               strcmp(slot->name, binder) == 0 ? base->name : NULL;
+    }
+    return NULL;
+}
+
+/* Whether NAME is a fixed array the function owns, declared before
+ * statement BEFORE or as a parameter; globals are shared with callees. */
+static int
+owned_array(const ZirFunction *fn, int before, const char *name)
+{
+    for(int s = before - 1; s >= 0; s--)
+        if(stmt_declares_name(&fn->stmts[s], name))
+            return fn->stmts[s].type != NULL && ArrayValueType(fn->stmts[s].type);
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    for(int p = 0; p < parameters->count; p++)
+        if(parameters->items[p].binding_name != NULL &&
+           strcmp(parameters->items[p].binding_name, name) == 0)
+            return parameters->items[p].value_type != NULL &&
+                   ArrayValueType(parameters->items[p].value_type);
+    return 0;
+}
+
+/* Slot writes are disjoint only while every iteration keeps its own loop
+ * binding and touches the array at that slot alone. */
+static int
+check_slot_writes(const ZirFunction *fn, int while_index, int close,
+                  const char *binder, const char *const *arrays, int array_count,
+                  ZirExprWalk walk)
+{
+    for(int s = while_index + 2; s < close; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        char name[ZIR_NAME_MAX];
+        int through_pointer = 0;
+        if(stmt_declares_name(st, binder) ||
+           (st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 &&
+            destination_identifier(fn, st->lhs_root, name, sizeof(name), &through_pointer) &&
+            strcmp(name, binder) == 0)) {
+            Diagnostic(st->span, "parallel.memory",
+                       "#parallel slot writes need the loop binding unchanged: %s", binder);
+            return 0;
+        }
+    }
+    for(int a = 0; a < array_count; a++) {
+        int uses = 0, slots = 0;
+        const ZirStmt *seen = NULL;
+        for(int s = while_index + 1; s < close; s++) {
+            const ZirStmt *st = &fn->stmts[s];
+            int roots[2] = {st->expr_root, st->lhs_root};
+            for(int r = 0; r < 2; r++)
+                for(int e = ExprWalkFirst(&walk, roots[r]); e >= 0; e = ExprWalkNext(&walk)) {
+                    const ZirExpr *expr = &fn->exprs[e];
+                    if(expr->kind == ZIR_EXPR_IDENT && strcmp(expr->name, arrays[a]) == 0) {
+                        uses++;
+                        if(seen == NULL)
+                            seen = st;
+                    }
+                    if(expr->kind == ZIR_EXPR_INDEX && expr->left >= 0 && expr->right >= 0 &&
+                       fn->exprs[expr->left].kind == ZIR_EXPR_IDENT &&
+                       strcmp(fn->exprs[expr->left].name, arrays[a]) == 0 &&
+                       fn->exprs[expr->right].kind == ZIR_EXPR_IDENT &&
+                       strcmp(fn->exprs[expr->right].name, binder) == 0)
+                        slots++;
+                }
+        }
+        if(uses != slots) {
+            Diagnostic(seen != NULL ? seen->span : fn->stmts[while_index].span, "parallel.memory",
+                       "#parallel uses %s only at %s[%s] when it writes a slot",
+                       arrays[a], arrays[a], binder);
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static const ZirFunction *
 parallel_callee(const ZirModule *module, const ZirExpr *expr)
 {
@@ -1281,8 +1376,8 @@ parallel_callee(const ZirModule *module, const ZirExpr *expr)
 }
 
 static int
-check_parallel_region(const ZirProgram *program, const ZirModule *module,
-                      const ZirFunction *fn, int while_index)
+check_parallel_region_in(const ZirProgram *program, const ZirModule *module,
+                         const ZirFunction *fn, int while_index, ZirExprWalk walk)
 {
     int close = -1, depth = 1;
     int preamble_begin = while_index;
@@ -1344,8 +1439,8 @@ check_parallel_region(const ZirProgram *program, const ZirModule *module,
             {
                 int roots[2] = {st->expr_root, st->lhs_root};
                 for(int r = 0; r < 2; r++)
-                    for(int e = roots[r]; e >= 0 && e < fn->expr_count;
-                        e = fn->exprs[e].next_sibling) {
+                    for(int e = ExprWalkFirst(&walk, roots[r]); e >= 0;
+                        e = ExprWalkNext(&walk)) {
                         const ZirExpr *expr = &fn->exprs[e];
                         int child;
                         if(expr->kind != ZIR_EXPR_CALL || !expr->name[0])
@@ -1427,6 +1522,11 @@ check_parallel_region(const ZirProgram *program, const ZirModule *module,
             }
         }
     }
+    /* The lowered region binds its loop variable first. */
+    const char *binder = fn->stmts[while_index + 1].kind == ZIR_STMT_DECL ?
+                         fn->stmts[while_index + 1].name : NULL;
+    const char *slot_arrays[16];
+    int slot_array_count = 0;
     for(int s = scan; s <= close; s++) {
         const ZirStmt *st = &fn->stmts[s];
         int through_pointer = 0;
@@ -1459,7 +1559,21 @@ check_parallel_region(const ZirProgram *program, const ZirModule *module,
                 }
             }
         }
-        if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 && is_body) {
+        const char *slot_array = binder != NULL && st->kind == ZIR_STMT_ASSIGN && is_body ?
+                                 slot_write_array(fn, st->lhs_root, binder) : NULL;
+        if(slot_array != NULL && !region_declares(fn, scan, close + 1, slot_array) &&
+           owned_array(fn, scan, slot_array)) {
+            int known = 0;
+            for(int a = 0; a < slot_array_count; a++)
+                known |= strcmp(slot_arrays[a], slot_array) == 0;
+            if(!known && slot_array_count < 16)
+                slot_arrays[slot_array_count++] = slot_array;
+            else if(!known) {
+                Diagnostic(st->span, "parallel.memory",
+                           "#parallel writes slots of more than 16 arrays");
+                return 0;
+            }
+        } else if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 && is_body) {
             if(!destination_identifier(fn, st->lhs_root, name, sizeof(name),
                                        &through_pointer)) {
                 Diagnostic(st->span, "parallel.memory",
@@ -1477,13 +1591,19 @@ check_parallel_region(const ZirProgram *program, const ZirModule *module,
         if(st->expr_root >= 0 || st->lhs_root >= 0) {
             int roots[2] = {st->expr_root, st->lhs_root};
             for(int r = 0; r < 2; r++) {
-                for(int e = roots[r]; e >= 0 && e < fn->expr_count;
-                    e = fn->exprs[e].next_sibling) {
+                for(int e = ExprWalkFirst(&walk, roots[r]); e >= 0;
+                    e = ExprWalkNext(&walk)) {
                     const ZirExpr *expr = &fn->exprs[e];
                     const ZirFunction *callee;
                     (void)program;
                     if(expr->kind != ZIR_EXPR_CALL || !expr->name[0])
                         continue;
+                    if(expr->slot_type[0]) {
+                        Diagnostic(st->span, "parallel.effect",
+                                   "#parallel cannot call through a procedure value: %s",
+                                   expr->name);
+                        return 0;
+                    }
                     if(MapPrimitiveName(expr->name) &&
                        (!strcmp(expr->name, "MapSet") || !strcmp(expr->name, "MapInit") ||
                         !strcmp(expr->name, "MapDelete") || !strcmp(expr->name, "MapClear"))) {
@@ -1531,7 +1651,18 @@ check_parallel_region(const ZirProgram *program, const ZirModule *module,
             }
         }
     }
-    return 1;
+    return slot_array_count == 0 ||
+           check_slot_writes(fn, while_index, close, binder, slot_arrays, slot_array_count, walk);
+}
+
+static int
+check_parallel_region(const ZirProgram *program, const ZirModule *module,
+                      const ZirFunction *fn, int while_index)
+{
+    ZirExprWalk walk = {fn, AllocateOrExit(((size_t)fn->expr_count + 1) * sizeof(int)), 0};
+    int ok = check_parallel_region_in(program, module, fn, while_index, walk);
+    free(walk.pending);
+    return ok;
 }
 
 int

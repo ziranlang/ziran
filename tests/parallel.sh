@@ -104,6 +104,34 @@ Bad :: () -> s64 {
 }
 ZI
 reject bad_mutating "mutating code" "a mutating callee"
+# Calls nested inside larger expressions are checked too.
+cat > "$work/bad_nested_mutating.zi" <<'ZI'
+shared: s64;
+Bump :: () -> s64 { shared += 1; return shared }
+#program_export
+Bad :: () -> s64 {
+    #parallel for 0..4 {
+        value := 1 + Bump()
+        if value < 0 { value = 0 }
+    }
+    return shared
+}
+ZI
+reject bad_nested_mutating "mutating code: Bump" "a nested mutating callee"
+cat > "$work/bad_procedure_value.zi" <<'ZI'
+Step :: #type (n: s64) -> s64;
+Twice :: (n: s64) -> s64 { return n * 2 }
+Apply :: (step: Step) -> s64 {
+    #parallel for 0..4 {
+        value := step(it)
+        if value < 0 { value = 0 }
+    }
+    return 0
+}
+#program_export
+Bad :: () -> s64 { return Apply(Twice) }
+ZI
+reject bad_procedure_value "through a procedure value: step" "a call through a procedure value"
 
 cat > "$work/bad_foreign.zi" <<'ZI'
 host_api :: #system_library "host_api";
@@ -117,6 +145,19 @@ Bad :: () -> s64 {
 }
 ZI
 reject bad_foreign "foreign code" "a foreign callee"
+cat > "$work/bad_nested_foreign.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Ping :: () -> s64 #foreign host_api;
+#program_export
+Bad :: () -> s64 {
+    #parallel for 0..4 {
+        value := 2 * Ping()
+        if value < 0 { value = 0 }
+    }
+    return 0
+}
+ZI
+reject bad_nested_foreign "foreign code: Ping" "a nested foreign callee"
 
 cat > "$work/bad_nest.zi" <<'ZI'
 #program_export

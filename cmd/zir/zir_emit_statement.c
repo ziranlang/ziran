@@ -184,13 +184,15 @@ parallel_region_captures(const ZirModule *module, const ZirFunction *fn,
             region->capture_count++;
         }
     }
+    /* Bindings the body reads anywhere inside its expressions. */
+    ZirExprWalk walk = {fn, AllocateOrExit(((size_t)fn->expr_count + 1) * sizeof(int)), 0};
     for(int i = region->body_begin; i < region->body_end &&
         region->capture_count < 16; i++) {
         const ZirStmt *st = &fn->stmts[i];
         int roots[2] = {st->expr_root, st->lhs_root};
         for(int r = 0; r < 2; r++)
-            for(int x = roots[r]; x >= 0 && x < fn->expr_count;
-                x = fn->exprs[x].next_sibling) {
+            for(int x = ExprWalkFirst(&walk, roots[r]); x >= 0;
+                x = ExprWalkNext(&walk)) {
                 const ZirExpr *expr = &fn->exprs[x];
                 int global, taken, block_open, depth;
                 const ZirStmt *decl = NULL;
@@ -210,7 +212,9 @@ parallel_region_captures(const ZirModule *module, const ZirFunction *fn,
                     }
                 if(global)
                     continue;
-                if(ResolveFunction(module, expr->name, NULL, NULL) == 1)
+                const ZirModule *function_owner = NULL;
+                const ZirFunction *function = NULL;
+                if(ResolveFunction(module, expr->name, &function_owner, &function) == 1)
                     continue;
                 block_open = -1;
                 depth = 0;
@@ -236,7 +240,14 @@ parallel_region_captures(const ZirModule *module, const ZirFunction *fn,
                        !strcmp(candidate->name, expr->name))
                         decl = candidate;
                 }
-                if(decl == NULL || !decl->type[0])
+                const char *declared_type = decl != NULL ? decl->type : NULL;
+                if(decl == NULL) {
+                    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+                    for(int p = 0; p < parameters->count; p++)
+                        if(!strcmp(parameters->items[p].binding_name, expr->name))
+                            declared_type = parameters->items[p].value_type;
+                }
+                if(declared_type == NULL || !declared_type[0])
                     continue;
                 taken = 0;
                 for(int c = 0; c < region->capture_count; c++)
@@ -246,7 +257,7 @@ parallel_region_captures(const ZirModule *module, const ZirFunction *fn,
                     }
                 if(taken)
                     continue;
-                copy_text(type, sizeof(type), decl->type);
+                copy_text(type, sizeof(type), declared_type);
                 if(!strcmp(type, "null"))
                     continue;
                 copy_text(region->captures[region->capture_count],
@@ -256,6 +267,7 @@ parallel_region_captures(const ZirModule *module, const ZirFunction *fn,
                 region->capture_count++;
             }
     }
+    free(walk.pending);
 }
 
 static int
@@ -297,7 +309,11 @@ parallel_region_dispatch_with_buffers(Emitter *e, const ParallelRegion *region, 
         {
             char captured[ZIR_NAME_MAX * 4];
             TargetBindingName(e->fn, e->target, full.captures[c], captured, sizeof(captured));
-            line(e, "%s.capture_%s = %s;", ctx, captured, captured);
+            /* Arrays travel by address; each worker copies them. */
+            if(ArrayValueType(full.capture_types[c]))
+                line(e, "%s.capture_%s = (void *)%s;", ctx, captured, captured);
+            else
+                line(e, "%s.capture_%s = %s;", ctx, captured, captured);
         }
     }
     line(e, "ziran_parallel_run(%s_worker, %s.start, %s.end, &%s);",
@@ -363,10 +379,14 @@ emit_parallel_worker(Emitter *e, const ZirFunction *fn,
     fprintf(e->out, "    int64_t start;\n    int64_t end;\n");
     for(int c = 0; c < region->capture_count; c++) {
         char type_mapped[ZIR_NAME_MAX * 2];
-        parallel_capture_type(e, region->capture_types[c], type_mapped,
-                              sizeof(type_mapped));
         char captured[ZIR_NAME_MAX * 4];
         TargetBindingName(fn, e->target, region->captures[c], captured, sizeof(captured));
+        if(ArrayValueType(region->capture_types[c])) {
+            fprintf(e->out, "    void *capture_%s;\n", captured);
+            continue;
+        }
+        parallel_capture_type(e, region->capture_types[c], type_mapped,
+                              sizeof(type_mapped));
         fprintf(e->out, "    %s capture_%s;\n", type_mapped, captured);
     }
     fprintf(e->out, "};\n\n");
@@ -382,10 +402,24 @@ emit_parallel_worker(Emitter *e, const ZirFunction *fn,
     line(e, "%s %s = %s->end;", mapped, region->last, context);
     for(int c = 0; c < region->capture_count; c++) {
         char type_mapped[ZIR_NAME_MAX * 2];
-        parallel_capture_type(e, region->capture_types[c], type_mapped,
-                              sizeof(type_mapped));
         char captured[ZIR_NAME_MAX * 4];
         TargetBindingName(fn, e->target, region->captures[c], captured, sizeof(captured));
+        /* A captured array stays the caller's: the worker reaches it
+         * through a pointer, so no chunk copies it and slot writes land. */
+        if(ArrayValueType(region->capture_types[c])) {
+            char element[ZIR_NAME_MAX * 2], bounds[ZIR_NAME_MAX * 2], pointer[ZIR_NAME_MAX];
+            array_target_type(e, region->capture_types[c], element, sizeof(element),
+                              bounds, sizeof(bounds));
+            fresh(e, pointer);
+            line(e, "%s (*%s)%s = %s->capture_%s;", element, pointer, bounds,
+                 context, captured);
+            track_local(e, region->captures[c], region->capture_types[c]);
+            snprintf(e->locals[e->local_count - 1].alias,
+                     sizeof(e->locals[0].alias), "(*%s)", pointer);
+            continue;
+        }
+        parallel_capture_type(e, region->capture_types[c], type_mapped,
+                              sizeof(type_mapped));
         line(e, "%s %s = %s->capture_%s;", type_mapped, captured, context, captured);
     }
     line(e, "for (int64_t %s = %s; %s <= %s; "

@@ -67,6 +67,9 @@ typedef struct Local {
     char name[ZIR_NAME_MAX];
     char type[ZIR_NAME_MAX];
     char drop_alias[ZIR_NAME_MAX];
+    /* Text that stands for the binding, such as (*shared) for an array a
+     * parallel worker reaches through a pointer; empty for the name. */
+    char alias[ZIR_NAME_MAX * 2];
     int depth;
 } Local;
 typedef struct Emitter {

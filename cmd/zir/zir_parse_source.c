@@ -1571,7 +1571,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 t = trim(buffers->parallel_text);
             }
             bck = parse_cond_start(t, &bcnd);
-            int compile_else = body_mcount > 0 &&
+            /* A part split from a one-line runtime `if a { } else { }` is
+             * never the region's compile-time else, even when its runtime
+             * block closed back to the region's depth. */
+            int compile_else = !from_queue && body_mcount > 0 &&
                 depth == body_mdepth[body_mcount - 1] &&
                 line_is_compile_else(t);
             int compile_else_if = bck == 2 && body_mcount > 0 &&

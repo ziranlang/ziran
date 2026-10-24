@@ -64,6 +64,8 @@ Answer :: () -> s32 {
     }
     else #if MODE == 2 {
         result += 2
+        // A one-line runtime else inside a region is not the region's else.
+        if result > 0 { result += 0 } else { result += 100 }
         #if false {
             if true {
                 result += MissingValue()

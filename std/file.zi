@@ -7,6 +7,8 @@
 //
 //     ok := WriteEntireFile("notes.txt", "hello\n")
 //     text, found := ReadEntireFile("notes.txt")
+//     bytes: Vec(u8)
+//     found = ReadFileInto("notes.txt", *bytes)  // freed with bytes
 //
 // DirectoryEntry.kind reports a snapshot of the entry's type without following
 // links. Unknown requires a path query. Check DirectoryCursor.failed before
@@ -36,6 +38,31 @@ ReadEntireFile :: (path: string) -> (text: string, ok: bool) {
     }
     CloseFile(file)
     return BuilderFinish(bytes), true
+}
+
+// Appends the whole file's bytes to BYTES, which the caller owns and which is
+// freed with the caller's local; false when the file cannot be read, and then
+// BYTES may hold part of it. Read files that are read again and again this
+// way: native C keeps the text ReadEntireFile returns for the life of the
+// program.
+ReadFileInto :: (path: string, bytes: *Vec(u8)) -> bool {
+    file := OpenRead(path)
+    if !file.valid { return false }
+    chunk: [4096]u8
+    offset: s64 = 0
+    while true {
+        count := ReadAt(file, chunk[:], offset)
+        if count < 0 {
+            CloseFile(file)
+            return false
+        }
+        if count == 0 { break }
+        i: s64 = 0
+        while i < count { VecPush(<<bytes, chunk[i]); i += 1; }
+        offset += count
+    }
+    CloseFile(file)
+    return true
 }
 
 // Replace the file at PATH with TEXT; false when it cannot be written whole.

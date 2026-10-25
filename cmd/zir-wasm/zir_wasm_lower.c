@@ -161,12 +161,37 @@ wasm_scalar_type_of(const char *type)
         return WASM_F32;
     if(!strcmp(scalar, "float64"))
         return WASM_F64;
+    /* A string value is one i64 handle: (length << 32) | data offset,
+     * with the bytes in the module's data segment. */
+    if(!strcmp(scalar, "string"))
+        return WASM_I64;
     return WASM_VOID;
+}
+
+/* A slice value is one i64 handle like a string: (length << 32) | address
+ * of its first element, borrowing storage its base owns. */
+static int
+type_is_slice(const char *type)
+{
+    char element[ZIR_NAME_MAX];
+    return type != NULL && SliceElementType(type, element, sizeof(element));
+}
+
+static int
+slice_element_type(const char *type, char *element)
+{
+    return SliceElementType(type, element, ZIR_NAME_MAX);
 }
 
 static WasmValtype
 wasm_type_of_in(const ZirModule *module, const char *type)
 {
+    /* Pointers cross as opaque handles, stored and compared but never
+     * dereferenced by lowered code. */
+    if(type != NULL && type[0] == '*')
+        return WASM_I64;
+    if(type_is_slice(type))
+        return WASM_I64;
     if(type_is_heap(module, type))
         return WASM_I32;
     return wasm_scalar_type_of(type);
@@ -250,6 +275,21 @@ typedef struct WasmFrame {
     int save_slot; /* loop frames: the arena slot continue restores */
 } WasmFrame;
 
+typedef struct WasmGlobalSlot {
+    char name[ZIR_NAME_MAX];
+    char type[ZIR_NAME_MAX];
+    size_t size;
+    size_t offset;
+} WasmGlobalSlot;
+
+enum { ZX_WASM_DATA_BASE = 1024 };
+
+typedef struct WasmStringPool {
+    unsigned char bytes[1 << 20];
+    size_t size;
+    int used_helper;
+} WasmStringPool;
+
 typedef struct WasmEmitter {
     const ZirProgram *program;
     WasmPlan *plans;
@@ -257,8 +297,174 @@ typedef struct WasmEmitter {
     WasmFrame frames[256];
     int frame_count;
     int failed;
+    WasmStringPool *strings;
+    WasmGlobalSlot *globals;
+    const ZirModule **global_modules;
+    int global_count;
+    int global_capacity;
 } WasmEmitter;
 
+static int intern_string(WasmEmitter *emitter, const unsigned char *bytes,
+                         size_t length);
+
+typedef struct WasmEmitter WasmEmitter;
+
+/* Finds a global by name: the plan's own module first, then a unique
+ * name across the linked program. */
+static const WasmGlobalSlot *
+find_global(const WasmEmitter *emitter, const ZirModule *scope,
+            const char *name)
+{
+    const WasmGlobalSlot *found = NULL;
+    int matches = 0;
+    for(int i = 0; i < emitter->global_count; i++) {
+        const WasmGlobalSlot *slot = &emitter->globals[i];
+        if(strcmp(slot->name, name) != 0)
+            continue;
+        if(emitter->global_modules[i] == scope)
+            return slot;
+        matches++;
+        found = slot;
+    }
+    return matches == 1 ? found : NULL;
+}
+
+/* Interns a global's storage and initial bytes; literals only, matching
+ * the per-instance data-segment reload to fresh instance semantics. */
+static int
+place_global(WasmEmitter *emitter, const ZirModule *owner,
+             const ZirGlobal *global)
+{
+    size_t size, alignment;
+    if(!TypeLayout(owner, global->type, &size, &alignment) || size == 0 ||
+       size > (1 << 16))
+        return 0;
+    const char *scalar = ScalarType(global->type);
+    if(strcmp(scalar, "string") &&
+       !wasm_scalar_type_of(global->type) &&
+       !type_is_heap(owner, global->type))
+        return 0;
+    /* String literals intern first so the slot cannot overlap their
+     * bytes; the handle then points at the interned data. */
+    int preset_data = -1;
+    size_t preset_length = 0;
+    if(global->init[0] != 0 && !strcmp(scalar, "string")) {
+        unsigned char decoded[ZIR_TEXT_MAX];
+        if(!DecodeStringLiteral(global->init, decoded, sizeof(decoded),
+                                &preset_length))
+            return 0;
+        preset_data = intern_string(emitter, decoded, preset_length);
+        if(preset_data < 0)
+            return 0;
+    }
+    /* Align the slot. */
+    size_t pad = emitter->strings->size % (alignment ? alignment : 1);
+    if(pad != 0)
+        emitter->strings->size += (alignment ? alignment : 1) - pad;
+    size_t offset = emitter->strings->size;
+    unsigned char bytes[16] = {0};
+    size_t value_size = size > 16 ? 16 : size;
+    if(global->init[0] != 0) {
+        if(!strcmp(scalar, "string")) {
+            uint64_t handle = ((uint64_t)preset_length << 32) |
+                              (uint32_t)(ZX_WASM_DATA_BASE + preset_data);
+            memcpy(bytes, &handle, sizeof(handle));
+            value_size = 8;
+        } else if(!strcmp(scalar, "float64") || !strcmp(scalar, "float32")) {
+            char *end = NULL;
+            double number = ParseDecimal(global->init, &end);
+            if(end == global->init || (end && *end != 0))
+                return 0;
+            if(!strcmp(scalar, "float32")) {
+                float small = (float)number;
+                memcpy(bytes, &small, sizeof(small));
+                value_size = 4;
+            } else {
+                memcpy(bytes, &number, sizeof(number));
+                value_size = 8;
+            }
+        } else if(wasm_scalar_type_of(global->type) == WASM_I64) {
+            char *end = NULL;
+            unsigned long long value = strtoull(global->init, &end, 0);
+            if(end == global->init || (end && *end != 0))
+                return 0;
+            memcpy(bytes, &value, sizeof(value));
+            value_size = 8;
+        } else if(wasm_scalar_type_of(global->type) == WASM_I32) {
+            char *end = NULL;
+            long long value = strtoll(global->init, &end, 0);
+            if(end == global->init || (end && *end != 0))
+                return 0;
+            int32_t small = (int32_t)value;
+            memcpy(bytes, &small, sizeof(small));
+            value_size = size < 4 ? size : 4;
+            if(!strcmp(scalar, "bool"))
+                value_size = 1;
+        } else {
+            /* Records and arrays with literal initializers stay outside. */
+            return 0;
+        }
+    }
+    /* Reserve the slot and write the initial bytes into the pool. */
+    while(emitter->strings->size < offset + size) {
+        if(emitter->strings->size >= sizeof(emitter->strings->bytes))
+            return 0;
+        emitter->strings->bytes[emitter->strings->size++] = 0;
+    }
+    memcpy(emitter->strings->bytes + offset, bytes, value_size);
+    if(emitter->global_count == emitter->global_capacity) {
+        int capacity = emitter->global_capacity ? emitter->global_capacity * 2 : 32;
+        WasmGlobalSlot *grown = realloc(emitter->globals,
+                                        (size_t)capacity * sizeof(*grown));
+        const ZirModule **owners = realloc(emitter->global_modules,
+                                           (size_t)capacity * sizeof(*owners));
+        if(grown == NULL || owners == NULL) {
+            free(grown != NULL ? grown : emitter->globals);
+            emitter->globals = NULL;
+            free(owners != NULL ? owners : (void *)emitter->global_modules);
+            emitter->global_modules = NULL;
+            return 0;
+        }
+        emitter->globals = grown;
+        emitter->global_modules = owners;
+        emitter->global_capacity = capacity;
+    }
+    WasmGlobalSlot *slot = &emitter->globals[emitter->global_count];
+    snprintf(slot->name, sizeof(slot->name), "%s", global->name);
+    snprintf(slot->type, sizeof(slot->type), "%s", global->type);
+    slot->size = size;
+    slot->offset = offset;
+    emitter->global_modules[emitter->global_count] = owner;
+    emitter->global_count++;
+    return 1;
+}
+
+
+
+/* Interns decoded literal bytes and returns the data-segment offset.
+ * Whole-literal matching only: a suffix of a longer literal would alias
+ * a different value, so equal texts are matched over their own length
+ * with a boundary check against the following literal. */
+static int
+intern_string(WasmEmitter *emitter, const unsigned char *bytes, size_t length)
+{
+    if(emitter->strings->size + length >= sizeof(emitter->strings->bytes))
+        return -1;
+    size_t at = 0;
+    while(at + length <= emitter->strings->size) {
+        size_t match = 0;
+        while(match < length &&
+              emitter->strings->bytes[at + match] == bytes[match])
+            match++;
+        if(match == length && (at + length == emitter->strings->size))
+            return (int)at;
+        at++;
+    }
+    size_t start = emitter->strings->size;
+    memcpy(emitter->strings->bytes + start, bytes, length);
+    emitter->strings->size += length;
+    return (int)start;
+}
 /* The binary operator of a compound assignment, or NULL. Mirrors the
  * runtime's assignment_binary_operator table. */
 static const char *
@@ -448,7 +654,9 @@ op_load_scalar(WasmBytes *code, const char *type, int offset)
     else if(!strcmp(scalar, "u8") || !strcmp(scalar, "bool")) { opcode = 0x2d; align = 0; }
     else if(!strcmp(scalar, "s16")) { opcode = 0x2e; align = 1; }  /* i32.load16_s */
     else if(!strcmp(scalar, "u16")) { opcode = 0x2f; align = 1; }
-    else if(!strcmp(scalar, "s64") || !strcmp(scalar, "u64")) opcode = 0x29;
+    else if(!strcmp(scalar, "s64") || !strcmp(scalar, "u64") ||
+            !strcmp(scalar, "string") || scalar[0] == '[' ||
+            scalar[0] == '*') { opcode = 0x29; align = 3; }
     else if(!strcmp(scalar, "float32")) opcode = 0x2a;
     else if(!strcmp(scalar, "float64")) opcode = 0x2b;
     else opcode = 0x28;                                            /* i32.load */
@@ -466,7 +674,9 @@ op_store_scalar(WasmBytes *code, const char *type, int offset)
     if(!strcmp(scalar, "s8") || !strcmp(scalar, "u8") ||
        !strcmp(scalar, "bool")) { opcode = 0x3a; align = 0; }      /* i32.store8 */
     else if(!strcmp(scalar, "s16") || !strcmp(scalar, "u16")) { opcode = 0x3b; align = 1; }
-    else if(!strcmp(scalar, "s64") || !strcmp(scalar, "u64")) opcode = 0x37;
+    else if(!strcmp(scalar, "s64") || !strcmp(scalar, "u64") ||
+            !strcmp(scalar, "string") || scalar[0] == '[' ||
+            scalar[0] == '*') { opcode = 0x37; align = 3; }
     else if(!strcmp(scalar, "float32")) opcode = 0x38;
     else if(!strcmp(scalar, "float64")) opcode = 0x39;
     else opcode = 0x36;                                            /* i32.store */
@@ -612,6 +822,57 @@ op_convert(WasmBytes *code, const char *from, const char *to)
 
 static int emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index);
 
+/* Emits a stringable base's pointer half (i32) for strings and slices. */
+static int
+emit_base_pointer(WasmEmitter *emitter, WasmPlan *plan, int index)
+{
+    const ZirExpr *base = &plan->function->exprs[index];
+    if(!emit_expression(emitter, plan, index))
+        return 0;
+    if(emitter->failed)
+        return 0;
+    (void)base;
+    return op(&plan->body, 0xa7); /* i32.wrap_i64 */
+}
+
+/* Emits a base's element count (i32): slice or string length, or the
+ * constant capacity of a fixed array. */
+static int
+emit_base_length(WasmEmitter *emitter, WasmPlan *plan, int index)
+{
+    const ZirExpr *base = &plan->function->exprs[index];
+    const char *base_type = base->type;
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(ArrayElementType(base_type, element, sizeof(element), &capacity))
+        return op_const_i32(&plan->body, capacity);
+    if(!emit_expression(emitter, plan, index))
+        return 0;
+    if(emitter->failed)
+        return 0;
+    return op_const_i64(&plan->body, 32) && op(&plan->body, 0x88) && /* shr_u */
+           op(&plan->body, 0xa7); /* i32.wrap_i64 */
+}
+
+static int emit_address(WasmEmitter *emitter, WasmPlan *plan, int index);
+
+/* Emits a base's data address (i32): fixed arrays are their address,
+ * strings and slices contribute the pointer half of their handle. */
+static int
+emit_base_address(WasmEmitter *emitter, WasmPlan *plan, int index)
+{
+    const ZirExpr *base = &plan->function->exprs[index];
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(ArrayElementType(base->type, element, sizeof(element), &capacity)) {
+        /* A heap local or global place: its address. */
+        if(base->kind == ZIR_EXPR_IDENT)
+            return emit_address(emitter, plan, index);
+        return emit_address(emitter, plan, index);
+    }
+    return emit_base_pointer(emitter, plan, index);
+}
+
 /* Emits the address of a place expression (identifier, member or index)
  * onto the stack. Returns 0 after a diagnostic for anything else. */
 static int
@@ -626,8 +887,14 @@ emit_address(WasmEmitter *emitter, WasmPlan *plan, int index)
         char type[ZIR_NAME_MAX];
         int local = find_local(plan, expression->name, type);
         if(local < 0) {
-            fail(emitter, expression->span, "module global state");
-            return 0;
+            const WasmGlobalSlot *slot =
+                find_global(emitter, plan->module, expression->name);
+            if(slot == NULL || !type_is_heap(plan->module, slot->type)) {
+                fail(emitter, expression->span, "module global state");
+                return 0;
+            }
+            return op_const_i32(&plan->body,
+                                (int32_t)(ZX_WASM_DATA_BASE + slot->offset));
         }
         if(!type_is_heap(plan->module, type)) {
             fail(emitter, expression->span, "scalar address");
@@ -756,17 +1023,55 @@ emit_binary(WasmEmitter *emitter, WasmPlan *plan, int index)
         int is_and = operation[0] == '&';
         if(!emit_expression(emitter, plan, expression->left))
             return 0;
-        /* if (result i32) <right> else <short value> end */
+        /* a && b: if a then b else 0; a || b: if a then 1 else b. */
         if(!(op(&plan->body, 0x04) && byte(&plan->body, WASM_I32)))
             return 0;
-        if(!emit_expression(emitter, plan, expression->right))
-            return 0;
-        if(!op(&plan->body, 0x05) || !op_const_i32(&plan->body, is_and ? 0 : 1) ||
-           !op(&plan->body, 0x0b))
-            return 0;
+        if(is_and) {
+            if(!emit_expression(emitter, plan, expression->right))
+                return 0;
+            if(!op(&plan->body, 0x05) || !op_const_i32(&plan->body, 0) ||
+               !op(&plan->body, 0x0b))
+                return 0;
+        } else {
+            if(!op_const_i32(&plan->body, 1))
+                return 0;
+            if(!op(&plan->body, 0x05))
+                return 0;
+            if(!emit_expression(emitter, plan, expression->right))
+                return 0;
+            if(!op(&plan->body, 0x0b))
+                return 0;
+        }
         return 1;
     }
     int comparison = is_comparison(operation);
+    /* String equality compares bytes through the generated helper. */
+    if(comparison &&
+       !strcmp(ScalarType(plan->function->exprs[expression->left].type),
+               "string") &&
+       !strcmp(ScalarType(plan->function->exprs[expression->right].type),
+               "string") &&
+       (!strcmp(operation, "==") || !strcmp(operation, "!="))) {
+        if(strcmp(operation, "==") && strcmp(operation, "!=")) {
+            fail(emitter, expression->span, "string operator");
+            return 0;
+        }
+        emitter->strings->used_helper = 1;
+        if(!emit_expression(emitter, plan, expression->left))
+            return 0;
+        if(emitter->failed)
+            return 0;
+        if(!emit_expression(emitter, plan, expression->right))
+            return 0;
+        if(emitter->failed)
+            return 0;
+        /* The helper's index is fixed after the bundle's functions. */
+        if(!op_index(&plan->body, 0x10, 1 + emitter->plan_count))
+            return 0;
+        if(!strcmp(operation, "!="))
+            return op(&plan->body, 0x45); /* i32.eqz */
+        return 1;
+    }
     /* Operands are computed in the container of the left operand for
      * comparisons and of the checked result for arithmetic. */
     const char *operand_type = comparison ?
@@ -888,10 +1193,25 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             return op_const_f32(&plan->body, (float)number);
         return op_const_f64(&plan->body, number);
     }
+    case ZIR_EXPR_STRING: {
+        unsigned char decoded[ZIR_TEXT_MAX];
+        size_t length = 0;
+        if(!DecodeStringLiteral(expression->text, decoded, sizeof(decoded),
+                                &length)) {
+            fail(emitter, expression->span, "string literal");
+            return 0;
+        }
+        int offset = intern_string(emitter, decoded, length);
+        if(offset < 0) {
+            fail(emitter, expression->span, "string literal storage");
+            return 0;
+        }
+        uint64_t handle = ((uint64_t)length << 32) | (uint32_t)(ZX_WASM_DATA_BASE + offset);
+        return op_const_i64(&plan->body, (int64_t)handle);
+    }
     case ZIR_EXPR_IDENT: {
-        if(expression->is_function_value || expression->is_global_value ||
-           expression->is_move) {
-            fail(emitter, expression->span, "function or global value");
+        if(expression->is_function_value || expression->is_move) {
+            fail(emitter, expression->span, "function value");
             return 0;
         }
         if(!strcmp(expression->name, "true"))
@@ -901,8 +1221,19 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         char type[ZIR_NAME_MAX];
         int local = find_local(plan, expression->name, type);
         if(local < 0) {
-            fail(emitter, expression->span, "module global state");
-            return 0;
+            /* A global reads its slot; heap globals are their address. */
+            const WasmGlobalSlot *slot =
+                find_global(emitter, plan->module, expression->name);
+            if(slot == NULL) {
+                fail(emitter, expression->span, "module global state");
+                return 0;
+            }
+            if(!op_const_i32(&plan->body,
+                             (int32_t)(ZX_WASM_DATA_BASE + slot->offset)))
+                return 0;
+            if(type_is_heap(plan->module, slot->type))
+                return 1;
+            return op_load_scalar(&plan->body, slot->type, 0);
         }
         return op_local(&plan->body, 0x20, local);
     }
@@ -980,7 +1311,25 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         return op(&plan->body, 0x0b);
     }
     case ZIR_EXPR_MEMBER: {
-        /* A scalar field loads; a nested record's address is the value. */
+        /* text.count reads the length half of a string or slice handle. */
+        if((!strcmp(ScalarType(function->exprs[expression->left].type),
+                    "string") ||
+            type_is_slice(function->exprs[expression->left].type)) &&
+           !strcmp(expression->name, "count")) {
+            if(!emit_expression(emitter, plan, expression->left))
+                return 0;
+            if(emitter->failed)
+                return 0;
+            if(!op_const_i64(&plan->body, 32) || !op(&plan->body, 0x88))
+                return 0; /* i64.shr_u */
+            if(strcmp(concrete_type(expression->type), "s64") != 0 &&
+               !op_convert(&plan->body, "u64", expression->type)) {
+                fail(emitter, expression->span, "string length type");
+                return 0;
+            }
+            return 1;
+        }
+        /* A scalar field loads; a nested record' address is the value. */
         if(!emit_address(emitter, plan, index))
             return 0;
         if(emitter->failed)
@@ -990,6 +1339,80 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         return op_load_scalar(&plan->body, expression->type, 0);
     }
     case ZIR_EXPR_INDEX: {
+        /* slice[at] addresses one bounds-checked element; the handle
+         * expression is emitted twice: length half, then pointer half. */
+        if(type_is_slice(function->exprs[expression->left].type)) {
+            if(plan->scratch_depth >= ZX_WASM_SCRATCH_SLOTS) {
+                fail(emitter, expression->span, "nested slice indexes");
+                return 0;
+            }
+            int at = plan->scratch_slots[plan->scratch_depth++];
+            int sequence_ok = emit_expression(emitter, plan, expression->right);
+            if(sequence_ok && strcmp(concrete_type(
+                    function->exprs[expression->right].type), "s64") == 0)
+                sequence_ok = op(&plan->body, 0xa7);
+            sequence_ok = sequence_ok && op_local(&plan->body, 0x21, at);
+            /* if (at >=u length) unreachable */
+            sequence_ok = sequence_ok && op_local(&plan->body, 0x20, at);
+            sequence_ok = sequence_ok &&
+                emit_expression(emitter, plan, expression->left) &&
+                op_const_i64(&plan->body, 32) &&
+                op(&plan->body, 0x88) && op(&plan->body, 0xa7) &&
+                op(&plan->body, 0x4f) &&
+                op(&plan->body, 0x04) && byte(&plan->body, 0x40) &&
+                op(&plan->body, 0x00) && op(&plan->body, 0x0b);
+            /* address: pointer half + at * element size */
+            size_t element_size = 1, element_alignment = 1;
+            sequence_ok = sequence_ok &&
+                TypeLayout(plan->module, expression->type, &element_size,
+                           &element_alignment);
+            sequence_ok = sequence_ok &&
+                emit_expression(emitter, plan, expression->left) &&
+                op(&plan->body, 0xa7) &&
+                op_local(&plan->body, 0x20, at) &&
+                op_const_i32(&plan->body, (int32_t)element_size) &&
+                op(&plan->body, 0x6c) && op(&plan->body, 0x6a);
+            plan->scratch_depth--;
+            if(!sequence_ok || emitter->failed)
+                return 0;
+            if(type_is_heap(plan->module, expression->type))
+                return 1;
+            return op_load_scalar(&plan->body, expression->type, 0);
+        }
+        /* text[at] loads one bounds-checked byte. The handle expression
+         * is pure (literal, local or global), so it is emitted twice:
+         * once for its length half, once for its pointer half. */
+        if(!strcmp(ScalarType(function->exprs[expression->left].type),
+                   "string")) {
+            if(plan->scratch_depth >= ZX_WASM_SCRATCH_SLOTS) {
+                fail(emitter, expression->span, "nested string indexes");
+                return 0;
+            }
+            int at = plan->scratch_slots[plan->scratch_depth++];
+            int sequence_ok = emit_expression(emitter, plan, expression->right);
+            if(sequence_ok && strcmp(concrete_type(
+                    function->exprs[expression->right].type), "s64") == 0)
+                sequence_ok = op(&plan->body, 0xa7); /* i32.wrap_i64 */
+            sequence_ok = sequence_ok && op_local(&plan->body, 0x21, at);
+            /* if (at >=u length) unreachable: the index is pushed first. */
+            sequence_ok = sequence_ok && op_local(&plan->body, 0x20, at);
+            sequence_ok = sequence_ok && emit_expression(emitter, plan, expression->left);
+            sequence_ok = sequence_ok && op_const_i64(&plan->body, 32) &&
+                          op(&plan->body, 0x88) && op(&plan->body, 0xa7) &&
+                          op(&plan->body, 0x4f) &&
+                          op(&plan->body, 0x04) && byte(&plan->body, 0x40) &&
+                          op(&plan->body, 0x00) && op(&plan->body, 0x0b);
+            /* address: pointer half plus the index */
+            sequence_ok = sequence_ok && emit_expression(emitter, plan, expression->left) &&
+                          op(&plan->body, 0xa7) &&
+                          op_local(&plan->body, 0x20, at) &&
+                          op(&plan->body, 0x6a);
+            plan->scratch_depth--;
+            if(!sequence_ok || emitter->failed)
+                return 0;
+            return op_load_scalar(&plan->body, "u8", 0);
+        }
+        /* Fixed-array elements address through their place. */
         if(!emit_address(emitter, plan, index))
             return 0;
         if(emitter->failed)
@@ -999,8 +1422,11 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         return op_load_scalar(&plan->body, expression->type, 0);
     }
     case ZIR_EXPR_COMPOUND: {
+        /* Synthesized literals carry their type without a record name. */
+        const char *record_name = expression->name[0] ? expression->name :
+                                                         expression->type;
         size_t size, alignment;
-        if(!heap_layout(plan->module, expression->name, &size, &alignment)) {
+        if(!heap_layout(plan->module, record_name, &size, &alignment)) {
             fail(emitter, expression->span, "record layout");
             return 0;
         }
@@ -1022,7 +1448,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             }
             size_t offset = 0;
             char field_type[ZIR_NAME_MAX];
-            if(!field_place(plan->module, expression->name,
+            if(!field_place(plan->module, record_name,
                             initializer->name, &offset, field_type)) {
                 fail(emitter, initializer->span, "record field");
                 return 0;
@@ -1065,6 +1491,76 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         }
         plan->scratch_depth--;
         return op_local(&plan->body, 0x20, slot);
+    }
+    case ZIR_EXPR_SLICE: {
+        if(plan->scratch_depth + 3 > ZX_WASM_SCRATCH_SLOTS) {
+            fail(emitter, expression->span, "nested slices");
+            return 0;
+        }
+        int low_slot = plan->scratch_slots[plan->scratch_depth];
+        int high_slot = plan->scratch_slots[plan->scratch_depth + 1];
+        int base_slot = plan->scratch_slots[plan->scratch_depth + 2];
+        plan->scratch_depth += 3;
+        /* lower and upper bounds as i32 in scratch slots. */
+        int ok = emit_expression(emitter, plan, expression->right);
+        if(ok && emitter->failed)
+            ok = 0;
+        if(ok && strcmp(concrete_type(
+                function->exprs[expression->right].type), "s64") == 0)
+            ok = op(&plan->body, 0xa7);
+        ok = ok && op_local(&plan->body, 0x21, low_slot);
+        if(expression->third >= 0) {
+            ok = ok && emit_expression(emitter, plan, expression->third);
+            if(ok && emitter->failed)
+                ok = 0;
+            if(ok && strcmp(concrete_type(
+                    function->exprs[expression->third].type), "s64") == 0)
+                ok = op(&plan->body, 0xa7);
+            ok = ok && op_local(&plan->body, 0x21, high_slot);
+        } else {
+            /* Open top: the base's element count. */
+            ok = ok && emit_base_length(emitter, plan, expression->left);
+            ok = ok && op_local(&plan->body, 0x21, high_slot);
+        }
+        /* if (low >u high) unreachable */
+        ok = ok && op_local(&plan->body, 0x20, low_slot) &&
+             op_local(&plan->body, 0x20, high_slot) &&
+             op(&plan->body, 0x4f) && /* i32.gt_u */
+             op(&plan->body, 0x04) && byte(&plan->body, 0x40) &&
+             op(&plan->body, 0x00) && op(&plan->body, 0x0b);
+        /* if (high >u base length) unreachable */
+        ok = ok && emit_base_length(emitter, plan, expression->left) &&
+             op_local(&plan->body, 0x21, base_slot);
+        ok = ok && op_local(&plan->body, 0x20, high_slot) &&
+             op_local(&plan->body, 0x20, base_slot) &&
+             op(&plan->body, 0x4f) &&
+             op(&plan->body, 0x04) && byte(&plan->body, 0x40) &&
+             op(&plan->body, 0x00) && op(&plan->body, 0x0b);
+        /* Address: base address + low * element size. */
+        char element[ZIR_NAME_MAX];
+        size_t element_size = 1, element_alignment = 1;
+        if(slice_element_type(expression->type, element)) {
+            ok = ok && TypeLayout(plan->module, element, &element_size,
+                                  &element_alignment);
+        }
+        ok = ok && emit_base_address(emitter, plan, expression->left) &&
+             op_local(&plan->body, 0x20, low_slot) &&
+             op_const_i32(&plan->body, (int32_t)element_size) &&
+             op(&plan->body, 0x6c) && /* i32.mul */
+             op(&plan->body, 0x6a); /* i32.add */
+        /* Extend the address, then compose (high - low) << 32 | address. */
+        ok = ok && op(&plan->body, 0xad) && /* i64.extend_i32_u */
+             op_local(&plan->body, 0x20, high_slot) &&
+             op_local(&plan->body, 0x20, low_slot) &&
+             op(&plan->body, 0x6b) && /* i32.sub */
+             op(&plan->body, 0xad) && /* i64.extend_i32_u */
+             op_const_i64(&plan->body, 32) &&
+             op(&plan->body, 0x86) && /* i64.shl */
+             op(&plan->body, 0x84); /* i64.or */
+        plan->scratch_depth -= 3;
+        if(!ok || emitter->failed)
+            return 0;
+        return 1;
     }
     case ZIR_EXPR_CALL: {
         const ZirModule *owner = NULL;
@@ -1115,7 +1611,9 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             }
             const char *argument_type =
                 function->exprs[ordered[p]].type;
-            if(type_is_heap(plan->module, parameters->items[p].value_type)) {
+            if(type_is_heap(plan->module, parameters->items[p].value_type) ||
+               type_is_slice(parameters->items[p].value_type) ||
+               parameters->items[p].value_type[0] == '*') {
                 if(strcmp(argument_type, parameters->items[p].value_type) != 0) {
                     fail(emitter, expression->span, "call argument conversion");
                     return 0;
@@ -1290,7 +1788,7 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
     switch(statement->kind) {
     case ZIR_STMT_DECL: {
         int heap = type_is_heap(plan->module, statement->type);
-        WasmValtype wasm = heap ? WASM_I32 : wasm_scalar_type_of(statement->type);
+        WasmValtype wasm = heap ? WASM_I32 : wasm_type_of_in(plan->module, statement->type);
         if(!wasm) {
             fail(emitter, statement->span, "declaration type");
             return;
@@ -1337,7 +1835,8 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                     return;
                 if(emitter->failed)
                     return;
-                if(!op_memory_copy(&plan->body, size))
+                if(!op_memory_copy(&plan->body, size) ||
+                   !op_local(&plan->body, 0x20, slot))
                     return;
             } else {
                 if(!op_arena_alloc(plan, size, alignment) ||
@@ -1460,7 +1959,52 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
             char type[ZIR_NAME_MAX];
             int local = find_local(plan, destination->name, type);
             if(local < 0) {
-                fail(emitter, statement->span, "global assignment");
+                const WasmGlobalSlot *slot =
+                    find_global(emitter, plan->module, destination->name);
+                if(slot == NULL) {
+                    fail(emitter, statement->span, "global assignment");
+                    return;
+                }
+                snprintf(type, sizeof(type), "%s", slot->type);
+                if(type_is_heap(plan->module, type)) {
+                    if(!simple) {
+                        fail(emitter, statement->span, "assignment operator");
+                        return;
+                    }
+                    if(!op_const_i32(&plan->body, (int32_t)(ZX_WASM_DATA_BASE + slot->offset)))
+                        return;
+                    if(!emit_expression(emitter, plan, statement->expr_root))
+                        return;
+                    if(emitter->failed)
+                        return;
+                    if(!op_memory_copy(&plan->body, slot->size))
+                        emitter->failed = 1;
+                    return;
+                }
+                if(!op_const_i32(&plan->body, (int32_t)(ZX_WASM_DATA_BASE + slot->offset)))
+                    return;
+                if(!simple) {
+                    /* The address stays on the stack under the loaded value. */
+                    if(!op_const_i32(&plan->body, (int32_t)(ZX_WASM_DATA_BASE + slot->offset)))
+                        return;
+                    if(!op_load_scalar(&plan->body, type, 0))
+                        return;
+                }
+                if(!emit_expression(emitter, plan, statement->expr_root))
+                    return;
+                if(emitter->failed)
+                    return;
+                const char *global_value_type =
+                    plan->function->exprs[statement->expr_root].type;
+                if(strcmp(global_value_type, type) != 0 &&
+                   !op_convert(&plan->body, global_value_type, type)) {
+                    fail(emitter, statement->span, "assignment conversion");
+                    return;
+                }
+                if(!simple)
+                    ZX_WASM_COMPOUND_OPERATOR(type);
+                if(!op_store_scalar(&plan->body, type, 0))
+                    emitter->failed = 1;
                 return;
             }
             if(type_is_heap(plan->module, type)) {
@@ -1771,6 +2315,8 @@ supported_expression(const ZirExpr *expression)
     case ZIR_EXPR_INDEX:
     case ZIR_EXPR_COMPOUND:
     case ZIR_EXPR_FIELD_INIT:
+    case ZIR_EXPR_STRING:
+    case ZIR_EXPR_SLICE:
         return 1;
     default:
         return 0;
@@ -1824,11 +2370,22 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                const char *entry_function, size_t *size)
 {
     unsigned char *image = NULL;
-    WasmSignature *signatures_store[16];
-    WasmSignature **signatures = signatures_store;
+    /* The signature table grows with the bundle, so it is heap-backed
+     * from the first entry; realloc never sees stack storage. */
     int signature_count = 0, signature_capacity = 16;
+    WasmSignature **signatures = malloc((size_t)signature_capacity *
+                                        sizeof(*signatures));
+    if(signatures == NULL) {
+        DiagnosticOutOfMemory();
+        return NULL;
+    }
     WasmEmitter emitter = {0};
     emitter.program = program;
+    emitter.strings = calloc(1, sizeof(*emitter.strings));
+    if(emitter.strings == NULL) {
+        DiagnosticOutOfMemory();
+        return NULL;
+    }
     int entry_plan = -1;
     int wrapper_type = -1;
     if(program == NULL || entry_module == NULL || entry_function == NULL)
@@ -1959,6 +2516,22 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                    entry_module, entry_function);
         goto done;
     }
+    /* Globals take fixed slots in the data segment; literal initializers
+     * become their bytes, reloaded fresh on every instantiation. */
+    for(int m = 0; m < program->module_count && !emitter.failed; m++) {
+        const ZirModule *module = &program->modules[m];
+        for(int g = 0; g < module->global_count && !emitter.failed; g++) {
+            if(!place_global(&emitter, module, &module->globals[g])) {
+                Diagnostic(module->globals[g].span, "zx.wasm",
+                           "global %s:%s has a non-literal initializer or type outside the wasm execution subset",
+                           module->name, module->globals[g].name);
+                emitter.failed = 1;
+            }
+        }
+    }
+    if(emitter.failed)
+        goto done;
+
     /* Function index 0 is the step guard import; bodies follow, and the
      * zx_entry wrapper is the last declared function. */
     for(int i = 0; i < emitter.plan_count; i++)
@@ -2032,6 +2605,32 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
     if(emitter.failed)
         goto done;
 
+    /* The string-equality helper takes the slot after the last bundle
+     * function; the wrapper follows it. */
+    int helper_type = -1;
+    int helper_count = emitter.strings->used_helper ? 1 : 0;
+    if(helper_count != 0) {
+        WasmSignature helper = {0};
+        helper.parameter_count = 2;
+        helper.parameters[0] = WASM_I64;
+        helper.parameters[1] = WASM_I64;
+        helper.result = WASM_I32;
+        helper_type = signature_index(&signatures, &signature_count,
+                                       &signature_capacity, &helper);
+        if(helper_type < 0) {
+            DiagnosticOutOfMemory();
+            goto done;
+        }
+    }
+    /* The arena starts above the data segment when literals fill page 0. */
+    int arena_base = ZX_WASM_ARENA_BASE;
+    {
+        int data_end = ZX_WASM_DATA_BASE + (int)emitter.strings->size;
+        int aligned = (data_end + 15) & ~15;
+        if(aligned > arena_base)
+            arena_base = aligned + ZX_WASM_ARENA_BASE;
+    }
+
     /* Assemble the module image. */
     WasmBytes module = {0};
     WasmBytes section = {0};
@@ -2075,12 +2674,14 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                   uleb(&module, (uint64_t)section.count) &&
                   raw(&module, section.data, section.count);
 
-    /* Function section: every plan plus the zx_entry wrapper. */
+    /* Function section: every plan, the string helper, then the wrapper. */
     section.count = 0;
     assemble_ok = assemble_ok &&
-                  uleb(&section, (uint64_t)emitter.plan_count + 1);
+                  uleb(&section, (uint64_t)emitter.plan_count + 1 + helper_count);
     for(int i = 0; assemble_ok && i < emitter.plan_count; i++)
         assemble_ok = uleb(&section, (uint64_t)emitter.plans[i].type_index);
+    if(assemble_ok && helper_count != 0)
+        assemble_ok = uleb(&section, (uint64_t)helper_type);
     assemble_ok = assemble_ok && uleb(&section, (uint64_t)wrapper_type);
     assemble_ok = assemble_ok && byte(&module, 3) &&
                   uleb(&module, (uint64_t)section.count) &&
@@ -2100,7 +2701,7 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
     section.count = 0;
     assemble_ok = assemble_ok && uleb(&section, 1) &&
                   byte(&section, WASM_I32) && byte(&section, 0x01) &&
-                  op_const_i32(&section, ZX_WASM_ARENA_BASE) &&
+                  op_const_i32(&section, arena_base) &&
                   op(&section, 0x0b);
     assemble_ok = assemble_ok && byte(&module, 6) &&
                   uleb(&module, (uint64_t)section.count) &&
@@ -2110,7 +2711,7 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
     section.count = 0;
     assemble_ok = assemble_ok && uleb(&section, 2) && uleb(&section, 8) &&
                   raw(&section, "zx_entry", 8) && byte(&section, 0x00) &&
-                  uleb(&section, (uint64_t)(1 + emitter.plan_count)) &&
+                  uleb(&section, (uint64_t)(1 + emitter.plan_count + helper_count)) &&
                   uleb(&section, 6) && raw(&section, "memory", 6) &&
                   byte(&section, 0x02) && uleb(&section, 0);
     assemble_ok = assemble_ok && byte(&module, 7) &&
@@ -2150,13 +2751,74 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                       raw(&code_entries, entry.data, entry.count);
         bytes_free(&entry);
     }
+    if(assemble_ok && helper_count != 0) {
+        /* $zx_str_eq(a: i64, b: i64) -> i32: equal handles, equal lengths,
+         * then equal bytes; any mismatch returns early. */
+        WasmBytes helper_body = {0};
+        assemble_ok = uleb(&helper_body, 1) &&
+                      uleb(&helper_body, 1) &&
+                      byte(&helper_body, WASM_I32); /* one i32 local: i */
+        /* if (a == b) return 1 */
+        assemble_ok = assemble_ok && op_local(&helper_body, 0x20, 0) &&
+                      op_local(&helper_body, 0x20, 1) &&
+                      op(&helper_body, 0x51) && /* i64.eq */
+                      op(&helper_body, 0x04) && byte(&helper_body, 0x40) &&
+                      op_const_i32(&helper_body, 1) && op(&helper_body, 0x0f) &&
+                      op(&helper_body, 0x0b);
+        /* if ((a >> 32) != (b >> 32)) return 0 */
+        assemble_ok = assemble_ok && op_local(&helper_body, 0x20, 0) &&
+                      op_const_i64(&helper_body, 32) && op(&helper_body, 0x88) &&
+                      op_local(&helper_body, 0x20, 1) &&
+                      op_const_i64(&helper_body, 32) && op(&helper_body, 0x88) &&
+                      op(&helper_body, 0x52) && /* i64.ne */
+                      op(&helper_body, 0x04) && byte(&helper_body, 0x40) &&
+                      op_const_i32(&helper_body, 0) && op(&helper_body, 0x0f) &&
+                      op(&helper_body, 0x0b);
+        /* i = 0; loop { if (i >=u len) break; if bytes differ return 0; i++ } */
+        assemble_ok = assemble_ok && op_const_i32(&helper_body, 0) &&
+                      op_local(&helper_body, 0x21, 2) &&
+                      op(&helper_body, 0x02) && byte(&helper_body, 0x40) &&
+                      op(&helper_body, 0x03) && byte(&helper_body, 0x40);
+        assemble_ok = assemble_ok && op_local(&helper_body, 0x20, 2) &&
+                      op_local(&helper_body, 0x20, 0) &&
+                      op_const_i64(&helper_body, 32) && op(&helper_body, 0x88) &&
+                      op(&helper_body, 0xa7) && /* i32.wrap_i64 */
+                      op(&helper_body, 0x4f) && /* i32.ge_u */
+                      op_index(&helper_body, 0x0d, 1);
+        assemble_ok = assemble_ok && op_local(&helper_body, 0x20, 2) &&
+                      op_local(&helper_body, 0x20, 0) && op(&helper_body, 0xa7) &&
+                      op(&helper_body, 0x6a) &&
+                      byte(&helper_body, 0x2d) && uleb(&helper_body, 0) &&
+                      uleb(&helper_body, 0) &&
+                      op_local(&helper_body, 0x20, 2) &&
+                      op_local(&helper_body, 0x20, 1) && op(&helper_body, 0xa7) &&
+                      op(&helper_body, 0x6a) &&
+                      byte(&helper_body, 0x2d) && uleb(&helper_body, 0) &&
+                      uleb(&helper_body, 0) &&
+                      op(&helper_body, 0x47) && /* i32.ne */
+                      op(&helper_body, 0x04) && byte(&helper_body, 0x40) &&
+                      op_const_i32(&helper_body, 0) && op(&helper_body, 0x0f) &&
+                      op(&helper_body, 0x0b);
+        assemble_ok = assemble_ok && op_const_i32(&helper_body, 1) &&
+                      op_local(&helper_body, 0x20, 2) &&
+                      op(&helper_body, 0x6a) &&
+                      op_local(&helper_body, 0x21, 2) &&
+                      op_index(&helper_body, 0x0c, 0) &&
+                      op(&helper_body, 0x0b) && op(&helper_body, 0x0b) &&
+                      op_const_i32(&helper_body, 1) &&
+                      op(&helper_body, 0x0b);
+        assemble_ok = assemble_ok &&
+                      uleb(&code_entries, (uint64_t)helper_body.count) &&
+                      raw(&code_entries, helper_body.data, helper_body.count);
+        bytes_free(&helper_body);
+    }
     if(assemble_ok) {
         /* zx_entry: call the entry, widen to i64, or zero for void. */
         WasmPlan *entry = &emitter.plans[entry_plan];
         WasmBytes wrapper_body = {0};
         assemble_ok = uleb(&wrapper_body, 0); /* no locals */
         assemble_ok = assemble_ok &&
-                      op_const_i32(&wrapper_body, ZX_WASM_ARENA_BASE) &&
+                      op_const_i32(&wrapper_body, arena_base) &&
                       op_index(&wrapper_body, 0x24, 1); /* global.set $arena */
         if(!strcmp(entry->result_type, "void"))
             assemble_ok = assemble_ok &&
@@ -2180,12 +2842,25 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
     {
         WasmBytes code_section = {0};
         assemble_ok = assemble_ok &&
-                      uleb(&code_section, (uint64_t)emitter.plan_count + 1) &&
+                      uleb(&code_section, (uint64_t)emitter.plan_count + 1 + helper_count) &&
                       raw(&code_section, code_entries.data, code_entries.count);
         assemble_ok = assemble_ok && byte(&module, 10) &&
                       uleb(&module, (uint64_t)code_section.count) &&
                       raw(&module, code_section.data, code_section.count);
         bytes_free(&code_section);
+    }
+    /* Data section: one segment holding every interned literal. */
+    if(assemble_ok && emitter.strings->size > 0) {
+        section.count = 0;
+        assemble_ok = uleb(&section, 1) &&
+                      uleb(&section, 0) && /* flags: active, memory 0 */
+                      op_const_i32(&section, ZX_WASM_DATA_BASE) &&
+                      op(&section, 0x0b) &&
+                      uleb(&section, (uint64_t)emitter.strings->size) &&
+                      raw(&section, emitter.strings->bytes, emitter.strings->size);
+        assemble_ok = assemble_ok && byte(&module, 11) &&
+                      uleb(&module, (uint64_t)section.count) &&
+                      raw(&module, section.data, section.count);
     }
     if(assemble_ok) {
         image = module.data;
@@ -2202,13 +2877,11 @@ done:
     for(int i = 0; i < emitter.plan_count; i++)
         plan_free(&emitter.plans[i]);
     free(emitter.plans);
-    if(signatures != signatures_store) {
-        for(int i = 0; i < signature_count; i++)
-            free(signatures[i]);
-        free(signatures);
-    } else {
-        for(int i = 0; i < signature_count; i++)
-            free(signatures_store[i]);
-    }
+    free(emitter.strings);
+    free(emitter.globals);
+    free(emitter.global_modules);
+    for(int i = 0; i < signature_count; i++)
+        free(signatures[i]);
+    free(signatures);
     return image;
 }

@@ -93,20 +93,53 @@ if str(result) != expected:
 EOF
 fi
 
-# Text is outside the tier while records lower: the tool reports the
-# string and exits nonzero rather than emitting a wrong module.
-cat >"$work/text.zi" <<'EOF'
-TEXT: string = "hi";
+# Enums are outside the tier while strings lower: the tool reports the
+# type and exits nonzero rather than emitting a wrong module.
+cat >"$work/enums.zi" <<'EOF'
+Direction :: enum {
+    Up
+    Down
+}
 #program_export
 Answer :: () -> s64 {
-    return cast(s64)TEXT.count
+    way: Direction = Direction.Down
+    return ifx way == Direction.Up then 1 else 2
 }
 EOF
-if "$zi2wasm" --root "$work" --entry text:Answer \
-        -o "$work/text.wasm" "$work/text.zi" >/dev/null 2>&1; then
-    echo "zx-wasm-test: text lowered without a diagnostic"
+if "$zi2wasm" --root "$work" --entry enums:Answer \
+        -o "$work/enums.wasm" "$work/enums.zi" >/dev/null 2>&1; then
+    echo "zx-wasm-test: enums lowered without a diagnostic"
     exit 1
 fi
+
+# Strings and slices lower and must agree with the other tiers.
+cat >"$work/text.zi" <<'EOF'
+TEXT: string = "aé中🙂";
+#program_export
+Answer :: () -> s64 {
+    sum: s64 = 0
+    i: s64 = 0
+    while i < cast(s64)TEXT.count {
+        sum += cast(s64)TEXT[cast(s32)i]
+        i += 1
+    }
+    digits: [4]u8
+    digits[0] = 7
+    digits[1] = 9
+    window: []u8 = digits[0:2]
+    if TEXT == "aé中🙂" { return sum * 10 + cast(s64)window[1] }
+    return -1
+}
+EOF
+"$zi2wasm" --root "$work" --entry text:Answer \
+    -o "$work/text.wasm" "$work/text.zi"
+text=$("$nodebin" "$run_wasm" "$work/text.wasm" 1000000)
+"$ziran" bundle --root "$work" --entry text:Answer \
+    -o "$work/text.zx" "$work/text.zi"
+case "$("$ziran" run "$work/text.zx")" in
+    "$text") ;;
+    *) echo "zx-wasm-test: strings disagree between tiers"; exit 1 ;;
+esac
 
 # Records and arrays lower and must agree with the native tier.
 cat >"$work/records.zi" <<'EOF'

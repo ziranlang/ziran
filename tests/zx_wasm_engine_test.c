@@ -153,13 +153,17 @@ static const char scalar_source[] =
     "#program_export\n"
     "Answer :: () -> s64 { return 21 * 2 }\n";
 
-/* Records lower to the tier now; text stays outside it, so this one
+/* Strings lower to the tier now; enums stay outside it, so this one
  * exercises the VM fallback. */
-static const char text_source[] =
-    "TEXT: string = \"hi\";\n"
+static const char enum_source[] =
+    "Direction :: enum {\n"
+    "    Up\n"
+    "    Down\n"
+    "}\n"
     "#program_export\n"
     "Answer :: () -> s64 {\n"
-    "    return cast(s64)TEXT.count\n"
+    "    way: Direction = Direction.Down\n"
+    "    return ifx way == Direction.Up then 1 else 2\n"
     "}\n";
 
 int
@@ -211,17 +215,17 @@ main(void)
     if(release_calls != 1)
         return 1;
 
-    /* A text bundle is outside the tier: it falls back to the VM and
+    /* An enum bundle is outside the tier: it falls back to the VM and
      * still answers, with the provider left untouched for it. */
-    Bundle *text = bundle_of("text.zi", text_source);
-    if(text == NULL)
+    Bundle *enums = bundle_of("enums.zi", enum_source);
+    if(enums == NULL)
         return 2;
-    instance = BundleInstantiate(text, NULL, 0);
+    instance = BundleInstantiate(enums, NULL, 0);
     if(instance == NULL || instantiate_calls != 1)
         return 1;
     if(!BundleInstanceRun(instance, &result, &has_result) || !has_result ||
        result != 2 || call_calls != 1) {
-        fprintf(stderr, "text fallback gave %lld\n", result);
+        fprintf(stderr, "enum fallback gave %lld\n", result);
         return 1;
     }
     BundleInstanceClose(instance);
@@ -233,7 +237,7 @@ main(void)
        !has_result || result != 42 || instantiate_calls != 1)
         return 1;
     BundleInstanceClose(instance);
-    BundleClose(text);
+    BundleClose(enums);
     BundleClose(scalar);
     fprintf(stdout, "zx-wasm-engine-test: seam, provider handoff and fallback verified\n");
     return 0;

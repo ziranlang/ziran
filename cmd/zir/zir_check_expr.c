@@ -320,11 +320,17 @@ select_overload(Checker *c, int index)
         copy_text(base, sizeof(base), dot + 1);
     } else
         copy_text(base, sizeof(base), e->name);
-    const ZirModule *modules[65];
+    /* Every module the call can see, however many the file imports: an
+     * implicit import such as BuilderPrint's std/format comes last. */
+    const ZirModule **modules = calloc((size_t)c->module->import_count + 1, sizeof(*modules));
+    if(modules == NULL) {
+        c->failed = 1;
+        return;
+    }
     int module_count = 0;
     if(!alias[0])
         modules[module_count++] = c->module;
-    for(int i = 0; i < c->module->import_count && module_count < 65; i++) {
+    for(int i = 0; i < c->module->import_count; i++) {
         const ZirImport *import = &c->module->imports[i];
         if(import->resolved_module == NULL) continue;
         if(alias[0] ? import->kind == ZIR_IMPORT_MODULE && !strcmp(import->name, alias) :
@@ -332,24 +338,40 @@ select_overload(Checker *c, int index)
                       (import->kind == ZIR_IMPORT_MODULE && import->is_using))
             modules[module_count++] = import->resolved_module;
     }
-    OverloadCandidate candidates[64];
-    int candidate_count = 0;
+    OverloadCandidate *candidates = NULL;
+    int candidate_count = 0, candidate_cap = 0;
     for(int m = 0; m < module_count; m++)
-        for(int f = 0; f < modules[m]->function_count && candidate_count < 64; f++) {
+        for(int f = 0; f < modules[m]->function_count; f++) {
             const ZirFunction *fn = &modules[m]->functions[f];
             if(strcmp(fn->overload_name, base) ||
                (modules[m] != c->module && !fn->is_public))
                 continue;
+            if(candidate_count == candidate_cap) {
+                int cap = candidate_cap ? candidate_cap * 2 : 16;
+                OverloadCandidate *grown = realloc(candidates, (size_t)cap * sizeof(*grown));
+                if(grown == NULL) {
+                    free(candidates);
+                    free(modules);
+                    c->failed = 1;
+                    return;
+                }
+                candidates = grown;
+                candidate_cap = cap;
+            }
             candidates[candidate_count++] = (OverloadCandidate){fn, 0, modules[m]};
         }
-    if(candidate_count == 0)
+    free(modules);
+    if(candidate_count == 0) {
+        free(candidates);
         return;
+    }
     char (*types)[ZIR_NAME_MAX] = calloc(64, sizeof(*types));
     char (*names)[ZIR_NAME_MAX] = calloc(64, sizeof(*names));
     int count = 0;
     if(types == NULL || names == NULL) {
         free(types);
         free(names);
+        free(candidates);
         c->failed = 1;
         return;
     }
@@ -386,6 +408,7 @@ select_overload(Checker *c, int index)
         snprintf(shown + used, sizeof(shown) - used, ")");
     free(types);
     free(names);
+    free(candidates);
     if(best == NULL) {
         if(!c->inference_only)
             error(c, e->span, "no overload accepts these arguments", shown);

@@ -96,3 +96,29 @@ GO
     GO111MODULE=off go run "$output"/*.go
 done
 cmp "$work/source.zx" "$work/saved.zx"
+
+# A file may import any number of modules: the overloads of the last one,
+# here BuilderPrint's implicit std/format, are found after 70 others.
+mkdir "$work/many"
+imports=
+for index in $(seq 1 70); do
+    printf 'Part%s :: () -> s32 { return %s; }\n' "$index" "$index" > "$work/many/part$index.zi"
+    imports="$imports#import \"part$index\";
+"
+done
+cat > "$work/many/last.zi" <<'ZI'
+Pick :: (x: s32) -> s32 { return 40; }
+Pick :: (x: string) -> s32 { return 2; }
+ZI
+cat > "$work/many/app.zi" <<ZI
+$imports#import "last";
+#program_export
+Answer :: () -> s32 {
+    out: Vec(u8)
+    BuilderPrint(*out, "%-%", Part70(), Pick(1))
+    if BuilderFinish(out) != "70-40" { return 1; }
+    return Pick(1) + Pick("a");
+}
+ZI
+"$ziran" bundle --root "$work/many" --entry app:Answer -o "$work/many.zx" "$work/many/app.zi"
+test "$("$ziran" run "$work/many.zx")" = 42

@@ -1331,12 +1331,6 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
             }
             if(function->is_template || function->is_specialization)
                 continue;
-            if(function->assembly_text != NULL) {
-                Diagnostic(function->span, "zx.wasm",
-                           "#asm function %s:%s is outside the wasm execution subset",
-                           module->name, function->name);
-                goto done;
-            }
             if(emitter.plan_count == capacity) {
                 capacity *= 2;
                 WasmPlan *grown = realloc(emitter.plans,

@@ -8,6 +8,8 @@
 #include "zir_sha256.h"
 #include "zir_zx_native.h"
 #endif
+#include "zir_zx_wasm.h"
+#include "zir_zx_wasm_platform.h"
 
 #include "zir_stream.h"
 
@@ -384,6 +386,9 @@ struct BundleInstance {
     const char **capability_names;
 #else
     VmInstance *vm;
+    /* Present when a wasm provider is installed and the bundle lowered;
+     * otherwise the instance runs on the portable VM above. */
+    ZxWasm *wasm;
 #endif
 };
 
@@ -534,6 +539,16 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
                                     dispatch, &instance->set);
     if(instance->native == NULL) {
 #else
+    /* With a wasm provider installed, the wasm tier takes the bundles it
+     * can lower and the portable VM takes the rest; without one, every
+     * bundle runs on the VM exactly as before. */
+    if(ZxWasmPlatformActive() != NULL) {
+        instance->wasm = ZxWasmOpen(bundle->program, bundle->entry_owner,
+                                    bundle->entry, NULL, NULL,
+                                    bundle->capability_count);
+        if(instance->wasm != NULL)
+            return instance;
+    }
     instance->vm = VmInstanceOpenVerified(bundle->program, bundle->entry_owner,
                                            bundle->entry, dispatch, &instance->set);
     if(instance->vm == NULL) {
@@ -551,8 +566,11 @@ BundleInstanceRun(BundleInstance *instance, long long *result,
 #ifdef ZIRAN_NATIVE_ZX
     return instance != NULL && ZxNativeRun(instance->native, result, has_result);
 #else
-    return instance != NULL && VmInstanceRun(instance->vm, result,
-                                              has_result);
+    if(instance == NULL)
+        return 0;
+    if(instance->wasm != NULL)
+        return ZxWasmRun(instance->wasm, result, has_result);
+    return VmInstanceRun(instance->vm, result, has_result);
 #endif
 }
 
@@ -563,8 +581,13 @@ BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
     if(instance != NULL)
         ZxNativeLimitSteps(instance->native, max_steps);
 #else
-    if(instance != NULL)
-        VmInstanceLimitSteps(instance->vm, max_steps);
+    if(instance == NULL)
+        return;
+    if(instance->wasm != NULL) {
+        ZxWasmLimitSteps(instance->wasm, max_steps);
+        return;
+    }
+    VmInstanceLimitSteps(instance->vm, max_steps);
 #endif
 }
 
@@ -575,8 +598,13 @@ BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
     if(instance != NULL)
         ZxNativeMatchFieldsByName(instance->native, enabled);
 #else
-    if(instance != NULL)
-        VmInstanceMatchFieldsByName(instance->vm, enabled);
+    if(instance == NULL)
+        return;
+    if(instance->wasm != NULL) {
+        ZxWasmMatchFieldsByName(instance->wasm, enabled);
+        return;
+    }
+    VmInstanceMatchFieldsByName(instance->vm, enabled);
 #endif
 }
 
@@ -589,6 +617,7 @@ BundleInstanceClose(BundleInstance *instance)
     ZxNativeClose(instance->native);
     free(instance->capability_names);
 #else
+    ZxWasmClose(instance->wasm);
     VmInstanceClose(instance->vm);
 #endif
     free(instance->owned_bindings);

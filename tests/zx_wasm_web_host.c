@@ -8,6 +8,7 @@
 #include <emscripten.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 EM_JS(unsigned long, zx_wasm_js_instantiate, (int ptr, int size), {
     const bytes = new Uint8Array(HEAPU8.buffer, ptr, size).slice();
@@ -95,24 +96,34 @@ provider_release(void *context, unsigned long handle)
 int
 main(int argc, char **argv)
 {
-    if(argc != 3) {
-        fprintf(stderr, "usage: zx_wasm_web_host bundle.zx expected-result\n");
+    if(argc != 4) {
+        fprintf(stderr, "usage: zx_wasm_web_host manual|auto bundle.zx expected-result\n");
+        return 2;
+    }
+    int manual = strcmp(argv[1], "manual") == 0;
+    if(!manual && strcmp(argv[1], "auto") != 0) {
+        fprintf(stderr, "usage: zx_wasm_web_host manual|auto bundle.zx expected-result\n");
         return 2;
     }
     char *end;
-    long long expected = strtoll(argv[2], &end, 10);
+    long long expected = strtoll(argv[3], &end, 10);
     if(*end) {
-        fprintf(stderr, "usage: zx_wasm_web_host bundle.zx expected-result\n");
+        fprintf(stderr, "usage: zx_wasm_web_host manual|auto bundle.zx expected-result\n");
         return 2;
     }
-    ZxWasmPlatform platform = {0};
-    platform.instantiate = provider_instantiate;
-    platform.set_budget = provider_set_budget;
-    platform.call = provider_call;
-    platform.release = provider_release;
-    ZxWasmSetPlatform(&platform);
+    if(manual) {
+        ZxWasmPlatform platform = {0};
+        platform.instantiate = provider_instantiate;
+        platform.set_budget = provider_set_budget;
+        platform.call = provider_call;
+        platform.release = provider_release;
+        ZxWasmSetPlatform(&platform);
+    } else if(ZxWasmPlatformActive() == NULL) {
+        fprintf(stderr, "auto mode found no installed provider\n");
+        return 1;
+    }
 
-    Bundle *bundle = BundleOpen(argv[1]);
+    Bundle *bundle = BundleOpen(argv[2]);
     if(bundle == NULL) {
         fprintf(stderr, "cannot open %s\n", argv[1]);
         return 1;
@@ -129,7 +140,10 @@ main(int argc, char **argv)
         return 1;
     }
     printf("%lld\n", result);
-    int tier_was_wasm = result == expected;
+    if(result != expected) {
+        fprintf(stderr, "tier result %lld != %lld\n", result, expected);
+        return 1;
+    }
     /* A budget of one step must trip the tier's overrun import. */
     BundleInstanceLimitSteps(instance, 1);
     long long spent = 0;
@@ -139,5 +153,5 @@ main(int argc, char **argv)
     }
     BundleInstanceClose(instance);
     BundleClose(bundle);
-    return tier_was_wasm ? 0 : 1;
+    return 0;
 }

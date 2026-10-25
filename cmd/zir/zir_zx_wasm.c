@@ -21,6 +21,24 @@ struct ZxWasm {
 static ZxWasmPlatform active_platform;
 static int platform_installed;
 
+/* The Emscripten build's provider installs itself here; native builds
+ * define the empty version below. The strong reference from this always
+ * linked object pulls the provider into the web link. */
+void ZxWasmInstallBundledPlatform(void);
+#ifndef __EMSCRIPTEN__
+void
+ZxWasmInstallBundledPlatform(void)
+{
+}
+#endif
+
+__attribute__((constructor))
+static void
+zx_wasm_install_at_load(void)
+{
+    ZxWasmInstallBundledPlatform();
+}
+
 void
 ZxWasmSetPlatform(const ZxWasmPlatform *platform)
 {

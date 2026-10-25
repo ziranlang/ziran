@@ -49,13 +49,34 @@ make -s -C "$repo" -j4 BOOTSTRAP=1 BUILD_DIR="$work/lib" \
     -s ENVIRONMENT=node -s NODERAWFS=1 -s ALLOW_MEMORY_GROWTH=1 \
     -s EXIT_RUNTIME=1
 
-result=$(ZIRAN_NATIVE_CACHE=0 "$node" -e "
-const host = require('$work/host.js')({
-    arguments: ['$work/zx_wasm_test.zx', '$expected'],
-});
-" 2>&1 | grep -E '^[0-9-]+$$' | tail -1)
-test "$result" = "$expected" || {
-    echo "zx-wasm-web: tier result '$result' != $expected"
+run_host() {
+    ZIRAN_NATIVE_CACHE=0 "$node" -e "
+const host = require('$work/host.js')({arguments: ['$1', '$work/zx_wasm_test.zx', '$expected']});
+" 2>&1 | grep -E '^[0-9-]+$' | tail -1
+}
+
+# The constructor-installed provider is the production path: no host code
+# touches the tier, and the module cache reuses compilation on reopen.
+auto=$(run_host auto)
+test "$auto" = "$expected" || {
+    echo "zx-wasm-web: auto tier result '$auto' != $expected"
     exit 1
 }
-echo 'The wasm execution tier ran the bundle inside the wasm-built libziran through a JavaScript provider'
+
+# An explicitly installed provider still works.
+manual=$(run_host manual)
+test "$manual" = "$expected" || {
+    echo "zx-wasm-web: manual tier result '$manual' != $expected"
+    exit 1
+}
+
+# ZIRAN_WASM_TIER=0 leaves the provider out and the VM runs the bundle.
+plain=$(ZIRAN_WASM_TIER=0 ZIRAN_NATIVE_CACHE=0 "$node" -e "
+const host = require('$work/host.js')({arguments: ['auto', '$work/zx_wasm_test.zx', '$expected']});
+" 2>&1 | grep -E '^[0-9-]+$' | tail -1)
+if test "$plain" = "$expected"; then
+    echo "zx-wasm-web: ZIRAN_WASM_TIER=0 still installed the provider" >&2
+    exit 1
+fi
+
+echo 'The wasm execution tier installs itself in the web build and runs bundles without host changes'

@@ -5,6 +5,7 @@
 - Linux and Android hosts on x86-64, ARM and ARM64 run portable bundles as native code, compiled in memory and cached between launches.
 - Natively run bundles execute `#parallel for` regions on worker threads, one per processor.
 - `#parallel for` bodies can hand out results by writing their own slot of an array or slice the function owns, such as `out[it] = value`, or their own window of a slice, such as the row `pixels[it * width : it * width + width]`.
+- The new `zi2wasm` tool lowers a checked program's scalar subset to one wasm32 module: the portable control flow, calls, casts and wrapped integer widths, with a step-budget import matching the native tier's counting. Programs outside the subset fail with a `zx.wasm` diagnostic, and `tests/zx_wasm.sh` compares the module's result with the native tier and the portable VM under node (and wasmtime when installed).
 
 ### Changed
 - Native builds run `#parallel for` regions on one thread per processor instead of four; `ZIRAN_PAR_THREADS` still chooses.

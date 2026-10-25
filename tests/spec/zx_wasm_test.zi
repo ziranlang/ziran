@@ -1,0 +1,60 @@
+// Scalar fixture for the wasm execution tier: integers of every width
+// with their wrapping rules, unsigned shifts and masks, float casts,
+// recursion, named arguments, compound assignment, break and continue,
+// else-if chains, logical operators, and a conditional expression.
+// The native tier, the portable VM, and zi2wasm must agree on the result.
+
+Fib :: (n: s32) -> s64 {
+    if n < 2 { return cast(s64)n }
+    return Fib(n - 1) + Fib(n - 2)
+}
+
+Mix :: (a: s64, scale: s32) -> s64 {
+    return (a * cast(s64)scale + 7) / 7
+}
+
+#program_export
+Answer :: () -> s64 {
+    total: s64 = 0
+
+    u: u16 = 65535
+    u += 3
+    total += cast(s64)u
+
+    s: s8 = 127
+    s += 1
+    total += cast(s64)s
+
+    big: u64 = 1
+    big = big << 40
+    big |= 255
+    total += cast(s64)(big & 255)
+
+    f: float64 = 2.75
+    total += cast(s64)(f * 2.0)
+
+    for k: 0..10 {
+        if k == 3 { continue }
+        if k == 8 { break }
+        total += cast(s64)k
+    }
+
+    total += Fib(20)
+    total += Mix(100, 3)
+
+    flag: bool = true
+    negate: bool = !flag
+    if flag && !negate { total += 1000 }
+    else if negate { total += 2000 }
+    else { total += 3000 }
+
+    shifted: s32 = 1
+    shifted <<= 10
+    total += cast(s64)shifted
+
+    negative: s64 = -5
+    total += -negative
+
+    total += ifx 0 == 1 then 7 else 11
+    return total
+}

@@ -1,7 +1,8 @@
 #!/bin/sh
-# The native ZX engine caches each compiled bundle: a second run links the
-# cached object, an unusable object is rebuilt rather than run, and a changed
-# bundle gets its own entry. The program passes records around the way that
+# The native ZX engine caches each compiled bundle: a second run opens the
+# bundle without checking it again and links the cached object, an unusable
+# object is rebuilt (after checking) rather than run, new asset bytes keep
+# the entry, and a changed program gets its own. The program passes records around the way that
 # once broke TinyCC's ARM calls (a structure split across r3 and the stack,
 # then an 8-byte-aligned argument). Builds without the engine skip the cache.
 set -eu
@@ -25,7 +26,8 @@ main :: () -> s32 {
     return cast(s32)text.count * 7 + $1
 }
 ZI
-    "$ziran" bundle --root "$work" --entry answer:main -o "$work/answer.zx" "$work/answer.zi"
+    "$ziran" bundle --root "$work" --asset-dir notes="$work/notes" --entry answer:main \
+        -o "$work/answer.zx" "$work/answer.zi"
 }
 
 run() {
@@ -34,6 +36,8 @@ run() {
     cat "$work/out"
 }
 
+mkdir "$work/notes"
+printf one > "$work/notes/note.txt"
 write_program 0
 test "$(run)" = 42
 if ! grep -q '^ziran: native' "$work/err"; then
@@ -41,19 +45,29 @@ if ! grep -q '^ziran: native' "$work/err"; then
     exit 0
 fi
 grep -q 'lowering' "$work/err"
+if grep -q 'unchecked' "$work/err"; then exit 1; fi
 test "$(ls "$work/cache" | wc -l)" -eq 1
 
 test "$(run)" = 42
+grep -q 'opened on cached code, unchecked' "$work/err"
 grep -q 'cached, linking' "$work/err"
 
 for object in "$work/cache"/*.o; do printf 'not an object' > "$object"; done
 test "$(run)" = 42
+grep -q 'opened on cached code, unchecked' "$work/err"
 grep -q 'lowering' "$work/err"
 test "$(run)" = 42
 grep -q 'cached, linking' "$work/err"
+
+printf two > "$work/notes/note.txt"
+write_program 0
+test "$(run)" = 42
+grep -q 'opened on cached code, unchecked' "$work/err"
+grep -q 'cached, linking' "$work/err"
+test "$(ls "$work/cache" | wc -l)" -eq 1
 
 write_program 1
 test "$(run)" = 43
 grep -q 'lowering' "$work/err"
 test "$(ls "$work/cache" | wc -l)" -eq 2
-echo "native code cache: compiled, reused, rebuilt when unusable, keyed by bundle"
+echo "native code cache: compiled, reused unchecked, rebuilt when unusable, keyed by program"

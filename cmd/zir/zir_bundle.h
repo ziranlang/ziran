@@ -68,13 +68,24 @@ ZirProgram *BundleRead(FILE *in, const char *path,
                           char *entry_module, size_t module_size,
                           char *entry_function, size_t function_size,
                           ZxLawTable *laws, ZxAssets *assets);
-/* Optional counts describe the validated payload before libraries are appended. */
+/* Optional counts describe the validated payload before libraries are appended.
+ * With *trusted set the caller vouches that this compiler checked these exact
+ * bytes before: semantic checking and law evaluation are skipped, and on any
+ * failure *trusted is cleared without a diagnostic, so the caller can read
+ * the bytes again with checking. */
 ZirProgram *BundleReadInContext(FILE *in, const char *path,
                           char *entry_module, size_t module_size,
                           char *entry_function, size_t function_size,
                           ZxLawTable *laws, ZxAssets *assets,
                           const ZirProgram *const *libraries, size_t count,
-                          int *own_module_count, size_t *own_capability_count);
+                          int *own_module_count, size_t *own_capability_count,
+                          int *trusted);
+/* The offset just past a bundle's program: the code it compiles to depends on
+ * those bytes alone, not on the assets after them. Leaves the stream where it
+ * was; -1 when the header is malformed. */
+long BundleProgramEnd(FILE *in);
+/* Runs the checks a trusted read skipped, on a program without libraries. */
+int BundleCheckTrusted(ZirProgram **program, int own_module_count, const ZxLawTable *laws);
 typedef struct Bundle Bundle;
 const ZirProgram *BundleProgram(const Bundle *bundle);
 const ZirFunction *BundleEntry(const Bundle *bundle);

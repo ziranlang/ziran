@@ -2491,13 +2491,93 @@ ZxLawTableFree(ZxLawTable *table)
     table->waiver_count = 0;
 }
 
+static int
+skip_fields(FILE *in, int count)
+{
+    for(int i = 0; i < count; i++) {
+        uint32_t length;
+        if(!read_u32(in, &length) || length > ZX_MAX_IR_BYTES ||
+           fseek(in, (long)length, SEEK_CUR) != 0)
+            return 0;
+    }
+    return 1;
+}
+
+long
+BundleProgramEnd(FILE *in)
+{
+    long start = ftell(in), end = -1;
+    unsigned char signature[4];
+    uint32_t version, count, length;
+    if(start < 0)
+        return -1;
+    if(fread(signature, 1, 4, in) != 4 || memcmp(signature, "ZX\0\0", 4) ||
+       !read_u32(in, &version) || version != ZX_VERSION || !skip_fields(in, 2) ||
+       !read_u32(in, &count) || count > ZX_MAX_CAPABILITIES || !skip_fields(in, 2 * (int)count))
+        goto done;
+    /* Each law: six names and a domain, two count words, a counterexample
+     * and the waived word; each waiver: three names. */
+    if(!read_u32(in, &count) || count > ZX_MAX_CAPABILITIES * 64)
+        goto done;
+    for(uint32_t i = 0; i < count; i++)
+        if(!skip_fields(in, 7) || fseek(in, 8, SEEK_CUR) != 0 || !skip_fields(in, 1) ||
+           fseek(in, 4, SEEK_CUR) != 0)
+            goto done;
+    if(!read_u32(in, &count) || count > ZX_MAX_CAPABILITIES * 64 || !skip_fields(in, 3 * (int)count) ||
+       !read_u32(in, &length) || length == 0 || length > ZX_MAX_IR_BYTES)
+        goto done;
+    end = ftell(in);
+    if(end >= 0)
+        end += (long)length;
+done:
+    if(fseek(in, start, SEEK_SET) != 0)
+        return -1;
+    return end;
+}
+
+/* Compares the bundle's law table with the laws of its checked program;
+ * returns the difference, or NULL when they agree. */
+static const char *
+laws_differ(const ZirProgram *program, int own_modules, const ZxLawTable *laws)
+{
+    int next = 0, next_waiver = 0;
+    for(int m = 0; m < own_modules; m++) {
+        const ZirModule *module = &program->modules[m];
+        for(int l = 0; l < module->law_count; l++) {
+            const ZirLaw *law = &module->laws[l];
+            char detail[ZIR_TEXT_MAX];
+            int status = EvaluateLaw(program, module, law, detail, sizeof(detail));
+            if(next >= laws->law_count) return "bundle law table differs from checked IR";
+            const ZxLawRecord *record = &laws->laws[next++];
+            if(strcmp(record->module, module->name) || strcmp(record->name, law->name) ||
+               strcmp(record->kind, law->kind) || strcmp(record->status, LawStatusName(status)) ||
+               strcmp(record->detail, detail) || strcmp(record->evidence.method, law->evidence.method) ||
+               strcmp(record->evidence.domain, law->evidence.domain) ||
+               strcmp(record->evidence.counterexample, law->evidence.counterexample) ||
+               record->evidence.cases_checked != law->evidence.cases_checked ||
+               record->evidence.waived != law->evidence.waived)
+                return "bundle law table differs from checked IR";
+        }
+        for(int w = 0; w < module->law_waiver_count; w++) {
+            if(next_waiver >= laws->waiver_count) return "bundle waiver table differs from checked IR";
+            const ZxLawWaiverRecord *record = &laws->waivers[next_waiver++];
+            if(strcmp(record->module, module->name) || strcmp(record->name, module->law_waivers[w].name) ||
+               strcmp(record->reason, module->law_waivers[w].reason))
+                return "bundle waiver table differs from checked IR";
+        }
+    }
+    if(next != laws->law_count || next_waiver != laws->waiver_count)
+        return "bundle law table differs from checked IR";
+    return NULL;
+}
+
 ZirProgram *
 BundleReadInContext(FILE *in, const char *path,
            char *entry_module, size_t module_size,
            char *entry_function, size_t function_size,
            ZxLawTable *laws, ZxAssets *assets,
            const ZirProgram *const *libraries, size_t library_count,
-           int *own_module_count, size_t *own_capability_count)
+           int *own_module_count, size_t *own_capability_count, int *trusted)
 {
     unsigned char signature[4];
     uint32_t version, capability_count, length;
@@ -2513,6 +2593,8 @@ BundleReadInContext(FILE *in, const char *path,
     if(discard_laws) laws = &discarded;
     const char *problem = "invalid or truncated bundle";
     int own_modules = 0;
+    int unchecked = 0;
+    if(trusted == NULL) trusted = &unchecked;
     if(in == NULL || path == NULL || entry_module == NULL ||
        entry_function == NULL || library_count > 64 ||
        (library_count != 0 && libraries == NULL))
@@ -2607,13 +2689,15 @@ BundleReadInContext(FILE *in, const char *path,
             goto failed;
         }
     }
-    if(!CheckCanonicalPrograms(&program, 1, NULL)) {
+    if(!*trusted && !CheckCanonicalPrograms(&program, 1, NULL)) {
         problem = "embedded ZIR failed semantic checking";
         goto failed;
     }
     /* Canonical checking can materialize generic specializations. Validate
      * requirements against the final payload before reusing its count. The
-     * separately verified libraries retain their own capability lists. */
+     * separately verified libraries retain their own capability lists. A
+     * trusted payload is compared before checking: when a specialization
+     * would add a call, the caller reads it again with checking. */
     if(capability_count != (uint32_t)count_capabilities(program, own_modules)) {
         problem = "bundle capability list differs from linked IR";
         goto failed;
@@ -2636,39 +2720,8 @@ BundleReadInContext(FILE *in, const char *path,
                 }
                 next_capability++;
             }
-    if(laws) {
-        int next = 0, next_waiver = 0;
-        for(int m = 0; m < own_modules; m++) {
-            const ZirModule *module = &program->modules[m];
-            for(int l = 0; l < module->law_count; l++) {
-                const ZirLaw *law = &module->laws[l];
-                char detail[ZIR_TEXT_MAX];
-                int status = EvaluateLaw(program, module, law, detail, sizeof(detail));
-                if(next >= laws->law_count) { problem = "bundle law table differs from checked IR"; goto failed; }
-                const ZxLawRecord *record = &laws->laws[next++];
-                if(strcmp(record->module, module->name) || strcmp(record->name, law->name) ||
-                   strcmp(record->kind, law->kind) || strcmp(record->status, LawStatusName(status)) ||
-                   strcmp(record->detail, detail) || strcmp(record->evidence.method, law->evidence.method) ||
-                   strcmp(record->evidence.domain, law->evidence.domain) ||
-                   strcmp(record->evidence.counterexample, law->evidence.counterexample) ||
-                   record->evidence.cases_checked != law->evidence.cases_checked ||
-                   record->evidence.waived != law->evidence.waived) {
-                    problem = "bundle law table differs from checked IR"; goto failed;
-                }
-            }
-            for(int w = 0; w < module->law_waiver_count; w++) {
-                if(next_waiver >= laws->waiver_count) { problem = "bundle waiver table differs from checked IR"; goto failed; }
-                const ZxLawWaiverRecord *record = &laws->waivers[next_waiver++];
-                if(strcmp(record->module, module->name) || strcmp(record->name, module->law_waivers[w].name) ||
-                   strcmp(record->reason, module->law_waivers[w].reason)) {
-                    problem = "bundle waiver table differs from checked IR"; goto failed;
-                }
-            }
-        }
-        if(next != laws->law_count || next_waiver != laws->waiver_count) {
-            problem = "bundle law table differs from checked IR"; goto failed;
-        }
-    }
+    if(laws && !*trusted && (problem = laws_differ(program, own_modules, laws)) != NULL)
+        goto failed;
     fclose(payload);
     free(payload_bytes);
     free(capabilities);
@@ -2678,7 +2731,10 @@ BundleReadInContext(FILE *in, const char *path,
     if(own_capability_count != NULL) *own_capability_count = capability_count;
     return program;
 failed:
-    Diagnostic(Span(path, 1, 1), "zx.invalid", "%s", problem);
+    if(*trusted)
+        *trusted = 0;
+    else
+        Diagnostic(Span(path, 1, 1), "zx.invalid", "%s", problem);
     if(payload != NULL)
         fclose(payload);
     free(payload_bytes);
@@ -2696,7 +2752,22 @@ BundleRead(FILE *in, const char *path,
            ZxLawTable *laws, ZxAssets *assets)
 {
     return BundleReadInContext(in, path, entry_module, module_size,
-        entry_function, function_size, laws, assets, NULL, 0, NULL, NULL);
+        entry_function, function_size, laws, assets, NULL, 0, NULL, NULL, NULL);
+}
+
+int
+BundleCheckTrusted(ZirProgram **program, int own_module_count, const ZxLawTable *laws)
+{
+    if(!CheckCanonicalPrograms(program, 1, NULL)) {
+        Diagnostic(Span("<bundle>", 1, 1), "zx.invalid", "embedded ZIR failed semantic checking");
+        return 0;
+    }
+    const char *problem = laws_differ(*program, own_module_count, laws);
+    if(problem != NULL) {
+        Diagnostic(Span("<bundle>", 1, 1), "zx.invalid", "%s", problem);
+        return 0;
+    }
+    return 1;
 }
 
 

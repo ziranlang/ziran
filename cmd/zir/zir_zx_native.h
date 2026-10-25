@@ -26,6 +26,17 @@ ZxNative *ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
                        const char *const *capability_modules,
                        const char *const *capability_functions,
                        size_t capability_count, VmHostCall host, void *context);
+/* Whether compiled code for `identity` is cached. Only this compiler writes
+ * it, from a checked program, so a host may open those bytes unchecked. */
+int ZxNativeCached(const unsigned char identity[32]);
+/* Like ZxNativeOpen from cached code alone, for a bundle opened unchecked.
+ * Returns NULL with *missing set and no diagnostic when no cached code
+ * links; the host then checks the program and calls ZxNativeOpen. */
+ZxNative *ZxNativeOpenCached(const ZirFunction *entry, const unsigned char identity[32],
+                             const char *const *capability_modules,
+                             const char *const *capability_functions,
+                             size_t capability_count, VmHostCall host, void *context,
+                             int *missing);
 int ZxNativeRun(ZxNative *native, long long *result, int *has_result);
 void ZxNativeLimitSteps(ZxNative *native, int max_steps);
 void ZxNativeMatchFieldsByName(ZxNative *native, int enabled);

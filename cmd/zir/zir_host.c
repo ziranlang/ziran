@@ -7,6 +7,7 @@
 #ifdef ZIRAN_NATIVE_ZX
 #include "zir_sha256.h"
 #include "zir_zx_native.h"
+#include <pthread.h>
 #endif
 #include "zir_zx_wasm.h"
 #include "zir_zx_wasm_platform.h"
@@ -34,14 +35,28 @@ struct Bundle {
     Bundle **libraries;
     size_t library_count;
     size_t references;
-    unsigned char digest[32]; /* SHA-256 of the bundle's bytes (native engine) */
+    unsigned char digest[32]; /* SHA-256 of the bytes before the assets (native engine) */
+    /* 1 while a bundle opened on its cached native code is unchecked, -1
+     * when its later check failed. */
+    int unchecked;
+    /* An unchecked bundle owns its capability names: checking it later may
+     * move the imports that instances' names would otherwise borrow. */
+    char *capability_text;
     size_t capability_count;
     Capability capabilities[];
 };
 
+#ifdef ZIRAN_NATIVE_ZX
+static int check_unchecked(Bundle *bundle);
+#endif
+
 const ZirProgram *
 BundleProgram(const Bundle *bundle)
 {
+#ifdef ZIRAN_NATIVE_ZX
+    if(bundle != NULL && !check_unchecked((Bundle *)bundle))
+        return NULL;
+#endif
     return bundle != NULL ? bundle->program : NULL;
 }
 
@@ -150,7 +165,7 @@ cache_capabilities(Bundle **slot, size_t count)
         *slot = bundle = grown;
     }
     bundle->capability_count = count;
-    size_t next = 0;
+    size_t next = 0, text = 0;
     for(int m = 0; m < bundle->program->module_count; m++) {
         const ZirModule *module = &bundle->program->modules[m];
         for(int i = 0; i < module->import_count; i++)
@@ -158,10 +173,119 @@ cache_capabilities(Bundle **slot, size_t count)
                 if(next == count)
                     return 0;
                 bundle->capabilities[next++] = (Capability){module->name, module->imports[i].name};
+                text += strlen(module->name) + strlen(module->imports[i].name) + 2;
             }
     }
-    return next == count;
+    if(next != count)
+        return 0;
+    if(bundle->unchecked == 1) {
+        char *copy = bundle->capability_text = malloc(text);
+        if(copy == NULL)
+            return 0;
+        for(size_t i = 0; i < count; i++) {
+            size_t module = strlen(bundle->capabilities[i].module) + 1;
+            size_t function = strlen(bundle->capabilities[i].function) + 1;
+            memcpy(copy, bundle->capabilities[i].module, module);
+            memcpy(copy + module, bundle->capabilities[i].function, function);
+            bundle->capabilities[i] = (Capability){copy, copy + module};
+            copy += module + function;
+        }
+    }
+    return 1;
 }
+
+static int
+find_entry(Bundle *bundle, const char *entry_module, const char *entry_function)
+{
+    const ZirModule *owner = NULL;
+    const ZirFunction *entry = NULL;
+    for(int m = 0; m < bundle->program->module_count; m++) {
+        const ZirModule *module = &bundle->program->modules[m];
+        if(strcmp(module->name, entry_module) != 0)
+            continue;
+        for(int f = 0; f < module->function_count; f++)
+            if(strcmp(module->functions[f].name, entry_function) == 0) {
+                owner = module;
+                entry = &module->functions[f];
+            }
+    }
+    bundle->entry_owner = owner;
+    bundle->entry = entry;
+    return entry != NULL;
+}
+
+#ifdef ZIRAN_NATIVE_ZX
+/* A bundle and the libraries it links name one native program. */
+static void
+add_identity(Sha256 *hash, const Bundle *bundle)
+{
+    Sha256Add(hash, bundle->digest, sizeof(bundle->digest));
+    for(size_t i = 0; i < bundle->library_count; i++)
+        add_identity(hash, bundle->libraries[i]);
+}
+
+static void
+bundle_identity(const Bundle *bundle, unsigned char identity[32])
+{
+    Sha256 hash;
+    Sha256Begin(&hash);
+    add_identity(&hash, bundle);
+    Sha256End(&hash, identity);
+}
+
+static pthread_mutex_t check_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/* Checks a bundle opened unchecked the first time something needs its
+ * checked program: compiling it, or reading it with BundleProgram. Checking
+ * may move functions, so the entry is found again, and the capabilities it
+ * finds must be the ones the bundle already lists. */
+static int
+check_unchecked(Bundle *bundle)
+{
+    pthread_mutex_lock(&check_lock);
+    if(bundle->unchecked == 1) {
+        char module[ZIR_NAME_MAX], function[ZIR_NAME_MAX];
+        snprintf(module, sizeof(module), "%s", bundle->entry_owner->name);
+        snprintf(function, sizeof(function), "%s", bundle->entry->name);
+        int ok = BundleCheckTrusted(&bundle->program, bundle->own_module_count, &bundle->laws) &&
+                 VmVerify(bundle->program, module, function) &&
+                 find_entry(bundle, module, function);
+        size_t next = 0;
+        for(int m = 0; ok && m < bundle->program->module_count; m++) {
+            const ZirModule *owner = &bundle->program->modules[m];
+            for(int i = 0; ok && i < owner->import_count; i++)
+                if(capability_import(owner, &owner->imports[i])) {
+                    ok = next < bundle->capability_count &&
+                         strcmp(bundle->capabilities[next].module, owner->name) == 0 &&
+                         strcmp(bundle->capabilities[next].function, owner->imports[i].name) == 0;
+                    next++;
+                }
+        }
+        if(ok && next != bundle->capability_count)
+            ok = 0;
+        if(!ok)
+            Diagnostic(Span("<bundle>", 1, 1), "zx.invalid",
+                       "bundle opened on cached native code failed checking");
+        bundle->unchecked = ok ? 0 : -1;
+    }
+    int checked = bundle->unchecked == 0;
+    pthread_mutex_unlock(&check_lock);
+    return checked;
+}
+
+/* Copies the entry of a bundle still unchecked while no check can move it;
+ * 0 once the bundle is checked. */
+static int
+unchecked_entry(const Bundle *bundle, ZirFunction *entry)
+{
+    pthread_mutex_lock(&check_lock);
+    int unchecked = bundle->unchecked == 1;
+    if(unchecked)
+        *entry = *bundle->entry;
+    pthread_mutex_unlock(&check_lock);
+    return unchecked;
+}
+#endif
 
 static Bundle *
 open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
@@ -187,7 +311,11 @@ open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
         }
     }
     for(size_t i = 0; i < count; i++) {
-        if(libraries[i] == NULL || libraries[i]->references == SIZE_MAX) {
+        if(libraries[i] == NULL || libraries[i]->references == SIZE_MAX
+#ifdef ZIRAN_NATIVE_ZX
+           || !check_unchecked(libraries[i])
+#endif
+           ) {
             BundleClose(bundle);
             return NULL;
         }
@@ -196,28 +324,43 @@ open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
         programs[i] = libraries[i]->program;
     }
     size_t capability_count = 0;
-    bundle->program = BundleReadInContext(file, name, entry_module,
-                                 sizeof(entry_module), entry_function,
-                                 sizeof(entry_function),
-                                 &bundle->laws, &bundle->assets, programs,
-                                 count, &bundle->own_module_count, &capability_count);
+    int trusted = 0;
+#ifdef ZIRAN_NATIVE_ZX
+    /* Compiled code cached for these exact bytes means this compiler checked
+     * them before, so they open without checking until something needs the
+     * checked program. A read that trust does not settle reads again. */
+    if(digest != NULL && count == 0) {
+        unsigned char identity[32];
+        bundle_identity(bundle, identity);
+        trusted = ZxNativeCached(identity);
+    }
+#endif
+    int attempts = trusted ? 2 : 1;
+    for(int attempt = 0; attempt < attempts && bundle->program == NULL; attempt++) {
+        if(attempt > 0 && fseek(file, 0, SEEK_SET) != 0)
+            break;
+        ZxLawTableFree(&bundle->laws);
+        bundle->program = BundleReadInContext(file, name, entry_module,
+                                     sizeof(entry_module), entry_function,
+                                     sizeof(entry_function),
+                                     &bundle->laws, &bundle->assets, programs,
+                                     count, &bundle->own_module_count, &capability_count,
+                                     &trusted);
+    }
     bundle->own_asset_count = bundle->assets.count;
+    bundle->unchecked = trusted;
+#ifdef ZIRAN_NATIVE_ZX
+    const char *timing = getenv("ZIRAN_NATIVE_TIMING");
+    if(trusted && timing != NULL && strcmp(timing, "1") == 0)
+        fprintf(stderr, "ziran: native %s: opened on cached code, unchecked\n", name);
+#endif
     if(bundle->program == NULL || !share_library_modules(bundle) ||
        !share_library_assets(bundle) ||
-       !VmVerify(bundle->program, entry_module, entry_function)) {
+       (!trusted && !VmVerify(bundle->program, entry_module, entry_function))) {
         BundleClose(bundle);
         return NULL;
     }
-    for(int m = 0; m < bundle->program->module_count; m++) {
-        const ZirModule *module = &bundle->program->modules[m];
-        if(strcmp(module->name, entry_module) != 0)
-            continue;
-        for(int f = 0; f < module->function_count; f++)
-            if(strcmp(module->functions[f].name, entry_function) == 0) {
-                bundle->entry_owner = module;
-                bundle->entry = &module->functions[f];
-            }
-    }
+    find_entry(bundle, entry_module, entry_function);
     /* Library graphs are disjoint (the reader rejects duplicate modules),
      * so their already-validated requirements add to the bundle's own list. */
     for(size_t i = 0; i < bundle->library_count; i++) {
@@ -253,17 +396,23 @@ BundleOpenWithLibraries(const char *path, Bundle *const *libraries, size_t count
     }
     unsigned char *digest = NULL;
 #ifdef ZIRAN_NATIVE_ZX
-    /* Native code caches are keyed by the bundle's exact bytes. */
-    unsigned char bytes_digest[32];
+    /* Native code caches are keyed by the bytes that code depends on:
+     * everything before the assets. */
+    unsigned char program_digest[32];
     unsigned char buffer[4096];
-    size_t read;
+    long left = BundleProgramEnd(file);
     Sha256 hash;
     Sha256Begin(&hash);
-    while((read = fread(buffer, 1, sizeof(buffer), file)) > 0)
-        Sha256Add(&hash, buffer, read);
-    Sha256End(&hash, bytes_digest);
-    if(!ferror(file) && fseek(file, 0, SEEK_SET) == 0)
-        digest = bytes_digest;
+    while(left > 0) {
+        size_t want = left < (long)sizeof(buffer) ? (size_t)left : sizeof(buffer);
+        if(fread(buffer, 1, want, file) != want)
+            break;
+        Sha256Add(&hash, buffer, want);
+        left -= (long)want;
+    }
+    Sha256End(&hash, program_digest);
+    if(left == 0 && fseek(file, 0, SEEK_SET) == 0)
+        digest = program_digest;
 #endif
     Bundle *bundle = open_bundle_stream(file, path, digest, libraries, count);
     fclose(file);
@@ -287,12 +436,15 @@ BundleOpenBytesWithLibraries(const unsigned char *data, size_t size,
         return NULL;
     unsigned char *digest = NULL;
 #ifdef ZIRAN_NATIVE_ZX
-    unsigned char bytes_digest[32];
-    Sha256 hash;
-    Sha256Begin(&hash);
-    Sha256Add(&hash, data, size);
-    Sha256End(&hash, bytes_digest);
-    digest = bytes_digest;
+    unsigned char program_digest[32];
+    long end = BundleProgramEnd(file);
+    if(end > 0 && (size_t)end <= size) {
+        Sha256 hash;
+        Sha256Begin(&hash);
+        Sha256Add(&hash, data, (size_t)end);
+        Sha256End(&hash, program_digest);
+        digest = program_digest;
+    }
 #endif
     Bundle *bundle = open_bundle_stream(file, "<embedded bundle>", digest, libraries, count);
     fclose(file);
@@ -319,6 +471,7 @@ BundleClose(Bundle *bundle)
         ZxLawTableFree(&bundle->laws);
         bundle->assets.count = bundle->own_asset_count;
         ZxAssetsFree(&bundle->assets);
+        free(bundle->capability_text);
         for(size_t i = 0; i < bundle->library_count; i++)
             BundleClose(bundle->libraries[i]);
         free(bundle->libraries);
@@ -456,17 +609,6 @@ validate_bindings(const Bundle *bundle, const BindingSet *set)
     return 1;
 }
 
-#ifdef ZIRAN_NATIVE_ZX
-/* A bundle and the libraries it links name one native program. */
-static void
-add_identity(Sha256 *hash, const Bundle *bundle)
-{
-    Sha256Add(hash, bundle->digest, sizeof(bundle->digest));
-    for(size_t i = 0; i < bundle->library_count; i++)
-        add_identity(hash, bundle->libraries[i]);
-}
-#endif
-
 BundleInstance *
 BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
                   size_t binding_count)
@@ -519,10 +661,7 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
     /* Native platforms run bundles only as native code; a bundle that cannot
      * be compiled is an error, never a slower fallback. */
     unsigned char identity[32];
-    Sha256 hash;
-    Sha256Begin(&hash);
-    add_identity(&hash, bundle);
-    Sha256End(&hash, identity);
+    bundle_identity(bundle, identity);
     size_t count = bundle->capability_count;
     instance->capability_names = calloc(count * 2 + 1, sizeof(*instance->capability_names));
     if(instance->capability_names == NULL) {
@@ -533,10 +672,20 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
         instance->capability_names[i] = bundle->capabilities[i].module;
         instance->capability_names[count + i] = bundle->capabilities[i].function;
     }
-    instance->native = ZxNativeOpen(bundle->program, bundle->entry_owner, bundle->entry,
-                                    identity, instance->capability_names,
-                                    instance->capability_names + count, count,
-                                    dispatch, &instance->set);
+    /* An unchecked bundle runs its cached code, or is checked and compiled
+     * when that code is gone. */
+    int missing = 1;
+    ZirFunction entry;
+    if(unchecked_entry(bundle, &entry))
+        instance->native = ZxNativeOpenCached(&entry, identity,
+                                              instance->capability_names,
+                                              instance->capability_names + count, count,
+                                              dispatch, &instance->set, &missing);
+    if(instance->native == NULL && missing && check_unchecked((Bundle *)bundle))
+        instance->native = ZxNativeOpen(bundle->program, bundle->entry_owner, bundle->entry,
+                                        identity, instance->capability_names,
+                                        instance->capability_names + count, count,
+                                        dispatch, &instance->set);
     if(instance->native == NULL) {
 #else
     /* With a wasm provider installed, the wasm tier takes the bundles it

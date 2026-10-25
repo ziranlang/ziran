@@ -69,7 +69,10 @@ struct ZxNative {
     const char *const *capability_modules;
     const char *const *capability_functions;
     size_t capability_count;
-    const ZirFunction *entry;
+    /* Copied: a bundle checked after this instance opened may move its
+     * functions. */
+    char entry_name[ZIR_NAME_MAX];
+    ZirSourceSpan entry_span;
     int has_result;
     int include_headers;
     /* Module sources whose capability calls are renamed: stem, symbol,
@@ -612,7 +615,7 @@ pool_open(ZxNative *native)
     }
     if(environment_set("ZIRAN_NATIVE_TIMING"))
         fprintf(stderr, "ziran: native %s: %d parallel workers\n",
-                native->entry->name, pool->count);
+                native->entry_name, pool->count);
     return pool;
 }
 
@@ -1539,15 +1542,26 @@ start_modules(ZxNative *native)
     return 1;
 }
 
-ZxNative *
-ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
-             const ZirFunction *entry, const unsigned char identity[32],
-             const char *const *capability_modules,
-             const char *const *capability_functions, size_t capability_count,
-             VmHostCall host, void *context)
+int
+ZxNativeCached(const unsigned char identity[32])
 {
-    if(program == NULL || entry_owner == NULL || entry == NULL || host == NULL)
-        return NULL;
+    char folder[ZIR_PATH_MAX], object[ZIR_PATH_MAX], key[65];
+    if(identity == NULL || !cache_directory(folder, sizeof(folder)))
+        return 0;
+    cache_key(identity, key);
+    snprintf(object, sizeof(object), "%s/%s.o", folder, key);
+    return access(object, R_OK) == 0;
+}
+
+/* Without a program only cached code runs: *missing reports, without a
+ * diagnostic, that there was none to link. */
+static ZxNative *
+native_open(const ZirProgram *program, const ZirModule *entry_owner,
+            const ZirFunction *entry, const unsigned char identity[32],
+            const char *const *capability_modules,
+            const char *const *capability_functions, size_t capability_count,
+            VmHostCall host, void *context, int *missing)
+{
     ZxNative *native = calloc(1, sizeof(*native));
     if(native == NULL)
         return NULL;
@@ -1556,7 +1570,8 @@ ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
     native->capability_modules = capability_modules;
     native->capability_functions = capability_functions;
     native->capability_count = capability_count;
-    native->entry = entry;
+    snprintf(native->entry_name, sizeof(native->entry_name), "%s", entry->name);
+    native->entry_span = entry->span;
     native->has_result = entry->return_type[0] != '\0' &&
                          strcmp(entry->return_type, "void") != 0;
     pthread_mutex_lock(&compile_lock);
@@ -1588,6 +1603,12 @@ ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
             }
         }
     }
+    if(!ok && program == NULL) {
+        pthread_mutex_unlock(&compile_lock);
+        *missing = 1;
+        ZxNativeClose(native);
+        return NULL;
+    }
     if(!ok) {
         ok = compile(native, program, entry_owner, entry, cached ? object : NULL);
         if(cached)
@@ -1605,6 +1626,33 @@ ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
     return native;
 }
 
+ZxNative *
+ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
+             const ZirFunction *entry, const unsigned char identity[32],
+             const char *const *capability_modules,
+             const char *const *capability_functions, size_t capability_count,
+             VmHostCall host, void *context)
+{
+    int missing = 0;
+    if(program == NULL || entry_owner == NULL || entry == NULL || host == NULL)
+        return NULL;
+    return native_open(program, entry_owner, entry, identity, capability_modules,
+                       capability_functions, capability_count, host, context, &missing);
+}
+
+ZxNative *
+ZxNativeOpenCached(const ZirFunction *entry, const unsigned char identity[32],
+                   const char *const *capability_modules,
+                   const char *const *capability_functions, size_t capability_count,
+                   VmHostCall host, void *context, int *missing)
+{
+    *missing = 0;
+    if(entry == NULL || host == NULL || identity == NULL)
+        return NULL;
+    return native_open(NULL, NULL, entry, identity, capability_modules,
+                       capability_functions, capability_count, host, context, missing);
+}
+
 int
 ZxNativeRun(ZxNative *native, long long *result, int *has_result)
 {
@@ -1619,7 +1667,7 @@ ZxNativeRun(ZxNative *native, long long *result, int *has_result)
     if(setjmp(escape) != 0) {
         native->escape = outer;
         current = previous;
-        Diagnostic(native->entry->span, "zx.runtime",
+        Diagnostic(native->entry_span, "zx.runtime",
                    "portable execution failed: %s", native->error);
         return 0;
     }
@@ -1669,7 +1717,7 @@ ZxNativeClose(ZxNative *native)
             for(HostString *item = native->strings[i]; item != NULL; item = item->next)
                 text += item->length;
         fprintf(stderr, "ziran: native %s closed: %zu host strings (%zu bytes), %zu bytes of host slices\n",
-                native->entry->name, native->string_count, text, kept);
+                native->entry_name, native->string_count, text, kept);
     }
     pool_close(native->pool);
     if(native->tcc != NULL)

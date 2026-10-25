@@ -1,7 +1,8 @@
-// Scalar fixture for the wasm execution tier: integers of every width
-// with their wrapping rules, unsigned shifts and masks, float casts,
-// recursion, named arguments, compound assignment, break and continue,
-// else-if chains, logical operators, and a conditional expression.
+// Fixture for the wasm execution tier: integers of every width with
+// their wrapping rules, unsigned shifts and masks, float casts,
+// recursion, compound assignment, break and continue, else-if chains,
+// logical operators, a conditional expression, and records and fixed
+// arrays with value copies, literals, member and index places.
 // The native tier, the portable VM, and zi2wasm must agree on the result.
 
 Fib :: (n: s32) -> s64 {
@@ -11,6 +12,20 @@ Fib :: (n: s32) -> s64 {
 
 Mix :: (a: s64, scale: s32) -> s64 {
     return (a * cast(s64)scale + 7) / 7
+}
+
+Point :: struct {
+    x: s32
+    y: s32
+}
+
+MixPoints :: (left: Point, right: Point) -> Point {
+    return Point.{x = left.x + right.y, y = left.y + right.x}
+}
+
+Pair :: struct {
+    a: Point
+    tag: u8
 }
 
 #program_export
@@ -56,5 +71,16 @@ Answer :: () -> s64 {
     total += -negative
 
     total += ifx 0 == 1 then 7 else 11
+
+    points: [4]Point
+    points[0] = Point.{x = 3, y = 4}
+    points[1] = MixPoints(points[0], points[0])
+    pair: Pair
+    pair.a = points[1]
+    pair.tag = 9
+    for k: 0..3 {
+        total += cast(s64)points[k].x + cast(s64)points[k].y
+    }
+    total += cast(s64)pair.a.x * cast(s64)pair.tag
     return total
 }

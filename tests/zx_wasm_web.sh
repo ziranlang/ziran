@@ -29,7 +29,7 @@ emar=$(dirname -- "$emcc")/emar
 
 source=$repo/tests/spec/zx_wasm_test.zi
 entry=zx_wasm_test:Answer
-expected=9007
+expected=9091
 
 "$ziran" bundle --root "$repo/tests/spec" --entry "$entry" \
     -o "$work/zx_wasm_test.zx" "$source"
@@ -37,7 +37,7 @@ test "$("$ziran" run "$work/zx_wasm_test.zx")" = "$expected"
 
 # The VM-only library is what web hosts embed; the private headers hide
 # the compiler's internal symbols from the wasm link.
-make -s -C "$repo" -j4 BOOTSTRAP=1 BUILD_DIR="$work/lib" \
+make -C "$repo" -j2 BOOTSTRAP=1 BUILD_DIR="$work/lib" \
     CC="$emcc" AR="$emar" OBJCOPY=true CFLAGS='-O2' \
     FRAMEFLAGS='-Wframe-larger-than=16384' \
     WASM_PRIVATE_HEADERS="$work/private" \

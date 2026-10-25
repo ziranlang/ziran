@@ -12,7 +12,7 @@ mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 source=$repo/tests/spec/zx_wasm_test.zi
 entry=zx_wasm_test:Answer
-expected=9007
+expected=9091
 nodebin=${ZIRAN_WASM_NODE:-node}
 
 command -v "$nodebin" >/dev/null 2>&1 || {
@@ -93,8 +93,22 @@ if str(result) != expected:
 EOF
 fi
 
-# Records are outside the scalar subset: the tool reports them and exits
-# nonzero rather than emitting a wrong module.
+# Text is outside the tier while records lower: the tool reports the
+# string and exits nonzero rather than emitting a wrong module.
+cat >"$work/text.zi" <<'EOF'
+TEXT: string = "hi";
+#program_export
+Answer :: () -> s64 {
+    return cast(s64)TEXT.count
+}
+EOF
+if "$zi2wasm" --root "$work" --entry text:Answer \
+        -o "$work/text.wasm" "$work/text.zi" >/dev/null 2>&1; then
+    echo "zx-wasm-test: text lowered without a diagnostic"
+    exit 1
+fi
+
+# Records and arrays lower and must agree with the native tier.
 cat >"$work/records.zi" <<'EOF'
 Point :: struct {
     x: s32
@@ -102,16 +116,25 @@ Point :: struct {
 }
 #program_export
 Answer :: () -> s64 {
-    p: Point
-    p.x = 3
-    return cast(s64)p.x
+    points: [4]Point
+    points[0] = Point.{x = 3, y = 4}
+    points[1] = Point.{x = points[0].y, y = points[0].x}
+    total: s64 = 0
+    for k: 0..3 {
+        total += cast(s64)points[k].x + cast(s64)points[k].y
+    }
+    return total
 }
 EOF
-if "$zi2wasm" --root "$work" --entry records:Answer \
-        -o "$work/records.wasm" "$work/records.zi" >/dev/null 2>&1; then
-    echo "zx-wasm-test: records lowered without a diagnostic"
-    exit 1
-fi
+"$zi2wasm" --root "$work" --entry records:Answer \
+    -o "$work/records.wasm" "$work/records.zi"
+records=$("$nodebin" "$run_wasm" "$work/records.wasm" 1000000)
+"$ziran" bundle --root "$work" --entry records:Answer \
+    -o "$work/records.zx" "$work/records.zi"
+case "$("$ziran" run "$work/records.zx")" in
+    "$records") ;;
+    *) echo "zx-wasm-test: records disagree between tiers"; exit 1 ;;
+esac
 
 # The same fixture through the native tier and the portable VM.
 "$ziran" bundle --root "$repo/tests/spec" --entry "$entry" \

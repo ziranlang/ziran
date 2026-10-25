@@ -126,8 +126,29 @@ concrete_type(const char *type)
     return type;
 }
 
+/* Records and fixed arrays live in the module's arena; values of those
+ * types are i32 addresses. Slices, strings and pointers stay outside the
+ * subset for now. */
+static int
+type_is_heap(const ZirModule *module, const char *type)
+{
+    if(module == NULL || type == NULL || !*type)
+        return 0;
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(ArrayElementType(type, element, sizeof(element), &capacity))
+        return 1;
+    const ZirModule *owner = NULL;
+    const ZirType *record = FindType(module, type, &owner);
+    return record != NULL && !record->is_enum && !record->is_procedure_type &&
+           !record->is_extern && !record->is_map && !record->is_record_template &&
+           !record->is_type_instance && !record->is_union;
+}
+
+/* Scalar mapping only: callers that must never treat heap pointers as
+ * plain i32 use this and reject heap types beforehand. */
 static WasmValtype
-wasm_type_of(const char *type)
+wasm_scalar_type_of(const char *type)
 {
     const char *scalar = ScalarType(concrete_type(type));
     if(!strcmp(scalar, "bool") || !strcmp(scalar, "s8") || !strcmp(scalar, "u8") ||
@@ -141,6 +162,14 @@ wasm_type_of(const char *type)
     if(!strcmp(scalar, "float64"))
         return WASM_F64;
     return WASM_VOID;
+}
+
+static WasmValtype
+wasm_type_of_in(const ZirModule *module, const char *type)
+{
+    if(type_is_heap(module, type))
+        return WASM_I32;
+    return wasm_scalar_type_of(type);
 }
 
 static int
@@ -189,6 +218,9 @@ typedef struct WasmLocal {
     WasmValtype wasm;
 } WasmLocal;
 
+enum { ZX_WASM_MAX_REGIONS = 64, ZX_WASM_SCRATCH_SLOTS = 16,
+       ZX_WASM_ARENA_BASE = 65536, ZX_WASM_ARENA_PAGES = 64 };
+
 typedef struct WasmPlan {
     const ZirModule *module;
     const ZirFunction *function;
@@ -199,6 +231,14 @@ typedef struct WasmPlan {
     WasmLocal *locals;
     int local_count;
     int local_capacity;
+    /* Hidden locals: one arena scratch, one save slot per structured
+     * region depth, and a small stack of scratch slots for nested place
+     * and literal emission. */
+    int arena_scratch;
+    int region_saves[ZX_WASM_MAX_REGIONS];
+    int region_depth;
+    int scratch_slots[16];
+    int scratch_depth;
     WasmBytes body;
 } WasmPlan;
 
@@ -207,6 +247,7 @@ enum { BLOCK_KIND_PLAIN = 0, BLOCK_KIND_LOOP = 1, BLOCK_KIND_IF = 2 };
 typedef struct WasmFrame {
     int kind;
     int loop_id;
+    int save_slot; /* loop frames: the arena slot continue restores */
 } WasmFrame;
 
 typedef struct WasmEmitter {
@@ -299,6 +340,49 @@ find_local(WasmPlan *plan, const char *name, char *type)
     return -1;
 }
 
+/* ------------------------------------------------------- layouts */
+
+/* Byte size and alignment of a heap type (record or fixed array). */
+static int
+heap_layout(const ZirModule *module, const char *type, size_t *size,
+            size_t *alignment)
+{
+    return TypeLayout(module, type, size, alignment);
+}
+
+/* The aligned offset of one record field, mirroring the checker's
+ * layout: fields in declaration order, each aligned naturally. */
+static int
+field_place(const ZirModule *module, const char *record_type,
+            const char *field_name, size_t *offset, char *field_type)
+{
+    const ZirModule *owner = NULL;
+    const ZirType *record = FindType(module, record_type, &owner);
+    if(record == NULL || record->is_enum || record->is_procedure_type ||
+       record->is_extern || record->is_map || record->is_record_template ||
+       record->is_type_instance || record->is_union)
+        return 0;
+    owner = owner ? owner : module;
+    size_t at = 0, cursor = 0;
+    ZirTypeField field;
+    int result;
+    while((result = TypeNextField(record, &cursor, &field)) == 1) {
+        size_t field_size, field_alignment;
+        if(!TypeLayout(owner, field.type, &field_size, &field_alignment))
+            return 0;
+        size_t pad = at % field_alignment;
+        if(pad != 0)
+            at += field_alignment - pad;
+        if(strcmp(field.name, field_name) == 0) {
+            *offset = at;
+            snprintf(field_type, ZIR_NAME_MAX, "%s", field.type);
+            return 1;
+        }
+        at += field_size;
+    }
+    return 0;
+}
+
 /* ------------------------------------------------------------ opcodes */
 
 static int
@@ -353,6 +437,102 @@ op_local(WasmBytes *code, unsigned char value, int index)
     return op_index(code, value, index);
 }
 
+/* Scalar load of one field: natural alignment, static offset. */
+static int
+op_load_scalar(WasmBytes *code, const char *type, int offset)
+{
+    const char *scalar = ScalarType(concrete_type(type));
+    unsigned char opcode;
+    int align = 2;
+    if(!strcmp(scalar, "s8")) { opcode = 0x2c; align = 0; }        /* i32.load8_s */
+    else if(!strcmp(scalar, "u8") || !strcmp(scalar, "bool")) { opcode = 0x2d; align = 0; }
+    else if(!strcmp(scalar, "s16")) { opcode = 0x2e; align = 1; }  /* i32.load16_s */
+    else if(!strcmp(scalar, "u16")) { opcode = 0x2f; align = 1; }
+    else if(!strcmp(scalar, "s64") || !strcmp(scalar, "u64")) opcode = 0x29;
+    else if(!strcmp(scalar, "float32")) opcode = 0x2a;
+    else if(!strcmp(scalar, "float64")) opcode = 0x2b;
+    else opcode = 0x28;                                            /* i32.load */
+    return byte(code, opcode) && uleb(code, (uint64_t)align) &&
+           uleb(code, (uint64_t)(offset < 0 ? 0 : offset));
+}
+
+/* Scalar store of one field. */
+static int
+op_store_scalar(WasmBytes *code, const char *type, int offset)
+{
+    const char *scalar = ScalarType(concrete_type(type));
+    unsigned char opcode;
+    int align = 2;
+    if(!strcmp(scalar, "s8") || !strcmp(scalar, "u8") ||
+       !strcmp(scalar, "bool")) { opcode = 0x3a; align = 0; }      /* i32.store8 */
+    else if(!strcmp(scalar, "s16") || !strcmp(scalar, "u16")) { opcode = 0x3b; align = 1; }
+    else if(!strcmp(scalar, "s64") || !strcmp(scalar, "u64")) opcode = 0x37;
+    else if(!strcmp(scalar, "float32")) opcode = 0x38;
+    else if(!strcmp(scalar, "float64")) opcode = 0x39;
+    else opcode = 0x36;                                            /* i32.store */
+    return byte(code, opcode) && uleb(code, (uint64_t)align) &&
+           uleb(code, (uint64_t)(offset < 0 ? 0 : offset));
+}
+
+/* memory.copy with dst and src addresses already on the stack. */
+static int
+op_memory_copy(WasmBytes *code, size_t size)
+{
+    return op_const_i32(code, (int32_t)size) &&
+           byte(code, 0xfc) && uleb(code, 10) &&
+           byte(code, 0x00) && byte(code, 0x00);
+}
+
+/* memory.fill with the address already on the stack. */
+static int
+op_memory_zero(WasmBytes *code, size_t size)
+{
+    return op_const_i32(code, 0) && op_const_i32(code, (int32_t)size) &&
+           byte(code, 0xfc) && uleb(code, 11) && byte(code, 0x00);
+}
+
+/* One aligned arena allocation; leaves the address on the stack. */
+static int
+op_arena_alloc(WasmPlan *plan, size_t size, size_t alignment)
+{
+    if(alignment < 1)
+        alignment = 1;
+    size_t pad = size % alignment;
+    if(pad != 0)
+        size += alignment - pad;
+    return op_index(&plan->body, 0x23, 1) &&           /* global.get $arena */
+           op_local(&plan->body, 0x21, plan->arena_scratch) &&
+           op_local(&plan->body, 0x20, plan->arena_scratch) &&
+           op_const_i32(&plan->body, (int32_t)size) &&
+           op(&plan->body, 0x6a) &&                    /* i32.add */
+           op_index(&plan->body, 0x24, 1) &&           /* global.set $arena */
+           op_local(&plan->body, 0x20, plan->arena_scratch);
+}
+
+/* Region discipline: allocations inside a structured region die at its
+ * exit, so the arena pointer is saved on entry and restored on exit. */
+static int
+region_enter(WasmPlan *plan)
+{
+    if(plan->region_depth >= ZX_WASM_MAX_REGIONS)
+        return 0;
+    int slot = plan->region_saves[plan->region_depth];
+    plan->region_depth++;
+    return op_index(&plan->body, 0x23, 1) &&           /* global.get $arena */
+           op_local(&plan->body, 0x21, slot);
+}
+
+static int
+region_leave(WasmPlan *plan)
+{
+    if(plan->region_depth <= 0)
+        return 0;
+    plan->region_depth--;
+    int slot = plan->region_saves[plan->region_depth];
+    return op_local(&plan->body, 0x20, slot) &&
+           op_index(&plan->body, 0x24, 1);             /* global.set $arena */
+}
+
 static int
 op_zero(WasmBytes *code, WasmValtype wasm)
 {
@@ -386,8 +566,8 @@ op_normalize(WasmBytes *code, const char *type)
 static int
 op_convert(WasmBytes *code, const char *from, const char *to)
 {
-    WasmValtype source = wasm_type_of(from);
-    WasmValtype target = wasm_type_of(to);
+    WasmValtype source = wasm_scalar_type_of(from);
+    WasmValtype target = wasm_scalar_type_of(to);
     if(!source || !target)
         return 0;
     if(source == target)
@@ -431,6 +611,99 @@ op_convert(WasmBytes *code, const char *from, const char *to)
 /* ---------------------------------------------------------- expressions */
 
 static int emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index);
+
+/* Emits the address of a place expression (identifier, member or index)
+ * onto the stack. Returns 0 after a diagnostic for anything else. */
+static int
+emit_address(WasmEmitter *emitter, WasmPlan *plan, int index)
+{
+    const ZirFunction *function = plan->function;
+    if(index < 0 || index >= function->expr_count)
+        return 0;
+    const ZirExpr *expression = &function->exprs[index];
+    switch(expression->kind) {
+    case ZIR_EXPR_IDENT: {
+        char type[ZIR_NAME_MAX];
+        int local = find_local(plan, expression->name, type);
+        if(local < 0) {
+            fail(emitter, expression->span, "module global state");
+            return 0;
+        }
+        if(!type_is_heap(plan->module, type)) {
+            fail(emitter, expression->span, "scalar address");
+            return 0;
+        }
+        return op_local(&plan->body, 0x20, local);
+    }
+    case ZIR_EXPR_MEMBER: {
+        if(!emit_address(emitter, plan, expression->left))
+            return 0;
+        size_t offset = 0;
+        char field_type[ZIR_NAME_MAX];
+        if(!field_place(plan->module,
+                        function->exprs[expression->left].type,
+                        expression->name, &offset, field_type)) {
+            fail(emitter, expression->span, "record field");
+            return 0;
+        }
+        if(offset == 0)
+            return 1;
+        return op_const_i32(&plan->body, (int32_t)offset) &&
+               op(&plan->body, 0x6a); /* i32.add */
+    }
+    case ZIR_EXPR_INDEX: {
+        if(!emit_address(emitter, plan, expression->left))
+            return 0;
+        char element[ZIR_NAME_MAX];
+        int capacity = 0;
+        if(!ArrayElementType(function->exprs[expression->left].type,
+                             element, sizeof(element), &capacity) ||
+           capacity <= 0) {
+            fail(emitter, expression->span, "indexed place");
+            return 0;
+        }
+        /* Bounds check against the constant capacity, then scale. */
+        if(!emit_expression(emitter, plan, expression->right))
+            return 0;
+        if(emitter->failed)
+            return 0;
+        if(strcmp(concrete_type(function->exprs[expression->right].type),
+                  "s64") == 0) {
+            /* Loop counters are s64; the arena is 32-bit. */
+            if(!op(&plan->body, 0xa7)) /* i32.wrap_i64 */
+                return 0;
+        }
+        if(plan->scratch_depth >= ZX_WASM_SCRATCH_SLOTS) {
+            fail(emitter, expression->span, "nested index places");
+            return 0;
+        }
+        int slot = plan->scratch_slots[plan->scratch_depth++];
+        if(!op_local(&plan->body, 0x21, slot) ||
+           !op_local(&plan->body, 0x20, slot) ||
+           !op_const_i32(&plan->body, capacity) ||
+           !op(&plan->body, 0x4f)) /* idx >=u capacity traps */
+            return 0;
+        if(!(op(&plan->body, 0x04) && byte(&plan->body, 0x40) &&
+             op(&plan->body, 0x00) && op(&plan->body, 0x0b)))
+            return 0;
+        size_t element_size, element_alignment;
+        if(!heap_layout(plan->module, element, &element_size,
+                        &element_alignment)) {
+            fail(emitter, expression->span, "array element layout");
+            return 0;
+        }
+        int scaled = op_local(&plan->body, 0x20, slot) &&
+                     op_const_i32(&plan->body, (int32_t)element_size) &&
+                     op(&plan->body, 0x6c) && /* i32.mul */
+                     op(&plan->body, 0x6a); /* i32.add */
+        plan->scratch_depth--;
+        return scaled;
+    }
+    default:
+        fail(emitter, expression->span, "address");
+        return 0;
+    }
+}
 
 static int
 emit_convert(WasmEmitter *emitter, WasmPlan *plan, int index, const char *to)
@@ -498,7 +771,7 @@ emit_binary(WasmEmitter *emitter, WasmPlan *plan, int index)
      * comparisons and of the checked result for arithmetic. */
     const char *operand_type = comparison ?
         plan->function->exprs[expression->left].type : result_type;
-    WasmValtype container = wasm_type_of(operand_type);
+    WasmValtype container = wasm_scalar_type_of(operand_type);
     if(!container) {
         fail(emitter, expression->span, "operand type");
         return 0;
@@ -638,12 +911,12 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         if(!strcmp(operation, "+"))
             return emit_expression(emitter, plan, expression->right);
         if(!strcmp(operation, "-")) {
-            if(wasm_type_of(expression->type) == WASM_F32 ||
-               wasm_type_of(expression->type) == WASM_F64) {
+            if(wasm_scalar_type_of(expression->type) == WASM_F32 ||
+               wasm_scalar_type_of(expression->type) == WASM_F64) {
                 if(!emit_expression(emitter, plan, expression->right))
                     return 0;
                 return op(&plan->body,
-                          wasm_type_of(expression->type) == WASM_F32 ? 0x8c : 0x9a);
+                          wasm_scalar_type_of(expression->type) == WASM_F32 ? 0x8c : 0x9a);
             }
             /* Integer negation is 0 - x, so the zero goes under first. */
             if(!op_zero(&plan->body, wasm_width(expression->type) == 64 ?
@@ -691,7 +964,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
     case ZIR_EXPR_CONDITIONAL: {
         if(!emit_expression(emitter, plan, expression->left))
             return 0;
-        WasmValtype result = wasm_type_of(expression->type);
+        WasmValtype result = wasm_scalar_type_of(expression->type);
         if(!result) {
             fail(emitter, expression->span, "conditional result type");
             return 0;
@@ -705,6 +978,93 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         if(!emit_convert(emitter, plan, expression->third, expression->type))
             return 0;
         return op(&plan->body, 0x0b);
+    }
+    case ZIR_EXPR_MEMBER: {
+        /* A scalar field loads; a nested record's address is the value. */
+        if(!emit_address(emitter, plan, index))
+            return 0;
+        if(emitter->failed)
+            return 0;
+        if(type_is_heap(plan->module, expression->type))
+            return 1;
+        return op_load_scalar(&plan->body, expression->type, 0);
+    }
+    case ZIR_EXPR_INDEX: {
+        if(!emit_address(emitter, plan, index))
+            return 0;
+        if(emitter->failed)
+            return 0;
+        if(type_is_heap(plan->module, expression->type))
+            return 1;
+        return op_load_scalar(&plan->body, expression->type, 0);
+    }
+    case ZIR_EXPR_COMPOUND: {
+        size_t size, alignment;
+        if(!heap_layout(plan->module, expression->name, &size, &alignment)) {
+            fail(emitter, expression->span, "record layout");
+            return 0;
+        }
+        if(plan->scratch_depth >= ZX_WASM_SCRATCH_SLOTS) {
+            fail(emitter, expression->span, "nested record literals");
+            return 0;
+        }
+        int slot = plan->scratch_slots[plan->scratch_depth++];
+        if(!op_arena_alloc(plan, size, alignment) ||
+           !op_local(&plan->body, 0x21, slot))
+            return 0;
+        /* Each initializer writes its field into the fresh slot. */
+        for(int child = expression->first_child; child >= 0;
+            child = function->exprs[child].next_sibling) {
+            const ZirExpr *initializer = &function->exprs[child];
+            if(initializer->kind != ZIR_EXPR_FIELD_INIT) {
+                fail(emitter, initializer->span, "record initializer");
+                return 0;
+            }
+            size_t offset = 0;
+            char field_type[ZIR_NAME_MAX];
+            if(!field_place(plan->module, expression->name,
+                            initializer->name, &offset, field_type)) {
+                fail(emitter, initializer->span, "record field");
+                return 0;
+            }
+            if(type_is_heap(plan->module, field_type)) {
+                size_t field_size, field_alignment;
+                if(!heap_layout(plan->module, field_type, &field_size,
+                                &field_alignment)) {
+                    fail(emitter, initializer->span, "record field layout");
+                    return 0;
+                }
+                if(!op_local(&plan->body, 0x20, slot) ||
+                   !op_const_i32(&plan->body, (int32_t)offset) ||
+                   !op(&plan->body, 0x6a))
+                    return 0;
+                if(!emit_expression(emitter, plan, initializer->right))
+                    return 0;
+                if(emitter->failed)
+                    return 0;
+                if(!op_memory_copy(&plan->body, field_size))
+                    return 0;
+            } else {
+                if(!op_local(&plan->body, 0x20, slot))
+                    return 0;
+                if(!emit_expression(emitter, plan, initializer->right))
+                    return 0;
+                if(emitter->failed)
+                    return 0;
+                if(strcmp(function->exprs[initializer->right].type,
+                          field_type) != 0 &&
+                   !op_convert(&plan->body,
+                               function->exprs[initializer->right].type,
+                               field_type)) {
+                    fail(emitter, initializer->span, "record initializer conversion");
+                    return 0;
+                }
+                if(!op_store_scalar(&plan->body, field_type, (int)offset))
+                    return 0;
+            }
+        }
+        plan->scratch_depth--;
+        return op_local(&plan->body, 0x20, slot);
     }
     case ZIR_EXPR_CALL: {
         const ZirModule *owner = NULL;
@@ -753,6 +1113,19 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
                 fail(emitter, expression->span, "missing call argument");
                 return 0;
             }
+            const char *argument_type =
+                function->exprs[ordered[p]].type;
+            if(type_is_heap(plan->module, parameters->items[p].value_type)) {
+                if(strcmp(argument_type, parameters->items[p].value_type) != 0) {
+                    fail(emitter, expression->span, "call argument conversion");
+                    return 0;
+                }
+                if(!emit_expression(emitter, plan, ordered[p]))
+                    return 0;
+                if(emitter->failed)
+                    return 0;
+                continue;
+            }
             if(!emit_convert(emitter, plan, ordered[p],
                              parameters->items[p].value_type))
                 return 0;
@@ -785,7 +1158,8 @@ emit_if_chain(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
     emitter->frames[emitter->frame_count].kind = BLOCK_KIND_IF;
     emitter->frames[emitter->frame_count].loop_id = 0;
     emitter->frame_count++;
-    if(op(&plan->body, 0x04) && byte(&plan->body, 0x40)) {
+    int region = region_enter(plan);
+    if(region && op(&plan->body, 0x04) && byte(&plan->body, 0x40)) {
         emit_sequence(emitter, plan, index + 1, close);
         if(close + 1 < end &&
            plan->function->stmts[close + 1].kind == ZIR_STMT_IF &&
@@ -808,6 +1182,8 @@ emit_if_chain(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
     } else {
         emitter->failed = 1;
     }
+    if(!region_leave(plan))
+        emitter->failed = 1;
     emitter->frame_count--;
     return last;
 }
@@ -846,36 +1222,43 @@ emit_while(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
         emitter->failed = 1;
         return close;
     }
-    /* block $exit { loop $next { guard; <cond>; br_if $exit; body; br $next } } */
+    /* block $exit { loop $next { guard; <cond>; br_if $exit; body;
+     * restore; br $next } }. The loop's region is saved before the loop
+     * starts and restored at every back edge and after the loop, so
+     * per-iteration allocations do not accumulate. */
+    int ok = region_enter(plan);
     emitter->frames[emitter->frame_count].kind = BLOCK_KIND_PLAIN;
     emitter->frames[emitter->frame_count].loop_id = 0;
     emitter->frame_count++;
-    if(!(op(&plan->body, 0x02) && byte(&plan->body, 0x40))) {
-        emitter->failed = 1;
-        emitter->frame_count--;
-        return close;
-    }
+    ok = ok && op(&plan->body, 0x02) && byte(&plan->body, 0x40);
     int loop_frame = emitter->frame_count;
     emitter->frames[loop_frame].kind = BLOCK_KIND_LOOP;
     emitter->frames[loop_frame].loop_id = statement->loop_id;
+    emitter->frames[loop_frame].save_slot =
+        plan->region_saves[plan->region_depth - 1];
     emitter->frame_count++;
-    if(!(op(&plan->body, 0x03) && byte(&plan->body, 0x40))) {
+    ok = ok && op(&plan->body, 0x03) && byte(&plan->body, 0x40);
+    if(!ok) {
         emitter->failed = 1;
         emitter->frame_count -= 2;
         return close;
     }
-    int ok = op_step_guard(&plan->body);
+    ok = op_step_guard(&plan->body);
     ok = ok && emit_expression(emitter, plan, statement->expr_root);
     ok = ok && !emitter->failed && op(&plan->body, 0x45); /* i32.eqz */
     /* br_if to the loop's exit block: depth counted from the loop frame. */
     ok = ok && op_index(&plan->body, 0x0d, 1);
     if(ok)
         emit_sequence(emitter, plan, index + 1, close);
-    ok = ok && !emitter->failed && op_index(&plan->body, 0x0c, 0); /* br $next */
+    /* The back edge restores the loop's arena slot first. */
+    ok = ok && !emitter->failed &&
+         op_local(&plan->body, 0x20, emitter->frames[loop_frame].save_slot) &&
+         op_index(&plan->body, 0x24, 1) && op_index(&plan->body, 0x0c, 0);
     ok = ok && op(&plan->body, 0x0b); /* end loop */
     emitter->frame_count--;
     ok = ok && op(&plan->body, 0x0b); /* end block */
     emitter->frame_count--;
+    ok = ok && region_leave(plan);
     if(!ok)
         emitter->failed = 1;
     return close;
@@ -906,9 +1289,73 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
     const ZirStmt *statement = &plan->function->stmts[index];
     switch(statement->kind) {
     case ZIR_STMT_DECL: {
-        WasmValtype wasm = wasm_type_of(statement->type);
+        int heap = type_is_heap(plan->module, statement->type);
+        WasmValtype wasm = heap ? WASM_I32 : wasm_scalar_type_of(statement->type);
         if(!wasm) {
             fail(emitter, statement->span, "declaration type");
+            return;
+        }
+        if(heap) {
+            size_t size, alignment;
+            if(!heap_layout(plan->module, statement->type, &size, &alignment)) {
+                fail(emitter, statement->span, "declaration layout");
+                return;
+            }
+            if(plan->scratch_depth >= ZX_WASM_SCRATCH_SLOTS) {
+                fail(emitter, statement->span, "nested declarations");
+                return;
+            }
+            int slot = plan->scratch_slots[plan->scratch_depth++];
+            int local = -1;
+            if(statement->expr_root >= 0 &&
+               plan->function->exprs[statement->expr_root].kind ==
+                   ZIR_EXPR_COMPOUND) {
+                /* The literal's fresh slot is the variable's storage. */
+                plan->scratch_depth--;
+                if(!emit_expression(emitter, plan, statement->expr_root))
+                    return;
+                if(emitter->failed)
+                    return;
+                local = add_local(plan, statement->name, statement->type,
+                                  WASM_I32);
+                if(local < 0) {
+                    DiagnosticOutOfMemory();
+                    emitter->failed = 1;
+                    return;
+                }
+                if(!op_local(&plan->body, 0x21, local))
+                    emitter->failed = 1;
+                return;
+            }
+            if(statement->expr_root >= 0) {
+                if(!op_arena_alloc(plan, size, alignment) ||
+                   !op_local(&plan->body, 0x21, slot))
+                    return;
+                if(!op_local(&plan->body, 0x20, slot))
+                    return;
+                if(!emit_expression(emitter, plan, statement->expr_root))
+                    return;
+                if(emitter->failed)
+                    return;
+                if(!op_memory_copy(&plan->body, size))
+                    return;
+            } else {
+                if(!op_arena_alloc(plan, size, alignment) ||
+                   !op_local(&plan->body, 0x21, slot) ||
+                   !op_local(&plan->body, 0x20, slot) ||
+                   !op_memory_zero(&plan->body, size) ||
+                   !op_local(&plan->body, 0x20, slot))
+                    return;
+            }
+            plan->scratch_depth--;
+            local = add_local(plan, statement->name, statement->type, WASM_I32);
+            if(local < 0) {
+                DiagnosticOutOfMemory();
+                emitter->failed = 1;
+                return;
+            }
+            if(!op_local(&plan->body, 0x21, local))
+                emitter->failed = 1;
             return;
         }
         /* The initializer is lowered before the name is bound so it can
@@ -945,101 +1392,166 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
         const ZirExpr *destination = statement->lhs_root >= 0 &&
             statement->lhs_root < plan->function->expr_count ?
             &plan->function->exprs[statement->lhs_root] : NULL;
-        if(destination == NULL || destination->kind != ZIR_EXPR_IDENT) {
+        if(destination == NULL) {
             fail(emitter, statement->span, "assignment destination");
             return;
         }
-        char type[ZIR_NAME_MAX];
-        int local = find_local(plan, destination->name, type);
-        if(local < 0) {
-            fail(emitter, statement->span, "global assignment");
-            return;
-        }
         const char *operation = statement->assignment_op;
-        const char *value_type;
-        if(operation[0] == '=' && operation[1] == 0) {
-            if(!emit_expression(emitter, plan, statement->expr_root))
-                return;
-            if(emitter->failed)
-                return;
-            value_type = plan->function->exprs[statement->expr_root].type;
-        } else {
-            /* Compound assignment: load, operate, store. */
-            const char *binary = wasm_assignment_binary_operator(operation);
-            if(binary == NULL) {
-                fail(emitter, statement->span, "assignment operator");
+        int simple = operation[0] == '=' && operation[1] == 0;
+
+        /* Emit one binary operator whose operands -- the place's current
+         * value and the right side -- are already on the stack. */
+        #define ZX_WASM_COMPOUND_OPERATOR(TARGET_TYPE) \
+        do { \
+            const char *binary = wasm_assignment_binary_operator(operation); \
+            if(binary == NULL) { \
+                fail(emitter, statement->span, "assignment operator"); \
+                return; \
+            } \
+            WasmValtype container = wasm_scalar_type_of(TARGET_TYPE); \
+            int signed_type = type_is_signed(TARGET_TYPE); \
+            if(!strcmp(binary, "+") || !strcmp(binary, "-") || \
+               !strcmp(binary, "*") || !strcmp(binary, "/") || \
+               !strcmp(binary, "%")) { \
+                int which = binary[0] == '+' ? 0 : binary[0] == '-' ? 1 : \
+                            binary[0] == '*' ? 2 : binary[0] == '/' ? 3 : 4; \
+                const unsigned char *table; \
+                if(container == WASM_I32) \
+                    table = signed_type ? arith_i32_s : arith_i32_u; \
+                else if(container == WASM_I64) \
+                    table = signed_type ? arith_i64_s : arith_i64_u; \
+                else if(container == WASM_F32) \
+                    table = arith_f32; \
+                else \
+                    table = arith_f64; \
+                if(which == 4 && container != WASM_I32 && \
+                   container != WASM_I64) { \
+                    fail(emitter, statement->span, "float remainder"); \
+                    return; \
+                } \
+                if(!op(&plan->body, table[which])) \
+                    return; \
+            } else if(!strcmp(binary, "&") || !strcmp(binary, "|") || \
+                      !strcmp(binary, "^") || !strcmp(binary, "<<") || \
+                      !strcmp(binary, ">>")) { \
+                int left_shift = binary[0] == '<'; \
+                unsigned char opcode; \
+                if(!strcmp(binary, "&")) \
+                    opcode = container == WASM_I64 ? 0x83 : 0x71; \
+                else if(!strcmp(binary, "|")) \
+                    opcode = container == WASM_I64 ? 0x84 : 0x72; \
+                else if(!strcmp(binary, "^")) \
+                    opcode = container == WASM_I64 ? 0x85 : 0x73; \
+                else if(container == WASM_I64) \
+                    opcode = left_shift ? 0x86 : (signed_type ? 0x87 : 0x88); \
+                else \
+                    opcode = left_shift ? 0x74 : (signed_type ? 0x75 : 0x76); \
+                if(!op(&plan->body, opcode)) \
+                    return; \
+            } else { \
+                fail(emitter, statement->span, "assignment operator"); \
+                return; \
+            } \
+            if(!op_normalize(&plan->body, TARGET_TYPE)) \
+                return; \
+        } while(0)
+
+        if(destination->kind == ZIR_EXPR_IDENT) {
+            char type[ZIR_NAME_MAX];
+            int local = find_local(plan, destination->name, type);
+            if(local < 0) {
+                fail(emitter, statement->span, "global assignment");
                 return;
             }
-            if(!op_local(&plan->body, 0x20, local))
+            if(type_is_heap(plan->module, type)) {
+                if(!simple) {
+                    fail(emitter, statement->span, "assignment operator");
+                    return;
+                }
+                size_t size, alignment;
+                if(!heap_layout(plan->module, type, &size, &alignment)) {
+                    fail(emitter, statement->span, "assignment layout");
+                    return;
+                }
+                if(!op_local(&plan->body, 0x20, local))
+                    return;
+                if(!emit_expression(emitter, plan, statement->expr_root))
+                    return;
+                if(emitter->failed)
+                    return;
+                if(!op_memory_copy(&plan->body, size))
+                    emitter->failed = 1;
+                return;
+            }
+            if(!simple && !op_local(&plan->body, 0x20, local))
                 return;
             if(!emit_expression(emitter, plan, statement->expr_root))
                 return;
             if(emitter->failed)
                 return;
-            value_type = plan->function->exprs[statement->expr_root].type;
+            const char *value_type =
+                plan->function->exprs[statement->expr_root].type;
             if(strcmp(value_type, type) != 0 &&
                !op_convert(&plan->body, value_type, type)) {
                 fail(emitter, statement->span, "assignment conversion");
                 return;
             }
-            WasmValtype container = wasm_type_of(type);
-            int signed_type = type_is_signed(type);
-            if(!strcmp(binary, "+") || !strcmp(binary, "-") ||
-               !strcmp(binary, "*") || !strcmp(binary, "/") ||
-               !strcmp(binary, "%")) {
-                int which = binary[0] == '+' ? 0 : binary[0] == '-' ? 1 :
-                            binary[0] == '*' ? 2 : binary[0] == '/' ? 3 : 4;
-                const unsigned char *table;
-                if(container == WASM_I32)
-                    table = signed_type ? arith_i32_s : arith_i32_u;
-                else if(container == WASM_I64)
-                    table = signed_type ? arith_i64_s : arith_i64_u;
-                else if(container == WASM_F32)
-                    table = arith_f32;
-                else
-                    table = arith_f64;
-                if(which == 4 && container != WASM_I32 && container != WASM_I64) {
-                    fail(emitter, statement->span, "float remainder");
-                    return;
-                }
-                if(!op(&plan->body, table[which]))
-                    return;
-            } else if(!strcmp(binary, "&") || !strcmp(binary, "|") ||
-                      !strcmp(binary, "^") || !strcmp(binary, "<<") ||
-                      !strcmp(binary, ">>")) {
-                int left_shift = binary[0] == '<';
-                unsigned char opcode;
-                if(!strcmp(binary, "&"))
-                    opcode = container == WASM_I64 ? 0x83 : 0x71;
-                else if(!strcmp(binary, "|"))
-                    opcode = container == WASM_I64 ? 0x84 : 0x72;
-                else if(!strcmp(binary, "^"))
-                    opcode = container == WASM_I64 ? 0x85 : 0x73;
-                else if(container == WASM_I64)
-                    opcode = left_shift ? 0x86 : (signed_type ? 0x87 : 0x88);
-                else
-                    opcode = left_shift ? 0x74 : (signed_type ? 0x75 : 0x76);
-                if(!op(&plan->body, opcode))
-                    return;
-            } else {
+            if(!simple)
+                ZX_WASM_COMPOUND_OPERATOR(type);
+            if(!op_local(&plan->body, 0x21, local))
+                emitter->failed = 1;
+            return;
+        }
+        if(destination->kind == ZIR_EXPR_MEMBER ||
+           destination->kind == ZIR_EXPR_INDEX) {
+            const char *place_type = destination->type;
+            int heap_place = type_is_heap(plan->module, place_type);
+            if(!simple && heap_place) {
                 fail(emitter, statement->span, "assignment operator");
                 return;
             }
-            if(!op_normalize(&plan->body, type))
+            if(!emit_address(emitter, plan, statement->lhs_root))
                 return;
-            if(!op_local(&plan->body, 0x21, local))
+            if(emitter->failed)
                 return;
+            if(heap_place) {
+                size_t size, alignment;
+                if(!heap_layout(plan->module, place_type, &size, &alignment)) {
+                    fail(emitter, statement->span, "assignment layout");
+                    return;
+                }
+                if(!emit_expression(emitter, plan, statement->expr_root))
+                    return;
+                if(emitter->failed)
+                    return;
+                if(!op_memory_copy(&plan->body, size))
+                    emitter->failed = 1;
+                return;
+            }
+            if(!simple && !op_load_scalar(&plan->body, place_type, 0))
+                return;
+            if(!emit_expression(emitter, plan, statement->expr_root))
+                return;
+            if(emitter->failed)
+                return;
+            const char *value_type =
+                plan->function->exprs[statement->expr_root].type;
+            if(strcmp(value_type, place_type) != 0 &&
+               !op_convert(&plan->body, value_type, place_type)) {
+                fail(emitter, statement->span, "assignment conversion");
+                return;
+            }
+            if(!simple)
+                ZX_WASM_COMPOUND_OPERATOR(place_type);
+            if(!op_store_scalar(&plan->body, place_type, 0))
+                emitter->failed = 1;
             return;
         }
-        if(strcmp(value_type, type) != 0 &&
-           !op_convert(&plan->body, value_type, type)) {
-            fail(emitter, statement->span, "assignment conversion");
-            return;
-        }
-        if(!op_local(&plan->body, 0x21, local))
-            emitter->failed = 1;
+        #undef ZX_WASM_COMPOUND_OPERATOR
+        fail(emitter, statement->span, "assignment destination");
         return;
     }
+
     case ZIR_STMT_EXPR:
         if(!emit_expression(emitter, plan, statement->expr_root))
             return;
@@ -1056,7 +1568,12 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                 return;
             const char *actual =
                 plan->function->exprs[statement->expr_root].type;
-            if(strcmp(actual, plan->result_type) != 0) {
+            if(type_is_heap(plan->module, plan->result_type)) {
+                if(strcmp(actual, plan->result_type) != 0) {
+                    fail(emitter, statement->span, "return conversion");
+                    return;
+                }
+            } else if(strcmp(actual, plan->result_type) != 0) {
                 if(strcmp(plan->result_type, "void") == 0) {
                     if(!op(&plan->body, 0x1a)) /* drop */
                         emitter->failed = 1;
@@ -1070,7 +1587,7 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                 }
             }
         } else if(strcmp(plan->result_type, "void") != 0) {
-            if(!op_zero(&plan->body, wasm_type_of(plan->result_type))) {
+            if(!op_zero(&plan->body, wasm_scalar_type_of(plan->result_type))) {
                 emitter->failed = 1;
                 return;
             }
@@ -1086,7 +1603,18 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
     }
     case ZIR_STMT_CONTINUE: {
         int depth = branch_depth(emitter, statement->target_id, 0);
-        if(depth < 0 || !op_index(&plan->body, 0x0c, depth))
+        int loop_frame = -1;
+        for(int i = emitter->frame_count - 1; i >= 0; i--)
+            if(emitter->frames[i].kind == BLOCK_KIND_LOOP &&
+               (statement->target_id == 0 ||
+                emitter->frames[i].loop_id == statement->target_id)) {
+                loop_frame = i;
+                break;
+            }
+        if(depth < 0 || loop_frame < 0 ||
+           !op_local(&plan->body, 0x20, emitter->frames[loop_frame].save_slot) ||
+           !op_index(&plan->body, 0x24, 1) ||
+           !op_index(&plan->body, 0x0c, depth))
             emitter->failed = 1;
         return;
     }
@@ -1098,7 +1626,8 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
         emitter->frames[emitter->frame_count].kind = BLOCK_KIND_PLAIN;
         emitter->frames[emitter->frame_count].loop_id = 0;
         emitter->frame_count++;
-        if(op(&plan->body, 0x02) && byte(&plan->body, 0x40)) {
+        int region = region_enter(plan);
+        if(region && op(&plan->body, 0x02) && byte(&plan->body, 0x40)) {
             int close = block_end(plan->function, index, end);
             emit_sequence(emitter, plan, index + 1, close);
             if(!op(&plan->body, 0x0b))
@@ -1106,6 +1635,8 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
         } else {
             emitter->failed = 1;
         }
+        if(!region_leave(plan))
+            emitter->failed = 1;
         emitter->frame_count--;
         return;
     }
@@ -1236,6 +1767,10 @@ supported_expression(const ZirExpr *expression)
     case ZIR_EXPR_UNARY:
     case ZIR_EXPR_CAST:
     case ZIR_EXPR_CONDITIONAL:
+    case ZIR_EXPR_MEMBER:
+    case ZIR_EXPR_INDEX:
+    case ZIR_EXPR_COMPOUND:
+    case ZIR_EXPR_FIELD_INIT:
         return 1;
     default:
         return 0;
@@ -1263,6 +1798,14 @@ supported_function(WasmEmitter *emitter, const WasmPlan *plan)
         const ZirExpr *expression = &function->exprs[e];
         if(!supported_expression(expression)) {
             fail(emitter, expression->span, "expression");
+            return 0;
+        }
+        if(!wasm_type_of_in(plan->module, expression->type) &&
+           !type_is_heap(plan->module, expression->type)) {
+            Diagnostic(expression->span, "zx.wasm",
+                       "type %s is outside the wasm execution subset",
+                       expression->type);
+            emitter->failed = 1;
             return 0;
         }
     }
@@ -1348,7 +1891,7 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
             snprintf(plan->result_type, sizeof(plan->result_type), "%s",
                      function->return_type[0] ? function->return_type : "void");
             if(strcmp(plan->result_type, "void") &&
-               !wasm_type_of(plan->result_type)) {
+               !wasm_type_of_in(module, plan->result_type)) {
                 Diagnostic(function->span, "zx.wasm",
                            "return type %s of %s:%s is outside the wasm execution subset",
                            plan->result_type, module->name, function->name);
@@ -1365,7 +1908,8 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
             WasmSignature signature = {0};
             signature.parameter_count = count;
             for(int p = 0; p < count; p++) {
-                WasmValtype wasm = wasm_type_of(parameters->items[p].value_type);
+                WasmValtype wasm = wasm_type_of_in(module,
+                                                   parameters->items[p].value_type);
                 if(!wasm) {
                     Diagnostic(function->span, "zx.wasm",
                                "parameter type %s of %s:%s is outside the wasm execution subset",
@@ -1381,7 +1925,7 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                 }
             }
             signature.result = !strcmp(plan->result_type, "void") ?
-                WASM_VOID : wasm_type_of(plan->result_type);
+                WASM_VOID : wasm_type_of_in(module, plan->result_type);
             plan->param_count = count;
             plan->type_index = signature_index(&signatures, &signature_count,
                                                &signature_capacity, &signature);
@@ -1424,17 +1968,58 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
         WasmPlan *plan = &emitter.plans[i];
         if(!supported_function(&emitter, plan))
             break;
+        /* Hidden locals: the arena scratch, one save per region depth, and
+         * the emission scratch stack. */
+        plan->arena_scratch = add_local(plan, "$arena", "s32", WASM_I32);
+        for(int r = 0; r < ZX_WASM_MAX_REGIONS; r++)
+            plan->region_saves[r] = add_local(plan, "$region", "s32", WASM_I32);
+        for(int r = 0; r < ZX_WASM_SCRATCH_SLOTS; r++)
+            plan->scratch_slots[r] = add_local(plan, "$scratch", "s32", WASM_I32);
+        if(plan->arena_scratch < 0 || plan->region_saves[0] < 0 ||
+           plan->scratch_slots[0] < 0) {
+            DiagnosticOutOfMemory();
+            emitter.failed = 1;
+            break;
+        }
         /* Guard at function entry, like ZIR_ENTER in the native tier. */
         if(!op_step_guard(&plan->body)) {
             emitter.failed = 1;
             break;
         }
+        /* Record and array parameters are values: copy each into a fresh
+         * arena slot so the callee owns its own storage. */
+        for(int p = 0; p < plan->param_count && !emitter.failed; p++) {
+            if(!type_is_heap(plan->module, plan->locals[p].type))
+                continue;
+            size_t size, alignment;
+            if(!heap_layout(plan->module, plan->locals[p].type, &size,
+                            &alignment)) {
+                emitter.failed = 1;
+                break;
+            }
+            if(!op_arena_alloc(plan, size, alignment) ||
+               !op_local(&plan->body, 0x21, plan->arena_scratch) ||
+               !op_local(&plan->body, 0x20, plan->arena_scratch) ||
+               !op_local(&plan->body, 0x20, p) ||
+               !op_memory_copy(&plan->body, size) ||
+               !op_local(&plan->body, 0x20, plan->arena_scratch) ||
+               !op_local(&plan->body, 0x21, p)) {
+                emitter.failed = 1;
+                break;
+            }
+        }
+        if(emitter.failed)
+            break;
         emit_sequence(&emitter, plan, 0, plan->function->stmt_count);
         if(!emitter.failed) {
             /* Whatever the body did, leave a value (or nothing) behind;
              * code after a return is unreachable and validates anyway. */
             if(strcmp(plan->result_type, "void") != 0) {
-                if(!op_zero(&plan->body, wasm_type_of(plan->result_type)) ||
+                WasmValtype tail = type_is_heap(plan->module, plan->result_type) ?
+                    WASM_I32 : wasm_scalar_type_of(plan->result_type);
+                if(!tail)
+                    tail = WASM_I32;
+                if(!op_zero(&plan->body, tail) ||
                    !op(&plan->body, 0x0f)) {
                     emitter.failed = 1;
                     break;
@@ -1501,11 +2086,23 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                   uleb(&module, (uint64_t)section.count) &&
                   raw(&module, section.data, section.count);
 
-    /* Memory section: one memory, one page minimum. */
+    /* Memory section: one memory sized for the arena's region discipline;
+     * lexical reuse keeps live allocations small, not iteration counts. */
     section.count = 0;
     assemble_ok = assemble_ok && uleb(&section, 1) && byte(&section, 0x00) &&
-                  uleb(&section, 1);
+                  uleb(&section, ZX_WASM_ARENA_PAGES);
     assemble_ok = assemble_ok && byte(&module, 5) &&
+                  uleb(&module, (uint64_t)section.count) &&
+                  raw(&module, section.data, section.count);
+
+    /* Global section: the arena pointer, mutable, starting past nothing
+     * else in linear memory yet. */
+    section.count = 0;
+    assemble_ok = assemble_ok && uleb(&section, 1) &&
+                  byte(&section, WASM_I32) && byte(&section, 0x01) &&
+                  op_const_i32(&section, ZX_WASM_ARENA_BASE) &&
+                  op(&section, 0x0b);
+    assemble_ok = assemble_ok && byte(&module, 6) &&
                   uleb(&module, (uint64_t)section.count) &&
                   raw(&module, section.data, section.count);
 
@@ -1558,6 +2155,9 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
         WasmPlan *entry = &emitter.plans[entry_plan];
         WasmBytes wrapper_body = {0};
         assemble_ok = uleb(&wrapper_body, 0); /* no locals */
+        assemble_ok = assemble_ok &&
+                      op_const_i32(&wrapper_body, ZX_WASM_ARENA_BASE) &&
+                      op_index(&wrapper_body, 0x24, 1); /* global.set $arena */
         if(!strcmp(entry->result_type, "void"))
             assemble_ok = assemble_ok &&
                           op_index(&wrapper_body, 0x10, entry->function_index) &&

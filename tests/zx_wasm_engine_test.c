@@ -153,15 +153,13 @@ static const char scalar_source[] =
     "#program_export\n"
     "Answer :: () -> s64 { return 21 * 2 }\n";
 
-static const char record_source[] =
-    "Point :: struct {\n"
-    "    x: s32\n"
-    "}\n"
+/* Records lower to the tier now; text stays outside it, so this one
+ * exercises the VM fallback. */
+static const char text_source[] =
+    "TEXT: string = \"hi\";\n"
     "#program_export\n"
     "Answer :: () -> s64 {\n"
-    "    p: Point\n"
-    "    p.x = 7\n"
-    "    return cast(s64)p.x\n"
+    "    return cast(s64)TEXT.count\n"
     "}\n";
 
 int
@@ -213,17 +211,17 @@ main(void)
     if(release_calls != 1)
         return 1;
 
-    /* A record bundle is outside the tier: it falls back to the VM and
+    /* A text bundle is outside the tier: it falls back to the VM and
      * still answers, with the provider left untouched for it. */
-    Bundle *record = bundle_of("record.zi", record_source);
-    if(record == NULL)
+    Bundle *text = bundle_of("text.zi", text_source);
+    if(text == NULL)
         return 2;
-    instance = BundleInstantiate(record, NULL, 0);
+    instance = BundleInstantiate(text, NULL, 0);
     if(instance == NULL || instantiate_calls != 1)
         return 1;
     if(!BundleInstanceRun(instance, &result, &has_result) || !has_result ||
-       result != 7 || call_calls != 1) {
-        fprintf(stderr, "record fallback gave %lld\n", result);
+       result != 2 || call_calls != 1) {
+        fprintf(stderr, "text fallback gave %lld\n", result);
         return 1;
     }
     BundleInstanceClose(instance);
@@ -235,7 +233,7 @@ main(void)
        !has_result || result != 42 || instantiate_calls != 1)
         return 1;
     BundleInstanceClose(instance);
-    BundleClose(record);
+    BundleClose(text);
     BundleClose(scalar);
     fprintf(stdout, "zx-wasm-engine-test: seam, provider handoff and fallback verified\n");
     return 0;

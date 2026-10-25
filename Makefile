@@ -568,6 +568,10 @@ fuzz:
 curl-http-test: $(BIN_DIR)/zi2c
 	python3 tests/net_http_curl_linux_test.py $(BIN_DIR)/zi2c
 
+.PHONY: gzip-test
+gzip-test: $(BIN_DIR)/zi2c
+	python3 tests/gzip_linux_test.py $(BIN_DIR)/zi2c
+
 clean:
 	rm -rf $(BUILD_DIR)
 

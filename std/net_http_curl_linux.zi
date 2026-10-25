@@ -14,9 +14,13 @@ c :: #system_library "c";
     curl_global_init :: (flags: s64) -> s32 #foreign curl;
     CurlInitRoutine :: #type () #c_call;
     pthread_once :: (control: *s32, routine: CurlInitRoutine) -> s32 #foreign c;
+    CurlMutexInit :: (mutex: *void, attributes: *void) -> s32 #foreign c "pthread_mutex_init";
+    CurlMutexLock :: (mutex: *void) -> s32 #foreign c "pthread_mutex_lock";
+    CurlMutexUnlock :: (mutex: *void) -> s32 #foreign c "pthread_mutex_unlock";
 }
 curl_easy_init :: () -> *void #foreign curl;
 curl_easy_cleanup :: (handle: *void) #foreign curl;
+curl_easy_reset :: (handle: *void) #foreign curl;
 curl_easy_setopt :: (handle: *void, option: s32, args: ..any) -> s32 #foreign curl;
 curl_easy_perform :: (handle: *void) -> s32 #foreign curl;
 curl_easy_getinfo :: (handle: *void, option: s32, args: ..any) -> s32 #foreign curl;
@@ -38,12 +42,33 @@ CurlNoBody :: 44
 CurlProxy :: 10004
 CurlFollowLocation :: 52
 CurlResponseCode :: 2097154
+CurlMaxConnects :: 71
+
+CurlPoolSlot :: struct {
+    handle: *void
+    origin: [512]u8
+    direct: bool
+    busy: bool
+}
+
+CurlLease :: struct {
+    handle: *void
+    slot: s32
+}
+
+// Four idle connections at most. A handle belongs to exactly one request
+// while busy; excess concurrent requests retain their existing private handle.
+curl_pool: [4]CurlPoolSlot;
 
 curl_once: s32 = 0;
 curl_init_result: s32 = -1;
 
 #if #defined(_WIN32) {
     curl_lock: usize = 0;
+    curl_pool_lock: usize = 0;
+
+    LockCurlPool :: () { AcquireSRWLockExclusive(*curl_pool_lock) }
+    UnlockCurlPool :: () { ReleaseSRWLockExclusive(*curl_pool_lock) }
 
     CurlReady :: () -> bool {
         AcquireSRWLockExclusive(*curl_lock)
@@ -56,8 +81,17 @@ curl_init_result: s32 = -1;
         return ready
     }
 } else {
+    // Same aligned pthread_mutex_t storage used by the native thread module.
+    curl_pool_lock: [8]u64;
+
+    LockCurlPool :: () { unused CurlMutexLock(cast(*void)*curl_pool_lock[0]) }
+    UnlockCurlPool :: () { unused CurlMutexUnlock(cast(*void)*curl_pool_lock[0]) }
+
     InitCurl :: () {
         curl_init_result = curl_global_init(3)
+        if curl_init_result == 0 {
+            curl_init_result = CurlMutexInit(cast(*void)*curl_pool_lock[0], null)
+        }
     }
 
     CurlReady :: () -> bool {
@@ -65,6 +99,88 @@ curl_init_result: s32 = -1;
         return pthread_once(*curl_once, routine) == 0 &&
             curl_init_result == 0
     }
+}
+
+// Credentials in URL authorities retain a private handle. Normal bearer
+// requests pool by origin and proxy policy, with every option reset afterward.
+CurlOrigin :: (url: string) -> string {
+    start: s64 = 0
+    if StartsWith(url, "https://") { start = 8 }
+    else if StartsWith(url, "http://") { start = 7 }
+    else { return "" }
+    end := start
+    while end < url.count && url[end] != 47 && url[end] != 63 && url[end] != 35 {
+        if url[end] <= 32 || url[end] == 64 || url[end] == 92 { return "" }
+        end += 1
+    }
+    if end == start || end >= 512 { return "" }
+    return url[0:end]
+}
+
+AcquireCurl :: (url: string, direct: bool) -> CurlLease {
+    lease := CurlLease.{.slot = -1}
+    origin := CurlOrigin(url)
+    if origin.count == 0 {
+        lease.handle = curl_easy_init()
+        return lease
+    }
+    LockCurlPool()
+    chosen: s32 = -1
+    unused_slot: s32 = -1
+    for slot, index: curl_pool {
+        if slot.busy { continue }
+        if !slot.busy && unused_slot < 0 { unused_slot = cast(s32)index }
+        if slot.handle != null && slot.direct == direct && TextFromCString(*slot.origin[0]) == origin {
+            chosen = cast(s32)index
+            break
+        }
+        if slot.handle == null { unused_slot = cast(s32)index }
+    }
+    if chosen < 0 { chosen = unused_slot }
+    if chosen >= 0 {
+        slot := *curl_pool[chosen]
+        if slot.handle != null && (slot.direct != direct || TextFromCString(*slot.origin[0]) != origin) {
+            curl_easy_cleanup(slot.handle)
+            slot.handle = null
+        }
+        if slot.handle == null { slot.handle = curl_easy_init() }
+        if slot.handle != null && CopyCString(origin, slot.origin[:]) {
+            slot.direct = direct
+            slot.busy = true
+            lease.handle = slot.handle
+            lease.slot = chosen
+        }
+    }
+    UnlockCurlPool()
+    if lease.handle == null { lease.handle = curl_easy_init() }
+    return lease
+}
+
+ReleaseCurl :: (lease: CurlLease) {
+    // Reset clears borrowed headers, body, token and output pointers while
+    // retaining the connection and TLS session. Cookies are never enabled.
+    curl_easy_reset(lease.handle)
+    if lease.slot < 0 {
+        curl_easy_cleanup(lease.handle)
+        return
+    }
+    LockCurlPool()
+    curl_pool[lease.slot].busy = false
+    UnlockCurlPool()
+}
+
+#program_export
+CloseCurlConnections :: () {
+    if !CurlReady() { return }
+    LockCurlPool()
+    for index: cast(s64)0..curl_pool.count - 1 {
+        slot := *curl_pool[index]
+        if slot.busy || slot.handle == null { continue }
+        curl_easy_cleanup(slot.handle)
+        slot.handle = null
+        slot.origin = .{}
+    }
+    UnlockCurlPool()
 }
 
 StartsWith :: (value: string, prefix: string) -> bool {
@@ -270,7 +386,8 @@ SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, dire
     !CopyCString(request.url, url[:]) ||
     !CopyCString(request.method, method[:]) { return result }
     if !CurlReady() { return result }
-    handle := curl_easy_init()
+    lease := AcquireCurl(request.url, direct)
+    handle := lease.handle
     if handle == null { return result }
 
     context: CurlOutput
@@ -289,7 +406,8 @@ SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, dire
     curl_easy_setopt(handle, CurlWriteData, *context) == 0 &&
     timeout_ms > 0 && SetCurlLong(handle, CurlTimeoutMs, timeout_ms) &&
     SetCurlLong(handle, CurlConnectTimeoutMs, 10000) &&
-    SetCurlLong(handle, CurlNoSignal, 1)
+    SetCurlLong(handle, CurlNoSignal, 1) &&
+    SetCurlLong(handle, CurlMaxConnects, 1)
     if configured && direct {
         proxy: [1]u8
         proxy[0] = cast(u8)0
@@ -355,7 +473,7 @@ SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, dire
     }
     result.length = context.length
     result.truncated = context.truncated
+    ReleaseCurl(lease)
     if headers != null { curl_slist_free_all(headers) }
-    curl_easy_cleanup(handle)
     return result
 }

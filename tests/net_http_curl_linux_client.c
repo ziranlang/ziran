@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 static String
 url(char *buffer, size_t capacity, const char *base, const char *path)
@@ -11,6 +12,26 @@ url(char *buffer, size_t capacity, const char *base, const char *path)
     int length = snprintf(buffer, capacity, "%s%s", base, path);
     assert(length > 0 && (size_t)length < capacity);
     return StringView(buffer, (size_t)length);
+}
+
+typedef struct RequestThread {
+    const char *base;
+    int index;
+} RequestThread;
+
+static void *request_thread(void *context)
+{
+    RequestThread *worker = context;
+    char address[256], token[32], expected[48], output[128];
+    snprintf(token, sizeof token, "worker-%d", worker->index);
+    snprintf(expected, sizeof expected, "Bearer %s", token);
+    HttpRequest request = {0};
+    request.method = StringLiteral("GET");
+    request.url = url(address, sizeof address, worker->base, "/thread");
+    request.token = StringView(token, strlen(token));
+    CurlResult result = SendCurl(request, (Slice){.data=output,.length=sizeof output});
+    assert(result.code == 0 && result.status == 200 && strcmp(output, expected) == 0);
+    return NULL;
 }
 
 int
@@ -47,6 +68,22 @@ main(int argc, char **argv)
     CurlResult result = SendCurl(request, buffer);
     assert(result.code == 0 && result.status == 200);
     assert(result.length == 5 && strcmp(output, "ready") == 0);
+
+    request.url = url(address, sizeof address, argv[1], "/connection");
+    result = SendCurl(request, buffer);
+    assert(result.code == 0 && result.status == 200);
+    char first_connection[32];
+    snprintf(first_connection, sizeof first_connection, "%.*s", (int)result.length, output);
+    result = SendCurl(request, buffer);
+    assert(result.code == 0 && result.status == 200 && strcmp(first_connection, output) == 0);
+
+    pthread_t threads[6];
+    RequestThread workers[6];
+    for (int i=0; i<6; i++) {
+        workers[i] = (RequestThread){argv[1],i};
+        assert(pthread_create(&threads[i], NULL, request_thread, &workers[i]) == 0);
+    }
+    for (int i=0; i<6; i++) assert(pthread_join(threads[i], NULL) == 0);
 
     request.url = url(address, sizeof address, argv[1], "/slow");
     result = SendCurlWithin(request, buffer, 500);

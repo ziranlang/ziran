@@ -1045,6 +1045,12 @@ It runs in portable bundles. `std/zip_linux.zi` adds raw DEFLATE extraction
 through the system zlib library for 64-bit Linux native C builds; link those
 builds with `-lz`. The caller supplies file I/O, memory limits, and which entry names
 are meaningful to the application.
+`std/gzip_linux.zi` compresses and decompresses a single gzip stream into
+caller-owned, disjoint byte buffers. `GzipDecompress` requires the expected
+uncompressed length and rejects expansion beyond that length, bad checksums,
+truncation and trailing streams. Native C builds link zlib (`-lz`); Emscripten
+builds use `-sUSE_ZLIB=1`. Run `make gzip-test` for independent Python gzip
+interoperability and malformed-input tests.
 `std/zip_file_linux.zi` writes stored ZIP entries directly to a caller-owned
 file from borrowed byte slices, including mapped files. The caller controls
 file creation and publication. Its test checks the output with Python's ZIP

@@ -1,0 +1,81 @@
+// Bounded native gzip over the platform zlib. Works on the same C targets as
+// zip_linux, including Android, Windows and Emscripten. Link the platform zlib.
+Zip :: #import "zip_linux";
+zlib :: #system_library "z";
+
+#scope_file
+Version :: () -> *u8 #foreign zlib "zlibVersion";
+DeflateInit :: (stream: *Zip.ZStream, level: s32, method: s32, window_bits: s32,
+    memory_level: s32, strategy: s32, version: *u8, stream_size: s32) -> s32 #foreign zlib "deflateInit2_";
+Deflate :: (stream: *Zip.ZStream, flush: s32) -> s32 #foreign zlib "deflate";
+DeflateEnd :: (stream: *Zip.ZStream) -> s32 #foreign zlib "deflateEnd";
+InflateInit :: (stream: *Zip.ZStream, window_bits: s32, version: *u8,
+    stream_size: s32) -> s32 #foreign zlib "inflateInit2_";
+Inflate :: (stream: *Zip.ZStream, flush: s32) -> s32 #foreign zlib "inflate";
+InflateEnd :: (stream: *Zip.ZStream) -> s32 #foreign zlib "inflateEnd";
+
+Overlaps :: (input: []u8, output: []u8) -> bool {
+    if input.count == 0 || output.count == 0 { return false }
+    first := cast(usize)*input[0]
+    second := cast(usize)*output[0]
+    if first <= second { return second - first < cast(usize)input.count }
+    return first - second < cast(usize)output.count
+}
+
+#scope_export
+#program_export
+GzipBound :: (count: s64) -> s64 {
+    if count < 0 || count > 4294967295 { return -1 }
+    return count + count / 16 + 128
+}
+
+// Returns the number of binary bytes written, or -1. Input and output must
+// not overlap. Buffers and platform stream allocation remain bounded.
+#program_export
+GzipCompress :: (input: []u8, output: []u8, level: s32 = 1) -> s64 {
+    if input.count > 4294967295 || output.count < 1 || output.count > 4294967295 ||
+        level < -1 || level > 9 || Overlaps(input, output) {
+        return -1
+    }
+    stream: Zip.ZStream
+    if input.count > 0 { stream.next_in = *input[0] }
+    stream.avail_in = cast(u32)input.count
+    stream.next_out = *output[0]
+    stream.avail_out = cast(u32)output.count
+    if DeflateInit(*stream, level, 8, 31, 8, 0, Version(), cast(s32)size_of(Zip.ZStream)) != 0 {
+        return -1
+    }
+    status := Deflate(*stream, 4)
+    count := cast(s64)stream.total_out
+    valid := status == 1 && cast(s64)stream.total_in == input.count
+    if DeflateEnd(*stream) != 0 { valid = false }
+    return ifx valid then count else -1
+}
+
+// Exactly one complete gzip stream, with its CRC and size verified. Reject
+// trailing bytes, concatenated members and any expansion beyond expected_size.
+#program_export
+GzipDecompress :: (input: []u8, output: []u8, expected_size: s64) -> bool {
+    if input.count < 1 || input.count > 4294967295 || expected_size < 0 ||
+        expected_size > output.count || output.count > 4294967295 || Overlaps(input, output) {
+        return false
+    }
+    stream: Zip.ZStream
+    spare: u8
+    stream.next_in = *input[0]
+    stream.avail_in = cast(u32)input.count
+    stream.next_out = *spare
+    stream.avail_out = 1
+    if expected_size > 0 {
+        stream.next_out = *output[0]
+        stream.avail_out = cast(u32)expected_size
+    }
+    if InflateInit(*stream, 31, Version(), cast(s32)size_of(Zip.ZStream)) != 0 {
+        return false
+    }
+    status := Inflate(*stream, 4)
+    valid := status == 1 && cast(s64)stream.total_in == input.count &&
+        cast(s64)stream.total_out == expected_size
+    if InflateEnd(*stream) != 0 { valid = false }
+    return valid
+}

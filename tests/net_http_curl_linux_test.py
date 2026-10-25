@@ -17,6 +17,7 @@ COMPILER = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build/bin/zi2c"
 
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
     def log_message(self, *_args):
         pass
 
@@ -31,7 +32,12 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == "/ok":
+        if self.path == "/connection":
+            self.respond(200, str(self.client_address[1]).encode())
+        elif self.path == "/thread":
+            time.sleep(0.05)
+            self.respond(200, self.headers.get("Authorization", "missing").encode())
+        elif self.path == "/ok":
             self.respond(200, b"ready")
         elif self.path == "/slow":
             time.sleep(1.5)
@@ -40,7 +46,7 @@ class Handler(BaseHTTPRequestHandler):
             except BrokenPipeError:
                 pass  # The client's shorter timeout already closed it.
         elif self.path == "/auth":
-            self.respond(401, b"denied")
+            self.respond(401 if self.headers.get("Authorization") is None else 500, b"denied")
         elif self.path == "/large":
             self.respond(200, b"x" * 256)
         elif self.path in ("/gzip", "/gzip-large"):

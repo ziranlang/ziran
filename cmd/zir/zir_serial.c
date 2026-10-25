@@ -47,6 +47,9 @@ typedef struct Reader {
     size_t budget;
     unsigned char *block;
     size_t start, end;
+    /* The last span's file: one function's spans name the same path. */
+    int last_file;
+    char last_path[ZIR_PATH_MAX];
 } Reader;
 
 typedef struct Writer {
@@ -439,7 +442,11 @@ read_span(Reader *reader, ZirSourceSpan *span)
     if(!read_string(reader, path, sizeof(path)))
         return 0;
     span->context = CompilerContextCurrent();
-    span->file = SourceFile(path);
+    if(reader->last_file == 0 || strcmp(path, reader->last_path) != 0) {
+        reader->last_file = SourceFile(path);
+        memcpy(reader->last_path, path, strlen(path) + 1);
+    }
+    span->file = reader->last_file;
     for(int i = 0; i < 4; i++)
         if(!read_u32(reader, &numbers[i]))
             return 0;

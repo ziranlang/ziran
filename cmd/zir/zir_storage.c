@@ -13,6 +13,7 @@ typedef struct SourceFiles {
     int capacity;
     int *slots; /* open addressing over path numbers; 0 is an empty slot */
     size_t slot_count;
+    atomic_int lock;
 } SourceFiles;
 static void free_source_files(void *value)
 {
@@ -24,21 +25,34 @@ static SourceFiles *source_files_in(CompilerContext *context)
 {
     return CompilerContextStorage(context, COMPILER_SOURCES, sizeof(SourceFiles), free_source_files);
 }
-#define source_files (*source_files_in(CompilerContextCurrent()))
-static atomic_flag source_file_lock = ATOMIC_FLAG_INIT;
+
+/* Each context's tables have their own lock, taken once a table is found:
+ * bundles opening on separate threads read into separate contexts and never
+ * wait for each other. */
+static void
+lock_table(atomic_int *lock)
+{
+    while(atomic_exchange_explicit(lock, 1, memory_order_acquire)) {}
+}
+
+static void
+unlock_table(atomic_int *lock)
+{
+    atomic_store_explicit(lock, 0, memory_order_release);
+}
 
 static size_t
-source_file_slot(const char *path)
+source_file_slot(SourceFiles *files, const char *path)
 {
     uint64_t hash = UINT64_C(14695981039346656037);
     for(const unsigned char *p = (const unsigned char *)path; *p; p++) {
         hash ^= *p;
         hash *= UINT64_C(1099511628211);
     }
-    size_t slot = (size_t)hash & (source_files.slot_count - 1);
-    while(source_files.slots[slot] != 0 &&
-          strcmp(source_files.paths[source_files.slots[slot]], path) != 0)
-        slot = (slot + 1) & (source_files.slot_count - 1);
+    size_t slot = (size_t)hash & (files->slot_count - 1);
+    while(files->slots[slot] != 0 &&
+          strcmp(files->paths[files->slots[slot]], path) != 0)
+        slot = (slot + 1) & (files->slot_count - 1);
     return slot;
 }
 
@@ -47,59 +61,60 @@ SourceFile_persistent(const char *path)
 {
     if(path == NULL || *path == '\0')
         return 0;
-    while(atomic_flag_test_and_set_explicit(&source_file_lock, memory_order_acquire)) {}
-    if((size_t)source_files.count * 2 >= source_files.slot_count) {
-        size_t old_count = source_files.slot_count;
-        int *old_slots = source_files.slots;
-        source_files.slot_count = old_count ? old_count * 2 : 256;
-        source_files.slots = calloc(source_files.slot_count, sizeof(int));
-        if(source_files.slots == NULL) {
+    SourceFiles *files = source_files_in(CompilerContextCurrent());
+    lock_table(&files->lock);
+    if((size_t)files->count * 2 >= files->slot_count) {
+        size_t old_count = files->slot_count;
+        int *old_slots = files->slots;
+        files->slot_count = old_count ? old_count * 2 : 256;
+        files->slots = calloc(files->slot_count, sizeof(int));
+        if(files->slots == NULL) {
             DiagnosticOutOfMemory();
             exit(1);
         }
         for(size_t i = 0; i < old_count; i++)
             if(old_slots[i] != 0)
-                source_files.slots[source_file_slot(
-                    source_files.paths[old_slots[i]])] = old_slots[i];
+                files->slots[source_file_slot(files,
+                    files->paths[old_slots[i]])] = old_slots[i];
         free(old_slots);
     }
-    if(source_files.count == 0)
-        source_files.count = 1;
-    size_t slot = source_file_slot(path);
-    if(source_files.slots[slot] != 0) {
-        int file = source_files.slots[slot];
-        atomic_flag_clear_explicit(&source_file_lock, memory_order_release);
+    if(files->count == 0)
+        files->count = 1;
+    size_t slot = source_file_slot(files, path);
+    if(files->slots[slot] != 0) {
+        int file = files->slots[slot];
+        unlock_table(&files->lock);
         return file;
     }
-    if(source_files.count >= source_files.capacity) {
-        int capacity = source_files.capacity ? source_files.capacity * 2 : 64;
-        char **paths = realloc(source_files.paths, (size_t)capacity * sizeof(*paths));
+    if(files->count >= files->capacity) {
+        int capacity = files->capacity ? files->capacity * 2 : 64;
+        char **paths = realloc(files->paths, (size_t)capacity * sizeof(*paths));
         if(paths == NULL) {
             DiagnosticOutOfMemory();
             exit(1);
         }
-        source_files.paths = paths;
-        source_files.capacity = capacity;
+        files->paths = paths;
+        files->capacity = capacity;
     }
     char *copy = strdup(path);
     if(copy == NULL) {
         DiagnosticOutOfMemory();
         exit(1);
     }
-    source_files.paths[source_files.count] = copy;
-    source_files.slots[slot] = source_files.count;
-    int file = source_files.count++;
-    atomic_flag_clear_explicit(&source_file_lock, memory_order_release);
+    files->paths[files->count] = copy;
+    files->slots[slot] = files->count;
+    int file = files->count++;
+    unlock_table(&files->lock);
     return file;
 }
 
 const char *
 SpanPath(ZirSourceSpan span)
 {
-    while(atomic_flag_test_and_set_explicit(&source_file_lock, memory_order_acquire)) {}
     SourceFiles *files = source_files_in(span.context);
+    lock_table(&files->lock);
     const char *path = span.file > 0 && span.file < files->count ? files->paths[span.file] : "";
-    atomic_flag_clear_explicit(&source_file_lock, memory_order_release);
+    unlock_table(&files->lock);
     return path;
 }
 
@@ -116,6 +131,7 @@ typedef struct KeptTexts {
     char *block;
     size_t block_used;
     size_t block_size;
+    atomic_int lock;
 } KeptTexts;
 static void free_kept_texts(void *value)
 {
@@ -129,8 +145,6 @@ static KeptTexts *context_texts(void)
 {
     return CompilerContextStorage(CompilerContextCurrent(), COMPILER_TEXTS, sizeof(KeptTexts), free_kept_texts);
 }
-#define kept_texts (*context_texts())
-static atomic_flag kept_text_lock = ATOMIC_FLAG_INIT;
 static const char empty_text[] = "";
 
 /* Canonical return pointers remain immutable and alive after table growth or
@@ -196,13 +210,13 @@ text_hash(const char *text, size_t length)
 }
 
 static size_t
-kept_text_slot(const char *text, size_t length)
+kept_text_slot(KeptTexts *texts, const char *text, size_t length)
 {
-    size_t slot = (size_t)text_hash(text, length) & (kept_texts.slot_count - 1);
-    while(kept_texts.texts[slot] != NULL &&
-          (strncmp(kept_texts.texts[slot], text, length) != 0 ||
-           kept_texts.texts[slot][length] != '\0'))
-        slot = (slot + 1) & (kept_texts.slot_count - 1);
+    size_t slot = (size_t)text_hash(text, length) & (texts->slot_count - 1);
+    while(texts->texts[slot] != NULL &&
+          (strncmp(texts->texts[slot], text, length) != 0 ||
+           texts->texts[slot][length] != '\0'))
+        slot = (slot + 1) & (texts->slot_count - 1);
     return slot;
 }
 
@@ -276,45 +290,46 @@ keep_text(const char *text, size_t length)
 {
     ProfileCount("kept_text_lookup");
     /* VM instances share immutable spellings, but insertion and table growth
-     * still mutate the process-wide owner. Publish complete entries together. */
-    while(atomic_flag_test_and_set_explicit(&kept_text_lock, memory_order_acquire)) {}
-    if(kept_texts.count * 2 >= kept_texts.slot_count) {
-        size_t old_count = kept_texts.slot_count;
-        const char **old_texts = kept_texts.texts;
-        kept_texts.slot_count = old_count ? old_count * 2 : 4096;
-        kept_texts.texts = calloc(kept_texts.slot_count, sizeof(*kept_texts.texts));
-        if(kept_texts.texts == NULL)
+     * still mutate the context's table. Publish complete entries together. */
+    KeptTexts *texts = context_texts();
+    lock_table(&texts->lock);
+    if(texts->count * 2 >= texts->slot_count) {
+        size_t old_count = texts->slot_count;
+        const char **old_texts = texts->texts;
+        texts->slot_count = old_count ? old_count * 2 : 4096;
+        texts->texts = calloc(texts->slot_count, sizeof(*texts->texts));
+        if(texts->texts == NULL)
             kept_text_failed();
         for(size_t i = 0; i < old_count; i++)
             if(old_texts[i] != NULL)
-                kept_texts.texts[kept_text_slot(old_texts[i],
-                                                strlen(old_texts[i]))] = old_texts[i];
+                texts->texts[kept_text_slot(texts, old_texts[i],
+                                                      strlen(old_texts[i]))] = old_texts[i];
         free(old_texts);
     }
-    size_t slot = kept_text_slot(text, length);
-    if(kept_texts.texts[slot] != NULL) {
-        const char *kept = kept_texts.texts[slot];
-        atomic_flag_clear_explicit(&kept_text_lock, memory_order_release);
+    size_t slot = kept_text_slot(texts, text, length);
+    if(texts->texts[slot] != NULL) {
+        const char *kept = texts->texts[slot];
+        unlock_table(&texts->lock);
         remember_kept_text(text, kept, length);
         return kept;
     }
-    if(kept_texts.block == NULL ||
-       kept_texts.block_used + length + 1 > kept_texts.block_size) {
-        kept_texts.block_size = length + 1 > 65536 ? length + 1 : 65536;
-        KeptBlock *block = malloc(sizeof(*block) + kept_texts.block_size);
+    if(texts->block == NULL ||
+       texts->block_used + length + 1 > texts->block_size) {
+        texts->block_size = length + 1 > 65536 ? length + 1 : 65536;
+        KeptBlock *block = malloc(sizeof(*block) + texts->block_size);
         if(block == NULL) kept_text_failed();
-        block->next = kept_texts.blocks;
-        kept_texts.blocks = block;
-        kept_texts.block = block->data;
-        kept_texts.block_used = 0;
+        block->next = texts->blocks;
+        texts->blocks = block;
+        texts->block = block->data;
+        texts->block_used = 0;
     }
-    char *copy = kept_texts.block + kept_texts.block_used;
+    char *copy = texts->block + texts->block_used;
     memcpy(copy, text, length);
     copy[length] = '\0';
-    kept_texts.block_used += length + 1;
-    kept_texts.texts[slot] = copy;
-    kept_texts.count++;
-    atomic_flag_clear_explicit(&kept_text_lock, memory_order_release);
+    texts->block_used += length + 1;
+    texts->texts[slot] = copy;
+    texts->count++;
+    unlock_table(&texts->lock);
     remember_kept_text(text, copy, length);
     return copy;
 }

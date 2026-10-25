@@ -187,6 +187,20 @@ Other hosts (the browser, Windows, macOS) run the portable VM, and
 `ZIRAN_NATIVE_TIMING=1` reports where compilation time goes and
 `ZIRAN_NATIVE_KEEP=1` keeps the generated C.
 
+## WebAssembly execution tier
+
+A host that installs a WebAssembly provider with `ZxWasmSetPlatform`
+(`cmd/zir/zir_zx_wasm_platform.h`) runs suitable bundles as WebAssembly:
+`BundleInstantiate` lowers the bundle's verified IR to a wasm32 module
+with the same emitter as the `zi2wasm` tool, instantiates it through
+the provider, and counts the run budget like the native tier, one
+function entry and one loop iteration at a time. The current tier
+lowers the scalar subset only; a bundle with host bindings or other
+out-of-subset constructs runs on the portable VM instead, and a host
+without a provider is unchanged. `tests/zx_wasm_engine_test.c` checks
+the seam and fallback, and `tests/zx_wasm_web.sh` runs a bundle end to
+end through the wasm-built library and a JavaScript provider.
+
 ## Embedded files and application hosts
 
 `--define NAME` selects the same source branches as the native compiler.

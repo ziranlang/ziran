@@ -33,6 +33,8 @@ header_has_private(const ZirModule *m)
 
 #define LOWER_NAME_MAX 128
 #define LOWER_TEXT_MAX 4096
+/* A global's whole initializer, such as a table of translated strings. */
+#define LOWER_GLOBAL_MAX (256 * 1024)
 
 static const char *
 enum_storage_type(const char *backing)
@@ -916,8 +918,8 @@ typedef struct LowerModuleBuffers {
     char tmpb[LOWER_TEXT_MAX];
     char cargs[LOWER_TEXT_MAX];
     char abi_args[ZIR_TEXT_MAX];
-    char initw[LOWER_TEXT_MAX * 2 + 64];
-    char recordw[LOWER_TEXT_MAX * 2 + 64];
+    char initw[LOWER_GLOBAL_MAX];
+    char recordw[LOWER_GLOBAL_MAX];
 } LowerModuleBuffers;
 
 static int lower_module(const ZirModule *m, const ZirCModuleSyms *restab,

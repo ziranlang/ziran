@@ -173,6 +173,7 @@ typedef struct ZirFunction {
     int go_method_results; /* flatten the result record into Go multiple results */
     char effect_class[12]; /* pure | observing | mutating | external */
     int exported;
+    int retained_root; /* command-selected bundle root; not serialized */
     char export_symbol[ZIR_NAME_MAX]; /* optional #program_export linker name */
     int is_extern;
     ZirExternKind extern_kind;

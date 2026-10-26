@@ -9,6 +9,7 @@ printf 'one shared asset' > "$work/shared/message.txt"
 cat > "$work/common.zi" <<'ZI'
 count: s32 = 40;
 Copy :: (value: s32) -> s32 #asm("x86_64", "# LIBRARY_NATIVE_FN\nmov %[value], %[out]", "=r", "r", "", "") { return value }
+AdditionalEntry :: () -> s32 { return Next() }
 #program_export
 Next :: () -> s32 {
     value := count
@@ -25,11 +26,18 @@ cat > "$work/app.zi" <<'ZI'
 #import "common"
 #program_export
 main :: () -> s32 {
-    return Next()
+    return AdditionalEntry()
 }
 ZI
 "$ziran" bundle --root "$work" --entry common:main \
-    --asset-dir "shared=$work/shared" -o "$work/common.zx" "$work/common.zi"
+    --retain common:AdditionalEntry --asset-dir "shared=$work/shared" \
+    -o "$work/common.zx" "$work/common.zi"
+if "$ziran" bundle --root "$work" --entry common:main --retain common:Absent \
+    -o "$work/invalid.zx" "$work/common.zi" > "$work/invalid.log" 2>&1; then
+    echo 'missing retained bundle entry accepted' >&2
+    exit 1
+fi
+test ! -e "$work/invalid.zx"
 "$ziran" bundle --root "$work" --entry app:main --library "$work/common.zx" \
     -o "$work/thin.zx" "$work/app.zi"
 "$ziran" bundle --root "$work" --entry app:main --include-library "$work/common.zx" \

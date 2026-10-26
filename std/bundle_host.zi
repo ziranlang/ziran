@@ -56,6 +56,7 @@ RawBundleCapabilityCount :: (bundle: *void) -> usize #foreign runtime "BundleCap
 RawBundleCapabilityModule :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleCapabilityModule";
 RawBundleCapabilityFunction :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleCapabilityFunction";
 RawBundleAssetCount :: (bundle: *void) -> usize #foreign runtime "BundleAssetCount";
+RawBundleOwnAssetCount :: (bundle: *void) -> usize #foreign runtime "BundleOwnAssetCount";
 RawBundleAssetName :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleAssetName";
 RawBundleAssetData :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleAssetData";
 RawBundleAssetSize :: (bundle: *void, index: usize) -> usize #foreign runtime "BundleAssetSize";
@@ -129,6 +130,10 @@ BundleCapabilityFunctionName :: (bundle: *void, index: u64) -> *u8 {
 
 #program_export
 BundleAssets :: (bundle: *void) -> u64 { return cast(u64)RawBundleAssetCount(bundle) }
+
+// Own assets precede inherited library assets in the resource table.
+#program_export
+BundleOwnAssets :: (bundle: *void) -> u64 { return cast(u64)RawBundleOwnAssetCount(bundle) }
 
 #program_export
 BundleAssetPath :: (bundle: *void, index: u64) -> *u8 {

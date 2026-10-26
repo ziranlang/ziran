@@ -21,7 +21,7 @@ static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
-            "usage: zi2zx bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--library FILE.zx|--include-library FILE.zx] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
+            "usage: zi2zx bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--library FILE.zx|--include-library FILE.zx] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
             "       zi2zx run file.zx\n");
 }
 
@@ -84,6 +84,8 @@ bundle_command(int argc, char **argv)
     int binding_count = 0;
     const char *host_modules[16];
     int host_module_count = 0;
+    const char *retained[64];
+    int retained_count = 0;
     ZirProgram **programs = NULL;
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
@@ -113,6 +115,8 @@ bundle_command(int argc, char **argv)
             bindings[binding_count++] = argv[++i];
         else if(strcmp(argv[i], "--bind-host") == 0 && i + 1 < argc && host_module_count < 16)
             host_modules[host_module_count++] = argv[++i];
+        else if(strcmp(argv[i], "--retain") == 0 && i + 1 < argc && retained_count < 64)
+            retained[retained_count++] = argv[++i];
         else if((strcmp(argv[i], "--library") == 0 ||
                  strcmp(argv[i], "--include-library") == 0) &&
                 i + 1 < argc && library_count < 64) {
@@ -168,6 +172,23 @@ bundle_command(int argc, char **argv)
     ZirProgram *merged_ptr = &merged;
     if(!LinkImports(&merged_ptr, 1))
         goto done;
+    for(int r = 0; r < retained_count; r++) {
+        char module[ZIR_NAME_MAX], function[ZIR_NAME_MAX];
+        int found = 0;
+        if(split_entry(retained[r], module, function))
+            for(int m = 0; m < merged.module_count; m++)
+                if(strcmp(merged.modules[m].name, module) == 0)
+                    for(int f = 0; f < merged.modules[m].function_count; f++)
+                        if(strcmp(merged.modules[m].functions[f].name, function) == 0) {
+                            merged.modules[m].functions[f].retained_root = 1;
+                            found = 1;
+                        }
+        if(!found) {
+            Diagnostic(Span("<command>", 1, 1), "zx.retain",
+                       "retained function not found: %s", retained[r]);
+            goto done;
+        }
+    }
     for(int binding = 0; binding < binding_count; binding++)
         if(!BindHostProvider(&merged, bindings[binding]))
             goto done;

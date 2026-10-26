@@ -95,6 +95,7 @@ const char *BundleCapabilityFunction(const Bundle *bundle, size_t index);
 /* Embedded files have canonical relative paths and immutable bytes. Names and
  * data are borrowed until BundleClose; an invalid index returns NULL/zero. */
 size_t BundleAssetCount(const Bundle *bundle);
+size_t BundleOwnAssetCount(const Bundle *bundle);
 const char *BundleAssetName(const Bundle *bundle, size_t index);
 const unsigned char *BundleAssetData(const Bundle *bundle, size_t index);
 size_t BundleAssetSize(const Bundle *bundle, size_t index);

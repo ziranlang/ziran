@@ -319,6 +319,11 @@ beside the launcher), and `-o FILE` writes elsewhere.
 
 `ziran ir --entry module:function` saves that reachable checked graph as
 per-module `.zir` files before native code generation.
+For a portable library, `ziran bundle --entry module:function --retain
+other:entry` also keeps the named function and its dependencies. Repeat
+`--retain` for additional entry points consumed by thin `--library` bundles;
+unrelated functions remain outside the payload. Every retained entry must
+exist in the checked input graph.
 Saved `.zir` files are binary. `ziran inspect path/to/module.zir` shows their
 declarations, statements, and checked expression links as readable text;
 `ziran inspect --hex path/to/module.zir` shows bytes and offsets. Both views

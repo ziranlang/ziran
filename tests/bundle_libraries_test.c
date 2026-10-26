@@ -14,6 +14,8 @@ int main(int argc, char **argv)
     Bundle *thin = BundleOpenWithLibraries(argv[2], libraries, 1);
     assert(thin != NULL);
     assert(BundleAssetCount(thin) == 1);
+    assert(BundleOwnAssetCount(thin) == 0);
+    assert(BundleOwnAssetCount(library) == 1);
     assert(strcmp(BundleAssetName(thin, 0), "shared/message.txt") == 0);
     Bundle *duplicate[] = {library, library};
     assert(BundleOpenWithLibraries(argv[2], duplicate, 2) == NULL);
@@ -37,6 +39,7 @@ int main(int argc, char **argv)
     Bundle *standalone = BundleOpen(argv[3]);
     assert(standalone != NULL);
     assert(BundleAssetCount(standalone) == 1);
+    assert(BundleOwnAssetCount(standalone) == 1);
     assert(BundleRun(standalone, NULL, 0, &result, &has_result) && result == 41);
     BundleClose(standalone);
     puts("Shared ZX code, independent state, retained libraries and standalone execution passed");

@@ -485,6 +485,12 @@ BundleAssetCount(const Bundle *bundle)
     return bundle != NULL ? bundle->assets.count : 0;
 }
 
+size_t
+BundleOwnAssetCount(const Bundle *bundle)
+{
+    return bundle != NULL ? bundle->own_asset_count : 0;
+}
+
 const char *
 BundleAssetName(const Bundle *bundle, size_t index)
 {

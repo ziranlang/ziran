@@ -1195,7 +1195,7 @@ lower_program(ZirProgram *program, const ZirModule *owner, const ZirFunction *en
     FILE *out = fopen(path, "wb");
     if(out == NULL)
         goto done;
-    ok = ZxWriteHostTrampolines(program, names, native->capability_count, out,
+    ok = ZxWriteHostTrampolines(program, names, native->capability_count, pruned, out,
                                 native->error, sizeof(native->error)) &&
          write_entry_points(out, program, symbols, owner, entry,
                             native->error, sizeof(native->error)) &&

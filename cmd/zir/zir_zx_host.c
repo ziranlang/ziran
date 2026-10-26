@@ -690,7 +690,7 @@ header_name(const ZirModule *module, char *out, size_t size)
 
 int
 ZxWriteHostTrampolines(const ZirProgram *program, ZxCapabilityName *capabilities,
-                       size_t capability_count, FILE *out, char *error, size_t error_size)
+                       size_t capability_count, int allow_pruned, FILE *out, char *error, size_t error_size)
 {
     HostGen gen = {.error = error, .error_size = error_size};
     unsigned char *body = NULL, *declarations = NULL, *includes = NULL;
@@ -713,6 +713,7 @@ ZxWriteHostTrampolines(const ZirProgram *program, ZxCapabilityName *capabilities
         imports[i] = capability_import(program, capabilities[i].module,
                                        capabilities[i].function, &modules[i]);
         if(imports[i] == NULL) {
+            if(allow_pruned) continue;
             gen_fail(&gen, "capability %s:%s has no declaration", capabilities[i].module,
                      capabilities[i].function);
             break;
@@ -735,15 +736,16 @@ ZxWriteHostTrampolines(const ZirProgram *program, ZxCapabilityName *capabilities
     }
     for(size_t i = 0; i < capability_count && !gen.failed; i++)
         for(size_t j = 0; j < capability_count; j++)
-            if(j != i && modules[j] != modules[i] &&
+            if(imports[i] != NULL && imports[j] != NULL && j != i && modules[j] != modules[i] &&
                strcmp(capabilities[i].symbol, capabilities[j].symbol) == 0)
                 capabilities[i].renamed = 1;
     for(size_t i = 0; i < capability_count && !gen.failed; i++) {
+        if(imports[i] == NULL) continue;
         /* The plain symbol serves code outside the declaring modules, bound
          * like the first declaration. */
         int first = 1;
         for(size_t j = 0; j < i; j++)
-            first &= strcmp(capabilities[i].symbol, capabilities[j].symbol) != 0;
+            first &= imports[j] == NULL || strcmp(capabilities[i].symbol, capabilities[j].symbol) != 0;
         if(first)
             emit_trampoline(&gen, modules[i], imports[i], capabilities[i].symbol, (int)i);
         if(capabilities[i].renamed) {

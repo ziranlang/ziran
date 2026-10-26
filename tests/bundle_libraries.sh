@@ -8,6 +8,8 @@ mkdir -p "$work/shared"
 printf 'one shared asset' > "$work/shared/message.txt"
 cat > "$work/common.zi" <<'ZI'
 count: s32 = 40;
+host_api :: #system_library "host_api";
+UnusedHost :: () -> s32 #foreign host_api;
 Copy :: (value: s32) -> s32 #asm("x86_64", "# LIBRARY_NATIVE_FN\nmov %[value], %[out]", "=r", "r", "", "") { return value }
 AdditionalEntry :: () -> s32 { return Next() }
 #program_export
@@ -19,6 +21,7 @@ Next :: () -> s32 {
 }
 #program_export
 main :: () -> s32 {
+    unused UnusedHost()
     return Next()
 }
 ZI

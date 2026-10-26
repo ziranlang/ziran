@@ -4,6 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int never_called(void *context, const char *module, const char *function,
+                        const VmHostValue *args, int count, VmHostValue *result)
+{
+    assert(!"an unused library entry reached its host capability");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     assert(argc == 5);
@@ -25,8 +32,9 @@ int main(int argc, char **argv)
     assert(BundleOpenWithLibraries(argv[2], wrong_libraries, 1) == NULL);
     BundleClose(wrong);
     BundleClose(library); /* The thin bundle retains its dependency. */
-    BundleInstance *first = BundleInstantiate(thin, NULL, 0);
-    BundleInstance *second = BundleInstantiate(thin, NULL, 0);
+    HostBinding unused = {"common", "UnusedHost", never_called, NULL};
+    BundleInstance *first = BundleInstantiate(thin, &unused, 1);
+    BundleInstance *second = BundleInstantiate(thin, &unused, 1);
     assert(first != NULL && second != NULL);
     long long result;
     int has_result;
@@ -40,7 +48,7 @@ int main(int argc, char **argv)
     assert(standalone != NULL);
     assert(BundleAssetCount(standalone) == 1);
     assert(BundleOwnAssetCount(standalone) == 1);
-    assert(BundleRun(standalone, NULL, 0, &result, &has_result) && result == 41);
+    assert(BundleRun(standalone, &unused, 1, &result, &has_result) && result == 41);
     BundleClose(standalone);
     puts("Shared ZX code, independent state, retained libraries and standalone execution passed");
     return 0;

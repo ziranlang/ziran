@@ -1,0 +1,16 @@
+codec :: #import "std/zstd_go";
+io :: #import "std/io_go";
+#import "std/go_types"
+
+NewEncoder :: (writer: io.Writer, window: isize) -> codec.EncoderResult {
+    return codec.NewEncoder(writer, cast(isize)1, window, true)
+}
+Reset :: (encoder: *codec.Encoder, writer: io.Writer) {
+    codec.Reset(encoder, writer)
+}
+Close :: (encoder: *codec.Encoder) -> Error {
+    return codec.CloseEncoder(encoder)
+}
+Decode :: (input: []u8, limit: s64, window: u64) -> io.ReadAllResult {
+    return codec.DecodeLimited(input, limit, window)
+}

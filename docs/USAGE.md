@@ -1061,6 +1061,21 @@ file from borrowed byte slices, including mapped files. The caller controls
 file creation and publication. Its test checks the output with Python's ZIP
 reader as well as Ziran's reader.
 
+`std/zstd_go.zi` provides single-owner reusable Zstandard encoders and bounded
+stream decoding for the Go target. The consuming Go module supplies
+`github.com/klauspost/compress` (tested with v1.20.3, requiring Go 1.25 or newer).
+`NewEncoder(writer, level, window_bytes, literal_entropy)` uses one worker;
+numeric levels choose the provider's nearest preset. Literal entropy defaults
+to true so base64-like data can compress even without repeated strings.
+Close an encoder before `Reset` attaches its next writer. The module does not
+pool contexts or retain response buffers itself. `DecodeLimited` caps returned
+bytes and the frame's window, rejects malformed/trailing data, and returns no
+partial bytes on failure. It accepts valid concatenated frames within the same
+total limit. Native C targets continue to use their transport's negotiated
+decoder; this Go module does not provide a portable bundle capability. Run
+`sh tests/zstd_go.sh build/bin/ziran` for source/saved-IR, race, independent
+libzstd interoperability and malformed/bounded-input verification.
+
 ### Binary fields
 
 `std/binary.zi` reads little-endian numbers from byte text such as file or

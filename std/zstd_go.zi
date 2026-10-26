@@ -1,0 +1,80 @@
+// Native Go Zstandard streams. The application supplies klauspost/compress.
+// Contexts are single-owner, reusable after Close, and never pooled implicitly.
+#import "go_types"
+io :: #import "io_go";
+errors :: #import "errors_go";
+zstd :: #system_library "go:github.com/klauspost/compress/zstd";
+
+Encoder :: #type #foreign zstd "Encoder";
+Decoder :: #type #foreign zstd "Decoder";
+EncoderOption :: #type #foreign zstd "EOption";
+DecoderOption :: #type #foreign zstd "DOption";
+EncoderLevel :: #type #foreign zstd "EncoderLevel";
+EncoderResult :: struct {
+    value: *Encoder
+    error: Error
+}
+DecoderResult :: struct {
+    value: *Decoder
+    error: Error
+}
+
+#scope_file
+Level :: (level: isize) -> EncoderLevel #foreign zstd "EncoderLevelFromZstd";
+EncodingLevel :: (level: EncoderLevel) -> EncoderOption #foreign zstd "WithEncoderLevel";
+EncoderWorkers :: (count: isize) -> EncoderOption #foreign zstd "WithEncoderConcurrency";
+Window :: (bytes: isize) -> EncoderOption #foreign zstd "WithWindowSize";
+LiteralEntropy :: (enabled: bool) -> EncoderOption #foreign zstd "WithAllLitEntropyCompression";
+OpenEncoder :: (writer: io.Writer, level: EncoderOption, workers: EncoderOption,
+    window: EncoderOption, literals: EncoderOption) -> EncoderResult #go_results #foreign zstd "NewWriter";
+ResetEncoder :: (encoder: *Encoder, writer: io.Writer) #foreign zstd "(*Encoder).Reset";
+CloseEncoderRaw :: (encoder: *Encoder) -> Error #foreign zstd "(*Encoder).Close";
+DecoderWorkers :: (count: isize) -> DecoderOption #foreign zstd "WithDecoderConcurrency";
+MaximumWindow :: (bytes: u64) -> DecoderOption #foreign zstd "WithDecoderMaxWindow";
+MaximumMemory :: (bytes: u64) -> DecoderOption #foreign zstd "WithDecoderMaxMemory";
+OpenDecoder :: (reader: io.Reader, workers: DecoderOption, window: DecoderOption,
+    memory: DecoderOption) -> DecoderResult #go_results #foreign zstd "NewReader";
+CloseDecoderAtReturn :: (decoder: *Decoder) #go_defer #foreign zstd "(*Decoder).Close";
+
+#scope_export
+// Literal entropy matters for data such as base64, even without repeated strings.
+// The provider's numeric levels select its nearest preset, not native zstd effort.
+NewEncoder :: (writer: io.Writer, level: isize = 1, window_bytes: isize = 1048576,
+    literal_entropy: bool = true) -> EncoderResult {
+    return OpenEncoder(writer, EncodingLevel(Level(level)), EncoderWorkers(cast(isize)1),
+        Window(window_bytes), LiteralEntropy(literal_entropy))
+}
+
+Reset :: (encoder: *Encoder, writer: io.Writer) {
+    ResetEncoder(encoder, writer)
+}
+
+CloseEncoder :: (encoder: *Encoder) -> Error {
+    return CloseEncoderRaw(encoder)
+}
+
+// Streaming decompression limits both the advertised window and returned bytes.
+// Read one extra decoded byte so an expansion beyond the caller's limit fails.
+DecodeLimited :: (input: []u8, limit: s64, window_bytes: u64 = 8388608) -> io.ReadAllResult {
+    result: io.ReadAllResult
+    if input.count == 0 || limit < 0 || limit >= 9223372036854775807 || window_bytes < 1024 || window_bytes > 134217728 {
+        result.error = errors.New("invalid zstd decode limit")
+        return result
+    }
+    opened := OpenDecoder(io.FromBytes(input), DecoderWorkers(cast(isize)1),
+        MaximumWindow(window_bytes), MaximumMemory(window_bytes))
+    if opened.error != null {
+        result.error = opened.error
+        return result
+    }
+    CloseDecoderAtReturn(opened.value)
+    result = io.ReadAll(io.LimitReader(cast(io.Reader)opened.value, limit + 1))
+    if result.error != null || result.value.count > limit {
+        empty: []u8
+        result.value = empty
+        if result.error == null {
+            result.error = errors.New("decoded data too large")
+        }
+    }
+    return result
+}

@@ -111,6 +111,12 @@ size_t BundleAssetCount(const Bundle *bundle)
     return SIZE_MAX;
 }
 
+size_t BundleOwnAssetCount(const Bundle *bundle)
+{
+    assert(bundle == (Bundle *)&token);
+    return SIZE_MAX - 1;
+}
+
 const char *BundleAssetName(const Bundle *bundle, size_t index)
 {
     assert(bundle == (Bundle *)&token && index == expected_index);
@@ -180,6 +186,7 @@ int main(void)
     assert(OpenBundleBytesWithLibraries(&token, expected_size, NULL, expected_count) == &token);
     assert(BundleCapabilities(bundle) == (uint64_t)SIZE_MAX);
     assert(BundleAssets(bundle) == (uint64_t)SIZE_MAX);
+    assert(BundleOwnAssets(bundle) == (uint64_t)SIZE_MAX - 1);
     assert(BundleCapabilityModuleName(bundle, expected_index) ==
            (uint8_t *)module_name);
     assert(BundleCapabilityFunctionName(bundle, expected_index) ==

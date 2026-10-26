@@ -184,7 +184,7 @@ bundle_command(int argc, char **argv)
                             found = 1;
                         }
         if(!found) {
-            Diagnostic(Span("<command>", 1, 1), "zx.retain",
+            Diagnostic(Span("<command>", 1, 1), "zx.entry",
                        "retained function not found: %s", retained[r]);
             goto done;
         }

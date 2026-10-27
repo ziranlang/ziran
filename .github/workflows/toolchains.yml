@@ -26,8 +26,30 @@ env:
   KEEP_COMMITS: 200
 
 jobs:
+  # One job creates the prerelease, so the builds never race to create it.
+  # It only holds these archives and is never the latest Ziran release.
+  release:
+    name: Prepare the toolchains prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the commit
+        run: printf '%s' "$COMMIT" | grep -Eq '^[0-9a-f]{40}$'
+
+      - name: Create the prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view toolchains -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            exit 0
+          fi
+          gh release create toolchains -R "$GITHUB_REPOSITORY" --prerelease --latest=false \
+            --target "$COMMIT" --title "Prebuilt toolchains" \
+            --notes "Build trees of recent master commits for .github/actions/setup."
+
   build:
     name: Build ${{ matrix.platform }}
+    needs: release
     strategy:
       fail-fast: false
       matrix:
@@ -41,9 +63,6 @@ jobs:
     env:
       ASSET: ziran-${{ inputs.commit || github.sha }}-${{ matrix.platform }}.tar.gz
     steps:
-      - name: Check the commit
-        run: printf '%s' "$COMMIT" | grep -Eq '^[0-9a-f]{40}$'
-
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.COMMIT }}
@@ -64,20 +83,18 @@ jobs:
           sha256sum "$ASSET" > "$ASSET.sha256"
           du -h "$ASSET"
 
-      # The prerelease only holds these archives; it is never the latest
-      # Ziran release.
       - name: Publish the build tree
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view toolchains -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release create toolchains -R "$GITHUB_REPOSITORY" --prerelease --latest=false \
-              --target "$COMMIT" --title "Prebuilt toolchains" \
-              --notes "Build trees of recent master commits for .github/actions/setup." ||
-              gh release view toolchains -R "$GITHUB_REPOSITORY" > /dev/null
-          fi
-          gh release upload toolchains -R "$GITHUB_REPOSITORY" --clobber \
-            "$RUNNER_TEMP/$ASSET" "$RUNNER_TEMP/$ASSET.sha256"
+          for attempt in 1 2 3; do
+            if gh release upload toolchains -R "$GITHUB_REPOSITORY" --clobber \
+              "$RUNNER_TEMP/$ASSET" "$RUNNER_TEMP/$ASSET.sha256"; then
+              exit 0
+            fi
+            sleep $((attempt * 10))
+          done
+          exit 1
 
   verify:
     name: Set up ${{ matrix.platform }} from the archive

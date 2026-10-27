@@ -19,6 +19,14 @@ inputs:
   fetch:
     description: Fetch the locked packages in the project directory, with cached checkouts.
     default: 'false'
+  packages:
+    description: >
+      Ubuntu packages to install, separated by spaces or lines, from the
+      canonical Ubuntu archive with time limits (scripts/ci_packages.sh).
+    default: ''
+  recommends:
+    description: Also install the packages' recommended packages.
+    default: 'false'
 
 outputs:
   root:
@@ -83,6 +91,27 @@ runs:
           echo "root=$GITHUB_WORKSPACE/$CHECKOUT"
           echo "sources=${XDG_CACHE_HOME:-$HOME/.cache}/ziran/sources"
         } >> "$GITHUB_OUTPUT"
+
+    # The script of this action's version, so every project gets its fix
+    # whichever Ziran it locks.
+    - name: Install Ubuntu packages
+      if: inputs.packages != ''
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+        RECOMMENDS: ${{ inputs.recommends }}
+      run: |
+        set -euo pipefail
+        if [ "$RUNNER_OS" != Linux ]; then
+          echo "::error::Ubuntu packages only install on Linux runners"
+          exit 1
+        fi
+        options=()
+        if [ "$RECOMMENDS" = true ]; then
+          options=(--recommends)
+        fi
+        read -r -d '' -a names <<< "$PACKAGES" || true
+        timeout 1200 sh "$GITHUB_ACTION_PATH/../../../scripts/ci_packages.sh" "${options[@]}" "${names[@]}"
 
     - name: Check out Ziran
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

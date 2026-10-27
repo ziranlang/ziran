@@ -123,6 +123,7 @@ jobs:
         with:
           commit: ${{ env.COMMIT }}
           path: ziran
+          packages: ripgrep
 
       - name: Check that nothing was rebuilt on the newer image
         env:
@@ -134,6 +135,7 @@ jobs:
           test "$COMPILED" = 0
           "$ZIRAN" version
           ziran version
+          rg --version
 
   prune:
     name: Keep the newest build trees

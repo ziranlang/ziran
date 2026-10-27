@@ -1764,6 +1764,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             for(int child = first; child >= 0;
                 child = c->fn->exprs[child].next_sibling) {
                 const char *arg_type = expression_type(c, child);
+                /* Checking an argument can append a widening cast and move
+                 * the array. */
+                e = &c->fn->exprs[index];
                 {
                     const char *selected = child == first ? NULL :
                         select_first_result(c, child);
@@ -2409,6 +2412,10 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 copy_text(c->expected_type, sizeof(c->expected_type),
                           skip_ws(expected_type + 1));
             const char *arg_type = expression_type(c, child);
+            /* Checking an argument can append a widening cast, such as one
+             * for a nested call's own arguments, and move the array: the
+             * call's result type must not be stored through a stale e. */
+            e = &c->fn->exprs[index];
             if(contains_vec(c->module, arg_type, 0) &&
                c->fn->exprs[child].kind != ZIR_EXPR_IDENT &&
                c->fn->exprs[child].kind != ZIR_EXPR_CALL &&

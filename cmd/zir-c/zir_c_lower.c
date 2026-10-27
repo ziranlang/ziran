@@ -1290,9 +1290,11 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                     c_rewrite_overflow(m->source_path, g->span.line);
             }
             int zero = TypeHasZeroArray(m, g->type);
-            fprintf(c, "%s%s%s %s%s = %s;\n",
+            /* The native engine places module globals itself (ZIR_GLOBAL). */
+            fprintf(c, "%s%s%s%s %s%s = %s;\n",
                     zero ? "__extension__ " : "",
-                    g->is_static ? "static " : "", buffers->base, name, suffix,
+                    g->is_static ? "static " : "",
+                    EmitRunGuardsEnabled() ? "ZIR_GLOBAL " : "", buffers->base, name, suffix,
                     buffers->initw[0] ? buffers->initw : zero ? "{}" : "{0}");
         }
     }
@@ -1350,7 +1352,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 fprintf(c, "void %s(void);\n", name);
             }
         }
-        fprintf(c, "\nstatic int %s_state;", init_name);
+        fprintf(c, "\nstatic %sint %s_state;", EmitRunGuardsEnabled() ? "ZIR_GLOBAL " : "", init_name);
         fprintf(c, "\nvoid\n%s(void)\n{\n"
                    "    if(%s_state == 2) return;\n"
                    "    if(%s_state == 1) abort();\n"
@@ -1372,7 +1374,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             }
         fprintf(c, "    %s_state = 2;\n}\n", init_name);
     }
-    if(startup_count) {
+    /* The native engine runs module initializers when an instance starts. */
+    if(startup_count && !EmitRunGuardsEnabled()) {
         fprintf(c, "\n__attribute__((constructor)) static void\n"
                    "%s_constructor(void)\n{\n"
                    "    %s();\n}\n", init_name, init_name);

@@ -16,13 +16,22 @@
 #if defined(__unix__) || defined(__APPLE__)
 #include <pthread.h>
 #endif
+#ifdef ZIRAN_NATIVE_ZX
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2zx bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--library FILE.zx|--include-library FILE.zx] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
-            "       zi2zx run file.zx\n");
+            "       zi2zx run file.zx\n"
+#ifdef ZIRAN_NATIVE_ZX
+            "       zi2zx native-c [--embedded] -o DIR file.zx ...\n"
+#endif
+            );
 }
 
 static int
@@ -348,6 +357,137 @@ run_command(int argc, char **argv)
     return job.ok ? 0 : 1;
 }
 
+#ifdef ZIRAN_NATIVE_ZX
+/* Programs written so far, so a bundle embedded twice is written once. */
+typedef struct LinkedSet {
+    const char *output;
+    unsigned char (*identities)[32];
+    int count;
+    int embedded;
+    FILE *list;
+} LinkedSet;
+
+static int write_linked(LinkedSet *set, Bundle *bundle, const char *name);
+
+/* Bundles embedded in another, such as a collection's games, run as their
+ * own instances. Those that open without libraries are written too; the
+ * others run on the portable VM, as does any bundle without linked code. */
+static int
+write_embedded(LinkedSet *set, const Bundle *bundle, const char *name)
+{
+    for(size_t i = 0; i < BundleAssetCount(bundle); i++) {
+        const char *asset = BundleAssetName(bundle, i);
+        size_t length = strlen(asset);
+        if(length < 4 || strcmp(asset + length - 3, ".zx") != 0)
+            continue;
+        /* A bundle that needs libraries fails to open alone; that is not an
+         * error here, so its diagnostics are not shown. */
+        fflush(stderr);
+        int saved = dup(2), quiet = open("/dev/null", O_WRONLY);
+        if(saved >= 0 && quiet >= 0)
+            dup2(quiet, 2);
+        Bundle *inner = BundleOpenBytes(BundleAssetData(bundle, i), BundleAssetSize(bundle, i));
+        fflush(stderr);
+        if(saved >= 0 && quiet >= 0)
+            dup2(saved, 2);
+        if(saved >= 0)
+            close(saved);
+        if(quiet >= 0)
+            close(quiet);
+        char inner_name[ZIR_PATH_MAX];
+        snprintf(inner_name, sizeof(inner_name), "%s:%s", name, asset);
+        if(inner == NULL) {
+            printf("%s: needs libraries, runs on the portable VM\n", inner_name);
+            continue;
+        }
+        int ok = write_linked(set, inner, inner_name);
+        BundleClose(inner);
+        if(!ok)
+            return 0;
+    }
+    return 1;
+}
+
+static int
+write_linked(LinkedSet *set, Bundle *bundle, const char *name)
+{
+    unsigned char identity[32];
+    BundleIdentity(bundle, identity);
+    for(int i = 0; i < set->count; i++)
+        if(memcmp(set->identities[i], identity, sizeof(identity)) == 0)
+            return 1;
+    char directory[ZIR_PATH_MAX];
+    snprintf(directory, sizeof(directory), "%s/%d", set->output, set->count);
+    if(mkdir(directory, 0700) != 0) {
+        Diagnostic(Span(directory, 1, 1), "zx.output", "cannot create the output directory");
+        return 0;
+    }
+    if(!BundleWriteLinked(bundle, directory, identity))
+        return 0;
+    unsigned char (*grown)[32] = realloc(set->identities, (size_t)(set->count + 1) * sizeof(*grown));
+    if(grown == NULL)
+        return 0;
+    set->identities = grown;
+    memcpy(set->identities[set->count], identity, sizeof(identity));
+    fprintf(set->list, "%d ", set->count);
+    for(int i = 0; i < 32; i++)
+        fprintf(set->list, "%02x", identity[i]);
+    fprintf(set->list, " %s\n", name);
+    printf("%s: linked code in %s\n", name, directory);
+    set->count++;
+    return !set->embedded || write_embedded(set, bundle, name);
+}
+
+/* zi2zx native-c: each bundle's program as C for a host compiled ahead of
+ * time, one directory per program under -o, listed in programs.txt. */
+static int
+native_c_command(int argc, char **argv)
+{
+    LinkedSet set = {0};
+    int first = -1;
+    for(int i = 0; i < argc; i++) {
+        if(strcmp(argv[i], "-o") == 0 && i + 1 < argc) {
+            set.output = argv[++i];
+        } else if(strcmp(argv[i], "--embedded") == 0) {
+            set.embedded = 1;
+        } else if(argv[i][0] == '-') {
+            usage();
+            return 1;
+        } else if(first < 0) {
+            first = i;
+        }
+    }
+    if(set.output == NULL || first < 0) {
+        usage();
+        return 1;
+    }
+    mkdir(set.output, 0700);
+    char list[ZIR_PATH_MAX];
+    snprintf(list, sizeof(list), "%s/programs.txt", set.output);
+    set.list = fopen(list, "wb");
+    if(set.list == NULL) {
+        Diagnostic(Span(list, 1, 1), "zx.output", "cannot write the program list");
+        return 1;
+    }
+    int ok = 1;
+    for(int i = first; ok && i < argc; i++) {
+        if(strcmp(argv[i], "-o") == 0) {
+            i++;
+            continue;
+        }
+        if(argv[i][0] == '-')
+            continue;
+        Bundle *bundle = BundleOpen(argv[i]);
+        ok = bundle != NULL && write_linked(&set, bundle, argv[i]);
+        BundleClose(bundle);
+    }
+    if(fclose(set.list) != 0)
+        ok = 0;
+    free(set.identities);
+    return ok ? 0 : 1;
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
@@ -356,6 +496,10 @@ main(int argc, char **argv)
         return bundle_command(argc - 2, argv + 2);
     if(argc > 1 && strcmp(argv[1], "run") == 0)
         return run_command(argc - 2, argv + 2);
+#ifdef ZIRAN_NATIVE_ZX
+    if(argc > 1 && strcmp(argv[1], "native-c") == 0)
+        return native_c_command(argc - 2, argv + 2);
+#endif
     usage();
     return 1;
 }

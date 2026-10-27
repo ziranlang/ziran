@@ -1,18 +1,21 @@
 # Native ZX engine: libziran runs verified bundles as native code, lowered
 # to C and compiled in memory by the vendored TinyCC (third_party/tinycc,
-# LGPL-2.1). Hosts without a TinyCC code generator keep the portable VM.
+# LGPL-2.1). Browser hosts run the code `zi2zx native-c` wrote for their
+# bundles, linked in ahead of time; other bundles there, and every bundle
+# on hosts without a TinyCC code generator, run on the portable VM.
 NATIVE_ZX_MACHINE := $(if $(filter wasm%,$(TARGET_MACHINE)),,$(if $(DARWIN_TARGET),,$(if $(findstring mingw,$(TARGET_MACHINE)),,$(filter x86_64% arm% aarch64%,$(TARGET_MACHINE)))))
 NATIVE_ZX ?= $(if $(NATIVE_ZX_MACHINE),1,0)
 
 ifeq ($(NATIVE_ZX),1)
 NATIVE_ZX_HEADERS := $(wildcard cmd/zir/zx_native_include/*.h) third_party/tinycc/include/tccdefs.h
-NATIVE_ZX_OBJECTS := $(call obj,cmd/zir/zir_zx_native.c cmd/zir/zir_zx_host.c cmd/zir/zir_sha256.c \
+NATIVE_ZX_OBJECTS := $(call obj,cmd/zir/zir_zx_native.c cmd/zir/zir_zx_native_run.c \
+    cmd/zir/zir_zx_native_lower.c cmd/zir/zir_zx_host.c cmd/zir/zir_sha256.c \
     cmd/zir-c/zir_c_lower.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_cache.c) \
     $(RUNTIME_OBJECTS) $(BUILD_DIR)/obj/zx_native_headers.o $(BUILD_DIR)/obj/tinycc.o
 LIB_OBJECTS += $(NATIVE_ZX_OBJECTS)
 $(BUILD_DIR)/libziran.a: $(NATIVE_ZX_OBJECTS) native-zx.mk
-$(call obj,cmd/zir/zir_host.c): CFLAGS += -DZIRAN_NATIVE_ZX
-$(call obj,cmd/zir/zir_host.c): native-zx.mk
+$(call obj,cmd/zir/zir_host.c) $(call obj,cmd/zir-zx/main.c): CFLAGS += -DZIRAN_NATIVE_ZX
+$(call obj,cmd/zir/zir_host.c) $(call obj,cmd/zir-zx/main.c): native-zx.mk
 $(call obj,cmd/zir/zir_zx_native.c): CFLAGS += -Ithird_party/tinycc
 
 # Compiled bundles are cached under a key that includes this identity of
@@ -50,6 +53,15 @@ $(BUILD_DIR)/obj/tinycc.o: $(wildcard third_party/tinycc/*.c third_party/tinycc/
 	    -Icmd/zir/tinycc -Ithird_party/tinycc -c -o $@ third_party/tinycc/libtcc.c
 endif
 
+LINKED_ZX ?= $(if $(filter wasm%,$(TARGET_MACHINE)),1,0)
+ifeq ($(LINKED_ZX),1)
+NATIVE_ZX_OBJECTS := $(call obj,cmd/zir/zir_zx_native_run.c cmd/zir/zir_sha256.c)
+LIB_OBJECTS += $(NATIVE_ZX_OBJECTS)
+$(BUILD_DIR)/libziran.a: $(NATIVE_ZX_OBJECTS) native-zx.mk
+$(call obj,cmd/zir/zir_host.c): CFLAGS += -DZIRAN_LINKED_ZX
+$(call obj,cmd/zir/zir_host.c): native-zx.mk
+endif
+
 # The portable VM stays the engine where TinyCC has no code generator (the
 # browser, Windows, macOS). Tests of the VM itself run it everywhere through
 # zi2zx-vm and libziran-vm.a, which differ only in running instances on it.
@@ -62,6 +74,11 @@ $(ZIRAN_VM_HOST_OBJECT): cmd/zir/zir_host.c $(BUILD_DIR)/.compiler-flags native-
 $(BUILD_DIR)/libziran-vm.a: $(ZIRAN_VM_LIB_OBJECTS) Makefile native-zx.mk
 	$(RM) $@
 	$(AR) rcs $@ $(ZIRAN_VM_LIB_OBJECTS)
-$(BIN_DIR)/zi2zx-vm: $(call obj,cmd/zir-zx/main.c) $(BUILD_DIR)/libziran-vm.a | $(BIN_DIR)
+# Its command line has no native-c, which needs the native engine.
+ZIRAN_VM_MAIN_OBJECT := $(BUILD_DIR)/obj/zir_zx_main_vm.o
+$(ZIRAN_VM_MAIN_OBJECT): cmd/zir-zx/main.c $(BUILD_DIR)/.compiler-flags native-zx.mk
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
+$(BIN_DIR)/zi2zx-vm: $(ZIRAN_VM_MAIN_OBJECT) $(BUILD_DIR)/libziran-vm.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 all: $(BIN_DIR)/zi2zx-vm $(BUILD_DIR)/libziran-vm.a

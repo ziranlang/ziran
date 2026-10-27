@@ -4,7 +4,10 @@
 #include "zir_diagnostic.h"
 #include "zir_vm.h"
 #include "zir_check.h"
-#ifdef ZIRAN_NATIVE_ZX
+/* Bundles run as compiled code: compiled at run time with TinyCC on native
+ * platforms, or linked into the host ahead of time in the browser. */
+#if defined(ZIRAN_NATIVE_ZX) || defined(ZIRAN_LINKED_ZX)
+#define ZIRAN_COMPILED_ZX 1
 #include "zir_sha256.h"
 #include "zir_zx_native.h"
 #include <pthread.h>
@@ -46,14 +49,14 @@ struct Bundle {
     Capability capabilities[];
 };
 
-#ifdef ZIRAN_NATIVE_ZX
+#ifdef ZIRAN_COMPILED_ZX
 static int check_unchecked(Bundle *bundle);
 #endif
 
 const ZirProgram *
 BundleProgram(const Bundle *bundle)
 {
-#ifdef ZIRAN_NATIVE_ZX
+#ifdef ZIRAN_COMPILED_ZX
     if(bundle != NULL && !check_unchecked((Bundle *)bundle))
         return NULL;
 #endif
@@ -214,7 +217,7 @@ find_entry(Bundle *bundle, const char *entry_module, const char *entry_function)
     return entry != NULL;
 }
 
-#ifdef ZIRAN_NATIVE_ZX
+#ifdef ZIRAN_COMPILED_ZX
 /* A bundle and the libraries it links name one native program. */
 static void
 add_identity(Sha256 *hash, const Bundle *bundle)
@@ -287,6 +290,39 @@ unchecked_entry(const Bundle *bundle, ZirFunction *entry)
 }
 #endif
 
+#ifdef ZIRAN_NATIVE_ZX
+void
+BundleIdentity(const Bundle *bundle, unsigned char identity[32])
+{
+    bundle_identity(bundle, identity);
+}
+
+/* The bundle's program as C for a host that links it ahead of time, which
+ * then runs it for these exact bytes (zi2zx native-c). */
+int
+BundleWriteLinked(const Bundle *bundle, const char *directory, unsigned char identity[32])
+{
+    if(bundle == NULL || !check_unchecked((Bundle *)bundle))
+        return 0;
+    bundle_identity(bundle, identity);
+    size_t count = bundle->capability_count;
+    const char **names = calloc(count * 2 + 1, sizeof(*names));
+    if(names == NULL)
+        return 0;
+    for(size_t i = 0; i < count; i++) {
+        names[i] = bundle->capabilities[i].module;
+        names[count + i] = bundle->capabilities[i].function;
+    }
+    char error[2048];
+    int ok = ZxNativeWriteLinked(bundle->program, bundle->entry_owner, bundle->entry, identity,
+                                 names, names + count, count, directory, error, sizeof(error));
+    if(!ok)
+        Diagnostic(bundle->entry->span, "zx.native", "cannot write linked code: %s", error);
+    free(names);
+    return ok;
+}
+#endif
+
 static Bundle *
 open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
                    Bundle *const *libraries, size_t count)
@@ -312,7 +348,7 @@ open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
     }
     for(size_t i = 0; i < count; i++) {
         if(libraries[i] == NULL || libraries[i]->references == SIZE_MAX
-#ifdef ZIRAN_NATIVE_ZX
+#ifdef ZIRAN_COMPILED_ZX
            || !check_unchecked(libraries[i])
 #endif
            ) {
@@ -325,14 +361,19 @@ open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
     }
     size_t capability_count = 0;
     int trusted = 0;
-#ifdef ZIRAN_NATIVE_ZX
-    /* Compiled code cached for these exact bytes means this compiler checked
-     * them before, so they open without checking until something needs the
-     * checked program. A read that trust does not settle reads again. */
+#ifdef ZIRAN_COMPILED_ZX
+    /* Compiled code cached or linked for these exact bytes means this
+     * compiler checked them before, so they open without checking until
+     * something needs the checked program. A read that trust does not
+     * settle reads again. */
     if(digest != NULL && count == 0) {
         unsigned char identity[32];
         bundle_identity(bundle, identity);
+#ifdef ZIRAN_NATIVE_ZX
         trusted = ZxNativeCached(identity);
+#else
+        trusted = ZxNativeLinked(identity);
+#endif
     }
 #endif
     int attempts = trusted ? 2 : 1;
@@ -349,10 +390,14 @@ open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
     }
     bundle->own_asset_count = bundle->assets.count;
     bundle->unchecked = trusted;
-#ifdef ZIRAN_NATIVE_ZX
+#ifdef ZIRAN_COMPILED_ZX
     const char *timing = getenv("ZIRAN_NATIVE_TIMING");
     if(trusted && timing != NULL && strcmp(timing, "1") == 0)
+#ifdef ZIRAN_NATIVE_ZX
         fprintf(stderr, "ziran: native %s: opened on cached code, unchecked\n", name);
+#else
+        fprintf(stderr, "ziran: native %s: opened on linked code, unchecked\n", name);
+#endif
 #endif
     if(bundle->program == NULL || !share_library_modules(bundle) ||
        !share_library_assets(bundle) ||
@@ -395,7 +440,7 @@ BundleOpenWithLibraries(const char *path, Bundle *const *libraries, size_t count
         return NULL;
     }
     unsigned char *digest = NULL;
-#ifdef ZIRAN_NATIVE_ZX
+#ifdef ZIRAN_COMPILED_ZX
     /* Native code caches are keyed by the bytes that code depends on:
      * everything before the assets. */
     unsigned char program_digest[32];
@@ -435,7 +480,7 @@ BundleOpenBytesWithLibraries(const unsigned char *data, size_t size,
     if(file == NULL)
         return NULL;
     unsigned char *digest = NULL;
-#ifdef ZIRAN_NATIVE_ZX
+#ifdef ZIRAN_COMPILED_ZX
     unsigned char program_digest[32];
     long end = BundleProgramEnd(file);
     if(end > 0 && (size_t)end <= size) {
@@ -540,10 +585,11 @@ typedef struct BindingSet {
 struct BundleInstance {
     BindingSet set;
     HostBinding *owned_bindings;
-#ifdef ZIRAN_NATIVE_ZX
+#ifdef ZIRAN_COMPILED_ZX
     ZxNative *native;
     const char **capability_names;
-#else
+#endif
+#ifndef ZIRAN_NATIVE_ZX
     VmInstance *vm;
     /* Present when a wasm provider is installed and the bundle lowered;
      * otherwise the instance runs on the portable VM above. */
@@ -663,9 +709,7 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
         BundleInstanceClose(instance);
         return NULL;
     }
-#ifdef ZIRAN_NATIVE_ZX
-    /* Native platforms run bundles only as native code; a bundle that cannot
-     * be compiled is an error, never a slower fallback. */
+#ifdef ZIRAN_COMPILED_ZX
     unsigned char identity[32];
     bundle_identity(bundle, identity);
     size_t count = bundle->capability_count;
@@ -678,11 +722,16 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
         instance->capability_names[i] = bundle->capabilities[i].module;
         instance->capability_names[count + i] = bundle->capabilities[i].function;
     }
-    /* An unchecked bundle runs its cached code, or is checked and compiled
-     * when that code is gone. */
-    int missing = 1;
     ZirFunction entry;
-    if(unchecked_entry(bundle, &entry))
+    int unchecked = unchecked_entry(bundle, &entry);
+#endif
+#ifdef ZIRAN_NATIVE_ZX
+    /* Native platforms run bundles only as native code; a bundle that cannot
+     * be compiled is an error, never a slower fallback. An unchecked bundle
+     * runs its cached code, or is checked and compiled when that code is
+     * gone. */
+    int missing = 1;
+    if(unchecked)
         instance->native = ZxNativeOpenCached(&entry, identity,
                                               instance->capability_names,
                                               instance->capability_names + count, count,
@@ -694,6 +743,24 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
                                         dispatch, &instance->set);
     if(instance->native == NULL) {
 #else
+#ifdef ZIRAN_LINKED_ZX
+    /* A bundle whose code was linked into this host runs as that code. While
+     * another instance holds it, or for any other bundle, the portable VM
+     * runs the checked program. */
+    int busy = 0;
+    if(ZxNativeLinked(identity)) {
+        instance->native = ZxNativeOpenLinked(unchecked ? &entry : bundle->entry, identity,
+                                              instance->capability_names,
+                                              instance->capability_names + count, count,
+                                              dispatch, &instance->set, &busy);
+        if(instance->native != NULL)
+            return instance;
+        if(!busy || !check_unchecked((Bundle *)bundle)) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
+    }
+#endif
     /* With a wasm provider installed, the wasm tier takes the bundles it
      * can lower and the portable VM takes the rest; without one, every
      * bundle runs on the VM exactly as before. */
@@ -718,26 +785,33 @@ int
 BundleInstanceRun(BundleInstance *instance, long long *result,
                   int *has_result)
 {
-#ifdef ZIRAN_NATIVE_ZX
-    return instance != NULL && ZxNativeRun(instance->native, result, has_result);
-#else
     if(instance == NULL)
         return 0;
+#ifdef ZIRAN_COMPILED_ZX
+    if(instance->native != NULL)
+        return ZxNativeRun(instance->native, result, has_result);
+#endif
+#ifndef ZIRAN_NATIVE_ZX
     if(instance->wasm != NULL)
         return ZxWasmRun(instance->wasm, result, has_result);
     return VmInstanceRun(instance->vm, result, has_result);
+#else
+    return 0;
 #endif
 }
 
 void
 BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
 {
-#ifdef ZIRAN_NATIVE_ZX
-    if(instance != NULL)
-        ZxNativeLimitSteps(instance->native, max_steps);
-#else
     if(instance == NULL)
         return;
+#ifdef ZIRAN_COMPILED_ZX
+    if(instance->native != NULL) {
+        ZxNativeLimitSteps(instance->native, max_steps);
+        return;
+    }
+#endif
+#ifndef ZIRAN_NATIVE_ZX
     if(instance->wasm != NULL) {
         ZxWasmLimitSteps(instance->wasm, max_steps);
         return;
@@ -749,12 +823,15 @@ BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
 void
 BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
 {
-#ifdef ZIRAN_NATIVE_ZX
-    if(instance != NULL)
-        ZxNativeMatchFieldsByName(instance->native, enabled);
-#else
     if(instance == NULL)
         return;
+#ifdef ZIRAN_COMPILED_ZX
+    if(instance->native != NULL) {
+        ZxNativeMatchFieldsByName(instance->native, enabled);
+        return;
+    }
+#endif
+#ifndef ZIRAN_NATIVE_ZX
     if(instance->wasm != NULL) {
         ZxWasmMatchFieldsByName(instance->wasm, enabled);
         return;
@@ -768,10 +845,11 @@ BundleInstanceClose(BundleInstance *instance)
 {
     if(instance == NULL)
         return;
-#ifdef ZIRAN_NATIVE_ZX
+#ifdef ZIRAN_COMPILED_ZX
     ZxNativeClose(instance->native);
     free(instance->capability_names);
-#else
+#endif
+#ifndef ZIRAN_NATIVE_ZX
     ZxWasmClose(instance->wasm);
     VmInstanceClose(instance->vm);
 #endif

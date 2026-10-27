@@ -185,10 +185,33 @@ a worker stops the run with the failure a serial run would meet first. Each
 worker counts steps against what the run has left, and the run is charged
 for all of them when the region ends.
 
-Other hosts (the browser, Windows, macOS) run the portable VM, and
-`zi2zx-vm` with `libziran-vm.a` run it everywhere for tests of the VM itself.
+Windows and macOS hosts run the portable VM, and `zi2zx-vm` with
+`libziran-vm.a` run it everywhere for tests of the VM itself.
 `ZIRAN_NATIVE_TIMING=1` reports where compilation time goes and
 `ZIRAN_NATIVE_KEEP=1` keeps the generated C.
+
+### Linked code in the browser
+
+A browser page cannot compile at run time, so the bundles it ships are
+compiled when the page is built. `zi2zx native-c [--embedded] -o DIR
+file.zx ...` writes each bundle's checked program as the same C, one folder
+per program listed in `DIR/programs.txt`, with `zx_native.json` naming its
+sources and compile flags; `--embedded` adds the bundles packed in it that
+open without libraries, such as a collection's games and Apps controller.
+`scripts/linked-zx.py DIR --output OBJ --cc emcc --nm emnm` compiles them,
+renaming each program's external symbols under a prefix of its own so
+programs and the host's own compiled modules never collide, and prints the
+objects to link into the page beside the WebAssembly `libziran`.
+
+Each program's constructor registers it under the identity above. When a
+page opens a bundle with that identity, it opens without checking again and
+`BundleInstantiate` runs it as the linked code; every other bundle runs on
+the portable VM. The program's globals live in a data section of their own,
+copied back to their first contents before each instance starts, so one
+instance at a time runs the linked code; another instance opened beside it
+runs the checked program on the VM. `#parallel for` regions run in place,
+and runtime failures stop the run as natively. `tests/zx_linked_web.sh`
+checks this end to end with emcc and node.
 
 ## WebAssembly execution tier
 

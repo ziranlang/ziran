@@ -89,5 +89,10 @@ int BundleCheckTrusted(ZirProgram **program, int own_module_count, const ZxLawTa
 typedef struct Bundle Bundle;
 const ZirProgram *BundleProgram(const Bundle *bundle);
 const ZirFunction *BundleEntry(const Bundle *bundle);
+/* Native engine builds: the SHA-256 naming the bundle's compiled code, and
+ * its program written as C that a host links ahead of time
+ * (ZxNativeWriteLinked), which returns that identity too. */
+void BundleIdentity(const Bundle *bundle, unsigned char identity[32]);
+int BundleWriteLinked(const Bundle *bundle, const char *directory, unsigned char identity[32]);
 
 #endif

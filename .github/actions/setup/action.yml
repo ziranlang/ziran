@@ -182,6 +182,14 @@ runs:
         make -C "$ROOT" -j"$jobs" all 2>&1 | tee "$log"
         compiled=$(grep -c -- ' -c -o ' "$log" || true)
         rm -f "$log"
+        # A compiler finds std/ and include/ beside its build directory or else
+        # where it was built, which a prebuilt or cached tree was not; older
+        # compilers look only inside the build directory, so link them there.
+        for name in std include; do
+          if [ ! -e "$ROOT/build/$name" ]; then
+            ln -s "../$name" "$ROOT/build/$name"
+          fi
+        done
         echo "Ziran $COMMIT: $toolchain build tree, $compiled C files compiled"
         {
           echo "toolchain=$toolchain"

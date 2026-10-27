@@ -29,6 +29,32 @@ ZI
 "$ziran" bundle --root "$work" --entry app:Answer -o "$work/app.zx" "$work/app.zi"
 test "$("$ziran" run "$work/app.zx")" = 42
 
+# A compiler moved with its build directory beside std/, as `make
+# install-user` and a prebuilt CI checkout lay it out, uses that std/ and not
+# the source checkout it was built in: only the moved std/ has this module.
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$work/moved/build/bin" "$work/moved/std"
+for tool in "$(dirname -- "$ziran")"/zi*; do
+    cp "$tool" "$work/moved/build/bin/"
+done
+for module in "$repo"/std/*; do
+    ln -s "$module" "$work/moved/std/"
+done
+cat > "$work/moved/std/moved_probe.zi" <<'ZI'
+MovedAnswer :: () -> s32 {
+    return 42;
+}
+ZI
+cat > "$work/moved.zi" <<'ZI'
+#import "moved_probe";
+
+#program_export
+Answer :: () -> s32 {
+    return MovedAnswer();
+}
+ZI
+"$work/moved/build/bin/ziran" check --root "$work" "$work/moved.zi"
+
 # ZIRAN_STD names another standard directory; one without the standard
 # modules makes the import fail instead of silently using another.
 mkdir "$work/empty"

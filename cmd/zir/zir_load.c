@@ -71,16 +71,20 @@ toolchain_directory(const char *name, const char *probe_file,
     int length = ExecutablePath(executable, sizeof(executable));
     if(length > 0) {
         executable[length] = '\0';
-        for(int up = 0; up < 2; up++) {
+        /* Drop the file name, then look beside bin (bin/../NAME) and beside
+         * the build directory holding bin (bin/../../NAME). */
+        for(int up = 0; up < 3; up++) {
             char *slash = strrchr(executable, '/');
-            if(slash != NULL) *slash = '\0';
-        }
-        char candidate[ZIR_PATH_MAX];
-        if(snprintf(candidate, sizeof(candidate), "%s/%s", executable, name) <
-               (int)sizeof(candidate) &&
-           toolchain_directory_usable(candidate, probe_file)) {
-            copy_text(directory, size, candidate);
-            return;
+            if(slash == NULL) break;
+            *slash = '\0';
+            if(up == 0) continue;
+            char candidate[ZIR_PATH_MAX];
+            if(snprintf(candidate, sizeof(candidate), "%s/%s", executable,
+                        name) < (int)sizeof(candidate) &&
+               toolchain_directory_usable(candidate, probe_file)) {
+                copy_text(directory, size, candidate);
+                return;
+            }
         }
     }
     if(built[0] && toolchain_directory_usable(built, probe_file))

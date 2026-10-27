@@ -137,6 +137,27 @@ jobs:
           ziran version
           rg --version
 
+      # The standard modules resolve in this checkout, not where the build
+      # tree was built.
+      - name: Check a standard import
+        env:
+          ZIRAN: ${{ steps.ziran.outputs.ziran }}
+        run: |
+          unset ZIRAN_STD ZIRAN_INCLUDE
+          work="$RUNNER_TEMP/standard-import"
+          mkdir -p "$work"
+          cat > "$work/app.zi" <<'ZI'
+          #import "std/vec";
+
+          #program_export
+          Answer :: () -> s32 {
+              values: Vec(s32);
+              VecPush(values, 42);
+              return VecGet(values, 0).value;
+          }
+          ZI
+          "$ZIRAN" check --root "$work" "$work/app.zi"
+
   prune:
     name: Keep the newest build trees
     needs: build

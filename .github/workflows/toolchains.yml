@@ -148,6 +148,7 @@ jobs:
           mkdir -p "$work"
           cat > "$work/app.zi" <<'ZI'
           #import "std/vec";
+          #import "std/option";
 
           #program_export
           Answer :: () -> s32 {

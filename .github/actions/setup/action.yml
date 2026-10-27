@@ -1,0 +1,187 @@
+name: Set up Ziran
+description: >
+  Check out the Ziran a project's ziran.lock pins with its compiler built, put
+  its build/bin on PATH and optionally fetch the locked packages. The build
+  tree is the Toolchains workflow's prebuilt archive for that commit, else
+  this repository's cache, else a build here. Package checkouts are cached by
+  the whole lock and start from the previous checkouts when it changes.
+
+inputs:
+  project:
+    description: Directory, relative to the workspace, holding the project's ziran.lock.
+    default: .
+  path:
+    description: Where the Ziran checkout goes, relative to the workspace.
+    default: .ziran
+  commit:
+    description: Full Ziran commit to set up instead of the one ziran.lock pins.
+    default: ''
+  fetch:
+    description: Fetch the locked packages in the project directory, with cached checkouts.
+    default: 'false'
+
+outputs:
+  root:
+    description: Absolute path of the Ziran checkout.
+    value: ${{ steps.resolve.outputs.root }}
+  ziran:
+    description: Absolute path of the ziran command.
+    value: ${{ steps.resolve.outputs.root }}/build/bin/ziran
+  commit:
+    description: The Ziran commit set up.
+    value: ${{ steps.resolve.outputs.commit }}
+  toolchain:
+    description: Where the build tree came from - prebuilt, cache or built.
+    value: ${{ steps.build.outputs.toolchain }}
+  compiled:
+    description: How many C files make compiled after the build tree was in place.
+    value: ${{ steps.build.outputs.compiled }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve the Ziran commit
+      id: resolve
+      shell: bash
+      env:
+        PROJECT: ${{ inputs.project }}
+        CHECKOUT: ${{ inputs.path }}
+        COMMIT: ${{ inputs.commit }}
+      run: |
+        set -euo pipefail
+        lock="$PROJECT/ziran.lock"
+        digest=none
+        if [ -f "$lock" ]; then
+          digest=$(python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$lock")
+        fi
+        if [ -z "$COMMIT" ]; then
+          COMMIT=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["toolchain"]["commit"])' "$lock")
+        fi
+        if ! printf '%s' "$COMMIT" | grep -Eq '^[0-9a-f]{40}$'; then
+          echo "::error::The Ziran commit is not a full commit hash: $COMMIT"
+          exit 1
+        fi
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64)
+            platform=linux-x64
+            ;;
+          Linux-ARM64)
+            platform=linux-arm64
+            ;;
+          *)
+            platform=
+            ;;
+        esac
+        # A compiler built on a newer image needs its newer C library, so
+        # cached build trees are kept per image.
+        libc=$(getconf GNU_LIBC_VERSION 2>/dev/null | tr ' ' '-' || true)
+        {
+          echo "commit=$COMMIT"
+          echo "lock=$digest"
+          echo "platform=$platform"
+          echo "system=${ImageOS:-local}-${libc:-nolibc}"
+          echo "root=$GITHUB_WORKSPACE/$CHECKOUT"
+          echo "sources=${XDG_CACHE_HOME:-$HOME/.cache}/ziran/sources"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Check out Ziran
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        repository: ziranlang/ziran
+        ref: ${{ steps.resolve.outputs.commit }}
+        path: ${{ inputs.path }}
+        persist-credentials: false
+
+    - name: Download the prebuilt build tree
+      id: prebuilt
+      if: steps.resolve.outputs.platform != ''
+      shell: bash
+      env:
+        ROOT: ${{ steps.resolve.outputs.root }}
+        ASSET: ziran-${{ steps.resolve.outputs.commit }}-${{ steps.resolve.outputs.platform }}.tar.gz
+      run: |
+        set -uo pipefail
+        base=https://github.com/ziranlang/ziran/releases/download/toolchains
+        work="$RUNNER_TEMP/ziran-prebuilt"
+        rm -rf "$work"
+        mkdir -p "$work"
+        if curl -fsSL --retry 3 --connect-timeout 10 --max-time 180 -o "$work/$ASSET" "$base/$ASSET" &&
+          curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 -o "$work/$ASSET.sha256" "$base/$ASSET.sha256" &&
+          (cd "$work" && sha256sum --check --quiet "$ASSET.sha256") &&
+          tar -xzf "$work/$ASSET" -C "$ROOT"; then
+          echo "found=true" >> "$GITHUB_OUTPUT"
+        else
+          rm -rf "$ROOT/build"
+          echo "No prebuilt build tree for $ASSET"
+        fi
+        rm -rf "$work"
+
+    - name: Restore the cached build tree
+      id: cache
+      if: steps.prebuilt.outputs.found != 'true'
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ inputs.path }}/build
+        key: ziran-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.system }}-${{ steps.resolve.outputs.commit }}
+
+    - name: Build Ziran
+      id: build
+      shell: bash
+      env:
+        ROOT: ${{ steps.resolve.outputs.root }}
+        COMMIT: ${{ steps.resolve.outputs.commit }}
+        PREBUILT: ${{ steps.prebuilt.outputs.found }}
+        CACHED: ${{ steps.cache.outputs.cache-hit }}
+      run: |
+        set -euo pipefail
+        toolchain=built
+        if [ "$PREBUILT" = true ]; then
+          toolchain=prebuilt
+        elif [ "$CACHED" = true ]; then
+          toolchain=cache
+        fi
+        # The tree matches this commit, so it is made newer than the fresh
+        # checkout's sources, all at one time so make keeps every object.
+        if [ "$toolchain" != built ]; then
+          stamp="$RUNNER_TEMP/ziran-build-stamp"
+          touch "$stamp"
+          find "$ROOT/build" -exec touch -r "$stamp" {} +
+          rm -f "$stamp"
+        fi
+        jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)
+        log="$RUNNER_TEMP/ziran-make.log"
+        make -C "$ROOT" -j"$jobs" all 2>&1 | tee "$log"
+        compiled=$(grep -c -- ' -c -o ' "$log" || true)
+        rm -f "$log"
+        echo "Ziran $COMMIT: $toolchain build tree, $compiled C files compiled"
+        {
+          echo "toolchain=$toolchain"
+          echo "compiled=$compiled"
+        } >> "$GITHUB_OUTPUT"
+        echo "$ROOT/build/bin" >> "$GITHUB_PATH"
+
+    - name: Save the build tree
+      if: steps.prebuilt.outputs.found != 'true' && steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ inputs.path }}/build
+        key: ziran-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.system }}-${{ steps.resolve.outputs.commit }}
+
+    # Package checkouts can hold programs built inside them, so they are kept
+    # per image as well.
+    - name: Restore the package checkouts
+      if: inputs.fetch == 'true'
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.resolve.outputs.sources }}
+        key: ziran-sources-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.system }}-${{ steps.resolve.outputs.lock }}
+        restore-keys: |
+          ziran-sources-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.system }}-
+
+    - name: Fetch the locked packages
+      if: inputs.fetch == 'true'
+      shell: bash
+      working-directory: ${{ inputs.project }}
+      env:
+        ZIRAN: ${{ steps.resolve.outputs.root }}/build/bin/ziran
+      run: '"$ZIRAN" fetch --locked'

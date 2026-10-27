@@ -186,6 +186,14 @@ backend, and portable bundle tests. `make check` runs independent test scripts
 with four workers by default; set `CHECK_JOBS=1` to run them serially or choose
 another positive worker count.
 
+A project's GitHub Actions job sets up the Ziran its `ziran.lock` pins with
+`uses: ziranlang/ziran/.github/actions/setup@COMMIT`. It checks out that
+commit with its compiler built and puts `build/bin` on `PATH`; `fetch: true`
+also fetches the locked packages. On Linux the build tree is the one the
+Toolchains workflow published for that commit, so the job builds nothing; on
+other systems, or for a commit without one, the job builds Ziran once and
+caches it. Run the Toolchains workflow for an older commit a lock still pins.
+
 ## Compiler commands
 
 The compiler commands are `zi2zir` (including

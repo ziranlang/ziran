@@ -1,0 +1,147 @@
+name: Toolchains
+
+# Each master commit's build tree, built once on the oldest runner image the
+# projects use (a newer C library cannot run on an older image), so their CI
+# downloads it with .github/actions/setup instead of building Ziran in every
+# job. Run it by hand for an older commit a project's ziran.lock still pins.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full commit to build instead of the latest master
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: toolchains-${{ inputs.commit || github.sha }}
+  cancel-in-progress: false
+
+env:
+  COMMIT: ${{ inputs.commit || github.sha }}
+  # The newest build trees kept; a project pinning an older commit builds it.
+  KEEP_COMMITS: 200
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-22.04
+          - platform: linux-arm64
+            runner: ubuntu-22.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      ASSET: ziran-${{ inputs.commit || github.sha }}-${{ matrix.platform }}.tar.gz
+    steps:
+      - name: Check the commit
+        run: printf '%s' "$COMMIT" | grep -Eq '^[0-9a-f]{40}$'
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.COMMIT }}
+          persist-credentials: false
+
+      # Projects run the same plain make in their checkout, so it keeps
+      # every object of this tree.
+      - name: Build the toolchain
+        run: |
+          test "$(git rev-parse HEAD)" = "$COMMIT"
+          make -j"$(nproc)" all
+          build/bin/ziran version
+
+      - name: Archive the build tree
+        run: |
+          tar -czf "$RUNNER_TEMP/$ASSET" build
+          cd "$RUNNER_TEMP"
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          du -h "$ASSET"
+
+      # The prerelease only holds these archives; it is never the latest
+      # Ziran release.
+      - name: Publish the build tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view toolchains -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create toolchains -R "$GITHUB_REPOSITORY" --prerelease --latest=false \
+              --target "$COMMIT" --title "Prebuilt toolchains" \
+              --notes "Build trees of recent master commits for .github/actions/setup." ||
+              gh release view toolchains -R "$GITHUB_REPOSITORY" > /dev/null
+          fi
+          gh release upload toolchains -R "$GITHUB_REPOSITORY" --clobber \
+            "$RUNNER_TEMP/$ASSET" "$RUNNER_TEMP/$ASSET.sha256"
+
+  verify:
+    name: Set up ${{ matrix.platform }} from the archive
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      # The action of the commit that runs this workflow, which can be newer
+      # than the commit it set up.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: workflow
+          persist-credentials: false
+
+      - name: Set up Ziran
+        id: ziran
+        uses: ./workflow/.github/actions/setup
+        with:
+          commit: ${{ env.COMMIT }}
+          path: ziran
+
+      - name: Check that nothing was rebuilt on the newer image
+        env:
+          TOOLCHAIN: ${{ steps.ziran.outputs.toolchain }}
+          COMPILED: ${{ steps.ziran.outputs.compiled }}
+          ZIRAN: ${{ steps.ziran.outputs.ziran }}
+        run: |
+          test "$TOOLCHAIN" = prebuilt
+          test "$COMPILED" = 0
+          "$ZIRAN" version
+          ziran version
+
+  prune:
+    name: Keep the newest build trees
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete the archives of older commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/toolchains" --jq .id)
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release/assets?per_page=100" \
+            --jq '.[] | [.created_at, .id, .name] | @tsv' |
+            sort -r |
+            awk -F '\t' -v keep="$KEEP_COMMITS" '{
+              split($3, part, "-")
+              if (!(part[2] in seen)) {
+                seen[part[2]] = 1
+                commits++
+              }
+              if (commits > keep) {
+                print $2
+              }
+            }' |
+            while read -r asset; do
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset"
+            done

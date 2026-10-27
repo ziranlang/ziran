@@ -63,5 +63,5 @@ $(BUILD_DIR)/libziran-vm.a: $(ZIRAN_VM_LIB_OBJECTS) Makefile native-zx.mk
 	$(RM) $@
 	$(AR) rcs $@ $(ZIRAN_VM_LIB_OBJECTS)
 $(BIN_DIR)/zi2zx-vm: $(call obj,cmd/zir-zx/main.c) $(BUILD_DIR)/libziran-vm.a | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 all: $(BIN_DIR)/zi2zx-vm $(BUILD_DIR)/libziran-vm.a

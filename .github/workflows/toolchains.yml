@@ -125,14 +125,14 @@ jobs:
           path: ziran
           packages: ripgrep
 
-      - name: Check that nothing was rebuilt on the newer image
+      - name: Check that only the checkout's paths were rebuilt on the newer image
         env:
           TOOLCHAIN: ${{ steps.ziran.outputs.toolchain }}
           COMPILED: ${{ steps.ziran.outputs.compiled }}
           ZIRAN: ${{ steps.ziran.outputs.ziran }}
         run: |
           test "$TOOLCHAIN" = prebuilt
-          test "$COMPILED" = 0
+          test "$COMPILED" = 1
           "$ZIRAN" version
           ziran version
           rg --version

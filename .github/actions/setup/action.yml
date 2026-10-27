@@ -42,7 +42,9 @@ outputs:
     description: Where the build tree came from - prebuilt, cache or built.
     value: ${{ steps.build.outputs.toolchain }}
   compiled:
-    description: How many C files make compiled after the build tree was in place.
+    description: >
+      How many C files make compiled after the build tree was in place; a
+      prebuilt or cached tree compiles the one recording this checkout.
     value: ${{ steps.build.outputs.compiled }}
 
 runs:
@@ -170,26 +172,25 @@ runs:
           toolchain=cache
         fi
         # The tree matches this commit, so it is made newer than the fresh
-        # checkout's sources, all at one time so make keeps every object.
+        # checkout's sources, all at one time so make keeps its objects. The
+        # one object recording where std/ and include/ are is rebuilt for this
+        # checkout, as the compilers fall back to that path.
         if [ "$toolchain" != built ]; then
+          for name in std include; do
+            if [ -L "$ROOT/build/$name" ]; then
+              rm -f "$ROOT/build/$name"
+            fi
+          done
           stamp="$RUNNER_TEMP/ziran-build-stamp"
           touch "$stamp"
           find "$ROOT/build" -exec touch -r "$stamp" {} +
-          rm -f "$stamp"
+          rm -f "$stamp" "$ROOT/build/obj/cmd/zir/zir_load.o"
         fi
         jobs=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)
         log="$RUNNER_TEMP/ziran-make.log"
         make -C "$ROOT" -j"$jobs" all 2>&1 | tee "$log"
         compiled=$(grep -c -- ' -c -o ' "$log" || true)
         rm -f "$log"
-        # A compiler finds std/ and include/ beside its build directory or else
-        # where it was built, which a prebuilt or cached tree was not; older
-        # compilers look only inside the build directory, so link them there.
-        for name in std include; do
-          if [ ! -e "$ROOT/build/$name" ]; then
-            ln -s "../$name" "$ROOT/build/$name"
-          fi
-        done
         echo "Ziran $COMMIT: $toolchain build tree, $compiled C files compiled"
         {
           echo "toolchain=$toolchain"

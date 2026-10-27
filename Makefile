@@ -10,6 +10,9 @@ OBJCOPY ?= $(if $(DARWIN_TARGET),true,objcopy)
 ZIRAN_DEFINES ?= $(if $(DARWIN_TARGET),--define __APPLE__ --define $(if $(findstring x86_64,$(TARGET_MACHINE)),__x86_64__,__aarch64__))
 # macOS supplies SHA-256 and random bytes in libSystem.
 PACKAGE_LIBS ?= $(if $(DARWIN_TARGET),,-lcrypto) -lm
+# Linux before glibc 2.34 keeps POSIX threads and the dynamic loader in
+# separate libraries. The portable runtime uses both, including through TCC.
+RUNTIME_LIBS ?= -lm $(if $(findstring linux,$(TARGET_MACHINE)),-pthread -ldl)
 CFLAGS ?= -O2
 override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
 # Kept names and texts (KeepName, KeepText) are shared and immutable, so
@@ -360,10 +363,10 @@ $(BIN_DIR)/zi2py: $(call obj,cmd/zir-py/main.c cmd/zir-py/zir_py_lower.c cmd/zir
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2zx: $(call obj,cmd/zir-zx/main.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 
 $(BIN_DIR)/zi2wasm: $(call obj,cmd/zir-wasm/main.c cmd/zir-wasm/zir_wasm_lower.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 
 ifneq ($(BOOTSTRAP),1)
 BOOTSTRAP_BIN := $(BUILD_DIR)/bootstrap/bin/zi2c
@@ -496,41 +499,41 @@ endif
 
 $(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJECTS) $(call obj,$(PORTABLE)) \
     $(BUILD_DIR)/obj/vm.o | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 
 $(BIN_DIR)/host-capability-test: tests/host_capability_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_capability_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_capability_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/record-host-test: tests/record_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_host_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_host_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/record-fields-by-name-test: tests/record_fields_by_name_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_fields_by_name_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_fields_by_name_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/zx-wasm-engine-test: tests/zx_wasm_engine_test.c $(BUILD_DIR)/libziran-vm.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
-	    tests/zx_wasm_engine_test.c $(BUILD_DIR)/libziran-vm.a -lm
+	    tests/zx_wasm_engine_test.c $(BUILD_DIR)/libziran-vm.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/array-host-test: tests/host_array_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_array_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_array_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/startup-graph-test: tests/startup_graph_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
-		tests/startup_graph_test.c $(BUILD_DIR)/libziran.a
+		tests/startup_graph_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/vm-vec-scope-test: tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
-		tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a
+		tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/vm-locale-test: tests/vm_locale_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
-		tests/vm_locale_test.c $(BUILD_DIR)/libziran.a
+		tests/vm_locale_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/process-host-test: tests/process_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/process_host_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/process_host_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/slice-host-test: tests/host_slice_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_slice_test.c $(BUILD_DIR)/libziran.a
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_slice_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 check: all $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/vm-vec-scope-test $(BIN_DIR)/vm-locale-test $(BIN_DIR)/zx-wasm-engine-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/startup-graph-test

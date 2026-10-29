@@ -23,6 +23,7 @@
 - `#parallel for` regions reject handing a shared slice to a callee that writes through it, directly or by passing it on.
 - Natively run bundles reach a bound Ziran provider exported under another symbol.
 - Go output converts a conditional's arms to its type, such as a float32 arm of a float64 conditional.
+- `StartProcess` and `RunProcess` open input, output and error files relative to the caller's working directory, before the child changes into `directory`.
 
 ## [0.3.1] - 2026-10-23
 ### Fixed

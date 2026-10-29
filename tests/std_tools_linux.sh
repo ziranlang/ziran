@@ -45,6 +45,12 @@ main :: () -> s32 {
     from_file: ProcessOptions = .{arguments = cat[:], input_path = "tree/out.txt", capture_output = true}
     third: ProcessRun
     if !RunProcess(from_file, *third) || BuilderFinish(third.output) != "abab" { return 7 }
+    // Output paths stay relative to this process, not the child's directory.
+    elsewhere: ProcessOptions = .{arguments = print_ab[:], directory = "tree/a", output_path = "tree/elsewhere.txt"}
+    fourth: ProcessRun
+    if !RunProcess(elsewhere, *fourth) || fourth.code != 0 { return 32 }
+    written, wrote := ReadEntireFile("tree/elsewhere.txt")
+    if !wrote || written != "ab" { return 33 }
     // A background child in its own session, stopped by a group signal.
     sleep: [2]string = .["sleep", "30"]
     background: ProcessOptions = .{arguments = sleep[:], new_session = true}

@@ -54,7 +54,8 @@ ProcessOptions :: struct {
     directory: string
     // "NAME=value" sets a variable; a bare "NAME" removes it.
     environment: []string
-    // Standard input from this file; empty inherits it.
+    // Standard input from this file; empty inherits it. The three paths
+    // below are relative to the parent's working directory, not `directory`.
     input_path: string
     // Standard output to this file, replaced unless append_output; empty
     // inherits it unless capture_output.
@@ -171,18 +172,9 @@ At :: (prepared: *Prepared, offset: s64) -> *u8 { return *prepared.bytes[offset]
 Child :: (options: ProcessOptions, prepared: *Prepared, status: s32, capture: s32) {
     failed := false
     if options.new_session { SessionRaw() }
-    if prepared.directory >= 0 && ChangeDirectoryRaw(At(prepared, prepared.directory)) != 0 { failed = true }
-    index: s64 = 0
-    while !failed && index < prepared.names.count {
-        name := At(prepared, prepared.names[index])
-        if prepared.values[index] < 0 {
-            UnsetEnvironmentRaw(name)
-        } else if SetEnvironmentRaw(name, At(prepared, prepared.values[index]), 1) != 0 {
-            failed = true
-        }
-        index += 1
-    }
-    if !failed && prepared.input >= 0 {
+    // Redirection files open before the directory change, so their paths are
+    // relative to the parent's working directory.
+    if prepared.input >= 0 {
         fd := OpenRaw(At(prepared, prepared.input), 0, 0)
         if fd < 0 || DupRaw(fd, 0) < 0 { failed = true }
         if fd > 0 { CloseRaw(fd) }
@@ -199,6 +191,17 @@ Child :: (options: ProcessOptions, prepared: *Prepared, status: s32, capture: s3
     } else if !failed && prepared.error >= 0 {
         fd := OpenRaw(At(prepared, prepared.error), 577 | CLOSE_ON_EXEC, 420)
         if fd < 0 || DupRaw(fd, 2) < 0 { failed = true }
+    }
+    if !failed && prepared.directory >= 0 && ChangeDirectoryRaw(At(prepared, prepared.directory)) != 0 { failed = true }
+    index: s64 = 0
+    while !failed && index < prepared.names.count {
+        name := At(prepared, prepared.names[index])
+        if prepared.values[index] < 0 {
+            UnsetEnvironmentRaw(name)
+        } else if SetEnvironmentRaw(name, At(prepared, prepared.values[index]), 1) != 0 {
+            failed = true
+        }
+        index += 1
     }
     if !failed { ExecRaw(prepared.arguments[0].value, *prepared.arguments[0]) }
     error: s32 = <<ErrnoRaw()

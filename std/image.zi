@@ -81,6 +81,77 @@ RotateLeft :: (image: *Image) -> Image {
     return turned
 }
 
+// The picture turned a quarter turn clockwise, as Pillow's
+// Transpose.ROTATE_270 and rotate(-90).
+RotateRight :: (image: *Image) -> Image {
+    turned := NewImage(image.height, image.width)
+    for y: 0..image.height - 1 {
+        for x: 0..image.width - 1 {
+            from := (cast(s64)y * image.width + x) * 4
+            to := (cast(s64)x * turned.width + image.height - 1 - y) * 4
+            for channel: 0..3 { turned.pixels[to + channel] = image.pixels[from + channel] }
+        }
+    }
+    return turned
+}
+
+// The picture turned upside down, as Pillow's Transpose.ROTATE_180.
+RotateHalf :: (image: *Image) -> Image {
+    turned := NewImage(image.width, image.height)
+    count := cast(s64)image.width * image.height
+    for index: 0..count - 1 {
+        for channel: 0..3 { turned.pixels[(count - 1 - index) * 4 + channel] = image.pixels[index * 4 + channel] }
+    }
+    return turned
+}
+
+// The picture mirrored left to right, as Pillow's Transpose.FLIP_LEFT_RIGHT.
+FlipLeftRight :: (image: *Image) -> Image {
+    flipped := NewImage(image.width, image.height)
+    for y: 0..image.height - 1 {
+        for x: 0..image.width - 1 {
+            from := (cast(s64)y * image.width + x) * 4
+            to := (cast(s64)y * image.width + image.width - 1 - x) * 4
+            for channel: 0..3 { flipped.pixels[to + channel] = image.pixels[from + channel] }
+        }
+    }
+    return flipped
+}
+
+// The part from LEFT, TOP up to (not including) RIGHT, BOTTOM, as Pillow's
+// crop: parts outside the picture are transparent black.
+CropImage :: (image: *Image, left: s32, top: s32, right: s32, bottom: s32) -> Image {
+    if right <= left || bottom <= top { return NewImage(0, 0) }
+    part := NewImage(right - left, bottom - top)
+    for y: top..bottom - 1 {
+        if y < 0 || y >= image.height { continue }
+        for x: left..right - 1 {
+            if x < 0 || x >= image.width { continue }
+            from := (cast(s64)y * image.width + x) * 4
+            to := (cast(s64)(y - top) * part.width + x - left) * 4
+            for channel: 0..3 { part.pixels[to + channel] = image.pixels[from + channel] }
+        }
+    }
+    return part
+}
+
+// The smallest box holding every pixel with any alpha, as Pillow's
+// getchannel("A").getbbox(): left, top, right, bottom, or all zero.
+AlphaBounds :: (image: *Image) -> (left: s32, top: s32, right: s32, bottom: s32) {
+    left := image.width; top := image.height; right: s32 = 0; bottom: s32 = 0
+    for y: 0..image.height - 1 {
+        for x: 0..image.width - 1 {
+            if image.pixels[(cast(s64)y * image.width + x) * 4 + 3] == 0 { continue }
+            if x < left { left = x }
+            if y < top { top = y }
+            if x + 1 > right { right = x + 1 }
+            if y + 1 > bottom { bottom = y + 1 }
+        }
+    }
+    if right == 0 { return 0, 0, 0, 0 }
+    return left, top, right, bottom
+}
+
 // Copies SOURCE onto DESTINATION with its top left corner at X, Y,
 // replacing the pixels underneath; parts outside are cut off.
 PasteImage :: (destination: *Image, source: *Image, x: s32, y: s32) {

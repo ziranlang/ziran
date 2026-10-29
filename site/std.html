@@ -362,6 +362,11 @@
 <div><code>CopyImage :: (image: *Image) -&gt; Image</code></div>
 <div><code>DropAlpha :: (image: *Image)</code><p>Every pixel opaque, keeping its colour, as Pillow's convert("RGB") does.</p></div>
 <div><code>RotateLeft :: (image: *Image) -&gt; Image</code><p>The picture turned a quarter turn counterclockwise, as Pillow's Transpose.ROTATE_90.</p></div>
+<div><code>RotateRight :: (image: *Image) -&gt; Image</code><p>The picture turned a quarter turn clockwise, as Pillow's Transpose.ROTATE_270 and rotate(-90).</p></div>
+<div><code>RotateHalf :: (image: *Image) -&gt; Image</code><p>The picture turned upside down, as Pillow's Transpose.ROTATE_180.</p></div>
+<div><code>FlipLeftRight :: (image: *Image) -&gt; Image</code><p>The picture mirrored left to right, as Pillow's Transpose.FLIP_LEFT_RIGHT.</p></div>
+<div><code>CropImage :: (image: *Image, left: s32, top: s32, right: s32, bottom: s32) -&gt; Image</code><p>The part from LEFT, TOP up to (not including) RIGHT, BOTTOM, as Pillow's crop: parts outside the picture are transparent black.</p></div>
+<div><code>AlphaBounds :: (image: *Image) -&gt; (s32, s32, s32, s32)</code><p>The smallest box holding every pixel with any alpha, as Pillow's getchannel("A").getbbox(): left, top, right, bottom, or all zero.</p></div>
 <div><code>PasteImage :: (destination: *Image, source: *Image, x: s32, y: s32)</code><p>Copies SOURCE onto DESTINATION with its top left corner at X, Y, replacing the pixels underneath; parts outside are cut off.</p></div>
 <div><code>AlphaComposite :: (destination: *Image, source: *Image, x: s32, y: s32, from_x: s32, from_y: s32, width: s32, height: s32)</code></div>
 <div><code>AlphaCompositeAt :: (destination: *Image, source: *Image, x: float64, y: float64)</code><p>Draws SOURCE over DESTINATION with its top-left corner at the fractional position X, Y, blending the neighbouring pixels it falls between as a browser canvas's drawImage does. Whole positions draw it unchanged.</p></div>

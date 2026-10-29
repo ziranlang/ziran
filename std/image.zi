@@ -122,8 +122,77 @@ AlphaComposite :: (destination: *Image, source: *Image, x: s32, y: s32) {
     }
 }
 
+// Draws SOURCE over DESTINATION with its top-left corner at the fractional
+// position X, Y, blending the neighbouring pixels it falls between as a
+// browser canvas's drawImage does. Whole positions draw it unchanged.
+AlphaCompositeAt :: (destination: *Image, source: *Image, x: float64, y: float64) {
+    whole_x := FloorOf(x)
+    whole_y := FloorOf(y)
+    fx := x - cast(float64)whole_x
+    fy := y - cast(float64)whole_y
+    for row: whole_y..whole_y + source.height {
+        if row < 0 || row >= destination.height { continue }
+        for column: whole_x..whole_x + source.width {
+            if column < 0 || column >= destination.width { continue }
+            // This pixel's centre lies between four source pixels.
+            sx := column - whole_x
+            sy := row - whole_y
+            sum: Premultiplied
+            AddPixel(*sum, source, sx - 1, sy - 1, fx * fy)
+            AddPixel(*sum, source, sx, sy - 1, (1.0 - fx) * fy)
+            AddPixel(*sum, source, sx - 1, sy, fx * (1.0 - fy))
+            AddPixel(*sum, source, sx, sy, (1.0 - fx) * (1.0 - fy))
+            if sum.a <= 0.0 { continue }
+            to := (cast(s64)row * destination.width + column) * 4
+            keep := cast(float64)destination.pixels[to + 3] / 255.0 * (1.0 - sum.a)
+            alpha := sum.a + keep
+            destination.pixels[to] = UnitByte((sum.r + cast(float64)destination.pixels[to] / 255.0 * keep) / alpha)
+            destination.pixels[to + 1] = UnitByte((sum.g + cast(float64)destination.pixels[to + 1] / 255.0 * keep) / alpha)
+            destination.pixels[to + 2] = UnitByte((sum.b + cast(float64)destination.pixels[to + 2] / 255.0 * keep) / alpha)
+            destination.pixels[to + 3] = UnitByte(alpha)
+        }
+    }
+}
+
+// Every pixel takes the colour RED, GREEN, BLUE, its alpha scaled by
+// ALPHA: the picture's shape filled with one colour.
+Silhouette :: (image: *Image, red: u8, green: u8, blue: u8, alpha: u8) {
+    for pixel: 0..cast(s64)image.width * image.height - 1 {
+        at := pixel * 4
+        image.pixels[at] = red
+        image.pixels[at + 1] = green
+        image.pixels[at + 2] = blue
+        image.pixels[at + 3] = cast(u8)((cast(u32)image.pixels[at + 3] * cast(u32)alpha + 127) / 255)
+    }
+}
+
 #scope_file
 Divide255 :: (value: u32) -> u32 { return ((value >> 8) + value) >> 8 }
+
+Premultiplied :: struct { r: float64; g: float64; b: float64; a: float64; }
+
+// Adds WEIGHT of the pixel at X, Y with its colour premultiplied; outside
+// the picture is clear.
+AddPixel :: (sum: *Premultiplied, image: *Image, x: s32, y: s32, weight: float64) {
+    if weight <= 0.0 || x < 0 || y < 0 || x >= image.width || y >= image.height { return }
+    at := (cast(s64)y * image.width + x) * 4
+    a := cast(float64)image.pixels[at + 3] / 255.0 * weight
+    sum.r += cast(float64)image.pixels[at] / 255.0 * a
+    sum.g += cast(float64)image.pixels[at + 1] / 255.0 * a
+    sum.b += cast(float64)image.pixels[at + 2] / 255.0 * a
+    sum.a += a
+}
+
+UnitByte :: (value: float64) -> u8 {
+    if value <= 0.0 { return 0 }
+    if value >= 1.0 { return 255 }
+    return cast(u8)(value * 255.0 + 0.5)
+}
+
+FloorOf :: (value: float64) -> s32 {
+    whole := cast(s32)value
+    return ifx cast(float64)whole > value then whole - 1 else whole
+}
 
 // Fixed-point weights, as Pillow keeps them for 8-bit pictures.
 PRECISION :: 22;

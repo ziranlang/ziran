@@ -504,7 +504,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "explain" { return Explain(arguments[1:]) }
     if command == "add" { return Add(launcher, arguments[1:]) }
     separator: s32 = PkgAfterSeparator(arguments)
-    if command == "run" && PkgHasArgument(arguments[0:PythonArgumentEnd(arguments)], "--target=py") {
+    script_flags: []string = arguments[0:PythonArgumentEnd(arguments)]
+    if command == "run" && (PkgHasArgument(script_flags, "--target=py") || PkgHasArgument(script_flags, "--target=c")) {
         separator = PythonArgumentEnd(arguments)
     }
     flags: []string = arguments[0:separator]
@@ -728,8 +729,10 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             passed[0:passed_count], names[:], values[:])
     }
     empty: [0]string
-    if command == "run" && PkgHasArgument(flags, "--target=py") {
-        binary := PkgJoin(PkgLauncherDirectory(launcher), "/zi2py")
+    if command == "run" && (PkgHasArgument(flags, "--target=py") || PkgHasArgument(flags, "--target=c")) {
+        native := PkgHasArgument(flags, "--target=c")
+        compiler := ifx native then "zi2c" else "zi2py"
+        binary := PkgJoin3(PkgLauncherDirectory(launcher), "/", compiler)
         program_root := ""
         program_file := ""
         map := ""
@@ -737,7 +740,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         search: [65]string
         searches: s64 = 0
         if project {
-            binary = PkgJoin(PkgToolDirectory(launcher, locked.tool_path, "zi2py"), "/zi2py")
+            binary = PkgJoin3(PkgToolDirectory(launcher, locked.tool_path, compiler), "/", compiler)
             if !PathExists(binary) {
                 make_args: [5]string = .["make", "-C", locked.tool_path, "all", "BUILD_DIR=build"]
                 if PkgRunToStderr(make_args[:], "") != 0 { return PkgFail("cannot build pinned Ziran compiler") }
@@ -772,8 +775,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             if searches >= search.count { return PkgFail("python search path limit exceeded") }
             search[searches] = standard; searches += 1
         }
-        return PythonRun(filtered[0:count], binary, root, program_root, program_file,
-            search[0:searches], map, libraries, PkgCacheRoot())
+        return ScriptRun(filtered[0:count], binary, root, program_root, program_file,
+            search[0:searches], map, libraries, PkgCacheRoot(), native)
     }
     return PkgDispatch(command, filtered[0:count], project, root, locked,
         current, launcher, empty[:], empty[:])

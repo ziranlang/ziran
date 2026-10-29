@@ -847,6 +847,12 @@ time. Sources containing `#load` also compile every time because loaded files
 can be outside the module roots. Imported Python libraries remain runtime
 dependencies; Python files beside the original script are on `PYTHONPATH`.
 
+`ziran run --target=c tool.zi -- ARGS` runs a native tool the same way: it
+builds the program once into `$XDG_CACHE_HOME/ziran/native`, rebuilds it when
+its sources change, and runs it with the arguments, returning its status. The
+entry takes nothing or `(argc: s32, argv: **u8)`. In a project, a tool beside
+the module roots, such as `tools/check.zi`, still imports the project's modules.
+
 `std/args_py` exposes arguments and the original script filename. A script
 may start with a shebang and be made executable with `chmod +x`:
 

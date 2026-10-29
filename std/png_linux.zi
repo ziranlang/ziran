@@ -1,0 +1,363 @@
+// PNG files to and from std/image pictures on native Linux, over the
+// platform zlib (link -lz).
+//
+//     sprite := ReadPNGFile("sprites/tile-12.png")
+//     if !ImageValid(*sprite) { ... }
+//     WritePNGFile("build/tile.png", *sprite)
+//     WriteIndexedPNGFile("build/level.png", *QuantizeImage(*board, 192, true))
+//
+// Reading accepts every standard PNG: greyscale, RGB, palette, grey with
+// alpha and RGBA at any bit depth, tRNS transparency and Adam7 interlacing;
+// 16-bit samples keep their high byte. Writing uses Pillow's choices for an
+// optimized file: zlib level 9, adaptive row filters for RGB and RGBA, none
+// for palette pictures.
+#import "image"
+#import "zip"
+#import "zlib_linux"
+#import "file"
+#import "byte_text_linux"
+using Vectors :: #import "vec"
+
+#scope_file
+PNG_LIMIT :: 268435456;
+
+Big32 :: (bytes: []u8, at: s64) -> u32 {
+    return (cast(u32)bytes[at] << 24) | (cast(u32)bytes[at + 1] << 16) | (cast(u32)bytes[at + 2] << 8) | cast(u32)bytes[at + 3]
+}
+
+Header :: struct {
+    width: s32
+    height: s32
+    depth: s32
+    color: s32
+    channels: s32
+    interlaced: bool
+}
+
+RowBytes :: (header: Header, width: s32) -> s64 {
+    return (cast(s64)width * header.channels * header.depth + 7) / 8
+}
+
+Paeth :: (left: s32, above: s32, corner: s32) -> s32 {
+    estimate := left + above - corner
+    distance_left := ifx estimate > left then estimate - left else left - estimate
+    distance_above := ifx estimate > above then estimate - above else above - estimate
+    distance_corner := ifx estimate > corner then estimate - corner else corner - estimate
+    if distance_left <= distance_above && distance_left <= distance_corner { return left }
+    if distance_above <= distance_corner { return above }
+    return corner
+}
+
+// Reverses one row's filter in place; PREVIOUS is the unfiltered row above
+// (empty for the first row of a pass).
+Unfilter :: (data: *Vec(u8), at: s64, previous: s64, size: s64, step: s64, kind: u8) -> bool {
+    if kind > 4 { return false }
+    for index: 0..size - 1 {
+        left: s32 = ifx index >= step then cast(s32)(<<data)[at + index - step] else 0
+        above: s32 = ifx previous >= 0 then cast(s32)(<<data)[previous + index] else 0
+        corner: s32 = ifx previous >= 0 && index >= step then cast(s32)(<<data)[previous + index - step] else 0
+        value := cast(s32)(<<data)[at + index]
+        if kind == 1 { value += left }
+        else if kind == 2 { value += above }
+        else if kind == 3 { value += (left + above) / 2 }
+        else if kind == 4 { value += Paeth(left, above, corner) }
+        (<<data)[at + index] = cast(u8)(value & 255)
+    }
+    return true
+}
+
+Sample :: (data: *Vec(u8), row: s64, index: s64, depth: s32) -> s32 {
+    if depth == 8 { return cast(s32)(<<data)[row + index] }
+    if depth == 16 { return (cast(s32)(<<data)[row + index * 2] << 8) | cast(s32)(<<data)[row + index * 2 + 1] }
+    bit := index * depth
+    byte := cast(s32)(<<data)[row + bit / 8]
+    shift := 8 - depth - cast(s32)(bit % 8)
+    return (byte >> shift) & ((1 << depth) - 1)
+}
+
+Scale :: (value: s32, depth: s32) -> u8 {
+    if depth == 16 { return cast(u8)(value >> 8) }
+    if depth == 8 { return cast(u8)value }
+    return cast(u8)(value * 255 / ((1 << depth) - 1))
+}
+
+#scope_export
+// The picture a whole PNG file's bytes hold; an invalid Image (see
+// ImageValid) when they are not a PNG this reads.
+ReadPNG :: (bytes: []u8) -> Image {
+    signature: [8]u8 = .[137, 80, 78, 71, 13, 10, 26, 10]
+    if bytes.count < 8 { return NewImage(0, 0) }
+    for index: 0..7 { if bytes[index] != signature[index] { return NewImage(0, 0) } }
+    header: Header
+    have_header := false
+    palette: [256][4]u8
+    palette_count: s32 = 0
+    transparent := false
+    key: [3]s32
+    packed: Vec(u8)
+    at: s64 = 8
+    ended := false
+    while at + 12 <= bytes.count {
+        length := cast(s64)Big32(bytes, at)
+        if length > PNG_LIMIT || at + 12 + length > bytes.count { return NewImage(0, 0) }
+        kind := bytes[at + 4:at + 8]
+        body := at + 8
+        if kind[0] == #char "I" && kind[1] == #char "H" && kind[2] == #char "D" && kind[3] == #char "R" {
+            if length != 13 { return NewImage(0, 0) }
+            header.width = cast(s32)Big32(bytes, body)
+            header.height = cast(s32)Big32(bytes, body + 4)
+            header.depth = cast(s32)bytes[body + 8]
+            header.color = cast(s32)bytes[body + 9]
+            header.interlaced = bytes[body + 12] == 1
+            if bytes[body + 10] != 0 || bytes[body + 11] != 0 || bytes[body + 12] > 1 { return NewImage(0, 0) }
+            if header.width <= 0 || header.height <= 0 || cast(s64)header.width * header.height > 67108864 { return NewImage(0, 0) }
+            if header.color == 0 { header.channels = 1 }
+            else if header.color == 2 { header.channels = 3 }
+            else if header.color == 3 { header.channels = 1 }
+            else if header.color == 4 { header.channels = 2 }
+            else if header.color == 6 { header.channels = 4 }
+            else { return NewImage(0, 0) }
+            depth := header.depth
+            if depth != 1 && depth != 2 && depth != 4 && depth != 8 && depth != 16 { return NewImage(0, 0) }
+            if (header.color == 2 || header.color == 4 || header.color == 6) && depth < 8 { return NewImage(0, 0) }
+            if header.color == 3 && depth == 16 { return NewImage(0, 0) }
+            have_header = true
+        } else if kind[0] == #char "P" && kind[1] == #char "L" && kind[2] == #char "T" && kind[3] == #char "E" {
+            if length % 3 != 0 || length > 768 { return NewImage(0, 0) }
+            palette_count = cast(s32)(length / 3)
+            for entry: 0..palette_count - 1 {
+                palette[entry][0] = bytes[body + entry * 3]
+                palette[entry][1] = bytes[body + entry * 3 + 1]
+                palette[entry][2] = bytes[body + entry * 3 + 2]
+                palette[entry][3] = 255
+            }
+        } else if kind[0] == #char "t" && kind[1] == #char "R" && kind[2] == #char "N" && kind[3] == #char "S" {
+            if !have_header { return NewImage(0, 0) }
+            if header.color == 3 {
+                if length > 256 { return NewImage(0, 0) }
+                for entry: 0..length - 1 { palette[entry][3] = bytes[body + entry] }
+            } else if header.color == 0 && length == 2 {
+                transparent = true
+                key[0] = (cast(s32)bytes[body] << 8) | cast(s32)bytes[body + 1]
+            } else if header.color == 2 && length == 6 {
+                transparent = true
+                for channel: 0..2 { key[channel] = (cast(s32)bytes[body + channel * 2] << 8) | cast(s32)bytes[body + channel * 2 + 1] }
+            }
+        } else if kind[0] == #char "I" && kind[1] == #char "D" && kind[2] == #char "A" && kind[3] == #char "T" {
+            for index: 0..length - 1 { VecPush(packed, bytes[body + index]) }
+        } else if kind[0] == #char "I" && kind[1] == #char "E" && kind[2] == #char "N" && kind[3] == #char "D" {
+            ended = true
+            break
+        } else if (kind[0] & 32) == 0 {
+            return NewImage(0, 0)
+        }
+        at += 12 + length
+    }
+    if !have_header || !ended || packed.count == 0 { return NewImage(0, 0) }
+    if header.color == 3 && palette_count == 0 { return NewImage(0, 0) }
+    // Each pass's rows, as Adam7 lays them out, or the one whole picture.
+    starts_x: [7]s32 = .[0, 4, 0, 2, 0, 1, 0]
+    starts_y: [7]s32 = .[0, 0, 4, 0, 2, 0, 1]
+    steps_x: [7]s32 = .[8, 8, 4, 4, 2, 2, 1]
+    steps_y: [7]s32 = .[8, 8, 8, 4, 4, 2, 2]
+    passes: s32 = ifx header.interlaced then 7 else 1
+    expected: s64 = 0
+    for pass: 0..passes - 1 {
+        width := header.width
+        height := header.height
+        if header.interlaced {
+            width = ifx header.width > starts_x[pass] then (header.width - starts_x[pass] + steps_x[pass] - 1) / steps_x[pass] else 0
+            height = ifx header.height > starts_y[pass] then (header.height - starts_y[pass] + steps_y[pass] - 1) / steps_y[pass] else 0
+        }
+        if width > 0 && height > 0 { expected += cast(s64)height * (RowBytes(header, width) + 1) }
+    }
+    data: Vec(u8)
+    if !ZlibDecompress(VecSlice(packed, 0, packed.count), *data, expected) || data.count != expected { return NewImage(0, 0) }
+    result := NewImage(header.width, header.height)
+    step := cast(s64)((header.channels * header.depth + 7) / 8)
+    offset: s64 = 0
+    for pass: 0..passes - 1 {
+        width := header.width
+        height := header.height
+        start_x: s32 = 0
+        start_y: s32 = 0
+        step_x: s32 = 1
+        step_y: s32 = 1
+        if header.interlaced {
+            start_x = starts_x[pass]; start_y = starts_y[pass]; step_x = steps_x[pass]; step_y = steps_y[pass]
+            width = ifx header.width > start_x then (header.width - start_x + step_x - 1) / step_x else 0
+            height = ifx header.height > start_y then (header.height - start_y + step_y - 1) / step_y else 0
+        }
+        if width == 0 || height == 0 { continue }
+        size := RowBytes(header, width)
+        previous: s64 = -1
+        for y: 0..height - 1 {
+            row := offset + 1
+            if !Unfilter(*data, row, previous, size, step, data[offset]) { return NewImage(0, 0) }
+            for x: 0..width - 1 {
+                to := (cast(s64)(start_y + y * step_y) * header.width + start_x + x * step_x) * 4
+                depth := header.depth
+                if header.color == 3 {
+                    entry := Sample(*data, row, x, depth)
+                    if entry >= palette_count { return NewImage(0, 0) }
+                    for channel: 0..3 { result.pixels[to + channel] = palette[entry][channel] }
+                } else if header.color == 0 || header.color == 4 {
+                    grey := Sample(*data, row, cast(s64)x * header.channels, depth)
+                    value := Scale(grey, depth)
+                    alpha: u8 = 255
+                    if header.color == 4 { alpha = Scale(Sample(*data, row, cast(s64)x * 2 + 1, depth), depth) }
+                    else if transparent && grey == key[0] { alpha = 0 }
+                    result.pixels[to] = value; result.pixels[to + 1] = value; result.pixels[to + 2] = value
+                    result.pixels[to + 3] = alpha
+                } else {
+                    samples: [4]s32
+                    for channel: 0..header.channels - 1 { samples[channel] = Sample(*data, row, cast(s64)x * header.channels + channel, depth) }
+                    for channel: 0..2 { result.pixels[to + channel] = Scale(samples[channel], depth) }
+                    alpha: u8 = 255
+                    if header.color == 6 { alpha = Scale(samples[3], depth) }
+                    else if transparent && samples[0] == key[0] && samples[1] == key[1] && samples[2] == key[2] { alpha = 0 }
+                    result.pixels[to + 3] = alpha
+                }
+            }
+            previous = row
+            offset += size + 1
+        }
+    }
+    return result
+}
+
+#scope_file
+Put32 :: (output: *Vec(u8), value: u32) {
+    VecPush(<<output, cast(u8)(value >> 24))
+    VecPush(<<output, cast(u8)((value >> 16) & 255))
+    VecPush(<<output, cast(u8)((value >> 8) & 255))
+    VecPush(<<output, cast(u8)(value & 255))
+}
+
+Chunk :: (output: *Vec(u8), kind: string, body: []u8) {
+    Put32(output, cast(u32)body.count)
+    name: [4]u8
+    for index: 0..3 { name[index] = kind[index]; VecPush(<<output, kind[index]) }
+    for body { VecPush(<<output, it) }
+    crc := ZipCRC32Update(ZipCRC32Update(cast(u32)0xffffffff, name[:]), body) ^ cast(u32)0xffffffff
+    Put32(output, crc)
+}
+
+Signature :: (output: *Vec(u8)) {
+    signature: [8]u8 = .[137, 80, 78, 71, 13, 10, 26, 10]
+    for signature { VecPush(<<output, it) }
+}
+
+HeaderChunk :: (output: *Vec(u8), width: s32, height: s32, color: u8) {
+    body: Vec(u8)
+    Put32(*body, cast(u32)width)
+    Put32(*body, cast(u32)height)
+    VecPush(body, cast(u8)8)
+    VecPush(body, color)
+    VecPush(body, cast(u8)0)
+    VecPush(body, cast(u8)0)
+    VecPush(body, cast(u8)0)
+    Chunk(output, "IHDR", VecSlice(body, 0, body.count))
+}
+
+DataChunks :: (output: *Vec(u8), raw: []u8, level: s32) -> bool {
+    packed: Vec(u8)
+    if !ZlibCompress(raw, *packed, level) { return false }
+    Chunk(output, "IDAT", VecSlice(packed, 0, packed.count))
+    end: [0]u8
+    Chunk(output, "IEND", end[:])
+    return true
+}
+
+Magnitude :: (value: s32) -> s64 {
+    signed := ifx value >= 128 then value - 256 else value
+    return ifx signed < 0 then -signed else signed
+}
+
+#scope_export
+// Encodes IMAGE as RGBA, or as RGB when ALPHA is false, appending the file's
+// bytes to OUTPUT.
+WritePNG :: (image: *Image, output: *Vec(u8), alpha: bool = true, level: s32 = 9) -> bool {
+    if !ImageValid(image) { return false }
+    channels: s64 = ifx alpha then 4 else 3
+    size := cast(s64)image.width * channels
+    raw: Vec(u8)
+    above: Vec(u8)
+    line: Vec(u8)
+    candidates: Vec(u8)
+    for index: 0..size - 1 { VecPush(above, cast(u8)0); VecPush(line, cast(u8)0) }
+    for index: 0..size * 5 - 1 { VecPush(candidates, cast(u8)0) }
+    for y: 0..image.height - 1 {
+        for x: 0..image.width - 1 {
+            for channel: 0..channels - 1 {
+                line[cast(s64)x * channels + channel] = image.pixels[(cast(s64)y * image.width + x) * 4 + channel]
+            }
+        }
+        // The filter whose output has the smallest sum of magnitudes, as
+        // libpng and Pillow choose adaptively.
+        best: s64 = 0
+        best_sum: s64 = -1
+        for kind: 0..4 {
+            sum: s64 = 0
+            for index: 0..size - 1 {
+                value := cast(s32)line[index]
+                left: s32 = ifx index >= channels then cast(s32)line[index - channels] else 0
+                up: s32 = ifx y > 0 then cast(s32)above[index] else 0
+                corner: s32 = ifx y > 0 && index >= channels then cast(s32)above[index - channels] else 0
+                predicted: s32 = 0
+                if kind == 1 { predicted = left }
+                else if kind == 2 { predicted = up }
+                else if kind == 3 { predicted = (left + up) / 2 }
+                else if kind == 4 { predicted = Paeth(left, up, corner) }
+                filtered := (value - predicted) & 255
+                candidates[kind * size + index] = cast(u8)filtered
+                sum += Magnitude(filtered)
+            }
+            if best_sum < 0 || sum < best_sum { best_sum = sum; best = kind }
+        }
+        VecPush(raw, cast(u8)best)
+        for index: 0..size - 1 { VecPush(raw, candidates[best * size + index]) }
+        for index: 0..size - 1 { above[index] = line[index] }
+    }
+    Signature(output)
+    HeaderChunk(output, image.width, image.height, ifx alpha then cast(u8)6 else cast(u8)2)
+    return DataChunks(output, VecSlice(raw, 0, raw.count), level)
+}
+
+// Encodes a palette picture with 8-bit indices, appending the file's bytes
+// to OUTPUT.
+WriteIndexedPNG :: (image: *IndexedImage, output: *Vec(u8), level: s32 = 9) -> bool {
+    entries := image.palette.count / 3
+    if image.width <= 0 || image.height <= 0 || entries < 1 || entries > 256 ||
+        image.indices.count != cast(s64)image.width * image.height { return false }
+    raw: Vec(u8)
+    for y: 0..image.height - 1 {
+        VecPush(raw, cast(u8)0)
+        for x: 0..image.width - 1 { VecPush(raw, image.indices[cast(s64)y * image.width + x]) }
+    }
+    Signature(output)
+    HeaderChunk(output, image.width, image.height, 3)
+    palette: Vec(u8)
+    for index: 0..image.palette.count - 1 { VecPush(palette, image.palette[index]) }
+    Chunk(output, "PLTE", VecSlice(palette, 0, palette.count))
+    return DataChunks(output, VecSlice(raw, 0, raw.count), level)
+}
+
+// The picture in a PNG file; invalid when it cannot be read.
+ReadPNGFile :: (path: string) -> Image {
+    bytes: Vec(u8)
+    if !ReadFileInto(path, *bytes) { return NewImage(0, 0) }
+    return ReadPNG(VecSlice(bytes, 0, bytes.count))
+}
+
+WritePNGFile :: (path: string, image: *Image, alpha: bool = true) -> bool {
+    bytes: Vec(u8)
+    if !WritePNG(image, *bytes, alpha) { return false }
+    return WriteEntireFile(path, BuilderFinish(bytes))
+}
+
+WriteIndexedPNGFile :: (path: string, image: *IndexedImage) -> bool {
+    bytes: Vec(u8)
+    if !WriteIndexedPNG(image, *bytes) { return false }
+    return WriteEntireFile(path, BuilderFinish(bytes))
+}

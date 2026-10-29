@@ -1,0 +1,504 @@
+// RGBA pictures in memory and what build tools do with them: resize,
+// composite, paste, rotate and reduce to a palette. An Image holds 8-bit
+// red, green, blue and straight (not premultiplied) alpha per pixel, rows
+// top to bottom with no padding. std/png_linux reads and writes them.
+//
+//     sprite := ResizeNearest(*tile, 16, 16)
+//     board := NewImage(192, 320)
+//     AlphaComposite(*board, *sprite, x, y)
+//     palette := QuantizeImage(*board, 192, true)
+//
+// Resizing and compositing follow Pillow's arithmetic: resizing an RGBA
+// image with a filter premultiplies alpha, and AlphaComposite is
+// Image.alpha_composite, so pictures match the ones Pillow made.
+using Vectors :: #import "vec"
+#import "math"
+#import "hash_map"
+
+Image :: struct {
+    width: s32
+    height: s32
+    pixels: Vec(u8)
+}
+
+// A palette picture: one palette index per pixel, and RGB palette entries.
+IndexedImage :: struct {
+    width: s32
+    height: s32
+    palette: Vec(u8)
+    indices: Vec(u8)
+}
+
+// A WIDTH by HEIGHT picture filled with one colour, transparent black by
+// default.
+NewImage :: (width: s32, height: s32, red: u8 = 0, green: u8 = 0, blue: u8 = 0, alpha: u8 = 0) -> Image {
+    image: Image
+    if width > 0 && height > 0 {
+        image.width = width
+        image.height = height
+        count := cast(s64)width * height
+        index: s64 = 0
+        while index < count {
+            VecPush(image.pixels, red)
+            VecPush(image.pixels, green)
+            VecPush(image.pixels, blue)
+            VecPush(image.pixels, alpha)
+            index += 1
+        }
+    }
+    return image
+}
+
+// Whether the picture has a size and every pixel.
+ImageValid :: (image: *Image) -> bool {
+    return image.width > 0 && image.height > 0 && image.pixels.count == cast(s64)image.width * image.height * 4
+}
+
+CopyImage :: (image: *Image) -> Image {
+    copy := NewImage(image.width, image.height)
+    index: s64 = 0
+    while index < copy.pixels.count { copy.pixels[index] = image.pixels[index]; index += 1 }
+    return copy
+}
+
+// Every pixel opaque, keeping its colour, as Pillow's convert("RGB") does.
+DropAlpha :: (image: *Image) {
+    index: s64 = 3
+    while index < image.pixels.count { image.pixels[index] = 255; index += 4 }
+}
+
+// The picture turned a quarter turn counterclockwise, as Pillow's
+// Transpose.ROTATE_90.
+RotateLeft :: (image: *Image) -> Image {
+    turned := NewImage(image.height, image.width)
+    for y: 0..image.height - 1 {
+        for x: 0..image.width - 1 {
+            from := (cast(s64)y * image.width + x) * 4
+            to := (cast(s64)(image.width - 1 - x) * turned.width + y) * 4
+            for channel: 0..3 { turned.pixels[to + channel] = image.pixels[from + channel] }
+        }
+    }
+    return turned
+}
+
+// Copies SOURCE onto DESTINATION with its top left corner at X, Y,
+// replacing the pixels underneath; parts outside are cut off.
+PasteImage :: (destination: *Image, source: *Image, x: s32, y: s32) {
+    for row: 0..source.height - 1 {
+        to_y := y + row
+        if to_y < 0 || to_y >= destination.height { continue }
+        for column: 0..source.width - 1 {
+            to_x := x + column
+            if to_x < 0 || to_x >= destination.width { continue }
+            from := (cast(s64)row * source.width + column) * 4
+            to := (cast(s64)to_y * destination.width + to_x) * 4
+            for channel: 0..3 { destination.pixels[to + channel] = source.pixels[from + channel] }
+        }
+    }
+}
+
+// Draws SOURCE over DESTINATION at X, Y as Pillow's Image.alpha_composite.
+AlphaComposite :: (destination: *Image, source: *Image, x: s32, y: s32) {
+    for row: 0..source.height - 1 {
+        to_y := y + row
+        if to_y < 0 || to_y >= destination.height { continue }
+        for column: 0..source.width - 1 {
+            to_x := x + column
+            if to_x < 0 || to_x >= destination.width { continue }
+            from := (cast(s64)row * source.width + column) * 4
+            to := (cast(s64)to_y * destination.width + to_x) * 4
+            source_alpha := cast(u32)source.pixels[from + 3]
+            if source_alpha == 0 { continue }
+            blend := cast(u32)destination.pixels[to + 3] * (255 - source_alpha)
+            alpha255 := source_alpha * 255 + blend
+            first := source_alpha * 255 * 255 * 128 / alpha255
+            second := 255 * 128 - first
+            for channel: 0..2 {
+                mixed := cast(u32)source.pixels[from + channel] * first + cast(u32)destination.pixels[to + channel] * second
+                destination.pixels[to + channel] = cast(u8)(Divide255(mixed + 16384) >> 7)
+            }
+            destination.pixels[to + 3] = cast(u8)Divide255(alpha255 + 128)
+        }
+    }
+}
+
+#scope_file
+Divide255 :: (value: u32) -> u32 { return ((value >> 8) + value) >> 8 }
+
+// Fixed-point weights, as Pillow keeps them for 8-bit pictures.
+PRECISION :: 22;
+
+Weights :: struct {
+    size: s32
+    bounds: Vec(s32)
+    weights: Vec(s32)
+}
+
+Sinc :: (x: float64) -> float64 {
+    if x == 0.0 { return 1.0 }
+    angle := x * 3.14159265358979323846
+    return Sin(angle) / angle
+}
+
+Filter :: (lanczos: bool, x: float64) -> float64 {
+    if lanczos {
+        if x >= -3.0 && x < 3.0 { return Sinc(x) * Sinc(x / 3.0) }
+        return 0.0
+    }
+    if x > -0.5 && x <= 0.5 { return 1.0 }
+    return 0.0
+}
+
+Truncate :: (value: float64) -> s32 { return cast(s32)value }
+
+// Pillow's precompute_coeffs and normalize_coeffs_8bpc for one axis.
+Coefficients :: (input: s32, output: s32, lanczos: bool) -> Weights {
+    result: Weights
+    scale := cast(float64)input / cast(float64)output
+    filter_scale := ifx scale < 1.0 then 1.0 else scale
+    support := (ifx lanczos then 3.0 else 0.5) * filter_scale
+    whole := Truncate(support)
+    if cast(float64)whole < support { whole += 1 }
+    size := whole * 2 + 1
+    result.size = size
+    values: Vec(float64)
+    for out: 0..output - 1 {
+        center := (cast(float64)out + 0.5) * scale
+        low := Truncate(center - support + 0.5)
+        if low < 0 { low = 0 }
+        high := Truncate(center + support + 0.5)
+        if high > input { high = input }
+        high -= low
+        VecClear(values)
+        total := 0.0
+        for at: 0..size - 1 {
+            weight := 0.0
+            if at < high { weight = Filter(lanczos, (cast(float64)(at + low) - center + 0.5) / filter_scale) }
+            VecPush(values, weight)
+            total += weight
+        }
+        for at: 0..size - 1 {
+            weight := values[at]
+            if at < high && total != 0.0 { weight = weight / total }
+            scaled := weight * cast(float64)(1 << PRECISION)
+            VecPush(result.weights, ifx scaled < 0.0 then Truncate(scaled - 0.5) else Truncate(scaled + 0.5))
+        }
+        VecPush(result.bounds, low)
+        VecPush(result.bounds, high)
+    }
+    return result
+}
+
+Clip8 :: (value: s64) -> u8 {
+    if value >= cast(s64)255 << PRECISION { return 255 }
+    if value <= 0 { return 0 }
+    return cast(u8)(value >> PRECISION)
+}
+
+Premultiply :: (image: *Image) {
+    index: s64 = 0
+    while index < image.pixels.count {
+        alpha := cast(u32)image.pixels[index + 3]
+        for channel: 0..2 {
+            value := cast(u32)image.pixels[index + channel] * alpha + 128
+            image.pixels[index + channel] = cast(u8)(((value >> 8) + value) >> 8)
+        }
+        index += 4
+    }
+}
+
+Unpremultiply :: (image: *Image) {
+    index: s64 = 0
+    while index < image.pixels.count {
+        alpha := cast(u32)image.pixels[index + 3]
+        if alpha != 0 && alpha != 255 {
+            for channel: 0..2 {
+                value := 255 * cast(u32)image.pixels[index + channel] / alpha
+                image.pixels[index + channel] = cast(u8)(ifx value > 255 then 255 else value)
+            }
+        }
+        index += 4
+    }
+}
+
+Horizontal :: (image: *Image, width: s32, lanczos: bool) -> Image {
+    weights := Coefficients(image.width, width, lanczos)
+    result := NewImage(width, image.height)
+    for y: 0..image.height - 1 {
+        for x: 0..width - 1 {
+            low := weights.bounds[x * 2]
+            count := weights.bounds[x * 2 + 1]
+            sums: [4]s64 = .[1 << (PRECISION - 1), 1 << (PRECISION - 1), 1 << (PRECISION - 1), 1 << (PRECISION - 1)]
+            for at: 0..count - 1 {
+                weight := cast(s64)weights.weights[x * weights.size + at]
+                from := (cast(s64)y * image.width + low + at) * 4
+                for channel: 0..3 { sums[channel] += cast(s64)image.pixels[from + channel] * weight }
+            }
+            to := (cast(s64)y * width + x) * 4
+            for channel: 0..3 { result.pixels[to + channel] = Clip8(sums[channel]) }
+        }
+    }
+    return result
+}
+
+Vertical :: (image: *Image, height: s32, lanczos: bool) -> Image {
+    weights := Coefficients(image.height, height, lanczos)
+    result := NewImage(image.width, height)
+    for y: 0..height - 1 {
+        low := weights.bounds[y * 2]
+        count := weights.bounds[y * 2 + 1]
+        for x: 0..image.width - 1 {
+            sums: [4]s64 = .[1 << (PRECISION - 1), 1 << (PRECISION - 1), 1 << (PRECISION - 1), 1 << (PRECISION - 1)]
+            for at: 0..count - 1 {
+                weight := cast(s64)weights.weights[y * weights.size + at]
+                from := (cast(s64)(low + at) * image.width + x) * 4
+                for channel: 0..3 { sums[channel] += cast(s64)image.pixels[from + channel] * weight }
+            }
+            to := (cast(s64)y * image.width + x) * 4
+            for channel: 0..3 { result.pixels[to + channel] = Clip8(sums[channel]) }
+        }
+    }
+    return result
+}
+
+Resample :: (image: *Image, width: s32, height: s32, lanczos: bool) -> Image {
+    if !ImageValid(image) || width <= 0 || height <= 0 { return NewImage(0, 0) }
+    work := CopyImage(image)
+    Premultiply(*work)
+    if width != image.width && height != image.height {
+        wide := Horizontal(*work, width, lanczos)
+        both := Vertical(*wide, height, lanczos)
+        Unpremultiply(*both)
+        return both
+    }
+    if width != image.width {
+        wide := Horizontal(*work, width, lanczos)
+        Unpremultiply(*wide)
+        return wide
+    }
+    if height != image.height {
+        tall := Vertical(*work, height, lanczos)
+        Unpremultiply(*tall)
+        return tall
+    }
+    Unpremultiply(*work)
+    return work
+}
+
+#scope_export
+// Pillow's Resampling.NEAREST: each pixel copies the source pixel under its
+// centre, positions stepped as Pillow steps them.
+ResizeNearest :: (image: *Image, width: s32, height: s32) -> Image {
+    if !ImageValid(image) || width <= 0 || height <= 0 { return NewImage(0, 0) }
+    result := NewImage(width, height)
+    columns: Vec(s32)
+    step_x := cast(float64)image.width / cast(float64)width
+    position := step_x * 0.5
+    for x: 0..width - 1 {
+        VecPush(columns, Truncate(position))
+        position += step_x
+    }
+    step_y := cast(float64)image.height / cast(float64)height
+    position = step_y * 0.5
+    for y: 0..height - 1 {
+        from_y := Truncate(position)
+        position += step_y
+        for x: 0..width - 1 {
+            from := (cast(s64)from_y * image.width + columns[x]) * 4
+            to := (cast(s64)y * width + x) * 4
+            for channel: 0..3 { result.pixels[to + channel] = image.pixels[from + channel] }
+        }
+    }
+    return result
+}
+
+// Pillow's Resampling.BOX: each pixel averages the source pixels it covers.
+ResizeBox :: (image: *Image, width: s32, height: s32) -> Image {
+    return Resample(image, width, height, false)
+}
+
+// Pillow's Resampling.LANCZOS, three lobes.
+ResizeLanczos :: (image: *Image, width: s32, height: s32) -> Image {
+    return Resample(image, width, height, true)
+}
+
+#scope_export
+// A run of colours that one palette entry stands for (QuantizeImage's
+// working state; public only so a vector of them compiles).
+ImageColorBox :: struct {
+    start: s64
+    count: s64
+}
+
+#scope_file
+
+ColorKey :: (red: s32, green: s32, blue: s32) -> u32 {
+    return (cast(u32)red << 16) | (cast(u32)green << 8) | cast(u32)blue
+}
+
+Channel :: (color: u32, channel: s64) -> s32 { return cast(s32)((color >> cast(u32)(16 - channel * 8)) & 255) }
+
+// Sorts COLORS[start:start+count] by one channel (insertion sort per box
+// keeps equal colours in place; boxes stay small once split).
+SortBy :: (colors: *Vec(u32), weights: *Vec(s64), start: s64, count: s64, channel: s64) {
+    for at: start + 1..start + count - 1 {
+        color := (<<colors)[at]
+        weight := (<<weights)[at]
+        key := Channel(color, channel)
+        to := at
+        while to > start && Channel((<<colors)[to - 1], channel) > key {
+            (<<colors)[to] = (<<colors)[to - 1]
+            (<<weights)[to] = (<<weights)[to - 1]
+            to -= 1
+        }
+        (<<colors)[to] = color
+        (<<weights)[to] = weight
+    }
+}
+
+Nearest :: (palette: *Vec(u8), entries: s32, red: s32, green: s32, blue: s32) -> s32 {
+    best: s32 = 0
+    best_distance: s32 = 2147483647
+    for entry: 0..entries - 1 {
+        dr := red - cast(s32)(<<palette)[entry * 3]
+        dg := green - cast(s32)(<<palette)[entry * 3 + 1]
+        db := blue - cast(s32)(<<palette)[entry * 3 + 2]
+        distance := dr * dr + dg * dg + db * db
+        if distance < best_distance { best_distance = distance; best = entry }
+    }
+    return best
+}
+
+Clamp :: (value: s32) -> s32 {
+    if value < 0 { return 0 }
+    if value > 255 { return 255 }
+    return value
+}
+
+#scope_export
+// The picture's colours reduced to at most COLORS palette entries by median
+// cut, alpha dropped, with Floyd–Steinberg error diffusion when DITHER.
+// A picture with no more colours than that keeps every one exactly.
+QuantizeImage :: (image: *Image, colors: s32, dither: bool) -> IndexedImage {
+    if !ImageValid(image) || colors < 1 || colors > 256 {
+        empty: IndexedImage
+        return empty
+    }
+    result: IndexedImage
+    result.width = image.width
+    result.height = image.height
+    counts: HashMap(u32, s64)
+    pixels := cast(s64)image.width * image.height
+    for at: 0..pixels - 1 {
+        key := ColorKey(image.pixels[at * 4], image.pixels[at * 4 + 1], image.pixels[at * 4 + 2])
+        count: s64 = 0
+        unused HashMapGet(*counts, key, *count)
+        HashMapSet(*counts, key, count + 1)
+    }
+    unique: Vec(u32)
+    weights: Vec(s64)
+    for slot: 0..counts.states.count - 1 {
+        if counts.states[slot] == 1 {
+            VecPush(unique, counts.keys[slot])
+            VecPush(weights, counts.values[slot])
+        }
+    }
+    // Boxes of colours, split at the weighted median of their widest channel.
+    boxes: Vec(ImageColorBox)
+    first: ImageColorBox = .{start = 0, count = unique.count}
+    VecPush(boxes, first)
+    while boxes.count < colors {
+        chosen: s64 = -1
+        chosen_range: s32 = 0
+        chosen_channel: s64 = 0
+        for index: 0..boxes.count - 1 {
+            box := boxes[index]
+            if box.count < 2 { continue }
+            for channel: 0..2 {
+                low: s32 = 255
+                high: s32 = 0
+                for at: box.start..box.start + box.count - 1 {
+                    value := Channel(unique[at], channel)
+                    if value < low { low = value }
+                    if value > high { high = value }
+                }
+                if high - low > chosen_range { chosen_range = high - low; chosen = index; chosen_channel = channel }
+            }
+        }
+        if chosen < 0 { break }
+        box := boxes[chosen]
+        SortBy(*unique, *weights, box.start, box.count, chosen_channel)
+        total: s64 = 0
+        for at: box.start..box.start + box.count - 1 { total += weights[at] }
+        half: s64 = 0
+        split := box.start + 1
+        for at: box.start..box.start + box.count - 2 {
+            half += weights[at]
+            split = at + 1
+            if half * 2 >= total { break }
+        }
+        left: ImageColorBox = .{start = box.start, count = split - box.start}
+        right: ImageColorBox = .{start = split, count = box.start + box.count - split}
+        boxes[chosen] = left
+        VecPush(boxes, right)
+    }
+    for index: 0..boxes.count - 1 {
+        box := boxes[index]
+        sums: [3]s64
+        total: s64 = 0
+        for at: box.start..box.start + box.count - 1 {
+            for channel: 0..2 { sums[channel] += cast(s64)Channel(unique[at], channel) * weights[at] }
+            total += weights[at]
+        }
+        for channel: 0..2 { VecPush(result.palette, cast(u8)((sums[channel] + total / 2) / total)) }
+    }
+    entries := cast(s32)boxes.count
+    exact := unique.count <= colors
+    found: HashMap(u32, s32)
+    errors: Vec(s32)
+    if dither && !exact {
+        for at: 0..(cast(s64)image.width + 2) * 2 * 3 - 1 { VecPush(errors, cast(s32)0) }
+    }
+    row_size := (cast(s64)image.width + 2) * 3
+    for y: 0..image.height - 1 {
+        current := (cast(s64)y % 2) * row_size
+        next := ((cast(s64)y + 1) % 2) * row_size
+        if dither && !exact { for at: 0..row_size - 1 { errors[next + at] = 0 } }
+        for x: 0..image.width - 1 {
+            from := (cast(s64)y * image.width + x) * 4
+            red := cast(s32)image.pixels[from]
+            green := cast(s32)image.pixels[from + 1]
+            blue := cast(s32)image.pixels[from + 2]
+            if dither && !exact {
+                spread := current + (cast(s64)x + 1) * 3
+                red = Clamp(red + (errors[spread] + 8) / 16)
+                green = Clamp(green + (errors[spread + 1] + 8) / 16)
+                blue = Clamp(blue + (errors[spread + 2] + 8) / 16)
+            }
+            key := ColorKey(red, green, blue)
+            entry: s32 = 0
+            if !HashMapGet(*found, key, *entry) {
+                entry = Nearest(*result.palette, entries, red, green, blue)
+                HashMapSet(*found, key, entry)
+            }
+            VecPush(result.indices, cast(u8)entry)
+            if dither && !exact {
+                missed: [3]s32
+                missed[0] = red - cast(s32)result.palette[entry * 3]
+                missed[1] = green - cast(s32)result.palette[entry * 3 + 1]
+                missed[2] = blue - cast(s32)result.palette[entry * 3 + 2]
+                at := (cast(s64)x + 1) * 3
+                for channel: 0..2 {
+                    error := missed[channel]
+                    errors[current + at + 3 + channel] += error * 7
+                    errors[next + at - 3 + channel] += error * 3
+                    errors[next + at + channel] += error * 5
+                    errors[next + at + 3 + channel] += error
+                }
+            }
+        }
+    }
+    HashMapFree(*counts)
+    HashMapFree(*found)
+    return result
+}

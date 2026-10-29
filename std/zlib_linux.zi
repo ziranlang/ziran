@@ -1,0 +1,83 @@
+// Whole zlib, gzip or raw deflate streams over the platform zlib, into
+// growing vectors: what PNG files, gzip archives and other formats need when
+// the result's size is not known in advance. Link the platform zlib (-lz).
+//
+//     packed: Vec(u8)
+//     if ZlibCompress(bytes, *packed, 9) { ... }
+//     unpacked: Vec(u8)
+//     if ZlibDecompress(packed_bytes, *unpacked, 64 << 20) { ... }
+//
+// WINDOW_BITS chooses the wrapper as zlib does: 15 zlib, 31 gzip, -15 raw
+// deflate; decompressing with 47 accepts zlib or gzip.
+Zip :: #import "zip_linux";
+using Vectors :: #import "vec"
+
+#scope_file
+zlib :: #system_library "z";
+Version :: () -> *u8 #foreign zlib "zlibVersion";
+DeflateInit :: (stream: *Zip.ZStream, level: s32, method: s32, window_bits: s32,
+    memory_level: s32, strategy: s32, version: *u8, stream_size: s32) -> s32 #foreign zlib "deflateInit2_";
+Deflate :: (stream: *Zip.ZStream, flush: s32) -> s32 #foreign zlib "deflate";
+DeflateEnd :: (stream: *Zip.ZStream) -> s32 #foreign zlib "deflateEnd";
+InflateInit :: (stream: *Zip.ZStream, window_bits: s32, version: *u8,
+    stream_size: s32) -> s32 #foreign zlib "inflateInit2_";
+Inflate :: (stream: *Zip.ZStream, flush: s32) -> s32 #foreign zlib "inflate";
+InflateEnd :: (stream: *Zip.ZStream) -> s32 #foreign zlib "inflateEnd";
+
+FINISH :: 4;
+STREAM_END :: 1;
+BUFFER_ERROR :: -5;
+
+#scope_export
+// Appends INPUT compressed at LEVEL (0 to 9, -1 for zlib's default) to
+// OUTPUT. False when zlib refuses the settings or the input.
+ZlibCompress :: (input: []u8, output: *Vec(u8), level: s32 = 9, window_bits: s32 = 15) -> bool {
+    if input.count > 4294967295 || level < -1 || level > 9 { return false }
+    stream: Zip.ZStream
+    empty: u8
+    stream.next_in = ifx input.count > 0 then *input[0] else *empty
+    stream.avail_in = cast(u32)input.count
+    if DeflateInit(*stream, level, 8, window_bits, 8, 0, Version(), cast(s32)size_of(Zip.ZStream)) != 0 { return false }
+    chunk: [65536]u8
+    valid := false
+    while true {
+        stream.next_out = *chunk[0]
+        stream.avail_out = 65536
+        status := Deflate(*stream, FINISH)
+        produced := 65536 - cast(s64)stream.avail_out
+        index: s64 = 0
+        while index < produced { VecPush(<<output, chunk[index]); index += 1 }
+        if status == STREAM_END { valid = true; break }
+        if status != 0 && status != BUFFER_ERROR { break }
+    }
+    if DeflateEnd(*stream) != 0 { valid = false }
+    return valid
+}
+
+// Appends the stream INPUT holds, decompressed, to OUTPUT. False for a
+// damaged or truncated stream, trailing bytes, or more than LIMIT bytes.
+ZlibDecompress :: (input: []u8, output: *Vec(u8), limit: s64, window_bits: s32 = 15) -> bool {
+    if input.count == 0 || input.count > 4294967295 || limit < 0 { return false }
+    stream: Zip.ZStream
+    stream.next_in = *input[0]
+    stream.avail_in = cast(u32)input.count
+    if InflateInit(*stream, window_bits, Version(), cast(s32)size_of(Zip.ZStream)) != 0 { return false }
+    chunk: [65536]u8
+    valid := false
+    total: s64 = 0
+    while true {
+        stream.next_out = *chunk[0]
+        stream.avail_out = 65536
+        status := Inflate(*stream, 0)
+        produced := 65536 - cast(s64)stream.avail_out
+        total += produced
+        if total > limit { break }
+        index: s64 = 0
+        while index < produced { VecPush(<<output, chunk[index]); index += 1 }
+        if status == STREAM_END { valid = stream.avail_in == 0; break }
+        if status != 0 && !(status == BUFFER_ERROR && produced > 0) { break }
+        if produced == 0 && stream.avail_in == 0 { break }
+    }
+    if InflateEnd(*stream) != 0 { valid = false }
+    return valid
+}

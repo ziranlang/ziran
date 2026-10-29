@@ -1079,6 +1079,18 @@ uncompressed length and rejects expansion beyond that length, bad checksums,
 truncation and trailing streams. Native C builds link zlib (`-lz`); Emscripten
 builds use `-sUSE_ZLIB=1`. Run `make gzip-test` for independent Python gzip
 interoperability and malformed-input tests.
+`std/image.zi` holds RGBA pictures (`Image`: width, height and straight-alpha
+pixels, rows top to bottom) and does what build tools did with Pillow:
+`ResizeNearest`, `ResizeBox` and `ResizeLanczos` give Pillow's exact pixels
+(filtered resizing premultiplies alpha as Pillow does), `AlphaComposite` is
+`Image.alpha_composite`, and `PasteImage`, `RotateLeft`, `DropAlpha` and
+`QuantizeImage` (median cut with Floyd–Steinberg dithering) complete it.
+`std/png_linux.zi` reads every standard PNG into an `Image` and writes RGBA,
+RGB and palette files; `std/jpeg.zi` writes baseline JPEGs at an IJG quality;
+`std/zlib_linux.zi` compresses and decompresses whole zlib, gzip or raw
+deflate streams into growing vectors. The PNG and zlib modules link `-lz`.
+Run `sh tests/std_image_linux.sh build/bin/ziran`, which also compares with
+Pillow when it is installed.
 `std/zip_file_linux.zi` writes stored ZIP entries directly to a caller-owned
 file from borrowed byte slices, including mapped files. The caller controls
 file creation and publication. Its test checks the output with Python's ZIP

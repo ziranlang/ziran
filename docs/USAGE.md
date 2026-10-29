@@ -1091,6 +1091,17 @@ RGB and palette files; `std/jpeg.zi` writes baseline JPEGs at an IJG quality;
 deflate streams into growing vectors. The PNG and zlib modules link `-lz`.
 Run `sh tests/std_image_linux.sh build/bin/ziran`, which also compares with
 Pillow when it is installed.
+`std/vorbis_linux.zi` decodes one whole Ogg Vorbis stream held in memory
+into interleaved signed 16-bit little-endian PCM over the platform
+libvorbisfile: `VorbisDecode(bytes, *pcm, max_frames, *audio)` reports the
+channels, rate and frame count, and refuses truncated or chained streams,
+trailing bytes, damaged pages and anything longer than `max_frames`. Its
+records mirror the Xiph headers, and a guard after the decoder state is
+checked on every call. Only programs that import it link
+`-l:libvorbisfile.so.3` (or `-lvorbisfile` with the development package).
+`tests/vorbis_linux.sh` needs ffmpeg with libvorbis; with the Vorbis
+development headers (or `VORBIS_INCLUDE`) it also compares the record sizes
+with the C compiler's.
 `std/zip_file_linux.zi` writes stored ZIP entries directly to a caller-owned
 file from borrowed byte slices, including mapped files. The caller controls
 file creation and publication. Its test checks the output with Python's ZIP

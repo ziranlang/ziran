@@ -1,0 +1,314 @@
+// Whole Ogg Vorbis streams held in memory, decoded over the platform
+// libvorbisfile into signed 16-bit little-endian PCM. Only programs that
+// import this module need the library; link it with -lvorbisfile, or with
+// -l:libvorbisfile.so.3 where only the runtime package is installed.
+//
+//     pcm: Vec(u8)
+//     audio: VorbisAudio
+//     if VorbisDecode(ogg_bytes, *pcm, 22050 * 60, *audio) { ... }
+//
+// The records below mirror the public declarations in libogg's ogg.h and
+// libvorbis's codec.h and vorbisfile.h field for field, so the C compiler
+// lays them out exactly as the library does. Every decode also checks a
+// guard placed after its OggVorbis_File, so a library that wrote past the
+// mirror fails the decode instead of passing unnoticed.
+using Vectors :: #import "vec"
+
+// ogg_sync_state.
+OggSyncState :: struct {
+    data: *u8
+    storage: s32
+    fill: s32
+    returned: s32
+    unsynced: s32
+    headerbytes: s32
+    bodybytes: s32
+}
+
+// ogg_stream_state.
+OggStreamState :: struct {
+    body_data: *u8
+    body_storage: isize
+    body_fill: isize
+    body_returned: isize
+    lacing_vals: *s32
+    granule_vals: *s64
+    lacing_storage: isize
+    lacing_fill: isize
+    lacing_packet: isize
+    lacing_returned: isize
+    header: [282]u8
+    header_fill: s32
+    e_o_s: s32
+    b_o_s: s32
+    serialno: isize
+    pageno: isize
+    packetno: s64
+    granulepos: s64
+}
+
+// oggpack_buffer.
+OggPackBuffer :: struct {
+    endbyte: isize
+    endbit: s32
+    buffer: *u8
+    ptr: *u8
+    storage: isize
+}
+
+// vorbis_info.
+VorbisInfo :: struct {
+    version: s32
+    channels: s32
+    rate: isize
+    bitrate_upper: isize
+    bitrate_nominal: isize
+    bitrate_lower: isize
+    bitrate_window: isize
+    codec_setup: *void
+}
+
+// vorbis_dsp_state.
+VorbisDspState :: struct {
+    analysisp: s32
+    vi: *VorbisInfo
+    pcm: **float32
+    pcmret: **float32
+    pcm_storage: s32
+    pcm_current: s32
+    pcm_returned: s32
+    preextrapolate: s32
+    eofflag: s32
+    lW: isize
+    W: isize
+    nW: isize
+    centerW: isize
+    granulepos: s64
+    sequence: s64
+    glue_bits: s64
+    time_bits: s64
+    floor_bits: s64
+    res_bits: s64
+    backend_state: *void
+}
+
+// vorbis_block.
+VorbisBlock :: struct {
+    pcm: **float32
+    opb: OggPackBuffer
+    lW: isize
+    W: isize
+    nW: isize
+    pcmend: s32
+    mode: s32
+    eofflag: s32
+    granulepos: s64
+    sequence: s64
+    vd: *VorbisDspState
+    localstore: *void
+    localtop: isize
+    localalloc: isize
+    totaluse: isize
+    reap: *void
+    glue_bits: isize
+    time_bits: isize
+    floor_bits: isize
+    res_bits: isize
+    internal: *void
+}
+
+VorbisRead :: #type (destination: *void, size: usize, count: usize, source: *void) -> usize #c_call;
+VorbisSeek :: #type (source: *void, offset: s64, whence: s32) -> s32 #c_call;
+VorbisClose :: #type (source: *void) -> s32 #c_call;
+VorbisTell :: #type (source: *void) -> isize #c_call;
+
+// ov_callbacks.
+VorbisCallbacks :: struct {
+    read: VorbisRead
+    seek: VorbisSeek
+    close: VorbisClose
+    tell: VorbisTell
+}
+
+// OggVorbis_File.
+VorbisFile :: struct {
+    datasource: *void
+    seekable: s32
+    offset: s64
+    end: s64
+    oy: OggSyncState
+    links: s32
+    offsets: *s64
+    dataoffsets: *s64
+    serialnos: *isize
+    pcmlengths: *s64
+    vi: *VorbisInfo
+    vc: *void
+    pcm_offset: s64
+    ready_state: s32
+    current_serialno: isize
+    current_link: s32
+    bittrack: float64
+    samptrack: float64
+    os: OggStreamState
+    vd: VorbisDspState
+    vb: VorbisBlock
+    callbacks: VorbisCallbacks
+}
+
+// What VorbisDecode found: interleaved CHANNELS at RATE, FRAMES long.
+VorbisAudio :: struct {
+    channels: s32
+    rate: s32
+    frames: s64
+}
+
+#scope_file
+vorbisfile :: #system_library "vorbisfile";
+libc :: #system_library "libc";
+OpenCallbacks :: (source: *void, file: *VorbisFile, initial: *u8, initial_bytes: isize,
+    callbacks: VorbisCallbacks) -> s32 #foreign vorbisfile "ov_open_callbacks";
+Clear :: (file: *VorbisFile) -> s32 #foreign vorbisfile "ov_clear";
+Streams :: (file: *VorbisFile) -> isize #foreign vorbisfile "ov_streams";
+Info :: (file: *VorbisFile, link: s32) -> *VorbisInfo #foreign vorbisfile "ov_info";
+PcmTotal :: (file: *VorbisFile, link: s32) -> s64 #foreign vorbisfile "ov_pcm_total";
+Read :: (file: *VorbisFile, buffer: *u8, length: s32, big_endian: s32, word: s32, signed: s32,
+    stream: *s32) -> isize #foreign vorbisfile "ov_read";
+CopyBytes :: (destination: *void, source: *void, count: usize) -> *void #foreign libc "memcpy";
+
+GUARD :: 64
+GUARD_BYTE :: 165
+// The largest single ov_read request; the library returns at most this.
+CHUNK :: 65536
+
+Memory :: struct {
+    data: *u8
+    count: s64
+    at: s64
+}
+
+Guarded :: struct {
+    file: VorbisFile
+    guard: [GUARD]u8
+}
+
+MemoryRead :: (destination: *void, size: usize, count: usize, source: *void) -> usize {
+    memory := cast(*Memory)source
+    if size == 0 || count == 0 { return 0 }
+    left := cast(u64)(memory.count - memory.at)
+    items := left / cast(u64)size
+    if items > cast(u64)count { items = cast(u64)count }
+    bytes := items * cast(u64)size
+    if bytes > 0 { unused CopyBytes(destination, cast(*void)*memory.data[memory.at], cast(usize)bytes) }
+    memory.at += cast(s64)bytes
+    return cast(usize)items
+}
+
+MemorySeek :: (source: *void, offset: s64, whence: s32) -> s32 {
+    memory := cast(*Memory)source
+    base: s64 = 0
+    if whence == 1 { base = memory.at } else if whence == 2 { base = memory.count } else if whence != 0 { return -1 }
+    if (offset < 0 && offset < -base) || (offset > 0 && offset > memory.count - base) { return -1 }
+    memory.at = base + offset
+    return 0
+}
+
+MemoryClose :: (source: *void) -> s32 { unused source; return 0 }
+
+MemoryTell :: (source: *void) -> isize { return cast(isize)(cast(*Memory)source).at }
+
+// Whether INPUT is whole Ogg pages of one logical stream and nothing else,
+// beginning with its first page and ending with its last. libvorbisfile
+// would decode a truncated stream as a shorter one, so this refuses it.
+// The library checks each page's CRC as it decodes.
+PagesComplete :: (input: []u8) -> bool {
+    at: s64 = 0
+    serial: u32 = 0
+    while at < input.count {
+        if input.count - at < 27 { return false }
+        if input[at] != 79 || input[at + 1] != 103 || input[at + 2] != 103 || input[at + 3] != 83 { return false }
+        if input[at + 4] != 0 { return false }
+        flags := input[at + 5]
+        page_serial := cast(u32)input[at + 14] | (cast(u32)input[at + 15] << 8) |
+        (cast(u32)input[at + 16] << 16) | (cast(u32)input[at + 17] << 24)
+        first := at == 0
+        if first { serial = page_serial } else if page_serial != serial { return false }
+        if ((flags & 2) != 0) != first { return false }
+        segments := cast(s64)input[at + 26]
+        if input.count - at - 27 < segments { return false }
+        body: s64 = 0
+        for segment: cast(s64)0..segments - 1 { body += cast(s64)input[at + 27 + segment] }
+        at += 27 + segments + body
+        if at > input.count { return false }
+        if ((flags & 4) != 0) != (at == input.count) { return false }
+    }
+    return at > 0
+}
+
+GuardIntact :: (state: *Guarded) -> bool {
+    for at: 0..GUARD - 1 {
+        if state.guard[at] != cast(u8)GUARD_BYTE { return false }
+    }
+    return true
+}
+
+#scope_export
+// Replaces OUTPUT with the decoded samples of the single Ogg Vorbis stream
+// INPUT holds: interleaved, signed 16-bit little-endian. False, with OUTPUT
+// empty, for anything else: an empty, damaged or truncated stream, trailing
+// bytes, chained streams, a stream whose decoded length differs from its
+// declared length, or one longer than MAX_FRAMES frames.
+VorbisDecode :: (input: []u8, output: *Vec(u8), max_frames: s64, audio: *VorbisAudio) -> bool {
+    VecClear(<<output)
+    <<audio = VorbisAudio.{}
+    if input.count == 0 || max_frames <= 0 || !PagesComplete(input) { return false }
+    memory := Memory.{.data = *input[0], .count = input.count, .at = 0}
+    state: Guarded
+    for at: 0..GUARD - 1 { state.guard[at] = cast(u8)GUARD_BYTE }
+    callbacks: VorbisCallbacks
+    callbacks.read = MemoryRead
+    callbacks.seek = MemorySeek
+    callbacks.close = MemoryClose
+    callbacks.tell = MemoryTell
+    // A failed open has already cleared the file.
+    if OpenCallbacks(cast(*void)*memory, *state.file, null, 0, callbacks) != 0 { return false }
+    valid := Decode(*state.file, output, max_frames, audio)
+    unused Clear(*state.file)
+    if !GuardIntact(*state) { valid = false }
+    if !valid {
+        VecClear(<<output)
+        <<audio = VorbisAudio.{}
+    }
+    return valid
+}
+
+#scope_file
+Decode :: (file: *VorbisFile, output: *Vec(u8), max_frames: s64, audio: *VorbisAudio) -> bool {
+    if Streams(file) != 1 { return false }
+    info := Info(file, -1)
+    if info == null || info.channels < 1 || info.channels > 255 || info.rate < 1 || info.rate > 768000 { return false }
+    frames := PcmTotal(file, -1)
+    if frames <= 0 || frames > max_frames || frames > (cast(s64)1 << 40) { return false }
+    bytes := frames * cast(s64)info.channels * 2
+    samples: Vec(u8)
+    for at: cast(s64)0..bytes - 1 { VecPush(samples, cast(u8)0) }
+    if !ReadAll(file, VecSlice(samples, 0, bytes)) { return false }
+    <<audio = VorbisAudio.{.channels = info.channels, .rate = cast(s32)info.rate, .frames = frames}
+    VecSwap(samples, <<output)
+    return true
+}
+
+// Fills PCM exactly, then requires the stream to end there.
+ReadAll :: (file: *VorbisFile, pcm: []u8) -> bool {
+    at: s64 = 0
+    stream: s32 = 0
+    while at < pcm.count {
+        request := pcm.count - at
+        if request > CHUNK { request = CHUNK }
+        read := cast(s64)Read(file, *pcm[at], cast(s32)request, 0, 2, 1, *stream)
+        if read <= 0 || stream != 0 || read > request { return false }
+        at += read
+    }
+    extra: [4096]u8
+    return Read(file, *extra[0], 4096, 0, 2, 1, *stream) == 0
+}

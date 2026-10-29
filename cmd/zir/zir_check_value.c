@@ -1603,8 +1603,9 @@ vec_option_result_type(Checker *c, const char *element, ZirSourceSpan span,
         error(c, span, "cannot register Vec result record", name);
         return 0;
     }
-    instance->is_public = generic->is_public;
-    instance->is_file_private = generic->is_file_private;
+    int arguments_public = TypeArgumentsPublic(c->module, canonical);
+    instance->is_public = generic->is_public && arguments_public;
+    instance->is_file_private = generic->is_file_private || !arguments_public;
     instance->is_type_instance = 1;
     instance->is_synthetic_application = 1;
     copy_text(instance->template_name, sizeof(instance->template_name),

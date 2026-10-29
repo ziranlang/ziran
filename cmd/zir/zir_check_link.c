@@ -192,6 +192,32 @@ canonical_type_arguments(const char *source, char *output, size_t capacity)
 }
 /* Buffers rewrite_type_applications keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
+/* A type application such as Vec(Pixel) stays private to its module when
+ * an argument names one of the module's private types: other modules cannot
+ * spell it, and its C definition must not reach their headers. */
+int
+TypeArgumentsPublic(const ZirModule *module, const char *arguments)
+{
+    const char *cursor = arguments;
+    while(cursor != NULL && *cursor) {
+        if(isalpha((unsigned char)*cursor) || *cursor == '_') {
+            char name[ZIR_NAME_MAX];
+            size_t length = 0;
+            while((isalnum((unsigned char)*cursor) || *cursor == '_') &&
+                  length + 1 < sizeof(name))
+                name[length++] = *cursor++;
+            name[length] = '\0';
+            while(isalnum((unsigned char)*cursor) || *cursor == '_') cursor++;
+            const ZirModule *owner = NULL;
+            const ZirType *type = FindType(module, name, &owner);
+            if(type != NULL && owner == module && !type->is_public) return 0;
+            continue;
+        }
+        cursor++;
+    }
+    return 1;
+}
+
 typedef struct RewriteTypeApplicationsBuffers {
     char arguments[ZIR_TEXT_MAX];
     char expanded[ZIR_TEXT_MAX];
@@ -302,8 +328,9 @@ rewrite_type_applications_with_buffers(ZirModule *module, const char *source,
                     int generic_file_private = generic->is_file_private;
                     instance = ModuleAddType(module, name, span);
                     if(instance == NULL) return 0;
-                    instance->is_public = generic_public;
-                    instance->is_file_private = generic_file_private;
+                    int arguments_public = TypeArgumentsPublic(module, buffers->canonical);
+                    instance->is_public = generic_public && arguments_public;
+                    instance->is_file_private = generic_file_private || !arguments_public;
                     instance->is_type_instance = 1;
                     instance->is_synthetic_application = 1;
                     copy_text(instance->template_name,

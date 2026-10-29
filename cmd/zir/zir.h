@@ -475,6 +475,8 @@ int ResolveGlobal(const ZirModule *module, const char *name,
 const ZirType *FindType(const ZirModule *module, const char *name,
                         const ZirModule **owner);
 const ZirType *BuiltinType(const char *name);
+/* False when ARGUMENTS name one of MODULE's private types. */
+int TypeArgumentsPublic(const ZirModule *module, const char *arguments);
 /* True for a name the language defines as a type (s32, string, int, ...);
  * no module may declare a type with such a name. */
 int BuiltinTypeName(const char *name);

@@ -1056,6 +1056,15 @@ instead of a maximum-size string buffer. Invalid input or an exceeded limit
 returns no decoded bytes. Run `sh tests/json_string_value.sh build/bin/ziran`
 for source/saved-IR VM and cross-target Unicode, ownership and boundary checks.
 
+`std/json_document.zi` reads a whole document into a tree of numbered nodes
+that a program queries (`JsonMember`, `JsonElement`, `JsonFirst`/`JsonNext`,
+`JsonString`, `JsonInteger`), changes (`JsonSet` keeps a replaced member in
+place, `JsonAppend`, `JsonRemove`, `JsonCopy`) and writes back. `JsonWrite`
+lays the text out as Python's `json.dumps` does for the same style: indent,
+separators, ensure_ascii escapes and sort_keys, so tools can rewrite files that
+Python wrote without changing their bytes. Numbers keep the text they were read
+with. Run `sh tests/std_json_document.sh build/bin/ziran` for its checks.
+
 `std/zip.zi` reads classic ZIP directories from caller-owned bytes, verifies
 stored entries with CRC-32, and writes stored archives into caller-owned output.
 It rejects split, encrypted, and malformed archives, and duplicate requested

@@ -1,0 +1,689 @@
+// JSON documents read into a tree that programs query, change and write
+// back. Nodes live in the document's vector and are named by their index;
+// -1 names no node, and every query accepts it.
+//
+//     document: JsonDocument
+//     if !JsonRead(*document, text) { print("%\n", document.error) }
+//     levels := JsonMember(*document, document.root, "levels")
+//     level := JsonFirst(*document, levels)
+//     while level >= 0 {
+//         number, ok := JsonInteger(*document, JsonMember(*document, level, "number"))
+//         level = JsonNext(*document, level)
+//     }
+//     JsonSet(*document, document.root, "count", JsonNewInteger(*document, 3))
+//     saved := JsonWrite(*document, document.root, JsonPythonStyle(1))
+//
+// JsonWrite lays text out as Python's json.dumps does for the same style:
+// separators, indentation, empty containers, ensure_ascii escapes and
+// sort_keys. Numbers keep the text they were read with. Strings without
+// escapes are views of the text that was read, so keep that text alive
+// while the document is used. Objects keep every member in order; a
+// repeated name is answered by its last member, as Python's dict reads it.
+using Vectors :: #import "vec"
+
+JsonKind :: enum u8 { Missing :: 0; Null :: 1; False :: 2; True :: 3; Number :: 4; String :: 5; Array :: 6; Object :: 7; }
+
+JsonNode :: struct {
+    kind: JsonKind
+    // A number's text, or a string's decoded value.
+    text: string
+    // The member name, when the node belongs to an object.
+    key: string
+    first: s32
+    last: s32
+    next: s32
+    count: s32
+}
+
+JsonDocument :: struct {
+    nodes: Vec(JsonNode)
+    root: s32
+    // Why the last JsonRead failed, and the byte offset where it did.
+    error: string
+    error_at: s64
+}
+
+JsonStyle :: struct {
+    // Spaces per level; below zero writes everything on one line.
+    indent: s32
+    item_separator: string
+    key_separator: string
+    // Writes every non-ASCII character as \uXXXX, as ensure_ascii does.
+    ascii: bool
+    sort_keys: bool
+}
+
+// The style of Python's json.dumps(value, indent=INDENT); a negative INDENT
+// stands for indent=None. ASCII escapes are on, as ensure_ascii's default.
+JsonPythonStyle :: (indent: s32 = -1, ascii: bool = true, sort_keys: bool = false) -> JsonStyle {
+    style: JsonStyle
+    style.indent = indent
+    style.item_separator = ifx indent < 0 then ", " else ","
+    style.key_separator = ": "
+    style.ascii = ascii
+    style.sort_keys = sort_keys
+    return style
+}
+
+// One line with separators=(',', ':').
+JsonCompactStyle :: (ascii: bool = true, sort_keys: bool = false) -> JsonStyle {
+    style := JsonPythonStyle(-1, ascii, sort_keys)
+    style.item_separator = ","
+    style.key_separator = ":"
+    return style
+}
+
+#scope_file
+MAX_DEPTH :: 512;
+
+Reader :: struct {
+    text: string
+    at: s64
+    error: string
+}
+
+Add :: (document: *JsonDocument, kind: JsonKind, text: string) -> s32 {
+    node: JsonNode
+    node.kind = kind
+    node.text = text
+    node.first = -1
+    node.last = -1
+    node.next = -1
+    VecPush(document.nodes, node)
+    return cast(s32)(document.nodes.count - 1)
+}
+
+Link :: (document: *JsonDocument, parent: s32, child: s32) {
+    document.nodes[child].next = -1
+    if document.nodes[parent].last < 0 {
+        document.nodes[parent].first = child
+    } else {
+        document.nodes[document.nodes[parent].last].next = child
+    }
+    document.nodes[parent].last = child
+    document.nodes[parent].count += 1
+}
+
+Skip :: (reader: *Reader) {
+    while reader.at < reader.text.count {
+        byte := reader.text[reader.at]
+        if byte != 32 && byte != 9 && byte != 10 && byte != 13 { return }
+        reader.at += 1
+    }
+}
+
+Fail :: (reader: *Reader, message: string) -> s32 {
+    if reader.error.count == 0 { reader.error = message }
+    return -1
+}
+
+Digit :: (byte: u8) -> bool { return byte >= #char "0" && byte <= #char "9" }
+
+HexValue :: (byte: u8) -> s32 {
+    if byte >= #char "0" && byte <= #char "9" { return cast(s32)(byte - #char "0") }
+    if byte >= #char "a" && byte <= #char "f" { return cast(s32)(byte - #char "a") + 10 }
+    if byte >= #char "A" && byte <= #char "F" { return cast(s32)(byte - #char "A") + 10 }
+    return -1
+}
+
+Hex4 :: (reader: *Reader, at: s64) -> s32 {
+    if at + 4 > reader.text.count { return -1 }
+    value: s32 = 0
+    index: s64 = 0
+    while index < 4 {
+        digit := HexValue(reader.text[at + index])
+        if digit < 0 { return -1 }
+        value = value * 16 + digit
+        index += 1
+    }
+    return value
+}
+
+PutCodePoint :: (bytes: *Vec(u8), point: s32) {
+    if point < 128 {
+        VecPush(<<bytes, cast(u8)point)
+    } else if point < 2048 {
+        VecPush(<<bytes, cast(u8)(192 | (point >> 6)))
+        VecPush(<<bytes, cast(u8)(128 | (point & 63)))
+    } else if point < 65536 {
+        VecPush(<<bytes, cast(u8)(224 | (point >> 12)))
+        VecPush(<<bytes, cast(u8)(128 | ((point >> 6) & 63)))
+        VecPush(<<bytes, cast(u8)(128 | (point & 63)))
+    } else {
+        VecPush(<<bytes, cast(u8)(240 | (point >> 18)))
+        VecPush(<<bytes, cast(u8)(128 | ((point >> 12) & 63)))
+        VecPush(<<bytes, cast(u8)(128 | ((point >> 6) & 63)))
+        VecPush(<<bytes, cast(u8)(128 | (point & 63)))
+    }
+}
+
+// Reads the string starting at the opening quote; the text is a view when
+// it has no escapes.
+ReadString :: (reader: *Reader, text: string, ok: *bool) -> string {
+    <<ok = false
+    start := reader.at + 1
+    at := start
+    plain := true
+    while at < reader.text.count {
+        byte := reader.text[at]
+        if byte == #char "\"" { break }
+        if byte < 32 { Fail(reader, "control character in a string"); reader.at = at; return "" }
+        if byte == #char "\\" { plain = false; at += 1 }
+        at += 1
+    }
+    if at >= reader.text.count { Fail(reader, "unterminated string"); reader.at = at; return "" }
+    if plain {
+        reader.at = at + 1
+        <<ok = true
+        return text[start:at]
+    }
+    bytes: Vec(u8)
+    at = start
+    while reader.text[at] != #char "\"" {
+        byte := reader.text[at]
+        if byte != #char "\\" {
+            VecPush(bytes, byte)
+            at += 1
+            continue
+        }
+        escape := reader.text[at + 1]
+        at += 2
+        if escape == #char "\"" || escape == #char "\\" || escape == #char "/" { VecPush(bytes, escape) }
+        else if escape == #char "b" { VecPush(bytes, cast(u8)8) }
+        else if escape == #char "f" { VecPush(bytes, cast(u8)12) }
+        else if escape == #char "n" { VecPush(bytes, cast(u8)10) }
+        else if escape == #char "r" { VecPush(bytes, cast(u8)13) }
+        else if escape == #char "t" { VecPush(bytes, cast(u8)9) }
+        else if escape == #char "u" {
+            point := Hex4(reader, at)
+            if point < 0 { Fail(reader, "invalid \\u escape"); reader.at = at; return "" }
+            at += 4
+            // A high surrogate followed by a low one is one character; a
+            // lone surrogate keeps its own code, as Python's str does.
+            if point >= 55296 && point < 56320 && at + 6 <= reader.text.count &&
+                reader.text[at] == #char "\\" && reader.text[at + 1] == #char "u" {
+                low := Hex4(reader, at + 2)
+                if low >= 56320 && low < 57344 {
+                    point = 65536 + ((point - 55296) << 10) + (low - 56320)
+                    at += 6
+                }
+            }
+            PutCodePoint(*bytes, point)
+        } else {
+            Fail(reader, "invalid escape")
+            reader.at = at - 1
+            return ""
+        }
+    }
+    reader.at = at + 1
+    <<ok = true
+    return BuilderFinish(bytes)
+}
+
+ReadNumber :: (reader: *Reader, document: *JsonDocument) -> s32 {
+    text := reader.text
+    start := reader.at
+    at := start
+    if at < text.count && text[at] == #char "-" { at += 1 }
+    if at >= text.count || !Digit(text[at]) { return Fail(reader, "invalid number") }
+    if text[at] == #char "0" { at += 1 } else { while at < text.count && Digit(text[at]) { at += 1 } }
+    if at < text.count && text[at] == #char "." {
+        at += 1
+        if at >= text.count || !Digit(text[at]) { reader.at = at; return Fail(reader, "invalid number") }
+        while at < text.count && Digit(text[at]) { at += 1 }
+    }
+    if at < text.count && (text[at] == #char "e" || text[at] == #char "E") {
+        at += 1
+        if at < text.count && (text[at] == #char "+" || text[at] == #char "-") { at += 1 }
+        if at >= text.count || !Digit(text[at]) { reader.at = at; return Fail(reader, "invalid number") }
+        while at < text.count && Digit(text[at]) { at += 1 }
+    }
+    reader.at = at
+    return Add(document, .Number, text[start:at])
+}
+
+Literal :: (reader: *Reader, word: string) -> bool {
+    if reader.at + word.count > reader.text.count { return false }
+    if reader.text[reader.at:reader.at + word.count] != word { return false }
+    reader.at += word.count
+    return true
+}
+
+ReadValue :: (reader: *Reader, document: *JsonDocument, depth: s32) -> s32 {
+    Skip(reader)
+    if reader.at >= reader.text.count { return Fail(reader, "expected a value") }
+    if depth > MAX_DEPTH { return Fail(reader, "too deeply nested") }
+    byte := reader.text[reader.at]
+    if byte == #char "{" {
+        object := Add(document, .Object, "")
+        reader.at += 1
+        Skip(reader)
+        if reader.at < reader.text.count && reader.text[reader.at] == #char "}" { reader.at += 1; return object }
+        while true {
+            Skip(reader)
+            if reader.at >= reader.text.count || reader.text[reader.at] != #char "\"" { return Fail(reader, "expected a member name") }
+            ok := false
+            key := ReadString(reader, reader.text, *ok)
+            if !ok { return -1 }
+            Skip(reader)
+            if reader.at >= reader.text.count || reader.text[reader.at] != #char ":" { return Fail(reader, "expected ':'") }
+            reader.at += 1
+            value := ReadValue(reader, document, depth + 1)
+            if value < 0 { return -1 }
+            document.nodes[value].key = key
+            Link(document, object, value)
+            Skip(reader)
+            if reader.at >= reader.text.count { return Fail(reader, "unterminated object") }
+            if reader.text[reader.at] == #char "," { reader.at += 1; continue }
+            if reader.text[reader.at] == #char "}" { reader.at += 1; return object }
+            return Fail(reader, "expected ',' or '}'")
+        }
+    }
+    if byte == #char "[" {
+        array := Add(document, .Array, "")
+        reader.at += 1
+        Skip(reader)
+        if reader.at < reader.text.count && reader.text[reader.at] == #char "]" { reader.at += 1; return array }
+        while true {
+            value := ReadValue(reader, document, depth + 1)
+            if value < 0 { return -1 }
+            Link(document, array, value)
+            Skip(reader)
+            if reader.at >= reader.text.count { return Fail(reader, "unterminated array") }
+            if reader.text[reader.at] == #char "," { reader.at += 1; continue }
+            if reader.text[reader.at] == #char "]" { reader.at += 1; return array }
+            return Fail(reader, "expected ',' or ']'")
+        }
+    }
+    if byte == #char "\"" {
+        ok := false
+        text := ReadString(reader, reader.text, *ok)
+        if !ok { return -1 }
+        return Add(document, .String, text)
+    }
+    if byte == #char "-" || Digit(byte) { return ReadNumber(reader, document) }
+    if Literal(reader, "true") { return Add(document, .True, "") }
+    if Literal(reader, "false") { return Add(document, .False, "") }
+    if Literal(reader, "null") { return Add(document, .Null, "") }
+    return Fail(reader, "expected a value")
+}
+
+// A string the caller owns: the borrow checker cannot follow text kept in
+// the node vector back to its storage.
+Copy :: (text: string) -> string {
+    bytes: Vec(u8)
+    BuilderAppend(bytes, text)
+    return BuilderFinish(bytes)
+}
+
+#scope_export
+// Reads TEXT as the document's root, after clearing it. False, with error
+// and error_at set, when TEXT is not one complete JSON value.
+JsonRead :: (document: *JsonDocument, text: string) -> bool {
+    VecClear(document.nodes)
+    document.root = -1
+    document.error = ""
+    document.error_at = 0
+    reader: Reader
+    reader.text = text
+    root := ReadValue(*reader, document, 0)
+    if root >= 0 {
+        Skip(*reader)
+        if reader.at < text.count { root = Fail(*reader, "extra data after the value") }
+    }
+    if root < 0 {
+        document.error = reader.error
+        document.error_at = reader.at
+        return false
+    }
+    document.root = root
+    return true
+}
+
+JsonKindOf :: (document: *JsonDocument, node: s32) -> JsonKind {
+    if node < 0 || node >= document.nodes.count { return .Missing }
+    return document.nodes[node].kind
+}
+
+// The number of elements or members.
+JsonCount :: (document: *JsonDocument, node: s32) -> s32 {
+    if node < 0 || node >= document.nodes.count { return 0 }
+    return document.nodes[node].count
+}
+
+// The first element or member, then each next one, then -1.
+JsonFirst :: (document: *JsonDocument, node: s32) -> s32 {
+    if node < 0 || node >= document.nodes.count { return -1 }
+    return document.nodes[node].first
+}
+
+JsonNext :: (document: *JsonDocument, node: s32) -> s32 {
+    if node < 0 || node >= document.nodes.count { return -1 }
+    return document.nodes[node].next
+}
+
+// A member's name.
+JsonKey :: (document: *JsonDocument, node: s32) -> string {
+    if node < 0 || node >= document.nodes.count { return "" }
+    return Copy(document.nodes[node].key)
+}
+
+// The object's last member named KEY, or -1.
+JsonMember :: (document: *JsonDocument, object: s32, key: string) -> s32 {
+    if JsonKindOf(document, object) != .Object { return -1 }
+    found: s32 = -1
+    child := document.nodes[object].first
+    while child >= 0 {
+        if document.nodes[child].key == key { found = child }
+        child = document.nodes[child].next
+    }
+    return found
+}
+
+// The array's element at INDEX, or -1.
+JsonElement :: (document: *JsonDocument, array: s32, index: s32) -> s32 {
+    if JsonKindOf(document, array) != .Array || index < 0 { return -1 }
+    child := document.nodes[array].first
+    at: s32 = 0
+    while child >= 0 && at < index {
+        child = document.nodes[child].next
+        at += 1
+    }
+    return child
+}
+
+// A string's value; "" for anything else.
+JsonString :: (document: *JsonDocument, node: s32) -> string {
+    if JsonKindOf(document, node) != .String { return "" }
+    return Copy(document.nodes[node].text)
+}
+
+// Whether NODE is the string VALUE, without copying it.
+JsonIs :: (document: *JsonDocument, node: s32, value: string) -> bool {
+    if JsonKindOf(document, node) != .String { return false }
+    return document.nodes[node].text == value
+}
+
+// A number's text as written; "" for anything else.
+JsonNumberText :: (document: *JsonDocument, node: s32) -> string {
+    if JsonKindOf(document, node) != .Number { return "" }
+    return Copy(document.nodes[node].text)
+}
+
+// A whole number without a fraction or exponent, as Python reads an int.
+JsonInteger :: (document: *JsonDocument, node: s32) -> (value: s64, ok: bool) {
+    if JsonKindOf(document, node) != .Number { return 0, false }
+    text := document.nodes[node].text
+    if text.count == 0 || text.count > 19 { return 0, false }
+    negative := text[0] == #char "-"
+    at: s64 = ifx negative then 1 else 0
+    if text.count - at > 18 { return 0, false }
+    value: s64 = 0
+    while at < text.count {
+        if !Digit(text[at]) { return 0, false }
+        value = value * 10 + cast(s64)(text[at] - #char "0")
+        at += 1
+    }
+    return ifx negative then -value else value, true
+}
+
+JsonBool :: (document: *JsonDocument, node: s32) -> (value: bool, ok: bool) {
+    kind := JsonKindOf(document, node)
+    return kind == .True, kind == .True || kind == .False
+}
+
+JsonNewNull :: (document: *JsonDocument) -> s32 { return Add(document, .Null, "") }
+
+JsonNewBool :: (document: *JsonDocument, value: bool) -> s32 {
+    return Add(document, ifx value then JsonKind.True else JsonKind.False, "")
+}
+
+JsonNewInteger :: (document: *JsonDocument, value: s64) -> s32 {
+    digits: [24]u8
+    at: s64 = 24
+    magnitude: u64 = ifx value < 0 then cast(u64)(-(value + 1)) + 1 else cast(u64)value
+    while true {
+        at -= 1
+        digits[at] = cast(u8)(48 + cast(s32)(magnitude % 10))
+        magnitude = magnitude / 10
+        if magnitude == 0 { break }
+    }
+    if value < 0 { at -= 1; digits[at] = #char "-" }
+    text: Vec(u8)
+    while at < 24 { VecPush(text, digits[at]); at += 1 }
+    return Add(document, .Number, BuilderFinish(text))
+}
+
+// A number written as TEXT, which must be a valid JSON number.
+JsonNewNumber :: (document: *JsonDocument, text: string) -> s32 { return Add(document, .Number, text) }
+
+JsonNewString :: (document: *JsonDocument, value: string) -> s32 { return Add(document, .String, value) }
+JsonNewArray :: (document: *JsonDocument) -> s32 { return Add(document, .Array, "") }
+JsonNewObject :: (document: *JsonDocument) -> s32 { return Add(document, .Object, "") }
+
+// Adds CHILD, a node not yet in any container, to the end of ARRAY.
+JsonAppend :: (document: *JsonDocument, array: s32, child: s32) -> bool {
+    if JsonKindOf(document, array) != .Array || JsonKindOf(document, child) == .Missing { return false }
+    document.nodes[child].key = ""
+    Link(document, array, child)
+    return true
+}
+
+// Sets OBJECT's member KEY to CHILD, a node not yet in any container: a
+// present member is replaced where it stands, as a Python dict keeps its
+// place, and a new one goes last.
+JsonSet :: (document: *JsonDocument, object: s32, key: string, child: s32) -> bool {
+    if JsonKindOf(document, object) != .Object || JsonKindOf(document, child) == .Missing { return false }
+    document.nodes[child].key = key
+    previous: s32 = -1
+    at := document.nodes[object].first
+    while at >= 0 {
+        if document.nodes[at].key == key {
+            document.nodes[child].next = document.nodes[at].next
+            if previous < 0 { document.nodes[object].first = child } else { document.nodes[previous].next = child }
+            if document.nodes[object].last == at { document.nodes[object].last = child }
+            // Later members with the same name go, as a dict holds one.
+            Unlink(document, object, key, child)
+            return true
+        }
+        previous = at
+        at = document.nodes[at].next
+    }
+    Link(document, object, child)
+    return true
+}
+
+#scope_file
+// Removes every member named KEY after KEEP.
+Unlink :: (document: *JsonDocument, object: s32, key: string, keep: s32) {
+    previous := keep
+    at := document.nodes[keep].next
+    while at >= 0 {
+        next := document.nodes[at].next
+        if document.nodes[at].key == key {
+            document.nodes[previous].next = next
+            if document.nodes[object].last == at { document.nodes[object].last = previous }
+            document.nodes[object].count -= 1
+        } else {
+            previous = at
+        }
+        at = next
+    }
+}
+
+#scope_export
+// Removes every member named KEY; false when there was none.
+JsonRemove :: (document: *JsonDocument, object: s32, key: string) -> bool {
+    if JsonKindOf(document, object) != .Object { return false }
+    removed := false
+    previous: s32 = -1
+    at := document.nodes[object].first
+    while at >= 0 {
+        next := document.nodes[at].next
+        if document.nodes[at].key == key {
+            if previous < 0 { document.nodes[object].first = next } else { document.nodes[previous].next = next }
+            if document.nodes[object].last == at { document.nodes[object].last = previous }
+            document.nodes[object].count -= 1
+            removed = true
+        } else {
+            previous = at
+        }
+        at = next
+    }
+    return removed
+}
+
+// Empties an array or object.
+JsonClear :: (document: *JsonDocument, node: s32) {
+    kind := JsonKindOf(document, node)
+    if kind != .Array && kind != .Object { return }
+    document.nodes[node].first = -1
+    document.nodes[node].last = -1
+    document.nodes[node].count = 0
+}
+
+// A deep copy of SOURCE's NODE as a new node of TARGET, which may be the
+// same document; returns it, or -1 for a missing node.
+JsonCopy :: (target: *JsonDocument, source: *JsonDocument, node: s32) -> s32 {
+    kind := JsonKindOf(source, node)
+    if kind == .Missing { return -1 }
+    copy := Add(target, kind, source.nodes[node].text)
+    child := source.nodes[node].first
+    while child >= 0 {
+        inner := JsonCopy(target, source, child)
+        target.nodes[inner].key = source.nodes[child].key
+        Link(target, copy, inner)
+        child = source.nodes[child].next
+    }
+    return copy
+}
+
+#scope_file
+HEX :: "0123456789abcdef";
+
+Escape :: (output: *Vec(u8), point: s32) {
+    BuilderAppend(<<output, "\\u")
+    VecPush(<<output, HEX[(point >> 12) & 15])
+    VecPush(<<output, HEX[(point >> 8) & 15])
+    VecPush(<<output, HEX[(point >> 4) & 15])
+    VecPush(<<output, HEX[point & 15])
+}
+
+#scope_export
+// Appends VALUE as a quoted JSON string, escaped as json.dumps escapes it.
+JsonQuoteInto :: (output: *Vec(u8), value: string, ascii: bool) {
+    VecPush(<<output, #char "\"")
+    at: s64 = 0
+    while at < value.count {
+        byte := value[at]
+        if byte == #char "\"" { BuilderAppend(<<output, "\\\""); at += 1; continue }
+        if byte == #char "\\" { BuilderAppend(<<output, "\\\\"); at += 1; continue }
+        if byte == 10 { BuilderAppend(<<output, "\\n"); at += 1; continue }
+        if byte == 13 { BuilderAppend(<<output, "\\r"); at += 1; continue }
+        if byte == 9 { BuilderAppend(<<output, "\\t"); at += 1; continue }
+        if byte == 8 { BuilderAppend(<<output, "\\b"); at += 1; continue }
+        if byte == 12 { BuilderAppend(<<output, "\\f"); at += 1; continue }
+        if byte < 32 || (ascii && byte == 127) { Escape(output, cast(s32)byte); at += 1; continue }
+        if byte < 128 || !ascii { VecPush(<<output, byte); at += 1; continue }
+        // A UTF-8 sequence as one code point; an invalid byte stands alone.
+        point: s32 = byte
+        length: s64 = 1
+        if byte >= 240 && at + 3 < value.count {
+            point = ((cast(s32)byte & 7) << 18) | ((cast(s32)value[at + 1] & 63) << 12) |
+                ((cast(s32)value[at + 2] & 63) << 6) | (cast(s32)value[at + 3] & 63)
+            length = 4
+        } else if byte >= 224 && at + 2 < value.count {
+            point = ((cast(s32)byte & 15) << 12) | ((cast(s32)value[at + 1] & 63) << 6) | (cast(s32)value[at + 2] & 63)
+            length = 3
+        } else if byte >= 192 && at + 1 < value.count {
+            point = ((cast(s32)byte & 31) << 6) | (cast(s32)value[at + 1] & 63)
+            length = 2
+        }
+        if point >= 65536 {
+            point -= 65536
+            Escape(output, 55296 + (point >> 10))
+            Escape(output, 56320 + (point & 1023))
+        } else {
+            Escape(output, point)
+        }
+        at += length
+    }
+    VecPush(<<output, #char "\"")
+}
+
+JsonQuote :: (value: string, ascii: bool = true) -> string {
+    output: Vec(u8)
+    JsonQuoteInto(*output, value, ascii)
+    return BuilderFinish(output)
+}
+
+#scope_file
+KeyBefore :: (a: string, b: string) -> bool {
+    index: s64 = 0
+    while index < a.count && index < b.count {
+        if a[index] != b[index] { return a[index] < b[index] }
+        index += 1
+    }
+    return a.count < b.count
+}
+
+Line :: (output: *Vec(u8), style: JsonStyle, depth: s32) {
+    VecPush(<<output, cast(u8)10)
+    spaces: s64 = cast(s64)style.indent * depth
+    while spaces > 0 { VecPush(<<output, #char " "); spaces -= 1 }
+}
+
+WriteNode :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonStyle, depth: s32) {
+    kind := document.nodes[node].kind
+    if kind == .Null { BuilderAppend(<<output, "null"); return }
+    if kind == .True { BuilderAppend(<<output, "true"); return }
+    if kind == .False { BuilderAppend(<<output, "false"); return }
+    if kind == .Number { BuilderAppend(<<output, document.nodes[node].text); return }
+    if kind == .String { JsonQuoteInto(output, document.nodes[node].text, style.ascii); return }
+    object := kind == .Object
+    if document.nodes[node].count == 0 {
+        BuilderAppend(<<output, ifx object then "{}" else "[]")
+        return
+    }
+    VecPush(<<output, ifx object then #char "{" else #char "[")
+    members: Vec(s32)
+    child := document.nodes[node].first
+    while child >= 0 { VecPush(members, child); child = document.nodes[child].next }
+    if object && style.sort_keys {
+        // Name order, ties in document order.
+        sorted: s64 = 1
+        while sorted < members.count {
+            moving := members[sorted]
+            at := sorted
+            while at > 0 && KeyBefore(document.nodes[moving].key, document.nodes[members[at - 1]].key) {
+                members[at] = members[at - 1]
+                at -= 1
+            }
+            members[at] = moving
+            sorted += 1
+        }
+    }
+    index: s64 = 0
+    while index < members.count {
+        child = members[index]
+        if index > 0 { BuilderAppend(<<output, style.item_separator) }
+        if style.indent >= 0 { Line(output, style, depth + 1) }
+        if object {
+            JsonQuoteInto(output, document.nodes[child].key, style.ascii)
+            BuilderAppend(<<output, style.key_separator)
+        }
+        WriteNode(output, document, child, style, depth + 1)
+        index += 1
+    }
+    if style.indent >= 0 { Line(output, style, depth) }
+    VecPush(<<output, ifx object then #char "}" else #char "]")
+}
+
+#scope_export
+// NODE and everything in it as JSON text in STYLE, without a final newline.
+JsonWrite :: (document: *JsonDocument, node: s32, style: JsonStyle) -> string {
+    if JsonKindOf(document, node) == .Missing { return "" }
+    output: Vec(u8)
+    WriteNode(*output, document, node, style, 0)
+    return BuilderFinish(output)
+}

@@ -1,0 +1,22 @@
+#import "environment_linux"
+#import "number_text"
+
+#program_export
+main :: () -> s32 {
+    value, count := IntegerPrefix("1280x760")
+    if value != 1280 || count != 4 { return 1 }
+    value, count = IntegerPrefix("-7")
+    if value != -7 || count != 2 { return 2 }
+    value, count = IntegerPrefix("x1")
+    if count != 0 { return 3 }
+    value, count = IntegerPrefix("-")
+    if count != 0 { return 4 }
+    value, count = IntegerPrefix("99999999999999999999")
+    if count != 0 { return 5 }
+    if EnvironmentText("ZIRAN_ENVIRONMENT_TEST") != "760 tall" { return 6 }
+    if EnvironmentNumber("ZIRAN_ENVIRONMENT_TEST", 5) != 760 { return 7 }
+    if EnvironmentText("ZIRAN_ENVIRONMENT_UNSET") != "" { return 8 }
+    if EnvironmentNumber("ZIRAN_ENVIRONMENT_UNSET", 5) != 5 { return 9 }
+    if EnvironmentNumber("ZIRAN_ENVIRONMENT_WORD", 5) != 5 { return 10 }
+    return 0
+}

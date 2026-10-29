@@ -1139,7 +1139,9 @@ programs use `std/file_go`.
 Native Linux C builds can import `std/file_linux.zi` for positional byte I/O,
 `std/binary_linux.zi` for little-endian numbers, `std/date_time_linux.zi` for
 Unix time, `std/random_linux.zi` for operating-system secure randomness, and
-`std/byte_text_linux.zi` for borrowed byte-to-text views. `std/socket_linux.zi`
+`std/byte_text_linux.zi` for borrowed byte-to-text views, and
+`std/environment_linux.zi` for environment values (`EnvironmentText`,
+`EnvironmentNumber`). `std/socket_linux.zi`
 opens literal-IPv4 TCP sockets with bounded polling, cancellation, and I/O.
 `std/timer_linux.zi` supplies monotonic millisecond timestamps and bounded,
 interruptible sleeps; it does not expose wall-clock time.

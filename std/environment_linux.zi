@@ -1,0 +1,22 @@
+// The process environment, read through the C library.
+#import "c_string"
+#import "byte_text_linux"
+#import "number_text"
+
+environment_libc :: #system_library "libc";
+EnvironmentValueRaw :: (name: *u8) -> *u8 #foreign environment_libc "getenv";
+
+// The value of `name`, or "" when it is unset. The view borrows the
+// environment and lasts until the variable changes.
+EnvironmentText :: (name: string) -> string {
+    buffer: [256]u8
+    if !CopyCString(name, buffer[:]) { return "" }
+    return TextFromCString(EnvironmentValueRaw(*buffer[0]))
+}
+
+// The whole number that starts `name`'s value, or `fallback` when it is
+// unset or does not start with one.
+EnvironmentNumber :: (name: string, fallback: s64) -> s64 {
+    value, count := IntegerPrefix(EnvironmentText(name))
+    return ifx count > 0 then value else fallback
+}

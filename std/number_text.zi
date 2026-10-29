@@ -27,6 +27,26 @@ FormatInteger :: (value: s64, output: []u8) -> string {
     return TextUntilNul(output[end:cast(s64)output.count])
 }
 
+// The whole number in base ten that starts `text`, and how many bytes it
+// spans: "42x" is 42 over 2 bytes. The count is 0 when `text` does not start
+// with a number or its digits do not fit in an s64.
+#program_export
+IntegerPrefix :: (text: string) -> (value: s64, count: s64) {
+    at: s64 = 0
+    negative: bool = text.count > 0 && text[0] == cast(u8)45
+    if negative { at = 1 }
+    start: s64 = at
+    value: s64 = 0
+    while at < cast(s64)text.count && text[at] >= cast(u8)48 && text[at] <= cast(u8)57 {
+        if at - start >= 18 { return 0, 0 }
+        value = value * cast(s64)10 + cast(s64)(text[at] - cast(u8)48)
+        at += 1
+    }
+    if at == start { return 0, 0 }
+    if negative { value = cast(s64)0 - value }
+    return value, at
+}
+
 // A number rounded to `places` digits after the point (at most 9), with
 // trailing zeros dropped: 0.5, 12, -3.25. The buffer needs 32 bytes.
 #program_export

@@ -610,8 +610,11 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             }
             names: [1]string
             values: [1]string
+            // "forwarded" marks the hand-off for tools without stopping a
+            // ziran that a tool runs from reaching the pinned launcher too;
+            // only "1" turns forwarding off.
             names[0] = "ZIRAN_PINNED_LAUNCHER"
-            values[0] = "1"
+            values[0] = "forwarded"
             return PkgRun(forwarded[0:index + 1], "", names[:], values[:])
         }
     }

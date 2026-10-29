@@ -878,7 +878,7 @@ level = "3"
         finally:
             if bootstrap_fd is not None:
                 os.close(bootstrap_fd)
-        assert "pinned=1" in handed, handed
+        assert "pinned=forwarded" in handed, handed
         write(tooled / "ziran.local.toml",
               f'[overrides]\nziran = "{compiler}"\n[tool.Tooling]\nmode = "slow"\n')
         assert "mode=slow" in call(ziran, "tool", "Tooling", "build",

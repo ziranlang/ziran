@@ -209,11 +209,25 @@ first=data.find(needle);second=data.find(needle,first+1)
 changed=data[:second]+data[second:].replace(needle,b'r:source=ghost',1)
 (out/'mismatch.zir').write_bytes(changed)
 (out/'unknown.zir').write_bytes(data.replace(needle,b'r:source=ghost'))
-tag=(1|(1<<30)).to_bytes(4,'little');at=data.find(tag);assert at>=0
-(out/'wrong-kind.zir').write_bytes(data[:at]+(3|(1<<30)).to_bytes(4,'little')+data[at+4:])
-text_length=int.from_bytes(data[at+4:at+8],'little');length_at=at+8+text_length
-assert 0<int.from_bytes(data[length_at:length_at+4],'little')<4096
-(out/'empty.zir').write_bytes(data[:length_at]+bytes(4)+data[length_at+4:])
+def number(value):
+    out=bytearray()
+    while True:
+        byte=value&0x7f;value>>=7
+        out.append(byte|(0x80 if value else 0))
+        if not value:return bytes(out)
+def read_number(at):
+    value=shift=0
+    while True:
+        byte=data[at];at+=1;value|=(byte&0x7f)<<shift;shift+=7
+        if byte<0x80:return value,at
+def skip_string(at):
+    tag,at=read_number(at)
+    return at+(0 if tag&1 else tag//2)
+tag=number(1|(1<<30));at=data.find(tag);assert at>=0
+(out/'wrong-kind.zir').write_bytes(data[:at]+number(3|(1<<30))+data[at+len(tag):])
+length_at=skip_string(at+len(tag));assembly_tag,end=read_number(length_at)
+assert assembly_tag%2==0 and 0<assembly_tag//2<4096
+(out/'empty.zir').write_bytes(data[:length_at]+number(0)+data[end+assembly_tag//2:])
 PY
 for bad in mismatch unknown wrong-kind empty; do
     if "$ziran" check --root "$work" "$work/$bad.zir" > "$work/$bad.log" 2>&1; then

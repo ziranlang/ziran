@@ -119,15 +119,36 @@ cmp "$work/source-go/methods.go" "$work/saved-go/methods.go"
 # Invalid checked method metadata must fail independently of source text.
 python3 - "$work/ir/methods.zir" "$work" <<'PY'
 from pathlib import Path
-import struct
 import sys
 data = Path(sys.argv[1]).read_bytes()
-prefix = struct.pack('<I', 11) + b'WriteResult' + bytes(8)
-method = struct.pack('<I', 5) + b'Write'
-metadata = prefix + method + struct.pack('<I', 1)
-assert data.count(metadata) == 1
-Path(sys.argv[2], 'bad-results.zir').write_bytes(data.replace(metadata, prefix + method + struct.pack('<I', 2)))
-Path(sys.argv[2], 'bad-name.zir').write_bytes(data.replace(metadata, prefix + struct.pack('<I', 5) + b'break' + struct.pack('<I', 1)))
+# Numbers are LEB128 and signed fields zigzag, so 1 is 2 and 2 is 4. A new
+# string is twice its length, then its bytes; a later use is an odd index.
+def read_number(at):
+    value = shift = 0
+    while True:
+        byte = data[at]
+        at += 1
+        value |= (byte & 0x7f) << shift
+        shift += 7
+        if byte < 0x80:
+            return value, at
+def skip_string(at):
+    tag, at = read_number(at)
+    return at + (0 if tag & 1 else tag // 2)
+args = b'writer:*CapturedWriter, bytes:[]u8'
+at = data.index(bytes([2 * 5]) + b'Write' + bytes([2 * len(args)]) + args) + 2 + 5 + len(args)
+at = skip_string(at)
+_, at = read_number(at)
+at = skip_string(at)
+assert data[at:at + 2] == bytes(2)
+at = skip_string(at + 2)
+assert data[at] == 2
+Path(sys.argv[2], 'bad-results.zir').write_bytes(data[:at] + bytes([4]) + data[at + 1:])
+# Describe's method name is the only use of "String"; a keyword of the same
+# length keeps every later string reference in place.
+method = bytes([2 * 6]) + b'String'
+assert data.count(method) == 1
+Path(sys.argv[2], 'bad-name.zir').write_bytes(data.replace(method, bytes([2 * 6]) + b'return'))
 PY
 for invalid in "$work/bad-results.zir" "$work/bad-name.zir"; do
     if "$ziran" check --root "$work/ir" --module-path std "$invalid" > "$work/bad.out" 2>&1; then

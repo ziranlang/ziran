@@ -40,6 +40,12 @@ typedef struct Field {
  * one call per field cost seconds on slow phones. */
 enum { SERIAL_BLOCK = 64 * 1024 };
 
+/* A string written once; later uses name its first-use index. */
+typedef struct SerialString {
+    const char *text;
+    uint32_t length;
+} SerialString;
+
 typedef struct Reader {
     FILE *in;
     const char *path;
@@ -50,6 +56,11 @@ typedef struct Reader {
     /* The last span's file: one function's spans name the same path. */
     int last_file;
     char last_path[ZIR_PATH_MAX];
+    /* Strings read so far, in first-use order, and the previous span. */
+    SerialString *strings;
+    uint32_t string_count, string_capacity;
+    int last_line;
+    int has_span;
 } Reader;
 
 typedef struct Writer {
@@ -58,6 +69,16 @@ typedef struct Writer {
     size_t used;
     size_t bytes;
     int portable, measure;
+    /* Strings written so far, found through an open-addressed hash of
+     * first-use indexes plus one; and the previous span. */
+    SerialString *strings;
+    uint32_t string_count, string_capacity;
+    uint32_t *slots;
+    uint32_t slot_count;
+    size_t text_bytes;
+    int last_line;
+    const char *last_path;
+    int has_span;
 } Writer;
 
 static int
@@ -81,6 +102,20 @@ read_bytes(Reader *reader, void *output, size_t count)
         to += amount;
         count -= amount;
     }
+    return 1;
+}
+
+/* One byte from the block, refilling it as needed. */
+static int
+read_byte(Reader *reader, unsigned char *byte)
+{
+    if(reader->start == reader->end) {
+        reader->start = 0;
+        reader->end = fread(reader->block, 1, SERIAL_BLOCK, reader->in);
+        if(reader->end == 0)
+            return 0;
+    }
+    *byte = reader->block[reader->start++];
     return 1;
 }
 
@@ -135,7 +170,10 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 58u
+#define ZIR_FORMAT_VERSION 59u
+/* Memory a reader may spend on one program's records and on the text its
+ * strings stand for; writers refuse programs whose strings exceed it. */
+#define ZIR_READ_BUDGET (256u * 1024u * 1024u)
 enum { ASSEMBLY_BLOCK_FLAG = 1u << 30 };
 
 static const Field import_fields[] = {
@@ -344,8 +382,10 @@ static const Field module_fields[] = {
     SPAN_FIELD(ZirModule, span)
 };
 
+/* The signature's version stays four fixed bytes, so every reader can name
+ * the version it was given. */
 static int
-write_u32(Writer *out, uint32_t value)
+write_version(Writer *out, uint32_t value)
 {
     unsigned char bytes[4] = {
         (unsigned char)value, (unsigned char)(value >> 8),
@@ -355,7 +395,7 @@ write_u32(Writer *out, uint32_t value)
 }
 
 static int
-read_u32(Reader *reader, uint32_t *value)
+read_version(Reader *reader, uint32_t *value)
 {
     unsigned char bytes[4];
     if(!read_bytes(reader, bytes, sizeof(bytes))) {
@@ -367,99 +407,335 @@ read_u32(Reader *reader, uint32_t *value)
     return 1;
 }
 
+/* Numbers are unsigned LEB128: seven bits a byte, low bits first. */
 static int
 write_u64(Writer *out, uint64_t value)
 {
-    return write_u32(out, (uint32_t)value) &&
-           write_u32(out, (uint32_t)(value >> 32));
+    unsigned char bytes[10];
+    size_t used = 0;
+    do {
+        unsigned char byte = (unsigned char)(value & 0x7f);
+        value >>= 7;
+        bytes[used++] = (unsigned char)(byte | (value != 0 ? 0x80 : 0));
+    } while(value != 0);
+    return write_bytes(out, bytes, used);
+}
+
+/* Readers accept only the shortest encoding, so equal values have equal
+ * bytes, and only values up to MAXIMUM. */
+static int
+read_number(Reader *reader, uint64_t *value, uint64_t maximum)
+{
+    uint64_t result = 0;
+    for(int shift = 0; shift < 64; shift += 7) {
+        unsigned char byte;
+        if(!read_byte(reader, &byte)) {
+            reader->problem = "truncated integer";
+            return 0;
+        }
+        if(shift == 63 && byte > 1)
+            break;
+        result |= (uint64_t)(byte & 0x7f) << shift;
+        if((byte & 0x80) == 0) {
+            if(byte == 0 && shift > 0) {
+                reader->problem = "noncanonical integer";
+                return 0;
+            }
+            if(result > maximum) {
+                reader->problem = "integer out of range";
+                return 0;
+            }
+            *value = result;
+            return 1;
+        }
+    }
+    reader->problem = "integer out of range";
+    return 0;
 }
 
 static int
 read_u64(Reader *reader, uint64_t *value)
 {
-    uint32_t low, high;
-    if(!read_u32(reader, &low) || !read_u32(reader, &high)) return 0;
-    *value = (uint64_t)low | ((uint64_t)high << 32);
+    return read_number(reader, value, UINT64_MAX);
+}
+
+static int
+write_u32(Writer *out, uint32_t value)
+{
+    return write_u64(out, value);
+}
+
+static int
+read_u32(Reader *reader, uint32_t *value)
+{
+    uint64_t number;
+    if(!read_number(reader, &number, UINT32_MAX)) return 0;
+    *value = (uint32_t)number;
     return 1;
 }
 
+/* Signed numbers zigzag, so -1, which marks absent references, is one byte. */
+static int
+write_s32(Writer *out, int32_t value)
+{
+    uint32_t bits = (uint32_t)value;
+    return write_u32(out, (bits << 1) ^ (value < 0 ? UINT32_MAX : 0));
+}
+
+static int
+read_s32(Reader *reader, int32_t *value)
+{
+    uint32_t bits;
+    if(!read_u32(reader, &bits)) return 0;
+    *value = (int32_t)((bits >> 1) ^ (0u - (bits & 1u)));
+    return 1;
+}
+
+static uint32_t
+string_hash(const char *text, size_t length)
+{
+    uint32_t hash = 2166136261u;
+    for(size_t i = 0; i < length; i++)
+        hash = (hash ^ (unsigned char)text[i]) * 16777619u;
+    return hash;
+}
+
+/* Index plus one of an earlier equal string, or 0. */
+static uint32_t
+writer_string_slot(const Writer *out, const char *text, size_t length, uint32_t *slot)
+{
+    uint32_t mask = out->slot_count - 1;
+    uint32_t at = string_hash(text, length) & mask;
+    while(out->slots[at] != 0) {
+        const SerialString *known = &out->strings[out->slots[at] - 1];
+        if(known->length == length && memcmp(known->text, text, length) == 0)
+            break;
+        at = (at + 1) & mask;
+    }
+    *slot = at;
+    return out->slots[at];
+}
+
+static int
+writer_grow_strings(Writer *out)
+{
+    if(out->string_count == out->string_capacity) {
+        uint32_t capacity = out->string_capacity ? out->string_capacity * 2 : 1024;
+        SerialString *strings = realloc(out->strings, (size_t)capacity * sizeof(*strings));
+        if(strings == NULL) return 0;
+        out->strings = strings;
+        out->string_capacity = capacity;
+    }
+    if((out->string_count + 1) * 2 <= out->slot_count) return 1;
+    uint32_t count = out->slot_count ? out->slot_count * 2 : 2048;
+    uint32_t *slots = calloc(count, sizeof(*slots));
+    if(slots == NULL) return 0;
+    free(out->slots);
+    out->slots = slots;
+    out->slot_count = count;
+    for(uint32_t i = 0; i < out->string_count; i++) {
+        uint32_t slot;
+        writer_string_slot(out, out->strings[i].text, out->strings[i].length, &slot);
+        out->slots[slot] = i + 1;
+    }
+    return 1;
+}
+
+static void
+writer_free_strings(Writer *out)
+{
+    free(out->strings);
+    free(out->slots);
+}
+
+/* Empty is 0; a string seen before is its index times two plus one; a new
+ * string is its length times two, then its bytes. The written program
+ * stays alive and unchanged while it is written, so the table borrows it. */
 static int
 write_string(Writer *out, const char *value, size_t capacity)
 {
     size_t length = strnlen(value, capacity);
-    if(length == capacity || length > UINT32_MAX)
+    if(length == capacity || length > UINT32_MAX / 2)
         return 0;
-    return write_u32(out, (uint32_t)length) &&
+    if(length == 0)
+        return write_u32(out, 0);
+    if(length > ZIR_READ_BUDGET - out->text_bytes)
+        return 0;
+    out->text_bytes += length;
+    if(!writer_grow_strings(out))
+        return 0;
+    uint32_t slot;
+    uint32_t known = writer_string_slot(out, value, length, &slot);
+    if(known != 0)
+        return write_u32(out, (known - 1) * 2 + 1);
+    out->strings[out->string_count] = (SerialString){value, (uint32_t)length};
+    out->slots[slot] = ++out->string_count;
+    return write_u32(out, (uint32_t)length * 2) &&
            write_bytes(out, value, length);
 }
 
-static int read_string_body(Reader *reader, char *value, uint32_t length);
+/* Reads one string into the table and returns it through TEXT and LENGTH;
+ * the table owns the bytes. */
+static int
+read_serial_string(Reader *reader, const char **text, uint32_t *length)
+{
+    uint32_t tag;
+    if(!read_u32(reader, &tag))
+        return 0;
+    if(tag == 0) {
+        *text = "";
+        *length = 0;
+        return 1;
+    }
+    /* Every string costs the bytes it stands for, so references to a long
+     * string cannot expand a short input into an unbounded amount of text. */
+    if(tag & 1) {
+        uint32_t index = tag / 2;
+        if(index >= reader->string_count) {
+            reader->problem = "invalid string reference";
+            return 0;
+        }
+        if(reader->strings[index].length > reader->budget) {
+            reader->problem = "strings exceed IR limit";
+            return 0;
+        }
+        reader->budget -= reader->strings[index].length;
+        *text = reader->strings[index].text;
+        *length = reader->strings[index].length;
+        return 1;
+    }
+    uint32_t size = tag / 2;
+    if(size >= ZIR_KEPT_TEXT_MAX) {
+        reader->problem = "string exceeds field limit";
+        return 0;
+    }
+    if(size > reader->budget) {
+        reader->problem = "strings exceed IR limit";
+        return 0;
+    }
+    reader->budget -= size;
+    if(reader->string_count == reader->string_capacity) {
+        uint32_t capacity = reader->string_capacity ? reader->string_capacity * 2 : 1024;
+        SerialString *strings = realloc(reader->strings, (size_t)capacity * sizeof(*strings));
+        if(strings == NULL) {
+            reader->problem = "out of memory reading IR";
+            return 0;
+        }
+        reader->strings = strings;
+        reader->string_capacity = capacity;
+    }
+    char *bytes = malloc((size_t)size + 1);
+    if(bytes == NULL) {
+        reader->problem = "out of memory reading IR";
+        return 0;
+    }
+    if(!read_bytes(reader, bytes, size)) {
+        free(bytes);
+        reader->problem = "truncated string";
+        return 0;
+    }
+    if(memchr(bytes, '\0', size) != NULL) {
+        free(bytes);
+        reader->problem = "embedded NUL in string";
+        return 0;
+    }
+    bytes[size] = '\0';
+    reader->strings[reader->string_count++] = (SerialString){bytes, size};
+    *text = bytes;
+    *length = size;
+    return 1;
+}
+
+static void
+reader_free_strings(Reader *reader)
+{
+    for(uint32_t i = 0; i < reader->string_count; i++)
+        free((char *)reader->strings[i].text);
+    free(reader->strings);
+}
 
 static int
 read_string(Reader *reader, char *value, size_t capacity)
 {
+    const char *text;
     uint32_t length;
-    if(!read_u32(reader, &length))
+    if(!read_serial_string(reader, &text, &length))
         return 0;
     if(length >= capacity) {
         reader->problem = "string exceeds field limit";
         return 0;
     }
-    return read_string_body(reader, value, length);
-}
-
-/* The LENGTH bytes of a string whose length was just read. */
-static int
-read_string_body(Reader *reader, char *value, uint32_t length)
-{
-    if(!read_bytes(reader, value, length)) {
-        reader->problem = "truncated string";
-        return 0;
-    }
-    if(memchr(value, '\0', length) != NULL) {
-        reader->problem = "embedded NUL in string";
-        return 0;
-    }
-    value[length] = '\0';
+    memcpy(value, text, (size_t)length + 1);
     return 1;
 }
 
+/* A span starts with its line's delta from the previous span, doubled, plus
+ * one when it names a different file, whose path then follows. The end is a
+ * delta from the start, so nearby positions take a byte or two. */
 static int
 write_span(Writer *out, const ZirSourceSpan *span)
 {
-    return write_string(out, SpanPath(*span), ZIR_PATH_MAX) &&
-           write_u32(out, (uint32_t)span->line) &&
+    const char *path = SpanPath(*span);
+    int new_file = !out->has_span || (path != out->last_path && strcmp(path, out->last_path) != 0);
+    int64_t line_delta = (int64_t)span->line - out->last_line;
+    uint64_t line_bits = line_delta < 0 ? ((uint64_t)-line_delta << 1) - 1 : (uint64_t)line_delta << 1;
+    uint32_t end_line_bits = (uint32_t)span->end_line - (uint32_t)span->line;
+    uint32_t end_column_bits = (uint32_t)span->end_column - (uint32_t)span->column;
+    out->has_span = 1;
+    out->last_path = path;
+    out->last_line = span->line;
+    return write_u64(out, line_bits * 2 + (uint64_t)new_file) &&
+           (!new_file || write_string(out, path, ZIR_PATH_MAX)) &&
            write_u32(out, (uint32_t)span->column) &&
-           write_u32(out, (uint32_t)span->end_line) &&
-           write_u32(out, (uint32_t)span->end_column);
+           write_s32(out, (int32_t)end_line_bits) &&
+           write_s32(out, (int32_t)end_column_bits);
 }
 
 static int
 read_span(Reader *reader, ZirSourceSpan *span)
 {
-    uint32_t numbers[4];
     char path[ZIR_PATH_MAX];
-    if(!read_string(reader, path, sizeof(path)))
+    uint64_t line_bits;
+    int32_t end_line_delta, end_column_delta;
+    uint32_t column;
+    if(!read_number(reader, &line_bits, UINT64_C(1) << 34))
         return 0;
-    span->context = CompilerContextCurrent();
-    if(reader->last_file == 0 || strcmp(path, reader->last_path) != 0) {
+    int new_file = (int)(line_bits & 1);
+    line_bits >>= 1;
+    int64_t line_delta = (line_bits & 1) ? -(int64_t)((line_bits + 1) >> 1) : (int64_t)(line_bits >> 1);
+    if(!new_file && !reader->has_span) {
+        reader->problem = "span without a file";
+        return 0;
+    }
+    if(new_file) {
+        if(!read_string(reader, path, sizeof(path)))
+            return 0;
+        if(reader->has_span && strcmp(path, reader->last_path) == 0) {
+            reader->problem = "noncanonical span file";
+            return 0;
+        }
         reader->last_file = SourceFile(path);
         memcpy(reader->last_path, path, strlen(path) + 1);
     }
+    reader->has_span = 1;
+    span->context = CompilerContextCurrent();
     span->file = reader->last_file;
-    for(int i = 0; i < 4; i++)
-        if(!read_u32(reader, &numbers[i]))
-            return 0;
-    for(int i = 0; i < 4; i++) {
-        if(numbers[i] > INT32_MAX) {
-            reader->problem = "invalid source position";
-            return 0;
-        }
+    if(!read_u32(reader, &column) || !read_s32(reader, &end_line_delta) ||
+       !read_s32(reader, &end_column_delta))
+        return 0;
+    int64_t line = (int64_t)reader->last_line + line_delta;
+    int64_t end_line = line + end_line_delta;
+    int64_t end_column = (int64_t)column + end_column_delta;
+    if(line < 0 || line > INT32_MAX || end_line < 0 || end_line > INT32_MAX ||
+       column > INT32_MAX || end_column < 0 || end_column > INT32_MAX) {
+        reader->problem = "invalid source position";
+        return 0;
     }
-    span->line = (int)numbers[0];
-    span->column = (int)numbers[1];
-    span->end_line = (int)numbers[2];
-    span->end_column = (int)numbers[3];
+    reader->last_line = (int)line;
+    span->line = (int)line;
+    span->column = (int)column;
+    span->end_line = (int)end_line;
+    span->end_column = (int)end_column;
     return 1;
 }
 
@@ -497,7 +773,7 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
             }
             if(!write_u32(out, kind)) return 0;
         } else if(fields[i].kind == FIELD_INTEGER) {
-            if(!write_u32(out, (uint32_t)*(const int *)value))
+            if(!write_s32(out, (int32_t)*(const int *)value))
                 return 0;
         } else if(fields[i].kind == FIELD_U64) {
             if(!write_u64(out, *(const uint64_t *)value))
@@ -532,23 +808,16 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
                 *(const char **)value = "";
                 continue;
             }
-            char small[ZIR_TEXT_MAX];
+            const char *text;
             uint32_t length;
-            if(!read_u32(reader, &length))
+            if(!read_serial_string(reader, &text, &length))
                 return 0;
             size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : ZIR_KEPT_TEXT_MAX;
             if(length >= limit || (fields[i].kind == FIELD_ASSEMBLY_TEXT && length == 0)) {
                 reader->problem = length == 0 ? "empty assembly block metadata" : "string exceeds field limit";
                 return 0;
             }
-            char *text = length < sizeof(small) ? small : malloc((size_t)length + 1);
-            if(text == NULL || !read_string_body(reader, text, length)) {
-                if(text != small) free(text);
-                if(reader->problem == NULL) reader->problem = "out of memory reading text";
-                return 0;
-            }
             *(const char **)value = KeepText(text);
-            if(text != small) free(text);
         } else if(fields[i].kind == FIELD_STATEMENT_KIND) {
             uint32_t kind;
             if(!read_u32(reader, &kind)) return 0;
@@ -560,10 +829,10 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
             }
             *(int *)value = (int)(int32_t)kind;
         } else if(fields[i].kind == FIELD_INTEGER) {
-            uint32_t number;
-            if(!read_u32(reader, &number))
+            int32_t number;
+            if(!read_s32(reader, &number))
                 return 0;
-            *(int *)value = (int)(int32_t)number;
+            *(int *)value = (int)number;
         } else if(fields[i].kind == FIELD_U64) {
             if(!read_u64(reader, (uint64_t *)value))
                 return 0;
@@ -1026,7 +1295,7 @@ write_program(const ZirProgram *program, Writer *out, int validate)
     static const unsigned char magic[4] = {'Z', 'I', 'R', 0};
     if(program == NULL || out == NULL || (validate && !validate_program(program)) ||
        !write_bytes(out, magic, sizeof(magic)) ||
-       !write_u32(out, ZIR_FORMAT_VERSION) ||
+       !write_version(out, ZIR_FORMAT_VERSION) ||
        !write_u32(out, (uint32_t)program->module_count))
         return 0;
     for(int i = 0; i < program->module_count; i++)
@@ -1042,6 +1311,7 @@ ProgramWrite(const ZirProgram *program, FILE *out)
     Writer writer = {.out = out, .block = malloc(SERIAL_BLOCK)};
     int result = writer.block != NULL && out != NULL &&
                  write_program(program, &writer, 1);
+    writer_free_strings(&writer);
     free(writer.block);
     ProfileEnd("ir.write", started);
     return result;
@@ -1055,6 +1325,7 @@ ProgramMeasurePortable(const ZirProgram *program, size_t *size)
     Writer writer = {.portable = 1, .measure = 1};
     uint64_t started = ProfileStart();
     int result = write_program(program, &writer, 1);
+    writer_free_strings(&writer);
     ProfileEnd("ir.measure.portable", started);
     if(result) *size = writer.bytes;
     return result;
@@ -1071,6 +1342,7 @@ ProgramWritePortable(const ZirProgram *program, FILE *out, size_t *size)
     int result = writer.block != NULL && write_program(program, &writer, 0);
     ProfileEnd("ir.write", started);
     if(result) *size = writer.bytes;
+    writer_free_strings(&writer);
     free(writer.block);
     return result;
 }
@@ -1080,7 +1352,7 @@ ProgramRead_in_context(FILE *in, const char *path)
 {
     unsigned char magic[4];
     uint32_t version, count;
-    Reader reader = {in, path, NULL, 256u * 1024u * 1024u, NULL, 0, 0};
+    Reader reader = {in, path, NULL, ZIR_READ_BUDGET, NULL, 0, 0};
     ZirProgram *program = NULL;
     if(in == NULL || path == NULL)
         return NULL;
@@ -1094,7 +1366,7 @@ ProgramRead_in_context(FILE *in, const char *path)
         reader.problem = "invalid ZIR signature";
         goto failed;
     }
-    if(!read_u32(&reader, &version))
+    if(!read_version(&reader, &version))
         goto failed;
     if(version != ZIR_FORMAT_VERSION) {
         reader.problem = "unsupported ZIR version";
@@ -1129,11 +1401,13 @@ ProgramRead_in_context(FILE *in, const char *path)
         reader.problem = "invalid checked IR structure";
         goto failed;
     }
+    reader_free_strings(&reader);
     free(reader.block);
     return program;
 failed:
     Diagnostic(Span(path, 1, 1), "zir.invalid", "%s",
                   reader.problem ? reader.problem : "truncated ZIR data");
+    reader_free_strings(&reader);
     free(reader.block);
     ProgramFree(program);
     return NULL;

@@ -98,8 +98,8 @@ int main(int argc, char **argv)
     int saved_count = first->stmt_count, saved_capacity = first->stmt_cap;
     char *large_text = NULL;
     if(oversized) {
-        /* A shared string makes the encoded payload exceed 256 MiB without
-         * allocating that payload or requiring a large source fixture. */
+        /* One shared string, written once, stands for more than the 256 MiB
+         * of text a reader accepts, without a large source fixture. */
         large_text = malloc(ZIR_KEPT_TEXT_MAX);
         assert(large_text);
         memset(large_text, 'x', ZIR_KEPT_TEXT_MAX - 1); large_text[ZIR_KEPT_TEXT_MAX - 1] = 0;

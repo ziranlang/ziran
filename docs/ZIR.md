@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 58 now exists for
+This is the target contract. An experimental binary version 59 now exists for
 the tested C/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -78,11 +78,18 @@ they are not executable functions. Consumers retype those graphs and recheck
 each certificate against the checked procedure bodies. Cached evidence and
 annotations cannot authorize a proof. See [Laws and scalar proofs](LAWS.md).
 
-The current writer emits `ZIR` followed by a zero byte, a little-endian
-version number, and length-prefixed checked module records. Strings and
-integers are encoded explicitly; process pointers and C struct padding are
-not serialized. The reader rejects wrong versions, truncated records,
-oversized fields, invalid references, and trailing bytes. The C and native Go
+The current writer emits `ZIR` followed by a zero byte, a four-byte
+little-endian version number, and the checked module records. Integers are
+unsigned LEB128, with signed fields zigzagged so `-1` takes one byte. A string
+is written once: a tag of 0 is empty, an even tag is twice the length of a
+new string whose bytes follow, and an odd tag names an earlier string by twice
+its first-use index plus one. A source span stores its line as a delta from
+the previous span, flagged when its file changes (the path then follows),
+then its column and the deltas to its end. Process pointers and C struct
+padding are not serialized. The reader rejects wrong versions, truncated
+records, overlong or out-of-range integers, unknown string references,
+oversized fields, invalid references, and trailing bytes; each string
+reference counts its length against the reader's memory budget. The C and native Go
 commands can build saved `.zir` modules, including an imported two-module
 typed record call example. The experimental `.zx` bundler also consumes saved `.zir`
 for its restricted scalar, record, and enum subset. Native and bundle builds rerun

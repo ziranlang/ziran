@@ -269,9 +269,10 @@ import sys
 
 data = bytearray(Path(sys.argv[1]).read_bytes())
 message = b'"checked marker"'
-needle = pack('<I', 1) + b'1' + pack('<I', len(message)) + message
+# Strings new to the file are twice their length, then their bytes.
+needle = bytes([2]) + b'1' + bytes([2 * len(message)]) + message
 assert data.count(needle) == 1
-data[data.index(needle) + 4] = ord('0')
+data[data.index(needle) + 1] = ord('0')
 Path(sys.argv[2]).write_bytes(data)
 PY
 expect_rejection 'saved IR accepted a falsified compile-time assertion' "$work/assert-forged.err" \

@@ -1,5 +1,6 @@
 // Whole Ogg Vorbis streams held in memory, decoded over the platform
-// libvorbisfile into signed 16-bit little-endian PCM. Only programs that
+// libvorbisfile into signed 16-bit little-endian PCM. std/vorbis checks the
+// stream's pages and length first, before the library allocates anything. Only programs that
 // import this module need the library; link it with -lvorbisfile, or with
 // -l:libvorbisfile.so.3 where only the runtime package is installed.
 //
@@ -13,6 +14,7 @@
 // guard placed after its OggVorbis_File, so a library that wrote past the
 // mirror fails the decode instead of passing unnoticed.
 using Vectors :: #import "vec"
+using Vorbis :: #import "vorbis"
 
 // ogg_sync_state.
 OggSyncState :: struct {
@@ -156,13 +158,6 @@ VorbisFile :: struct {
     callbacks: VorbisCallbacks
 }
 
-// What VorbisDecode found: interleaved CHANNELS at RATE, FRAMES long.
-VorbisAudio :: struct {
-    channels: s32
-    rate: s32
-    frames: s64
-}
-
 #scope_file
 vorbisfile :: #system_library "vorbisfile";
 libc :: #system_library "libc";
@@ -217,34 +212,6 @@ MemoryClose :: (source: *void) -> s32 { unused source; return 0 }
 
 MemoryTell :: (source: *void) -> isize { return cast(isize)(cast(*Memory)source).at }
 
-// Whether INPUT is whole Ogg pages of one logical stream and nothing else,
-// beginning with its first page and ending with its last. libvorbisfile
-// would decode a truncated stream as a shorter one, so this refuses it.
-// The library checks each page's CRC as it decodes.
-PagesComplete :: (input: []u8) -> bool {
-    at: s64 = 0
-    serial: u32 = 0
-    while at < input.count {
-        if input.count - at < 27 { return false }
-        if input[at] != 79 || input[at + 1] != 103 || input[at + 2] != 103 || input[at + 3] != 83 { return false }
-        if input[at + 4] != 0 { return false }
-        flags := input[at + 5]
-        page_serial := cast(u32)input[at + 14] | (cast(u32)input[at + 15] << 8) |
-        (cast(u32)input[at + 16] << 16) | (cast(u32)input[at + 17] << 24)
-        first := at == 0
-        if first { serial = page_serial } else if page_serial != serial { return false }
-        if ((flags & 2) != 0) != first { return false }
-        segments := cast(s64)input[at + 26]
-        if input.count - at - 27 < segments { return false }
-        body: s64 = 0
-        for segment: cast(s64)0..segments - 1 { body += cast(s64)input[at + 27 + segment] }
-        at += 27 + segments + body
-        if at > input.count { return false }
-        if ((flags & 4) != 0) != (at == input.count) { return false }
-    }
-    return at > 0
-}
-
 GuardIntact :: (state: *Guarded) -> bool {
     for at: 0..GUARD - 1 {
         if state.guard[at] != cast(u8)GUARD_BYTE { return false }
@@ -261,7 +228,8 @@ GuardIntact :: (state: *Guarded) -> bool {
 VorbisDecode :: (input: []u8, output: *Vec(u8), max_frames: s64, audio: *VorbisAudio) -> bool {
     VecClear(<<output)
     <<audio = VorbisAudio.{}
-    if input.count == 0 || max_frames <= 0 || !PagesComplete(input) { return false }
+    declared: VorbisAudio
+    if max_frames <= 0 || !VorbisProbe(input, *declared) || declared.frames > max_frames { return false }
     memory := Memory.{.data = *input[0], .count = input.count, .at = 0}
     state: Guarded
     for at: 0..GUARD - 1 { state.guard[at] = cast(u8)GUARD_BYTE }
@@ -272,7 +240,7 @@ VorbisDecode :: (input: []u8, output: *Vec(u8), max_frames: s64, audio: *VorbisA
     callbacks.tell = MemoryTell
     // A failed open has already cleared the file.
     if OpenCallbacks(cast(*void)*memory, *state.file, null, 0, callbacks) != 0 { return false }
-    valid := Decode(*state.file, output, max_frames, audio)
+    valid := Decode(*state.file, output, declared, audio)
     unused Clear(*state.file)
     if !GuardIntact(*state) { valid = false }
     if !valid {
@@ -283,12 +251,13 @@ VorbisDecode :: (input: []u8, output: *Vec(u8), max_frames: s64, audio: *VorbisA
 }
 
 #scope_file
-Decode :: (file: *VorbisFile, output: *Vec(u8), max_frames: s64, audio: *VorbisAudio) -> bool {
+// Decodes what DECLARED, the stream's probe, says it holds, and no other.
+Decode :: (file: *VorbisFile, output: *Vec(u8), declared: VorbisAudio, audio: *VorbisAudio) -> bool {
     if Streams(file) != 1 { return false }
     info := Info(file, -1)
-    if info == null || info.channels < 1 || info.channels > 255 || info.rate < 1 || info.rate > 768000 { return false }
+    if info == null || info.channels != declared.channels || info.rate != cast(isize)declared.rate { return false }
     frames := PcmTotal(file, -1)
-    if frames <= 0 || frames > max_frames || frames > (cast(s64)1 << 40) { return false }
+    if frames != declared.frames || frames > (cast(s64)1 << 40) { return false }
     bytes := frames * cast(s64)info.channels * 2
     samples: Vec(u8)
     for at: cast(s64)0..bytes - 1 { VecPush(samples, cast(u8)0) }

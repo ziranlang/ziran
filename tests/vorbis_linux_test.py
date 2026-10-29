@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""std/vorbis_linux decodes real Ogg Vorbis files exactly as libvorbis does.
+"""std/vorbis_linux decodes real Ogg Vorbis files exactly as libvorbis does,
+and std/vorbis probes them without decoding.
 
 Streams come from ffmpeg's libvorbis encoder and are compared with ffmpeg's
 own decode of the same file; damaged, chained, empty and over-long streams
@@ -25,6 +26,7 @@ C_TYPES = ('ogg_sync_state', 'ogg_stream_state', 'oggpack_buffer', 'vorbis_info'
 
 CLIENT = r'''
 #import "vorbis_linux"
+#import "vorbis"
 #import "file"
 #import "number_text"
 #import "text_tools"
@@ -48,6 +50,15 @@ main :: (argc: s32, argv: **u8) -> s32 {
         return ifx WriteEntireFile(TextFromCString(argv[2]), BuilderFinish(report)) then 0 else 3
     }
     input: Vec(u8)
+    if TextFromCString(argv[1]) == "probe" {
+        if !ReadFileInto(TextFromCString(argv[2]), *input) { return 3 }
+        declared: VorbisAudio
+        if !VorbisProbe(VecSlice(input, 0, input.count), *declared) {
+            return ifx declared.frames == 0 && declared.channels == 0 then 2 else 4
+        }
+        Append(*report, declared.channels); Append(*report, declared.rate); Append(*report, declared.frames)
+        return ifx WriteEntireFile(TextFromCString(argv[3]), BuilderFinish(report)) then 0 else 3
+    }
     if !ReadFileInto(TextFromCString(argv[1]), *input) { return 3 }
     limit, ok := TextInteger(TextFromCString(argv[3]))
     if !ok { return 3 }
@@ -107,6 +118,11 @@ with tempfile.TemporaryDirectory(prefix='ziran-vorbis-') as temporary:
                     *map(str, (work / 'c').glob('*.c')), '-l:libvorbisfile.so.3', '-lm', '-o', str(client)],
                    check=True)
 
+    def probe(path, valid=True):
+        result = subprocess.run([str(client), 'probe', str(path), str(work / 'probe.info')])
+        assert result.returncode == (0 if valid else 2), (path.name, 'probe', result.returncode)
+        return tuple(map(int, (work / 'probe.info').read_text().split())) if valid else None
+
     def decode(path, limit, valid=True):
         pcm, info = work / 'out.pcm', work / 'out.info'
         for stale in (pcm, info):
@@ -142,6 +158,7 @@ with tempfile.TemporaryDirectory(prefix='ziran-vorbis-') as temporary:
         source = tone(path, seconds, rate, channels)
         channels_out, rate_out, frames, samples = decode(path, rate * 60)
         assert (channels_out, rate_out) == (channels, rate), name
+        assert probe(path) == (channels, rate, frames), name
         assert frames == len(source) // channels, (name, frames, len(source))
         # ffmpeg trims very short streams by up to a block; every sample it
         # does give must match, at the start or the end of the stream.
@@ -171,6 +188,15 @@ with tempfile.TemporaryDirectory(prefix='ziran-vorbis-') as temporary:
         path = work / 'bad.ogg'
         path.write_bytes(data)
         decode(path, 22050 * 60, False)
+        if label != 'flipped':
+            probe(path, False)
+    # The identification header lies in the first page; 28 bytes of page header.
+    for offset, value in ((28, ord('V')), (28 + 29, 0), (28 + 7, 1)):
+        damaged = bytearray(original)
+        damaged[offset] = value
+        (work / 'bad.ogg').write_bytes(bytes(damaged))
+        probe(work / 'bad.ogg', False)
+        decode(work / 'bad.ogg', 22050 * 60, False)
     decode(work / 'speech.ogg', 0, False)
     decode(work / 'speech.ogg', -5, False)
-    print('Native Vorbis: ffmpeg-matching decode, rates, channels, exact frame bounds and malformed input passed')
+    print('Native Vorbis: probe, ffmpeg-matching decode, rates, channels, exact frame bounds and malformed input passed')

@@ -1,0 +1,69 @@
+// What an Ogg Vorbis stream held in memory declares, read from its pages
+// alone: nothing is decoded or allocated, so a program can bound a stream
+// before handing it to a decoder (std/vorbis_linux on Linux, or another
+// platform's). Portable: no foreign library.
+//
+//     audio: VorbisAudio
+//     if VorbisProbe(ogg_bytes, *audio) && audio.channels == 1 { ... }
+
+// Interleaved CHANNELS at RATE, FRAMES long.
+VorbisAudio :: struct {
+    channels: s32
+    rate: s32
+    frames: s64
+}
+
+#scope_file
+Little :: (input: []u8, at: s64, count: s64) -> u64 {
+    value: u64 = 0
+    for index: cast(s64)0..count - 1 { value |= cast(u64)input[at + index] << cast(u64)(8 * index) }
+    return value
+}
+
+#scope_export
+// Whether INPUT is exactly one Ogg Vorbis stream: whole pages of a single
+// logical stream and nothing else, beginning with its first page, ending
+// with its last, and starting with a Vorbis identification header. AUDIO
+// then holds its channels, rate and length, the last page's granule
+// position (streams start at zero, as encoders write them). Page CRCs are
+// left to the decoder. AUDIO is zero when the answer is false.
+VorbisProbe :: (input: []u8, audio: *VorbisAudio) -> bool {
+    <<audio = VorbisAudio.{}
+    at: s64 = 0
+    serial: u64 = 0
+    granule: s64 = 0
+    channels: s32 = 0
+    rate: s64 = 0
+    while at < input.count {
+        if input.count - at < 27 { return false }
+        if input[at] != 79 || input[at + 1] != 103 || input[at + 2] != 103 || input[at + 3] != 83 { return false }
+        if input[at + 4] != 0 { return false }
+        flags := input[at + 5]
+        first := at == 0
+        page_serial := Little(input, at + 14, 4)
+        if first { serial = page_serial } else if page_serial != serial { return false }
+        if ((flags & 2) != 0) != first { return false }
+        segments := cast(s64)input[at + 26]
+        if input.count - at - 27 < segments { return false }
+        body := at + 27 + segments
+        size: s64 = 0
+        for segment: cast(s64)0..segments - 1 { size += cast(s64)input[at + 27 + segment] }
+        if input.count - body < size { return false }
+        if first {
+            // The identification header is the first page's only packet.
+            if segments != 1 || size != 30 { return false }
+            if input[body] != 1 || input[body + 1] != 118 || input[body + 2] != 111 || input[body + 3] != 114 ||
+            input[body + 4] != 98 || input[body + 5] != 105 || input[body + 6] != 115 { return false }
+            if Little(input, body + 7, 4) != 0 || (input[body + 29] & 1) == 0 { return false }
+            channels = cast(s32)input[body + 11]
+            rate = cast(s64)Little(input, body + 12, 4)
+            if channels < 1 || rate < 1 || rate > 2147483647 { return false }
+        }
+        granule = cast(s64)Little(input, at + 6, 8)
+        at = body + size
+        if ((flags & 4) != 0) != (at == input.count) { return false }
+    }
+    if at == 0 || granule <= 0 { return false }
+    <<audio = VorbisAudio.{.channels = channels, .rate = cast(s32)rate, .frames = granule}
+    return true
+}

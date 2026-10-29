@@ -1219,6 +1219,8 @@ reports `started = false`. `std/file_tree_linux.zi` creates, lists, copies and
 removes folders, reads a path's kind, permissions, size and modification time,
 replaces a file atomically, takes `flock` locks and matches shell wildcards.
 `std/text_tools.zi` finds, splits, trims, replaces and joins text on any target.
+`std/stdio_linux.zi` writes to standard output or standard error and reads all
+of standard input.
 Run `sh tests/std_tools_linux.sh build/bin/ziran` for their checks.
 
 These native adapters keep libc calls out of applications and require glibc

@@ -1,0 +1,51 @@
+// The standard streams of a native Linux program: text to standard output
+// or standard error, and the whole of standard input.
+//
+//     if !ok { PrintError("levels/approved.json is missing\n"); return 1 }
+//     input := ReadStandardInput()
+using Vectors :: #import "vec"
+
+#scope_file
+libc :: #system_library "libc";
+WriteRaw :: (fd: s32, input: *u8, count: u64) -> s64 #foreign libc "write";
+ReadRaw :: (fd: s32, output: *u8, count: u64) -> s64 #foreign libc "read";
+ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
+
+Send :: (fd: s32, text: string) -> bool {
+    chunk: [65536]u8
+    written: s64 = 0
+    while written < text.count {
+        size: s64 = 0
+        while size < 65536 && written + size < text.count { chunk[size] = text[written + size]; size += 1 }
+        sent: s64 = 0
+        while sent < size {
+            count := WriteRaw(fd, *chunk[sent], cast(u64)(size - sent))
+            if count < 0 && <<ErrnoRaw() == 4 { continue }
+            if count <= 0 { return false }
+            sent += count
+        }
+        written += size
+    }
+    return true
+}
+
+#scope_export
+// Writes TEXT to standard output, unbuffered; false when it could not.
+WriteOutput :: (text: string) -> bool { return Send(1, text) }
+
+// Writes TEXT to standard error; false when it could not.
+PrintError :: (text: string) -> bool { return Send(2, text) }
+
+// Everything on standard input until its end.
+ReadStandardInput :: () -> string {
+    bytes: Vec(u8)
+    chunk: [65536]u8
+    while true {
+        count := ReadRaw(0, *chunk[0], 65536)
+        if count < 0 && <<ErrnoRaw() == 4 { continue }
+        if count <= 0 { break }
+        index: s64 = 0
+        while index < count { VecPush(bytes, chunk[index]); index += 1 }
+    }
+    return BuilderFinish(bytes)
+}

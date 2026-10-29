@@ -1,6 +1,6 @@
 #!/bin/sh
 # Checks the native Linux modules build programs use: process_run_linux,
-# file_tree_linux and text_tools.
+# file_tree_linux, stdio_linux and text_tools.
 set -eu
 
 ziran=$1
@@ -12,6 +12,7 @@ cat > "$work/std_tools_linux.zi" <<'ZI'
 #import "file"
 #import "file_tree_linux"
 #import "process_run_linux"
+#import "stdio_linux"
 #import "text_tools"
 
 #program_export
@@ -90,6 +91,10 @@ main :: () -> s32 {
         TextFindLast("abcabc", "b") != 4 || TextLower("AbC") != "abc" { return 28 }
     bytes: [3]u8 = .[0, 171, 255]
     if TextHex(bytes[:]) != "00abff" || TextHexDigit(#char "F") != 15 { return 29 }
+
+    // Standard streams.
+    if ReadStandardInput() != "piped\n" { return 30 }
+    if !WriteOutput("to standard output\n") || !PrintError("to standard error\n") { return 31 }
     return 0
 }
 ZI
@@ -99,4 +104,6 @@ ZI
     -o "$work/c" "$work/std_tools_linux.zi"
 "${CC:-cc}" -std=c99 -I"$root/include" -I"$work/c" \
     "$work/c"/*.c -lm -o "$work/program"
-(cd "$work" && ./program)
+(cd "$work" && printf 'piped\n' | ./program > out.txt 2> error.txt)
+test "$(cat "$work/out.txt")" = "to standard output"
+test "$(cat "$work/error.txt")" = "to standard error"

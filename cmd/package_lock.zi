@@ -280,14 +280,16 @@ PkgCacheRoot :: () -> string {
 }
 
 // Checks out commit in a cached clone; true when HEAD is then that commit.
+// Quietly, so a fetched dependency never prints into a program's output.
 PkgCheckoutAt :: (destination: string, commit: string) -> bool {
-    args: [6]string
+    args: [7]string
     args[0] = "git"
     args[1] = "-C"
     args[2] = destination
     args[3] = "checkout"
-    args[4] = "--detach"
-    args[5] = commit
+    args[4] = "--quiet"
+    args[5] = "--detach"
+    args[6] = commit
     names: [0]string
     values: [0]string
     return PkgRun(args[:], "", names[:], values[:]) == 0 &&

@@ -1,0 +1,340 @@
+// Run native Linux child processes from build and release programs: any
+// number of arguments, a working directory, environment changes, and each
+// standard stream inherited, discarded, read from or written to a file, or
+// captured. No shell parses anything; the first argument is looked up on
+// PATH as execvp does.
+//
+//     command: [3]string = .["git", "rev-parse", "HEAD"]
+//     options: ProcessOptions = .{arguments = command[:], capture_output = true}
+//     run: ProcessRun
+//     if RunProcess(options, *run) && run.code == 0 {
+//         revision := BuilderFinish(run.output)
+//     }
+//
+// StartProcess leaves the child running; PollProcess, WaitProcess and
+// SignalProcess follow it. A child that cannot be started (a missing program
+// or directory, an unreadable input file) reports started = false and
+// code 127 instead of running anything. Programs that start children should
+// stay single-threaded: the child applies its working directory and
+// environment between fork and exec.
+#import "c_string"
+using Vectors :: #import "vec"
+
+#scope_file
+libc :: #system_library "libc";
+ForkRaw :: () -> s32 #foreign libc "fork";
+Pipe2Raw :: (fds: *s32, flags: s32) -> s32 #foreign libc "pipe2";
+DupRaw :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
+CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+ReadRaw :: (fd: s32, output: *u8, count: u64) -> s64 #foreign libc "read";
+WriteRaw :: (fd: s32, input: *u8, count: u64) -> s64 #foreign libc "write";
+OpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 #foreign libc "open";
+ExecRaw :: (path: *u8, arguments: *ProcessArgumentSlot) -> s32 #foreign libc "execvp";
+ExitRaw :: (code: s32) -> void #foreign libc "_exit";
+WaitRaw :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
+KillRaw :: (pid: s32, signal_number: s32) -> s32 #foreign libc "kill";
+ChangeDirectoryRaw :: (path: *u8) -> s32 #foreign libc "chdir";
+SetEnvironmentRaw :: (name: *u8, value: *u8, overwrite: s32) -> s32 #foreign libc "setenv";
+UnsetEnvironmentRaw :: (name: *u8) -> s32 #foreign libc "unsetenv";
+SessionRaw :: () -> s32 #foreign libc "setsid";
+ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
+SignalHandler :: #type (signal_number: s32) -> void #c_call;
+SignalRaw :: (signal_number: s32, handler: SignalHandler) -> SignalHandler #foreign libc "signal";
+
+CLOSE_ON_EXEC :: 524288;
+INTERRUPTED :: 4;
+
+#scope_export
+// One argv slot; a vector of these lays out as execvp's pointer array.
+ProcessArgumentSlot :: struct { value: *u8 }
+
+ProcessOptions :: struct {
+    arguments: []string
+    // The child's working directory; empty keeps the parent's.
+    directory: string
+    // "NAME=value" sets a variable; a bare "NAME" removes it.
+    environment: []string
+    // Standard input from this file; empty inherits it.
+    input_path: string
+    // Standard output to this file, replaced unless append_output; empty
+    // inherits it unless capture_output.
+    output_path: string
+    append_output: bool
+    // Standard error to this file; empty inherits it unless merge_error.
+    error_path: string
+    // Standard error goes wherever standard output goes.
+    merge_error: bool
+    // Standard output into ProcessRun.output.
+    capture_output: bool
+    // The child leads a new session and process group, apart from the
+    // parent's terminal and group signals.
+    new_session: bool
+}
+
+ProcessRun :: struct {
+    pid: s32
+    // The exit status, or 128 plus the signal that ended the child.
+    code: s32
+    started: bool
+    finished: bool
+    output: Vec(u8)
+}
+
+#scope_file
+// Every C string the child needs, laid out before fork so the child only
+// calls async-signal-safe functions and the environment changes.
+Prepared :: struct {
+    bytes: Vec(u8)
+    arguments: Vec(ProcessArgumentSlot)
+    argument_offsets: Vec(s64)
+    names: Vec(s64)
+    values: Vec(s64)
+    directory: s64
+    input: s64
+    output: s64
+    error: s64
+}
+
+Put :: (prepared: *Prepared, text: string) -> s64 {
+    at := prepared.bytes.count
+    for text {
+        if it == 0 { return -1 }
+        VecPush(prepared.bytes, it)
+    }
+    VecPush(prepared.bytes, cast(u8)0)
+    return at
+}
+
+Prepare :: (options: ProcessOptions, prepared: *Prepared) -> bool {
+    prepared.directory = -1
+    prepared.input = -1
+    prepared.output = -1
+    prepared.error = -1
+    if options.arguments.count == 0 || options.arguments[0].count == 0 { return false }
+    for options.arguments {
+        at := Put(prepared, it)
+        if at < 0 { return false }
+        VecPush(prepared.argument_offsets, at)
+    }
+    for options.environment {
+        equals: s64 = -1
+        index: s64 = 0
+        while index < it.count && equals < 0 {
+            if it[index] == #char "=" { equals = index }
+            index += 1
+        }
+        if equals == 0 { return false }
+        name := ifx equals < 0 then it else it[0:equals]
+        at := Put(prepared, name)
+        if at < 0 { return false }
+        VecPush(prepared.names, at)
+        if equals < 0 {
+            VecPush(prepared.values, cast(s64)-1)
+        } else {
+            value := Put(prepared, it[equals + 1:it.count])
+            if value < 0 { return false }
+            VecPush(prepared.values, value)
+        }
+    }
+    if options.directory.count > 0 {
+        prepared.directory = Put(prepared, options.directory)
+        if prepared.directory < 0 { return false }
+    }
+    if options.input_path.count > 0 {
+        prepared.input = Put(prepared, options.input_path)
+        if prepared.input < 0 { return false }
+    }
+    if options.output_path.count > 0 {
+        prepared.output = Put(prepared, options.output_path)
+        if prepared.output < 0 { return false }
+    }
+    if options.error_path.count > 0 {
+        prepared.error = Put(prepared, options.error_path)
+        if prepared.error < 0 { return false }
+    }
+    // The byte storage no longer grows, so its addresses hold.
+    index: s64 = 0
+    while index < prepared.argument_offsets.count {
+        slot: ProcessArgumentSlot = .{value = *prepared.bytes[prepared.argument_offsets[index]]}
+        VecPush(prepared.arguments, slot)
+        index += 1
+    }
+    end: ProcessArgumentSlot = .{value = null}
+    VecPush(prepared.arguments, end)
+    return true
+}
+
+At :: (prepared: *Prepared, offset: s64) -> *u8 { return *prepared.bytes[offset] }
+
+// Runs in the child between fork and exec; reports a failure's errno to the
+// parent through the close-on-exec status pipe.
+Child :: (options: ProcessOptions, prepared: *Prepared, status: s32, capture: s32) {
+    failed := false
+    if options.new_session { SessionRaw() }
+    if prepared.directory >= 0 && ChangeDirectoryRaw(At(prepared, prepared.directory)) != 0 { failed = true }
+    index: s64 = 0
+    while !failed && index < prepared.names.count {
+        name := At(prepared, prepared.names[index])
+        if prepared.values[index] < 0 {
+            UnsetEnvironmentRaw(name)
+        } else if SetEnvironmentRaw(name, At(prepared, prepared.values[index]), 1) != 0 {
+            failed = true
+        }
+        index += 1
+    }
+    if !failed && prepared.input >= 0 {
+        fd := OpenRaw(At(prepared, prepared.input), 0, 0)
+        if fd < 0 || DupRaw(fd, 0) < 0 { failed = true }
+        if fd > 0 { CloseRaw(fd) }
+    }
+    if !failed && capture >= 0 {
+        if DupRaw(capture, 1) < 0 { failed = true }
+    } else if !failed && prepared.output >= 0 {
+        flags: s32 = ifx options.append_output then 1089 else 577
+        fd := OpenRaw(At(prepared, prepared.output), flags | CLOSE_ON_EXEC, 420)
+        if fd < 0 || DupRaw(fd, 1) < 0 { failed = true }
+    }
+    if !failed && options.merge_error {
+        if DupRaw(1, 2) < 0 { failed = true }
+    } else if !failed && prepared.error >= 0 {
+        fd := OpenRaw(At(prepared, prepared.error), 577 | CLOSE_ON_EXEC, 420)
+        if fd < 0 || DupRaw(fd, 2) < 0 { failed = true }
+    }
+    if !failed { ExecRaw(prepared.arguments[0].value, *prepared.arguments[0]) }
+    error: s32 = <<ErrnoRaw()
+    WriteRaw(status, cast(*u8)*error, 4)
+    ExitRaw(127)
+}
+
+Status :: (run: *ProcessRun, status: s32) {
+    run.finished = true
+    if (status & 127) != 0 {
+        run.code = 128 + (status & 127)
+    } else {
+        run.code = (status >> 8) & 255
+    }
+}
+
+Start :: (options: ProcessOptions, run: *ProcessRun, capture: bool) -> s32 {
+    run.pid = 0
+    run.code = 127
+    run.started = false
+    run.finished = false
+    prepared: Prepared
+    if !Prepare(options, *prepared) { return -1 }
+    status: [2]s32
+    if Pipe2Raw(*status[0], CLOSE_ON_EXEC) != 0 { return -1 }
+    output: [2]s32 = .[-1, -1]
+    if capture && Pipe2Raw(*output[0], CLOSE_ON_EXEC) != 0 {
+        CloseRaw(status[0])
+        CloseRaw(status[1])
+        return -1
+    }
+    pid := ForkRaw()
+    if pid == 0 {
+        CloseRaw(status[0])
+        if capture { CloseRaw(output[0]) }
+        Child(options, *prepared, status[1], output[1])
+    }
+    CloseRaw(status[1])
+    if capture { CloseRaw(output[1]) }
+    if pid < 0 {
+        CloseRaw(status[0])
+        if capture { CloseRaw(output[0]) }
+        return -1
+    }
+    run.pid = pid
+    // The status pipe closes at a successful exec and carries errno otherwise.
+    error: s32 = 0
+    count: s64 = -1
+    while count < 0 {
+        count = ReadRaw(status[0], cast(*u8)*error, 4)
+        if count < 0 && <<ErrnoRaw() != INTERRUPTED { count = 0 }
+    }
+    CloseRaw(status[0])
+    if count > 0 {
+        child_status: s32 = 0
+        while WaitRaw(pid, *child_status, 0) < 0 && <<ErrnoRaw() == INTERRUPTED { }
+        run.finished = true
+        run.code = 127
+        if capture { CloseRaw(output[0]) }
+        return -1
+    }
+    run.started = true
+    return ifx capture then output[0] else 0
+}
+
+#scope_export
+// Starts the child and leaves it running; capture_output is not available
+// here, so a captured stream goes to output_path instead.
+StartProcess :: (options: ProcessOptions, run: *ProcessRun) -> bool {
+    return Start(options, run, false) >= 0 && run.started
+}
+
+// Whether the child has finished, without waiting; its code is then set.
+PollProcess :: (run: *ProcessRun) -> bool {
+    if run.finished || !run.started { return true }
+    status: s32 = 0
+    done := WaitRaw(run.pid, *status, 1)
+    if done == run.pid { Status(run, status) }
+    if done < 0 && <<ErrnoRaw() != INTERRUPTED { run.finished = true }
+    return run.finished
+}
+
+// Waits for the child to finish and sets its code.
+WaitProcess :: (run: *ProcessRun) -> bool {
+    if run.finished || !run.started { return run.started }
+    status: s32 = 0
+    while true {
+        done := WaitRaw(run.pid, *status, 0)
+        if done == run.pid { Status(run, status); return true }
+        if done < 0 && <<ErrnoRaw() != INTERRUPTED { run.finished = true; return false }
+    }
+    return false
+}
+
+// Sends a signal (15 asks to stop, 9 kills) to the child, or with
+// whole_group to the process group a new_session child leads.
+SignalProcess :: (run: *ProcessRun, signal_number: s32, whole_group: bool = false) -> bool {
+    if !run.started || run.finished || run.pid <= 0 { return false }
+    target := ifx whole_group then -run.pid else run.pid
+    return KillRaw(target, signal_number) == 0
+}
+
+// Runs the child to completion. With capture_output its standard output is
+// appended to run.output. False when it could not be started or waited for.
+RunProcess :: (options: ProcessOptions, run: *ProcessRun) -> bool {
+    capture := options.capture_output
+    fd := Start(options, run, capture)
+    if fd < 0 || !run.started { return false }
+    if capture {
+        chunk: [65536]u8
+        while true {
+            count := ReadRaw(fd, *chunk[0], 65536)
+            if count < 0 && <<ErrnoRaw() == INTERRUPTED { continue }
+            if count <= 0 { break }
+            index: s64 = 0
+            while index < count { VecPush(run.output, chunk[index]); index += 1 }
+        }
+        CloseRaw(fd)
+    }
+    return WaitProcess(run)
+}
+
+#scope_file
+termination_requested: bool;
+
+Terminate :: (signal_number: s32) -> void {
+    termination_requested = true
+}
+
+#scope_export
+// After this, SIGTERM and SIGINT set TerminationRequested instead of
+// ending the program, so it can stop its own children and clean up.
+CatchTermination :: () {
+    termination_requested = false
+    SignalRaw(15, Terminate)
+    SignalRaw(2, Terminate)
+}
+
+TerminationRequested :: () -> bool { return termination_requested }

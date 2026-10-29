@@ -1,0 +1,408 @@
+// Paths, folders and whole files for native Linux tools and build programs:
+// what a build script needs beyond file_linux's positional I/O. Paths are
+// UTF-8 text of at most 4095 bytes.
+//
+//     CreateDirectories("build/site/pictures")
+//     CopyTree("site", "build/site/page")
+//     names: Vec(string)
+//     if ListDirectory("levels", *names) { for names { ... } }
+//     lock := LockPath("backup/drafts/approval.lock")
+//     ReplaceFile("levels/approved.json", text)
+//     UnlockPath(lock)
+//
+// PathStatus reads a path's kind, permission bits, size and modification
+// time with statx, whose record has one layout on every little-endian Linux
+// architecture.
+#import "c_string"
+#import "sort"
+using Files :: #import "file_linux"
+using Vectors :: #import "vec"
+
+#scope_file
+libc :: #system_library "libc";
+StatxRaw :: (directory: s32, path: *u8, flags: s32, mask: u32, output: *StatxRecord) -> s32 #foreign libc "statx";
+MakeDirectoryRaw :: (path: *u8, mode: u32) -> s32 #foreign libc "mkdir";
+RemoveDirectoryRaw :: (path: *u8) -> s32 #foreign libc "rmdir";
+UnlinkRaw :: (path: *u8) -> s32 #foreign libc "unlink";
+ChangeModeRaw :: (path: *u8, mode: u32) -> s32 #foreign libc "chmod";
+OpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 #foreign libc "open";
+CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+FlockRaw :: (fd: s32, operation: s32) -> s32 #foreign libc "flock";
+FsyncRaw :: (fd: s32) -> s32 #foreign libc "fsync";
+WriteRaw :: (fd: s32, input: *u8, count: u64) -> s64 #foreign libc "write";
+RenameRaw :: (source: *u8, target: *u8) -> s32 #foreign libc "rename";
+RealPathRaw :: (path: *u8, output: *u8) -> *u8 #foreign libc "realpath";
+WorkingDirectoryRaw :: (output: *u8, size: u64) -> *u8 #foreign libc "getcwd";
+ProcessIdRaw :: () -> s32 #foreign libc "getpid";
+ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
+SymbolicLinkRaw :: (target: *u8, path: *u8) -> s32 #foreign libc "symlink";
+ReadLinkRaw :: (path: *u8, output: *u8, capacity: u64) -> s64 #foreign libc "readlink";
+
+StatxRecord :: struct { words: [32]u64 }
+
+CURRENT_DIRECTORY :: -100;
+NO_FOLLOW :: 256;
+BASIC_STATS :: 2047;
+EXISTS :: 17;
+INTERRUPTED :: 4;
+
+#scope_export
+PathKind :: enum u8 { Missing :: 0; File :: 1; Directory :: 2; Link :: 3; Other :: 4; }
+
+PathInfo :: struct {
+    kind: PathKind
+    // Permission bits, such as 0o644 written 420.
+    mode: s32
+    size: s64
+    // Seconds since 1970 UTC.
+    modified: s64
+}
+
+// The path's kind, permissions, size and modification time. A link is
+// followed unless follow_links is false, when it reports kind Link.
+PathStatus :: (path: string, follow_links: bool = true) -> PathInfo {
+    info: PathInfo
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return info }
+    record: StatxRecord
+    flags: s32 = ifx follow_links then 0 else NO_FOLLOW
+    if StatxRaw(CURRENT_DIRECTORY, *name[0], flags, BASIC_STATS, *record) != 0 { return info }
+    mode := cast(s32)((record.words[3] >> 32) & 65535)
+    type := mode & 61440
+    info.kind = .Other
+    if type == 32768 { info.kind = .File }
+    if type == 16384 { info.kind = .Directory }
+    if type == 40960 { info.kind = .Link }
+    info.mode = mode & 4095
+    info.size = cast(s64)record.words[5]
+    info.modified = cast(s64)record.words[14]
+    return info
+}
+
+IsFile :: (path: string) -> bool { return PathStatus(path).kind == .File }
+IsDirectory :: (path: string) -> bool { return PathStatus(path).kind == .Directory }
+
+SetPathMode :: (path: string, mode: s32) -> bool {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return false }
+    return ChangeModeRaw(*name[0], cast(u32)mode) == 0
+}
+
+// DIRECTORY/NAME, or NAME alone when it is absolute or DIRECTORY is empty.
+JoinPath :: (directory: string, name: string) -> string {
+    if directory.count == 0 || (name.count > 0 && name[0] == #char "/") { return name }
+    result: Vec(u8)
+    BuilderAppend(result, directory)
+    if directory[directory.count - 1] != #char "/" { VecPush(result, #char "/") }
+    BuilderAppend(result, name)
+    return BuilderFinish(result)
+}
+
+// The last part of PATH, after its final slash.
+PathName :: (path: string) -> string {
+    end := path.count
+    while end > 1 && path[end - 1] == #char "/" { end -= 1 }
+    at := end
+    while at > 0 && path[at - 1] != #char "/" { at -= 1 }
+    return path[at:end]
+}
+
+// PATH without its last part: "." for a bare name, "/" for a root entry.
+PathParent :: (path: string) -> string {
+    end := path.count
+    while end > 1 && path[end - 1] == #char "/" { end -= 1 }
+    at := end
+    while at > 0 && path[at - 1] != #char "/" { at -= 1 }
+    if at == 0 { return "." }
+    while at > 1 && path[at - 1] == #char "/" { at -= 1 }
+    return path[0:at]
+}
+
+// The name's extension with its dot, as Python's Path.suffix: ".png".
+PathSuffix :: (path: string) -> string {
+    name := PathName(path)
+    at := name.count - 1
+    while at > 0 {
+        if name[at] == #char "." { return name[at:name.count] }
+        at -= 1
+    }
+    return ""
+}
+
+// The name without its extension, as Python's Path.stem.
+PathStem :: (path: string) -> string {
+    name := PathName(path)
+    suffix := PathSuffix(path)
+    return name[0:name.count - suffix.count]
+}
+
+// The absolute path with every link and dot resolved; empty when PATH does
+// not exist.
+ResolvePath :: (path: string) -> string {
+    name: [4096]u8
+    output: [4096]u8
+    if !CopyCString(path, name[:]) { return "" }
+    if RealPathRaw(*name[0], *output[0]) == null { return "" }
+    return CopyText(output[:])
+}
+
+WorkingDirectory :: () -> string {
+    output: [4096]u8
+    if WorkingDirectoryRaw(*output[0], 4096) == null { return "" }
+    return CopyText(output[:])
+}
+
+#scope_file
+CopyText :: (bytes: []u8) -> string {
+    result: Vec(u8)
+    for bytes {
+        if it == 0 { break }
+        VecPush(result, it)
+    }
+    return BuilderFinish(result)
+}
+
+#scope_export
+// Creates PATH and every missing parent folder; true when it exists as a
+// folder afterwards.
+CreateDirectories :: (path: string, mode: s32 = 493) -> bool {
+    if path.count == 0 { return false }
+    if IsDirectory(path) { return true }
+    parent := PathParent(path)
+    if parent != path && parent != "." && parent != "/" && !CreateDirectories(parent, mode) { return false }
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return false }
+    if MakeDirectoryRaw(*name[0], cast(u32)mode) != 0 && <<ErrnoRaw() != EXISTS { return false }
+    return IsDirectory(path)
+}
+
+// The names in a folder, without "." and "..", sorted by their bytes.
+ListDirectory :: (path: string, names: *Vec(string)) -> bool {
+    cursor := OpenDirectory(path)
+    if !cursor.valid { return false }
+    found: Vec(string)
+    while true {
+        entry := NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+        text := CopyText(entry.name[0:entry.name_count])
+        if text != "." && text != ".." { VecPush(found, text) }
+    }
+    failed := cursor.failed
+    CloseDirectory(*cursor)
+    if failed { return false }
+    SortText(found)
+    index: s64 = 0
+    while index < found.count { VecPush(<<names, found[index]); index += 1 }
+    return true
+}
+
+// Removes PATH and, for a folder, everything in it. Links are removed, never
+// followed. True when nothing remains at PATH.
+RemoveTree :: (path: string) -> bool {
+    info := PathStatus(path, false)
+    if info.kind == .Missing { return true }
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return false }
+    if info.kind != .Directory { return UnlinkRaw(*name[0]) == 0 }
+    names: Vec(string)
+    if !ListDirectory(path, *names) { return false }
+    ok := true
+    index: s64 = 0
+    while index < names.count {
+        if !RemoveTree(JoinPath(path, names[index])) { ok = false }
+        index += 1
+    }
+    return ok && RemoveDirectoryRaw(*name[0]) == 0
+}
+
+// Copies a file's bytes and permission bits to TARGET, replacing it.
+CopyFile :: (source: string, target: string) -> bool {
+    info := PathStatus(source)
+    if info.kind != .File { return false }
+    input := OpenRead(source)
+    if !input.valid { return false }
+    output := OpenReplace(target)
+    if !output.valid { CloseFile(input); return false }
+    chunk: [65536]u8
+    offset: s64 = 0
+    ok := true
+    while true {
+        count := ReadAt(input, chunk[:], offset)
+        if count < 0 { ok = false; break }
+        if count == 0 { break }
+        if WriteAt(output, chunk[0:count], offset) != count { ok = false; break }
+        offset += count
+    }
+    CloseFile(input)
+    if !CloseFile(output) { ok = false }
+    return ok && SetPathMode(target, info.mode)
+}
+
+// Copies a folder and everything in it to TARGET, which is created; links
+// inside are copied as links.
+CopyTree :: (source: string, target: string) -> bool {
+    info := PathStatus(source)
+    if info.kind != .Directory { return false }
+    if !CreateDirectories(target) { return false }
+    names: Vec(string)
+    if !ListDirectory(source, *names) { return false }
+    index: s64 = 0
+    while index < names.count {
+        from := JoinPath(source, names[index])
+        to := JoinPath(target, names[index])
+        kind := PathStatus(from, false).kind
+        ok := false
+        if kind == .Directory { ok = CopyTree(from, to) }
+        else if kind == .File { ok = CopyFile(from, to) }
+        else if kind == .Link { ok = CopyLink(from, to) }
+        if !ok { return false }
+        index += 1
+    }
+    return SetPathMode(target, info.mode)
+}
+
+#scope_file
+CopyLink :: (source: string, target: string) -> bool {
+    name: [4096]u8
+    destination: [4096]u8
+    link: [4096]u8
+    if !CopyCString(source, name[:]) || !CopyCString(target, link[:]) { return false }
+    count := ReadLinkRaw(*name[0], *destination[0], 4095)
+    if count < 0 { return false }
+    destination[count] = 0
+    return SymbolicLinkRaw(*destination[0], *link[0]) == 0
+}
+
+#scope_export
+// Replaces the file at PATH with TEXT so that readers see either the old or
+// the new whole file: a private sibling file is written, synced and renamed
+// over it. The new file keeps the old one's permission bits.
+ReplaceFile :: (path: string, text: string) -> bool {
+    temporary_text: Vec(u8)
+    BuilderAppend(temporary_text, path)
+    BuilderAppend(temporary_text, ".new-")
+    digits: [24]u8
+    at: s64 = 24
+    pid := ProcessIdRaw()
+    while true {
+        at -= 1
+        digits[at] = cast(u8)(48 + pid % 10)
+        pid = pid / 10
+        if pid == 0 { break }
+    }
+    while at < 24 { VecPush(temporary_text, digits[at]); at += 1 }
+    temporary := BuilderFinish(temporary_text)
+    previous := PathStatus(path)
+    name: [4096]u8
+    final: [4096]u8
+    if !CopyCString(temporary, name[:]) || !CopyCString(path, final[:]) { return false }
+    mode: s32 = ifx previous.kind == .File then previous.mode else 420
+    fd := OpenRaw(*name[0], 577 | 524288, mode)
+    if fd < 0 { return false }
+    chunk: [65536]u8
+    written: s64 = 0
+    ok := true
+    while ok && written < text.count {
+        size: s64 = 0
+        while size < 65536 && written + size < text.count { chunk[size] = text[written + size]; size += 1 }
+        sent: s64 = 0
+        while sent < size {
+            count := WriteRaw(fd, *chunk[sent], cast(u64)(size - sent))
+            if count < 0 && <<ErrnoRaw() == INTERRUPTED { continue }
+            if count <= 0 { ok = false; break }
+            sent += count
+        }
+        written += size
+    }
+    if ok && FsyncRaw(fd) != 0 { ok = false }
+    if CloseRaw(fd) != 0 { ok = false }
+    if ok && previous.kind == .File { ok = ChangeModeRaw(*name[0], cast(u32)mode) == 0 }
+    if ok && RenameRaw(*name[0], *final[0]) != 0 { ok = false }
+    if !ok { UnlinkRaw(*name[0]) }
+    return ok
+}
+
+// Opens (creating) the lock file at PATH and takes its flock: exclusive or
+// shared, waiting or not. Returns the descriptor to UnlockPath, or -1 when
+// the file cannot be opened or, without wait, another holder has it.
+LockPath :: (path: string, exclusive: bool = true, wait: bool = true) -> s32 {
+    name: [4096]u8
+    if !CopyCString(path, name[:]) { return -1 }
+    fd := OpenRaw(*name[0], 1 | 64 | 1024 | 524288, 420)
+    if fd < 0 { return -1 }
+    operation: s32 = ifx exclusive then 2 else 1
+    if !wait { operation |= 4 }
+    while FlockRaw(fd, operation) != 0 {
+        if <<ErrnoRaw() != INTERRUPTED {
+            CloseRaw(fd)
+            return -1
+        }
+    }
+    return fd
+}
+
+UnlockPath :: (fd: s32) {
+    if fd < 0 { return }
+    FlockRaw(fd, 8)
+    CloseRaw(fd)
+}
+
+// Whether NAME matches a shell wildcard PATTERN: * any run, ? one byte,
+// [abc], [a-z] and [!abc] one byte of a set. Nothing else is special.
+MatchName :: (name: string, pattern: string) -> bool {
+    return MatchAt(name, 0, pattern, 0)
+}
+
+#scope_file
+MatchAt :: (name: string, at: s64, pattern: string, from: s64) -> bool {
+    n := at
+    p := from
+    while p < pattern.count {
+        token := pattern[p]
+        if token == #char "*" {
+            while p < pattern.count && pattern[p] == #char "*" { p += 1 }
+            if p == pattern.count { return true }
+            start := n
+            while start <= name.count {
+                if MatchAt(name, start, pattern, p) { return true }
+                start += 1
+            }
+            return false
+        }
+        if n >= name.count { return false }
+        if token == #char "?" {
+            n += 1
+            p += 1
+            continue
+        }
+        if token == #char "[" {
+            close := p + 1
+            if close < pattern.count && pattern[close] == #char "!" { close += 1 }
+            if close < pattern.count && pattern[close] == #char "]" { close += 1 }
+            while close < pattern.count && pattern[close] != #char "]" { close += 1 }
+            if close < pattern.count {
+                negate := pattern[p + 1] == #char "!"
+                index := ifx negate then p + 2 else p + 1
+                found := false
+                while index < close {
+                    low := pattern[index]
+                    high := low
+                    if index + 2 < close && pattern[index + 1] == #char "-" {
+                        high = pattern[index + 2]
+                        index += 2
+                    }
+                    if name[n] >= low && name[n] <= high { found = true }
+                    index += 1
+                }
+                if found == negate { return false }
+                n += 1
+                p = close + 1
+                continue
+            }
+        }
+        if name[n] != token { return false }
+        n += 1
+        p += 1
+    }
+    return n == name.count
+}

@@ -1194,6 +1194,18 @@ code. `CloseChannel` closes the stream, waits for the requested grace period,
 then terminates only the child's own process group if it is still running.
 Keep one owner for each channel and close it before releasing its storage;
 failed sends may have delivered a prefix and must not be blindly replayed.
+
+Build and release programs use three more modules. `std/process_run_linux.zi`
+runs a child with any number of arguments, a working directory, environment
+changes, and each stream inherited, read from or written to a file, or
+captured (`RunProcess`); `StartProcess`, `PollProcess`, `WaitProcess` and
+`SignalProcess` follow a child left running, and a program that cannot start
+reports `started = false`. `std/file_tree_linux.zi` creates, lists, copies and
+removes folders, reads a path's kind, permissions, size and modification time,
+replaces a file atomically, takes `flock` locks and matches shell wildcards.
+`std/text_tools.zi` finds, splits, trims, replaces and joins text on any target.
+Run `sh tests/std_tools_linux.sh build/bin/ziran` for their checks.
+
 These native adapters keep libc calls out of applications and require glibc
 Linux and a `curl` executable. Portable bundles should use the host capabilities
 above instead.

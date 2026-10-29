@@ -1,0 +1,208 @@
+// Searching, splitting and rewriting text for tools and build programs. Every
+// operation works on bytes, so it is exact for UTF-8 text and needs no
+// platform library. Results that are pieces of the input (TextTrim,
+// TextSplit, TextLines) are views of it; TextReplace and TextJoin build new
+// text.
+//
+//     for TextLines(changelog) {
+//         if TextHasPrefix(it, "## [") { version_line = it; break }
+//     }
+using Vectors :: #import "vec"
+
+// The first index of NEEDLE in TEXT at or after FROM, or -1.
+TextFind :: (text: string, needle: string, from: s64 = 0) -> s64 {
+    if from < 0 { return -1 }
+    last := text.count - needle.count
+    at := from
+    while at <= last {
+        index: s64 = 0
+        while index < needle.count && text[at + index] == needle[index] { index += 1 }
+        if index == needle.count { return at }
+        at += 1
+    }
+    return -1
+}
+
+// The last index of NEEDLE in TEXT, or -1.
+TextFindLast :: (text: string, needle: string) -> s64 {
+    at := text.count - needle.count
+    while at >= 0 {
+        index: s64 = 0
+        while index < needle.count && text[at + index] == needle[index] { index += 1 }
+        if index == needle.count { return at }
+        at -= 1
+    }
+    return -1
+}
+
+TextContains :: (text: string, needle: string) -> bool { return TextFind(text, needle) >= 0 }
+
+TextHasPrefix :: (text: string, prefix: string) -> bool {
+    if prefix.count > text.count { return false }
+    return text[0:prefix.count] == prefix
+}
+
+TextHasSuffix :: (text: string, suffix: string) -> bool {
+    if suffix.count > text.count { return false }
+    return text[text.count - suffix.count:text.count] == suffix
+}
+
+TextIsSpace :: (byte: u8) -> bool {
+    return byte == #char " " || (byte >= 9 && byte <= 13)
+}
+
+// TEXT without leading and trailing ASCII whitespace.
+TextTrim :: (text: string) -> string {
+    start: s64 = 0
+    end := text.count
+    while start < end && TextIsSpace(text[start]) { start += 1 }
+    while end > start && TextIsSpace(text[end - 1]) { end -= 1 }
+    return text[start:end]
+}
+
+// TEXT without trailing ASCII whitespace.
+TextTrimEnd :: (text: string) -> string {
+    end := text.count
+    while end > 0 && TextIsSpace(text[end - 1]) { end -= 1 }
+    return text[0:end]
+}
+
+// Every piece of TEXT between SEPARATORs, empty pieces included, as
+// Python's str.split(separator) gives them.
+TextSplit :: (text: string, separator: string) -> Vec(string) {
+    pieces: Vec(string)
+    if separator.count == 0 {
+        VecPush(pieces, text)
+        return pieces
+    }
+    start: s64 = 0
+    at := TextFind(text, separator, 0)
+    while at >= 0 {
+        VecPush(pieces, text[start:at])
+        start = at + separator.count
+        at = TextFind(text, separator, start)
+    }
+    VecPush(pieces, text[start:text.count])
+    return pieces
+}
+
+// The lines of TEXT without their line endings (\n, \r\n or \r); a final
+// line ending adds no empty line.
+TextLines :: (text: string) -> Vec(string) {
+    lines: Vec(string)
+    start: s64 = 0
+    at: s64 = 0
+    while at < text.count {
+        byte := text[at]
+        if byte == 10 || byte == 13 {
+            VecPush(lines, text[start:at])
+            if byte == 13 && at + 1 < text.count && text[at + 1] == 10 { at += 1 }
+            start = at + 1
+        }
+        at += 1
+    }
+    if start < text.count { VecPush(lines, text[start:text.count]) }
+    return lines
+}
+
+// TEXT with every OLD replaced by NEW, left to right.
+TextReplace :: (text: string, old: string, new: string) -> string {
+    if old.count == 0 { return text }
+    at := TextFind(text, old, 0)
+    if at < 0 { return text }
+    result: Vec(u8)
+    start: s64 = 0
+    while at >= 0 {
+        BuilderAppend(result, text[start:at])
+        BuilderAppend(result, new)
+        start = at + old.count
+        at = TextFind(text, old, start)
+    }
+    BuilderAppend(result, text[start:text.count])
+    return BuilderFinish(result)
+}
+
+TextJoin :: (parts: []string, separator: string) -> string {
+    result: Vec(u8)
+    index: s64 = 0
+    while index < parts.count {
+        if index > 0 { BuilderAppend(result, separator) }
+        BuilderAppend(result, parts[index])
+        index += 1
+    }
+    return BuilderFinish(result)
+}
+
+// TEXT with ASCII letters in lower case.
+TextLower :: (text: string) -> string {
+    result: Vec(u8)
+    for text {
+        byte := it
+        if byte >= #char "A" && byte <= #char "Z" { byte += 32 }
+        VecPush(result, byte)
+    }
+    return BuilderFinish(result)
+}
+
+// Whether TEXT is one or more decimal digits.
+TextIsDecimal :: (text: string) -> bool {
+    if text.count == 0 { return false }
+    for text { if it < #char "0" || it > #char "9" { return false } }
+    return true
+}
+
+// Whether TEXT is one or more lowercase hexadecimal digits.
+TextIsLowerHex :: (text: string) -> bool {
+    if text.count == 0 { return false }
+    for text {
+        if !((it >= #char "0" && it <= #char "9") || (it >= #char "a" && it <= #char "f")) { return false }
+    }
+    return true
+}
+
+// Whether every byte of TEXT is one of ALLOWED's bytes; empty TEXT is not.
+TextOnly :: (text: string, allowed: string) -> bool {
+    if text.count == 0 { return false }
+    at: s64 = 0
+    while at < text.count {
+        if TextFind(allowed, text[at:at + 1]) < 0 { return false }
+        at += 1
+    }
+    return true
+}
+
+// The whole of TEXT as a decimal integer with an optional sign.
+TextInteger :: (text: string) -> (value: s64, ok: bool) {
+    if text.count == 0 { return 0, false }
+    negative := text[0] == #char "-"
+    start: s64 = ifx negative || text[0] == #char "+" then 1 else 0
+    if start == text.count || text.count - start > 18 { return 0, false }
+    value: s64 = 0
+    at := start
+    while at < text.count {
+        byte := text[at]
+        if byte < #char "0" || byte > #char "9" { return 0, false }
+        value = value * 10 + cast(s64)(byte - #char "0")
+        at += 1
+    }
+    return ifx negative then -value else value, true
+}
+
+// The value of a hexadecimal digit, or -1.
+TextHexDigit :: (byte: u8) -> s32 {
+    if byte >= #char "0" && byte <= #char "9" { return cast(s32)(byte - #char "0") }
+    if byte >= #char "a" && byte <= #char "f" { return cast(s32)(byte - #char "a") + 10 }
+    if byte >= #char "A" && byte <= #char "F" { return cast(s32)(byte - #char "A") + 10 }
+    return -1
+}
+
+// BYTES as lowercase hexadecimal.
+TextHex :: (bytes: []u8) -> string {
+    digits := "0123456789abcdef"
+    result: Vec(u8)
+    for bytes {
+        VecPush(result, digits[it >> 4])
+        VecPush(result, digits[it & 15])
+    }
+    return BuilderFinish(result)
+}

@@ -363,7 +363,9 @@
 <div><code>DropAlpha :: (image: *Image)</code><p>Every pixel opaque, keeping its colour, as Pillow's convert("RGB") does.</p></div>
 <div><code>RotateLeft :: (image: *Image) -&gt; Image</code><p>The picture turned a quarter turn counterclockwise, as Pillow's Transpose.ROTATE_90.</p></div>
 <div><code>PasteImage :: (destination: *Image, source: *Image, x: s32, y: s32)</code><p>Copies SOURCE onto DESTINATION with its top left corner at X, Y, replacing the pixels underneath; parts outside are cut off.</p></div>
-<div><code>AlphaComposite :: (destination: *Image, source: *Image, x: s32, y: s32)</code><p>Draws SOURCE over DESTINATION at X, Y as Pillow's Image.alpha_composite.</p></div>
+<div><code>AlphaComposite :: (destination: *Image, source: *Image, x: s32, y: s32, from_x: s32, from_y: s32, width: s32, height: s32)</code></div>
+<div><code>AlphaCompositeAt :: (destination: *Image, source: *Image, x: float64, y: float64)</code><p>Draws SOURCE over DESTINATION with its top-left corner at the fractional position X, Y, blending the neighbouring pixels it falls between as a browser canvas's drawImage does. Whole positions draw it unchanged.</p></div>
+<div><code>Silhouette :: (image: *Image, red: u8, green: u8, blue: u8, alpha: u8)</code><p>Every pixel takes the colour RED, GREEN, BLUE, its alpha scaled by ALPHA: the picture's shape filled with one colour.</p></div>
 <div><code>ResizeNearest :: (image: *Image, width: s32, height: s32) -&gt; Image</code><p>Pillow's Resampling.NEAREST: each pixel copies the source pixel under its centre, positions stepped as Pillow steps them.</p></div>
 <div><code>ResizeBox :: (image: *Image, width: s32, height: s32) -&gt; Image</code><p>Pillow's Resampling.BOX: each pixel averages the source pixels it covers.</p></div>
 <div><code>ResizeLanczos :: (image: *Image, width: s32, height: s32) -&gt; Image</code><p>Pillow's Resampling.LANCZOS, three lobes.</p></div>

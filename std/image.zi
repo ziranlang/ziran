@@ -98,14 +98,20 @@ PasteImage :: (destination: *Image, source: *Image, x: s32, y: s32) {
 }
 
 // Draws SOURCE over DESTINATION at X, Y as Pillow's Image.alpha_composite.
-AlphaComposite :: (destination: *Image, source: *Image, x: s32, y: s32) {
-    for row: 0..source.height - 1 {
+AlphaComposite :: (destination: *Image, source: *Image, x: s32, y: s32,
+                   from_x: s32 = 0, from_y: s32 = 0, width: s32 = -1, height: s32 = -1) {
+    // Only SOURCE's FROM_X, FROM_Y, WIDTH by HEIGHT part when given, as
+    // alpha_composite's source box; -1 runs to SOURCE's edge.
+    columns := ifx width < 0 || from_x + width > source.width then source.width - from_x else width
+    rows := ifx height < 0 || from_y + height > source.height then source.height - from_y else height
+    if from_x < 0 || from_y < 0 || columns <= 0 || rows <= 0 { return }
+    for row: 0..rows - 1 {
         to_y := y + row
         if to_y < 0 || to_y >= destination.height { continue }
-        for column: 0..source.width - 1 {
+        for column: 0..columns - 1 {
             to_x := x + column
             if to_x < 0 || to_x >= destination.width { continue }
-            from := (cast(s64)row * source.width + column) * 4
+            from := (cast(s64)(from_y + row) * source.width + from_x + column) * 4
             to := (cast(s64)to_y * destination.width + to_x) * 4
             source_alpha := cast(u32)source.pixels[from + 3]
             if source_alpha == 0 { continue }

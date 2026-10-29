@@ -89,6 +89,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
     over := NewImage(2, 1, 200, 100, 50, 128)
     AlphaComposite(*base, *over, 0, 0)
     if !Is(*base, 0, 0, 105, 60, 40, 255) || !Is(*base, 1, 0, 147, 78, 44, 178) { return 9 }
+    // Only part of the source, as alpha_composite's source box.
+    atlas := NewImage(4, 1, 1, 2, 3, 255)
+    Pixel(*atlas, 2, 0, 200, 100, 50, 255)
+    target := NewImage(3, 1)
+    AlphaComposite(*target, *atlas, 1, 0, 2, 0, 1, 1)
+    if !Is(*target, 1, 0, 200, 100, 50, 255) || !Is(*target, 0, 0, 0, 0, 0, 0) || !Is(*target, 2, 0, 0, 0, 0, 0) { return 17 }
     // Paste, rotation and nearest resizing.
     canvas := NewImage(4, 3)
     PasteImage(*canvas, *picture, 2, 2)

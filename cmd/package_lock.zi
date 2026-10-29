@@ -160,6 +160,13 @@ PkgFindById :: (locked: *PkgLock, id: string) -> s32 {
     return -1
 }
 
+// A declaration matches its locked package by the same ref, or by a full
+// commit naming the commit that package is locked at: one manifest may follow
+// a branch while another pins the commit that branch locked.
+PkgRefMatches :: (locked: *PkgLocked, ref: string) -> bool {
+    return locked.ref == ref || (PkgValidCommit(ref) && locked.commit == ref)
+}
+
 PkgFindBySource :: (locked: *PkgLock, url: string, ref: string) -> s32 {
     index: s32 = 0
     while index < locked.count {
@@ -484,7 +491,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                 old.root_edge_count, dep.alias)
             target: s32 = PkgFindById(old, id)
             if target < 0 || !PkgSameSource(old.packages[target].url, dep.git) ||
-                old.packages[target].ref != dep.ref ||
+                !PkgRefMatches(*old.packages[target], dep.ref) ||
                 old.packages[target].source != dep.source {
                 PkgFail("dependencies differ from ziran.lock; run ziran lock")
                 return false
@@ -574,41 +581,54 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             if !PkgValidCommit(item.commit) || item.path.count == 0 {
                 return false
             }
-            // A source package is a pinned checkout for platform builds. It
-            // has no manifest, modules, or dependencies of its own.
-            item.source = next.source
-            if item.source {
-                item.name = PkgJoin("", next.alias)
-            } else {
-                if !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"),
-                    *item.manifest) { return false }
-                item.name = item.manifest.name
-            }
-            item.id = PkgSourceId(PkgSourceKey(item.url), item.commit)
-            resolved.count += 1
-            index = 0
-            while index < item.manifest.dependency_count {
-                if pending_count >= 256 { return false }
-                child: *PkgDependency = *item.manifest.dependencies[index]
-                entry: PkgPending
-                entry.owner = found
-                entry.alias = child.alias
-                entry.url = child.git
-                entry.ref = child.ref
-                entry.source = child.source
-                entry.refresh = next.refresh
-                if next.refresh {
-                    shift: s32 = pending_count
-                    while shift > index {
-                        pending[shift] = pending[shift - 1]
-                        shift -= 1
-                    }
-                    pending[index] = entry
-                } else {
-                    pending[pending_count] = entry
+            // Manifests may name one commit by different refs, a branch in
+            // one and that branch's commit in another. They are one package:
+            // a second copy would give the lock two entries with one id. The
+            // entry keeps the branch; pins match it by commit (PkgRefMatches).
+            source_id: string = PkgSourceId(PkgSourceKey(item.url), item.commit)
+            same: s32 = PkgFindById(resolved, source_id)
+            if same >= 0 {
+                found = same
+                if PkgValidCommit(resolved.packages[same].ref) && !PkgValidCommit(next.ref) {
+                    resolved.packages[same].ref = next.ref
                 }
-                pending_count += 1
-                index += 1
+            } else {
+                // A source package is a pinned checkout for platform builds. It
+                // has no manifest, modules, or dependencies of its own.
+                item.source = next.source
+                if item.source {
+                    item.name = PkgJoin("", next.alias)
+                } else {
+                    if !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"),
+                        *item.manifest) { return false }
+                    item.name = item.manifest.name
+                }
+                item.id = source_id
+                resolved.count += 1
+                index = 0
+                while index < item.manifest.dependency_count {
+                    if pending_count >= 256 { return false }
+                    child: *PkgDependency = *item.manifest.dependencies[index]
+                    entry: PkgPending
+                    entry.owner = found
+                    entry.alias = child.alias
+                    entry.url = child.git
+                    entry.ref = child.ref
+                    entry.source = child.source
+                    entry.refresh = next.refresh
+                    if next.refresh {
+                        shift: s32 = pending_count
+                        while shift > index {
+                            pending[shift] = pending[shift - 1]
+                            shift -= 1
+                        }
+                        pending[index] = entry
+                    } else {
+                        pending[pending_count] = entry
+                    }
+                    pending_count += 1
+                    index += 1
+                }
             }
         }
         if resolved.packages[found].source != next.source { return false }
@@ -674,7 +694,7 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             dep.alias)
         found: s32 = PkgFindById(locked, id)
         if found < 0 || !PkgSameSource(locked.packages[found].url, dep.git) ||
-           locked.packages[found].ref != dep.ref ||
+           !PkgRefMatches(*locked.packages[found], dep.ref) ||
            locked.packages[found].source != dep.source {
             PkgFail("dependencies differ from ziran.lock; run ziran lock")
             return false
@@ -726,7 +746,7 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             id: string = PkgEdgeValue(*item.edges[0], item.edge_count, dep.alias)
             target: s32 = PkgFindById(locked, id)
             if target < 0 || !PkgSameSource(locked.packages[target].url, dep.git) ||
-                locked.packages[target].ref != dep.ref ||
+                !PkgRefMatches(*locked.packages[target], dep.ref) ||
                 locked.packages[target].source != dep.source { return false }
             child += 1
         }

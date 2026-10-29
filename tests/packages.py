@@ -66,6 +66,54 @@ def compile_app(ziran: str, app: Path, output: Path, compiler: Path,
     call(str(output / "app"), cwd=app, env=env)
 
 
+def check_shared_commit_refs(ziran: str, root: Path, env: dict) -> None:
+    """A branch in one manifest and its commit in another lock one package."""
+    env = {**env, "ZIRAN_PINNED_LAUNCHER": "1"}
+    fixture = root / "shared-commit"
+    fixture.mkdir()
+    leaf, provider, tool = [fixture / name for name in ("library", "provider", "tool")]
+    for repo in (leaf, provider, tool):
+        init(repo, env)
+        write(repo / "VERSION", "1\n")
+        if repo != tool:
+            name = "Library" if repo == leaf else "Provider"
+            manifest = f'[package]\nname = "{name}"\nmodule_roots = ["src"]\n'
+            if repo == provider:
+                manifest += f'[dependencies.Library]\ngit = "{leaf.as_uri()}"\nref = "master"\n'
+            manifest += '[exports]\nValue = "src/Value.zi"\n'
+            write(repo / "ziran.toml", manifest)
+            write(repo / "src/Value.zi", "Value :: 1;\n")
+        commit(repo, env)
+    pinned = subprocess.run(["git", "rev-parse", "HEAD"], cwd=leaf, env=env, check=True,
+                            capture_output=True, text=True).stdout.strip()
+    app = fixture / "app"
+    app.mkdir()
+    write(app / "ziran.toml", f'''[package]
+name = "Shared"
+[toolchain]
+git = "{tool.as_uri()}"
+ref = "master"
+[dependencies.Provider]
+git = "{provider.as_uri()}"
+ref = "master"
+[dependencies.Library]
+git = "{leaf.as_uri()}"
+ref = "{pinned}"
+''')
+    write(app / "ziran.local.toml", f'[overrides]\nziran = "{tool}"\n')
+    for command in (("lock",), ("update", "Provider")):
+        call(ziran, *command, cwd=app, env=env)
+        packages = json.loads((app / "ziran.lock").read_text())["packages"]
+        libraries = [package for package in packages if package["name"] == "Library"]
+        # One entry, under the branch; the pin matches it by commit.
+        assert len(libraries) == 1 and libraries[0]["commit"] == pinned, packages
+        assert libraries[0]["ref"] == "master", packages
+    # --locked checks every declaration against the lock, without overrides.
+    (app / "ziran.local.toml").unlink()
+    assert call(ziran, "pkg", "path", "Library", "--locked", cwd=app, env=env).strip()
+    print("PASS: one commit named by a branch and a pin locks once", flush=True)
+
+
 def check_transitive_add(ziran: str, root: Path, env: dict) -> None:
     """Promotion preserves pins despite newer local overrides; failures roll back."""
     # Only package metadata is queried; the miniature tool fixture has no compiler.
@@ -206,6 +254,7 @@ def main() -> None:
         env["GIT_CONFIG_VALUE_0"] = "always"
 
         check_transitive_add(ziran, root, env)
+        check_shared_commit_refs(ziran, root, env)
 
         library = root / "library"
         init(library, env)

@@ -116,6 +116,20 @@ those rows are explicitly labeled as incorrect and excluded from equivalent
 work comparisons. Peak process RSS includes graph construction and storage;
 it does not isolate traversal scratch memory. Symbol verification and both
 profilers are removed from timed environments.
+Set `--before-limit 0` when the selected baseline already resolves the larger
+qualified graphs; the default 512 describes the earlier bounded walker.
+
+`bench/type_exports.py --before-lib DIR/libziran.a --out
+build/benchmarks/type-exports` compares owned type names and public re-export
+graphs. Each round resolves two names, with entry caches invalidated for cold
+samples and retained for cached samples. Incorrect baseline depth-limited
+answers are retained separately from equivalent-work comparisons. Timing
+binaries have no allocator wrappers. Separate binaries wrap `malloc`, `calloc`
+and `realloc` to count calls and cumulative requested bytes during lookup;
+those figures describe allocator traffic, not live or peak RAM. Input-graph
+construction and startup are outside the internal CPU and wall timers. Every
+non-local graph case includes a back edge to its entry module; report these
+as cyclic graphs rather than generalizing their speedups to acyclic imports.
 
 `bench/native_probe.py --before-bin-dir DIR --out
 build/benchmarks/native-probe` measures the five-object cache regression

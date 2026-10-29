@@ -71,4 +71,5 @@ C
         fi
     done
 done
+python3 "$repo/tests/type_exports_test.py" "$ziran" "$work/deep"
 echo 'plain import of a re-exporting module and its constants: VM, C, and Go passed'

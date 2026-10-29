@@ -20,8 +20,9 @@ def main():
     parser.add_argument('--before-lib', type=Path, required=True)
     parser.add_argument('--library', type=Path, default=ROOT/'build/libziran.a')
     parser.add_argument('--repetitions', type=int, default=15)
+    parser.add_argument('--before-limit', type=int, default=512, help='known baseline module cutoff; 0 expects no cutoff')
     args = parser.parse_args()
-    if args.repetitions < 1: parser.error('repetitions must be positive')
+    if args.repetitions < 1 or args.before_limit < 0: parser.error('positive repetitions and nonnegative before-limit required')
     out = args.out.resolve()
     if out.exists(): parser.error('archive records and remove inactive outputs before reuse')
     out.mkdir(parents=True)
@@ -39,14 +40,14 @@ def main():
     libraries = dict(before=args.before_lib.resolve(),current=args.library.resolve())
     for label,library in libraries.items():
         subprocess.run(['cc','-O2','-D_GNU_SOURCE','-std=c11','-Iinclude','-Icmd/zir','bench/reachable_types.c',library,'-lm','-pthread','-o',out/label],cwd=ROOT,env=env,check=True)
-    meta = dict(schema=1,platform=platform.platform(),repetitions=args.repetitions,measurement_launcher=timer,
+    meta = dict(schema=1,platform=platform.platform(),repetitions=args.repetitions,before_limit=args.before_limit,measurement_launcher=timer,
                 compiler_version=subprocess.check_output(['cc','--version'],text=True),cpu_affinity=sorted(os.sched_getaffinity(0)) if hasattr(os,'sched_getaffinity') else None,
                 environment_switches={k:env.get(k) for k in ['ZIRAN_VERIFY_SYMBOL_LOOKUPS','ZIRAN_PROFILE','ZIRAN_VM_PROFILE']},
                 libraries={label:dict(path=str(p),sha256=sha(p)) for label,p in libraries.items()},
                 source_sha256={name:sha(ROOT/name) for name in ['cmd/zir/zir.c','bench/reachable_types.c','bench/reachable_types.py']},
                 caveats=['Two qualified lookups per round: the connected final module and an absent module. Input-graph construction and process startup are outside the internal wall/CPU timers.',
                          'Cold samples invalidate entry-scope answers each round. Cached samples reuse answers prepared before timing.',
-                         'The baseline stops after 512 modules. Its larger positive lookups fail; those timings are retained as incorrect work and are not equivalent-work speed comparisons.',
+                         'A supplied nonzero before-limit identifies a known baseline cutoff. Incorrect larger answers are retained and are not equivalent-work speed comparisons.',
                          'Process peak RSS includes graph construction/storage and other compiler metadata; it does not isolate traversal scratch memory.',
                          'One shared warm-cache host; no CPU/frequency isolation. This is a lookup component, not whole compilation.'])
     rows=[]
@@ -61,8 +62,9 @@ def main():
                         result=subprocess.run([*timer,'-f','%M','-o',str(rss),str(out/label),str(count),shape,str(rounds),mode],env=env,capture_output=True,text=True,check=True,timeout=120)
                         value=json.loads(result.stdout)
                         assert value['modules']==count and value['rounds']==rounds and value['missing_correct']
-                        assert value['found']==(label=='current' or count<=512),value
-                        row=dict(modules=count,shape=shape,mode=mode,variant=label,repetition=repetition,warmup=repetition==0,correct=value['found'],equivalent_work=count<=512,
+                        comparable=args.before_limit==0 or count<=args.before_limit
+                        assert value['found']==(label=='current' or comparable),value
+                        row=dict(modules=count,shape=shape,mode=mode,variant=label,repetition=repetition,warmup=repetition==0,correct=value['found'],equivalent_work=comparable,
                                  round_wall_us=value['wall_ns']/rounds/1000,round_cpu_us=value['cpu_ns']/rounds/1000,max_rss_kib=int(rss.read_text()))
                         rows.append(row)
                         with (out/'samples.jsonl').open('a') as f:f.write(json.dumps(row)+'\n')
@@ -73,7 +75,7 @@ def main():
             for mode in ['cold','cached']:
                 for label in libraries:
                     selected=[r for r in rows if r['modules']==count and r['shape']==shape and r['mode']==mode and r['variant']==label and not r['warmup']]
-                    summary.append(dict(modules=count,shape=shape,mode=mode,variant=label,samples=len(selected),correct=all(r['correct'] for r in selected),equivalent_work=count<=512,
+                    summary.append(dict(modules=count,shape=shape,mode=mode,variant=label,samples=len(selected),correct=all(r['correct'] for r in selected),equivalent_work=args.before_limit==0 or count<=args.before_limit,
                                         **{'median_'+k:statistics.median(r[k] for r in selected) for k in ['round_wall_us','round_cpu_us','max_rss_kib']}))
     (out/'metadata.json').write_text(json.dumps(meta,indent=2)+'\n')
     (out/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')

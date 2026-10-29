@@ -653,205 +653,139 @@ reachable_module(const ZirModule *module, const char *name, size_t length)
     return found;
 }
 
-typedef struct TypeVisit {
-    const ZirModule *module;
-    const char *name;
-    int depth;
-    const ZirType *type;
-    const ZirModule *owner;
-    struct TypeVisit *next;
-} TypeVisit;
-
-typedef struct TypeVisits {
-    TypeVisit **slots;
-    size_t count, capacity;
-    TypeVisit *items;
-} TypeVisits;
-
-static const ZirType *find_type_depth(const ZirModule *module, const char *name,
-    const ZirModule **owner, int depth, TypeVisits *visits);
-
 static const ZirType *
-find_type_uncached(const ZirModule *module, const char *name,
-                  const ZirModule **owner, int depth, TypeVisits *visits)
+local_type(const ZirModule *module, const char *name)
 {
-    const ZirType *found = NULL;
-    const ZirModule *scope = NULL;
-    const char *dot = strchr(name, '.');
-
-    if(owner)
-        *owner = NULL;
-    if(depth > 32) return NULL;
-
-    if(dot != NULL) {
-        size_t alias_length = (size_t)(dot - name);
-        if(alias_length == 0 || dot[1] == '\0' || strchr(dot + 1, '.') != NULL)
-            return NULL;
-        for(int i = 0; i < module->import_count; i++) {
-            const ZirImport *import = &module->imports[i];
-            const ZirModule *target = import->resolved_module;
-            if(import->kind != ZIR_IMPORT_MODULE || target == NULL ||
-               !file_scope_visible(module, import->is_file_private,
-                                   import->span) ||
-               strlen(import->name) != alias_length ||
-               strncmp(import->name, name, alias_length) != 0)
-                continue;
-            for(int t = 0; t < target->type_count; t++) {
-                const ZirType *candidate = &target->types[t];
-                if(!candidate->is_public || strcmp(candidate->name, dot + 1))
-                    continue;
-                if(found != NULL && found != candidate)
-                    return NULL;
-                found = candidate;
-                scope = target;
-            }
-            const ZirModule *nested_owner = NULL;
-            const ZirType *nested = find_type_depth(target, dot + 1,
-                                                    &nested_owner, depth + 1, visits);
-            if(nested != NULL && nested->is_public && !nested->is_file_private) {
-                if(found != NULL && found != nested) return NULL;
-                found = nested;
-                scope = nested_owner;
-            }
-        }
-        if(found == NULL) {
-            const ZirModule *target = reachable_module(module, name,
-                                                       alias_length);
-            for(int t = 0; target != NULL && t < target->type_count; t++) {
-                const ZirType *candidate = &target->types[t];
-                if(candidate->is_public && !candidate->is_file_private &&
-                   strcmp(candidate->name, dot + 1) == 0) {
-                    found = candidate;
-                    scope = target;
-                    break;
-                }
-            }
-        }
-        if(owner)
-            *owner = scope;
-        return found;
-    }
-
     for(int i = 0; i < module->type_count; i++) {
-        const ZirType *candidate = &module->types[i];
-        if(candidate->is_file_private &&
-           strcmp(candidate->name, name) == 0 &&
-           file_scope_visible(module, 1, candidate->span)) {
-            if(owner) *owner = module;
-            return candidate;
-        }
+        const ZirType *type = &module->types[i];
+        if(type->is_file_private && !strcmp(type->name, name) &&
+           file_scope_visible(module, 1, type->span)) return type;
     }
     for(int i = 0; i < module->type_count; i++) {
-        if(strcmp(module->types[i].name, name) == 0 &&
-           file_scope_visible(module, module->types[i].is_file_private,
-                              module->types[i].span)) {
-            if(owner)
-                *owner = module;
-            return &module->types[i];
-        }
+        const ZirType *type = &module->types[i];
+        if(!strcmp(type->name, name) &&
+           file_scope_visible(module, type->is_file_private, type->span)) return type;
     }
+    return NULL;
+}
+
+typedef struct TypeSearch {
+    ModuleVisits visits;
+    const ZirModule *small[32];
+    const ZirModule **pending;
+    size_t count, capacity;
+} TypeSearch;
+
+static void
+push_type_module(TypeSearch *search, const ZirModule *module)
+{
+    if(!visit_module(&search->visits, module)) return;
+    if(search->count == search->capacity) {
+        if(search->capacity > SIZE_MAX / 2 / sizeof(*search->pending)) {
+            DiagnosticOutOfMemory(); exit(1);
+        }
+        search->capacity *= 2;
+        const ZirModule **grown = AllocateOrExit(search->capacity * sizeof(*grown));
+        memcpy(grown, search->pending, search->count * sizeof(*grown));
+        if(search->pending != search->small) free(search->pending);
+        search->pending = grown;
+    }
+    search->pending[search->count++] = module;
+}
+
+/* Resolve one unqualified spelling over the public re-export graph. Each
+ * module contributes its own declaration or its using imports, never both.
+ * Collect declarations globally so a back edge cannot turn an unfinished
+ * per-module answer into a kept miss or hide a conflicting declaration. */
+static int
+imported_type(const ZirModule *module, const char *name,
+              const char *alias, size_t alias_length,
+              const ZirType **type, const ZirModule **owner,
+              const ZirModule **alias_scope)
+{
+    TypeSearch search = {0};
+    search.visits.slots = search.visits.small;
+    search.visits.capacity = sizeof(search.visits.small) / sizeof(*search.visits.small);
+    search.pending = search.small;
+    search.capacity = sizeof(search.small) / sizeof(*search.small);
+    *type = NULL; *owner = NULL;
+    if(alias_scope) *alias_scope = NULL;
+    if(alias == NULL) visit_module(&search.visits, module);
     for(int i = 0; i < module->import_count; i++) {
         const ZirImport *import = &module->imports[i];
-        if(depth > 0 && !import->is_using) continue;
         const ZirModule *target = import->resolved_module;
-        if((import->kind != ZIR_IMPORT_OPEN &&
-            !(import->kind == ZIR_IMPORT_MODULE && import->is_using)) ||
-           target == NULL ||
-           !file_scope_visible(module, import->is_file_private,
-                               import->span))
-            continue;
-        for(int j = 0; j < target->type_count; j++) {
-            const ZirType *candidate = &target->types[j];
-            if(!candidate->is_public || strcmp(candidate->name, name) != 0)
-                continue;
-            if(found && found != candidate)
-                return NULL;
-            found = candidate;
-            scope = target;
+        if(target == NULL || !file_scope_visible(module, import->is_file_private, import->span)) continue;
+        if(alias != NULL) {
+            if(import->kind != ZIR_IMPORT_MODULE || strlen(import->name) != alias_length ||
+               strncmp(import->name, alias, alias_length)) continue;
+            if(alias_scope) *alias_scope = target;
+        } else if(import->kind != ZIR_IMPORT_OPEN &&
+                  !(import->kind == ZIR_IMPORT_MODULE && import->is_using)) continue;
+        push_type_module(&search, target);
+    }
+    int status = 0;
+    while(search.count) {
+        const ZirModule *scope = search.pending[--search.count];
+        int declared = 0;
+        for(int i = 0; i < scope->type_count; i++) {
+            const ZirType *candidate = &scope->types[i];
+            if(candidate->is_file_private || strcmp(candidate->name, name)) continue;
+            declared = 1;
+            if(!candidate->is_public) continue;
+            if(*type != NULL && *type != candidate) { status = -1; goto done; }
+            *type = candidate; *owner = scope;
         }
-        const ZirModule *nested_owner = NULL;
-        const ZirType *nested = find_type_depth(target, name,
-                                                &nested_owner, depth + 1, visits);
-        if(nested != NULL && nested->is_public && !nested->is_file_private) {
-            if(found != NULL && found != nested) return NULL;
-            found = nested;
-            scope = nested_owner;
+        /* Module locals shadow imports; file locals do not form part of
+         * another module's exported namespace. */
+        if(declared) continue;
+        for(int i = 0; i < scope->import_count; i++) {
+            const ZirImport *import = &scope->imports[i];
+            if(!import->is_using || !import->is_public || import->is_file_private ||
+               (import->kind != ZIR_IMPORT_OPEN && import->kind != ZIR_IMPORT_MODULE) ||
+               import->resolved_module == NULL) continue;
+            push_type_module(&search, import->resolved_module);
         }
     }
-    if(owner)
-        *owner = scope;
-    if(found != NULL)
-        return found;
-    found = BuiltinType(name);
-    if(found != NULL && owner != NULL)
-        *owner = module;
-    return found;
-}
-
-static size_t
-type_visit_slot(TypeVisit *const *slots, size_t capacity,
-                const ZirModule *module, const char *name, int depth)
-{
-    size_t hash = ((uintptr_t)module >> 4) * 31 + (unsigned)depth;
-    for(const unsigned char *ch = (const unsigned char *)name; *ch; ch++)
-        hash = hash * 33 + *ch;
-    size_t slot = hash & (capacity - 1);
-    while(slots[slot] != NULL &&
-          (slots[slot]->module != module || slots[slot]->depth != depth ||
-           strcmp(slots[slot]->name, name) != 0))
-        slot = (slot + 1) & (capacity - 1);
-    return slot;
-}
-
-static const ZirType *
-find_type_depth(const ZirModule *module, const char *name,
-                const ZirModule **owner, int depth, TypeVisits *visits)
-{
-    /* A diamond can reach one scope along exponentially many paths. Keep
-     * misses as well as answers for this lookup, independently of the
-     * generation cache. Depth remains part of the key because the bounded
-     * search can see different declarations along shorter paths. */
-    if(visits->count * 2 >= visits->capacity) {
-        size_t capacity = visits->capacity ? visits->capacity * 2 : 64;
-        TypeVisit **slots = AllocateOrExit(capacity * sizeof(*slots));
-        memset(slots, 0, capacity * sizeof(*slots));
-        for(TypeVisit *visit = visits->items; visit != NULL; visit = visit->next) {
-            size_t slot = type_visit_slot(slots, capacity, visit->module,
-                                         visit->name, visit->depth);
-            slots[slot] = visit;
-        }
-        free(visits->slots);
-        visits->slots = slots;
-        visits->capacity = capacity;
-    }
-    size_t slot = type_visit_slot(visits->slots, visits->capacity, module, name, depth);
-    TypeVisit *visit = visits->slots[slot];
-    if(visit != NULL) {
-        if(owner) *owner = visit->owner;
-        return visit->type;
-    }
-    visit = AllocateOrExit(sizeof(*visit));
-    *visit = (TypeVisit){.module = module, .name = name, .depth = depth,
-        .next = visits->items};
-    visits->items = visit;
-    visits->slots[slot] = visit;
-    visits->count++;
-    visit->type = find_type_uncached(module, name, &visit->owner, depth, visits);
-    if(owner) *owner = visit->owner;
-    return visit->type;
+    status = *type != NULL;
+done:
+    if(search.visits.slots != search.visits.small) free(search.visits.slots);
+    if(search.pending != search.small) free(search.pending);
+    if(status < 0) { *type = NULL; *owner = NULL; }
+    return status;
 }
 
 static const ZirType *
 find_type(const ZirModule *module, const char *name, const ZirModule **owner)
 {
-    TypeVisits visits = {0};
-    const ZirType *type = find_type_depth(module, name, owner, 0, &visits);
-    while(visits.items != NULL) {
-        TypeVisit *next = visits.items->next;
-        free(visits.items);
-        visits.items = next;
+    if(owner) *owner = NULL;
+    const char *dot = strchr(name, '.');
+    if(dot == NULL) {
+        const ZirType *local = local_type(module, name);
+        if(local != NULL) {
+            if(owner) *owner = module;
+            return local;
+        }
+    } else if(dot == name || !dot[1] || strchr(dot + 1, '.') != NULL) return NULL;
+    const ZirType *type = NULL;
+    const ZirModule *scope = NULL, *alias_scope = NULL;
+    int status = imported_type(module, dot ? dot + 1 : name,
+        dot ? name : NULL, dot ? (size_t)(dot - name) : 0,
+        &type, &scope, &alias_scope);
+    if(status < 0) return NULL;
+    if(type == NULL && dot != NULL) {
+        const ZirModule *target = reachable_module(module, name, (size_t)(dot - name));
+        for(int i = 0; target != NULL && i < target->type_count; i++) {
+            const ZirType *candidate = &target->types[i];
+            if(candidate->is_public && !candidate->is_file_private && !strcmp(candidate->name, dot + 1)) {
+                type = candidate; scope = target; break;
+            }
+        }
     }
-    free(visits.slots);
+    if(type == NULL && (dot == NULL || alias_scope != NULL)) {
+        type = BuiltinType(dot ? dot + 1 : name);
+        if(type != NULL) scope = dot ? alias_scope : module;
+    }
+    if(owner) *owner = scope;
     return type;
 }
 

@@ -92,6 +92,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   in a 554-module program from source, saved IR and bundles. Native foreign
   layout checks retain the full 2,048-byte record ABI.
 
+- Public type re-exports use an iterative graph walk instead of a bounded
+  recursive search. Entry-local types keep file/module shadowing precedence;
+  transitive lookup follows public `using` edges and stops at module locals.
+  Private imports remain usable locally without exporting their type names.
+  Conflicting declarations remain ambiguous even when another route supplies
+  one of them. Checks cover source/saved cyclic 64-module chains, native and
+  portable execution, and 4,096-module walks on a 256 KiB thread stack.
+
 - Body eligibility checks reuse immutable primitive-record layout facts and
   check each reached typed expression once per pass, including shared graphs.
   Answers remain local to that pass, so rewritten bodies and other lookup

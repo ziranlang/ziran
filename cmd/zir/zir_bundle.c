@@ -1875,6 +1875,13 @@ resolve_reachability:
                 if(module->types[t].is_record_template)
                     continue;
                 if(module->types[t].is_procedure_type) {
+                    /* A retained callback may never be invoked. Its result
+                     * still belongs to the linked signature, even when no
+                     * reachable expression otherwise names that type. */
+                    if(!mark_type(program, module,
+                                  module->types[t].procedure_return_type,
+                                  keep_types, &changed))
+                        goto failed;
                     memset(&buffers->signature, 0, sizeof(buffers->signature));
                     if(strlen(module->types[t].body) >= ZIR_TEXT_MAX)
                         goto failed;

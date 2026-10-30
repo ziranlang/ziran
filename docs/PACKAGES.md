@@ -206,6 +206,16 @@ compiler toolchain.
 `--locked` requires a matching lock and ignores local development overrides;
 `--offline` requires cached checkouts. The cache is under
 `$XDG_CACHE_HOME/ziran` or `~/.cache/ziran`.
+Normal `fetch` and `pkg path` commands also validate cached tracked payloads.
+If an immutable source-cache entry has missing files or staged deletions only,
+they restore the locked source from existing Git objects, including with
+`--locked --offline`; no separate repair command or network access is needed.
+A matching HEAD alone does not establish that the source is ready. Modified
+tracked files, or untracked/ignored data alongside missing files, prevent repair
+and produce a `package cache ... preserved at` diagnostic. Failed entries are
+never automatically deleted. Redirected, sparse or flagged checkouts are refused;
+explicit local overrides remain user-owned and are never repaired this way.
+
 `ziran pkg path` returns the checkout selected by the lock, including a unique
 transitive dependency. Add `--submodules` when a platform build needs its
 vendored backend source. The command initializes the submodules at the commits

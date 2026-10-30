@@ -364,36 +364,108 @@ PkgCacheRoot :: () -> string {
     return PkgJoin(cache, "/ziran")
 }
 
-// Checks out commit in a cached clone; true when HEAD is then that commit.
-// Quietly, so a fetched dependency never prints into a program's output.
+// Only resolver-owned, direct cache entries with their own .git directory
+// may be materialized. Never follow a source-entry or .git redirection.
 PkgCheckoutAt :: (destination: string, commit: string) -> bool {
-    args: [7]string
+    if !PkgValidCommit(commit) { return false }
+    prefix: string = PkgJoin(PkgCacheRoot(), "/sources/")
+    if destination.count <= prefix.count || destination[0:prefix.count] != prefix {
+        return false
+    }
+    leaf: string = destination[prefix.count:]
+    for ch: leaf { if ch == cast(u8)47 { return false } }
+    sources: string = PkgCanonical(PkgJoin(PkgCacheRoot(), "/sources"))
+    canonical: string = PkgCanonical(destination)
+    if sources.count == 0 || canonical != PkgJoin3(sources, "/", leaf) ||
+        !DirectoryExists(PkgJoin(destination, "/.git")) ||
+        PathExists(PkgJoin(destination, "/.git/commondir")) ||
+        PkgCanonical(PkgJoin(destination, "/.git")) != PkgJoin(canonical, "/.git") {
+        return false
+    }
+    args: [9]string
     args[0] = "git"
     args[1] = "-C"
     args[2] = destination
-    args[3] = "checkout"
-    args[4] = "--quiet"
-    args[5] = "--detach"
-    args[6] = commit
-    names: [0]string
-    values: [0]string
-    return PkgRun(args[:], "", names[:], values[:]) == 0 &&
-        PkgGitHead(destination) == commit
+    args[3] = "rev-parse"
+    args[4] = "--show-toplevel"
+    top: PkgProcessResult = PkgCapture(args[0:5], "")
+    if top.code != 0 || PkgCanonical(top.text) != canonical { return false }
+    args[3] = "config"
+    args[4] = "--get"
+    args[5] = "core.worktree"
+    if PkgCapture(args[0:6], "").text.count > 0 { return false }
+    args[4] = "--bool"
+    args[5] = "--get"
+    args[6] = "core.sparseCheckout"
+    sparse: PkgProcessResult = PkgCapture(args[0:7], "")
+    if sparse.code != 1 && (sparse.code != 0 || sparse.text != "false") { return false }
+
+    // Sparse and assume-unchanged index flags can hide absent source files.
+    // Porcelain quotes embedded newlines; bounded capture must not silently
+    // accept a partial index or status listing.
+    args[3] = "ls-files"
+    args[4] = "-v"
+    flags: PkgProcessResult = PkgCaptureRaw(args[0:5], "")
+    if flags.code != 0 || flags.text.count >= 1048575 { return false }
+    at: s64 = 0
+    while at < cast(s64)flags.text.count {
+        if flags.text[at] != cast(u8)72 { return false }
+        while at < cast(s64)flags.text.count && flags.text[at] != cast(u8)10 { at += 1 }
+        at += 1
+    }
+    args[3] = "-c"
+    args[4] = "core.fsmonitor=false"
+    args[5] = "status"
+    args[6] = "--porcelain=v1"
+    args[7] = "--untracked-files=all"
+    args[8] = "--ignored=matching"
+    status: PkgProcessResult = PkgCaptureRaw(args[:], "")
+    if status.code != 0 || status.text.count >= 1048575 { return false }
+    missing: bool = false
+    local_data: bool = false
+    at = 0
+    while at < cast(s64)status.text.count {
+        end: s64 = at
+        while end < cast(s64)status.text.count && status.text[end] != cast(u8)10 { end += 1 }
+        if end - at < 4 { return false }
+        kind: string = status.text[at:at + 2]
+        if kind == "??" || kind == "!!" { local_data = true }
+        else if kind == " D" || kind == "D " { missing = true }
+        else { return false }
+        at = end + 1
+    }
+    head: string = PkgGitHead(destination)
+    if head == commit && !missing { return true }
+    // Even ignored files may obstruct restoration or be overwritten by Git.
+    // Refuse ambiguous damage rather than resetting or cleaning local data.
+    if local_data { return false }
+    if head != commit {
+        args[3] = "checkout"
+        args[4] = "--quiet"
+        args[5] = "--detach"
+        args[6] = commit
+        if PkgCapture(args[0:7], "").code != 0 { return false }
+    }
+    if missing {
+        args[3] = "restore"
+        args[4] = PkgJoin("--source=", commit)
+        args[5] = "--staged"
+        args[6] = "--worktree"
+        args[7] = "--"
+        args[8] = "."
+        if PkgCapture(args[:], "").code != 0 { return false }
+    }
+    args[3] = "status"
+    args[4] = "--porcelain=v1"
+    args[5] = "--untracked-files=no"
+    status = PkgCapture(args[0:6], "")
+    return status.code == 0 && status.text.count == 0 && PkgGitHead(destination) == commit
 }
 
-// Removes a cache entry that does not hold its commit, so a later fetch
-// clones it again instead of failing on it forever.
+// Never delete an entry after a failed checkout: it may contain owner data
+// or be an unsupported checkout. A later command must not call it ready.
 PkgDropCheckout :: (destination: string) {
-    sources: string = PkgJoin(PkgCacheRoot(), "/sources/")
-    if destination.count <= sources.count ||
-        destination[0:sources.count] != sources { return }
-    args: [3]string
-    args[0] = "rm"
-    args[1] = "-rf"
-    args[2] = destination
-    names: [0]string
-    values: [0]string
-    unused PkgRun(args[:], "", names[:], values[:])
+    unused PkgFail(PkgJoin("package cache incomplete, modified or unsupported; preserved at ", destination))
 }
 
 PkgCheckout :: (url: string, commit: string, offline: bool) -> string {
@@ -401,18 +473,37 @@ PkgCheckout :: (url: string, commit: string, offline: bool) -> string {
     destination: string = PkgJoin3(PkgCacheRoot(), "/sources/",
         PkgSourceId(PkgSourceKey(url), commit))
     if PathExists(destination) {
-        if PkgGitHead(destination) == commit { return destination }
-        if offline { return "" }
-        // An earlier fetch may have stopped before the commit was pushed.
-        fetch: [5]string
-        fetch[0] = "git"
-        fetch[1] = "-C"
-        fetch[2] = destination
-        fetch[3] = "fetch"
-        fetch[4] = url
-        if PkgRemoteCapture(fetch[:], 4).code == 0 &&
-            PkgCheckoutAt(destination, commit) { return destination }
+        origin: [6]string
+        origin[0] = "git"
+        origin[1] = "-C"
+        origin[2] = destination
+        origin[3] = "config"
+        origin[4] = "--get-all"
+        origin[5] = "remote.origin.url"
+        actual: PkgProcessResult = PkgCapture(origin[:], "")
+        if actual.code != 0 || !PkgSameSource(actual.text, url) {
+            PkgDropCheckout(destination)
+            return ""
+        }
+        head: string = PkgGitHead(destination)
+        if (head == commit || !offline) && PkgCheckoutAt(destination, commit) {
+            return destination
+        }
+        // Only fetch into a validated, healthy cache. Existing objects repair
+        // missing payload offline; network access is needed only for an absent
+        // target commit. Never fetch into an arbitrary or modified checkout.
+        if !offline && head != commit && PkgCheckoutAt(destination, head) {
+            fetch: [5]string
+            fetch[0] = "git"
+            fetch[1] = "-C"
+            fetch[2] = destination
+            fetch[3] = "fetch"
+            fetch[4] = url
+            if PkgRemoteCapture(fetch[:], 4).code == 0 &&
+                PkgCheckoutAt(destination, commit) { return destination }
+        }
         PkgDropCheckout(destination)
+        return ""
     }
     if offline || !PkgMkdirs(PkgJoin(PkgCacheRoot(), "/sources")) { return "" }
     args: [6]string

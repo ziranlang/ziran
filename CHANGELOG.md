@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 ### Added
+- Dependency-owned native artifact recipes build and reuse declared output sets
+  through the locked package graph, with explicit platform/ABI identities,
+  resolved options, input validation and atomic publication.
 - `std/text_tools` gained `TextHexDecodeInto`, which appends bounded
   uppercase or lowercase hexadecimal bytes and leaves its output unchanged on
   every failure.

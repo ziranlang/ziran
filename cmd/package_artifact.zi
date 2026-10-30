@@ -1,0 +1,162 @@
+// Dependency-owned native artifacts. No renderer, library or output-type policy.
+#import "package_common"
+#import "package_manifest"
+#import "file_linux"
+#import "byte_text_linux"
+
+#scope_export
+PkgArtifactRecipe :: struct {
+    inputs: [64]string
+    input_count: s32
+    outputs: [64]string
+    output_count: s32
+    requires: [24]string
+    require_count: s32
+}
+
+PkgArtifactPath :: (path: string) -> bool {
+    if !PkgRelativePath(path) { return false }
+    for ch: path {
+        if ch < cast(u8)32 || ch == cast(u8)92 || ch == cast(u8)58 { return false }
+    }
+    return true
+}
+
+PkgArtifactInside :: (root: string, path: string) -> bool {
+    prefix := PkgJoin(PkgCanonical(root), "/")
+    actual := PkgCanonical(path)
+    return prefix.count > 1 && actual.count > prefix.count &&
+        actual[0:prefix.count] == prefix
+}
+
+PkgArtifactRead :: (path: string, name: string, recipe: *PkgArtifactRecipe) -> bool {
+    data := PkgRead(path)
+    if !data.valid || !PkgPackageName(name) { return false }
+    section := ""
+    found := false
+    at: s64 = 0
+    while at < cast(s64)data.text.count {
+        end := at
+        while end < cast(s64)data.text.count && data.text[end] != cast(u8)10 { end += 1 }
+        line := PkgStripComment(data.text[at:end])
+        at = end + 1
+        if line.count == 0 { continue }
+        if line[0] == cast(u8)91 {
+            section = line[1:line.count - 1]
+            if section == PkgJoin("artifacts.", name) {
+                if found { return false }
+                found = true
+            }
+            continue
+        }
+        if section != PkgJoin("artifacts.", name) { continue }
+        equal: s64 = 0
+        while equal < cast(s64)line.count && line[equal] != cast(u8)61 { equal += 1 }
+        if equal == cast(s64)line.count { return false }
+        key := PkgTrim(line[0:equal])
+        raw := line[equal + 1:]
+        if key == "inputs" { recipe.input_count = PkgTomlArray(raw, recipe.inputs[:]) }
+        else if key == "outputs" { recipe.output_count = PkgTomlArray(raw, recipe.outputs[:]) }
+        else if key == "requires" { recipe.require_count = PkgTomlArray(raw, recipe.requires[:]) }
+        else { return false }
+        if recipe.input_count < 0 || recipe.output_count < 0 || recipe.require_count < 0 { return false }
+    }
+    if !found || recipe.input_count == 0 || recipe.output_count == 0 { return false }
+    for i: 0..recipe.input_count - 1 {
+        if !PkgArtifactPath(recipe.inputs[i]) { return false }
+    }
+    for i: 0..recipe.output_count - 1 {
+        if !PkgArtifactPath(recipe.outputs[i]) || (recipe.outputs[i] == "artifact.tsv" || recipe.outputs[i] == "dependencies.tsv") { return false }
+        for j: 0..i - 1 { if recipe.outputs[i] == recipe.outputs[j] { return false } }
+    }
+    return true
+}
+
+// Hash files with argv transport, including binary libraries without loading
+// their bytes into the package driver's heap. Declared inputs are files;
+// recipes enumerate files or use a committed input-list file plus dirty guard.
+PkgArtifactHashFile :: (path: string) -> string {
+    args: [3]string = .["sha256sum", "--", path]
+    result := PkgCapture(args[:], "")
+    if result.code != 0 || result.text.count < 64 { return "" }
+    return result.text[0:64]
+}
+
+PkgArtifactMix :: (state: *string, value: string) {
+    <<state = PkgDigest(PkgJoin(<<state, PkgDigest(value)))
+}
+
+PkgArtifactOutputs :: (directory: string, recipe: *PkgArtifactRecipe) -> string {
+    result := ""
+    for i: 0..recipe.output_count - 1 {
+        path := PkgJoin3(directory, "/", recipe.outputs[i])
+        if !PkgArtifactInside(directory, path) || DirectoryExists(path) { return "" }
+        digest := PkgArtifactHashFile(path)
+        if digest.count == 0 { return "" }
+        result = PkgJoin3(result, recipe.outputs[i], "\t")
+        result = PkgJoin3(result, digest, "\n")
+    }
+    return result
+}
+
+PkgArtifactStage :: (cache: string) -> string {
+    if !PkgMkdirs(cache) { return "" }
+    args: [3]string = .["mktemp", "-d", PkgJoin(cache, "/.stage.XXXXXXXXXX")]
+    result := PkgCapture(args[:], "")
+    if result.code != 0 { return "" }
+    return PkgTrim(result.text)
+}
+
+PkgArtifactRemove :: (stage: string) {
+    args: [4]string = .["rm", "-rf", "--", stage]
+    empty: [0]string
+    unused PkgRun(args[:], "", empty[:], empty[:])
+}
+
+PkgArtifactTransaction :: struct {
+    directory: string
+    stage: string
+    metadata: string
+    hit: bool
+    valid: bool
+}
+
+// Callers mix resolved graph, toolchain, options and recipe inputs into key.
+// Dirty inputs disable reuse; unique publication then preserves previous goods.
+PkgArtifactBegin :: (cache: string, key: string, metadata: string,
+    recipe: *PkgArtifactRecipe, reusable: bool) -> PkgArtifactTransaction {
+    result: PkgArtifactTransaction
+    result.metadata = metadata
+    result.directory = PkgJoin3(cache, "/", key)
+    if reusable {
+        saved := PkgRead(PkgJoin(result.directory, "/artifact.tsv"))
+        outputs := PkgArtifactOutputs(result.directory, recipe)
+        if saved.valid && outputs.count > 0 &&
+            saved.text == PkgJoin(metadata, outputs) {
+            result.hit = true
+            result.valid = true
+            return result
+        }
+    }
+    result.stage = PkgArtifactStage(cache)
+    if result.stage.count == 0 { return result }
+    if !reusable || PathExists(result.directory) {
+        result.directory = PkgJoin3(cache, "/", PkgDigest(result.stage))
+    }
+    result.valid = true
+    return result
+}
+
+PkgArtifactFinish :: (transaction: *PkgArtifactTransaction,
+    recipe: *PkgArtifactRecipe, code: s32) -> bool {
+    if !transaction.valid || transaction.hit { return false }
+    outputs := ""
+    if code == 0 { outputs = PkgArtifactOutputs(transaction.stage, recipe) }
+    valid := outputs.count > 0 &&
+        !PathExists(PkgJoin(transaction.stage, "/artifact.tsv")) &&
+        PkgWrite(PkgJoin(transaction.stage, "/artifact.tsv"),
+            PkgJoin(transaction.metadata, outputs)) &&
+        RenamePath(transaction.stage, transaction.directory)
+    if !valid { PkgArtifactRemove(transaction.stage) }
+    return valid
+}

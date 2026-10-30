@@ -1,5 +1,6 @@
 #import "package_common"
 #import "package_manifest"
+#import "package_artifact"
 #import "package_lock"
 #import "package_map"
 #import "package_add"
@@ -415,6 +416,21 @@ PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
     extra_values: []string) -> s32 {
     selected: s32 = PkgSelect(locked, selector)
     if selected < 0 { return PkgFail("package is not locked") }
+    alias: string = locked.packages[selected].name
+    index: s32 = 0
+    while index < current.dependency_count {
+        if PkgFoldEqual(current.dependencies[index].alias, selector) {
+            alias = current.dependencies[index].alias
+        }
+        index += 1
+    }
+    return PkgRunSelectedTool(root, locked, current, selected, alias,
+        arguments, extra_names, extra_values)
+}
+
+PkgRunSelectedTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
+    selected: s32, alias: string, arguments: []string, extra_names: []string,
+    extra_values: []string) -> s32 {
     item: *PkgLocked = *locked.packages[selected]
     relative: string = PkgJoin("", item.manifest.project_tool)
     if relative.count == 0 || relative[0] == cast(u8)47 {
@@ -426,17 +442,10 @@ PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
            relative[at + 1] == cast(u8)46 { return PkgFail("invalid project tool") }
         at += 1
     }
-    alias: string = item.name
     index: s32 = 0
-    while index < current.dependency_count {
-        if PkgFoldEqual(current.dependencies[index].alias, selector) {
-            alias = current.dependencies[index].alias
-        }
-        index += 1
-    }
     options: string = PkgResolveOptions(root, alias, item.path)
     if options.count == 0 { return 2 }
-    make_args: [7]string
+    make_args: [8]string
     make_args[0] = "make"
     make_args[1] = "--silent"
     make_args[2] = "--no-print-directory"
@@ -444,6 +453,7 @@ PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
     make_args[4] = item.path
     make_args[5] = relative
     make_args[6] = PkgJoin("ZIRAN_DIR=", locked.tool_path)
+    make_args[7] = "-j1"
     empty: [0]string
     if PkgRunToStderr(make_args[:], "") != 0 {
         return PkgFail("cannot build package tool")
@@ -478,6 +488,11 @@ PkgRunTool :: (root: string, locked: *PkgLock, current: *PkgManifest,
     while index < cast(s32)arguments.count && index < 256 {
         child[index + 1] = arguments[index]
         index += 1
+    }
+    if PkgHasArgument(extra_names, "ZIRAN_ARTIFACT_OUTPUT") {
+        result := PkgCaptureEnv(child[0:index + 1], root, names[0:count], values[0:count])
+        if result.text.count > 0 { PkgPrint(PkgJoin(result.text, "\n"), true) }
+        return result.code
     }
     return PkgRun(child[0:index + 1], root, names[0:count], values[0:count])
 }
@@ -621,6 +636,19 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "fetch" { return 0 }
     if command == "compile-commands" {
         return PkgCompileCommands(filtered[0:count], project, locked, launcher)
+    }
+    if command == "pkg" && count >= 1 && filtered[0] == "artifact" {
+        if count != 4 || filtered[2] != "--platform" {
+            return PkgFail("usage: ziran pkg artifact PACKAGE:ARTIFACT --platform OS-ARCH-ABI")
+        }
+        selection := filtered[1]
+        colon: s64 = 0
+        while colon < cast(s64)selection.count && selection[colon] != cast(u8)58 { colon += 1 }
+        if colon == 0 || colon >= cast(s64)selection.count - 1 {
+            return PkgFail("artifact selection needs PACKAGE:ARTIFACT")
+        }
+        return PkgBuildArtifactResolved(root, selection[0:colon], selection[colon + 1:],
+            filtered[3], locked, current, launcher)
     }
     if command == "pkg" && count >= 1 && filtered[0] == "list" {
         if count > 2 { return PkgFail("usage: ziran pkg list [PACKAGE]") }
@@ -783,4 +811,167 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     }
     return PkgDispatch(command, filtered[0:count], project, root, locked,
         current, launcher, empty[:], empty[:])
+}
+
+// Native platform and ABI are independent of the compiler's c/go/py backend.
+PkgArtifactTarget :: (target: string) -> bool {
+    if !PkgPackageName(target) || target[0] == cast(u8)45 ||
+        target[target.count - 1] == cast(u8)45 { return false }
+    parts: s32 = 0
+    previous: u8 = 0
+    for ch: target {
+        if ch == cast(u8)45 {
+            if previous == ch { return false }
+            parts += 1
+        }
+        previous = ch
+    }
+    return parts >= 2
+}
+
+PkgArtifactGraphKey :: (locked: *PkgLock, state: *string, reusable: *bool) {
+    PkgArtifactMix(state, locked.tool_commit)
+    for i: -1..locked.count - 1 {
+        path := locked.tool_path
+        if i >= 0 {
+            path = locked.packages[i].path
+            PkgArtifactMix(state, locked.packages[i].id)
+            PkgArtifactMix(state, locked.packages[i].commit)
+        }
+        PkgArtifactMix(state, PkgGitHead(path))
+        args: [6]string = .["git", "-C", path, "status", "--porcelain", "--untracked-files=all"]
+        status := PkgCapture(args[:], "")
+        if status.code != 0 || status.text.count > 0 { <<reusable = false }
+    }
+}
+
+PkgArtifactVisit :: (root: string, locked: *PkgLock, current: *PkgManifest,
+    selected: s32, alias: string, artifact: string, target: string,
+    launcher: string, stack: []string, depth: s32) -> string {
+    if selected < 0 || selected >= locked.count { PkgFail("artifact package is not locked"); return "" }
+    item: *PkgLocked = *locked.packages[selected]
+    identity := PkgJoin3(item.id, ":", artifact)
+    if depth >= 64 { PkgFail("artifact dependency cycle or depth limit"); return "" }
+    for i: 0..depth - 1 {
+        if stack[i] == identity { PkgFail("artifact dependency cycle"); return "" }
+    }
+    stack[depth] = identity
+    recipe: PkgArtifactRecipe
+    if item.source || !PkgArtifactRead(PkgJoin(item.path, "/ziran.toml"), artifact, *recipe) {
+        PkgFail("unknown or invalid artifact recipe"); return ""
+    }
+    options := PkgResolveOptions(root, alias, item.path)
+    if options.count == 0 { return "" }
+    state := PkgDigest("ziran-artifact-v1")
+    PkgArtifactMix(*state, identity)
+    PkgArtifactMix(*state, target)
+    PkgArtifactMix(*state, PkgRead(options).text)
+    reusable := true
+    PkgArtifactGraphKey(locked, *state, *reusable)
+    graph_before := state
+    PkgArtifactMix(*state, PkgArtifactHashFile(launcher))
+    compiler := PkgJoin(locked.tool_path, "/build/bin/zi2c")
+    if PathExists(compiler) { PkgArtifactMix(*state, PkgArtifactHashFile(compiler)) }
+    cc := PkgGetenv("CC")
+    if cc.count == 0 { cc = "cc" }
+    cc_args: [2]string = .[cc, "--version"]
+    version := PkgCapture(cc_args[:], "")
+    if version.code != 0 { PkgFail("cannot identify artifact compiler (CC must be one executable)"); return "" }
+    PkgArtifactMix(*state, cc)
+    PkgArtifactMix(*state, version.text)
+    locate: [2]string = .["which", cc]
+    location := PkgCapture(locate[:], "")
+    if location.code != 0 { PkgFail("cannot locate artifact compiler"); return "" }
+    compiler_hash := PkgArtifactHashFile(PkgTrim(location.text))
+    if compiler_hash.count == 0 { PkgFail("cannot hash artifact compiler"); return "" }
+    PkgArtifactMix(*state, compiler_hash)
+    // The entire recipe declaration and relevant native build environment.
+    recipe_hash := PkgArtifactHashFile(PkgJoin(item.path, "/ziran.toml"))
+    PkgArtifactMix(*state, recipe_hash)
+    flags: [16]string = .["PATH", "CFLAGS", "CPPFLAGS", "CXX", "CXXFLAGS", "LDFLAGS", "LDLIBS", "AR", "LD", "RANLIB", "PKG_CONFIG", "PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "SYSROOT", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET"]
+    for flag: flags { PkgArtifactMix(*state, PkgGetenv(flag)) }
+    input_hashes: [64]string
+    for i: 0..recipe.input_count - 1 {
+        path := PkgJoin3(item.path, "/", recipe.inputs[i])
+        if !PkgArtifactInside(item.path, path) || DirectoryExists(path) {
+            PkgFail("artifact input must be a file inside its package"); return ""
+        }
+        hash := PkgArtifactHashFile(path)
+        if hash.count == 0 { PkgFail("cannot hash artifact input"); return "" }
+        input_hashes[i] = hash
+        PkgArtifactMix(*state, hash)
+    }
+    dependencies := ""
+    for i: 0..recipe.require_count - 1 {
+        request := recipe.requires[i]
+        colon: s64 = 0
+        while colon < cast(s64)request.count && request[colon] != cast(u8)58 { colon += 1 }
+        if colon == 0 || colon == cast(s64)request.count { PkgFail("invalid artifact dependency selection"); return "" }
+        dependency := request[0:colon]
+        child := selected
+        child_alias := alias
+        if dependency != "self" {
+            child = PkgFindById(locked, PkgEdgeValue(*item.edges[0], item.edge_count, dependency))
+            child_alias = dependency
+        }
+        descriptor := PkgArtifactVisit(root, locked, current, child, child_alias,
+            request[colon + 1:], target, launcher, stack, depth + 1)
+        if descriptor.count == 0 { return "" }
+        PkgArtifactMix(*state, PkgArtifactHashFile(descriptor))
+        PkgArtifactMix(*state, descriptor)
+        dependencies = PkgJoin3(dependencies, request, "\t")
+        dependencies = PkgJoin3(dependencies, descriptor, "\n")
+    }
+    metadata := PkgJoin3("schema\t1\npackage\t", item.id, "\nartifact\t")
+    metadata = PkgJoin3(metadata, artifact, "\nplatform\t")
+    metadata = PkgJoin3(metadata, target, "\nkey\t")
+    metadata = PkgJoin3(metadata, state, "\n")
+    transaction := PkgArtifactBegin(PkgJoin(PkgCacheRoot(), "/artifacts"), state,
+        metadata, *recipe, reusable)
+    if !transaction.valid { PkgFail("cannot stage artifact"); return "" }
+    if transaction.hit { return PkgJoin(transaction.directory, "/artifact.tsv") }
+    dependency_file := PkgJoin(transaction.stage, "/dependencies.tsv")
+    if !PkgWrite(dependency_file, dependencies) { PkgArtifactRemove(transaction.stage); return "" }
+    names: [5]string = .["ZIRAN_ARTIFACT_OUTPUT", "ZIRAN_ARTIFACT_TARGET", "ZIRAN_ARTIFACT_DEPENDENCIES", "MAKEFLAGS", "CMAKE_BUILD_PARALLEL_LEVEL"]
+    values: [5]string = .[transaction.stage, target, dependency_file, "-j1", "1"]
+    args: [6]string = .["artifact", artifact, "--platform", target, "--output", transaction.stage]
+    code := PkgRunSelectedTool(root, locked, current, selected, alias, args[:], names[:], values[:])
+    // Refuse publication if recipe inputs changed while the provider ran.
+    for i: 0..recipe.input_count - 1 {
+        if PkgArtifactHashFile(PkgJoin3(item.path, "/", recipe.inputs[i])) != input_hashes[i] { code = 2 }
+    }
+    graph_after := PkgDigest("ziran-artifact-v1")
+    PkgArtifactMix(*graph_after, identity)
+    PkgArtifactMix(*graph_after, target)
+    PkgArtifactMix(*graph_after, PkgRead(options).text)
+    after_reusable := true
+    PkgArtifactGraphKey(locked, *graph_after, *after_reusable)
+    if graph_after != graph_before || (reusable && !after_reusable) ||
+        recipe_hash != PkgArtifactHashFile(PkgJoin(item.path, "/ziran.toml")) { code = 2 }
+    if !PkgArtifactFinish(*transaction, *recipe, code) {
+        PkgFail("artifact provider failed or omitted a declared output"); return ""
+    }
+    return PkgJoin(transaction.directory, "/artifact.tsv")
+}
+
+PkgBuildArtifactResolved :: (project: string, package: string, artifact: string,
+    target: string, locked: *PkgLock, current: *PkgManifest, launcher: string) -> s32 {
+    if !PkgArtifactTarget(target) { return PkgFail("artifact --platform needs an explicit OS-ARCH-ABI target") }
+    stack: [64]string
+    descriptor := PkgArtifactVisit(project, locked, current, PkgSelect(locked, package),
+        package, artifact, target, launcher, stack[:], 0)
+    if descriptor.count == 0 { return 2 }
+    PkgPrint(PkgJoin(descriptor, "\n"), false)
+    return 0
+}
+
+// Programmatic entry uses the same lock/override resolver as package commands.
+PkgBuildArtifact :: (project: string, package: string, artifact: string,
+    target: string) -> s32 {
+    locked := PkgNewLock()
+    current := PkgNewManifest()
+    if !PkgReadLock(PkgJoin(project, "/ziran.lock"), locked) ||
+        !PkgCheckoutGraph(project, locked, false, false, current) { return PkgFail("cannot resolve artifact package graph") }
+    return PkgBuildArtifactResolved(project, package, artifact, target, locked,
+        current, PkgJoin(locked.tool_path, "/build/bin/ziran"))
 }

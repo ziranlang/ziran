@@ -324,3 +324,77 @@ the tool's `install` command with `ZIRAN_INSTALL_PREFIX` (`~/.local` unless
 on. The tool decides what else an install includes, such as a desktop entry,
 from its own options. The older `[install] tool` key is rejected with a
 message naming its replacement.
+
+## Dependency-owned native artifacts
+
+A dependency can declare named artifacts alongside its existing project tool:
+
+```toml
+[tool]
+project = "build/bin/provider"
+
+[artifacts.native]
+inputs = ["tools/provider.zi", "src/library.c", "Makefile"]
+outputs = ["lib/library.a", "include/library.h", "resources/data.bin"]
+requires = ["support:native"]
+```
+
+`inputs` and `outputs` are nonempty arrays of package-relative input files and
+staging-relative output files. List all recipe inputs, including ignored native
+source inputs, configuration, assets and tool build rules; directories and
+escaping paths are rejected. `artifact.tsv` and `dependencies.tsv` are reserved.
+`requires` is optional and names artifacts through the provider's own locked
+dependency aliases; `self:NAME` names another recipe in the same package.
+Unknown selections and recipe cycles fail before invoking the affected provider.
+
+Consumers request the recipe without reconstructing its source or link graph:
+
+```sh
+ziran pkg artifact provider:native --platform linux-x86_64-gnu
+ziran pkg artifact provider:native --platform windows-x86_64-mingw --locked
+```
+
+`--platform` is a required explicit OS-architecture-ABI identifier, independent
+of the compiler backend (`--target=c`, `go`, or `py`). The provider must validate
+supported platforms and choose the correct native toolchain. The engine treats
+libraries, bundles and resources identically. This command does not alter
+project lifecycle delegation or explicit compiler target selection.
+
+The ordinary project tool is built through its existing Makefile and invoked as
+`artifact NAME --platform TARGET --output STAGE` with the existing project,
+package, toolchain and resolved `ZIRAN_TOOL_OPTIONS` environment. Additional
+variables are `ZIRAN_ARTIFACT_OUTPUT`, `ZIRAN_ARTIFACT_TARGET`, and
+`ZIRAN_ARTIFACT_DEPENDENCIES`. The last names a TSV file with one
+`dependency:artifact<TAB>absolute-descriptor-path` line per requirement. Providers
+read those descriptors instead of rebuilding dependencies. They write every
+declared output below STAGE, send diagnostics to stderr, return nonzero on
+failure, and honor serial build settings (`MAKEFLAGS=-j1` and
+`CMAKE_BUILD_PARALLEL_LEVEL=1`). Invocation uses argv, never shell interpolation.
+
+On success stdout contains the absolute path of `artifact.tsv` in the shared
+Ziran artifact cache. Its TSV header records `schema`, `package`, `artifact`,
+`platform`, and `key`; remaining lines map declared relative output paths to
+SHA-256 digests. Resolve each output beside the descriptor. Descriptors and
+outputs are published together by directory rename only after all declared
+files exist and remain inside staging. A failed build removes staging and
+preserves previously published results. Cache hits verify output digests.
+
+Identity includes the locked package graph and toolchain revisions, actual
+checkout HEADs, launcher/compiler bytes, native platform/ABI, recipe and input
+bytes, resolved options, dependency descriptors, CC executable bytes/version and
+relevant native build environment (`PATH`, `CFLAGS`, `CPPFLAGS`, `CXX`,
+`CXXFLAGS`, `LDFLAGS`, `LDLIBS`, `AR`, `LD`, `RANLIB`, `PKG_CONFIG`,
+`PKG_CONFIG_PATH`, `PKG_CONFIG_LIBDIR`, `SYSROOT`, `SDKROOT`,
+`MACOSX_DEPLOYMENT_TARGET`). `CC` must name one executable. Any dirty tracked or untracked
+checkout in the resolved graph disables reuse; declared ignored inputs are
+hashed regardless. Dirty builds receive unique publication directories, so
+local edits cannot hit or overwrite clean results. Two independent consumers
+with the same graph, options and environment share a clean artifact.
+
+The package-driver entry point is
+`PkgBuildArtifact(project: string, package: string, artifact: string, target: string) -> s32`.
+CLI dispatch passes its already resolved graph to the same implementation.
+Downstream adoption consists of adding provider-owned recipes and an `artifact`
+command to the existing Ziran project tool, then replacing consumer source/link
+reconstruction with this request and descriptor consumption. Platform-specific
+sources, link decisions and assets stay in those providers.

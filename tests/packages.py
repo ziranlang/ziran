@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from package_artifacts import check_artifacts
 
 
 def call(*args: str, cwd: Path, env: dict, succeed: bool = True,
@@ -242,7 +243,8 @@ def main() -> None:
     # The compiler repository is the one holding this test, wherever the
     # binary under test was built.
     compiler = Path(__file__).resolve().parents[1]
-    with tempfile.TemporaryDirectory(prefix="ziran-packages-") as scratch:
+    (compiler / "work").mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="ziran-packages-", dir=compiler / "work") as scratch:
         root = Path(scratch)
         env = os.environ.copy()
         env.pop("DISPLAY", None)
@@ -255,6 +257,7 @@ def main() -> None:
 
         check_transitive_add(ziran, root, env)
         check_shared_commit_refs(ziran, root, env)
+        check_artifacts(ziran, root, env, compiler, call, write, init, commit)
 
         library = root / "library"
         init(library, env)

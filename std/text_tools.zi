@@ -196,6 +196,31 @@ TextHexDigit :: (byte: u8) -> s32 {
     return -1
 }
 
+// Decodes VALUE's uppercase or lowercase hexadecimal bytes and appends them to
+// OUTPUT. MAX_BYTES bounds the bytes this call appends; false leaves OUTPUT
+// unchanged on any failure, including an odd length, an invalid digit, an
+// exceeded limit, or an allocation failure.
+TextHexDecodeInto :: (value: string, output: *Vec(u8), max_bytes: s64) -> bool {
+    if max_bytes < 0 || value.count % 2 != 0 { return false }
+    decoded_count := value.count / 2
+    if decoded_count > max_bytes { return false }
+
+    decoded: Vec(u8)
+    at: s64 = 0
+    while at < value.count {
+        high := TextHexDigit(value[at])
+        low := TextHexDigit(value[at + 1])
+        if high < 0 || low < 0 || !VecPush(decoded, cast(u8)(high * 16 + low)) {
+            VecFree(decoded)
+            return false
+        }
+        at += 2
+    }
+    appended := BuilderAppend(<<output, TextView(VecSlice(decoded, 0, decoded.count)))
+    VecFree(decoded)
+    return appended
+}
+
 // BYTES as lowercase hexadecimal.
 TextHex :: (bytes: []u8) -> string {
     digits := "0123456789abcdef"

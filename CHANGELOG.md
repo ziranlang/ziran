@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 ### Added
+- `std/text_tools` gained `TextHexDecodeInto`, which appends bounded
+  uppercase or lowercase hexadecimal bytes and leaves its output unchanged on
+  every failure.
 - Linux and Android hosts on x86-64, ARM and ARM64 run portable bundles as native code, compiled in memory and cached between launches.
 - Natively run bundles execute `#parallel for` regions on worker threads, one per processor.
 - `#parallel for` bodies can hand out results by writing their own slot of an array or slice the function owns, such as `out[it] = value`, or their own window of a slice, such as the row `pixels[it * width : it * width + width]`.

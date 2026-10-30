@@ -19,9 +19,12 @@ name = "Provider"
 project = "build/bin/provider"
 [options]
 mode = "string=normal"
+enabled = "bool=false"
+[options.variant."*"]
+path = "string!"
 [artifacts.object]
 inputs = ["src/value.c", "tools/provider.zi", "Makefile"]
-outputs = ["value.o", "resource.txt"]
+outputs = ["value.o", "resource.txt", "options.txt"]
 ''')
     write(provider / ".gitignore", "build/\n")
     write(provider / "src/value.c", "int value(void) { return 42; }\n")
@@ -42,6 +45,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     empty: [0]string
     code := PkgRun(args[:], "", empty[:], empty[:])
     if code != 0 { return code }
+    resolved := PkgRead(PkgGetenv("ZIRAN_TOOL_OPTIONS"))
+    if !resolved.valid || !PkgWrite(PkgJoin(output, "/options.txt"), resolved.text) { return 5 }
+    if PkgGetenv("FAIL_PROVIDER") == "1" { return 6 }
     if !PkgWrite(PkgJoin(output, "/resource.txt"), PkgGetenv("ZIRAN_ARTIFACT_TARGET")) { return 4 }
     return 0
 }
@@ -62,8 +68,9 @@ git = "{provider.as_uri()}"
         call(ziran, "lock", cwd=app, env=env)
         apps.append(app)
     env = {**env, "ZIRAN_PINNED_LAUNCHER": "1"}
-    def build(app=apps[0], target="linux-x86_64-gnu", ok=True, selection="Provider:object", extra=None):
+    def build(app=apps[0], target="linux-x86_64-gnu", ok=True, selection="Provider:object", extra=None, options=()):
         return call(ziran, "pkg", "artifact", selection, "--platform", target,
+                    *(arg for item in options for arg in ("--option", item)),
                     cwd=app, env={**env, **(extra or {})}, succeed=ok).strip()
     def count():
         return len((provider / "build/count").read_text())
@@ -101,7 +108,7 @@ git = "{provider.as_uri()}"
     assert "locked" in build(ok=False, selection="Missing:object")
     assert "recipe" in build(ok=False, selection="Provider:missing")
     original = (provider / "ziran.toml").read_text()
-    write(provider / "ziran.toml", original.replace('outputs = ["value.o", "resource.txt"]', 'outputs = ["../escape"]'))
+    write(provider / "ziran.toml", original.replace('outputs = ["value.o", "resource.txt", "options.txt"]', 'outputs = ["../escape"]'))
     assert "recipe" in build(ok=False)
     write(provider / "ziran.toml", original + '[artifacts.loop]\ninputs = ["src/value.c"]\noutputs = ["loop.o"]\nrequires = ["self:loop"]\n')
     assert "cycle" in build(ok=False, selection="Provider:loop")
@@ -113,9 +120,9 @@ git = "{provider.as_uri()}"
     assert Path(build()) != first and count() == 8
     # A real recipe edge is built first and supplied as a descriptor.
     write(provider / "ziran.toml", original.replace(
-        'outputs = ["value.o", "resource.txt"]',
-        'outputs = ["value.o", "resource.txt"]\nrequires = ["self:base"]') +
-        '[artifacts.base]\ninputs = ["src/value.c"]\noutputs = ["value.o", "resource.txt"]\n')
+        'outputs = ["value.o", "resource.txt", "options.txt"]',
+        'outputs = ["value.o", "resource.txt", "options.txt"]\nrequires = ["self:base"]') +
+        '[artifacts.base]\ninputs = ["src/value.c"]\noutputs = ["value.o", "resource.txt", "options.txt"]\n')
     commit(provider, env)
     call(ziran, "update", "Provider", cwd=apps[0], env=env)
     dependent = Path(build())
@@ -129,7 +136,107 @@ git = "{provider.as_uri()}"
     commit(provider, env)
     call(ziran, "update", "Provider", cwd=apps[0], env=env)
     assert Path(build()) != dependent and count() == 12
-    print("PASS: native package artifacts reuse, target/options/inputs/toolchain invalidation and failure isolation", flush=True)
+    # Invocation overrides reach providers and all prerequisites without edits.
+    for app in apps:
+        write(app / "build/.ziran/module-map.tsv", "caller owned index\n")
+    pristine = {path: path.read_bytes() for app in apps for path in app.rglob("*")
+                if path.is_file() and (path.name.startswith("ziran.") or path.name == "module-map.tsv")}
+    before = count()
+    defaults = Path(build())
+    assert Path(build(options=("Provider:mode=normal", "Provider:enabled=false"))) == defaults
+    assert count() == before
+    literal = "/sdk path/with=equals;$(false)"
+    opts = ("provider:variant.beta.path=" + literal, "Provider:enabled=true",
+            "Provider:variant.alpha.path=first", "Provider:mode=direct")
+    direct = Path(build(options=opts))
+    assert direct != defaults and count() == before + 2
+    expected = (direct.parent / "options.txt").read_text()
+    assert "enabled=true\n" in expected and "variant.beta.path=" + literal + "\n" in expected
+    base = Path((direct.parent / "dependencies.tsv").read_text().strip().split("\t")[1])
+    assert (base.parent / "options.txt").read_text() == expected
+    assert Path(build(options=tuple(reversed(opts)))) == direct and count() == before + 2
+    # Two independent consumers share equivalent invocation options.
+    call(ziran, "update", "Provider", cwd=apps[1], env=env)
+    call(ziran, "update", "ziran", cwd=apps[1], env=env)
+    pristine = {path: path.read_bytes() for path in pristine}
+    assert Path(build(apps[1], options=opts)) == direct and count() == before + 2
+    changed_options = Path(build(options=("Provider:mode=play",)))
+    assert changed_options != direct and count() == before + 4
+    other_base = Path((changed_options.parent / "dependencies.tsv").read_text().strip().split("\t")[1])
+    assert other_base != base
+    for bad in (("Missing:mode=x",), ("Provider:mode",), ("Provider:mode=",),
+                ("Provider:unknown=x",), ("Provider:enabled=1",), ("Provider:mode=x\ny=z",),
+                ("Provider:variant.path=x",), ("Provider:variant..path=x",),
+                ("Provider:mode=x", "provider:mode=y")):
+        failure = build(options=bad, ok=False, extra={"CC": "must-not-be-invoked"})
+        assert "option" in failure and "compiler" not in failure, failure
+    for suffix in (("--option",), ("--wrong", "Provider:mode=x")):
+        failure = call(ziran, "pkg", "artifact", "Provider:object", "--platform", "linux-x86_64-gnu",
+                       *suffix, cwd=apps[0], env={**env, "CC": "must-not-be-invoked"}, succeed=False)
+        assert "option" in failure and "compiler" not in failure, failure
+    assert count() == before + 4
+    saved = direct.read_bytes()
+    assert "artifact" in build(options=("Provider:mode=failed",), ok=False, extra={"FAIL_PROVIDER": "1"})
+    assert direct.read_bytes() == saved and (direct.parent / "value.o").is_file()
+    assert all(path.read_bytes() == content for path, content in pristine.items())
+
+    # Committed settings < local settings < invocation, with no persisted edits.
+    manifest = apps[0] / "ziran.toml"
+    local_manifest = apps[0] / "ziran.local.toml"
+    committed, local_text = manifest.read_text(), local_manifest.read_text()
+    write(manifest, committed + '[tool.Provider]\nmode = "committed"\n')
+    write(local_manifest, local_text + '[tool.Provider]\nmode = "local"\n')
+    local_default = Path(build())
+    assert "mode=local\n" in (local_default.parent / "options.txt").read_text()
+    assert Path(build(options=opts)) == direct
+    assert manifest.read_text() == committed + '[tool.Provider]\nmode = "committed"\n'
+    assert local_manifest.read_text() == local_text + '[tool.Provider]\nmode = "local"\n'
+    write(manifest, committed)
+    write(local_manifest, local_text)
+
+    # A dependency edge's alias differs from the root consumer's alias.
+    support = fixture / "support"
+    init(support, env)
+    for relative in (".gitignore", "Makefile", "tools/provider.zi", "src/value.c"):
+        write(support / relative, (provider / relative).read_text())
+    write(support / "ziran.toml", original.replace('name = "Provider"', 'name = "Support"'))
+    commit(support, env)
+    write(provider / "ziran.toml", original.replace(
+        'outputs = ["value.o", "resource.txt", "options.txt"]',
+        'outputs = ["value.o", "resource.txt", "options.txt"]\nrequires = ["support:object"]') +
+        f'[dependencies.support]\ngit = "{support.as_uri()}"\n')
+    commit(provider, env)
+    for app in apps:
+        with (app / "ziran.toml").open("a") as stream:
+            stream.write(f'[dependencies.Helper]\ngit = "{support.as_uri()}"\n[tool.Helper]\nmode = "root-default"\n')
+        with (app / "ziran.local.toml").open("a") as stream:
+            stream.write(f'Helper = "{support}"\n')
+        call(ziran, "update", cwd=app, env=env)
+    inherited = Path(build(options=("Helper:mode=inherited",)))
+    support_descriptor = Path((inherited.parent / "dependencies.tsv").read_text().strip().split("\t")[1])
+    assert "mode=inherited\n" in (support_descriptor.parent / "options.txt").read_text()
+    assert Path(build(apps[1], options=("helper:mode=inherited",))) == inherited
+    new_inherited = Path(build(options=("Helper:mode=other",)))
+    assert new_inherited != inherited
+    assert Path((new_inherited.parent / "dependencies.tsv").read_text().strip().split("\t")[1]) != support_descriptor
+    # Exercise both public library signatures through the real resolver.
+    client = fixture / "client"
+    write(client / "client.zi", '''#import "package"
+#import "std/byte_text_linux"
+#import "std/c_string"
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 2 { return 3 }
+    project := TextFromCString(argv[1])
+    options: [1]string = .["Helper:mode=library"]
+    if PkgBuildArtifactWithOptions(project, "Provider", "object", "linux-x86_64-gnu", options[:]) != 0 { return 4 }
+    return PkgBuildArtifact(project, "Provider", "object", "linux-x86_64-gnu")
+}
+''')
+    call(str(zi2c), "--exe", "--root", str(client), "--module-path", str(compiler / "cmd"),
+         "--module-path", str(compiler / "std"), "--entry", "client:main", "-o", str(client / "build"),
+         str(client / "client.zi"), cwd=apps[0], env={**env, "LDLIBS": "-lcrypto"})
+    call(str(client / "build/client"), str(apps[0]), cwd=apps[0], env=env)
+    print("PASS: native package artifacts, invocation options, prerequisite aliases, library APIs and failure isolation", flush=True)
 
 
 def main():

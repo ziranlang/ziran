@@ -194,6 +194,14 @@ Toolchains workflow published for that commit, so the job builds nothing; on
 other systems, or for a commit without one, the job builds Ziran once and
 caches it. Run the Toolchains workflow for an older commit a lock still pins.
 
+Dependency-owned native recipes accept per-build options without editing project
+settings: `ziran pkg artifact provider:native --platform linux-x86_64-gnu
+--option provider:mode=release`. Repeat `--option Alias:key=value` for declared
+string or boolean keys, including `group.name.key` for named tables. Values are
+literal argv data; quote paths containing spaces. Overrides reach prerequisite
+recipes and contribute to cache identity. See [package artifacts](PACKAGES.md#dependency-owned-native-artifacts)
+for validation, alias mapping and the programmatic entry points.
+
 ## Compiler commands
 
 The compiler commands are `zi2zir` (including

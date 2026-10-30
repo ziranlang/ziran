@@ -45,6 +45,7 @@ PkgOptions :: struct {
     tables: [64]PkgOptionTable
     table_count: s32
     error: string
+    snapshot: bool
 }
 
 PkgDecimal :: (value: s32) -> string {
@@ -405,19 +406,117 @@ PkgWriteOptions :: (root: string, alias: string, options: *PkgOptions) -> string
     directory: string = PkgJoin(root, "/build/.ziran/options")
     if !PkgMkdirs(directory) { return "" }
     path: string = PkgJoin3(directory, "/", PkgJoin(alias, ".env"))
-    if !PkgWrite(path, TextFromBytes(builder.bytes[0:builder.at])) { return "" }
+    content := TextFromBytes(builder.bytes[0:builder.at])
+    if options.snapshot {
+        digest := PkgDigest(content)
+        if digest.count == 0 { return "" }
+        path = PkgJoin3(directory, "/", PkgJoin3(alias, ".", PkgJoin(digest, ".env")))
+        if !PkgWriteAtomic(path, content) { return "" }
+    } else if !PkgWrite(path, content) { return "" }
     return path
 }
 
-// Merges a package's declared options with the application's settings and
-// returns the path of the resolved KEY=VALUE file, or "" after reporting why.
+// Invocation strings are literal KEY=VALUE data, never TOML or shell source.
+PkgApplyOptionOverrides :: (options: *PkgOptions, overrides: []string) -> bool {
+    table_base := options.table_count
+    for entry: overrides {
+        equal: s64 = 0
+        while equal < cast(s64)entry.count && entry[equal] != cast(u8)61 { equal += 1 }
+        if equal == 0 || equal >= cast(s64)entry.count - 1 {
+            return PkgOptionError(options, "--option", 0, "expected KEY=VALUE")
+        }
+        full := entry[0:equal]
+        value := entry[equal + 1:]
+        for ch: value {
+            if ch < cast(u8)32 || ch == cast(u8)127 {
+                return PkgOptionError(options, "--option", 0, "control character in value")
+            }
+        }
+        parts: [3]string
+        count: s32 = 0
+        start: s64 = 0
+        for at: 0..cast(s64)full.count {
+            if at == cast(s64)full.count || full[at] == cast(u8)46 {
+                if count >= 3 || !PkgPackageName(full[start:at]) {
+                    return PkgOptionError(options, "--option", 0, "invalid option key")
+                }
+                parts[count] = full[start:at]
+                count += 1
+                start = at + 1
+            }
+        }
+        group := ""
+        name := ""
+        key := parts[count - 1]
+        if count > 1 { group = parts[0] }
+        if count == 3 { name = parts[1] }
+        kind := PkgOptionGroup(options, group)
+        spec := PkgFindOptionSpec(options, group, key)
+        if spec < 0 || kind < 0 || (kind == 0 && name.count > 0) ||
+            (kind == 1 && name.count == 0) {
+            return PkgOptionError(options, "--option", 0, PkgJoin("unknown option ", full))
+        }
+        if options.specs[spec].kind == "bool" && value != "true" && value != "false" {
+            return PkgOptionError(options, "--option", 0, "bool value must be true or false")
+        }
+        found := PkgFindOptionValue(options, group, name, key)
+        if found < 0 {
+            if options.value_count >= 256 { return PkgOptionError(options, "--option", 0, "too many options") }
+            found = options.value_count
+            options.value_count += 1
+            options.values[found].group = group
+            options.values[found].name = name
+            options.values[found].key = key
+        }
+        options.values[found].value = value
+        known := group.count == 0
+        for table: 0..options.table_count - 1 {
+            if options.tables[table].group == group && options.tables[table].name == name { known = true }
+        }
+        if !known {
+            if options.table_count >= 64 { return PkgOptionError(options, "--option", 0, "too many option tables") }
+            options.tables[options.table_count].group = group
+            options.tables[options.table_count].name = name
+            options.table_count += 1
+        }
+    }
+    // Canonicalize newly introduced named tables, independent of argv order.
+    if overrides.count > 0 {
+        for i: table_base + 1..options.table_count - 1 {
+            at := i
+            while at > table_base && PkgLexLess(PkgOptionName(options.tables[at].group, "", options.tables[at].name),
+                PkgOptionName(options.tables[at - 1].group, "", options.tables[at - 1].name)) {
+                prior := options.tables[at - 1]
+                options.tables[at - 1] = options.tables[at]
+                options.tables[at] = prior
+                at -= 1
+            }
+        }
+    }
+    return true
+}
+
 PkgResolveOptions :: (root: string, alias: string, package_path: string) -> string {
+    empty: [0]string
+    return PkgResolveOptionsInternal(root, alias, package_path, empty[:], false)
+}
+
+// Merge only in memory; the generated options file is the provider protocol.
+PkgResolveOptionsWithOverrides :: (root: string, alias: string, package_path: string,
+    overrides: []string) -> string {
+    return PkgResolveOptionsInternal(root, alias, package_path, overrides, true)
+}
+
+PkgResolveOptionsInternal :: (root: string, alias: string, package_path: string,
+    overrides: []string, snapshot: bool) -> string {
     options: *PkgOptions = cast(*PkgOptions)(PkgAllocZero(cast(u64)size_of(PkgOptions)))
     if options == null { PkgFail("out of memory"); return "" }
+    options.snapshot = snapshot
     path: string = ""
     if PkgParseOptionSpecs(PkgJoin(package_path, "/ziran.toml"), options) &&
         PkgParseOptionValues(PkgJoin(root, "/ziran.toml"), alias, options) &&
-        PkgParseOptionValues(PkgJoin(root, "/ziran.local.toml"), alias, options) {
+        PkgParseOptionValues(PkgJoin(root, "/ziran.local.toml"), alias, options) &&
+        PkgApplyOptionOverrides(options, overrides) {
         path = PkgWriteOptions(root, alias, options)
     }
     if path.count > 0 { return path }

@@ -365,6 +365,35 @@ supported platforms and choose the correct native toolchain. The engine treats
 libraries, bundles and resources identically. This command does not alter
 project lifecycle delegation or explicit compiler target selection.
 
+Per-invocation options override `[tool.Alias]` and `ziran.local.toml` values
+in memory, using the dependency's existing declared option types:
+
+```sh
+ziran pkg artifact provider:native --platform linux-x86_64-gnu \
+  --option provider:mode=release \
+  --option 'support:sdk.path=/opt/SDK folder/tool=chain' \
+  --option provider:enabled=true
+```
+
+Repeat `--option Alias:key=value` after the platform. `key` is a top-level key,
+`group.key`, or `group.name.key` for a declared named table. Alias matching is
+case-insensitive and resolves to a locked package identity, so overrides also
+reach prerequisite recipes (including `self` recipes). A prerequisite uses its
+root consumer alias when present, otherwise its locked package name; the
+provider's `requires` edge still uses the provider's dependency alias.
+Strings are nonempty literal argv values, including spaces, quotes, backslashes
+and additional `=` characters. Boolean values are exactly `true` or `false`.
+There is no TOML parsing or shell evaluation of invocation values. Quote the
+whole argument as required by your shell. Control characters, unknown or
+ambiguous packages, undeclared keys, malformed paths and duplicate keys for the
+same package are rejected before compiler identification, cache lookup or any
+provider runs. Provider-specific value constraints remain the provider's job.
+New named tables are ordered deterministically, so reordering invocation
+arguments does not change the effective option file or cache identity.
+Manifests, local overrides and lock files are never edited by these options.
+Artifact providers receive atomic, content-addressed option snapshots so
+concurrent invocations cannot overwrite one another's effective values.
+
 The ordinary project tool is built through its existing Makefile and invoked as
 `artifact NAME --platform TARGET --output STAGE` with the existing project,
 package, toolchain and resolved `ZIRAN_TOOL_OPTIONS` environment. Additional
@@ -398,7 +427,11 @@ with the same graph, options and environment share a clean artifact.
 
 The package-driver entry point is
 `PkgBuildArtifact(project: string, package: string, artifact: string, target: string) -> s32`.
-CLI dispatch passes its already resolved graph to the same implementation.
+For invocation overrides use
+`PkgBuildArtifactWithOptions(project: string, package: string, artifact: string, target: string, overrides: []string) -> s32`.
+Each slice element is the same `Alias:key=value` string as the CLI; an empty
+slice has the original entry point's behavior. CLI dispatch passes its already
+resolved graph to the same implementation.
 Downstream adoption consists of adding provider-owned recipes and an `artifact`
 command to the existing Ziran project tool, then replacing consumer source/link
 reconstruction with this request and descriptor consumption. Platform-specific

@@ -630,6 +630,10 @@ MarkNativeNameCollisions(ZirProgram **programs, int count)
                 char native[ZIR_NAME_MAX * 2];
                 NativeCForeignName(module, foreign, native, sizeof(native));
                 native_names_mark(&names[0], native);
+                /* The generated binding's private C name carries the real
+                 * ABI label through __asm__. A value in another translation
+                 * unit must not define that label (for example libc open). */
+                native_names_mark(&names[0], foreign->target + 2);
             }
         }
     if(ok)

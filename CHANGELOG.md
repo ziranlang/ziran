@@ -17,6 +17,7 @@
 - Saved IR (format 59) writes each string once and refers back to it, stores numbers in as few bytes as they need, and stores source positions relative to the previous one, so `.zir` files and `.zx` bundles carry about a third of their former code size at the same open cost. Rebuild format 58 IR and bundles from source.
 
 ### Fixed
+- Native C builds keep globals and constants separate from foreign library symbols, so a variable such as `open` cannot replace the system file-opening function and crash the program.
 - `ziran lock` and `ziran update` lock one package when manifests name the same commit by a branch and by that commit; they failed with "cannot update project lock". A full-commit ref now matches a package locked at that commit.
 - Bundles accept arrays of fixed arrays as function and host capability parameters.
 - `#parallel for` regions reject mutating, foreign and procedure-value calls nested inside larger expressions.

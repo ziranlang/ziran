@@ -5,6 +5,9 @@
 - Dependency-owned native artifact recipes build and reuse declared output sets
   through the locked package graph, with explicit platform/ABI identities,
   resolved options, input validation and atomic publication.
+- `std/utf8` gained bounded `Copy`, which preserves valid bytes, repairs
+  malformed input with U+FFFD, never splits an output sequence, and reports
+  the written count and completion separately.
 - `std/text_tools` gained `TextHexDecodeInto`, which appends bounded
   uppercase or lowercase hexadecimal bytes and leaves its output unchanged on
   every failure.

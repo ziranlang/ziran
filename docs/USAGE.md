@@ -989,6 +989,13 @@ UTF-8 codepoint boundaries when the result must remain valid text.
 `std/utf8.zi` advances through UTF-8 scalar boundaries and counts codepoints.
 Invalid bytes advance one byte, which keeps a scanner moving while preserving
 valid multibyte sequences.
+`Copy(source, destination)` writes valid UTF-8 unchanged and replaces each
+malformed lead byte (following `Decode`'s consumption rule) with U+FFFD. It is
+bounded and allocation-free, leaves separate source storage unchanged,
+requires destination bytes not to overlap the source, and stops without
+splitting a source sequence or replacement when capacity runs out. Its result
+reports the written byte count and whether all input was consumed; embedded
+NUL remains data.
 
 ### Generic values
 

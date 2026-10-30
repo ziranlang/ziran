@@ -1,0 +1,138 @@
+#import "utf8"
+
+Nibble :: (byte: u8) -> u8 {
+    return ifx byte <= cast(u8)57 then byte - cast(u8)48 else byte - cast(u8)87
+}
+
+FillBytes :: (output: []u8, hex: string) -> s64 {
+    count: s64 = hex.count / 2
+    index: s64 = 0
+    while index < count {
+        output[index] = Nibble(hex[index * 2]) * cast(u8)16 +
+            Nibble(hex[index * 2 + 1])
+        index += 1
+    }
+    return count
+}
+
+SameBytes :: (left: []u8, right: []u8) -> bool {
+    if left.count != right.count { return false }
+    index: s64 = 0
+    while index < left.count {
+        if left[index] != right[index] { return false }
+        index += 1
+    }
+    return true
+}
+
+CheckCopy :: (input: string, expected: string) -> bool {
+    source: [128]u8
+    expected_bytes: [128]u8
+    before: [128]u8
+    output: [128]u8
+    source_count := FillBytes(source[:], input)
+    expected_count := FillBytes(expected_bytes[:], expected)
+    before = source
+    for byte: 0..cast(s32)127 { output[byte] = cast(u8)165 }
+    result: CopyResult = Copy(source[:source_count], output[:])
+    if !result.complete || result.count != expected_count ||
+       !SameBytes(output[:result.count], expected_bytes[:expected_count]) {
+        return false
+    }
+    for byte: result.count..cast(s64)127 {
+        if output[byte] != cast(u8)165 { return false }
+    }
+    return SameBytes(source[:source_count], before[:source_count])
+}
+
+CheckScalarBoundaries :: (input: string) -> bool {
+    source: [8]u8
+    output: [8]u8
+    count := FillBytes(source[:], input)
+    capacity: s64 = 0
+    while capacity < count {
+        for byte: 0..cast(s32)7 { output[byte] = cast(u8)165 }
+        result: CopyResult = Copy(source[:count], output[:capacity])
+        if result.complete || result.count != 0 { return false }
+        for byte: 0..cast(s32)7 {
+            if output[byte] != cast(u8)165 { return false }
+        }
+        capacity += 1
+    }
+    return true
+}
+
+CheckReplacementBoundary :: () -> bool {
+    source: [8]u8
+    output: [8]u8
+    source_count := FillBytes(source[:], "61c3a980")
+    capacity: s64 = 3
+    while capacity < 6 {
+        for byte: 0..cast(s32)7 { output[byte] = cast(u8)165 }
+        result: CopyResult = Copy(source[:source_count], output[:capacity])
+        if result.complete || result.count != 3 ||
+           TextView(output[:3]) != "a\xc3\xa9" {
+            return false
+        }
+        for byte: result.count..cast(s64)7 {
+            if output[byte] != cast(u8)165 { return false }
+        }
+        capacity += 1
+    }
+    return true
+}
+
+CheckTruncatedSuffix :: () -> bool {
+    source: [95]u8
+    output: [99]u8
+    index: s32 = 0
+    while index < 93 {
+        source[index] = cast(u8)97
+        index += 1
+    }
+    source[93] = cast(u8)240
+    source[94] = cast(u8)159
+    result: CopyResult = Copy(source[:], output[:])
+    if !result.complete || result.count != 99 { return false }
+    index = 0
+    while index < 93 {
+        if output[index] != cast(u8)97 { return false }
+        index += 1
+    }
+    return TextView(output[93:99]) == "\xef\xbf\xbd\xef\xbf\xbd"
+}
+
+#program_export
+SelfTest :: () -> s32 {
+    if !CheckCopy("", "") || !CheckCopy("0061c3a9e4b8adf09f9982007f",
+        "0061c3a9e4b8adf09f9982007f") { return 1 }
+    if !CheckCopy("80", "efbfbd") { return 21 }
+    if !CheckCopy("41c242", "41efbfbd42") { return 22 }
+    if !CheckCopy("c3a9c3", "c3a9efbfbd") { return 23 }
+    if !CheckCopy("f09f", "efbfbdefbfbd") { return 24 }
+    if !CheckCopy("c080", "efbfbdefbfbd") ||
+       !CheckCopy("e08080", "efbfbdefbfbdefbfbd") ||
+       !CheckCopy("f0808080", "efbfbdefbfbdefbfbdefbfbd") ||
+       !CheckCopy("eda080", "efbfbdefbfbdefbfbd") ||
+       !CheckCopy("f4908080", "efbfbdefbfbdefbfbdefbfbd") { return 3 }
+    if !CheckScalarBoundaries("61") || !CheckScalarBoundaries("c3a9") ||
+       !CheckScalarBoundaries("e4b8ad") || !CheckScalarBoundaries("f09f9982") {
+        return 4
+    }
+    if !CheckReplacementBoundary() { return 5 }
+    empty: [1]u8
+    empty[0] = cast(u8)165
+    empty_result: CopyResult = Copy(empty[:0], empty[:0])
+    if !empty_result.complete || empty_result.count != 0 ||
+       empty[0] != cast(u8)165 {
+        return 6
+    }
+    if !CheckTruncatedSuffix() { return 7 }
+    return 42
+}
+
+#program_export
+NativeMain :: () -> s32 { return ifx SelfTest() == 42 then 0 else 1 }
+
+#program_export
+main :: () -> s32 { return SelfTest() }

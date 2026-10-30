@@ -11,6 +11,11 @@ Decoded :: struct {
     valid: bool
 }
 
+CopyResult :: struct {
+    count: s64
+    complete: bool
+}
+
 // Decode one scalar. A malformed sequence consumes its lead byte and yields
 // U+FFFD so callers can continue scanning without splitting valid text.
 #program_export
@@ -96,4 +101,40 @@ Count :: (value: string) -> s32 {
         count = count + 1
     }
     return count
+}
+
+#scope_export
+// Copy valid UTF-8 byte-for-byte into a separate bounded destination. Invalid
+// input follows Decode: consume only the malformed lead byte and append one
+// UTF-8 replacement character. Stop before a source sequence or replacement
+// would be split; report the bytes written and whether all input was consumed.
+#program_export
+Copy :: (source: []u8, destination: []u8) -> CopyResult {
+    result: CopyResult
+    at: s64 = 0
+    while at < source.count {
+        end := at + 4
+        if end > source.count { end = source.count }
+        decoded: Decoded = Decode(TextView(source[at:end]), 0)
+        length := cast(s64)decoded.after
+        if length <= 0 { return result }
+        if decoded.valid {
+            if length > destination.count - result.count { return result }
+            index: s64 = 0
+            while index < length {
+                destination[result.count + index] = source[at + index]
+                index += 1
+            }
+            result.count += length
+        } else {
+            if 3 > destination.count - result.count { return result }
+            destination[result.count] = cast(u8)239
+            destination[result.count + 1] = cast(u8)191
+            destination[result.count + 2] = cast(u8)189
+            result.count += 3
+        }
+        at += length
+    }
+    result.complete = true
+    return result
 }

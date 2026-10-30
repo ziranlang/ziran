@@ -128,3 +128,26 @@ git = "{provider.as_uri()}"
     call(ziran, "update", "Provider", cwd=apps[0], env=env)
     assert Path(build()) != dependent and count() == 12
     print("PASS: native package artifacts reuse, target/options/inputs/toolchain invalidation and failure isolation", flush=True)
+
+
+def main():
+    import os
+    import sys
+    import tempfile
+    from packages import call, write, init, commit
+    compiler = Path(__file__).resolve().parents[1]
+    (compiler / "work").mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="package-artifacts-", dir=compiler / "work") as scratch:
+        root = Path(scratch)
+        env = dict(os.environ, XDG_CACHE_HOME=str(root / "cache"),
+                   ZIRAN_TEST_ALLOW_LOCAL_GIT="1", ZIRAN_PINNED_LAUNCHER="1",
+                   GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="protocol.file.allow",
+                   GIT_CONFIG_VALUE_0="always")
+        env.pop("DISPLAY", None)
+        env.pop("WAYLAND_DISPLAY", None)
+        check_artifacts(str(Path(sys.argv[1]).resolve()), root, env, compiler,
+                        call, write, init, commit)
+
+
+if __name__ == "__main__":
+    main()

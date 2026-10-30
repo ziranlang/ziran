@@ -347,6 +347,11 @@ escaping paths are rejected. `artifact.tsv` and `dependencies.tsv` are reserved.
 dependency aliases; `self:NAME` names another recipe in the same package.
 Unknown selections and recipe cycles fail before invoking the affected provider.
 
+Recipes derive outputs only from declared inputs, dependency artifacts, the
+platform, resolved options and keyed toolchain/environment. Consumer identity
+is not an input; encode consumer-specific variation as a declared option.
+The current host command needs `make`, `git`, `mktemp`, `which` and `sha256sum`.
+
 Consumers request the recipe without reconstructing its source or link graph:
 
 ```sh
@@ -398,3 +403,12 @@ Downstream adoption consists of adding provider-owned recipes and an `artifact`
 command to the existing Ziran project tool, then replacing consumer source/link
 reconstruction with this request and descriptor consumption. Platform-specific
 sources, link decisions and assets stay in those providers.
+
+Run the focused native fixture independently before adopting provider recipes:
+
+```sh
+env -u DISPLAY -u WAYLAND_DISPLAY TMPDIR="$PWD/work" python3 tests/package_artifacts.py build/bin/ziran
+```
+
+The regular `sh tests/packages.sh build/bin/ziran` runner includes this fixture.
+It creates only disposable miniature input repositories under ignored `work/`.

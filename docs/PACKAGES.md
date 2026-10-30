@@ -240,7 +240,18 @@ ziran = "../../ziranlang/ziran"
 Each override is the top of its own Git checkout: `ziran lock` records the
 commit checked out there. A directory inside another repository, such as an
 uninitialized submodule, is refused, because its HEAD would be the enclosing
-repository's commit.
+repository's commit. A root dependency's override selects that source for
+all incoming edges, including transitive dependencies with different aliases
+or exact revision pins. These edges use one actual checkout and module type
+identity. The lock records each edge's declared ref separately, so changing a
+ref, URL, alias, source kind or dependency inventory still requires `ziran lock`.
+Source-only edits and newer local commits can be used without changing those
+declarations; build commands derive local module identities from the actual
+checkout HEAD. Conflicting overrides for one source are refused.
+
+After removing overrides, run `ziran lock` to resolve the declared revisions
+again. Exact pins select their declared commits rather than retaining a newer
+local override commit. `--locked` refuses an override-only ref substitution.
 
 Production builds omit overrides and use the locked Git commits. A host module
 that calls into the application can use an explicit reverse bridge:

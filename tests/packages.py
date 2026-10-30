@@ -112,7 +112,151 @@ ref = "{pinned}"
     # --locked checks every declaration against the lock, without overrides.
     (app / "ziran.local.toml").unlink()
     assert call(ziran, "pkg", "path", "Library", "--locked", cwd=app, env=env).strip()
+    # Locks predating per-edge ref metadata still validate branch/pin sharing.
+    # A toolchain-only rewrite must not invent the node's branch as the pin's ref.
+    metadata_free = json.loads((app / "ziran.lock").read_text())
+    metadata_free["root"].pop("dependency_refs", None)
+    for package in metadata_free["packages"]:
+        package.pop("dependency_refs", None)
+    write(app / "ziran.lock", json.dumps(metadata_free))
+    call(ziran, "update", "ziran", cwd=app, env=env)
+    assert call(ziran, "pkg", "path", "Library", "--locked", cwd=app, env=env).strip()
     print("PASS: one commit named by a branch and a pin locks once", flush=True)
+
+
+def check_override_graph(ziran: str, root: Path, env: dict) -> None:
+    """Divergent exact pins use one explicit source override, without ref drift."""
+    env = {**env, "ZIRAN_PINNED_LAUNCHER": "1"}
+    fixture = root / "override-graph"
+    fixture.mkdir()
+    leaf, provider, tool = [fixture / name for name in ("library", "provider", "tool")]
+    init(leaf, env)
+    leaf_manifest = '[package]\nname = "Library"\nmodule_roots = ["src"]\n[exports]\nValue = "src/Value.zi"\n'
+    write(leaf / "ziran.toml", leaf_manifest)
+    pins = []
+    for value in (1, 2, 3):
+        write(leaf / "src/Value.zi", f"Revision :: {value};\nValue :: struct {{ number: s32 }}\n")
+        commit(leaf, env)
+        pins.append(call("git", "rev-parse", "HEAD", cwd=leaf, env=env).strip())
+    init(provider, env)
+    provider_manifest = f'''[package]
+name = "Provider"
+module_roots = ["src"]
+[dependencies.Library]
+git = "{leaf.as_uri()}"
+ref = "{pins[0]}"
+[exports]
+Value = "src/Provider.zi"
+'''
+    write(provider / "ziran.toml", provider_manifest)
+    write(provider / "src/Provider.zi", 'using L :: #import "Library/Value";\nEcho :: (value: Value) -> Value { return value }\n')
+    commit(provider, env)
+    init(tool, env)
+    write(tool / "VERSION", "1\n")
+    commit(tool, env)
+    app = fixture / "app"
+    app.mkdir()
+    manifest = f'''[package]
+name = "OverrideGraph"
+[toolchain]
+git = "{tool.as_uri()}"
+[dependencies.direct]
+git = "{leaf.as_uri()}"
+ref = "{pins[1]}"
+[dependencies.Provider]
+git = "{provider.as_uri()}"
+'''
+    write(app / "ziran.toml", manifest)
+    # The root alias selects the same source for a differently named transitive edge.
+    local = f'[overrides]\nziran = "{tool}"\ndirect = "{leaf}"\nProvider = "{provider}"\nLibrary = "{leaf}"\n'
+    write(app / "ziran.local.toml", local)
+    call(ziran, "lock", cwd=app, env=env)
+    lock = json.loads((app / "ziran.lock").read_text())
+    libraries = [p for p in lock["packages"] if p["name"] == "Library"]
+    assert len(libraries) == 1 and libraries[0]["commit"] == pins[2], lock
+    library = libraries[0]
+    parent = next(p for p in lock["packages"] if p["name"] == "Provider")
+    assert parent["dependencies"]["Library"] == lock["root"]["dependencies"]["direct"]
+    assert Path(call(ziran, "pkg", "path", "direct", cwd=app, env=env).strip()) == leaf
+    assert Path(call(ziran, "pkg", "path", "Library", cwd=app, env=env).strip()) == leaf
+    call(ziran, "pkg", "list", cwd=app, env=env)
+    # One root alias must propagate by source even when a child uses another alias.
+    write(app / "ziran.local.toml", local.replace(f'Library = "{leaf}"\n', ''))
+    call(ziran, "lock", cwd=app, env=env)
+    assert json.loads((app / "ziran.lock").read_text()) == lock
+    assert Path(call(ziran, "pkg", "path", "Library", cwd=app, env=env).strip()) == leaf
+    # Compile a value crossing the direct/transitive import boundary. Both
+    # imports must resolve the same type, even after a local source-only commit.
+    compiler = Path(__file__).resolve().parents[1]
+    write(app / "src/main.zi", '''using Direct :: #import "direct/Value";
+using P :: #import "Provider/Value";
+main :: () -> s32 { value: Value; value.number = 3; return Echo(value).number - 3 }
+''')
+    build_local = local.replace(str(tool), str(compiler)).replace(f'Library = "{leaf}"\n', '')
+    write(app / "ziran.local.toml", build_local)
+    saved_lock = (app / "ziran.lock").read_bytes()
+    previous_identity = None
+    for changed in (False, True):
+        if changed:
+            write(leaf / "VERSION", "new source-only HEAD\n")
+            commit(leaf, env)
+        call(ziran, "build", "--project", "--target=c", "--entry", "main:main",
+             "-o", str(app / "build/c"), str(app / "src/main.zi"), cwd=app, env=env)
+        package_map = (app / "build/.ziran/module-map.tsv").read_text().splitlines()
+        mapped = [line for line in package_map if line.startswith("P\t") and line.endswith("\t" + str(leaf))]
+        assert len(mapped) == 1, package_map
+        if changed:
+            assert mapped[0] != previous_identity, package_map
+        previous_identity = mapped[0]
+        assert (app / "ziran.lock").read_bytes() == saved_lock
+    write(app / "ziran.local.toml", local.replace(f'Library = "{leaf}"\n', ''))
+    # A declaration change must still require a fresh lock even with an override.
+    for changed in (manifest.replace(pins[1], pins[0]),
+                    manifest.replace('name = "OverrideGraph"', 'name = "Renamed"'),
+                    manifest.replace(leaf.as_uri(), tool.as_uri()),
+                    manifest.replace('[dependencies.direct]', '[dependencies.renamed]'),
+                    manifest.replace(f'ref = "{pins[1]}"', f'ref = "{pins[1]}"\nsource = true')):
+        write(app / "ziran.toml", changed)
+        call(ziran, "pkg", "path", "direct", cwd=app, env=env, succeed=False)
+    write(app / "ziran.toml", manifest)
+    for changed in (provider_manifest.replace(pins[0], pins[1]),
+                    provider_manifest.replace(leaf.as_uri(), tool.as_uri()),
+                    provider_manifest.replace(f'ref = "{pins[0]}"', f'ref = "{pins[0]}"\nsource = true'),
+                    provider_manifest.replace('[dependencies.Library]', '[dependencies.Renamed]'),
+                    provider_manifest + '[dependencies.Extra]\ngit = "' + tool.as_uri() + '"\n'):
+        write(provider / "ziran.toml", changed)
+        call(ziran, "pkg", "path", "direct", cwd=app, env=env, succeed=False)
+    write(provider / "ziran.toml", provider_manifest)
+    write(leaf / "ziran.toml", leaf_manifest.replace('name = "Library"', 'name = "Other"'))
+    call(ziran, "pkg", "path", "direct", cwd=app, env=env, succeed=False)
+    write(leaf / "ziran.toml", leaf_manifest)
+    # Without the override, each exact declaration resolves its own original pin.
+    (app / "ziran.local.toml").unlink()
+    call(ziran, "pkg", "path", "direct", "--locked", cwd=app, env=env, succeed=False)
+    call(ziran, "lock", cwd=app, env=env)
+    exact = json.loads((app / "ziran.lock").read_text())
+    libraries = [p for p in exact["packages"] if p["name"] == "Library"]
+    assert {p["commit"] for p in libraries} == set(pins[:2]), exact
+    assert all(p["ref"] == p["commit"] for p in libraries), exact
+    call(ziran, "pkg", "path", "direct", "--locked", cwd=app, env=env)
+    # Existing exact locks also merge at read time after adding an override,
+    # rather than assigning two identities to the same actual source files.
+    exact_bytes = (app / "ziran.lock").read_bytes()
+    write(app / "ziran.local.toml", build_local)
+    call(ziran, "build", "--project", "--target=c", "--entry", "main:main",
+         "-o", str(app / "build/c"), str(app / "src/main.zi"), cwd=app, env=env)
+    mapped = (app / "build/.ziran/module-map.tsv").read_text().splitlines()
+    assert len([line for line in mapped if line.startswith("P\t") and line.endswith("\t" + str(leaf))]) == 1, mapped
+    assert (app / "ziran.lock").read_bytes() == exact_bytes
+    write(app / "ziran.local.toml", build_local + f'Library = "{provider}"\n')
+    call(ziran, "pkg", "path", "direct", cwd=app, env=env, succeed=False)
+    write(app / "ziran.local.toml", build_local)
+    tampered = json.loads(exact_bytes)
+    tampered["packages"][0]["id"] = "incorrect-source-identity"
+    write(app / "ziran.lock", json.dumps(tampered))
+    call(ziran, "pkg", "path", "direct", cwd=app, env=env, succeed=False)
+    (app / "ziran.lock").write_bytes(exact_bytes)
+    print("PASS: divergent pins share one explicit override; declaration drift fails and remote pins persist", flush=True)
 
 
 def check_transitive_add(ziran: str, root: Path, env: dict) -> None:
@@ -195,6 +339,7 @@ Independent = "{independent}"
     after = json.loads((app / "ziran.lock").read_text())
     expected = json.loads(lock_bytes)
     expected["root"]["dependencies"]["direct"] = library_id
+    expected["root"]["dependency_refs"]["direct"] = "master"
     assert after == expected, (before, after)
     assert Path(call(ziran, "pkg", "path", "direct", cwd=app, env=env).strip()) == leaf
     print("PASS: transitive promotion preserves every package and toolchain pin", flush=True)
@@ -257,6 +402,7 @@ def main() -> None:
 
         check_transitive_add(ziran, root, env)
         check_shared_commit_refs(ziran, root, env)
+        check_override_graph(ziran, root, env)
         check_artifacts(ziran, root, env, compiler, call, write, init, commit)
 
         library = root / "library"

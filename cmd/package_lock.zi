@@ -16,6 +16,8 @@ PkgLocked :: struct {
     source: bool
     edges: [24]PkgNamedValue
     edge_count: s32
+    refs: [24]PkgNamedValue
+    ref_count: s32
     manifest: PkgManifest
 }
 
@@ -25,6 +27,8 @@ PkgLock :: struct {
     root_name: string
     root_edges: [24]PkgNamedValue
     root_edge_count: s32
+    root_refs: [24]PkgNamedValue
+    root_ref_count: s32
     tool_url: string
     tool_ref: string
     tool_commit: string
@@ -118,6 +122,9 @@ PkgReadLock :: (path: string, output: *PkgLock) -> bool {
             locked.commit.count != 40 ||
             !PkgParseEdges(json, FieldAt(json, item, "dependencies"),
                 *locked.edges[0], *locked.edge_count) { return false }
+        refs_at: s32 = FieldAt(json, item, "dependency_refs")
+        if refs_at >= 0 && !PkgParseEdges(json, refs_at, *locked.refs[0],
+            *locked.ref_count) { return false }
         source_at: s32 = FieldAt(json, item, "source")
         if source_at >= 0 {
             if MatchLiteral(json, source_at, "true") { locked.source = true }
@@ -132,6 +139,9 @@ PkgReadLock :: (path: string, output: *PkgLock) -> bool {
     if output.root_name.count == 0 || !PkgParseEdges(json,
         FieldAt(json, root, "dependencies"), *output.root_edges[0],
         *output.root_edge_count) { return false }
+    refs_at: s32 = FieldAt(json, root, "dependency_refs")
+    if refs_at >= 0 && !PkgParseEdges(json, refs_at, *output.root_refs[0],
+        *output.root_ref_count) { return false }
     tool: s32 = FieldAt(json, 0, "toolchain")
     output.tool_url = PkgJsonField(json, tool, "url")
     output.tool_ref = PkgJsonField(json, tool, "ref")
@@ -164,7 +174,75 @@ PkgFindById :: (locked: *PkgLock, id: string) -> s32 {
 // commit naming the commit that package is locked at: one manifest may follow
 // a branch while another pins the commit that branch locked.
 PkgRefMatches :: (locked: *PkgLocked, ref: string) -> bool {
-    return locked.ref == ref || (PkgValidCommit(ref) && locked.commit == ref)
+    if PkgValidCommit(ref) { return locked.commit == ref }
+    return locked.ref == ref
+}
+
+// Overrides select a source, not a particular spelling of its incoming alias.
+// A root override therefore also applies to transitive pins of that URL.
+PkgSourceOverride :: (overrides: *PkgOverrides, current: *PkgManifest,
+    graph: *PkgLock, url: string, alias: string, root: string) -> string {
+    if overrides.count == 0 { return "" }
+    result: string = PkgFindOverride(overrides, alias, root)
+    index: s32 = 0
+    while index < current.dependency_count {
+        dep: *PkgDependency = *current.dependencies[index]
+        if PkgSameSource(dep.git, url) {
+            path: string = PkgFindOverride(overrides, dep.alias, root)
+            if path.count > 0 {
+                if result.count > 0 && result != path {
+                    unused PkgFail("conflicting local overrides for one package source")
+                    return "!"
+                }
+                result = path
+            }
+        }
+        index += 1
+    }
+    index = 0
+    while index < graph.count {
+        item: *PkgLocked = *graph.packages[index]
+        if PkgSameSource(item.url, url) {
+            path: string = PkgFindOverride(overrides, item.name, root)
+            owner: s32 = -1
+            while owner < graph.count {
+                count: s32 = graph.root_edge_count
+                edges: *PkgNamedValue = *graph.root_edges[0]
+                if owner >= 0 {
+                    count = graph.packages[owner].edge_count
+                    edges = *graph.packages[owner].edges[0]
+                }
+                edge: s32 = 0
+                while edge < count {
+                    if edges[edge].value == item.id {
+                        candidate: string = PkgFindOverride(overrides, edges[edge].name, root)
+                        if candidate.count > 0 {
+                            if path.count > 0 && path != candidate { return "!" }
+                            path = candidate
+                        }
+                    }
+                    edge += 1
+                }
+                owner += 1
+            }
+            if path.count > 0 {
+                if result.count > 0 && result != path { return "!" }
+                result = path
+            }
+        }
+        index += 1
+    }
+    return result
+}
+
+// Keep the declared ref separate from the selected source commit. In local
+// development several exact declarations may intentionally select one HEAD.
+// The saved edge still detects ref drift; only an explicit source override
+// permits a declaration that does not name the selected locked revision.
+PkgEdgeRefMatches :: (target: *PkgLocked, ref: string, saved: string,
+    override: string) -> bool {
+    if saved.count > 0 && saved != ref { return false }
+    return PkgRefMatches(target, ref) || (saved == ref && override.count > 0)
 }
 
 PkgFindBySource :: (locked: *PkgLock, url: string, ref: string) -> s32 {
@@ -403,6 +481,23 @@ PkgWriteEdges :: (builder: *PkgBuilder, edges: *PkgNamedValue, count: s32) -> vo
     PkgAppend(builder, "}")
 }
 
+PkgWriteRefs :: (builder: *PkgBuilder, locked: *PkgLock,
+    edges: *PkgNamedValue, count: s32, refs: *PkgNamedValue, ref_count: s32) -> void {
+    values: [24]PkgNamedValue
+    index: s32 = 0
+    while index < count {
+        values[index].name = edges[index].name
+        values[index].value = PkgEdgeValue(refs, ref_count, edges[index].name)
+        if values[index].value.count == 0 {
+            target: s32 = PkgFindById(locked, edges[index].value)
+            if target < 0 { builder.valid = false; return }
+            values[index].value = locked.packages[target].ref
+        }
+        index += 1
+    }
+    PkgWriteEdges(builder, *values[0], count)
+}
+
 PkgWriteLock :: (root: string, locked: *PkgLock) -> bool {
     memory: *u8 = PkgAlloc(4194304)
     if memory == null { return false }
@@ -434,6 +529,11 @@ PkgWriteLock :: (root: string, locked: *PkgLock) -> bool {
         PkgAppendJson(*builder, item.commit)
         PkgAppend(*builder, ",\n      \"dependencies\": ")
         PkgWriteEdges(*builder, *item.edges[0], item.edge_count)
+        if item.ref_count > 0 {
+            PkgAppend(*builder, ",\n      \"dependency_refs\": ")
+            PkgWriteRefs(*builder, locked, *item.edges[0], item.edge_count,
+                *item.refs[0], item.ref_count)
+        }
         PkgAppend(*builder, ",\n      \"id\": ")
         PkgAppendJson(*builder, item.id)
         PkgAppend(*builder, ",\n      \"name\": ")
@@ -448,6 +548,11 @@ PkgWriteLock :: (root: string, locked: *PkgLock) -> bool {
     }
     PkgAppend(*builder, "\n  ],\n  \"root\": {\n    \"dependencies\": ")
     PkgWriteEdges(*builder, *locked.root_edges[0], locked.root_edge_count)
+    if locked.root_ref_count > 0 {
+        PkgAppend(*builder, ",\n    \"dependency_refs\": ")
+        PkgWriteRefs(*builder, locked, *locked.root_edges[0], locked.root_edge_count,
+            *locked.root_refs[0], locked.root_ref_count)
+    }
     PkgAppend(*builder, ",\n    \"name\": ")
     PkgAppendJson(*builder, locked.root_name)
     PkgAppend(*builder, "\n  },\n  \"toolchain\": {\n    \"commit\": ")
@@ -491,7 +596,9 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                 old.root_edge_count, dep.alias)
             target: s32 = PkgFindById(old, id)
             if target < 0 || !PkgSameSource(old.packages[target].url, dep.git) ||
-                !PkgRefMatches(*old.packages[target], dep.ref) ||
+                !PkgEdgeRefMatches(*old.packages[target], dep.ref,
+                    PkgEdgeValue(*old.root_refs[0], old.root_ref_count, dep.alias),
+                    PkgSourceOverride(overrides, current, old, dep.git, dep.alias, root)) ||
                 old.packages[target].source != dep.source {
                 PkgFail("dependencies differ from ziran.lock; run ziran lock")
                 return false
@@ -556,7 +663,8 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             item: *PkgLocked = *resolved.packages[found]
             item.url = next.url
             item.ref = next.ref
-            override: string = PkgFindOverride(overrides, next.alias, root)
+            override: string = PkgSourceOverride(overrides, current, old,
+                next.url, next.alias, root)
             previous: s32 = PkgFindBySource(old, next.url, next.ref)
             // A targeted update reads an unrelated package's pinned manifest,
             // even when its development override has newer or dirty inputs.
@@ -571,7 +679,8 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                     return false
                 }
             } else {
-                if previous >= 0 && !next.refresh {
+                if previous >= 0 && !next.refresh &&
+                    (!PkgValidCommit(next.ref) || old.packages[previous].commit == next.ref) {
                     item.commit = old.packages[previous].commit
                 } else {
                     item.commit = PkgRemoteCommit(next.url, next.ref)
@@ -636,12 +745,18 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             if resolved.root_edge_count >= 24 { return false }
             resolved.root_edges[resolved.root_edge_count].name = next.alias
             resolved.root_edges[resolved.root_edge_count].value = resolved.packages[found].id
+            resolved.root_refs[resolved.root_ref_count].name = next.alias
+            resolved.root_refs[resolved.root_ref_count].value = next.ref
+            resolved.root_ref_count += 1
             resolved.root_edge_count += 1
         } else {
             parent: *PkgLocked = *resolved.packages[next.owner]
             if parent.edge_count >= 24 { return false }
             parent.edges[parent.edge_count].name = next.alias
             parent.edges[parent.edge_count].value = resolved.packages[found].id
+            parent.refs[parent.ref_count].name = next.alias
+            parent.refs[parent.ref_count].value = next.ref
+            parent.ref_count += 1
             parent.edge_count += 1
         }
     }
@@ -670,6 +785,69 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
     return PkgWriteLock(root, resolved)
 }
 
+// Validation uses the saved graph. Only afterwards substitute actual local
+// source identities in memory, merging aliases that now select one checkout.
+// No lock is rewritten by a read/build command.
+PkgApplyOverrideIdentities :: (root: string, overrides: *PkgOverrides,
+    current: *PkgManifest, locked: *PkgLock) -> bool {
+    index: s32 = 0
+    while index < locked.count {
+        item: *PkgLocked = *locked.packages[index]
+        path: string = PkgSourceOverride(overrides, current, locked,
+            item.url, item.name, root)
+        if path.count > 0 {
+            commit: string = PkgGitHead(path)
+            if commit.count == 0 { return false }
+            old_id: string = item.id
+            item.commit = commit
+            item.id = PkgSourceId(PkgSourceKey(item.url), commit)
+            owner: s32 = -1
+            while owner < locked.count {
+                edges: *PkgNamedValue = *locked.root_edges[0]
+                count: s32 = locked.root_edge_count
+                if owner >= 0 {
+                    edges = *locked.packages[owner].edges[0]
+                    count = locked.packages[owner].edge_count
+                }
+                edge: s32 = 0
+                while edge < count {
+                    if edges[edge].value == old_id { edges[edge].value = item.id }
+                    edge += 1
+                }
+                owner += 1
+            }
+        }
+        index += 1
+    }
+    index = 0
+    while index < locked.count {
+        other: s32 = index + 1
+        while other < locked.count {
+            if locked.packages[other].id == locked.packages[index].id {
+                if locked.packages[other].source != locked.packages[index].source ||
+                    locked.packages[other].path != locked.packages[index].path ||
+                    locked.packages[other].name != locked.packages[index].name ||
+                    locked.packages[other].edge_count != locked.packages[index].edge_count { return false }
+                edge: s32 = 0
+                while edge < locked.packages[index].edge_count {
+                    expected: *PkgNamedValue = *locked.packages[index].edges[edge]
+                    if PkgEdgeValue(*locked.packages[other].edges[0],
+                        locked.packages[other].edge_count, expected.name) != expected.value { return false }
+                    edge += 1
+                }
+                shift: s32 = other + 1
+                while shift < locked.count {
+                    locked.packages[shift - 1] = locked.packages[shift]
+                    shift += 1
+                }
+                locked.count -= 1
+            } else { other += 1 }
+        }
+        index += 1
+    }
+    return true
+}
+
 PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     locked_mode: bool, current: *PkgManifest) -> bool {
     overrides: *PkgOverrides = PkgNewOverrides()
@@ -694,7 +872,9 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             dep.alias)
         found: s32 = PkgFindById(locked, id)
         if found < 0 || !PkgSameSource(locked.packages[found].url, dep.git) ||
-           !PkgRefMatches(*locked.packages[found], dep.ref) ||
+           !PkgEdgeRefMatches(*locked.packages[found], dep.ref,
+               PkgEdgeValue(*locked.root_refs[0], locked.root_ref_count, dep.alias),
+               PkgSourceOverride(overrides, current, locked, dep.git, dep.alias, root)) ||
            locked.packages[found].source != dep.source {
             PkgFail("dependencies differ from ziran.lock; run ziran lock")
             return false
@@ -704,29 +884,10 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     index = 0
     while index < locked.count {
         item: *PkgLocked = *locked.packages[index]
-        override: string = PkgFindOverride(overrides, item.name, root)
-        // ziran lock matches overrides by dependency alias; accept the same
-        // names here so both commands select the same checkout.
-        edge: s32 = 0
-        while override.count == 0 && edge < locked.root_edge_count {
-            if locked.root_edges[edge].value == item.id {
-                override = PkgFindOverride(overrides,
-                    locked.root_edges[edge].name, root)
-            }
-            edge += 1
-        }
-        owner: s32 = 0
-        while override.count == 0 && owner < locked.count {
-            edge = 0
-            while override.count == 0 && edge < locked.packages[owner].edge_count {
-                if locked.packages[owner].edges[edge].value == item.id {
-                    override = PkgFindOverride(overrides,
-                        locked.packages[owner].edges[edge].name, root)
-                }
-                edge += 1
-            }
-            owner += 1
-        }
+        if item.id != PkgSourceId(PkgSourceKey(item.url), item.commit) { return false }
+        override: string = PkgSourceOverride(overrides, current, locked,
+            item.url, item.name, root)
+        if override.count > 0 && PkgGitHead(override).count == 0 { return false }
         item.path = override
         if item.path.count == 0 {
             item.path = PkgCheckout(item.url, item.commit, offline)
@@ -746,7 +907,9 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             id: string = PkgEdgeValue(*item.edges[0], item.edge_count, dep.alias)
             target: s32 = PkgFindById(locked, id)
             if target < 0 || !PkgSameSource(locked.packages[target].url, dep.git) ||
-                !PkgRefMatches(*locked.packages[target], dep.ref) ||
+                !PkgEdgeRefMatches(*locked.packages[target], dep.ref,
+                    PkgEdgeValue(*item.refs[0], item.ref_count, dep.alias),
+                    PkgSourceOverride(overrides, current, locked, dep.git, dep.alias, root)) ||
                 locked.packages[target].source != dep.source { return false }
             child += 1
         }
@@ -756,7 +919,8 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     if locked.tool_path.count == 0 {
         locked.tool_path = PkgCheckout(locked.tool_url, locked.tool_commit, offline)
     }
-    return locked.tool_path.count > 0
+    return locked.tool_path.count > 0 &&
+        PkgApplyOverrideIdentities(root, overrides, current, locked)
 }
 
 PkgSelect :: (locked: *PkgLock, selector: string) -> s32 {

@@ -938,10 +938,12 @@
 <section id="utf8"><p class="eyebrow">88 / std/utf8.zi</p><h2>utf8</h2><p>Advance one Unicode scalar in an immutable UTF-8 string. An invalid byte advances by one so callers always make progress and never split a valid multibyte sequence.</p><p>Import with <code>#import "utf8"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Continuation :: (byte: u8) -&gt; bool</code></div>
 <div><code>Decoded :: struct { value: u32; after: s32; valid: bool; }</code></div>
+<div><code>CopyResult :: struct { count: s64; complete: bool; }</code></div>
 <div><code>Decode :: (text: string, at: s32) -&gt; Decoded</code><p>Decode one scalar. A malformed sequence consumes its lead byte and yields U+FFFD so callers can continue scanning without splitting valid text.</p></div>
 <div><code>Next :: (value: string, at: s32) -&gt; s32</code></div>
 <div><code>Valid :: (text: string) -&gt; bool</code><p>Validate every byte without allocating or decoding ordinary ASCII scalars. Multibyte windows borrow at most four bytes, keeping Decode's absolute 32-bit offset independent of the size of the complete string.</p></div>
 <div><code>Count :: (value: string) -&gt; s32</code></div>
+<div><code>Copy :: (source: []u8, destination: []u8) -&gt; CopyResult</code><p>Copy valid UTF-8 byte-for-byte into a separate bounded destination. Invalid input follows Decode: consume only the malformed lead byte and append one UTF-8 replacement character. Stop before a source sequence or replacement would be split; report the bytes written and whether all input was consumed.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/utf8.zi">Source ↗</a></p></section>
 <section id="vec"><p class="eyebrow">89 / std/vec.zi</p><h2>vec</h2><p>Owned growable storage. Operations on Vec values are compiler primitives; the data pointer is private to those operations.</p><p>Import with <code>#import "vec"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Vec :: struct($T: Type) { data: *T; count: s64; capacity: s64; }</code></div>

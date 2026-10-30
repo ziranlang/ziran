@@ -4,6 +4,8 @@ import subprocess
 
 
 def check_artifacts(ziran, root, env, compiler, call, write, init, commit):
+    # Use the selected test build, including build/sanitize/bin in sanitizer CI.
+    zi2c = Path(ziran).resolve().with_name("zi2c")
     fixture = root / "artifacts"
     fixture.mkdir()
     provider, tool = fixture / "provider", fixture / "tool"
@@ -25,7 +27,7 @@ outputs = ["value.o", "resource.txt"]
     write(provider / "src/value.c", "int value(void) { return 42; }\n")
     write(provider / "Makefile", f'''build/bin/provider: tools/provider.zi
 \t@mkdir -p build/bin
-\t@LDLIBS=-lcrypto {compiler}/build/bin/zi2c --exe --root tools --module-path {compiler}/cmd --module-path {compiler}/std --entry provider:main -o build/bin tools/provider.zi
+\t@LDLIBS=-lcrypto {zi2c} --exe --root tools --module-path {compiler}/cmd --module-path {compiler}/std --entry provider:main -o build/bin tools/provider.zi
 ''')
     write(provider / "tools/provider.zi", '''#import "package_common"
 #import "std/byte_text_linux"

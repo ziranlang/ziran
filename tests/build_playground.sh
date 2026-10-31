@@ -7,6 +7,7 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY
+real_make=$(command -v make)
 mkdir -p "$work/tools with spaces" "$work/bin"
 cat > "$work/bin/make" <<'PY'
 #!/usr/bin/env python3
@@ -29,7 +30,7 @@ export ZIRAN_PLAYGROUND_TEST_LOG="$work/commands.jsonl"
 export EM_CACHE="$work/em-cache"
 export EM_FROZEN_CACHE=1
 
-"$ziran" run --target=py "$repo/scripts/build_playground.zi" \
+"$ziran" run --target=c "$repo/scripts/build_playground.zi" \
     --emcc "$work/tools with spaces/emcc" --output-dir "$work/assets with spaces" \
     --embed-file 'local file.zi@/file.zi' --embed-file 'modules@/modules' > "$work/output"
 test "$(cat "$work/output")" = "$(printf 'mock make\nmock emcc')"
@@ -44,7 +45,7 @@ assert make['stage'] == 'make' and emcc['stage'] == 'emcc'
 assert make['args'] == ['BUILD_DIR=build/playground64',
     'CC='+shlex.quote(str(work/'tools with spaces/emcc'))+' -sMEMORY64=2',
     'AR='+shlex.quote(str(work/'tools with spaces/emar')), 'OBJCOPY=true',
-    'WASM_PRIVATE_HEADERS=build/playground64/private', 'CFLAGS=-O2',
+    'CFLAGS=-O2',
     'FRAMEFLAGS=-Wframe-larger-than=16384', 'build/playground64/libziran.a']
 assert emcc['args'][-8:] == ['--embed-file', 'std@/std', '--embed-file',
     'local file.zi@/file.zi', '--embed-file', 'modules@/modules',
@@ -53,20 +54,22 @@ assert '-sMEMORY64=2' in emcc['args'] and '-sSTACK_SIZE=8388608' in emcc['args']
 for call in calls:
     assert call['cwd'] == str(repo) and call['cache'] == str(work/'em-cache')
     assert not call['frozen'] and not call['display']
-private = repo/'build/playground64/private'
-for group in ('parse', 'check', 'emit', 'vm'):
-    lines = (private/(group+'.h')).read_text().splitlines()
-    assert lines and len(lines) == len(set(lines))
-    assert lines == sorted(lines)
-    assert not any(line.startswith('#define '+keyword+' ') for line in lines
-                   for keyword in ('char', 'void', 'int', 'const'))
-assert '#define check_function private_check_check_function' in (private/'check.h').read_text()
 PY
+
+# A memory64 Emscripten compiler still gets each group's private name headers.
+printf '#!/bin/sh\nprintf "wasm64-unknown-emscripten\\n"\n' > "$work/wasm-cc"
+chmod +x "$work/wasm-cc"
+env -u MAKEFLAGS "$real_make" -C "$repo" CC="$work/wasm-cc" BUILD_DIR="$work/headers" \
+    "$work/headers/wasm-private/check.h" "$work/headers/wasm-private/vm.h" > /dev/null
+grep -Fqx '#define check_function private_check_check_function' "$work/headers/wasm-private/check.h"
+for keyword in char void int const; do
+    if grep -q "^#define $keyword " "$work/headers/wasm-private/check.h"; then exit 1; fi
+done
 
 # Stop before the linker when make fails, preserving a nonzero result.
 rm "$ZIRAN_PLAYGROUND_TEST_LOG"
 code=0
-ZIRAN_PLAYGROUND_MAKE_EXIT=17 "$ziran" run --target=py "$repo/scripts/build_playground.zi" \
+ZIRAN_PLAYGROUND_MAKE_EXIT=17 "$ziran" run --target=c "$repo/scripts/build_playground.zi" \
     --emcc "$work/tools with spaces/emcc" --output-dir "$work/assets with spaces" > "$work/failure" || code=$?
 test "$code" -eq 1
 test "$(wc -l < "$ZIRAN_PLAYGROUND_TEST_LOG")" -eq 1

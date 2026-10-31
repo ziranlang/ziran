@@ -118,6 +118,7 @@ RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_he
 .PHONY: proof-model
 LEAN ?= lean
 CHECK_JOBS ?= 4
+CHECK_SHARD ?=
 all: $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zi2wasm $(BUILD_DIR)/libziran.a
 	$(RM) $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust
 
@@ -535,7 +536,7 @@ $(BIN_DIR)/slice-host-test: tests/host_slice_test.c $(BUILD_DIR)/libziran.a | $(
 check: all $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/vm-vec-scope-test $(BIN_DIR)/vm-locale-test $(BIN_DIR)/zx-wasm-engine-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/startup-graph-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zx-wasm-engine-test
-	python3 tests/run_check.py --bin-dir $(BIN_DIR) --jobs $(CHECK_JOBS)
+	python3 tests/run_check.py --bin-dir $(BIN_DIR) --jobs $(CHECK_JOBS) $(if $(CHECK_SHARD),--shard $(CHECK_SHARD))
 
 zx-wasm-test: all
 	env -u DISPLAY -u WAYLAND_DISPLAY tests/zx_wasm.sh $(BIN_DIR)/ziran

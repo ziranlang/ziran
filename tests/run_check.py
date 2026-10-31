@@ -54,11 +54,22 @@ def positive_int(value):
     return number
 
 
+def shard(value):
+    try:
+        part, parts = (int(number) for number in value.split("/"))
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("shard must look like 1/2") from error
+    if not 1 <= part <= parts:
+        raise argparse.ArgumentTypeError("shard must look like 1/2")
+    return part, parts
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bin-dir", type=Path, default=Path("build/bin"))
     parser.add_argument("--jobs", type=positive_int, default=4)
     parser.add_argument("--filter", default="", help="run checks whose name contains this text")
+    parser.add_argument("--shard", type=shard, help="run only part N/M of the checks, as CI's parallel jobs do")
     parser.add_argument("--log-dir", type=Path, help="save full logs and results (default: BUILD/check-logs)")
     args = parser.parse_args()
 
@@ -83,6 +94,8 @@ def main():
             command.append(extra[script.name])
         checks.append((script.name, command))
     checks = [(name, command) for name, command in checks if args.filter in name]
+    if args.shard:
+        checks = checks[args.shard[0] - 1::args.shard[1]]
     if not checks:
         parser.error(f"no checks match {args.filter!r}")
     log_dir = (args.log_dir or bin_dir.parent / "check-logs").resolve()

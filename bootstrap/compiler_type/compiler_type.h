@@ -50,7 +50,6 @@ bool compiler_type_BuiltinValueName(String name);
 bool compiler_type_MapPrimitive(String name);
 ForeignCall compiler_type_GoCall(String target, int64_t receiver_limit);
 bool compiler_type_GoTypeTarget(String target);
-ForeignCall compiler_type_PythonCall(String target);
 
 #ifdef __cplusplus
 }

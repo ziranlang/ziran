@@ -75,6 +75,7 @@ struct BorrowBinding {
     BorrowPlace address_backing;
     int address_known;
     int parameter;
+    int view_listed;
 };
 
 typedef struct ActiveTextBorrow {
@@ -91,9 +92,38 @@ typedef struct TextTypeAnswer {
     int holds_text;
 } TextTypeAnswer;
 
+/* Pointer keys index what the check otherwise finds by scanning every
+ * function or global on each call, assignment and pass. */
+typedef struct PointerSlot {
+    const void *key;
+    const void *second;
+    int value;
+} PointerSlot;
+
+typedef struct PointerIndex {
+    PointerSlot *slots; /* open addressing, capacity a power of two */
+    size_t capacity, count;
+} PointerIndex;
+
+/* Whether a call name reaches a foreign import, per module and name. The
+ * import graph no longer changes once checking is done. */
+typedef struct ForeignAnswer {
+    const ZirModule *module;
+    char name[ZIR_NAME_MAX];
+    int found;
+} ForeignAnswer;
+
 typedef struct BorrowCheck {
     TextTypeAnswer *text_types; /* open addressing, capacity a power of two */
     size_t text_type_capacity, text_type_count;
+    ForeignAnswer *foreign_answers; /* open addressing, capacity a power of two */
+    size_t foreign_capacity, foreign_count;
+    PointerIndex function_index;
+    PointerIndex global_index;
+    /* Globals whose origin names any global, in index order: only these
+     * can retain a view of a mutated global. */
+    int *view_globals;
+    int view_global_count, view_global_capacity;
     BorrowFunction *functions;
     int count;
     BorrowFunction *current;
@@ -114,12 +144,90 @@ typedef struct BorrowCheck {
     int failed;
 } BorrowCheck;
 
+static uint64_t
+pointer_hash(const void *key, const void *second)
+{
+    uint64_t hash = ((uint64_t)(uintptr_t)key ^
+                     ((uint64_t)(uintptr_t)second * UINT64_C(31))) *
+                    UINT64_C(0x9E3779B97F4A7C15);
+    return hash ^ (hash >> 29);
+}
+
+/* The value stored for key and second, or -1. */
+static int
+pointer_index_get(const PointerIndex *index, const void *key, const void *second)
+{
+    if(index->capacity == 0) return -1;
+    size_t mask = index->capacity - 1;
+    for(size_t slot = pointer_hash(key, second) & mask; index->slots[slot].key != NULL;
+        slot = (slot + 1) & mask)
+        if(index->slots[slot].key == key && index->slots[slot].second == second)
+            return index->slots[slot].value;
+    return -1;
+}
+
+/* Keeps an existing value. Returns 0 only when memory is exhausted. */
+static int
+pointer_index_put(PointerIndex *index, const void *key, const void *second, int value)
+{
+    if((index->count + 1) * 4 > index->capacity * 3) {
+        size_t capacity = index->capacity ? index->capacity * 2 : 256;
+        PointerSlot *grown = calloc(capacity, sizeof(*grown));
+        if(grown == NULL) return 0;
+        for(size_t i = 0; i < index->capacity; i++) {
+            const PointerSlot *old = &index->slots[i];
+            if(old->key == NULL) continue;
+            size_t slot = pointer_hash(old->key, old->second) & (capacity - 1);
+            while(grown[slot].key != NULL) slot = (slot + 1) & (capacity - 1);
+            grown[slot] = *old;
+        }
+        free(index->slots);
+        index->slots = grown;
+        index->capacity = capacity;
+    }
+    size_t mask = index->capacity - 1;
+    size_t slot = pointer_hash(key, second) & mask;
+    while(index->slots[slot].key != NULL) {
+        if(index->slots[slot].key == key && index->slots[slot].second == second) return 1;
+        slot = (slot + 1) & mask;
+    }
+    index->slots[slot] = (PointerSlot){key, second, value};
+    index->count++;
+    return 1;
+}
+
 static void
 reject(BorrowCheck *check, ZirSourceSpan span, const char *message)
 {
     if(!check->failed)
         Diagnostic(span, "check.slice_lifetime", "%s", message);
     check->failed = 1;
+}
+
+/* Mutation checks visit view globals in index order, as a scan of every
+ * global would, so the same view is reported first. */
+static void
+list_view_global(BorrowCheck *check, int index)
+{
+    BorrowBinding *view = &check->globals[index];
+    if(view->view_listed) return;
+    if(check->view_global_count == check->view_global_capacity) {
+        int capacity = check->view_global_capacity ? check->view_global_capacity * 2 : 64;
+        int *grown = realloc(check->view_globals, (size_t)capacity * sizeof(*grown));
+        if(grown == NULL) {
+            reject(check, view->global->span, "out of memory checking global text aliases");
+            return;
+        }
+        check->view_globals = grown;
+        check->view_global_capacity = capacity;
+    }
+    int position = check->view_global_count++;
+    while(position > 0 && check->view_globals[position - 1] > index) {
+        check->view_globals[position] = check->view_globals[position - 1];
+        position--;
+    }
+    check->view_globals[position] = index;
+    view->view_listed = 1;
 }
 
 static uint64_t *
@@ -380,10 +488,8 @@ global_binding(BorrowCheck *check, const char *name)
     const ZirGlobal *global = NULL;
     if(ResolveGlobal(check->current->module, name, &owner, &global) != 1)
         return NULL;
-    for(int i = 0; i < check->global_count; i++)
-        if(check->globals[i].module == owner && check->globals[i].global == global)
-            return &check->globals[i];
-    return NULL;
+    int i = pointer_index_get(&check->global_index, owner, global);
+    return i >= 0 ? &check->globals[i] : NULL;
 }
 
 static BorrowBinding *
@@ -625,7 +731,8 @@ check_mutation(BorrowCheck *check, BorrowPlace destination, ZirSourceSpan span)
      * summary, so a later call can check the actual argument's storage. */
     int backing_global = destination.root->global_index;
     if(backing_global < 0) return;
-    for(int g = 0; g < check->global_count; g++) {
+    for(int v = 0; v < check->view_global_count; v++) {
+        int g = check->view_globals[v];
         BorrowBinding *view = &check->globals[g];
         /* Most globals retain no view of this destination. Test the known
          * origin first rather than hashing their type on every mutation. */
@@ -647,25 +754,17 @@ check_mutation(BorrowCheck *check, BorrowPlace destination, ZirSourceSpan span)
     }
 }
 
-typedef struct ForeignVisit {
-    const ZirModule *module;
-    const char *name;
-    struct ForeignVisit *next;
-} ForeignVisit;
-
 static int
 foreign_call_visit(const ZirModule *module, const char *name,
-                   ForeignVisit **visited)
+                   PointerIndex *visited)
 {
     if(module == NULL) return 0;
     /* Open imports form a graph, often with cycles and shared dependencies.
-     * Revisit neither a module nor the remaining name within this lookup. */
-    for(ForeignVisit *item = *visited; item != NULL; item = item->next)
-        if(item->module == module && !strcmp(item->name, name)) return 0;
-    ForeignVisit *visit = malloc(sizeof(*visit));
-    if(visit == NULL) return 0;
-    *visit = (ForeignVisit){module, name, *visited};
-    *visited = visit;
+     * Revisit neither a module nor the remaining name within this lookup.
+     * Every remaining name is a distinct suffix of the requested one, so
+     * its address identifies its text. */
+    if(pointer_index_get(visited, module, name) >= 0) return 0;
+    if(!pointer_index_put(visited, module, name, 1)) return 0;
     const char *dot = strchr(name, '.');
     for(int i = 0; i < module->import_count; i++) {
         const ZirImport *import = &module->imports[i];
@@ -682,16 +781,49 @@ foreign_call_visit(const ZirModule *module, const char *name,
 }
 
 static int
-foreign_call(const ZirModule *module, const char *name)
+foreign_call_uncached(const ZirModule *module, const char *name)
 {
-    ForeignVisit *visited = NULL;
+    PointerIndex visited = {0};
     int found = foreign_call_visit(module, name, &visited);
-    while(visited != NULL) {
-        ForeignVisit *next = visited->next;
-        free(visited);
-        visited = next;
-    }
+    free(visited.slots);
     return found;
+}
+
+static int
+foreign_call(BorrowCheck *check, const ZirModule *module, const char *name)
+{
+    if(module == NULL || strlen(name) >= ZIR_NAME_MAX)
+        return foreign_call_uncached(module, name);
+    if((check->foreign_count + 1) * 4 > check->foreign_capacity * 3) {
+        size_t capacity = check->foreign_capacity ? check->foreign_capacity * 2 : 256;
+        ForeignAnswer *grown = calloc(capacity, sizeof(*grown));
+        if(grown == NULL)
+            return foreign_call_uncached(module, name);
+        for(size_t i = 0; i < check->foreign_capacity; i++) {
+            const ForeignAnswer *old = &check->foreign_answers[i];
+            if(old->module == NULL) continue;
+            size_t slot = text_type_hash(old->module, old->name) & (capacity - 1);
+            while(grown[slot].module != NULL) slot = (slot + 1) & (capacity - 1);
+            grown[slot] = *old;
+        }
+        free(check->foreign_answers);
+        check->foreign_answers = grown;
+        check->foreign_capacity = capacity;
+    }
+    size_t mask = check->foreign_capacity - 1;
+    size_t slot = text_type_hash(module, name) & mask;
+    while(check->foreign_answers[slot].module != NULL) {
+        ForeignAnswer *answer = &check->foreign_answers[slot];
+        if(answer->module == module && !strcmp(answer->name, name))
+            return answer->found;
+        slot = (slot + 1) & mask;
+    }
+    ForeignAnswer *answer = &check->foreign_answers[slot];
+    answer->module = module;
+    copy_text(answer->name, sizeof(answer->name), name);
+    answer->found = foreign_call_uncached(module, name);
+    check->foreign_count++;
+    return answer->found;
 }
 
 static void
@@ -720,10 +852,9 @@ check_call_mutations(BorrowCheck *check, const ZirExpr *expression)
      * responsibility; checked wrappers still summarize their own writes. */
     if((callee != NULL && callee->is_extern) ||
        (callee == NULL && binding(check, name) == NULL &&
-        foreign_call(check->current->module, name))) return;
-    BorrowFunction *summary = NULL;
-    for(int i = 0; i < check->count; i++)
-        if(check->functions[i].fn == callee) { summary = &check->functions[i]; break; }
+        foreign_call(check, check->current->module, name))) return;
+    int summary_index = callee != NULL ? pointer_index_get(&check->function_index, callee, NULL) : -1;
+    BorrowFunction *summary = summary_index >= 0 ? &check->functions[summary_index] : NULL;
     if(summary != NULL && !callee->is_extern) {
         /* Propagate writes even when there is no live borrow in this caller:
          * a caller of this procedure still needs its transitive summary. */
@@ -1235,6 +1366,8 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                     accumulate(check, &check->global_origins[target->global_index],
                                source);
                     target->origin = check->global_origins[target->global_index];
+                    if(target->origin.globals != NULL)
+                        list_view_global(check, target->global_index);
                     if(source.globals != NULL) {
                         int precise = backings != NULL && backings->next == NULL &&
                             only_global(check, source,
@@ -1321,8 +1454,10 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
                           module->globals[g].type);
                 item->local = -1;
                 item->captured = 1;
-                item->global_index = global_index++;
                 item->parameter = -1;
+                if(!pointer_index_put(&check.global_index, module, item->global, global_index))
+                    check.failed = 1;
+                item->global_index = global_index++;
             }
         }
     int index = 0;
@@ -1330,9 +1465,12 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
         for(int m = 0; m < programs[p]->module_count; m++) {
             const ZirModule *module = &programs[p]->modules[m];
             for(int f = 0; f < module->function_count; f++) {
-                BorrowFunction *function = &check.functions[index++];
+                BorrowFunction *function = &check.functions[index];
                 function->module = module;
                 function->fn = &module->functions[f];
+                if(!pointer_index_put(&check.function_index, function->fn, NULL, index))
+                    check.failed = 1;
+                index++;
                 function->locals = calloc((size_t)function->fn->stmt_count + 64, sizeof(Origin));
                 if(function->locals == NULL)
                     check.failed = 1;
@@ -1373,5 +1511,9 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
     free(check.globals);
     free(check.global_origins);
     free(check.text_types);
+    free(check.foreign_answers);
+    free(check.function_index.slots);
+    free(check.global_index.slots);
+    free(check.view_globals);
     return !check.failed;
 }

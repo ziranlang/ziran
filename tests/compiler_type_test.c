@@ -218,22 +218,7 @@ static void foreign_symbols(void)
     assert(!GoForeignTargetValid("go:builtin.any.more"));
     assert(!GoForeignTargetValid(NULL));
 
-    const char *py = "py:urllib.request/(Request).get_method";
-    parsed = compiler_type_PythonCall(text(py));
-    assert(parsed.kind == 2 && parsed.module.data == py + 3);
-    assert(parsed.receiver.data == strstr(py, "Request"));
-    assert(PyForeignCallParts(py, package, sizeof(package), receiver, sizeof(receiver),
-                              symbol, sizeof(symbol)) == 2);
-    assert(!strcmp(package, "urllib.request") && !strcmp(receiver, "Request") && !strcmp(symbol, "get_method"));
-    assert(PyForeignCallParts(py, NULL, 0, NULL, 0, NULL, 0) == 2);
-    assert(!PyForeignCallParts(py, package, strlen("urllib.request"), NULL, 0, NULL, 0));
-    assert(!PyForeignCallParts(py, NULL, 0, receiver, strlen("Request"), NULL, 0));
-    assert(!PyForeignCallParts(py, NULL, 0, NULL, 0, symbol, strlen("get_method")));
-    assert(PyForeignTargetValid("py:builtins/bytes"));
-    assert(!PyForeignTargetValid(py));
-    assert(!PyForeignTargetValid(NULL));
     assert(!compiler_type_GoCall((String){0}, 128).kind);
-    assert(!compiler_type_PythonCall((String){0}).kind);
 }
 
 int main(void)

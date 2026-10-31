@@ -36,8 +36,5 @@ for form in source saved; do
     "$ziran" build "$@" --target=go --pkg main --entry std_utf8:NativeMain -o "$output" "$input"
     printf 'package main\nfunc main() { if StdUtf8_NativeMain() != 0 { panic("UTF-8 validity") } }\n' > "$output/driver.go"
     GO111MODULE=off go run "$output"/*.go
-    output="$work/$form-py"
-    "$ziran" build "$@" --target=py --exe --entry std_utf8:NativeMain -o "$output" "$input"
-    python3 "$output"
 done
 echo 'UTF-8 validity passed exhaustive one/two-byte cases, scalar boundaries and malformed tails in source/saved IR, VM and native/portable targets'

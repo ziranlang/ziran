@@ -36,7 +36,7 @@ for form in ['source','saved']:
     bundle = work/(form+'.zx')
     run([ziran,'bundle','--root',root,'--entry','app:Main','-o',bundle,entry])
     run([ziran,'run',bundle],'76\n')
-    for target in ['c','go','py']:
+    for target in ['c','go']:
         output = work/(form+'-'+target)
         command = [ziran,'build','--target='+target,'--root',root,'-o',output,entry]
         if target == 'go': command[2:2] = ['--pkg','main']
@@ -48,8 +48,6 @@ for form in ['source','saved']:
         elif target == 'go':
             (output/'main.go').write_text('package main\nfunc main() { if App_Answer(7) != 34 || App_Answer(9) != 42 { panic("deep exported types") } }\n')
             run(['go','build','-o',output/'run',*sorted(output.glob('*.go'))]);run([output/'run'])
-        elif target == 'py':
-            run(['python3','-c','import runpy; app=runpy.run_path("__init__.py"); assert app["Answer"](7)==34 and app["Answer"](9)==42'],cwd=output)
     print('Deep exported types passed '+form+' VM/bundle and generated-target checks',flush=True)
 assert (work/'source.zx').read_bytes() == (work/'saved.zx').read_bytes()
 

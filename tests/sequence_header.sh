@@ -1,5 +1,5 @@
 #!/bin/sh
-# Native-layout sequence headers retain their original place on managed Python.
+# Native-layout sequence headers retain their original place on native C.
 set -eu
 ziran=${1:?pass the ziran command}
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
@@ -22,23 +22,13 @@ for form in source saved; do
         input=$work/ir/sequence_header_test.zir
         root=$work/ir
     fi
-    for target in py c; do
-        output=$work/$form-$target
-        if test "$target" = py; then
-            LDLIBS="-l:$exact_library" "$ziran" build --target=py --root "$root" \
-                --module-path "$project_dir/std" --entry sequence_header_test:Main \
-                --exe -o "$output" "$input"
-            python3 "$output"
-        else
-            "$ziran" build --target=c --root "$root" --module-path "$project_dir/std" \
-                --entry sequence_header_test:Main --no-main -o "$output" "$input"
-            printf '#include "sequence_header_test.h"\nint main(void) { return (int)sequence_header_test_Main(); }\n' \
-                > "$output/driver.c"
-            "${CC:-cc}" -O2 -std=c11 -I"$project_dir/include" -I"$output" \
-                "$output"/*.c -o "$output/probe" -lm
-            "$output/probe"
-        fi
-        echo "$form $target sequence headers passed"
-    done
+    output=$work/$form-c
+    "$ziran" build --target=c --root "$root" --module-path "$project_dir/std" \
+        --entry sequence_header_test:Main --no-main -o "$output" "$input"
+    printf '#include "sequence_header_test.h"\nint main(void) { return (int)sequence_header_test_Main(); }\n' \
+        > "$output/driver.c"
+    "${CC:-cc}" -O2 -std=c11 -I"$project_dir/include" -I"$output" \
+        "$output"/*.c -o "$output/probe" -lm
+    "$output/probe"
+    echo "$form c sequence headers passed"
 done
-cmp "$work/source-py/__main__.py" "$work/saved-py/__main__.py"

@@ -270,9 +270,6 @@ compiler_declaration_ErrorText(DeclarationError error)
     if (error == DeclarationError_ForeignVariadic) {
         return StringLiteral("#go_variadic requires one foreign procedure with a final slice parameter");
     }
-    if (error == DeclarationError_ForeignPythonAttributes) {
-        return StringLiteral("#py_results and #py_field each apply once to a foreign procedure, not together");
-    }
     if (error == DeclarationError_ForeignType) {
         return StringLiteral("foreign type requires Name :: #type #foreign library;");
     }
@@ -288,9 +285,6 @@ compiler_declaration_ErrorText(DeclarationError error)
     if (error == DeclarationError_ForeignEnd) {
         return StringLiteral("#foreign declaration must end with ';'");
     }
-    if (error == DeclarationError_ForeignPythonSymbol) {
-        return StringLiteral("#foreign Python symbol must be a name, a dotted attribute path, or a method (Type).name");
-    }
     if (error == DeclarationError_ForeignHostRename) {
         return StringLiteral("host capability cannot rename a #foreign symbol");
     }
@@ -305,12 +299,6 @@ compiler_declaration_ErrorText(DeclarationError error)
     }
     if (error == DeclarationError_ForeignGoVariadic) {
         return StringLiteral("#go_variadic requires an explicit Go foreign target");
-    }
-    if (error == DeclarationError_ForeignPythonResults) {
-        return StringLiteral("#py_results requires a py: foreign target");
-    }
-    if (error == DeclarationError_ForeignPythonField) {
-        return StringLiteral("#py_field requires a py: foreign target");
     }
     if (error == DeclarationError_ResultCount) {
         return StringLiteral("a procedure can have at most 16 results");
@@ -960,7 +948,7 @@ compiler_declaration_SystemLibrary(String source, int64_t name_limit, int64_t pa
 }
 
 MethodSymbol
-compiler_declaration_ForeignMethod(String source, int64_t receiver_limit, int64_t method_limit, bool python)
+compiler_declaration_ForeignMethod(String source, int64_t receiver_limit, int64_t method_limit)
 {
     MethodSymbol result = {0};
     int64_t dot = compiler_declaration_Find(source, StringLiteral("."));
@@ -975,49 +963,17 @@ compiler_declaration_ForeignMethod(String source, int64_t receiver_limit, int64_
         }
         String value_0 = result.receiver;
         result.receiver = StringRange(value_0, (int64_t)1LL, (int64_t)((int64_t)((uint64_t)((int64_t)(result.receiver).length) - UINT64_C(1))));
-    } else if (python) {
-        return result;
     }
     if ((int64_t)(result.receiver).length >= receiver_limit || (int64_t)(result.method).length >= method_limit) {
         return result;
     }
     String name = result.receiver;
     if ((int64_t)(name).length > 0LL && (uint8_t)ZIRAN_INDEX(name.data, name.length, 0) == 42) {
-        if (python) {
-            return result;
-        }
         name = StringRange(name, (int64_t)1LL, (int64_t)name.length);
     }
     bool value_1 = compiler_source_IdentifierText(name, false);
     result.valid = value_1 && compiler_source_IdentifierText(result.method, false);
     return result;
-}
-
-bool
-compiler_declaration_PythonAttribute(String source, int64_t name_limit)
-{
-    int64_t at = 0LL;
-    while (at <= (int64_t)(source).length) {
-        int64_t end = compiler_declaration_Find(StringRange(source, (int64_t)at, (int64_t)source.length), StringLiteral("."));
-        if (end < 0LL) {
-            end = (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
-        }
-        String part = StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)end)));
-        bool value_0 = (int64_t)(part).length >= name_limit;
-        if (!value_0) {
-            bool value_1 = compiler_source_IdentifierText(part, false);
-            value_0 = !value_1;
-        }
-        if (value_0) {
-            return false;
-        }
-        at = (int64_t)((uint64_t)at + (uint64_t)end);
-        if (at == (int64_t)(source).length) {
-            return true;
-        }
-        at = (int64_t)((uint64_t)at + UINT64_C(1));
-    }
-    return false;
 }
 
 ForeignDeclaration
@@ -1032,8 +988,8 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
     int64_t value_1 = (int64_t)((uint64_t)(compiler_declaration_Find(source, StringLiteral("::"))) + UINT64_C(2));
     int64_t value_2 = compiler_text_SkipSpace(source, value_1, true);
     String declaration = StringRange(value_0, (int64_t)value_2, (int64_t)value_0.length);
-    int32_t attributes[6] = {0};
-    bool after_foreign[6] = {0};
+    int32_t attributes[4] = {0};
+    bool after_foreign[4] = {0};
     int64_t directive = -1LL;
     bool body = false;
     int64_t at = 0LL;
@@ -1066,12 +1022,6 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
             if (StringEqual(spelling, StringLiteral("#go_variadic"))) {
                 attribute = 3LL;
             }
-            if (StringEqual(spelling, StringLiteral("#py_results"))) {
-                attribute = 4LL;
-            }
-            if (StringEqual(spelling, StringLiteral("#py_field"))) {
-                attribute = 5LL;
-            }
             if (attribute >= 0LL) {
                 ZIRAN_INDEX(attributes, sizeof(attributes) / sizeof(attributes[0]), attribute) = (int32_t)((uint32_t)(ZIRAN_INDEX(attributes, sizeof(attributes) / sizeof(attributes[0]), attribute)) + 1u);
                 if (directive >= 0LL) {
@@ -1086,44 +1036,32 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
     }
     result.present = true;
     result.is_type = compiler_source_StartsWord(declaration, StringLiteral("#type"));
-    result.go_results = ZIRAN_INDEX(attributes, 6, 0) > 0;
-    result.go_field = ZIRAN_INDEX(attributes, 6, 1) > 0;
-    result.go_defer = ZIRAN_INDEX(attributes, 6, 2) > 0;
-    result.go_variadic = ZIRAN_INDEX(attributes, 6, 3) > 0;
-    result.py_results = ZIRAN_INDEX(attributes, 6, 4) > 0;
-    result.py_field = ZIRAN_INDEX(attributes, 6, 5) > 0;
-    if (result.go_results && (result.is_type || ZIRAN_INDEX(attributes, 6, 0) > 1 || ZIRAN_INDEX(after_foreign, 6, 0))) {
+    result.go_results = ZIRAN_INDEX(attributes, 4, 0) > 0;
+    result.go_field = ZIRAN_INDEX(attributes, 4, 1) > 0;
+    result.go_defer = ZIRAN_INDEX(attributes, 4, 2) > 0;
+    result.go_variadic = ZIRAN_INDEX(attributes, 4, 3) > 0;
+    if (result.go_results && (result.is_type || ZIRAN_INDEX(attributes, 4, 0) > 1 || ZIRAN_INDEX(after_foreign, 4, 0))) {
         result.error = DeclarationError_ForeignResults;
         return result;
     }
-    if (result.go_field && (result.is_type || result.go_results || ZIRAN_INDEX(attributes, 6, 1) > 1 || ZIRAN_INDEX(after_foreign, 6, 1))) {
+    if (result.go_field && (result.is_type || result.go_results || ZIRAN_INDEX(attributes, 4, 1) > 1 || ZIRAN_INDEX(after_foreign, 4, 1))) {
         result.error = DeclarationError_ForeignField;
         return result;
     }
-    if (result.go_defer && (result.is_type || result.go_results || result.go_field || ZIRAN_INDEX(attributes, 6, 2) > 1 || ZIRAN_INDEX(after_foreign, 6, 2))) {
+    if (result.go_defer && (result.is_type || result.go_results || result.go_field || ZIRAN_INDEX(attributes, 4, 2) > 1 || ZIRAN_INDEX(after_foreign, 4, 2))) {
         result.error = DeclarationError_ForeignDefer;
         return result;
     }
-    if (result.go_variadic && (result.is_type || result.go_field || ZIRAN_INDEX(attributes, 6, 3) > 1 || ZIRAN_INDEX(after_foreign, 6, 3))) {
+    if (result.go_variadic && (result.is_type || result.go_field || ZIRAN_INDEX(attributes, 4, 3) > 1 || ZIRAN_INDEX(after_foreign, 4, 3))) {
         result.error = DeclarationError_ForeignVariadic;
         return result;
     }
-    bool value_3 = result.py_results || result.py_field;
+    bool value_3 = result.is_type;
     if (value_3) {
-        bool value_4 = result.is_type || result.go_results || result.go_field || result.go_defer || result.go_variadic || (result.py_results && result.py_field);
-        bool value_5 = value_4 || ZIRAN_INDEX(attributes, 6, 4) > 1 || ZIRAN_INDEX(attributes, 6, 5) > 1 || ZIRAN_INDEX(after_foreign, 6, 4);
-        value_3 = (value_5 || ZIRAN_INDEX(after_foreign, 6, 5));
+        int64_t value_4 = compiler_text_SkipSpace(declaration, 5LL, true);
+        value_3 = (value_4 != directive);
     }
     if (value_3) {
-        result.error = DeclarationError_ForeignPythonAttributes;
-        return result;
-    }
-    bool value_6 = result.is_type;
-    if (value_6) {
-        int64_t value_7 = compiler_text_SkipSpace(declaration, 5LL, true);
-        value_6 = (value_7 != directive);
-    }
-    if (value_6) {
         result.error = DeclarationError_ForeignType;
         return result;
     }
@@ -1141,12 +1079,12 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
     result.library = StringRange(declaration, (int64_t)begin, (int64_t)at);
-    bool value_8 = (int64_t)(result.library).length >= name_limit;
-    if (!value_8) {
-        bool value_9 = compiler_source_IdentifierText(result.library, false);
-        value_8 = !value_9;
+    bool value_5 = (int64_t)(result.library).length >= name_limit;
+    if (!value_5) {
+        bool value_6 = compiler_source_IdentifierText(result.library, false);
+        value_5 = !value_6;
     }
-    if (value_8) {
+    if (value_5) {
         result.error = DeclarationError_ForeignLibrary;
         return result;
     }
@@ -1175,23 +1113,14 @@ compiler_declaration_ResolveForeignTarget(ForeignDeclaration declaration, String
     if (((DeclarationError)(result.error)) != DeclarationError_None || !declaration.present) {
         return result;
     }
-    bool python = (int64_t)(library).length >= 3LL && StringEqual(StringRange(library, (int64_t)0LL, (int64_t)3LL), StringLiteral("py:"));
     bool go = (int64_t)(library).length >= 3LL && StringEqual(StringRange(library, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:"));
     MethodSymbol method = {0};
-    if (!declaration.is_type && (go || python)) {
-        method = compiler_declaration_ForeignMethod(declaration.symbol, name_limit, name_limit, python);
+    if (!declaration.is_type && go) {
+        method = compiler_declaration_ForeignMethod(declaration.symbol, name_limit, name_limit);
     }
     bool value_0 = compiler_source_IdentifierText(declaration.symbol, false);
-    bool value_1 = !value_0 && !method.valid;
-    if (value_1) {
-        bool value_2 = python && compiler_declaration_PythonAttribute(declaration.symbol, name_limit);
-        value_1 = !value_2;
-    }
-    if (value_1) {
+    if (!value_0 && !method.valid) {
         result.error = DeclarationError_ForeignSymbol;
-        if (python) {
-            result.error = DeclarationError_ForeignPythonSymbol;
-        }
         return result;
     }
     if (StringEqual(library, StringLiteral("host_api"))) {
@@ -1200,25 +1129,17 @@ compiler_declaration_ResolveForeignTarget(ForeignDeclaration declaration, String
         }
     } else if (method.valid) {
         compiler_declaration_Put(output, &(result.count), library);
-        if (python) {
-            compiler_declaration_Put(output, &(result.count), StringLiteral("/("));
-        } else {
-            compiler_declaration_Put(output, &(result.count), StringLiteral(".("));
-        }
+        compiler_declaration_Put(output, &(result.count), StringLiteral(".("));
         compiler_declaration_Put(output, &(result.count), method.receiver);
         compiler_declaration_Put(output, &(result.count), StringLiteral(")."));
         compiler_declaration_Put(output, &(result.count), method.method);
-    } else if (python) {
-        compiler_declaration_Put(output, &(result.count), library);
-        compiler_declaration_Put(output, &(result.count), StringLiteral("/"));
-        compiler_declaration_Put(output, &(result.count), declaration.symbol);
     } else {
-        bool value_3 = go;
-        if (!value_3) {
-            int64_t value_4 = compiler_declaration_Find(library, StringLiteral("/"));
-            value_3 = (value_4 >= 0LL);
+        bool value_1 = go;
+        if (!value_1) {
+            int64_t value_2 = compiler_declaration_Find(library, StringLiteral("/"));
+            value_1 = (value_2 >= 0LL);
         }
-        if (value_3) {
+        if (value_1) {
             compiler_declaration_Put(output, &(result.count), library);
             compiler_declaration_Put(output, &(result.count), StringLiteral("."));
             compiler_declaration_Put(output, &(result.count), declaration.symbol);
@@ -1238,10 +1159,6 @@ compiler_declaration_ResolveForeignTarget(ForeignDeclaration declaration, String
         result.error = DeclarationError_ForeignGoDefer;
     } else if (declaration.go_variadic && !go) {
         result.error = DeclarationError_ForeignGoVariadic;
-    } else if (declaration.py_results && !python) {
-        result.error = DeclarationError_ForeignPythonResults;
-    } else if (declaration.py_field && !python) {
-        result.error = DeclarationError_ForeignPythonField;
     }
     return result;
 }

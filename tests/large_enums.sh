@@ -29,14 +29,9 @@ for form in source saved; do
     if test "$form" = saved; then module=$work/ir/app.zir; root=$work/ir; fi
     "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$form.zx" "$module"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c go py; do
+    for target in c go; do
         output=$work/$target-$form
-        if test "$target" = py; then
-            "$ziran" build --target=py --exe --entry app:Answer --root "$root" -o "$output" "$module"
-            status=0
-            python3 "$output" || status=$?
-            test "$status" = 42
-        elif test "$target" = go; then
+        if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$module"
             printf '%s\n' 'package main' 'func main() { if App_Answer() != 42 { panic("large enums") } }' > "$output/main.go"
             GO111MODULE=off go run "$output"/*.go

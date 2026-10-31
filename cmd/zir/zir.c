@@ -16,6 +16,7 @@ static void free_scratch_SameFileBytesBuffers(void *pointer);
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 int
 TargetNameKnown(const char *target)
@@ -53,17 +54,13 @@ CheckTargetCapabilities(const ZirProgram *program, const char *target)
             }
             String required = compiler_type_ForeignTypeTarget(
                 StringView(type->foreign_target, strlen(type->foreign_target)), type->is_map);
-            int foreign_python = StringEqual(required, StringLiteral("py"));
             if(required.length != 0 && !StringEqual(required, selected)) {
                 DiagnosticDetails details = {0};
                 details.target = target;
-                details.capability = type->is_map ? "maps.go" :
-                    foreign_python ? "types.py" : "types.go";
+                details.capability = type->is_map ? "maps.go" : "types.go";
                 DiagnosticDetailed(type->span, "check.record", &details,
-                           "%s require the %s target: %s",
-                           type->is_map ? "maps" :
-                           foreign_python ? "foreign Python types" : "foreign Go types",
-                           foreign_python ? "Python" : "Go", type->name);
+                           "%s require the Go target: %s",
+                           type->is_map ? "maps" : "foreign Go types", type->name);
                 return 0;
             }
         }
@@ -71,23 +68,18 @@ CheckTargetCapabilities(const ZirProgram *program, const char *target)
             const ZirImport *import = &module->imports[i];
             if(import->kind != ZIR_IMPORT_EXTERN) continue;
             const char *kind = import->extern_kind == ZIR_EXTERN_GO ? "go" :
-                import->extern_kind == ZIR_EXTERN_PY ? "py" :
                 import->extern_kind == ZIR_EXTERN_HOST ? "host" : "c";
             if(!compiler_type_ForeignImportSupported(selected, StringView(kind, strlen(kind)))) {
                 DiagnosticDetails details = {0};
                 details.target = target;
-                details.capability = import->extern_kind == ZIR_EXTERN_GO ? "ffi.go" :
-                    import->extern_kind == ZIR_EXTERN_PY ? "ffi.py" : "ffi.c";
+                details.capability = import->extern_kind == ZIR_EXTERN_GO ? "ffi.go" : "ffi.c";
                 if(import->extern_kind == ZIR_EXTERN_C)
                     DiagnosticDetailed(import->span, "check.foreign", &details,
                         "C foreign imports require a native target or a checked host binding: %s",
                         import->name);
                 else
                     DiagnosticDetailed(import->span, "check.foreign", &details,
-                               "%s foreign imports require the %s target: %s",
-                               import->extern_kind == ZIR_EXTERN_PY ? "Python" : "Go",
-                               import->extern_kind == ZIR_EXTERN_PY ? "Python" : "Go",
-                               import->name);
+                               "Go foreign imports require the Go target: %s", import->name);
                 return 0;
             }
         }
@@ -1595,7 +1587,6 @@ ExternKindName(ZirExternKind kind)
     case ZIR_EXTERN_HOST: return "host";
     case ZIR_EXTERN_GO: return "go";
     case ZIR_EXTERN_C: return "c";
-    case ZIR_EXTERN_PY: return "py";
     default: return "none";
     }
 }
@@ -1881,10 +1872,13 @@ starts_with_marker(const char *path, const char *marker)
     return matches;
 }
 
-int
-GeneratedOutputPrune(const char *out_dir, const char *marker)
+/* Generated sources mirror their package directories, so pruning visits
+ * subdirectories too. Hidden entries, such as the native object cache, and
+ * links to directories elsewhere are never entered. */
+static int
+prune_generated(const char *directory_path, const char *marker, int depth)
 {
-    DIR *directory = opendir(out_dir);
+    DIR *directory = opendir(directory_path);
     if(directory == NULL) return 0;
     int failed = 0;
     struct dirent *entry;
@@ -1892,8 +1886,18 @@ GeneratedOutputPrune(const char *out_dir, const char *marker)
         const char *name = entry->d_name;
         if(name[0] == '.') continue;
         char path[4096];
-        int size = snprintf(path, sizeof(path), "%s/%s", out_dir, name);
+        int size = snprintf(path, sizeof(path), "%s/%s", directory_path, name);
         if(size < 0 || (size_t)size >= sizeof(path)) continue;
+        struct stat info;
+#ifdef _WIN32
+        int listed = stat(path, &info) == 0;
+#else
+        int listed = lstat(path, &info) == 0;
+#endif
+        if(listed && S_ISDIR(info.st_mode)) {
+            if(depth < 32 && prune_generated(path, marker, depth + 1) != 0) failed = 1;
+            continue;
+        }
         int written = 0;
         for(int i = 0; i < generated_output_count && !written; i++)
             written = strcmp(generated_outputs[i], path) == 0;
@@ -1903,6 +1907,12 @@ GeneratedOutputPrune(const char *out_dir, const char *marker)
     }
     closedir(directory);
     return failed ? -1 : 0;
+}
+
+int
+GeneratedOutputPrune(const char *out_dir, const char *marker)
+{
+    return prune_generated(out_dir, marker, 0);
 }
 
 static int

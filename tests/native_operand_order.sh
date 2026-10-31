@@ -13,7 +13,7 @@ for form in source saved; do
     if [ "$form" = saved ]; then input=$work/ir/$module.zir; root=$work/ir; fi
     "$ziran" bundle --root "$root" --entry "$module:Answer" -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c go py; do
+    for target in c go; do
         output=$work/$form-$target
         if [ "$target" = go ]; then
             "$ziran" build --target=go --pkg main --exe --entry "$module:main" --root "$root" -o "$output" "$input"
@@ -22,7 +22,6 @@ for form in source saved; do
             "$ziran" build "--target=$target" --exe --entry "$module:main" --root "$root" -o "$output" "$input"
             case "$target" in
                 c) "$output/$module" ;;
-                py) python3 "$output" ;;
             esac
         fi
     done

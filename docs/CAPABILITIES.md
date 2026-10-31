@@ -1,32 +1,32 @@
 # Compiler capability output
 
 `ziran capabilities --json` prints one JSON object describing the currently
-supported output targets and shared limits. Use `--target=c`, `go`, `py`,
+supported output targets and shared limits. Use `--target=c`, `go`,
 or `zx` to select one target. The command works without a project or network
 access, so an editor or coding agent can query the installed compiler before
 generating code. The `numeric_conformance` object is a stable-ID registry. Its `ids` cite the
 numerical cases proven by [numeric semantics](../tests/numeric_semantics.sh)
-for C, Go, Python, and `.zx`; they are described by [numeric_conformance.json](../tests/numeric_conformance.json).
+for C, Go, and `.zx`; they are described by [numeric_conformance.json](../tests/numeric_conformance.json).
 The [width matrix](../tests/numeric_width_matrix.sh) adds 592 independently
 generated boundary conversions across all 64 integer type pairs, from source
-and saved IR on those four targets.
+and saved IR on those three targets.
 `schema_version` starts at 1; consumers should reject schema
 versions they do not understand and ignore unknown fields within a version.
 
 `tier` says how complete a target is. `primary` targets, C and the portable
 `.zx` runner, carry every language feature and gate every change. The
-downstream applications build through them. `secondary` targets, Go and
-Python, may lag behind a new feature, but must reject a program they cannot
+downstream applications build through them. The `secondary` target, Go,
+may lag behind a new feature, but must reject a program it cannot
 run faithfully during checking or lowering, never emit code with a different
 meaning. New language work lands on the primary targets first.
 
 `source_and_saved_ir` reports that the target accepts checked source and saved
 `.zir` inputs. `parallel_execution` is `threads` for C forward CPU regions
-and `serial` for Python, Go, and the portable VM.
+and `serial` for Go and the portable VM.
 It does not promise a parallel result reduction. `gpu_execution` is `cpu_fallback` for every target: there is no
 device backend. `text_view_mutable_bytes` reports the current observable
 divergence when backing bytes are mutated after making a view: native C
-borrows those bytes, while Go, Python, and `.zx` copy them. Checking rejects mutation
+borrows those bytes, while Go and `.zx` copy them. Checking rejects mutation
 of local backing storage while a direct, field-held, aliased, or
 checked-call-produced view is live. Field-sensitive checks protect the
 borrowed field or array while allowing sibling record fields to change. Global
@@ -53,7 +53,7 @@ pointer parameters.
 `text_view_opaque_pointer_check` reports rejection of `TextView` through opaque
 local pointers with unproven backing lifetimes.
 `heap_allocation` reports zero-initialized `New(T)` and `free(pointer)`.
-C, Go, Python, and the portable VM are checked from source and saved IR by
+C, Go, and the portable VM are checked from source and saved IR by
 `tests/heap_new.sh`.
 Native pointers retain their native lifetime rules; this flag does not promise
 automatic ownership or runtime checking of arbitrary pointer aliases.

@@ -71,41 +71,37 @@ enum {
     DeclarationError_ForeignField = 30,
     DeclarationError_ForeignDefer = 31,
     DeclarationError_ForeignVariadic = 32,
-    DeclarationError_ForeignPythonAttributes = 33,
-    DeclarationError_ForeignType = 34,
-    DeclarationError_ForeignBody = 35,
-    DeclarationError_ForeignLibrary = 36,
-    DeclarationError_ForeignSymbol = 37,
-    DeclarationError_ForeignEnd = 38,
-    DeclarationError_ForeignPythonSymbol = 39,
-    DeclarationError_ForeignHostRename = 40,
-    DeclarationError_ForeignGoResults = 41,
-    DeclarationError_ForeignGoField = 42,
-    DeclarationError_ForeignGoDefer = 43,
-    DeclarationError_ForeignGoVariadic = 44,
-    DeclarationError_ForeignPythonResults = 45,
-    DeclarationError_ForeignPythonField = 46,
-    DeclarationError_ResultCount = 47,
-    DeclarationError_ResultName = 48,
-    DeclarationError_ResultType = 49,
-    DeclarationError_ResultParameters = 50,
-    DeclarationError_ReturnCount = 51,
-    DeclarationError_SymmetricParameters = 52,
-    DeclarationError_SymmetricModifier = 53,
-    DeclarationError_ProcedureNameArguments = 54,
-    DeclarationError_BuilderFormat = 55,
-    DeclarationError_BuilderPercent = 56,
-    DeclarationError_BuilderArguments = 57,
-    DeclarationError_BuilderPieces = 58,
-    DeclarationError_BuilderArgumentCount = 59,
-    DeclarationError_GoMethodQuote = 60,
-    DeclarationError_GoMethodDuplicate = 61,
-    DeclarationError_GoMethodResults = 62,
-    DeclarationError_GoMethodForeign = 63,
-    DeclarationError_ProcedureTypeCount = 64,
-    DeclarationError_ProcedureTypeName = 65,
-    DeclarationError_ProcedureTypeType = 66,
-    DeclarationError_ProcedureTypeDefault = 67,
+    DeclarationError_ForeignType = 33,
+    DeclarationError_ForeignBody = 34,
+    DeclarationError_ForeignLibrary = 35,
+    DeclarationError_ForeignSymbol = 36,
+    DeclarationError_ForeignEnd = 37,
+    DeclarationError_ForeignHostRename = 38,
+    DeclarationError_ForeignGoResults = 39,
+    DeclarationError_ForeignGoField = 40,
+    DeclarationError_ForeignGoDefer = 41,
+    DeclarationError_ForeignGoVariadic = 42,
+    DeclarationError_ResultCount = 43,
+    DeclarationError_ResultName = 44,
+    DeclarationError_ResultType = 45,
+    DeclarationError_ResultParameters = 46,
+    DeclarationError_ReturnCount = 47,
+    DeclarationError_SymmetricParameters = 48,
+    DeclarationError_SymmetricModifier = 49,
+    DeclarationError_ProcedureNameArguments = 50,
+    DeclarationError_BuilderFormat = 51,
+    DeclarationError_BuilderPercent = 52,
+    DeclarationError_BuilderArguments = 53,
+    DeclarationError_BuilderPieces = 54,
+    DeclarationError_BuilderArgumentCount = 55,
+    DeclarationError_GoMethodQuote = 56,
+    DeclarationError_GoMethodDuplicate = 57,
+    DeclarationError_GoMethodResults = 58,
+    DeclarationError_GoMethodForeign = 59,
+    DeclarationError_ProcedureTypeCount = 60,
+    DeclarationError_ProcedureTypeName = 61,
+    DeclarationError_ProcedureTypeType = 62,
+    DeclarationError_ProcedureTypeDefault = 63,
 };
 
 struct GoMethodDeclaration {
@@ -178,8 +174,6 @@ struct ForeignDeclaration {
     bool go_field;
     bool go_defer;
     bool go_variadic;
-    bool py_results;
-    bool py_field;
 };
 
 struct ForeignTarget {
@@ -254,8 +248,7 @@ ParameterRewrite compiler_declaration_RewriteParameters(String source, Slice out
 ParameterRewrite compiler_declaration_RewriteProcedureTypeParameters(String source, Slice output, int64_t name_limit);
 ModuleImport compiler_declaration_ImportDeclaration(String source, int64_t name_limit, int64_t path_limit);
 LibraryDeclaration compiler_declaration_SystemLibrary(String source, int64_t name_limit, int64_t path_limit);
-MethodSymbol compiler_declaration_ForeignMethod(String source, int64_t receiver_limit, int64_t method_limit, bool python);
-bool compiler_declaration_PythonAttribute(String source, int64_t name_limit);
+MethodSymbol compiler_declaration_ForeignMethod(String source, int64_t receiver_limit, int64_t method_limit);
 ForeignDeclaration compiler_declaration_ParseForeign(String source, int64_t name_limit);
 ForeignTarget compiler_declaration_ResolveForeignTarget(ForeignDeclaration declaration, String library, Slice output, int64_t name_limit);
 bool compiler_declaration_ForeignVarargs(String parameters);

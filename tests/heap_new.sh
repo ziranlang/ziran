@@ -1,7 +1,7 @@
 #!/bin/sh
 # New(T) allocates a zeroed T and returns *T; free(p) releases it and
 # ignores null. A linked list built with New runs the same on C, Go,
-# Python, and .zx from source and saved IR. The portable runner stops cleanly on
+# and .zx from source and saved IR. The portable runner stops cleanly on
 # a read after free and on a second free. A procedure or foreign procedure
 # of the program's own named New or free still wins over the built-in.
 set -eu
@@ -135,21 +135,6 @@ package main
 func main() { if App_Answer() != 42 { panic("wrong result") } }
 GO
     GO111MODULE=off go run "$output"/*.go
-    output="$work/py-$input"
-    "$ziran" build --target=py --exe --entry app:Answer --root "$root" -o "$output" "$module"
-    status=0
-    python3 "$output" || status=$?
-    test "$status" = 42
 done
 cmp "$work/source.zx" "$work/saved.zx"
 
-# Python aliases share the allocation, so a freed scalar cannot be read or
-# freed a second time. Never run these invalid raw-pointer cases natively.
-for fixture in after_free twice; do
-    "$ziran" build --target=py --exe --entry "$fixture:main" --root "$work" \
-        -o "$work/py-$fixture" "$work/$fixture.zi"
-    if python3 "$work/py-$fixture" > "$work/py-$fixture.out" 2>&1; then
-        echo "$fixture: Python ran an invalid heap operation" >&2
-        exit 1
-    fi
-done

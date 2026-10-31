@@ -51,6 +51,7 @@ main(int argc, char **argv)
     int i;
 
     SetDiagnosticFormatFromArguments(argc, argv);
+    CommandLowerPriority();
     const CommandOption options[] = {
         COMMAND_TEXT("--root", root),
         COMMAND_LIST("--module-path", module_paths, module_path_count, 64, NULL),

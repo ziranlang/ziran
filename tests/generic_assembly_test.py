@@ -44,7 +44,7 @@ def main():
         run([ZIRAN, 'bundle', '--root', root, '--entry', 'generic_assembly_test:Answer', '-o', bundle, input_file])
         run([ZIRAN, 'run', bundle], expected=42)
         records.append(dict(form=form, target='zx'))
-        for target in ('c', 'go', 'py'):
+        for target in ('c', 'go'):
             output = WORK / (form + '-' + target)
             run([ZIRAN, 'build', '--target=' + target, '--root', root,
                  *(['--pkg', 'main'] if target == 'go' else []), '-o', output, input_file])
@@ -60,16 +60,13 @@ def main():
                         run(args); run([output / 'run'])
                         records.append(dict(form=form, target=target, optimization=optimization, mode=mode))
                 assert '__asm__' in '\n'.join(p.read_text() for p in output.glob('*.c'))
-            elif target == 'go':
+            else:
                 if not shutil.which('go'): continue
                 (output / 'main.go').write_text('package main\nfunc main(){if GenericAssemblyTest_Answer()!=42{panic("generic assembly fallback")}}\n')
                 for mode, enabled, flags in [('native','1','-O2 -g'), ('portable','0','-O2 -g'), ('forced','1','-O2 -g -DZIRAN_NO_ASM')]:
                     selected = dict(ENV, CGO_ENABLED=enabled, CGO_CFLAGS=flags, GOFLAGS='-tags=ziran_asm' if mode != 'portable' else '')
                     run(['go', 'build', '-o', output / 'run', '.'], env=selected, cwd=output); run([output / 'run'])
                     records.append(dict(form=form, target=target, mode=mode))
-            else:
-                run(['python3', '-c', 'import runpy; assert runpy.run_path(' + repr(str(output / '__init__.py')) + ')["Answer"]()==42'])
-                records.append(dict(form=form, target=target))
     assert (WORK / 'source.zx').read_bytes() == (WORK / 'saved.zx').read_bytes()
     # Reject malformed unused declarations before specialization, then reject
     # bad concrete operands and broken portable bodies even when asm is valid.

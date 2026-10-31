@@ -1,8 +1,8 @@
 /*
  * zir_wasm_lower.c - checked Ziran programs to a wasm32 module.
  *
- * The walker follows the zi2py model: statements are the checked body's
- * linear array and expressions its index graph. Scalars map to wasm
+ * Statements are the checked body's linear array and expressions its
+ * index graph. Scalars map to wasm
  * locals of i32/i64/f32/f64; sub-width integers stay normalized in their
  * container so arithmetic wraps exactly as the VM's values do. The step
  * guard import mirrors ZIR_ENTER/ZIR_STEP: one count per function entry
@@ -1858,7 +1858,7 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
             return;
         }
         /* The initializer is lowered before the name is bound so it can
-         * read a shadowed outer binding, matching zi2py's order. */
+         * read a shadowed outer binding. */
         int initialized = statement->expr_root >= 0;
         if(initialized) {
             if(!emit_expression(emitter, plan, statement->expr_root))

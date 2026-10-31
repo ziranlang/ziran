@@ -84,8 +84,6 @@ GO
     if command -v go >/dev/null 2>&1; then
         (cd "$work/$form-go" && GO111MODULE=off go build -o run . && ./run)
     fi
-    "$ziran" build --target=py --root "$root" -o "$work/$form-py" "$file"
-    (cd "$work/$form-py" && python3 -c 'import runpy; assert runpy.run_path("__init__.py")["Answer"]() == 42')
 done
 cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source-c/app.c" "$work/saved-c/app.c"

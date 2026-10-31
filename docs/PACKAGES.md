@@ -381,7 +381,7 @@ ziran pkg artifact provider:native --platform windows-x86_64-mingw --locked
 ```
 
 `--platform` is a required explicit OS-architecture-ABI identifier, independent
-of the compiler backend (`--target=c`, `go`, or `py`). The provider must validate
+of the compiler backend (`--target=c` or `go`). The provider must validate
 supported platforms and choose the correct native toolchain. The engine treats
 libraries, bundles and resources identically. This command does not alter
 project lifecycle delegation or explicit compiler target selection.

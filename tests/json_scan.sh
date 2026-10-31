@@ -35,9 +35,5 @@ package main
 func main() { if JsonScanTest_NativeMain() != 0 { panic("JSON array positions differ") } }
 GO
     GO111MODULE=off go run "$output"/*.go
-    output="$work/$form-py"
-    "$ziran" build --target=py --exe --entry json_scan_test:NativeMain \
-        --root tests/spec --module-path std -o "$output" "$input"
-    python3 "$output"
 done
-echo 'JSON scanning passed source, saved IR, portable VM and C/Go/Python execution'
+echo 'JSON scanning passed source, saved IR, portable VM and C/Go execution'

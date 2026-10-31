@@ -32,9 +32,6 @@ for input in "$source" "$work/ir/$module.zir"; do
     "$ziran" build --target=go --exe --entry "$module:Run" --pkg main --root "$repo/tests/spec" \
         --module-path "$repo/cmd" -o "$output/go" "$input"
     test "$(GO111MODULE=off go run "$output/go/"*.go)" = "$expected"
-    "$ziran" build --target=py --exe --entry "$module:Run" --root "$repo/tests/spec" \
-        --module-path "$repo/cmd" -o "$output/py" "$input"
-    test "$(python3 "$output/py")" = "$expected"
 done
 
 # Both source and saved IR must regenerate the exact fresh-build seed.

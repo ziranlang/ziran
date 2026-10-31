@@ -80,20 +80,6 @@ GoSymbols :: () -> bool {
     return true
 }
 
-PythonSymbols :: () -> bool {
-    call := Types.PythonCall("py:urllib.request/urlopen")
-    if call.kind != 1 || call.module != "urllib.request" || call.receiver != "" || call.symbol != "urlopen" { return false }
-    call = Types.PythonCall("py:builtins/bytes.fromhex")
-    if call.kind != 1 || call.symbol != "bytes.fromhex" { return false }
-    call = Types.PythonCall("py:io/(BytesIO).read")
-    if call.kind != 2 || call.module != "io" || call.receiver != "BytesIO" || call.symbol != "read" { return false }
-    invalid: [14]string = .{"", "builtins/bytes", "py:builtins", "py:/x", "py:a./x", "py:a..b/x",
-        "py:a/", "py:a/x.", "py:a/1x", "py:a/().x", "py:a/(*X).x", "py:a/(X)x",
-        "py:a/(X).x.y", "py:a/x/y"}
-    for target: invalid { if Types.PythonCall(target).kind != 0 { return false } }
-    return true
-}
-
 Names :: () -> bool {
     builtin: [19]string = .{"bool", "void", "s8", "u8", "s16", "u16", "s32", "u32", "s64", "u64",
         "isize", "usize", "float32", "float64", "string", "int", "float", "Type", "any"}
@@ -111,12 +97,11 @@ Names :: () -> bool {
 }
 
 Targets :: () -> bool {
-    targets: [4]string = .{"c", "go", "py", "zx"}
+    targets: [3]string = .{"c", "go", "zx"}
     for target: targets {
         if !Types.TargetKnown(target) || !Types.ForeignImportSupported(target, "host") ||
         Types.ForeignImportSupported(target, "c") != (target != "zx") ||
         Types.ForeignImportSupported(target, "go") != (target == "go") ||
-        Types.ForeignImportSupported(target, "py") != (target == "py") ||
         Types.ForeignImportSupported(target, "unknown") ||
         !Types.ProcedureTypeSupported(target, false) ||
         Types.ProcedureTypeSupported(target, true) != (target != "go" && target != "zx") { return false }
@@ -132,7 +117,6 @@ Targets :: () -> bool {
         Types.ForeignTypeTarget("", false) == "" &&
         Types.ForeignTypeTarget("", true) == "go" &&
         Types.ForeignTypeTarget("go:time.Time", false) == "go" &&
-        Types.ForeignTypeTarget("py:builtins/bytes", false) == "py" &&
         Types.ForeignTypeTarget("other:value", false) == "unknown"
 }
 
@@ -141,7 +125,6 @@ Answer :: () -> s32 {
     if !Fields() { return 1 }
     if !Containers() { return 2 }
     if !GoSymbols() { return 3 }
-    if !PythonSymbols() { return 4 }
     if !Names() { return 5 }
     if !Targets() { return 6 }
     return 42
@@ -185,15 +168,10 @@ Fingerprint :: () -> s64 {
         hash = hash * cast(u32)16777619 ^ cast(u32)array.capacity
         hash = HashText(hash, array.element)
         go := Types.GoCall(text, 8)
-        py := Types.PythonCall(text)
         hash = hash * cast(u32)16777619 ^ cast(u32)go.kind
         hash = HashText(hash, go.module)
         hash = HashText(hash, go.receiver)
         hash = HashText(hash, go.symbol)
-        hash = hash * cast(u32)16777619 ^ cast(u32)py.kind
-        hash = HashText(hash, py.module)
-        hash = HashText(hash, py.receiver)
-        hash = HashText(hash, py.symbol)
         hash = hash * cast(u32)16777619 ^ cast(u32)Types.GoTypeTarget(text)
         hash = hash * cast(u32)16777619 ^ cast(u32)Types.BuiltinName(text)
         hash = hash * cast(u32)16777619 ^ cast(u32)Types.MapPrimitive(text)

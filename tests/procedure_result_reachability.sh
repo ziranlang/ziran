@@ -49,12 +49,10 @@ for form in source saved entry-saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c go py; do
+    for target in c go; do
         out=$work/$form-$target
-        set --
-        if test "$target" = py; then set -- --exe; fi
         "$ziran" build --target="$target" --root "$root" --entry app:Answer \
-            "$@" -o "$out" "$input"
+            -o "$out" "$input"
         case "$target" in
             c)
                 cat > "$out/main.c" <<'C'
@@ -75,14 +73,9 @@ func TestResultReachability(t *testing.T) {
 GO
                 GO111MODULE=off go test "$out"/*.go
                 ;;
-            py)
-                status=0
-                python3 "$out" || status=$?
-                test "$status" = 42
-                ;;
         esac
     done
 done
 cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source.zx" "$work/entry-saved.zx"
-echo 'procedure result reachability: source/saved IR, C, Go, Python and VM passed'
+echo 'procedure result reachability: source/saved IR, C, Go and VM passed'

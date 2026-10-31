@@ -19,7 +19,7 @@ for fixture in std_grapheme grapheme_conformance; do
         if test "$fixture" = grapheme_conformance; then entry=NativeMain; expected=0; fi
         "$ziran" bundle "$@" --entry "$fixture:$entry" -o "$work/$fixture-$form.zx" "$input"
         test "$("$ziran" run "$work/$fixture-$form.zx")" = "$expected"
-        for target in c go py; do
+        for target in c go; do
             output="$work/$fixture/$form-$target"
             if test "$target" = go; then
                 "$ziran" build "$@" --target=go --pkg main --exe --entry "$fixture:NativeMain" -o "$output" "$input"
@@ -41,10 +41,9 @@ for fixture in std_grapheme grapheme_conformance; do
                            fi
                        done ;;
                 go) GO111MODULE=off go run "$output"/*.go ;;
-                py) python3 "$output" ;;
             esac
         done
     done
     cmp "$work/$fixture-source.zx" "$work/$fixture-saved.zx"
 done
-echo 'Grapheme segmentation: all 766 Unicode 17 conformance cases and VM editing cases passed from source and saved IR on VM/C/Go/Python'
+echo 'Grapheme segmentation: all 766 Unicode 17 conformance cases and VM editing cases passed from source and saved IR on VM/C/Go'

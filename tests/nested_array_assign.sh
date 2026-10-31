@@ -42,8 +42,6 @@ for form in source saved; do
     "$ziran" bundle --root "$root" --entry assignment:Answer -o "$work/$form.zx" "$input"
     answer=$("$ziran" run "$work/$form.zx")
     if test "$answer" != 42; then echo "Nested assignment $form VM returned $answer, expected 42" >&2; exit 1; fi
-    "$ziran" build --target=py --exe --root "$root" --entry assignment:Main -o "$work/$form-py" "$input"
-    python3 "$work/$form-py"
     output=$work/$form-c
     "$ziran" build --target=c --exe --root "$root" --entry assignment:Main -o "$output" "$input"
     "$output/assignment"
@@ -53,4 +51,4 @@ for form in source saved; do
     GO111MODULE=off go run "$output"/*.go
 done
 cmp "$work/source.zx" "$work/saved.zx"
-echo 'Nested array assignments preserve independent copied values in source/saved VM, Python, C and Go'
+echo 'Nested array assignments preserve independent copied values in source/saved VM, C and Go'

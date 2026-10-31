@@ -45,7 +45,7 @@ for law-driven development, LLM tooling, parallel execution, and evolution.
 
 ```text
 .zi modules ──parse/check──> .zir modules
-.zir modules ──native backend──> C, native Go, or Python output
+.zir modules ──native backend──> C or native Go output
 .zir modules ──link/verify──> .zx ──portable runtime + host capabilities──> process
 ```
 
@@ -82,8 +82,6 @@ Parameter declarations have one immutable parsed view, including binding
 names, types, namespace modifiers, and defaults. Record fields likewise use
 the shared field snapshots. Backends consume these views; source spellings
 remain available for diagnostics, template rewriting, and serialization.
-Python keeps its type, expression, statement, runtime, and module
-output passes in separate translation units with private backend interfaces.
 
 Compilation contexts own interned text, source paths, symbol answers,
 declaration snapshots, expression caches, and reusable scratch buffers.

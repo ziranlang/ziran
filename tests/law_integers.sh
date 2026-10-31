@@ -66,6 +66,3 @@ C
     fi
     "$output/app"
 done
-"$ziran" build --target=py --exe --entry numeric:Answer --root "$work" -o "$work/app.py" "$work/numeric.zi"
-status=0; python3 "$work/app.py" || status=$?
-test "$status" = 42

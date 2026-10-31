@@ -108,7 +108,7 @@ func main() {
 }
 GO
     GO111MODULE=off go run "$out"/*.go
-    for target in c py; do
+    for target in c; do
         if "$ziran" build "--target=$target" --root "$root" -o "$work/rejected-$target" "$file" > "$work/rejected.out" 2>&1; then
             echo "foreign Go type accepted by $target" >&2
             exit 1

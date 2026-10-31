@@ -80,11 +80,6 @@ EOF
         cmp "$work/expected" "$out.out"
     done
 
-    py_out="$work/$suffix-py"
-    "$ziran" build --target=py --exe --entry greet:Greet \
-        --root "$work" -o "$py_out" "$input"
-    python3 "$py_out" > "$py_out.out"
-    cmp "$work/expected" "$py_out.out"
 done
 
 # The classic program: no return value, so `ziran run` prints only the text.

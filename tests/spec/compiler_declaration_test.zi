@@ -156,17 +156,11 @@ Declarations :: () -> bool {
     SystemLibrary("lib :: #system_library \"lib\"", 128, 1024).error != .LibraryEnd ||
     SystemLibrary("lib :: #system_library \"bad\\name\";", 128, 1024).error != .LibraryCharacter ||
     SystemLibrary("lib :: #system_library \"lib\";", 128, 3).error != .LibraryQuote { return false }
-    method := ForeignMethod("(*Client).Read", 128, 128, false)
+    method := ForeignMethod("(*Client).Read", 128, 128)
     if !method.valid || method.receiver != "*Client" || method.method != "Read" { return false }
-    if !ForeignMethod("(bytes).decode", 128, 128, true).valid ||
-    ForeignMethod("(*Client).Read", 128, 128, true).valid ||
-    ForeignMethod("bytes.decode", 128, 128, true).valid ||
-    ForeignMethod("(Client).", 128, 128, false).valid ||
-    ForeignMethod("(Client).Read", 3, 128, false).valid ||
-    ForeignMethod("Client).Read", 128, 128, false).valid ||
-    !PythonAttribute("bytes.fromhex", 128) || PythonAttribute("bytes..fromhex", 128) ||
-    PythonAttribute("bytes.", 128) || PythonAttribute("", 128) ||
-    PythonAttribute("bytes.fromhex", 5) { return false }
+    if ForeignMethod("(Client).", 128, 128).valid ||
+    ForeignMethod("(Client).Read", 3, 128).valid ||
+    ForeignMethod("Client).Read", 128, 128).valid { return false }
     for error: 1..23 { if ErrorText(cast(DeclarationError)error).count == 0 { return false } }
     return ErrorText(.None) == ""
 }
@@ -188,21 +182,16 @@ ForeignDeclarations :: () -> bool {
     declaration := ParseForeign("Read :: (reader: *Reader, output: []u8) -> Result #go_results #foreign lib \"(*Reader).Read\";")
     if !declaration.present || declaration.error != .None || declaration.name != "Read" ||
     declaration.library != "lib" || declaration.symbol != "(*Reader).Read" || !declaration.go_results ||
-    declaration.is_type || declaration.go_field || declaration.go_defer || declaration.go_variadic ||
-    declaration.py_results || declaration.py_field { return false }
+    declaration.is_type || declaration.go_field || declaration.go_defer || declaration.go_variadic { return false }
     declaration = ParseForeign("Reader :: #type #foreign lib;")
     if !declaration.present || declaration.error != .None || !declaration.is_type ||
     declaration.name != "Reader" || declaration.symbol != "Reader" { return false }
     if !SameForeignTarget("Read :: () #foreign lib \"(*Reader).Read\";", "go:strings", "go:strings.(*Reader).Read") ||
-    !SameForeignTarget("Upper :: () #foreign lib \"(str).upper\";", "py:builtins", "py:builtins/(str).upper") ||
-    !SameForeignTarget("Value :: () #py_field #foreign lib \"version_info.major\";", "py:sys", "py:sys/version_info.major") ||
-    !SameForeignTarget("Load :: () #py_results #foreign lib \"loads\";", "py:json", "py:json/loads") ||
     !SameForeignTarget("Read :: () #go_results #foreign lib;", "go:io", "go:io.Read") ||
     !SameForeignTarget("Read :: () #go_field #foreign lib;", "go:io", "go:io.Read") ||
     !SameForeignTarget("Close :: () #go_defer #foreign lib;", "go:io", "go:io.Close") ||
     !SameForeignTarget("Call :: () #go_variadic #foreign lib;", "go:fmt", "go:fmt.Call") ||
     !SameForeignTarget("Reader :: #type #foreign lib;", "go:strings", "go:strings.Reader") ||
-    !SameForeignTarget("Reader :: #type #foreign lib;", "py:io", "py:io/Reader") ||
     !SameForeignTarget("Call :: () #foreign lib;", "example.org/api", "example.org/api.Call") ||
     !SameForeignTarget("Call :: () #foreign lib;", "m", "c.Call") ||
     !SameForeignTarget("Call :: () #foreign lib;", "host_api", "") { return false }
@@ -222,8 +211,6 @@ ForeignDeclarations :: () -> bool {
     ParseForeign("Call :: () #go_variadic #go_variadic #foreign lib;").error != .ForeignVariadic ||
     ParseForeign("Call :: () #foreign lib \"Print\" #go_variadic;").error != .ForeignVariadic ||
     ParseForeign("Call :: () #go_field #go_variadic #foreign lib;").error != .ForeignVariadic ||
-    ParseForeign("Call :: () #py_field #py_results #foreign lib;").error != .ForeignPythonAttributes ||
-    ParseForeign("Call :: () #py_field #go_results #foreign lib;").error != .ForeignPythonAttributes ||
     ParseForeign("Call :: #type Extra #foreign lib;").error != .ForeignType ||
     ParseForeign("Call :: () { #foreign lib; }").error != .ForeignBody ||
     ParseForeign("Call :: () #foreign ;").error != .ForeignLibrary ||
@@ -233,19 +220,16 @@ ForeignDeclarations :: () -> bool {
     ParseForeign("Call :: () #foreign lib; extra").error != .ForeignEnd { return false }
     output: [256]u8
     if ResolveForeignTarget(ParseForeign("Call :: () #foreign lib \"bad-name\";"), "go:io", output[:]).error != .ForeignSymbol ||
-    ResolveForeignTarget(ParseForeign("Call :: () #foreign lib \"(*str).upper\";"), "py:builtins", output[:]).error != .ForeignPythonSymbol ||
     ResolveForeignTarget(ParseForeign("Call :: () #foreign lib \"Other\";"), "host_api", output[:]).error != .ForeignHostRename ||
     ResolveForeignTarget(ParseForeign("Call :: () #go_results #foreign lib;"), "m", output[:]).error != .ForeignGoResults ||
     ResolveForeignTarget(ParseForeign("Call :: () #go_field #foreign lib;"), "host_api", output[:]).error != .ForeignGoField ||
-    ResolveForeignTarget(ParseForeign("Call :: () #go_defer #foreign lib;"), "py:io", output[:]).error != .ForeignGoDefer ||
-    ResolveForeignTarget(ParseForeign("Call :: () #go_variadic #foreign lib;"), "example.org/lib", output[:]).error != .ForeignGoVariadic ||
-    ResolveForeignTarget(ParseForeign("Call :: () #py_results #foreign lib;"), "go:io", output[:]).error != .ForeignPythonResults ||
-    ResolveForeignTarget(ParseForeign("Call :: () #py_field #foreign lib;"), "m", output[:]).error != .ForeignPythonField { return false }
+    ResolveForeignTarget(ParseForeign("Call :: () #go_defer #foreign lib;"), "m", output[:]).error != .ForeignGoDefer ||
+    ResolveForeignTarget(ParseForeign("Call :: () #go_variadic #foreign lib;"), "example.org/lib", output[:]).error != .ForeignGoVariadic { return false }
     if !ForeignVarargs("format: string, args: ..any") || !ForeignVarargs("..any") ||
     !ForeignVarargs("a: s32, b: s32, c: s32, d: s32, e: s32, f: s32, g: s32, h: s32, i: s32, args: ..any") ||
     ForeignVarargs("args: ..any, last: s32") || ForeignVarargs("text: string = \"..any\"") ||
     ForeignVarargs("") { return false }
-    for error: 28..45 { if ErrorText(cast(DeclarationError)error).count == 0 { return false } }
+    for error: 28..42 { if ErrorText(cast(DeclarationError)error).count == 0 { return false } }
     return true
 }
 
@@ -529,9 +513,8 @@ Fingerprint :: () -> s64 {
         hash = hash * cast(u32)16777619 ^ cast(u32)exported.kind
         library := SystemLibrary(source, 8, 32)
         hash = hash * cast(u32)16777619 ^ cast(u32)library.error
-        method := ForeignMethod(source, 8, 8, sample % 2 == 0)
+        method := ForeignMethod(source, 8, 8)
         hash = hash * cast(u32)16777619 ^ cast(u32)method.valid
-        hash = hash * cast(u32)16777619 ^ cast(u32)PythonAttribute(source, 8)
         used: s64 = 0
         for byte: "F :: () " { foreign_input[used] = byte; used += 1 }
         for byte: source { foreign_input[used] = byte; used += 1 }

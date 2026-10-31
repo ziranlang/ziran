@@ -43,7 +43,7 @@ static void foreign_declarations(void)
     assert(compiler_declaration_ParseForeign(text(oversized), 128).error == DeclarationError_ForeignLibrary);
     const char with_null[] = "C :: () #foreign lib \"a\0b\";";
     assert(compiler_declaration_ParseForeign(StringView(with_null, sizeof(with_null) - 1), 128).error == DeclarationError_ForeignSymbol);
-    for(int error = DeclarationError_ForeignResults; error <= DeclarationError_ForeignPythonField; error++)
+    for(int error = DeclarationError_ForeignResults; error <= DeclarationError_ForeignGoVariadic; error++)
         assert(compiler_declaration_ErrorText(error).length > 0);
     assert(compiler_declaration_ForeignVarargs(text("format: string, args: ..any")));
     assert(!compiler_declaration_ForeignVarargs((String){0}));
@@ -238,8 +238,7 @@ int main(void)
     assert(!compiler_declaration_ImportDeclaration((String){0}, 128, 1024).present);
     assert(!compiler_declaration_SystemLibrary((String){0}, 128, 1024).present);
     assert(!compiler_declaration_ProgramExport((String){0}, 128).kind);
-    assert(!compiler_declaration_ForeignMethod((String){0}, 128, 128, false).valid);
-    assert(!compiler_declaration_PythonAttribute((String){0}, 128));
+    assert(!compiler_declaration_ForeignMethod((String){0}, 128, 128).valid);
     const char clause[] = ", map(\"first\" = \"left\", \"second\" = \"right\") pair;";
     expected = "M:first=left,second=right";
     for(int64_t capacity = 0; capacity <= (int64_t)strlen(expected); capacity++) {
@@ -272,7 +271,7 @@ int main(void)
     assert(exported.error == DeclarationError_None && exported.kind == 2);
     assert(StringEqual(exported.symbol, text("native_answer")));
     assert(StringEqual(exported.body, text("Answer :: ()")));
-    MethodSymbol method = compiler_declaration_ForeignMethod(text("(*Client).Read"), 128, 128, false);
+    MethodSymbol method = compiler_declaration_ForeignMethod(text("(*Client).Read"), 128, 128);
     assert(method.valid && StringEqual(method.receiver, text("*Client")));
     assert(StringEqual(method.method, text("Read")));
     return 0;

@@ -29,9 +29,5 @@ for form in source saved; do
     printf '#include "sort_test.h"\nint main(void) { return SelfTest() == 42 ? 0 : 1; }\n' > "$output/run.c"
     "${CC:-cc}" -std=c11 -I"$output" "$output"/*.c -o "$output/program"
     "$output/program"
-    "$1" build --target=py --root "$module_root" --module-path std --entry sort_test:SelfTest --exe -o "$work/$form-py" "$input"
-    result=0
-    python3 "$work/$form-py" || result=$?
-    test "$result" = 42
 done
-printf 'Sorting passed source and saved VM, C and Python.\n'
+printf 'Sorting passed source and saved VM and C.\n'

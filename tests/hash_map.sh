@@ -163,8 +163,5 @@ package main
 func main() { if App_Answer() != 42 { panic("wrong result") } }
 GO
     GO111MODULE=off go run "$output"/*.go
-    output=$work/py-$input
-    "$ziran" build --target=py --exe --entry app:Run --root "$root" -o "$output" "$module"
-    test "$(python3 "$output")" = 42
 done
 cmp "$work/source.zx" "$work/saved.zx"

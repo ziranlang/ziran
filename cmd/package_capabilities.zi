@@ -27,7 +27,7 @@ PkgPrintNumericIdList :: () -> void {
 PkgPrintNumericConformance :: (target: string) -> void {
     PkgPrint("\"numeric_conformance\":{\"schema_version\":1,\"stability\":\"stable-id\",\"targets\":[", false)
     if target.count == 0 {
-        PkgPrint("\"c\",\"go\",\"py\",\"zx\"", false)
+        PkgPrint("\"c\",\"go\",\"zx\"", false)
     } else {
         PkgPrint("\"", false)
         PkgPrint(target, false)
@@ -53,20 +53,19 @@ Capabilities :: (arguments: []string) -> s32 {
         }
         if part == "--target=c" { target = "c" }
         else if part == "--target=go" { target = "go" }
-        else if part == "--target=py" { target = "py" }
         else if part == "--target=zx" { target = "zx" }
         else {
             return PkgFail(
-                "usage: ziran capabilities [--target=c|go|py|zx] [--json]")
+                "usage: ziran capabilities [--target=c|go|zx] [--json]")
         }
         index += 1
     }
     PkgPrint("{\"schema_version\":1,", false)
     if target.count == 0 {
-        PkgPrint("\"targets\":[\"c\",\"go\",\"py\",\"zx\"],", false)
-        PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"go\":\"serial\",\"py\":\"serial\",\"zx\":\"serial\"},", false)
-        PkgPrint("\"text_view_mutable_bytes\":{\"c\":\"borrowed\",\"go\":\"snapshot\",\"py\":\"snapshot\",\"zx\":\"snapshot\"},", false)
-        PkgPrint("\"tier\":{\"c\":\"primary\",\"go\":\"secondary\",\"py\":\"secondary\",\"zx\":\"primary\"},", false)
+        PkgPrint("\"targets\":[\"c\",\"go\",\"zx\"],", false)
+        PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"go\":\"serial\",\"zx\":\"serial\"},", false)
+        PkgPrint("\"text_view_mutable_bytes\":{\"c\":\"borrowed\",\"go\":\"snapshot\",\"zx\":\"snapshot\"},", false)
+        PkgPrint("\"tier\":{\"c\":\"primary\",\"go\":\"secondary\",\"zx\":\"primary\"},", false)
     } else {
         PkgPrint("\"target\":\"", false)
         PkgPrint(target, false)

@@ -210,8 +210,7 @@ procedure-type values.
 Polymorphic procedures now support several results, including independently
 bound types, records, arrays, and slices. `tests/generic_multiple_results.sh`
 checks named/open imports, default arguments, nested calls, first-result use,
-single evaluation, and separately saved libraries on C, Go, Python,
-and `.zx`. Generated result records use ordinary generic type applications;
+single evaluation, and separately saved libraries on C, Go, and `.zx`. Generated result records use ordinary generic type applications;
 original saved-library declarations are still checked for canonical metadata.
 
 Fixed-array binders `[N]$T` now infer the element type while enforcing a
@@ -222,7 +221,7 @@ generic fields and result records keep their bound types when a local alias
 has the same name.
 `tests/generic_array_parameter.sh` covers scalar and record elements,
 zero-capacity arrays, value semantics, named/open imports, independent binders,
-multiple results, and source/saved IR on C, Go, Python, and `.zx`.
+multiple results, and source/saved IR on C, Go, and `.zx`.
 Nested-array returns are tested on the native targets and explicitly rejected
 by the portable linker. Capacity inference and generic constraints remain open.
 

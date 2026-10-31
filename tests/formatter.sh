@@ -185,9 +185,6 @@ for input in "$work/scanner.zi" "$work/ir/scanner.zir"; do
     "$ziran" build --target=go --exe --entry scanner:Run --pkg main \
         --root "$work" --module-path "$repo/cmd" -o "$output/go" "$input"
     test "$(GO111MODULE=off go run "$output/go/"*.go)" = 42
-    "$ziran" build --target=py --exe --entry scanner:Run --root "$work" \
-        --module-path "$repo/cmd" -o "$output/py" "$input"
-    test "$(python3 "$output/py")" = 42
 done
 
 # Rebuild the entire native command from checked IR as a bootstrap gate.

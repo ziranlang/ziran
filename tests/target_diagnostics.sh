@@ -12,17 +12,9 @@ cat > "$work/go_api.zi" <<'ZI'
 native :: #system_library "go:strings";
 Count :: (value: string, part: string) -> s32 #foreign native "Count";
 ZI
-cat > "$work/py_api.zi" <<'ZI'
-native :: #system_library "py:builtins";
-Count :: (value: string) -> s64 #foreign native "len";
-ZI
 cat > "$work/go_type.zi" <<'ZI'
 native :: #system_library "go:time";
 Clock :: #type #foreign native "Time";
-ZI
-cat > "$work/py_type.zi" <<'ZI'
-native :: #system_library "py:builtins";
-Bytes :: #type #foreign native "bytes";
 ZI
 cat > "$work/c_api.zi" <<'ZI'
 native :: #system_library "libc";
@@ -38,18 +30,18 @@ Payload :: union { item: Item; value: s64 }
 Answer :: () -> s32 { payload: Payload; return cast(s32)payload.item.value }
 ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/plain.zi" \
-    "$work/go_api.zi" "$work/py_api.zi" "$work/go_type.zi" "$work/py_type.zi" "$work/c_api.zi" \
+    "$work/go_api.zi" "$work/go_type.zi" "$work/c_api.zi" \
     "$work/aggregate_union.zi" "$work/c_callback.zi"
 
 for form in source saved; do
     root=$work
     extension=zi
     if [ "$form" = saved ]; then root=$work/ir; extension=zir; fi
-    for target in c go py zx; do
+    for target in c go zx; do
         "$ziran" check "--target=$target" --root "$root" "$root/plain.$extension"
-        for fixture in go_api py_api go_type py_type c_api c_callback; do
+        for fixture in go_api go_type c_api c_callback; do
             case "$fixture:$target" in
-                go_*:go|py_*:py|c_api:c|c_api:go|c_api:py|c_callback:c|c_callback:py)
+                go_*:go|c_api:c|c_api:go|c_callback:c)
                     "$ziran" check "--target=$target" --root "$root" "$root/$fixture.$extension"
                     continue ;;
             esac
@@ -61,9 +53,7 @@ for form in source saved; do
             fi
             capability=ffi.go
             case "$fixture" in
-                py_api) capability=ffi.py ;;
                 go_type) capability=types.go ;;
-                py_type) capability=types.py ;;
                 c_api) capability=ffi.c ;;
                 c_callback) capability=procedures.c-call ;;
             esac
@@ -89,8 +79,8 @@ PY
         fi
         # Preflight all inputs before emitting even the first valid module.
         if [ "$target" != zx ]; then
-            fixture=go_type
-            if [ "$target" = go ]; then fixture=py_type; fi
+            fixture=c_callback
+            if [ "$target" = c ]; then fixture=go_type; fi
             output=$work/$form-$target-output
             if "$ziran" build "--target=$target" --diagnostics=json --root "$root" \
                 -o "$output" "$root/plain.$extension" "$root/$fixture.$extension" \

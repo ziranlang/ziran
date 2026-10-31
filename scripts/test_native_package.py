@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
-import sys
 
 
 def main():
@@ -17,7 +16,7 @@ def main():
     parser.add_argument("--entry", required=True)
     parser.add_argument("--library-dir", required=True, type=Path)
     parser.add_argument("--libraries", required=True)
-    parser.add_argument("--target", choices=("all", "c", "go", "py"), default="all")
+    parser.add_argument("--target", choices=("all", "c", "go"), default="all")
     parser.add_argument("--build-dir", type=Path, default=Path("build/backends"))
     args = parser.parse_args()
     env = os.environ.copy()
@@ -34,7 +33,7 @@ def main():
     env["LD_LIBRARY_PATH"] = str(library_dir) + ":" + env.get("LD_LIBRARY_PATH", "")
     env["GO111MODULE"] = "off"
     env["CGO_ENABLED"] = "1"
-    targets = ("c", "go", "py") if args.target == "all" else (args.target,)
+    targets = ("c", "go") if args.target == "all" else (args.target,)
     build = args.build_dir.resolve()
     build.mkdir(parents=True, exist_ok=True)
 
@@ -70,7 +69,6 @@ def main():
             command = command[:-len(inputs)]
             command += [f"--target={target}", "--entry", args.entry, "-o", str(out)]
             if target == "go": command += ["--pkg", "main", "--exe"]
-            if target == "py": command += ["--exe"]
             run(command + inputs)
             program = out / "conformance"
             if target == "c":
@@ -80,11 +78,9 @@ def main():
                     sorted(str(path) for path in out.glob("*.c")) +
                     shlex.split(env["LDFLAGS"]) + shlex.split(env["LDLIBS"]) + ["-o", str(program)])
                 run([str(program)])
-            elif target == "go":
+            else:
                 run(["go", "build", "-o", str(program), "."], cwd=out)
                 run([str(program)])
-            else:
-                run([sys.executable, str(out)])
             print(f"PASS {target} ({kind})", flush=True)
 
 

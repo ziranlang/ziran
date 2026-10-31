@@ -581,8 +581,8 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
     ZirExternKind extern_kind = classify_extern_target(target, symbol,
         sizeof(symbol), path, line_no);
     if(declaration.is_type) {
-        if(!GoForeignTargetValid(target) && !PyForeignTargetValid(target))
-            die_at(span, "foreign types require an explicit go: or py: #system_library");
+        if(!GoForeignTargetValid(target))
+            die_at(span, "foreign types require an explicit go: #system_library");
         ZirType *type = ModuleAddType(module, name, span);
         if(type == NULL) die("out of memory declaring foreign type");
         type->is_extern = 1;
@@ -604,8 +604,6 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
         imp->go_field = declaration.go_field;
         imp->go_defer = declaration.go_defer;
         imp->go_variadic = declaration.go_variadic;
-        imp->py_results = declaration.py_results;
-        imp->py_field = declaration.py_field;
         copy_text(imp->extern_symbol, sizeof(imp->extern_symbol), symbol);
         imp->is_varargs = compiler_declaration_ForeignVarargs(declaration_text(imp->args));
     }

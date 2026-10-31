@@ -4,8 +4,43 @@
 #include "zir_diagnostic.h"
 #include "zir_load.h"
 #include <ctype.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#if (defined(__unix__) || defined(__APPLE__)) && !defined(__EMSCRIPTEN__) && !defined(__wasi__)
+#define ZIR_COMMAND_PRIORITY 1
+#include <sys/resource.h>
+#ifdef __linux__
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+#endif
+
+/* Compiling is background work. Commands that compile lower their CPU and
+ * disk priority so the desktop and other sessions keep the machine; the C
+ * compilers they start inherit it. ZIRAN_NICE selects a niceness from 0 to
+ * 19 instead of 10, and a process that is already nicer keeps its own. */
+static inline void
+CommandLowerPriority(void)
+{
+#ifdef ZIR_COMMAND_PRIORITY
+    int target = 10;
+    const char *text = getenv("ZIRAN_NICE");
+    if(text != NULL && *text) {
+        char *end = NULL;
+        long value = strtol(text, &end, 10);
+        if(*end == 0 && value >= 0 && value <= 19) target = (int)value;
+    }
+    errno = 0;
+    int current = getpriority(PRIO_PROCESS, 0);
+    if(errno == 0 && current < target) (void)setpriority(PRIO_PROCESS, 0, target);
+#if defined(__linux__) && defined(SYS_ioprio_set)
+    /* Lowest best-effort level for this process; the idle class could
+     * stall a build behind a busy disk indefinitely. */
+    if(target > 0) (void)syscall(SYS_ioprio_set, 1, 0, (2 << 13) | 7);
+#endif
+#endif
+}
 
 /* Options belong to each command; only their bounded argv mechanics are
  * shared. A value consumes the next word even when it starts with '-'. */

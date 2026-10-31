@@ -7,7 +7,7 @@
 An ordinary procedure can supply architecture-specific assembly and a required
 Ziran implementation. C output selects assembly when built by GCC or Clang
 for that architecture. Go can opt into native assembly through cgo as described
-below. Other compilers, Python, and `.zx` use the checked Ziran body. Define
+below. Other compilers and `.zx` use the checked Ziran body. Define
 `ZIRAN_NO_ASM` when compiling generated C to force the portable body.
 
 ```zi
@@ -205,7 +205,7 @@ for validation, alias mapping and the programmatic entry points.
 ## Compiler commands
 
 The compiler commands are `zi2zir` (including
-`--check-only`), `zi2c`, `zi2go`, `zi2py`, and `zi2zx`.
+`--check-only`), `zi2c`, `zi2go`, and `zi2zx`.
 `zi-fmt` formats source. `ziran guide` prints a short reference from the
 installed compiler, including current safety and target limits.
 `ziran capabilities --target=go --json` reports a versioned machine-readable
@@ -239,8 +239,12 @@ calls and function values. The adapter converts its integer result to a process
 status; a procedure returning nothing exits successfully. This also applies to
 a procedure exported under the symbol `main` through `#program_export "main"`.
 
-Native C executable builds compile up to four source files concurrently, then
-link and replace the executable only after success. The output directory has
+Native C executable builds compile source files concurrently on at most half
+of the available CPUs, with no more workers than free memory holds at 512 MiB
+each; `ZIRAN_JOBS=N` lowers the count. Compiler commands run at niceness 10
+with low disk priority, which their C compilers inherit; `ZIRAN_NICE=N`
+chooses another niceness from 0 to 19. The build links and replaces the
+executable only after success. The output directory has
 a writer lock and keeps intermediate objects under `.objects`; unchanged
 objects can be reused with supported GCC/Clang invocations. Reuse checks source
 and header contents (including system headers), compiler executables and their
@@ -254,12 +258,6 @@ are rebuilt. Nested generated modules and manually supplied root-level C hosts
 participate in the link.
 
 Use
-`ziran build --target=py --exe --entry module:function -o DIR` for Python 3.10
-source that `python3 DIR` runs; it needs only the standard library. Its C
-foreign functions resolve in the running Python process, and `LDLIBS` names
-the shared libraries to load for them, as it does for a C build: for example
-`LDLIBS=-lcairo ziran build --target=py ...`. The exact filename form
-`-l:libcairo.so.2` loads that file directly, without a development symlink. Use
 `ziran build --target=go --pkg main --exe --entry module:function -o DIR`
 for Go output. C foreign procedures with scalar or pointer parameters and
 results route through generated cgo adapters; native Go package imports
@@ -296,26 +294,6 @@ call. With `CGO_ENABLED=0`, C pointer types are opaque and C calls panic instead
 of fabricating results. Build the generated Go package with `go build .` or
 `go run .`, which honor the build tags. Reachable header bindings and native
 availability checks require Go; pruning a portable entry can remove them.
-
-Python copies scalar pointer buffers into C storage for a
-call, preserves aliases within that call, and copies mutations back. Native
-pointer outputs and C-owned scalar buffers remain accessible through the
-same pointer API. C libraries that retain Ziran-owned memory after a call
-need a copying API or C-owned storage on Python.
-
-Python preserves native-layout casts from an addressed string or slice to a
-two-field record containing its typed data pointer and 64-bit count. The string
-count is unsigned; the slice count is signed. Record and field names do not
-select this behavior. The cast keeps the original pointer identity, and its
-fields observe and update the original place. Data and count can be assigned
-in either order; read the resulting range only after both fields are valid.
-`std/byte_text_linux` uses this representation for `TextFromCString` and
-`BytesFromPointer`. Keep borrowed C storage alive while using the returned
-string or slice. Ordinary `TextView` retains the Python target's snapshot rule.
-
-Run `sh tests/sequence_header.sh build/bin/ziran` to compare these operations
-from source and saved IR on Python and C, including embedded NUL bytes,
-pointer aliases, header assignment and borrowed buffer writes.
 
 Pass `--entry module:function` to a C99 build to retain functions, types,
 globals, and constants reachable from that entry. A native host implementation
@@ -757,163 +735,15 @@ an empty type name, and JSON decoding retains anonymous struct error details.
 The annotation preserves ordinary checked Ziran fields and is retained in
 saved IR. Other targets keep their ordinary record representation.
 
-### Python modules
+### Native scripts
 
-The Python target imports Python modules the way the Go target imports Go
-packages. Name the module with a `py:` library path; the symbol is an
-attribute of that module, dotted for a nested one such as a class method:
-
-```jai
-json :: #system_library "py:json";
-builtins :: #system_library "py:builtins";
-#import "py_types"
-Loads :: (text: string) -> Object #foreign json "loads";
-FromHex :: (text: string) -> []u8 #foreign builtins "bytes.fromhex";
-```
-
-A symbol written `(Type).name` calls the method on the first argument; the
-type names the receiver's class for readers:
-
-```jai
-Upper :: (text: string) -> string #foreign builtins "(str).upper";
-```
-
-Values convert at the boundary by their declared types: `string` becomes
-`str` (UTF-8, with invalid bytes round-tripped), `[]u8` becomes `bytes`,
-integers and floats stay numbers, and results convert back, integers wrapping
-to their declared width. `py_types` declares `Object`, any Python value, with
-`null` for `None`; a module may declare narrower foreign types such as
-`Response :: #type #foreign request "HTTPResponse";`. A procedure argument
-becomes a callable whose arguments and result convert the same way, so Python
-can call back into Ziran (`map`, `sorted` keys, handlers).
-
-Slices of strings, booleans, fixed-width numbers, enums, or Python foreign
-objects convert to Python lists, and Python iterables convert back to typed
-Ziran slices. The container is copied in both directions; Python objects
-inside it retain their identity. `[]u8` keeps its bytes conversion. Nested
-typed slices are not supported; use `Object` for nested Python containers.
-
-Named arguments on a Python foreign call become Python keyword arguments.
-Positional arguments stay positional; all arguments, including a method's
-receiver, evaluate in Ziran source order. Bind only the options the call
-needs, leaving other Python defaults untouched:
-
-```jai
-Dumps :: (obj: Object, sort_keys: bool) -> string #foreign json "dumps";
-text := Dumps(value, sort_keys = true)
-```
-
-`#py_field` reads an attribute with a result and sets it with one value and
-no result. `(Type).name` takes the object first; a plain name is a module
-attribute:
-
-```jai
-sys :: #system_library "py:sys";
-Major :: () -> s32 #py_field #foreign sys "version_info.major";
-SetName :: (item: Object, value: string) #py_field #foreign types "(SimpleNamespace).name";
-```
-
-A Python exception otherwise stops the program with its traceback, including
-the original `.zi` statement locations in executable output. With
-`#py_results`, the declared result record catches it: its last field `error`
-receives the exception as `"Type: message"` text, or as the exception object
-when declared with a foreign Python type, and an optional first field receives
-the result on success:
-
-```jai
-Loaded :: struct { value: Object; error: string }
-TryLoads :: (text: string) -> Loaded #py_results #foreign json "loads";
-```
-
-Conversion failures also populate `error`; partial iterable results are not
-published. Python `SystemExit` and `KeyboardInterrupt` retain their usual
-behavior.
-
-Python imports stay Python imports in saved `.zir`. Modules that use them
-build only for the Python target; the C and Go targets reject
-them. A module meant for every target gives each target its own
-implementation behind one Ziran interface.
-
-### Python-target scripts
-
-Run a script with Python 3.10 or newer in one command:
-
-```sh
-ziran run --target=py scripts/task.zi -- --name café
-```
-
-The default entry is the input module's `main`; override it with
-`--entry module:function`. `.zir` inputs use the same convention. Arguments
-after the source file go unchanged to the script, with an optional `--`
-separator. In a project, `ziran run --target=py -- ARGS` uses its manifest
-entry, dependency map, and pinned toolchain. Compiler options precede the
-source file. `--python PATH` or `ZIRAN_PYTHON` selects the interpreter;
-otherwise the launcher uses `python3` from `PATH`.
-
-The launcher caches generated Python under `$XDG_CACHE_HOME/ziran/python`
-(or `$HOME/.cache/ziran/python`). Its content key includes the compiler,
-entry, flags, sources, module search trees, standard library, package map,
-and link configuration. New modules that shadow earlier imports invalidate
-the cache. Failed builds do not run stale output. `--no-cache` compiles every
-time. Sources containing `#load` also compile every time because loaded files
-can be outside the module roots. Imported Python libraries remain runtime
-dependencies; Python files beside the original script are on `PYTHONPATH`.
-
-`ziran run --target=c tool.zi -- ARGS` runs a native tool the same way: it
+`ziran run --target=c tool.zi -- ARGS` runs a native tool in one command: it
 builds the program once into `$XDG_CACHE_HOME/ziran/native`, rebuilds it when
 its sources change, and runs it with the arguments, returning its status. The
 entry takes nothing or `(argc: s32, argv: **u8)`. In a project, a tool beside
 the module roots, such as `tools/check.zi`, still imports the project's modules.
-
-`std/args_py` exposes arguments and the original script filename. A script
-may start with a shebang and be made executable with `chmod +x`:
-
-```jai
-#!/usr/bin/env -S ziran run --target=py
-Args :: #import "std/args_py";
-Process :: #import "std/process_py";
-
-#program_export
-main :: () -> s32 {
-    parser := Args.Parser("Run a command")
-    Args.AddText(parser, "--message", fallback = "hello")
-    options := Args.Parse(parser)
-    message := Args.Text(options, "message")
-    command: [2]string = .["echo", message]
-    result := Process.Run(command[:])
-    if result.error != "" { print("%\n", result.error); return 1 }
-    print("%", result.stdout)
-    return result.code
-}
-```
-
-The scripting modules are ordinary Ziran APIs over Python's standard library:
-
-- `std/args_py`: arguments, flags, text and integer options, repeatable text
-  options, parsing, and the original script filename.
-- `std/collections_py`: typed iterable copies, dictionary access, scalar
-  boxing, and an iterator with a separate `done` flag so `None` remains data.
-- `std/map_py`: explicit copies between Python dictionaries and portable
-  `HashMap(string, string)` or `HashMap(string, s64)` values.
-- `std/file_py`: UTF-8 text, bytes, paths, sorted recursive globs, temporary
-  directories, copying, renaming, and removal. File operations return errors.
-- `std/process_py`: argument lists, cwd, environment, stdin, output capture,
-  timeouts, executable lookup, and preserved Python exceptions. `Run` checks
-  exit status by default; set `allow_failure` to receive a nonzero code
-  without an error. `inherit_output` passes both streams to the parent.
-  Child environments omit `DISPLAY` and `WAYLAND_DISPLAY` unless
-  `inherit_desktop` is explicitly set; the supplied environment is copied.
-- `std/json_py`: parsing, Unicode output, sorted keys, and pretty printing.
-- `std/regex_py`: search, capture-aware results, replacement, and whole-match
-  iteration. `FindTexts` returns `Vec(string)` and raises on invalid patterns;
-  the other operations return errors.
-- `std/text_py`: Unicode case conversion, stripping, splitting, joining,
-  replacement, and byte conversion. Ziran string indexing still counts bytes.
-- `std/time_py`: wall-clock and monotonic time, sleep, and UTC ISO timestamps.
-
-These modules require the Python target. The Python interpreter and any
-third-party libraries still need to be installed. See
-`scripts/build_playground.zi` for a maintained build tool using these APIs.
+The tool reads its source path from `ZIRAN_SCRIPT_FILE`; see
+`scripts/build_playground.zi` for a maintained build tool.
 
 ### Host capabilities and visibility
 
@@ -923,7 +753,7 @@ can satisfy a portable host capability with an exported Ziran function in the
 bundle; the provider must have the same signature. `--bind-host MODULE`
 binds every remaining capability to MODULE's exported function of the same
 name, as a C program links a host's symbols by name, so one Ziran host module
-serves `ziran bundle` and the Go and Python targets alike.
+serves `ziran bundle` and the Go target alike.
 The portable host ABI copies returned string bytes into VM-managed storage,
 including strings inside records, arrays, slices, and mutable slice updates.
 A host can reuse its result buffers on its next call; saved strings retain

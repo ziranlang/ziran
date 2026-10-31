@@ -14,12 +14,10 @@ import sys
 
 item = json.loads(Path(sys.argv[1]).read_text())
 assert item['schema_version'] == 1
-assert item['targets'] == ['c', 'go', 'py', 'zx']
-assert item['tier'] == {'c': 'primary', 'go': 'secondary', 'py': 'secondary', 'zx': 'primary'}
+assert item['targets'] == ['c', 'go', 'zx']
+assert item['tier'] == {'c': 'primary', 'go': 'secondary', 'zx': 'primary'}
 assert item['parallel_execution']['c'] == 'threads'
 assert item['text_view_mutable_bytes']['c'] == 'borrowed'
-assert item['parallel_execution']['py'] == 'serial'
-assert item['text_view_mutable_bytes']['py'] == 'snapshot'
 assert item['source_and_saved_ir'] is True
 assert item['target_preflight'] is True
 assert item['text_view_opaque_pointer_check'] is True
@@ -32,13 +30,13 @@ manifest = json.loads((Path(sys.argv[2]) / 'tests/numeric_conformance.json').rea
 numeric = item['numeric_conformance']
 assert numeric['schema_version'] == 1
 assert numeric['stability'] == 'stable-id'
-assert numeric['targets'] == ['c', 'go', 'py', 'zx']
+assert numeric['targets'] == ['c', 'go', 'zx']
 assert numeric['ids'] == [case['id'] for case in manifest['cases']]
 assert len(numeric['ids']) == len(set(numeric['ids']))
 assert item['diagnostics_json'] == 'partial'
 PY
 
-for target in c go py zx; do
+for target in c go zx; do
     "$ziran" capabilities "--target=$target" --json > "$work/$target.json"
     python3 - "$work/$target.json" "$target" \
             "$repo/tests/numeric_conformance.json" <<'PY'

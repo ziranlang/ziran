@@ -35,10 +35,6 @@ for form in source saved; do
     "$ziran" build "$@" --target=c --exe \
         --entry utf8_copy_valid:NativeMain -o "$output" "$input"
     "$output/utf8_copy_valid"
-    output="$work/$form-py"
-    "$ziran" build "$@" --target=py --exe \
-        --entry utf8_copy_valid:NativeMain -o "$output" "$input"
-    python3 "$output"
 done
 
-echo 'UTF-8 bounded repair-copy passed valid, malformed, boundary and separate-source preservation cases in source/saved VM, C and Python targets'
+echo 'UTF-8 bounded repair-copy passed valid, malformed, boundary and separate-source preservation cases in source/saved VM and C targets'

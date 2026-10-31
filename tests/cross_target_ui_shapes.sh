@@ -74,9 +74,6 @@ test "$("$work/c/shapes")" = "$expected"
 (cd "$work/go" && GO111MODULE=off go build -o program .)
 test "$("$work/go/program")" = "$expected"
 
-"$ziran" build --target=py --exe --root "$work" --entry shapes:main \
-    -o "$work/py" $sources
-test "$(python3 "$work/py")" = "$expected"
 
 "$ziran" bundle --root "$work" --entry shapes:main -o "$work/shapes.zx" $sources
 test "$("$ziran" run "$work/shapes.zx")" = "$expected

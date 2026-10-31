@@ -12,7 +12,7 @@ for form in source saved; do
     if [ "$form" = saved ]; then root=$work/ir; input=$work/ir/width_matrix.zir; fi
     "$ziran" bundle --root "$root" --entry width_matrix:Answer -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 42
-    for target in c go py; do
+    for target in c go; do
         output=$work/$form-$target
         set --
         if [ "$target" = go ]; then set -- --pkg main; fi
@@ -21,7 +21,6 @@ for form in source saved; do
         case "$target" in
             c) result=$("$output/width_matrix") ;;
             go) result=$(GO111MODULE=off go run "$output/"*.go) ;;
-            py) result=$(python3 "$output") ;;
         esac
         if [ "$result" != 42 ]; then
             echo "$form/$target failed conversion $result" >&2

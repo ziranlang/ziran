@@ -97,9 +97,6 @@ for form in source saved library; do
     "$ziran" build --target=go --exe --entry "$fixture:main" --pkg main --root "$root" -o "$output/go" "$input"
     GO111MODULE=off go run "$output"/go/*.go > "$output.go"
     cmp "$work/expected" "$output.go"
-    "$ziran" build --target=py --exe --entry "$fixture:main" --root "$root" -o "$output/py" "$input"
-    python3 "$output/py" > "$output.py"
-    cmp "$work/expected" "$output.py"
 done
 done
 for fixture in app matrix; do

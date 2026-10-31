@@ -6,21 +6,16 @@ static uint8_t compiler_type_Byte(String source, int64_t at);
 static int64_t compiler_type_Find(String source, uint8_t wanted, int64_t at);
 static String compiler_type_Trim(String source);
 static bool compiler_type_Identifier(String source);
-static bool compiler_type_DottedIdentifier(String source);
 
 bool
 compiler_type_TargetKnown(String target)
 {
-    bool value_0 = StringEqual(target, StringLiteral("c")) || StringEqual(target, StringLiteral("go")) || StringEqual(target, StringLiteral("py"));
-    return value_0 || StringEqual(target, StringLiteral("zx"));
+    return StringEqual(target, StringLiteral("c")) || StringEqual(target, StringLiteral("go")) || StringEqual(target, StringLiteral("zx"));
 }
 
 String
 compiler_type_ForeignTypeTarget(String foreign, bool is_map)
 {
-    if ((int64_t)(foreign).length >= 3LL && StringEqual(StringRange(foreign, (int64_t)0LL, (int64_t)3LL), StringLiteral("py:"))) {
-        return StringLiteral("py");
-    }
     if (is_map || ((int64_t)(foreign).length >= 3LL && StringEqual(StringRange(foreign, (int64_t)0LL, (int64_t)3LL), StringLiteral("go:")))) {
         return StringLiteral("go");
     }
@@ -37,7 +32,7 @@ compiler_type_ForeignImportSupported(String target, String foreign)
     if (!value_0) {
         return false;
     }
-    if (StringEqual(foreign, StringLiteral("go")) || StringEqual(foreign, StringLiteral("py"))) {
+    if (StringEqual(foreign, StringLiteral("go"))) {
         return StringEqual(target, foreign);
     }
     if (StringEqual(foreign, StringLiteral("host"))) {
@@ -364,50 +359,6 @@ compiler_type_GoTypeTarget(String target)
     return true;
 }
 
-ForeignCall
-compiler_type_PythonCall(String target)
-{
-    if ((int64_t)(target).length < 3LL || !StringEqual(StringRange(target, (int64_t)0LL, (int64_t)3LL), StringLiteral("py:"))) {
-        return (ForeignCall){0};
-    }
-    int64_t slash = compiler_type_Find(target, 47, 3LL);
-    if (slash < 0LL) {
-        return (ForeignCall){0};
-    }
-    String module = StringRange(target, (int64_t)3LL, (int64_t)slash);
-    bool value_0 = compiler_type_DottedIdentifier(module);
-    if (!value_0) {
-        return (ForeignCall){0};
-    }
-    int64_t name = (int64_t)((uint64_t)slash + UINT64_C(1));
-    String receiver = StringLiteral("");
-    int32_t kind = 1;
-    if (compiler_type_Byte(target, name) == 40) {
-        int64_t close = compiler_type_Find(target, 41, (int64_t)((uint64_t)name + UINT64_C(1)));
-        if (close < 0LL || compiler_type_Byte(target, (int64_t)((uint64_t)close + UINT64_C(1))) != 46) {
-            return (ForeignCall){0};
-        }
-        receiver = StringRange(target, (int64_t)((int64_t)((uint64_t)name + UINT64_C(1))), (int64_t)close);
-        name = (int64_t)((uint64_t)close + UINT64_C(2));
-        bool value_1 = compiler_type_Identifier(receiver);
-        bool value_2 = !value_1;
-        if (!value_2) {
-            bool value_3 = compiler_type_Identifier(StringRange(target, (int64_t)name, (int64_t)target.length));
-            value_2 = !value_3;
-        }
-        if (value_2) {
-            return (ForeignCall){0};
-        }
-        kind = 2;
-    } else {
-        bool value_4 = compiler_type_DottedIdentifier(StringRange(target, (int64_t)name, (int64_t)target.length));
-        if (!value_4) {
-            return (ForeignCall){0};
-        }
-    }
-    return (ForeignCall){.kind = kind, .module = module, .receiver = receiver, .symbol = StringRange(target, (int64_t)name, (int64_t)target.length)};
-}
-
 static uint8_t
 compiler_type_Byte(String source, int64_t at)
 {
@@ -454,25 +405,4 @@ compiler_type_Identifier(String source)
         }
     }
     return true;
-}
-
-static bool
-compiler_type_DottedIdentifier(String source)
-{
-    if ((int64_t)(source).length == 0LL) {
-        return false;
-    }
-    int64_t at = 0LL;
-    while (at < (int64_t)(source).length) {
-        int64_t dot = compiler_type_Find(source, 46, at);
-        if (dot < 0LL) {
-            return compiler_type_Identifier(StringRange(source, (int64_t)at, (int64_t)source.length));
-        }
-        bool value_0 = compiler_type_Identifier(StringRange(source, (int64_t)at, (int64_t)dot));
-        if (!value_0) {
-            return false;
-        }
-        at = (int64_t)((uint64_t)dot + UINT64_C(1));
-    }
-    return false;
 }

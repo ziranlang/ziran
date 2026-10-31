@@ -52,7 +52,7 @@ must never be changed by a guessed edit.
 `check --target=c|go|py|zx` checks target-specific foreign
 identities/imports and Go/portable scalar-union restrictions before writing
 output. Builds use the same preflight policy. Its failures include `target`
-and a capability such as `ffi.go`, `types.py`, or `unions.scalar`; individual
+and a capability such as `ffi.go`, `types.go`, or `unions.scalar`; individual
 lowerers and the portable verifier still check their remaining target limits.
 
 `ZIRAN_DIAGNOSTICS=json` selects the same format. Format flags are read before

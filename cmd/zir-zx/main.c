@@ -473,13 +473,17 @@ int
 main(int argc, char **argv)
 {
     SetDiagnosticFormatFromArguments(argc, argv);
-    if(argc > 1 && strcmp(argv[1], "bundle") == 0)
+    if(argc > 1 && strcmp(argv[1], "bundle") == 0) {
+        CommandLowerPriority();
         return bundle_command(argc - 2, argv + 2);
+    }
     if(argc > 1 && strcmp(argv[1], "run") == 0)
         return run_command(argc - 2, argv + 2);
 #ifdef ZIRAN_NATIVE_ZX
-    if(argc > 1 && strcmp(argv[1], "native-c") == 0)
+    if(argc > 1 && strcmp(argv[1], "native-c") == 0) {
+        CommandLowerPriority();
         return native_c_command(argc - 2, argv + 2);
+    }
 #endif
     usage();
     return 1;

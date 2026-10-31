@@ -15,7 +15,7 @@ PkgFeature :: struct {
     rejected_example: string
     rejection: string
     evidence: string
-    targets: [4]PkgTargetSupport
+    targets: [3]PkgTargetSupport
 }
 
 
@@ -119,40 +119,34 @@ PkgPrintFeatureList :: (items: []PkgFeature, json: bool) -> void {
 
 #scope_export
 Features :: (arguments: []string) -> s32 {
-    numeric_targets: [4]PkgTargetSupport = .[
+    numeric_targets: [3]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
-    .{target = "py", status = "supported", limit = ""},
     .{target = "zx", status = "supported", limit = ""}
     ]
-    record_targets: [4]PkgTargetSupport = .[
+    record_targets: [3]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
-    .{target = "py", status = "supported", limit = ""},
     .{target = "zx", status = "supported", limit = ""}
     ]
-    view_targets: [4]PkgTargetSupport = .[
+    view_targets: [3]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = "Mutable backing bytes are observed as a borrow."},
     .{target = "go", status = "supported", limit = "Mutable backing bytes are snapshotted."},
-    .{target = "py", status = "supported", limit = "Mutable backing bytes are snapshotted."},
     .{target = "zx", status = "supported", limit = "Mutable backing bytes are snapshotted."}
     ]
-    module_targets: [4]PkgTargetSupport = .[
+    module_targets: [3]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
-    .{target = "py", status = "supported", limit = ""},
     .{target = "zx", status = "supported", limit = ""}
     ]
-    print_targets: [4]PkgTargetSupport = .[
+    print_targets: [3]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
-    .{target = "py", status = "supported", limit = ""},
     .{target = "zx", status = "supported", limit = ""}
     ]
-    assert_targets: [4]PkgTargetSupport = .[
+    assert_targets: [3]PkgTargetSupport = .[
     .{target = "c", status = "supported", limit = ""},
     .{target = "go", status = "supported", limit = ""},
-    .{target = "py", status = "supported", limit = "Checked before native output."},
     .{target = "zx", status = "supported", limit = ""}
     ]
     base_features: [5]PkgFeature = .[
@@ -197,7 +191,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "Check :: () -> s32 {\n    bytes: [1]u8 = .[97]\n    {\n        text := TextView(bytes[:])\n        if text.count != 1 { return 1 }\n    }\n    bytes[0] = cast(u8)98\n    return cast(s32)bytes[0]\n}\n",
         rejected_example = "Check :: () -> s32 {\n    bytes: [1]u8\n    text := TextView(bytes[:])\n    bytes[0] = cast(u8)98\n    return cast(s32)text[0]\n}\n",
         rejection = "Mutable backing storage cannot be changed while a view of it is live.",
-        evidence = "tests/text_view_mutation.sh\ntests/aggregate_view_lifetime.sh\ntests/py_backend.sh\ntests/capabilities.sh\n",
+        evidence = "tests/text_view_mutation.sh\ntests/aggregate_view_lifetime.sh\ntests/capabilities.sh\n",
         targets = view_targets
     },
     .{
@@ -208,7 +202,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "#import \"vec\"\nInner :: struct { items: Vec(s32); other: Vec(s32); }\nCheck :: () -> s32 {\n    value: Inner\n    VecPush(value.items, 1)\n    VecPush(value.other, 2)\n    moved := value.items\n    return moved[0] + value.other[0]\n}\n",
         rejected_example = "#import \"vec\"\nInner :: struct { items: Vec(s32); }\nBox :: struct { inners: [2]Inner; }\nCheck :: () -> s32 {\n    value: Box\n    VecPush(value.inners[0].items, 1)\n    moved := value.inners[0].items\n    return moved[0]\n}\n",
         rejection = "Indexed aggregate fields do not yet have a precise per-element ownership transfer.",
-        evidence = "tests/aggregate_vec_safety.sh\ntests/vec_move_expression.sh\ntests/py_backend.sh\ntests/capabilities.sh\n",
+        evidence = "tests/aggregate_vec_safety.sh\ntests/vec_move_expression.sh\ntests/capabilities.sh\n",
         targets = record_targets
     },
     ]
@@ -244,22 +238,19 @@ Features :: (arguments: []string) -> s32 {
     widening_feature.rejection = "Narrowing, sign changes, and integer-to-float conversions need an explicit cast."
     widening_feature.evidence = "tests/implicit_widening.sh\n"
     widening_feature.targets = numeric_targets
-    contract_targets: [4]PkgTargetSupport = .[
+    contract_targets: [3]PkgTargetSupport = .[
         .{target = "c", status = "supported", limit = ""},
         .{target = "go", status = "supported", limit = ""},
-        .{target = "py", status = "supported", limit = ""},
         .{target = "zx", status = "supported", limit = ""}
     ]
-    parallel_targets: [4]PkgTargetSupport = .[
+    parallel_targets: [3]PkgTargetSupport = .[
         .{target = "c", status = "supported", limit = "Forward CPU regions execute on threads."},
         .{target = "go", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
-        .{target = "py", status = "supported", limit = "CPU regions execute serially with a downgrade marker."},
         .{target = "zx", status = "supported", limit = "CPU regions execute serially with a downgrade marker."}
     ]
-    gpu_targets: [4]PkgTargetSupport = .[
+    gpu_targets: [3]PkgTargetSupport = .[
         .{target = "c", status = "supported", limit = "CPU fallback only; no GPU device backend."},
         .{target = "go", status = "supported", limit = "CPU fallback only; no GPU device backend."},
-        .{target = "py", status = "supported", limit = "CPU fallback only; no GPU device backend."},
         .{target = "zx", status = "supported", limit = "CPU fallback only; no GPU device backend."}
     ]
     contracts: [7]PkgFeature = .[
@@ -341,10 +332,9 @@ Features :: (arguments: []string) -> s32 {
             targets = contract_targets
         },
     ]
-    assembly_targets: [4]PkgTargetSupport = .[
+    assembly_targets: [3]PkgTargetSupport = .[
         .{target = "c", status = "supported", limit = "GNU extended assembly in functions and local blocks, with isolated CPU-feature variants on x86 and Linux/Android AArch64; unsupported platforms use the portable body."},
         .{target = "go", status = "supported", limit = "Checked Go body by default. -tags=ziran_asm enables the GNU cgo bridge with CGO_ENABLED=1, or direct AMD64 Go ABI0 for represented numeric/register-result forms with CGO_ENABLED=0. The direct path retains the checked body for pointer operands/results, stack changes, external calls/data and other unrepresented forms. Package builds include generated assembly companions; small native calls still have ABI overhead."},
-        .{target = "py", status = "supported", limit = "Executes the checked portable body; no native assembly emission."},
         .{target = "zx", status = "supported", limit = "Executes the checked portable body; no native assembly emission."}
     ]
     assembly_feature: PkgFeature

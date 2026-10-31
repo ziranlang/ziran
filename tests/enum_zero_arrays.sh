@@ -53,7 +53,7 @@ for form in source saved; do
     "$ziran" bundle --root "$module_root" --module-path "$module_root" \
         --entry zero_arrays:Main -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 0
-    for target in ${ENUM_ZERO_ARRAY_TARGETS:-c go py}; do
+    for target in ${ENUM_ZERO_ARRAY_TARGETS:-c go}; do
         output=$work/$form-$target
         executable=--exe; package=
         if test "$target" = go; then package='--pkg main'; fi
@@ -62,7 +62,6 @@ for form in source saved; do
             -o "$output" "$input"
         case "$target" in
             go) GO111MODULE=off go run "$output"/*.go;;
-            py) python3 "$output";;
             *) "$output/zero_arrays";;
         esac
     done

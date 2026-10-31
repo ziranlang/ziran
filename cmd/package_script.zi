@@ -113,26 +113,23 @@ CacheKey :: (binary: string, source: string, root: string, entry: string,
 #scope_export
 // Flags end at the first script or `--`. Values of compiler options are
 // skipped, so a root named something.zi is not mistaken for the script.
-PythonArgumentEnd :: (arguments: []string) -> s32 {
+ScriptArgumentEnd :: (arguments: []string) -> s32 {
     index: s32 = 1
     while index < arguments.count {
         part := arguments[index]
         if part == "--" || Ends(part, ".zi") || Ends(part, ".zir") { return index + 1 }
-        if part == "--python" || part == "--root" || part == "--entry" ||
+        if part == "--root" || part == "--entry" ||
            part == "--module-path" || part == "--bind" || part == "--bind-host" { index += 1 }
         index += 1
     }
     return cast(s32)arguments.count
 }
 
-// Run one script using the selected compiler: through the Python
-// interpreter, or with --target=c as a native program built into the cache.
+// Run one script as a native program built into the cache.
 // The caller supplies the pinned project's import map and search roots.
 ScriptRun :: (arguments: []string, binary: string, project_root: string,
     program_root: string, program_file: string, roots: []string,
-    map: string, libraries: string, cache_root: string, native: bool) -> s32 {
-    interpreter := PkgGetenv("ZIRAN_PYTHON")
-    if interpreter.count == 0 { interpreter = "python3" }
+    map: string, libraries: string, cache_root: string) -> s32 {
     source := program_file
     root := program_root
     entry := ""
@@ -145,14 +142,13 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
     while index < arguments.count {
         part := arguments[index]
         if part == "--" { separator = index + 1; break }
-        if part == "--target=py" || part == "--target=c" { index += 1; continue }
+        if part == "--target=c" { index += 1; continue }
         if part == "--no-cache" { cache = false; index += 1; continue }
-        if (part == "--python" && !native) || part == "--root" || part == "--entry" ||
+        if part == "--root" || part == "--entry" ||
            part == "--module-path" || part == "--bind" || part == "--bind-host" {
             if index + 1 >= arguments.count { return PkgFail(PkgJoin(part, " needs a value")) }
             value := arguments[index + 1]
-            if part == "--python" { interpreter = value }
-            else if part == "--root" { root = value }
+            if part == "--root" { root = value }
             else if part == "--entry" { entry = value }
             else {
                 VecPush(options, part); VecPush(options, value)
@@ -174,7 +170,7 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
             break
         } else { return PkgFail(PkgJoin("unknown script run argument: ", part)) }
     }
-    if source.count == 0 || interpreter.count == 0 { return PkgFail("run --target=py or --target=c needs a script or project entry") }
+    if source.count == 0 { return PkgFail("run --target=c needs a script or project entry") }
     source = PkgCanonical(source)
     if source.count == 0 { return PkgFail("cannot find the script") }
     if root.count == 0 { root = Parent(source) }
@@ -182,7 +178,7 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
     if root.count == 0 { return PkgFail("cannot find the source root") }
     // A native tool beside the project's module root, such as tools/x.zi,
     // is built from its own folder and still imports the project's modules.
-    if native && !(source.count > root.count && source[0:root.count] == root && source[root.count] == #char "/") {
+    if !(source.count > root.count && source[0:root.count] == root && source[root.count] == #char "/") {
         VecPush(options, "--module-path"); VecPush(options, root)
         root = PkgCanonical(Parent(source))
     }
@@ -193,7 +189,7 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
     }
     VecPush(search, root)
     if project_root.count > 0 { VecPush(search, project_root) }
-    directory := PkgJoin(cache_root, ifx native then "/native" else "/python")
+    directory := PkgJoin(cache_root, "/native")
     if !PkgMkdirs(cache_root) || !CreatePrivateDirectory(directory) { return PkgFail("cannot create the script cache") }
     ignored := PkgCanonical(directory)
     valid: bool
@@ -203,7 +199,7 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
     if !CreatePrivateDirectory(directory) { return PkgFail("cannot create the script output directory") }
     ready := PkgJoin(directory, "/.ready")
     stamp := PkgRead(ready)
-    program := PkgJoin(directory, ifx native then PkgJoin("/", module) else "/__main__.py")
+    program := PkgJoin3(directory, "/", module)
     if !cache || !valid || !stamp.valid || stamp.text != state || !PathExists(program) {
         RemoveFile(ready)
         build: Vec(string)
@@ -226,14 +222,11 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
         if cache && valid { PkgWrite(ready, state) }
     }
     run: Vec(string)
-    if native { VecPush(run, program) } else { VecPush(run, interpreter); VecPush(run, directory) }
+    VecPush(run, program)
     for at: separator..arguments.count - 1 { VecPush(run, arguments[at]) }
     if run.count > 256 { return PkgFail("too many script arguments") }
-    python_path := Parent(source)
-    inherited := PkgGetenv("PYTHONPATH")
-    if inherited.count > 0 { python_path = PkgJoin3(python_path, ":", inherited) }
-    names: [3]string = .["PYTHONPATH", "ZIRAN_SCRIPT_FILE", "ZIRAN_SCRIPT_ROOT"]
-    values: [3]string = .[python_path, source, root]
+    names: [2]string = .["ZIRAN_SCRIPT_FILE", "ZIRAN_SCRIPT_ROOT"]
+    values: [2]string = .[source, root]
     result := PkgRun(VecSlice(run, 0, run.count), "", names[:], values[:])
     VecFree(run); VecFree(options); VecFree(search)
     return result

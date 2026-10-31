@@ -15,13 +15,12 @@ ElementType :: struct { valid: bool; element: string; capacity: s64 }
 ForeignCall :: struct { kind: s32; module: string; receiver: string; symbol: string }
 
 TargetKnown :: (target: string) -> bool {
-    return target == "c" || target == "go" || target == "py" || target == "zx"
+    return target == "c" || target == "go" || target == "zx"
 }
 
 // Empty means an ordinary language type. Foreign identities belong to the
 // target that defines their representation, even when unused by an entry.
 ForeignTypeTarget :: (foreign: string, is_map: bool) -> string {
-    if foreign.count >= 3 && foreign[0:3] == "py:" { return "py" }
     if is_map || (foreign.count >= 3 && foreign[0:3] == "go:") { return "go" }
     if foreign.count > 0 { return "unknown" }
     return ""
@@ -29,7 +28,7 @@ ForeignTypeTarget :: (foreign: string, is_map: bool) -> string {
 
 ForeignImportSupported :: (target: string, foreign: string) -> bool {
     if !TargetKnown(target) { return false }
-    if foreign == "go" || foreign == "py" { return target == foreign }
+    if foreign == "go" { return target == foreign }
     if foreign == "host" { return true }
     if foreign == "c" { return target != "zx" }
     return false
@@ -203,28 +202,6 @@ GoTypeTarget :: (target: string) -> bool {
     return true
 }
 
-// Python natives use py:dotted.module/dotted.attribute or
-// py:dotted.module/(Type).Method.
-PythonCall :: (target: string) -> ForeignCall {
-    if target.count < 3 || target[0:3] != "py:" { return .{} }
-    slash := Find(target, #char "/", 3)
-    if slash < 0 { return .{} }
-    module := target[3:slash]
-    if !DottedIdentifier(module) { return .{} }
-    name := slash + 1
-    receiver := ""
-    kind: s32 = 1
-    if Byte(target, name) == #char "(" {
-        close := Find(target, #char ")", name + 1)
-        if close < 0 || Byte(target, close + 1) != #char "." { return .{} }
-        receiver = target[name + 1:close]
-        name = close + 2
-        if !Identifier(receiver) || !Identifier(target[name:]) { return .{} }
-        kind = 2
-    } else if !DottedIdentifier(target[name:]) { return .{} }
-    return .{kind, module, receiver, target[name:]}
-}
-
 #scope_file
 Byte :: (source: string, at: s64) -> u8 {
     if at < 0 || at >= source.count { return 0 }
@@ -248,15 +225,4 @@ Identifier :: (source: string) -> bool {
     !(first >= #char "A" && first <= #char "Z") { return false }
     for byte: source { if !Text.IdentifierByte(byte) { return false } }
     return true
-}
-DottedIdentifier :: (source: string) -> bool {
-    if source.count == 0 { return false }
-    at: s64 = 0
-    while at < source.count {
-        dot := Find(source, #char ".", at)
-        if dot < 0 { return Identifier(source[at:]) }
-        if !Identifier(source[at:dot]) { return false }
-        at = dot + 1
-    }
-    return false
 }

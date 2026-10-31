@@ -132,8 +132,6 @@ for form in source saved; do
     "$ziran" build --target=go --pkg main --root "$root" -o "$work/$form-go" "$input"
     printf 'package main\nfunc main() { if Count_Answer() != 42 { panic("CPU fallback") } }\n' > "$work/$form-go/main.go"
     (cd "$work/$form-go" && GO111MODULE=off go build -o run . && ./run)
-    "$ziran" build --target=py --root "$root" -o "$work/$form-py" "$input"
-    (cd "$work/$form-py" && python3 -c 'import runpy; assert runpy.run_path("__init__.py")["Answer"]() == 42')
 done
 cmp "$work/source.zx" "$work/saved.zx"
 cmp "$work/source-c/count.c" "$work/saved-c/count.c"

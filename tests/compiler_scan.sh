@@ -148,9 +148,6 @@ for input in "$work/scanner.zi" "$work/ir/scanner.zir"; do
     "$ziran" build --target=go --exe --entry scanner:Run --pkg main --root "$work" \
         --module-path "$repo/cmd" -o "$output/go" "$input"
     test "$(GO111MODULE=off go run "$output/go/"*.go)" = "$expected"
-    "$ziran" build --target=py --exe --entry scanner:Run --root "$work" \
-        --module-path "$repo/cmd" -o "$output/py" "$input"
-    test "$(python3 "$output/py")" = "$expected"
 done
 
 # Checked-in bootstrap output must agree with both the bootstrapped compiler

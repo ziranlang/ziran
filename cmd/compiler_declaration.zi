@@ -12,10 +12,10 @@ DeclarationError :: enum s32 {
     ImportTarget; ImportPackage; ImportUsing;
     LibraryQuote; LibraryEnd; LibraryCharacter;
     UsingKind; UsingList; UsingEntry; UsingMap;
-    ForeignResults; ForeignField; ForeignDefer; ForeignVariadic; ForeignPythonAttributes;
+    ForeignResults; ForeignField; ForeignDefer; ForeignVariadic;
     ForeignType; ForeignBody; ForeignLibrary; ForeignSymbol; ForeignEnd;
-    ForeignPythonSymbol; ForeignHostRename; ForeignGoResults; ForeignGoField;
-    ForeignGoDefer; ForeignGoVariadic; ForeignPythonResults; ForeignPythonField;
+    ForeignHostRename; ForeignGoResults; ForeignGoField;
+    ForeignGoDefer; ForeignGoVariadic;
     ResultCount; ResultName; ResultType; ResultParameters; ReturnCount;
     SymmetricParameters; SymmetricModifier; ProcedureNameArguments;
     BuilderFormat; BuilderPercent; BuilderArguments; BuilderPieces; BuilderArgumentCount;
@@ -61,8 +61,6 @@ ForeignDeclaration :: struct {
     go_field: bool
     go_defer: bool
     go_variadic: bool
-    py_results: bool
-    py_field: bool
 }
 ForeignTarget :: struct { error: DeclarationError; count: s64 }
 ResultDeclaration :: struct {
@@ -171,20 +169,16 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .ForeignField { return "#go_field requires one foreign field accessor without #go_results" }
     if error == .ForeignDefer { return "#go_defer requires one foreign procedure without result or field attributes" }
     if error == .ForeignVariadic { return "#go_variadic requires one foreign procedure with a final slice parameter" }
-    if error == .ForeignPythonAttributes { return "#py_results and #py_field each apply once to a foreign procedure, not together" }
     if error == .ForeignType { return "foreign type requires Name :: #type #foreign library;" }
     if error == .ForeignBody { return "#foreign procedure declarations cannot have a body" }
     if error == .ForeignLibrary { return "#foreign requires a named #system_library" }
     if error == .ForeignSymbol { return "#foreign alternate symbol must be an identifier or a Go method expression" }
     if error == .ForeignEnd { return "#foreign declaration must end with ';'" }
-    if error == .ForeignPythonSymbol { return "#foreign Python symbol must be a name, a dotted attribute path, or a method (Type).name" }
     if error == .ForeignHostRename { return "host capability cannot rename a #foreign symbol" }
     if error == .ForeignGoResults { return "#go_results requires an explicit Go foreign target" }
     if error == .ForeignGoField { return "#go_field requires an explicit Go foreign target" }
     if error == .ForeignGoDefer { return "#go_defer requires an explicit Go foreign target" }
     if error == .ForeignGoVariadic { return "#go_variadic requires an explicit Go foreign target" }
-    if error == .ForeignPythonResults { return "#py_results requires a py: foreign target" }
-    if error == .ForeignPythonField { return "#py_field requires a py: foreign target" }
     if error == .ResultCount { return "a procedure can have at most 16 results" }
     if error == .ResultName { return "named results need name: Type for every result" }
     if error == .ResultType { return "a result of a procedure with several results needs a concrete type" }
@@ -524,7 +518,7 @@ SystemLibrary :: (source: string, name_limit: s64, path_limit: s64) -> LibraryDe
     return result
 }
 
-ForeignMethod :: (source: string, receiver_limit: s64, method_limit: s64, python: bool) -> MethodSymbol {
+ForeignMethod :: (source: string, receiver_limit: s64, method_limit: s64) -> MethodSymbol {
     result: MethodSymbol
     dot := Find(source, ".")
     if dot <= 0 { return result }
@@ -533,29 +527,12 @@ ForeignMethod :: (source: string, receiver_limit: s64, method_limit: s64, python
     if source[0] == #char "(" {
         if result.receiver.count < 3 || result.receiver[result.receiver.count - 1] != #char ")" { return result }
         result.receiver = result.receiver[1:result.receiver.count - 1]
-    } else if python { return result }
+    }
     if result.receiver.count >= receiver_limit || result.method.count >= method_limit { return result }
     name := result.receiver
-    if name.count > 0 && name[0] == #char "*" {
-        if python { return result }
-        name = name[1:]
-    }
+    if name.count > 0 && name[0] == #char "*" { name = name[1:] }
     result.valid = Source.IdentifierText(name, false) && Source.IdentifierText(result.method, false)
     return result
-}
-
-PythonAttribute :: (source: string, name_limit: s64) -> bool {
-    at: s64 = 0
-    while at <= source.count {
-        end := Find(source[at:], ".")
-        if end < 0 { end = source.count - at }
-        part := source[at:at + end]
-        if part.count >= name_limit || !Source.IdentifierText(part, false) { return false }
-        at += end
-        if at == source.count { return true }
-        at += 1
-    }
-    return false
 }
 
 // Directives are tokens, so quoted defaults and alternate symbols cannot
@@ -565,8 +542,8 @@ ParseForeign :: (source: string, name_limit: s64 = 128) -> ForeignDeclaration {
     result.name = SymbolBeforeColons(source, name_limit)
     if result.name.count == 0 { return result }
     declaration := source[Text.SkipSpace(source, Find(source, "::") + 2, true):]
-    attributes: [6]s32
-    after_foreign: [6]bool
+    attributes: [4]s32
+    after_foreign: [4]bool
     directive: s64 = -1
     body := false
     at: s64 = 0
@@ -583,8 +560,6 @@ ParseForeign :: (source: string, name_limit: s64 = 128) -> ForeignDeclaration {
             if spelling == "#go_field" { attribute = 1 }
             if spelling == "#go_defer" { attribute = 2 }
             if spelling == "#go_variadic" { attribute = 3 }
-            if spelling == "#py_results" { attribute = 4 }
-            if spelling == "#py_field" { attribute = 5 }
             if attribute >= 0 {
                 attributes[attribute] += 1
                 if directive >= 0 { after_foreign[attribute] = true }
@@ -599,8 +574,6 @@ ParseForeign :: (source: string, name_limit: s64 = 128) -> ForeignDeclaration {
     result.go_field = attributes[1] > 0
     result.go_defer = attributes[2] > 0
     result.go_variadic = attributes[3] > 0
-    result.py_results = attributes[4] > 0
-    result.py_field = attributes[5] > 0
     if result.go_results && (result.is_type || attributes[0] > 1 || after_foreign[0]) {
         result.error = .ForeignResults
         return result
@@ -615,12 +588,6 @@ ParseForeign :: (source: string, name_limit: s64 = 128) -> ForeignDeclaration {
     }
     if result.go_variadic && (result.is_type || result.go_field || attributes[3] > 1 || after_foreign[3]) {
         result.error = .ForeignVariadic
-        return result
-    }
-    if (result.py_results || result.py_field) &&
-    (result.is_type || result.go_results || result.go_field || result.go_defer || result.go_variadic ||
-    (result.py_results && result.py_field) || attributes[4] > 1 || attributes[5] > 1 || after_foreign[4] || after_foreign[5]) {
-        result.error = .ForeignPythonAttributes
         return result
     }
     if result.is_type && Text.SkipSpace(declaration, 5, true) != directive {
@@ -659,31 +626,23 @@ ResolveForeignTarget :: (declaration: ForeignDeclaration, library: string,
     result: ForeignTarget
     result.error = declaration.error
     if result.error != .None || !declaration.present { return result }
-    python := library.count >= 3 && library[0:3] == "py:"
     go := library.count >= 3 && library[0:3] == "go:"
     method: MethodSymbol
-    if !declaration.is_type && (go || python) {
-        method = ForeignMethod(declaration.symbol, name_limit, name_limit, python)
+    if !declaration.is_type && go {
+        method = ForeignMethod(declaration.symbol, name_limit, name_limit)
     }
-    if !Source.IdentifierText(declaration.symbol, false) && !method.valid &&
-    !(python && PythonAttribute(declaration.symbol, name_limit)) {
+    if !Source.IdentifierText(declaration.symbol, false) && !method.valid {
         result.error = .ForeignSymbol
-        if python { result.error = .ForeignPythonSymbol }
         return result
     }
     if library == "host_api" {
         if declaration.symbol != declaration.name { result.error = .ForeignHostRename }
     } else if method.valid {
         Put(output, *result.count, library)
-        if python { Put(output, *result.count, "/(") }
-        else { Put(output, *result.count, ".(") }
+        Put(output, *result.count, ".(")
         Put(output, *result.count, method.receiver)
         Put(output, *result.count, ").")
         Put(output, *result.count, method.method)
-    } else if python {
-        Put(output, *result.count, library)
-        Put(output, *result.count, "/")
-        Put(output, *result.count, declaration.symbol)
     } else if go || Find(library, "/") >= 0 {
         Put(output, *result.count, library)
         Put(output, *result.count, ".")
@@ -697,8 +656,6 @@ ResolveForeignTarget :: (declaration: ForeignDeclaration, library: string,
     else if declaration.go_field && !go { result.error = .ForeignGoField }
     else if declaration.go_defer && !go { result.error = .ForeignGoDefer }
     else if declaration.go_variadic && !go { result.error = .ForeignGoVariadic }
-    else if declaration.py_results && !python { result.error = .ForeignPythonResults }
-    else if declaration.py_field && !python { result.error = .ForeignPythonField }
     return result
 }
 

@@ -309,21 +309,6 @@ int GoCHeader(const char *package, char *header, size_t header_size)
     return copy_part(header, header_size, type_text(path));
 }
 
-int PyForeignCallParts(const char *target, char *module, size_t module_size,
-                      char *receiver, size_t receiver_size, char *symbol, size_t symbol_size)
-{
-    ForeignCall result = compiler_type_PythonCall(type_text(target));
-    if(result.kind == 0 || !copy_part(module, module_size, result.module) ||
-       !copy_part(receiver, receiver_size, result.receiver) ||
-       !copy_part(symbol, symbol_size, result.symbol)) return 0;
-    return result.kind;
-}
-
-int PyForeignTargetValid(const char *target)
-{
-    return compiler_type_PythonCall(type_text(target)).kind == 1;
-}
-
 int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
 {
     CompilerContext *previous = CompilerContextSelect(record ? record->span.context : NULL);

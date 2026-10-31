@@ -167,7 +167,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   operands and its portable body. Caller-owned pointer/array types retain
   their identity, while fixed library types remain in the defining scope.
   `tests/generic_assembly.sh` checks C/Go assembly and forced fallback,
-  Python/VM fallback, flat records, multiple results and invalid instances.
+  VM fallback, flat records, multiple results and invalid instances.
 
 - Opt-in compiler process profiles record inclusive loading, parsing, checking,
   native emission, and IR writing, with record-field parsing counts and
@@ -207,7 +207,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   comments; it writes through a temporary file beside the source and retains
   permissions and symlinks. `tests/formatter.sh` checks semantic preservation,
   idempotence, filesystem errors, a saved-IR command rebuild, and scanner
-  agreement on C, Go, Python, and `.zx`.
+  agreement on C, Go, and `.zx`.
   The parser, checker, native backends, and portable runtime still contain C;
   the compiler is not yet fully self-hosted.
 
@@ -220,7 +220,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `make update-bootstrap` regenerates it after an intentional scanner change.
   `tests/compiler_scan.sh` checks token kinds, escaped and multiline literals,
   numeric spellings, source positions, and a reproducible corpus from source
-  and saved IR on C, Go, Python, and `.zx`. It also checks bootstrap
+  and saved IR on C, Go, and `.zx`. It also checks bootstrap
   output agreement, C frontend lookahead, null input, and token truncation.
 
 - Shared compiler text rules are implemented in `cmd/compiler_text.zi`:
@@ -232,8 +232,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   formatting still uses C. Ordinary tools and the portable runtime library
   link the freshly compiled Ziran implementation. Fresh builds use a generated
   seed checked by `make check-bootstrap` and updated by `make update-bootstrap`.
-  `tests/compiler_text.sh` checks source and saved IR on C, Go,
-  Python, and `.zx`, including malformed escapes, UTF-8 boundaries, bounded
+  `tests/compiler_text.sh` checks source and saved IR on C, Go, and `.zx`, including malformed escapes, UTF-8 boundaries, bounded
   output, deterministic byte inputs, bootstrap agreement, and the C boundary.
   Name-distance cases include embedded NUL bytes, invalid limits, and an
   independent full-matrix oracle at the native boundary.
@@ -252,8 +251,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   keeps storage and diagnostics behind a small boundary. Ordinary tools and
   the portable library compile the maintained Ziran source; fresh builds use
   a generated seed verified by `make check-bootstrap`.
-  `tests/compiler_source.sh` checks source and saved IR on C, Go,
-  Python, and `.zx`, including bounded outputs, in-place comment removal,
+  `tests/compiler_source.sh` checks source and saved IR on C, Go, and `.zx`, including bounded outputs, in-place comment removal,
   malformed delimiters, nested literals, and a reproducible input corpus.
   Raw-string diagnostics now count escaped physical newlines in preceding
   ordinary strings correctly. Declaration IR construction, checking,
@@ -262,14 +260,14 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 - Declaration syntax is implemented in `cmd/compiler_declaration.zi`: default
   and `using` parameter normalization, `#program_export`, named and open
-  module/package/file/directory imports, `#system_library`, Go/Python method
-  symbols, and Python attribute paths. It reuses the Ziran text and source
+  module/package/file/directory imports, `#system_library`, Go method
+  symbols. It reuses the Ziran text and source
   scanners and keeps borrowed source ranges and bounded output buffers.
   The C boundary still constructs IR and stores library identities and source
   diagnostics. Ordinary tools and the portable library link the compiled
   Ziran implementation; fresh builds use a generated declaration seed checked
   by `make check-bootstrap`. `tests/compiler_declaration.sh` checks source and
-  saved IR on C, Go, Python, and `.zx`, including nested defaults,
+  saved IR on C, Go, and `.zx`, including nested defaults,
   the 64-parameter limit, `using` flags, rejected declarations, bounded output,
   a reproducible byte corpus, seed agreement, and the C boundary.
   The same module parses `using, only`, `except`, and `map` clauses, with
@@ -288,7 +286,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   Enum expressions such as `1 + 2 * 3`, division by `-1`, and division or
   remainder of the minimum signed value now accept valid results while
   rejecting overflow. `tests/compiler_enum.sh` checks source and saved IR on
-  C, Go, Python, and `.zx`, including malformed input, numeric
+  C, Go, and `.zx`, including malformed input, numeric
   boundaries, bounded workspace, deterministic byte inputs, seed agreement,
   and the C boundary. Fresh builds use a generated seed verified by
   `make check-bootstrap`.
@@ -303,12 +301,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Type spelling and record-field parsing are implemented in
   `cmd/compiler_type.zi`: `using` fields, quoted `#go_tag` metadata, slice
   elements, fixed and constant-expression array capacities, builtin and map
-  primitive names, and Go/Python foreign type and call symbols. Field scans
+  primitive names, and Go foreign type and call symbols. Field scans
   borrow bounded source ranges and stop at the IR buffer's terminator, so
   listing a record does not repeatedly measure its entire body. The C
   boundary retains IR access and checked copies into its fixed buffers.
-  `tests/compiler_type.sh` checks source and saved IR on C, Go,
-  Python, and `.zx`, including malformed input, numeric and output limits,
+  `tests/compiler_type.sh` checks source and saved IR on C, Go, and `.zx`, including malformed input, numeric and output limits,
   quoted separators, UTF-8 tag decoding, a deterministic byte corpus, seed
   agreement, and the C boundary. Fresh builds compile the maintained Ziran
   source using a generated seed verified by `make check-bootstrap`.
@@ -331,8 +328,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   to the Ziran grammar without sharing C IR layouts. Ordinary tools compile
   the maintained Ziran source; fresh builds use a generated seed verified by
   `make check-bootstrap`.
-  `tests/compiler_expression.sh` checks source and saved IR on C, Go,
-  Python, and `.zx`, including precedence, literal escapes, malformed
+  `tests/compiler_expression.sh` checks source and saved IR on C, Go, and `.zx`, including precedence, literal escapes, malformed
   statements, chained calls, named arguments, nested initializers, open slices,
   prefix forms, scope errors, nesting limits, deterministic byte inputs,
   seed agreement, borrowed ranges, and the C frontend boundary. The compiler
@@ -349,23 +345,21 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   loop-header syntax. The C boundary retains IR storage, scope binding, and
   loop lowering. Fresh builds use a generated seed verified by
   `make check-bootstrap`; ordinary tools compile the maintained Ziran source.
-  `tests/compiler_statement.sh` checks source and saved IR on C, Go,
-  Python, and `.zx`, including malformed headers, borrowed ranges,
+  `tests/compiler_statement.sh` checks source and saved IR on C, Go, and `.zx`, including malformed headers, borrowed ranges,
   limits, deterministic byte inputs, seed agreement, and the C scope boundary.
   The checker, lowering, backends, and portable runtime still require
   further migration before the compiler is fully self-hosted.
 
 - Foreign declaration grammar and target spelling are implemented in
   `cmd/compiler_declaration.zi`: procedure and foreign-type declarations,
-  alternate symbols, Go and Python method bindings, dotted Python attributes,
+  alternate symbols, Go method bindings,
   result/field/deferred/variadic modifiers, host-name restrictions, and the
   final `..any` parameter. Directives are scanned as tokens; quoted defaults
   and symbols cannot masquerade as modifiers or procedure bodies. Names and
   symbols borrow bounded source, and target output reports its full length
   while writing only the caller's bounded prefix. The C boundary retains
   library visibility, target classification, diagnostics, and IR storage.
-  `tests/compiler_declaration.sh` checks source and saved IR on C, Go,
-  Python, and `.zx`, including rejection cases, prefix output, borrowed
+  `tests/compiler_declaration.sh` checks source and saved IR on C, Go, and `.zx`, including rejection cases, prefix output, borrowed
   ranges, deterministic input, and exact generated-seed agreement.
 
 - Optional `then`, one-line `else`, and compile-time `#if`/`else #if` headers
@@ -396,8 +390,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   The C boundary retains diagnostics, allocation, copying into source queues,
   and declaration IR construction. Ordinary tools compile the maintained Ziran
   source; fresh builds use its checked generated seed.
-  `tests/compiler_declaration.sh` checks source and saved IR on C, Go,
-  Python, and `.zx`, bounded prefixes, borrowed ranges, deterministic
+  `tests/compiler_declaration.sh` checks source and saved IR on C, Go, and `.zx`, bounded prefixes, borrowed ranges, deterministic
   inputs, the C boundary, and seed agreement. `tests/multiple_results.sh`,
   `tests/generic_multiple_results.sh`, `tests/operators.sh`,
   `tests/local_procedures.sh`, `tests/default_arguments.sh`, and
@@ -421,7 +414,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   inaccessible to importers. Procedure types with the same name in different
   modules, or names that are native target keywords, receive distinct valid
   native identities. `tests/named_generic_dependencies.sh` checks these cases
-  from source and saved IR on C, Go, Python, and `.zx`.
+  from source and saved IR on C, Go, and `.zx`.
   C includes private named-module dependencies in generated implementation
   files, keeping them out of public headers; `tests/private_module_imports.sh`
   checks C output.
@@ -484,41 +477,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `tests/go_constant_strings.sh` compares native constants and checked values
   from source and saved IR, including raw multiline strings.
 
-- Native C library modules route through C, cgo on Go, and Python's ctypes.
+- Native C library modules route through C and cgo on Go.
   Go supports scalar and pointer C signatures and retains native link flags in
-  generated output. Python handles pointer outputs, C-owned scalar buffers and
-  aliases during a C call. `tests/native_c_ffi.sh` checks source and saved IR;
-  the OQS and SQLite packages additionally exercise their real engines on all
-  three backends.
-
-- The Python backend (`zi2py`, `ziran build --target=py`) writes one Python
-  3.10 file that uses only the standard library: `__main__.py` for
-  `--exe --entry`, otherwise `__init__.py`. Every program the test suite
-  runs on the portable VM prints the same output and returns the same
-  result as Python, and every program it builds for C also lowers to Python
-  that compiles. Integer arithmetic wraps at each type's width, division
-  truncates toward zero, and shifts check their count. Records and fixed
-  arrays copy by value; pointers are objects that reach a list item, a
-  field, or a boxed local; unions share a byte buffer; C foreign functions
-  go through `ctypes`, with `string` parameters and results passed as C
-  text and the shared libraries named in `LDLIBS` loaded first, and host
-  capabilities through a `host` object the embedding program sets. A view of mutable bytes is a snapshot.
-  `py:` libraries import Python modules directly: functions, methods on the
-  first argument, dotted attributes (`#py_field`), and exceptions caught into
-  a result record (`#py_results`), with `string`, `[]u8`, typed scalar/text/
-  object slices, enums, Python objects, and procedure callbacks converted at
-  the boundary. Named foreign arguments become Python keywords, retaining
-  source evaluation order. Executables report uncaught exceptions at Ziran
-  statement locations. `ziran run --target=py` compiles and caches scripts,
-  forwards arguments, supports shebangs, and uses project toolchain pins.
-  The `args_py`, `collections_py`, `map_py`, `file_py`, `process_py`, `json_py`,
-  `regex_py`, `text_py`, and `time_py` modules supply routine scripting APIs;
-  `tests/py_scripting.sh`, `tests/py_run.sh`, and `tests/build_playground.sh`
-  exercise them and the migrated playground build tool;
-  `tests/py_native.sh` covers them, and the other targets reject them.
-  `tests/py_backend.sh` covers it, and `tests/numeric_semantics.sh`,
-  `tests/print.sh`, `tests/examples.sh`, and `tests/named_imports.sh` compare
-  it with the other targets.
+  generated output. `tests/native_c_ffi.sh` checks source and saved IR;
+  the OQS and SQLite packages additionally exercise their real engines on both
+  backends.
 
 - Procedure-type parameter normalization is implemented in
   `cmd/compiler_declaration.zi`, including named and unnamed parameters,
@@ -530,7 +493,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Go enum lowering retains every enum declaration and member instead of
   silently stopping at 32 types or 64 members. `tests/large_enums.sh` checks
   a 96-member enum and 40 further enum types from source and saved IR on
-  C, Go, Python, and `.zx`.
+  C, Go, and `.zx`.
 - Bundle re-export lookup visits shared dependencies once per query instead
   of repeatedly following every import path, and has no 32-hop cutoff.
   `tests/bundle_global_reachability.sh` checks a 40-module graph with shared
@@ -632,11 +595,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   collector, and the portable runner keeps the storage alive while a pointer
   reaches it and stops cleanly on a read after free or a second free. A
   procedure or foreign procedure the program declares as `New` or `free`
-  (such as C's `free`) is called instead. Python stores one
-  zeroed value in shared heap storage and invalidates direct pointer aliases
-  on free; direct reads after free and repeated frees fail. Native callers
+  (such as C's `free`) is called instead. Native callers
   remain responsible for raw pointer lifetimes. `tests/heap_new.sh` checks
-  source and saved IR on C, Go, Python, and `.zx`, including
+  source and saved IR on C, Go, and `.zx`, including
   records with text, arrays, and pointers.
 - A procedure may declare procedures inside it. The parser hoists each to
   file scope under a private name (`zi_local_Outer_Name`, kept out of API
@@ -694,7 +655,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   ordinary value semantics.
   `tests/generic_array_parameter.sh` checks named/open imports, scalars,
   records, generic array fields, independent type parameters, multiple results,
-  array aliases, source/saved IR and separately saved libraries on C, Go, Python,
+  array aliases, source/saved IR and separately saved libraries on C, Go,
   and `.zx`. Nested-array elements and returns work on the native targets;
   the portable linker explicitly rejects unsupported nested-array returns.
   The test also rejects slices, scalars, mismatched capacities and element
@@ -726,7 +687,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   records specialize their fields using the procedure's bound types, including
   mixed types, records, arrays, and slices. Named and open imports, defaults,
   nested calls, direct generic forwarding, and a separately saved library work
-  on C, Go, Python, and `.zx`.
+  on C, Go, and `.zx`.
   `tests/generic_multiple_results.sh` checks source/saved-IR equivalence,
   single evaluation, rejected result types/counts, and saved-library validation.
   `tests/multiple_results.sh` checks source and saved IR on C, Go, and
@@ -735,7 +696,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   one of the same signedness, an unsigned integer into a wider signed type,
   and `float32` into `float64`, at initializers, assignments, returns,
   arguments, and binary operators. The checker inserts an explicit cast into
-  the checked graph, so C, Go, Python, and `.zx` see the same
+  the checked graph, so C, Go, and `.zx` see the same
   conversion. Narrowing, sign changes, and integer-to-float conversions still
   need `cast`. `tests/implicit_widening.sh` checks source and saved IR on
   C, Go, and `.zx`.
@@ -1577,7 +1538,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Polymorphic procedures bind `$T` through a direct, slice (`[]$T`), or
   pointer (`*$T`) parameter. `tests/generic_slice_parameter.sh` runs slice
   binders over scalars, 64-bit values, records, and subslices through source
-  and saved IR on `.zx`, C, Go, and Python, runs pointer binders
+  and saved IR on `.zx`, C, and Go, runs pointer binders
   natively, and rejects non-slice and non-pointer arguments. `std/sort.zi`
   builds an allocation-free heapsort, `IsSorted`, `LowerBound`, and
   `BinarySearch` on them; `tests/sort.sh` checks edge cases on `.zx` and C.

@@ -90,14 +90,7 @@ for input in "$work/app.zi" "$work/ir/app.zir"; do
         -o "$out/go" "$input"
     (cd "$out/go" && GO111MODULE=off go run .) > "$out/go.out"
 
-    targets="c go"
-
-    "$ziran" build --target=py --exe --entry app:main --root "$root" \
-        -o "$out/py" "$input"
-    python3 "$out/py" > "$out/py.out"
-    targets="$targets py"
-
-    for target in $targets; do
+    for target in c go; do
         if ! cmp -s "$work/expected" "$out/$target.out"; then
             echo "$target output differs for $input" >&2
             diff "$work/expected" "$out/$target.out" >&2 || true

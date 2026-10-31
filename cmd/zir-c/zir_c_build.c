@@ -21,11 +21,35 @@
 #include <sys/syscall.h>
 #endif
 
-enum { MAX_ARGS = 1024, MAX_JOBS = 16 };
+enum { MAX_ARGS = 1024, MAX_JOBS = 16, WORKER_MEMORY_MIB = 512 };
 typedef struct Job { pid_t pid; int fd, completion, reaped, ok; } Job;
 typedef struct ToolLog { char text[ZIR_TEXT_MAX]; size_t used; int truncated; } ToolLog;
 typedef struct Files { char **items; int count; } Files;
 
+/* MemAvailable in MiB, or -1 where the kernel does not report it. */
+static long available_memory_mib(void)
+{
+#ifdef __linux__
+    char text[4096];
+    int fd = open("/proc/meminfo", O_RDONLY | O_CLOEXEC);
+    if(fd < 0) return -1;
+    ssize_t length;
+    do { length = read(fd, text, sizeof(text) - 1); } while(length < 0 && errno == EINTR);
+    close(fd);
+    if(length <= 0) return -1;
+    text[length] = 0;
+    const char *line = strstr(text, "MemAvailable:");
+    if(!line) return -1;
+    long kib = strtol(line + 13, NULL, 10);
+    return kib > 0 ? kib / 1024 : -1;
+#else
+    return -1;
+#endif
+}
+
+/* Compiler workers never take the whole machine: at most half of the CPUs
+ * this process may run on, and only as many as available memory holds at
+ * WORKER_MEMORY_MIB each. ZIRAN_JOBS can lower the count further. */
 static int worker_limit(void)
 {
     long cpus = sysconf(_SC_NPROCESSORS_ONLN);
@@ -37,7 +61,17 @@ static int worker_limit(void)
         if(available > 0 && (cpus <= 0 || available < cpus)) cpus = available;
     }
 #endif
-    return cpus <= 0 ? 1 : cpus < MAX_JOBS ? (int)cpus : MAX_JOBS;
+    long workers = cpus > 1 ? cpus / 2 : 1;
+    const char *requested = getenv("ZIRAN_JOBS");
+    if(requested && *requested) {
+        char *end = NULL;
+        long value = strtol(requested, &end, 10);
+        if(*end == 0 && value > 0 && value < workers) workers = value;
+    }
+    long memory = available_memory_mib();
+    if(memory >= 0 && memory / WORKER_MEMORY_MIB < workers)
+        workers = memory / WORKER_MEMORY_MIB > 0 ? memory / WORKER_MEMORY_MIB : 1;
+    return workers < MAX_JOBS ? (int)workers : MAX_JOBS;
 }
 
 static void append_log(ToolLog *log, const char *bytes, size_t length)

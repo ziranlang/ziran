@@ -31,8 +31,7 @@ typedef enum ZirExternKind {
     ZIR_EXTERN_NONE = 0,
     ZIR_EXTERN_HOST,
     ZIR_EXTERN_GO,
-    ZIR_EXTERN_C,
-    ZIR_EXTERN_PY
+    ZIR_EXTERN_C
 } ZirExternKind;
 
 typedef enum ZirStmtKind {
@@ -102,8 +101,9 @@ typedef struct ZirImport {
     int go_field; /* one Go receiver argument reads its declared native field */
     int go_defer; /* a standalone call schedules its Go foreign target at function exit */
     int go_variadic; /* expand the final slice parameter into native Go variadic arguments */
-    int py_results; /* a raised Python exception fills the result record's last field */
-    int py_field; /* reads, or with a value sets, one Python attribute of the receiver */
+    /* Format 59 slots, always zero; drop them at the next format bump. */
+    int reserved_0;
+    int reserved_1;
     int required;
     int is_using; /* `using Alias :: #import` re-exports public names */
     ZirSourceSpan span;
@@ -579,10 +579,6 @@ int TargetNameKnown(const char *target);
 int CheckTargetCapabilities(const ZirProgram *program, const char *target);
 size_t ScalarByteWidth(const char *type);
 int UnionScalarFields(const ZirModule *module, const ZirType *record);
-int PyForeignCallParts(const char *target, char *module, size_t module_size,
-                       char *receiver, size_t receiver_size,
-                       char *symbol, size_t symbol_size);
-int PyForeignTargetValid(const char *target);
 int MapTypeParts(const ZirModule *module, const char *name,
                  char *key, size_t key_size, char *value, size_t value_size);
 int MapPrimitiveName(const char *name);
@@ -591,8 +587,9 @@ int SameMapType(const ZirModule *a_owner, const ZirType *a,
 int MapKeyComparable(const ZirModule *module, const char *type, int depth);
 
 /* Native backends record each file they write. After a successful build,
- * GeneratedOutputPrune removes files in the output directory that start
- * with the backend's generated-file marker but were not written this time,
+ * GeneratedOutputPrune removes files in the output directory and its
+ * subdirectories that start with the backend's generated-file marker but
+ * were not written this time,
  * so a reused directory never links code from an earlier build. Files
  * without the marker are never touched. */
 void GeneratedOutputRecord(const char *path);

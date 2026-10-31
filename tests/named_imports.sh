@@ -34,14 +34,9 @@ for input in source saved; do
         root=$work/ir
         file=$work/ir/app.zir
     fi
-    for target in c go py; do
+    for target in c go; do
         out=$work/$target-$input
-        if test "$target" = py; then
-            "$ziran" build --target=py --root "$root" \
-                --module-path "$repo/std" --entry app:Answer --exe \
-                -o "$out" "$file"
-            python3 "$out"
-        elif test "$target" = go; then
+        if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$root" \
                 --module-path "$repo/std" -o "$out" "$file"
             cat > "$out/main.go" <<'GO'
@@ -67,4 +62,3 @@ cmp "$work/c-source/app.c" "$work/c-saved/app.c"
 cmp "$work/c-source/text.c" "$work/c-saved/text.c"
 cmp "$work/go-source/app.go" "$work/go-saved/app.go"
 cmp "$work/go-source/text.go" "$work/go-saved/text.go"
-cmp "$work/py-source/__main__.py" "$work/py-saved/__main__.py"

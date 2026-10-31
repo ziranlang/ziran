@@ -116,9 +116,6 @@ for input in source saved; do
     "$ziran" build --target=go --exe --entry app:main --pkg main --root "$root" -o "$output/go" "$source"
     GO111MODULE=off go run "$output"/go/*.go > "$output.go"
     cmp "$work/expected" "$output.go"
-    "$ziran" build --target=py --exe --entry app:main --root "$root" -o "$output/py" "$source"
-    python3 "$output/py" > "$output.py"
-    cmp "$work/expected" "$output.py"
     "$ziran" api --json --root "$root" "$source" > "$output.api"
     if rg -q '__zi_dependency_' "$output.api"; then
         echo 'generated dependency leaked into public API' >&2

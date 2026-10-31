@@ -35,9 +35,5 @@ package main
 func main() { if JsonStringValueTest_NativeMain() != 0 { panic("JSON owned string decoding differs") } }
 GO
     GO111MODULE=off go run "$output"/*.go
-    output="$work/$form-py"
-    "$ziran" build --target=py --exe --entry json_string_value_test:NativeMain \
-        --root tests/spec --module-path std -o "$output" "$input"
-    python3 "$output"
 done
-echo 'JSON owned string decoding passed source, saved IR, portable VM and C/Go/Python execution'
+echo 'JSON owned string decoding passed source, saved IR, portable VM and C/Go execution'

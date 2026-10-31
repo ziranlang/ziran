@@ -43,7 +43,7 @@ for form in ['source','saved']:
     bundle = work/(form+'.zx')
     run([ziran,'bundle','--root',root,'--entry','app:Main','-o',bundle,entry])
     run([ziran,'run',bundle],expected)
-    for target in ['c','go','py']:
+    for target in ['c','go']:
         output = work/(form+'-'+target)
         command = [ziran,'build','--target='+target,'--root',root,'-o',output,entry]
         if target == 'go': command[2:2] = ['--pkg','main']
@@ -57,8 +57,6 @@ for form in ['source','saved']:
             (output/'main.go').write_text('package main\nfunc main() { if App_Answer(7) != '+str(oracle(7))+' || App_Answer(9) != '+str(oracle(9))+' { panic("late record fields") } }\n')
             run(['go','build','-o',output/'run',*sorted(output.glob('*.go'))])
             run([output/'run'])
-        elif target == 'py':
-            run(['python3','-c','import runpy; app=runpy.run_path("__init__.py"); assert app["Answer"](7)=='+str(oracle(7))+' and app["Answer"](9)=='+str(oracle(9))],cwd=output)
     print('Late record fields passed '+form+' VM/bundle and generated-target checks',flush=True)
 assert (work/'source.zx').read_bytes() == (work/'saved.zx').read_bytes()
 

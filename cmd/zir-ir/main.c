@@ -17,7 +17,7 @@
 static void
 usage(void)
 {
-    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|go|py|zx] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ...");
+    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|go|zx] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ...");
 }
 
 static int
@@ -91,6 +91,7 @@ main(int argc, char **argv)
     int count;
 
     SetDiagnosticFormatFromArguments(argc, argv);
+    CommandLowerPriority();
     for(int i = 1; i < argc; i++) {
         if(strncmp(argv[i], "--diagnostics=", 14) == 0) {
             if(!SetDiagnosticFormat(argv[i] + 14)) {

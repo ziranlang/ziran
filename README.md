@@ -1,6 +1,6 @@
 # Ziran
 
-Ziran is a general-purpose language that compiles to C, Go, and Python. The toolchain checks source, saves checked modules, and builds portable
+Ziran is a general-purpose language that compiles to C and Go. The toolchain checks source, saves checked modules, and builds portable
 programs you can run without a native compiler.
 
 [Website & playground](https://ziran-lang.org/) · [Compiler guide](docs/USAGE.md) · [Implementation status](docs/IMPLEMENTATION_STATUS.md)
@@ -49,9 +49,9 @@ Use `build/bin/ziran` from the checkout, or `ziran` after installation.
 | Command | Purpose |
 | --- | --- |
 | `check` | Validate source and imports. |
-| `build` | Generate C, Go, or Python output. |
+| `build` | Generate C or Go output. |
 | `ir` / `inspect` | Save checked modules and read their contents. |
-| `bundle` / `run` | Build and run portable programs; `run --target=py FILE.zi -- ARGS` runs Python-target scripts. |
+| `bundle` / `run` | Build and run portable programs; `run --target=c FILE.zi -- ARGS` runs native scripts. |
 | `fmt` | Format source files. |
 | `guide` / `features` / `capabilities` | Explore syntax, support, and target limits. |
 | `api` | Query public declarations as JSON. |

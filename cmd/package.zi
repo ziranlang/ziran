@@ -11,7 +11,7 @@
 #import "package_options"
 #import "package_compile_commands"
 #import "package_template"
-#import "package_python"
+#import "package_script"
 #import "file_linux"
 
 // `ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] DIR`
@@ -177,16 +177,14 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         index: s32 = 0
         while index < cast(s32)arguments.count {
             if arguments[index] == "--target=c" ||
-               arguments[index] == "--target=go" ||
-               arguments[index] == "--target=py" {
+               arguments[index] == "--target=go" {
                 target = arguments[index]
             }
             index += 1
         }
         if target == "--target=c" { executable = "zi2c" }
         else if target == "--target=go" { executable = "zi2go" }
-        else if target == "--target=py" { executable = "zi2py" }
-        else { return PkgFail("build needs --target=c|go|py") }
+        else { return PkgFail("build needs --target=c|go") }
     }
     if executable.count == 0 { return PkgFail("unknown Ziran command") }
     tool_directory: string = PkgLauncherDirectory(launcher)
@@ -245,8 +243,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     index: s32 = 0
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
-        if !(build && (part == "--target=c" || part == "--target=go" ||
-                   part == "--target=py")) {
+        if !(build && (part == "--target=c" || part == "--target=go")) {
             if count >= 259 { return PkgFail("too many arguments") }
             child[count] = part
             count += 1
@@ -512,7 +509,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         PkgPrint("in a project, run, build, check, and install without a file work on its program\n", false)
-        PkgPrint("scripts: ziran run --target=py [--python PATH] [--no-cache] FILE.zi -- ARGS\n", false)
+        PkgPrint("scripts: ziran run --target=c [--no-cache] FILE.zi -- ARGS\n", false)
         PkgPrint("new to Ziran? run ziran guide\n", false)
         return 0
     }
@@ -526,9 +523,9 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "explain" { return Explain(arguments[1:]) }
     if command == "add" { return Add(launcher, arguments[1:]) }
     separator: s32 = PkgAfterSeparator(arguments)
-    script_flags: []string = arguments[0:PythonArgumentEnd(arguments)]
-    if command == "run" && (PkgHasArgument(script_flags, "--target=py") || PkgHasArgument(script_flags, "--target=c")) {
-        separator = PythonArgumentEnd(arguments)
+    script_flags: []string = arguments[0:ScriptArgumentEnd(arguments)]
+    if command == "run" && PkgHasArgument(script_flags, "--target=c") {
+        separator = ScriptArgumentEnd(arguments)
     }
     flags: []string = arguments[0:separator]
     root: string = ""
@@ -777,9 +774,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             passed[0:passed_count], names[:], values[:])
     }
     empty: [0]string
-    if command == "run" && (PkgHasArgument(flags, "--target=py") || PkgHasArgument(flags, "--target=c")) {
-        native := PkgHasArgument(flags, "--target=c")
-        compiler := ifx native then "zi2c" else "zi2py"
+    if command == "run" && PkgHasArgument(flags, "--target=c") {
+        compiler := "zi2c"
         binary := PkgJoin3(PkgLauncherDirectory(launcher), "/", compiler)
         program_root := ""
         program_file := ""
@@ -802,7 +798,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
                 if !locked.packages[index].source {
                     // search is sized for the lock capacity plus std; refuse
                     // instead of writing past it if that coupling breaks.
-                    if searches >= search.count { return PkgFail("python search path limit exceeded") }
+                    if searches >= search.count { return PkgFail("script search path limit exceeded") }
                     search[searches] = locked.packages[index].path
                     searches += 1
                 }
@@ -820,17 +816,17 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             if !DirectoryExists(standard) { standard = PkgJoin(ParentDirectory(binary), "/../../../std") }
         }
         if DirectoryExists(standard) {
-            if searches >= search.count { return PkgFail("python search path limit exceeded") }
+            if searches >= search.count { return PkgFail("script search path limit exceeded") }
             search[searches] = standard; searches += 1
         }
         return ScriptRun(filtered[0:count], binary, root, program_root, program_file,
-            search[0:searches], map, libraries, PkgCacheRoot(), native)
+            search[0:searches], map, libraries, PkgCacheRoot())
     }
     return PkgDispatch(command, filtered[0:count], project, root, locked,
         current, launcher, empty[:], empty[:])
 }
 
-// Native platform and ABI are independent of the compiler's c/go/py backend.
+// Native platform and ABI are independent of the compiler's c/go backend.
 PkgArtifactTarget :: (target: string) -> bool {
     if !PkgPackageName(target) || target[0] == cast(u8)45 ||
         target[target.count - 1] == cast(u8)45 { return false }

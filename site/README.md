@@ -10,7 +10,7 @@ host capabilities. Workers can be stopped and are recreated for each run.
 Activate Emscripten SDK 6.0.6, then run from the repository root:
 
 ```sh
-python3 scripts/build_playground.py
+build/bin/ziran run --target=c scripts/build_playground.zi
 python3 -m http.server 8765 --bind 127.0.0.1 --directory site
 ```
 

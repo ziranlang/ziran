@@ -1,7 +1,7 @@
 #!/bin/sh
 # --bind-host MODULE binds every host capability to the exported function of
 # the same name in MODULE, as a C program links a host's symbols by name, so
-# one Ziran host module serves the portable runner, Go, and Python.
+# one Ziran host module serves the portable runner and Go.
 set -eu
 
 ziran=${1:?pass the ziran command}
@@ -52,9 +52,6 @@ test "$("$ziran" run "$work/app.zx")" = "18
 (cd "$work/go" && GO111MODULE=off go build -o app .)
 test "$("$work/go/app")" = 18
 
-"$ziran" build --target=py --exe --root "$work" --entry app:main \
-    --bind-host host -o "$work/py" $sources
-test "$(python3 "$work/py")" = 18
 
 # An explicit --bind wins over the module's same-named function.
 "$ziran" bundle --root "$work" --entry app:main --bind api:Scale=host:Twice \

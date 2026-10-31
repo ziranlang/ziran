@@ -2,7 +2,7 @@
 set -eu
 
 # Every site example with a main prints the same text on the portable VM
-# and as C, Go, and Python.
+# and as C and Go.
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 examples=$repo/site/examples
@@ -30,11 +30,8 @@ for source in "$examples"/*.zi; do
         --root "$examples" -o "$out/go" "$source"
     (cd "$out/go" && GO111MODULE=off go run .) > "$out/go.out"
 
-    "$ziran" build --target=py --exe --entry "$name:main" \
-        --root "$examples" -o "$out/py" "$source"
-    python3 "$out/py" > "$out/py.out"
 
-    for target in c go py; do
+    for target in c go; do
         if ! cmp -s "$out/expected" "$out/$target.out"; then
             echo "$name: $target output differs from the portable VM" >&2
             diff "$out/expected" "$out/$target.out" >&2 || true

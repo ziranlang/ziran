@@ -1,11 +1,13 @@
 #!/bin/sh
 # Native script runs: arguments, cache reuse and invalidation, and a project
 # tool kept beside the project's module root.
-set -eu
+set -eux
 ziran=$(realpath "${1:?pass the ziran command}")
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+# The checks log hides a passing run, so a failure shows its trace and files.
+trap 'status=$?; test "$status" -eq 0 || find "$work" -type f | sort; rm -rf "$work"; exit "$status"' EXIT
+trap 'exit 1' HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY
 export XDG_CACHE_HOME="$work/cache"
 export PATH="$(dirname "$ziran"):$PATH"

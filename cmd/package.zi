@@ -953,7 +953,7 @@ PkgArtifactVisit :: (root: string, locked: *PkgLock, current: *PkgManifest,
     PkgArtifactMix(*state, recipe_hash)
     flags: [16]string = .["PATH", "CFLAGS", "CPPFLAGS", "CXX", "CXXFLAGS", "LDFLAGS", "LDLIBS", "AR", "LD", "RANLIB", "PKG_CONFIG", "PKG_CONFIG_PATH", "PKG_CONFIG_LIBDIR", "SYSROOT", "SDKROOT", "MACOSX_DEPLOYMENT_TARGET"]
     for flag: flags { PkgArtifactMix(*state, PkgGetenv(flag)) }
-    input_hashes: [64]string
+    input_hashes: [PKG_ARTIFACT_INPUT_LIMIT]string
     for i: 0..recipe.input_count - 1 {
         path := PkgJoin3(item.path, "/", recipe.inputs[i])
         if !PkgArtifactInside(item.path, path) || DirectoryExists(path) {

@@ -13,6 +13,11 @@ def check_artifacts(ziran, root, env, compiler, call, write, init, commit):
         init(repo, env)
     write(tool / "VERSION", "fixture\n")
     commit(tool, env)
+    # A real provider's source list is long: Entity's profile has over 64 inputs.
+    wide = [f"inputs/{index}.txt" for index in range(200)]
+    for name in wide:
+        write(provider / name, name + "\n")
+    wide_inputs = "".join(f', "{name}"' for name in wide)
     write(provider / "ziran.toml", '''[package]
 name = "Provider"
 [tool]
@@ -23,9 +28,9 @@ enabled = "bool=false"
 [options.variant."*"]
 path = "string!"
 [artifacts.object]
-inputs = ["src/value.c", "tools/provider.zi", "Makefile"]
+inputs = ["src/value.c", "tools/provider.zi", "Makefile"WIDE_INPUTS]
 outputs = ["value.o", "resource.txt", "options.txt"]
-''')
+'''.replace("WIDE_INPUTS", wide_inputs))
     write(provider / ".gitignore", "build/\n")
     write(provider / "src/value.c", "int value(void) { return 42; }\n")
     write(provider / "Makefile", f'''build/bin/provider: tools/provider.zi
@@ -197,7 +202,7 @@ git = "{provider.as_uri()}"
     # A dependency edge's alias differs from the root consumer's alias.
     support = fixture / "support"
     init(support, env)
-    for relative in (".gitignore", "Makefile", "tools/provider.zi", "src/value.c"):
+    for relative in (*wide, ".gitignore", "Makefile", "tools/provider.zi", "src/value.c"):
         write(support / relative, (provider / relative).read_text())
     write(support / "ziran.toml", original.replace('name = "Provider"', 'name = "Support"'))
     commit(support, env)

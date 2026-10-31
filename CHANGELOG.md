@@ -28,6 +28,8 @@
 - Saved IR (format 59) writes each string once and refers back to it, stores numbers in as few bytes as they need, and stores source positions relative to the previous one, so `.zir` files and `.zx` bundles carry about a third of their former code size at the same open cost. Rebuild format 58 IR and bundles from source.
 
 ### Fixed
+- Artifact recipes accept up to 256 inputs, so a provider with a long source
+  list no longer fails with "unknown or invalid artifact recipe".
 - Add-ons can use records, functions and globals that a shared library did not
   retain, even when both use the same module. Rebuild hosts and bundles together
   for portable bundle format 27.

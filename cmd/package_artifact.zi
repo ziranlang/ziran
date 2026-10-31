@@ -5,8 +5,10 @@
 #import "byte_text_linux"
 
 #scope_export
+PKG_ARTIFACT_INPUT_LIMIT :: 256
+
 PkgArtifactRecipe :: struct {
-    inputs: [64]string
+    inputs: [PKG_ARTIFACT_INPUT_LIMIT]string
     input_count: s32
     outputs: [64]string
     output_count: s32

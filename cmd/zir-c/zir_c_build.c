@@ -50,7 +50,7 @@ static long available_memory_mib(void)
 /* Compiler workers never take the whole machine: at most half of the CPUs
  * this process may run on, and only as many as available memory holds at
  * WORKER_MEMORY_MIB each. ZIRAN_JOBS can lower the count further. */
-static int worker_limit(void)
+int c_worker_limit(void)
 {
     long cpus = sysconf(_SC_NPROCESSORS_ONLN);
 #ifdef __linux__
@@ -400,7 +400,7 @@ int c_compile_executable(const char *out, const char *name, int threads)
         *slash = '/'; objects[i] = strdup(path);
         if(!objects[i]) goto done;
     }
-    int workers = worker_limit();
+    int workers = c_worker_limit();
     if(workers > files.count) workers = files.count;
     for(int i = 0; i < workers; i++) ProfileCount("native_worker_slots");
     uint64_t stage_started = ProfileStart();

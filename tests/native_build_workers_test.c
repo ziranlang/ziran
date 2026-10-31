@@ -5,7 +5,7 @@
 
 int main(void)
 {
-    int limit = worker_limit();
+    int limit = c_worker_limit();
     assert(limit >= 1 && limit <= MAX_JOBS);
 #ifdef __linux__
     cpu_set_t original, one;
@@ -17,7 +17,7 @@ int main(void)
     for(int cpu = 0; cpu < CPU_SETSIZE; cpu++)
         if(CPU_ISSET(cpu, &original)) { CPU_SET(cpu, &one); break; }
     assert(sched_setaffinity(0, sizeof(one), &one) == 0);
-    int restricted = worker_limit();
+    int restricted = c_worker_limit();
     assert(sched_setaffinity(0, sizeof(original), &original) == 0);
     assert(restricted == 1);
     cpu_set_t restored;

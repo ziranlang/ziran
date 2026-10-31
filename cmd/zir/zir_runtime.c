@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static int
 same_contents(const char *path, const char *text)
@@ -78,10 +79,19 @@ EmitRuntimeHeaders_with_buffers(const char *out_dir, const char *generated_path,
         GeneratedOutputRecord(buffers->path);
         /* An unchanged header keeps its timestamp for build tools. */
         if(same_contents(buffers->path, header->text)) continue;
-        out = fopen(buffers->path, "wb");
+        /* Emission workers may write the same header at once; each moves a
+         * complete private copy into place. */
+        char temporary[sizeof(buffers->path) + 32];
+        snprintf(temporary, sizeof(temporary), "%s.%ld.tmp", buffers->path, (long)getpid());
+        out = fopen(temporary, "wb");
         if(out == NULL) { ok = 0; break; }
         if(fputs(header->text, out) < 0) ok = 0;
         if(fclose(out) != 0) ok = 0;
+#ifdef _WIN32
+        if(ok) remove(buffers->path); /* rename never replaces there */
+#endif
+        if(ok && rename(temporary, buffers->path) != 0) ok = 0;
+        if(!ok) remove(temporary);
     }
     free(needed);
     return ok;

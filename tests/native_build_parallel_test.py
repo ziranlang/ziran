@@ -11,7 +11,16 @@ import time
 ziran, work = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
 real_cc = shutil.which(os.environ.get('CC', 'cc'))
 available_cpus = len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else (os.cpu_count() or 1)
-workers = min(16, available_cpus)
+
+def memory_workers():
+    try:
+        for line in Path('/proc/meminfo').read_text().splitlines():
+            if line.startswith('MemAvailable:'): return max(1, int(line.split()[1]) // 1024 // 512)
+    except OSError: pass
+    return 16
+
+# Builds use at most half of the CPUs, and no more than free memory holds.
+workers = min(16, max(1, available_cpus // 2), memory_workers())
 out = work/'out with spaces'
 out.mkdir()
 (work/'group').mkdir()
@@ -159,14 +168,14 @@ try:
     (work/'link.release').touch()
     assert first.wait(timeout=30) == second.wait(timeout=30) == 0
     assert 1 <= state()['peak'] <= workers
-    if available_cpus > 1: assert state()['peak'] > 1
+    if workers > 1: assert state()['peak'] > 1
     assert subprocess.run([str(out/'app')]).returncode == 43
     assert not list(out.glob('.app.*'))
     # A blocked first worker must not hold up the next source after another
     # worker finishes. Run both captured and inherited-output paths. The gate
     # is a causal scheduling check, not a performance timing threshold.
     for number, mode in enumerate(['json', 'text'], 2):
-        if available_cpus < 2: break
+        if workers < 2: break
         program(number)
         reset()
         index = len(children)
@@ -197,7 +206,7 @@ try:
             assert names == [Path(p).name for p in sorted(state()['sources'])], names
     # Drain a live worker's output after its bounded diagnostic buffer fills,
     # while the queue continues past the held worker.
-    if available_cpus > 1:
+    if workers > 1:
         reset()
         index = len(children)
         first = start(extra={'BUILD_HOLD_SOURCE':first_source, 'BUILD_NOISE':'1'})
@@ -210,7 +219,7 @@ try:
         assert first.wait(timeout=30) == 0
         records = [json.loads(line) for line in (work/f'build-{index}.log').read_text().splitlines()]
         assert any('output truncated' in r['message'] for r in records), records
-    if available_cpus > 1 and Path('/proc/self/stat').is_file():
+    if workers > 1 and Path('/proc/self/stat').is_file():
         # Hold every other worker while one fails. Once that PID has been
         # reaped, no further compilation may start; all already-started
         # workers must still be drained and reaped before failure returns.

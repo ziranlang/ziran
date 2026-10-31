@@ -434,6 +434,68 @@ outputs are published together by directory rename only after all declared
 files exist and remain inside staging. A failed build removes staging and
 preserves previously published results. Cache hits verify output digests.
 
+### Python build-tool consumers
+
+The resolved toolchain provides `scripts/ziran_artifacts.py`. Build scripts
+can load it from the directory returned by their package wrapper's
+`pkg path ziran`; they do not need a copied descriptor parser. For example,
+with `tool` naming that wrapper and `project` the consuming project directory:
+
+```python
+import importlib.util
+from pathlib import Path
+import subprocess
+
+toolchain = Path(subprocess.check_output(
+    [tool, 'pkg', 'path', 'ziran'], cwd=project, text=True).strip())
+spec = importlib.util.spec_from_file_location(
+    'ziran_artifacts', toolchain / 'scripts/ziran_artifacts.py')
+artifacts = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(artifacts)
+result = artifacts.request('provider:native', 'linux-x86_64-gnu',
+                           project=project, ziran=tool)
+library = result.output('lib/library.a')
+```
+
+`request` forwards repeated `options` as literal `--option` arguments and
+uses `--locked` when the project has no `ziran.local.toml`. Its optional `env`
+is passed to the selected tool unchanged. Callers own build resource limits
+and display isolation. `Artifact(absolute_descriptor, artifact=..., platform=...)`
+also consumes an already requested result. Construction verifies the schema,
+identity, unique rows, canonical contained paths and every declared output's
+SHA-256 digest. `output(name)` requires a declared output; `path(name)` resolves
+a contained path such as a provider's include directory. Symlinks cannot
+escape the descriptor directory.
+
+`metadata(name)` reads a declared JSON object whose integer `schema` is `1`
+and whose `artifact` and `platform` match the descriptor. Its remaining
+fields belong to the provider. Renderer layouts, assets, Android editions
+and application output names remain provider or application policy.
+
+Providers may expose an ordered `link.txt` output for foreign native support.
+Each row is `kind<TAB>value`; supported kinds are:
+
+- `archive`: a declared archive output, passed as one argument.
+- `library` or `flag`: one literal linker argument.
+- `pkg-config`: shell-word-separated package names, queried with `--libs`.
+- `js-library`: a declared output passed after `--js-library`.
+- `embed`: a declared output and absolute virtual mount, joined with `@`,
+  passed after `--embed-file`.
+
+`result.link_flags()` expands those rows, followed by each prerequisite's
+metadata in the order recorded by `dependencies.tsv`. Each prerequisite is
+verified against its own output paths, artifact name and the same platform.
+Cycles are rejected; repeated prerequisites on separate edges retain their
+static link order. `env` also selects `PKG_CONFIG` and its environment. No
+metadata or option is evaluated by a shell.
+
+Use `link_flags(include_archives=False)` when ordinary imports already
+compile this provider's source into the host. It omits only the current
+provider's archives; its flags and prerequisite foreign archives remain.
+For example, importing a Ziran library and linking its complete native
+archive again would duplicate its module globals. A foreign C host instead
+uses the default to link that archive once.
+
 Identity includes the locked package graph and toolchain revisions, actual
 checkout HEADs, launcher/compiler bytes, native platform/ABI, recipe and input
 bytes, resolved options, dependency descriptors, CC executable bytes/version and

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 ### Added
+- Python build tools can consume verified dependency artifacts and ordered
+  native link metadata through the toolchain's shared artifact helper.
 - Dependency-owned native artifact recipes build and reuse declared output sets
   through the locked package graph, with explicit platform/ABI identities,
   resolved options, input validation and atomic publication.

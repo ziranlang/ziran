@@ -23,11 +23,16 @@
 - `std/vorbis` reads an in-memory Ogg Vorbis stream's channels, rate and length from its pages, without decoding or a library, so programs can bound a stream before decoding it.
 - `std/vorbis_linux` decodes whole in-memory Ogg Vorbis streams to 16-bit PCM over the platform libvorbisfile, with a frame limit and strict refusal of truncated, chained or damaged streams. Only programs that import it link the library.
 
+### Removed
+- The Python target: `zi2py`, `--target=py`, `py:` imports and the `std/*_py`
+  modules. Run native scripts with `ziran run --target=c`.
+
 ### Changed
 - Native builds run `#parallel for` regions on one thread per processor instead of four; `ZIRAN_PAR_THREADS` still chooses.
 - Saved IR (format 59) writes each string once and refers back to it, stores numbers in as few bytes as they need, and stores source positions relative to the previous one, so `.zir` files and `.zx` bundles carry about a third of their former code size at the same open cost. Rebuild format 58 IR and bundles from source.
 
 ### Fixed
+- Android applications report portable execution errors in the system log, so failures can be diagnosed when no terminal is attached.
 - Artifact recipes accept up to 256 inputs, so a provider with a long source
   list no longer fails with "unknown or invalid artifact recipe".
 - Add-ons can use records, functions and globals that a shared library did not

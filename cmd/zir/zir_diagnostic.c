@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdatomic.h>
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
 
 static atomic_int diagnostic_json = ATOMIC_VAR_INIT(-1);
 static atomic_flag diagnostic_lock = ATOMIC_FLAG_INIT;
@@ -121,6 +124,13 @@ report(ZirSourceSpan span, const char *severity, const char *code,
     vsnprintf(buffers->message, sizeof(buffers->message), format, args);
     int json = DiagnosticJsonEnabled();
     int warning = strcmp(severity, "warning") == 0;
+#ifdef __ANDROID__
+    /* Native Android activities normally have no readable stderr. Keep the
+     * normal diagnostic stream and also expose runtime failures to logcat. */
+    __android_log_print(warning ? ANDROID_LOG_WARN : ANDROID_LOG_ERROR, "Ziran",
+                        "%s:%d:%d: %s [%s]", SpanPath(span), span.line,
+                        span.column, buffers->message, code);
+#endif
     while(atomic_flag_test_and_set_explicit(&diagnostic_lock, memory_order_acquire)) {}
     if(json) {
         fprintf(stderr, "{\"schema_version\":1,\"severity\":\"%s\",\"code\":", severity);

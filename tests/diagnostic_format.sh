@@ -47,3 +47,5 @@ for line in lines:
     assert item['end_line'] >= item['line'], item
 PY
 done
+
+sh "$(dirname "$0")/diagnostic_android.sh"

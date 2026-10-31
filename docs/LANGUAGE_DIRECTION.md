@@ -88,7 +88,10 @@ GPU management in every call site. The language and runtime must define which
 operations may run concurrently, their memory and effect rules, and the
 observable ordering guarantees. CPU and GPU implementations must preserve
 those semantics; unsupported execution paths must report a capability or
-target error instead of silently changing the result.
+target error instead of silently changing the result. Integer, byte and
+boolean results are exact on every device. A float32 result may round
+differently on a device, since shaders and the C target do not compute floats
+at the same precision.
 
 ### Parallel execution contract
 
@@ -142,10 +145,11 @@ target. Native C executes forward regions on pthreads with
 iteration-local workers and read-only captures; the portable VM and Go run
 regions serially with a reported downgrade, which the backend-duties clause
 permits. `#parallel_gpu for` regions enforce the GPU clause — pointer
-storage and pointer-bearing arguments are rejected before offload — and, with
-no GPU device capability in the repository, run on the CPU worker path with
-an emitted downgrade marker. Offload to a concrete GPU API remains future
-work.
+storage and pointer-bearing arguments are rejected before offload — and, on
+the native C target, run as OpenGL ES 3.1 compute shaders on the fastest GPU
+when one is available. A region a shader cannot compute as the CPU does stays
+on the CPU worker path with an emitted marker, and one that cannot finish on a
+device reruns there.
 
 ## Jai source syntax
 

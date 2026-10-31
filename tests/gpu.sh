@@ -54,7 +54,7 @@ C
                 -I"$repo/include" -I"$output" "$output"/*.c \
                 -o "$output/app"
             "$output/app"
-            rg -q "no GPU device capability" "$output/gpu.c"
+            rg -q "stays on CPU threads" "$output/gpu.c"
         fi
     done
 done

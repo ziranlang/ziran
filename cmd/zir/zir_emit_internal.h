@@ -157,11 +157,22 @@ typedef struct ParallelRegion {
     char worker[ZIR_NAME_MAX * 2];
 } ParallelRegion;
 
+/* A region as a compute shader, and how each capture reaches it. */
+typedef struct GpuRegionCode {
+    char *text;
+    char reason[160];
+    int kinds[16];
+    int is_buffer[16];
+    int writes[16];
+} GpuRegionCode;
+
 /* Shared between the parts only: the Makefile merges the parts into one
  * object and localizes these hidden symbols, so they never leave it. */
 #pragma GCC visibility push(hidden)
 extern int zir_minify_output;
 int format(char *out, size_t size, const char *format_string, ...);
+int GpuLowerRegion(const ZirModule *module, const ZirFunction *fn, const ParallelRegion *region, GpuRegionCode *code);
+void GpuEmitShaderLines(Emitter *e, const char *text);
 int function_mentions(const ZirFunction *fn, const char *name);
 const char *canonical(const char *type);
 void slot_native_type(const char *source, ZirTarget target, char *out, size_t size);

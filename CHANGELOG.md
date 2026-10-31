@@ -3,6 +3,8 @@
 ## [Unreleased]
 ### Added
 - `--exe --release` builds with link-time optimization across modules.
+- `#parallel_gpu for` runs on the fastest GPU in native Linux and Android builds,
+  falling back to CPU threads.
 - Python build tools can consume verified dependency artifacts and ordered
   native link metadata through the toolchain's shared artifact helper.
 - Dependency-owned native artifact recipes build and reuse declared output sets

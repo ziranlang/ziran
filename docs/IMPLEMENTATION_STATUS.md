@@ -1504,9 +1504,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   regions validate before offload per the GPU clause: pointer storage,
   pointer-bearing call arguments, and allocator-backed Vec mutation are
   rejected, and external-class calls were already barred by the region
-  rules; with no GPU device capability in this repository every GPU region
-  runs on the CPU worker path with an emitted downgrade marker. Actual
-  device offload to a GPU API remains future work.
+  rules. On the native C target on Linux and Android, `cmd/zir/zir_emit_gpu.c`
+  lowers a region and its callees to an OpenGL ES 3.1 compute shader and
+  `include/ziran_gpu.h` runs it on the fastest device it measures, loading EGL
+  and GLES at run time. Regions of 32-bit integers, float32, bytes and booleans
+  with `capture[it]` writes qualify; 64-bit values, nested `for`, globals,
+  records, signed or variable division and foreign calls keep the CPU worker
+  path with an emitted marker. A failed bounds check, a used up loop budget or a
+  refused shader discards device results and reruns the region on the CPU. The
+  ZX engine, the portable VM and Go do not offload. `tests/gpu_offload.sh`
+  compares every device with the CPU.
 - `ziran explain` exposes a stable registry for every diagnostic code currently
   emitted by the compiler, with textual and JSON output. `ziran explain --list`
   enumerates the registry, and `tests/explain.sh` fails if a new emitted code is

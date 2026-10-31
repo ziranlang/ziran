@@ -216,7 +216,7 @@ PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c 
     _condition.c _discover.c _source.c)
 CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
     _function.c _link.c _program.c)
-EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c)
+EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c _gpu.c)
 VM_PARTS := $(addprefix cmd/zir/zir_vm,.c _verify.c _eval.c _run.c)
 
 # COFF does not retain ELF hidden visibility, but objcopy can localize the
@@ -346,7 +346,7 @@ $(BIN_DIR)/zi-inspect: $(call obj,cmd/zir-inspect/main.c) $(FRONTEND_OBJECTS) | 
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_string.h include/zir_slice.h \
-    include/zir_vec.h include/ziran_parallel.h
+    include/zir_vec.h include/ziran_parallel.h include/ziran_gpu.h
 
 $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS)
 	mkdir -p $(dir $@)

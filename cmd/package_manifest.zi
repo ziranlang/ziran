@@ -27,6 +27,10 @@ PkgManifest :: struct {
     root_count: s32
     bridges: [16]string
     bridge_count: s32
+    // Folders a project command's --module-path adds to this root package,
+    // such as modules a build step writes; never part of ziran.toml.
+    generated: [16]string
+    generated_count: s32
     tool_git: string
     tool_ref: string
     project_tool: string

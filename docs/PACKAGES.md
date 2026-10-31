@@ -156,6 +156,32 @@ module_aliases = { Drawing = "GraphicsDrawing" }
 Only the dependency's `[exports]` are visible. Its other modules are private
 to it, so their names never collide with yours.
 
+### Generated modules
+
+A build step can write modules for your program, such as translations or
+level tables. Pass their folder to the project command that needs them:
+
+```sh
+ziran bundle --project --module-path build/gen --entry app:main -o app.zx src/app.zi
+ziran check --project --module-path build/gen
+```
+
+Each `--module-path DIR` (repeatable) adds `DIR/NAME.zi` and
+`DIR/NAME/module.zi` to your package's own modules, as if they were under a
+`module_roots` folder. Everything else still resolves from `ziran.lock`. The
+folder belongs to your package only: dependencies never see its modules, so a
+generated `Value` cannot replace a dependency's own `Value`. A generated
+module may not share a name with one of your modules, and the folder may not
+lie inside a locked package or the toolchain. Packages come from the lock, so
+the standalone `NAME=DIR` spelling is refused here.
+
+Commands that don't pass the folder never look for it, so `lock`, `update`,
+`fetch` and `check` work on a fresh checkout before the build step has run;
+only an import of a module that isn't there yet fails. A project tool that
+runs `ziran build`, `run` or `check` for the project receives the same
+`--module-path` arguments. Without `--project`, `--module-path` keeps a
+command standalone.
+
 ## Publishing a package
 
 An exported module is a package-owned file. Its public name may differ from

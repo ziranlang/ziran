@@ -97,6 +97,41 @@ PkgScanModules :: (directory: string, manifest: *PkgManifest,
     return true
 }
 
+// Adds the modules of each generated folder (current.generated, canonical
+// paths) to the root package's set. Locked packages never see them: a
+// package resolves short imports in its own modules and its dependencies'
+// exports only. A generated module may not reuse a root module's name.
+PkgAddGeneratedModules :: (current: *PkgManifest, output: *PkgModuleSet) -> bool {
+    if current.generated_count == 0 { return true }
+    folder: *PkgManifest = PkgNewManifest()
+    found: *PkgModuleSet = cast(*PkgModuleSet)PkgAllocZero(cast(u64)size_of(PkgModuleSet))
+    if folder == null || found == null { return false }
+    folder.roots[0] = "."
+    folder.root_count = 1
+    for directory: current.generated[0:current.generated_count] {
+        found.count = 0
+        if !PkgScanModules(directory, folder, found) {
+            unused PkgFail(PkgJoin("cannot read the modules of --module-path folder ", directory))
+            return false
+        }
+        index: s32 = 0
+        while index < found.count {
+            name: string = found.items[index].name
+            if PkgHasModule(output, name) {
+                unused PkgFail(PkgJoin3(PkgJoin3("generated module ", name, " in "),
+                    directory, " has the name of another project module"))
+                return false
+            }
+            if output.count >= 4096 { return false }
+            output.items[output.count].name = name
+            output.items[output.count].path = found.items[index].path
+            output.count += 1
+            index += 1
+        }
+    }
+    return true
+}
+
 PkgAppendModuleSet :: (builder: *PkgBuilder, id: string, directory: string,
     set: *PkgModuleSet) -> void {
     PkgAppend(builder, PkgJoin3("P\t", id, "\t"))
@@ -230,7 +265,13 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string
     builder.bytes = BytesFromPointer(memory, 33554432)
     builder.valid = true
     if !PkgScanModules(root, current, *graph.sets[0]) { return "" }
+    if !PkgAddGeneratedModules(current, *graph.sets[0]) { return "" }
     PkgAppendModuleSet(*builder, "root", root, *graph.sets[0])
+    // Files in a generated folder belong to the root package wherever the
+    // folder is, so their own imports resolve as the project's.
+    for folder: current.generated[0:current.generated_count] {
+        PkgAppend(*builder, PkgJoin3("P\troot\t", folder, "\n"))
+    }
     index: s32 = 0
     while index < locked.count {
         item: *PkgLocked = *locked.packages[index]

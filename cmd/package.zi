@@ -217,7 +217,10 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
             }
         }
         values[0] = PkgWriteMap(root, locked, current)
-        if values[0].count == 0 { return PkgFail("cannot build project import map") }
+        if values[0].count == 0 {
+            if pkg_failure_reported { return 2 }
+            return PkgFail("cannot build project import map")
+        }
     }
     child: [260]string
     count: s32 = 0
@@ -501,6 +504,60 @@ PkgRunSelectedToolOptions :: (root: string, locked: *PkgLock, current: *PkgManif
     return PkgRun(child[0:index + 1], root, names[0:count], values[0:count])
 }
 
+// Checks each project --module-path FOLDER and records it, canonical, as a
+// generated module root of CURRENT. Packages come from ziran.lock, so the
+// NAME=DIR spelling is refused, and a folder inside a locked package or the
+// toolchain cannot become the project's.
+// The length of BASE when PATH is BASE or inside it, else -1.
+PkgPathWithin :: (path: string, base: string) -> s64 {
+    if base.count == 0 { return -1 }
+    if path == base || (path.count > base.count && path[0:base.count] == base &&
+        path[base.count] == cast(u8)47) { return cast(s64)base.count }
+    return -1
+}
+
+PkgGeneratedRoots :: (root: string, locked: *PkgLock, current: *PkgManifest, folders: []string) -> bool {
+    for folder: folders {
+        at: s64 = 0
+        while at < cast(s64)folder.count && folder[at] != cast(u8)61 &&
+            folder[at] != cast(u8)47 { at += 1 }
+        if at > 0 && at < cast(s64)folder.count && folder[at] == cast(u8)61 {
+            unused PkgFail(PkgJoin3("in a project, packages come from ziran.lock; --module-path takes a folder of the project's own modules, not ",
+                folder, ""))
+            return false
+        }
+        path: string = PkgCanonical(folder)
+        if path.count == 0 || !DirectoryExists(path) {
+            unused PkgFail(PkgJoin("--module-path folder does not exist: ", folder))
+            return false
+        }
+        // The compiler gives a file to the package with the longest path
+        // holding it; the folder must belong to the project, not a package.
+        owner: string = ""
+        best: s64 = PkgPathWithin(path, PkgCanonical(root))
+        index: s32 = -1
+        while index < locked.count {
+            base: string = locked.tool_path
+            name: string = "the Ziran toolchain"
+            if index >= 0 {
+                base = locked.packages[index].path
+                name = PkgJoin("locked package ", locked.packages[index].name)
+            }
+            index += 1
+            length: s64 = PkgPathWithin(path, PkgCanonical(base))
+            if length > best { best = length; owner = name }
+        }
+        if owner.count > 0 {
+            unused PkgFail(PkgJoin3(PkgJoin3("--module-path folder ", folder, " is inside "),
+                owner, "; a project adds only its own modules"))
+            return false
+        }
+        current.generated[current.generated_count] = path
+        current.generated_count += 1
+    }
+    return true
+}
+
 #program_export
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
     PkgSetDiagnosticFormat(arguments)
@@ -567,9 +624,21 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     offline: bool = PkgHasArgument(flags, "--offline")
     filtered: [256]string
     count: s32 = 0
+    // In a project, --module-path DIR adds a folder of the root package's
+    // own modules, such as one a build step generates.
+    generated: [16]string
+    generated_count: s32 = 0
     index: s32 = 1
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
+        if project && index < separator && part == "--module-path" {
+            if index + 1 >= separator { return PkgFail("--module-path needs a folder") }
+            if generated_count >= 16 { return PkgFail("at most 16 --module-path folders") }
+            generated[generated_count] = arguments[index + 1]
+            generated_count += 1
+            index += 2
+            continue
+        }
         if index >= separator ||
            (part != "--project" && part != "--locked" && part != "--offline") {
             if count >= 256 { return PkgFail("too many arguments") }
@@ -577,9 +646,6 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             count += 1
         }
         index += 1
-    }
-    if project && PkgHasArgument(flags, "--module-path") {
-        return PkgFail("--module-path is for standalone commands")
     }
     locked: *PkgLock = null
     current: *PkgManifest = null
@@ -698,20 +764,30 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if current != null && current.problem.count > 0 {
         return PkgFail(current.problem)
     }
+    if generated_count > 0 &&
+        !PkgGeneratedRoots(root, locked, current, generated[0:generated_count]) { return 2 }
     // A project whose [package] tool is set, such as a Kryon application,
     // hands its program's run, build, check, and install to that tool.
     whole: bool = lifecycle && current != null && !PkgHasTarget(flags[1:])
     if whole && current.tool.count > 0 && command != "install" {
-        passed: [257]string
+        passed: [289]string
         passed[0] = command
+        passed_count: s32 = 1
+        // The tool runs the project's commands, so it gets the folders too.
+        for folder: generated[0:generated_count] {
+            passed[passed_count] = "--module-path"
+            passed[passed_count + 1] = folder
+            passed_count += 2
+        }
         index = 0
         while index < count {
-            passed[index + 1] = filtered[index]
+            passed[passed_count] = filtered[index]
+            passed_count += 1
             index += 1
         }
         empty: [0]string
         return PkgRunTool(root, locked, current, current.tool,
-            passed[0:count + 1], empty[:], empty[:])
+            passed[0:passed_count], empty[:], empty[:])
     }
     if whole && (command == "build" || command == "run") {
         if command == "build" && count > 0 { return PkgFail("usage: ziran build") }
@@ -792,7 +868,10 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             program_root = PkgJoin3(root, "/", current.roots[0])
             if !PkgHasSource(flags[1:]) { program_file = PkgJoin3(root, "/", current.entry) }
             map = PkgWriteMap(root, locked, current)
-            if map.count == 0 { return PkgFail("cannot build project import map") }
+            if map.count == 0 {
+                if pkg_failure_reported { return 2 }
+                return PkgFail("cannot build project import map")
+            }
             index = 0
             while index < locked.count {
                 if !locked.packages[index].source {

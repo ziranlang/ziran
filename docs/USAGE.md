@@ -360,6 +360,9 @@ project, name the package's module directory instead:
 `--module-path kryon=../kryon/src/ui` serves `kryon/NAME` imports from that
 directory (and only those; repeat it for more directories). A package
 builds the same way in both modes when each export has its module's name.
+With `--project`, `--module-path DIR` adds a folder of generated modules to
+the project's own package only; see
+[generated modules](PACKAGES.md#generated-modules).
 
 `#import, file "../lib/helper.zi";` loads an explicit source file relative to
 the importing file. Saved `.zir` builds resolve its module by name from the

@@ -390,6 +390,88 @@ Independent = "{independent}"
     print("PASS: transitive add write failures roll back; sources and ref/root drift resolve normally", flush=True)
 
 
+def check_generated_modules(ziran: str, root: Path, compiler: Path,
+                            env: dict) -> None:
+    # Modules a build step writes join the root project through
+    # --module-path; locked packages still resolve their own modules.
+    library = root / "generated-library"
+    init(library, env)
+    write(library / "ziran.toml", """[package]
+name = "GeneratedLibrary"
+module_roots = ["src"]
+[exports]
+Shared = "src/Shared.zi"
+""")
+    write(library / "src/Value.zi", "Value :: () -> s32 { return 40 }\n")
+    write(library / "src/Shared.zi",
+          '#import "Value"\nShared :: () -> s32 { return Value() }\n')
+    commit(library, env)
+    app = root / "generated-app"
+    app.mkdir()
+    write(app / "ziran.toml", f'''[package]
+name = "GeneratedApp"
+entry = "src/app.zi"
+module_roots = ["src"]
+[toolchain]
+git = "{compiler.as_uri()}"
+ref = "master"
+[dependencies.lib]
+git = "{library.as_uri()}"
+ref = "master"
+''')
+    write(app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+    write(app / "src/plain.zi",
+          '#import "Shared"\nPlain :: () -> s32 { return Shared() }\n')
+    write(app / "src/app.zi", '''#import "Shared"
+#import "translations"
+#import "Value"
+#program_export
+main :: () -> s32 {
+    if Shared() == 40 && Value() == 2 && Translated() == 3 { return 0 }
+    return 1
+}
+''')
+    # A fresh checkout has no generated folder yet; commands that do not
+    # import its modules still work.
+    call(ziran, "lock", cwd=app, env=env)
+    call(ziran, "update", cwd=app, env=env)
+    call(ziran, "fetch", cwd=app, env=env)
+    call(ziran, "check", "--project", str(app / "src/plain.zi"), cwd=app, env=env)
+    generated = app / "build/gen"
+    missing = call(ziran, "check", "--project", "--module-path", "build/gen",
+                   cwd=app, env=env, succeed=False)
+    assert "--module-path folder does not exist: build/gen" in missing, missing
+    unresolved = call(ziran, "check", "--project", cwd=app, env=env, succeed=False)
+    assert "module translations is not in package root" in unresolved, unresolved
+    # A generated Value is the project's; the library keeps its own Value.
+    write(generated / "translations.zi",
+          '#import "Value"\nTranslated :: () -> s32 { return Value() + 1 }\n')
+    write(generated / "Value.zi", "Value :: () -> s32 { return 2 }\n")
+    call(ziran, "check", "--project", "--module-path", str(generated),
+         cwd=app, env=env)
+    bundle = root / "generated.zx"
+    call(ziran, "bundle", "--project", "--module-path", "build/gen",
+         "--entry", "app:main", "-o", str(bundle), str(app / "src/app.zi"),
+         cwd=app, env=env)
+    assert call(ziran, "run", str(bundle), cwd=app, env=env).strip() == "0"
+    # The generated folder may not reuse a project module's name, name a
+    # package, or lie inside a locked package.
+    write(generated / "plain.zi", "Other :: () -> s32 { return 0 }\n")
+    clash = call(ziran, "check", "--project", "--module-path", str(generated),
+                 cwd=app, env=env, succeed=False)
+    assert "generated module plain in" in clash, clash
+    assert "cannot build project import map" not in clash, clash
+    (generated / "plain.zi").unlink()
+    named = call(ziran, "check", "--project", "--module-path", "lib=build/gen",
+                 cwd=app, env=env, succeed=False)
+    assert "packages come from ziran.lock" in named, named
+    package = call(ziran, "pkg", "path", "lib", cwd=app, env=env).strip()
+    inside = call(ziran, "check", "--project", "--module-path",
+                  f"{package}/src", cwd=app, env=env, succeed=False)
+    assert "is inside locked package" in inside, inside
+    print("PASS: project --module-path folders join the root package only", flush=True)
+
+
 def main() -> None:
     ziran = str(Path(sys.argv[1]).resolve())
     # The compiler repository is the one holding this test, wherever the
@@ -411,6 +493,7 @@ def main() -> None:
         check_shared_commit_refs(ziran, root, env)
         check_override_graph(ziran, root, env)
         check_artifacts(ziran, root, env, compiler, call, write, init, commit)
+        check_generated_modules(ziran, root, compiler, env)
 
         library = root / "library"
         init(library, env)

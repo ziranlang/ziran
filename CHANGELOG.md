@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 ### Added
+- Project commands such as `ziran bundle --project` accept `--module-path DIR`
+  for modules a build step generates. They join the project's own modules;
+  dependencies still resolve only from the lock and never see them.
 - `--exe --release` builds with link-time optimization across modules.
 - `#parallel_gpu for` runs on the fastest GPU in native Linux and Android builds,
   falling back to CPU threads.

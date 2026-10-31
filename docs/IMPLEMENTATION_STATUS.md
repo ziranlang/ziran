@@ -1530,8 +1530,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   The record-call harness covers fixed arrays, record value parameters, field
   access, wrapping `s32` updates, and an ordinary call in every round. It
   compares source and saved IR through generated C, Go, and `.zx`, plus the
-  available comparison languages. Its 206-sample baseline is in
-  `bench/results/2026-09-28-record-calls/`.
+  available comparison languages.
 - Package manifests and lockfiles can pin source-only dependencies without a
   Ziran manifest. Resolution, checkout, map generation, drift detection, and
   `ziran add --source` are covered by `tests/packages.py`.

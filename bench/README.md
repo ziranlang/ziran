@@ -554,11 +554,6 @@ a comparison can be checked against the exact experiment. A broader suite
 still needs generics, larger module graphs, more compiler-scaling cases, and
 real applications.
 
-The first repeated baseline, including raw samples and machine metadata, is
-in [`results/2026-09-27`](results/2026-09-27/benchmark.md). It used three
-measured compile samples and five measured runtime samples per case on one
-machine; its medians are not regression thresholds.
-
 For a second workload that grows a `Vec(s32)` and then scans it, run:
 
 ```sh
@@ -576,13 +571,6 @@ source and tool hashes, and caveats are written alongside the report. These
 workloads remain a smoke and collection baseline; they do not cover text,
 records, generics, larger module graphs, or real applications.
 
-The [vector-growth baseline](results/2026-09-27-vector-growth/benchmark.md)
-contains three measured compilation and five measured execution samples per
-case on one machine. The generated C runs were close to their
-handwritten comparisons for the large input; generated Go took about 22 ms
-versus 8 ms for handwritten Go. This identifies a workload for investigating
-vector lowering, not a general performance ranking.
-
 For a record-value and call workload over a fixed `[32]Point` table, run:
 
 ```sh
@@ -597,18 +585,11 @@ Handwritten C, C++, Go, Rust, Java, JavaScript, and Python versions participate
 when installed. Every sample must match an independent Python oracle; source
 and saved-IR generated output and bundles are checked for equality. The VM runs
 the small input only because the large input exceeds its instruction budget.
-The [record-call baseline](results/2026-09-28-record-calls/README.md) contains
-206 samples across 50 combinations.
 
 For a focused before/after comparison of two validated Go binaries, run
 `bench/vector_growth_ab.py --before PATH --after PATH --out NEW.json`. It
 shuffles execution order, checks every checksum, and records raw samples and
-binary hashes. A [paired fast-path result](results/2026-09-27-vector-growth-go-fastpath/README.md)
-shows how the general arithmetic helper affected the vector workload.
-
-A [provisional multilanguage matrix](results/2026-09-27-vector-growth-multilang/README.md)
-adds Rust, Java, JavaScript, and Python comparisons after the Go arithmetic
-fast path. Its metadata records the dirty working tree used for that run.
+binary hashes.
 
 For a UTF-8 scanning workload over `aé中🙂`, run:
 
@@ -620,6 +601,4 @@ The text has 10 bytes and 4 Unicode scalar values; every runtime sample must
 return `148921 * rounds`. The harness compares Ziran source and saved IR to
 C, Go, and `.zx`, plus handwritten C, C++, Go, Rust, Java, JavaScript, and
 Python when installed. It validates generated-source and bundle equality and
-records unavailable tools rather than estimating them. The
-[committed-head result](results/2026-09-27-text-scan-multilang/README.md)
-contains 206 validated samples across 50 phase/case combinations.
+records unavailable tools rather than estimating them.

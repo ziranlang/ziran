@@ -41,6 +41,17 @@ fi
 sed -i 's/return 41/return 42/' helper.zi
 test "$("$ziran" run --target=c script.zi)" = '42'
 
+# A compiler past the ordinary file size limit still gets cached scripts.
+large_bin=$work/large
+mkdir -p "$large_bin"
+cp "$ziran" "$large_bin/ziran"
+printf '#!/bin/sh\nexec "%s" "$@"\n' "$(dirname "$ziran")/zi2c" > "$large_bin/zi2c"
+chmod +x "$large_bin/zi2c"
+truncate -s +17M "$large_bin/zi2c"
+large_cache=$work/large-cache
+test "$(XDG_CACHE_HOME="$large_cache" "$large_bin/ziran" run --target=c script.zi)" = '42'
+rg --files --hidden -g .ready "$large_cache/ziran/native" > /dev/null
+
 # A project tool beside the module root imports the project's modules.
 mkdir -p project/src project/tools project/build/huge
 cat > project/ziran.toml <<'TOML'

@@ -35,7 +35,8 @@ Ends :: (value: string, suffix: string) -> bool {
 }
 
 FingerprintFile :: (path: string, state: *string) -> bool {
-    content := PkgRead(path)
+    // A compiler can outgrow ordinary project files, most of all instrumented.
+    content := PkgReadLimited(path, 1073741824)
     if !content.valid { return false }
     <<state = Hash(PkgJoin3(<<state, Hash(path), Hash(content.text)))
     // #load may reach outside every module search root. Until the frontend

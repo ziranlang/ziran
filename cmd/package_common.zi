@@ -124,12 +124,14 @@ PkgProjectRoot :: () -> string {
     return ""
 }
 
-PkgRead :: (path: string) -> PkgReadResult {
+PkgRead :: (path: string) -> PkgReadResult { return PkgReadLimited(path, 16777216) }
+
+PkgReadLimited :: (path: string, limit: s64) -> PkgReadResult {
     result: PkgReadResult
     file: FileHandle = OpenRead(path)
     if !file.valid { return result }
     size: s64 = FileSize(file)
-    if size < 0 || size > 16777216 {
+    if size < 0 || size > limit {
         CloseFile(file)
         return result
     }

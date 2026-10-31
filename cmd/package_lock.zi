@@ -245,10 +245,33 @@ PkgEdgeRefMatches :: (target: *PkgLocked, ref: string, saved: string,
     return PkgRefMatches(target, ref) || (saved == ref && override.count > 0)
 }
 
-PkgFindBySource :: (locked: *PkgLock, url: string, ref: string) -> s32 {
+// A source checkout and a package of one repository commit are separate lock
+// entries: a project may pin a game package and also read that game's files
+// as a source checkout. The source entry's id names its kind.
+PkgLockId :: (url: string, commit: string, source: bool) -> string {
+    if source { return PkgSourceId(PkgJoin(PkgSourceKey(url), "\nsource"), commit) }
+    return PkgSourceId(PkgSourceKey(url), commit)
+}
+
+// Locks written before source entries had their own id keep the package id
+// form; that id is unambiguous while no package entry shares it.
+PkgLockIdMatches :: (locked: *PkgLock, index: s32) -> bool {
+    item: *PkgLocked = *locked.packages[index]
+    if item.id == PkgLockId(item.url, item.commit, item.source) { return true }
+    if !item.source || item.id != PkgLockId(item.url, item.commit, false) { return false }
+    other: s32 = 0
+    while other < locked.count {
+        if other != index && locked.packages[other].id == item.id { return false }
+        other += 1
+    }
+    return true
+}
+
+PkgFindBySource :: (locked: *PkgLock, url: string, ref: string, source: bool) -> s32 {
     index: s32 = 0
     while index < locked.count {
         if locked.packages[index].ref == ref &&
+            locked.packages[index].source == source &&
             PkgSameSource(locked.packages[index].url, url) {
             return index
         }
@@ -747,7 +770,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             index += 1
         }
         pending_count -= 1
-        found: s32 = PkgFindBySource(resolved, next.url, next.ref)
+        found: s32 = PkgFindBySource(resolved, next.url, next.ref, next.source)
         if found < 0 {
             if resolved.count >= 64 { return false }
             found = resolved.count
@@ -756,7 +779,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             item.ref = next.ref
             override: string = PkgSourceOverride(overrides, current, old,
                 next.url, next.alias, root)
-            previous: s32 = PkgFindBySource(old, next.url, next.ref)
+            previous: s32 = PkgFindBySource(old, next.url, next.ref, next.source)
             // A targeted update reads an unrelated package's pinned manifest,
             // even when its development override has newer or dirty inputs.
             if targeted && old.valid && previous >= 0 && !next.refresh {
@@ -785,7 +808,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             // one and that branch's commit in another. They are one package:
             // a second copy would give the lock two entries with one id. The
             // entry keeps the branch; pins match it by commit (PkgRefMatches).
-            source_id: string = PkgSourceId(PkgSourceKey(item.url), item.commit)
+            source_id: string = PkgLockId(item.url, item.commit, next.source)
             same: s32 = PkgFindById(resolved, source_id)
             if same >= 0 {
                 found = same
@@ -891,7 +914,7 @@ PkgApplyOverrideIdentities :: (root: string, overrides: *PkgOverrides,
             if commit.count == 0 { return false }
             old_id: string = item.id
             item.commit = commit
-            item.id = PkgSourceId(PkgSourceKey(item.url), commit)
+            item.id = PkgLockId(item.url, commit, item.source)
             owner: s32 = -1
             while owner < locked.count {
                 edges: *PkgNamedValue = *locked.root_edges[0]
@@ -975,7 +998,7 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     index = 0
     while index < locked.count {
         item: *PkgLocked = *locked.packages[index]
-        if item.id != PkgSourceId(PkgSourceKey(item.url), item.commit) { return false }
+        if !PkgLockIdMatches(locked, index) { return false }
         override: string = PkgSourceOverride(overrides, current, locked,
             item.url, item.name, root)
         if override.count > 0 && PkgGitHead(override).count == 0 { return false }

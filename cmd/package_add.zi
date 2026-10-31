@@ -62,8 +62,8 @@ PkgAddLocked :: (root: string, current: *PkgManifest, alias: string,
            locked.packages[target].source != dependency.source { return 0 }
         index += 1
     }
-    target := PkgFindBySource(locked, url, reference)
-    if target < 0 || locked.packages[target].source != source { return 0 }
+    target := PkgFindBySource(locked, url, reference, source)
+    if target < 0 { return 0 }
     locked.root_edges[locked.root_edge_count].name = alias
     locked.root_edges[locked.root_edge_count].value = locked.packages[target].id
     locked.root_edge_count += 1

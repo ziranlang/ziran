@@ -32,6 +32,7 @@
 - Saved IR (format 59) writes each string once and refers back to it, stores numbers in as few bytes as they need, and stores source positions relative to the previous one, so `.zir` files and `.zx` bundles carry about a third of their former code size at the same open cost. Rebuild format 58 IR and bundles from source.
 
 ### Fixed
+- `ziran lock` and `ziran update` resolve a project that depends on a package and also pins the same repository commit as a source checkout, such as a game and its artwork. The source checkout gets its own lock entry instead of failing with "cannot update project lock"; existing locks still verify.
 - Android applications report portable execution errors in the system log, so failures can be diagnosed when no terminal is attached.
 - Artifact recipes accept up to 256 inputs, so a provider with a long source
   list no longer fails with "unknown or invalid artifact recipe".

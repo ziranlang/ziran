@@ -2,6 +2,7 @@
 """Local Git fixtures for package locking, aliases, and two dependency revisions."""
 
 from pathlib import Path
+import hashlib
 import json
 import os
 import shutil
@@ -354,11 +355,17 @@ Independent = "{independent}"
     assert (app / "ziran.lock").read_bytes() == lock_bytes
     (app / "ziran.lock.tmp").rmdir()
 
-    # A source/normal-package conflict needs ordinary resolution and rollback.
+    # A source checkout of a locked package's repository is its own entry,
+    # even at the package's commit.
     reset()
-    call(ziran, "add", leaf.as_uri(), "--source", cwd=app, env=env, succeed=False)
-    assert (app / "ziran.toml").read_text() == original
-    assert (app / "ziran.lock").read_bytes() == lock_bytes
+    call(ziran, "add", leaf.as_uri(), "--source", cwd=app, env=env)
+    resolved = json.loads((app / "ziran.lock").read_text())
+    library = next(p for p in resolved["packages"]
+                   if p["name"] == "Library" and not p.get("source"))
+    source = next(p for p in resolved["packages"]
+                  if p["id"] == resolved["root"]["dependencies"]["library"])
+    assert source["source"] is True and source["id"] != library["id"]
+    assert source["commit"] == library["commit"]
 
     # A different revision is a new graph node, not the existing master pin.
     reset()
@@ -380,7 +387,7 @@ Independent = "{independent}"
         call(ziran, "add", leaf.as_uri(), cwd=app, env=env)
         resolved = json.loads((app / "ziran.lock").read_text())
         assert resolved["toolchain"]["commit"] != before["toolchain"]["commit"]
-    print("PASS: transitive add write/source failures roll back; ref/root drift resolves normally", flush=True)
+    print("PASS: transitive add write failures roll back; sources and ref/root drift resolve normally", flush=True)
 
 
 def main() -> None:
@@ -787,6 +794,36 @@ Backend = "src/Backend.zi"
         saved_lock = (app / "ziran.lock").read_bytes()
         call(ziran, "lock", cwd=app, env=env)
         assert (app / "ziran.lock").read_bytes() == saved_lock
+        # Locks written before source entries had their own id still verify.
+        legacy = json.loads(saved_lock)
+        legacy_id = "p" + hashlib.sha256(
+            f'{native_entry["url"]}\n{native_entry["commit"]}'.encode()).hexdigest()[:16]
+        for item in legacy["packages"]:
+            if item["name"] == "native":
+                item["id"] = legacy_id
+        legacy["root"]["dependencies"]["native"] = legacy_id
+        (app / "ziran.lock").write_text(json.dumps(legacy))
+        call(ziran, "fetch", "--offline", cwd=app, env=env)
+        call(ziran, "check", "--project", cwd=app, env=env)
+        (app / "ziran.lock").write_bytes(saved_lock)
+        # A project may pin a package and also read that package's repository
+        # as a source checkout at the same commit; each keeps its own entry.
+        write(app / "ziran.toml", sourced +
+              f'\n[dependencies.backend_files]\ngit = "{backend.as_uri()}"\nref = "master"\nsource = true\n')
+        call(ziran, "lock", cwd=app, env=env)
+        both = json.loads((app / "ziran.lock").read_text())
+        backend_entries = [item for item in both["packages"]
+                           if item["url"] == backend.as_uri()]
+        assert sorted(bool(item.get("source")) for item in backend_entries) == [False, True]
+        assert len({item["id"] for item in backend_entries}) == 2
+        assert len({item["commit"] for item in backend_entries}) == 1
+        call(ziran, "check", "--project", cwd=app, env=env)
+        files_path = Path(call(ziran, "pkg", "path", "backend_files", cwd=app,
+                               env=env).strip())
+        assert (files_path / "ziran.toml").is_file()
+        call(ziran, "update", "backend_files", cwd=app, env=env)
+        write(app / "ziran.toml", sourced)
+        call(ziran, "lock", cwd=app, env=env)
         write(app / "ziran.toml", sourced.replace("source = true\n", ""))
         drift = call(ziran, "check", "--project", cwd=app, env=env,
                      succeed=False)

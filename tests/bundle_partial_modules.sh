@@ -45,6 +45,12 @@ Main :: () -> s32 {
     return LibraryValue() + AddonValue(value.state)
 }
 ZI
+# Uses only what the library retains, so nothing of model is composed.
+cat > "$work/plain.zi" <<'ZI'
+#import "model"
+#program_export
+Main :: () -> s32 { return LibraryValue() + 1 }
+ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/addon.zi" "$work/base.zi"
 for input in source saved; do
     root=$work
@@ -58,6 +64,33 @@ for input in source saved; do
         -o "$work/included-$input.zx" "$root/addon.$ext"
 done
 for name in base standalone thin included; do cmp "$work/$name-source.zx" "$work/$name-saved.zx"; done
+"$ziran" bundle --root "$work" --entry plain:Main --library "$work/base-source.zx" \
+    -o "$work/plain-thin.zx" "$work/plain.zi"
+
+# Only an add-on composed into a library module needs version 27; every other
+# bundle keeps version 26, so hosts built before 27 still open it.
+python3 - "$work" <<'PY'
+from pathlib import Path
+import sys
+work = Path(sys.argv[1])
+expected = {'base-source': 26, 'standalone-source': 26, 'included-source': 26,
+            'plain-thin': 26, 'thin-source': 27}
+for name, version in expected.items():
+    data = (work / f'{name}.zx').read_bytes()
+    assert data[:8] == b'ZX\0\0' + bytes([version, 0, 0, 0]), (name, data[:8])
+PY
+compat_args="$work/base-source.zx $work/standalone-source.zx $work/plain-thin.zx $work/thin-source.zx"
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" "$repo/tests/bundle_version_compat_test.c" \
+    "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -pthread -o "$work/compat"
+"$work/compat" $compat_args new
+# ZIRAN_ZX26_ROOT names a built toolchain from before version 27, such as a
+# locked c8c6c96c package checkout with include/ and build/libziran.a.
+if [ -n "${ZIRAN_ZX26_ROOT:-}" ]; then
+    "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$ZIRAN_ZX26_ROOT/include" \
+        "$repo/tests/bundle_version_compat_test.c" "$ZIRAN_ZX26_ROOT/build/libziran.a" \
+        -lm -pthread -o "$work/compat-old"
+    "$work/compat-old" $compat_args old
+fi
 
 # Run native C from source and saved IR with explicit host implementations.
 for input in source saved; do

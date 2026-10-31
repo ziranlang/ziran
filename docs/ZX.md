@@ -10,7 +10,7 @@ rebuild previous `.zib` programs from source or current `.zir`; changing a
 filename alone does not convert the binary format. The previous tool and
 target names are not aliases.
 
-## Experimental version 27
+## Experimental versions 26 and 27
 
 `zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, then links reachable
@@ -105,8 +105,8 @@ source and saved IR, including pointer and slice arguments, nullable values,
 global initializers, and calls through record fields and fixed arrays.
 Fixed arrays with numeric or resolved integer constant-expression capacities support defaults,
 positional literals, element reads and writes, and value copies, including
-nested arrays and `u8` arrays inside imported records. Indexing is bounds-checked. Version 27 is
-experimental and has no compatibility promise. Host calls with procedure
+nested arrays and `u8` arrays inside imported records. Indexing is bounds-checked. Versions 26 and 27 are
+experimental and have no compatibility promise. Host calls with procedure
 slots remain unsupported. Default-initialized module globals of
 portable value types work within one `BundleRun`; each call starts with fresh
 global values. `BundleInstantiate` creates an instance whose globals persist
@@ -180,15 +180,19 @@ compilation contexts retained by linked copies. Each instance
 has one independent global state for the composed module, including both
 library globals and add-on globals.
 
-Version 27 is the required boundary for these composition semantics. Older
-hosts reject its version header before reading capability requirements or
-executing initializers. This reader rejects earlier ZX versions; rebuild the
-runtime, libraries and add-ons together. The saved `.zir` version remains 59:
-its declaration encoding and the behavior of source and native builds are
-unchanged. `tests/bundle_partial_modules.sh` exercises source and saved IR,
-native C and both ZX engines, with capability, private access, duplicate
-provider, overlapping declaration, format rejection and instance isolation
-cases.
+Versions 26 and 27 share one encoding. The writer stores 27 only in a thin
+add-on that composes declarations into a module its library already provides,
+and 26 in every other bundle, so hosts built before 27 still open standalone
+bundles, included libraries and add-ons that share no module. Older hosts
+reject a version 27 header before reading capability requirements or executing
+initializers. This reader accepts both and rejects a version 26 add-on that
+needs composition. The saved `.zir` version remains 59: its declaration
+encoding and the behavior of source and native builds are unchanged.
+`tests/bundle_partial_modules.sh` exercises source and saved IR, native C and
+both ZX engines, with capability, private access, duplicate provider,
+overlapping declaration, format rejection and instance isolation cases. With
+`ZIRAN_ZX26_ROOT` naming a built toolchain from before version 27, it also
+checks that host opens current plain bundles and refuses composed add-ons.
 
 ## Native execution
 
@@ -275,7 +279,7 @@ Names are sorted bytewise for deterministic output. Duplicate names,
 symlinks, absolute paths, backslashes, empty components, and `.` or `..`
 components are rejected.
 
-After the checked IR, version 27 stores a little-endian u32 file count. Each
+After the checked IR, both versions store a little-endian u32 file count. Each
 file has a u32 name length, name bytes, a u32 data length, and exact binary
 bytes. Empty files are supported. The loader checks lengths against remaining
 input before allocating and rejects noncanonical names/order and trailing data.

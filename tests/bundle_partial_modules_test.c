@@ -114,9 +114,16 @@ int main(int argc, char **argv)
     assert(BundleOpenBytesWithLibraries(data, size, libraries, 1) == NULL);
     free(data);
     strcpy(common->return_type, "s32");
-    /* Unknown/old format is rejected before any capability callback. */
+    /* A composed add-on needs version 27; a version 26 header, which
+     * promises no composition, and unknown versions are rejected before any
+     * capability callback. */
     data = bytes(delta, linked, &size);
+    assert(data[4] == 27);
     data[4] = 26;
+    assert(BundleOpenBytesWithLibraries(data, size, libraries, 1) == NULL);
+    data[4] = 25;
+    assert(BundleOpenBytesWithLibraries(data, size, libraries, 1) == NULL);
+    data[4] = 28;
     assert(BundleOpenBytesWithLibraries(data, size, libraries, 1) == NULL);
     data[4] = 255;
     assert(BundleOpenBytesWithLibraries(data, size, libraries, 1) == NULL);

@@ -18,8 +18,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { ZX_VERSION = 27, ZX_MAX_IR_BYTES = 256 * 1024 * 1024,
-       ZX_MAX_CAPABILITIES = 4096 };
+/* Versions 26 and 27 share one encoding. 27 marks a thin add-on that composes
+ * declarations into a module its library already provides; readers before 27
+ * cannot do that, so the writer uses it only for such add-ons. */
+enum { ZX_VERSION_PLAIN = 26, ZX_VERSION_PARTIAL = 27,
+       ZX_MAX_IR_BYTES = 256 * 1024 * 1024, ZX_MAX_CAPABILITIES = 4096 };
 
 typedef struct CapabilityName {
     char module[ZIR_NAME_MAX];
@@ -2350,6 +2353,20 @@ NativeGoLink_in_context(const ZirProgram *program, const char *entry_module,
     return native_link(program, entry_module, entry_function, 2);
 }
 
+/* True when one of PROGRAM's modules is composed with a library fragment of
+ * the same module in CONTEXT, the checked composition of PROGRAM. */
+static int
+composes_library_module(const ZirProgram *program, const ZirProgram *context)
+{
+    if(context == NULL || context == program) return 0;
+    for(int m = 0; m < program->module_count; m++)
+        for(int c = 0; c < context->module_count; c++)
+            if(context->modules[c].bundle_library != NULL &&
+               !strcmp(program->modules[m].name, context->modules[c].name))
+                return 1;
+    return 0;
+}
+
 int
 BundleWriteInContext(FILE *out, const ZirProgram *program,
                const ZirProgram *context,
@@ -2369,7 +2386,8 @@ BundleWriteInContext(FILE *out, const ZirProgram *program,
         ok = 0;
     if(ok) {
         ok = fwrite("ZX\0\0", 1, 4, out) == 4 &&
-             write_u32(out, ZX_VERSION) &&
+             write_u32(out, composes_library_module(program, context) ?
+                                ZX_VERSION_PARTIAL : ZX_VERSION_PLAIN) &&
              write_name(out, entry_module) &&
              write_name(out, entry_function) &&
              write_u32(out, (uint32_t)capabilities);
@@ -2706,7 +2724,8 @@ BundleProgramEnd(FILE *in)
     if(start < 0)
         return -1;
     if(fread(signature, 1, 4, in) != 4 || memcmp(signature, "ZX\0\0", 4) ||
-       !read_u32(in, &version) || version != ZX_VERSION || !skip_fields(in, 2) ||
+       !read_u32(in, &version) || version < ZX_VERSION_PLAIN ||
+       version > ZX_VERSION_PARTIAL || !skip_fields(in, 2) ||
        !read_u32(in, &count) || count > ZX_MAX_CAPABILITIES || !skip_fields(in, 2 * (int)count))
         goto done;
     /* Each law: six names and a domain, two count words, a counterexample
@@ -2799,7 +2818,7 @@ BundleReadInContext(FILE *in, const char *path,
         goto failed;
     if(!read_u32(in, &version))
         goto failed;
-    if(version != ZX_VERSION) {
+    if(version < ZX_VERSION_PLAIN || version > ZX_VERSION_PARTIAL) {
         problem = "unsupported ZX version";
         goto failed;
     }
@@ -2883,6 +2902,14 @@ BundleReadInContext(FILE *in, const char *path,
         problem = "conflicting bundle library providers";
         goto failed;
     }
+    if(version < ZX_VERSION_PARTIAL)
+        for(size_t i = 0; i < library_count; i++)
+            for(int l = 0; l < libraries[i]->module_count; l++)
+                for(int m = 0; m < own_modules; m++)
+                    if(!strcmp(libraries[i]->modules[l].name, program->modules[m].name)) {
+                        problem = "bundle library module composition needs ZX version 27";
+                        goto failed;
+                    }
     for(size_t i = 0; i < library_count; i++) {
         if(!append_library(program, libraries[i])) {
             problem = "missing or conflicting bundle library";

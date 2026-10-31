@@ -47,8 +47,9 @@
 - Artifact recipes accept up to 256 inputs, so a provider with a long source
   list no longer fails with "unknown or invalid artifact recipe".
 - Add-ons can use records, functions and globals that a shared library did not
-  retain, even when both use the same module. Rebuild hosts and bundles together
-  for portable bundle format 27.
+  retain, even when both use the same module. Only such add-ons need portable
+  bundle format 27; every other bundle is written as format 26, so hosts built
+  before 27 still open it.
 - Native C builds keep globals and constants separate from foreign library symbols, so a variable such as `open` cannot replace the system file-opening function and crash the program.
 - `ziran lock` and `ziran update` lock one package when manifests name the same commit by a branch and by that commit; they failed with "cannot update project lock". A full-commit ref now matches a package locked at that commit.
 - Bundles accept arrays of fixed arrays as function and host capability parameters.

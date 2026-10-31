@@ -42,7 +42,6 @@ static FieldSnapshots *context_fields(void)
 {
     return CompilerContextStorage(CompilerContextCurrent(), COMPILER_FIELDS, sizeof(FieldSnapshots), free_record_fields);
 }
-#define record_fields (*context_fields())
 static atomic_flag record_fields_lock = ATOMIC_FLAG_INIT;
 enum { FIELD_CURSOR_BITS = 12, FIELD_CURSOR_MASK = (1 << FIELD_CURSOR_BITS) - 1 };
 
@@ -84,39 +83,41 @@ static RecordFields *fields_of(const ZirType *record)
     size_t length = strnlen(record->body, sizeof(record->body));
     if(length == sizeof(record->body)) return NULL;
     const char *body = KeepText(record->body);
+    /* The context cannot change here; look its storage up once. */
+    FieldSnapshots *snapshots = context_fields();
     int is_union = record->is_union != 0;
-    if(record_fields.slots_count == 0 || record_fields.count * 2 >= record_fields.slots_count) {
-        size_t count = record_fields.slots_count ? record_fields.slots_count * 2 : 128;
+    if(snapshots->slots_count == 0 || snapshots->count * 2 >= snapshots->slots_count) {
+        size_t count = snapshots->slots_count ? snapshots->slots_count * 2 : 128;
         RecordFields **slots = AllocateOrExit(count * sizeof(*slots));
         memset(slots, 0, count * sizeof(*slots));
-        for(size_t i = 0; i < record_fields.count; i++) {
-            RecordFields *entry = record_fields.ids[i];
+        for(size_t i = 0; i < snapshots->count; i++) {
+            RecordFields *entry = snapshots->ids[i];
             slots[field_slot(slots, count, entry->body, entry->is_union)] = entry;
         }
-        free(record_fields.slots);
-        record_fields.slots = slots;
-        record_fields.slots_count = count;
+        free(snapshots->slots);
+        snapshots->slots = slots;
+        snapshots->slots_count = count;
     }
-    size_t slot = field_slot(record_fields.slots, record_fields.slots_count, body, is_union);
-    if(record_fields.slots[slot] != NULL) {
+    size_t slot = field_slot(snapshots->slots, snapshots->slots_count, body, is_union);
+    if(snapshots->slots[slot] != NULL) {
         ProfileCount("record_fields_reuse");
-        return record_fields.slots[slot];
+        return snapshots->slots[slot];
     }
-    if(record_fields.count >= (SIZE_MAX >> FIELD_CURSOR_BITS)) return NULL;
-    if(record_fields.count == record_fields.capacity) {
-        size_t capacity = record_fields.capacity ? record_fields.capacity * 2 : 64;
+    if(snapshots->count >= (SIZE_MAX >> FIELD_CURSOR_BITS)) return NULL;
+    if(snapshots->count == snapshots->capacity) {
+        size_t capacity = snapshots->capacity ? snapshots->capacity * 2 : 64;
         RecordFields **ids = AllocateOrExit(capacity * sizeof(*ids));
-        if(record_fields.count) memcpy(ids, record_fields.ids, record_fields.count * sizeof(*ids));
-        free(record_fields.ids);
-        record_fields.ids = ids;
-        record_fields.capacity = capacity;
+        if(snapshots->count) memcpy(ids, snapshots->ids, snapshots->count * sizeof(*ids));
+        free(snapshots->ids);
+        snapshots->ids = ids;
+        snapshots->capacity = capacity;
     }
     RecordFields *result = AllocateOrExit(sizeof(*result));
     memset(result, 0, sizeof(*result));
     result->body = body;
     result->is_union = is_union;
     result->primitive_fields = 1;
-    result->id = record_fields.count + 1;
+    result->id = snapshots->count + 1;
     size_t offset = 0;
     unsigned char tags[sizeof(((ZirTypeField *)0)->go_tag)];
     for(;;) {
@@ -146,7 +147,7 @@ static RecordFields *fields_of(const ZirType *record)
         if(field->type[0] != '*' && !compiler_type_BuiltinValueName(type_text(field->type)))
             result->primitive_fields = 0;
     }
-    record_fields.ids[record_fields.count++] = result;
+    snapshots->ids[snapshots->count++] = result;
     if(result->count > 0) {
         size_t slots = 8;
         while(slots < result->count * 2) slots *= 2;
@@ -160,21 +161,25 @@ static RecordFields *fields_of(const ZirType *record)
             if(!result->field_slots[at]) result->field_slots[at] = (int)i + 1;
         }
     }
-    record_fields.slots[slot] = result;
+    snapshots->slots[slot] = result;
     return result;
 }
 
-int TypeNextField_persistent(const ZirType *record, size_t *cursor, ZirTypeField *field)
+/* The next field of a walk, borrowed from its immutable snapshot, or NULL with
+ * the walk's status: 0 after the last field, -1 for a malformed record. */
+static const ZirTypeField *
+next_field_persistent(const ZirType *record, size_t *cursor, int *status)
 {
-    memset(field, 0, sizeof(*field));
-    if(record->is_enum || record->is_procedure_type) return -1;
+    *status = -1;
+    if(record->is_enum || record->is_procedure_type) return NULL;
     RecordFields *fields;
     size_t index = 0;
     while(atomic_flag_test_and_set_explicit(&record_fields_lock, memory_order_acquire)) {}
     if(*cursor == 0) fields = fields_of(record);
     else {
+        FieldSnapshots *snapshots = context_fields();
         size_t id = *cursor >> FIELD_CURSOR_BITS;
-        fields = id > 0 && id <= record_fields.count ? record_fields.ids[id - 1] : NULL;
+        fields = id > 0 && id <= snapshots->count ? snapshots->ids[id - 1] : NULL;
         index = *cursor & FIELD_CURSOR_MASK;
         ProfileCount("record_fields_reuse");
     }
@@ -182,11 +187,14 @@ int TypeNextField_persistent(const ZirType *record, size_t *cursor, ZirTypeField
      * move, so field copying and cursor iteration need no retained lock. */
     atomic_flag_clear_explicit(&record_fields_lock, memory_order_release);
     if(fields == NULL || fields->is_union != (record->is_union != 0) || index > fields->count)
-        return -1;
-    if(index == fields->count) return fields->terminal;
-    *field = fields->items[index];
+        return NULL;
+    if(index == fields->count) {
+        *status = fields->terminal;
+        return NULL;
+    }
     *cursor = (fields->id << FIELD_CURSOR_BITS) | (index + 1);
-    return 1;
+    *status = 1;
+    return &fields->items[index];
 }
 
 static int
@@ -309,14 +317,24 @@ int GoCHeader(const char *package, char *header, size_t header_size)
     return copy_part(header, header_size, type_text(path));
 }
 
-int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
+int TypeNextFieldShared(const ZirType *record, size_t *cursor, const ZirTypeField **field)
 {
     CompilerContext *previous = CompilerContextSelect(record ? record->span.context : NULL);
     CompilerMemory *memory = CompilerMemoryPause();
-    int result = TypeNextField_persistent(record, cursor, field);
+    int status;
+    *field = next_field_persistent(record, cursor, &status);
     CompilerMemoryResume(memory);
     CompilerContextSelect(previous);
-    return result;
+    return status;
+}
+
+int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
+{
+    const ZirTypeField *shared;
+    int status = TypeNextFieldShared(record, cursor, &shared);
+    if(shared) *field = *shared;
+    else memset(field, 0, sizeof(*field));
+    return status;
 }
 
 int TypeFindField(const ZirType *record, const char *name, ZirTypeField *field)

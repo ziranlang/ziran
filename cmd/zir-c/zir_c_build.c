@@ -347,7 +347,7 @@ static int compile_objects(const Files *files, char **objects, char **base,
     return ok;
 }
 
-int c_compile_executable(const char *out, const char *name, int threads)
+int c_compile_executable(const char *out, const char *name, int threads, int release)
 {
     Files files = {0};
     CBuildCache *cache = NULL;
@@ -359,7 +359,10 @@ int c_compile_executable(const char *out, const char *name, int threads)
     int count = 0, ok = 0;
     if(!base || !log || !tail) goto done;
     count = words(getenv("CC") && *getenv("CC") ? getenv("CC") : "cc", base, count);
-    if(count >= 0) count = words(getenv("CFLAGS") ? getenv("CFLAGS") : "-O2", base, count);
+    /* Link-time optimization repeats code generation for every module at each
+     * link, which makes one-file edits many times slower, so only a release
+     * asks for it. CFLAGS replaces both defaults, as in make. */
+    if(count >= 0) count = words(getenv("CFLAGS") ? getenv("CFLAGS") : release ? "-O3 -flto=auto" : "-O3", base, count);
     if(count < 0 || count + 10 >= MAX_ARGS) goto done;
     int tail_count = words(getenv("LDFLAGS"), tail, 0);
     if(tail_count >= 0) tail_count = words(getenv("LDLIBS"), tail, tail_count);

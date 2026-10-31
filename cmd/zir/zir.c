@@ -871,41 +871,43 @@ lookup_symbol_persistent(const ZirModule *module, const char *name,
               const ZirModule **owner, int *status)
 {
     while(atomic_flag_test_and_set_explicit(&symbol_lookup_lock, memory_order_acquire)) {}
-    if(symbol_lookups.verify < 0) {
+    /* The context cannot change here; look its storage up once. */
+    SymbolLookups *lookups = context_symbol_lookups();
+    if(lookups->verify < 0) {
         const char *verify = getenv("ZIRAN_VERIFY_SYMBOL_LOOKUPS");
-        symbol_lookups.verify = verify != NULL && !strcmp(verify, "1");
+        lookups->verify = verify != NULL && !strcmp(verify, "1");
     }
-    if(symbol_lookups.count * 2 >= symbol_lookups.slots) {
+    if(lookups->count * 2 >= lookups->slots) {
         /* Grow, keeping only answers from the current generation. */
-        size_t old_slots = symbol_lookups.slots;
-        SymbolLookup *old = symbol_lookups.items;
+        size_t old_slots = lookups->slots;
+        SymbolLookup *old = lookups->items;
         size_t live = 0;
         for(size_t i = 0; i < old_slots; i++)
-            live += old[i].name != NULL && old[i].generation == symbol_lookups.generation;
+            live += old[i].name != NULL && old[i].generation == lookups->generation;
         size_t slots = 256;
         while(slots < live * 4)
             slots *= 2;
-        symbol_lookups.items = calloc(slots, sizeof(*symbol_lookups.items));
-        if(symbol_lookups.items == NULL)
+        lookups->items = calloc(slots, sizeof(*lookups->items));
+        if(lookups->items == NULL)
             kept_text_failed();
-        symbol_lookups.slots = slots;
-        symbol_lookups.count = 0;
+        lookups->slots = slots;
+        lookups->count = 0;
         for(size_t i = 0; i < old_slots; i++)
-            if(old[i].name != NULL && old[i].generation == symbol_lookups.generation) {
-                symbol_lookups.items[symbol_lookup_slot(symbol_lookups.items, slots,
+            if(old[i].name != NULL && old[i].generation == lookups->generation) {
+                lookups->items[symbol_lookup_slot(lookups->items, slots,
                     old[i].module, old[i].name, old[i].path, old[i].kind)] = old[i];
-                symbol_lookups.count++;
+                lookups->count++;
             }
         free(old);
     }
     const char *kept_name = KeepText(name);
     const char *kept_path = KeepText(path == NULL ? "" : path);
-    size_t slot = symbol_lookup_slot(symbol_lookups.items, symbol_lookups.slots,
+    size_t slot = symbol_lookup_slot(lookups->items, lookups->slots,
                                      module, kept_name, kept_path, kind);
-    SymbolLookup *lookup = &symbol_lookups.items[slot];
-    if(lookup->name != NULL && lookup->generation == symbol_lookups.generation) {
+    SymbolLookup *lookup = &lookups->items[slot];
+    if(lookup->name != NULL && lookup->generation == lookups->generation) {
         ProfileCount(kind == LOOKUP_TYPE ? "type_lookup_hit" : "function_lookup_hit");
-        if(symbol_lookups.verify) {
+        if(lookups->verify) {
             SymbolLookup fresh = fresh_symbol_lookup(module, name, path, kind);
             if(fresh.symbol != lookup->symbol || fresh.owner != lookup->owner ||
                fresh.status != lookup->status) {
@@ -918,7 +920,7 @@ lookup_symbol_persistent(const ZirModule *module, const char *name,
     } else {
         ProfileCount(kind == LOOKUP_TYPE ? "type_lookup_miss" : "function_lookup_miss");
         if(lookup->name == NULL)
-            symbol_lookups.count++;
+            lookups->count++;
         *lookup = fresh_symbol_lookup(module, kept_name, kept_path, kind);
     }
     const void *symbol = lookup->symbol;

@@ -35,7 +35,7 @@ portable_type_path_with_buffers(const ZirModule *module, const char *type, const
     const ZirModule *owner = NULL;
     const ZirType *record;
     size_t offset = 0;
-    ZirTypeField field;
+    const ZirTypeField *field;
     int fields = 0;
     int status;
     char slice_element[ZIR_NAME_MAX];
@@ -82,8 +82,8 @@ portable_type_path_with_buffers(const ZirModule *module, const char *type, const
     }
     TypePath current = {record, path};
     if(TypeHasOnlyPrimitiveFields(record)) return 1;
-    while((status = TypeNextField(record, &offset, &field)) == 1) {
-        if(!portable_type_path(owner, field.type, &current) || !strcmp(field.type, "void"))
+    while((status = TypeNextFieldShared(record, &offset, &field)) == 1) {
+        if(!portable_type_path(owner, field->type, &current) || !strcmp(field->type, "void"))
             return 0;
         fields++;
     }

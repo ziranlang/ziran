@@ -153,7 +153,7 @@ portable_type_at(const ZirModule *module, const char *type, int depth,
     char element[ZIR_NAME_MAX];
     int capacity;
     size_t offset = 0;
-    ZirTypeField field;
+    const ZirTypeField *field;
     int count = 0;
     int status;
     if(scalar_type(type))
@@ -238,9 +238,9 @@ portable_type_at(const ZirModule *module, const char *type, int depth,
     if(record->is_enum)
         return EnumMemberValue(record, NULL, NULL);
     VmTypePath current = {record, path};
-    while((status = TypeNextField(record, &offset, &field)) == 1) {
-        if(++count > VM_MAX_FIELDS || strcmp(field.type, "void") == 0 ||
-           !portable_type_at(owner, field.type, depth + 1, &current))
+    while((status = TypeNextFieldShared(record, &offset, &field)) == 1) {
+        if(++count > VM_MAX_FIELDS || strcmp(field->type, "void") == 0 ||
+           !portable_type_at(owner, field->type, depth + 1, &current))
             return 0;
     }
     return status == 0;

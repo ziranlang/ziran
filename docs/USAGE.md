@@ -231,7 +231,10 @@ Use `ziran build --target=c` for C99 output. Add `--exe --entry
 module:function` to also compile it into `DIR/module`, a program that runs
 that procedure and exits with its integer result; the entry takes nothing or
 `(argc: s32, argv: **u8)` (signed byte pointers are also accepted). `CC`,
-`CFLAGS` (default `-O2`), `LDFLAGS`, and `LDLIBS` apply as in make.
+`CFLAGS` (default `-O3`), `LDFLAGS`, and `LDLIBS` apply as in make. Add
+`--release` for final builds: the default flags become `-O3 -flto=auto`, which
+optimizes across modules. Each link then generates code for the whole program
+again, so one-file edits rebuild many times slower. `CFLAGS` still wins.
 
 C program entries use a standard `int main(int, char **)` adapter.
 The Ziran procedure keeps its declared parameter and result types for ordinary

@@ -385,6 +385,9 @@ typedef struct ZirTypeField {
  * reset the cursor after any rewrite. Fields come from one immutable parsed
  * snapshot. Names/types are trimmed without truncating source tokens. */
 int TypeNextField(const ZirType *record, size_t *offset, ZirTypeField *field);
+/* TypeNextField without the copy, for walks that only read: *field is valid
+ * for as long as the record's compiler context. */
+int TypeNextFieldShared(const ZirType *record, size_t *offset, const ZirTypeField **field);
 /* Same first-match and malformed-prefix semantics as a TypeNextField walk,
  * using the immutable snapshot's field-name index. Clears FIELD on a miss. */
 int TypeFindField(const ZirType *record, const char *name, ZirTypeField *field);

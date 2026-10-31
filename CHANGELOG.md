@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 ### Added
+- `--exe --release` builds with link-time optimization across modules.
 - Python build tools can consume verified dependency artifacts and ordered
   native link metadata through the toolchain's shared artifact helper.
 - Dependency-owned native artifact recipes build and reuse declared output sets
@@ -28,6 +29,8 @@
   modules. Run native scripts with `ziran run --target=c`.
 
 ### Changed
+- Native `--exe` builds default to `-O3`, and lowering a ZX bundle to C is
+  faster because read-only field walks no longer copy each field.
 - Compiler commands run at low CPU and disk priority (`ZIRAN_NICE`) and use at most half of the CPUs, bounded by free memory (`ZIRAN_JOBS` lowers it). `zi2c` writes C on worker processes, and the lifetime check no longer rescans every global and function, which halves Breeze's front-end time. `--prune-stale` also cleans subdirectories.
 - Native builds run `#parallel for` regions on one thread per processor instead of four; `ZIRAN_PAR_THREADS` still chooses.
 - Saved IR (format 59) writes each string once and refers back to it, stores numbers in as few bytes as they need, and stores source positions relative to the previous one, so `.zir` files and `.zx` bundles carry about a third of their former code size at the same open cost. Rebuild format 58 IR and bundles from source.

@@ -53,7 +53,7 @@ int main(int argc, char **argv)
     char byte;
     assert(read(ready[0], &byte, 1) == 0);
     close(ready[0]);
-    assert(c_compile_executable(argv[1], "app", 0));
+    assert(c_compile_executable(argv[1], "app", 0, 0));
     int status;
     assert(waitpid(unrelated, &status, 0) == unrelated);
     assert(WIFEXITED(status) && WEXITSTATUS(status) == 73);

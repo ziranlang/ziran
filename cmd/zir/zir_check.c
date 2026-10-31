@@ -349,9 +349,9 @@ contains_vec(const ZirModule *module, const char *type, int depth)
         return 0;
     if(TypeHasOnlyPrimitiveFields(record)) return 0;
     size_t offset = 0;
-    ZirTypeField field;
-    while(TypeNextField(record, &offset, &field) == 1)
-        if(contains_vec(owner ? owner : module, field.type, depth + 1))
+    const ZirTypeField *field;
+    while(TypeNextFieldShared(record, &offset, &field) == 1)
+        if(contains_vec(owner ? owner : module, field->type, depth + 1))
             return 1;
     return 0;
 }

@@ -32,7 +32,7 @@ usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2c [--no-main] [--prune-stale] "
-            "[--entry module:function [--exe] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] "
+            "[--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] "
             "[--diagnostics=text|json] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
 }
 
@@ -200,6 +200,7 @@ main(int argc, char **argv)
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
     int no_main = 0;
     int exe = 0;
+    int release = 0;
     int output_lock = -1;
     int check_ok;
     int result = 1;
@@ -236,11 +237,16 @@ main(int argc, char **argv)
         COMMAND_FLAG("--prune-stale", prune_stale),
         COMMAND_FLAG("--no-main", no_main),
         COMMAND_FLAG("--exe", exe),
+        COMMAND_FLAG("--release", release),
     };
     first_file = ReadCommandOptions(argc, argv, options,
                                     sizeof(options) / sizeof(*options));
     if(first_file < 0) {
         usage();
+        return 1;
+    }
+    if(release && !exe) {
+        Diagnostic((ZirSourceSpan){0}, "command.arguments", "--release needs --exe");
         return 1;
     }
     if(root == NULL || out_dir == NULL || first_file == 0 ||
@@ -388,7 +394,7 @@ done:
     }
     if(exe) {
         const char *name = strrchr(entry_module, '/');
-        if(!c_compile_executable(out_dir, name != NULL ? name + 1 : entry_module, posix_threads)) {
+        if(!c_compile_executable(out_dir, name != NULL ? name + 1 : entry_module, posix_threads, release)) {
             result = 1;
             goto finish;
         }

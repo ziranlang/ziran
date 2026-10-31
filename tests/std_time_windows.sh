@@ -7,8 +7,8 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 cleanup() {
     if [ -d "$work/prefix" ] && command -v wineserver >/dev/null 2>&1; then
-        WINEPREFIX="$work/prefix" wineserver -k
-        WINEPREFIX="$work/prefix" wineserver -w
+        WINEPREFIX="$work/prefix" wineserver -k || :
+        WINEPREFIX="$work/prefix" wineserver -w || :
     fi
     rm -rf "$work"
 }

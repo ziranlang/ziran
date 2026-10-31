@@ -12,8 +12,8 @@ work=$(mktemp -d)
 wine_prefix_started=0
 cleanup() {
     if [ "$wine_prefix_started" = 1 ]; then
-        WINEPREFIX="$work/prefix" wineserver -k
-        WINEPREFIX="$work/prefix" wineserver -w
+        WINEPREFIX="$work/prefix" wineserver -k || :
+        WINEPREFIX="$work/prefix" wineserver -w || :
     fi
     rm -rf "$work"
 }

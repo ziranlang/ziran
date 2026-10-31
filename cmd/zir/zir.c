@@ -1143,7 +1143,9 @@ ProgramFree(ZirProgram *program)
         ZirModule *m = &program->modules[i];
         int j;
 
-        for(j = 0; j < m->function_count; j++) {
+        int owned_functions = m->bundle_shared_functions ?
+                              m->bundle_own_functions : m->function_count;
+        for(j = 0; j < owned_functions; j++) {
             free(m->functions[j].stmts);
             free(m->functions[j].exprs);
         }

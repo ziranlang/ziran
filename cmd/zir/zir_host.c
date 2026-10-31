@@ -33,7 +33,6 @@ struct Bundle {
     ZxLawTable laws;
     ZxAssets assets;
     int own_module_count;
-    int shared_module_count;
     size_t own_asset_count;
     Bundle **libraries;
     size_t library_count;
@@ -70,40 +69,21 @@ BundleEntry(const Bundle *bundle)
 }
 
 static int
-share_library_modules(Bundle *bundle)
+share_library_functions(Bundle *bundle)
 {
-    for(int m = bundle->own_module_count; m < bundle->program->module_count; m++) {
+    for(int m = 0; m < bundle->program->module_count; m++) {
         ZirModule *module = &bundle->program->modules[m];
-        const ZirModule *shared = NULL;
-        for(size_t i = 0; i < bundle->library_count && shared == NULL; i++) {
-            const ZirProgram *library = bundle->libraries[i]->program;
-            for(int n = 0; n < library->module_count; n++) {
-                if(strcmp(module->name, library->modules[n].name) == 0) {
-                    shared = &library->modules[n];
-                    break;
-                }
-            }
+        const ZirModule *shared = module->bundle_library;
+        if(shared == NULL) continue;
+        if(module->function_count != module->bundle_own_functions + shared->function_count)
+            return 0;
+        for(int f = 0; f < shared->function_count; f++) {
+            ZirFunction *function = &module->functions[module->bundle_own_functions + f];
+            free(function->stmts);
+            free(function->exprs);
+            *function = shared->functions[f];
         }
-        if(shared == NULL)
-            return 0;
-        ZirProgram *discard = ProgramNew();
-        if(discard == NULL)
-            return 0;
-        discard->modules = malloc(sizeof(*discard->modules));
-        if(discard->modules == NULL) {
-            ProgramFree(discard);
-            return 0;
-        }
-        discard->module_count = 1;
-        discard->modules[0] = *module;
-        ZirImport *imports = module->imports;
-        discard->modules[0].imports = NULL;
-        discard->modules[0].import_count = 0;
-        *module = *shared;
-        module->context = bundle->program->context;
-        module->imports = imports;
-        ProgramFree(discard);
-        bundle->shared_module_count++;
+        module->bundle_shared_functions = 1;
     }
     return LinkImports(&bundle->program, 1);
 }
@@ -399,23 +379,20 @@ open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
         fprintf(stderr, "ziran: native %s: opened on linked code, unchecked\n", name);
 #endif
 #endif
-    if(bundle->program == NULL || !share_library_modules(bundle) ||
+    if(bundle->program == NULL || !share_library_functions(bundle) ||
        !share_library_assets(bundle) ||
        (!trusted && !VmVerify(bundle->program, entry_module, entry_function))) {
         BundleClose(bundle);
         return NULL;
     }
     find_entry(bundle, entry_module, entry_function);
-    /* Library graphs are disjoint (the reader rejects duplicate modules),
-     * so their already-validated requirements add to the bundle's own list. */
-    for(size_t i = 0; i < bundle->library_count; i++) {
-        size_t inherited = bundle->libraries[i]->capability_count;
-        if(inherited > SIZE_MAX - capability_count) {
-            BundleClose(bundle);
-            return NULL;
-        }
-        capability_count += inherited;
-    }
+    /* A capability keeps its module/function identity even when both an
+     * owned declaration and library code call it. Enumerate that union once. */
+    capability_count = 0;
+    for(int m = 0; m < bundle->program->module_count; m++)
+        for(int i = 0; i < bundle->program->modules[m].import_count; i++)
+            capability_count += capability_import(&bundle->program->modules[m],
+                                        &bundle->program->modules[m].imports[i]);
     if(bundle->entry == NULL || !cache_capabilities(&bundle, capability_count)) {
         BundleClose(bundle);
         return NULL;
@@ -502,16 +479,6 @@ BundleClose(Bundle *bundle)
     if(bundle != NULL) {
         if(--bundle->references != 0)
             return;
-        if(bundle->program != NULL) {
-            /* Executable graphs in borrowed modules belong to the library.
-             * Their import tables alone belong to this lookup context. */
-            for(int m = bundle->own_module_count;
-                m < bundle->own_module_count + bundle->shared_module_count; m++) {
-                ZirImport *imports = bundle->program->modules[m].imports;
-                memset(&bundle->program->modules[m], 0, sizeof(ZirModule));
-                bundle->program->modules[m].imports = imports;
-            }
-        }
         ProgramFree(bundle->program);
         ZxLawTableFree(&bundle->laws);
         bundle->assets.count = bundle->own_asset_count;

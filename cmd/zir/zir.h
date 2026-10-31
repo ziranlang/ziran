@@ -442,6 +442,13 @@ typedef struct ZirModule {
     ZirFunction *functions;
     int function_count;
     int function_cap;
+    /* Bundle composition provenance; derived from payload/library boundaries,
+     * never serialized. Library executable bodies follow the owned prefix. */
+    const struct ZirModule *bundle_library;
+    int bundle_own_functions;
+    int bundle_own_laws;
+    int bundle_own_waivers;
+    int bundle_shared_functions;
 } ZirModule;
 
 /* Direct applications share identity only for the same template and arguments. */

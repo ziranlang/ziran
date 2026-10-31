@@ -36,8 +36,16 @@ int ZxAssetsRead(FILE *in, ZxAssets *assets);
 int BundleWrite(FILE *out, const ZirProgram *program,
                 const char *entry_module, const char *entry_function,
                 const ZxAssets *assets);
+/* Subtract matching declarations, preserving new declarations in shared
+ * modules. Conflicting declarations or duplicate library providers reject. */
+ZirProgram *BundleLibraryDelta(const ZirProgram *program,
+                const ZirProgram *const *libraries, size_t count);
+/* Compose disjoint declarations into their original module identities. The
+ * result owns private graphs until the host shares validated library bodies. */
+ZirProgram *BundleComposeLibraries(const ZirProgram *program,
+                const ZirProgram *const *libraries, size_t count);
 /* Libraries are ordinary checked bundles. Thin programs retain their own
- * modules and are checked against the exact libraries supplied by the host. */
+ * declarations and are checked against the exact libraries supplied by the host. */
 int BundleWriteInContext(FILE *out, const ZirProgram *program,
                 const ZirProgram *context, const char *entry_module,
                 const char *entry_function, const ZxAssets *assets);
@@ -68,7 +76,8 @@ ZirProgram *BundleRead(FILE *in, const char *path,
                           char *entry_module, size_t module_size,
                           char *entry_function, size_t function_size,
                           ZxLawTable *laws, ZxAssets *assets);
-/* Optional counts describe the validated payload before libraries are appended.
+/* Optional counts describe the original payload module prefix. Library
+ * declarations compose after its per-module function/law prefixes.
  * With *trusted set the caller vouches that this compiler checked these exact
  * bytes before: semantic checking and law evaluation are skipped, and on any
  * failure *trusted is cleared without a diagnostic, so the caller can read

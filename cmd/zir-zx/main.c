@@ -104,7 +104,8 @@ bundle_command(int argc, char **argv)
     int library_count = 0;
     int include_libraries = 0;
     Bundle *libraries[64] = {0};
-    ZirProgram thin = {0}, context = {0};
+    ZirProgram *thin = NULL, *context = NULL;
+    const ZirProgram *library_programs[64];
     for(int i = 0; i < argc; i++) {
         if(strcmp(argv[i], "--root") == 0 && i + 1 < argc)
             root = argv[++i];
@@ -224,46 +225,26 @@ bundle_command(int argc, char **argv)
                 goto done;
             }
         }
-        thin.context = linked->context;
-        context.context = linked->context;
-        thin.modules = calloc((size_t)linked->module_count, sizeof(*thin.modules));
-        context.modules = calloc((size_t)total, sizeof(*context.modules));
-        if(thin.modules == NULL || context.modules == NULL)
+        for(int i = 0; i < library_count; i++)
+            library_programs[i] = BundleProgram(libraries[i]);
+        thin = BundleLibraryDelta(linked, library_programs, (size_t)library_count);
+        context = thin ? BundleComposeLibraries(thin, library_programs, (size_t)library_count) : NULL;
+        if(context == NULL) {
+            Diagnostic(Span("<command>", 1, 1), "zx.library",
+                       "conflicting library declarations or providers");
             goto done;
-        for(int m = 0; m < linked->module_count; m++) {
-            int shared = 0;
-            for(int i = 0; i < library_count && !shared; i++) {
-                const ZirProgram *library = BundleProgram(libraries[i]);
-                for(int n = 0; n < library->module_count; n++)
-                    if(strcmp(linked->modules[m].name, library->modules[n].name) == 0)
-                        shared = 1;
-            }
-            if(!shared)
-                thin.modules[thin.module_count++] = linked->modules[m];
         }
-        memcpy(context.modules, thin.modules,
-               (size_t)thin.module_count * sizeof(*thin.modules));
-        context.module_count = thin.module_count;
-        for(int i = 0; i < library_count; i++) {
-            const ZirProgram *library = BundleProgram(libraries[i]);
-            for(int n = 0; n < library->module_count; n++) {
-                for(int p = 0; p < context.module_count; p++) {
-                    if(strcmp(context.modules[p].name, library->modules[n].name) == 0) {
-                        Diagnostic(Span("<command>", 1, 1), "zx.library",
-                                   "conflicting library module: %s", library->modules[n].name);
-                        goto done;
-                    }
-                }
-                context.modules[context.module_count++] = library->modules[n];
-            }
-        }
-        ZirProgram *context_pointer = &context;
-        if(!CheckCanonicalPrograms(&context_pointer, 1, NULL) ||
-           !CheckTargetCapabilities(&context, "zx") ||
-           !VmVerify(&context, entry_module, entry_function))
+        if(!CheckCanonicalPrograms(&context, 1, NULL) ||
+           !CheckTargetCapabilities(context, "zx") ||
+           !VmVerify(context, entry_module, entry_function))
             goto done;
-        checking_program = &context;
-        output_program = include_libraries ? &context : &thin;
+        /* Included libraries are a standalone payload: all declarations and
+         * their requirements now belong to that output. */
+        if(include_libraries)
+            for(int m = 0; m < context->module_count; m++)
+                context->modules[m].bundle_library = NULL;
+        checking_program = context;
+        output_program = include_libraries ? context : thin;
     }
     file = fopen(output, "wb");
     if(file == NULL) {
@@ -285,8 +266,8 @@ done:
         remove(output);
     ProgramFree(linked);
     ZxAssetsFree(&assets);
-    free(thin.modules);
-    free(context.modules);
+    ProgramFree(thin);
+    ProgramFree(context);
     SymbolLookupsChanged();
     for(int i = 0; i < library_count; i++)
         BundleClose(libraries[i]);

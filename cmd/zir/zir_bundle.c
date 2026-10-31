@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { ZX_VERSION = 26, ZX_MAX_IR_BYTES = 256 * 1024 * 1024,
+enum { ZX_VERSION = 27, ZX_MAX_IR_BYTES = 256 * 1024 * 1024,
        ZX_MAX_CAPABILITIES = 4096 };
 
 typedef struct CapabilityName {
@@ -211,7 +211,15 @@ import_is_called(const ZirModule *module, const ZirImport *import)
 }
 
 static int
-count_capabilities(const ZirProgram *program, int module_count)
+own_import_is_called(const ZirModule *module, const ZirImport *import)
+{
+    ZirModule own = *module;
+    if(module->bundle_library) own.function_count = module->bundle_own_functions;
+    return import_is_called(&own, import);
+}
+
+static int
+count_capabilities(const ZirProgram *program, int module_count, int own)
 {
     int count = 0;
     for(int m = 0; m < module_count; m++)
@@ -220,8 +228,8 @@ count_capabilities(const ZirProgram *program, int module_count)
                      (program->modules[m].imports[i].extern_kind != ZIR_EXTERN_HOST ||
                       strncmp(program->modules[m].imports[i].target,
                               "ziran:", 6) != 0) &&
-                     import_is_called(&program->modules[m],
-                                      &program->modules[m].imports[i]);
+                     (own ? own_import_is_called : import_is_called)(
+                         &program->modules[m], &program->modules[m].imports[i]);
     return count;
 }
 
@@ -363,6 +371,8 @@ copy_program(const ZirProgram *source)
         ZirModule *to = &result->modules[m];
         *to = *from;
         to->context = result->context;
+        to->bundle_library = NULL;
+        to->bundle_shared_functions = 0;
         to->globals = NULL; to->global_count = to->global_cap = 0;
         to->defines = NULL; to->define_count = to->define_cap = 0;
         to->asserts = NULL; to->assert_count = to->assert_cap = 0;
@@ -2142,6 +2152,8 @@ resolve_reachability:
         target = &linked->modules[out++];
         *target = *source;
         target->context = linked->context;
+        target->bundle_library = NULL;
+        target->bundle_shared_functions = 0;
         target->globals = NULL; target->global_count = target->global_cap = 0;
         target->defines = NULL; target->define_count = target->define_cap = 0;
         target->asserts = NULL; target->assert_count = target->assert_cap = 0;
@@ -2352,7 +2364,7 @@ BundleWriteInContext(FILE *out, const ZirProgram *program,
     ok = ProgramMeasurePortable(program, &length);
     if(length == 0 || length > ZX_MAX_IR_BYTES)
         ok = 0;
-    int capabilities = count_capabilities(program, program->module_count);
+    int capabilities = count_capabilities(program, program->module_count, 0);
     if(capabilities > ZX_MAX_CAPABILITIES)
         ok = 0;
     if(ok) {
@@ -2428,65 +2440,236 @@ BundleWrite(FILE *out, const ZirProgram *program,
                                 entry_function, assets);
 }
 
-/* Checking changes lookup context. Check private copies first, then the host
- * may share the library's immutable executable graphs across instances. */
+/* Compare the portable declaration encoding, including its private source
+ * identity, rather than C padding, lookup pointers or native-only metadata. */
 static int
-append_library(ZirProgram *program, const ZirProgram *library)
+same_declaration(const ZirModule *left, const ZirModule *right)
 {
-    if(library == NULL || library->module_count <= 0 ||
-       program->module_count > INT_MAX - library->module_count)
-        return 0;
-    for(int m = 0; m < library->module_count; m++)
-        for(int p = 0; p < program->module_count; p++)
-            if(strcmp(library->modules[m].name, program->modules[p].name) == 0)
-                return 0;
+    char *bytes[2] = {0};
+    size_t sizes[2] = {0};
+    int ok = 1;
+    const ZirModule *modules[] = {left, right};
+    for(int i = 0; i < 2; i++) {
+        ZirProgram view = {.modules = (ZirModule *)modules[i], .module_count = 1};
+        TextStream stream;
+        FILE *out = TextStreamOpen(&stream, &bytes[i], &sizes[i]);
+        size_t written = 0;
+        if(out == NULL) { ok = 0; break; }
+        int saved = ProgramWritePortable(&view, out, &written);
+        if(TextStreamClose(&stream) != 0 || !saved) { ok = 0; break; }
+    }
+    ok = ok && sizes[0] == sizes[1] && !memcmp(bytes[0], bytes[1], sizes[0]);
+    free(bytes[0]); free(bytes[1]);
+    return ok;
+}
+
+static void
+free_function_body(ZirFunction *fn)
+{
+    free(fn->stmts); free(fn->exprs);
+}
+
+static void
+free_law_body(ZirLaw *law)
+{
+    if(law->claim) { free_function_body(law->claim); free(law->claim); }
+}
+
+static void
+free_proof_body(ZirProof *proof)
+{
+    free(proof->steps); free_function_body(&proof->terms);
+}
+
+/* Both paths use one declaration key and equality rule. Imports are scope
+ * links, so identical imports may occur in both fragments. Other overlaps
+ * are subtracted by the producer and forbidden by the consumer. */
+static int
+module_fragment(ZirModule *to, ZirModule *from, int subtract)
+{
+#define FRAGMENT(member, count, cap, key, dispose, imports) do { \
+    for(int i = 0; i < to->count; i++) { \
+        int match = -1; \
+        for(int j = 0; j < from->count; j++) \
+            if(!strcmp(to->member[i].key, from->member[j].key)) { match = j; break; } \
+        if(match < 0) continue; \
+        ZirModule a = {0}, b = {0}; \
+        a.member = &to->member[i]; a.count = 1; \
+        b.member = &from->member[match]; b.count = 1; \
+        if((!subtract && !(imports)) || !same_declaration(&a, &b)) { \
+            Diagnostic(Span("<bundle>", 1, 1), "zx.library", \
+                "conflicting library declaration: %s.%s (%s)", \
+                to->name, to->member[i].key, #member); \
+            return 0; \
+        } \
+        if(subtract && !(imports)) { \
+            dispose; \
+            memmove(to->member + i, to->member + i + 1, \
+                (size_t)(to->count - i - 1) * sizeof(*to->member)); \
+            to->count--; i--; \
+        } \
+    } \
+    if(!subtract) { \
+        for(int j = 0; j < from->count; j++) { \
+            int exists = 0; \
+            for(int i = 0; i < to->count; i++) \
+                exists |= !strcmp(to->member[i].key, from->member[j].key); \
+            if(exists) continue; \
+            if(to->count == INT_MAX || (size_t)(to->count + 1) > SIZE_MAX / sizeof(*to->member)) return 0; \
+            void *next = realloc(to->member, (size_t)(to->count + 1) * sizeof(*to->member)); \
+            if(next == NULL) return 0; \
+            to->member = next; \
+            to->member[to->count++] = from->member[j]; \
+            memset(&from->member[j], 0, sizeof(*from->member)); \
+            to->cap = to->count; \
+        } \
+    } \
+} while(0)
+    FRAGMENT(globals, global_count, global_cap, name, (void)0, 0);
+    FRAGMENT(defines, define_count, define_cap, name, (void)0, 0);
+    FRAGMENT(types, type_count, type_cap, name, (void)0, 0);
+    FRAGMENT(functions, function_count, function_cap, name, free_function_body(&to->functions[i]), 0);
+    FRAGMENT(laws, law_count, law_cap, name, free_law_body(&to->laws[i]), 0);
+    FRAGMENT(law_waivers, law_waiver_count, law_waiver_cap, name, (void)0, 0);
+    FRAGMENT(proofs, proof_count, proof_cap, name, free_proof_body(&to->proofs[i]), 0);
+    FRAGMENT(imports, import_count, import_cap, name, (void)0, 1);
+#undef FRAGMENT
+    return to->assert_count == 0 && from->assert_count == 0 &&
+           to->using_count == 0 && from->using_count == 0;
+}
+
+static int
+libraries_disjoint(const ZirProgram *const *libraries, size_t count)
+{
+    if(count > 64 || (count && libraries == NULL)) return 0;
+    for(size_t i = 0; i < count; i++) {
+        if(libraries[i] == NULL) return 0;
+        for(int m = 0; m < libraries[i]->module_count; m++)
+            for(size_t j = 0; j < i; j++)
+                for(int n = 0; n < libraries[j]->module_count; n++)
+                    if(!strcmp(libraries[i]->modules[m].name, libraries[j]->modules[n].name))
+                        return 0;
+    }
+    return 1;
+}
+
+ZirProgram *
+BundleLibraryDelta(const ZirProgram *program,
+                   const ZirProgram *const *libraries, size_t count)
+{
+    if(program == NULL || !libraries_disjoint(libraries, count)) return NULL;
+    ZirProgram *delta = copy_program(program);
+    if(delta == NULL) return NULL;
+    for(int m = 0; m < delta->module_count; m++) {
+        ZirModule *module = &delta->modules[m];
+        int shared = 0;
+        for(size_t i = 0; i < count; i++)
+            for(int n = 0; n < libraries[i]->module_count; n++)
+                if(!strcmp(module->name, libraries[i]->modules[n].name)) {
+                    shared = 1;
+                    if(!module_fragment(module, &libraries[i]->modules[n], 1)) goto failed;
+                }
+        if(shared && !module->function_count && !module->type_count &&
+           !module->global_count && !module->define_count && !module->law_count &&
+           !module->law_waiver_count && !module->proof_count) {
+            /* Remove the empty fragment without leaking its scope arrays. */
+            ZirProgram *discard = ProgramNew();
+            if(discard == NULL) goto failed;
+            discard->modules = malloc(sizeof(*module));
+            if(discard->modules == NULL) { ProgramFree(discard); goto failed; }
+            discard->modules[0] = *module; discard->module_count = 1;
+            ProgramFree(discard);
+            memmove(module, module + 1, (size_t)(delta->module_count - m - 1) * sizeof(*module));
+            delta->module_count--; m--;
+        }
+    }
+    for(int m = 0; m < delta->module_count; m++)
+        for(int i = 0; i < delta->modules[m].import_count; i++)
+            delta->modules[m].imports[i].resolved_module = NULL;
+    SymbolLookupsChanged();
+    return delta;
+failed:
+    ProgramFree(delta);
+    return NULL;
+}
+
+/* Deep copies allow canonical checking to mutate lookup state before the
+ * host replaces library executable bodies with immutable borrowed graphs. */
+static ZirProgram *
+copy_unlinked_program(const ZirProgram *source)
+{
     unsigned char *bytes = NULL;
-    size_t size = 0;
 #if defined(ZIR_MEMORY_STREAMS)
+    size_t size = 0;
     FILE *stream = ZirWriteMemory(&bytes, &size);
 #else
     FILE *stream = tmpfile();
 #endif
-    if(stream == NULL)
-        return 0;
+    if(stream == NULL) return NULL;
+    int written = ProgramWrite(source, stream) && fflush(stream) == 0;
     ZirProgram *copy = NULL;
-    int written = ProgramWrite(library, stream) && fflush(stream) == 0;
 #if defined(ZIR_MEMORY_STREAMS)
     if(fclose(stream) != 0) written = 0;
     stream = written ? ZirReadMemory(bytes, size) : NULL;
-    if(stream != NULL)
-        copy = ProgramRead(stream, "<bundle library>");
+    if(stream) copy = ProgramRead(stream, "<bundle library>");
 #else
     if(written && fseek(stream, 0, SEEK_SET) == 0)
         copy = ProgramRead(stream, "<bundle library>");
 #endif
-    if(stream != NULL) fclose(stream);
+    if(stream) fclose(stream);
     free(bytes);
-    if(copy == NULL)
-        return 0;
+    return copy;
+}
+
+static int
+append_library(ZirProgram *program, const ZirProgram *library)
+{
+    if(library == NULL || library->module_count <= 0 ||
+       program->module_count > INT_MAX - library->module_count) return 0;
+    ZirProgram *copy = copy_unlinked_program(library);
+    if(copy == NULL) return 0;
     size_t total = (size_t)program->module_count + (size_t)copy->module_count;
-    if(total > SIZE_MAX / sizeof(*program->modules)) {
-        ProgramFree(copy);
-        return 0;
-    }
+    if(total > SIZE_MAX / sizeof(*program->modules)) { ProgramFree(copy); return 0; }
     ZirModule *modules = realloc(program->modules, total * sizeof(*modules));
-    if(modules == NULL) {
-        ProgramFree(copy);
-        return 0;
-    }
+    if(modules == NULL) { ProgramFree(copy); return 0; }
     program->modules = modules;
-    if(!ProgramInheritContexts(program, copy)) { ProgramFree(copy); return 0; }
-    for(int m = 0; m < copy->module_count; m++) copy->modules[m].context = program->context;
-    memcpy(modules + program->module_count, copy->modules,
-           (size_t)copy->module_count * sizeof(*modules));
-    program->module_count += copy->module_count;
-    program->module_cap = program->module_count;
-    free(copy->modules);
-    copy->modules = NULL;
-    copy->module_count = copy->module_cap = 0;
+    if(!ProgramInheritContexts(program, copy) ||
+       !ProgramInheritContexts(program, library)) { ProgramFree(copy); return 0; }
+    for(int m = 0; m < copy->module_count; m++) {
+        ZirModule *from = &copy->modules[m], *to = NULL;
+        for(int p = 0; p < program->module_count; p++)
+            if(!strcmp(from->name, modules[p].name)) { to = &modules[p]; break; }
+        if(to != NULL) {
+            if(to->bundle_library != NULL) { ProgramFree(copy); return 0; }
+            to->bundle_own_functions = to->function_count;
+            to->bundle_own_laws = to->law_count;
+            to->bundle_own_waivers = to->law_waiver_count;
+            if(!module_fragment(to, from, 0)) { ProgramFree(copy); return 0; }
+        } else {
+            to = &modules[program->module_count++];
+            *to = *from;
+            memset(from, 0, sizeof(*from));
+            to->bundle_own_functions = to->bundle_own_laws = to->bundle_own_waivers = 0;
+        }
+        to->context = program->context;
+        to->bundle_library = &library->modules[m];
+    }
+    program->module_cap = (int)total;
     ProgramFree(copy);
     SymbolLookupsChanged();
     return 1;
+}
+
+ZirProgram *
+BundleComposeLibraries(const ZirProgram *program,
+                       const ZirProgram *const *libraries, size_t count)
+{
+    if(program == NULL || !libraries_disjoint(libraries, count)) return NULL;
+    ZirProgram *result = copy_unlinked_program(program);
+    if(result == NULL) return NULL;
+    for(size_t i = 0; i < count; i++)
+        if(!append_library(result, libraries[i])) { ProgramFree(result); return NULL; }
+    return result;
 }
 
 void
@@ -2554,7 +2737,9 @@ laws_differ(const ZirProgram *program, int own_modules, const ZxLawTable *laws)
     int next = 0, next_waiver = 0;
     for(int m = 0; m < own_modules; m++) {
         const ZirModule *module = &program->modules[m];
-        for(int l = 0; l < module->law_count; l++) {
+        int own_laws = module->bundle_library ? module->bundle_own_laws : module->law_count;
+        int own_waivers = module->bundle_library ? module->bundle_own_waivers : module->law_waiver_count;
+        for(int l = 0; l < own_laws; l++) {
             const ZirLaw *law = &module->laws[l];
             char detail[ZIR_TEXT_MAX];
             int status = EvaluateLaw(program, module, law, detail, sizeof(detail));
@@ -2569,7 +2754,7 @@ laws_differ(const ZirProgram *program, int own_modules, const ZxLawTable *laws)
                record->evidence.waived != law->evidence.waived)
                 return "bundle law table differs from checked IR";
         }
-        for(int w = 0; w < module->law_waiver_count; w++) {
+        for(int w = 0; w < own_waivers; w++) {
             if(next_waiver >= laws->waiver_count) return "bundle waiver table differs from checked IR";
             const ZxLawWaiverRecord *record = &laws->waivers[next_waiver++];
             if(strcmp(record->module, module->name) || strcmp(record->name, module->law_waivers[w].name) ||
@@ -2694,6 +2879,10 @@ BundleReadInContext(FILE *in, const char *path,
         goto failed;
     }
     own_modules = program->module_count;
+    if(!libraries_disjoint(libraries, library_count)) {
+        problem = "conflicting bundle library providers";
+        goto failed;
+    }
     for(size_t i = 0; i < library_count; i++) {
         if(!append_library(program, libraries[i])) {
             problem = "missing or conflicting bundle library";
@@ -2704,12 +2893,23 @@ BundleReadInContext(FILE *in, const char *path,
         problem = "embedded ZIR failed semantic checking";
         goto failed;
     }
+    /* Every specialization needed by the add-on belongs in its delta.
+     * Never classify a newly synthesized call as a library-owned body. */
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        if(module->bundle_library &&
+           module->function_count != module->bundle_own_functions +
+                                     module->bundle_library->function_count) {
+            problem = "bundle library composition added executable declarations";
+            goto failed;
+        }
+    }
     /* Canonical checking can materialize generic specializations. Validate
      * requirements against the final payload before reusing its count. The
      * separately verified libraries retain their own capability lists. A
      * trusted payload is compared before checking: when a specialization
      * would add a call, the caller reads it again with checking. */
-    if(capability_count != (uint32_t)count_capabilities(program, own_modules)) {
+    if(capability_count != (uint32_t)count_capabilities(program, own_modules, 1)) {
         problem = "bundle capability list differs from linked IR";
         goto failed;
     }
@@ -2720,7 +2920,7 @@ BundleReadInContext(FILE *in, const char *path,
                (program->modules[m].imports[i].extern_kind != ZIR_EXTERN_HOST ||
                 strncmp(program->modules[m].imports[i].target,
                         "ziran:", 6) != 0) &&
-               import_is_called(&program->modules[m],
+               own_import_is_called(&program->modules[m],
                                 &program->modules[m].imports[i])) {
                 if(strcmp(capabilities[next_capability].module,
                           program->modules[m].name) != 0 ||

@@ -10,7 +10,7 @@ rebuild previous `.zib` programs from source or current `.zir`; changing a
 filename alone does not convert the binary format. The previous tool and
 target names are not aliases.
 
-## Experimental version 26
+## Experimental version 27
 
 `zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, then links reachable
@@ -49,8 +49,8 @@ called. It removes other unreachable functions, modules, types, and imports befo
 writing the payload. Bundle serialization omits native `#asm` variants and
 writes their checked local bodies as ordinary blocks. Typed expression graphs,
 source locations, certificates, capabilities and assets remain intact. Source
-and saved `.zir` keep their native variants for native builds; their encoding
-and the bundle version are unchanged.
+and saved `.zir` keep their native variants for native builds, without changing
+the saved-IR encoding.
 
 The bundle writer first validates and measures the portable payload, then
 streams it directly to the destination. It needs neither a temporary payload
@@ -105,7 +105,7 @@ source and saved IR, including pointer and slice arguments, nullable values,
 global initializers, and calls through record fields and fixed arrays.
 Fixed arrays with numeric or resolved integer constant-expression capacities support defaults,
 positional literals, element reads and writes, and value copies, including
-nested arrays and `u8` arrays inside imported records. Indexing is bounds-checked. Version 26 is
+nested arrays and `u8` arrays inside imported records. Indexing is bounds-checked. Version 27 is
 experimental and has no compatibility promise. Host calls with procedure
 slots remain unsupported. Default-initialized module globals of
 portable value types work within one `BundleRun`; each call starts with fresh
@@ -151,6 +151,44 @@ versions, malformed bundles, and unavailable required capabilities fail with
 diagnostics. A portable bundle cannot contain an undeclared dependency on
 target-specific C or Go code. Hosts may implement the declared
 capability interfaces with native libraries.
+
+## Shared libraries and partial modules
+
+`--library FILE.zx` writes a thin bundle checked against that exact library.
+`--include-library FILE.zx` writes the composed program and assets as a
+standalone bundle. Repeated libraries must provide disjoint module identities.
+
+A shared library is pruned for its entry and retained roots. An add-on may
+need further declarations from a module that already occurs in that library:
+for example, a nested record type discarded by the library's entry. The
+producer subtracts matching portable declarations individually, retaining new
+functions, types, constants, globals, laws and proof certificates with their
+required import links. Conflicting declarations reject the build. The loader
+composes the disjoint fragments into one module with its original identity;
+it rejects overlapping declarations, inconsistent imports and duplicate
+library providers before execution. Source locations and private visibility
+remain part of declaration identity. Existing library record layouts must
+match exactly; this does not extend an already retained record's fields.
+
+Ownership comes from the payload and supplied library boundaries, not from
+module name or untrusted serialized annotations. The loader checks the
+payload's capability and law tables against its own declarations, then
+validates the composed graph. Capability names remain module/function pairs;
+a capability called by both fragments appears once in the final requirement
+list. Library executable bodies are shared after validation, with their original
+compilation contexts retained by linked copies. Each instance
+has one independent global state for the composed module, including both
+library globals and add-on globals.
+
+Version 27 is the required boundary for these composition semantics. Older
+hosts reject its version header before reading capability requirements or
+executing initializers. This reader rejects earlier ZX versions; rebuild the
+runtime, libraries and add-ons together. The saved `.zir` version remains 59:
+its declaration encoding and the behavior of source and native builds are
+unchanged. `tests/bundle_partial_modules.sh` exercises source and saved IR,
+native C and both ZX engines, with capability, private access, duplicate
+provider, overlapping declaration, format rejection and instance isolation
+cases.
 
 ## Native execution
 
@@ -237,7 +275,7 @@ Names are sorted bytewise for deterministic output. Duplicate names,
 symlinks, absolute paths, backslashes, empty components, and `.` or `..`
 components are rejected.
 
-After the checked IR, version 26 stores a little-endian u32 file count. Each
+After the checked IR, version 27 stores a little-endian u32 file count. Each
 file has a u32 name length, name bytes, a u32 data length, and exact binary
 bytes. Empty files are supported. The loader checks lengths against remaining
 input before allocating and rejects noncanonical names/order and trailing data.

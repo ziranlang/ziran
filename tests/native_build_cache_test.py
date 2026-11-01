@@ -382,7 +382,7 @@ build(52, set())
 
 # Clang keeps its single compile probe: a second driver invocation costs more
 # than compiling an empty file on hosts with shared LLVM libraries.
-clang = shutil.which('clang') or shutil.which('clang-19')
+clang = shutil.which('clang', path=os.defpath) or shutil.which('clang-19', path=os.defpath)
 if clang:
     env['CC'] = clang
     for option in ('CACHE_GATE', 'CACHE_READY', 'CACHE_RELEASE'):

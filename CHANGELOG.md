@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 ### Added
+- `std/web.WebBlobBytes` snapshots file or media bytes into a browser Blob
+  without first making a separate typed-array copy. The snapshot remains valid
+  after source changes or Wasm memory growth.
 - Project commands such as `ziran bundle --project` accept `--module-path DIR`
   for modules a build step generates. They join the project's own modules;
   dependencies still resolve only from the lock and never see them.

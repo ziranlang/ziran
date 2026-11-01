@@ -930,6 +930,7 @@
 <div><code>WebStringLength :: (handle: s32) -&gt; s32</code><p>The length in bytes of a string handle's text.</p></div>
 <div><code>WebCopyString :: (handle: s32, buffer: []u8) -&gt; s32</code><p>Copies a string handle's text into `buffer`, NUL-terminated, and returns its length in bytes.</p></div>
 <div><code>WebBytes :: (kind: s32, data: *void, count: s32) -&gt; s32</code><p>A typed array holding a copy of `count` elements from `data`.</p></div>
+<div><code>WebBlobBytes :: (data: *void, count: s32) -&gt; s32</code><p>A Blob snapshot of `count` bytes from `data`, or 0 for an invalid range. The browser snapshots the Wasm view within this one host call: callers may change/free the source or grow memory as soon as this returns. This avoids the extra encoded-byte copy of WebBytes followed by a Blob constructor. Useful for files, downloads, media and request bodies; MIME may be supplied later with the ordinary Blob.slice API. WebBytes keeps its copy semantics.</p></div>
 <div><code>WebCopyOut :: (handle: s32, data: *void, capacity: s32) -&gt; s32</code><p>Copies a typed array's bytes into `data`, at most `capacity`; returns the number copied.</p></div>
 <div><code>WebCopyIn :: (handle: s32, data: *void, length: s32) -&gt; s32</code><p>Copies `length` bytes from `data` over the start of a typed array.</p></div>
 <div><code>WebAwait :: (promise: s32, result: *WebValue) -&gt; bool</code><p>Suspends until the promise settles. Returns whether it resolved, with its value in `result`.</p></div>

@@ -6,9 +6,10 @@ import shutil
 import subprocess
 import sys
 import time
+from native_test_compiler import direct_compiler
 
 ziran, work = (Path(arg).resolve() for arg in sys.argv[1:])
-compiler = shutil.which(os.environ.get('CC', 'cc'))
+compiler = direct_compiler()
 out = work/'out with spaces'
 out.mkdir()
 headers = work/'headers'

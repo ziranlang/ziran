@@ -5,13 +5,14 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+from native_test_compiler import direct_compiler
 
 ziran, work = (Path(x).resolve() for x in sys.argv[1:])
 if not sys.platform.startswith('linux'):
     print('ELF linker-option checks require a Linux host')
     raise SystemExit(0)
 work.mkdir()
-compiler = shutil.which(os.environ.get('CC', 'cc'))
+compiler = direct_compiler()
 integrated_assembler = 'clang' in subprocess.check_output([compiler, '--version'], text=True).lower()
 assembler = subprocess.check_output([compiler, '-print-prog-name=as'], text=True).strip()
 assembler = shutil.which(assembler)

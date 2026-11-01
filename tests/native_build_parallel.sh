@@ -16,7 +16,8 @@ if test "$(uname -s)" = Linux; then wrap=-Wl,--wrap=syscall,--wrap=posix_spawnp;
 "${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/cmd/zir-c" \
     "$repo/tests/native_build_children_test.c" "$repo/cmd/zir-c/zir_c_build.c" "$repo/cmd/zir-c/zir_c_cache.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -pthread $wrap -o "$work/children"
-ZIRAN_PROFILE="$work/children.jsonl" "$work/children" "$work/owned"
+compiler=$(python3 "$repo/tests/native_test_compiler.py")
+CC="$compiler" ZIRAN_PROFILE="$work/children.jsonl" "$work/children" "$work/owned"
 python3 - "$work/children.jsonl" <<'PY'
 import json,sys
 sample,=map(json.loads,open(sys.argv[1]))

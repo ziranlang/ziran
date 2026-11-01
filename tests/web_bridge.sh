@@ -183,6 +183,22 @@ ScopeChecks :: () -> s32 {
     return 0
 }
 
+BlobChecks :: () -> s32 {
+    source: [4]u8 = .[11, 22, 33, 44]
+    blob := WebBlobBytes(cast(*void)*source[0], 4)
+    if blob == 0 || WebGetNumber(blob, WebName("size")) != 4.0 { return 1 }
+    source[0] = 99
+    promise := WebAsObject(WebCall0(blob, WebName("arrayBuffer")))
+    result: WebValue
+    if !WebAwait(promise, *result) { return 2 }
+    copied: [4]u8
+    if WebCopyOut(WebAsObject(result), cast(*void)*copied[0], 4) != 4 { return 3 }
+    if copied[0] != cast(u8)11 || copied[1] != cast(u8)22 || copied[2] != cast(u8)33 || copied[3] != cast(u8)44 { return 4 }
+    if WebBlobBytes(cast(*void)*source[0], -1) != 0 { return 5 }
+    WebRelease(blob)
+    return 0
+}
+
 CallArityChecks :: () -> s32 {
     target := WebGetObject(WebModule, WebName("arityFixture"))
     args: [10]WebValue
@@ -224,6 +240,8 @@ Answer :: () -> s32 {
     if failed != 0 { return 700 + failed }
     failed = CallArityChecks()
     if failed != 0 { return 800 + failed }
+    failed = BlobChecks()
+    if failed != 0 { return 900 + failed }
     return 42
 }
 ZI

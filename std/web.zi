@@ -38,6 +38,7 @@ js_web_callback :: (callback: WebCallback, context: s32) -> s32 #foreign web_bro
 js_web_string_length :: (handle: s32) -> s32 #foreign web_browser;
 js_web_string_copy :: (handle: s32, buffer: *u8, capacity: s32) -> s32 #foreign web_browser;
 js_web_bytes :: (kind: s32, data: *void, count: s32) -> s32 #foreign web_browser;
+js_web_blob_bytes :: (data: *void, count: s32) -> s32 #foreign web_browser;
 js_web_copy_out :: (handle: s32, data: *void, capacity: s32) -> s32 #foreign web_browser;
 js_web_copy_in :: (handle: s32, data: *void, length: s32) -> s32 #foreign web_browser;
 js_web_await :: (promise: s32, result: *WebValue) -> s32 #foreign web_browser;
@@ -362,6 +363,16 @@ WebCopyString :: (handle: s32, buffer: []u8) -> s32 {
 // A typed array holding a copy of `count` elements from `data`.
 WebBytes :: (kind: s32, data: *void, count: s32) -> s32 {
     return js_web_bytes(kind, data, count)
+}
+
+// A Blob snapshot of `count` bytes from `data`, or 0 for an invalid range.
+// The browser snapshots the Wasm view within this one host call: callers may
+// change/free the source or grow memory as soon as this returns. This avoids
+// the extra encoded-byte copy of WebBytes followed by a Blob constructor.
+// Useful for files, downloads, media and request bodies; MIME may be supplied
+// later with the ordinary Blob.slice API. WebBytes keeps its copy semantics.
+WebBlobBytes :: (data: *void, count: s32) -> s32 {
+    return js_web_blob_bytes(data, count)
 }
 
 // Copies a typed array's bytes into `data`, at most `capacity`; returns the

@@ -1045,6 +1045,18 @@ if WriteEntireFile("notes.txt", "hello\n") {
 The Go target and portable bundles do not have these operations; Go
 programs use `std/file_go`.
 
+### Browser byte snapshots
+
+`std/web` provides `WebBytes(kind, data, count)` for a copied JavaScript typed
+array and `WebBlobBytes(data, count)` for a browser `Blob` snapshot. The latter
+passes a Wasm memory view directly to the Blob constructor within one host
+call, avoiding a separate copy of encoded file, media or request-body bytes.
+The source may be changed or freed, and Wasm memory may grow, after it returns.
+An invalid byte range returns handle `0`; an empty valid range returns an empty
+Blob. Shared heaps require an explicit unshared snapshot because Blob excludes
+shared BufferSources. Handles follow the usual `WebScope`/`WebKeep` lifetime.
+`WebBytes` continues to return an independent typed-array copy.
+
 ### Native Linux adapters
 
 Native Linux C builds can import `std/file_linux.zi` for positional byte I/O,

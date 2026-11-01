@@ -242,6 +242,20 @@ addToLibrary({
     var bytes = count * C.BYTES_PER_ELEMENT;
     return ZiranWeb().put(new C(HEAPU8.buffer.slice(data, data + bytes)));
   },
+  // Blob snapshots its BufferSource synchronously, so no borrowed Wasm view
+  // escapes this call and a later allocation/memory growth cannot detach it.
+  js_web_blob_bytes__deps: ['$ZiranWeb'],
+  js_web_blob_bytes: function(data, count) {
+    data = Number(data);
+    if (!Number.isSafeInteger(data) || !Number.isSafeInteger(count) || data < 0 || count < 0 ||
+        data > HEAPU8.byteLength || count > HEAPU8.byteLength - data || typeof Blob !== 'function') return 0;
+    var view = HEAPU8.subarray(data, data + count);
+    // Blob's Web IDL excludes shared BufferSources. A shared heap therefore
+    // needs one explicit snapshot; the ordinary single-threaded path doesn't.
+    if (typeof SharedArrayBuffer !== 'undefined' && view.buffer instanceof SharedArrayBuffer)
+      view = new Uint8Array(view);
+    return ZiranWeb().put(new Blob([view]));
+  },
   js_web_copy_out__deps: ['$ZiranWeb'],
   js_web_copy_out: function(handle, data, capacity) {
     var v = ZiranWeb().value(handle);

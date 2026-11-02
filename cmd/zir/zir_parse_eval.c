@@ -264,6 +264,9 @@ find_imported_define(const ZirModule *module, const char *lookup_path,
     return definition;
 }
 
+static const ZirDefine *find_open_imported_define(const ZirModule *module,
+    const char *path, const char *name, const ZirModule **owner_out);
+
 static int
 eval_imported_integer_define(ZirEval *ev, const char *name, size_t length,
                              int64_t *value)
@@ -275,8 +278,17 @@ eval_imported_integer_define(ZirEval *ev, const char *name, size_t length,
     int known = 0;
     if(ev->depth >= 16)
         return 0;
-    definition = find_imported_define(ev->module, ev->lookup_path, name,
-                                      length, &owner);
+    if(memchr(name, '.', length) != NULL)
+        definition = find_imported_define(ev->module, ev->lookup_path, name,
+                                          length, &owner);
+    else {
+        char identifier[ZIR_NAME_MAX];
+        if(length == 0 || length >= sizeof(identifier)) return 0;
+        memcpy(identifier, name, length);
+        identifier[length] = '\0';
+        definition = find_open_imported_define(ev->module, ev->lookup_path,
+                                               identifier, &owner);
+    }
     if(definition == NULL) return 0;
     names.count = owner->define_count;
     names.items = calloc((size_t)names.count + 1, sizeof(*names.items));
@@ -474,8 +486,7 @@ eval_primary(ZirEval *ev)
                     ev->known = 0;
                 return ev->known ? value : 0;
             }
-            if(call_end > after_name &&
-               eval_imported_integer_define(ev, word,
+            if(eval_imported_integer_define(ev, word,
                    (size_t)(call_end - word), &value)) {
                 ev->p = call_end;
                 return value;

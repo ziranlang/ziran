@@ -1295,7 +1295,8 @@ uses_constant_name(const ZirProgram *program, unsigned char **keep,
 }
 
 static int
-uses_imported_constant(const ZirModule *module, const unsigned char *keep,
+uses_imported_constant(GlobalUses *uses, const ZirModule *module,
+                       const unsigned char *keep,
                        const unsigned char *keep_types,
                        const unsigned char *keep_defines,
                        const unsigned char *dependency_defines,
@@ -1314,6 +1315,11 @@ uses_imported_constant(const ZirModule *module, const unsigned char *keep,
         for(int t = 0; t < module->type_count; t++)
             if(keep_types[t] &&
                mentions_identifier(module->types[t].body, name))
+                return 1;
+        for(int g = 0; g < module->global_count; g++)
+            if(global_is_used(uses, module, &module->globals[g]) &&
+               (mentions_identifier(module->globals[g].type, name) ||
+                mentions_identifier(module->globals[g].init, name)))
                 return 1;
         for(int local = 0; local < module->define_count; local++)
             if(keep_defines[local] &&
@@ -1467,7 +1473,7 @@ import_is_used(const ZirProgram *program, const ZirModule *module,
     }
     for(int m = 0; m < program->module_count; m++)
         if(import->resolved_module == &program->modules[m] &&
-           uses_imported_constant(module, keep,
+           uses_imported_constant(uses, module, keep,
                keep_types[module - program->modules],
                keep_defines[module - program->modules],
                keep_defines[m], import->resolved_module))
@@ -2075,7 +2081,7 @@ resolve_reachability:
                     module->imports[i].kind != ZIR_IMPORT_MODULE) ||
                    dependency == NULL ||
                    (!(module->law_count || module->proof_count) &&
-                    !uses_imported_constant(module, keep[m], keep_types[m],
+                    !uses_imported_constant(&uses, module, keep[m], keep_types[m],
                                            keep_defines[m],
                                            keep_defines[dependency - program->modules],
                                            dependency)))

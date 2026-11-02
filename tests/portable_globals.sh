@@ -4,10 +4,29 @@ set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=${1:-"$repo/build/bin/ziran"}
 ziran_lib=${ZIRAN_LIB:-"$repo/build/libziran.a"}
-work=$(mktemp -d)
+mkdir -p "$repo/work"
+work=$(mktemp -d "$repo/work/portable-globals.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
+cat > "$work/values.zi" <<'ZI'
+MODE_STAGES :: 42;
+ZI
+cat > "$work/initial_values.zi" <<'ZI'
+ONLY_INITIALIZER :: 43;
+ZI
+cat > "$work/navigation.zi" <<'ZI'
+GameNavigation :: struct { previous: s32; }
+ZI
+
 cat > "$work/state.zi" <<'ZI'
+
+Navigation :: #import "navigation";
+#import, file "values.zi";
+#import, file "initial_values.zi";
+LOCAL_MODE :: 44;
+controls_navigation: Navigation.GameNavigation = .{.previous = MODE_STAGES};
+initializer_only: Navigation.GameNavigation = .{.previous = ONLY_INITIALIZER};
+local_mode: Navigation.GameNavigation = .{.previous = LOCAL_MODE};
 
 Cell :: struct {
     value: s32
@@ -45,6 +64,8 @@ zero: string = "a\x00b";
 
 #program_export
 InitChecks :: () -> s32 {
+    if controls_navigation.previous != MODE_STAGES { return 0 }
+    if initializer_only.previous != 43 || local_mode.previous != 44 { return 0 }
     if limit != 7 { return 0 }
     if scale != 3 { return 0 }
     if factor != 7 { return 0 }
@@ -124,6 +145,24 @@ ZI
 cmp "$work/source.zx" "$work/saved.zx"
 test "$("$ziran" run "$work/source.zx")" = 42
 test "$("$ziran" run "$work/saved.zx")" = 42
+# Qualified constant initializers also retain their alias when it is used
+# only by a global, with identical source and saved portable execution.
+cat > "$work/qualified.zi" <<'ZI'
+Navigation :: #import "navigation";
+Values :: #import "values";
+state: Navigation.GameNavigation = .{.previous = Values.MODE_STAGES};
+#program_export
+Answer :: () -> s32 { return state.previous }
+ZI
+"$ziran" ir --root "$work" -o "$work/ir" "$work/qualified.zi"
+"$ziran" bundle --root "$work" --entry qualified:Answer \
+    -o "$work/qualified-source.zx" "$work/qualified.zi"
+"$ziran" bundle --root "$work/ir" --entry qualified:Answer \
+    -o "$work/qualified-saved.zx" "$work/ir/qualified.zir"
+cmp "$work/qualified-source.zx" "$work/qualified-saved.zx"
+test "$("$ziran" run "$work/qualified-source.zx")" = 42
+test "$("$ziran" run "$work/qualified-saved.zx")" = 42
+
 cat > "$work/global_instance.c" <<'C'
 #include "ziran_host.h"
 #include <assert.h>
@@ -310,3 +349,27 @@ C
     "$work/instance.c" "$ziran_lib" ${VM_LDFLAGS:-} -o "$work/instance"
 "$work/instance" "$work/session-source.zx"
 "$work/instance" "$work/session-saved.zx"
+
+# Supported startup calls above remain valid, but a runtime initializer
+# cannot introduce an arbitrary native foreign dependency into a bundle.
+cat > "$work/native_initializer.zi" <<'ZI'
+libc :: #system_library "libc";
+ProcessId :: () -> s32 #foreign libc "getpid";
+Cell :: struct { value: s32; }
+cell: Cell = .{.value = ProcessId()};
+#program_export
+Answer :: () -> s32 { return cell.value }
+ZI
+"$ziran" ir --root "$work" -o "$work/ir" "$work/native_initializer.zi"
+for input in "$work/native_initializer.zi" "$work/ir/native_initializer.zir"; do
+    case "$input" in
+        *.zi) root=$work ;;
+        *) root=$work/ir ;;
+    esac
+    if "$ziran" bundle --root "$root" --entry native_initializer:Answer \
+        -o "$work/native-initializer.zx" "$input" 2> "$work/native-initializer.err"; then
+        echo 'native runtime initializer passed portable verification' >&2
+        exit 1
+    fi
+    rg -q 'C foreign imports require a native target or a checked host binding' "$work/native-initializer.err"
+done

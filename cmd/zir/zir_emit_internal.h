@@ -176,6 +176,9 @@ void GpuEmitShaderLines(Emitter *e, const char *text);
 int function_mentions(const ZirFunction *fn, const char *name);
 const char *canonical(const char *type);
 void slot_native_type(const char *source, ZirTarget target, char *out, size_t size);
+void slot_type_at_use(const char *source, ZirTarget target,
+                      ZirResolveTarget resolve_type, void *context,
+                      char *out, size_t size);
 int width(const char *type);
 int signed_type(const char *type);
 int enum_type(const ZirModule *module, const char *type);

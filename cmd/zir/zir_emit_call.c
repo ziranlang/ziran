@@ -677,6 +677,18 @@ typedef struct EmitSlotWrappersBuffers {
 void EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                     ZirTarget target, ZirResolveTarget resolver, void *context);
 
+/* Slot signatures belong to their declaring module, even when a function
+ * value is adapted in a caller with different imports or same-named types.
+ * Resolve the source base type before constructing its C declarator. */
+static void
+resolve_slot_wrapper_type(void *context, const char *source,
+                          char *out, size_t size)
+{
+    const ZirModule *owner = context;
+    if(!NativeTypeAtUse(owner, source, out, size))
+        copy_text(out, size, source);
+}
+
 static void
 EmitSlotWrappers_with_buffers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                     ZirTarget target, ZirResolveTarget resolver, void *context, EmitSlotWrappersBuffers *buffers)
@@ -687,27 +699,26 @@ EmitSlotWrappers_with_buffers(FILE *out, const ZirModule *module, const ZirFunct
         const ZirExpr *value = &fn->exprs[index];
         if(!value->is_function_value)
             continue;
-        const ZirType *slot = FindType(module, value->type, NULL);
+        const ZirModule *slot_owner = NULL;
+        const ZirType *slot = FindType(module, value->type, &slot_owner);
         if(slot == NULL || slot->is_c_call)
             continue;
         int count = *skip_ws(slot->body) ?
             split_top_level(slot->body, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
         char wrapper[ZIR_NAME_MAX];
-        char result_type[ZIR_NAME_MAX], resolved_result[ZIR_NAME_MAX];
-        slot_native_type(slot->procedure_return_type, target,
-                         result_type, sizeof(result_type));
-        resolver(context, result_type, resolved_result,
-                 sizeof(resolved_result));
+        char resolved_result[ZIR_NAME_MAX];
+        slot_type_at_use(slot->procedure_return_type, target,
+                         resolve_slot_wrapper_type, (void *)slot_owner,
+                         resolved_result, sizeof(resolved_result));
         slot_wrapper_name(module, fn, index, wrapper, sizeof(wrapper));
         fprintf(out, "static %s %s(void *context", resolved_result, wrapper);
         size_t length = (size_t)format(buffers->call, sizeof(buffers->call), "%s(", value->name);
         for(int argument = 0; argument < count; argument++) {
             const char *source = skip_ws(strchr(buffers->parameters[argument], ':') + 1);
-            char native_type[ZIR_NAME_MAX], resolved_type[ZIR_NAME_MAX];
-            slot_native_type(source, target, native_type,
-                             sizeof(native_type));
-            resolver(context, native_type, resolved_type,
-                     sizeof(resolved_type));
+            char resolved_type[ZIR_NAME_MAX];
+            slot_type_at_use(source, target, resolve_slot_wrapper_type,
+                             (void *)slot_owner, resolved_type,
+                             sizeof(resolved_type));
             fprintf(out, ", %s slot_arg_%d", resolved_type, argument);
             length += (size_t)format(buffers->call + length, sizeof(buffers->call) - length,
                                       "%sslot_arg_%d", argument ? ", " : "", argument);

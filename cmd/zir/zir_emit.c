@@ -1239,7 +1239,7 @@ typedef struct EmitSlotTypeBuffers {
 void EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,
                 ZirResolveTarget resolve_type, void *context);
 
-static void
+void
 slot_type_at_use(const char *source, ZirTarget target,
                   ZirResolveTarget resolve_type, void *context,
                   char *out, size_t size)

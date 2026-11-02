@@ -35,6 +35,7 @@ execute(VmInstance *instance, const ZirFunction *function, const Value *args,
     Local *locals = calloc((size_t)signature->local_bound, sizeof(*locals));
     assert(locals != NULL);
     Frame frame = {.vm = vm, .module = instance->module, .function = function,
+        .operands = function_code(vm, instance->module, function)->operands,
         .locals = locals, .local_count = 3, .local_capacity = signature->local_bound};
     for(int i = 0; i < 3; i++) {
         locals[i].name = signature->parameters[i].name;

@@ -46,10 +46,7 @@ assert len(reports)==2
 for report in reports:
     assert report['complete'] and not report['failed']
     assert report['clock']=='process_cpu' and report['live_value_bytes']>=0
-    caches=report['metadata_caches']
-    assert caches['call']['hits']>0 and caches['call']['misses']>0
-    assert caches['global']['hits']>0 and caches['global']['misses']>0
-    assert all(0<=item['collisions']<=item['misses'] for item in caches.values())
+    assert 'metadata_caches' not in report
     rows={row['function']:row for row in report['functions'] if row['module']=='app'}
     assert rows['main']['calls']==1
     assert rows['Child']['calls']==1000 and rows['Leaf']['calls']==1000

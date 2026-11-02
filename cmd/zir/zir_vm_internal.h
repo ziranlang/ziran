@@ -418,7 +418,7 @@ struct StringLiteral {
 };
 
 typedef struct Local {
-    /* Names and types belong to the checked statement or cached signature,
+    /* Names and types belong to the checked statement or prepared signature,
      * which outlive this call. Only the value is mutable local storage. */
     const char *name;
     const char *type;
@@ -439,11 +439,8 @@ typedef struct VmParameter {
     const char *type;
 } VmParameter;
 
-/* A function's parameters, or count -1 outside the portable subset. */
+/* Authoritative call ABI, prepared before startup with checked parameters. */
 typedef struct VmSignature {
-    const ZirModule *module;
-    const ZirFunction *function;
-    const char *extern_args; /* temporary foreign descriptors use kept text */
     int count;
     int local_bound;
     uint64_t read_only;
@@ -452,7 +449,7 @@ typedef struct VmSignature {
     /* Each expression's plan, borrowed from the VM's plan sites, so a call
      * finds one by its index; allocated on the function's first call. */
     struct ScalarPlan **expression_plans;
-    VmParameter parameters[];
+    const VmParameter *parameters;
 } VmSignature;
 
 typedef struct VmVecType {
@@ -461,18 +458,15 @@ typedef struct VmVecType {
     int depth, contains;
 } VmVecType;
 
-typedef struct VmCallSite {
-    const ZirExpr *expression;
-    const ZirModule *module, *owner;
-    const ZirFunction *callee;
-    const ZirImport *external;
-} VmCallSite;
-
-typedef struct VmGlobalSite {
-    const ZirExpr *expression;
+/* Instance-owned executable operands. UINT32_MAX means no global/target.
+ * The checked graph stays immutable, including across concurrent instances. */
+typedef struct VmExecutableFunction {
     const ZirModule *module;
-    GlobalSlot *slot;
-} VmGlobalSite;
+    const ZirFunction *function;
+    const uint32_t *operands;
+    uint32_t provider; /* bound Ziran function, or UINT32_MAX for host/body */
+    VmSignature signature;
+} VmExecutableFunction;
 
 typedef struct VmConstantSite {
     const ZirExpr *expression;
@@ -488,8 +482,6 @@ typedef struct VmTypeSite {
 } VmTypeSite;
 
 typedef struct VmProfile VmProfile;
-enum { VM_CACHE_CALL, VM_CACHE_GLOBAL, VM_CACHE_COUNT };
-enum { VM_CACHE_MISS, VM_CACHE_HIT, VM_CACHE_COLLISION };
 
 /* Expression arrays repeat allocator alignment and strides. Mix all address
  * bits before selecting a bounded cache slot, including on 32-bit hosts. */
@@ -516,9 +508,6 @@ vm_expression_slot(const ZirExpr *expression, size_t slots)
 typedef struct Vm {
     const ZirProgram *program;
     VmProfile *profile; /* opt-in function costs; no values or arguments */
-    /* Parameters and immutable call setup facts, once per function. */
-    VmSignature **signatures;
-    size_t signature_count, signature_slots;
     int depth;
     /* Statements run so far, counted only when max_steps bounds the run
      * (the web playground); zero means unbounded, as on native targets. */
@@ -553,8 +542,13 @@ typedef struct Vm {
     GlobalSlot *globals;
     int global_count;
     VmVecType *vec_types;
-    VmCallSite *call_sites;
-    VmGlobalSite *global_sites;
+    size_t *module_functions;
+    VmExecutableFunction *executable_functions;
+    uint32_t *operands;
+    size_t executable_function_count;
+    size_t direct_call_count;
+    ZirFunction *foreign_functions;
+    VmParameter *parameters;
     VmTypeSite *type_sites;
     VmConstantSite *constant_sites;
     VmScalarSite *scalar_sites;
@@ -591,6 +585,7 @@ struct Frame {
     Vm *vm;
     const ZirModule *module;
     const ZirFunction *function;
+    const uint32_t *operands;
     Frame *caller;
     uint64_t serial; /* identifies this call to pointers at its locals */
     /* Sized for the whole call before it starts (function_local_bound):
@@ -663,9 +658,7 @@ int vm_vec_element_type(Vm *vm, const ZirModule *module, const char *type,
                         char *element, size_t element_size);
 void drop_owned_locals(Frame *frame, int first);
 int parse_parameters(const ZirModule *module, const ZirFunction *function, Parameter *parameters);
-VmSignature *vm_signature(Vm *vm, const ZirModule *module,
-                                const ZirFunction *function);
-void free_signatures(Vm *vm);
+int prepare_signatures(Vm *vm);
 int function_local_bound(const ZirFunction *function, int parameters);
 int bitwise_operator(const char *op);
 const char *assignment_binary_operator(const char *op);
@@ -690,7 +683,12 @@ Value eval(Frame *frame, int index, int depth);
 int execute_scalar_function(Frame *frame, VmSignature *signature,
                              Value *result, Flow *flow);
 void pin_value(Vm *vm, Value value, int depth);
-void profile_cache_access(Vm *vm, int cache, int event);
+int prepare_executable(Vm *vm);
+void free_executable(Vm *vm);
+VmExecutableFunction *function_code(const Vm *vm, const ZirModule *module,
+                                     const ZirFunction *function);
+Value run_prepared_function(Vm *vm, VmExecutableFunction *code,
+                             const Value *args, int arg_count);
 void pin_evaluation_roots(Vm *vm);
 Value run_function(Vm *vm, const ZirModule *module, const ZirFunction *function, const Value *args, int arg_count);
 const VmLayout *record_layout(Vm *vm, const ZirType *type);

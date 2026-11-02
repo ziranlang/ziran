@@ -120,50 +120,13 @@ find_local(Frame *frame, const char *name)
 static GlobalSlot *
 find_global_slot(Frame *frame, const ZirExpr *expression)
 {
-    enum { SLOTS = 4096 };
-    Vm *vm = frame->vm;
-    size_t index = vm_expression_slot(expression, SLOTS / 2) * 2;
-    if(vm->global_sites == NULL)
-        vm->global_sites = calloc(SLOTS, sizeof(*vm->global_sites));
-    if(vm->global_sites != NULL) {
-        for(size_t way = 0; way < 2; way++) {
-            VmGlobalSite cached = vm->global_sites[index + way];
-            if(cached.expression != expression || cached.module != frame->module)
-                continue;
-            if(way != 0) {
-                vm->global_sites[index + 1] = vm->global_sites[index];
-                vm->global_sites[index] = cached;
-            }
-            if(vm->profile != NULL)
-                profile_cache_access(vm, VM_CACHE_GLOBAL, VM_CACHE_HIT);
-            return cached.slot;
-        }
+    if(frame->operands == NULL) {
+        frame->vm->failed = 1;
+        return NULL;
     }
-    if(vm->profile != NULL)
-        profile_cache_access(vm, VM_CACHE_GLOBAL,
-            vm->global_sites != NULL && vm->global_sites[index + 1].expression != NULL ?
-            VM_CACHE_COLLISION : VM_CACHE_MISS);
-    const ZirModule *owner = NULL;
-    const ZirGlobal *declaration = NULL;
-    GlobalSlot *result = NULL;
-    if(ResolveGlobalAt(frame->module, expression->name, SpanPath(frame->function->span),
-                       &owner, &declaration) == 1) {
-        for(int i = 0; i < frame->vm->global_count; i++) {
-            GlobalSlot *slot = &frame->vm->globals[i];
-            if(slot->module == owner && slot->declaration == declaration) {
-                result = slot;
-                break;
-            }
-        }
-    }
-    /* Resolution, including an absent global, cannot change in an instance.
-     * Retain locations and metadata only; mutable contents are always read
-     * from their original slot. Two ways protect reused colliding sites. */
-    if(vm->global_sites != NULL) {
-        vm->global_sites[index + 1] = vm->global_sites[index];
-        vm->global_sites[index] = (VmGlobalSite){expression, frame->module, result};
-    }
-    return result;
+    uint32_t slot = frame->operands[expression - frame->function->exprs];
+    return slot < (uint32_t)frame->vm->global_count ?
+        &frame->vm->globals[slot] : NULL;
 }
 
 static Value *
@@ -203,43 +166,18 @@ normalized_field_read(const Value *field, const char *type)
     return normalized_scalar_read(*field, entry->field.type, type);
 }
 
-/* A direct call's import resolution cannot change within an instance.
- * Procedure values still resolve their current binding on every call. */
-static VmCallSite
+/* Only prepared operands execute: there is no resolution fallback or
+ * mutable memoization on the evaluation path. */
+static VmExecutableFunction *
 resolve_call(Frame *frame, const ZirExpr *expression)
 {
-    enum { SLOTS = 4096 };
-    Vm *vm = frame->vm;
-    size_t slot = vm_expression_slot(expression, SLOTS / 2) * 2;
-    if(vm->call_sites == NULL)
-        vm->call_sites = calloc(SLOTS, sizeof(*vm->call_sites));
-    if(vm->call_sites != NULL) {
-        for(size_t way = 0; way < 2; way++) {
-            VmCallSite cached = vm->call_sites[slot + way];
-            if(cached.expression != expression || cached.module != frame->module)
-                continue;
-            if(way != 0) {
-                vm->call_sites[slot + 1] = vm->call_sites[slot];
-                vm->call_sites[slot] = cached;
-            }
-            if(vm->profile != NULL)
-                profile_cache_access(vm, VM_CACHE_CALL, VM_CACHE_HIT);
-            return cached;
-        }
+    if(frame->operands != NULL) {
+        uint32_t target = frame->operands[expression - frame->function->exprs];
+        if(target < frame->vm->executable_function_count)
+            return &frame->vm->executable_functions[target];
     }
-    if(vm->profile != NULL)
-        profile_cache_access(vm, VM_CACHE_CALL,
-            vm->call_sites != NULL && vm->call_sites[slot + 1].expression != NULL ?
-            VM_CACHE_COLLISION : VM_CACHE_MISS);
-    VmCallSite result = {.expression = expression, .module = frame->module};
-    if(ResolveFunction(frame->module, expression->name,
-                       &result.owner, &result.callee) == 0)
-        result.external = host_import(frame->module, expression->name);
-    if(vm->call_sites != NULL) {
-        vm->call_sites[slot + 1] = vm->call_sites[slot];
-        vm->call_sites[slot] = result;
-    }
-    return result;
+    frame->vm->failed = 1;
+    return NULL;
 }
 
 Value *
@@ -994,6 +932,184 @@ builtin_call(const char *name)
     return BuiltinNamed;
 }
 
+/* Checked graph ownership supplies a module/function index. Integer range
+ * checks also reject descriptors outside the graph without pointer subtraction
+ * across unrelated arrays. Foreign calls already carry their executable index. */
+VmExecutableFunction *
+function_code(const Vm *vm, const ZirModule *module, const ZirFunction *function)
+{
+    if(vm->module_functions == NULL || vm->program == NULL) return NULL;
+    uintptr_t modules = (uintptr_t)vm->program->modules;
+    uintptr_t address = (uintptr_t)module;
+    size_t bytes = (size_t)vm->program->module_count * sizeof(*module);
+    if(address < modules || address - modules >= bytes ||
+       (address - modules) % sizeof(*module)) return NULL;
+    size_t m = (address - modules) / sizeof(*module);
+    uintptr_t functions = (uintptr_t)module->functions;
+    address = (uintptr_t)function;
+    bytes = (size_t)module->function_count * sizeof(*function);
+    if(address < functions || address - functions >= bytes ||
+       (address - functions) % sizeof(*function)) return NULL;
+    size_t f = (address - functions) / sizeof(*function);
+    return &vm->executable_functions[vm->module_functions[m] + f];
+}
+
+void
+free_executable(Vm *vm)
+{
+    for(size_t i = 0; i < vm->executable_function_count; i++) {
+        free(vm->executable_functions[i].signature.scalar_plan);
+        free(vm->executable_functions[i].signature.expression_plans);
+    }
+    free(vm->parameters);
+    free(vm->foreign_functions);
+    free(vm->operands);
+    free(vm->executable_functions);
+    free(vm->module_functions);
+    vm->parameters = NULL;
+    vm->foreign_functions = NULL;
+    vm->operands = NULL;
+    vm->executable_functions = NULL;
+    vm->module_functions = NULL;
+    vm->executable_function_count = vm->direct_call_count = 0;
+    vm->scalar_function_bytes = 0;
+}
+
+/* Lower verified names to executable operands before any startup function
+ * executes. Indices are instance-local and never serialized or recycled;
+ * UINT32_MAX is reserved, with no truncation or packed generation bits.
+ * Globals retain their declaration-order index even before values exist.
+ * Procedure bindings select storage, never their mutable current value. */
+int
+prepare_executable(Vm *vm)
+{
+    const ZirProgram *program = vm->program;
+    size_t functions = 0, expressions = 0, foreigns = 0, globals = 0;
+    if(program == NULL || program->module_count < 0) return 0;
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        if(module->function_count < 0 || module->global_count < 0 ||
+           (size_t)module->global_count > VM_MAX_GLOBALS - globals ||
+           (size_t)module->function_count > UINT32_MAX - functions) return 0;
+        functions += (size_t)module->function_count;
+        globals += (size_t)module->global_count;
+        for(int i = 0; i < module->import_count; i++)
+            if(module->imports[i].kind == ZIR_IMPORT_EXTERN) {
+                if(foreigns == UINT32_MAX) return 0;
+                foreigns++;
+            }
+        for(int f = 0; f < module->function_count; f++) {
+            const ZirFunction *function = &module->functions[f];
+            if(function->expr_count < 0 ||
+               (size_t)function->expr_count > SIZE_MAX - expressions) return 0;
+            expressions += (size_t)function->expr_count;
+        }
+    }
+    if(foreigns > UINT32_MAX - functions ||
+       functions + foreigns > SIZE_MAX / sizeof(*vm->executable_functions) ||
+       foreigns > SIZE_MAX / sizeof(*vm->foreign_functions) ||
+       expressions > SIZE_MAX / sizeof(*vm->operands) ||
+       (size_t)program->module_count >= SIZE_MAX / sizeof(*vm->module_functions)) return 0;
+    vm->module_functions = calloc((size_t)program->module_count + 1,
+                                   sizeof(*vm->module_functions));
+    vm->executable_functions = calloc(functions + foreigns ? functions + foreigns : 1,
+                                      sizeof(*vm->executable_functions));
+    vm->foreign_functions = foreigns ? calloc(foreigns, sizeof(*vm->foreign_functions)) : NULL;
+    vm->operands = malloc((expressions ? expressions : 1) * sizeof(*vm->operands));
+    if(vm->module_functions == NULL || vm->executable_functions == NULL ||
+       vm->operands == NULL || (foreigns && vm->foreign_functions == NULL)) return 0;
+    vm->executable_function_count = functions + foreigns;
+    for(size_t e = 0; e < expressions; e++) vm->operands[e] = UINT32_MAX;
+    size_t fbase = 0, ebase = 0, foreign = 0;
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        vm->module_functions[m] = fbase;
+        for(int f = 0; f < module->function_count; f++) {
+            const ZirFunction *function = &module->functions[f];
+            vm->executable_functions[fbase++] = (VmExecutableFunction){
+                .module = module, .function = function,
+                .operands = vm->operands + ebase, .provider = UINT32_MAX};
+            ebase += (size_t)function->expr_count;
+        }
+        for(int i = 0; i < module->import_count; i++) {
+            const ZirImport *import = &module->imports[i];
+            if(import->kind != ZIR_IMPORT_EXTERN) continue;
+            ZirFunction *descriptor = &vm->foreign_functions[foreign];
+            copy_text(descriptor->name, sizeof(descriptor->name), import->name);
+            descriptor->args_text = KeepParameters(import->args);
+            copy_text(descriptor->return_type, sizeof(descriptor->return_type), import->return_type);
+            descriptor->is_extern = 1;
+            descriptor->span = import->span;
+            vm->executable_functions[functions + foreign++] = (VmExecutableFunction){
+                .module = module, .function = descriptor, .provider = UINT32_MAX};
+        }
+    }
+    vm->module_functions[program->module_count] = fbase;
+    for(size_t f = functions; f < functions + foreigns; f++) {
+        VmExecutableFunction *code = &vm->executable_functions[f];
+        const ZirImport *import = host_import(code->module, code->function->name);
+        if(import == NULL) return 0;
+        if(strncmp(import->target, "ziran:", 6) == 0) {
+            const ZirModule *owner = NULL;
+            const ZirFunction *provider = bound_provider(program, import, &owner);
+            VmExecutableFunction *target = function_code(vm, owner, provider);
+            if(target == NULL) return 0;
+            code->provider = (uint32_t)(target - vm->executable_functions);
+        }
+    }
+    for(size_t f = 0; f < functions; f++) {
+        const VmExecutableFunction *code = &vm->executable_functions[f];
+        const ZirModule *module = code->module;
+        const ZirFunction *function = code->function;
+        uint32_t *operands = (uint32_t *)code->operands;
+        for(int e = 0; e < function->expr_count; e++) {
+            const ZirExpr *expr = &function->exprs[e];
+            if(expr->is_function_value ||
+               (expr->kind == ZIR_EXPR_CALL && !expr->slot_type[0] &&
+                builtin_call(expr->name) == BuiltinNamed)) {
+                const ZirModule *owner = NULL;
+                const ZirFunction *callee = NULL;
+                int resolved = ResolveFunction(module, expr->name, &owner, &callee);
+                VmExecutableFunction *target = NULL;
+                if(resolved == 1) target = function_code(vm, owner, callee);
+                else if(resolved == 0 && !expr->is_function_value) {
+                    for(size_t i = functions; i < functions + foreigns; i++)
+                        if(vm->executable_functions[i].module == module &&
+                           !strcmp(vm->executable_functions[i].function->name, expr->name)) {
+                            target = &vm->executable_functions[i];
+                            break;
+                        }
+                }
+                if(target == NULL) return 0;
+                operands[e] = (uint32_t)(target - vm->executable_functions);
+                vm->direct_call_count++;
+            } else if((expr->kind == ZIR_EXPR_IDENT ||
+                       (expr->kind == ZIR_EXPR_CALL && expr->slot_type[0])) && expr->name[0]) {
+                const ZirModule *owner = NULL;
+                const ZirGlobal *global = NULL;
+                if(ResolveGlobalAt(module, expr->name, SpanPath(function->span),
+                                   &owner, &global) != 1) continue;
+                size_t base = 0;
+                int found = 0;
+                for(int g = 0; g < program->module_count && !found; g++) {
+                    const ZirModule *source = &program->modules[g];
+                    if(source == owner) {
+                        for(int i = 0; i < source->global_count; i++)
+                            if(&source->globals[i] == global) {
+                                operands[e] = (uint32_t)(base + (size_t)i);
+                                found = 1;
+                                break;
+                            }
+                    }
+                    base += (size_t)source->global_count;
+                }
+                if(!found) return 0;
+            }
+        }
+    }
+    return prepare_signatures(vm);
+}
+
 /* Cache entries may be replaced by another literal. Borrow only until the
  * caller snapshots the live numeric words or returns its Value copy. */
 static const Value *
@@ -1072,9 +1188,12 @@ eval_leaf(Frame *frame, const ZirExpr *expression)
             const ZirFunction *function = NULL;
             const ZirType *slot = vm_find_type(frame->vm, frame->module,
                                               expression->type, NULL);
-            if(slot == NULL || !slot->is_procedure_type ||
-               ResolveFunction(frame->module, expression->name,
-                               &owner, &function) != 1 || function == NULL) {
+            VmExecutableFunction *target = resolve_call(frame, expression);
+            if(target != NULL) {
+                owner = target->module;
+                function = target->function;
+            }
+            if(slot == NULL || !slot->is_procedure_type || function == NULL) {
                 frame->vm->failed = 1;
                 break;
             }
@@ -1895,7 +2014,8 @@ scalar_function_plan(Frame *frame, VmSignature *signature)
     builder.locals = calloc(signature->local_bound ? (size_t)signature->local_bound : 1,
                             sizeof(*builder.locals));
     if(builder.locals == NULL) return NULL;
-    memcpy(builder.locals, signature->parameters, (size_t)signature->count * sizeof(*builder.locals));
+    if(signature->count > 0)
+        memcpy(builder.locals, signature->parameters, (size_t)signature->count * sizeof(*builder.locals));
     /* Share only immutable scalar-literal cache storage. A rejected plan's
      * speculative parse must not fail the actual run of an untaken branch. */
     builder.literal_vm.constant_sites = vm->constant_sites;
@@ -3108,7 +3228,7 @@ eval_expression(Frame *frame, int index, int depth)
         uint64_t used = 0;
         const ZirModule *owner = NULL;
         const ZirFunction *callee = NULL;
-        const ZirImport *external = NULL;
+        VmExecutableFunction *target = NULL;
         if(expression->slot_type[0]) {
             Value callable;
             if(expression->name[0]) {
@@ -3127,13 +3247,15 @@ eval_expression(Frame *frame, int index, int depth)
             }
             owner = callable.slot_module;
             callee = callable.slot_function;
+            target = function_code(frame->vm, owner, callee);
         } else {
-            VmCallSite target = resolve_call(frame, expression);
-            owner = target.owner;
-            callee = target.callee;
-            external = target.external;
+            target = resolve_call(frame, expression);
+            if(target != NULL) {
+                owner = target->module;
+                callee = target->function;
+            }
         }
-        if((owner == NULL || callee == NULL) && external == NULL) {
+        if(target == NULL || owner == NULL || callee == NULL) {
             frame->vm->failed = 1;
             break;
         }
@@ -3148,29 +3270,12 @@ eval_expression(Frame *frame, int index, int depth)
             frame->vm->failed = 1;
             break;
         }
-        ZirFunction *external_signature = NULL;
-        if(external != NULL) {
-            /* Foreign calls need their parameter types before arguments are
-             * evaluated too. Keep the large function descriptor on the heap. */
-            external_signature = AllocateOrExit(sizeof(*external_signature));
-            memset(external_signature, 0, sizeof(*external_signature));
-            copy_text(external_signature->name, sizeof(external_signature->name),
-                      external->name);
-            external_signature->args_text = KeepParameters(external->args);
-            copy_text(external_signature->return_type,
-                      sizeof(external_signature->return_type),
-                      external->return_type);
-            external_signature->is_extern = 1;
-            external_signature->span = external->span;
-            owner = frame->module;
-            callee = external_signature;
-        }
         Value few[4];
         Value *args = slots <= 4 ? few : AllocateOrExit((size_t)slots * sizeof(*args));
         memset(args, 0, (size_t)(slots <= 4 ? 4 : slots) * sizeof(*args));
         VmRoots argument_roots = {frame->vm->evaluation_roots, args, slots};
         frame->vm->evaluation_roots = &argument_roots;
-        const VmSignature *parameters = vm_signature(frame->vm, owner, callee);
+        const VmSignature *parameters = &target->signature;
         for(int child = expression->first_child; child >= 0;
             child = frame->function->exprs[child].next_sibling) {
             int position = frame->function->exprs[child].argument_index;
@@ -3204,12 +3309,11 @@ eval_expression(Frame *frame, int index, int depth)
             count++;
         }
         if(!frame->vm->failed)
-            value = run_function(frame->vm, owner, callee, args, count);
+            value = run_prepared_function(frame->vm, target, args, count);
         frame->vm->evaluation_roots = argument_roots.previous;
         /* A consumed Vec is retired by its callee. The argument roots keep
          * it safe until that call returns; release it when they leave scope. */
         release_retired(frame->vm);
-        free(external_signature);
         if(args != few)
             free(args);
         break;

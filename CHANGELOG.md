@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Unreleased]
+
+- Portable programs use prepared function and global indices for calls and reads, reducing repeated-call execution time.
 ### Added
 - `std/web.WebBlobBytes` snapshots file or media bytes into a browser Blob
   without first making a separate typed-array copy. The snapshot remains valid

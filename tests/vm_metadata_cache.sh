@@ -22,20 +22,27 @@ Other :: #import "second";
 first_value: s32 = 1;
 second_value: s32 = 2;
 third_value: s32 = 3;
-One :: () -> s32 { return 1 }
+One :: (value: s32) -> s32 { return value }
 Two :: () -> s32 { return 2 }
 Three :: () -> s32 { return 3 }
 #program_export
 Answer :: () -> s32 {
-    return One() + Two() + Three() + first_value + second_value + third_value +
+    return Wide() + One(1) + Two() + Three() + first_value + second_value + third_value +
         Other.One() + Other.Two() + Other.Three() +
         Other.first_value + Other.second_value + Other.third_value
 }
 ZI
+python3 - "$work/first.zi" <<'PYGEN'
+import sys
+with open(sys.argv[1], 'a') as source:
+    source.write('Wide :: () -> s32 {\n total: s32\n')
+    source.write(' total += One(1)\n' * 4101)
+    source.write(' return total\n}\n')
+PYGEN
 "$ziran" ir --root "$work" -o "$work/ir" "$work/first.zi" "$work/second.zi"
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
     "$repo/tests/vm_metadata_cache_test.c" "$repo"/cmd/zir/zir_vm*.c \
-    "$library" -Wl,--wrap=calloc -lm -pthread -o "$work/test"
+    "$library" -Wl,--wrap=calloc -Wl,--wrap=malloc -Wl,--wrap=realloc -lm -pthread -o "$work/test"
 for form in source saved; do
     root=$work
     if test "$form" = saved; then root=$work/ir; fi
@@ -43,7 +50,7 @@ for form in source saved; do
     if test "$form" = saved; then suffix=zir; fi
     "$ziran" bundle --root "$root" --entry first:Answer -o "$work/$form.zx" \
         "$root/first.$suffix" "$root/second.$suffix"
-    test "$("$ziran" run "$work/$form.zx")" = 624
+    test "$("$ziran" run "$work/$form.zx")" = 4725
     "$work/test" "$work/$form.zx"
 done
 cmp "$work/source.zx" "$work/saved.zx"

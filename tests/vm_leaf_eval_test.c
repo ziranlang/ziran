@@ -72,7 +72,11 @@ main(void)
     assert(eval(&frame, 8, 0).bits == 99);
     assert(vm->evaluation_roots == &guard);
     vm->collection_threshold = 1;
-    Value result = run_function(vm, NULL, &function, NULL, 0);
+    ZirModule module = {.functions = &function, .function_count = 1};
+    ZirProgram program = {.modules = &module, .module_count = 1};
+    vm->program = &program;
+    assert(prepare_executable(vm));
+    Value result = run_function(vm, &module, &function, NULL, 0);
     assert(result.kind == VALUE_VOID);
     assert(!vm->failed && vm->records == cell && cell->next == NULL);
     assert(array_get(array, 1).integer == 17 && cell->fields[0].value.integer == 42);

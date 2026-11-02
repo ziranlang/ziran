@@ -14,23 +14,7 @@ struct VmProfile {
     VmFunctionProfile **functions;
     size_t slots, count;
     uint64_t ticks, allocations, last_report, instance;
-    uint64_t cache_hits[VM_CACHE_COUNT], cache_misses[VM_CACHE_COUNT];
-    uint64_t cache_collisions[VM_CACHE_COUNT];
 };
-
-void
-profile_cache_access(Vm *vm, int cache, int event)
-{
-    if(vm->profile == NULL || cache < 0 || cache >= VM_CACHE_COUNT)
-        return;
-    if(event == VM_CACHE_HIT)
-        vm->profile->cache_hits[cache]++;
-    else {
-        vm->profile->cache_misses[cache]++;
-        if(event == VM_CACHE_COLLISION)
-            vm->profile->cache_collisions[cache]++;
-    }
-}
 
 static atomic_uint profile_instance;
 static atomic_flag profile_writer = ATOMIC_FLAG_INIT;
@@ -118,15 +102,7 @@ profile_report(Vm *vm, int complete)
             (unsigned long long)profile->instance, complete ? "true" : "false",
             vm->failed ? "true" : "false",
             (unsigned long long)(vm->record_bytes + vm->array_bytes + vm->string_bytes));
-    fprintf(profile->output,
-            "\"metadata_caches\":{\"call\":{\"hits\":%llu,\"misses\":%llu,\"collisions\":%llu},"
-            "\"global\":{\"hits\":%llu,\"misses\":%llu,\"collisions\":%llu}},\"functions\":[",
-            (unsigned long long)profile->cache_hits[VM_CACHE_CALL],
-            (unsigned long long)profile->cache_misses[VM_CACHE_CALL],
-            (unsigned long long)profile->cache_collisions[VM_CACHE_CALL],
-            (unsigned long long)profile->cache_hits[VM_CACHE_GLOBAL],
-            (unsigned long long)profile->cache_misses[VM_CACHE_GLOBAL],
-            (unsigned long long)profile->cache_collisions[VM_CACHE_GLOBAL]);
+    fputs("\"functions\":[", profile->output);
     int first = 1;
     for(size_t i = 0; i < profile->slots; i++) {
         VmFunctionProfile *entry = profile->functions[i];
@@ -1199,88 +1175,66 @@ release_call_arrays(Vm *vm, uint64_t entry, uint64_t before_result)
         }
     }
 }
-/* Buffers run_function keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-static size_t
-signature_slot(const Vm *vm, const ZirModule *module,
-               const ZirFunction *function, const char *extern_args)
+/* Signatures and parameter storage are the executable ABI, prepared once
+ * in declaration order. Their addresses stay fixed throughout execution. */
+int
+prepare_signatures(Vm *vm)
 {
-    size_t slot = (((uintptr_t)module >> 4) ^
-                   ((uintptr_t)(function ? (const void *)function : extern_args) >> 3)) *
-                  11400714819323198485ull;
-    slot &= vm->signature_slots - 1;
-    while(vm->signatures[slot] != NULL &&
-          (vm->signatures[slot]->module != module ||
-           vm->signatures[slot]->function != function ||
-           vm->signatures[slot]->extern_args != extern_args))
-        slot = (slot + 1) & (vm->signature_slots - 1);
-    return slot;
+    Parameter *parsed = malloc(VM_MAX_PARAMS * sizeof(*parsed));
+    if(parsed == NULL) return 0;
+    size_t used = 0, capacity = 0;
+    for(size_t f = 0; f < vm->executable_function_count; f++) {
+        VmExecutableFunction *code = &vm->executable_functions[f];
+        const ZirFunction *function = code->function;
+        VmSignature *signature = &code->signature;
+        int count = parse_parameters(code->module, function, parsed);
+        if(count < 0 || count > VM_MAX_PARAMS ||
+           (size_t)count > SIZE_MAX / sizeof(*vm->parameters) - used) {
+            free(parsed);
+            return 0;
+        }
+        size_t needed = used + (size_t)count;
+        if(needed > capacity) {
+            size_t next = capacity ? capacity : VM_MAX_PARAMS;
+            while(next < needed) {
+                if(next > SIZE_MAX / sizeof(*vm->parameters) / 2) {
+                    next = needed;
+                    break;
+                }
+                next *= 2;
+            }
+            VmParameter *parameters = realloc(vm->parameters, next * sizeof(*parameters));
+            if(parameters == NULL) { free(parsed); return 0; }
+            vm->parameters = parameters;
+            capacity = next;
+        }
+        signature->count = count;
+        signature->local_bound = function_local_bound(function, count);
+        for(int i = 0; i < count; i++) {
+            vm->parameters[used++] = (VmParameter){KeepName(parsed[i].name), KeepName(parsed[i].type)};
+            if(!function->is_extern &&
+               !vm_type_contains_vec(vm, code->module, parsed[i].type, 0) &&
+               parameter_read_only(function, parsed[i].name))
+                signature->read_only |= UINT64_C(1) << i;
+        }
+    }
+    free(parsed);
+    if(vm->failed) return 0;
+    /* Publish parameter views only after growth is finished. */
+    size_t begin = 0;
+    for(size_t f = 0; f < vm->executable_function_count; f++) {
+        VmSignature *signature = &vm->executable_functions[f].signature;
+        signature->parameters = vm->parameters != NULL ? vm->parameters + begin : NULL;
+        begin += (size_t)signature->count;
+    }
+    return 1;
 }
 
 VmSignature *
 vm_signature(Vm *vm, const ZirModule *module, const ZirFunction *function)
 {
-    const ZirFunction *key = function->is_extern ? NULL : function;
-    const char *extern_args = function->is_extern ? FunctionArgs(function) : NULL;
-    if(vm->signature_count * 2 >= vm->signature_slots) {
-        size_t old_slots = vm->signature_slots;
-        VmSignature **old = vm->signatures;
-        vm->signature_slots = old_slots ? old_slots * 2 : 256;
-        vm->signatures = calloc(vm->signature_slots, sizeof(*vm->signatures));
-        if(vm->signatures == NULL) {
-            DiagnosticOutOfMemory();
-            exit(1);
-        }
-        for(size_t i = 0; i < old_slots; i++)
-            if(old[i] != NULL)
-                vm->signatures[signature_slot(vm, old[i]->module,
-                    old[i]->function, old[i]->extern_args)] = old[i];
-        free(old);
-    }
-    size_t slot = signature_slot(vm, module, key, extern_args);
-    if(vm->signatures[slot] == NULL) {
-        Parameter *parsed = AllocateOrExit(VM_MAX_PARAMS * sizeof(*parsed));
-        int count = parse_parameters(module, function, parsed);
-        VmSignature *signature = AllocateOrExit(sizeof(*signature) +
-            (size_t)(count > 0 ? count : 0) * sizeof(signature->parameters[0]));
-        signature->module = module;
-        signature->function = key;
-        signature->extern_args = extern_args;
-        signature->count = count;
-        signature->local_bound = function_local_bound(function, count);
-        signature->read_only = 0;
-        signature->scalar_plan = NULL;
-        signature->scalar_checked = 0;
-        signature->expression_plans = NULL;
-        for(int i = 0; !function->is_extern && i < count; i++)
-            if(!vm_type_contains_vec(vm, module, parsed[i].type, 0) &&
-               parameter_read_only(function, parsed[i].name))
-                signature->read_only |= UINT64_C(1) << i;
-        for(int i = 0; i < count; i++) {
-            signature->parameters[i].name = KeepName(parsed[i].name);
-            signature->parameters[i].type = KeepName(parsed[i].type);
-        }
-        free(parsed);
-        vm->signatures[slot] = signature;
-        vm->signature_count++;
-    }
-    return vm->signatures[slot];
-}
-
-void
-free_signatures(Vm *vm)
-{
-    for(size_t i = 0; i < vm->signature_slots; i++) {
-        if(vm->signatures[i] != NULL) {
-            free(vm->signatures[i]->scalar_plan);
-            free(vm->signatures[i]->expression_plans);
-        }
-        free(vm->signatures[i]);
-    }
-    free(vm->signatures);
-    vm->signatures = NULL;
-    vm->signature_count = vm->signature_slots = 0;
-    vm->scalar_function_bytes = 0;
+    VmExecutableFunction *code = function_code(vm, module, function);
+    return code != NULL ? &code->signature : NULL;
 }
 
 struct RunFunctionBuffers {
@@ -1344,12 +1298,14 @@ Value run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
              const Value *args, int arg_count);
 
 static Value
-run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *function,
+run_function_with_buffers(Vm *vm, VmExecutableFunction *code,
              const Value *args, int arg_count, RunFunctionBuffers *buffers,
              CallSetup **setup)
 {
     memset(&buffers->frame, 0, sizeof(buffers->frame));
-    VmSignature *signature = vm_signature(vm, module, function);
+    const ZirModule *module = code->module;
+    const ZirFunction *function = code->function;
+    VmSignature *signature = &code->signature;
     const VmParameter *parameters = signature->parameters;
     int count = signature->count;
     Value result = int_value(0);
@@ -1366,16 +1322,12 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
         return result;
     }
     if(function->is_extern) {
-        const ZirImport *import = host_import(module, function->name);
-        if(import != NULL && strncmp(import->target, "ziran:", 6) == 0) {
-            const ZirModule *provider_module = NULL;
-            const ZirFunction *provider = bound_provider(vm->program, import,
-                &provider_module);
-            if(provider == NULL) {
+        if(code->provider != UINT32_MAX) {
+            if(code->provider >= vm->executable_function_count) {
                 vm->failed = 1;
                 return result;
             }
-            return run_function(vm, provider_module, provider, args, arg_count);
+            return run_prepared_function(vm, &vm->executable_functions[code->provider], args, arg_count);
         }
         VmHostValue host_result = {0};
         if(vm->host == NULL) {
@@ -1446,6 +1398,7 @@ run_function_with_buffers(Vm *vm, const ZirModule *module, const ZirFunction *fu
     buffers->frame.vm = vm;
     buffers->frame.module = module;
     buffers->frame.function = function;
+    buffers->frame.operands = code->operands;
     if(signature->expression_plans == NULL && function->expr_count > 0)
         signature->expression_plans = calloc((size_t)function->expr_count,
                                              sizeof(*signature->expression_plans));
@@ -1533,6 +1486,16 @@ Value
 run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
              const Value *args, int arg_count)
 {
+    VmExecutableFunction *code = function_code(vm, module, function);
+    if(code == NULL) { vm->failed = 1; return int_value(0); }
+    return run_prepared_function(vm, code, args, arg_count);
+}
+
+Value
+run_prepared_function(Vm *vm, VmExecutableFunction *code, const Value *args, int arg_count)
+{
+    const ZirModule *module = code->module;
+    const ZirFunction *function = code->function;
     VmFunctionProfile *profile = vm->profile ?
         profile_function(vm->profile, module, function) : NULL;
     uint64_t started = 0, child_ticks = 0, allocation_entry = 0, child_allocations = 0;
@@ -1551,7 +1514,7 @@ run_function(Vm *vm, const ZirModule *module, const ZirFunction *function,
         buffers->local_capacity = 0;
     }
     CallSetup *setup = NULL;
-    Value returned = run_function_with_buffers(vm, module, function, args, arg_count,
+    Value returned = run_function_with_buffers(vm, code, args, arg_count,
                                                buffers, &setup);
     give_setup(vm, &setup);
     if(vm->run_buffer_count < 16)
@@ -1887,7 +1850,8 @@ VmInstanceOpenVerified_in_context(const ZirProgram *program, const ZirModule *mo
     profile_open(&instance->vm);
     instance->entry = entry;
     instance->module = module;
-    if(!initialize_globals(&instance->vm, program)) {
+    if(!prepare_executable(&instance->vm) ||
+       !initialize_globals(&instance->vm, program)) {
         VmInstanceClose(instance);
         return NULL;
     }
@@ -1996,10 +1960,8 @@ VmInstanceClose(VmInstance *instance)
     free_arrays(&instance->vm);
     free_strings(&instance->vm);
     free_layouts(&instance->vm);
-    free_signatures(&instance->vm);
     free(instance->vm.vec_types);
-    free(instance->vm.call_sites);
-    free(instance->vm.global_sites);
+    free_executable(&instance->vm);
     free(instance->vm.type_sites);
     free(instance->vm.constant_sites);
     free(instance->vm.globals);

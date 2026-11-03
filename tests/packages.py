@@ -258,6 +258,45 @@ main :: () -> s32 { value: Value; value.number = 3; return Echo(value).number - 
     call(ziran, "pkg", "path", "direct", cwd=app, env=env, succeed=False)
     (app / "ziran.lock").write_bytes(exact_bytes)
     print("PASS: divergent pins share one explicit override; declaration drift fails and remote pins persist", flush=True)
+    # A production lock may contain old and new dependency inventories for
+    # one source. The explicit override selects the new locked identity for
+    # both incoming edges, including its newly introduced dependency.
+    extra = fixture / "extra"
+    init(extra, env)
+    write(extra / "ziran.toml", '[package]\nname = "Extra"\nmodule_roots = ["src"]\n[exports]\nValue = "src/Value.zi"\n')
+    write(extra / "src/Value.zi", 'ExtraNumber :: 3;\n')
+    commit(extra, env)
+    dependency_manifest = leaf_manifest + f'[dependencies.Extra]\ngit = "{extra.as_uri()}"\nref = "master"\n'
+    write(leaf / "ziran.toml", dependency_manifest)
+    write(leaf / "src/Value.zi", '#import "Extra/Value"\nRevision :: ExtraNumber;\nValue :: struct { number: s32 }\n')
+    commit(leaf, env)
+    selected = call("git", "rev-parse", "HEAD", cwd=leaf, env=env).strip()
+    write(app / "ziran.toml", manifest.replace(pins[1], selected))
+    (app / "ziran.local.toml").unlink()
+    call(ziran, "lock", cwd=app, env=env)
+    production = json.loads((app / "ziran.lock").read_text())
+    libraries = [p for p in production["packages"] if p["name"] == "Library"]
+    assert sorted(len(p["dependencies"]) for p in libraries) == [0, 1], production
+    extra_id = next(p["id"] for p in production["packages"] if p["name"] == "Extra")
+    # Select through the root alias only; the differently named child edge
+    # must also use this checkout and one module/type identity.
+    write(app / "ziran.local.toml", build_local)
+    for packages in (production["packages"], list(reversed(production["packages"]))):
+        production["packages"] = packages
+        write(app / "ziran.lock", json.dumps(production))
+        untouched = (app / "ziran.lock").read_bytes()
+        call(ziran, "fetch", "--offline", cwd=app, env=env)
+        call(ziran, "build", "--project", "--target=c", "--entry", "main:main",
+             "-o", str(app / "build/c"), str(app / "src/main.zi"), cwd=app, env=env)
+        mapped = (app / "build/.ziran/module-map.tsv").read_text().splitlines()
+        assert len([line for line in mapped if line.startswith("P\t") and line.endswith("\t" + str(leaf))]) == 1, mapped
+        assert any(line.startswith("P\t" + extra_id + "\t") for line in mapped), mapped
+        assert (app / "ziran.lock").read_bytes() == untouched
+    # A changed declaration in the selected checkout still requires locking.
+    write(leaf / "ziran.toml", dependency_manifest.replace('ref = "master"', f'ref = "{pins[0]}"'))
+    call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
+    write(leaf / "ziran.toml", dependency_manifest)
+    print("PASS: override selects the unified locked dependency graph across divergent inventories", flush=True)
 
 
 def check_transitive_add(ziran: str, root: Path, env: dict) -> None:

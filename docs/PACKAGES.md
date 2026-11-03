@@ -283,7 +283,10 @@ identity. The lock records each edge's declared ref separately, so changing a
 ref, URL, alias, source kind or dependency inventory still requires `ziran lock`.
 Source-only edits and newer local commits can be used without changing those
 declarations; build commands derive local module identities from the actual
-checkout HEAD. Conflicting overrides for one source are refused.
+checkout HEAD. When several locked revisions select a checkout whose commit
+is already in the lock, they use that commit's locked dependency graph before
+merging their identities. The lock on disk remains unchanged. Conflicting
+overrides for one source are refused.
 
 After removing overrides, run `ziran lock` to resolve the declared revisions
 again. Exact pins select their declared commits rather than retaining a newer

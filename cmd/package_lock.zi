@@ -995,13 +995,32 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
         }
         index += 1
     }
+    // Validate every saved identity before selecting another entry's graph.
+    index = 0
+    while index < locked.count {
+        if !PkgLockIdMatches(locked, index) { return false }
+        index += 1
+    }
     index = 0
     while index < locked.count {
         item: *PkgLocked = *locked.packages[index]
-        if !PkgLockIdMatches(locked, index) { return false }
         override: string = PkgSourceOverride(overrides, current, locked,
             item.url, item.name, root)
-        if override.count > 0 && PkgGitHead(override).count == 0 { return false }
+        if override.count > 0 {
+            commit: string = PkgGitHead(override)
+            if commit.count == 0 { return false }
+            // Several locked revisions can select one checkout. Validate its
+            // declarations against the graph locked for that actual identity,
+            // rather than an older revision's dependency inventory. Keep the
+            // original node identity until incoming declarations are checked.
+            selected: s32 = PkgFindById(locked, PkgLockId(item.url, commit, item.source))
+            if selected >= 0 && selected != index {
+                item.edges = locked.packages[selected].edges
+                item.edge_count = locked.packages[selected].edge_count
+                item.refs = locked.packages[selected].refs
+                item.ref_count = locked.packages[selected].ref_count
+            }
+        }
         item.path = override
         if item.path.count == 0 {
             item.path = PkgCheckout(item.url, item.commit, offline)

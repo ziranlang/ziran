@@ -4,7 +4,8 @@ description: >
   its build/bin on PATH and optionally fetch the locked packages. The build
   tree is the Toolchains workflow's prebuilt archive for that commit, else
   this repository's cache, else a build here. Package checkouts are cached by
-  the whole lock and start from the previous checkouts when it changes.
+  the whole lock and start from the previous checkouts when it changes,
+  keeping only the ones the lock uses.
 
 inputs:
   project:
@@ -223,3 +224,36 @@ runs:
       env:
         ZIRAN: ${{ steps.resolve.outputs.root }}/build/bin/ziran
       run: '"$ZIRAN" fetch --locked'
+
+    # A new lock starts from the previous lock's checkouts, so without this
+    # the saved cache keeps every commit ever locked and grows until runners
+    # run out of disk. Only checkouts that this job's locks use are kept; a
+    # job that sets up several projects keeps all of theirs.
+    - name: Keep only the locked package checkouts
+      if: inputs.fetch == 'true'
+      shell: bash
+      working-directory: ${{ inputs.project }}
+      env:
+        ZIRAN: ${{ steps.resolve.outputs.root }}/build/bin/ziran
+        SOURCES: ${{ steps.resolve.outputs.sources }}
+        KEEP: ${{ runner.temp }}/ziran-locked-checkouts
+      run: |
+        python3 - <<'PY'
+        import json, os, re, shutil, subprocess
+        from pathlib import Path
+        sources, keep = Path(os.environ['SOURCES']).resolve(), Path(os.environ['KEEP'])
+        lock = json.loads(Path('ziran.lock').read_text())
+        names = [package['name'] for package in lock['packages']] + (['ziran'] if 'toolchain' in lock else [])
+        used = set(keep.read_text().split()) if keep.exists() else set()
+        for name in names:
+            path = Path(subprocess.check_output([os.environ['ZIRAN'], 'pkg', 'path', name, '--locked'], text=True).strip())
+            if path.resolve().parent == sources:
+                used.add(path.resolve().name)
+        keep.write_text(''.join(entry + '\n' for entry in sorted(used)))
+        removed = 0
+        for entry in sources.iterdir() if sources.is_dir() else ():
+            if re.fullmatch(r'p[0-9a-f]{16}', entry.name) and entry.name not in used and entry.is_dir() and not entry.is_symlink():
+                shutil.rmtree(entry)
+                removed += 1
+        print(f'Kept {len(used)} locked package checkouts; removed {removed} unused')
+        PY

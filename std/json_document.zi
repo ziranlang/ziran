@@ -15,11 +15,13 @@
 //
 // JsonWrite lays text out as Python's json.dumps does for the same style:
 // separators, indentation, empty containers, ensure_ascii escapes and
-// sort_keys. Numbers keep the text they were read with. Strings without
+// sort_keys. Numbers keep the text they were read with unless python_floats
+// is enabled in the style. Strings without
 // escapes are views of the text that was read, so keep that text alive
 // while the document is used. Objects keep every member in order; a
 // repeated name is answered by its last member, as Python's dict reads it.
 using Vectors :: #import "vec"
+FloatText :: #import "float_text"
 
 JsonKind :: enum u8 { Missing :: 0; Null :: 1; False :: 2; True :: 3; Number :: 4; String :: 5; Array :: 6; Object :: 7; }
 
@@ -51,17 +53,21 @@ JsonStyle :: struct {
     // Writes every non-ASCII character as \uXXXX, as ensure_ascii does.
     ascii: bool
     sort_keys: bool
+    // Canonicalize decimal/exponent tokens as Python binary64 JSON floats.
+    // Integer tokens (including arbitrarily long ones) always keep their text.
+    python_floats: bool
 }
 
 // The style of Python's json.dumps(value, indent=INDENT); a negative INDENT
 // stands for indent=None. ASCII escapes are on, as ensure_ascii's default.
-JsonPythonStyle :: (indent: s32 = -1, ascii: bool = true, sort_keys: bool = false) -> JsonStyle {
+JsonPythonStyle :: (indent: s32 = -1, ascii: bool = true, sort_keys: bool = false, python_floats: bool = false) -> JsonStyle {
     style: JsonStyle
     style.indent = indent
     style.item_separator = ifx indent < 0 then ", " else ","
     style.key_separator = ": "
     style.ascii = ascii
     style.sort_keys = sort_keys
+    style.python_floats = python_floats
     return style
 }
 
@@ -638,7 +644,29 @@ WriteNode :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonS
     if kind == .Null { BuilderAppend(<<output, "null"); return }
     if kind == .True { BuilderAppend(<<output, "true"); return }
     if kind == .False { BuilderAppend(<<output, "false"); return }
-    if kind == .Number { BuilderAppend(<<output, document.nodes[node].text); return }
+    if kind == .Number {
+        text := document.nodes[node].text
+        if style.python_floats {
+            at: s64 = 0
+            floating: bool = false
+            while at < text.count {
+                if text[at] == #char "." || text[at] == #char "e" || text[at] == #char "E" { floating = true; break }
+                at += 1
+            }
+            if floating {
+                value, ok := FloatText.ParseFloat64(text)
+                if ok {
+                    formatted := FloatText.Float64Repr(value)
+                    if formatted == "inf" { formatted = "Infinity" }
+                    if formatted == "-inf" { formatted = "-Infinity" }
+                    BuilderAppend(<<output, formatted)
+                    return
+                }
+            }
+        }
+        BuilderAppend(<<output, text)
+        return
+    }
     if kind == .String { JsonQuoteInto(output, document.nodes[node].text, style.ascii); return }
     object := kind == .Object
     if document.nodes[node].count == 0 {

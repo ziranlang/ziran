@@ -1,0 +1,296 @@
+// Locale-independent IEEE 754 binary64 decimal conversion, entirely in Ziran.
+#import "math"
+using Vectors :: #import "vec"
+
+#scope_file
+// 6144 bits covers 1100 retained decimal digits and all binary64 scaling.
+// A binary64 rounding boundary has fewer than 1100 significant decimal
+// digits. Further input digits therefore need only a sticky nonzero flag.
+Big :: struct { words: [192]u32; count: s32 }
+
+Natural :: (value: u64) -> Big {
+    result: Big
+    result.words[0] = cast(u32)value
+    result.words[1] = cast(u32)(value >> cast(u64)32)
+    result.count = ifx result.words[1] != 0 then 2 else 1
+    if value == 0 { result.count = 0 }
+    return result
+}
+
+Compare :: (a: *Big, b: *Big) -> s32 {
+    if a.count != b.count { return ifx a.count < b.count then -1 else 1 }
+    i := a.count - 1
+    while i >= 0 {
+        if a.words[i] != b.words[i] { return ifx a.words[i] < b.words[i] then -1 else 1 }
+        i -= 1
+    }
+    return 0
+}
+
+Multiply :: (a: *Big, factor: u32, extra: u32 = 0) {
+    carry := cast(u64)extra
+    i: s32 = 0
+    while i < a.count {
+        product := cast(u64)a.words[i] * cast(u64)factor + carry
+        a.words[i] = cast(u32)product
+        carry = product >> cast(u64)32
+        i += 1
+    }
+    if carry != 0 { a.words[a.count] = cast(u32)carry; a.count += 1 }
+}
+
+Shift :: (a: *Big, bits: s32) {
+    if a.count == 0 { return }
+    whole := bits / 32
+    part := bits % 32
+    i := a.count - 1
+    while i >= 0 { a.words[i + whole] = a.words[i]; i -= 1 }
+    i = 0
+    while i < whole { a.words[i] = 0; i += 1 }
+    a.count += whole
+    if part != 0 {
+        carry: u64 = 0
+        i = whole
+        while i < a.count {
+            value := (cast(u64)a.words[i] << cast(u64)part) | carry
+            a.words[i] = cast(u32)value
+            carry = value >> cast(u64)32
+            i += 1
+        }
+        if carry != 0 { a.words[a.count] = cast(u32)carry; a.count += 1 }
+    }
+}
+
+Subtract :: (a: *Big, b: *Big) {
+    borrow: u64 = 0
+    i: s32 = 0
+    while i < a.count {
+        right := borrow
+        if i < b.count { right += cast(u64)b.words[i] }
+        left := cast(u64)a.words[i]
+        a.words[i] = cast(u32)(left - right)
+        borrow = ifx left < right then cast(u64)1 else cast(u64)0
+        i += 1
+    }
+    while a.count > 0 && a.words[a.count - 1] == 0 { a.count -= 1 }
+}
+
+BitCount :: (a: *Big) -> s32 {
+    if a.count == 0 { return 0 }
+    bits := (a.count - 1) * 32
+    word := a.words[a.count - 1]
+    while word != 0 { bits += 1; word >>= cast(u32)1 }
+    return bits
+}
+
+// Round the exact positive ratio to binary64, nearest with ties to even.
+Ratio :: (numerator: Big, denominator: Big, sticky: bool) -> float64 {
+    exponent := BitCount(*numerator) - BitCount(*denominator)
+    a := numerator
+    b := denominator
+    if exponent >= 0 { Shift(*b, exponent) } else { Shift(*a, -exponent) }
+    if Compare(*a, *b) < 0 { exponent -= 1 }
+    if exponent > 1023 { return Infinity() }
+    if exponent < -1075 { return 0.0 }
+    unit := exponent - 52
+    if unit < -1074 { unit = -1074 }
+    a = numerator
+    b = denominator
+    if unit < 0 { Shift(*a, -unit) } else { Shift(*b, unit) }
+    quotient: u64 = 0
+    bit := BitCount(*a) - BitCount(*b)
+    while bit >= 0 {
+        trial := b
+        Shift(*trial, bit)
+        if Compare(*a, *trial) >= 0 {
+            Subtract(*a, *trial)
+            quotient |= cast(u64)1 << cast(u64)bit
+        }
+        bit -= 1
+    }
+    Multiply(*a, 2)
+    half := Compare(*a, *b)
+    if half > 0 || (half == 0 && (sticky || (quotient & cast(u64)1) != 0)) { quotient += 1 }
+    return ScaleByPowerOfTwo(cast(float64)quotient, unit)
+}
+
+Digit :: (byte: u8) -> bool { return byte >= #char "0" && byte <= #char "9" }
+
+#scope_export
+// A complete ASCII decimal, optional sign/point/exponent, or inf/nan.
+// No whitespace, separators or trailing bytes. Invalid input returns 0,false.
+// Overflow and underflow succeed, producing infinity or signed zero.
+ParseFloat64 :: (text: string) -> (value: float64, ok: bool) {
+    at: s64 = 0
+    negative: bool = false
+    if text.count > 0 && (text[0] == #char "-" || text[0] == #char "+") {
+        negative = text[0] == #char "-"
+        at += 1
+    }
+    if text[at:] == "inf" || text[at:] == "Infinity" {
+        return ifx negative then -Infinity() else Infinity(), true
+    }
+    if text[at:] == "nan" || text[at:] == "NaN" { return NotANumber(), true }
+    number := Natural(0)
+    digits: s64 = 0
+    significant: s64 = 0
+    fraction: s64 = 0
+    kept: s32 = 0
+    point: bool = false
+    sticky: bool = false
+    while at < text.count {
+        byte := text[at]
+        if byte == #char "." && !point { point = true; at += 1; continue }
+        if !Digit(byte) { break }
+        digit := cast(u32)(byte - #char "0")
+        digits += 1
+        if point { fraction += 1 }
+        if digit != 0 || significant > 0 {
+            significant += 1
+            if kept < 1100 { Multiply(*number, 10, digit); kept += 1 }
+            else if digit != 0 { sticky = true }
+        }
+        at += 1
+    }
+    if digits == 0 { return 0.0, false }
+    decimal: s64 = 0
+    if at < text.count && (text[at] == #char "e" || text[at] == #char "E") {
+        at += 1
+        minus: bool = false
+        if at < text.count && (text[at] == #char "-" || text[at] == #char "+") {
+            minus = text[at] == #char "-"; at += 1
+        }
+        start := at
+        // Larger exponents cannot be cancelled by this input's digit count.
+        limit := text.count + 10000
+        while at < text.count && Digit(text[at]) {
+            if decimal < limit { decimal = decimal * 10 + cast(s64)(text[at] - #char "0") }
+            at += 1
+        }
+        if start == at { return 0.0, false }
+        if minus { decimal = -decimal }
+    }
+    if at != text.count { return 0.0, false }
+    result: float64 = 0.0
+    if significant > 0 {
+        order := decimal - fraction + significant - 1
+        if order > 308 { result = Infinity() }
+        else if order >= -324 {
+            power := order - kept + 1
+            denominator := Natural(1)
+            while power > 0 { Multiply(*number, 10); power -= 1 }
+            while power < 0 { Multiply(*denominator, 10); power += 1 }
+            result = Ratio(number, denominator, sticky)
+        }
+    }
+    if negative { result = -result }
+    return result, true
+}
+
+#scope_file
+// Produce shortest significant digits from the exact binary value and its
+// two rounding boundaries. Inclusive boundaries belong to even significands.
+Shortest :: (value: float64, digits: []u8) -> (count: s32, order: s32) {
+    exponent: s32 = 0
+    while value >= 4294967296.0 { value /= 4294967296.0; exponent += 32 }
+    while value < 1.0 { value *= 4294967296.0; exponent -= 32 }
+    while value >= 2.0 { value *= 0.5; exponent += 1 }
+    mantissa := cast(u64)(value * 4503599627370496.0)
+    exponent -= 52
+    while exponent < -1074 { mantissa >>= cast(u64)1; exponent += 1 }
+    even := (mantissa & cast(u64)1) == 0
+    lower := Natural(ifx mantissa == cast(u64)4503599627370496 && exponent > -1074 then cast(u64)1 else cast(u64)2)
+    upper := Natural(2)
+    remainder := Natural(mantissa * cast(u64)4)
+    divisor := Natural(1)
+    if exponent >= 2 {
+        Shift(*remainder, exponent - 2); Shift(*lower, exponent - 2); Shift(*upper, exponent - 2)
+    } else { Shift(*divisor, 2 - exponent) }
+    order: s32 = 0
+    while Compare(*remainder, *divisor) < 0 {
+        Multiply(*remainder, 10); Multiply(*lower, 10); Multiply(*upper, 10); order -= 1
+    }
+    while true {
+        trial := divisor
+        Multiply(*trial, 10)
+        if Compare(*remainder, *trial) < 0 { break }
+        divisor = trial
+        order += 1
+    }
+    count: s32 = 0
+    while true {
+        digit: u8 = 0
+        while Compare(*remainder, *divisor) >= 0 { Subtract(*remainder, *divisor); digit += 1 }
+        digits[count] = digit
+        count += 1
+        low_cmp := Compare(*remainder, *lower)
+        low := low_cmp < 0 || (even && low_cmp == 0)
+        // remainder + upper >= divisor, without an addition routine.
+        gap := divisor
+        Subtract(*gap, *remainder)
+        high_cmp := Compare(*upper, *gap)
+        high := high_cmp > 0 || (even && high_cmp == 0)
+        if low || high {
+            twice := remainder
+            Multiply(*twice, 2)
+            middle := Compare(*twice, *divisor)
+            if high && (!low || middle > 0 || (middle == 0 && (digit & cast(u8)1) != 0)) {
+                i := count - 1
+                while i >= 0 && digits[i] == 9 { digits[i] = 0; i -= 1 }
+                if i < 0 { digits[0] = 1; count = 1; order += 1 }
+                else { digits[i] += 1 }
+            }
+            while count > 1 && digits[count - 1] == 0 { count -= 1 }
+            return count, order
+        }
+        Multiply(*remainder, 10); Multiply(*lower, 10); Multiply(*upper, 10)
+    }
+}
+
+#scope_export
+// Python-style shortest binary64 repr: fixed for decimal orders -4..15,
+// otherwise lowercase e, explicit exponent sign and at least two digits.
+// Finite integral values retain .0; signed zero, inf and nan are preserved.
+// The returned string owns its storage.
+Float64Repr :: (value: float64) -> string {
+    if value != value { return "nan" }
+    negative := value < 0.0 || (value == 0.0 && 1.0 / value < 0.0)
+    if negative { value = -value }
+    if !Finite64(value) { return ifx negative then "-inf" else "inf" }
+    if value == 0.0 { return ifx negative then "-0.0" else "0.0" }
+    digits: [18]u8
+    count, order := Shortest(value, digits[:])
+    output: Vec(u8)
+    if negative { VecPush(output, #char "-") }
+    if order < -4 || order >= 16 {
+        VecPush(output, digits[0] + #char "0")
+        if count > 1 {
+            VecPush(output, #char ".")
+            i: s32 = 1
+            while i < count { VecPush(output, digits[i] + #char "0"); i += 1 }
+        }
+        VecPush(output, #char "e")
+        VecPush(output, ifx order < 0 then #char "-" else #char "+")
+        if order < 0 { order = -order }
+        if order >= 100 { VecPush(output, cast(u8)(order / 100) + #char "0") }
+        VecPush(output, cast(u8)((order / 10) % 10) + #char "0")
+        VecPush(output, cast(u8)(order % 10) + #char "0")
+    } else {
+        i: s32 = 0
+        if order < 0 {
+            BuilderAppend(output, "0.")
+            while i < -order - 1 { VecPush(output, #char "0"); i += 1 }
+            i = 0
+            while i < count { VecPush(output, digits[i] + #char "0"); i += 1 }
+        } else {
+            while i <= order {
+                VecPush(output, ifx i < count then digits[i] + #char "0" else #char "0")
+                i += 1
+            }
+            VecPush(output, #char ".")
+            if i >= count { VecPush(output, #char "0") }
+            while i < count { VecPush(output, digits[i] + #char "0"); i += 1 }
+        }
+    }
+    return BuilderFinish(output)
+}

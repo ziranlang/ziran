@@ -1,0 +1,53 @@
+#import "float_text"
+#import "binary"
+#import "json_document"
+
+Check :: (text: string, expected: string) -> bool {
+    value, ok := ParseFloat64(text)
+    return ok && Float64Repr(value) == expected
+}
+
+SelfTest :: () -> s32 {
+    if !Check("1e3", "1000.0") || !Check("-0e0", "-0.0") || !Check("1e-7", "1e-07") { return 1 }
+    if !Check("1e-4", "0.0001") || !Check("1e-5", "1e-05") || !Check("1e15", "1000000000000000.0") || !Check("1e16", "1e+16") { return 2 }
+    if !Check("2.2250738585072014e-308", "2.2250738585072014e-308") || !Check("5e-324", "5e-324") || !Check("1.7976931348623157e308", "1.7976931348623157e+308") { return 3 }
+    if !Check("9007199254740993", "9007199254740992.0") || !Check("9007199254740995", "9007199254740996.0") { return 4 }
+    if !Check("1.00000000000000011102230246251565404236316680908203125", "1.0") ||
+        !Check("1.000000000000000111022302462515654042363166809082031251", "1.0000000000000002") { return 5 }
+    if !Check("-1e999999", "-inf") || !Check("-1e-999999", "-0.0") || !Check("000.000e9999", "0.0") { return 6 }
+    invalid: [12]string = .["", ".", "-", "1e", "1e+", "1.2.3", " 1", "1 ", "1,5", "0x10", "1e1x", "nanx"]
+    for bad: invalid {
+        value, ok := ParseFloat64(bad)
+        if ok { return 7 }
+    }
+    // Signed zeros and nonfinite values from bits, independent of parsing.
+    if Float64Repr(Float64FromBits(cast(u64)9223372036854775808)) != "-0.0" ||
+        Float64Repr(Float64FromBits(cast(u64)9218868437227405312)) != "inf" ||
+        Float64Repr(Float64FromBits(cast(u64)9221120237041090560)) != "nan" { return 8 }
+    // Seeded full-exponent bit patterns, roundtripped in every backend.
+    state: u64 = 88172645463325252
+    i: s32 = 0
+    while i < 128 {
+        state ^= state << cast(u64)13; state ^= state >> cast(u64)7; state ^= state << cast(u64)17
+        bits := state & cast(u64)9223372036854775807
+        if bits < cast(u64)9218868437227405312 {
+            original := Float64FromBits(bits)
+            text := Float64Repr(original)
+            parsed, ok := ParseFloat64(text)
+            if !ok || parsed != original { return 9 }
+        }
+        i += 1
+    }
+    document: JsonDocument
+    source := "[1e3,-0e0,1e-7,3.5e1,1.2300,-0,900719925474099312345678901234567890,1e400,-1e400,-1e-400]"
+    if !JsonRead(*document, source) { return 10 }
+    if JsonWrite(*document, document.root, JsonCompactStyle()) != source { return 11 }
+    expected := "[1000.0, -0.0, 1e-07, 35.0, 1.23, -0, 900719925474099312345678901234567890, Infinity, -Infinity, -0.0]"
+    if JsonWrite(*document, document.root, JsonPythonStyle(-1, true, false, true)) != expected { return 12 }
+    if JsonNumberText(*document, JsonElement(*document, document.root, 0)) != "1e3" { return 13 }
+    // Custom/compact style may also opt in without changing its separators.
+    style := JsonCompactStyle()
+    style.python_floats = true
+    if JsonWrite(*document, JsonElement(*document, document.root, 0), style) != "1000.0" { return 14 }
+    return 0
+}

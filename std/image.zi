@@ -271,6 +271,8 @@ FloorOf :: (value: float64) -> s32 {
     return ifx cast(float64)whole > value then whole - 1 else whole
 }
 
+Absolute :: (value: float64) -> float64 { return ifx value < 0.0 then -value else value }
+
 // Fixed-point weights, as Pillow keeps them for 8-bit pictures.
 PRECISION :: 22;
 
@@ -286,9 +288,16 @@ Sinc :: (x: float64) -> float64 {
     return Sin(angle) / angle
 }
 
-Filter :: (lanczos: bool, x: float64) -> float64 {
-    if lanczos {
+Filter :: (filter: s32, x: float64) -> float64 {
+    if filter == 1 {
         if x >= -3.0 && x < 3.0 { return Sinc(x) * Sinc(x / 3.0) }
+        return 0.0
+    }
+    if filter == 2 {
+        distance := ifx x < 0.0 then -x else x
+        // Pillow's cubic convolution, a = -0.5. Keep evaluation order.
+        if distance < 1.0 { return ((1.5 * distance - 2.5) * distance) * distance + 1.0 }
+        if distance < 2.0 { return (((distance - 5.0) * distance + 8.0) * distance - 4.0) * -0.5 }
         return 0.0
     }
     if x > -0.5 && x <= 0.5 { return 1.0 }
@@ -298,11 +307,12 @@ Filter :: (lanczos: bool, x: float64) -> float64 {
 Truncate :: (value: float64) -> s32 { return cast(s32)value }
 
 // Pillow's precompute_coeffs and normalize_coeffs_8bpc for one axis.
-Coefficients :: (input: s32, output: s32, lanczos: bool) -> Weights {
+Coefficients :: (input: s32, output: s32, filter: s32) -> Weights {
     result: Weights
     scale := cast(float64)input / cast(float64)output
     filter_scale := ifx scale < 1.0 then 1.0 else scale
-    support := (ifx lanczos then 3.0 else 0.5) * filter_scale
+    inverse_scale := 1.0 / filter_scale
+    support := (ifx filter == 1 then 3.0 else (ifx filter == 2 then 2.0 else 0.5)) * filter_scale
     whole := Truncate(support)
     if cast(float64)whole < support { whole += 1 }
     size := whole * 2 + 1
@@ -319,7 +329,10 @@ Coefficients :: (input: s32, output: s32, lanczos: bool) -> Weights {
         total := 0.0
         for at: 0..size - 1 {
             weight := 0.0
-            if at < high { weight = Filter(lanczos, (cast(float64)(at + low) - center + 0.5) / filter_scale) }
+            if at < high {
+                distance := cast(float64)(at + low) - center + 0.5
+                weight = Filter(filter, ifx filter == 2 then distance * inverse_scale else distance / filter_scale)
+            }
             VecPush(values, weight)
             total += weight
         }
@@ -367,8 +380,8 @@ Unpremultiply :: (image: *Image) {
     }
 }
 
-Horizontal :: (image: *Image, width: s32, lanczos: bool) -> Image {
-    weights := Coefficients(image.width, width, lanczos)
+Horizontal :: (image: *Image, width: s32, filter: s32) -> Image {
+    weights := Coefficients(image.width, width, filter)
     result := NewImage(width, image.height)
     for y: 0..image.height - 1 {
         for x: 0..width - 1 {
@@ -387,8 +400,8 @@ Horizontal :: (image: *Image, width: s32, lanczos: bool) -> Image {
     return result
 }
 
-Vertical :: (image: *Image, height: s32, lanczos: bool) -> Image {
-    weights := Coefficients(image.height, height, lanczos)
+Vertical :: (image: *Image, height: s32, filter: s32) -> Image {
+    weights := Coefficients(image.height, height, filter)
     result := NewImage(image.width, height)
     for y: 0..height - 1 {
         low := weights.bounds[y * 2]
@@ -407,23 +420,31 @@ Vertical :: (image: *Image, height: s32, lanczos: bool) -> Image {
     return result
 }
 
-Resample :: (image: *Image, width: s32, height: s32, lanczos: bool) -> Image {
+Resample :: (image: *Image, width: s32, height: s32, filter: s32) -> Image {
     if !ImageValid(image) || width <= 0 || height <= 0 { return NewImage(0, 0) }
+    if width == image.width && height == image.height { return CopyImage(image) }
     work := CopyImage(image)
     Premultiply(*work)
     if width != image.width && height != image.height {
-        wide := Horizontal(*work, width, lanczos)
-        both := Vertical(*wide, height, lanczos)
+        // Pillow 12.3 resizes extremely tall images vertically first.
+        if filter == 2 && cast(s64)image.height > cast(s64)image.width * 100 && height < image.height {
+            tall := Vertical(*work, height, filter)
+            both := Horizontal(*tall, width, filter)
+            Unpremultiply(*both)
+            return both
+        }
+        wide := Horizontal(*work, width, filter)
+        both := Vertical(*wide, height, filter)
         Unpremultiply(*both)
         return both
     }
     if width != image.width {
-        wide := Horizontal(*work, width, lanczos)
+        wide := Horizontal(*work, width, filter)
         Unpremultiply(*wide)
         return wide
     }
     if height != image.height {
-        tall := Vertical(*work, height, lanczos)
+        tall := Vertical(*work, height, filter)
         Unpremultiply(*tall)
         return tall
     }
@@ -460,12 +481,52 @@ ResizeNearest :: (image: *Image, width: s32, height: s32) -> Image {
 
 // Pillow's Resampling.BOX: each pixel averages the source pixels it covers.
 ResizeBox :: (image: *Image, width: s32, height: s32) -> Image {
-    return Resample(image, width, height, false)
+    return Resample(image, width, height, 0)
 }
 
 // Pillow's Resampling.LANCZOS, three lobes.
 ResizeLanczos :: (image: *Image, width: s32, height: s32) -> Image {
-    return Resample(image, width, height, true)
+    return Resample(image, width, height, 1)
+}
+
+// Pillow's RGBA Resampling.BICUBIC. Gap 0 means None; otherwise it must
+// be finite and >= 1. RGBA's premultiplied resize does not use integer
+// reduction, including when every pixel is opaque, just as in Pillow.
+ResizeBicubic :: (image: *Image, width: s32, height: s32, reducing_gap: float64 = 0.0) -> Image {
+    if !Finite64(reducing_gap) || (reducing_gap != 0.0 && reducing_gap < 1.0) { return NewImage(0, 0) }
+    return Resample(image, width, height, 2)
+}
+
+// An owned RGBA thumbnail, matching Pillow's default bicubic thumbnail.
+// Never enlarges; chooses floor/ceil by aspect error, keeping at least one
+// pixel per axis. Does not rotate/transpose or modify the source. Invalid
+// images/nonpositive bounds return an empty Image. A resize also rejects an
+// invalid reducing_gap; an unchanged thumbnail returns before checking it.
+Thumbnail :: (image: *Image, max_width: s32, max_height: s32, reducing_gap: float64 = 2.0) -> Image {
+    if !ImageValid(image) || max_width <= 0 || max_height <= 0 { return NewImage(0, 0) }
+    if max_width >= image.width && max_height >= image.height { return CopyImage(image) }
+    if !Finite64(reducing_gap) || (reducing_gap != 0.0 && reducing_gap < 1.0) { return NewImage(0, 0) }
+    width := max_width
+    height := max_height
+    aspect := cast(float64)image.width / cast(float64)image.height
+    if cast(float64)width / cast(float64)height >= aspect {
+        ideal := cast(float64)height * aspect
+        low := FloorOf(ideal)
+        high := low + (ifx cast(float64)low < ideal then 1 else 0)
+        low_error := Absolute(aspect - cast(float64)low / cast(float64)height)
+        high_error := Absolute(aspect - cast(float64)high / cast(float64)height)
+        width = ifx low_error <= high_error then low else high
+        if width < 1 { width = 1 }
+    } else {
+        ideal := cast(float64)width / aspect
+        low := FloorOf(ideal)
+        high := low + (ifx cast(float64)low < ideal then 1 else 0)
+        low_error := ifx low == 0 then 0.0 else Absolute(aspect - cast(float64)width / cast(float64)low)
+        high_error := ifx high == 0 then 0.0 else Absolute(aspect - cast(float64)width / cast(float64)high)
+        height = ifx low_error <= high_error then low else high
+        if height < 1 { height = 1 }
+    }
+    return ResizeBicubic(image, width, height, reducing_gap)
 }
 
 #scope_export

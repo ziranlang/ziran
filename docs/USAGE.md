@@ -815,6 +815,22 @@ each `%` takes the next argument and `%%` writes one percent. A file that uses
 `Vec` visible. `BuilderFinish(builder)` returns the text. Floats keep up to six
 digits after the point, with trailing zeros dropped.
 
+`std/float_text.zi` supplies portable binary64 decimal conversion:
+`ParseFloat64(text: string) -> (value: float64, ok: bool)` accepts a complete
+ASCII decimal with optional sign, point and exponent, or `inf`/`Infinity` and
+`nan`/`NaN`. It rejects whitespace and trailing bytes. Rounding is nearest,
+ties to even; overflow succeeds as infinity and underflow as signed zero.
+`Float64Repr(value: float64) -> string` returns owned shortest roundtrip text
+with Python's `repr` layout: fixed notation for decimal orders -4 through 15,
+otherwise lowercase `e`, a signed exponent with at least two digits, and `.0`
+on fixed integral values. It preserves negative zero and writes `inf`, `-inf`
+and `nan`. Both procedures use bounded exact integer arithmetic in Ziran,
+without foreign calls, locale state or a Python runtime. Parsing scans all
+input bytes, retaining at most 1100 significant digits plus a sticky flag;
+this exceeds the length of every binary64 rounding boundary. Run
+`build-queue -- sh tests/std_float_text.sh build/bin/ziran` for independent
+edge/random C/Go/VM tests from source and saved IR.
+
 ### Hash maps
 
 `std/hash_map.zi` maps string or integer keys to values on every target and
@@ -982,7 +998,15 @@ place, `JsonAppend`, `JsonRemove`, `JsonCopy`) and writes back. `JsonWrite`
 lays the text out as Python's `json.dumps` does for the same style: indent,
 separators, ensure_ascii escapes and sort_keys, so tools can rewrite files that
 Python wrote without changing their bytes. Numbers keep the text they were read
-with. Run `sh tests/std_json_document.sh build/bin/ziran` for its checks.
+with by default. `JsonPythonStyle(indent, ascii, sort_keys, true)` opts into
+binary64 float canonicalization (`JsonStyle.python_floats` for a custom style):
+`1e3` becomes `1000.0`, `-0e0` becomes `-0.0`, and `1e-7` becomes `1e-07`.
+Only tokens containing a point or exponent are converted. Integer tokens,
+including arbitrary-precision integers and `-0`, keep their original spelling;
+the stored node text is never changed. Float overflow writes `Infinity` or
+`-Infinity`, as Python's default JSON encoder does. Run
+`sh tests/std_json_document.sh build/bin/ziran` for tree operations and default
+layout, and `sh tests/std_float_text.sh build/bin/ziran` for canonical floats.
 
 `std/zip.zi` reads classic ZIP directories from caller-owned bytes, verifies
 stored entries with CRC-32, and writes stored archives into caller-owned output.
@@ -1000,10 +1024,24 @@ builds use `-sUSE_ZLIB=1`. Run `make gzip-test` for independent Python gzip
 interoperability and malformed-input tests.
 `std/image.zi` holds RGBA pictures (`Image`: width, height and straight-alpha
 pixels, rows top to bottom) and does what build tools did with Pillow:
-`ResizeNearest`, `ResizeBox` and `ResizeLanczos` give Pillow's exact pixels
+`ResizeNearest`, `ResizeBox`, `ResizeBicubic` and `ResizeLanczos` give Pillow's exact pixels
 (filtered resizing premultiplies alpha as Pillow does), `AlphaComposite` is
 `Image.alpha_composite`, and `PasteImage`, `RotateLeft`, `DropAlpha` and
 `QuantizeImage` (median cut with Floyd–Steinberg dithering) complete it.
+`Thumbnail(image: *Image, max_width: s32, max_height: s32,
+reducing_gap: float64 = 2.0) -> Image` returns an owned bicubic thumbnail,
+preserving aspect ratio with Pillow's floor/ceil choice and never enlarging.
+`ResizeBicubic(image: *Image, width: s32, height: s32,
+reducing_gap: float64 = 0.0) -> Image` also permits enlargement. Both keep the
+source unchanged and return an empty image for invalid images or nonpositive
+sizes. Gap `0` means Pillow's `None`; other gaps must be finite and at least
+`1` when resizing (an unchanged thumbnail returns before checking the gap).
+Like Pillow's RGBA path, they resample premultiplied bytes without an
+integer reduction step, regardless of gap. Unchanged sizes preserve all bytes,
+including RGB under zero alpha; neither operation applies EXIF orientation.
+Run `make -f Makefile -f tests/native_image_thumbnail.mk image-thumbnail-test`
+for 40 frozen Pillow 12.3.0 bitmap oracles through native C source/saved IR,
+plus Go and portable source/saved-IR assertions (no Python dependency).
 `std/png_linux.zi` reads every standard PNG into an `Image` and writes RGBA,
 RGB and palette files; `std/jpeg.zi` writes baseline JPEGs at an IJG quality;
 `std/zlib_linux.zi` compresses and decompresses whole zlib, gzip or raw

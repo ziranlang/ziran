@@ -1,18 +1,50 @@
 // Reusable native range workers. One owner submits non-overlapping ranges
 // and joins their effects before continuing. Keep the pool at one address
 // until ParallelClose; callbacks must not submit to or close their own pool.
-#import "thread_linux"
+#if #defined(_WIN32) {
+    #import "thread_windows"
+} else {
+    #import "thread_linux"
+}
 
 libc :: #system_library "libc";
-MutexInit :: (mutex: *void, attributes: *void) -> s32 #foreign libc "pthread_mutex_init";
-MutexDestroy :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_destroy";
-MutexLock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_lock";
-MutexUnlock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_unlock";
-ConditionInit :: (condition: *void, attributes: *void) -> s32 #foreign libc "pthread_cond_init";
-ConditionDestroy :: (condition: *void) -> s32 #foreign libc "pthread_cond_destroy";
-ConditionWait :: (condition: *void, mutex: *void) -> s32 #foreign libc "pthread_cond_wait";
-ConditionSignal :: (condition: *void) -> s32 #foreign libc "pthread_cond_signal";
-ConditionBroadcast :: (condition: *void) -> s32 #foreign libc "pthread_cond_broadcast";
+#if #defined(_WIN32) {
+    // Win64 SRWLOCK and CONDITION_VARIABLE each occupy one pointer. The
+    // pool's aligned storage also accommodates the larger POSIX records.
+    kernel32 :: #system_library "kernel32";
+    InitializeLock :: (lock: *void) #foreign kernel32 "InitializeSRWLock";
+    AcquireLock :: (lock: *void) #foreign kernel32 "AcquireSRWLockExclusive";
+    ReleaseLock :: (lock: *void) #foreign kernel32 "ReleaseSRWLockExclusive";
+    InitializeCondition :: (condition: *void) #foreign kernel32 "InitializeConditionVariable";
+    SleepCondition :: (condition: *void, lock: *void, milliseconds: u32,
+        flags: u32) -> s32 #foreign kernel32 "SleepConditionVariableSRW";
+    WakeCondition :: (condition: *void) #foreign kernel32 "WakeConditionVariable";
+    WakeAllCondition :: (condition: *void) #foreign kernel32 "WakeAllConditionVariable";
+
+    MutexInit :: (mutex: *void, attributes: *void) -> s32 { InitializeLock(mutex); return 0 }
+    MutexDestroy :: (mutex: *void) -> s32 { return 0 }
+    MutexLock :: (mutex: *void) -> s32 { AcquireLock(mutex); return 0 }
+    MutexUnlock :: (mutex: *void) -> s32 { ReleaseLock(mutex); return 0 }
+    ConditionInit :: (condition: *void, attributes: *void) -> s32 { InitializeCondition(condition); return 0 }
+    ConditionDestroy :: (condition: *void) -> s32 { return 0 }
+    ConditionWait :: (condition: *void, mutex: *void) -> s32 {
+        // Atomically release the exclusive lock while sleeping, then
+        // reacquire it before inspecting the pool's predicate again.
+        return ifx SleepCondition(condition, mutex, cast(u32)4294967295, 0) != 0 then 0 else 1
+    }
+    ConditionSignal :: (condition: *void) -> s32 { WakeCondition(condition); return 0 }
+    ConditionBroadcast :: (condition: *void) -> s32 { WakeAllCondition(condition); return 0 }
+} else {
+    MutexInit :: (mutex: *void, attributes: *void) -> s32 #foreign libc "pthread_mutex_init";
+    MutexDestroy :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_destroy";
+    MutexLock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_lock";
+    MutexUnlock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_unlock";
+    ConditionInit :: (condition: *void, attributes: *void) -> s32 #foreign libc "pthread_cond_init";
+    ConditionDestroy :: (condition: *void) -> s32 #foreign libc "pthread_cond_destroy";
+    ConditionWait :: (condition: *void, mutex: *void) -> s32 #foreign libc "pthread_cond_wait";
+    ConditionSignal :: (condition: *void) -> s32 #foreign libc "pthread_cond_signal";
+    ConditionBroadcast :: (condition: *void) -> s32 #foreign libc "pthread_cond_broadcast";
+}
 EnvironmentValue :: (name: *u8) -> *u8 #foreign libc "getenv";
 
 RangeProcedure :: #type (start: s64, end: s64, argument: *void) #c_call;

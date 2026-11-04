@@ -4,7 +4,8 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 
 ziran=${1:?pass ziran}
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$root/build"
+work=$(mktemp -d "$root/build/std-time-windows.XXXXXX")
 cleanup() {
     if [ -d "$work/prefix" ] && command -v wineserver >/dev/null 2>&1; then
         WINEPREFIX="$work/prefix" wineserver -k || :
@@ -18,9 +19,13 @@ trap cleanup EXIT HUP INT TERM
     --define _WIN32 -o "$work/ir" "$root/tests/spec/time_windows_test.zi"
 
 cc=${WIN64_CC:-x86_64-w64-mingw32-gcc}
+set --
+if test -n "${MCFGTHREADS:-}"; then
+    set -- "-L$MCFGTHREADS/lib"
+fi
 printf 'int main(void) { return 0; }\n' > "$work/probe.c"
 can_link=false
-if command -v "$cc" >/dev/null 2>&1 && "$cc" "$work/probe.c" -o "$work/probe.exe"; then
+if command -v "$cc" >/dev/null 2>&1 && "$cc" -static "$work/probe.c" "$@" -o "$work/probe.exe"; then
     can_link=true
 fi
 
@@ -57,8 +62,8 @@ int main(void) {
     return result;
 }
 C
-    "$cc" -std=c11 -Wall -Wextra -Werror -I"$root/include" -I"$out" \
-        "$out"/*.c -o "$work/time-$input.exe"
+    "$cc" -std=c11 -static -Wall -Wextra -Werror -I"$root/include" -I"$out" \
+        "$out"/*.c "$@" -o "$work/time-$input.exe"
     if command -v "${WINE:-wine}" >/dev/null 2>&1; then
         # The prefix belongs only to this test. Scrubbed display variables
         # prevent Wine's first-run services from touching the owner's desktop.

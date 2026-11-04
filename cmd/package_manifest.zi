@@ -1,6 +1,7 @@
 #import "package_common"
 #import "package_source"
 #import "file_linux"
+Toml :: #import "toml_document"
 
 #scope_export
 PkgNamedValue :: struct {
@@ -114,17 +115,11 @@ PkgRelativePath :: (value: string) -> bool {
     return true
 }
 
+// Value helpers share the public TOML grammar with the whole manifest reader.
 PkgTomlText :: (value: string) -> string {
-    value = PkgTrim(value)
-    if value.count < 2 || value[0] != cast(u8)34 ||
-       value[cast(s64)value.count - 1] != cast(u8)34 { return "" }
-    index: s64 = 1
-    while index < cast(s64)value.count - 1 {
-        if value[index] == cast(u8)34 || value[index] == cast(u8)92 ||
-           value[index] < cast(u8)32 { return "" }
-        index += 1
-    }
-    return value[1:cast(s64)value.count - 1]
+    document: Toml.TomlDocument
+    if !Toml.TomlRead(*document, PkgJoin("value = ", value), 16777216) { return "" }
+    return Toml.TomlString(*document, Toml.TomlMember(*document, document.root, "value"))
 }
 
 PkgStripComment :: (line: string) -> string {
@@ -139,174 +134,157 @@ PkgStripComment :: (line: string) -> string {
 }
 
 PkgTomlArray :: (raw: string, values: []string) -> s32 {
-    raw = PkgTrim(raw)
-    if raw.count < 2 || raw[0] != cast(u8)91 ||
-       raw[cast(s64)raw.count - 1] != cast(u8)93 { return -1 }
-    at: s64 = 1
+    document: Toml.TomlDocument
+    if !Toml.TomlRead(*document, PkgJoin("value = ", raw), 16777216) { return -1 }
+    return PkgStringList(*document, Toml.TomlMember(*document, document.root, "value"), values)
+}
+
+PkgStringList :: (document: *Toml.TomlDocument, node: s32, values: []string) -> s32 {
+    if Toml.TomlKindOf(document, node) != Toml.TomlKind.Array || Toml.TomlCount(document, node) > values.count { return -1 }
     count: s32 = 0
-    while at < cast(s64)raw.count - 1 {
-        while at < cast(s64)raw.count - 1 &&
-            (raw[at] == cast(u8)32 || raw[at] == cast(u8)9 ||
-             raw[at] == cast(u8)44) { at += 1 }
-        if at >= cast(s64)raw.count - 1 { break }
-        if raw[at] != cast(u8)34 || count >= cast(s32)values.count { return -1 }
-        end: s64 = at + 1
-        while end < cast(s64)raw.count - 1 && raw[end] != cast(u8)34 { end += 1 }
-        if end >= cast(s64)raw.count - 1 { return -1 }
-        values[count] = PkgTomlText(raw[at:end + 1])
+    child := Toml.TomlFirst(document, node)
+    while child >= 0 {
+        if Toml.TomlKindOf(document, child) != Toml.TomlKind.String { return -1 }
+        values[count] = Toml.TomlString(document, child)
         if values[count].count == 0 { return -1 }
         count += 1
-        at = end + 1
-        while at < cast(s64)raw.count - 1 &&
-            (raw[at] == cast(u8)32 || raw[at] == cast(u8)9) { at += 1 }
-        if at < cast(s64)raw.count - 1 && raw[at] != cast(u8)44 { return -1 }
+        child = Toml.TomlNext(document, child)
     }
     return count
 }
 
-PkgTomlAliases :: (raw: string, output: *PkgDependency) -> bool {
-    raw = PkgTrim(raw)
-    if raw.count < 2 || raw[0] != cast(u8)123 ||
-       raw[cast(s64)raw.count - 1] != cast(u8)125 { return false }
-    at: s64 = 1
-    while at < cast(s64)raw.count - 1 {
-        while at < cast(s64)raw.count - 1 &&
-            (raw[at] == cast(u8)32 || raw[at] == cast(u8)9 ||
-             raw[at] == cast(u8)44) { at += 1 }
-        if at >= cast(s64)raw.count - 1 { break }
-        equal: s64 = at
-        while equal < cast(s64)raw.count - 1 && raw[equal] != cast(u8)61 { equal += 1 }
-        if equal >= cast(s64)raw.count - 1 || output.alias_count >= 24 { return false }
-        name: string = PkgTrim(raw[at:equal])
-        value_start: s64 = equal + 1
-        while value_start < cast(s64)raw.count - 1 &&
-            (raw[value_start] == cast(u8)32 || raw[value_start] == cast(u8)9) {
-            value_start += 1
-        }
-        if value_start >= cast(s64)raw.count - 1 ||
-            raw[value_start] != cast(u8)34 { return false }
-        end: s64 = value_start + 1
-        while end < cast(s64)raw.count - 1 && raw[end] != cast(u8)34 { end += 1 }
-        if end >= cast(s64)raw.count - 1 { return false }
-        value: string = PkgTomlText(raw[value_start:end + 1])
-        if !PkgIdentifier(name) || !PkgIdentifier(value) { return false }
-        output.aliases[output.alias_count].name = name
-        output.aliases[output.alias_count].value = value
-        output.alias_count += 1
-        at = end + 1
-        while at < cast(s64)raw.count - 1 &&
-            (raw[at] == cast(u8)32 || raw[at] == cast(u8)9) { at += 1 }
-        if at < cast(s64)raw.count - 1 && raw[at] != cast(u8)44 { return false }
-    }
-    return true
-}
-
 PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
+    output.valid = false
+    output.name = ""
+    output.tool_git = ""
+    output.project_tool = ""
+    output.tool = ""
+    output.install_bin = ""
+    output.problem = ""
+    output.bridge_count = 0
+    output.link_count = 0
+    output.template_count = 0
+    output.dependency_count = 0
+    output.export_count = 0
     content: PkgReadResult = PkgRead(path)
     if !content.valid { return false }
+    document: Toml.TomlDocument
+    // Package manifests may contain large export maps; callers of the public
+    // parser choose their own bound (the context planner uses its 256 KiB default).
+    if !Toml.TomlRead(*document, content.text, 16777216) { return false }
     output.entry = "src/app.zi"
     output.roots[0] = "src"
     output.root_count = 1
     output.tool_ref = "master"
-    section: string = ""
-    at: s64 = 0
-    while at < cast(s64)content.text.count {
-        end: s64 = at
-        while end < cast(s64)content.text.count &&
-            content.text[end] != cast(u8)10 { end += 1 }
-        line: string = PkgStripComment(content.text[at:end])
-        at = end + 1
-        if line.count == 0 { continue }
-        if line[0] == cast(u8)91 {
-            if line.count < 3 || line[cast(s64)line.count - 1] != cast(u8)93 { return false }
-            section = line[1:cast(s64)line.count - 1]
-            if section.count > 13 && section[0:13] == "dependencies." {
-                if output.dependency_count >= 24 { return false }
-                alias: string = section[13:]
-                if !PkgIdentifier(alias) { return false }
-                duplicate: s32 = 0
-                while duplicate < output.dependency_count {
-                    if PkgFoldEqual(output.dependencies[duplicate].alias, alias) {
+    section := Toml.TomlFirst(*document, document.root)
+    while section >= 0 {
+        name := Toml.TomlKey(*document, section)
+        if (name == "package" || name == "toolchain" || name == "tool" || name == "install" ||
+            name == "templates" || name == "exports" || name == "dependencies") &&
+            Toml.TomlKindOf(*document, section) != Toml.TomlKind.Table { return false }
+        child := Toml.TomlFirst(*document, section)
+        while child >= 0 {
+            key := Toml.TomlKey(*document, child)
+            value := Toml.TomlString(*document, child)
+            kind := Toml.TomlKindOf(*document, child)
+            if name == "package" {
+                if key == "name" || key == "entry" || key == "tool" {
+                    if kind != Toml.TomlKind.String { return false }
+                    if key == "name" { output.name = value }
+                    if key == "entry" { output.entry = value }
+                    if key == "tool" {
+                        if !PkgIdentifier(value) { return false }
+                        output.tool = value
+                    }
+                }
+                if key == "module_roots" {
+                    output.root_count = PkgStringList(*document, child, output.roots[:])
+                    if output.root_count < 0 {
+                        unused PkgFail("ziran.toml module_roots must be an array of at most 64 non-empty strings")
                         return false
                     }
+                }
+                if key == "bridge_modules" {
+                    output.bridge_count = PkgStringList(*document, child, output.bridges[:])
+                    if output.bridge_count < 0 { return false }
+                }
+                if key == "links" {
+                    output.link_count = PkgStringList(*document, child, output.links[:])
+                    if output.link_count < 0 { return false }
+                }
+            } else if name == "toolchain" {
+                if key == "git" || key == "ref" {
+                    if kind != Toml.TomlKind.String { return false }
+                    if key == "git" { output.tool_git = value }
+                    if key == "ref" { output.tool_ref = value }
+                }
+            } else if name == "tool" && key == "project" {
+                if kind != Toml.TomlKind.String { return false }
+                output.project_tool = value
+            } else if name == "install" {
+                if key == "tool" {
+                    output.problem = PkgJoin3("[install] tool moved: write tool = \"", value, "\" under [package]")
+                }
+                if key == "bin" {
+                    if kind != Toml.TomlKind.String { return false }
+                    output.install_bin = value
+                }
+            } else if name == "templates" {
+                if output.template_count >= 32 || !PkgPackageName(key) || !PkgRelativePath(value) { return false }
+                output.templates[output.template_count].name = key
+                output.templates[output.template_count].value = value
+                output.template_count += 1
+            } else if name == "exports" {
+                if output.export_count >= 4096 || !PkgIdentifier(key) || value.count == 0 { return false }
+                output.exports[output.export_count].name = key
+                output.exports[output.export_count].value = value
+                output.export_count += 1
+            } else if name == "dependencies" {
+                if output.dependency_count >= 24 || !PkgIdentifier(key) || kind != Toml.TomlKind.Table { return false }
+                duplicate: s32 = 0
+                while duplicate < output.dependency_count {
+                    if PkgFoldEqual(output.dependencies[duplicate].alias, key) { return false }
                     duplicate += 1
                 }
-                dep: *PkgDependency = *output.dependencies[output.dependency_count]
-                dep.alias = alias
+                dep := *output.dependencies[output.dependency_count]
+                dep.alias = key
+                dep.git = ""
                 dep.ref = "master"
+                dep.source = false
+                dep.alias_count = 0
                 output.dependency_count += 1
-            }
-            continue
-        }
-        equal: s64 = 0
-        while equal < cast(s64)line.count && line[equal] != cast(u8)61 { equal += 1 }
-        if equal >= cast(s64)line.count { return false }
-        key: string = PkgTrim(line[0:equal])
-        raw: string = PkgTrim(line[equal + 1:])
-        value: string = PkgTomlText(raw)
-        if section == "package" {
-            if key == "name" { output.name = value }
-            if key == "entry" { output.entry = value }
-            if key == "module_roots" {
-                output.root_count = PkgTomlArray(raw, output.roots[:])
-                if output.root_count < 0 {
-                    // Say why instead of letting callers report a fetch failure.
-                    unused PkgFail("ziran.toml module_roots must be an array of at most 64 non-empty strings")
-                    return false
+                field := Toml.TomlFirst(*document, child)
+                while field >= 0 {
+                    field_name := Toml.TomlKey(*document, field)
+                    if field_name == "git" || field_name == "ref" {
+                        if Toml.TomlKindOf(*document, field) != Toml.TomlKind.String { return false }
+                        if field_name == "git" { dep.git = Toml.TomlString(*document, field) }
+                        if field_name == "ref" { dep.ref = Toml.TomlString(*document, field) }
+                    }
+                    if field_name == "source" {
+                        truth, ok := Toml.TomlBool(*document, field)
+                        if !ok { return false }
+                        dep.source = truth
+                    }
+                    if field_name == "module_aliases" {
+                        if Toml.TomlKindOf(*document, field) != Toml.TomlKind.Table { return false }
+                        alias := Toml.TomlFirst(*document, field)
+                        while alias >= 0 {
+                            from := Toml.TomlKey(*document, alias)
+                            to := Toml.TomlString(*document, alias)
+                            if dep.alias_count >= 24 || !PkgIdentifier(from) || !PkgIdentifier(to) { return false }
+                            dep.aliases[dep.alias_count].name = from
+                            dep.aliases[dep.alias_count].value = to
+                            dep.alias_count += 1
+                            alias = Toml.TomlNext(*document, alias)
+                        }
+                    }
+                    field = Toml.TomlNext(*document, field)
                 }
             }
-            if key == "bridge_modules" {
-                output.bridge_count = PkgTomlArray(raw, output.bridges[:])
-                if output.bridge_count < 0 { return false }
-            }
-            if key == "tool" {
-                if !PkgIdentifier(value) { return false }
-                output.tool = value
-            }
-            if key == "links" {
-                output.link_count = PkgTomlArray(raw, output.links[:])
-                if output.link_count < 0 { return false }
-            }
-        } else if section == "toolchain" {
-            if key == "git" { output.tool_git = value }
-            if key == "ref" { output.tool_ref = value }
-        } else if section == "tool" {
-            if key == "project" { output.project_tool = value }
-        } else if section == "install" {
-            if key == "tool" {
-                output.problem = PkgJoin3("[install] tool moved: write tool = \"",
-                    value, "\" under [package]")
-            }
-            if key == "bin" { output.install_bin = value }
-        } else if section == "templates" {
-            if output.template_count >= 32 || !PkgPackageName(key) ||
-                !PkgRelativePath(value) { return false }
-            output.templates[output.template_count].name = key
-            output.templates[output.template_count].value = value
-            output.template_count += 1
-        } else if section == "exports" {
-            if output.export_count >= 4096 || !PkgIdentifier(key) || value.count == 0 {
-                return false
-            }
-            duplicate: s32 = 0
-            while duplicate < output.export_count {
-                if output.exports[duplicate].name == key { return false }
-                duplicate += 1
-            }
-            output.exports[output.export_count].name = key
-            output.exports[output.export_count].value = value
-            output.export_count += 1
-        } else if section.count > 13 && section[0:13] == "dependencies." {
-            if output.dependency_count == 0 { return false }
-            dep: *PkgDependency = *output.dependencies[output.dependency_count - 1]
-            if key == "git" { dep.git = value }
-            if key == "ref" { dep.ref = value }
-            if key == "module_aliases" && !PkgTomlAliases(raw, dep) { return false }
-            if key == "source" {
-                if raw == "true" { dep.source = true }
-                else if raw != "false" { return false }
-            }
+            child = Toml.TomlNext(*document, child)
         }
+        section = Toml.TomlNext(*document, section)
     }
     if !PkgPackageName(output.name) { return false }
     if output.install_bin.count > 0 && !PkgPackageName(output.install_bin) {
@@ -330,33 +308,24 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
 }
 
 PkgParseOverrides :: (path: string, output: *PkgOverrides) -> bool {
+    output.valid = false
+    output.count = 0
     if !PathExists(path) { output.valid = true; return true }
     content: PkgReadResult = PkgRead(path)
     if !content.valid { return false }
-    section: string = ""
-    at: s64 = 0
-    while at < cast(s64)content.text.count {
-        end: s64 = at
-        while end < cast(s64)content.text.count &&
-            content.text[end] != cast(u8)10 { end += 1 }
-        line: string = PkgStripComment(content.text[at:end])
-        at = end + 1
-        if line.count == 0 { continue }
-        if line[0] == cast(u8)91 {
-            if line.count < 3 || line[cast(s64)line.count - 1] != cast(u8)93 { return false }
-            section = line[1:cast(s64)line.count - 1]
-            continue
-        }
-        if section != "overrides" { continue }
-        equal: s64 = 0
-        while equal < cast(s64)line.count && line[equal] != cast(u8)61 { equal += 1 }
-        if equal >= cast(s64)line.count || output.count >= 32 { return false }
-        key: string = PkgTrim(line[0:equal])
-        value: string = PkgTomlText(line[equal + 1:])
-        if !PkgIdentifier(key) || value.count == 0 { return false }
+    document: Toml.TomlDocument
+    if !Toml.TomlRead(*document, content.text, 16777216) { return false }
+    table := Toml.TomlMember(*document, document.root, "overrides")
+    if table >= 0 && Toml.TomlKindOf(*document, table) != Toml.TomlKind.Table { return false }
+    child := Toml.TomlFirst(*document, table)
+    while child >= 0 {
+        key := Toml.TomlKey(*document, child)
+        value := Toml.TomlString(*document, child)
+        if output.count >= 32 || !PkgIdentifier(key) || value.count == 0 { return false }
         output.values[output.count].name = key
         output.values[output.count].value = value
         output.count += 1
+        child = Toml.TomlNext(*document, child)
     }
     output.valid = true
     return true

@@ -897,6 +897,42 @@ and returned by value, and every operation receives the caller-owned backing
 storage explicitly. Full pushes and empty pops are rejected without unwinding
 the queue; partial byte pops report the number removed.
 
+### TOML manifests
+
+`std/toml_document.zi` parses TOML 1.0 directly in Ziran on C, Go and the
+portable VM. It shares its parser with the package manifest reader. Quoted
+keys and strings (including escapes, literal and multiline strings), dotted
+keys, tables, inline tables, arrays and arrays of tables retain their meaning.
+Duplicate definitions, malformed values, invalid UTF-8 and trailing input
+reject the whole document, including errors in fields a caller does not query.
+
+```zi
+#import "std/toml_document"
+
+document: TomlDocument
+if TomlRead(*document, text) {
+    package := TomlMember(*document, document.root, "package")
+    name := TomlString(*document, TomlMember(*document, package, "name"))
+    dependencies := TomlMember(*document, document.root, "dependencies")
+    dependency := TomlFirst(*document, dependencies)
+    while dependency >= 0 {
+        alias := TomlKey(*document, dependency)
+        dependency = TomlNext(*document, dependency)
+    }
+}
+```
+
+`TomlRead` returns `bool`; failure clears the tree, sets `root = -1`, and
+reports `error` and `error_at` (a byte offset). Its default byte limit is
+262144; pass a third `max_bytes` argument to change it. Nesting is limited
+to 128. Keep the input alive while querying the document. Node queries accept
+`-1` for missing values; use `TomlKindOf` to distinguish an empty string from
+another type. `TomlCount` counts members/elements, `TomlBool` returns a value
+and a success flag, and `TomlScalarText` returns the validated spelling of a
+number, boolean or date/time without converting or rounding it. Run
+`sh tests/toml_document.sh build/bin/ziran` for source, saved IR, C, Go and
+portable execution tests.
+
 ### JSON and ZIP
 
 `std/json_scan.zi` supplies allocation-free JSON value skipping, object member
@@ -1094,8 +1130,12 @@ configured. Keep the pool at one address, submit from one owner, and call `Paral
 releasing it. Callbacks must write only their own range and keep shared inputs
 immutable. Four lanes run by default; `ZIRAN_PAR_THREADS` selects 1–64 lanes.
 Native C source builds define `POSIX_THREADS` automatically, including
-Windows. Windows native worker builds require a pthread-capable toolchain,
-such as MinGW-w64 with winpthreads. `PLATFORM_WEB` opts out;
+Windows. On `_WIN32`, the pool uses `std/thread_windows.zi`, native SRW locks
+and condition variables from kernel32; it needs no winpthreads or `-pthread`.
+`tests/native_workers_windows.sh` runs source and saved IR under private Wine
+with 1, 2, 4, 8 and 64 lanes. MinGW tests accept `MCFGTHREADS` as the installation
+prefix of an mcfgthread runtime when its `lib` directory is outside the compiler's
+search path. `PLATFORM_WEB` opts out;
 untargeted IR stays portable. Explicit C IR freezes the same capability
 selection as source builds. Libraries
 can use that capability to parallelize their native adapters by default while
@@ -1124,8 +1164,19 @@ changes, and each stream inherited, read from or written to a file, or
 captured (`RunProcess`); `StartProcess`, `PollProcess`, `WaitProcess` and
 `SignalProcess` follow a child left running, and a program that cannot start
 reports `started = false`. `std/file_tree_linux.zi` creates, lists, copies and
-removes folders, reads a path's kind, permissions, size and modification time,
+removes folders, reads a path's kind, owner UID (`PathInfo.owner_uid`), permissions,
+size and modification time,
 replaces a file atomically, takes `flock` locks and matches shell wildcards.
+`PathStatus(path, false)` reports a symbolic link's own metadata.
+`ResolvePath(path)` returns the canonical absolute path with symbolic links and
+dot components resolved, or empty for a missing or invalid path.
+`CreateTemporaryDirectory(parent, prefix = "ziran-")` atomically creates a unique
+child under an existing directory owned by the effective user. It returns the
+absolute path or empty on failure. The prefix must be one name component;
+six random characters follow it. Permissions are 0700 restricted by umask.
+Keep the parent and its ancestors stable during creation, and call `RemoveTree`
+when finished. Run `sh tests/std_file_tree_linux.sh build/bin/ziran` for C source
+and saved-IR ownership, canonicalization and private-directory tests.
 `std/text_tools.zi` finds, splits, trims, replaces and joins text, and decodes
 bounded hexadecimal into a caller-owned byte vector on any target.
 `std/stdio_linux.zi` writes to standard output or standard error and reads all

@@ -1,7 +1,13 @@
 #import "parallel_linux"
 
 libc :: #system_library "libc";
-ThreadIdentity :: () -> usize #foreign libc "pthread_self";
+#if #defined(_WIN32) {
+    kernel32 :: #system_library "kernel32";
+    WindowsThreadIdentity :: () -> u32 #foreign kernel32 "GetCurrentThreadId";
+    ThreadIdentity :: () -> usize { return cast(usize)WindowsThreadIdentity() }
+} else {
+    ThreadIdentity :: () -> usize #foreign libc "pthread_self";
+}
 Data :: struct { values: [513]s64; visits: [513]s32; identities: [513]usize; pass: s64 }
 data: Data;
 pool: ParallelPool;

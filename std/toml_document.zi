@@ -1,0 +1,521 @@
+// TOML 1.0 documents. Pure Ziran: no filesystem, subprocess, or interpreter.
+// Nodes are indexed; -1 is missing. Queries accept missing nodes. Text views
+// borrow the input, so keep it alive until the document is discarded/reused.
+using Vectors :: #import "vec"
+Utf8 :: #import "utf8"
+
+TomlKind :: enum u8 { Missing; String; Integer; Float; Bool; DateTime; Array; Table; }
+TomlNode :: struct {
+    kind: TomlKind
+    key: string
+    text: string
+    first: s32
+    last: s32
+    next: s32
+    count: s32
+    // Parser state; callers query nodes rather than modifying these fields.
+    defined: bool
+    dotted: bool
+    sealed: bool
+    table_array: bool
+}
+TomlDocument :: struct {
+    nodes: Vec(TomlNode)
+    root: s32
+    error: string
+    error_at: s64
+}
+
+TomlKindOf :: (document: *TomlDocument, node: s32) -> TomlKind {
+    if node < 0 || node >= document.nodes.count { return .Missing }
+    return document.nodes[node].kind
+}
+TomlFirst :: (document: *TomlDocument, node: s32) -> s32 {
+    if node < 0 || node >= document.nodes.count { return -1 }
+    return document.nodes[node].first
+}
+TomlNext :: (document: *TomlDocument, node: s32) -> s32 {
+    if node < 0 || node >= document.nodes.count { return -1 }
+    return document.nodes[node].next
+}
+TomlCount :: (document: *TomlDocument, node: s32) -> s32 {
+    if node < 0 || node >= document.nodes.count { return 0 }
+    return document.nodes[node].count
+}
+TomlMember :: (document: *TomlDocument, table: s32, key: string) -> s32 {
+    if TomlKindOf(document, table) != .Table { return -1 }
+    child := TomlFirst(document, table)
+    while child >= 0 {
+        if document.nodes[child].key == key { return child }
+        child = TomlNext(document, child)
+    }
+    return -1
+}
+TomlKey :: (document: *TomlDocument, node: s32) -> string {
+    if node < 0 || node >= document.nodes.count { return "" }
+    return Copy(document.nodes[node].key)
+}
+TomlString :: (document: *TomlDocument, node: s32) -> string {
+    if TomlKindOf(document, node) != .String { return "" }
+    return Copy(document.nodes[node].text)
+}
+// Validated source spelling of a numeric, boolean, or date/time scalar.
+TomlScalarText :: (document: *TomlDocument, node: s32) -> string {
+    kind := TomlKindOf(document, node)
+    if kind != .Integer && kind != .Float && kind != .Bool && kind != .DateTime { return "" }
+    return Copy(document.nodes[node].text)
+}
+TomlBool :: (document: *TomlDocument, node: s32) -> (value: bool, ok: bool) {
+    if TomlKindOf(document, node) != .Bool { return false, false }
+    return document.nodes[node].text == "true", true
+}
+
+#scope_file
+MAX_DEPTH :: 128;
+Reader :: struct { text: string; at: s64; error: string; }
+Copy :: (text: string) -> string {
+    bytes: Vec(u8)
+    for byte: text { VecPush(bytes, byte) }
+    return BuilderFinish(bytes)
+}
+Fail :: (reader: *Reader, message: string) -> s32 {
+    if reader.error.count == 0 { reader.error = message }
+    return -1
+}
+Peek :: (reader: *Reader) -> u8 {
+    if reader.at >= reader.text.count { return 0 }
+    return reader.text[reader.at]
+}
+Take :: (reader: *Reader, byte: u8) -> bool {
+    if reader.at < reader.text.count && Peek(reader) == byte { reader.at += 1; return true }
+    return false
+}
+Space :: (reader: *Reader) {
+    while Peek(reader) == 32 || Peek(reader) == 9 { reader.at += 1 }
+}
+Newline :: (reader: *Reader) -> bool {
+    if Take(reader, 10) { return true }
+    if Take(reader, 13) {
+        if !Take(reader, 10) { Fail(reader, "bare carriage return") }
+        return true
+    }
+    return false
+}
+Comment :: (reader: *Reader) {
+    if !Take(reader, #char "#") { return }
+    while reader.at < reader.text.count && Peek(reader) != 10 && Peek(reader) != 13 {
+        byte := Peek(reader)
+        if (byte < 32 && byte != 9) || byte == 127 { Fail(reader, "control character in comment"); return }
+        reader.at += 1
+    }
+}
+ArraySpace :: (reader: *Reader) {
+    while reader.at < reader.text.count && reader.error.count == 0 {
+        Space(reader)
+        Comment(reader)
+        if !Newline(reader) { break }
+    }
+}
+Digit :: (byte: u8) -> bool { return byte >= #char "0" && byte <= #char "9" }
+Hex :: (byte: u8) -> s32 {
+    if Digit(byte) { return cast(s32)(byte - #char "0") }
+    if byte >= #char "a" && byte <= #char "f" { return cast(s32)(byte - #char "a") + 10 }
+    if byte >= #char "A" && byte <= #char "F" { return cast(s32)(byte - #char "A") + 10 }
+    return -1
+}
+PutPoint :: (bytes: *Vec(u8), point: u32) {
+    if point < 128 { VecPush(<<bytes, cast(u8)point) }
+    else if point < 2048 {
+        VecPush(<<bytes, cast(u8)(192 | (point >> 6)))
+        VecPush(<<bytes, cast(u8)(128 | (point & 63)))
+    } else if point < 65536 {
+        VecPush(<<bytes, cast(u8)(224 | (point >> 12)))
+        VecPush(<<bytes, cast(u8)(128 | ((point >> 6) & 63)))
+        VecPush(<<bytes, cast(u8)(128 | (point & 63)))
+    } else {
+        VecPush(<<bytes, cast(u8)(240 | (point >> 18)))
+        VecPush(<<bytes, cast(u8)(128 | ((point >> 12) & 63)))
+        VecPush(<<bytes, cast(u8)(128 | ((point >> 6) & 63)))
+        VecPush(<<bytes, cast(u8)(128 | (point & 63)))
+    }
+}
+ReadString :: (reader: *Reader, key: bool) -> string {
+    quote := Peek(reader)
+    reader.at += 1
+    multiline := false
+    if reader.at + 1 < reader.text.count && Peek(reader) == quote && reader.text[reader.at + 1] == quote {
+        if key { Fail(reader, "multiline key"); return "" }
+        multiline = true
+        reader.at += 2
+        unused Newline(reader)
+    }
+    bytes: Vec(u8)
+    closed := false
+    while reader.at < reader.text.count && reader.error.count == 0 {
+        byte := Peek(reader)
+        reader.at += 1
+        if byte == quote {
+            if !multiline { closed = true; break }
+            run: s32 = 1
+            while Peek(reader) == quote { reader.at += 1; run += 1 }
+            if run >= 3 {
+                if run > 5 { Fail(reader, "too many closing quotes"); return "" }
+                while run > 3 { VecPush(bytes, quote); run -= 1 }
+                closed = true
+                break
+            }
+            while run > 0 { VecPush(bytes, quote); run -= 1 }
+            continue
+        }
+        if byte == 10 || byte == 13 {
+            if !multiline { Fail(reader, "newline in string"); return "" }
+            if byte == 13 && !Take(reader, 10) { Fail(reader, "bare carriage return"); return "" }
+            VecPush(bytes, cast(u8)10)
+            continue
+        }
+        if (byte < 32 && byte != 9) || byte == 127 { Fail(reader, "control character in string"); return "" }
+        if byte != #char "\\" || quote == #char "'" { VecPush(bytes, byte); continue }
+        if multiline {
+            before_space := reader.at
+            Space(reader)
+            if Newline(reader) {
+                while reader.at < reader.text.count {
+                    Space(reader)
+                    if !Newline(reader) { break }
+                }
+                continue
+            }
+            if reader.at != before_space { Fail(reader, "expected newline after continuation"); return "" }
+        }
+        escape := Peek(reader)
+        if reader.at >= reader.text.count { break }
+        reader.at += 1
+        if escape == #char "\"" || escape == #char "\\" { VecPush(bytes, escape) }
+        else if escape == #char "b" { VecPush(bytes, cast(u8)8) }
+        else if escape == #char "t" { VecPush(bytes, cast(u8)9) }
+        else if escape == #char "n" { VecPush(bytes, cast(u8)10) }
+        else if escape == #char "f" { VecPush(bytes, cast(u8)12) }
+        else if escape == #char "r" { VecPush(bytes, cast(u8)13) }
+        else if escape == #char "u" || escape == #char "U" {
+            digits: s32 = ifx escape == #char "u" then 4 else 8
+            point: u32 = 0
+            while digits > 0 {
+                value := Hex(Peek(reader))
+                if reader.at >= reader.text.count || value < 0 { Fail(reader, "invalid Unicode escape"); return "" }
+                point = (point << 4) | cast(u32)value
+                reader.at += 1
+                digits -= 1
+            }
+            if point > 1114111 || (point >= 55296 && point <= 57343) { Fail(reader, "invalid Unicode scalar"); return "" }
+            PutPoint(*bytes, point)
+        } else { Fail(reader, "invalid string escape"); return "" }
+    }
+    if !closed || reader.error.count > 0 { Fail(reader, "unterminated string"); return "" }
+    return BuilderFinish(bytes)
+}
+ReadKey :: (reader: *Reader) -> string {
+    Space(reader)
+    if Peek(reader) == #char "\"" || Peek(reader) == #char "'" { return ReadString(reader, true) }
+    start := reader.at
+    while reader.at < reader.text.count {
+        byte := Peek(reader)
+        if !Digit(byte) && !(byte >= #char "a" && byte <= #char "z") &&
+            !(byte >= #char "A" && byte <= #char "Z") && byte != #char "_" && byte != #char "-" { break }
+        reader.at += 1
+    }
+    if start == reader.at { Fail(reader, "expected key") }
+    return Copy(reader.text[start:reader.at])
+}
+Add :: (document: *TomlDocument, kind: TomlKind, text: string) -> s32 {
+    node: TomlNode
+    node.kind = kind
+    node.text = text
+    node.first = -1; node.last = -1; node.next = -1
+    VecPush(document.nodes, node)
+    return cast(s32)(document.nodes.count - 1)
+}
+Link :: (document: *TomlDocument, parent: s32, child: s32, key: string) {
+    document.nodes[child].key = key
+    if document.nodes[parent].last < 0 { document.nodes[parent].first = child }
+    else { document.nodes[document.nodes[parent].last].next = child }
+    document.nodes[parent].last = child
+    document.nodes[parent].count += 1
+}
+// Descend a key prefix; headers can also descend the current array element.
+Descend :: (reader: *Reader, document: *TomlDocument, parent: s32, key: string, header: bool) -> s32 {
+    if TomlKindOf(document, parent) != .Table || document.nodes[parent].sealed { return Fail(reader, "cannot extend value or inline table") }
+    child := TomlMember(document, parent, key)
+    if child < 0 {
+        child = Add(document, .Table, "")
+        document.nodes[child].dotted = !header
+        Link(document, parent, child, key)
+    }
+    if header && document.nodes[child].table_array { child = document.nodes[child].last }
+    if TomlKindOf(document, child) != .Table || document.nodes[child].sealed { return Fail(reader, "expected mutable table") }
+    return child
+}
+// Validate digits and underscore separators, with optional integer overflow.
+Digits :: (text: string, at: *s64, base: s32, limit: u64) -> bool {
+    start := <<at
+    value: u64 = 0
+    previous := false
+    while <<at < text.count {
+        byte := text[<<at]
+        if byte == #char "_" {
+            if !previous { return false }
+            previous = false
+            <<at += 1
+            continue
+        }
+        digit := Hex(byte)
+        if digit < 0 || digit >= base { break }
+        if limit > 0 {
+            if value > (limit - cast(u64)digit) / cast(u64)base { return false }
+            value = value * cast(u64)base + cast(u64)digit
+        }
+        previous = true
+        <<at += 1
+    }
+    return <<at > start && previous
+}
+NumberKind :: (text: string) -> TomlKind {
+    at: s64 = 0
+    negative := false
+    signed := false
+    if text.count == 0 { return .Missing }
+    if text[0] == #char "+" || text[0] == #char "-" { signed = true; negative = text[0] == #char "-"; at = 1 }
+    tail := text[at:]
+    if tail == "inf" || tail == "nan" { return .Float }
+    if at >= text.count { return .Missing }
+    if !signed && text.count > 2 && text[0] == #char "0" {
+        base: s32 = 0
+        if text[1] == #char "x" { base = 16 }
+        if text[1] == #char "o" { base = 8 }
+        if text[1] == #char "b" { base = 2 }
+        if base > 0 {
+            at = 2
+            if Digits(text, *at, base, 9223372036854775807) && at == text.count { return .Integer }
+            return .Missing
+        }
+    }
+    start := at
+    if !Digits(text, *at, 10, 0) { return .Missing }
+    if at - start > 1 && text[start] == #char "0" { return .Missing }
+    floating := false
+    if at < text.count && text[at] == #char "." {
+        floating = true; at += 1
+        if !Digits(text, *at, 10, 0) { return .Missing }
+    }
+    if at < text.count && (text[at] == #char "e" || text[at] == #char "E") {
+        floating = true; at += 1
+        if at < text.count && (text[at] == #char "+" || text[at] == #char "-") { at += 1 }
+        if !Digits(text, *at, 10, 0) { return .Missing }
+    }
+    if at != text.count { return .Missing }
+    if floating { return .Float }
+    at = start
+    limit: u64 = 9223372036854775807
+    if negative { limit += 1 }
+    if !Digits(text, *at, 10, limit) { return .Missing }
+    return .Integer
+}
+Decimal :: (text: string, at: s64, count: s64) -> s32 {
+    if at + count > text.count { return -1 }
+    result: s32 = 0
+    end := at + count
+    while at < end {
+        if !Digit(text[at]) { return -1 }
+        result = result * 10 + cast(s32)(text[at] - #char "0")
+        at += 1
+    }
+    return result
+}
+DateTime :: (text: string) -> bool {
+    at: s64 = 0
+    has_date := text.count >= 10 && text[4] == #char "-" && text[7] == #char "-"
+    if has_date {
+        year := Decimal(text, 0, 4); month := Decimal(text, 5, 2); day := Decimal(text, 8, 2)
+        if year < 0 || month < 1 || month > 12 || day < 1 { return false }
+        days: s32 = 31
+        if month == 4 || month == 6 || month == 9 || month == 11 { days = 30 }
+        if month == 2 {
+            days = 28
+            if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) { days = 29 }
+        }
+        if day > days { return false }
+        if text.count == 10 { return true }
+        if text[10] != #char "T" && text[10] != #char "t" && text[10] != 32 { return false }
+        at = 11
+    }
+    if at + 8 > text.count || text[at + 2] != #char ":" || text[at + 5] != #char ":" { return false }
+    hour := Decimal(text, at, 2); minute := Decimal(text, at + 3, 2); second := Decimal(text, at + 6, 2)
+    if hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59 { return false }
+    at += 8
+    if at < text.count && text[at] == #char "." {
+        at += 1
+        start := at
+        while at < text.count && Digit(text[at]) { at += 1 }
+        if at == start { return false }
+    }
+    if at == text.count { return true }
+    if !has_date { return false }
+    if text[at] == #char "Z" || text[at] == #char "z" { return at + 1 == text.count }
+    if (text[at] != #char "+" && text[at] != #char "-") || at + 6 != text.count || text[at + 3] != #char ":" { return false }
+    hour = Decimal(text, at + 1, 2); minute = Decimal(text, at + 4, 2)
+    return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59
+}
+Seal :: (document: *TomlDocument, node: s32) {
+    document.nodes[node].sealed = true
+    child := TomlFirst(document, node)
+    while child >= 0 { Seal(document, child); child = TomlNext(document, child) }
+}
+Assignment :: (reader: *Reader, document: *TomlDocument, table: s32, depth: s32) -> bool {
+    parent := table
+    count: s32 = 0
+    key := ReadKey(reader)
+    Space(reader)
+    while Take(reader, #char ".") && reader.error.count == 0 {
+        count += 1
+        if depth + count >= MAX_DEPTH { Fail(reader, "TOML nesting limit exceeded"); return false }
+        parent = Descend(reader, document, parent, key, false)
+        if parent < 0 { return false }
+        key = ReadKey(reader)
+        Space(reader)
+    }
+    if reader.error.count > 0 { return false }
+    if !Take(reader, #char "=") { Fail(reader, "expected equals sign"); return false }
+    Space(reader)
+    if TomlMember(document, parent, key) >= 0 { Fail(reader, "duplicate key"); return false }
+    child := ReadValue(reader, document, depth + count + 1)
+    if child < 0 { return false }
+    Link(document, parent, child, key)
+    return true
+}
+ReadValue :: (reader: *Reader, document: *TomlDocument, depth: s32) -> s32 {
+    if depth >= MAX_DEPTH { return Fail(reader, "TOML nesting limit exceeded") }
+    byte := Peek(reader)
+    if byte == #char "\"" || byte == #char "'" {
+        text := ReadString(reader, false)
+        if reader.error.count > 0 { return -1 }
+        return Add(document, .String, text)
+    }
+    if Take(reader, #char "[") {
+        array := Add(document, .Array, "")
+        ArraySpace(reader)
+        if Take(reader, #char "]") { return array }
+        while reader.at < reader.text.count && reader.error.count == 0 {
+            child := ReadValue(reader, document, depth + 1)
+            if child < 0 { return -1 }
+            Link(document, array, child, "")
+            ArraySpace(reader)
+            if Take(reader, #char "]") { return array }
+            if !Take(reader, #char ",") { return Fail(reader, "expected array comma") }
+            ArraySpace(reader)
+            if Take(reader, #char "]") { return array }
+        }
+        return Fail(reader, "unterminated array")
+    }
+    if Take(reader, #char "{") {
+        table := Add(document, .Table, "")
+        Space(reader)
+        if Take(reader, #char "}") { Seal(document, table); return table }
+        while reader.at < reader.text.count && reader.error.count == 0 {
+            if !Assignment(reader, document, table, depth + 1) { return -1 }
+            Space(reader)
+            if Take(reader, #char "}") { Seal(document, table); return table }
+            if !Take(reader, #char ",") { return Fail(reader, "expected inline table comma") }
+            Space(reader)
+        }
+        return Fail(reader, "unterminated inline table")
+    }
+    start := reader.at
+    while reader.at < reader.text.count {
+        byte = Peek(reader)
+        if byte == 32 || byte == 9 || byte == 10 || byte == 13 || byte == #char "," || byte == #char "]" || byte == #char "}" || byte == #char "#" { break }
+        reader.at += 1
+    }
+    // A date/time may use a single space in place of T.
+    if reader.at - start == 10 && Peek(reader) == 32 && reader.at + 1 < reader.text.count && Digit(reader.text[reader.at + 1]) {
+        reader.at += 1
+        while reader.at < reader.text.count {
+            byte = Peek(reader)
+            if byte == 32 || byte == 9 || byte == 10 || byte == 13 || byte == #char "," || byte == #char "]" || byte == #char "}" || byte == #char "#" { break }
+            reader.at += 1
+        }
+    }
+    text := reader.text[start:reader.at]
+    if text == "true" || text == "false" { return Add(document, .Bool, text) }
+    kind := NumberKind(text)
+    if kind != .Missing { return Add(document, kind, text) }
+    if DateTime(text) { return Add(document, .DateTime, text) }
+    return Fail(reader, "invalid TOML value")
+}
+Header :: (reader: *Reader, document: *TomlDocument) -> s32 {
+    array := Take(reader, #char "[")
+    parent := document.root
+    count: s32 = 0
+    key := ReadKey(reader)
+    Space(reader)
+    while Take(reader, #char ".") && reader.error.count == 0 {
+        count += 1
+        if count >= MAX_DEPTH { return Fail(reader, "TOML nesting limit exceeded") }
+        parent = Descend(reader, document, parent, key, true)
+        if parent < 0 { return -1 }
+        key = ReadKey(reader)
+        Space(reader)
+    }
+    if reader.error.count > 0 { return -1 }
+    if !Take(reader, #char "]") || (array && !Take(reader, #char "]")) { return Fail(reader, "unterminated table header") }
+    child := TomlMember(document, parent, key)
+    if array {
+        if child < 0 {
+            child = Add(document, .Array, "")
+            document.nodes[child].table_array = true
+            Link(document, parent, child, key)
+        }
+        if !document.nodes[child].table_array { return Fail(reader, "cannot redefine value as table array") }
+        element := Add(document, .Table, "")
+        document.nodes[element].defined = true
+        Link(document, child, element, "")
+        return element
+    }
+    if child < 0 { child = Add(document, .Table, ""); Link(document, parent, child, key) }
+    if TomlKindOf(document, child) != .Table || document.nodes[child].defined || document.nodes[child].dotted || document.nodes[child].sealed { return Fail(reader, "table already defined") }
+    document.nodes[child].defined = true
+    return child
+}
+
+#scope_export
+// Parse the complete UTF-8 document, bounded before allocation. On failure no
+// partial tree is exposed (root = -1); error/error_at describe the first error.
+// Increase max_bytes explicitly for larger documents. Depth is bounded at 128.
+TomlRead :: (document: *TomlDocument, text: string, max_bytes: s64 = 262144) -> bool {
+    VecClear(document.nodes)
+    document.root = -1; document.error = ""; document.error_at = 0
+    if max_bytes < 0 || text.count > max_bytes { document.error = "TOML byte limit exceeded"; return false }
+    if !Utf8.Valid(text) { document.error = "invalid UTF-8"; return false }
+    reader: Reader
+    reader.text = text
+    document.root = Add(document, .Table, "")
+    document.nodes[document.root].defined = true
+    table := document.root
+    while reader.at < text.count && reader.error.count == 0 {
+        Space(*reader)
+        Comment(*reader)
+        if Newline(*reader) { continue }
+        if reader.at == text.count || reader.error.count > 0 { break }
+        if Take(*reader, #char "[") { table = Header(*reader, document) }
+        else { unused Assignment(*reader, document, table, 0) }
+        if reader.error.count > 0 { break }
+        Space(*reader)
+        Comment(*reader)
+        if reader.at < text.count && !Newline(*reader) { Fail(*reader, "expected newline after statement") }
+    }
+    if reader.error.count > 0 {
+        document.error = reader.error; document.error_at = reader.at
+        document.root = -1
+        VecClear(document.nodes)
+        return false
+    }
+    return true
+}

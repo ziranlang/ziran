@@ -8,7 +8,8 @@ if ! command -v "$cc" >/dev/null 2>&1; then
     exit 0
 fi
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$root/build"
+work=$(mktemp -d "$root/build/compiler-runtime-windows.XXXXXX")
 wine_prefix_started=0
 cleanup() {
     if [ "$wine_prefix_started" = 1 ]; then
@@ -20,12 +21,16 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 ar=${WIN64_AR:-x86_64-w64-mingw32-ar}
 objcopy=${WIN64_OBJCOPY:-x86_64-w64-mingw32-objcopy}
+set --
+if test -n "${MCFGTHREADS:-}"; then
+    set -- "-L$MCFGTHREADS/lib"
+fi
 make -j4 -C "$root" BOOTSTRAP=1 BUILD_DIR="$work/build" \
     CC="$cc" AR="$ar" OBJCOPY="$objcopy" CFLAGS='-O2 -fPIC' \
     FRAMEFLAGS=-Wframe-larger-than=16384 "$work/build/libziran.a"
-"$cc" -D_GNU_SOURCE -std=c11 -I"$root/include" -I"$root/cmd/zir" \
+"$cc" -D_GNU_SOURCE -std=c11 -static -I"$root/include" -I"$root/cmd/zir" \
     "$root/tests/bundle_link_test.c" "$work/build/libziran.a" -lm \
-    -o "$work/runtime.exe"
+    "$@" -o "$work/runtime.exe"
 wine=${WINE:-wine}
 if ! command -v "$wine" >/dev/null 2>&1 || \
     ! command -v wineserver >/dev/null 2>&1 || \

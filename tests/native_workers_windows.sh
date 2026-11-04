@@ -16,7 +16,8 @@ if test -n "${WINDOWS_WORK:-}"; then
     work=$WINDOWS_WORK
     mkdir "$work"
 else
-    work=$(mktemp -d)
+    mkdir -p build
+    work=$(mktemp -d "$(pwd)/build/native-workers-windows.XXXXXX")
 fi
 cleanup() {
     if test -d "$work/wine"; then
@@ -28,10 +29,14 @@ cleanup() {
     if test -z "${WINDOWS_WORK:-}"; then rm -rf "$work"; fi
 }
 trap cleanup EXIT HUP INT TERM
-unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS LD_PRELOAD ZIRAN_PAR_THREADS
+unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER LD_PRELOAD ZIRAN_PAR_THREADS
 export YUE_DESKTOP_RECOVERY=0
 export XDG_RUNTIME_DIR="$work/runtime"
 mkdir -m 700 "$XDG_RUNTIME_DIR"
+set --
+if test -n "${MCFGTHREADS:-}"; then
+    set -- "-L$MCFGTHREADS/lib"
+fi
 "$ziran" ir --target=c --define _WIN32 --root tests/spec \
     --module-path std=std --module-path std -o "$work/ir-c" tests/spec/native_parallel_windows_test.zi
 for kind in source saved; do
@@ -43,7 +48,11 @@ for kind in source saved; do
     "$ziran" build --target=c --define _WIN32 --root "$input_root" \
         --module-path std=std --module-path std --entry native_parallel_windows_test:main \
         --no-main -o "$output" "$input"
-    "$cc" -std=c11 -O2 -static -pthread -Iinclude -I"$output" "$output"/*.c -lm -o "$output.exe"
+    if grep -E 'pthread_(mutex|cond|create|join|self)' "$output"/*.c; then
+        echo 'Win64 range workers still depend on pthreads' >&2
+        exit 1
+    fi
+    "$cc" -std=c11 -O2 -static -Iinclude -I"$output" "$output"/*.c "$@" -lm -o "$output.exe"
 done
 # One private server/prefix for this test; no inherited desktop is reachable.
 cat > "$work/run.sh" <<'SH'
@@ -54,7 +63,7 @@ export WINEPREFIX="$work/wine" WINEARCH=win64 WINEDEBUG=-all
 export WINEDLLOVERRIDES='mscoree,mshtml,winemenubuilder.exe=d'
 for kind in source saved; do
     "$wine" "$work/c-$kind.exe"
-    for count in 1 8; do ZIRAN_PAR_THREADS=$count "$wine" "$work/c-$kind.exe"; done
+    for count in 1 2 8 64; do ZIRAN_PAR_THREADS=$count "$wine" "$work/c-$kind.exe"; done
 done
 SH
 env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS -u LD_PRELOAD \

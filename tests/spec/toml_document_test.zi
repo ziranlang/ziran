@@ -1,0 +1,113 @@
+#import "toml_document"
+
+Manifest :: #string END
+# Comments and quoted/dotted keys use the same syntax as ordinary TOML.
+["package"]
+'name' = "har\u006dony"
+module_roots = [
+  'src', # comment in an array
+  "generated",
+]
+[toolchain]
+git = 'https://github.com/ziranlang/ziran.git'
+[dependencies]
+"kryon" = {git = "https://github.com/kryonlabs/kryon.git", ref = "a#b", module_aliases = {"old" = 'new'}}
+[dependencies.helper]
+git = "https://codeberg.org/waozi/helper.git"
+[metadata]
+"a.b" = "quoted \"# key\" and \\ path"
+escaped = "\b\t\n\f\r\U0001F600"
+literal = 'C:\Users\waozi'
+multi = """
+one \
+   two"""
+raw = '''
+one
+ two'''
+quotes = """four""""
+values = [true, false, 1_000, -9223372036854775808, 0xff, 0o77, 0b11, +1.2e-3, -inf, nan, 2024-02-29, 07:32:00.123, 1979-05-27 07:32:00Z]
+[[products]]
+name = 'one'
+[products.detail]
+color = 'red'
+[[products]]
+name = 'two'
+[implicit.child]
+value = 1
+[implicit]
+other = 2
+END;
+
+Bad :: (text: string) -> bool {
+    document: TomlDocument
+    if TomlRead(*document, text) { print("accepted invalid TOML: %\n", text); return false }
+    return document.root == -1 && document.error.count > 0 && document.nodes.count == 0
+}
+
+#program_export
+SelfTest :: () -> s32 {
+    document: TomlDocument
+    if !TomlRead(*document, Manifest) { print("TOML failed: % at %\n", document.error, document.error_at); return 1 }
+    package := TomlMember(*document, document.root, "package")
+    if TomlString(*document, TomlMember(*document, package, "name")) != "harmony" { return 2 }
+    deps := TomlMember(*document, document.root, "dependencies")
+    if TomlCount(*document, deps) != 2 || TomlKey(*document, TomlFirst(*document, deps)) != "kryon" { return 3 }
+    kryon := TomlMember(*document, deps, "kryon")
+    if TomlString(*document, TomlMember(*document, kryon, "ref")) != "a#b" { return 4 }
+    meta := TomlMember(*document, document.root, "metadata")
+    if TomlString(*document, TomlMember(*document, meta, "a.b")) != "quoted \"# key\" and \\ path" { return 5 }
+    if TomlString(*document, TomlMember(*document, meta, "escaped")) != "\b\t\n\f\r\xf0\x9f\x98\x80" { return 6 }
+    if TomlString(*document, TomlMember(*document, meta, "multi")) != "one two" { return 7 }
+    if TomlString(*document, TomlMember(*document, meta, "raw")) != "one\n two" { return 8 }
+    if TomlString(*document, TomlMember(*document, meta, "quotes")) != "four\"" { return 9 }
+    values := TomlMember(*document, meta, "values")
+    if TomlCount(*document, values) != 13 { return 10 }
+    truth, ok := TomlBool(*document, TomlFirst(*document, values))
+    if !truth || !ok { return 11 }
+    if TomlScalarText(*document, TomlNext(*document, TomlNext(*document, TomlFirst(*document, values)))) != "1_000" { return 12 }
+    products := TomlMember(*document, document.root, "products")
+    if TomlCount(*document, products) != 2 { return 13 }
+    last := TomlNext(*document, TomlFirst(*document, products))
+    if TomlString(*document, TomlMember(*document, last, "name")) != "two" { return 14 }
+    if TomlKindOf(*document, -1) != .Missing || TomlFirst(*document, -1) != -1 || TomlNext(*document, -1) != -1 || TomlString(*document, -1) != "" { return 15 }
+    if !Bad("a = 'x'\na = 'y'") || !Bad("a = 1\n[a]") || !Bad("[a]\n[a]") { return 16 }
+    if !Bad("a = {b = 1}\na.c = 2") || !Bad("a.b = 1\n[a]") || !Bad("a = []\n[[a]]") { return 17 }
+    if !Bad("a = {b = 1,}") || !Bad("a = {\nb = 1}") || !Bad("a = [1,,2]") || !Bad("a = [1 2]") { return 18 }
+    if !Bad("a = \"open") || !Bad("a = \"\\q\"") || !Bad("a = \"\\uD800\"") || !Bad("a = \"\\U00110000\"") { return 19 }
+    if !Bad("a = 01") || !Bad("a = 1__0") || !Bad("a = 1_") || !Bad("a = 1.") || !Bad("a = .1") || !Bad("a = 1e") { return 20 }
+    if !Bad("a = 9223372036854775808") || !Bad("a = -9223372036854775809") || !Bad("a = 0x8000000000000000") { return 21 }
+    if !Bad("a = 2023-02-29") || !Bad("a = 24:00:00") || !Bad("a = 1979-05-27T07:32:00+24:00") { return 22 }
+    invalid_utf8: [1]u8 = .{255}
+    if !Bad("a = true garbage") || !Bad("unknown = nope") || !Bad("# bad\x7f") || !Bad(TextView(invalid_utf8[:])) { return 23 }
+    if !Bad("a = 'line\nline'") || !Bad("a = 1\r") || !Bad("a = \"\x01\"") { return 24 }
+    if !TomlRead(*document, "x = ''\r\n'y.z'.a = 2\r\n") { return 25 }
+    if TomlKindOf(*document, TomlMember(*document, document.root, "y.z")) != .Table { return 26 }
+    if TomlRead(*document, "a=1", 2) || document.root != -1 || document.nodes.count != 0 { return 27 }
+    if !TomlRead(*document, "a=1", 3) || !TomlRead(*document, "") { return 28 }
+    nested: Vec(u8)
+    for i: 0..140 { VecPush(nested, #char "[") }
+    for i: 0..140 { VecPush(nested, #char "]") }
+    text: Vec(u8)
+    for byte: "a = " { VecPush(text, byte) }
+    for i: 0..nested.count - 1 { VecPush(text, nested[i]) }
+    if !Bad(BuilderFinish(text)) { return 29 }
+    return 42
+}
+
+#program_export
+NativeMain :: () -> s32 {
+    if SelfTest() != 42 { return 1 }
+    // The context planner's exact 256 KiB bound, before parser allocation.
+    bytes: Vec(u8)
+    for byte: "a='" { VecPush(bytes, byte) }
+    for i: 0..cast(s32)262139 { VecPush(bytes, #char "x") }
+    VecPush(bytes, #char "'")
+    text := BuilderFinish(bytes)
+    document: TomlDocument
+    if text.count != 262144 || !TomlRead(*document, text) { return 2 }
+    larger: Vec(u8)
+    for byte: text { VecPush(larger, byte) }
+    VecPush(larger, cast(u8)10)
+    if TomlRead(*document, BuilderFinish(larger)) || document.root != -1 || document.nodes.count != 0 { return 3 }
+    return 0
+}

@@ -10,7 +10,7 @@
 //     ReplaceFile("levels/approved.json", text)
 //     UnlockPath(lock)
 //
-// PathStatus reads a path's kind, permission bits, size and modification
+// PathStatus reads a path's kind, owner, permission bits, size and modification
 // time with statx, whose record has one layout on every little-endian Linux
 // architecture.
 #import "c_string"
@@ -32,6 +32,8 @@ FsyncRaw :: (fd: s32) -> s32 #foreign libc "fsync";
 WriteRaw :: (fd: s32, input: *u8, count: u64) -> s64 #foreign libc "write";
 RenameRaw :: (source: *u8, target: *u8) -> s32 #foreign libc "rename";
 RealPathRaw :: (path: *u8, output: *u8) -> *u8 #foreign libc "realpath";
+TemporaryDirectoryRaw :: (template: *u8) -> *u8 #foreign libc "mkdtemp";
+EffectiveUserRaw :: () -> u32 #foreign libc "geteuid";
 WorkingDirectoryRaw :: (output: *u8, size: u64) -> *u8 #foreign libc "getcwd";
 ProcessIdRaw :: () -> s32 #foreign libc "getpid";
 ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
@@ -51,6 +53,8 @@ PathKind :: enum u8 { Missing :: 0; File :: 1; Directory :: 2; Link :: 3; Other 
 
 PathInfo :: struct {
     kind: PathKind
+    // Numeric user ID of the owner, including when not following a link.
+    owner_uid: u32
     // Permission bits, such as 0o644 written 420.
     mode: s32
     size: s64
@@ -58,7 +62,7 @@ PathInfo :: struct {
     modified: s64
 }
 
-// The path's kind, permissions, size and modification time. A link is
+// The path's kind, owner UID, permissions, size and modification time. A link is
 // followed unless follow_links is false, when it reports kind Link.
 PathStatus :: (path: string, follow_links: bool = true) -> PathInfo {
     info: PathInfo
@@ -73,6 +77,7 @@ PathStatus :: (path: string, follow_links: bool = true) -> PathInfo {
     if type == 32768 { info.kind = .File }
     if type == 16384 { info.kind = .Directory }
     if type == 40960 { info.kind = .Link }
+    info.owner_uid = cast(u32)(record.words[2] >> 32)
     info.mode = mode & 4095
     info.size = cast(s64)record.words[5]
     info.modified = cast(s64)record.words[14]
@@ -146,6 +151,32 @@ ResolvePath :: (path: string) -> string {
     return CopyText(output[:])
 }
 
+// Atomically creates a unique private child of an existing caller-owned
+// parent. The parent and its ancestors must stay at stable paths during the
+// call. PREFIX is a single name component; six random characters follow it.
+// Returns the canonical absolute child path, or empty on failure. The caller
+// owns cleanup with RemoveTree. Permissions are 0700, restricted by umask.
+CreateTemporaryDirectory :: (parent: string, prefix: string = "ziran-") -> string {
+    for prefix { if it == #char "/" || it == 0 { return "" } }
+    directory := ResolvePath(parent)
+    if directory.count == 0 { return "" }
+    info := PathStatus(directory, false)
+    if info.kind != .Directory || info.owner_uid != EffectiveUserRaw() { return "" }
+    name: [4096]u8
+    if !CopyCString(JoinPath(directory, JoinTemporaryName(prefix)), name[:]) { return "" }
+    if TemporaryDirectoryRaw(*name[0]) == null { return "" }
+    return CopyText(name[:])
+}
+
+#scope_file
+JoinTemporaryName :: (prefix: string) -> string {
+    result: Vec(u8)
+    BuilderAppend(result, prefix)
+    BuilderAppend(result, "XXXXXX")
+    return BuilderFinish(result)
+}
+
+#scope_export
 WorkingDirectory :: () -> string {
     output: [4096]u8
     if WorkingDirectoryRaw(*output[0], 4096) == null { return "" }

@@ -416,21 +416,26 @@ JsonNumberText :: (document: *JsonDocument, node: s32) -> string {
     return Copy(document.nodes[node].text)
 }
 
-// A whole number without a fraction or exponent, as Python reads an int.
+// A whole number in the signed 64-bit range, without a fraction or exponent.
+// Returns false for overflow; the document retains the original number text.
 JsonInteger :: (document: *JsonDocument, node: s32) -> (value: s64, ok: bool) {
     if JsonKindOf(document, node) != .Number { return 0, false }
     text := document.nodes[node].text
-    if text.count == 0 || text.count > 19 { return 0, false }
+    if text.count == 0 { return 0, false }
     negative := text[0] == #char "-"
     at: s64 = ifx negative then 1 else 0
-    if text.count - at > 18 { return 0, false }
+    if at == text.count { return 0, false }
+    // Accumulate negatively so the minimum s64 never needs to be negated.
     value: s64 = 0
     while at < text.count {
         if !Digit(text[at]) { return 0, false }
-        value = value * 10 + cast(s64)(text[at] - #char "0")
+        digit := cast(s64)(text[at] - #char "0")
+        if value < -922337203685477580 ||
+            (value == -922337203685477580 && digit > (ifx negative then 8 else 7)) { return 0, false }
+        value = value * 10 - digit
         at += 1
     }
-    return ifx negative then -value else value, true
+    return ifx negative then value else -value, true
 }
 
 JsonBool :: (document: *JsonDocument, node: s32) -> (value: bool, ok: bool) {

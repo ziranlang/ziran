@@ -354,7 +354,7 @@
 <div><code>JsonString :: (document: *JsonDocument, node: s32) -&gt; string</code><p>A string's value; "" for anything else.</p></div>
 <div><code>JsonIs :: (document: *JsonDocument, node: s32, value: string) -&gt; bool</code><p>Whether NODE is the string VALUE, without copying it.</p></div>
 <div><code>JsonNumberText :: (document: *JsonDocument, node: s32) -&gt; string</code><p>A number's text as written; "" for anything else.</p></div>
-<div><code>JsonInteger :: (document: *JsonDocument, node: s32) -&gt; (s64, bool)</code><p>A whole number without a fraction or exponent, as Python reads an int.</p></div>
+<div><code>JsonInteger :: (document: *JsonDocument, node: s32) -&gt; (s64, bool)</code><p>A whole number in the signed 64-bit range, without a fraction or exponent. Returns false for overflow; the document retains the original number text.</p></div>
 <div><code>JsonBool :: (document: *JsonDocument, node: s32) -&gt; (bool, bool)</code></div>
 <div><code>JsonNewNull :: (document: *JsonDocument) -&gt; s32</code></div>
 <div><code>JsonNewBool :: (document: *JsonDocument, value: bool) -&gt; s32</code></div>

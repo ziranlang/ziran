@@ -7,7 +7,35 @@ Check :: (text: string, expected: string) -> bool {
     return ok && Float64Repr(value) == expected
 }
 
+CheckInteger :: (text: string, expected: s64, valid: bool) -> bool {
+    document: JsonDocument
+    if !JsonRead(*document, text) { return false }
+    value, ok := JsonInteger(*document, document.root)
+    if ok != valid || (ok && value != expected) { return false }
+    // Conversion never changes integer text, including values outside s64.
+    return JsonNumberText(*document, document.root) == text &&
+        JsonWrite(*document, document.root, JsonCompactStyle()) == text &&
+        JsonWrite(*document, document.root, JsonPythonStyle(-1, true, false, true)) == text
+}
+
 SelfTest :: () -> s32 {
+    if !CheckInteger("1793769852123456789", 1793769852123456789, true) ||
+        !CheckInteger("9223372036854775807", 9223372036854775807, true) ||
+        !CheckInteger("9223372036854775806", 9223372036854775806, true) ||
+        !CheckInteger("-9223372036854775808", -9223372036854775807 - 1, true) ||
+        !CheckInteger("-9223372036854775807", -9223372036854775807, true) ||
+        !CheckInteger("0", 0, true) || !CheckInteger("-0", 0, true) { return 15 }
+    if !CheckInteger("9223372036854775808", 0, false) ||
+        !CheckInteger("-9223372036854775809", 0, false) ||
+        !CheckInteger("18446744073709551615", 0, false) ||
+        !CheckInteger("-18446744073709551616", 0, false) ||
+        !CheckInteger("999999999999999999999999999999999999999", 0, false) { return 16 }
+    integer_document: JsonDocument
+    invalid_integer: [5]string = .["", "-", "+1", "1.0", "1e0"]
+    for token: invalid_integer {
+        value, ok := JsonInteger(*integer_document, JsonNewNumber(*integer_document, token))
+        if ok { return 17 }
+    }
     if !Check("1e3", "1000.0") || !Check("-0e0", "-0.0") || !Check("1e-7", "1e-07") { return 1 }
     if !Check("1e-4", "0.0001") || !Check("1e-5", "1e-05") || !Check("1e15", "1000000000000000.0") || !Check("1e16", "1e+16") { return 2 }
     if !Check("2.2250738585072014e-308", "2.2250738585072014e-308") || !Check("5e-324", "5e-324") || !Check("1.7976931348623157e308", "1.7976931348623157e+308") { return 3 }

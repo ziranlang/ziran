@@ -835,7 +835,8 @@
 <div><code>Lower :: (text: string) -&gt; string</code></div>
 <div><code>Capitalize :: (text: string) -&gt; string</code></div>
 <div><code>IsWord :: (codepoint: u32) -&gt; bool</code><p>Python Unicode regex \w: letters, numeric characters, and underscore.</p></div>
-<div><code>IsDecimal :: (codepoint: u32) -&gt; bool</code></div>
+<div><code>IsDecimal :: (codepoint: u32) -&gt; bool</code><p>Python Unicode regex \d: decimal digits, General_Category Nd only.</p></div>
+<div><code>IsPrintable :: (codepoint: u32) -&gt; bool</code><p>Python-style printability at Unicode 17.0: L/M/N/P/S categories and ASCII space. All other separators, controls, formats, private-use and unassigned characters are excluded. This describes text, not font glyph availability.</p></div>
 <div><code>IsSpace :: (codepoint: u32) -&gt; bool</code></div>
 <div><code>IsWhitespace :: (text: string) -&gt; bool</code><p>Python str.isspace: empty text is false. Invalid UTF-8 is not whitespace.</p></div>
 <div><code>SplitWhitespace :: (text: string) -&gt; Vec(string)</code><p>Python str.split() without a separator: collapse whitespace runs and omit empty pieces. Returned pieces borrow text; keep its storage alive.</p></div>
@@ -872,6 +873,7 @@
 <div><code>Valid :: (text: string) -&gt; bool</code><p>Validate every byte without allocating or decoding ordinary ASCII scalars. Multibyte windows borrow at most four bytes, keeping Decode's absolute 32-bit offset independent of the size of the complete string.</p></div>
 <div><code>Count :: (value: string) -&gt; s32</code></div>
 <div><code>Copy :: (source: []u8, destination: []u8) -&gt; CopyResult</code><p>Copy valid UTF-8 byte-for-byte into a separate bounded destination. Invalid input follows Decode: consume only the malformed lead byte and append one UTF-8 replacement character. Stop before a source sequence or replacement would be split; report the bytes written and whether all input was consumed.</p></div>
+<div><code>DecodeReplace :: (source: []u8) -&gt; string</code><p>Decode a whole byte string with Python UTF-8 errors='replace' consumption: replace each maximal valid prefix of an ill-formed sequence once. A valid but truncated E2 82 is one replacement; forbidden ED A0 80 is three. The result has independent immutable storage and is always valid UTF-8. Decode and Copy retain their consume-one-malformed-lead contracts.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/utf8.zi">Source ↗</a></p></section>
 <section id="vec"><p class="eyebrow">83 / std/vec.zi</p><h2>vec</h2><p>Owned growable storage. Operations on Vec values are compiler primitives; the data pointer is private to those operations.</p><p>Import with <code>#import "vec"</code> and pass <code>--module-path std</code>.</p><div class="api-list">
 <div><code>Vec :: struct($T: Type) { data: *T; count: s64; capacity: s64; }</code></div>

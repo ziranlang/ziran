@@ -35,4 +35,4 @@ for form in source saved; do
 done
 cmp "$work/$fixture-source.zx" "$work/$fixture-saved.zx"
 done
-echo 'Unicode: UCD assertions plus case/context/titlecase, word/space/decimal, splitting, malformed UTF-8 and ownership passed on C/Go/VM from source and saved IR'
+echo 'Unicode: UCD assertions plus case/context/titlecase, word/space/decimal/printability, filtering, splitting, malformed UTF-8 and ownership passed on C/Go/VM from source and saved IR'

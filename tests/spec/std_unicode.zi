@@ -1,5 +1,22 @@
 U :: #import "std/unicode";
+Utf8 :: #import "std/utf8";
 using Vectors :: #import "std/vec";
+
+// Consumer composition: filter before limiting, with a scalar count rather
+// than a byte or grapheme count. The public primitive remains IsPrintable.
+Clean :: (text: string, limit: s32) -> string {
+    output: Vec(u8)
+    at: s32
+    kept: s32
+    while at < cast(s32)text.count && kept < limit {
+        point := Utf8.Decode(text, at)
+        if U.IsPrintable(point.value) {
+            BuilderAppend(output, text[at:point.after]); kept += 1
+        }
+        at = point.after
+    }
+    return BuilderFinish(output)
+}
 
 SelfTest :: () -> s32 {
     if U.CaseFold("Straße") != "strasse" || U.CaseFold("STRASSE") != "strasse" { return 1 }
@@ -26,6 +43,15 @@ SelfTest :: () -> s32 {
     if !U.IsDecimal(48) || !U.IsDecimal(1633) || !U.IsDecimal(65296) || !U.IsDecimal(120792) { return 27 }
     if U.IsDecimal(178) || U.IsDecimal(8544) || U.IsDecimal(95) || U.IsDecimal(55296) ||
        U.IsDecimal(1114112) || U.IsDecimal(cast(u32)0xffffffff) { return 28 }
+    printable: [9]u32 = .[32, 33, 65, 233, 769, 178, 8544, 20013, 128578]
+    for point: printable { if !U.IsPrintable(point) { return 29 } }
+    nonprintable: [23]u32 = .[0, 9, 10, 127, 133, 160, 173, 8195, 8232, 8233,
+        8203, 8205, 8238, 65279, 57344, 983040, 888, 64976, 1114111,
+        55296, 57343, 1114112, 0xffffffff]
+    for point: nonprintable { if U.IsPrintable(point) { return 30 } }
+    if Clean("é🙂x", 2) != "é🙂" || Clean("a\xe2\x80\x8db\xc2\xa0c", 3) != "abc" ||
+       Clean("a\xcc\x81", 1) != "a" || Clean("a\xcc\x81", 2) != "a\xcc\x81" ||
+       Clean("", 2) != "" || Clean("abc", 0) != "" { return 31 }
     spaces: [29]u32 = .[9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760,
         8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202,
         8232, 8233, 8239, 8287, 12288]

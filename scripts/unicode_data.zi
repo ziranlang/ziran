@@ -62,6 +62,8 @@ ReadUnicode :: (entries: *Vec(Entry), text: string) -> bool {
         category := fields[2]
         if TextHasPrefix(category, "L") || fields[6] != "" || fields[7] != "" || fields[8] != "" { flags |= 1 }
         if category == "Nd" { flags |= 16 }
+        if point == 32 || TextHasPrefix(category, "L") || TextHasPrefix(category, "M") ||
+           TextHasPrefix(category, "N") || TextHasPrefix(category, "P") || TextHasPrefix(category, "S") { flags |= 32 }
         bidi := fields[4]
         if category == "Zs" || bidi == "WS" || bidi == "B" || bidi == "S" { flags |= 2 }
         if TextHasSuffix(fields[1], ", First>") { first = point; continue }
@@ -219,8 +221,8 @@ EndCase :: (output: *Vec(u8), count: s32) {
 }
 PropertyCase :: (output: *Vec(u8), point: s32, flags: s32, count: s32) {
     BeginCase(output, count)
-    BuilderPrint(output, "    if U.IsWord(%) != % || U.IsSpace(%) != % || U.IsDecimal(%) != % { return false }\n",
-        point, (flags & 1) != 0 || point == 95, point, (flags & 2) != 0, point, (flags & 16) != 0)
+    BuilderPrint(output, "    if U.IsWord(%) != % || U.IsSpace(%) != % || U.IsDecimal(%) != % || U.IsPrintable(%) != % { return false }\n",
+        point, (flags & 1) != 0 || point == 95, point, (flags & 2) != 0, point, (flags & 16) != 0, point, (flags & 32) != 0)
     EndCase(output, count + 1)
 }
 
@@ -250,9 +252,9 @@ EmitTests :: (entries: []Entry, path: string) -> bool {
     // focused fixture covers underscore, invalid scalars and full contexts.
     point: s32
     while point <= 1114111 {
-        flags := entries[point].flags & 19
+        flags := entries[point].flags & 51
         end := point
-        while end < 1114111 && (entries[end + 1].flags & 19) == flags { end += 1 }
+        while end < 1114111 && (entries[end + 1].flags & 51) == flags { end += 1 }
         PropertyCase(*output, point, flags, count); count += 1
         if end != point { PropertyCase(*output, end, flags, count); count += 1 }
         point = end + 1

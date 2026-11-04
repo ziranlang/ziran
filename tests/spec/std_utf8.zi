@@ -6,6 +6,46 @@ Nibble :: (byte: u8) -> u8 {
     return ifx byte <= cast(u8)57 then byte - cast(u8)48 else byte - cast(u8)87
 }
 
+CheckReplacement :: (hex: string, expected: string) -> bool {
+    source: [64]u8
+    size := cast(s32)hex.count / 2
+    for i: 0..size - 1 { source[i] = Nibble(hex[2 * i]) * cast(u8)16 + Nibble(hex[2 * i + 1]) }
+    before := source
+    decoded := DecodeReplace(source[:size])
+    if decoded != expected || !Valid(decoded) { return false }
+    for i: 0..size - 1 { if source[i] != before[i] { return false } }
+    // The returned bytes remain independent of the original mutable source.
+    source[0] = 88
+    return decoded == expected
+}
+
+CheckReplacements :: () -> bool {
+    if !CheckReplacement("", "") || !CheckReplacement("0061c3a9e4b8adf09f9982007f", "\x00aé中🙂\x00\x7f") { return false }
+    if !CheckReplacement("e282", "�") || !CheckReplacement("f09f92", "�") ||
+       !CheckReplacement("e18041", "�A") || !CheckReplacement("e14180", "�A�") { return false }
+    if !CheckReplacement("c0af", "��") || !CheckReplacement("eda080", "���") ||
+       !CheckReplacement("e08080", "���") || !CheckReplacement("f4908080", "����") { return false }
+    if !CheckReplacement("c2", "�") || !CheckReplacement("df", "�") ||
+       !CheckReplacement("e0a0", "�") || !CheckReplacement("ed9f", "�") ||
+       !CheckReplacement("f09080", "�") || !CheckReplacement("f48fbf", "�") { return false }
+    if !CheckReplacement("e0", "�") || !CheckReplacement("f0", "�") ||
+       !CheckReplacement("e09f", "��") || !CheckReplacement("eda0", "��") ||
+       !CheckReplacement("f08fbf", "���") || !CheckReplacement("f490bf", "���") { return false }
+    if !CheckReplacement("e180c2a9", "�©") || !CheckReplacement("f09f41", "�A") ||
+       !CheckReplacement("f09f9280", "💀") || !CheckReplacement("e28200", "�\x00") { return false }
+    if !CheckReplacement("c1bf", "��") || !CheckReplacement("f5808080", "����") ||
+       !CheckReplacement("feff80bf", "����") || !CheckReplacement("e180e282", "��") { return false }
+    if !CheckReplacement("c280dfbfe0a080ed9fbfee8080efbfbff0908080f48fbfbf",
+        "\xc2\x80\xdf\xbf\xe0\xa0\x80\xed\x9f\xbf\xee\x80\x80\xef\xbf\xbf\xf0\x90\x80\x80\xf4\x8f\xbf\xbf") { return false }
+    source: [95]u8
+    for i: 0..cast(s32)92 { source[i] = 97 }
+    source[93] = 240; source[94] = 159
+    kept := DecodeReplace(source[:])
+    source[0] = 88
+    if kept.count != 96 || kept[0] != cast(u8)97 || kept[93:96] != "�" || !Valid(kept) { return false }
+    return true
+}
+
 CheckValidity :: () -> bool {
     if !Valid("") || !Valid("aé中🙂") || !Valid("\x00\t\n\r\x7f") { return false }
     // All one-byte and two-byte strings: two ASCII scalars or one legal
@@ -57,6 +97,7 @@ SelfTest :: () -> s32 {
         return 4
     }
     if !CheckValidity() { return 5 }
+    if !CheckReplacements() { return 6 }
     return 42
 }
 

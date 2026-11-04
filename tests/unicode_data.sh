@@ -10,17 +10,27 @@ export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
 mkdir -p "$work/ucd"
 cat > "$work/ucd/UnicodeData.txt" <<'EOF'
 001C;<control>;Cc;0;B;;;;;N;INFORMATION SEPARATOR FOUR;;;;
+0020;SPACE;Zs;0;WS;;;;;N;;;;;
+0021;EXCLAMATION MARK;Po;0;ON;;;;;N;;;;;
 0030;DIGIT ZERO;Nd;0;EN;;0;0;0;N;;;;;
 0041;LATIN CAPITAL LETTER A;Lu;0;L;;;;;N;;;;0061;
 0061;LATIN SMALL LETTER A;Ll;0;L;;;;;N;;;0041;;0041
+00A0;NO-BREAK SPACE;Zs;0;CS;<noBreak> 0020;;;;N;NON-BREAKING SPACE;;;;
+00AD;SOFT HYPHEN;Cf;0;BN;;;;;N;;;;;
 00B2;SUPERSCRIPT TWO;No;0;EN;<super> 0032;;2;2;N;SUPERSCRIPT DIGIT TWO;;;;
 00DF;LATIN SMALL LETTER SHARP S;Ll;0;L;;;;;N;;;;;
 0130;LATIN CAPITAL LETTER I WITH DOT ABOVE;Lu;0;L;0049 0307;;;;N;LATIN CAPITAL LETTER I DOT;;;0069;
 01C6;LATIN SMALL LETTER DZ WITH CARON;Ll;0;L;<compat> 0064 017E;;;;N;LATIN SMALL LETTER D Z HACEK;;01C4;;01C5
+0301;COMBINING ACUTE ACCENT;Mn;230;NSM;;;;;N;NON-SPACING ACUTE;;;;
 03A3;GREEK CAPITAL LETTER SIGMA;Lu;0;L;;;;;N;;;;03C3;
 2160;ROMAN NUMERAL ONE;Nl;0;L;<compat> 0049;;;1;N;;;;2170;
 3400;<CJK Ideograph Extension A, First>;Lo;0;L;;;;;N;;;;;
 4DBF;<CJK Ideograph Extension A, Last>;Lo;0;L;;;;;N;;;;;
+D800;<Non Private Use High Surrogate, First>;Cs;0;L;;;;;N;;;;;
+DB7F;<Non Private Use High Surrogate, Last>;Cs;0;L;;;;;N;;;;;
+E000;<Private Use, First>;Co;0;L;;;;;N;;;;;
+F8FF;<Private Use, Last>;Co;0;L;;;;;N;;;;;
+1F642;SLIGHTLY SMILING FACE;So;0;ON;;;;;N;;;;;
 EOF
 cat > "$work/ucd/SpecialCasing.txt" <<'EOF'
 # SpecialCasing-17.0.0.txt
@@ -77,11 +87,14 @@ main :: () -> s32 {
        !Check(7838, 0, fold[:]) || !Check(304, 0, dotted[:]) ||
        !Check(304, 1, dotted[:]) || !Check(931, 1, sigma[:]) { return 1 }
     if D.Mapping(97, 1) != "" || D.Mapping(0, 0) != "" { return 2 }
-    if D.Property(28) != 2 || D.Property(178) != 1 || D.Property(8544) != 1 ||
-       D.Property(837) != 12 || D.Property(65) != 5 { return 3 }
-    if D.Property(48) != 17 { return 5 }
-    if D.Property(13312) != 1 || D.Property(19898) != 1 || D.Property(19903) != 1 ||
+    if D.Property(28) != 2 || D.Property(178) != 33 || D.Property(8544) != 33 ||
+       D.Property(837) != 12 || D.Property(65) != 37 { return 3 }
+    if D.Property(48) != 49 { return 5 }
+    if D.Property(13312) != 33 || D.Property(19898) != 33 || D.Property(19903) != 33 ||
        D.Property(13311) != 0 || D.Property(19904) != 0 || D.Property(1114112) != 0 { return 4 }
+    if D.Property(32) != 34 || D.Property(33) != 32 || D.Property(769) != 40 ||
+       D.Property(128578) != 32 || D.Property(160) != 2 || D.Property(173) != 0 ||
+       D.Property(55296) != 0 || D.Property(57344) != 0 || D.Property(888) != 0 { return 6 }
     return 0
 }
 EOF

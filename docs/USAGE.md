@@ -868,6 +868,9 @@ rest, as Python's `str.capitalize` does. `IsWord(codepoint: u32) -> bool`
 matches Python Unicode regex `\w`; `IsDecimal(codepoint: u32) -> bool`
 matches `\d` using only General_Category Nd. `IsSpace(codepoint: u32) -> bool` and
 `IsWhitespace(text: string) -> bool` use Python's Unicode whitespace rules.
+`IsPrintable(codepoint: u32) -> bool` accepts Unicode L/M/N/P/S categories
+and ASCII space, excluding other separators, controls, format characters,
+private-use and unassigned values under Unicode 17.0.
 `SplitWhitespace(text: string) -> Vec(string)` collapses those whitespace runs
 and omits empty fields, like `str.split()` without a separator. Its pieces
 borrow the input. All operations run unchanged on C, Go and the portable VM,
@@ -888,6 +891,13 @@ requires destination bytes not to overlap the source, and stops without
 splitting a source sequence or replacement when capacity runs out. Its result
 reports the written byte count and whether all input was consumed; embedded
 NUL remains data.
+
+`DecodeReplace(source: []u8) -> string` returns independently stored valid
+UTF-8 with Python `errors='replace'` consumption: one replacement for each
+maximal valid prefix of a malformed sequence. Thus `E2 82` becomes one U+FFFD
+and `E1 80 41` becomes U+FFFD + `A`; forbidden prefixes such as `ED A0 80`
+produce three replacements. It preserves valid UTF-8 and embedded NUL.
+`Decode` and `Copy` keep their documented consume-one-lead-byte behavior.
 
 ### Generic values
 

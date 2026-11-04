@@ -1,6 +1,8 @@
 // Advance one Unicode scalar in an immutable UTF-8 string. An invalid byte
 // advances by one so callers always make progress and never split a valid
 // multibyte sequence.
+using Vectors :: #import "std/vec";
+
 Continuation :: (byte: u8) -> bool {
     return byte >= cast(u8)128 && byte <= cast(u8)191
 }
@@ -137,4 +139,40 @@ Copy :: (source: []u8, destination: []u8) -> CopyResult {
     }
     result.complete = true
     return result
+}
+
+// Decode a whole byte string with Python UTF-8 errors='replace' consumption:
+// replace each maximal valid prefix of an ill-formed sequence once. A valid
+// but truncated E2 82 is one replacement; forbidden ED A0 80 is three. The
+// result has independent immutable storage and is always valid UTF-8.
+// Decode and Copy retain their consume-one-malformed-lead contracts.
+DecodeReplace :: (source: []u8) -> string {
+    output: Vec(u8)
+    at: s64 = 0
+    while at < source.count {
+        first := source[at]
+        length: s64 = 1
+        if first >= 194 && first <= 223 { length = 2 }
+        else if first >= 224 && first <= 239 { length = 3 }
+        else if first >= 240 && first <= 244 { length = 4 }
+        consumed: s64 = 1
+        if length > 1 {
+            while consumed < length && at + consumed < source.count {
+                part := source[at + consumed]
+                if !Continuation(part) { break }
+                // Restrict the second byte before consuming it: overlong,
+                // surrogate and out-of-range prefixes are invalid at byte 2.
+                if consumed == 1 && ((first == 224 && part < 160) ||
+                   (first == 237 && part >= 160) || (first == 240 && part < 144) ||
+                   (first == 244 && part >= 144)) { break }
+                consumed += 1
+            }
+        }
+        if first < 128 || (length > 1 && consumed == length) {
+            index: s64 = 0
+            while index < consumed { VecPush(output, source[at + index]); index += 1 }
+        } else { BuilderAppend(output, "�") }
+        at += consumed
+    }
+    return BuilderFinish(output)
 }

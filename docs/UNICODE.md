@@ -12,6 +12,7 @@ Lower :: (text: string) -> string
 Capitalize :: (text: string) -> string
 IsWord :: (codepoint: u32) -> bool
 IsDecimal :: (codepoint: u32) -> bool
+IsPrintable :: (codepoint: u32) -> bool
 IsSpace :: (codepoint: u32) -> bool
 IsWhitespace :: (text: string) -> bool
 SplitWhitespace :: (text: string) -> Vec(string)
@@ -46,6 +47,22 @@ other connector punctuation, join controls and emoji do not qualify.
 `IsDecimal` matches Python Unicode regex `\d`: only General_Category Nd.
 ASCII, Arabic-Indic, fullwidth and mathematical decimal digits qualify;
 superscript digits, fractions and Roman numerals do not.
+
+`IsPrintable` uses Python's printability rule with the pinned Unicode 17.0.0
+database: categories L (letter), M (mark), N (number), P (punctuation) and
+S (symbol), plus ASCII U+0020 space. It preserves combining marks and emoji.
+Other Z (separator) and all C (other) categories are excluded, including NBSP,
+soft hyphen, zero-width joiner, bidi controls, line/paragraph separators,
+private-use, unassigned values, noncharacters and surrogates. Values above
+U+10FFFF return false. This is a text property, independent of font support.
+Python versions with older Unicode assignments can differ; equivalence to
+their historical assigned-character repertoire is not claimed.
+
+A consumer that filters text and applies a length limit should test
+`IsPrintable` first and count retained Unicode scalars. For example, `é🙂x`
+with limit 2 produces `é🙂`; removing U+200D and U+00A0 from `a\u200db\u00a0c` produces
+`abc`; `a` + U+0301 with limit 1 produces `a`. Byte lengths and grapheme
+counts give different results. The focused suite tests this composition.
 
 `IsSpace` matches Python `str.isspace` and Unicode regex `\s`: general category
 Zs or bidirectional class WS, B or S. This includes U+001C through U+001F in
@@ -104,12 +121,26 @@ build-queue -- sh tests/unicode_data.sh build/bin/ziran
 
 The Unicode suite executes source and saved IR on native C, Go, the portable
 VM (`zi2zx-vm`) and the native bundle runner, comparing source/saved bundles.
-It covers every changed fold/lower/title mapping and every word/space range's
-endpoints (7,347 generated assertions), plus contextual sigma, combining and
-titlecase expansions, supplementary scalars, splitting, malformed UTF-8,
+It covers every changed fold/lower/title mapping and every word, space, decimal
+and printability range's endpoints (8,323 generated assertions), plus contextual
+sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,
 embedded NUL and result lifetimes. The generator suite uses small official-format
 fixtures without downloads. With `ZIRAN_UNICODE_UCD=build/unicode-ucd`, it also
 regenerates both canonical outputs and compares them byte for byte.
+
+`std/utf8.DecodeReplace(source: []u8) -> string` is a separate whole-input
+UTF-8 replacement decoder. It substitutes U+FFFD once per maximal valid prefix
+of an ill-formed sequence, as Python UTF-8 decoding with `errors='replace'`
+does. A truncated `E2 82` or `F0 9F 92` yields one replacement; `E1 80 41`
+yields replacement + `A`. Invalid starts or forbidden second bytes are
+replaced separately: `C0 AF` yields two replacements, `ED A0 80` and
+`E0 80 80` yield three, and `F4 90 80 80` yields four. The immutable result
+has independent storage, is always valid UTF-8, and preserves valid scalars
+and embedded NUL. This does not alter the existing `Decode` or bounded `Copy`
+one-malformed-lead-byte contracts. Run `build-queue -- sh tests/std_utf8.sh
+build/bin/ziran` and `build-queue -- sh tests/utf8_copy_valid.sh
+build/bin/ziran` for the new replacement matrix and the original repair-copy
+regression suite.
 
 Mapping semantics follow [Unicode SpecialCasing](https://www.unicode.org/Public/17.0.0/ucd/SpecialCasing.txt)
 and [CaseFolding](https://www.unicode.org/Public/17.0.0/ucd/CaseFolding.txt).

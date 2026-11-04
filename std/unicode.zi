@@ -85,7 +85,16 @@ IsWord :: (codepoint: u32) -> bool {
 }
 
 // Python Unicode regex \d: decimal digits, General_Category Nd only.
-IsDecimal :: (codepoint: u32) -> bool { return (D.Property(codepoint) & 16) != 0 }
+IsDecimal :: (codepoint: u32) -> bool {
+    return (D.Property(codepoint) & 16) != 0
+}
+
+// Python-style printability at Unicode 17.0: L/M/N/P/S categories and ASCII
+// space. All other separators, controls, formats, private-use and unassigned
+// characters are excluded. This describes text, not font glyph availability.
+IsPrintable :: (codepoint: u32) -> bool {
+    return (D.Property(codepoint) & 32) != 0
+}
 
 // Python str.isspace / regex \s, including U+001C..U+001F.
 IsSpace :: (codepoint: u32) -> bool { return (D.Property(codepoint) & 2) != 0 }

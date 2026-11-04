@@ -843,6 +843,21 @@ target's native `Map(K, V)` from `std/map_go` is separate and keeps its
 matching over immutable UTF-8 strings. Non-ASCII bytes compare unchanged. These
 functions use only portable Ziran operations, so the same source builds for C,
 Go, and `.zx`. Add `--module-path std` when importing it from an app.
+
+For full Unicode behavior, import `std/unicode`. `CaseFold(text: string)`,
+`Lower(text: string)` and `Capitalize(text: string)` return strings using
+Unicode 17.0 full default mappings, including expansions and contextual Greek
+final sigma. Capitalization titlecases the first scalar and lowercases the
+rest, as Python's `str.capitalize` does. `IsWord(codepoint: u32) -> bool`
+matches Python Unicode regex `\w`; `IsDecimal(codepoint: u32) -> bool`
+matches `\d` using only General_Category Nd. `IsSpace(codepoint: u32) -> bool` and
+`IsWhitespace(text: string) -> bool` use Python's Unicode whitespace rules.
+`SplitWhitespace(text: string) -> Vec(string)` collapses those whitespace runs
+and omits empty fields, like `str.split()` without a separator. Its pieces
+borrow the input. All operations run unchanged on C, Go and the portable VM,
+without a host Unicode library. See [Unicode](UNICODE.md) for exact semantics,
+the native table generator and conformance tests.
+
 `std/string_range.zi` provides `Substring(source, start, length)` over borrowed
 bytes, using Ziran's checked `source[low:high]` string range syntax. Choose
 UTF-8 codepoint boundaries when the result must remain valid text.

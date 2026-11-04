@@ -1,0 +1,60 @@
+U :: #import "std/unicode";
+using Vectors :: #import "std/vec";
+
+SelfTest :: () -> s32 {
+    if U.CaseFold("Straße") != "strasse" || U.CaseFold("STRASSE") != "strasse" { return 1 }
+    if U.CaseFold("Σσς") != "σσσ" || U.Lower("Σσς") != "σσς" { return 2 }
+    if U.Lower("ΟΣ") != "ος" || U.Lower("ΟΣΑ") != "οσα" || U.Lower("Σ") != "σ" { return 3 }
+    if U.Lower("AΣ\xcc\x81") != "aς\xcc\x81" || U.Lower("AΣ\xcc\x81B") != "aσ\xcc\x81b" { return 4 }
+    if U.Lower("A'Σ!") != "a'ς!" || U.Lower("A.Σ") != "a.ς" || U.Lower("A Σ") != "a σ" { return 5 }
+    // U+0345 is both Cased and Case_Ignorable; skip it in sigma context.
+    if U.Lower("Σ\xcd\x85") != "σ\xcd\x85" || U.Lower("AΣ\xcd\x85") != "aς\xcd\x85" { return 6 }
+    if U.Lower("İIı") != "i\xcc\x87iı" || U.CaseFold("İIı") != "i\xcc\x87iı" { return 7 }
+    if U.CaseFold("ﬃﬀﬂſKµẞ") != "ffiffflskμss" || U.Lower("ﬃẞ") != "ﬃß" { return 8 }
+    if U.Capitalize("ﬃABC") != "Ffiabc" || U.Capitalize("ßABC") != "Ssabc" { return 9 }
+    if U.Capitalize("ǆABC") != "ǅabc" || U.Capitalize("ǅABC") != "ǅabc" { return 10 }
+    if U.Capitalize("ǰABC") != "J\xcc\x8cabc" || U.Capitalize("ΐABC") != "Ι\xcc\x88\xcc\x81abc" { return 11 }
+    if U.Capitalize("\xcc\x81ABC") != "\xcc\x81abc" || U.Capitalize("1ABC") != "1abc" { return 12 }
+    if U.Capitalize("ΟΣ") != "Ος" || U.Capitalize("AΣΑ") != "Aσα" { return 13 }
+    if U.Lower("𐐀𐐧") != "𐐨𐑏" || U.Capitalize("𐐨ABC") != "𐐀abc" { return 14 }
+    if U.CaseFold("a\x00B") != "a\x00b" || U.Capitalize("\x00ABC") != "\x00abc" { return 15 }
+    if U.CaseFold("") != "" || U.Lower("") != "" || U.Capitalize("") != "" { return 16 }
+    if !U.IsWord(95) || !U.IsWord(233) || !U.IsWord(20013) || !U.IsWord(1633) ||
+       !U.IsWord(178) || !U.IsWord(8531) || !U.IsWord(66369) { return 17 }
+    if U.IsWord(769) || U.IsWord(8255) || U.IsWord(8204) || U.IsWord(128578) ||
+       U.IsWord(55296) || U.IsWord(1114112) || U.IsWord(cast(u32)0xffffffff) { return 18 }
+    if !U.IsDecimal(48) || !U.IsDecimal(1633) || !U.IsDecimal(65296) || !U.IsDecimal(120792) { return 27 }
+    if U.IsDecimal(178) || U.IsDecimal(8544) || U.IsDecimal(95) || U.IsDecimal(55296) ||
+       U.IsDecimal(1114112) || U.IsDecimal(cast(u32)0xffffffff) { return 28 }
+    spaces: [29]u32 = .[9, 10, 11, 12, 13, 28, 29, 30, 31, 32, 133, 160, 5760,
+        8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202,
+        8232, 8233, 8239, 8287, 12288]
+    for point: spaces { if !U.IsSpace(point) { return 19 } }
+    if U.IsSpace(0) || U.IsSpace(6158) || U.IsSpace(8203) || U.IsSpace(65279) || U.IsSpace(1114112) { return 20 }
+    if !U.IsWhitespace("\t\x1c \xc2\x85\xe1\x9a\x80\xe2\x80\xa8\xe3\x80\x80") ||
+       U.IsWhitespace("") || U.IsWhitespace(" a") || U.IsWhitespace("\x00") { return 21 }
+    parts := U.SplitWhitespace("\xe3\x80\x80Straße\xc2\xa0中\xe2\x80\xa8a\x00b\x1c\t")
+    if parts.count != 3 || parts[0] != "Straße" || parts[1] != "中" || parts[2] != "a\x00b" { return 22 }
+    empty := U.SplitWhitespace(""); blank := U.SplitWhitespace(" \t\xc2\xa0")
+    whole := U.SplitWhitespace("a\xe2\x80\x8bb")
+    if empty.count != 0 || blank.count != 0 || whole.count != 1 || whole[0] != "a\xe2\x80\x8bb" { return 23 }
+    // Runtime strings may contain malformed bytes. Follow utf8.Decode's
+    // replacement-per-lead-byte rule; never lose a following valid scalar.
+    malformed: [4]u8 = .[255, 65, 194, 32]
+    wire := TextView(malformed[:])
+    if U.Lower(wire) != "�a� " || U.CaseFold(wire) != "�a� " || U.Capitalize(wire) != "�a� " { return 24 }
+    if U.IsWhitespace(wire) { return 25 }
+    // Returned strings own their bytes, including across later transformations.
+    kept := U.CaseFold("Straßeİﬃ")
+    churn := U.Capitalize("OTHER")
+    if churn != "Other" { return 26 }
+    if kept != "strassei\xcc\x87ffi" { return 26 }
+    return 42
+}
+
+#program_export
+NativeMain :: () -> s32 {
+    result := SelfTest()
+    if result != 42 { print("Unicode fixture failed at %\n", result); return result }
+    return 0
+}

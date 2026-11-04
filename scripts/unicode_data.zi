@@ -1,0 +1,336 @@
+#!/usr/bin/env -S ziran run --target=c
+// Generate portable Unicode 17.0.0 tables from the official UCD directory.
+// No Python, host Unicode libraries, network access or locale dependencies.
+// Usage: ziran run --target=c scripts/unicode_data.zi -- UCD_DIR OUTPUT.zi [TEST.zi]
+#import "std/file"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec";
+
+#scope_file
+Entry :: struct { lower: string; title: string; fold: string; flags: s32; }
+
+Stored :: (text: string) -> string {
+    if text == "" { return "" }
+    bytes: Vec(u8)
+    BuilderAppend(bytes, text)
+    return BuilderFinish(bytes)
+}
+
+Hex :: (text: string) -> s32 {
+    value: s32 = 0
+    for byte: text {
+        digit: s32 = -1
+        if byte >= #char "0" && byte <= #char "9" { digit = cast(s32)byte - 48 }
+        if byte >= #char "A" && byte <= #char "F" { digit = cast(s32)byte - 55 }
+        if digit < 0 { return -1 }
+        value = value * 16 + digit
+    }
+    return ifx text.count == 0 then -1 else value
+}
+
+Fields :: (line: string) -> Vec(string) {
+    comment := TextFind(line, "#")
+    if comment >= 0 { line = line[0:comment] }
+    parts := TextSplit(line, ";")
+    index: s64 = 0
+    while index < parts.count { parts[index] = TextTrim(parts[index]); index += 1 }
+    return parts
+}
+
+Path :: (directory: string, name: string) -> string {
+    result: Vec(u8)
+    BuilderAppend(result, directory); BuilderAppend(result, "/"); BuilderAppend(result, name)
+    return BuilderFinish(result)
+}
+
+Load :: (directory: string, name: string) -> string {
+    text, ok := ReadEntireFile(Path(directory, name))
+    if !ok { print("cannot read %\n", name); return "" }
+    return text
+}
+
+ReadUnicode :: (entries: *Vec(Entry), text: string) -> bool {
+    first: s32 = -1
+    lines := TextLines(text)
+    for line: VecSlice(lines, 0, lines.count) {
+        fields := Fields(line)
+        if fields.count < 15 { return false }
+        point := Hex(fields[0])
+        if point < 0 || point > 1114111 { return false }
+        flags: s32
+        category := fields[2]
+        if TextHasPrefix(category, "L") || fields[6] != "" || fields[7] != "" || fields[8] != "" { flags |= 1 }
+        if category == "Nd" { flags |= 16 }
+        bidi := fields[4]
+        if category == "Zs" || bidi == "WS" || bidi == "B" || bidi == "S" { flags |= 2 }
+        if TextHasSuffix(fields[1], ", First>") { first = point; continue }
+        start := point
+        if TextHasSuffix(fields[1], ", Last>") {
+            if first < 0 { return false }
+            start = first; first = -1
+        }
+        while start <= point {
+            entries.*[start].flags = flags
+            entries.*[start].lower = Stored(fields[13])
+            entries.*[start].title = Stored(fields[14])
+            if fields[14] == "" { entries.*[start].title = Stored(fields[12]) }
+            start += 1
+        }
+    }
+    return first == -1
+}
+
+ReadSpecial :: (entries: *Vec(Entry), text: string) -> bool {
+    lines := TextLines(text)
+    for line: VecSlice(lines, 0, lines.count) {
+        fields := Fields(line)
+        if fields[0] == "" { continue }
+        if fields.count < 5 { return false }
+        condition := fields[4]
+        if condition != "" {
+            if condition == "Final_Sigma" || TextHasPrefix(condition, "tr") ||
+               TextHasPrefix(condition, "az") || TextHasPrefix(condition, "lt") { continue }
+            return false
+        }
+        point := Hex(fields[0])
+        if point < 0 || point > 1114111 { return false }
+        entries.*[point].lower = Stored(fields[1])
+        entries.*[point].title = Stored(fields[2])
+    }
+    return true
+}
+
+ReadFold :: (entries: *Vec(Entry), text: string) -> bool {
+    lines := TextLines(text)
+    for line: VecSlice(lines, 0, lines.count) {
+        fields := Fields(line)
+        if fields[0] == "" { continue }
+        if fields.count < 3 { return false }
+        if fields[1] != "C" && fields[1] != "F" { continue }
+        point := Hex(fields[0])
+        if point < 0 || point > 1114111 { return false }
+        entries.*[point].fold = Stored(fields[2])
+    }
+    return true
+}
+
+ReadProperties :: (entries: *Vec(Entry), text: string) -> bool {
+    lines := TextLines(text)
+    for line: VecSlice(lines, 0, lines.count) {
+        fields := Fields(line)
+        if fields[0] == "" { continue }
+        if fields.count < 2 { return false }
+        flag: s32
+        if fields[1] == "Cased" { flag = 4 }
+        if fields[1] == "Case_Ignorable" { flag = 8 }
+        if flag == 0 { continue }
+        bounds := TextSplit(fields[0], "..")
+        start := Hex(bounds[0]); end := Hex(bounds[bounds.count - 1])
+        if start < 0 || end < start || end > 1114111 { return false }
+        while start <= end { entries.*[start].flags |= flag; start += 1 }
+    }
+    return true
+}
+
+Byte :: (output: *Vec(u8), value: s32) {
+    digits := "0123456789abcdef"
+    BuilderAppend(<<output, "\\x")
+    VecPush(<<output, digits[(value >> 4) & 15]); VecPush(<<output, digits[value & 15])
+}
+Point :: (output: *Vec(u8), point: s32) {
+    Byte(output, point & 127); Byte(output, (point >> 7) & 127); Byte(output, point >> 14)
+}
+
+// Fixed records use ASCII base-128 digits, keeping literals valid UTF-8.
+EmitMappings :: (output: *Vec(u8), entries: []Entry, name: string, mode: s32) -> bool {
+    BuilderPrint(output, "% :: (index: s32) -> string {\n    if index == {\n", name)
+    count: s32
+    point: s32
+    while point <= 1114111 {
+        value := entries[point].fold
+        if mode == 1 { value = entries[point].lower }
+        if mode == 2 { value = entries[point].title }
+        if value != "" {
+            parts := TextSplit(value, " ")
+            if parts.count > 3 { return false }
+            if parts.count != 1 || Hex(parts[0]) != point {
+                if count % 32 == 0 { BuilderPrint(output, "        case %; return \"", count / 32) }
+                Point(output, point); Byte(output, cast(s32)parts.count)
+                index: s64 = 0
+                while index < 3 {
+                    target: s32
+                    if index < parts.count {
+                        target = Hex(parts[index])
+                        if target < 0 || target > 1114111 { return false }
+                    }
+                    Point(output, target); index += 1
+                }
+                count += 1
+                if count % 32 == 0 { BuilderAppend(<<output, "\"\n") }
+            }
+        }
+        point += 1
+    }
+    if count % 32 != 0 { BuilderAppend(<<output, "\"\n") }
+    BuilderPrint(output, "    }\n    return \"\"\n}\n%Count :: %;\n", name, count)
+    return true
+}
+
+EmitProperties :: (output: *Vec(u8), entries: *Vec(Entry)) {
+    BuilderAppend(<<output, "Properties :: (index: s32) -> string {\n    if index == {\n")
+    count: s32
+    point: s32
+    while point <= 1114111 {
+        flags := entries.*[point].flags
+        end := point
+        while end < 1114111 && entries.*[end + 1].flags == flags { end += 1 }
+        if flags != 0 {
+            if count % 64 == 0 { BuilderPrint(output, "        case %; return \"", count / 64) }
+            Point(output, point); Point(output, end); Byte(output, flags)
+            count += 1
+            if count % 64 == 0 { BuilderAppend(<<output, "\"\n") }
+        }
+        point = end + 1
+    }
+    if count % 64 != 0 { BuilderAppend(<<output, "\"\n") }
+    BuilderPrint(output, "    }\n    return \"\"\n}\nPropertiesCount :: %;\n", count)
+}
+
+// Expected results are emitted as UTF-8 literals, independently of the packed
+// base-128 lookup format used by the implementation.
+ScalarLiteral :: (output: *Vec(u8), point: s32) {
+    if point < 128 { Byte(output, point) }
+    else if point < 2048 {
+        Byte(output, 192 + point / 64); Byte(output, 128 + point % 64)
+    } else if point < 65536 {
+        Byte(output, 224 + point / 4096); Byte(output, 128 + (point / 64) % 64); Byte(output, 128 + point % 64)
+    } else {
+        Byte(output, 240 + point / 262144); Byte(output, 128 + (point / 4096) % 64)
+        Byte(output, 128 + (point / 64) % 64); Byte(output, 128 + point % 64)
+    }
+}
+
+BeginCase :: (output: *Vec(u8), count: s32) {
+    if count % 32 == 0 { BuilderPrint(output, "Cases% :: () -> bool {\n", count / 32) }
+}
+EndCase :: (output: *Vec(u8), count: s32) {
+    if count % 32 == 0 { BuilderAppend(<<output, "    return true\n}\n") }
+}
+PropertyCase :: (output: *Vec(u8), point: s32, flags: s32, count: s32) {
+    BeginCase(output, count)
+    BuilderPrint(output, "    if U.IsWord(%) != % || U.IsSpace(%) != % || U.IsDecimal(%) != % { return false }\n",
+        point, (flags & 1) != 0 || point == 95, point, (flags & 2) != 0, point, (flags & 16) != 0)
+    EndCase(output, count + 1)
+}
+
+EmitTests :: (entries: []Entry, path: string) -> bool {
+    output: Vec(u8)
+    BuilderAppend(output, "// Generated Unicode 17.0.0 case mappings and property boundaries.\n// Unicode License V3; see LICENSE-Unicode.\nU :: #import \"std/unicode\";\n")
+    count: s32
+    for mode: 0..2 {
+        for point: 0..cast(s32)1114111 {
+            value := entries[point].fold
+            name := "CaseFold"
+            if mode == 1 { value = entries[point].lower; name = "Lower" }
+            if mode == 2 { value = entries[point].title; name = "Capitalize" }
+            if value == "" { continue }
+            parts := TextSplit(value, " ")
+            if parts.count == 1 && Hex(parts[0]) == point { continue }
+            BeginCase(*output, count)
+            BuilderPrint(*output, "    if U.%(\"", name)
+            ScalarLiteral(*output, point)
+            BuilderAppend(output, "\") != \"")
+            for part: VecSlice(parts, 0, parts.count) { ScalarLiteral(*output, Hex(part)) }
+            BuilderAppend(output, "\" { return false }\n")
+            count += 1; EndCase(*output, count)
+        }
+    }
+    // Probe both sides of every boundary, plus the interior endpoints. The
+    // focused fixture covers underscore, invalid scalars and full contexts.
+    point: s32
+    while point <= 1114111 {
+        flags := entries[point].flags & 19
+        end := point
+        while end < 1114111 && (entries[end + 1].flags & 19) == flags { end += 1 }
+        PropertyCase(*output, point, flags, count); count += 1
+        if end != point { PropertyCase(*output, end, flags, count); count += 1 }
+        point = end + 1
+    }
+    if count % 32 != 0 { BuilderAppend(output, "    return true\n}\n") }
+    BuilderAppend(output, "#program_export\nNativeMain :: () -> s32 {\n")
+    index: s32
+    while index < (count + 31) / 32 {
+        BuilderPrint(*output, "    if !Cases%() { return % }\n", index, index + 1)
+        index += 1
+    }
+    BuilderAppend(output, "    return 0\n}\n")
+    print("Generated % Unicode conformance assertions\n", count)
+    return WriteEntireFile(path, BuilderFinish(output))
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 3 && argc != 4 { print("usage: unicode_data UCD_DIR OUTPUT.zi [TEST.zi]\n"); return 2 }
+    directory := TextFromCString(argv[1])
+    unicode := Load(directory, "UnicodeData.txt")
+    special := Load(directory, "SpecialCasing.txt")
+    fold := Load(directory, "CaseFolding.txt")
+    properties := Load(directory, "DerivedCoreProperties.txt")
+    if unicode == "" || !TextHasPrefix(special, "# SpecialCasing-17.0.0.txt") ||
+       !TextHasPrefix(fold, "# CaseFolding-17.0.0.txt") ||
+       !TextHasPrefix(properties, "# DerivedCoreProperties-17.0.0.txt") { print("expected Unicode 17.0.0 UCD\n"); return 1 }
+    entries: Vec(Entry)
+    index: s32
+    while index <= 1114111 { entry: Entry; VecPush(entries, entry); index += 1 }
+    if !ReadUnicode(*entries, unicode) || !ReadSpecial(*entries, special) ||
+       !ReadFold(*entries, fold) || !ReadProperties(*entries, properties) { print("invalid UCD input\n"); return 1 }
+    output: Vec(u8)
+    BuilderAppend(output, "// Generated by scripts/unicode_data.zi from Unicode 17.0.0 UCD.\n// Copyright Unicode, Inc. Unicode License V3; see LICENSE-Unicode.\n// https://www.unicode.org/Public/17.0.0/ucd/\n#scope_file\n")
+    if !EmitMappings(*output, VecSlice(entries, 0, entries.count), "Fold", 0) || !EmitMappings(*output, VecSlice(entries, 0, entries.count), "Lower", 1) ||
+       !EmitMappings(*output, VecSlice(entries, 0, entries.count), "Title", 2) { print("invalid case mapping\n"); return 1 }
+    EmitProperties(*output, *entries)
+    BuilderAppend(output, Runtime)
+    if !WriteEntireFile(TextFromCString(argv[2]), BuilderFinish(output)) { return 1 }
+    if argc == 4 && !EmitTests(VecSlice(entries, 0, entries.count), TextFromCString(argv[3])) { return 1 }
+    return 0
+}
+
+#scope_file
+Runtime :: #string END
+#scope_export
+Point :: (data: string, at: s32) -> u32 {
+    return cast(u32)data[at] | (cast(u32)data[at + 1] << 7) | (cast(u32)data[at + 2] << 14)
+}
+Mapping :: (point: u32, mode: s32) -> string {
+    low: s32 = 0
+    high: s32 = cast(s32)FoldCount
+    if mode == 1 { high = cast(s32)LowerCount }
+    if mode == 2 { high = cast(s32)TitleCount }
+    while low < high {
+        middle := low + (high - low) / 2
+        data := Fold(middle / 32)
+        if mode == 1 { data = Lower(middle / 32) }
+        if mode == 2 { data = Title(middle / 32) }
+        at := (middle % 32) * 13
+        found := Point(data, at)
+        if found == point { return data[at:at + 13] }
+        if found < point { low = middle + 1 } else { high = middle }
+    }
+    return ""
+}
+Property :: (point: u32) -> s32 {
+    low: s32 = 0
+    high: s32 = cast(s32)PropertiesCount
+    while low < high {
+        middle := low + (high - low) / 2
+        data := Properties(middle / 64)
+        at := (middle % 64) * 7
+        if point < Point(data, at) { high = middle }
+        else if point > Point(data, at + 3) { low = middle + 1 }
+        else { return cast(s32)data[at + 6] }
+    }
+    return 0
+}
+END;

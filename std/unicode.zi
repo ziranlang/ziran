@@ -1,0 +1,125 @@
+// Locale-independent Unicode 17.0 text operations. No host Unicode library.
+U :: #import "std/utf8";
+D :: #import "unicode_data";
+using Vectors :: #import "std/vec";
+
+#scope_file
+AppendScalar :: (output: *Vec(u8), point: u32) {
+    if point < 128 { VecPush(<<output, cast(u8)point) }
+    else if point < 2048 {
+        VecPush(<<output, cast(u8)(192 | (point >> 6)))
+        VecPush(<<output, cast(u8)(128 | (point & 63)))
+    } else if point < 65536 {
+        VecPush(<<output, cast(u8)(224 | (point >> 12)))
+        VecPush(<<output, cast(u8)(128 | ((point >> 6) & 63)))
+        VecPush(<<output, cast(u8)(128 | (point & 63)))
+    } else {
+        VecPush(<<output, cast(u8)(240 | (point >> 18)))
+        VecPush(<<output, cast(u8)(128 | ((point >> 12) & 63)))
+        VecPush(<<output, cast(u8)(128 | ((point >> 6) & 63)))
+        VecPush(<<output, cast(u8)(128 | (point & 63)))
+    }
+}
+
+AppendMapping :: (output: *Vec(u8), point: u32, mode: s32) {
+    record := D.Mapping(point, mode)
+    if record.count == 0 { AppendScalar(output, point); return }
+    count := cast(s32)record[3]
+    index: s32 = 0
+    while index < count {
+        AppendScalar(output, D.Point(record, 4 + index * 3))
+        index += 1
+    }
+}
+
+// Ignore Case_Ignorable characters before testing Cased, including characters
+// that have both properties. Context is always the original input string.
+FollowedByCased :: (text: string, at: s64) -> bool {
+    while at < text.count {
+        end := at + 4
+        if end > text.count { end = text.count }
+        point := U.Decode(text[at:end], 0)
+        flags := D.Property(point.value)
+        if (flags & 8) == 0 { return (flags & 4) != 0 }
+        at += point.after
+    }
+    return false
+}
+
+Transform :: (text: string, mode: s32) -> string {
+    output: Vec(u8)
+    at: s64 = 0
+    preceded: bool
+    while at < text.count {
+        end := at + 4
+        if end > text.count { end = text.count }
+        decoded := U.Decode(text[at:end], 0)
+        point := decoded.value
+        after := at + decoded.after
+        selected := mode
+        // Capitalize titlecases only the first scalar, even if it is uncased.
+        if mode == 2 && at != 0 { selected = 1 }
+        if selected == 1 && point == cast(u32)931 && preceded && !FollowedByCased(text, after) {
+            AppendScalar(*output, 962)
+        } else { AppendMapping(*output, point, selected) }
+        flags := D.Property(point)
+        if (flags & 8) == 0 { preceded = (flags & 4) != 0 }
+        at = after
+    }
+    return BuilderFinish(output)
+}
+
+#scope_export
+// Full default (non-Turkic) case folding, including multi-scalar expansions.
+CaseFold :: (text: string) -> string { return Transform(text, 0) }
+
+// Full default lowercase, including the contextual Greek final sigma rule.
+Lower :: (text: string) -> string { return Transform(text, 1) }
+
+// Python str.capitalize: titlecase the first scalar, lowercase the remainder.
+Capitalize :: (text: string) -> string { return Transform(text, 2) }
+
+// Python Unicode regex \w: letters, numeric characters, and underscore.
+IsWord :: (codepoint: u32) -> bool {
+    return codepoint == cast(u32)95 || (D.Property(codepoint) & 1) != 0
+}
+
+// Python Unicode regex \d: decimal digits, General_Category Nd only.
+IsDecimal :: (codepoint: u32) -> bool { return (D.Property(codepoint) & 16) != 0 }
+
+// Python str.isspace / regex \s, including U+001C..U+001F.
+IsSpace :: (codepoint: u32) -> bool { return (D.Property(codepoint) & 2) != 0 }
+
+// Python str.isspace: empty text is false. Invalid UTF-8 is not whitespace.
+IsWhitespace :: (text: string) -> bool {
+    if text.count == 0 { return false }
+    at: s64 = 0
+    while at < text.count {
+        end := at + 4
+        if end > text.count { end = text.count }
+        point := U.Decode(text[at:end], 0)
+        if !point.valid || !IsSpace(point.value) { return false }
+        at += point.after
+    }
+    return true
+}
+
+// Python str.split() without a separator: collapse whitespace runs and omit
+// empty pieces. Returned pieces borrow text; keep its storage alive.
+SplitWhitespace :: (text: string) -> Vec(string) {
+    pieces: Vec(string)
+    at: s64 = 0
+    start: s64 = 0
+    active: bool
+    while at < text.count {
+        end := at + 4
+        if end > text.count { end = text.count }
+        point := U.Decode(text[at:end], 0)
+        if IsSpace(point.value) {
+            if active { VecPush(pieces, text[start:at]); active = false }
+        } else if !active { start = at; active = true }
+        at += point.after
+    }
+    if active { VecPush(pieces, text[start:text.count]) }
+    return pieces
+}

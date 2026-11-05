@@ -24,6 +24,9 @@
 - Package overrides selecting one locked revision now share its dependency graph
   across older transitive revisions, including newly added dependencies.
 
+- Without a project, `std/NAME` always loads the standard library's module, even
+  when a search path or the importing package has its own module named NAME.
+
 - Portable programs use prepared function and global indices for calls and reads, reducing repeated-call execution time.
 ### Added
 - Owned vectors support fallible reserve, resize and capacity-bounded resize with

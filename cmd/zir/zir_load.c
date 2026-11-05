@@ -436,6 +436,84 @@ path_within(const char *path, const char *directory)
            (path[length] == '/' || directory[length - 1] == '/');
 }
 
+/* Search path I holds the standard library: it is --module-path std=DIR,
+ * or a directory named std with text.zi, as the toolchain's own is found. */
+static int
+standard_search_path(const LoadContext *context, int i)
+{
+    const char *directory = context->module_paths[i];
+    const char *base = strrchr(directory, '/');
+    char probe[ZIR_PATH_MAX * 2];
+    struct stat info;
+    if(context->module_path_names[i] != NULL)
+        return strcmp(context->module_path_names[i], "std") == 0;
+    return base != NULL && strcmp(base + 1, "std") == 0 &&
+           snprintf(probe, sizeof(probe), "%s/text.zi", directory) <
+               (int)sizeof(probe) &&
+           stat(probe, &info) == 0 && S_ISREG(info.st_mode);
+}
+
+static const char *
+canonical_standard_directory(void)
+{
+    static int resolved;
+    static char *directory;
+    if(!resolved && ToolchainStandardDirectory() != NULL)
+        directory = CanonicalPath(ToolchainStandardDirectory());
+    resolved = 1;
+    return directory;
+}
+
+/* PATH, a canonical source path, is part of a standard library. */
+static int
+standard_source(const LoadContext *context, const char *path)
+{
+    const char *standard = canonical_standard_directory();
+    for(int i = 0; i < context->module_path_count; i++)
+        if(standard_search_path(context, i) &&
+           path_within(path, context->module_paths[i]))
+            return 1;
+    return standard != NULL && path_within(path, standard);
+}
+
+/* The file try_module would load for TARGET in DIRECTORY, into PATH. */
+static int
+module_candidate(const char *directory, const char *target, char *path,
+                 size_t size)
+{
+    static const char *const suffixes[] = {".zi", ".zir", "/module.zi"};
+    struct stat info;
+    for(size_t i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); i++)
+        if(snprintf(path, size, "%s/%s%s", directory, target, suffixes[i]) <
+               (int)size &&
+           stat(path, &info) == 0 && S_ISREG(info.st_mode))
+            return 1;
+    return 0;
+}
+
+/* The canonical path of the loaded module named, or stored as, TARGET. */
+static const char *
+loaded_module_path(const ProgramSet *set, const char *target)
+{
+    for(int i = 0; i < set->count; i++)
+        for(int m = 0; m < set->programs[i]->module_count; m++) {
+            const ZirModule *module = &set->programs[i]->modules[m];
+            char stem[ZIR_PATH_MAX];
+            size_t length;
+            if(strcmp(module->name, target) == 0)
+                return set->paths[i];
+            if(snprintf(stem, sizeof(stem), "%s", module->source_path) >=
+               (int)sizeof(stem))
+                continue;
+            length = strlen(stem);
+            if(length > 3 && strcmp(stem + length - 3, ".zi") == 0)
+                stem[length - 3] = '\0';
+            if(strcmp(stem, target) == 0)
+                return set->paths[i];
+        }
+    return NULL;
+}
+
 /* An input outside the root but inside a module path gets that module
  * path as its root, so passing a module by file names it the same way as
  * importing it: c_string, not its absolute location. */
@@ -531,6 +609,106 @@ typedef struct LoadImportBuffers {
 static int load_import(LoadContext *context, const char *owner_source,
             const char *owner_root, ZirImport *import);
 
+/* The first file a plain #import of NAME from OWNER_PATH finds, in the
+ * order the search below uses: the owner's directory, its root, the
+ * program root, then the unnamed search paths. */
+static const char *
+plain_candidate(const LoadContext *context, const char *owner_path,
+                const char *owner_root, const char *name,
+                LoadImportBuffers *buffers)
+{
+    const char *slash = strrchr(owner_path, '/');
+    char *path = buffers->mapped_path;
+    size_t size = sizeof(buffers->mapped_path);
+    if(slash != NULL &&
+       (size_t)(slash - owner_path) < sizeof(buffers->directory)) {
+        memcpy(buffers->directory, owner_path, (size_t)(slash - owner_path));
+        buffers->directory[slash - owner_path] = '\0';
+        if(module_candidate(buffers->directory, name, path, size))
+            return path;
+    }
+    if(module_candidate(owner_root, name, path, size) ||
+       module_candidate(context->root, name, path, size))
+        return path;
+    for(int i = 0; i < context->module_path_count; i++)
+        if(context->module_path_names[i] == NULL &&
+           module_candidate(context->module_paths[i], name, path, size))
+            return path;
+    return NULL;
+}
+
+/* Without a project, std/NAME (IMPORT's target, now NAME) loads the
+ * standard library's NAME: from --module-path std=DIR, a std search path,
+ * or the compiler's own. A plain NAME that names or finds another module,
+ * like a library's image.zi, keeps it; the standard module is then
+ * std_NAME, its identity in a project. Returns -1 when no standard library
+ * has NAME. */
+static int
+load_standard_import(LoadContext *context, const char *owner_path,
+                     const char *owner_root, ZirImport *import,
+                     LoadImportBuffers *buffers)
+{
+    ProgramSet *set = context->set;
+    const char *home = NULL;
+    char name[ZIR_NAME_MAX];
+    if(snprintf(name, sizeof(name), "%s", import->target) >= (int)sizeof(name))
+        return -1;
+    for(int pass = 0; home == NULL && pass < 2; pass++)
+        for(int i = 0; home == NULL && i < context->module_path_count; i++)
+            if((context->module_path_names[i] != NULL) == (pass == 0) &&
+               standard_search_path(context, i) &&
+               module_candidate(context->module_paths[i], name,
+                                buffers->candidate, sizeof(buffers->candidate)))
+                home = context->module_paths[i];
+    if(home == NULL && ToolchainStandardDirectory() != NULL &&
+       module_candidate(ToolchainStandardDirectory(), name, buffers->candidate,
+                        sizeof(buffers->candidate)))
+        home = ToolchainStandardDirectory();
+    if(home == NULL) return -1;
+    char *canonical = CanonicalPath(buffers->candidate);
+    if(canonical == NULL) return -1;
+    for(int i = 0; i < set->count; i++)
+        if(strcmp(set->paths[i], canonical) == 0) {
+            if(set->programs[i]->module_count == 1)
+                snprintf(import->target, sizeof(import->target), "%s",
+                         set->programs[i]->modules[0].name);
+            free(canonical);
+            return 1;
+        }
+    const char *claimer = loaded_module_path(set, name);
+    char *found = NULL;
+    if(claimer == NULL) {
+        const char *plain = plain_candidate(context, owner_path, owner_root,
+                                            name, buffers);
+        claimer = found = plain == NULL ? NULL : CanonicalPath(plain);
+    }
+    int claimed = claimer != NULL && strcmp(claimer, canonical) != 0 &&
+                  !standard_source(context, claimer);
+    free(found);
+    free(canonical);
+    if(!claimed) {
+        if(module_loaded(set, name)) return 1;
+        return try_module(context, home, home, name, 0) > 0;
+    }
+    char identity[ZIR_NAME_MAX];
+    if(snprintf(identity, sizeof(identity), "std_%s", name) >=
+       (int)sizeof(identity)) {
+        Diagnostic(import->span, "module.identity",
+                   "standard module identity is too long: std/%s", name);
+        return 0;
+    }
+    size_t length = strlen(buffers->candidate);
+    snprintf(buffers->module_root, sizeof(buffers->module_root), "%s", home);
+    if(length > 10 && strcmp(buffers->candidate + length - 10, "/module.zi") == 0)
+        snprintf(buffers->module_root, sizeof(buffers->module_root), "%.*s",
+                 (int)(length - 10), buffers->candidate);
+    if(!add_program_named(context, buffers->candidate, buffers->module_root,
+                          identity))
+        return 0;
+    snprintf(import->target, sizeof(import->target), "%s", identity);
+    return 1;
+}
+
 static int
 load_import_with_buffers(LoadContext *context, const char *owner_source,
             const char *owner_root, ZirImport *import, LoadImportBuffers *buffers)
@@ -575,11 +753,12 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
                                  mapped_name : NULL);
     }
     /* Without a project, PACKAGE/Module resolves through a named module
-     * path, --module-path PACKAGE=DIR, and std/NAME is the standard module
-     * NAME found on the module path. */
+     * path, --module-path PACKAGE=DIR, and std/NAME is the standard
+     * library's NAME (load_standard_import). */
+    int standard_import = 0;
+    int named = 0;
     if(!prefer_ir && strchr(target, '/') != NULL) {
         size_t prefix = (size_t)(strchr(target, '/') - target);
-        int named = 0;
         for(int i = 0; i < context->module_path_count; i++)
             if(context->module_path_names[i] != NULL &&
                strlen(context->module_path_names[i]) == prefix &&
@@ -596,7 +775,9 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         snprintf(package, sizeof(package), "%.*s", (int)prefix, target);
         memmove(import->target, target + prefix + 1,
                 strlen(target + prefix + 1) + 1);
-        if(named) {
+        standard_import = strcmp(package, "std") == 0 &&
+                          !package_scoped(context, package);
+        if(named && !standard_import) {
             char identity[ZIR_NAME_MAX];
             snprintf(identity, sizeof(identity), "%s", target);
             if(package_scoped(context, package) &&
@@ -636,6 +817,16 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
                          owner_root, SpanPath(import->span)) <
                 (int)sizeof(buffers->owner_file))
             owner_path = buffers->owner_file;
+    }
+    if(standard_import) {
+        int result = load_standard_import(context, owner_path, owner_root,
+                                          import, buffers);
+        if(result >= 0) return result;
+        if(named) {
+            Diagnostic(import->span, "module.not_found",
+                       "cannot find std/%s in --module-path std=DIR", target);
+            return 0;
+        }
     }
     const char *slash = strrchr(owner_path, '/');
     if(!prefer_ir && strncmp(import->signature, "dir:", 4) == 0) {

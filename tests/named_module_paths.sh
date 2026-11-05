@@ -81,3 +81,58 @@ case $message in
     *"--module-path lib=DIR"*) ;;
     *) echo "unexpected diagnostic: $message" >&2; exit 1 ;;
 esac
+
+# std/NAME is the standard library's NAME without a project, even when a
+# shared search path has its own image.zi or a named package imports it
+# beside its own image module. The plain import keeps the library's.
+standard=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)/std
+mkdir -p "$work/widgets" "$work/codec/src"
+cat > "$work/widgets/image.zi" <<'ZI'
+Image :: (size: s32) -> s32 { return size }
+ZI
+cat > "$work/codec/src/image.zi" <<'ZI'
+using Pixels :: #import "std/image"
+Decoded :: struct { box: Pixels.ImageColorBox }
+Decode :: (count: s64) -> Decoded {
+    result: Decoded
+    result.box.count = count
+    return result
+}
+ZI
+cat > "$work/codec/src/api.zi" <<'ZI'
+using Images :: #import "image"
+Width :: (count: s64) -> s32 { return cast(s32)Images.Decode(count).box.count }
+ZI
+cat > "$work/app/pictures.zi" <<'ZI'
+using Widgets :: #import "image"
+using Codec :: #import "codec/api"
+using Pixels :: #import "std/image"
+#program_export
+Answer :: () -> s32 {
+    box: Pixels.ImageColorBox
+    box.count = 2
+    return Widgets.Image(30) + Codec.Width(10) + cast(s32)box.count
+}
+ZI
+cat > "$work/app/pictures_first.zi" <<'ZI'
+using Pixels :: #import "std/image"
+using Widgets :: #import "image"
+#program_export
+Answer :: () -> s32 {
+    box: Pixels.ImageColorBox
+    box.start = 2
+    return Widgets.Image(40) + cast(s32)box.start
+}
+ZI
+for paths in "" "--module-path $standard"; do
+    # shellcheck disable=SC2086
+    "$ziran" bundle --root "$work/app" --module-path "$work/widgets" $paths \
+        --module-path "codec=$work/codec/src" --entry pictures:Answer \
+        -o "$work/pictures.zx" "$work/app/pictures.zi"
+    test "$("$ziran" run "$work/pictures.zx")" = 42
+    # shellcheck disable=SC2086
+    "$ziran" bundle --root "$work/app" --module-path "$work/widgets" $paths \
+        --entry pictures_first:Answer -o "$work/pictures-first.zx" \
+        "$work/app/pictures_first.zi"
+    test "$("$ziran" run "$work/pictures-first.zx")" = 42
+done

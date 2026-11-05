@@ -137,8 +137,11 @@ runs:
         work="$RUNNER_TEMP/ziran-prebuilt"
         rm -rf "$work"
         mkdir -p "$work"
-        if curl -fsSL --retry 3 --connect-timeout 10 --max-time 180 -o "$work/$ASSET" "$base/$ASSET" &&
-          curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 -o "$work/$ASSET.sha256" "$base/$ASSET.sha256" &&
+        # A just-published asset can answer 504 for a while, longer than
+        # curl's default 1+2+4 s of retries, so keep retrying for 2 minutes.
+        retry=(--retry 12 --retry-delay 10 --retry-max-time 120 --connect-timeout 10)
+        if curl -fsSL "${retry[@]}" --max-time 180 -o "$work/$ASSET" "$base/$ASSET" &&
+          curl -fsSL "${retry[@]}" --max-time 30 -o "$work/$ASSET.sha256" "$base/$ASSET.sha256" &&
           (cd "$work" && sha256sum --check --quiet "$ASSET.sha256") &&
           tar -xzf "$work/$ASSET" -C "$ROOT"; then
           echo "found=true" >> "$GITHUB_OUTPUT"

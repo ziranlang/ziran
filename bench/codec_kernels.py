@@ -302,17 +302,37 @@ def run_firefox_page(browser, profile, url, environment):
     with socket.socket() as reserve:
         reserve.bind(('127.0.0.1', 0))
         port = reserve.getsockname()[1]
-    (profile / 'user.js').write_text(f'user_pref("marionette.port", {port});\n'
-                                    'user_pref("gfx.webrender.software", true);\n'
-                                    'user_pref("browser.shell.checkDefaultBrowser", false);\n')
+    # A fresh profile otherwise opens first-run, privacy-notice and update
+    # pages from the network, and Marionette's NewSession waits for them.
+    prefs = {'marionette.port': port, 'gfx.webrender.software': True,
+             'browser.shell.checkDefaultBrowser': False, 'browser.startup.page': 0,
+             'browser.startup.homepage_override.mstone': 'ignore', 'startup.homepage_welcome_url': 'about:blank',
+             'startup.homepage_welcome_url.additional': '', 'browser.aboutwelcome.enabled': False,
+             'datareporting.policy.dataSubmissionEnabled': False,
+             'datareporting.policy.dataSubmissionPolicyBypassNotification': True,
+             'toolkit.telemetry.reportingpolicy.firstRun': False, 'app.update.disabledForTesting': True,
+             'browser.safebrowsing.malware.enabled': False, 'browser.safebrowsing.phishing.enabled': False,
+             'browser.safebrowsing.downloads.enabled': False, 'network.captive-portal-service.enabled': False,
+             'network.connectivity-service.enabled': False, 'extensions.update.enabled': False,
+             'browser.newtabpage.enabled': False, 'toolkit.startup.max_resumed_crashes': -1}
+    (profile / 'user.js').write_text(''.join(f'user_pref({json.dumps(name)}, {json.dumps(value)});\n'
+                                             for name, value in prefs.items()))
     environment = environment | {'MOZ_HEADLESS': '1', 'LIBGL_ALWAYS_SOFTWARE': '1', 'YUE_DESKTOP_RECOVERY': '0'}
     command = [browser, '--headless', '--marionette', '--no-remote', '--profile', str(profile), 'about:blank']
     write_json(profile / 'command.json', dict(argv=command, environment_overrides={key: environment[key]
                for key in ['TMPDIR', 'XDG_RUNTIME_DIR', 'MOZ_HEADLESS', 'LIBGL_ALWAYS_SOFTWARE', 'YUE_DESKTOP_RECOVERY']}))
     with (profile / 'stderr.log').open('wb') as log:
         child = subprocess.Popen(command, env=environment, stdout=log, stderr=log, start_new_session=True)
+        def stderr_tail():
+            log.flush()
+            with (profile / 'stderr.log').open('rb') as stream:
+                stream.seek(0, os.SEEK_END)
+                stream.seek(max(0, stream.tell() - 2048))
+                return stream.read().decode(errors='replace').strip() or '(empty)'
+
         try:
-            deadline = time.monotonic() + 35
+            started = time.monotonic()
+            deadline = started + 60
             connection = None
             while time.monotonic() < deadline and child.poll() is None:
                 try:
@@ -321,7 +341,7 @@ def run_firefox_page(browser, profile, url, environment):
                 except OSError:
                     time.sleep(.1)
             if connection is None:
-                raise RuntimeError(f'private Firefox startup failed (exit {child.poll()}); see {profile}/stderr.log')
+                raise RuntimeError(f'private Firefox startup failed (exit {child.poll()}); stderr: {stderr_tail()}')
             with connection:
                 connection.settimeout(10)
                 receive(connection)
@@ -332,7 +352,14 @@ def run_firefox_page(browser, profile, url, environment):
                     sequence += 1
                     payload = json.dumps([0, sequence, method, parameters]).encode()
                     connection.sendall(str(len(payload)).encode() + b':' + payload)
-                    reply = receive(connection)
+                    # A cold browser on a loaded machine can take longer than
+                    # one fixed reply window; the whole run keeps its deadline.
+                    connection.settimeout(max(1.0, deadline - time.monotonic()))
+                    try:
+                        reply = receive(connection)
+                    except TimeoutError:
+                        raise RuntimeError(f'Firefox {method} timed out {time.monotonic() - started:.1f}s after launch; '
+                                           f'stderr: {stderr_tail()}') from None
                     if reply[1] != sequence or reply[2] is not None:
                         raise RuntimeError(f'Firefox {method}: {reply}')
                     return reply[3]
